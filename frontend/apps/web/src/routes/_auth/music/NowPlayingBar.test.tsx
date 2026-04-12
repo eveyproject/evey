@@ -3,8 +3,23 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+const nowPlayingMockLibrariesHook = vi.fn(() => ({ data: { libraries: [] }, isLoading: false }));
+const nowPlayingMockTracksHook = vi.fn(() => ({ data: { tracks: [], total: 0 } }));
+const nowPlayingMockAlbumsHook = vi.fn(() => ({ data: { albums: [] } }));
+const nowPlayingMockArtistsHook = vi.fn(() => ({ data: { artists: [] } }));
+
+function applyNowPlayingSelect<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { select?: (d: T) => unknown } }) {
+  const select = opts?.query?.select;
+  return { ...raw, data: raw?.data !== undefined && select ? select(raw.data) : raw?.data };
+}
+
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
+  useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => applyNowPlayingSelect(nowPlayingMockLibrariesHook(), opts),
+  useMusicServiceListTracks: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applyNowPlayingSelect(nowPlayingMockTracksHook(), opts),
+  useMusicServiceGetAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applyNowPlayingSelect(nowPlayingMockAlbumsHook(), opts),
+  useMusicServiceGetArtists: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applyNowPlayingSelect(nowPlayingMockArtistsHook(), opts),
+  musicServiceDeleteTrack: vi.fn(),
 }));
 
 vi.mock("@evey/store", () => ({
@@ -64,19 +79,16 @@ const mockTracks = [
   },
 ];
 
-function makeEveyFetchMock() {
-  return ({ url }: { url: string }) => {
-    if (url.includes("/api/v1/libraries")) return Promise.resolve({ libraries: mockLibraries });
-    if (url.includes("/tracks")) return Promise.resolve({ tracks: mockTracks, total: 2 });
-    if (url.includes("/albums")) return Promise.resolve({ albums: [] });
-    if (url.includes("/artists")) return Promise.resolve({ artists: [] });
-    return Promise.resolve({});
-  };
-}
-
 async function renderMusicPageWithTrackPlaying() {
-  const { eveyFetch } = await import("@evey/api");
-  vi.mocked(eveyFetch).mockImplementation(makeEveyFetchMock());
+  nowPlayingMockLibrariesHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
+  const protoTracks = mockTracks.map((t) => ({
+    id: t.ID, title: t.Title, artist: t.Artist, album: t.Album, albumArtist: t.AlbumArtist,
+    year: t.Year, trackNumber: t.TrackNumber, diskNumber: t.DiskNumber, duration: t.Duration,
+    filePath: t.FilePath, mimeType: t.MimeType, genre: t.Genre, coverArtUrl: t.CoverArtURL,
+  }));
+  nowPlayingMockTracksHook.mockReturnValue({ data: { tracks: protoTracks, total: 2 } });
+  nowPlayingMockAlbumsHook.mockReturnValue({ data: { albums: [] } });
+  nowPlayingMockArtistsHook.mockReturnValue({ data: { artists: [] } });
 
   const mod = await import("./index.lazy");
   const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;

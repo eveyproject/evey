@@ -3,19 +3,30 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+const libsHook = vi.fn(() => ({ data: { libraries: [] }, isLoading: false }));
+const albumsHook = vi.fn(() => ({ data: { albums: [] }, isLoading: false }));
+const photosListHook = vi.fn(() => ({ data: { photos: [], total: 0 }, isLoading: false }));
+
+function sel<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { select?: (d: T) => unknown } }) {
+  const s = opts?.query?.select;
+  return { ...raw, data: raw?.data !== undefined && s ? s(raw.data) : raw?.data };
+}
+
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (def: { component: React.ComponentType }) => def,
 }));
 
-vi.mock("@evey/api", () => ({ eveyFetch: vi.fn() }));
+vi.mock("@evey/api", () => ({
+  eveyFetch: vi.fn(),
+  useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => sel(libsHook(), opts),
+  usePhotoServiceListPhotoAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(albumsHook(), opts),
+  usePhotoServiceListPhotos: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photosListHook(), opts),
+  photoServiceDeletePhoto: vi.fn(),
+}));
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   useAuthStore: vi.fn(() => false),
 }));
-vi.mock("@tanstack/react-query", async (importActual) => {
-  const actual = await importActual<typeof import("@tanstack/react-query")>();
-  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
-});
 vi.mock("lucide-react", () => ({
   Images: () => React.createElement("span", null, "icon"),
   ChevronLeft: () => React.createElement("span"),
@@ -33,23 +44,16 @@ function createWrapper() {
     React.createElement(QueryClientProvider, { client: qc }, children);
 }
 
-async function setupQuery(overrides: Record<string, unknown> = {}) {
-  const rq = await import("@tanstack/react-query");
-  vi.spyOn(rq, "useQuery").mockImplementation(({ queryKey }: { queryKey: readonly unknown[] }) => {
-    const [k0, k1] = queryKey as string[];
-    if (k0 === "libraries" && k1 === "photos") return { data: overrides.libraries ?? [], isLoading: false } as never;
-    if (k0 === "photos" && k1 === "albums") return { data: overrides.albums ?? [], isLoading: false } as never;
-    if (k0 === "photos" && k1 === "list") return { data: overrides.photos ?? { photos: [], total: 0 }, isLoading: false } as never;
-    return { data: undefined, isLoading: false } as never;
-  });
-}
-
 describe("PhotosPage", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    libsHook.mockReturnValue({ data: { libraries: [] }, isLoading: false });
+    albumsHook.mockReturnValue({ data: { albums: [] }, isLoading: false });
+    photosListHook.mockReturnValue({ data: { photos: [], total: 0 }, isLoading: false });
+  });
 
   it("shows loading skeleton when libraries loading", async () => {
-    const rq = await import("@tanstack/react-query");
-    vi.spyOn(rq, "useQuery").mockReturnValue({ data: undefined, isLoading: true } as never);
+    libsHook.mockReturnValue({ data: undefined, isLoading: true });
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(PhotosPage), { wrapper: createWrapper() });
@@ -57,7 +61,7 @@ describe("PhotosPage", () => {
   });
 
   it("shows empty state when no libraries", async () => {
-    await setupQuery({ libraries: [] });
+    libsHook.mockReturnValue({ data: { libraries: [] }, isLoading: false });
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(PhotosPage), { wrapper: createWrapper() });
@@ -65,10 +69,8 @@ describe("PhotosPage", () => {
   });
 
   it("shows albums view by default when library selected", async () => {
-    await setupQuery({
-      libraries: [{ id: "lib1", name: "My Photos" }],
-      albums: [{ Name: "Vacation", LibraryID: "lib1", PhotoCount: 5, CoverPhotoID: "" }],
-    });
+    libsHook.mockReturnValue({ data: { libraries: [{ id: "lib1", name: "My Photos", type: "LIBRARY_TYPE_PHOTOS" }] }, isLoading: false });
+    albumsHook.mockReturnValue({ data: { albums: [{ name: "Vacation", libraryId: "lib1", photoCount: 5, coverPhotoId: "" }] }, isLoading: false });
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(PhotosPage), { wrapper: createWrapper() });

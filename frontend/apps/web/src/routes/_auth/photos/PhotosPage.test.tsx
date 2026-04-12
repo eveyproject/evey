@@ -3,8 +3,21 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+const photoLibsHook = vi.fn(() => ({ data: { libraries: [] }, isLoading: false }));
+const photoAlbumsHook = vi.fn(() => ({ data: { albums: [] } }));
+const photoListHook = vi.fn(() => ({ data: { photos: [], total: 0 } }));
+
+function sel<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { select?: (d: T) => unknown } }) {
+  const s = opts?.query?.select;
+  return { ...raw, data: raw?.data !== undefined && s ? s(raw.data) : raw?.data };
+}
+
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
+  useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoLibsHook(), opts),
+  usePhotoServiceListPhotoAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoAlbumsHook(), opts),
+  usePhotoServiceListPhotos: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(photoListHook(), opts),
+  photoServiceDeletePhoto: vi.fn(),
 }));
 
 // Stub router so createLazyFileRoute doesn't fail
@@ -33,8 +46,7 @@ describe("PhotosPage", () => {
   });
 
   it("renders empty state when no photo libraries", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValue({ libraries: [] });
+    photoLibsHook.mockReturnValue({ data: { libraries: [] }, isLoading: false });
 
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -47,13 +59,10 @@ describe("PhotosPage", () => {
   });
 
   it("renders Photos heading and Albums/All Photos tabs when library exists", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockImplementation(({ url }: { url: string }) => {
-      if (url.includes("/api/v1/libraries")) return Promise.resolve({ libraries: mockLibraries });
-      if (url.includes("/albums")) return Promise.resolve({ albums: mockAlbums });
-      if (url.includes("/api/v1/photos")) return Promise.resolve({ photos: mockPhotos, total: 2 });
-      return Promise.resolve({});
-    });
+    
+    photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
+    photoAlbumsHook.mockReturnValue({ data: { albums: mockAlbums.map((a) => ({ name: a.Name, libraryId: a.LibraryID, photoCount: a.PhotoCount, coverPhotoId: a.CoverPhotoID })) } });
+    photoListHook.mockReturnValue({ data: { photos: mockPhotos.map((p) => ({ id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath, fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height, album: p.Album, createdAt: p.CreatedAt })), total: 2 } });
 
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -68,13 +77,10 @@ describe("PhotosPage", () => {
   });
 
   it("clicking All Photos shows photo grid", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockImplementation(({ url }: { url: string }) => {
-      if (url.includes("/api/v1/libraries")) return Promise.resolve({ libraries: mockLibraries });
-      if (url.includes("/albums")) return Promise.resolve({ albums: mockAlbums });
-      if (url.includes("/api/v1/photos")) return Promise.resolve({ photos: mockPhotos, total: 2 });
-      return Promise.resolve({});
-    });
+    
+    photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
+    photoAlbumsHook.mockReturnValue({ data: { albums: mockAlbums.map((a) => ({ name: a.Name, libraryId: a.LibraryID, photoCount: a.PhotoCount, coverPhotoId: a.CoverPhotoID })) } });
+    photoListHook.mockReturnValue({ data: { photos: mockPhotos.map((p) => ({ id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath, fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height, album: p.Album, createdAt: p.CreatedAt })), total: 2 } });
 
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -92,13 +98,10 @@ describe("PhotosPage", () => {
   });
 
   it("clicking a photo opens lightbox overlay", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockImplementation(({ url }: { url: string }) => {
-      if (url.includes("/api/v1/libraries")) return Promise.resolve({ libraries: mockLibraries });
-      if (url.includes("/albums")) return Promise.resolve({ albums: mockAlbums });
-      if (url.includes("/api/v1/photos")) return Promise.resolve({ photos: mockPhotos, total: 2 });
-      return Promise.resolve({});
-    });
+    
+    photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
+    photoAlbumsHook.mockReturnValue({ data: { albums: mockAlbums.map((a) => ({ name: a.Name, libraryId: a.LibraryID, photoCount: a.PhotoCount, coverPhotoId: a.CoverPhotoID })) } });
+    photoListHook.mockReturnValue({ data: { photos: mockPhotos.map((p) => ({ id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath, fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height, album: p.Album, createdAt: p.CreatedAt })), total: 2 } });
 
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -119,13 +122,10 @@ describe("PhotosPage", () => {
   });
 
   it("lightbox close button dismisses overlay", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockImplementation(({ url }: { url: string }) => {
-      if (url.includes("/api/v1/libraries")) return Promise.resolve({ libraries: mockLibraries });
-      if (url.includes("/albums")) return Promise.resolve({ albums: mockAlbums });
-      if (url.includes("/api/v1/photos")) return Promise.resolve({ photos: mockPhotos, total: 2 });
-      return Promise.resolve({});
-    });
+    
+    photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
+    photoAlbumsHook.mockReturnValue({ data: { albums: mockAlbums.map((a) => ({ name: a.Name, libraryId: a.LibraryID, photoCount: a.PhotoCount, coverPhotoId: a.CoverPhotoID })) } });
+    photoListHook.mockReturnValue({ data: { photos: mockPhotos.map((p) => ({ id: p.ID, libraryId: p.LibraryID, title: p.Title, filePath: p.FilePath, fileSize: String(p.FileSize), mimeType: p.MimeType, width: p.Width, height: p.Height, album: p.Album, createdAt: p.CreatedAt })), total: 2 } });
 
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -146,13 +146,10 @@ describe("PhotosPage", () => {
   });
 
   it("shows empty photo grid message when photos array is empty", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockImplementation(({ url }: { url: string }) => {
-      if (url.includes("/api/v1/libraries")) return Promise.resolve({ libraries: mockLibraries });
-      if (url.includes("/albums")) return Promise.resolve({ albums: [] });
-      if (url.includes("/api/v1/photos")) return Promise.resolve({ photos: [], total: 0 });
-      return Promise.resolve({});
-    });
+    
+    photoLibsHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
+    photoAlbumsHook.mockReturnValue({ data: { albums: [] } });
+    photoListHook.mockReturnValue({ data: { photos: [], total: 0 } });
 
     const mod = await import("./index.lazy");
     const PhotosPage = (mod.Route as unknown as { component: React.ComponentType }).component;

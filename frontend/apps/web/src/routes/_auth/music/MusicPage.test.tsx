@@ -3,8 +3,23 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+const mockLibrariesHook = vi.fn(() => ({ data: { libraries: [] }, isLoading: false }));
+const mockTracksHook = vi.fn(() => ({ data: { tracks: [], total: 0 } }));
+const mockAlbumsHook = vi.fn(() => ({ data: { albums: [] } }));
+const mockArtistsHook = vi.fn(() => ({ data: { artists: [] } }));
+
+function applySelect<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { select?: (d: T) => unknown } }) {
+  const select = opts?.query?.select;
+  return { ...raw, data: raw?.data !== undefined && select ? select(raw.data) : raw?.data };
+}
+
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
+  useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockLibrariesHook(), opts),
+  useMusicServiceListTracks: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockTracksHook(), opts),
+  useMusicServiceGetAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockAlbumsHook(), opts),
+  useMusicServiceGetArtists: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockArtistsHook(), opts),
+  musicServiceDeleteTrack: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -41,14 +56,17 @@ const manyTracks = Array.from({ length: 51 }, (_, i) => ({
   CoverArtURL: "",
 }));
 
-function makeEveyFetchMock(tracks: typeof mockTracks, total: number) {
-  return ({ url }: { url: string }) => {
-    if (url.includes("/api/v1/libraries")) return Promise.resolve({ libraries: mockLibraries });
-    if (url.includes("/tracks")) return Promise.resolve({ tracks, total, limit: 50, offset: 0 });
-    if (url.includes("/albums")) return Promise.resolve({ albums: [] });
-    if (url.includes("/artists")) return Promise.resolve({ artists: [] });
-    return Promise.resolve({});
-  };
+function setupMocks(tracks: typeof mockTracks, total: number) {
+  mockLibrariesHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
+  // convert PascalCase test tracks to camelCase proto
+  const protoTracks = tracks.map((t) => ({
+    id: t.ID, title: t.Title, artist: t.Artist, album: t.Album, albumArtist: t.AlbumArtist,
+    year: t.Year, trackNumber: t.TrackNumber, diskNumber: t.DiskNumber, duration: t.Duration,
+    filePath: t.FilePath, mimeType: t.MimeType, genre: t.Genre, coverArtUrl: t.CoverArtURL,
+  }));
+  mockTracksHook.mockReturnValue({ data: { tracks: protoTracks, total } });
+  mockAlbumsHook.mockReturnValue({ data: { albums: [] } });
+  mockArtistsHook.mockReturnValue({ data: { artists: [] } });
 }
 
 describe("MusicPage", () => {
@@ -57,8 +75,8 @@ describe("MusicPage", () => {
   });
 
   it("shows no libraries message when no music library exists", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValue({ libraries: [] });
+    
+    mockLibrariesHook.mockReturnValue({ data: { libraries: [] }, isLoading: false });
 
     const mod = await import("./index.lazy");
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -71,8 +89,8 @@ describe("MusicPage", () => {
   });
 
   it("renders Music heading and track list", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockImplementation(makeEveyFetchMock(mockTracks, 2));
+    
+    setupMocks(mockTracks, 2);
 
     const mod = await import("./index.lazy");
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -89,8 +107,8 @@ describe("MusicPage", () => {
   });
 
   it("search input updates value immediately", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockImplementation(makeEveyFetchMock(mockTracks, 2));
+    
+    setupMocks(mockTracks, 2);
 
     const mod = await import("./index.lazy");
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -106,8 +124,8 @@ describe("MusicPage", () => {
   });
 
   it("pagination Previous is disabled on first page", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockImplementation(makeEveyFetchMock(manyTracks, 51));
+    
+    setupMocks(manyTracks, 51);
 
     const mod = await import("./index.lazy");
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -121,8 +139,8 @@ describe("MusicPage", () => {
   });
 
   it("clicking Next navigates to page 2 and Previous becomes enabled", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockImplementation(makeEveyFetchMock(manyTracks, 51));
+    
+    setupMocks(manyTracks, 51);
 
     const mod = await import("./index.lazy");
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -141,14 +159,9 @@ describe("MusicPage", () => {
   });
 
   it("tab navigation switches to Albums tab", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockImplementation(({ url }: { url: string }) => {
-      if (url.includes("/api/v1/libraries")) return Promise.resolve({ libraries: mockLibraries });
-      if (url.includes("/tracks")) return Promise.resolve({ tracks: mockTracks, total: 2, limit: 50, offset: 0 });
-      if (url.includes("/albums")) return Promise.resolve({ albums: [{ ID: "a1", Title: "Summer", Artist: "Band A", Year: 2020, CoverArtURL: "", TrackCount: 10, Duration: 3600 }] });
-      if (url.includes("/artists")) return Promise.resolve({ artists: [] });
-      return Promise.resolve({});
-    });
+    
+    setupMocks(mockTracks, 2);
+    mockAlbumsHook.mockReturnValue({ data: { albums: [{ id: "a1", title: "Summer", artist: "Band A", year: 2020, coverArtUrl: "", trackCount: 10, duration: 3600 }] } });
 
     const mod = await import("./index.lazy");
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;

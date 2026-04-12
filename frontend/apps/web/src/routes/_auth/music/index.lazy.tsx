@@ -1,8 +1,14 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useLibraryServiceListLibraries,
+  useMusicServiceListTracks,
+  useMusicServiceGetAlbums,
+  useMusicServiceGetArtists,
+  musicServiceDeleteTrack,
+} from "@evey/api";
 import { toast, useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, Trash2 } from "lucide-react";
@@ -90,54 +96,78 @@ function TrackArt({ trackID, size = 36 }: { trackID: string; size?: number }) {
 }
 
 function useMusicLibraries() {
-  return useQuery({
-    queryKey: ["libraries", "music"],
-    queryFn: () => eveyFetch<{ libraries: LibraryItem[] }>({ url: "/api/v1/libraries", method: "GET" }),
-    select: (d) => (d.libraries ?? []).filter((l) => l.type === "LIBRARY_TYPE_MUSIC"),
-    staleTime: 60_000,
+  return useLibraryServiceListLibraries({
+    query: {
+      select: (d) => (d.libraries ?? []).filter((l) => l.type === "LIBRARY_TYPE_MUSIC").map<LibraryItem>((l) => ({ id: l.id ?? "", name: l.name ?? "", type: l.type ?? "" })),
+      staleTime: 60_000,
+    },
   });
 }
 
 function useMusicTracks(libraryID: string | undefined, search: string) {
-  return useQuery({
-    queryKey: ["music", "tracks", libraryID, search],
-    queryFn: () =>
-      eveyFetch<{ tracks: Track[]; total: number }>({
-        url: `/api/v1/music/tracks?library_id=${libraryID}&limit=200${search ? `&search=${encodeURIComponent(search)}` : ""}`,
-        method: "GET",
-      }),
-    enabled: !!libraryID,
-    select: (d) => d.tracks ?? [],
-    staleTime: 60_000,
-  });
+  return useMusicServiceListTracks(
+    { libraryId: libraryID, limit: 200, search: search || undefined },
+    {
+      query: {
+        enabled: !!libraryID,
+        select: (d) => (d.tracks ?? []).map<Track>((t) => ({
+          ID: t.id ?? "",
+          Title: t.title ?? "",
+          Artist: t.artist ?? "",
+          Album: t.album ?? "",
+          AlbumArtist: t.albumArtist ?? "",
+          Year: t.year ?? 0,
+          TrackNumber: t.trackNumber ?? 0,
+          DiskNumber: t.diskNumber ?? 0,
+          Duration: t.duration ?? 0,
+          FilePath: t.filePath ?? "",
+          MimeType: t.mimeType ?? "",
+          Genre: t.genre ?? "",
+          CoverArtURL: t.coverArtUrl ?? "",
+        })),
+        staleTime: 60_000,
+      },
+    },
+  );
 }
 
 function useMusicAlbums(libraryID: string | undefined) {
-  return useQuery({
-    queryKey: ["music", "albums", libraryID],
-    queryFn: () =>
-      eveyFetch<{ albums: Album[] }>({
-        url: `/api/v1/music/albums?library_id=${libraryID}`,
-        method: "GET",
-      }),
-    enabled: !!libraryID,
-    select: (d) => d.albums ?? [],
-    staleTime: 60_000,
-  });
+  return useMusicServiceGetAlbums(
+    { libraryId: libraryID },
+    {
+      query: {
+        enabled: !!libraryID,
+        select: (d) => (d.albums ?? []).map<Album>((a) => ({
+          ID: a.id ?? "",
+          Title: a.title ?? "",
+          Artist: a.artist ?? "",
+          Year: a.year ?? 0,
+          CoverArtURL: a.coverArtUrl ?? "",
+          TrackCount: a.trackCount ?? 0,
+          Duration: a.duration ?? 0,
+        })),
+        staleTime: 60_000,
+      },
+    },
+  );
 }
 
 function useMusicArtists(libraryID: string | undefined) {
-  return useQuery({
-    queryKey: ["music", "artists", libraryID],
-    queryFn: () =>
-      eveyFetch<{ artists: Artist[] }>({
-        url: `/api/v1/music/artists?library_id=${libraryID}`,
-        method: "GET",
-      }),
-    enabled: !!libraryID,
-    select: (d) => d.artists ?? [],
-    staleTime: 60_000,
-  });
+  return useMusicServiceGetArtists(
+    { libraryId: libraryID },
+    {
+      query: {
+        enabled: !!libraryID,
+        select: (d) => (d.artists ?? []).map<Artist>((a) => ({
+          ID: a.id ?? "",
+          Name: a.name ?? "",
+          TrackCount: a.trackCount ?? 0,
+          AlbumCount: a.albumCount ?? 0,
+        })),
+        staleTime: 60_000,
+      },
+    },
+  );
 }
 
 type Tab = "tracks" | "albums" | "artists";
@@ -333,7 +363,7 @@ function MusicPage() {
   }
 
   const deleteTrackMutation = useMutation({
-    mutationFn: (id: string) => eveyFetch({ url: `/api/v1/music/tracks/${id}`, method: "DELETE" }),
+    mutationFn: (id: string) => musicServiceDeleteTrack(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["music", "tracks"] });
       toast.success(t("media.music.trackDeleted"));

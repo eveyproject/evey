@@ -3,8 +3,24 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+const mockLibrariesHook = vi.fn(() => ({ data: { libraries: [] }, isLoading: false }));
+const mockTracksHook = vi.fn(() => ({ data: { tracks: [], total: 0 } }));
+const mockAlbumsHook = vi.fn(() => ({ data: { albums: [] } }));
+const mockArtistsHook = vi.fn(() => ({ data: { artists: [] } }));
+const mockTracksParams = vi.fn();
+
+function applySelect<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { select?: (d: T) => unknown } }) {
+  const select = opts?.query?.select;
+  return { ...raw, data: raw?.data !== undefined && select ? select(raw.data) : raw?.data };
+}
+
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
+  useLibraryServiceListLibraries: (opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockLibrariesHook(), opts),
+  useMusicServiceListTracks: (p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => { mockTracksParams(p); return applySelect(mockTracksHook(), opts); },
+  useMusicServiceGetAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockAlbumsHook(), opts),
+  useMusicServiceGetArtists: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockArtistsHook(), opts),
+  musicServiceDeleteTrack: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -19,19 +35,13 @@ vi.mock("@evey/store", () => ({
 }));
 
 const mockLibraries = [{ id: "lib1", name: "My Music", type: "LIBRARY_TYPE_MUSIC" }];
+const protoTracks = [{ id: "t1", title: "Blue Sky", artist: "Band A", album: "Summer", albumArtist: "Band A", year: 2020, trackNumber: 1, diskNumber: 1, duration: 180, filePath: "/t/1", mimeType: "audio/flac", genre: "Rock", coverArtUrl: "" }];
 
-const mockTracks = [
-  { ID: "t1", Title: "Blue Sky", Artist: "Band A", Album: "Summer", AlbumArtist: "Band A", Year: 2020, TrackNumber: 1, DiskNumber: 1, Duration: 180, FilePath: "/t/1", MimeType: "audio/flac", Genre: "Rock", CoverArtURL: "" },
-];
-
-function makeEveyFetchMock(tracks: typeof mockTracks, total: number) {
-  return ({ url }: { url: string }) => {
-    if (url.includes("/api/v1/libraries")) return Promise.resolve({ libraries: mockLibraries });
-    if (url.includes("/tracks")) return Promise.resolve({ tracks, total, limit: 200, offset: 0 });
-    if (url.includes("/albums")) return Promise.resolve({ albums: [] });
-    if (url.includes("/artists")) return Promise.resolve({ artists: [] });
-    return Promise.resolve({});
-  };
+function setup(tracks = protoTracks, total = 1) {
+  mockLibrariesHook.mockReturnValue({ data: { libraries: mockLibraries }, isLoading: false });
+  mockTracksHook.mockReturnValue({ data: { tracks, total } });
+  mockAlbumsHook.mockReturnValue({ data: { albums: [] } });
+  mockArtistsHook.mockReturnValue({ data: { artists: [] } });
 }
 
 function createWrapper() {
@@ -46,83 +56,51 @@ describe("MusicPage search", () => {
     mockUseAuthStore.mockImplementation((s: (state: { isAdmin: boolean }) => unknown) => s({ isAdmin: false }));
   });
 
-  it("calls tracks API with search param after typing in search input", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    const mockFetch = vi.mocked(eveyFetch);
-    mockFetch.mockImplementation(makeEveyFetchMock(mockTracks, 1));
-
+  it("passes search param to tracks hook after typing in search input", async () => {
+    setup();
     const mod = await import("./index.lazy");
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
-
     render(React.createElement(MusicPage), { wrapper: createWrapper() });
 
     await waitFor(() => expect(screen.getByPlaceholderText(/Search tracks/i)).toBeInTheDocument());
-
-    const input = screen.getByPlaceholderText(/Search tracks/i);
-    fireEvent.change(input, { target: { value: "Blue" } });
+    fireEvent.change(screen.getByPlaceholderText(/Search tracks/i), { target: { value: "Blue" } });
 
     await waitFor(() => {
-      const calls = mockFetch.mock.calls.map((c) => (c[0] as { url: string }).url);
-      const searchCall = calls.find((url) => url.includes("search=Blue"));
-      expect(searchCall).toBeDefined();
+      const paramCalls = mockTracksParams.mock.calls.map((c) => c[0] as { search?: string });
+      expect(paramCalls.some((p) => p.search === "Blue")).toBe(true);
     });
   });
 
   it("shows 'No tracks match your search.' when tracks is empty and search is non-empty", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    const mockFetch = vi.mocked(eveyFetch);
-    mockFetch.mockImplementation(({ url }: { url: string }) => {
-      if (url.includes("/api/v1/libraries")) return Promise.resolve({ libraries: mockLibraries });
-      if (url.includes("/tracks")) return Promise.resolve({ tracks: [], total: 0, limit: 200, offset: 0 });
-      if (url.includes("/albums")) return Promise.resolve({ albums: [] });
-      if (url.includes("/artists")) return Promise.resolve({ artists: [] });
-      return Promise.resolve({});
-    });
-
+    setup([], 0);
     const mod = await import("./index.lazy");
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
-
     render(React.createElement(MusicPage), { wrapper: createWrapper() });
 
     await waitFor(() => expect(screen.getByPlaceholderText(/Search tracks/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByPlaceholderText(/Search tracks/i), { target: { value: "xyz" } });
 
-    const input = screen.getByPlaceholderText(/Search tracks/i);
-    fireEvent.change(input, { target: { value: "xyz" } });
-
-    await waitFor(() => {
-      expect(screen.getByText("No tracks match your search.")).toBeInTheDocument();
-    });
+    await waitFor(() => expect(screen.getByText("No tracks match your search.")).toBeInTheDocument());
   });
 
   it("delete button (Trash2) is not visible when isAdmin is false", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockImplementation(makeEveyFetchMock(mockTracks, 1));
-
+    setup();
     const mod = await import("./index.lazy");
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
-
     render(React.createElement(MusicPage), { wrapper: createWrapper() });
 
     await waitFor(() => expect(screen.getByText("Blue Sky")).toBeInTheDocument());
-
     expect(screen.queryByTitle("Delete track")).not.toBeInTheDocument();
   });
 
   it("delete button (Trash2) is visible when isAdmin is true", async () => {
-    mockUseAuthStore.mockImplementation(
-      (s: (state: { isAdmin: boolean }) => unknown) => s({ isAdmin: true })
-    );
-
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockImplementation(makeEveyFetchMock(mockTracks, 1));
-
+    mockUseAuthStore.mockImplementation((s: (state: { isAdmin: boolean }) => unknown) => s({ isAdmin: true }));
+    setup();
     const mod = await import("./index.lazy");
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
-
     render(React.createElement(MusicPage), { wrapper: createWrapper() });
 
     await waitFor(() => expect(screen.getByText("Blue Sky")).toBeInTheDocument());
-
     expect(screen.getByTitle("Delete track")).toBeInTheDocument();
   });
 });

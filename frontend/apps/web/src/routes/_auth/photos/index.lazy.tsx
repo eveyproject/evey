@@ -1,8 +1,13 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { eveyFetch } from "@evey/api";
+import {
+  useLibraryServiceListLibraries,
+  usePhotoServiceListPhotos,
+  usePhotoServiceListPhotoAlbums,
+  photoServiceDeletePhoto,
+} from "@evey/api";
 import { toast, useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -44,32 +49,58 @@ interface LibraryItem {
 }
 
 function usePhotoLibraries() {
-  return useQuery({
-    queryKey: ["libraries", "photos"],
-    queryFn: () => eveyFetch<{ libraries: LibraryItem[] }>({ url: "/api/v1/libraries", method: "GET" }),
-    select: (d) => (d.libraries ?? []).filter((l) => l.type === "LIBRARY_TYPE_PHOTOS"),
-    staleTime: 60_000,
+  return useLibraryServiceListLibraries({
+    query: {
+      select: (d) => (d.libraries ?? []).filter((l) => l.type === "LIBRARY_TYPE_PHOTOS").map<LibraryItem>((l) => ({ id: l.id ?? "", name: l.name ?? "", type: l.type ?? "" })),
+      staleTime: 60_000,
+    },
   });
 }
 
 function useAlbums(libraryID: string | undefined) {
-  return useQuery({
-    queryKey: ["photos", "albums", libraryID],
-    queryFn: () => eveyFetch<{ albums: Album[] }>({ url: `/api/v1/photos/albums?library_id=${libraryID}`, method: "GET" }),
-    enabled: !!libraryID,
-    select: (d) => d.albums ?? [],
-    staleTime: 30_000,
-  });
+  return usePhotoServiceListPhotoAlbums(
+    { libraryId: libraryID },
+    {
+      query: {
+        enabled: !!libraryID,
+        select: (d) => (d.albums ?? []).map<Album>((a) => ({
+          Name: a.name ?? "",
+          LibraryID: a.libraryId ?? "",
+          PhotoCount: a.photoCount ?? 0,
+          CoverPhotoID: a.coverPhotoId ?? "",
+        })),
+        staleTime: 30_000,
+      },
+    },
+  );
 }
 
 function usePhotos(libraryID: string | undefined, limit = 200, offset = 0) {
-  return useQuery({
-    queryKey: ["photos", "list", libraryID, limit, offset],
-    queryFn: () => eveyFetch<{ photos: Photo[]; total: number }>({ url: `/api/v1/photos?library_id=${libraryID}&limit=${limit}&offset=${offset}`, method: "GET" }),
-    enabled: !!libraryID,
-    select: (d) => ({ photos: d.photos ?? [], total: d.total }),
-    staleTime: 30_000,
-  });
+  return usePhotoServiceListPhotos(
+    { libraryId: libraryID, limit, offset },
+    {
+      query: {
+        enabled: !!libraryID,
+        select: (d) => ({
+          photos: (d.photos ?? []).map<Photo>((p) => ({
+            ID: p.id ?? "",
+            LibraryID: p.libraryId ?? "",
+            Title: p.title ?? "",
+            FilePath: p.filePath ?? "",
+            FileSize: Number(p.fileSize ?? 0),
+            MimeType: p.mimeType ?? "",
+            Width: p.width ?? 0,
+            Height: p.height ?? 0,
+            TakenAt: p.takenAt,
+            Album: p.album ?? "",
+            CreatedAt: p.createdAt ?? "",
+          })),
+          total: d.total ?? 0,
+        }),
+        staleTime: 30_000,
+      },
+    },
+  );
 }
 
 // ---- Lightbox ----
@@ -331,7 +362,7 @@ function PhotosPage() {
   const nextPhoto = useCallback(() => setLightboxIndex((i) => (i !== null && i < displayedPhotos.length - 1 ? i + 1 : i)), [displayedPhotos.length]);
 
   const deletePhotoMutation = useMutation({
-    mutationFn: (id: string) => eveyFetch({ url: `/api/v1/photos/${id}`, method: "DELETE" }),
+    mutationFn: (id: string) => photoServiceDeletePhoto(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["photos"] });
       setLightboxIndex(null);
