@@ -35,6 +35,7 @@ export function SkipIntroButton({ filePath, currentTime, onSkip }: SkipIntroButt
     <button
       onClick={() => onSkip(endSec)}
       className="absolute bottom-28 right-4 z-float px-5 py-2.5 text-sm font-semibold text-white rounded-md transition-all duration-200 hover:scale-105 animate-fade-in bg-[var(--overlay-btn-bg)] border border-[var(--overlay-dot-inactive)] backdrop-blur-[8px]"
+      aria-label={t("player.skipIntro")}
     >
       {t("player.skipIntro")}
     </button>

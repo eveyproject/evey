@@ -86,6 +86,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
                 key={a.id}
                 onClick={() => a.id && selectArtwork(a.id)}
                 disabled={selecting === a.id}
+                aria-label={t("media.detail.poster") + ` ${i + 1}`}
                 className="flex-shrink-0 rounded overflow-hidden transition-all"
                 style={{
                   width: 72,
@@ -109,6 +110,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
                 key={a.id}
                 onClick={() => a.id && selectArtwork(a.id)}
                 disabled={selecting === a.id}
+                aria-label={t("media.detail.backdrop") + ` ${i + 1}`}
                 className="flex-shrink-0 rounded overflow-hidden transition-all"
                 style={{
                   width: 128,

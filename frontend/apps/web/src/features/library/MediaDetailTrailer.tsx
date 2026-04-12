@@ -67,6 +67,7 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
             <button
               onClick={() => setOpen(false)}
               className="absolute -top-10 right-0 text-white/70 hover:text-white text-sm"
+              aria-label={t("media.detail.close")}
             >
               {t("media.detail.close")} ✕
             </button>

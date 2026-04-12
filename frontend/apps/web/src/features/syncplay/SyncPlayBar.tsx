@@ -56,6 +56,7 @@ export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost,
           onClick={handleCopyCode}
           className="px-3 py-1 rounded text-xs font-bold hover:opacity-80 transition-opacity-fast flex-shrink-0 bg-[var(--overlay-btn-bg)] tracking-[0.15em]"
           title={t("media.syncplay.copyCode")}
+          aria-label={t("media.syncplay.copyCode")}
         >
           {codeCopied ? t("common.copied") : roomCode}
         </button>
@@ -63,12 +64,14 @@ export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost,
       <button
         onClick={handleCopy}
         className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity-fast flex-shrink-0 bg-[var(--overlay-btn-bg)]"
+        aria-label={t("media.syncplay.shareLink")}
       >
         {copied ? t("common.copied") : t("media.syncplay.shareLink")}
       </button>
       <button
         onClick={onLeave}
         className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity-fast flex-shrink-0 bg-[color-mix(in_srgb,var(--color-danger)_30%,transparent)]"
+        aria-label={t("media.syncplay.leave")}
       >
         {t("media.syncplay.leave")}
       </button>

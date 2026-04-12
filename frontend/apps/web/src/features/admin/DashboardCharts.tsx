@@ -50,12 +50,16 @@ export function PlayActivityChart() {
           <button
             className={`px-2 py-1 transition-colors ${mode === "plays" ? "bg-[var(--accent)] text-white" : "bg-[var(--surface)] text-[var(--text-muted)]"}`}
             onClick={() => setMode("plays")}
+            aria-label={t("admin.dashboardStats.plays")}
+            aria-pressed={mode === "plays"}
           >
             {t("admin.dashboardStats.plays")}
           </button>
           <button
             className={`px-2 py-1 transition-colors ${mode === "watchTime" ? "bg-[var(--accent)] text-white" : "bg-[var(--surface)] text-[var(--text-muted)]"}`}
             onClick={() => setMode("watchTime")}
+            aria-label={t("admin.dashboardStats.watchTime")}
+            aria-pressed={mode === "watchTime"}
           >
             {t("admin.dashboardStats.watchTime")}
           </button>

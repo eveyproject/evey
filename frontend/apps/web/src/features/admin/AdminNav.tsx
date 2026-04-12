@@ -116,6 +116,8 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                 type="button"
                 onClick={() => toggleSection(section.titleKey)}
                 className="w-full flex items-center justify-between px-2 py-1.5 cursor-pointer rounded-[var(--radius-sm)] transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
+                aria-expanded={!isCollapsed}
+                aria-label={sectionTitle}
               >
                 <span
                   className="text-xs font-semibold uppercase tracking-wider select-none"

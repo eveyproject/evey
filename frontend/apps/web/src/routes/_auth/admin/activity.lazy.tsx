@@ -301,6 +301,7 @@ function ActivityPage() {
               backgroundColor: tab === id ? "var(--accent)" : "transparent",
               color: tab === id ? "white" : "var(--text-muted)",
             }}
+            aria-pressed={tab === id}
           >
             {label}
           </button>
@@ -311,6 +312,7 @@ function ActivityPage() {
           disabled={exporting}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast disabled:opacity-50"
           title={t("common.export") || "Export JSON"}
+          aria-label={t("common.export", "Export JSON")}
         >
           <Download size={14} />
           JSON

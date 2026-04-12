@@ -116,6 +116,7 @@ function RemoteAccessPage() {
                   type="button"
                   role="switch"
                   aria-checked={enabled}
+                  aria-label={t("admin.remoteAccess.enableRemoteAccess")}
                   onClick={() => {
                     const next = !enabled;
                     setEnabled(next);

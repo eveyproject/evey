@@ -355,6 +355,7 @@ function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined }) {
                       type="button"
                       onClick={() => setShowValue((p) => ({ ...p, [field.dbKey]: !p[field.dbKey] }))}
                       className="px-1.5 rounded text-xs border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-muted)]"
+                      aria-label={isShown ? t("admin.serverConfig.hide") : t("admin.serverConfig.show")}
                     >
                       {isShown ? t("admin.serverConfig.hide") : t("admin.serverConfig.show")}
                     </button>
@@ -447,7 +448,7 @@ function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
         <Input label={t("admin.serverConfig.smtpUsername")} placeholder="user@example.com" value={username} onChange={(e) => setUsername(e.target.value)} />
         <div className="flex flex-col gap-1">
           <Input label={t("admin.serverConfig.smtpPassword")} type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <button type="button" onClick={() => setShowPassword((v) => !v)} className="self-start px-2 rounded text-xs border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-muted)]">
+          <button type="button" onClick={() => setShowPassword((v) => !v)} className="self-start px-2 rounded text-xs border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-muted)]" aria-label={showPassword ? t("admin.serverConfig.hide") : t("admin.serverConfig.show")}>
             {showPassword ? t("admin.serverConfig.hide") : t("admin.serverConfig.show")}
           </button>
         </div>
@@ -590,7 +591,7 @@ function ServerSettingsCard() {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-3">
               <label className="text-sm font-medium text-[var(--text)]">{t("admin.serverSettings.hwAccelEnabled")}</label>
-              <button type="button" role="switch" aria-checked={hwAccel} onClick={() => { setHwAccel(!hwAccel); setDirty(true); }}
+              <button type="button" role="switch" aria-checked={hwAccel} aria-label={t("admin.serverSettings.hwAccelEnabled")} onClick={() => { setHwAccel(!hwAccel); setDirty(true); }}
                 className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors" style={{ backgroundColor: hwAccel ? "var(--accent)" : "var(--border)" }}>
                 <span className="inline-block h-4 w-4 rounded-full bg-white transition-transform" style={{ transform: hwAccel ? "translateX(1.375rem)" : "translateX(0.25rem)" }} />
               </button>

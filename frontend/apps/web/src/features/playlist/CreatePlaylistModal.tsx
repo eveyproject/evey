@@ -122,6 +122,7 @@ export function CreatePlaylistModal({ open, onClose }: Props) {
                   type="button"
                   onClick={() => removeRule(i)}
                   className="p-2 rounded hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]"
+                  aria-label={t("media.playlist.removeRule", "Remove rule")}
                 >
                   <X size={16} />
                 </button>

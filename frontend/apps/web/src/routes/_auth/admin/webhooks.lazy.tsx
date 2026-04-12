@@ -111,6 +111,7 @@ function WebhookRow({
           onClick={handleToggleEnabled}
           disabled={toggleEnabled.isPending}
           title={webhook.enabled ? t("common.disable") : t("common.enable")}
+          aria-label={webhook.enabled ? t("common.disable") : t("common.enable")}
           className="cursor-pointer"
         >
           {webhook.enabled ? (

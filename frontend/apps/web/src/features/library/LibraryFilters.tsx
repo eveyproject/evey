@@ -243,6 +243,7 @@ function RatingFilter({
               type="button"
               onClick={() => onChange(minRating === star ? undefined : star)}
               title={t("media.library.minStars", { count: star })}
+              aria-label={t("media.library.minStars", { count: star })}
               className="p-0.5 transition-colors-fast"
               style={{ color: active ? "var(--accent)" : "var(--border)" }}
             >
@@ -401,6 +402,7 @@ export function LibraryFilterToggle({
           borderColor: count > 0 ? "var(--accent)" : "var(--border)",
         }}
         title="Toggle filters"
+        aria-label={t("media.library.filters")}
         data-testid="filter-toggle"
       >
         <Filter size={16} />

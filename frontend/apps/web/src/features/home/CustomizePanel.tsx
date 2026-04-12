@@ -174,6 +174,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
               <button
                 role="switch"
                 aria-checked={row.enabled}
+                aria-label={feedLabel(t, row.feedType, libraryNames)}
                 onClick={() => toggle(i)}
                 className="w-9 h-5 rounded-full transition-colors-fast relative flex-shrink-0"
                 style={{ backgroundColor: row.enabled ? "var(--accent)" : "var(--surface-raised)" }}

@@ -20,6 +20,8 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
       <button
         className="flex items-center gap-2 text-sm font-semibold mb-3 text-[var(--text-muted)]"
         onClick={() => setFileInfoOpen((v) => !v)}
+        aria-expanded={fileInfoOpen}
+        aria-label={t("media.detail.fileInfo")}
       >
         <ChevronRight
           className="transition-transform-fast"

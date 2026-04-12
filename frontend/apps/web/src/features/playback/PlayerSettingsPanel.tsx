@@ -409,6 +409,7 @@ export function SettingsPanel({
                     <button
                       key={c.value}
                       title={t(c.labelKey)}
+                      aria-label={t(c.labelKey)}
                       onClick={() => onSubtitleStyleChange({ color: c.value })}
                       className="w-5 h-5 rounded-full transition-transform-fast hover:scale-110"
                       style={{
@@ -432,6 +433,7 @@ export function SettingsPanel({
                     <button
                       key={c.labelKey}
                       title={t(c.labelKey)}
+                      aria-label={t(c.labelKey)}
                       onClick={() => onSubtitleStyleChange({ bgColor: c.value, bgOpacity: c.opacity !== undefined ? c.opacity : subtitleBgOpacity })}
                       className="w-5 h-5 rounded transition-transform-fast hover:scale-110 border border-[var(--border)]"
                       style={{

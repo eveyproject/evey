@@ -118,6 +118,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
               sendCommand.mutate({ sessionId: session.sessionId ?? "", data: { command: cmd } });
             }}
             title={session.isPaused ? t("common.play") : t("common.pause")}
+            aria-label={session.isPaused ? t("common.play") : t("common.pause")}
           >
             {session.isPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} />}
           </button>
@@ -129,6 +130,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
               }
             }}
             title={t("admin.sessions.stopSession")}
+            aria-label={t("admin.sessions.stopSession")}
           >
             <Square size={16} fill="currentColor" />
           </button>
@@ -136,6 +138,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
             className="p-2 rounded-full hover:bg-[var(--border)] transition-colors text-[var(--text-muted)] hover:text-[var(--text)]"
             onClick={() => setShowMsg(!showMsg)}
             title={t("admin.sessions.sendMessage")}
+            aria-label={t("admin.sessions.sendMessage")}
           >
             <MessageSquare size={16} />
           </button>
@@ -166,6 +169,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
               type="submit"
               className="p-1.5 rounded-full hover:bg-[var(--border)] transition-colors text-[var(--accent)]"
               disabled={!msgText.trim()}
+              aria-label={t("admin.sessions.sendMessage")}
             >
               <Send size={14} />
             </button>

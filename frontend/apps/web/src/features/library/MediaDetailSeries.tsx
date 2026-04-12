@@ -24,6 +24,7 @@ function SeasonRow({ seasonId }: { seasonId: string }) {
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between px-4 py-3 text-left bg-[var(--surface)] rounded-[var(--radius-md)]"
+        aria-expanded={open}
       >
         <span className="font-medium text-[var(--text)]">{seasonLabel}</span>
         <span className="text-sm text-[var(--text-muted)]">
