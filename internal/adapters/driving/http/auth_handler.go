@@ -295,7 +295,7 @@ func registerParentalRoutes(
 	h := &parentalHandler{
 		profileRepo: profileRepo,
 		hasher:      hasher,
-		pinRL:       ratelimit.NewWithBurst(5, 5.0/15.0),
+		pinRL:       ratelimit.NewWithBurst(3, 0.6),
 	}
 	mux.HandleFunc("GET /api/v1/profiles/{id}/parental", authMw(h.getSettings))
 	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", authMw(h.updateSettings))
