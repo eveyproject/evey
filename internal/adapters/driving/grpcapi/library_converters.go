@@ -22,7 +22,7 @@ var libraryTypeFromProto = map[eveyv1.LibraryType]string{
 }
 
 func libraryToProto(lib *library.Library) *eveyv1.Library {
-	return &eveyv1.Library{
+	out := &eveyv1.Library{
 		Id:                 lib.ID,
 		Name:               lib.Name,
 		Type:               libraryTypeToProto[lib.Type],
@@ -32,6 +32,10 @@ func libraryToProto(lib *library.Library) *eveyv1.Library {
 		CreatedAt:          toTimestamppb(lib.CreatedAt),
 		UpdatedAt:          toTimestamppb(lib.UpdatedAt),
 	}
+	if lib.LastScannedAt != nil {
+		out.LastScannedAt = toTimestamppb(*lib.LastScannedAt)
+	}
+	return out
 }
 
 var mediaItemTypeToProto = map[string]eveyv1.MediaItemType{
