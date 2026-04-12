@@ -119,8 +119,8 @@ export default function LibraryDetailScreen() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const profileId = useAuthStore((s) => s.profileId) ?? "";
 
-  const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => toast.success("Marked watched") } });
-  const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => toast.success("Marked unwatched") } });
+  const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedWatched", "Marked watched")) } });
+  const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedUnwatched", "Marked unwatched")) } });
   const bulkFavorite = useBulkFavorite();
   const [showBulkPlaylist, setShowBulkPlaylist] = useState(false);
 
@@ -161,7 +161,7 @@ export default function LibraryDetailScreen() {
   const bulkToggleFavorite = useCallback(async () => {
     try {
       await bulkFavorite.mutateAsync(Array.from(selected));
-      toast.success("Favorites toggled");
+      toast.success(t("media.favorites.toggled", "Favorites toggled"));
     } catch {}
     exitBulk();
   }, [selected, bulkFavorite, exitBulk]);

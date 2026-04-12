@@ -60,8 +60,8 @@ export default function FavoritesScreen() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const profileId = useAuthStore((s) => s.profileId) ?? "";
 
-  const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => toast.success("Marked watched") } });
-  const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => toast.success("Marked unwatched") } });
+  const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedWatched", "Marked watched")) } });
+  const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedUnwatched", "Marked unwatched")) } });
 
   const toggleSelect = useCallback((id: string) => {
     setSelected((prev) => {
