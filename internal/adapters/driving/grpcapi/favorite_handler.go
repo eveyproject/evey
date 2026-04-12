@@ -9,6 +9,7 @@ import (
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	"github.com/gravity-zero/evey/internal/domain/library"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -54,14 +55,48 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 	if err != nil {
 		return nil, internalError("list favorites", err)
 	}
+	itemByID := make(map[string]*library.MediaItem)
+	if h.libQuery != nil {
+		ids := make([]string, 0, len(favs))
+		for _, f := range favs {
+			ids = append(ids, f.MediaItemID)
+		}
+		items, _ := h.libQuery.GetMediaItemsByIDs(ctx, ids)
+		for _, it := range items {
+			itemByID[it.ID] = it
+		}
+	}
+	allowed := func(libraryID string) bool { return true }
+	if !claims.IsAdmin && h.userAccess != nil {
+		access, _ := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+		accessSet := make(map[string]struct{}, len(access))
+		for _, libID := range access {
+			accessSet[libID] = struct{}{}
+		}
+		allowed = func(libraryID string) bool { _, ok := accessSet[libraryID]; return ok }
+	}
 	resp := &eveyv1.ListFavoritesResponse{}
 	for _, f := range favs {
-		resp.Items = append(resp.Items, &eveyv1.FavoriteProto{
+		fp := &eveyv1.FavoriteProto{
 			Id:          f.ID,
 			ProfileId:   f.ProfileID,
 			MediaItemId: f.MediaItemID,
 			CreatedAt:   toTimestamppb(f.CreatedAt),
-		})
+		}
+		if it := itemByID[f.MediaItemID]; it != nil {
+			if !allowed(it.LibraryID) {
+				continue
+			}
+			fp.Title = it.Title
+			fp.Type = it.Type
+			if it.Year != nil {
+				fp.Year = int32(*it.Year)
+			}
+			if it.CommunityRating != nil {
+				fp.CommunityRating = *it.CommunityRating
+			}
+		}
+		resp.Items = append(resp.Items, fp)
 	}
 	return resp, nil
 }

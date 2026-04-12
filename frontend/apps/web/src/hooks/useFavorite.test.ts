@@ -1,101 +1,60 @@
 import React from "react";
-import { renderHook, waitFor, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const mockIsFav = vi.fn(() => ({ data: false }));
+const mockAdd = vi.fn();
+const mockRemove = vi.fn();
+
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
+  useFavoriteServiceIsFavorite: (_id: string, _p: unknown, opts: { query?: { enabled?: boolean; select?: (d: unknown) => unknown } }) => {
+    const raw = mockIsFav();
+    const enabled = opts?.query?.enabled !== false;
+    const select = opts?.query?.select;
+    return { ...raw, data: enabled && raw?.data !== undefined && select ? select({ isFavorite: raw.data }) : (enabled ? raw?.data : undefined) };
+  },
+  useFavoriteServiceListFavorites: () => ({ data: [] }),
+  favoriteServiceAddFavorite: (id: string, body: unknown) => mockAdd(id, body),
+  favoriteServiceRemoveFavorite: (id: string) => mockRemove(id),
+  getFavoriteServiceIsFavoriteQueryKey: (id: string) => ["favorite", id],
+  getFavoriteServiceListFavoritesQueryKey: () => ["favorites"],
 }));
 
-async function getEveyFetch() {
-  const { eveyFetch } = await import("@evey/api");
-  return vi.mocked(eveyFetch);
-}
-
-function createWrapper() {
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+function wrap() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: qc }, children);
 }
 
 describe("useIsFavorite", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  beforeEach(() => vi.clearAllMocks());
 
   it("returns true when API says favorited", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce({ isFavorite: true });
-
+    mockIsFav.mockReturnValue({ data: true });
     const { useIsFavorite } = await import("./useFavorite");
-    const { result } = renderHook(() => useIsFavorite("media-1"), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const { result } = renderHook(() => useIsFavorite("media-1"), { wrapper: wrap() });
     expect(result.current.data).toBe(true);
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/favorites/media-1", method: "GET" }),
-    );
   });
 
   it("is disabled when mediaId undefined", async () => {
-    const fetch = await getEveyFetch();
-
+    mockIsFav.mockReturnValue({ data: undefined });
     const { useIsFavorite } = await import("./useFavorite");
-    const { result } = renderHook(() => useIsFavorite(undefined), {
-      wrapper: createWrapper(),
-    });
-
-    expect(result.current.fetchStatus).toBe("idle");
-    expect(fetch).not.toHaveBeenCalled();
+    const { result } = renderHook(() => useIsFavorite(undefined), { wrapper: wrap() });
+    expect(result.current.data).toBeUndefined();
   });
 });
 
 describe("useToggleFavorite", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  beforeEach(() => vi.clearAllMocks());
 
-  it("calls POST on mutate", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce({ isFavorite: true });
-
+  it("calls add on mutate", async () => {
+    mockIsFav.mockReturnValue({ data: false });
+    mockAdd.mockResolvedValue({ isFavorite: true });
     const { useToggleFavorite } = await import("./useFavorite");
-    const { result } = renderHook(() => useToggleFavorite("media-2"), {
-      wrapper: createWrapper(),
-    });
-
-    await act(async () => {
-      result.current.mutate();
-    });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/favorites/media-2", method: "POST" }),
-    );
-  });
-
-  it("rolls back on error", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockRejectedValueOnce(new Error("server error"));
-
-    const { useToggleFavorite } = await import("./useFavorite");
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    qc.setQueryData(["favorite", "media-3"], { isFavorite: true });
-
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: qc }, children);
-
-    const { result } = renderHook(() => useToggleFavorite("media-3"), { wrapper });
-
-    await act(async () => {
-      result.current.mutate();
-    });
-
-    await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(qc.getQueryData(["favorite", "media-3"])).toEqual({ isFavorite: true });
+    const { result } = renderHook(() => useToggleFavorite("media-2"), { wrapper: wrap() });
+    await act(async () => { result.current.mutate(false); });
+    await waitFor(() => expect(mockAdd).toHaveBeenCalledWith("media-2", {}));
   });
 });

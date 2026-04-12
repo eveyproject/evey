@@ -22,7 +22,7 @@ export function FavoriteButton({ mediaId, size = "md", className = "" }: Favorit
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        toggle.mutate();
+        toggle.mutate(!!isFav);
       }}
       className={`${padding} rounded-full transition-all duration-200 hover:scale-110 ${className}`}
       style={{

@@ -80,7 +80,7 @@ function BulkPlaylistModal({
 
 function FavoritesPage() {
   const { t } = useTranslation();
-    const { data: favorites, isLoading } = useFavoritesList(200);
+    const { data: favorites, isLoading } = useFavoritesList();
   const [sort, setSort] = useState<SortKey>("dateAdded");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [search, setSearch] = useState("");

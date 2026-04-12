@@ -88,7 +88,7 @@ export const CardContextMenu = memo(function CardContextMenu({
     {
       label: isFav ? t("media.contextMenu.removeFromFavorites") : t("media.contextMenu.addToFavorites"),
       onClick: () => {
-        toggleFav.mutate();
+        toggleFav.mutate(!!isFav);
         onClose();
       },
     },

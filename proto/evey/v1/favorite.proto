@@ -39,6 +39,10 @@ message FavoriteProto {
   string profile_id = 2;
   string media_item_id = 3;
   google.protobuf.Timestamp created_at = 4;
+  string title = 5;
+  string type = 6;
+  int32 year = 7;
+  double community_rating = 8;
 }
 
 message ListFavoritesRequest {
