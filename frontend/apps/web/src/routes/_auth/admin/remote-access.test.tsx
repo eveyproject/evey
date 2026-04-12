@@ -8,8 +8,15 @@ const mockUseQuery = vi.fn();
 const mockUseMutation = vi.fn();
 const mockInvalidateQueries = vi.fn();
 
+const mockUseRA = vi.fn();
+const mockUseNet = vi.fn();
+
 vi.mock("@evey/api", () => ({
   eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
+  useRemoteAccessServiceGetRemoteAccess: () => mockUseRA(),
+  useRemoteAccessServiceGetNetworkInfo: () => mockUseNet(),
+  remoteAccessServiceUpdateRemoteAccess: vi.fn(),
+  getRemoteAccessServiceGetRemoteAccessQueryKey: () => ["remote-access"],
 }));
 
 vi.mock("@evey/store", () => ({
@@ -55,28 +62,32 @@ describe("RemoteAccessPage", () => {
   });
 
   it("renders Remote Access heading", async () => {
-    mockUseQuery.mockReturnValue({ data: mockConfig, isLoading: false });
+    mockUseRA.mockReturnValue({ data: mockConfig, isLoading: false });
+    mockUseNet.mockReturnValue({ data: undefined });
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
     expect(screen.getByText("Remote Access")).toBeInTheDocument();
   });
 
   it("shows Disabled badge when remote access is disabled", async () => {
-    mockUseQuery.mockReturnValue({ data: { ...mockConfig, enabled: false }, isLoading: false });
+    mockUseRA.mockReturnValue({ data: { ...mockConfig, enabled: false }, isLoading: false });
+    mockUseNet.mockReturnValue({ data: undefined });
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
     expect(screen.getByText("Disabled")).toBeInTheDocument();
   });
 
   it("shows Enabled badge when remote access is enabled", async () => {
-    mockUseQuery.mockReturnValue({ data: { ...mockConfig, enabled: true }, isLoading: false });
+    mockUseRA.mockReturnValue({ data: { ...mockConfig, enabled: true }, isLoading: false });
+    mockUseNet.mockReturnValue({ data: undefined });
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
     expect(screen.getByText("Enabled")).toBeInTheDocument();
   });
 
   it("Save button is disabled when nothing changed", async () => {
-    mockUseQuery.mockReturnValue({ data: mockConfig, isLoading: false });
+    mockUseRA.mockReturnValue({ data: mockConfig, isLoading: false });
+    mockUseNet.mockReturnValue({ data: undefined });
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
     const saveBtn = screen.getByRole("button", { name: /^Save$/i });
@@ -84,7 +95,8 @@ describe("RemoteAccessPage", () => {
   });
 
   it("toggling switch enables Save button", async () => {
-    mockUseQuery.mockReturnValue({ data: mockConfig, isLoading: false });
+    mockUseRA.mockReturnValue({ data: mockConfig, isLoading: false });
+    mockUseNet.mockReturnValue({ data: undefined });
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
     const toggle = screen.getByRole("switch");
@@ -93,20 +105,16 @@ describe("RemoteAccessPage", () => {
   });
 
   it("shows spinner when loading", async () => {
-    mockUseQuery.mockReturnValue({ data: undefined, isLoading: true });
+    mockUseRA.mockReturnValue({ data: undefined, isLoading: true });
+    mockUseNet.mockReturnValue({ data: undefined });
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
     expect(document.querySelector('[class*="animate-spin"]') ?? screen.queryByText(/loading/i)).toBeDefined();
   });
 
   it("renders network interfaces table when data is present", async () => {
-    mockUseQuery.mockImplementation((opts: { queryKey: unknown[] }) => {
-      const key = String(opts?.queryKey?.[0]);
-      if (key.includes("network-info")) {
-        return { data: { interfaces: [{ name: "eth0", address: "192.168.1.100" }] }, isLoading: false };
-      }
-      return { data: mockConfig, isLoading: false };
-    });
+    mockUseRA.mockReturnValue({ data: mockConfig, isLoading: false });
+    mockUseNet.mockReturnValue({ data: { interfaces: [{ name: "eth0", address: "192.168.1.100" }] }, isLoading: false });
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
     await waitFor(() => expect(screen.getByText("eth0")).toBeInTheDocument());

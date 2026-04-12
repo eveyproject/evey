@@ -3,7 +3,14 @@ import { Folder } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
+import {
+  eveyFetch,
+  useServerConfigServiceListServerConfigEntries,
+  serverConfigServiceSetServerConfigEntry,
+  serverConfigServiceDeleteServerConfigEntry,
+  getServerConfigServiceListServerConfigEntriesQueryKey,
+} from "@evey/api";
+import type { V1ServerConfigEntry } from "@evey/api";
 import { toast, useLocaleStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
@@ -27,21 +34,13 @@ export const Route = createLazyFileRoute("/_auth/admin/server-config")({
   component: ServerConfigPage,
 });
 
-interface ConfigEntry {
-  key: string;
-  value: string;
-  updatedAt: string;
-}
+type ConfigEntry = V1ServerConfigEntry;
 
-const QUERY_KEY = ["/api/v1/admin/server-config"];
+const QUERY_KEY = getServerConfigServiceListServerConfigEntriesQueryKey();
 
 function useServerConfig() {
-  return useQuery<ConfigEntry[]>({
-    queryKey: QUERY_KEY,
-    queryFn: async () => {
-      const data = await eveyFetch<{ entries: ConfigEntry[] }>({ url: "/api/v1/admin/server-config", method: "GET" });
-      return data.entries ?? [];
-    },
+  return useServerConfigServiceListServerConfigEntries({
+    query: { select: (d) => d.entries ?? [] },
   });
 }
 
@@ -50,7 +49,7 @@ function useSetConfigEntry() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ key, value }: { key: string; value: string }) =>
-      eveyFetch<void>({ url: `/api/v1/admin/server-config/${encodeURIComponent(key)}`, method: "PUT", data: { value } }),
+      serverConfigServiceSetServerConfigEntry(key, { value }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success(t("admin.serverConfig.configUpdated"));
@@ -63,8 +62,7 @@ function useDeleteConfigEntry() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (key: string) =>
-      eveyFetch<void>({ url: `/api/v1/admin/server-config/${encodeURIComponent(key)}`, method: "DELETE" }),
+    mutationFn: (key: string) => serverConfigServiceDeleteServerConfigEntry(key),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success(t("admin.serverConfig.configDeleted"));
@@ -76,12 +74,12 @@ function useDeleteConfigEntry() {
 function ConfigRow({ entry }: { entry: ConfigEntry }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(entry.value);
+  const [value, setValue] = useState(entry.value ?? "");
   const setEntry = useSetConfigEntry();
   const deleteEntry = useDeleteConfigEntry();
 
   function handleSave() {
-    setEntry.mutate({ key: entry.key, value });
+    setEntry.mutate({ key: entry.key ?? "", value });
     setEditing(false);
   }
 
@@ -98,7 +96,7 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSave();
-              if (e.key === "Escape") { setValue(entry.value); setEditing(false); }
+              if (e.key === "Escape") { setValue(entry.value ?? ""); setEditing(false); }
             }}
             autoFocus
           />
@@ -107,19 +105,19 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
         )}
       </td>
       <td className="px-4 py-3 text-xs whitespace-nowrap text-[var(--text-muted)]">
-        {new Date(entry.updatedAt).toLocaleString()}
+        {entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : ""}
       </td>
       <td className="px-4 py-3">
         <div className="flex gap-2">
           {editing ? (
             <>
               <Button variant="secondary" onClick={handleSave} loading={setEntry.isPending} className="text-xs">{t("common.save")}</Button>
-              <Button variant="ghost" onClick={() => { setValue(entry.value); setEditing(false); }} className="text-xs">{t("common.cancel")}</Button>
+              <Button variant="ghost" onClick={() => { setValue(entry.value ?? ""); setEditing(false); }} className="text-xs">{t("common.cancel")}</Button>
             </>
           ) : (
             <>
               <Button variant="secondary" onClick={() => setEditing(true)} className="text-xs">{t("common.edit")}</Button>
-              <Button variant="danger" onClick={() => deleteEntry.mutate(entry.key)} loading={deleteEntry.isPending} className="text-xs">{t("common.delete")}</Button>
+              <Button variant="danger" onClick={() => deleteEntry.mutate(entry.key ?? "")} loading={deleteEntry.isPending} className="text-xs">{t("common.delete")}</Button>
             </>
           )}
         </div>

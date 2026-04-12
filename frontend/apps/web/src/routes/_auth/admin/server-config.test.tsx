@@ -25,6 +25,10 @@ vi.mock("@tanstack/react-query", async (importActual) => {
 
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
+  useServerConfigServiceListServerConfigEntries: (...args: unknown[]) => mockUseQuery(...args),
+  serverConfigServiceSetServerConfigEntry: vi.fn(),
+  serverConfigServiceDeleteServerConfigEntry: vi.fn(),
+  getServerConfigServiceListServerConfigEntriesQueryKey: () => ["server-config-entries"],
 }));
 
 vi.mock("@evey/store", () => ({

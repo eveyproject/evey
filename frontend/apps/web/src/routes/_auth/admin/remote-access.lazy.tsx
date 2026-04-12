@@ -1,9 +1,15 @@
 import { useState, useEffect } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
-import { eveyFetch } from "@evey/api";
+import {
+  useRemoteAccessServiceGetRemoteAccess,
+  useRemoteAccessServiceGetNetworkInfo,
+  remoteAccessServiceUpdateRemoteAccess,
+  getRemoteAccessServiceGetRemoteAccessQueryKey,
+} from "@evey/api";
+import type { V1UpdateRemoteAccessRequest } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -14,40 +20,12 @@ export const Route = createLazyFileRoute("/_auth/admin/remote-access")({
   component: RemoteAccessPage,
 });
 
-interface RemoteAccessConfig {
-  enabled: boolean;
-  externalUrl: string;
-  serverBaseUrl: string;
-  lanNetworks: string[];
-  maxRemoteBitrateKbps: number;
-}
-
-interface NetworkInterface {
-  name: string;
-  address: string;
-}
-
-const CONFIG_KEY = ["/api/v1/admin/remote-access"];
-const NETWORK_KEY = ["/api/v1/admin/network-info"];
-
-function useRemoteAccessConfig() {
-  return useQuery<RemoteAccessConfig>({
-    queryKey: CONFIG_KEY,
-    queryFn: () => eveyFetch<RemoteAccessConfig>({ url: "/api/v1/admin/remote-access", method: "GET" }),
-  });
-}
-
-function useNetworkInfo() {
-  return useQuery<{ interfaces: NetworkInterface[] }>({
-    queryKey: NETWORK_KEY,
-    queryFn: () => eveyFetch<{ interfaces: NetworkInterface[] }>({ url: "/api/v1/admin/network-info", method: "GET" }),
-  });
-}
+const CONFIG_KEY = getRemoteAccessServiceGetRemoteAccessQueryKey();
 
 function RemoteAccessPage() {
   const { t } = useTranslation();
-  const { data, isLoading } = useRemoteAccessConfig();
-  const { data: netInfo } = useNetworkInfo();
+  const { data, isLoading } = useRemoteAccessServiceGetRemoteAccess();
+  const { data: netInfo } = useRemoteAccessServiceGetNetworkInfo();
   const queryClient = useQueryClient();
 
   const [enabled, setEnabled] = useState(false);
@@ -58,16 +36,15 @@ function RemoteAccessPage() {
 
   useEffect(() => {
     if (data) {
-      setEnabled(data.enabled);
-      setExternalUrl(data.externalUrl);
-      setLanNetworks(data.lanNetworks.join(", "));
-      setMaxBitrate(String(data.maxRemoteBitrateKbps));
+      setEnabled(data.enabled ?? false);
+      setExternalUrl(data.externalUrl ?? "");
+      setLanNetworks((data.lanNetworks ?? []).join(", "));
+      setMaxBitrate(String(data.maxRemoteBitrateKbps ?? 0));
     }
   }, [data]);
 
   const saveMutation = useMutation({
-    mutationFn: (body: Partial<RemoteAccessConfig>) =>
-      eveyFetch<RemoteAccessConfig>({ url: "/api/v1/admin/remote-access", method: "PUT", data: body }),
+    mutationFn: (body: V1UpdateRemoteAccessRequest) => remoteAccessServiceUpdateRemoteAccess(body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
       toast.success(t("admin.remoteAccess.saved"));
