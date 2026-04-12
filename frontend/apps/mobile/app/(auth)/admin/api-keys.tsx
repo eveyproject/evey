@@ -51,7 +51,7 @@ export default function AdminAPIKeysScreen() {
       await createKey.mutateAsync({ data: { name: keyName.trim() } });
       setKeyName("");
       setShowCreate(false);
-    } catch {}
+    } catch (err) { console.warn("caught", err); }
   }, [keyName, createKey]);
 
   const handleRevoke = useCallback((keyId: string, name: string) => {

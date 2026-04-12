@@ -183,15 +183,15 @@ export default function PlayerScreen() {
     const timeSub = player.addListener("timeUpdate", (ev) => {
       if (!mountedRef.current) return;
       setCurrentTime(ev.currentTime + transcodeOffset);
-      try { setDuration(player.duration); } catch { /* released */ }
+      try { setDuration(player.duration); } catch (err) { console.warn("released", err); }
     });
     const statusSub = player.addListener("statusChange", () => {
       if (!mountedRef.current) return;
-      try { setIsPlaying(player.playing); setDuration(player.duration); } catch { /* released */ }
+      try { setIsPlaying(player.playing); setDuration(player.duration); } catch (err) { console.warn("released", err); }
     });
     const playSub = player.addListener("playingChange", () => {
       if (!mountedRef.current) return;
-      try { setIsPlaying(player.playing); } catch { /* released */ }
+      try { setIsPlaying(player.playing); } catch (err) { console.warn("released", err); }
     });
     return () => {
       timeSub.remove();
@@ -210,13 +210,13 @@ export default function PlayerScreen() {
 
   const muteLocalPlayer = useCallback(() => {
     if (!player) return;
-    try { player.pause(); } catch { /* released */ }
-    try { player.volume = 0; } catch { /* released */ }
+    try { player.pause(); } catch (err) { console.warn("released", err); }
+    try { player.volume = 0; } catch (err) { console.warn("released", err); }
   }, [player]);
 
   const unmuteLocalPlayer = useCallback(() => {
     if (!player) return;
-    try { player.volume = volume; } catch { /* released */ }
+    try { player.volume = volume; } catch (err) { console.warn("released", err); }
   }, [player, volume]);
 
   const castLoadMedia = useCallback(async (client: any) => {
@@ -230,7 +230,7 @@ export default function PlayerScreen() {
         const parsed = new URL(streamUrl);
         castUrl = `${castBase}${parsed.pathname}${parsed.search}`;
       }
-    } catch { /* use original */ }
+    } catch (err) { console.warn("use original", err); }
     console.log("[Cast] loadMedia URL:", castUrl);
     const isHls = castUrl.includes("m3u8");
     try {
@@ -385,7 +385,7 @@ export default function PlayerScreen() {
         const Brightness = require("expo-brightness");
         await Brightness.setBrightnessAsync(value);
         brightnessBaseRef.current = value;
-      } catch { /* expo-brightness not available */ }
+      } catch (err) { console.warn("expo-brightness not available", err); }
     },
     [],
   );
@@ -450,8 +450,8 @@ export default function PlayerScreen() {
   }, [player]);
 
   const remoteCallbacks = useMemo(() => ({
-    onRemotePause: () => { try { player?.pause(); } catch { /* released */ } },
-    onRemotePlay: () => { try { player?.play(); } catch { /* released */ } },
+    onRemotePause: () => { try { player?.pause(); } catch (err) { console.warn("released", err); } },
+    onRemotePlay: () => { try { player?.play(); } catch (err) { console.warn("released", err); } },
     onRemoteStop: () => { stopSession(); router.back(); },
   }), [player, stopSession]);
 
@@ -510,7 +510,7 @@ export default function PlayerScreen() {
     if (!videoViewRef.current) return;
     try {
       await videoViewRef.current.startPictureInPicture();
-    } catch { /* PiP unavailable */ }
+    } catch (err) { console.warn("PiP unavailable", err); }
   }, []);
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
@@ -942,14 +942,14 @@ export default function PlayerScreen() {
           try {
             await syncPlay.createRoom(mediaId);
             setShowSyncPlay(false);
-          } catch {} finally { setSyncCreating(false); }
+          } catch (err) { console.warn("caught", err); } finally { setSyncCreating(false); }
         }}
         onJoinRoom={async (code) => {
           setSyncJoining(true);
           try {
             await syncPlay.joinByCode(code);
             setShowSyncPlay(false);
-          } catch {} finally { setSyncJoining(false); }
+          } catch (err) { console.warn("caught", err); } finally { setSyncJoining(false); }
         }}
       />
 

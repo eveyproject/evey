@@ -79,7 +79,7 @@ export function useProgressReporter(
         isPaused: getIsPausedRef.current?.() ?? true,
         isMuted: getIsMutedRef.current?.() ?? false,
         volumeLevel: Math.round((getVolumeRef.current?.() ?? 1) * 100),
-      }).catch(() => {});
+      }).catch((err) => console.warn("caught", err));
     };
   }, [sessionId]);
 }

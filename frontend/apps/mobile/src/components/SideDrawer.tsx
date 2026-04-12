@@ -43,7 +43,7 @@ export function SideDrawer() {
   function handleLogout() {
     close();
     logout();
-    void eveyFetch<void>({ url: "/api/v1/auth/logout", method: "POST", data: {} }).catch(() => undefined);
+    void eveyFetch<void>({ url: "/api/v1/auth/logout", method: "POST", data: {} }).catch((err) => console.warn("caught", err));
     setTimeout(() => router.replace("/login"), 50);
   }
 

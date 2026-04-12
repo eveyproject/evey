@@ -135,7 +135,7 @@ export default function PlaylistDetailScreen() {
     const reordered = items.map((it, i) => ({ mediaItemId: it.media_item_id, sortOrder: i }));
     try {
       await reorderMutation.mutateAsync({ playlistId: id, items: reordered });
-    } catch {}
+    } catch (err) { console.warn("caught", err); }
   }, [playlist, id, reorderMutation]);
 
   const handleRemove = useCallback((mediaItemId: string) => {
@@ -254,7 +254,7 @@ export default function PlaylistDetailScreen() {
             if (!id) return;
             try {
               await updatePlaylist.mutateAsync({ id, rules: newRules });
-            } catch {}
+            } catch (err) { console.warn("caught", err); }
           }}
         />
       )}

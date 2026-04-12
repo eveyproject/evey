@@ -107,7 +107,7 @@ export default function SettingsScreen() {
     }
     try {
       await updateUser.mutateAsync({ id: user.id, data });
-    } catch {}
+    } catch (err) { console.warn("caught", err); }
   }, [user, editUsername, editEmail, newPassword, confirmPassword, updateUser, t]);
 
   const handleAvatarPick = useCallback(async () => {
@@ -167,7 +167,7 @@ export default function SettingsScreen() {
         // 3. Refresh JWT to get new locale claim
         const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
         if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
-      } catch {}
+      } catch (err) { console.warn("caught", err); }
     }
   }
 

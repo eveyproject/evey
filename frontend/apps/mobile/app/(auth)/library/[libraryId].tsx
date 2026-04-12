@@ -146,14 +146,14 @@ export default function LibraryDetailScreen() {
 
   const bulkMarkWatched = useCallback(async () => {
     for (const id of selected) {
-      try { await markWatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch {}
+      try { await markWatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch (err) { console.warn("caught", err); }
     }
     exitBulk();
   }, [selected, markWatched, profileId, exitBulk]);
 
   const bulkMarkUnwatched = useCallback(async () => {
     for (const id of selected) {
-      try { await markUnwatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch {}
+      try { await markUnwatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch (err) { console.warn("caught", err); }
     }
     exitBulk();
   }, [selected, markUnwatched, profileId, exitBulk]);
@@ -162,7 +162,7 @@ export default function LibraryDetailScreen() {
     try {
       await bulkFavorite.mutateAsync(Array.from(selected));
       toast.success(t("media.favorites.toggled", "Favorites toggled"));
-    } catch {}
+    } catch (err) { console.warn("caught", err); }
     exitBulk();
   }, [selected, bulkFavorite, exitBulk]);
 

@@ -86,7 +86,7 @@ export async function deleteDownload(mediaItemId: string): Promise<void> {
   const index = await readIndex();
   const item = index.find((i) => i.mediaItemId === mediaItemId);
   if (item) {
-    try { await FileSystem.deleteAsync(item.filePath, { idempotent: true }); } catch {}
+    try { await FileSystem.deleteAsync(item.filePath, { idempotent: true }); } catch (err) { console.warn("caught", err); }
   }
   await writeIndex(index.filter((i) => i.mediaItemId !== mediaItemId));
 }
@@ -106,7 +106,7 @@ export async function getTotalDownloadSize(): Promise<number> {
     try {
       const info = await FileSystem.getInfoAsync(item.filePath);
       if (info.exists && info.size) total += info.size;
-    } catch {}
+    } catch (err) { console.warn("caught", err); }
   }
   return total;
 }

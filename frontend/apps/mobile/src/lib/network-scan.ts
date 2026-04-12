@@ -18,10 +18,10 @@ async function probeHost(ip: string, port: number): Promise<DiscoveredServer | n
       try {
         const data = await res.json();
         version = data?.version;
-      } catch {}
+      } catch (err) { console.warn("caught", err); }
       return { url, version };
     }
-  } catch {}
+  } catch (err) { console.warn("caught", err); }
   return null;
 }
 

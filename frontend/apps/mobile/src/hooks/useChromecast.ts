@@ -6,7 +6,7 @@ try {
   const ctx = gc?.default ?? gc?.CastContext;
   ctx?.getCastState?.();
   nativeAvailable = true;
-} catch { /* not installed or native module missing */ }
+} catch (err) { console.warn("not installed or native module missing", err); }
 
 const safe = nativeAvailable ? gc : null;
 export const CastContext = safe?.default ?? safe?.CastContext ?? null;

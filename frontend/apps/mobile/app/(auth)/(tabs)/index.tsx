@@ -305,7 +305,7 @@ function FeedCustomizeModal({
       await updateFeed.mutateAsync({
         feedType: c.feedType,
         data: { profileId, enabled: c.enabled, displayOrder: c.displayOrder },
-      }).catch(() => {});
+      }).catch((err) => console.warn("caught", err));
     }
     await qc.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] });
   }, [updateFeed, profileId, qc]);

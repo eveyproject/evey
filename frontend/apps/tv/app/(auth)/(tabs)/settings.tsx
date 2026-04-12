@@ -41,7 +41,7 @@ export default function SettingsScreen() {
         await updateProfile.mutateAsync({ id: defaultProfile.id, data: { locale: code } });
         const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
         if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
-      } catch {}
+      } catch (err) { console.warn("caught", err); }
     }
   }
 

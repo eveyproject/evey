@@ -75,12 +75,12 @@ export default function FavoritesScreen() {
   const exitBulk = useCallback(() => { setBulkMode(false); setSelected(new Set()); }, []);
 
   const bulkMarkWatched = useCallback(async () => {
-    for (const id of selected) { try { await markWatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch {} }
+    for (const id of selected) { try { await markWatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch (err) { console.warn("caught", err); } }
     exitBulk();
   }, [selected, markWatched, profileId, exitBulk]);
 
   const bulkMarkUnwatched = useCallback(async () => {
-    for (const id of selected) { try { await markUnwatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch {} }
+    for (const id of selected) { try { await markUnwatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch (err) { console.warn("caught", err); } }
     exitBulk();
   }, [selected, markUnwatched, profileId, exitBulk]);
 

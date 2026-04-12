@@ -38,7 +38,7 @@ function loadSearchHistory(): string[] {
 function saveSearchHistory(history: string[]) {
   try {
     SecureStore.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY)));
-  } catch {}
+  } catch (err) { console.warn("caught", err); }
 }
 
 type MediaTypeFilter = "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";

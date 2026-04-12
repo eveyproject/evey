@@ -4,7 +4,7 @@ import { eveyFetch } from "@evey/api";
 let GoogleCast: any = null;
 try {
   GoogleCast = require("react-native-google-cast");
-} catch { /* not installed */ }
+} catch (err) { console.warn("not installed", err); }
 
 export interface CastDevice {
   id: string;
@@ -40,7 +40,7 @@ export function useCast() {
             type: "chromecast",
           });
         }
-      } catch { /* ignore */ }
+      } catch (err) { console.warn("ignore", err); }
 
       // Always offer native cast dialog as option
       if (devices.filter((d) => d.type === "chromecast").length === 0) {
@@ -57,7 +57,7 @@ export function useCast() {
       for (const r of renderers) {
         devices.push({ id: `dlna:${r.id}`, name: r.name, type: "dlna" });
       }
-    } catch { /* no dlna */ }
+    } catch (err) { console.warn("no dlna", err); }
 
     return devices;
   }, []);
@@ -87,7 +87,7 @@ export function useCast() {
           setDeviceName(device.name);
           return;
         }
-      } catch { /* cast failed */ }
+      } catch (err) { console.warn("cast failed", err); }
     }
 
     if (device.type === "dlna") {
@@ -114,7 +114,7 @@ export function useCast() {
         const CastContext = GoogleCast.default ?? GoogleCast.CastContext ?? GoogleCast;
         const session = await CastContext.getSessionManager?.()?.getCurrentCastSession?.();
         session?.end?.();
-      } catch { /* ignore */ }
+      } catch (err) { console.warn("ignore", err); }
     } else if (activeMode.current === "dlna" && activeDlnaId.current) {
       try {
         await eveyFetch({
@@ -122,7 +122,7 @@ export function useCast() {
           method: "POST",
           data: { rendererId: activeDlnaId.current },
         });
-      } catch { /* best effort */ }
+      } catch (err) { console.warn("best effort", err); }
       activeDlnaId.current = null;
     }
     activeMode.current = null;

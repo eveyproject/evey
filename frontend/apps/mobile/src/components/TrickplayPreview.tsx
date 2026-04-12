@@ -67,7 +67,7 @@ async function writeCachedCues(mediaId: string, cues: TrickplayCue[]): Promise<v
   try {
     await FileSystem.makeDirectoryAsync(TRICKPLAY_CACHE_DIR, { intermediates: true });
     await FileSystem.writeAsStringAsync(`${TRICKPLAY_CACHE_DIR}${mediaId}.json`, JSON.stringify(cues));
-  } catch { /* best effort */ }
+  } catch (err) { console.warn("best effort", err); }
 }
 
 interface Props {

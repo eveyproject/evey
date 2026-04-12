@@ -163,7 +163,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
     if (roomId) {
       try {
         await eveyFetch<void>({ url: `/api/v1/syncplay/rooms/${roomId}/leave`, method: "POST" });
-      } catch {}
+      } catch (err) { console.warn("caught", err); }
     }
   }, [state.roomId]);
 

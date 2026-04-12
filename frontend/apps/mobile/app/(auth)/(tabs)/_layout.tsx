@@ -34,7 +34,7 @@ function UserMenu({ theme, initial, avatarUrl }: { theme: ReturnType<typeof useT
   function handleLogout() {
     setOpen(false);
     logout();
-    void eveyFetch<void>({ url: "/api/v1/auth/logout", method: "POST", data: {} }).catch(() => undefined);
+    void eveyFetch<void>({ url: "/api/v1/auth/logout", method: "POST", data: {} }).catch((err) => console.warn("caught", err));
     setTimeout(() => router.replace("/login"), 50);
   }
 

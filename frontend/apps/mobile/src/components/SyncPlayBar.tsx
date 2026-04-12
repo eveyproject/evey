@@ -30,7 +30,7 @@ export function SyncPlayBar({ roomCode, isHost, members, connected, onLeave }: P
     if (!roomCode) return;
     try {
       await Share.share({ message: roomCode });
-    } catch {}
+    } catch (err) { console.warn("caught", err); }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
