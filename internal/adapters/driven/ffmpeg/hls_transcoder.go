@@ -69,7 +69,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 		if err := waitForFile(ctx, streamPath, 30*time.Second, 100*time.Millisecond); err != nil {
 			h.err = fmt.Errorf("waiting for stream_0.m3u8: %w", err)
 			h.cancel()
-			_ = h.cmd.Wait()
+			if err := h.cmd.Wait(); err != nil { slog.Debug("ffmpeg wait after cancel", slog.Any("err", err)) }
 			close(h.ready)
 			return
 		}
@@ -77,7 +77,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 		if err := os.WriteFile(filepath.Join(h.opts.OutputDir, "master.m3u8"), []byte(master), 0644); err != nil {
 			h.err = fmt.Errorf("write master.m3u8: %w", err)
 			h.cancel()
-			_ = h.cmd.Wait()
+			if err := h.cmd.Wait(); err != nil { slog.Debug("ffmpeg wait after cancel", slog.Any("err", err)) }
 			close(h.ready)
 			return
 		}
@@ -89,7 +89,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 		if err := waitForFile(ctx, masterPath, 30*time.Second, 100*time.Millisecond); err != nil {
 			h.err = fmt.Errorf("waiting for master.m3u8: %w", err)
 			h.cancel()
-			_ = h.cmd.Wait()
+			if err := h.cmd.Wait(); err != nil { slog.Debug("ffmpeg wait after cancel", slog.Any("err", err)) }
 			close(h.ready)
 			return
 		}
@@ -121,7 +121,9 @@ func (h *hlsHandle) Stop() error {
 	case <-time.After(5 * time.Second):
 		h.mu.Lock()
 		if h.cmd != nil && h.cmd.Process != nil {
-			_ = h.cmd.Process.Kill()
+			if err := h.cmd.Process.Kill(); err != nil {
+				slog.Warn("ffmpeg kill after timeout failed", slog.Any("err", err))
+			}
 		}
 		h.mu.Unlock()
 	}

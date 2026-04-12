@@ -108,7 +108,7 @@ func (fw *FSWatcher) watchRecursive(root string) error {
 func (fw *FSWatcher) Unwatch(path string) error {
 	// Remove root + all subdirectories (Watch adds them recursively)
 	var firstErr error
-	_ = filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+	if walkErr := filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -118,7 +118,9 @@ func (fw *FSWatcher) Unwatch(path string) error {
 			}
 		}
 		return nil
-	})
+	}); walkErr != nil && firstErr == nil {
+		firstErr = walkErr
+	}
 	if firstErr != nil {
 		return firstErr
 	}

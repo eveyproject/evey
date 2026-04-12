@@ -111,7 +111,9 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 		_, connErr := s.hub.ConnectMember(wsCtx, wsRoomID, userID, username, sender)
 		if connErr != nil {
 			slog.Warn("syncplay ws: connect failed", slog.String("room", wsRoomID), slog.Any("err", connErr))
-			_ = ws.Close()
+			if err := ws.Close(); err != nil {
+				slog.Warn("syncplay ws close after connect failure", slog.Any("err", err))
+			}
 			return
 		}
 		defer func() {

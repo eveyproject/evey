@@ -91,7 +91,9 @@ func (s *Service) getOrConnect(device *Device) (domaincast.CastSession, error) {
 		if sess.Alive() {
 			return sess, nil
 		}
-		_ = sess.Close()
+		if err := sess.Close(); err != nil {
+			slog.Warn("chromecast session close failed", slog.Any("err", err))
+		}
 		delete(s.conns, device.UUID)
 	}
 
@@ -161,7 +163,9 @@ func (s *Service) Stop(_ context.Context, uuid string) error {
 
 	if sess, ok := s.conns[device.UUID]; ok {
 		stopErr := sess.StopMedia()
-		_ = sess.Close()
+		if err := sess.Close(); err != nil {
+			slog.Warn("chromecast session close failed", slog.Any("err", err))
+		}
 		delete(s.conns, device.UUID)
 		if stopErr != nil {
 			return fmt.Errorf("stop: %w", stopErr)
@@ -227,7 +231,9 @@ func (s *Service) Close() {
 	s.connMu.Lock()
 	defer s.connMu.Unlock()
 	for uuid, sess := range s.conns {
-		_ = sess.Close()
+		if err := sess.Close(); err != nil {
+			slog.Warn("chromecast session close failed", slog.Any("err", err))
+		}
 		delete(s.conns, uuid)
 	}
 }

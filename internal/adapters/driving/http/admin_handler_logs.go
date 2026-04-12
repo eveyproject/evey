@@ -120,7 +120,9 @@ func (h *adminHandler) sendInitialLines(w http.ResponseWriter, flusher http.Flus
 	}
 	for _, l := range initial {
 		if l != "" {
-			_ = sseWriteLine(w, l)
+			if err := sseWriteLine(w, l); err != nil {
+				slog.Warn("sse write initial log line failed", slog.Any("err", err))
+			}
 		}
 	}
 	flusher.Flush()
