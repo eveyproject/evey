@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { TriangleAlert, Upload } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -408,6 +408,12 @@ function PluginsPage() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: PLUGINS_QUERY_KEY });
 
+  const installTimers = useRef<number[]>([]);
+  useEffect(() => () => {
+    installTimers.current.forEach((id) => clearTimeout(id));
+    installTimers.current = [];
+  }, []);
+
   const enablePlugin = useAdminPluginServiceEnablePlugin({
     mutation: {
       onSuccess: () => { invalidate(); toast.success(t("admin.plugins.pluginEnabled")); },
@@ -431,8 +437,8 @@ function PluginsPage() {
     invalidate();
     setShowModal(false);
     toast.success(t("admin.plugins.pluginInstalled"));
-    setTimeout(() => invalidate(), 3000);
-    setTimeout(() => invalidate(), 8000);
+    installTimers.current.push(window.setTimeout(() => invalidate(), 3000));
+    installTimers.current.push(window.setTimeout(() => invalidate(), 8000));
   }
 
   return (
