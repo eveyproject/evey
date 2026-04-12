@@ -56,16 +56,32 @@ func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.
 		return nil, internalError("check access", filterErr)
 	}
 	ids := make([]string, 0, len(items))
+	enriched := make([]*eveyv1.CollectionItemProto, 0, len(items))
 	for _, it := range items {
 		if allowed != nil && !slices.Contains(allowed, it.LibraryID) {
 			total--
 			continue
 		}
 		ids = append(ids, it.ID)
+		ci := &eveyv1.CollectionItemProto{
+			Id:       it.ID,
+			Title:    it.Title,
+			Type:     it.Type,
+			Overview: it.Overview,
+			Genres:   it.Genres,
+		}
+		if it.Year != nil {
+			ci.Year = int32(*it.Year)
+		}
+		if it.CommunityRating != nil {
+			ci.CommunityRating = *it.CommunityRating
+		}
+		enriched = append(enriched, ci)
 	}
 	return &eveyv1.GetCollectionItemsResponse{
 		MediaItemIds: ids,
 		Total:        int32(total),
+		Items:        enriched,
 	}, nil
 }
 

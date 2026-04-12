@@ -35,7 +35,8 @@ export function AddToCollectionModal({ open, onClose, mediaItemIds }: Props) {
         t("media.collections.itemsAdded", { count: mediaItemIds.length, name: collectionName })
       );
       onClose();
-    } catch {
+    } catch (err) {
+      console.warn("add to collection failed", err);
       toast.error(t("media.collections.addFailed"));
     } finally {
       setPending(false);

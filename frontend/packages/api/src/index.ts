@@ -54,3 +54,4 @@ export type { V1RemoteAccessConfig, V1UpdateRemoteAccessRequest } from "./genera
 export type { V1BackupManifest } from "./generated/backup.schemas";
 export type { V1PlaylistProto, V1PlaylistRule, V1PlaylistItemProto } from "./generated/playlist.schemas";
 export { V1PlaylistType } from "./generated/playlist.schemas";
+export type { V1CollectionProto, V1CollectionItemProto } from "./generated/collection.schemas";

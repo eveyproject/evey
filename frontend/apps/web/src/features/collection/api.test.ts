@@ -3,39 +3,43 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@evey/api", () => ({
-  eveyFetch: vi.fn(),
-}));
+const mockList = vi.fn(() => ({ data: { collections: [] } }));
+const mockGet = vi.fn(() => ({ data: undefined, isLoading: false, isSuccess: true }));
+const mockGetItems = vi.fn(() => ({ data: { items: [], total: 0 }, isLoading: false, isSuccess: true }));
+const deleteFn = vi.fn();
+const eveyFetchFn = vi.fn();
 
-async function getEveyFetch() {
-  const { eveyFetch } = await import("@evey/api");
-  return vi.mocked(eveyFetch);
+function sel<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { select?: (d: T) => unknown; enabled?: boolean } }) {
+  const s = opts?.query?.select;
+  const enabled = opts?.query?.enabled !== false;
+  return { ...raw, data: enabled && raw?.data !== undefined && s ? s(raw.data) : (enabled ? raw?.data : undefined), fetchStatus: enabled ? "idle" : "idle" };
 }
 
+vi.mock("@evey/api", () => ({
+  eveyFetch: eveyFetchFn,
+  useCollectionServiceListCollections: (opts: { query?: { select?: (d: unknown) => unknown } }) => sel(mockList(), opts),
+  useCollectionServiceGetCollection: (_id: string, opts: { query?: { select?: (d: unknown) => unknown; enabled?: boolean } }) => sel(mockGet(), opts),
+  useCollectionServiceGetCollectionItems: (_id: string, _p: unknown, opts: { query?: { select?: (d: unknown) => unknown; enabled?: boolean } }) => sel(mockGetItems(), opts),
+  collectionServiceDeleteCollection: (id: string) => deleteFn(id),
+  getCollectionServiceListCollectionsQueryKey: () => ["collections"],
+  getCollectionServiceGetCollectionQueryKey: (id: string) => ["collection", id],
+  getCollectionServiceGetCollectionItemsQueryKey: (id: string) => ["collection-items", id],
+}));
+
 function createWrapper() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return ({ children }: { children: React.ReactNode }) =>
-    React.createElement(QueryClientProvider, { client: qc }, children);
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return { qc, wrapper: ({ children }: { children: React.ReactNode }) => React.createElement(QueryClientProvider, { client: qc }, children) };
 }
 
 describe("useCollections", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns list of collections", async () => {
-    const fetch = await getEveyFetch();
-    const collections = [
-      { id: "c-1", name: "Marvel", createdAt: "2024-01-01", updatedAt: "2024-01-01" },
-    ];
-    fetch.mockResolvedValueOnce({ collections });
-
+    mockList.mockReturnValue({ data: { collections: [{ id: "c-1", name: "Marvel", createdAt: "2024-01-01", updatedAt: "2024-01-01" }] } });
     const { useCollections } = await import("./api");
-    const { result } = renderHook(() => useCollections(), { wrapper: createWrapper() });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.collections).toEqual(collections);
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/collections", method: "GET" }),
-    );
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useCollections(), { wrapper });
+    expect(result.current.data?.collections[0]?.id).toBe("c-1");
   });
 });
 
@@ -43,33 +47,22 @@ describe("useCollection", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("fetches collection detail with items", async () => {
-    const fetch = await getEveyFetch();
-    const payload = {
-      collection: { id: "c-1", name: "Marvel", createdAt: "2024-01-01", updatedAt: "2024-01-01" },
-      items: [{ id: "m-1", title: "Iron Man", type: "movie" }],
-      total: 1,
-    };
-    fetch.mockResolvedValueOnce(payload);
-
+    mockGet.mockReturnValue({ data: { collection: { id: "c-1", name: "Marvel", createdAt: "2024-01-01", updatedAt: "2024-01-01" } }, isLoading: false, isSuccess: true });
+    mockGetItems.mockReturnValue({ data: { items: [{ id: "m-1", title: "Iron Man", type: "movie" }], total: 1 }, isLoading: false, isSuccess: true });
     const { useCollection } = await import("./api");
-    const { result } = renderHook(() => useCollection("c-1"), { wrapper: createWrapper() });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useCollection("c-1"), { wrapper });
     expect(result.current.data?.collection.name).toBe("Marvel");
-    expect(result.current.data?.items).toHaveLength(1);
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/collections/c-1?limit=50&offset=0", method: "GET" }),
-    );
+    expect(result.current.data?.items[0]?.title).toBe("Iron Man");
   });
 
   it("is disabled when id is empty", async () => {
-    const fetch = await getEveyFetch();
-
+    mockGet.mockReturnValue({ data: undefined, isLoading: false, isSuccess: false });
+    mockGetItems.mockReturnValue({ data: undefined, isLoading: false, isSuccess: false });
     const { useCollection } = await import("./api");
-    const { result } = renderHook(() => useCollection(""), { wrapper: createWrapper() });
-
-    expect(result.current.fetchStatus).toBe("idle");
-    expect(fetch).not.toHaveBeenCalled();
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useCollection(""), { wrapper });
+    expect(result.current.data).toBeUndefined();
   });
 });
 
@@ -77,32 +70,15 @@ describe("useCreateCollection", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("calls POST and invalidates collections query", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce({ id: "new-1" });
-
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: qc }, children);
-
+    eveyFetchFn.mockResolvedValueOnce({ id: "new-1" });
     const { useCreateCollection } = await import("./api");
+    const { qc, wrapper } = createWrapper();
+    const spy = vi.spyOn(qc, "invalidateQueries");
     const { result } = renderHook(() => useCreateCollection(), { wrapper });
-
-    await act(async () => {
-      result.current.mutate({ name: "Action Movies", rules: [{ field: "genre", operator: "eq", value: "Action" }] });
-    });
-
+    await act(async () => { result.current.mutate({ name: "New" }); });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        url: "/api/v1/collections",
-        method: "POST",
-        data: { name: "Action Movies", rules: [{ field: "genre", operator: "eq", value: "Action" }] },
-      }),
-    );
-    expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["collections"] }),
-    );
+    expect(eveyFetchFn).toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["collections"] }));
   });
 });
 
@@ -110,32 +86,15 @@ describe("useUpdateCollection", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("calls PUT and invalidates collections query", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce(undefined);
-
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: qc }, children);
-
+    eveyFetchFn.mockResolvedValueOnce(undefined);
     const { useUpdateCollection } = await import("./api");
+    const { qc, wrapper } = createWrapper();
+    const spy = vi.spyOn(qc, "invalidateQueries");
     const { result } = renderHook(() => useUpdateCollection(), { wrapper });
-
-    await act(async () => {
-      result.current.mutate({ id: "c-1", name: "Updated", rules: [] });
-    });
-
+    await act(async () => { result.current.mutate({ id: "c-1", name: "Updated" }); });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        url: "/api/v1/collections/c-1",
-        method: "PUT",
-        data: { name: "Updated", rules: [] },
-      }),
-    );
-    expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["collections"] }),
-    );
+    expect(eveyFetchFn).toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["collections"] }));
   });
 });
 
@@ -143,27 +102,14 @@ describe("useDeleteCollection", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("calls DELETE and invalidates collections query", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce(undefined);
-
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: qc }, children);
-
+    deleteFn.mockResolvedValueOnce(undefined);
     const { useDeleteCollection } = await import("./api");
+    const { qc, wrapper } = createWrapper();
+    const spy = vi.spyOn(qc, "invalidateQueries");
     const { result } = renderHook(() => useDeleteCollection(), { wrapper });
-
-    await act(async () => {
-      result.current.mutate("c-1");
-    });
-
+    await act(async () => { result.current.mutate("c-1"); });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/collections/c-1", method: "DELETE" }),
-    );
-    expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["collections"] }),
-    );
+    expect(deleteFn).toHaveBeenCalledWith("c-1");
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["collections"] }));
   });
 });

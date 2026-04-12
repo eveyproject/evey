@@ -3,8 +3,22 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+const mockListCollections = vi.fn(() => ({ data: { collections: [] }, isLoading: false }));
+
+function selCollections(raw: { data?: { collections?: unknown[] }; [k: string]: unknown }, opts: { query?: { select?: (d: unknown) => unknown } }) {
+  const s = opts?.query?.select;
+  return { ...raw, data: raw?.data !== undefined && s ? s(raw.data) : raw?.data };
+}
+
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
+  useCollectionServiceListCollections: (opts: { query?: { select?: (d: unknown) => unknown } }) => selCollections(mockListCollections(), opts),
+  useCollectionServiceGetCollection: () => ({ data: undefined }),
+  useCollectionServiceGetCollectionItems: () => ({ data: { items: [], total: 0 } }),
+  collectionServiceDeleteCollection: vi.fn(),
+  getCollectionServiceListCollectionsQueryKey: () => ["collections"],
+  getCollectionServiceGetCollectionQueryKey: (id: string) => ["collection", id],
+  getCollectionServiceGetCollectionItemsQueryKey: (id: string) => ["collection-items", id],
 }));
 
 vi.mock("@evey/store", () => ({
@@ -44,8 +58,8 @@ describe("AddToCollectionModal", () => {
   });
 
   it("renders nothing when closed", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValue({ collections: [] });
+    
+    mockListCollections.mockReturnValue({ data: { collections: [] }, isLoading: false });
 
     const { AddToCollectionModal } = await import("./AddToCollectionModal");
     render(
@@ -57,9 +71,9 @@ describe("AddToCollectionModal", () => {
   });
 
   it("shows spinner while loading", async () => {
-    const { eveyFetch } = await import("@evey/api");
+    
     // Never resolves during this test
-    vi.mocked(eveyFetch).mockReturnValue(new Promise(() => {}));
+    mockListCollections.mockReturnValue({ data: undefined, isLoading: true });
 
     const { AddToCollectionModal } = await import("./AddToCollectionModal");
     render(
@@ -71,8 +85,8 @@ describe("AddToCollectionModal", () => {
   });
 
   it("shows empty message when no collections exist", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValue({ collections: [] });
+    
+    mockListCollections.mockReturnValue({ data: { collections: [] }, isLoading: false });
 
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     qc.setQueryData(["collections"], { collections: [] });
@@ -87,21 +101,20 @@ describe("AddToCollectionModal", () => {
   });
 
   it("renders collection buttons when collections exist", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValue({ collections: [] });
-
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    qc.setQueryData(["collections"], {
-      collections: [
-        { id: "c1", name: "Favorites", createdAt: "", updatedAt: "" },
-        { id: "c2", name: "Watch Later", createdAt: "", updatedAt: "" },
-      ],
+    mockListCollections.mockReturnValue({
+      data: {
+        collections: [
+          { id: "c1", name: "Favorites", createdAt: "", updatedAt: "" },
+          { id: "c2", name: "Watch Later", createdAt: "", updatedAt: "" },
+        ],
+      },
+      isLoading: false,
     });
 
     const { AddToCollectionModal } = await import("./AddToCollectionModal");
     render(
       <AddToCollectionModal open={true} onClose={vi.fn()} mediaItemIds={["m1"]} />,
-      { wrapper: createWrapper(qc) }
+      { wrapper: createWrapper() }
     );
 
     expect(screen.getByText("Favorites")).toBeInTheDocument();
@@ -112,17 +125,13 @@ describe("AddToCollectionModal", () => {
     const { eveyFetch } = await import("@evey/api");
     const { toast } = await import("@evey/store");
     vi.mocked(eveyFetch).mockResolvedValue({});
-
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    qc.setQueryData(["collections"], {
-      collections: [{ id: "c1", name: "Favorites", createdAt: "", updatedAt: "" }],
-    });
+    mockListCollections.mockReturnValue({ data: { collections: [{ id: "c1", name: "Favorites", createdAt: "", updatedAt: "" }] }, isLoading: false });
 
     const onClose = vi.fn();
     const { AddToCollectionModal } = await import("./AddToCollectionModal");
     render(
       <AddToCollectionModal open={true} onClose={onClose} mediaItemIds={["m1", "m2"]} />,
-      { wrapper: createWrapper(qc) }
+      { wrapper: createWrapper() }
     );
 
     fireEvent.click(screen.getByText("Favorites"));
@@ -138,16 +147,12 @@ describe("AddToCollectionModal", () => {
     const { eveyFetch } = await import("@evey/api");
     const { toast } = await import("@evey/store");
     vi.mocked(eveyFetch).mockRejectedValue(new Error("Network error"));
-
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    qc.setQueryData(["collections"], {
-      collections: [{ id: "c1", name: "Favorites", createdAt: "", updatedAt: "" }],
-    });
+    mockListCollections.mockReturnValue({ data: { collections: [{ id: "c1", name: "Favorites", createdAt: "", updatedAt: "" }] }, isLoading: false });
 
     const { AddToCollectionModal } = await import("./AddToCollectionModal");
     render(
       <AddToCollectionModal open={true} onClose={vi.fn()} mediaItemIds={["m1"]} />,
-      { wrapper: createWrapper(qc) }
+      { wrapper: createWrapper() }
     );
 
     fireEvent.click(screen.getByText("Favorites"));

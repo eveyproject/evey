@@ -73,4 +73,15 @@ message GetCollectionItemsRequest {
 message GetCollectionItemsResponse {
   repeated string media_item_ids = 1;
   int32 total = 2;
+  repeated CollectionItemProto items = 3;
+}
+
+message CollectionItemProto {
+  string id = 1;
+  string title = 2;
+  string type = 3;
+  int32 year = 4;
+  string overview = 5;
+  double community_rating = 6;
+  repeated string genres = 7;
 }

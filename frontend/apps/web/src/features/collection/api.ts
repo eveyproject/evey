@@ -1,5 +1,15 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  eveyFetch,
+  useCollectionServiceListCollections,
+  useCollectionServiceGetCollection,
+  useCollectionServiceGetCollectionItems,
+  collectionServiceDeleteCollection,
+  getCollectionServiceListCollectionsQueryKey,
+  getCollectionServiceGetCollectionQueryKey,
+  getCollectionServiceGetCollectionItemsQueryKey,
+} from "@evey/api";
+import type { V1CollectionProto } from "@evey/api";
 
 export interface CollectionRule {
   field: string;
@@ -30,32 +40,60 @@ export interface CollectionItem {
   genres?: string[];
 }
 
-interface ListCollectionsResponse {
-  collections: Collection[];
-}
-
-interface GetCollectionResponse {
-  collection: Collection;
-  items: CollectionItem[];
-  total: number;
+function mapCollection(c: V1CollectionProto): Collection {
+  return {
+    id: c.id ?? "",
+    tmdbId: c.tmdbId,
+    name: c.name ?? "",
+    overview: c.overview,
+    posterUrl: c.posterUrl,
+    backdropUrl: c.backdropUrl,
+    createdAt: c.createdAt ?? "",
+    updatedAt: c.updatedAt ?? "",
+  };
 }
 
 export function useCollections() {
-  return useQuery<ListCollectionsResponse>({
-    queryKey: ["collections"],
-    queryFn: () => eveyFetch<ListCollectionsResponse>({ url: "/api/v1/collections", method: "GET" }),
-    staleTime: 5 * 60_000,
+  return useCollectionServiceListCollections({
+    query: {
+      select: (d) => ({ collections: (d.collections ?? []).map(mapCollection) }),
+      staleTime: 5 * 60_000,
+    },
   });
 }
 
 export function useCollection(id: string, limit = 50, offset = 0) {
-  return useQuery<GetCollectionResponse>({
-    queryKey: ["collection", id, limit, offset],
-    queryFn: () =>
-      eveyFetch<GetCollectionResponse>({ url: `/api/v1/collections/${id}?limit=${limit}&offset=${offset}`, method: "GET" }),
-    enabled: !!id,
-    staleTime: 5 * 60_000,
+  const head = useCollectionServiceGetCollection(id, {
+    query: {
+      enabled: !!id,
+      staleTime: 5 * 60_000,
+      select: (d) => (d.collection ? mapCollection(d.collection) : undefined),
+    },
   });
+  const items = useCollectionServiceGetCollectionItems(id, { limit, offset }, {
+    query: {
+      enabled: !!id,
+      staleTime: 5 * 60_000,
+      select: (d) => ({
+        items: (d.items ?? []).map<CollectionItem>((i) => ({
+          id: i.id ?? "",
+          title: i.title ?? "",
+          type: i.type ?? "",
+          year: i.year,
+          overview: i.overview,
+          communityRating: i.communityRating,
+          genres: i.genres,
+        })),
+        total: d.total ?? 0,
+      }),
+    },
+  });
+  return {
+    data: head.data ? { collection: head.data, items: items.data?.items ?? [], total: items.data?.total ?? 0 } : undefined,
+    isLoading: head.isLoading || items.isLoading,
+    isError: head.isError || items.isError,
+    error: head.error ?? items.error,
+  };
 }
 
 interface CreateCollectionInput {
@@ -71,12 +109,13 @@ interface UpdateCollectionInput {
   sortBy?: string;
 }
 
+// Create/Update use eveyFetch — no proto equivalent (rules/sortBy not in proto)
 export function useCreateCollection() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateCollectionInput) =>
       eveyFetch<{ id: string }>({ url: "/api/v1/collections", method: "POST", data: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["collections"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: getCollectionServiceListCollectionsQueryKey() }),
   });
 }
 
@@ -85,14 +124,19 @@ export function useUpdateCollection() {
   return useMutation({
     mutationFn: ({ id, ...body }: UpdateCollectionInput) =>
       eveyFetch<void>({ url: `/api/v1/collections/${id}`, method: "PUT", data: body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["collections"] }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: getCollectionServiceListCollectionsQueryKey() });
+      qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionQueryKey(vars.id) });
+    },
   });
 }
 
 export function useDeleteCollection() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => eveyFetch<void>({ url: `/api/v1/collections/${id}`, method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["collections"] }),
+    mutationFn: (id: string) => collectionServiceDeleteCollection(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: getCollectionServiceListCollectionsQueryKey() }),
   });
 }
+
+export { getCollectionServiceGetCollectionItemsQueryKey };
