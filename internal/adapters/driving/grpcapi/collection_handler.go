@@ -24,8 +24,28 @@ func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListC
 	if err != nil {
 		return nil, internalError("list collections", err)
 	}
+	allowed, filterErr := h.allowedLibraryIDs(ctx)
+	if filterErr != nil {
+		return nil, internalError("check access", filterErr)
+	}
 	resp := &eveyv1.ListCollectionsResponse{}
 	for _, c := range cols {
+		if allowed != nil {
+			items, _, itemsErr := h.svc.GetItems(ctx, c.ID, 1000, 0)
+			if itemsErr != nil {
+				continue
+			}
+			visible := false
+			for _, it := range items {
+				if slices.Contains(allowed, it.LibraryID) {
+					visible = true
+					break
+				}
+			}
+			if !visible {
+				continue
+			}
+		}
 		resp.Collections = append(resp.Collections, collectionToProto(c))
 	}
 	return resp, nil
