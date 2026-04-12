@@ -14,8 +14,10 @@ export * from "./generated/activity-service/activity-service";
 export * from "./generated/transcoding-service/transcoding-service";
 export * from "./generated/metadata-service/metadata-service";
 export * from "./generated/mkvservice/mkvservice";
+export * from "./generated/library-access-service/library-access-service";
 // Schema types
-export type { V1LoginRequest, V1AuthResponse, V1User, V1Profile, V1APIKey, V1InviteLink } from "./generated/user.schemas";
+export type { V1LoginRequest, V1AuthResponse, V1User, V1Profile, V1APIKey, V1InviteLink, UserServiceUpdateUserBody } from "./generated/user.schemas";
+export type { V1UserLibraryAccess, V1LibraryRef, LibraryAccessServiceSetUserLibraryAccessBody } from "./generated/library_access.schemas";
 export type { V1SetupWizardRequest, V1DashboardInfo, V1SystemInfo } from "./generated/admin_system.schemas";
 export type { V1Plugin } from "./generated/admin_plugin.schemas";
 export { V1PluginState } from "./generated/admin_plugin.schemas";
