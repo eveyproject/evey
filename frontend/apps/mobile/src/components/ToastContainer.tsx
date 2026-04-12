@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useToastStore, type Toast, type ToastType } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
 
@@ -18,6 +19,7 @@ const ICON_MAP: Record<ToastType, keyof typeof Ionicons.glyphMap> = {
 };
 
 function ToastItem({ toast }: { toast: Toast }) {
+  const { t } = useTranslation();
   const theme = useTheme();
   const remove = useToastStore((s) => s.removeToast);
   const opacity = useRef(new Animated.Value(0)).current;
@@ -65,7 +67,7 @@ function ToastItem({ toast }: { toast: Toast }) {
       <Text style={[styles.message, { color: theme.colors.text }]} numberOfLines={2}>
         {toast.message}
       </Text>
-      <Pressable onPress={() => remove(toast.id)} hitSlop={8}>
+      <Pressable onPress={() => remove(toast.id)} hitSlop={8} accessible accessibilityLabel={t("common.aria.dismiss", "Dismiss")} accessibilityRole="button">
         <Ionicons name="close" size={18} color={theme.colors.textMuted} />
       </Pressable>
     </Animated.View>

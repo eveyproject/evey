@@ -26,7 +26,7 @@ export function CastPicker({ visible, onClose, onSelect, discover }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose}>
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose} accessible accessibilityLabel={t("common.close", "Close")} accessibilityRole="button">
         <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
           <Text style={[styles.title, { color: theme.colors.text }]}>
             {t("player.controls.cast")}
@@ -43,6 +43,7 @@ export function CastPicker({ visible, onClose, onSelect, discover }: Props) {
                 key={d.id}
                 style={[styles.row, { borderBottomColor: theme.colors.border }]}
                 onPress={() => { onSelect(d); onClose(); }}
+                accessible accessibilityLabel={d.name} accessibilityRole="button"
               >
                 <Ionicons
                   name={d.type === "chromecast" ? "tv-outline" : "desktop-outline"}

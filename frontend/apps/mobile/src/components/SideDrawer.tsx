@@ -56,7 +56,7 @@ export function SideDrawer() {
 
   return (
     <Modal transparent animationType="none" visible={isOpen} onRequestClose={close}>
-      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={close} />
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={close} accessible accessibilityLabel={t("common.close", "Close")} accessibilityRole="button" />
       <Animated.View
         style={[
           styles.drawer,

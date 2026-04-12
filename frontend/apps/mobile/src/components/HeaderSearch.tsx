@@ -64,7 +64,7 @@ export function HeaderSearch() {
           style={[styles.input, { color: theme.colors.text }]}
         />
         {query.length > 0 && (
-          <Pressable onPress={() => { setQuery(""); inputRef.current?.focus(); }}>
+          <Pressable onPress={() => { setQuery(""); inputRef.current?.focus(); }} accessible accessibilityLabel={t("common.clear", "Clear")} accessibilityRole="button">
             <Ionicons name="close-circle" size={16} color={theme.colors.textMuted} />
           </Pressable>
         )}
@@ -81,7 +81,7 @@ export function HeaderSearch() {
               {results.map((item) => {
                 const posterUrl = `${serverUrl}/api/v1/media/${item.id}/artwork/primary?width=60`;
                 return (
-                  <Pressable key={item.id} onPress={() => handleSelect(item)} style={styles.resultRow}>
+                  <Pressable key={item.id} onPress={() => handleSelect(item)} style={styles.resultRow} accessible accessibilityLabel={item.title ?? ""} accessibilityRole="button">
                     <Image
                       source={{ uri: posterUrl, headers: authHeaders }}
                       style={styles.poster}
