@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { View, Text, FlatList, Pressable, TextInput, Modal, Alert, Switch, ActivityIndicator, StyleSheet, ScrollView } from "react-native";
+import { View, Text, FlatList, Pressable, TextInput, Modal, Alert, Switch, ActivityIndicator, StyleSheet, ScrollView, Share } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -11,11 +11,16 @@ import {
   useUserServiceDisableUser,
   getUserServiceListUsersQueryKey,
   useLibraryServiceListLibraries,
+  useUserServiceListInviteLinks,
+  useUserServiceCreateInviteLink,
+  useUserServiceRevokeInviteLink,
+  getUserServiceListInviteLinksQueryKey,
   eveyFetch,
 } from "@evey/api";
-import type { V1User } from "@evey/api";
+import type { V1User, V1InviteLink } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { useServerUrl } from "../../../src/hooks/useServerUrl";
 
 interface LibraryInfo {
   id: string;
@@ -127,6 +132,144 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
         </View>
       </View>
     </Modal>
+  );
+}
+
+function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const serverUrl = useServerUrl();
+  const [showCreate, setShowCreate] = useState(false);
+  const [maxUses, setMaxUses] = useState("");
+
+  const { data, isLoading, refetch } = useUserServiceListInviteLinks();
+  const invites = data?.inviteLinks ?? [];
+
+  const createInvite = useUserServiceCreateInviteLink({
+    mutation: {
+      onSuccess: async () => {
+        toast.success(t("admin.users.inviteCreated", "Invite link created"));
+        setShowCreate(false);
+        setMaxUses("");
+        await qc.invalidateQueries({ queryKey: getUserServiceListInviteLinksQueryKey() });
+      },
+      onError: () => toast.error(t("admin.users.failedCreateInvite", "Failed to create invite")),
+    },
+  });
+
+  const revokeInvite = useUserServiceRevokeInviteLink({
+    mutation: {
+      onSuccess: async () => {
+        toast.success(t("admin.users.inviteRevoked", "Invite link revoked"));
+        await qc.invalidateQueries({ queryKey: getUserServiceListInviteLinksQueryKey() });
+      },
+      onError: () => toast.error(t("admin.users.failedRevoke", "Failed to revoke invite")),
+    },
+  });
+
+  const handleCreate = useCallback(async () => {
+    try {
+      await createInvite.mutateAsync({
+        data: {
+          maxUses: maxUses ? parseInt(maxUses) : undefined,
+        },
+      });
+    } catch {}
+  }, [maxUses, createInvite]);
+
+  const handleShare = useCallback(async (link: V1InviteLink) => {
+    const url = `${serverUrl}/register?invite=${link.code}`;
+    try {
+      await Share.share({ message: url });
+    } catch {}
+  }, [serverUrl]);
+
+  const handleRevoke = useCallback((link: V1InviteLink) => {
+    Alert.alert(
+      t("admin.users.revokeInviteTitle", "Revoke Invite"),
+      t("admin.users.revokeInviteConfirm", "Revoke this invite link? It will no longer be usable."),
+      [
+        { text: t("common.cancel", "Cancel"), style: "cancel" },
+        { text: t("admin.users.revoke", "Revoke"), style: "destructive", onPress: () => link.id && revokeInvite.mutate({ id: link.id }) },
+      ],
+    );
+  }, [revokeInvite, t]);
+
+  return (
+    <View style={{ marginTop: 24 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12, paddingHorizontal: 16 }}>
+        <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "700" }}>
+          {t("admin.users.inviteLinks", "Invite Links")}
+        </Text>
+        <Pressable onPress={() => setShowCreate(true)} hitSlop={8}>
+          <Ionicons name="add-circle-outline" size={24} color={theme.colors.accent} />
+        </Pressable>
+      </View>
+
+      {isLoading ? (
+        <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 16 }} />
+      ) : invites.length === 0 ? (
+        <View style={{ alignItems: "center", paddingVertical: 24 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>
+            {t("admin.users.noInvites", "No invite links")}
+          </Text>
+        </View>
+      ) : (
+        invites.map((link) => (
+          <View key={link.id} style={[styles.userCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: 16, marginBottom: 8 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.colors.text, fontSize: 14, fontFamily: "monospace" }} numberOfLines={1}>
+                {link.code ?? "---"}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                  {(link.timesUsed ?? 0)} / {link.maxUses ?? "\u221E"}
+                </Text>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                  {link.expiresAt ? new Date(link.expiresAt).toLocaleDateString() : t("admin.users.never", "Never")}
+                </Text>
+              </View>
+            </View>
+            <Pressable onPress={() => handleShare(link)} hitSlop={8} style={{ padding: 4 }}>
+              <Ionicons name="share-outline" size={18} color={theme.colors.accent} />
+            </Pressable>
+            <Pressable onPress={() => handleRevoke(link)} hitSlop={8} style={{ padding: 4 }}>
+              <Ionicons name="trash-outline" size={18} color="#ef4444" />
+            </Pressable>
+          </View>
+        ))
+      )}
+
+      <Modal visible={showCreate} transparent animationType="slide" onRequestClose={() => setShowCreate(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setShowCreate(false)} />
+        <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
+          <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 16 }}>
+            {t("admin.users.createInviteLink", "Create Invite Link")}
+          </Text>
+          <TextInput
+            placeholder={t("admin.users.maxUsesLabel", "Max uses (empty = unlimited)")}
+            placeholderTextColor={theme.colors.textMuted}
+            value={maxUses}
+            onChangeText={setMaxUses}
+            keyboardType="number-pad"
+            style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
+          />
+          <Pressable
+            onPress={handleCreate}
+            disabled={createInvite.isPending}
+            style={[styles.createBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: createInvite.isPending ? 0.5 : 1 }]}
+          >
+            {createInvite.isPending ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>
+                {t("common.create", "Create")}
+              </Text>
+            )}
+          </Pressable>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
@@ -290,6 +433,7 @@ export default function AdminUsersScreen() {
               <Text style={{ color: theme.colors.textMuted }}>{t("admin.users.noUsers")}</Text>
             </View>
           }
+          ListFooterComponent={<InviteLinksSection theme={theme} />}
         />
       )}
 
