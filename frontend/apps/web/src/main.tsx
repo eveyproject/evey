@@ -56,7 +56,7 @@ function scheduleTokenRefresh() {
       } catch (err) { console.warn("token refresh failed", err); }
       scheduleTokenRefresh();
     }, delay);
-  } catch { /* invalid token */ }
+  } catch (err) { console.warn("parse JWT failed", err); }
 }
 useAuthStore.subscribe((state, prev) => {
   if (state.accessToken !== prev.accessToken) scheduleTokenRefresh();

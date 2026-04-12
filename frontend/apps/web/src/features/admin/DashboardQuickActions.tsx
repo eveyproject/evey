@@ -30,7 +30,7 @@ export function QuickActions() {
     setScanningAll(true);
     for (const lib of libraries) {
       if (lib.id) {
-        try { await scanLib.mutateAsync({ id: lib.id }); } catch { /* toast handles */ }
+        try { await scanLib.mutateAsync({ id: lib.id }); } catch (err) { console.warn("library scan failed", err); }
       }
     }
     setScanningAll(false);

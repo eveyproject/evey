@@ -347,7 +347,7 @@ export function SettingsPanel({
                         onExternalSubtitle(url, name);
                         setMenu("main");
                         if (open) onToggle();
-                      } catch { /* subtitle load failed */ }
+                      } catch (err) { console.warn("subtitle load failed", err); }
                       e.target.value = "";
                     }}
                   />

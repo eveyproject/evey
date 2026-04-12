@@ -74,7 +74,7 @@ export function QuickConnect() {
           } else if (data.event === "expired" || data.event === "error") {
             es?.close();
           }
-        } catch { /* ignore malformed */ }
+        } catch (err) { console.warn("quickconnect sse parse failed", err); }
       };
       es.onerror = () => {
         es?.close();

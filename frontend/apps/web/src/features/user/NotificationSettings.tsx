@@ -69,7 +69,7 @@ function PushNotificationSection() {
       try {
         const subscribed = await isPushSubscribed();
         setEnabled(subscribed);
-      } catch { /* push check failed, leave disabled */ }
+      } catch (err) { console.warn("push check failed", err); }
     })();
   }, [supported]);
 

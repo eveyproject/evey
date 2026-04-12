@@ -182,7 +182,7 @@ function PluginConfigPanel({ pluginId }: { pluginId: string }) {
   const configSchema: Record<string, ConfigFieldSchema> | undefined = useMemo(() => {
     if (!data?.configSchemaJson) return undefined;
     try { return JSON.parse(data.configSchemaJson); }
-    catch { return undefined; }
+    catch (err) { console.warn("parse failed", err); return undefined; }
   }, [data?.configSchemaJson]);
 
   const updateConfig = useAdminPluginServiceUpdatePluginConfig({
@@ -318,7 +318,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
                   try {
                     await navigator.clipboard.writeText(plugin.sourceHash!);
                     toast.success(t("admin.plugin.hashCopied"));
-                  } catch { /* clipboard not available */ }
+                  } catch (err) { console.warn("clipboard copy failed", err); }
                 }}
               >
                 {plugin.sourceHash.slice(0, 8)}
