@@ -2,7 +2,6 @@ import { memo } from "react";
 import { Star } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useAuthStore } from "@evey/store";
 import { typeLabel } from "@/utils/typeLabel";
 import type { V1MediaItem } from "@evey/api";
 
@@ -15,14 +14,13 @@ function formatDuration(ms: string): string {
 }
 
 const ListRow = memo(function ListRow({ item }: { item: Record<string, unknown> }) {
-  const accessToken = useAuthStore((s) => s.accessToken);
   const title = (item.title as string) ?? "";
   const year = item.year as number | undefined;
   const rating = item.communityRating as number | undefined;
   const type = item.type as string | undefined;
   const id = item.id as string | undefined;
   const durationMs = item.durationMs as string | undefined;
-  const poster = id ? (accessToken ? `/api/v1/media/${id}/artwork/poster?token=${encodeURIComponent(accessToken)}` : `/api/v1/media/${id}/artwork/poster`) : null;
+  const poster = id ? `/api/v1/media/${id}/artwork/poster` : null;
 
   return (
     <Link

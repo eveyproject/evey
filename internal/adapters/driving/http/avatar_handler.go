@@ -23,7 +23,8 @@ func registerAvatarRoutes(
 ) {
 	authMw := httpAuthMiddleware(tokenGen)
 	mux.HandleFunc("POST /api/v1/profiles/{profileId}/avatar", authMw(avatarUploadHandler(profileRepo, dataDir)))
-	mux.HandleFunc("GET /api/v1/profiles/{profileId}/avatar", authMw(avatarServeHandler(profileRepo, dataDir)))
+	// Avatars are public (non-sensitive): no auth required for serving.
+	mux.HandleFunc("GET /api/v1/profiles/{profileId}/avatar", avatarServeHandler(profileRepo, dataDir))
 }
 
 func avatarUploadHandler(
@@ -138,7 +139,7 @@ func avatarServeHandler(
 			return
 		}
 
-		w.Header().Set("Cache-Control", "private, max-age=3600")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
 		fullPath := filepath.Join(dataDir, *profile.AvatarPath)
 		absData, _ := filepath.Abs(dataDir)
 		absPath, _ := filepath.Abs(fullPath)

@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, libraryServiceGetMediaItem } from "@evey/api";
 import type { V1Artwork } from "@evey/api";
-import { toast, useAuthStore } from "@evey/store";
+import { toast } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
 import { StarRatingBadge } from "./StarRating";
 import { useWatchedMap } from "@/hooks/useWatchedMap";
@@ -75,7 +75,6 @@ export const MediaCard = memo(function MediaCard({
   const [imgLoaded, setImgLoaded] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showPreview, setShowPreview] = useState(false);
-  const accessToken = useAuthStore((s) => s.accessToken);
   const profileId = useAuthStore((s) => s.profileId);
   const qc = useQueryClient();
   const invalidateItem = useCallback(() => {
@@ -91,11 +90,9 @@ export const MediaCard = memo(function MediaCard({
     return (
       posterSrc
       ?? artworkPosterUrl
-      ?? (item.id && accessToken
-        ? `/api/v1/media/${item.id}/artwork/poster?token=${encodeURIComponent(accessToken)}`
-        : null)
+      ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster` : null)
     );
-  }, [posterSrc, item.artwork, item.id, accessToken]);
+  }, [posterSrc, item.artwork, item.id]);
 
   const posterSrcSet = useMemo(() => {
     if (!poster) return undefined;

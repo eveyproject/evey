@@ -89,7 +89,7 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType, streamToken }:
         for (const url of urls) {
           if (!imageCache.current.has(url)) {
             const img = new Image();
-            img.src = `${url}${streamToken ? `?token=${encodeURIComponent(streamToken)}` : ""}`;
+            img.src = url;
             imageCache.current.set(url, img);
           }
         }
@@ -104,7 +104,7 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType, streamToken }:
   const cue = cues.find((c) => hoverTime >= c.startTime && hoverTime < c.endTime);
   if (!cue) return null;
 
-  const imgSrc = imageCache.current.get(cue.url)?.src ?? `${cue.url}${streamToken ? `?token=${encodeURIComponent(streamToken)}` : ""}`;
+  const imgSrc = imageCache.current.get(cue.url)?.src ?? cue.url;
   const thumbW = cue.w;
   const thumbH = cue.h;
 

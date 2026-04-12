@@ -198,7 +198,8 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 	mh := mediaHandler(s.TokenGen, s.LibQuerySvc, s.ArtworkRepo, s.BaseURL(), s.LibraryAccessRepo, mhOpts...)
 	mux.HandleFunc("GET /api/v1/media/{id}/stream", auth(mh))
-	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", auth(mh))
+	// Artwork is public (non-sensitive): no auth required.
+	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 	mux.HandleFunc("POST /api/v1/media/{id}/stream", auth(mh))
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", auth(downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo)))
@@ -211,8 +212,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	})))
 	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", auth(subtitleHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo)))
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", auth(chaptersHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc)))
-	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", auth(trickplayManifestHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc)))
-	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", auth(trickplayImageHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc)))
+	// Trickplay (manifest + sprite images) is public (non-sensitive): no auth required.
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc))
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc))
 	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", auth(snapshotHandler(s.TokenGen, s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL())))
 	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.TokenGen, s.LibCmdSvc, s.ServerCtx))))
 	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))

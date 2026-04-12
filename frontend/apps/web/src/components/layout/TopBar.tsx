@@ -135,12 +135,11 @@ export function TopBar() {
   }, []);
 
   const { data: currentUser } = useUserServiceGetCurrentUser();
-  const accessToken = useAuthStore((s) => s.accessToken);
   const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } });
   const defaultProfile = profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0];
   const userInitial = currentUser?.username?.charAt(0).toUpperCase() ?? "U";
   const userAvatarUrl = defaultProfile?.avatarPath && defaultProfile?.id
-    ? `/api/v1/profiles/${defaultProfile.id}/avatar?token=${accessToken}`
+    ? `/api/v1/profiles/${defaultProfile.id}/avatar`
     : null;
   const { recents, push: pushRecent, remove: removeRecent, clear: clearRecents } = useRecentSearches();
 

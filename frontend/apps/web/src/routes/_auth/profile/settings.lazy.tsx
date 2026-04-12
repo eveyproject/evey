@@ -4,7 +4,6 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
 import { getUserServiceGetCurrentUserQueryKey, getUserServiceListProfilesQueryKey } from "@evey/api";
-import { useAuthStore } from "@evey/store";
 import { eveyFetchRaw } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
@@ -47,7 +46,6 @@ function ProfileCard() {
   const [confirmPwd, setConfirmPwd] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const accessToken = useAuthStore((s) => s.accessToken);
 
   const updateUser = useUserServiceUpdateUser({
     mutation: {
@@ -109,7 +107,7 @@ function ProfileCard() {
   const avatarUrl = avatarPreview
     ? avatarPreview
     : defaultProfile?.avatarPath && defaultProfile?.id
-      ? `/api/v1/profiles/${defaultProfile.id}/avatar?token=${accessToken}`
+      ? `/api/v1/profiles/${defaultProfile.id}/avatar`
       : null;
 
   return (

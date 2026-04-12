@@ -99,7 +99,7 @@ describe("MediaCard", () => {
     render(<MediaCard item={baseItem} />, { wrapper: Wrapper });
     const img = screen.getByAltText("Inception");
     expect(img).toBeInTheDocument();
-    expect(img).toHaveAttribute("src", "/api/v1/media/42/artwork/poster?token=test-token");
+    expect(img).toHaveAttribute("src", "/api/v1/media/42/artwork/poster");
   });
 
   it("renders custom posterSrc", () => {

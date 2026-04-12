@@ -131,25 +131,34 @@ func TestArtwork_StreamToken_OK(t *testing.T) {
 	}
 }
 
-func TestArtwork_NoAuth_401(t *testing.T) {
-	verifier := &fakeTokenVerifier{claims: testClaims(false)}
-	inner := mediaHandler(
-		verifier,
-		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
-		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{}},
+// Artwork is now public: unauthenticated requests must serve the image (200),
+// bypassing library access checks entirely (no claims in context).
+func TestArtwork_Public_NoAuth_200(t *testing.T) {
+	tmp := t.TempDir()
+	imgPath := filepath.Join(tmp, "poster.jpg")
+	if err := os.WriteFile(imgPath, []byte("fake-image-data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	localPath := imgPath
+	h := mediaHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted"}},
+		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
+			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &localPath}},
+		}},
 		"http://localhost",
-		allowAll(),
+		denyAll(), // would deny if checked; proves check is skipped for anonymous requests
 	)
-	h := httpAuthMiddleware(verifier)(inner)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artType", "poster")
+	// NOTE: no claims, no stream token — simulating a public request.
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for public artwork, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

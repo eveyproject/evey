@@ -4,7 +4,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceSearchMedia } from "@evey/api";
-import { useAuthStore } from "@evey/store";
 import { typeLabel } from "@/utils/typeLabel";
 
 interface SearchDropdownProps {
@@ -30,7 +29,6 @@ export const SearchDropdown = memo(function SearchDropdown({
 }: SearchDropdownProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const accessToken = useAuthStore((s) => s.accessToken) ?? "";
   const dropdownRef = useRef<HTMLDivElement>(null);
   const activeIndex = useRef(-1);
 
@@ -206,8 +204,8 @@ export const SearchDropdown = memo(function SearchDropdown({
                   >
                     {item.id ? (
                       <img
-                        src={`/api/v1/media/${item.id}/artwork/poster?token=${encodeURIComponent(accessToken)}`}
-                        srcSet={`/api/v1/media/${item.id}/artwork/poster?token=${encodeURIComponent(accessToken)}&w=50 50w, /api/v1/media/${item.id}/artwork/poster?token=${encodeURIComponent(accessToken)}&w=100 100w`}
+                        src={`/api/v1/media/${item.id}/artwork/poster`}
+                        srcSet={`/api/v1/media/${item.id}/artwork/poster?w=50 50w, /api/v1/media/${item.id}/artwork/poster?w=100 100w`}
                         sizes="36px"
                         alt={item.title || "Media poster"}
                         className="w-full h-full object-cover"

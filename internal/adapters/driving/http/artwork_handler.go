@@ -28,7 +28,8 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, artItem.LibraryID, h.libraryAccess) {
+	// Artwork is public: skip library access check when no auth claims.
+	if claims != nil && !checkLibraryAccess(r.Context(), w, claims, artItem.LibraryID, h.libraryAccess) {
 		return
 	}
 
