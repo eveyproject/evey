@@ -39,7 +39,7 @@ func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
 	if locale == "" {
 		locale = "en"
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO profiles (id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
 		p.ID, p.UserID, p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault,

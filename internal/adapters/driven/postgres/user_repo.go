@@ -21,7 +21,7 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO users (id, username, email, password_hash, is_admin, enabled, oidc_subject, oidc_issuer, max_streams, max_bitrate_kbps, push_consent, created_at, updated_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
 		u.ID, u.Username, u.Email, u.PasswordHash, u.IsAdmin, u.Enabled,

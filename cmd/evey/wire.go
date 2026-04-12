@@ -249,7 +249,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		7*24*time.Hour, r.QuickConnect,
 	)
 	userAuthSvc.InitSetupState(ctx)
-	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus)
+	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db))
 	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile), appuser.WithLibraryAccess(r.LibraryAccess))
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
 
