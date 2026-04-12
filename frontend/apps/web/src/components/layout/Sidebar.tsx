@@ -38,7 +38,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => {
       const next = !prev;
-      try { localStorage.setItem(COLLAPSED_KEY, String(next)); } catch {}
+      try { localStorage.setItem(COLLAPSED_KEY, String(next)); } catch (err) { console.warn("localStorage write failed", err); }
       return next;
     });
   }, []);

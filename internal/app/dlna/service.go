@@ -91,7 +91,9 @@ func (s *Service) discover(ctx context.Context) ([]Renderer, error) {
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
 		deadline = d
 	}
-	_ = conn.SetReadDeadline(deadline)
+	if err := conn.SetReadDeadline(deadline); err != nil {
+		slog.Warn("dlna set read deadline failed", slog.Any("err", err))
+	}
 
 	seen := make(map[string]struct{})
 	var renderers []Renderer

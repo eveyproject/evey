@@ -11,7 +11,7 @@ function set(key: string, value: string | null) {
   try {
     if (value === null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
-  } catch {}
+  } catch (err) { console.warn("localStorage write failed", err); }
 }
 
 export function getPreferredAudioLang(): string | null {

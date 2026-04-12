@@ -225,7 +225,9 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 
 	// Invalidate disk cache if decisions don't match
 	if !matchesCachedDecision(outputDir, videoDecision, audioDecision) {
-		_ = os.RemoveAll(outputDir)
+		if err := os.RemoveAll(outputDir); err != nil {
+			slog.Warn("remove stale transcode cache failed", slog.String("dir", outputDir), slog.Any("err", err))
+		}
 	}
 
 	now := time.Now()
@@ -273,7 +275,10 @@ func (m *HLSManager) evictSessionLocked(session *HLSSession) {
 	if m.userSessions[session.UserID] <= 0 {
 		delete(m.userSessions, session.UserID)
 	}
-	_ = os.RemoveAll(filepath.Join(m.cacheDir, session.MediaItemID))
+	dir := filepath.Join(m.cacheDir, session.MediaItemID)
+	if err := os.RemoveAll(dir); err != nil {
+		slog.Warn("evict session cache failed", slog.String("dir", dir), slog.Any("err", err))
+	}
 }
 
 func (m *HLSManager) startSession(session *HLSSession, filePath string) {
@@ -445,7 +450,10 @@ func isTranscodeComplete(outputDir string, numStreams int) bool {
 const decisionFileName = ".decision"
 
 func writeCachedDecision(outputDir, videoDecision, audioDecision string) {
-	_ = os.WriteFile(filepath.Join(outputDir, decisionFileName), []byte(videoDecision+"\n"+audioDecision), 0644)
+	path := filepath.Join(outputDir, decisionFileName)
+	if err := os.WriteFile(path, []byte(videoDecision+"\n"+audioDecision), 0644); err != nil {
+		slog.Warn("write cached decision failed", slog.String("path", path), slog.Any("err", err))
+	}
 }
 
 func matchesCachedDecision(outputDir, videoDecision, audioDecision string) bool {

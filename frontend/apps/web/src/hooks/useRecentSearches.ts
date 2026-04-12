@@ -14,7 +14,7 @@ function load(): string[] {
 function save(items: string[]) {
   try {
     localStorage.setItem(KEY, JSON.stringify(items));
-  } catch {}
+  } catch (err) { console.warn("localStorage write failed", err); }
 }
 
 export function useRecentSearches() {

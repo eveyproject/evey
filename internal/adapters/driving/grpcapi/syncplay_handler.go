@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
@@ -169,6 +170,8 @@ func (h *syncplayHandler) LeaveRoom(ctx context.Context, req *eveyv1.LeaveSyncPl
 	if err != nil {
 		return nil, fmt.Errorf("syncplayHandler.LeaveRoom: %w", err)
 	}
-	_ = h.hub.LeaveRoom(ctx, req.RoomId, claims.UserID)
+	if err := h.hub.LeaveRoom(ctx, req.RoomId, claims.UserID); err != nil {
+		slog.Warn("syncplay leave room failed", slog.String("room_id", req.RoomId), slog.Any("err", err))
+	}
 	return &eveyv1.LeaveSyncPlayRoomResponse{}, nil
 }

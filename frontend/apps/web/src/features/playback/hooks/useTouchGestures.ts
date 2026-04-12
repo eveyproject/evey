@@ -21,7 +21,7 @@ function loadBrightness(): number {
   try {
     const v = localStorage.getItem(BRIGHTNESS_KEY);
     if (v) return Math.max(MIN_BRIGHTNESS, Math.min(MAX_BRIGHTNESS, Number(v)));
-  } catch {}
+  } catch (err) { console.warn("localStorage write failed", err); }
   return 1;
 }
 
@@ -112,7 +112,7 @@ export function useTouchGestures({
     // If a swipe gesture was active, finalize and dismiss indicator
     if (swipeActiveRef.current) {
       if (swipeActiveRef.current === "brightness") {
-        try { localStorage.setItem(BRIGHTNESS_KEY, String(brightnessRef.current)); } catch {}
+        try { localStorage.setItem(BRIGHTNESS_KEY, String(brightnessRef.current)); } catch (err) { console.warn("localStorage write failed", err); }
       }
       swipeActiveRef.current = null;
       setSwipeIndicator(null);
@@ -187,7 +187,7 @@ export function useTouchGestures({
     const clamped = Math.max(MIN_BRIGHTNESS, Math.min(MAX_BRIGHTNESS, value));
     brightnessRef.current = clamped;
     setBrightness(clamped);
-    try { localStorage.setItem(BRIGHTNESS_KEY, String(clamped)); } catch {}
+    try { localStorage.setItem(BRIGHTNESS_KEY, String(clamped)); } catch (err) { console.warn("localStorage write failed", err); }
   }, []);
 
   const cleanupTimers = useCallback(() => {

@@ -34,7 +34,7 @@ export function LanguageSettings() {
         // 4. Refresh token to get new JWT with updated locale
         const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
         if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
-      } catch {}
+      } catch (err) { console.warn("locale update failed", err); }
     }
   };
 

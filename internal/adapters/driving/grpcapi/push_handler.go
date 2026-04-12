@@ -104,7 +104,9 @@ func (h *webPushHandler) UpdatePushConsent(ctx context.Context, req *eveyv1.Upda
 		return nil, err
 	}
 	if !req.Consent {
-		_ = h.notifCmd.DeletePushByUser(ctx, claims.UserID)
+		if err := h.notifCmd.DeletePushByUser(ctx, claims.UserID); err != nil {
+			slog.Warn("delete push on consent revoke failed", slog.String("user_id", claims.UserID), slog.Any("err", err))
+		}
 	}
 	return &eveyv1.UpdatePushConsentResponse{Ok: true}, nil
 }
