@@ -16,6 +16,7 @@ import (
 
 func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, logDir string, serverCtx context.Context, qcHub *quickconnecthub.Hub) *grpcapi.GRPCServer {
 	authInterceptor := interceptors.NewAuthInterceptor(deps.auth.tokenGen).WithAPIKeys(deps.repos.apiKeyRepo, deps.repos.userRepo).WithTranslator(deps.translator)
+	publicRL := interceptors.DefaultPublicMethodLimiters()
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
 
 	grpcDeps := grpcapi.GRPCServerDeps{
@@ -76,6 +77,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 			interceptors.ErrorSanitizerUnary(),
 			interceptors.LocaleUnary(),
 			interceptors.ClientInfoUnary(),
+			interceptors.RateLimitUnary(publicRL),
 			interceptors.LoggingUnary(grpcLog),
 			authInterceptor.Unary(),
 		),
@@ -83,6 +85,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 			interceptors.ErrorSanitizerStream(),
 			interceptors.LocaleStream(),
 			interceptors.ClientInfoStream(),
+			interceptors.RateLimitStream(publicRL),
 			interceptors.LoggingStream(grpcLog),
 			authInterceptor.Stream(),
 		),
