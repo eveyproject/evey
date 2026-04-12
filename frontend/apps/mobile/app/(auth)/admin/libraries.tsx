@@ -31,8 +31,8 @@ export default function AdminLibrariesScreen() {
 
   const scanLibrary = useLibraryServiceScanLibrary({
     mutation: {
-      onSuccess: () => toast.success("Scan started"),
-      onError: () => toast.error("Failed to start scan"),
+      onSuccess: () => toast.success(t("admin.libraries.scanStarted", "Scan started")),
+      onError: () => toast.error(t("admin.libraries.scanFailed", "Failed to start scan")),
     },
   });
 
@@ -45,7 +45,7 @@ export default function AdminLibrariesScreen() {
     const icon = TYPE_ICONS[item.type ?? ""] ?? "folder-outline";
     const lastScan = (item as any).lastScannedAt
       ? new Date((item as any).lastScannedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-      : "Never";
+      : t("common.never", "Never");
 
     return (
       <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
@@ -53,7 +53,7 @@ export default function AdminLibrariesScreen() {
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }}>{item.name}</Text>
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-            {item.type?.replace("LIBRARY_TYPE_", "")} · Last scan: {lastScan}
+            {item.type?.replace("LIBRARY_TYPE_", "")} · {t("admin.libraries.lastScan", "Last scan")}: {lastScan}
           </Text>
         </View>
         <Pressable
@@ -61,6 +61,9 @@ export default function AdminLibrariesScreen() {
           disabled={scanLibrary.isPending}
           hitSlop={8}
           style={{ padding: 4 }}
+          accessible
+          accessibilityLabel={t("admin.libraries.scan", "Scan library")}
+          accessibilityRole="button"
         >
           <Ionicons name="refresh-outline" size={20} color={theme.colors.accent} />
         </Pressable>
