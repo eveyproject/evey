@@ -104,6 +104,40 @@ func TestMaxSize_OverwriteDoesNotInflateCount(t *testing.T) {
 	}
 }
 
+func TestMaxSize_RecentGetAvoidsEviction(t *testing.T) {
+	c, stop := cache.NewWithMaxSize[int](0, 3)
+	defer stop()
+	c.Set("a", 1, time.Minute)
+	c.Set("b", 2, time.Minute)
+	c.Set("c", 3, time.Minute)
+	// Access 'a' to refresh its LRU position.
+	if v, ok := c.Get("a"); !ok || v != 1 {
+		t.Fatalf("expected 'a'=1, got ok=%v v=%d", ok, v)
+	}
+	// Insert 'd' → should evict 'b' (oldest after 'a' bumped), not 'a'.
+	c.Set("d", 4, time.Minute)
+	if _, ok := c.Get("a"); !ok {
+		t.Fatal("expected 'a' to survive eviction after recent Get")
+	}
+	if _, ok := c.Get("b"); ok {
+		t.Fatal("expected 'b' (least recently used) to be evicted")
+	}
+}
+
+func TestMaxSize_InsertBeyondCapEvictsFront(t *testing.T) {
+	c, stop := cache.NewWithMaxSize[int](0, 2)
+	defer stop()
+	c.Set("a", 1, time.Minute)
+	c.Set("b", 2, time.Minute)
+	c.Set("c", 3, time.Minute)
+	if _, ok := c.Get("a"); ok {
+		t.Fatal("expected first inserted 'a' to be evicted")
+	}
+	if v, ok := c.Get("c"); !ok || v != 3 {
+		t.Fatalf("expected 'c'=3, got ok=%v v=%d", ok, v)
+	}
+}
+
 func TestNewWithMaxSize_DefaultOnZero(t *testing.T) {
 	c, stop := cache.NewWithMaxSize[int](0, 0)
 	defer stop()
