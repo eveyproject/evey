@@ -10,13 +10,13 @@ import (
 type QueryService struct {
 	playlists    playlist.PlaylistRepository
 	items        playlist.PlaylistItemRepository
-	smartQuerier SmartPlaylistQuerier
+	smartQuerier playlist.SmartPlaylistQuerier
 }
 
 func NewQueryService(
 	playlists playlist.PlaylistRepository,
 	items playlist.PlaylistItemRepository,
-	smartQuerier SmartPlaylistQuerier,
+	smartQuerier playlist.SmartPlaylistQuerier,
 ) *QueryService {
 	return &QueryService{playlists: playlists, items: items, smartQuerier: smartQuerier}
 }
