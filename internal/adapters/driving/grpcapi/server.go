@@ -50,6 +50,7 @@ type GRPCServerDeps struct {
 	PluginInstaller *appplugin.InstallerService
 	PluginRuntime   *appplugin.RuntimeService
 	PluginQuery     *appplugin.QueryService
+	PluginToken     *appplugin.TokenService
 	MetadataCmd     *appmetadata.CommandService
 	MetadataQuery   *appmetadata.QueryService
 	ActivityCmd     *appactivity.CommandService
@@ -131,6 +132,7 @@ func (s *GRPCServer) RegisterServices() {
 		pluginInstaller: d.PluginInstaller,
 		pluginRuntime:   d.PluginRuntime,
 		pluginQuery:     d.PluginQuery,
+		tokenSvc:        d.PluginToken,
 		logDir:          d.LogDir,
 	})
 	eveyv1.RegisterAdminTaskServiceServer(s.server, &adminTaskHandler{
