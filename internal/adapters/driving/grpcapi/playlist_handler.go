@@ -6,7 +6,9 @@ import (
 	"fmt"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
+	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/playlist"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
@@ -16,6 +18,7 @@ import (
 type playlistHandler struct {
 	eveyv1.UnimplementedPlaylistServiceServer
 	svc        *appplaylist.Service
+	libQuery   *applibrary.QueryService
 	translator *eveyi18n.Translator
 }
 
@@ -143,21 +146,54 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 		}
 		return nil, internalError("get playlist items", err)
 	}
+	mediaByID := make(map[string]*library.MediaItem, len(mediaItems))
+	for _, m := range mediaItems {
+		mediaByID[m.ID] = m
+	}
+	// For manual playlists we need to fetch metadata separately
+	if h.libQuery != nil && len(plItems) > 0 {
+		ids := make([]string, 0, len(plItems))
+		for _, it := range plItems {
+			if _, ok := mediaByID[it.MediaItemID]; !ok {
+				ids = append(ids, it.MediaItemID)
+			}
+		}
+		if len(ids) > 0 {
+			extra, _ := h.libQuery.GetMediaItemsByIDs(ctx, ids)
+			for _, m := range extra {
+				mediaByID[m.ID] = m
+			}
+		}
+	}
 	resp := &eveyv1.GetPlaylistItemsResponse{}
 	for _, it := range plItems {
-		resp.Items = append(resp.Items, &eveyv1.PlaylistItemProto{
+		pi := &eveyv1.PlaylistItemProto{
 			PlaylistId:  it.PlaylistID,
 			MediaItemId: it.MediaItemID,
 			SortOrder:   int32(it.SortOrder),
 			AddedAt:     toTimestamppb(it.AddedAt),
-		})
+		}
+		if m := mediaByID[it.MediaItemID]; m != nil {
+			pi.Title = m.Title
+			pi.Type = m.Type
+			if m.Year != nil {
+				pi.Year = int32(*m.Year)
+			}
+		}
+		resp.Items = append(resp.Items, pi)
 	}
 	for i, item := range mediaItems {
-		resp.Items = append(resp.Items, &eveyv1.PlaylistItemProto{
+		pi := &eveyv1.PlaylistItemProto{
 			PlaylistId:  req.Id,
 			MediaItemId: item.ID,
 			SortOrder:   int32(i),
-		})
+			Title:       item.Title,
+			Type:        item.Type,
+		}
+		if item.Year != nil {
+			pi.Year = int32(*item.Year)
+		}
+		resp.Items = append(resp.Items, pi)
 	}
 	return resp, nil
 }

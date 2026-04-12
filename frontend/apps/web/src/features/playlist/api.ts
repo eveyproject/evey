@@ -1,5 +1,19 @@
-import { eveyFetch } from "@evey/api";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  usePlaylistServiceListPlaylists,
+  usePlaylistServiceGetPlaylist,
+  usePlaylistServiceGetPlaylistItems,
+  playlistServiceCreatePlaylist,
+  playlistServiceUpdatePlaylist,
+  playlistServiceDeletePlaylist,
+  playlistServiceAddPlaylistItem,
+  playlistServiceRemovePlaylistItem,
+  getPlaylistServiceListPlaylistsQueryKey,
+  getPlaylistServiceGetPlaylistQueryKey,
+  getPlaylistServiceGetPlaylistItemsQueryKey,
+  V1PlaylistType,
+} from "@evey/api";
+import type { V1PlaylistProto } from "@evey/api";
 
 export interface PlaylistRule {
   field: string;
@@ -28,79 +42,77 @@ export interface PlaylistItem {
   year?: number;
 }
 
-export function usePlaylistList() {
-  return useQuery({
-    queryKey: ["playlists"],
-    queryFn: async () => {
-      const r = await eveyFetch<{ playlists: Playlist[] }>({ url: "/api/v1/playlists", method: "GET" });
-      return r.playlists ?? [];
-    },
-    staleTime: 5 * 60_000,
-  });
+function typeToLocal(t?: V1PlaylistType): "manual" | "smart" {
+  return t === V1PlaylistType.PLAYLIST_TYPE_SMART ? "smart" : "manual";
 }
 
-interface PlaylistDetailResponse {
-  playlist: {
-    id: string; name: string; description: string; type: string;
-    rules?: PlaylistRule[]; sortBy: string; sortOrder: string;
-    createdAt: string; updatedAt: string;
+function typeToProto(t: "manual" | "smart"): V1PlaylistType {
+  return t === "smart" ? V1PlaylistType.PLAYLIST_TYPE_SMART : V1PlaylistType.PLAYLIST_TYPE_MANUAL;
+}
+
+function mapPlaylist(p: V1PlaylistProto): Playlist {
+  return {
+    id: p.id ?? "",
+    name: p.name ?? "",
+    description: p.description ?? "",
+    type: typeToLocal(p.type),
+    rules: p.rules?.map((r) => ({ field: r.field ?? "", operator: r.operator ?? "", value: r.value ?? "" })),
+    sort_by: p.sortBy ?? "",
+    sort_order: p.sortOrder ?? "",
+    created_at: p.createdAt ?? "",
+    updated_at: p.updatedAt ?? "",
   };
-  items?: { mediaItemId: string; sortOrder: number; addedAt: string }[];
-  media?: { id: string; title: string; type: string; year?: number }[];
+}
+
+export function usePlaylistList() {
+  return usePlaylistServiceListPlaylists(undefined, {
+    query: {
+      select: (d) => (d.playlists ?? []).map(mapPlaylist),
+      staleTime: 5 * 60_000,
+    },
+  });
 }
 
 export function usePlaylistDetail(id: string) {
-  return useQuery({
-    queryKey: ["playlists", id],
-    queryFn: async (): Promise<Playlist & { items?: PlaylistItem[] }> => {
-      const raw = await eveyFetch<PlaylistDetailResponse>({ url: `/api/v1/playlists/${id}`, method: "GET" });
-      const pl = raw.playlist;
-      const mediaMap = new Map((raw.media ?? []).map((m) => [m.id, m]));
-      // For smart playlists, results come in `media` with no corresponding `items`
-      const rawItems = raw.items ?? [];
-      const items: PlaylistItem[] = rawItems.length > 0
-        ? rawItems.map((it) => {
-            const m = mediaMap.get(it.mediaItemId);
-            return {
-              media_item_id: it.mediaItemId,
-              sort_order: it.sortOrder,
-              added_at: it.addedAt,
-              title: m?.title,
-              type: m?.type,
-              year: m?.year,
-            };
-          })
-        : (raw.media ?? []).map((m, i) => ({
-            media_item_id: m.id,
-            sort_order: i,
-            title: m.title,
-            type: m.type,
-            year: m.year,
-          }));
-      return {
-        id: pl.id,
-        name: pl.name,
-        description: pl.description,
-        type: pl.type as "manual" | "smart",
-        rules: pl.rules,
-        sort_by: pl.sortBy,
-        sort_order: pl.sortOrder,
-        created_at: pl.createdAt,
-        updated_at: pl.updatedAt,
-        items,
-      };
-    },
-    enabled: !!id,
-    staleTime: 5 * 60_000,
+  const head = usePlaylistServiceGetPlaylist(id, undefined, {
+    query: { enabled: !!id, staleTime: 5 * 60_000, select: mapPlaylist },
   });
+  const items = usePlaylistServiceGetPlaylistItems(id, undefined, {
+    query: {
+      enabled: !!id,
+      staleTime: 5 * 60_000,
+      select: (d) =>
+        (d.items ?? []).map<PlaylistItem>((it) => ({
+          media_item_id: it.mediaItemId ?? "",
+          sort_order: it.sortOrder,
+          added_at: it.addedAt,
+          title: it.title,
+          type: it.type,
+          year: it.year,
+        })),
+    },
+  });
+  return {
+    data: head.data ? { ...head.data, items: items.data ?? [] } : undefined,
+    isLoading: head.isLoading || items.isLoading,
+    isError: head.isError || items.isError,
+    error: head.error ?? items.error,
+  };
 }
 
 export function useCreatePlaylist() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: { name: string; description?: string; type: "manual" | "smart"; rules?: PlaylistRule[]; sort_by?: string; sort_order?: string }) =>
-      eveyFetch<Playlist>({ url: "/api/v1/playlists", method: "POST", data }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["playlists"] }),
+      playlistServiceCreatePlaylist({
+        name: data.name,
+        description: data.description,
+        type: typeToProto(data.type),
+        rules: data.rules,
+        sortBy: data.sort_by,
+        sortOrder: data.sort_order,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: getPlaylistServiceListPlaylistsQueryKey() }),
   });
 }
 
@@ -108,16 +120,25 @@ export function useUpdatePlaylist() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string; rules?: PlaylistRule[]; sort_by?: string; sort_order?: string }) =>
-      eveyFetch<void>({ url: `/api/v1/playlists/${id}`, method: "PUT", data }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["playlists"] }),
+      playlistServiceUpdatePlaylist(id, {
+        name: data.name,
+        description: data.description,
+        rules: data.rules,
+        sortBy: data.sort_by,
+        sortOrder: data.sort_order,
+      }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: getPlaylistServiceListPlaylistsQueryKey() });
+      qc.invalidateQueries({ queryKey: getPlaylistServiceGetPlaylistQueryKey(vars.id) });
+    },
   });
 }
 
 export function useDeletePlaylist() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => eveyFetch<void>({ url: `/api/v1/playlists/${id}`, method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["playlists"] }),
+    mutationFn: (id: string) => playlistServiceDeletePlaylist(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: getPlaylistServiceListPlaylistsQueryKey() }),
   });
 }
 
@@ -125,8 +146,8 @@ export function useAddToPlaylist() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ playlistId, mediaItemId }: { playlistId: string; mediaItemId: string }) =>
-      eveyFetch<void>({ url: `/api/v1/playlists/${playlistId}/items`, method: "POST", data: { mediaItemId } }),
-    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] }),
+      playlistServiceAddPlaylistItem(playlistId, { mediaItemId }),
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: getPlaylistServiceGetPlaylistItemsQueryKey(vars.playlistId) }),
   });
 }
 
@@ -134,7 +155,7 @@ export function useRemoveFromPlaylist() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ playlistId, mediaItemId }: { playlistId: string; mediaItemId: string }) =>
-      eveyFetch<void>({ url: `/api/v1/playlists/${playlistId}/items/${mediaItemId}`, method: "DELETE" }),
-    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] }),
+      playlistServiceRemovePlaylistItem(playlistId, mediaItemId),
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: getPlaylistServiceGetPlaylistItemsQueryKey(vars.playlistId) }),
   });
 }

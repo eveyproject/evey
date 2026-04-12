@@ -3,6 +3,7 @@ syntax = "proto3";
 package evey.v1;
 
 import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
 
@@ -33,6 +34,7 @@ service ServerConfigService {
 message ServerConfigEntry {
   string key = 1;
   string value = 2;
+  google.protobuf.Timestamp updated_at = 3;
 }
 
 message GetServerConfigEntryRequest {
@@ -42,6 +44,7 @@ message GetServerConfigEntryRequest {
 message ServerConfigEntryResponse {
   string key = 1;
   string value = 2;
+  google.protobuf.Timestamp updated_at = 3;
 }
 
 message SetServerConfigEntryRequest {

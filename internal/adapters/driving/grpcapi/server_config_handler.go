@@ -36,7 +36,7 @@ func (h *serverConfigHandler) GetServerConfigEntry(ctx context.Context, req *eve
 		}
 		return nil, internalError("get config", err)
 	}
-	return &eveyv1.ServerConfigEntryResponse{Key: e.Key, Value: e.Value}, nil
+	return &eveyv1.ServerConfigEntryResponse{Key: e.Key, Value: e.Value, UpdatedAt: toTimestamppb(e.UpdatedAt)}, nil
 }
 
 func (h *serverConfigHandler) SetServerConfigEntry(ctx context.Context, req *eveyv1.SetServerConfigEntryRequest) (*eveyv1.SetServerConfigEntryResponse, error) {
@@ -56,7 +56,7 @@ func (h *serverConfigHandler) ListServerConfigEntries(ctx context.Context, _ *ev
 	}
 	resp := &eveyv1.ListServerConfigEntriesResponse{}
 	for _, e := range entries {
-		resp.Entries = append(resp.Entries, &eveyv1.ServerConfigEntry{Key: e.Key, Value: e.Value})
+		resp.Entries = append(resp.Entries, &eveyv1.ServerConfigEntry{Key: e.Key, Value: e.Value, UpdatedAt: toTimestamppb(e.UpdatedAt)})
 	}
 	return resp, nil
 }

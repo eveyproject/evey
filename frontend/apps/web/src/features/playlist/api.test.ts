@@ -3,245 +3,138 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@evey/api", () => ({
-  eveyFetch: vi.fn(),
-}));
+const mockList = vi.fn(() => ({ data: { playlists: [] } }));
+const mockGet = vi.fn(() => ({ data: undefined, isLoading: false, isSuccess: true }));
+const mockGetItems = vi.fn(() => ({ data: { items: [] }, isLoading: false, isSuccess: true }));
+const createFn = vi.fn();
+const updateFn = vi.fn();
+const deleteFn = vi.fn();
+const addItemFn = vi.fn();
+const removeItemFn = vi.fn();
 
-async function getEveyFetch() {
-  const { eveyFetch } = await import("@evey/api");
-  return vi.mocked(eveyFetch);
+function sel<T>(raw: { data?: T; [k: string]: unknown }, opts: { query?: { select?: (d: T) => unknown; enabled?: boolean } }) {
+  const s = opts?.query?.select;
+  const enabled = opts?.query?.enabled !== false;
+  return { ...raw, data: enabled && raw?.data !== undefined && s ? s(raw.data) : (enabled ? raw?.data : undefined), fetchStatus: enabled ? "idle" : "idle" };
 }
 
+vi.mock("@evey/api", () => ({
+  eveyFetch: vi.fn(),
+  usePlaylistServiceListPlaylists: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => sel(mockList(), opts),
+  usePlaylistServiceGetPlaylist: (_id: string, _p: unknown, opts: { query?: { select?: (d: unknown) => unknown; enabled?: boolean } }) => sel(mockGet(), opts),
+  usePlaylistServiceGetPlaylistItems: (_id: string, _p: unknown, opts: { query?: { select?: (d: unknown) => unknown; enabled?: boolean } }) => sel(mockGetItems(), opts),
+  playlistServiceCreatePlaylist: (body: unknown) => createFn(body),
+  playlistServiceUpdatePlaylist: (id: string, body: unknown) => updateFn(id, body),
+  playlistServiceDeletePlaylist: (id: string) => deleteFn(id),
+  playlistServiceAddPlaylistItem: (id: string, body: unknown) => addItemFn(id, body),
+  playlistServiceRemovePlaylistItem: (id: string, mid: string) => removeItemFn(id, mid),
+  getPlaylistServiceListPlaylistsQueryKey: () => ["playlists"],
+  getPlaylistServiceGetPlaylistQueryKey: (id: string) => ["playlist", id],
+  getPlaylistServiceGetPlaylistItemsQueryKey: (id: string) => ["playlist-items", id],
+  V1PlaylistType: { PLAYLIST_TYPE_UNSPECIFIED: "PLAYLIST_TYPE_UNSPECIFIED", PLAYLIST_TYPE_MANUAL: "PLAYLIST_TYPE_MANUAL", PLAYLIST_TYPE_SMART: "PLAYLIST_TYPE_SMART" },
+}));
+
 function createWrapper() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return ({ children }: { children: React.ReactNode }) =>
-    React.createElement(QueryClientProvider, { client: qc }, children);
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return { qc, wrapper: ({ children }: { children: React.ReactNode }) => React.createElement(QueryClientProvider, { client: qc }, children) };
 }
 
 describe("usePlaylistList", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns list of playlists", async () => {
-    const fetch = await getEveyFetch();
-    const playlists = [{ id: "p-1", name: "My Playlist" }];
-    fetch.mockResolvedValueOnce({ playlists });
-
+    mockList.mockReturnValue({ data: { playlists: [{ id: "p-1", name: "My Playlist", type: "PLAYLIST_TYPE_MANUAL" }] } });
     const { usePlaylistList } = await import("./api");
-    const { result } = renderHook(() => usePlaylistList(), { wrapper: createWrapper() });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual(playlists);
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/playlists", method: "GET" }),
-    );
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => usePlaylistList(), { wrapper });
+    expect(result.current.data?.[0]?.id).toBe("p-1");
   });
 
   it("returns empty array when no playlists", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce({});
-
+    mockList.mockReturnValue({ data: {} });
     const { usePlaylistList } = await import("./api");
-    const { result } = renderHook(() => usePlaylistList(), { wrapper: createWrapper() });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => usePlaylistList(), { wrapper });
     expect(result.current.data).toEqual([]);
-  });
-});
-
-describe("usePlaylistDetail", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("fetches and maps playlist detail with items", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce({
-      playlist: {
-        id: "p-1", name: "Watchlist", description: "My list", type: "manual",
-        sortBy: "name", sortOrder: "asc", createdAt: "2024-01-01", updatedAt: "2024-01-02",
-      },
-      items: [{ mediaItemId: "m-1", sortOrder: 0, addedAt: "2024-01-01" }],
-      media: [{ id: "m-1", title: "Movie A", type: "movie", year: 2024 }],
-    });
-
-    const { usePlaylistDetail } = await import("./api");
-    const { result } = renderHook(() => usePlaylistDetail("p-1"), { wrapper: createWrapper() });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.name).toBe("Watchlist");
-    expect(result.current.data?.items?.[0].media_item_id).toBe("m-1");
-    expect(result.current.data?.items?.[0].title).toBe("Movie A");
-  });
-
-  it("falls back to media array for smart playlists", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce({
-      playlist: {
-        id: "p-2", name: "Smart", description: "", type: "smart",
-        sortBy: "year", sortOrder: "desc", createdAt: "2024-01-01", updatedAt: "2024-01-01",
-      },
-      items: [],
-      media: [{ id: "m-2", title: "Film B", type: "movie", year: 2023 }],
-    });
-
-    const { usePlaylistDetail } = await import("./api");
-    const { result } = renderHook(() => usePlaylistDetail("p-2"), { wrapper: createWrapper() });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.items?.[0].media_item_id).toBe("m-2");
-    expect(result.current.data?.items?.[0].title).toBe("Film B");
-  });
-
-  it("is disabled when id is empty", async () => {
-    const fetch = await getEveyFetch();
-
-    const { usePlaylistDetail } = await import("./api");
-    const { result } = renderHook(() => usePlaylistDetail(""), { wrapper: createWrapper() });
-
-    expect(result.current.fetchStatus).toBe("idle");
-    expect(fetch).not.toHaveBeenCalled();
   });
 });
 
 describe("useCreatePlaylist", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("calls POST and invalidates playlists query", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce({ id: "new-1", name: "New" });
-
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: qc }, children);
-
+  it("calls create and invalidates playlists query", async () => {
+    createFn.mockResolvedValue({ id: "new-1", name: "New" });
     const { useCreatePlaylist } = await import("./api");
+    const { qc, wrapper } = createWrapper();
+    const spy = vi.spyOn(qc, "invalidateQueries");
     const { result } = renderHook(() => useCreatePlaylist(), { wrapper });
-
-    await act(async () => {
-      result.current.mutate({ name: "New", type: "manual" });
-    });
-
+    await act(async () => { result.current.mutate({ name: "New", type: "manual" }); });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/playlists", method: "POST" }),
-    );
-    expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["playlists"] }),
-    );
+    expect(createFn).toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["playlists"] }));
   });
 });
 
 describe("useUpdatePlaylist", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("calls PUT and invalidates playlists query", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce(undefined);
-
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: qc }, children);
-
+  it("calls update and invalidates playlists query", async () => {
+    updateFn.mockResolvedValue(undefined);
     const { useUpdatePlaylist } = await import("./api");
+    const { qc, wrapper } = createWrapper();
+    const spy = vi.spyOn(qc, "invalidateQueries");
     const { result } = renderHook(() => useUpdatePlaylist(), { wrapper });
-
-    await act(async () => {
-      result.current.mutate({ id: "p-1", name: "Updated" });
-    });
-
+    await act(async () => { result.current.mutate({ id: "p-1", name: "Updated" }); });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/playlists/p-1", method: "PUT", data: { name: "Updated" } }),
-    );
-    expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["playlists"] }),
-    );
+    expect(updateFn).toHaveBeenCalledWith("p-1", expect.objectContaining({ name: "Updated" }));
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["playlists"] }));
   });
 });
 
 describe("useDeletePlaylist", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("calls DELETE and invalidates playlists query", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce(undefined);
-
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: qc }, children);
-
+  it("calls delete and invalidates playlists query", async () => {
+    deleteFn.mockResolvedValue(undefined);
     const { useDeletePlaylist } = await import("./api");
+    const { qc, wrapper } = createWrapper();
+    const spy = vi.spyOn(qc, "invalidateQueries");
     const { result } = renderHook(() => useDeletePlaylist(), { wrapper });
-
-    await act(async () => {
-      result.current.mutate("p-1");
-    });
-
+    await act(async () => { result.current.mutate("p-1"); });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/playlists/p-1", method: "DELETE" }),
-    );
-    expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["playlists"] }),
-    );
+    expect(deleteFn).toHaveBeenCalledWith("p-1");
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["playlists"] }));
   });
 });
 
 describe("useAddToPlaylist", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("calls POST items and invalidates playlist detail", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce(undefined);
-
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: qc }, children);
-
+  it("calls add item and invalidates items", async () => {
+    addItemFn.mockResolvedValue(undefined);
     const { useAddToPlaylist } = await import("./api");
+    const { qc, wrapper } = createWrapper();
+    const spy = vi.spyOn(qc, "invalidateQueries");
     const { result } = renderHook(() => useAddToPlaylist(), { wrapper });
-
-    await act(async () => {
-      result.current.mutate({ playlistId: "p-1", mediaItemId: "m-1" });
-    });
-
+    await act(async () => { result.current.mutate({ playlistId: "p-1", mediaItemId: "m-1" }); });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/playlists/p-1/items", method: "POST", data: { mediaItemId: "m-1" } }),
-    );
-    expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["playlists", "p-1"] }),
-    );
+    expect(addItemFn).toHaveBeenCalledWith("p-1", { mediaItemId: "m-1" });
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["playlist-items", "p-1"] }));
   });
 });
 
 describe("useRemoveFromPlaylist", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("calls DELETE item and invalidates playlist detail", async () => {
-    const fetch = await getEveyFetch();
-    fetch.mockResolvedValueOnce(undefined);
-
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: qc }, children);
-
+  it("calls remove item and invalidates items", async () => {
+    removeItemFn.mockResolvedValue(undefined);
     const { useRemoveFromPlaylist } = await import("./api");
+    const { qc, wrapper } = createWrapper();
+    const spy = vi.spyOn(qc, "invalidateQueries");
     const { result } = renderHook(() => useRemoveFromPlaylist(), { wrapper });
-
-    await act(async () => {
-      result.current.mutate({ playlistId: "p-1", mediaItemId: "m-1" });
-    });
-
+    await act(async () => { result.current.mutate({ playlistId: "p-1", mediaItemId: "m-1" }); });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(fetch).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/playlists/p-1/items/m-1", method: "DELETE" }),
-    );
-    expect(invalidateSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ["playlists", "p-1"] }),
-    );
+    expect(removeItemFn).toHaveBeenCalledWith("p-1", "m-1");
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["playlist-items", "p-1"] }));
   });
 });

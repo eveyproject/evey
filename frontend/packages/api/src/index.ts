@@ -52,3 +52,5 @@ export type { V1FavoriteProto } from "./generated/favorite.schemas";
 export type { V1ServerConfigEntry } from "./generated/server_config.schemas";
 export type { V1RemoteAccessConfig, V1UpdateRemoteAccessRequest } from "./generated/remote_access.schemas";
 export type { V1BackupManifest } from "./generated/backup.schemas";
+export type { V1PlaylistProto, V1PlaylistRule, V1PlaylistItemProto } from "./generated/playlist.schemas";
+export { V1PlaylistType } from "./generated/playlist.schemas";
