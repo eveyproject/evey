@@ -47,7 +47,7 @@ function UserMenu({ userInitial, avatarUrl }: { userInitial: string; avatarUrl: 
     logout();
     localStorage.removeItem("evey-recent-searches");
     // Clear httpOnly refresh cookie server-side (best-effort)
-    void userServiceLogout({}).catch(() => undefined);
+    void userServiceLogout({}).catch((err) => console.warn("logout failed", err));
     void navigate({ to: "/login" });
   };
 

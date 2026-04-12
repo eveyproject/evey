@@ -263,7 +263,7 @@ export function HLSPlayer({
       wasPlayingBeforeCast.current = !video.paused;
       if (!video.paused) video.pause();
     } else if (wasPlayingBeforeCast.current) {
-      video.play().catch(() => {});
+      video.play().catch((err) => console.warn("video.play failed", err));
       wasPlayingBeforeCast.current = false;
     }
   }, [castConnected]);
@@ -276,7 +276,7 @@ export function HLSPlayer({
       const container = containerRef.current;
       if (!container) return;
       if (e.matches && !document.fullscreenElement) {
-        void container.requestFullscreen().catch(() => {});
+        void container.requestFullscreen().catch((err) => console.warn("requestFullscreen failed", err));
       }
     };
     mql.addEventListener("change", handler);

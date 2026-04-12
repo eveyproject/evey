@@ -66,7 +66,7 @@ export function usePlayerKeyboard({
         case "k":
           e.preventDefault();
           if (video.paused) {
-            video.play().catch(() => {});
+            video.play().catch((err) => console.warn("video.play failed", err));
             showActionFlashRef.current("play");
           } else {
             video.pause();

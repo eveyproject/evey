@@ -6,7 +6,7 @@ export function isPushSupported(): boolean {
 
 export function registerServiceWorker(): void {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.register("/sw.js").catch((err) => console.warn("sw register failed", err));
   }
 }
 

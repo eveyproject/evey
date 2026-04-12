@@ -189,7 +189,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     wsRef.current = null;
     setState({ roomId: null, roomCode: null, members: [], connected: false, isHost: false });
     if (roomId) {
-      await syncPlayServiceLeaveRoom(roomId).catch(() => {});
+      await syncPlayServiceLeaveRoom(roomId).catch((err) => console.warn("syncplay leave failed", err));
     }
   }, [state.roomId]);
 

@@ -59,7 +59,7 @@ export function useDirectPlayback({
       hlsInstance.attachMedia(video);
       hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
         video.currentTime = startPositionMs / 1000;
-        video.play().catch(() => {});
+        video.play().catch((err) => console.warn("video.play failed", err));
       });
       hlsInstance.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_, data) => {
         if (data.audioTracks.length === 0) setTranscodeMode(true);
@@ -72,7 +72,7 @@ export function useDirectPlayback({
     } else if (streamInfo.directPlayUrl) {
       video.src = streamInfo.directPlayUrl;
       video.currentTime = startPositionMs / 1000;
-      video.play().catch(() => {});
+      video.play().catch((err) => console.warn("video.play failed", err));
     }
 
     let canPlayTimer: ReturnType<typeof setTimeout> | null = null;

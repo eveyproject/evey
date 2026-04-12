@@ -117,7 +117,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
       const v = videoRef.current;
       if (!v) return;
       v.currentTime = positionMs / 1000;
-      v.play().catch(() => {});
+      v.play().catch((err) => console.warn("v.play failed", err));
     },
     onPause: (positionMs) => {
       const v = videoRef.current;
@@ -134,7 +134,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
 
   useEffect(() => {
     if (roomParam && !syncState.roomId) {
-      syncControls.joinRoom(roomParam).catch(() => {});
+      syncControls.joinRoom(roomParam).catch((err) => console.warn("joinRoom failed", err));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only join when URL roomParam changes, not when syncState/syncControls update
   }, [roomParam]);

@@ -64,7 +64,7 @@ export function useTranscodePlayback({
     if (!Hls.isSupported()) {
       video.src = hlsUrl;
       video.currentTime = 0;
-      if (!wasPausedRef.current) video.play().catch(() => {});
+      if (!wasPausedRef.current) video.play().catch((err) => console.warn("video.play failed", err));
       function onTimeUpdate() { positionRef.current = video!.currentTime; }
       function handleEnded() { onEnded?.(); }
       video.addEventListener("timeupdate", onTimeUpdate);
@@ -96,7 +96,7 @@ export function useTranscodePlayback({
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       setHlsLevels(hls.levels.map((l) => l.height));
-      video.play().catch(() => {});
+      video.play().catch((err) => console.warn("video.play failed", err));
     });
 
     let retries = 0;

@@ -33,7 +33,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
 
   useEffect(() => {
     if (item.id && item.filePath) {
-      fetchStreamToken(item.id).catch(() => {});
+      fetchStreamToken(item.id).catch((err) => console.warn("fetchStreamToken failed", err));
     }
   }, [item.id, item.filePath, fetchStreamToken]);
 

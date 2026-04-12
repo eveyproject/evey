@@ -143,7 +143,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           headers,
           body: JSON.stringify({ sessionId: sid }),
           keepalive: true,
-        }).catch(() => {});
+        }).catch((err) => console.warn("playback stop failed", err));
       }
     };
     window.addEventListener("pagehide", handleUnload);

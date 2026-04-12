@@ -37,7 +37,7 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, onRe
           if (res.remoteCommand === "pause") {
             video.pause();
           } else if (res.remoteCommand === "play") {
-            video.play().catch(() => {});
+            video.play().catch((err) => console.warn("video.play failed", err));
           } else if (res.remoteCommand === "stop") {
             video.pause();
             onRemoteStopRef.current?.();
@@ -45,7 +45,8 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, onRe
             toast.info(res.remoteCommand.slice(8));
           }
         }
-      } catch {
+      } catch (err) {
+        console.warn("progress report failed", err);
         errorCountRef.current++;
       } finally {
         pendingRef.current = false;
@@ -62,7 +63,7 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, onRe
         isPaused: video.paused,
         isMuted: video.muted,
         volumeLevel: Math.round(video.volume * 100),
-      }).catch(() => {});
+      }).catch((err) => console.warn("final progress report failed", err));
     };
   }, [sessionId, videoRef]);
 
