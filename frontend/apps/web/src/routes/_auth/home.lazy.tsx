@@ -33,7 +33,6 @@ const HERO_INTERVAL = 8000;
 
 const HeroBanner = memo(function HeroBanner() {
   const { t } = useTranslation();
-  const accessToken = useAuthStore((s) => s.accessToken);
   const { data, isLoading } = useFeedServiceRecentlyAdded(undefined, { query: { staleTime: 5 * 60_000 } });
   const items = data?.items ?? [];
 
@@ -92,9 +91,8 @@ const HeroBanner = memo(function HeroBanner() {
       {heroIds.map((id, idx) => {
         const detail = details[idx]?.data;
         const candidate = candidates[idx];
-        const backdropUrl = accessToken ? `/api/v1/media/${id}/artwork/backdrop?token=${encodeURIComponent(accessToken)}` : `/api/v1/media/${id}/artwork/backdrop`;
-        const bdSep = backdropUrl.includes("?") ? "&" : "?";
-        const backdropSrcSet = `${backdropUrl}${bdSep}w=800 800w, ${backdropUrl}${bdSep}w=1280 1280w, ${backdropUrl}${bdSep}w=1920 1920w`;
+        const backdropUrl = `/api/v1/media/${id}/artwork/backdrop`;
+        const backdropSrcSet = `${backdropUrl}?w=800 800w, ${backdropUrl}?w=1280 1280w, ${backdropUrl}?w=1920 1920w`;
         const displayTitle = candidate?.title ?? detail?.title ?? "";
         const overview = detail?.overview;
         const year = detail?.year;

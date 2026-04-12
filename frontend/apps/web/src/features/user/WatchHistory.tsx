@@ -7,7 +7,6 @@ import {
   getPlaybackServiceGetWatchHistoryQueryKey,
 } from "@evey/api";
 import { Link } from "@tanstack/react-router";
-import { useAuthStore } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Badge } from "@/components/ui/Badge";
@@ -61,7 +60,6 @@ function ProgressBar({ percent }: { percent: number }) {
 
 function HistoryItem({ item }: { item: WatchProgress }) {
   const { t } = useTranslation();
-  const accessToken = useAuthStore((s) => s.accessToken);
     const qc = useQueryClient();
   const unwatch = usePlaybackServiceMarkAsUnwatched({
     mutation: {
@@ -73,7 +71,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
 
   const pct = item.percentComplete ?? 0;
   const posterUrl = item.mediaItemId
-    ? accessToken ? `/api/v1/media/${item.mediaItemId}/artwork/poster?token=${encodeURIComponent(accessToken)}` : `/api/v1/media/${item.mediaItemId}/artwork/poster`
+    ? `/api/v1/media/${item.mediaItemId}/artwork/poster`
     : undefined;
 
   return (
