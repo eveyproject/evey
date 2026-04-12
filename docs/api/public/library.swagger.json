@@ -914,6 +914,10 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "lastScannedAt": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },

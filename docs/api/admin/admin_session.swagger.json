@@ -137,9 +137,56 @@
           "AdminSessionService"
         ]
       }
+    },
+    "/api/v1/admin/sessions/{sessionId}/command": {
+      "post": {
+        "operationId": "AdminSessionService_SendSessionCommand",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SendSessionCommandResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminSessionServiceSendSessionCommandBody"
+            }
+          }
+        ],
+        "tags": [
+          "AdminSessionService"
+        ]
+      }
     }
   },
   "definitions": {
+    "AdminSessionServiceSendSessionCommandBody": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "title": "\"pause\", \"play\""
+        }
+      }
+    },
     "protobufAny": {
       "type": "object",
       "properties": {
@@ -229,6 +276,23 @@
         },
         "transcodeInfo": {
           "type": "string"
+        },
+        "profileId": {
+          "type": "string"
+        },
+        "seriesTitle": {
+          "type": "string"
+        },
+        "seasonNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "episodeNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "isPaused": {
+          "type": "boolean"
         }
       }
     },
@@ -262,6 +326,9 @@
         "createdAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "resourceName": {
+          "type": "string"
         }
       }
     },
@@ -295,6 +362,9 @@
           }
         }
       }
+    },
+    "v1SendSessionCommandResponse": {
+      "type": "object"
     }
   }
 }

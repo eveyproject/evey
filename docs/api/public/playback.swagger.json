@@ -976,7 +976,12 @@
       }
     },
     "v1ReportProgressResponse": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "remoteCommand": {
+          "type": "string"
+        }
+      }
     },
     "v1StartStreamRequest": {
       "type": "object",

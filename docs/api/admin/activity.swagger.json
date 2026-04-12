@@ -417,6 +417,47 @@
         }
       }
     },
+    "v1AnalyticsDailyPlayCount": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string"
+        },
+        "playCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "watchTimeSeconds": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "v1AnalyticsHourlyPlayCount": {
+      "type": "object",
+      "properties": {
+        "hour": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "count": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1AnalyticsPlayMethod": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
     "v1AnalyticsRecentActivity": {
       "type": "object",
       "properties": {
@@ -502,6 +543,27 @@
         "activeUsersToday": {
           "type": "integer",
           "format": "int32"
+        },
+        "dailyPlays": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1AnalyticsDailyPlayCount"
+          }
+        },
+        "playMethods": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1AnalyticsPlayMethod"
+          }
+        },
+        "hourlyPlays": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1AnalyticsHourlyPlayCount"
+          }
         }
       }
     },

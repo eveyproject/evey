@@ -170,6 +170,37 @@
         }
       }
     },
+    "v1CollectionItemProto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "overview": {
+          "type": "string"
+        },
+        "communityRating": {
+          "type": "number",
+          "format": "double"
+        },
+        "genres": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "v1CollectionProto": {
       "type": "object",
       "properties": {
@@ -217,6 +248,13 @@
         "total": {
           "type": "integer",
           "format": "int32"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CollectionItemProto"
+          }
         }
       }
     },

@@ -227,6 +227,20 @@
         "createdAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "communityRating": {
+          "type": "number",
+          "format": "double"
         }
       }
     },

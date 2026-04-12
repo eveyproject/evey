@@ -161,6 +161,9 @@
         "maxRemoteBitrateKbps": {
           "type": "integer",
           "format": "int32"
+        },
+        "serverBaseUrl": {
+          "type": "string"
         }
       }
     },
