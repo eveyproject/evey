@@ -131,10 +131,46 @@ func TestRegisterWebPush_RepoError_Internal(t *testing.T) {
 	ctx := ctxWithClaims("u1", "p1", false)
 	_, err := h.RegisterWebPush(ctx, &eveyv1.RegisterWebPushRequest{
 		Endpoint: "https://x",
-		Keys:     &eveyv1.WebPushKeys{P256Dh: "a", Auth: "b"},
+		Keys:     &eveyv1.WebPushKeys{P256Dh: "p256", Auth: "auth"},
 	})
 	if got := codeOf(t, err); got != codes.Internal {
 		t.Errorf("code = %v, want Internal", got)
+	}
+}
+
+func TestRegisterWebPush_InvalidP256Dh(t *testing.T) {
+	t.Parallel()
+	h := newTestPushHandler(notiffakes.NewFakePushSubscriptionRepository())
+	ctx := ctxWithClaims("u1", "p1", false)
+	_, err := h.RegisterWebPush(ctx, &eveyv1.RegisterWebPushRequest{
+		Endpoint: "https://x",
+		Keys:     &eveyv1.WebPushKeys{P256Dh: "not-base64!!!", Auth: "auth"},
+	})
+	if got := codeOf(t, err); got != codes.InvalidArgument {
+		t.Errorf("code = %v, want InvalidArgument", got)
+	}
+}
+
+func TestRegisterWebPush_InvalidAuth(t *testing.T) {
+	t.Parallel()
+	h := newTestPushHandler(notiffakes.NewFakePushSubscriptionRepository())
+	ctx := ctxWithClaims("u1", "p1", false)
+	_, err := h.RegisterWebPush(ctx, &eveyv1.RegisterWebPushRequest{
+		Endpoint: "https://x",
+		Keys:     &eveyv1.WebPushKeys{P256Dh: "p256", Auth: "!!invalid"},
+	})
+	if got := codeOf(t, err); got != codes.InvalidArgument {
+		t.Errorf("code = %v, want InvalidArgument", got)
+	}
+}
+
+func TestIsBase64(t *testing.T) {
+	t.Parallel()
+	if !isBase64("p256") || !isBase64("auth") {
+		t.Error("valid base64 rejected")
+	}
+	if isBase64("") || isBase64("not base64!!!") {
+		t.Error("invalid base64 accepted")
 	}
 }
 

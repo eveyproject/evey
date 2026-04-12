@@ -37,6 +37,13 @@ func (h *remoteAccessHandler) GetRemoteAccess(_ context.Context, _ *eveyv1.GetRe
 }
 
 func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv1.UpdateRemoteAccessRequest) (*eveyv1.RemoteAccessConfig, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin {
+		return nil, status.Error(codes.PermissionDenied, "admin only")
+	}
 	if req.ExternalUrl != nil {
 		if err := urlvalidator.ValidateExternalURL(*req.ExternalUrl); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid ExternalURL: %v", err)

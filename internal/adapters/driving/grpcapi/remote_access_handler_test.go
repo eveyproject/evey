@@ -79,7 +79,7 @@ func TestUpdateRemoteAccess_ValidHTTPSURL(t *testing.T) {
 	enabled := true
 	bitrate := int32(5000)
 
-	resp, err := h.UpdateRemoteAccess(context.Background(), &eveyv1.UpdateRemoteAccessRequest{
+	resp, err := h.UpdateRemoteAccess(ctxWithClaims("admin-1","p1",true), &eveyv1.UpdateRemoteAccessRequest{
 		Enabled:              &enabled,
 		ExternalUrl:          &url,
 		LanNetworks:          []string{"10.0.0.0/8"},
@@ -115,7 +115,7 @@ func TestUpdateRemoteAccess_RejectsNonHTTPS(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := h.UpdateRemoteAccess(context.Background(), &eveyv1.UpdateRemoteAccessRequest{
+			_, err := h.UpdateRemoteAccess(ctxWithClaims("admin-1","p1",true), &eveyv1.UpdateRemoteAccessRequest{
 				ExternalUrl: &tc.url,
 			})
 			if got := codeOf(t, err); got != codes.InvalidArgument {
@@ -140,7 +140,7 @@ func TestUpdateRemoteAccess_RejectsPrivateIPs(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := h.UpdateRemoteAccess(context.Background(), &eveyv1.UpdateRemoteAccessRequest{
+			_, err := h.UpdateRemoteAccess(ctxWithClaims("admin-1","p1",true), &eveyv1.UpdateRemoteAccessRequest{
 				ExternalUrl: &tc.url,
 			})
 			if got := codeOf(t, err); got != codes.InvalidArgument {
@@ -154,7 +154,7 @@ func TestUpdateRemoteAccess_EmptyHost(t *testing.T) {
 	t.Parallel()
 	h, _, _ := newTestRAHandler()
 	url := "https://"
-	_, err := h.UpdateRemoteAccess(context.Background(), &eveyv1.UpdateRemoteAccessRequest{ExternalUrl: &url})
+	_, err := h.UpdateRemoteAccess(ctxWithClaims("admin-1","p1",true), &eveyv1.UpdateRemoteAccessRequest{ExternalUrl: &url})
 	if got := codeOf(t, err); got != codes.InvalidArgument {
 		t.Errorf("code = %v, want InvalidArgument", got)
 	}
@@ -166,7 +166,7 @@ func TestUpdateRemoteAccess_NilURL_NoValidation(t *testing.T) {
 	cfg.RemoteAccess.ExternalURL = "https://kept.example.com"
 	enabled := false
 
-	resp, err := h.UpdateRemoteAccess(context.Background(), &eveyv1.UpdateRemoteAccessRequest{Enabled: &enabled})
+	resp, err := h.UpdateRemoteAccess(ctxWithClaims("admin-1","p1",true), &eveyv1.UpdateRemoteAccessRequest{Enabled: &enabled})
 	if err != nil {
 		t.Fatalf("UpdateRemoteAccess: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestUpdateRemoteAccess_PersistErrorDoesNotFail(t *testing.T) {
 	store.setErr = errors.New("boom")
 	url := "https://public.example.com"
 
-	_, err := h.UpdateRemoteAccess(context.Background(), &eveyv1.UpdateRemoteAccessRequest{ExternalUrl: &url})
+	_, err := h.UpdateRemoteAccess(ctxWithClaims("admin-1","p1",true), &eveyv1.UpdateRemoteAccessRequest{ExternalUrl: &url})
 	if err != nil {
 		t.Fatalf("UpdateRemoteAccess should not surface persist errors: %v", err)
 	}
@@ -203,6 +203,23 @@ func TestGetNetworkInfo_ReturnsInterfaces(t *testing.T) {
 	}
 }
 
-// GAP documented: UpdateRemoteAccess does not enforce admin-only access at the
-// handler level — protection must come from a gRPC interceptor. No
-// PermissionDenied test is possible here. See remote_access_handler.go.
+func TestUpdateRemoteAccess_Unauthenticated(t *testing.T) {
+	t.Parallel()
+	h, _, _ := newTestRAHandler()
+	enabled := true
+	_, err := h.UpdateRemoteAccess(context.Background(), &eveyv1.UpdateRemoteAccessRequest{Enabled: &enabled})
+	if got := codeOf(t, err); got != codes.Unauthenticated {
+		t.Errorf("code = %v, want Unauthenticated", got)
+	}
+}
+
+func TestUpdateRemoteAccess_NonAdmin_PermissionDenied(t *testing.T) {
+	t.Parallel()
+	h, _, _ := newTestRAHandler()
+	enabled := true
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	_, err := h.UpdateRemoteAccess(ctx, &eveyv1.UpdateRemoteAccessRequest{Enabled: &enabled})
+	if got := codeOf(t, err); got != codes.PermissionDenied {
+		t.Errorf("code = %v, want PermissionDenied", got)
+	}
+}

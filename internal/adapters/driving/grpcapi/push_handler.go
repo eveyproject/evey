@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"encoding/base64"
 	"log/slog"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -10,6 +11,19 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// isBase64 reports whether s decodes as non-empty base64 (URL-safe or std, padded or not).
+func isBase64(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, enc := range []*base64.Encoding{base64.RawURLEncoding, base64.URLEncoding, base64.StdEncoding, base64.RawStdEncoding} {
+		if b, err := enc.DecodeString(s); err == nil && len(b) > 0 {
+			return true
+		}
+	}
+	return false
+}
 
 type webPushHandler struct {
 	eveyv1.UnimplementedPushServiceServer
@@ -28,6 +42,9 @@ func (h *webPushHandler) RegisterWebPush(ctx context.Context, req *eveyv1.Regist
 	}
 	if req.Endpoint == "" || req.Keys == nil || req.Keys.P256Dh == "" || req.Keys.Auth == "" {
 		return nil, status.Error(codes.InvalidArgument, "endpoint and keys required")
+	}
+	if !isBase64(req.Keys.P256Dh) || !isBase64(req.Keys.Auth) {
+		return nil, status.Error(codes.InvalidArgument, "invalid key encoding")
 	}
 	if err := h.notifCmd.UpsertPushSubscription(ctx, claims.UserID, claims.ProfileID, req.Endpoint, req.Keys.P256Dh, req.Keys.Auth); err != nil {
 		slog.Error("push: register web push", slog.Any("err", err))
