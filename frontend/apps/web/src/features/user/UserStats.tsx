@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { useActivityServiceGetUserStats } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { PieChart } from "react-gifted-charts";
+import { BarChart, PieChart } from "react-gifted-charts";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BarChart3 } from "lucide-react";
@@ -97,6 +97,7 @@ export function UserStats() {
   }
 
   const accent = useCssVar("--accent", "#6366f1");
+  const textMuted = useCssVar("--text-muted");
   const lang = i18n.language;
 
   const genres = [...(data.genres ?? [])].sort((a, b) => parseInt(b.totalTimeMs ?? "0") - parseInt(a.totalTimeMs ?? "0"));
@@ -153,23 +154,25 @@ export function UserStats() {
           <h3 className="text-sm font-semibold mb-4 text-[var(--text)]">
             {t("common.userStats.monthlyActivity")}
           </h3>
-          <div className="flex items-end gap-2 h-40 pt-4">
-            {monthBarData.map((d, i) => {
-              const pct = monthMax > 0 ? (d.value / monthMax) * 100 : 0;
-              return (
-                <div key={i} className="flex flex-1 flex-col items-center gap-1 min-w-0">
-                  <div className="flex-1 w-full flex items-end">
-                    <div
-                      className="w-full rounded-t transition-all"
-                      style={{ height: `${pct}%`, backgroundColor: d.frontColor, minHeight: d.value > 0 ? 2 : 0 }}
-                      title={`${d.value}h`}
-                    />
-                  </div>
-                  <span className="text-[10px] text-[var(--text-muted)]">{d.label}</span>
-                  <span className="text-[10px] text-[var(--text)] font-medium">{d.value > 0 ? `${d.value}h` : ""}</span>
-                </div>
-              );
-            })}
+          <div className="overflow-x-auto">
+            <BarChart
+              data={monthBarData}
+              barWidth={20}
+              spacing={8}
+              initialSpacing={4}
+              endSpacing={12}
+              disableScroll
+              roundedTop
+              noOfSections={4}
+              maxValue={Math.ceil(monthMax * 1.1) || 1}
+              yAxisTextStyle={{ color: textMuted, fontSize: 11 }}
+              xAxisLabelTextStyle={{ color: textMuted, fontSize: 10 }}
+              yAxisLabelSuffix="h"
+              hideRules
+              isAnimated
+              barBorderTopLeftRadius={4}
+              barBorderTopRightRadius={4}
+            />
           </div>
         </div>
       </div>
