@@ -13,7 +13,6 @@ export interface PlayerProgressBarProps {
   chapters: Chapter[];
   mediaId?: string;
   mediaType?: string;
-  streamToken?: string;
   onSeek: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onChapterSeek: (timeSec: number) => void;
 }
@@ -26,7 +25,6 @@ export function PlayerProgressBar({
   chapters,
   mediaId,
   mediaType,
-  streamToken,
   onSeek,
   onChapterSeek,
 }: PlayerProgressBarProps) {
@@ -64,7 +62,7 @@ export function PlayerProgressBar({
             style={{ left: seekHoverX }}
           >
             {mediaId && (
-              <TrickplayPreview mediaId={mediaId} hoverTime={seekHoverPos} mediaType={mediaType} streamToken={streamToken} />
+              <TrickplayPreview mediaId={mediaId} hoverTime={seekHoverPos} mediaType={mediaType} />
             )}
             <div
               className="px-2 py-1 rounded text-xs text-white mt-1 text-center bg-[var(--overlay-scrim)] max-w-[200px]"

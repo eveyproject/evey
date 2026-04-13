@@ -75,7 +75,7 @@ export function PlayerControls({
     effectiveDuration: localDuration, absoluteTime: localTime, bufferedEnd, transcodeOffset,
     audioStreams, subtitleStreams, currentAudioIndex, currentQuality,
     currentSubtitleTrackIndex, playbackSpeed, autoQuality, autoQualityLabel,
-    availableQualities, chapters, mediaId, mediaType, streamToken,
+    availableQualities, chapters, mediaId, mediaType,
     title, brightness, skipForwardSeconds, skipBackwardSeconds,
     seasons, currentSeasonId, episodes, currentEpisodeId, subtitleStyle,
   } = ctx;
@@ -338,7 +338,6 @@ export function PlayerControls({
           chapters={chapters}
           mediaId={mediaId}
           mediaType={mediaType}
-          streamToken={streamToken}
           onSeek={handleSeek}
           onChapterSeek={handleChapterSeek}
         />
