@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -11,7 +12,14 @@ import (
 
 const dlnaMaxBodySize = 4096
 
-func dlnaRenderersHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http.HandlerFunc {
+type dlnaClient interface {
+	Discover(ctx context.Context) ([]appdlna.Renderer, error)
+	Play(ctx context.Context, rendererID, mediaURL, title string) error
+	Stop(ctx context.Context, rendererID string) error
+	Pause(ctx context.Context, rendererID string) error
+}
+
+func dlnaRenderersHandler(tokenGen TokenVerifier, dlnaSvc dlnaClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		renderers, err := dlnaSvc.Discover(r.Context())
 		if err != nil {
@@ -29,7 +37,7 @@ func dlnaRenderersHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http
 	}
 }
 
-func dlnaPlayHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http.HandlerFunc {
+func dlnaPlayHandler(tokenGen TokenVerifier, dlnaSvc dlnaClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			RendererID string `json:"rendererId"`
@@ -54,7 +62,7 @@ func dlnaPlayHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http.Hand
 	}
 }
 
-func dlnaStopHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http.HandlerFunc {
+func dlnaStopHandler(tokenGen TokenVerifier, dlnaSvc dlnaClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			RendererID string `json:"rendererId"`
@@ -77,7 +85,7 @@ func dlnaStopHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http.Hand
 	}
 }
 
-func dlnaPauseHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http.HandlerFunc {
+func dlnaPauseHandler(tokenGen TokenVerifier, dlnaSvc dlnaClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			RendererID string `json:"rendererId"`
