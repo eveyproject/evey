@@ -1,7 +1,6 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useLibraryServiceListMediaItems, eveyFetch } from "@evey/api";
-import { useQuery } from "@tanstack/react-query";
+import { useLibraryServiceListMediaItems, useLibraryServiceGetPerson } from "@evey/api";
 import { BackButton } from "@/components/ui/BackButton";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
@@ -20,31 +19,11 @@ const ROLE_KEYS: Record<string, string> = {
   PERSON_TYPE_GUEST_STAR: "media.person.guestStar",
 };
 
-interface PersonInfo {
-  id?: string;
-  name?: string;
-  thumbUrl?: string;
-  providerIds?: Record<string, string>;
-  biography?: string;
-  birthday?: string;
-  deathday?: string;
-  placeOfBirth?: string;
-  knownFor?: string;
-}
-
-function useGetPerson(id: string) {
-  return useQuery<PersonInfo>({
-    queryKey: ["person", id],
-    queryFn: () => eveyFetch<PersonInfo>({ url: `/api/v1/people/${id}`, method: "GET" }),
-    enabled: !!id,
-  });
-}
-
 function PersonPage() {
   const { t } = useTranslation();
   const { personId } = Route.useParams();
 
-  const { data: person } = useGetPerson(personId);
+  const { data: person } = useLibraryServiceGetPerson(personId);
   const { data, isLoading } = useLibraryServiceListMediaItems({
     personId,
     "pagination.pageSize": 200,
