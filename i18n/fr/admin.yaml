@@ -152,6 +152,9 @@ users:
   expiresAtLabel: "Date d'expiration (optionnel)"
   noUsers: "Aucun utilisateur trouvé"
   noInvites: "Aucun lien d'invitation"
+  editUser: "Modifier l'utilisateur"
+  failedCreateInvite: "Échec de la création du lien d'invitation"
+  leaveBlank: "Laisser vide pour conserver"
 
 libraries:
   title: "Bibliothèques"
@@ -209,6 +212,12 @@ libraries:
   enterCustomPath: "Entrer un chemin personnalisé..."
   addPath: "+ Ajouter un chemin"
   tvShows: "Séries TV"
+  lastScan: "Dernier scan"
+  namePlaceholder: "Nom de la bibliothèque"
+  pathRequired: "Au moins un chemin est requis"
+  realtimeMonitoring: "Surveillance en temps réel"
+  scanFailed: "Échec du scan"
+  scanOnStartup: "Scanner au démarrage"
 
 sessions:
   title: "En cours de lecture"
@@ -216,6 +225,7 @@ sessions:
   failedLoadDesc: "Impossible de récupérer les sessions actives. Vérifiez votre connexion et réessayez."
   noSessions: "Aucune session active"
   noSessionsDesc: "Lorsque les utilisateurs commenceront à diffuser, leurs sessions apparaîtront ici."
+  activeCount: "{{count}} sessions actives"
   activeCount_one: "{{count}} session active"
   activeCount_other: "{{count}} sessions actives"
   stopSession: "Arrêter la session"
@@ -268,6 +278,7 @@ webhooks:
   webhookCreated: "Webhook créé"
   webhookUpdated: "Webhook mis à jour"
   webhookDeleted: "Webhook supprimé"
+  failedCreate: "Échec de la création du Webhook"
   failedDelete: "Échec de la suppression du Webhook"
   failedUpdate: "Échec de la mise à jour du Webhook"
   testPingSent: "Ping de test envoyé"
@@ -443,6 +454,7 @@ remoteAccess:
   networkInterfaces: "Interfaces réseau du serveur"
   interface: "Interface"
   address: "Adresse"
+  usingDefault: "Valeur par défaut utilisée"
 
 systemHealth:
   title: "Santé du système"
@@ -479,6 +491,13 @@ transcodeCache:
     file: "Fichier"
     size: "Taille"
     modified: "Modifié"
+  hwAccelType: "Type d'accélération matérielle"
+  hwDecodeCodecs: "Codecs de décodage matériel"
+  hwDevices: "Périphériques matériels"
+  maxConcurrent: "Maximum simultané"
+  settingsSaved: "Paramètres enregistrés"
+  throttle: "Limitation"
+  transcodingSettings: "Paramètres de transcodage"
 
 transcodingProfiles:
   title: "Profils de transcodage"

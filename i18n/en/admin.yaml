@@ -153,6 +153,9 @@ users:
   expiresAtLabel: Expires at (optional)
   noUsers: No users found
   noInvites: No invite links
+  editUser: Edit User
+  failedCreateInvite: Failed to create invite link
+  leaveBlank: "Leave blank to keep current"
 
 libraries:
   title: Libraries
@@ -210,6 +213,12 @@ libraries:
   enterCustomPath: "Enter custom path..."
   addPath: "+ Add Path"
   tvShows: TV Shows
+  lastScan: "Last scan"
+  namePlaceholder: "Library name"
+  pathRequired: "At least one path is required"
+  realtimeMonitoring: "Realtime monitoring"
+  scanFailed: "Scan failed"
+  scanOnStartup: "Scan on startup"
 
 sessions:
   title: Now Playing
@@ -217,6 +226,7 @@ sessions:
   failedLoadDesc: Could not fetch active sessions. Check your connection and try again.
   noSessions: No active sessions
   noSessionsDesc: When users start streaming, their sessions will appear here.
+  activeCount: "{{count}} active sessions"
   activeCount_one: "{{count}} active session"
   activeCount_other: "{{count}} active sessions"
   stopSession: Stop session
@@ -269,6 +279,7 @@ webhooks:
   webhookCreated: Webhook created
   webhookUpdated: Webhook updated
   webhookDeleted: Webhook deleted
+  failedCreate: Failed to create webhook
   failedDelete: Failed to delete webhook
   failedUpdate: Failed to update webhook
   testPingSent: Test ping sent
@@ -444,6 +455,7 @@ remoteAccess:
   networkInterfaces: Server Network Interfaces
   interface: Interface
   address: Address
+  usingDefault: "Using default value"
 
 systemHealth:
   title: System Health
@@ -480,6 +492,13 @@ transcodeCache:
     file: File
     size: Size
     modified: Modified
+  hwAccelType: "HW Accel Type"
+  hwDecodeCodecs: "HW Decode Codecs"
+  hwDevices: "HW Devices"
+  maxConcurrent: "Max Concurrent"
+  settingsSaved: "Settings saved"
+  throttle: "Throttle"
+  transcodingSettings: "Transcoding Settings"
 
 transcodingProfiles:
   title: Transcoding Profiles
