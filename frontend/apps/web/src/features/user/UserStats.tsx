@@ -154,12 +154,13 @@ export function UserStats() {
           <h3 className="text-sm font-semibold mb-4 text-[var(--text)]">
             {t("common.userStats.monthlyActivity")}
           </h3>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto pr-6">
             <BarChart
               data={monthBarData}
               barWidth={24}
               spacing={10}
-              endSpacing={16}
+              initialSpacing={10}
+              endSpacing={24}
               roundedTop
               noOfSections={4}
               maxValue={Math.ceil(monthMax * 1.1) || 1}
