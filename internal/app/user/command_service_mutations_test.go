@@ -414,18 +414,16 @@ func (r *resetRepoMarkUsedFail) MarkUsed(_ context.Context, _ string) error {
 	return errors.New("mark used reset boom")
 }
 
-func TestResetPassword_MarkUsedErrorNonFatalV2(t *testing.T) {
-	buf, restore := captureSlogBuffer(t)
-	defer restore()
-
+// TestResetPassword_MarkUsedError_AtomicRollback verifies that a MarkUsed
+// failure aborts the operation and rolls back the password update, so the
+// reset token cannot be reused with the old password still active OR a
+// new password silently committed alongside a still-usable token.
+func TestResetPassword_MarkUsedError_AtomicRollback(t *testing.T) {
 	d := newAuthTestDeps()
 	innerReset := ufakes.NewFakePasswordResetTokenRepository()
 	reset := &resetRepoMarkUsedFail{FakePasswordResetTokenRepository: innerReset}
 	cfg := fakes.NewFakeServerConfigRepository()
 	_ = cfg.Set(context.Background(), "auth.password_recovery_enabled", "true")
-	d.svc = NewCommandService(d.users, d.profiles, d.refreshTkns, d.roles, d.userRoles,
-		d.hasher, d.tokens, d.events, time.Hour, ufakes.NewFakeQuickConnectRepository(),
-		WithPasswordReset(reset, cfg, true))
 
 	ctx := context.Background()
 	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
@@ -436,12 +434,59 @@ func TestResetPassword_MarkUsedErrorNonFatalV2(t *testing.T) {
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
-	if err := d.svc.ResetPassword(ctx, raw, "newpassword123"); err != nil {
-		t.Fatalf("MarkUsed error should be non-fatal, got %v", err)
+	// Snapshot/restore uow: reverts user repo changes when fn errors.
+	// Constructed AFTER seeding so the snapshot captures the seeded state.
+	uow := newSnapshotUserUOW(ctx, d.users)
+	d.svc = NewCommandService(d.users, d.profiles, d.refreshTkns, d.roles, d.userRoles,
+		d.hasher, d.tokens, d.events, time.Hour, ufakes.NewFakeQuickConnectRepository(),
+		WithPasswordReset(reset, cfg, true), WithUnitOfWork(uow))
+
+	err := d.svc.ResetPassword(ctx, raw, "newpassword123")
+	if err == nil {
+		t.Fatal("expected error when MarkUsed fails (atomic)")
 	}
-	if !strings.Contains(buf.String(), "mark reset token used") {
-		t.Fatalf("expected warn log, got %q", buf.String())
+	if !strings.Contains(err.Error(), "mark reset token used") {
+		t.Fatalf("expected wrapped MarkUsed error, got %v", err)
 	}
+	// Password must NOT be changed (rollback).
+	u, _ := d.users.GetByID(ctx, "u1")
+	if u.PasswordHash != "hashed:pw" {
+		t.Fatalf("password hash should be rolled back, got %q", u.PasswordHash)
+	}
+	if uow.calls != 1 {
+		t.Fatalf("uow.Do should be invoked once, got %d", uow.calls)
+	}
+}
+
+// snapshotUserUOW captures the user repo state at construction time
+// (so it predates any in-place mutation by the service) and restores it
+// when fn returns an error, emulating real transactional rollback for
+// the in-memory FakeUserRepository (which shares pointers with callers).
+type snapshotUserUOW struct {
+	users *ufakes.FakeUserRepository
+	snap  map[string]user.User
+	calls int
+}
+
+func newSnapshotUserUOW(ctx context.Context, users *ufakes.FakeUserRepository) *snapshotUserUOW {
+	all, _ := users.List(ctx)
+	snap := make(map[string]user.User, len(all))
+	for _, u := range all {
+		snap[u.ID] = *u
+	}
+	return &snapshotUserUOW{users: users, snap: snap}
+}
+
+func (s *snapshotUserUOW) Do(ctx context.Context, fn func(context.Context) error) error {
+	s.calls++
+	if err := fn(ctx); err != nil {
+		for _, u := range s.snap {
+			cp := u
+			_ = s.users.Update(ctx, &cp)
+		}
+		return err
+	}
+	return nil
 }
 
 func TestResetPassword_DeleteRefreshTokensErrorNonFatal(t *testing.T) {
