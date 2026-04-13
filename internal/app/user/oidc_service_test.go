@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -827,4 +828,529 @@ func TestHandleCallback_TokenExchangeError(t *testing.T) {
 // Ping tests removed — OIDCService.Ping was deleted (dead code cleanup)
 
 // generateAndStoreRefreshToken tests kept in command_service_test.go (duplicate removed)
+
+// --- gremlins gap-closing tests for error branches ---
+
+// captureSlog redirects slog default output to a buffer for the duration of fn.
+func captureSlog(t *testing.T, fn func()) string {
+	t.Helper()
+	var buf strings.Builder
+	oldDefault := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	defer slog.SetDefault(oldDefault)
+	fn()
+	return buf.String()
+}
+
+// wrappers for per-method error injection
+
+type errUserRepo struct {
+	domainuser.UserRepository
+	updateErr error
+}
+
+func (r *errUserRepo) Update(ctx context.Context, u *domainuser.User) error {
+	if r.updateErr != nil {
+		return r.updateErr
+	}
+	return r.UserRepository.Update(ctx, u)
+}
+
+type errProfileRepo struct {
+	domainuser.ProfileRepository
+	createErr     error
+	getByUserErr  error
+	getByIDErr    error
+}
+
+func (r *errProfileRepo) Create(ctx context.Context, p *domainuser.Profile) error {
+	if r.createErr != nil {
+		return r.createErr
+	}
+	return r.ProfileRepository.Create(ctx, p)
+}
+
+func (r *errProfileRepo) GetByUserID(ctx context.Context, userID string) ([]*domainuser.Profile, error) {
+	if r.getByUserErr != nil {
+		return nil, r.getByUserErr
+	}
+	return r.ProfileRepository.GetByUserID(ctx, userID)
+}
+
+func (r *errProfileRepo) GetByID(ctx context.Context, id string) (*domainuser.Profile, error) {
+	if r.getByIDErr != nil {
+		return nil, r.getByIDErr
+	}
+	return r.ProfileRepository.GetByID(ctx, id)
+}
+
+type errUserRoleRepo struct {
+	domainuser.UserRoleRepository
+	getErr error
+}
+
+func (r *errUserRoleRepo) GetRolesByUserID(ctx context.Context, userID string) ([]*domainuser.Role, error) {
+	if r.getErr != nil {
+		return nil, r.getErr
+	}
+	return r.UserRoleRepository.GetRolesByUserID(ctx, userID)
+}
+
+type errRefreshRepo struct {
+	domainuser.RefreshTokenRepository
+	deleteByUserErr error
+}
+
+func (r *errRefreshRepo) DeleteByUserID(ctx context.Context, userID string) error {
+	if r.deleteByUserErr != nil {
+		return r.deleteByUserErr
+	}
+	return r.RefreshTokenRepository.DeleteByUserID(ctx, userID)
+}
+
+// helper: build a fresh OIDC server and service, with token endpoint serving a signed id_token for the given claims.
+func setupCallbackSvc(t *testing.T, claims map[string]any, opts ...func(*OIDCService)) (*OIDCService, *testOIDCServer) {
+	t.Helper()
+	oidcSrv := newTestOIDCServer(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
+	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
+	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(oidcSrv.signIDToken(t, claims, "test-client")))
+	oidcSrv.srv.Config.Handler = mux
+	svc := buildOIDCService(t, oidcSrv, opts...)
+	return svc, oidcSrv
+}
+
+// L193-194: GetRolesByUserID errors -> slog.Warn, callback continues
+func TestHandleCallback_RolesRepoError_ContinuesWithoutRoles(t *testing.T) {
+	sub := "sub-rolerr"
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub":                sub,
+		"email":              "u@example.com",
+		"preferred_username": "u",
+	})
+	defer oidcSrv.close()
+
+	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
+	issuer := oidcSrv.issuer
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "usr-rolerr", Username: "u", Enabled: true,
+		OIDCSubject: &sub, OIDCIssuer: &issuer,
+	})
+
+	svc.userRoles = &errUserRoleRepo{
+		UserRoleRepository: svc.userRoles,
+		getErr:             errors.New("roles db boom"),
+	}
+
+	var (
+		accessTk, refreshTk string
+		err                 error
+	)
+	logs := captureSlog(t, func() {
+		accessTk, refreshTk, _, err = svc.HandleCallback(context.Background(), "auth-code")
+	})
+	if err != nil {
+		t.Fatalf("expected success despite roles error, got %v", err)
+	}
+	if accessTk == "" || refreshTk == "" {
+		t.Error("expected non-empty tokens")
+	}
+	if !strings.Contains(logs, "oidc: get roles") {
+		t.Errorf("expected 'oidc: get roles' warning, got: %s", logs)
+	}
+}
+
+// L203: profiles.GetByUserID errors -> default profile stays empty, callback continues
+func TestHandleCallback_ProfilesGetByUserIDError_ContinuesEmpty(t *testing.T) {
+	sub := "sub-puserr"
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub":                sub,
+		"email":              "u@example.com",
+		"preferred_username": "u",
+	})
+	defer oidcSrv.close()
+
+	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
+	issuer := oidcSrv.issuer
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "usr-puserr", Username: "u", Enabled: true,
+		OIDCSubject: &sub, OIDCIssuer: &issuer,
+	})
+
+	svc.profiles = &errProfileRepo{
+		ProfileRepository: svc.profiles,
+		getByUserErr:      errors.New("profiles boom"),
+	}
+
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if accessTk == "" {
+		t.Error("expected access token")
+	}
+}
+
+// L210: defaultProfileID == "" && len(profs) > 0 -> falls back to first profile
+// Already covered by TestHandleCallback_ProfileWithRoles but add explicit assertion via empty-profs branch.
+func TestHandleCallback_NoProfiles_NoDefault(t *testing.T) {
+	sub := "sub-nop"
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub":                sub,
+		"email":              "u@example.com",
+		"preferred_username": "u",
+	})
+	defer oidcSrv.close()
+
+	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
+	issuer := oidcSrv.issuer
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "usr-nop", Username: "u", Enabled: true,
+		OIDCSubject: &sub, OIDCIssuer: &issuer,
+	})
+
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if accessTk == "" {
+		t.Error("expected access token")
+	}
+}
+
+// L210: when no IsDefault profile but profiles exist, fallback to first profile's ID.
+func TestHandleCallback_NoDefaultProfile_FallsBackToFirst(t *testing.T) {
+	sub := "sub-fallbackprf"
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub":                sub,
+		"email":              "u@example.com",
+		"preferred_username": "u",
+	})
+	defer oidcSrv.close()
+
+	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
+	issuer := oidcSrv.issuer
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "usr-fbprf", Username: "u", Enabled: true,
+		OIDCSubject: &sub, OIDCIssuer: &issuer,
+	})
+	profileRepo := svc.profiles.(*userfakes.FakeProfileRepository)
+	profileRepo.Create(context.Background(), &domainuser.Profile{
+		ID: "prf-only", UserID: "usr-fbprf", Name: "u", IsDefault: false, Locale: "en-US",
+	})
+
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	tk := svc.tokens.(*userfakes.FakeTokenGenerator)
+	claims, err := tk.ValidateAccessToken(accessTk)
+	if err != nil {
+		t.Fatalf("validate token: %v", err)
+	}
+	if claims.ProfileID != "prf-only" {
+		t.Errorf("ProfileID = %q, want 'prf-only' (fallback to first non-default)", claims.ProfileID)
+	}
+}
+
+// L217: profiles.GetByID errors -> oidcLocale stays empty, callback continues
+func TestHandleCallback_ProfileGetByIDError_ContinuesEmptyLocale(t *testing.T) {
+	sub := "sub-pgerr"
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub":                sub,
+		"email":              "u@example.com",
+		"preferred_username": "u",
+	})
+	defer oidcSrv.close()
+
+	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
+	issuer := oidcSrv.issuer
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "usr-pgerr", Username: "u", Enabled: true,
+		OIDCSubject: &sub, OIDCIssuer: &issuer,
+	})
+
+	// Create a default profile so defaultProfileID is set, then wrap GetByID to fail.
+	innerProfiles := svc.profiles
+	innerProfiles.Create(context.Background(), &domainuser.Profile{
+		ID: "prf-pgerr", UserID: "usr-pgerr", Name: "u", IsDefault: true,
+	})
+	svc.profiles = &errProfileRepo{
+		ProfileRepository: innerProfiles,
+		getByIDErr:        errors.New("profile get boom"),
+	}
+
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if accessTk == "" {
+		t.Error("expected access token")
+	}
+}
+
+// L239: events.Publish (LoginSucceeded) errors -> slog.Warn, callback succeeds
+func TestHandleCallback_LoginEventPublishError_Continues(t *testing.T) {
+	sub := "sub-everr"
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub":                sub,
+		"email":              "u@example.com",
+		"preferred_username": "u",
+	})
+	defer oidcSrv.close()
+
+	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
+	issuer := oidcSrv.issuer
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "usr-everr", Username: "u", Enabled: true,
+		OIDCSubject: &sub, OIDCIssuer: &issuer,
+	})
+
+	bus := svc.events.(*sharedfakes.FakeEventBus)
+	bus.PublishErr = errors.New("bus down")
+
+	var (
+		accessTk, refreshTk string
+		err                 error
+	)
+	logs := captureSlog(t, func() {
+		accessTk, refreshTk, _, err = svc.HandleCallback(context.Background(), "auth-code")
+	})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if accessTk == "" || refreshTk == "" {
+		t.Error("expected non-empty tokens")
+	}
+	if !strings.Contains(logs, "oidc: publish event") {
+		t.Errorf("expected 'oidc: publish event' warning, got: %s", logs)
+	}
+}
+
+// L252-253: existing user Update errs -> slog.Warn, callback succeeds
+func TestHandleCallback_UpdateExistingUserError_Continues(t *testing.T) {
+	sub := "sub-upderr"
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub":                sub,
+		"email":              "u@example.com",
+		"preferred_username": "u",
+	})
+	defer oidcSrv.close()
+
+	inner := svc.userRepo.(*userfakes.FakeUserRepository)
+	issuer := oidcSrv.issuer
+	inner.Create(context.Background(), &domainuser.User{
+		ID: "usr-upderr", Username: "u", Enabled: true,
+		OIDCSubject: &sub, OIDCIssuer: &issuer,
+	})
+	svc.userRepo = &errUserRepo{UserRepository: inner, updateErr: errors.New("update boom")}
+
+	var (
+		accessTk string
+		err      error
+	)
+	logs := captureSlog(t, func() {
+		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code")
+	})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if accessTk == "" {
+		t.Error("expected access token")
+	}
+	if !strings.Contains(logs, "oidc: update user timestamp") {
+		t.Errorf("expected update timestamp warning, got: %s", logs)
+	}
+}
+
+// L266-268: email with "@" at position 0 -> at > 0 is false -> fallback hex username
+func TestHandleCallback_EmailAtPositionZero_UsesHexFallback(t *testing.T) {
+	sub := "sub-atzero"
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub":   sub,
+		"email": "@example.com", // "@" at index 0
+	})
+	defer oidcSrv.close()
+
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
+	users, _ := userRepo.List(context.Background())
+	if len(users) != 1 {
+		t.Fatalf("expected 1 user, got %d", len(users))
+	}
+	if !strings.HasPrefix(users[0].Username, "oidc-") {
+		t.Errorf("username = %q, want prefix 'oidc-'", users[0].Username)
+	}
+}
+
+// L300: profiles.Create error on new user -> slog.Warn, callback succeeds
+func TestHandleCallback_NewUserProfileCreateError_Continues(t *testing.T) {
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub":                "sub-pcreaterr",
+		"email":              "new@example.com",
+		"preferred_username": "new",
+	})
+	defer oidcSrv.close()
+
+	svc.profiles = &errProfileRepo{
+		ProfileRepository: svc.profiles,
+		createErr:         errors.New("profile create boom"),
+	}
+
+	var (
+		accessTk string
+		err      error
+	)
+	logs := captureSlog(t, func() {
+		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code")
+	})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if accessTk == "" {
+		t.Error("expected access token")
+	}
+	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
+	users, _ := userRepo.List(context.Background())
+	if len(users) != 1 {
+		t.Fatalf("expected 1 user to be created, got %d", len(users))
+	}
+	if !strings.Contains(logs, "oidc: create default profile failed") {
+		t.Errorf("expected profile-create warning, got: %s", logs)
+	}
+}
+
+// L305: new-user user.created publish error -> slog.Warn, callback succeeds
+func TestHandleCallback_NewUserCreatedEventError_Continues(t *testing.T) {
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub":                "sub-newev",
+		"email":              "newev@example.com",
+		"preferred_username": "newev",
+	})
+	defer oidcSrv.close()
+
+	bus := svc.events.(*sharedfakes.FakeEventBus)
+	bus.PublishErr = errors.New("bus down")
+
+	var (
+		accessTk string
+		err      error
+	)
+	logs := captureSlog(t, func() {
+		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code")
+	})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if accessTk == "" {
+		t.Error("expected access token")
+	}
+	if !strings.Contains(logs, "oidc: publish user.created") {
+		t.Errorf("expected publish user.created warning, got: %s", logs)
+	}
+}
+
+// L330: refresh DeleteByUserID errors -> slog.Warn, callback still succeeds via Create
+func TestHandleCallback_RefreshPurgeError_Continues(t *testing.T) {
+	sub := "sub-purge"
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub":                sub,
+		"email":              "u@example.com",
+		"preferred_username": "u",
+	})
+	defer oidcSrv.close()
+
+	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
+	issuer := oidcSrv.issuer
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "usr-purge", Username: "u", Enabled: true,
+		OIDCSubject: &sub, OIDCIssuer: &issuer,
+	})
+	svc.refreshTkns = &errRefreshRepo{
+		RefreshTokenRepository: svc.refreshTkns,
+		deleteByUserErr:        errors.New("purge boom"),
+	}
+
+	var (
+		refreshTk string
+		err       error
+	)
+	logs := captureSlog(t, func() {
+		_, refreshTk, _, err = svc.HandleCallback(context.Background(), "auth-code")
+	})
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if refreshTk == "" {
+		t.Error("expected refresh token")
+	}
+	if !strings.Contains(logs, "oidc: purge old refresh tokens") {
+		t.Errorf("expected purge warning, got: %s", logs)
+	}
+}
+
+// L216: defaultProfileID != "" true branch -> Locale propagates into access token claims.
+func TestHandleCallback_LocaleFromDefaultProfile(t *testing.T) {
+	sub := "sub-locale"
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub":                sub,
+		"email":              "u@example.com",
+		"preferred_username": "u",
+	})
+	defer oidcSrv.close()
+
+	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
+	issuer := oidcSrv.issuer
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "usr-locale", Username: "u", Enabled: true,
+		OIDCSubject: &sub, OIDCIssuer: &issuer,
+	})
+	profileRepo := svc.profiles.(*userfakes.FakeProfileRepository)
+	profileRepo.Create(context.Background(), &domainuser.Profile{
+		ID: "prf-locale", UserID: "usr-locale", Name: "u", IsDefault: true, Locale: "fr-FR",
+	})
+
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	tk := svc.tokens.(*userfakes.FakeTokenGenerator)
+	claims, err := tk.ValidateAccessToken(accessTk)
+	if err != nil {
+		t.Fatalf("validate token: %v", err)
+	}
+	if claims.Locale != "fr-FR" {
+		t.Errorf("Locale = %q, want 'fr-FR'", claims.Locale)
+	}
+	if claims.ProfileID != "prf-locale" {
+		t.Errorf("ProfileID = %q, want 'prf-locale'", claims.ProfileID)
+	}
+}
+
+// L148 boundary: time.Since > oidcStateTTL, test just inside and just outside
+func TestValidateState_BoundaryExact(t *testing.T) {
+	oidcSrv := newTestOIDCServer(t)
+	defer oidcSrv.close()
+	svc := buildOIDCService(t, oidcSrv)
+
+	// Just outside TTL (1s older than the TTL) -> must be expired.
+	ts := strconv.FormatInt(time.Now().Add(-oidcStateTTL-1*time.Second).Unix(), 10)
+	payload := ts + "|n1"
+	sig := svc.signState(payload)
+	if _, err := svc.ValidateState(payload + "." + sig); !errors.Is(err, ErrStateExpired) {
+		t.Errorf("just-past TTL: expected ErrStateExpired, got %v", err)
+	}
+
+	// Well inside TTL -> valid.
+	ts2 := strconv.FormatInt(time.Now().Add(-1*time.Second).Unix(), 10)
+	payload2 := ts2 + "|n2"
+	sig2 := svc.signState(payload2)
+	if _, err := svc.ValidateState(payload2 + "." + sig2); err != nil {
+		t.Errorf("well-within TTL: expected valid, got %v", err)
+	}
+}
 
