@@ -365,34 +365,6 @@ audit:
   noEntries: "未找到记录"
   entries: "{{count}} 条记录"
 
-logs:
-  title: "实时日志"
-  live: "实时"
-  searchLogs: "搜索日志…"
-  component: "组件…"
-  noMatch: "没有匹配过滤条件的日志。"
-
-metadata:
-  title: "元数据"
-  refreshAll: "全部刷新"
-  refreshStarted: "批量元数据刷新已开始"
-  failedRefresh: "启动刷新失败"
-  searchPlaceholder: "搜索媒体项..."
-  noResults: "无结果"
-  noMedia: "未找到媒体项"
-  tryDifferent: "请尝试不同的搜索词。"
-  editMetadata: "编辑元数据"
-  titleLabel: "标题"
-  overview: "概述"
-  overviewPlaceholder: "概述..."
-  year: "年份"
-  genres: "类型"
-  addGenre: "添加类型..."
-  searchTmdb: "搜索 TMDB"
-  hideTmdbSearch: "隐藏 TMDB 搜索"
-  noTmdbResults: "未找到 TMDB 结果。"
-  failedLoad: "加载项目失败。"
-
 serverConfig:
   title: "服务器配置"
   subtitle: "存储在数据库中的键值配置项。"
@@ -498,35 +470,6 @@ transcodeCache:
   settingsSaved: "设置已保存"
   throttle: "限速"
   transcodingSettings: "转码设置"
-
-transcodingProfiles:
-  title: "转码配置"
-  createProfile: "创建配置"
-  editProfile: "编辑配置"
-  deleteProfile: "删除配置"
-  profileCreated: "配置已创建"
-  profileUpdated: "配置已更新"
-  profileDeleted: "配置已删除"
-  failedSave: "保存配置失败"
-  failedDeleteProfile: "删除配置失败"
-  noProfiles: "未找到转码配置。"
-  deleteConfirm: "确定删除配置 <strong>{{name}}</strong>？此操作无法撤销。"
-  default: "默认"
-  form:
-    name: "名称"
-    maxResolution: "最大分辨率"
-    hwAccel: "硬件加速"
-    videoCodec: "视频编码"
-    audioCodec: "音频编码"
-    maxBitrate: "最大视频码率 (kbps)"
-    defaultProfile: "默认配置"
-  tableHeaders:
-    name: "名称"
-    resolution: "分辨率"
-    videoCodec: "视频编码"
-    audioCodec: "音频编码"
-    bitrate: "码率"
-    hwAccel: "硬件加速"
 
 dashboardStats:
   movies: "电影"

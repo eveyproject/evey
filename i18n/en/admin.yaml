@@ -366,34 +366,6 @@ audit:
   noEntries: No entries found
   entries: "{{count}} entries"
 
-logs:
-  title: Live Logs
-  live: Live
-  searchLogs: "Search logs\u2026"
-  component: "Component\u2026"
-  noMatch: No log entries match your filter.
-
-metadata:
-  title: Metadata
-  refreshAll: Refresh All
-  refreshStarted: Bulk metadata refresh started
-  failedRefresh: Failed to start refresh
-  searchPlaceholder: "Search media items..."
-  noResults: No results
-  noMedia: No media items found
-  tryDifferent: Try a different search term.
-  editMetadata: Edit Metadata
-  titleLabel: Title
-  overview: Overview
-  overviewPlaceholder: "Overview..."
-  year: Year
-  genres: Genres
-  addGenre: "Add genre..."
-  searchTmdb: Search TMDB
-  hideTmdbSearch: Hide TMDB Search
-  noTmdbResults: No TMDB results found.
-  failedLoad: Failed to load item.
-
 serverConfig:
   title: Server Config
   subtitle: Key-value configuration entries persisted in the database.
@@ -499,35 +471,6 @@ transcodeCache:
   settingsSaved: "Settings saved"
   throttle: "Throttle"
   transcodingSettings: "Transcoding Settings"
-
-transcodingProfiles:
-  title: Transcoding Profiles
-  createProfile: Create Profile
-  editProfile: Edit Profile
-  deleteProfile: Delete Profile
-  profileCreated: Profile created
-  profileUpdated: Profile updated
-  profileDeleted: Profile deleted
-  failedSave: Failed to save profile
-  failedDeleteProfile: Failed to delete profile
-  noProfiles: No transcoding profiles found.
-  deleteConfirm: "Delete profile <strong>{{name}}</strong>? This cannot be undone."
-  default: Default
-  form:
-    name: Name
-    maxResolution: Max Resolution
-    hwAccel: Hardware Acceleration
-    videoCodec: Video Codec
-    audioCodec: Audio Codec
-    maxBitrate: Max Video Bitrate (kbps)
-    defaultProfile: Default profile
-  tableHeaders:
-    name: Name
-    resolution: Resolution
-    videoCodec: Video Codec
-    audioCodec: Audio Codec
-    bitrate: Bitrate
-    hwAccel: HW Accel
 
 dashboardStats:
   movies: Movies
