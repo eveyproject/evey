@@ -56,6 +56,26 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "collection not found: %v", err)
 	}
+	allowed, filterErr := h.allowedLibraryIDs(ctx)
+	if filterErr != nil {
+		return nil, internalError("check access", filterErr)
+	}
+	if allowed != nil {
+		items, _, itemsErr := h.svc.GetItems(ctx, col.ID, 1000, 0)
+		if itemsErr != nil {
+			return nil, internalError("get collection items", itemsErr)
+		}
+		visible := false
+		for _, it := range items {
+			if slices.Contains(allowed, it.LibraryID) {
+				visible = true
+				break
+			}
+		}
+		if !visible {
+			return nil, status.Errorf(codes.NotFound, "collection not found")
+		}
+	}
 	return &eveyv1.GetCollectionResponse{Collection: collectionToProto(col)}, nil
 }
 
