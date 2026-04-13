@@ -24,7 +24,8 @@ func newTestPushHandler(subs *notiffakes.FakePushSubscriptionRepository) *webPus
 	svc := appnotification.NewCommandService(repo, settings, analyzer, profiles, bus,
 		appnotification.WithPush(sender, subs),
 	)
-	return &webPushHandler{notifCmd: svc, vapidPubKey: "PUBKEY"}
+	query := appnotification.NewQueryService(repo, settings, appnotification.WithPushSubs(subs))
+	return &webPushHandler{notifCmd: svc, notifQuery: query, vapidPubKey: "PUBKEY"}
 }
 
 func codeOf(t *testing.T, err error) codes.Code {

@@ -342,7 +342,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	}
 	notifCmdSvc := appnotification.NewCommandService(r.Notification, r.NotificationSettings, r.WatchHistoryAnalyzer, r.Profile, bus, notifOpts...)
 	notifCmdSvc.Register()
-	notifQuerySvc := appnotification.NewQueryService(r.Notification, r.NotificationSettings)
+	notifQuerySvc := appnotification.NewQueryService(r.Notification, r.NotificationSettings, appnotification.WithPushSubs(r.PushSubscription))
 
 	smtpConfigured := cfg.SMTP.Host != ""
 	if smtpConfigured {
