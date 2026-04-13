@@ -2,7 +2,10 @@ package user
 
 import (
 	"errors"
+	"strings"
 	"time"
+
+	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
 type QuickConnectStatus string
@@ -115,7 +118,29 @@ func (u *User) Validate() error {
 	if u.Username == "" {
 		return errors.New("username is required")
 	}
+	if u.Email != "" && !strings.Contains(u.Email, "@") {
+		return errors.New("email is invalid")
+	}
 	return nil
+}
+
+// NewUser constructs a User with invariants enforced. Defaults: Enabled=true, IsAdmin=false.
+// Caller may mutate IsAdmin/Enabled afterwards if needed.
+func NewUser(username, email, passwordHash string) (*User, error) {
+	now := time.Now()
+	u := &User{
+		ID:           id.New("usr-"),
+		Username:     username,
+		Email:        email,
+		PasswordHash: passwordHash,
+		Enabled:      true,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := u.Validate(); err != nil {
+		return nil, err
+	}
+	return u, nil
 }
 
 func (p *Profile) Validate() error {

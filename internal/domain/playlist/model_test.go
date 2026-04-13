@@ -165,6 +165,34 @@ func TestPlaylist_Validate(t *testing.T) {
 	}
 }
 
+func TestNewPlaylist_HappyPath(t *testing.T) {
+	t.Parallel()
+	p, err := playlist.NewPlaylist("My List", "u1", playlist.Manual)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p.ID == "" || p.Name != "My List" || p.UserID != "u1" || p.Type != playlist.Manual {
+		t.Errorf("unexpected playlist: %+v", p)
+	}
+	if p.CreatedAt.IsZero() || p.UpdatedAt.IsZero() {
+		t.Error("expected timestamps set")
+	}
+}
+
+func TestNewPlaylist_RejectsEmptyName(t *testing.T) {
+	t.Parallel()
+	if _, err := playlist.NewPlaylist("", "u1", playlist.Manual); err == nil {
+		t.Fatal("expected error for empty name")
+	}
+}
+
+func TestNewPlaylist_RejectsInvalidType(t *testing.T) {
+	t.Parallel()
+	if _, err := playlist.NewPlaylist("name", "u1", "bogus"); err == nil {
+		t.Fatal("expected error for invalid type")
+	}
+}
+
 func TestPlaylistItem_SortOrder(t *testing.T) {
 	t.Parallel()
 

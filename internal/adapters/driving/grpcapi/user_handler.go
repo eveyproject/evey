@@ -134,13 +134,11 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 	if claims == nil {
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
-	u := &user.User{
-		ID:       id.New("usr-"),
-		Username: req.Username,
-		Email:    req.Email,
-		IsAdmin:  req.IsAdmin,
-		Enabled:  true,
+	u, err := user.NewUser(req.Username, req.Email, "")
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
+	u.IsAdmin = req.IsAdmin
 	if err := h.userSvc.CreateUser(ctx, claims.IsAdmin, u, req.Password); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "%v", err)
 	}

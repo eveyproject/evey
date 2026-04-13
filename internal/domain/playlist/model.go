@@ -3,6 +3,8 @@ package playlist
 import (
 	"errors"
 	"time"
+
+	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
 type PlaylistType string
@@ -49,6 +51,23 @@ func (p *Playlist) Validate() error {
 		return errors.New("playlist type must be 'manual' or 'smart'")
 	}
 	return nil
+}
+
+// NewPlaylist constructs a Playlist with invariants enforced.
+func NewPlaylist(name, userID string, ptype PlaylistType) (*Playlist, error) {
+	now := time.Now()
+	p := &Playlist{
+		ID:        id.New("pl-"),
+		Name:      name,
+		UserID:    userID,
+		Type:      ptype,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func (p *Playlist) IsOwner(userID string) bool {
