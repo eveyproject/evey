@@ -90,16 +90,11 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
 	}
 
-	u := &user.User{
-		ID:           id.New("usr-"),
-		Username:     username,
-		Email:        email,
-		PasswordHash: hash,
-		IsAdmin:      invite.IsAdmin,
-		Enabled:      true,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+	u, err := user.NewUser(username, email, hash)
+	if err != nil {
+		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
 	}
+	u.IsAdmin = invite.IsAdmin
 	if err := s.users.Create(ctx, u); err != nil {
 		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
 	}

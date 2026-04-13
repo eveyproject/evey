@@ -124,16 +124,11 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
 
-	u := &user.User{
-		ID:           id.New("usr-"),
-		Username:     username,
-		Email:        email,
-		PasswordHash: hash,
-		IsAdmin:      true,
-		Enabled:      true,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+	u, err := user.NewUser(username, email, hash)
+	if err != nil {
+		return nil, fmt.Errorf("CommandService.Setup: %w", err)
 	}
+	u.IsAdmin = true
 	if err := s.users.Create(ctx, u); err != nil {
 		return nil, fmt.Errorf("CommandService.Setup: %w", err)
 	}

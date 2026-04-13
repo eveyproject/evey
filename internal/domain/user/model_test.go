@@ -28,6 +28,37 @@ func TestQuickConnectStatusConstants(t *testing.T) {
 	}
 }
 
+func TestNewUser_HappyPath(t *testing.T) {
+	t.Parallel()
+	u, err := user.NewUser("alice", "a@b.com", "hash")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if u.ID == "" || u.Username != "alice" || u.Email != "a@b.com" || u.PasswordHash != "hash" {
+		t.Errorf("unexpected user: %+v", u)
+	}
+	if !u.Enabled {
+		t.Error("expected Enabled=true by default")
+	}
+	if u.CreatedAt.IsZero() {
+		t.Error("expected CreatedAt set")
+	}
+}
+
+func TestNewUser_RejectsEmptyUsername(t *testing.T) {
+	t.Parallel()
+	if _, err := user.NewUser("", "a@b.com", "hash"); err == nil {
+		t.Fatal("expected error for empty username")
+	}
+}
+
+func TestNewUser_RejectsInvalidEmail(t *testing.T) {
+	t.Parallel()
+	if _, err := user.NewUser("alice", "not-an-email", "hash"); err == nil {
+		t.Fatal("expected error for invalid email")
+	}
+}
+
 func TestUser_AdminFlag(t *testing.T) {
 	t.Parallel()
 

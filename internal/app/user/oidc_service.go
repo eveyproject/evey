@@ -275,17 +275,12 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 
 	now := time.Now()
 	issuer := s.issuer
-	newUser := &domainuser.User{
-		ID:          id.New("usr-"),
-		Username:    username,
-		Email:       email,
-		IsAdmin:     false,
-		Enabled:     true,
-		OIDCSubject: &sub,
-		OIDCIssuer:  &issuer,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+	newUser, err := domainuser.NewUser(username, email, "")
+	if err != nil {
+		return nil, fmt.Errorf("create oidc user: %w", err)
 	}
+	newUser.OIDCSubject = &sub
+	newUser.OIDCIssuer = &issuer
 	if err := s.userRepo.Create(ctx, newUser); err != nil {
 		return nil, fmt.Errorf("create oidc user: %w", err)
 	}

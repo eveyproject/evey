@@ -67,15 +67,14 @@ func (h *playlistHandler) CreatePlaylist(ctx context.Context, req *eveyv1.Create
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.CreatePlaylist: %w", err)
 	}
-	pl := &playlist.Playlist{
-		Name:        req.Name,
-		Description: req.Description,
-		UserID:      userID,
-		Type:        playlistTypeFromProto(req.Type),
-		Rules:       playlistRulesFromProto(req.Rules),
-		SortBy:      req.SortBy,
-		SortOrder:   req.SortOrder,
+	pl, err := playlist.NewPlaylist(req.Name, userID, playlistTypeFromProto(req.Type))
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
+	pl.Description = req.Description
+	pl.Rules = playlistRulesFromProto(req.Rules)
+	pl.SortBy = req.SortBy
+	pl.SortOrder = req.SortOrder
 	if err := h.svc.Create(ctx, pl); err != nil {
 		return nil, internalError("create playlist", err)
 	}
