@@ -1,0 +1,177 @@
+package postgres_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
+	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func newPRT(id, userID, hash string, expiresAt time.Time) *user.PasswordResetToken {
+	return &user.PasswordResetToken{
+		ID:        id,
+		UserID:    userID,
+		TokenHash: hash,
+		ExpiresAt: expiresAt.UTC().Truncate(time.Millisecond),
+		Used:      false,
+		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+	}
+}
+
+func TestPasswordResetTokenRepo_CreateAndGet(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedUser(t, db, "prt-u1")
+	repo := postgres.NewPasswordResetTokenRepository(db)
+	ctx := context.Background()
+
+	tok := newPRT("prt1", "prt-u1", "hash_create", time.Now().Add(1*time.Hour))
+	require.NoError(t, repo.Create(ctx, tok))
+
+	got, err := repo.GetByTokenHash(ctx, "hash_create")
+	require.NoError(t, err)
+	assert.Equal(t, tok.ID, got.ID)
+	assert.Equal(t, tok.UserID, got.UserID)
+	assert.Equal(t, tok.TokenHash, got.TokenHash)
+	assert.False(t, got.Used)
+	assert.WithinDuration(t, tok.ExpiresAt, got.ExpiresAt, time.Second)
+	assert.WithinDuration(t, tok.CreatedAt, got.CreatedAt, time.Second)
+	assert.True(t, got.IsValid())
+}
+
+func TestPasswordResetTokenRepo_GetByTokenHash_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPasswordResetTokenRepository(db)
+	_, err := repo.GetByTokenHash(context.Background(), "does_not_exist")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+func TestPasswordResetTokenRepo_GetExpiredTokenStillReturned(t *testing.T) {
+	// implementation does not filter on expires_at in GetByTokenHash,
+	// caller uses IsValid() to check. Document this behavior.
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedUser(t, db, "prt-u-exp")
+	repo := postgres.NewPasswordResetTokenRepository(db)
+	ctx := context.Background()
+
+	expired := newPRT("prt-exp", "prt-u-exp", "hash_exp", time.Now().Add(-1*time.Hour))
+	require.NoError(t, repo.Create(ctx, expired))
+
+	got, err := repo.GetByTokenHash(ctx, "hash_exp")
+	require.NoError(t, err)
+	assert.Equal(t, "prt-exp", got.ID)
+	assert.False(t, got.IsValid(), "expired token must not be valid")
+}
+
+func TestPasswordResetTokenRepo_MarkUsed(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedUser(t, db, "prt-u2")
+	repo := postgres.NewPasswordResetTokenRepository(db)
+	ctx := context.Background()
+
+	tok := newPRT("prt-mu", "prt-u2", "hash_mu", time.Now().Add(1*time.Hour))
+	require.NoError(t, repo.Create(ctx, tok))
+
+	require.NoError(t, repo.MarkUsed(ctx, "prt-mu"))
+
+	got, err := repo.GetByTokenHash(ctx, "hash_mu")
+	require.NoError(t, err)
+	assert.True(t, got.Used, "used flag should be true after MarkUsed")
+	assert.False(t, got.IsValid(), "used token must not be valid")
+}
+
+func TestPasswordResetTokenRepo_MarkUsed_UnknownID_NoError(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPasswordResetTokenRepository(db)
+	// UPDATE of 0 rows is not an error — documents current behavior.
+	require.NoError(t, repo.MarkUsed(context.Background(), "ghost-id"))
+}
+
+func TestPasswordResetTokenRepo_DeleteByUserID(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedUser(t, db, "prt-u3")
+	seedUser(t, db, "prt-u3b")
+	repo := postgres.NewPasswordResetTokenRepository(db)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Create(ctx, newPRT("prt-a", "prt-u3", "hash_a", time.Now().Add(time.Hour))))
+	require.NoError(t, repo.Create(ctx, newPRT("prt-b", "prt-u3", "hash_b", time.Now().Add(time.Hour))))
+	require.NoError(t, repo.Create(ctx, newPRT("prt-c", "prt-u3b", "hash_c", time.Now().Add(time.Hour))))
+
+	require.NoError(t, repo.DeleteByUserID(ctx, "prt-u3"))
+
+	_, err := repo.GetByTokenHash(ctx, "hash_a")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+	_, err = repo.GetByTokenHash(ctx, "hash_b")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+
+	got, err := repo.GetByTokenHash(ctx, "hash_c")
+	require.NoError(t, err)
+	assert.Equal(t, "prt-u3b", got.UserID)
+}
+
+func TestPasswordResetTokenRepo_DeleteExpired(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedUser(t, db, "prt-u4")
+	repo := postgres.NewPasswordResetTokenRepository(db)
+	ctx := context.Background()
+
+	expired := newPRT("prt-de-exp", "prt-u4", "hash_de_exp", time.Now().Add(-2*time.Hour))
+	require.NoError(t, repo.Create(ctx, expired))
+
+	valid := newPRT("prt-de-val", "prt-u4", "hash_de_val", time.Now().Add(2*time.Hour))
+	require.NoError(t, repo.Create(ctx, valid))
+
+	// Also: a used-but-not-yet-expired token — should be deleted per WHERE clause (used = TRUE).
+	usedValid := newPRT("prt-de-used", "prt-u4", "hash_de_used", time.Now().Add(2*time.Hour))
+	require.NoError(t, repo.Create(ctx, usedValid))
+	require.NoError(t, repo.MarkUsed(ctx, "prt-de-used"))
+
+	require.NoError(t, repo.DeleteExpired(ctx))
+
+	_, err := repo.GetByTokenHash(ctx, "hash_de_exp")
+	assert.ErrorIs(t, err, shared.ErrNotFound, "expired token should be purged")
+
+	_, err = repo.GetByTokenHash(ctx, "hash_de_used")
+	assert.ErrorIs(t, err, shared.ErrNotFound, "used token should be purged too")
+
+	got, err := repo.GetByTokenHash(ctx, "hash_de_val")
+	require.NoError(t, err, "unused non-expired token must survive")
+	assert.Equal(t, "prt-de-val", got.ID)
+}
+
+func TestPasswordResetTokenRepo_CascadeOnUserDelete(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedUser(t, db, "prt-u5")
+	repo := postgres.NewPasswordResetTokenRepository(db)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Create(ctx, newPRT("prt-cas", "prt-u5", "hash_cas", time.Now().Add(time.Hour))))
+
+	_, err := db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, "prt-u5")
+	require.NoError(t, err)
+
+	_, err = repo.GetByTokenHash(ctx, "hash_cas")
+	assert.ErrorIs(t, err, shared.ErrNotFound, "ON DELETE CASCADE should remove token")
+}
