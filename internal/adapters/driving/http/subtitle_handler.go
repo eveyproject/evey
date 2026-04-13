@@ -14,8 +14,17 @@ import (
 	"time"
 
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
+	domainsubtitle "github.com/gravity-zero/evey/internal/domain/subtitle"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
+
+// subtitleService is the subset of appsubtitle.Service used by HTTP routes.
+type subtitleService interface {
+	Search(ctx context.Context, mediaItemID, language string) ([]domainsubtitle.SearchResult, error)
+	Download(ctx context.Context, mediaItemID string, fileID int, language, format string) (*domainsubtitle.SubtitleDownload, error)
+	List(ctx context.Context, mediaItemID string) ([]*domainsubtitle.SubtitleDownload, error)
+	Delete(ctx context.Context, subtitleID string) error
+}
 
 func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -124,7 +133,7 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 // --- registerSubtitleRoutes ---
 
 type subtitleRoutes struct {
-	subtitleSvc   *appsubtitle.Service
+	subtitleSvc   subtitleService
 	tokens        TokenVerifier
 	mediaGetter   MediaItemGetter
 	libraryAccess LibraryAccessChecker
