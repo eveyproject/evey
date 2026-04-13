@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, libraryServiceGetMediaItem } from "@evey/api";
 import type { V1Artwork } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
 import { StarRatingBadge } from "./StarRating";
 import { useWatchedMap } from "@/hooks/useWatchedMap";
