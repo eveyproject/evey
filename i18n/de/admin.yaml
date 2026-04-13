@@ -153,6 +153,9 @@ users:
   expiresAtLabel: Ablaufdatum (optional)
   noUsers: Keine Benutzer gefunden
   noInvites: Keine Einladungslinks
+  editUser: Benutzer bearbeiten
+  failedCreateInvite: Einladungslink konnte nicht erstellt werden
+  leaveBlank: "Leer lassen zum Beibehalten"
 
 libraries:
   title: Bibliotheken
@@ -210,6 +213,12 @@ libraries:
   enterCustomPath: "Benutzerdefinierten Pfad eingeben..."
   addPath: "+ Pfad hinzufügen"
   tvShows: TV-Serien
+  lastScan: "Letzter Scan"
+  namePlaceholder: "Bibliotheksname"
+  pathRequired: "Mindestens ein Pfad ist erforderlich"
+  realtimeMonitoring: "Echtzeit-Überwachung"
+  scanFailed: "Scan fehlgeschlagen"
+  scanOnStartup: "Beim Start scannen"
 
 sessions:
   title: Aktuelle Wiedergabe
@@ -217,6 +226,7 @@ sessions:
   failedLoadDesc: Aktive Sitzungen konnten nicht abgerufen werden. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.
   noSessions: Keine aktiven Sitzungen
   noSessionsDesc: Wenn Benutzer mit dem Streaming beginnen, werden ihre Sitzungen hier angezeigt.
+  activeCount: "{{count}} aktive Sitzungen"
   activeCount_one: "{{count}} aktive Sitzung"
   activeCount_other: "{{count}} aktive Sitzungen"
   stopSession: Sitzung beenden
@@ -269,6 +279,7 @@ webhooks:
   webhookCreated: Webhook erstellt
   webhookUpdated: Webhook aktualisiert
   webhookDeleted: Webhook gelöscht
+  failedCreate: Webhook konnte nicht erstellt werden
   failedDelete: Webhook konnte nicht gelöscht werden
   failedUpdate: Webhook konnte nicht aktualisiert werden
   testPingSent: Test-Ping gesendet
@@ -444,6 +455,7 @@ remoteAccess:
   networkInterfaces: Server-Netzwerkschnittstellen
   interface: Schnittstelle
   address: Adresse
+  usingDefault: "Standardwert wird verwendet"
 
 systemHealth:
   title: Systemzustand
@@ -480,6 +492,13 @@ transcodeCache:
     file: Datei
     size: Größe
     modified: Geändert
+  hwAccelType: "HW-Beschleunigungstyp"
+  hwDecodeCodecs: "HW-Decodierungs-Codecs"
+  hwDevices: "HW-Geräte"
+  maxConcurrent: "Max. gleichzeitig"
+  settingsSaved: "Einstellungen gespeichert"
+  throttle: "Drosselung"
+  transcodingSettings: "Transkodierungs-Einstellungen"
 
 transcodingProfiles:
   title: Transkodierungsprofile

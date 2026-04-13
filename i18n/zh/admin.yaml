@@ -152,6 +152,9 @@ users:
   expiresAtLabel: "过期时间（可选）"
   noUsers: "未找到用户"
   noInvites: "没有邀请链接"
+  editUser: "编辑用户"
+  failedCreateInvite: "创建邀请链接失败"
+  leaveBlank: "留空以保持当前值"
 
 libraries:
   title: "媒体库"
@@ -209,6 +212,12 @@ libraries:
   enterCustomPath: "输入自定义路径..."
   addPath: "+ 添加路径"
   tvShows: "电视剧"
+  lastScan: "上次扫描"
+  namePlaceholder: "媒体库名称"
+  pathRequired: "至少需要一个路径"
+  realtimeMonitoring: "实时监控"
+  scanFailed: "扫描失败"
+  scanOnStartup: "启动时扫描"
 
 sessions:
   title: "正在播放"
@@ -216,6 +225,7 @@ sessions:
   failedLoadDesc: "无法获取活跃会话。请检查连接后重试。"
   noSessions: "没有活跃会话"
   noSessionsDesc: "当用户开始播放时，会话将显示在此处。"
+  activeCount: "{{count}} 个活跃会话"
   activeCount_one: "{{count}} 个活跃会话"
   activeCount_other: "{{count}} 个活跃会话"
   stopSession: "停止会话"
@@ -268,6 +278,7 @@ webhooks:
   webhookCreated: "Webhook 已创建"
   webhookUpdated: "Webhook 已更新"
   webhookDeleted: "Webhook 已删除"
+  failedCreate: "创建 Webhook 失败"
   failedDelete: "删除 Webhook 失败"
   failedUpdate: "更新 Webhook 失败"
   testPingSent: "测试 ping 已发送"
@@ -443,6 +454,7 @@ remoteAccess:
   networkInterfaces: "服务器网络接口"
   interface: "接口"
   address: "地址"
+  usingDefault: "使用默认值"
 
 systemHealth:
   title: "系统健康"
@@ -479,6 +491,13 @@ transcodeCache:
     file: "文件"
     size: "大小"
     modified: "修改时间"
+  hwAccelType: "硬件加速类型"
+  hwDecodeCodecs: "硬件解码编解码器"
+  hwDevices: "硬件设备"
+  maxConcurrent: "最大并发"
+  settingsSaved: "设置已保存"
+  throttle: "限速"
+  transcodingSettings: "转码设置"
 
 transcodingProfiles:
   title: "转码配置"

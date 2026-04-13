@@ -152,6 +152,9 @@ users:
   expiresAtLabel: "समाप्ति तिथि (वैकल्पिक)"
   noUsers: "कोई उपयोगकर्ता नहीं मिला"
   noInvites: "कोई आमंत्रण लिंक नहीं"
+  editUser: "उपयोगकर्ता संपादित करें"
+  failedCreateInvite: "आमंत्रण लिंक बनाने में विफल"
+  leaveBlank: "वर्तमान बनाए रखने के लिए खाली छोड़ें"
 
 libraries:
   title: "लाइब्रेरी"
@@ -209,6 +212,12 @@ libraries:
   enterCustomPath: "कस्टम पथ दर्ज करें..."
   addPath: "+ पथ जोड़ें"
   tvShows: "टीवी शो"
+  lastScan: "अंतिम स्कैन"
+  namePlaceholder: "लाइब्रेरी का नाम"
+  pathRequired: "कम से कम एक पथ आवश्यक है"
+  realtimeMonitoring: "रीयल-टाइम मॉनिटरिंग"
+  scanFailed: "स्कैन विफल"
+  scanOnStartup: "स्टार्टअप पर स्कैन करें"
 
 sessions:
   title: "अभी चल रहा है"
@@ -216,6 +225,7 @@ sessions:
   failedLoadDesc: "सक्रिय सत्र प्राप्त नहीं हो सके। अपना कनेक्शन जांचें और पुनः प्रयास करें।"
   noSessions: "कोई सक्रिय सत्र नहीं"
   noSessionsDesc: "जब उपयोगकर्ता स्ट्रीमिंग शुरू करेंगे, उनके सत्र यहां दिखाई देंगे।"
+  activeCount: "{{count}} सक्रिय सत्र"
   activeCount_one: "{{count}} सक्रिय सत्र"
   activeCount_other: "{{count}} सक्रिय सत्र"
   stopSession: "सत्र रोकें"
@@ -268,6 +278,7 @@ webhooks:
   webhookCreated: "Webhook बनाया गया"
   webhookUpdated: "Webhook अपडेट हुआ"
   webhookDeleted: "Webhook मिटाया गया"
+  failedCreate: "Webhook बनाने में विफल"
   failedDelete: "Webhook मिटाने में विफल"
   failedUpdate: "Webhook अपडेट करने में विफल"
   testPingSent: "टेस्ट ping भेजा गया"
@@ -443,6 +454,7 @@ remoteAccess:
   networkInterfaces: "सर्वर नेटवर्क इंटरफ़ेस"
   interface: "इंटरफ़ेस"
   address: "पता"
+  usingDefault: "डिफ़ॉल्ट मान का उपयोग"
 
 systemHealth:
   title: "सिस्टम स्वास्थ्य"
@@ -479,6 +491,13 @@ transcodeCache:
     file: "फ़ाइल"
     size: "आकार"
     modified: "संशोधित"
+  hwAccelType: "HW एक्सीलरेशन प्रकार"
+  hwDecodeCodecs: "HW डिकोड कोडेक"
+  hwDevices: "HW डिवाइस"
+  maxConcurrent: "अधिकतम समवर्ती"
+  settingsSaved: "सेटिंग्स सहेजी गईं"
+  throttle: "थ्रॉटल"
+  transcodingSettings: "ट्रांसकोडिंग सेटिंग्स"
 
 transcodingProfiles:
   title: "ट्रांसकोडिंग प्रोफाइल"

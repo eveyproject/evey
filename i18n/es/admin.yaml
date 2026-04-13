@@ -152,6 +152,9 @@ users:
   expiresAtLabel: "Fecha de expiración (opcional)"
   noUsers: "No se encontraron usuarios"
   noInvites: "Sin enlaces de invitación"
+  editUser: "Editar usuario"
+  failedCreateInvite: "Error al crear el enlace de invitación"
+  leaveBlank: "Dejar en blanco para conservar"
 
 libraries:
   title: "Bibliotecas"
@@ -209,6 +212,12 @@ libraries:
   enterCustomPath: "Ingresar ruta personalizada..."
   addPath: "+ Añadir ruta"
   tvShows: "Series de TV"
+  lastScan: "Último escaneo"
+  namePlaceholder: "Nombre de la biblioteca"
+  pathRequired: "Se requiere al menos una ruta"
+  realtimeMonitoring: "Monitoreo en tiempo real"
+  scanFailed: "Escaneo fallido"
+  scanOnStartup: "Escanear al iniciar"
 
 sessions:
   title: "Reproduciendo ahora"
@@ -216,6 +225,7 @@ sessions:
   failedLoadDesc: "No se pudieron obtener las sesiones activas. Verifica tu conexión e inténtalo de nuevo."
   noSessions: "Sin sesiones activas"
   noSessionsDesc: "Cuando los usuarios comiencen a transmitir, sus sesiones aparecerán aquí."
+  activeCount: "{{count}} sesiones activas"
   activeCount_one: "{{count}} sesión activa"
   activeCount_other: "{{count}} sesiones activas"
   stopSession: "Detener sesión"
@@ -268,6 +278,7 @@ webhooks:
   webhookCreated: "Webhook creado"
   webhookUpdated: "Webhook actualizado"
   webhookDeleted: "Webhook eliminado"
+  failedCreate: "Error al crear el Webhook"
   failedDelete: "Error al eliminar el Webhook"
   failedUpdate: "Error al actualizar el Webhook"
   testPingSent: "Ping de prueba enviado"
@@ -443,6 +454,7 @@ remoteAccess:
   networkInterfaces: "Interfaces de red del servidor"
   interface: "Interfaz"
   address: "Dirección"
+  usingDefault: "Usando valor predeterminado"
 
 systemHealth:
   title: "Estado del sistema"
@@ -479,6 +491,13 @@ transcodeCache:
     file: "Archivo"
     size: "Tamaño"
     modified: "Modificado"
+  hwAccelType: "Tipo de aceleración HW"
+  hwDecodeCodecs: "Códecs de decodificación HW"
+  hwDevices: "Dispositivos HW"
+  maxConcurrent: "Máximo concurrente"
+  settingsSaved: "Ajustes guardados"
+  throttle: "Limitación"
+  transcodingSettings: "Ajustes de transcodificación"
 
 transcodingProfiles:
   title: "Perfiles de transcodificación"
