@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
@@ -109,8 +110,8 @@ type Role struct {
 }
 
 type LibraryAccess struct {
-	UserID    string
-	LibraryID string
+	UserID    shared.UserID
+	LibraryID shared.LibraryID
 	GrantedAt time.Time
 }
 
