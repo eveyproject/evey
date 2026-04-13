@@ -58,7 +58,12 @@ type UserStats struct {
 	UniqueItemsWatched int
 	GenreBreakdown     map[string]GenreStats
 	MostPlayedItems    []MediaPlayCount
-	PlayCountByMonth   map[string]int
+	PlayByMonth        map[string]MonthlyStats
+}
+
+type MonthlyStats struct {
+	PlayCount   int
+	TotalTimeMs int64
 }
 
 type GenreStats struct {

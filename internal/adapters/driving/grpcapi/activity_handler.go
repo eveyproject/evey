@@ -99,13 +99,14 @@ func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserS
 			TotalTimeMs: mp.TotalTimeMs,
 		})
 	}
-	for monthStr, cnt := range stats.PlayCountByMonth {
+	for monthStr, m := range stats.PlayByMonth {
 		var year, month int
 		fmt.Sscanf(monthStr, "%d-%d", &year, &month)
 		pb.ByMonth = append(pb.ByMonth, &eveyv1.MonthlyPlayCount{
-			Year:      int32(year),
-			Month:     int32(month),
-			PlayCount: int32(cnt),
+			Year:        int32(year),
+			Month:       int32(month),
+			PlayCount:   int32(m.PlayCount),
+			TotalTimeMs: m.TotalTimeMs,
 		})
 	}
 	return pb, nil

@@ -27,9 +27,9 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	stats := &activity.UserStats{
-		ProfileID:        profileID,
-		GenreBreakdown:   make(map[string]activity.GenreStats),
-		PlayCountByMonth: make(map[string]int),
+		ProfileID:      profileID,
+		GenreBreakdown: make(map[string]activity.GenreStats),
+		PlayByMonth:    make(map[string]activity.MonthlyStats),
 	}
 
 	// Single round-trip: totals + genres + most-played + monthly breakdown
@@ -63,7 +63,9 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 		LIMIT 10
 	),
 	monthly AS (
-		SELECT TO_CHAR(started_at, 'YYYY-MM') AS month, COUNT(*) AS cnt
+		SELECT TO_CHAR(started_at, 'YYYY-MM') AS month,
+		       COUNT(*) AS cnt,
+		       COALESCE(SUM(duration_ms), 0) AS total_ms
 		FROM play_sessions WHERE profile_id = $1
 		GROUP BY month
 		ORDER BY month
@@ -74,7 +76,7 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 	UNION ALL
 	SELECT 'P', media_item_id, title, play_count::TEXT || ':' || total_ms::TEXT FROM most_played
 	UNION ALL
-	SELECT 'M', month, cnt::TEXT, '' FROM monthly`
+	SELECT 'M', month, cnt::TEXT, total_ms::TEXT FROM monthly`
 
 	rows, err := r.db.QueryContext(ctx, q, profileID)
 	if err != nil {
@@ -114,8 +116,10 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 			})
 		case "M":
 			var cnt int
+			var totalMs int64
 			fmt.Sscan(col2, &cnt)
-			stats.PlayCountByMonth[col1] = cnt
+			fmt.Sscan(col3, &totalMs)
+			stats.PlayByMonth[col1] = activity.MonthlyStats{PlayCount: cnt, TotalTimeMs: totalMs}
 		}
 	}
 	return stats, rows.Err()

@@ -179,9 +179,9 @@ func TestUserStats_GenreBreakdown(t *testing.T) {
 			{MediaItemID: "m1", Title: "Inception", PlayCount: 3},
 			{MediaItemID: "m2", Title: "Interstellar", PlayCount: 2},
 		},
-		PlayCountByMonth: map[string]int{
-			"2026-01": 2,
-			"2026-02": 3,
+		PlayByMonth: map[string]activity.MonthlyStats{
+			"2026-01": {PlayCount: 2, TotalTimeMs: 7200000},
+			"2026-02": {PlayCount: 3, TotalTimeMs: 10800000},
 		},
 	}
 
