@@ -11,6 +11,7 @@ type FakePluginRunner struct {
 	mu      sync.RWMutex
 	running map[string]bool
 	Err     error
+	StopErr error
 }
 
 func NewFakePluginRunner() *FakePluginRunner {
@@ -31,7 +32,7 @@ func (r *FakePluginRunner) Stop(_ context.Context, pluginID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.running, pluginID)
-	return nil
+	return r.StopErr
 }
 
 func (r *FakePluginRunner) Health(_ context.Context, pluginID string) (bool, error) {
