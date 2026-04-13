@@ -82,6 +82,7 @@ function TrackArt({ trackID, size = 36 }: { trackID: string; size?: number }) {
     <img
       src={`/api/v1/music/tracks/${trackID}/art`}
       alt=""
+      aria-hidden="true"
       width={size}
       height={size}
       className="object-cover rounded-[var(--radius-sm)] bg-[var(--surface)]"
