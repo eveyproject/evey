@@ -7,6 +7,7 @@ import (
 
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	"github.com/gravity-zero/evey/internal/domain/rating/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 )
 
@@ -49,8 +50,8 @@ func TestGetRating_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	rt, err := svc.GetRating(ctx, "media-1", "profile-1")
-	if err != nil {
-		t.Fatal(err)
+	if !errors.Is(err, shared.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 	if rt != nil {
 		t.Fatalf("expected nil, got %+v", rt)
@@ -77,8 +78,8 @@ func TestDeleteRating(t *testing.T) {
 	svc.Rate(ctx, "media-1", "profile-1", 3)
 	svc.DeleteRating(ctx, "media-1", "profile-1")
 	rt, err := svc.GetRating(ctx, "media-1", "profile-1")
-	if err != nil || rt != nil {
-		t.Fatalf("expected nil after delete, got %+v, err %v", rt, err)
+	if !errors.Is(err, shared.ErrNotFound) || rt != nil {
+		t.Fatalf("expected ErrNotFound after delete, got %+v, err %v", rt, err)
 	}
 }
 

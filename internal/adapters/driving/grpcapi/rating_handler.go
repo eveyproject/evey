@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -11,6 +12,7 @@ import (
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -109,11 +111,11 @@ func (h *ratingHandler) GetStarRating(ctx context.Context, req *eveyv1.GetStarRa
 	}
 	rt, getErr := h.starSvc.GetRating(ctx, req.MediaItemId, claims.ProfileID)
 	if getErr != nil {
+		if errors.Is(getErr, shared.ErrNotFound) {
+			return &eveyv1.GetStarRatingResponse{Value: 0}, nil
+		}
 		slog.Error("get star rating", slog.Any("err", getErr))
 		return nil, status.Error(codes.Internal, "internal error")
-	}
-	if rt == nil {
-		return &eveyv1.GetStarRatingResponse{Value: 0}, nil
 	}
 	return &eveyv1.GetStarRatingResponse{Value: int32(rt.Value.Int())}, nil
 }

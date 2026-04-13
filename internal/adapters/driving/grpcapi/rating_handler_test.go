@@ -12,6 +12,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	domainrating "github.com/gravity-zero/evey/internal/domain/rating"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
@@ -38,7 +39,7 @@ func (r *fakeStarRatingRepo) Upsert(_ context.Context, rt domainrating.Rating) e
 func (r *fakeStarRatingRepo) Get(_ context.Context, mediaItemID, profileID string) (*domainrating.Rating, error) {
 	rt, ok := r.ratings[mediaItemID+":"+profileID]
 	if !ok {
-		return nil, nil
+		return nil, shared.ErrNotFound
 	}
 	return rt, nil
 }

@@ -2,10 +2,8 @@ package rating
 
 import (
 	"context"
-	"errors"
 
 	"github.com/gravity-zero/evey/internal/domain/rating"
-	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type QueryService struct {
@@ -16,15 +14,9 @@ func NewQueryService(repo rating.Repository) *QueryService {
 	return &QueryService{repo: repo}
 }
 
+// GetRating returns the rating or shared.ErrNotFound if absent.
 func (s *QueryService) GetRating(ctx context.Context, mediaItemID, profileID string) (*rating.Rating, error) {
-	rt, err := s.repo.Get(ctx, mediaItemID, profileID)
-	if err != nil {
-		if errors.Is(err, shared.ErrNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return rt, nil
+	return s.repo.Get(ctx, mediaItemID, profileID)
 }
 
 func (s *QueryService) GetAggregates(ctx context.Context, mediaItemIDs []string) (map[string]rating.Aggregate, error) {
