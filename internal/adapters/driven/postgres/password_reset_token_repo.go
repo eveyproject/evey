@@ -33,7 +33,8 @@ func (r *PasswordResetTokenRepository) GetByTokenHash(ctx context.Context, hash 
 	t := &user.PasswordResetToken{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, user_id, token_hash, expires_at, used, created_at
-		 FROM password_reset_tokens WHERE token_hash = $1`, hash).
+		 FROM password_reset_tokens
+		 WHERE token_hash = $1 AND used = FALSE AND expires_at > NOW()`, hash).
 		Scan(&t.ID, &t.UserID, &t.TokenHash, &t.ExpiresAt, &t.Used, &t.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
