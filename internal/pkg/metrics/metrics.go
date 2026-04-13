@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -95,6 +96,122 @@ func (r *statusRecorder) Flush() {
 	}
 }
 
+// SanitizePath replaces high-cardinality path segments (IDs, UUIDs, tokens, numerics)
+// with stable placeholders so Prometheus labels stay bounded.
+//
+// Rules per segment:
+//   - purely numeric                       -> {id}
+//   - typed prefix `xxx-...` (e.g. usr-ab) -> {id}
+//   - hex-only of length >= 16             -> {id}
+//   - UUID canonical form                  -> {id}
+//   - length > 30 (likely token)           -> {token}
+func SanitizePath(p string) string {
+	if p == "" || p == "/" {
+		return p
+	}
+	parts := strings.Split(p, "/")
+	for i, seg := range parts {
+		if seg == "" {
+			continue
+		}
+		parts[i] = sanitizeSegment(seg)
+	}
+	return strings.Join(parts, "/")
+}
+
+func sanitizeSegment(seg string) string {
+	if isAllDigits(seg) {
+		return "{id}"
+	}
+	if isUUID(seg) {
+		return "{id}"
+	}
+	if isTypedID(seg) {
+		return "{id}"
+	}
+	if len(seg) > 30 {
+		return "{token}"
+	}
+	if len(seg) >= 16 && isAllHex(seg) {
+		return "{id}"
+	}
+	return seg
+}
+
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func isAllHex(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
+// isTypedID matches `xxx-...` where xxx is 2-5 lowercase letters and the suffix
+// is 3+ alphanumeric chars. Examples: usr-abc123, med-xyz789.
+func isTypedID(s string) bool {
+	dash := strings.IndexByte(s, '-')
+	if dash < 2 || dash > 5 {
+		return false
+	}
+	prefix := s[:dash]
+	for i := 0; i < len(prefix); i++ {
+		c := prefix[i]
+		if c < 'a' || c > 'z' {
+			return false
+		}
+	}
+	suffix := s[dash+1:]
+	if len(suffix) < 3 {
+		return false
+	}
+	for i := 0; i < len(suffix); i++ {
+		c := suffix[i]
+		ok := (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// isUUID checks the canonical 8-4-4-4-12 hex form.
+func isUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, c := range s {
+		switch i {
+		case 8, 13, 18, 23:
+			if c != '-' {
+				return false
+			}
+		default:
+			isHex := (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+			if !isHex {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // InstrumentHandler wraps h to record request count and duration.
 func InstrumentHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +219,8 @@ func InstrumentHandler(h http.Handler) http.Handler {
 		start := time.Now()
 		h.ServeHTTP(rec, r)
 		elapsed := time.Since(start).Seconds()
-		HTTPRequestsTotal.WithLabelValues(r.Method, r.URL.Path, strconv.Itoa(rec.status)).Inc()
-		HTTPRequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(elapsed)
+		path := SanitizePath(r.URL.Path)
+		HTTPRequestsTotal.WithLabelValues(r.Method, path, strconv.Itoa(rec.status)).Inc()
+		HTTPRequestDuration.WithLabelValues(r.Method, path).Observe(elapsed)
 	})
 }
