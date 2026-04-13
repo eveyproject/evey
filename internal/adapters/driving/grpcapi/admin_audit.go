@@ -121,6 +121,13 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 }
 
 func (d *adminSessionHandler) SendSessionCommand(ctx context.Context, req *eveyv1.SendSessionCommandRequest) (*eveyv1.SendSessionCommandResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin {
+		return nil, status.Error(codes.PermissionDenied, "admin required")
+	}
 	if req.SessionId == "" || req.Command == "" {
 		return nil, status.Error(codes.InvalidArgument, "session_id and command required")
 	}

@@ -340,9 +340,12 @@ func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfiles
 }
 
 func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateInviteLinkRequest) (*eveyv1.InviteLink, error) {
-	claims := interceptors.ClaimsFromContext(ctx)
-	if claims == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin {
+		return nil, status.Error(codes.PermissionDenied, "admin required")
 	}
 	link := &user.InviteLink{
 		ID:        id.New("inv-"),
