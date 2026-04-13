@@ -25,7 +25,7 @@ func newTestTranscodeJob(id, mediaItemID, status string) *transcoding.TranscodeJ
 		BitrateIn:     5000000,
 		BitrateOut:    2800000,
 		Speed:         1.5,
-		Status:        status,
+		Status:        transcoding.JobStatus(status),
 		StartedAt:     time.Now().UTC().Truncate(time.Millisecond),
 	}
 }

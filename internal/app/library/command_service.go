@@ -215,7 +215,7 @@ func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library
 	evtCreated := library.LibraryCreated{
 		LibraryID:  lib.ID,
 		Name:       lib.Name,
-		Type:       lib.Type,
+		Type:       string(lib.Type),
 		OccurredAt: now,
 	}
 	if err := s.events.Publish(ctx, evtCreated); err != nil {

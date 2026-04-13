@@ -198,7 +198,7 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 			slog.Warn("popular: batch fetch media items", slog.Any("err", merr))
 		}
 		for _, mi := range mis {
-			infoByID[mi.ID] = miInfo{typ: mi.Type, libraryID: mi.LibraryID}
+			infoByID[mi.ID] = miInfo{typ: string(mi.Type), libraryID: mi.LibraryID}
 		}
 	}
 	var allowedLibs map[string]bool

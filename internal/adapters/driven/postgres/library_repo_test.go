@@ -16,7 +16,7 @@ func newTestLibrary(id string) *library.Library {
 	return &library.Library{
 		ID:                  id,
 		Name:                "Library " + id,
-		Type:                string(library.Movie),
+		Type:                library.Movie,
 		Paths:               []string{"/media/" + id},
 		ScanIntervalMinutes: 360,
 		Enabled:             true,

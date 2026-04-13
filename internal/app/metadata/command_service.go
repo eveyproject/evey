@@ -279,7 +279,7 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 	s.resetSingleItem(ctx, item)
 
 	// Cascade to children (series → seasons + episodes, season → episodes)
-	if item.Type == string(library.Series) || item.Type == string(library.Season) {
+	if item.Type == library.Series || item.Type == library.Season {
 		s.resetChildren(ctx, item.ID)
 	}
 
@@ -304,8 +304,8 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 func (s *CommandService) resetSingleItem(ctx context.Context, item *library.MediaItem) {
 	// Derive title from file path or directory name
 	if item.FilePath != "" {
-		item.Title = deriveTitle(item.FilePath, item.Type)
-	} else if item.Type == string(library.Series) {
+		item.Title = deriveTitle(item.FilePath, string(item.Type))
+	} else if item.Type == library.Series {
 		if dirName := s.deriveTitleFromChildren(ctx, item.ID); dirName != "" {
 			item.Title = dirName
 		}
@@ -351,7 +351,7 @@ func (s *CommandService) resetChildren(ctx context.Context, parentID string) {
 	for _, child := range children {
 		s.resetSingleItem(ctx, child)
 		// Recurse (series → seasons → episodes)
-		if child.Type == string(library.Season) {
+		if child.Type == library.Season {
 			s.resetChildren(ctx, child.ID)
 		}
 	}

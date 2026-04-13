@@ -175,7 +175,7 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 		}
 		if m := mediaByID[it.MediaItemID]; m != nil {
 			pi.Title = m.Title
-			pi.Type = m.Type
+			pi.Type = string(m.Type)
 			if m.Year != nil {
 				pi.Year = int32(*m.Year)
 			}
@@ -188,7 +188,7 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 			MediaItemId: item.ID,
 			SortOrder:   int32(i),
 			Title:       item.Title,
-			Type:        item.Type,
+			Type:        string(item.Type),
 		}
 		if item.Year != nil {
 			pi.Year = int32(*item.Year)

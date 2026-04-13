@@ -667,7 +667,7 @@ func TestAutoEnrichItem_TVSeries(t *testing.T) {
 	}
 	e, _, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
 
-	item := &domainlib.MediaItem{ID: "item-1", Title: "Test Show", Type: string(domainlib.Series)}
+	item := &domainlib.MediaItem{ID: "item-1", Title: "Test Show", Type: domainlib.Series}
 	miRepo.Create(context.Background(), item)
 
 	e.AutoEnrichItem(context.Background(), item, slog.Default())
@@ -735,7 +735,7 @@ func TestAutoEnrichSeason(t *testing.T) {
 		ID:          "series-1",
 		Title:       "Show",
 		Overview:    "Series overview",
-		Type:        string(domainlib.Series),
+		Type:        domainlib.Series,
 		ProviderIDs: map[string]string{"tmdb": "500"},
 	}
 	miRepo.Create(context.Background(), series)
@@ -743,7 +743,7 @@ func TestAutoEnrichSeason(t *testing.T) {
 	season := &domainlib.MediaItem{
 		ID:          "season-1",
 		ParentID:    "series-1",
-		Type:        string(domainlib.Season),
+		Type:        domainlib.Season,
 		Title:       "Season 1",
 		IndexNumber: &seasonNum,
 	}
@@ -757,7 +757,7 @@ func TestAutoEnrichSeason_NoParentOrIndex(t *testing.T) {
 	primary := &fakeProvider{name: "tmdb"}
 	e, _, _, _, _, _ := newTestEnricher(primary, nil, nil)
 
-	season := &domainlib.MediaItem{ID: "s-1", Title: "S1", Type: string(domainlib.Season)}
+	season := &domainlib.MediaItem{ID: "s-1", Title: "S1", Type: domainlib.Season}
 	e.AutoEnrichItem(context.Background(), season, nil)
 	assert.Empty(t, season.Overview) // no-op
 }
@@ -780,7 +780,7 @@ func TestAutoEnrichEpisode(t *testing.T) {
 		ID:          "series-1",
 		Title:       "Show",
 		Overview:    "Series overview",
-		Type:        string(domainlib.Series),
+		Type:        domainlib.Series,
 		ProviderIDs: map[string]string{"tmdb": "500"},
 	}
 	miRepo.Create(context.Background(), series)
@@ -788,7 +788,7 @@ func TestAutoEnrichEpisode(t *testing.T) {
 	season := &domainlib.MediaItem{
 		ID:          "season-1",
 		ParentID:    "series-1",
-		Type:        string(domainlib.Season),
+		Type:        domainlib.Season,
 		IndexNumber: &seasonNum,
 	}
 	miRepo.Create(context.Background(), season)
@@ -797,7 +797,7 @@ func TestAutoEnrichEpisode(t *testing.T) {
 		ID:          "ep-1",
 		ParentID:    "season-1",
 		Title:       "Pilot",
-		Type:        string(domainlib.Episode),
+		Type:        domainlib.Episode,
 		IndexNumber: &episodeNum,
 	}
 	miRepo.Create(context.Background(), episode)
@@ -810,7 +810,7 @@ func TestAutoEnrichEpisode_NoParentOrIndex(t *testing.T) {
 	primary := &fakeProvider{name: "tmdb"}
 	e, _, _, _, _, _ := newTestEnricher(primary, nil, nil)
 
-	ep := &domainlib.MediaItem{ID: "ep-1", Title: "Ep", Type: string(domainlib.Episode)}
+	ep := &domainlib.MediaItem{ID: "ep-1", Title: "Ep", Type: domainlib.Episode}
 	e.AutoEnrichItem(context.Background(), ep, nil)
 	assert.Empty(t, ep.Overview)
 }

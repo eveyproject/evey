@@ -56,7 +56,7 @@ func (r *FakeQuickConnectRepository) GetByShortCode(_ context.Context, shortCode
 	defer r.mu.RUnlock()
 	upper := strings.ToUpper(shortCode)
 	for _, req := range r.items {
-		if req.Status == string(user.Pending) && strings.HasSuffix(strings.ToUpper(req.Code), upper) {
+		if req.Status == user.Pending && strings.HasSuffix(strings.ToUpper(req.Code), upper) {
 			return req, nil
 		}
 	}
@@ -74,7 +74,7 @@ func (r *FakeQuickConnectRepository) UpdateStatus(_ context.Context, id, status 
 	}
 	for _, req := range r.items {
 		if req.ID == id {
-			req.Status = status
+			req.Status = user.QuickConnectStatus(status)
 			req.UserID = userID
 			return nil
 		}

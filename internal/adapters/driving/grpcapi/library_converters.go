@@ -25,7 +25,7 @@ func libraryToProto(lib *library.Library) *eveyv1.Library {
 	out := &eveyv1.Library{
 		Id:                 lib.ID,
 		Name:               lib.Name,
-		Type:               libraryTypeToProto[lib.Type],
+		Type:               libraryTypeToProto[string(lib.Type)],
 		Paths:              lib.Paths,
 		ScanOnStartup:      lib.ScanOnStartup,
 		RealtimeMonitoring: lib.RealtimeMonitoring,
@@ -67,7 +67,7 @@ func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 		Id:              item.ID,
 		LibraryId:       item.LibraryID,
 		ParentId:        item.ParentID,
-		Type:            mediaItemTypeToProto[item.Type],
+		Type:            mediaItemTypeToProto[string(item.Type)],
 		Title:           item.Title,
 		SortTitle:       item.SortTitle,
 		OriginalTitle:   item.OriginalTitle,

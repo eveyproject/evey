@@ -16,7 +16,10 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 		return 0, 0, fmt.Errorf("preload containers: %w", err)
 	}
 	byFingerprint := make(map[string]*library.MediaItem, len(existing))
-	type titleKey struct{ typ, title, parentID string }
+	type titleKey struct {
+		typ            library.MediaItemType
+		title, parentID string
+	}
 	byTitleKey := make(map[titleKey]*library.MediaItem, len(existing))
 	for _, item := range existing {
 		if item.FileFingerprint != "" {
@@ -62,7 +65,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			seriesItem, created, createErr := lookupOrCreate(&library.MediaItem{
 				ID:              uuid.New().String(),
 				LibraryID:       libraryID,
-				Type:            "series",
+				Type:            library.Series,
 				Title:           showTitle,
 				FileFingerprint: fp,
 				AddedAt:         time.Now(),
@@ -76,7 +79,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 					MediaItemID: seriesItem.ID,
 					LibraryID:   libraryID,
 					Title:       seriesItem.Title,
-					Type:        seriesItem.Type,
+					Type:        string(seriesItem.Type),
 					Genres:      seriesItem.Genres,
 					OccurredAt:  time.Now(),
 				}
@@ -98,7 +101,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 				ID:              uuid.New().String(),
 				LibraryID:       libraryID,
 				ParentID:        seriesID,
-				Type:            "season",
+				Type:            library.Season,
 				Title:           fmt.Sprintf("Season %d", seasonNum),
 				FileFingerprint: fp,
 				IndexNumber:     &n,

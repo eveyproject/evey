@@ -63,27 +63,27 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 
 	running := 0
 	for _, j := range active {
-		if j.Status == string(transcoding.Running) {
+		if j.Status == transcoding.Running {
 			running++
 		}
 	}
 
 	if s.maxConcurrent > 0 && running >= s.maxConcurrent {
-		job.Status = string(transcoding.Queued)
+		job.Status = transcoding.Queued
 		if err := s.jobs.Create(ctx, job); err != nil {
 			return fmt.Errorf("Service.StartTranscode: %w", err)
 		}
 		return ErrMaxConcurrent
 	}
 
-	job.Status = string(transcoding.Running)
+	job.Status = transcoding.Running
 	job.StartedAt = time.Now()
 	if err := s.jobs.Create(ctx, job); err != nil {
 		return fmt.Errorf("Service.StartTranscode: %w", err)
 	}
 
 	if _, err := s.transcoder.Start(ctx, job); err != nil {
-		job.Status = string(transcoding.Failed)
+		job.Status = transcoding.Failed
 		job.ErrorMessage = err.Error()
 		if updateErr := s.jobs.Update(ctx, job); updateErr != nil {
 			slog.Warn("update transcode job failed", slog.String("jobID", job.ID), slog.Any("err", updateErr))
@@ -110,7 +110,7 @@ func (s *Service) StopTranscode(ctx context.Context, jobID string) error {
 	if err != nil {
 		return fmt.Errorf("Service.StopTranscode: %w", err)
 	}
-	job.Status = string(transcoding.Cancelled)
+	job.Status = transcoding.Cancelled
 	now := time.Now()
 	job.EndedAt = &now
 	if err := s.jobs.Update(ctx, job); err != nil {

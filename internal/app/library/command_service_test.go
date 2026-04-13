@@ -1071,7 +1071,7 @@ func TestScanTVShow_CreatesSeriesSeasonEpisode(t *testing.T) {
 	items := h.mediaItems.All()
 	typeMap := map[string]int{}
 	for _, item := range items {
-		typeMap[item.Type]++
+		typeMap[string(item.Type)]++
 	}
 	assert.Equal(t, 1, typeMap["series"])
 	assert.Equal(t, 1, typeMap["season"])
@@ -1576,7 +1576,7 @@ func TestScanLibrary_TvShow_CreatesSeriesAndSeason(t *testing.T) {
 	items := mediaRepo.All()
 	types := make(map[string]bool)
 	for _, item := range items {
-		types[item.Type] = true
+		types[string(item.Type)] = true
 	}
 	assert.True(t, types["series"], "series item should be created")
 	assert.True(t, types["season"], "season item should be created")

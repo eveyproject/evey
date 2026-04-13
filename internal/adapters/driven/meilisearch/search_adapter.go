@@ -96,7 +96,7 @@ func ToDocument(item *library.MediaItem, castNames []string) mediaDocument {
 		Genres:        item.Genres,
 		Cast:          castNames,
 		Year:          item.Year,
-		Type:          item.Type,
+		Type:          string(item.Type),
 		LibraryID:     item.LibraryID,
 		AddedAt:       item.AddedAt.Unix(),
 	}

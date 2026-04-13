@@ -353,7 +353,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			FileSize:        f.Size,
 			FileFingerprint: f.Fingerprint,
 			Title:           f.Title,
-			Type:            string(f.Type),
+			Type:            f.Type,
 			Year:            f.Year,
 			IndexNumber:     f.Episode,
 			AddedAt:         time.Now(),
@@ -385,7 +385,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			LibraryID:   libraryID,
 			Title:       item.Title,
 			SeriesTitle: showTitle,
-			Type:        item.Type,
+			Type:        string(item.Type),
 			Genres:      item.Genres,
 			OccurredAt:  time.Now(),
 		}
@@ -435,7 +435,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			LibraryID:   existing.LibraryID,
 			Title:       existing.Title,
 			SeriesTitle: showTitle,
-			Type:        existing.Type,
+			Type:        string(existing.Type),
 			Genres:      existing.Genres,
 			OccurredAt:  time.Now(),
 		}

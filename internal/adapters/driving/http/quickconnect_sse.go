@@ -26,7 +26,7 @@ func (a *qcCheckerAdapter) checkAndGenerateTokens(ctx context.Context, code stri
 	if err != nil {
 		return "", "", false, err
 	}
-	if qc.Status != string(domainuser.Authorized) || qc.UserID == nil {
+	if qc.Status != domainuser.Authorized || qc.UserID == nil {
 		return "", "", false, nil
 	}
 	var ttlOverride []time.Duration

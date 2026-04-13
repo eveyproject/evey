@@ -741,7 +741,7 @@ func TestQueryService_GetLibrary_Found(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "lib-1", lib.ID)
 	assert.Equal(t, "Movies", lib.Name)
-	assert.Equal(t, "movie", lib.Type)
+	assert.Equal(t, library.LibraryType("movie"), lib.Type)
 }
 
 // --- ListLibraries ---
@@ -785,7 +785,7 @@ func TestQueryService_GetMediaItem_Found(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "m1", item.ID)
 	assert.Equal(t, "Inception", item.Title)
-	assert.Equal(t, "movie", item.Type)
+	assert.Equal(t, library.MediaItemType("movie"), item.Type)
 	assert.Equal(t, "lib-1", item.LibraryID)
 	assert.Equal(t, 2020, *item.Year)
 	assert.InEpsilon(t, 8.5, *item.CommunityRating, 1e-9)
@@ -891,7 +891,7 @@ func TestQueryService_ListMediaItems_FilterByType(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, items, 2)
 	for _, item := range items {
-		assert.Equal(t, "movie", item.Type)
+		assert.Equal(t, library.MediaItemType("movie"), item.Type)
 	}
 }
 

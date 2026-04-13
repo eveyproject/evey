@@ -36,7 +36,7 @@ func (t *FakeTranscoder) Start(_ context.Context, job *transcoding.TranscodeJob)
 	if id == "" {
 		id = "fake-job-" + string(rune(t.nextID+'0'))
 	}
-	job.Status = string(transcoding.Running)
+	job.Status = transcoding.Running
 	t.jobs[id] = job
 	return id, nil
 }

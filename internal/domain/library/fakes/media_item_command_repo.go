@@ -103,7 +103,7 @@ func (r *FakeMediaItemCommandRepo) GetByLibraryTypeTitle(_ context.Context, libr
 		return nil, r.GetByLibraryTypeTitleErr
 	}
 	for _, item := range r.items {
-		if item.LibraryID == libraryID && item.Type == itemType && item.Title == title &&
+		if item.LibraryID == libraryID && string(item.Type) == itemType && item.Title == title &&
 			(parentID == "" || item.ParentID == parentID) {
 			return item, nil
 		}
@@ -176,7 +176,7 @@ func (r *FakeMediaItemCommandRepo) ListContainerInfo(_ context.Context, libraryI
 			result = append(result, library.MediaItemContainerRow{
 				ID:       item.ID,
 				ParentID: item.ParentID,
-				Type:     item.Type,
+				Type:     string(item.Type),
 			})
 		}
 	}
