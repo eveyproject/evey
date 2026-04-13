@@ -77,6 +77,14 @@ func TestGeneratePluginToken_Expiry(t *testing.T) {
 	assert.Empty(t, tok)
 }
 
+func TestGeneratePluginToken_ZeroTTL(t *testing.T) {
+	t.Parallel()
+	g := newGen(t, time.Minute)
+	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", []string{"media:read"}, 0)
+	require.Error(t, err, "ttl=0 must be rejected (boundary)")
+	assert.Empty(t, tok)
+}
+
 func TestParsePluginToken_Expired(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
