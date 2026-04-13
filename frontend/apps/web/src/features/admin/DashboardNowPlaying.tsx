@@ -123,7 +123,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
             {session.isPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} />}
           </button>
           <button
-            className="p-2 rounded-full hover:bg-[var(--danger-bg,rgba(239,68,68,0.15))] transition-colors text-[var(--danger,#ef4444)]"
+            className="p-2 rounded-full hover:bg-[var(--danger-hover,#b91c1c)] transition-colors text-[var(--danger-bg,#dc2626)]"
             onClick={() => {
               if (window.confirm(t("admin.sessions.stopSession") + " ?")) {
                 killSession.mutate({ sessionId: session.sessionId ?? "" });
