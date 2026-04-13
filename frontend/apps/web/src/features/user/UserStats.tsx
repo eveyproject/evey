@@ -159,6 +159,7 @@ export function UserStats() {
               data={monthBarData}
               barWidth={24}
               spacing={10}
+              endSpacing={16}
               roundedTop
               noOfSections={4}
               maxValue={Math.ceil(monthMax * 1.1) || 1}
