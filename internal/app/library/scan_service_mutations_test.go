@@ -680,7 +680,7 @@ func TestScanService_TVShow_UnchangedFileDifferentParentUpdates(t *testing.T) {
 	h.media.Create(context.Background(), &library.MediaItem{
 		ID: "ep1", LibraryID: "lib-tv", ParentID: "bogus-parent",
 		FilePath: "/tv/show/s01e01.mkv", FileSize: 100, FileFingerprint: "ep-fp",
-		Type: string(library.Episode), Title: "S01E01",
+		Type: library.Episode, Title: "S01E01",
 	})
 	s1, e1 := 1, 1
 	h.scanner.Results["/tv"] = []library.ScannedFile{
@@ -705,7 +705,7 @@ func TestScanService_TVShow_UnchangedMovedWithUpdateErrorLogged(t *testing.T) {
 	h.media.Create(context.Background(), &library.MediaItem{
 		ID: "ep1", LibraryID: "lib-tv", ParentID: "bogus-parent",
 		FilePath: "/tv/show/s01e01.mkv", FileSize: 100, FileFingerprint: "ep-fp",
-		Type: string(library.Episode), Title: "S01E01",
+		Type: library.Episode, Title: "S01E01",
 	})
 	s1, e1 := 1, 1
 	h.scanner.Results["/tv"] = []library.ScannedFile{
