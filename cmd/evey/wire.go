@@ -350,6 +350,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		rootLog.Info("SMTP email notifications enabled", slog.String("host", cfg.SMTP.Host))
 	}
 	appuser.WithPasswordReset(r.PasswordResetToken, r.ServerCfg, smtpConfigured)(userAuthSvc)
+	appuser.WithUnitOfWork(postgres.NewTxUnit(db))(userAuthSvc)
 
 	feedCmdSvc := appfeed.NewCommandService(r.FeedConfigCmd, r.FeedConfigQuery, appfeed.CommandWithEventBus(bus))
 	cachedAnalyzer := appfeed.NewCachedAnalyzer(r.WatchHistoryAnalyzer, 5*time.Minute, appfeed.CacheWithEventBus(bus))
