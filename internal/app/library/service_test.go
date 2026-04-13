@@ -311,13 +311,6 @@ func TestScanLibrary_ExtractsChapters(t *testing.T) {
 	assert.Equal(t, "Act 1", allChapters[1].Title)
 }
 
-func TestGetChapters_NilRepo(t *testing.T) {
-	t.Parallel()
-	svc, _, _, _, _, _ := newCmdSvc()
-	chapters, err := svc.GetChapters(context.Background(), "any-id")
-	require.NoError(t, err)
-	assert.Nil(t, chapters)
-}
 
 func TestGenerateTrickplay_Success(t *testing.T) {
 	t.Parallel()
@@ -339,7 +332,7 @@ func TestGenerateTrickplay_Success(t *testing.T) {
 	err := svc.GenerateTrickplay(context.Background(), "media-1")
 	require.NoError(t, err)
 
-	manifest, err := svc.GetTrickplayManifest(context.Background(), "media-1")
+	manifest, err := trickplayRepo.GetByMediaItemID(context.Background(), "media-1")
 	require.NoError(t, err)
 	assert.Equal(t, "media-1", manifest.MediaItemID)
 	assert.Equal(t, 15, manifest.Interval)
@@ -394,13 +387,6 @@ func TestGenerateTrickplay_NoFilePath(t *testing.T) {
 	assert.Contains(t, err.Error(), "no file path")
 }
 
-func TestGetTrickplayManifest_NotFound(t *testing.T) {
-	t.Parallel()
-	svc, _, _, _, _, _ := newCmdSvc()
-
-	_, err := svc.GetTrickplayManifest(context.Background(), "nonexistent")
-	require.Error(t, err)
-}
 
 // --- Trickplay: waitForIdleStreams ---
 
@@ -673,8 +659,9 @@ func TestGenerateTrickplay_DisabledByConfig(t *testing.T) {
 	err := svc.GenerateTrickplay(context.Background(), "m1")
 	require.NoError(t, err)
 
-	_, err = svc.GetTrickplayManifest(context.Background(), "m1")
+	manifest, err := trickplayRepo.GetByMediaItemID(context.Background(), "m1")
 	require.Error(t, err, "no manifest created when disabled")
+	assert.Nil(t, manifest)
 }
 
 func TestGenerateAllMissingTrickplays_DisabledByConfig(t *testing.T) {

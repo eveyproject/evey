@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -15,6 +16,14 @@ func WithPeople(people library.PersonRepository) QueryServiceOption {
 
 func WithPersonFetcher(fetcher library.PersonDetailsFetcher) QueryServiceOption {
 	return func(s *QueryService) { s.personFetcher = fetcher }
+}
+
+func WithChapters(chapters library.ChapterRepository) QueryServiceOption {
+	return func(s *QueryService) { s.chapters = chapters }
+}
+
+func WithTrickplay(trickplay library.TrickplayRepository) QueryServiceOption {
+	return func(s *QueryService) { s.trickplay = trickplay }
 }
 
 func WithTranslations(
@@ -42,6 +51,8 @@ type QueryService struct {
 	personTranslations   library.PersonTranslationRepository
 	personTransFetcher   library.PersonTranslationFetcher
 	translationLocales   []string
+	chapters             library.ChapterRepository
+	trickplay            library.TrickplayRepository
 }
 
 func NewQueryService(
@@ -151,6 +162,20 @@ func (s *QueryService) GetCastForItems(ctx context.Context, mediaItemIDs []strin
 
 func (s *QueryService) GetMediaStreams(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error) {
 	return s.streams.GetByMediaItemID(ctx, mediaItemID)
+}
+
+func (s *QueryService) GetChapters(ctx context.Context, mediaItemID string) ([]*library.Chapter, error) {
+	if s.chapters == nil {
+		return nil, nil
+	}
+	return s.chapters.GetByMediaItemID(ctx, mediaItemID)
+}
+
+func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
+	if s.trickplay == nil {
+		return nil, errors.New("trickplay not configured")
+	}
+	return s.trickplay.GetByMediaItemID(ctx, mediaItemID)
 }
 
 func (s *QueryService) SearchMedia(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
