@@ -40,6 +40,7 @@ type CommandService struct {
 	loginAttempts   *loginAttemptLimiter
 	setupMu         sync.Mutex
 	setupDone       bool
+	uow             shared.TransactionalUnit
 }
 
 func NewCommandService(
@@ -82,6 +83,12 @@ func WithPasswordReset(resetTokens user.PasswordResetTokenRepository, serverCfg 
 		s.serverCfg = serverCfg
 		s.smtpConfigured = smtpConfigured
 	}
+}
+
+// WithUnitOfWork wires a transactional unit so multi-step writes (e.g.
+// password reset: user update + token mark-used) commit/rollback atomically.
+func WithUnitOfWork(uow shared.TransactionalUnit) CommandServiceOption {
+	return func(s *CommandService) { s.uow = uow }
 }
 
 func (s *CommandService) InitSetupState(ctx context.Context) {
@@ -550,12 +557,26 @@ func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPasswor
 	}
 	u.PasswordHash = newHash
 	u.UpdatedAt = time.Now()
-	if err := s.users.Update(ctx, u); err != nil {
-		return fmt.Errorf("CommandService.ResetPassword: %w", err)
-	}
 
-	if err := s.resetTokens.MarkUsed(ctx, t.ID); err != nil {
-		slog.Warn("mark reset token used", slog.Any("err", err))
+	// Atomic: password update and token mark-used must commit together,
+	// otherwise a MarkUsed failure leaves the token reusable (TOCTOU).
+	apply := func(ctx context.Context) error {
+		if err := s.users.Update(ctx, u); err != nil {
+			return fmt.Errorf("update user: %w", err)
+		}
+		if err := s.resetTokens.MarkUsed(ctx, t.ID); err != nil {
+			return fmt.Errorf("mark reset token used: %w", err)
+		}
+		return nil
+	}
+	var txErr error
+	if s.uow != nil {
+		txErr = s.uow.Do(ctx, apply)
+	} else {
+		txErr = apply(ctx)
+	}
+	if txErr != nil {
+		return fmt.Errorf("CommandService.ResetPassword: %w", txErr)
 	}
 	if err := s.refreshTkns.DeleteByUserID(ctx, u.ID); err != nil {
 		slog.Warn("delete refresh tokens after password reset", slog.Any("err", err))
