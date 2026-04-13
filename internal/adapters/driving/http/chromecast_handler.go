@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -11,7 +12,18 @@ import (
 
 const castMaxBodySize = 4096
 
-func castDevicesHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.HandlerFunc {
+// castClient is the minimal surface of appcast.Service used by chromecast handlers.
+// It exists so handlers can be unit-tested with a fake implementation.
+type castClient interface {
+	Discover(ctx context.Context) ([]appcast.Device, error)
+	Play(ctx context.Context, uuid, mediaURL, title, contentType string) error
+	Stop(ctx context.Context, uuid string) error
+	Pause(ctx context.Context, uuid string) error
+	Seek(ctx context.Context, uuid string, positionSec int) error
+	Status(ctx context.Context, uuid string) (map[string]interface{}, error)
+}
+
+func castDevicesHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		devices, err := castSvc.Discover(r.Context())
 		if err != nil {
@@ -29,7 +41,7 @@ func castDevicesHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.H
 	}
 }
 
-func castPlayHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.HandlerFunc {
+func castPlayHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			DeviceUUID  string `json:"deviceUuid"`
@@ -55,7 +67,7 @@ func castPlayHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.Hand
 	}
 }
 
-func castStopHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.HandlerFunc {
+func castStopHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			DeviceUUID string `json:"deviceUuid"`
@@ -78,7 +90,7 @@ func castStopHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.Hand
 	}
 }
 
-func castPauseHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.HandlerFunc {
+func castPauseHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			DeviceUUID string `json:"deviceUuid"`
@@ -101,7 +113,7 @@ func castPauseHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.Han
 	}
 }
 
-func castSeekHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.HandlerFunc {
+func castSeekHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			DeviceUUID  string `json:"deviceUuid"`
@@ -125,7 +137,7 @@ func castSeekHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.Hand
 	}
 }
 
-func castStatusHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.HandlerFunc {
+func castStatusHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uuid := r.URL.Query().Get("deviceUuid")
 		if uuid == "" {
