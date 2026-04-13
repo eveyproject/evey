@@ -3,6 +3,8 @@ package user
 import (
 	"context"
 	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type UserRepository interface {
@@ -75,11 +77,11 @@ type UserRoleRepository interface {
 }
 
 type LibraryAccessRepository interface {
-	Grant(ctx context.Context, userID, libraryID string) error
-	Revoke(ctx context.Context, userID, libraryID string) error
-	GetByUserID(ctx context.Context, userID string) ([]string, error)
-	HasAccess(ctx context.Context, userID, libraryID string) (bool, error)
-	ListUsersWithRestrictions(ctx context.Context) (map[string][]string, error)
+	Grant(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error
+	Revoke(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error
+	GetByUserID(ctx context.Context, userID shared.UserID) ([]shared.LibraryID, error)
+	HasAccess(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) (bool, error)
+	ListUsersWithRestrictions(ctx context.Context) (map[shared.UserID][]shared.LibraryID, error)
 }
 
 type PasswordResetTokenRepository interface {

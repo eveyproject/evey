@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -42,7 +43,7 @@ type fakeLibraryAccessChecker struct {
 	err     error
 }
 
-func (f *fakeLibraryAccessChecker) HasAccess(_ context.Context, _, _ string) (bool, error) {
+func (f *fakeLibraryAccessChecker) HasAccess(_ context.Context, _ shared.UserID, _ shared.LibraryID) (bool, error) {
 	return f.allowed, f.err
 }
 

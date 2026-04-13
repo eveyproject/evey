@@ -5,12 +5,13 @@ import (
 
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
 
 // LibraryAccessChecker checks whether a user has access to a library.
 type LibraryAccessChecker interface {
-	HasAccess(ctx context.Context, userID, libraryID string) (bool, error)
+	HasAccess(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) (bool, error)
 }
 
 // libraryPathsGetter retrieves a library with its configured paths.

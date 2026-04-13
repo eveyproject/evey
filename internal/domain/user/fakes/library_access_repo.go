@@ -4,19 +4,21 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type FakeLibraryAccessRepository struct {
 	mu    sync.RWMutex
-	items map[string]map[string]time.Time // userID -> libraryID -> grantedAt
+	items map[shared.UserID]map[shared.LibraryID]time.Time
 	Err   error
 }
 
 func NewFakeLibraryAccessRepository() *FakeLibraryAccessRepository {
-	return &FakeLibraryAccessRepository{items: make(map[string]map[string]time.Time)}
+	return &FakeLibraryAccessRepository{items: make(map[shared.UserID]map[shared.LibraryID]time.Time)}
 }
 
-func (r *FakeLibraryAccessRepository) Grant(_ context.Context, userID, libraryID string) error {
+func (r *FakeLibraryAccessRepository) Grant(_ context.Context, userID shared.UserID, libraryID shared.LibraryID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -26,13 +28,13 @@ func (r *FakeLibraryAccessRepository) Grant(_ context.Context, userID, libraryID
 		return r.Err
 	}
 	if r.items[userID] == nil {
-		r.items[userID] = make(map[string]time.Time)
+		r.items[userID] = make(map[shared.LibraryID]time.Time)
 	}
 	r.items[userID][libraryID] = time.Now()
 	return nil
 }
 
-func (r *FakeLibraryAccessRepository) Revoke(_ context.Context, userID, libraryID string) error {
+func (r *FakeLibraryAccessRepository) Revoke(_ context.Context, userID shared.UserID, libraryID shared.LibraryID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -50,7 +52,7 @@ func (r *FakeLibraryAccessRepository) Revoke(_ context.Context, userID, libraryI
 	return nil
 }
 
-func (r *FakeLibraryAccessRepository) GetByUserID(_ context.Context, userID string) ([]string, error) {
+func (r *FakeLibraryAccessRepository) GetByUserID(_ context.Context, userID shared.UserID) ([]shared.LibraryID, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -63,14 +65,14 @@ func (r *FakeLibraryAccessRepository) GetByUserID(_ context.Context, userID stri
 	if len(libs) == 0 {
 		return nil, nil
 	}
-	result := make([]string, 0, len(libs))
+	result := make([]shared.LibraryID, 0, len(libs))
 	for libID := range libs {
 		result = append(result, libID)
 	}
 	return result, nil
 }
 
-func (r *FakeLibraryAccessRepository) HasAccess(_ context.Context, userID, libraryID string) (bool, error) {
+func (r *FakeLibraryAccessRepository) HasAccess(_ context.Context, userID shared.UserID, libraryID shared.LibraryID) (bool, error) {
 	if r.Err != nil {
 		return false, r.Err
 	}
@@ -87,7 +89,7 @@ func (r *FakeLibraryAccessRepository) HasAccess(_ context.Context, userID, libra
 	return ok, nil
 }
 
-func (r *FakeLibraryAccessRepository) ListUsersWithRestrictions(_ context.Context) (map[string][]string, error) {
+func (r *FakeLibraryAccessRepository) ListUsersWithRestrictions(_ context.Context) (map[shared.UserID][]shared.LibraryID, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -96,9 +98,9 @@ func (r *FakeLibraryAccessRepository) ListUsersWithRestrictions(_ context.Contex
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	result := make(map[string][]string, len(r.items))
+	result := make(map[shared.UserID][]shared.LibraryID, len(r.items))
 	for userID, libs := range r.items {
-		ids := make([]string, 0, len(libs))
+		ids := make([]shared.LibraryID, 0, len(libs))
 		for libID := range libs {
 			ids = append(ids, libID)
 		}
@@ -107,7 +109,7 @@ func (r *FakeLibraryAccessRepository) ListUsersWithRestrictions(_ context.Contex
 	return result, nil
 }
 
-func (r *FakeLibraryAccessRepository) DeleteByUserID(_ context.Context, userID string) error {
+func (r *FakeLibraryAccessRepository) DeleteByUserID(_ context.Context, userID shared.UserID) error {
 	if r.Err != nil {
 		return r.Err
 	}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/pkg/cache"
 )
 
@@ -51,8 +52,8 @@ func NewCachedLibraryAccessChecker(inner LibraryAccessChecker) *CachedLibraryAcc
 
 func (ch *CachedLibraryAccessChecker) Close() { ch.stopFn() }
 
-func (ch *CachedLibraryAccessChecker) HasAccess(ctx context.Context, userID, libraryID string) (bool, error) {
-	key := "access:" + userID + ":" + libraryID
+func (ch *CachedLibraryAccessChecker) HasAccess(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) (bool, error) {
+	key := "access:" + string(userID) + ":" + string(libraryID)
 	if v, ok := ch.c.Get(key); ok {
 		return v, nil
 	}

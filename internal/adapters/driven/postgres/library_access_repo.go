@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -15,50 +16,50 @@ func NewLibraryAccessRepository(db *sql.DB) *LibraryAccessRepository {
 	return &LibraryAccessRepository{db: db}
 }
 
-func (r *LibraryAccessRepository) Grant(ctx context.Context, userID, libraryID string) error {
+func (r *LibraryAccessRepository) Grant(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO library_access (user_id, library_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-		userID, libraryID)
+		string(userID), string(libraryID))
 	return err
 }
 
-func (r *LibraryAccessRepository) Revoke(ctx context.Context, userID, libraryID string) error {
+func (r *LibraryAccessRepository) Revoke(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM library_access WHERE user_id = $1 AND library_id = $2`,
-		userID, libraryID)
+		string(userID), string(libraryID))
 	return err
 }
 
-func (r *LibraryAccessRepository) GetByUserID(ctx context.Context, userID string) ([]string, error) {
+func (r *LibraryAccessRepository) GetByUserID(ctx context.Context, userID shared.UserID) ([]shared.LibraryID, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT library_id FROM library_access WHERE user_id = $1 ORDER BY granted_at`, userID)
+		`SELECT library_id FROM library_access WHERE user_id = $1 ORDER BY granted_at`, string(userID))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var result []string
+	var result []shared.LibraryID
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		result = append(result, id)
+		result = append(result, shared.LibraryID(id))
 	}
 	return result, rows.Err()
 }
 
-func (r *LibraryAccessRepository) HasAccess(ctx context.Context, userID, libraryID string) (bool, error) {
+func (r *LibraryAccessRepository) HasAccess(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) (bool, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
 	err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM library_access WHERE user_id = $1`, userID).Scan(&count)
+		`SELECT COUNT(*) FROM library_access WHERE user_id = $1`, string(userID)).Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -67,11 +68,11 @@ func (r *LibraryAccessRepository) HasAccess(ctx context.Context, userID, library
 	}
 	err = r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM library_access WHERE user_id = $1 AND library_id = $2`,
-		userID, libraryID).Scan(&count)
+		string(userID), string(libraryID)).Scan(&count)
 	return count > 0, err
 }
 
-func (r *LibraryAccessRepository) ListUsersWithRestrictions(ctx context.Context) (map[string][]string, error) {
+func (r *LibraryAccessRepository) ListUsersWithRestrictions(ctx context.Context) (map[shared.UserID][]shared.LibraryID, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -80,13 +81,14 @@ func (r *LibraryAccessRepository) ListUsersWithRestrictions(ctx context.Context)
 		return nil, err
 	}
 	defer rows.Close()
-	result := make(map[string][]string)
+	result := make(map[shared.UserID][]shared.LibraryID)
 	for rows.Next() {
 		var userID, libID string
 		if err := rows.Scan(&userID, &libID); err != nil {
 			return nil, err
 		}
-		result[userID] = append(result[userID], libID)
+		uid := shared.UserID(userID)
+		result[uid] = append(result[uid], shared.LibraryID(libID))
 	}
 	return result, rows.Err()
 }

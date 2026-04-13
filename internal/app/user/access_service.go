@@ -183,17 +183,25 @@ func (s *AccessService) RevokeAPIKey(ctx context.Context, keyID string) error {
 }
 
 func (s *AccessService) HasLibraryAccess(ctx context.Context, userID, libraryID string) (bool, error) {
-	return s.libraryAccess.HasAccess(ctx, userID, libraryID)
+	return s.libraryAccess.HasAccess(ctx, shared.UserID(userID), shared.LibraryID(libraryID))
 }
 
 func (s *AccessService) GetLibraryAccessByUserID(ctx context.Context, userID string) ([]string, error) {
-	return s.libraryAccess.GetByUserID(ctx, userID)
+	ids, err := s.libraryAccess.GetByUserID(ctx, shared.UserID(userID))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = string(id)
+	}
+	return out, nil
 }
 
 func (s *AccessService) GrantLibraryAccess(ctx context.Context, userID, libraryID string) error {
-	return s.libraryAccess.Grant(ctx, userID, libraryID)
+	return s.libraryAccess.Grant(ctx, shared.UserID(userID), shared.LibraryID(libraryID))
 }
 
 func (s *AccessService) RevokeLibraryAccess(ctx context.Context, userID, libraryID string) error {
-	return s.libraryAccess.Revoke(ctx, userID, libraryID)
+	return s.libraryAccess.Revoke(ctx, shared.UserID(userID), shared.LibraryID(libraryID))
 }

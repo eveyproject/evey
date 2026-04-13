@@ -10,6 +10,7 @@ import (
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	syncfakes "github.com/gravity-zero/evey/internal/domain/syncplay/fakes"
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
@@ -66,7 +67,7 @@ func (e *syncplayTestEnv) seedMedia(id, libraryID string) {
 }
 
 func (e *syncplayTestEnv) grantAccess(userID, libraryID string) {
-	_ = e.libAccessRepo.Grant(context.Background(), userID, libraryID)
+	_ = e.libAccessRepo.Grant(context.Background(), shared.UserID(userID), shared.LibraryID(libraryID))
 }
 
 // --- CreateRoom ---

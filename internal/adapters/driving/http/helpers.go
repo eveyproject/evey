@@ -111,7 +111,7 @@ func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *doma
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return false
 	}
-	ok, err := checker.HasAccess(ctx, claims.UserID, libraryID)
+	ok, err := checker.HasAccess(ctx, shared.UserID(claims.UserID), shared.LibraryID(libraryID))
 	if err != nil || !ok {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return false
