@@ -1,9 +1,11 @@
 package syncplay
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +13,17 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/syncplay"
 	"github.com/gravity-zero/evey/internal/domain/syncplay/fakes"
 )
+
+// captureSlog swaps the default slog logger for the duration of the test
+// and returns a buffer with emitted log output. Not parallel-safe.
+func captureSlog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	return &buf
+}
 
 // fakeRoomRepo is an in-memory implementation of syncplay.RoomRepository.
 type fakeRoomRepo struct {
@@ -817,6 +830,178 @@ func TestHub_ConnectMember_BroadcastsJoin(t *testing.T) {
 	}
 	if cmd.UserID != "user-2" {
 		t.Errorf("userID = %q, want user-2", cmd.UserID)
+	}
+}
+
+func TestHub_ConnectMember_LogsWarnOnSenderError(t *testing.T) {
+	buf := captureSlog(t)
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	failSender := &fakes.FakeMessageSender{Err: errors.New("send boom")}
+
+	_, err := h.ConnectMember(ctx, room.ID, "user-2", "Alice", failSender)
+	if err != nil {
+		t.Fatalf("ConnectMember: %v", err)
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("send initial state failed")) {
+		t.Errorf("expected warn log for failed send, got: %q", buf.String())
+	}
+}
+
+func TestHub_ConnectMember_NoWarnOnSuccessfulSend(t *testing.T) {
+	buf := captureSlog(t)
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	okSender := fakes.NewFakeMessageSender()
+
+	_, err := h.ConnectMember(ctx, room.ID, "user-2", "Alice", okSender)
+	if err != nil {
+		t.Fatalf("ConnectMember: %v", err)
+	}
+	if bytes.Contains(buf.Bytes(), []byte("send initial state failed")) {
+		t.Errorf("unexpected warn log on successful send: %q", buf.String())
+	}
+}
+
+func TestHub_Broadcast_LogsWarnOnSenderError(t *testing.T) {
+	buf := captureSlog(t)
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	hostSender := fakes.NewFakeMessageSender()
+	failSender := &fakes.FakeMessageSender{Err: errors.New("broadcast boom")}
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", hostSender)
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", failSender)
+	buf.Reset()
+
+	_, err := h.HandleCommand(ctx, room.ID, "host-1", "Host", syncplay.SyncCommand{
+		Type: "play", PositionMs: 1000,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommand: %v", err)
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("syncplay: send failed")) {
+		t.Errorf("expected broadcast warn log, got: %q", buf.String())
+	}
+}
+
+func TestHub_Broadcast_NoWarnOnSuccessfulSend(t *testing.T) {
+	buf := captureSlog(t)
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	hostSender := fakes.NewFakeMessageSender()
+	otherSender := fakes.NewFakeMessageSender()
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", hostSender)
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", otherSender)
+	buf.Reset()
+
+	_, err := h.HandleCommand(ctx, room.ID, "host-1", "Host", syncplay.SyncCommand{
+		Type: "play", PositionMs: 1000,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommand: %v", err)
+	}
+	if bytes.Contains(buf.Bytes(), []byte("syncplay: send failed")) {
+		t.Errorf("unexpected broadcast warn log: %q", buf.String())
+	}
+}
+
+func TestHub_DisconnectMember_RemovesFromConns(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	hostSender := fakes.NewFakeMessageSender()
+	otherSender := fakes.NewFakeMessageSender()
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", hostSender)
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", otherSender)
+
+	// Disconnect user-2: must remove from h.conns so subsequent broadcasts skip them.
+	_ = h.DisconnectMember(ctx, room.ID, "user-2")
+	otherSender.Messages = nil
+	hostSender.Messages = nil
+
+	// Host sends play — user-2 must NOT receive because they are no longer in conns.
+	_, err := h.HandleCommand(ctx, room.ID, "host-1", "Host", syncplay.SyncCommand{
+		Type: "play", PositionMs: 2000,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommand: %v", err)
+	}
+	if got := len(otherSender.Received()); got != 0 {
+		t.Errorf("disconnected user got %d messages, want 0", got)
+	}
+}
+
+func TestHub_DisconnectMember_NoConns_NoPanic(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	// No ConnectMember called → h.conns[roomID] is nil.
+	if err := h.DisconnectMember(ctx, room.ID, "ghost"); err != nil {
+		t.Errorf("DisconnectMember on room with no conns: %v", err)
+	}
+}
+
+func TestHub_ConnectMember_SenderErrorSwallowed(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	failSender := &fakes.FakeMessageSender{Err: errors.New("send boom")}
+
+	got, err := h.ConnectMember(ctx, room.ID, "user-2", "Alice", failSender)
+	if err != nil {
+		t.Fatalf("ConnectMember should swallow sender error, got %v", err)
+	}
+	if got.ID != room.ID {
+		t.Errorf("room ID = %q, want %q", got.ID, room.ID)
+	}
+	// Member must still be persisted despite failed state send.
+	found := false
+	for _, m := range got.Members {
+		if m.UserID == "user-2" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("user-2 must be added even when initial state send fails")
+	}
+}
+
+func TestHub_Broadcast_ContinuesWhenOneSenderFails(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	hostSender := fakes.NewFakeMessageSender()
+	failSender := &fakes.FakeMessageSender{Err: errors.New("boom")}
+	goodSender := fakes.NewFakeMessageSender()
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", hostSender)
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", failSender)
+	_, _ = h.ConnectMember(ctx, room.ID, "user-3", "Bob", goodSender)
+	goodSender.Messages = nil
+
+	_, err := h.HandleCommand(ctx, room.ID, "host-1", "Host", syncplay.SyncCommand{
+		Type: "play", PositionMs: 1000,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommand: %v", err)
+	}
+	if got := len(goodSender.Received()); got != 1 {
+		t.Errorf("good sender got %d messages, want 1 (broadcast must continue past failing sender)", got)
 	}
 }
 
