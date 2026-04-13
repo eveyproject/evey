@@ -18,8 +18,8 @@ import (
 	ufakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 )
 
-// captureSlog redirects slog output to a buffer; returns buffer + restore fn.
-func captureSlog(t *testing.T) (*bytes.Buffer, func()) {
+// captureSlogBuffer redirects slog output to a buffer; returns buffer + restore fn.
+func captureSlogBuffer(t *testing.T) (*bytes.Buffer, func()) {
 	t.Helper()
 	var buf bytes.Buffer
 	prev := slog.Default()
@@ -180,7 +180,7 @@ func TestRefreshToken_ClaimsIncludeLocaleAndPerms(t *testing.T) {
 // --- RefreshToken: IsExpired path logs DeleteByID error (line 297-301) ---
 
 func TestRefreshToken_ExpiredAndDeleteByIDFailsLogsWarning(t *testing.T) {
-	buf, restore := captureSlog(t)
+	buf, restore := captureSlogBuffer(t)
 	defer restore()
 
 	users := ufakes.NewFakeUserRepository()
@@ -299,7 +299,7 @@ func TestGenerateAndStoreRefreshToken_TTLOverrideZeroUsesDefault(t *testing.T) {
 // --- runCleanup: logs warnings on DeleteExpired errors (lines 440-449) ---
 
 func TestRunCleanup_LogsWarningsOnAllRepoErrors(t *testing.T) {
-	buf, restore := captureSlog(t)
+	buf, restore := captureSlogBuffer(t)
 	defer restore()
 
 	users := ufakes.NewFakeUserRepository()
@@ -344,7 +344,7 @@ func TestRunCleanup_NoResetRepo_NoCrash(t *testing.T) {
 // --- RequestPasswordReset: success path event publish + deleteByUserID error non-fatal (lines 482-514) ---
 
 func TestRequestPasswordReset_DeleteOldTokensErrorNonFatal(t *testing.T) {
-	buf, restore := captureSlog(t)
+	buf, restore := captureSlogBuffer(t)
 	defer restore()
 
 	d := newAuthTestDeps()
@@ -415,7 +415,7 @@ func (r *resetRepoMarkUsedFail) MarkUsed(_ context.Context, _ string) error {
 }
 
 func TestResetPassword_MarkUsedErrorNonFatalV2(t *testing.T) {
-	buf, restore := captureSlog(t)
+	buf, restore := captureSlogBuffer(t)
 	defer restore()
 
 	d := newAuthTestDeps()
@@ -445,7 +445,7 @@ func TestResetPassword_MarkUsedErrorNonFatalV2(t *testing.T) {
 }
 
 func TestResetPassword_DeleteRefreshTokensErrorNonFatal(t *testing.T) {
-	buf, restore := captureSlog(t)
+	buf, restore := captureSlogBuffer(t)
 	defer restore()
 
 	users := ufakes.NewFakeUserRepository()
@@ -680,7 +680,7 @@ func TestStartCleanupWithInterval_RecoversFromPanic(t *testing.T) {
 // --- Setup: profile publish event error non-fatal (line 143-145) ---
 
 func TestSetup_ProfileEventPublishError_StillReturnsUser(t *testing.T) {
-	buf, restore := captureSlog(t)
+	buf, restore := captureSlogBuffer(t)
 	defer restore()
 
 	d := newAuthTestDeps()

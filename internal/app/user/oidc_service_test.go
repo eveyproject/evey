@@ -831,8 +831,8 @@ func TestHandleCallback_TokenExchangeError(t *testing.T) {
 
 // --- gremlins gap-closing tests for error branches ---
 
-// captureSlog redirects slog default output to a buffer for the duration of fn.
-func captureSlog(t *testing.T, fn func()) string {
+// captureSlogDuring redirects slog default output to a buffer for the duration of fn.
+func captureSlogDuring(t *testing.T, fn func()) string {
 	t.Helper()
 	var buf strings.Builder
 	oldDefault := slog.Default()
@@ -947,7 +947,7 @@ func TestHandleCallback_RolesRepoError_ContinuesWithoutRoles(t *testing.T) {
 		accessTk, refreshTk string
 		err                 error
 	)
-	logs := captureSlog(t, func() {
+	logs := captureSlogDuring(t, func() {
 		accessTk, refreshTk, _, err = svc.HandleCallback(context.Background(), "auth-code")
 	})
 	if err != nil {
@@ -1114,7 +1114,7 @@ func TestHandleCallback_LoginEventPublishError_Continues(t *testing.T) {
 		accessTk, refreshTk string
 		err                 error
 	)
-	logs := captureSlog(t, func() {
+	logs := captureSlogDuring(t, func() {
 		accessTk, refreshTk, _, err = svc.HandleCallback(context.Background(), "auth-code")
 	})
 	if err != nil {
@@ -1150,7 +1150,7 @@ func TestHandleCallback_UpdateExistingUserError_Continues(t *testing.T) {
 		accessTk string
 		err      error
 	)
-	logs := captureSlog(t, func() {
+	logs := captureSlogDuring(t, func() {
 		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code")
 	})
 	if err != nil {
@@ -1205,7 +1205,7 @@ func TestHandleCallback_NewUserProfileCreateError_Continues(t *testing.T) {
 		accessTk string
 		err      error
 	)
-	logs := captureSlog(t, func() {
+	logs := captureSlogDuring(t, func() {
 		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code")
 	})
 	if err != nil {
@@ -1240,7 +1240,7 @@ func TestHandleCallback_NewUserCreatedEventError_Continues(t *testing.T) {
 		accessTk string
 		err      error
 	)
-	logs := captureSlog(t, func() {
+	logs := captureSlogDuring(t, func() {
 		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code")
 	})
 	if err != nil {
@@ -1279,7 +1279,7 @@ func TestHandleCallback_RefreshPurgeError_Continues(t *testing.T) {
 		refreshTk string
 		err       error
 	)
-	logs := captureSlog(t, func() {
+	logs := captureSlogDuring(t, func() {
 		_, refreshTk, _, err = svc.HandleCallback(context.Background(), "auth-code")
 	})
 	if err != nil {
