@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useCallback, useMemo } from "react";
+import { memo, useRef, useState, useMemo } from "react";
 import { Star, Check, Play } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -77,11 +77,11 @@ export const MediaCard = memo(function MediaCard({
   const [showPreview, setShowPreview] = useState(false);
   const profileId = useAuthStore((s) => s.profileId);
   const qc = useQueryClient();
-  const invalidateItem = useCallback(() => {
+  const invalidateItem = () => {
     if (item.id) void qc.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
     void qc.invalidateQueries({ queryKey: ["/api/v1/feeds/resume-playback"] });
     void qc.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
-  }, [item.id, qc]);
+  };
   const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => { setWatchedLocal(true); toast.success(t("media.contextMenu.markedWatched")); invalidateItem(); } } });
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => { setWatchedLocal(false); toast.success(t("media.contextMenu.markedUnwatched")); invalidateItem(); } } });
 
@@ -119,73 +119,9 @@ export const MediaCard = memo(function MediaCard({
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
 
-  const queryClient = qc;
-
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleMouseEnter = useCallback(() => {
-    if (item.id) {
-      prefetchTimer.current = setTimeout(() => {
-        queryClient.prefetchQuery({
-          queryKey: [`/api/v1/media/${item.id}`],
-          queryFn: ({ signal }) => libraryServiceGetMediaItem(item.id!, signal),
-          staleTime: 60_000,
-        });
-      }, 100);
-    }
-    if (!hasPreviewData) return;
-    hoverTimer.current = setTimeout(() => setShowPreview(true), 400);
-  }, [hasPreviewData, item.id, queryClient]);
-
-  const handleMouseLeave = useCallback(() => {
-    if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    setShowPreview(false);
-  }, []);
-
-  const handleFocus = useCallback(() => {
-    if (!hasPreviewData) return;
-    hoverTimer.current = setTimeout(() => setShowPreview(true), 400);
-  }, [hasPreviewData]);
-
-  const handleBlur = useCallback(() => {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    setShowPreview(false);
-  }, []);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (!item.id) return;
-    e.preventDefault();
-    setShowPreview(false);
-    setCtxMenu({ x: e.clientX, y: e.clientY });
-  }, [item.id]);
-
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!item.id) return;
-    longPressTriggered.current = false;
-    const touch = e.touches[0];
-    const x = touch.clientX;
-    const y = touch.clientY;
-    longPressTimer.current = setTimeout(() => {
-      longPressTriggered.current = true;
-      setShowPreview(false);
-      setCtxMenu({ x, y });
-    }, 600);
-  }, [item.id]);
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    if (longPressTriggered.current) e.preventDefault();
-  }, []);
-  const handleTouchMove = useCallback(() => {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-  }, []);
-
-  const handleSelectionClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    onSelect?.(item.id!, !selected);
-  }, [onSelect, item.id, selected]);
 
   const hasProgressBar = showProgress && pct !== undefined;
 
@@ -205,17 +141,63 @@ export const MediaCard = memo(function MediaCard({
       params={linkParams as never}
       className={`group block flex-shrink-0 w-36 sm:w-44 relative${selected ? " ring-2 ring-[var(--accent)] rounded-[var(--radius-md)]" : ""}`}
       data-testid="media-card"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      onFocus={handleFocus}
-      onBlur={handleBlur}
-      onContextMenu={handleContextMenu}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchMove={handleTouchMove}
+      onMouseEnter={() => {
+        if (item.id) {
+          prefetchTimer.current = setTimeout(() => {
+            qc.prefetchQuery({
+              queryKey: [`/api/v1/media/${item.id}`],
+              queryFn: ({ signal }) => libraryServiceGetMediaItem(item.id!, signal),
+              staleTime: 60_000,
+            });
+          }, 100);
+        }
+        if (!hasPreviewData) return;
+        hoverTimer.current = setTimeout(() => setShowPreview(true), 400);
+      }}
+      onMouseLeave={() => {
+        if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+        if (hoverTimer.current) clearTimeout(hoverTimer.current);
+        setShowPreview(false);
+      }}
+      onFocus={() => {
+        if (!hasPreviewData) return;
+        hoverTimer.current = setTimeout(() => setShowPreview(true), 400);
+      }}
+      onBlur={() => {
+        if (hoverTimer.current) clearTimeout(hoverTimer.current);
+        setShowPreview(false);
+      }}
+      onContextMenu={(e) => {
+        if (!item.id) return;
+        e.preventDefault();
+        setShowPreview(false);
+        setCtxMenu({ x: e.clientX, y: e.clientY });
+      }}
+      onTouchStart={(e) => {
+        if (!item.id) return;
+        longPressTriggered.current = false;
+        const touch = e.touches[0];
+        const x = touch.clientX;
+        const y = touch.clientY;
+        longPressTimer.current = setTimeout(() => {
+          longPressTriggered.current = true;
+          setShowPreview(false);
+          setCtxMenu({ x, y });
+        }, 600);
+      }}
+      onTouchEnd={(e) => {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+        if (longPressTriggered.current) e.preventDefault();
+      }}
+      onTouchMove={() => {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+      }}
       onClick={(e) => {
         if (longPressTriggered.current) { e.preventDefault(); longPressTriggered.current = false; return; }
-        if (onSelect && selectionMode) { handleSelectionClick(e); }
+        if (onSelect && selectionMode) {
+          e.preventDefault();
+          onSelect(item.id!, !selected);
+        }
       }}
     >
       {showPreview && <HoverPreview item={item} />}
