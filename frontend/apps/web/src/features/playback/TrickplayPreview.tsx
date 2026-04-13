@@ -63,10 +63,9 @@ interface TrickplayPreviewProps {
   mediaId: string;
   hoverTime: number | null;
   mediaType?: string;
-  streamToken?: string;
 }
 
-export function TrickplayPreview({ mediaId, hoverTime, mediaType, streamToken }: TrickplayPreviewProps) {
+export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPreviewProps) {
   const [cues, setCues] = useState<TrickplayCue[]>(() => cueCache.get(mediaId) ?? []);
   const [loaded, setLoaded] = useState(() => (cueCache.get(mediaId)?.length ?? 0) > 0);
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
