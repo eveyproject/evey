@@ -9,7 +9,6 @@ import (
 
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	"github.com/gravity-zero/evey/internal/config"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
@@ -41,7 +40,7 @@ func registerServerSettingsRoutes(
 	mux *http.ServeMux,
 	cfg *config.Config,
 	store remoteAccessPersister,
-	tokenGen *auth.JWTGenerator,
+	tokenGen TokenVerifier,
 	transcodingSvc *apptranscoding.Service,
 	hlsMgr *apptranscoding.HLSManager,
 	loginRL *ratelimit.Limiter,
