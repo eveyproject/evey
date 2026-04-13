@@ -55,9 +55,8 @@ func TestPasswordResetTokenRepo_GetByTokenHash_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
-func TestPasswordResetTokenRepo_GetExpiredTokenStillReturned(t *testing.T) {
-	// implementation does not filter on expires_at in GetByTokenHash,
-	// caller uses IsValid() to check. Document this behavior.
+func TestPasswordResetTokenRepo_GetExpiredReturnsNotFound(t *testing.T) {
+	// Defense-in-depth: repo SQL filters expired tokens — caller no longer needs IsValid().
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 
@@ -68,13 +67,11 @@ func TestPasswordResetTokenRepo_GetExpiredTokenStillReturned(t *testing.T) {
 	expired := newPRT("prt-exp", "prt-u-exp", "hash_exp", time.Now().Add(-1*time.Hour))
 	require.NoError(t, repo.Create(ctx, expired))
 
-	got, err := repo.GetByTokenHash(ctx, "hash_exp")
-	require.NoError(t, err)
-	assert.Equal(t, "prt-exp", got.ID)
-	assert.False(t, got.IsValid(), "expired token must not be valid")
+	_, err := repo.GetByTokenHash(ctx, "hash_exp")
+	assert.ErrorIs(t, err, shared.ErrNotFound, "expired token must be filtered at SQL level")
 }
 
-func TestPasswordResetTokenRepo_MarkUsed(t *testing.T) {
+func TestPasswordResetTokenRepo_MarkUsed_ThenGetReturnsNotFound(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 
@@ -84,13 +81,10 @@ func TestPasswordResetTokenRepo_MarkUsed(t *testing.T) {
 
 	tok := newPRT("prt-mu", "prt-u2", "hash_mu", time.Now().Add(1*time.Hour))
 	require.NoError(t, repo.Create(ctx, tok))
-
 	require.NoError(t, repo.MarkUsed(ctx, "prt-mu"))
 
-	got, err := repo.GetByTokenHash(ctx, "hash_mu")
-	require.NoError(t, err)
-	assert.True(t, got.Used, "used flag should be true after MarkUsed")
-	assert.False(t, got.IsValid(), "used token must not be valid")
+	_, err := repo.GetByTokenHash(ctx, "hash_mu")
+	assert.ErrorIs(t, err, shared.ErrNotFound, "used token must be filtered at SQL level")
 }
 
 func TestPasswordResetTokenRepo_MarkUsed_UnknownID_NoError(t *testing.T) {
