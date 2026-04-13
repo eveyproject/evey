@@ -47,6 +47,29 @@ func TestInstrumentHandler(t *testing.T) {
 	}
 }
 
+func TestSanitizePath(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"/", "/"},
+		{"", ""},
+		{"/api/v1/media/med-abc123/stream", "/api/v1/media/{id}/stream"},
+		{"/api/v1/users/12345", "/api/v1/users/{id}"},
+		{"/api/v1/users/usr-deadbeef/profile", "/api/v1/users/{id}/profile"},
+		{"/api/v1/items/550e8400-e29b-41d4-a716-446655440000", "/api/v1/items/{id}"},
+		{"/api/v1/static/about", "/api/v1/static/about"},
+		{"/api/v1/stream/" + strings.Repeat("a", 40), "/api/v1/stream/{token}"},
+		{"/api/v1/files/abcdef0123456789", "/api/v1/files/{id}"},
+		{"/healthz", "/healthz"},
+	}
+	for _, c := range cases {
+		got := metrics.SanitizePath(c.in)
+		if got != c.want {
+			t.Errorf("SanitizePath(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 func TestHLSSessionsGauge(t *testing.T) {
 	metrics.HLSSessionsGauge.Set(5)
 	// verify it can be set without panic
