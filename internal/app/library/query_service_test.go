@@ -145,11 +145,15 @@ func (f *fakePersonDetailsFetcher) GetPersonDetails(_ context.Context, _ string)
 }
 
 type fakePersonTranslationFetcher struct {
-	Result map[string]string
-	Err    error
+	Result     map[string]string
+	Err        error
+	Calls      int
+	LastLocale []string
 }
 
-func (f *fakePersonTranslationFetcher) FetchPersonTranslations(_ context.Context, _ string, _ []string) (map[string]string, error) {
+func (f *fakePersonTranslationFetcher) FetchPersonTranslations(_ context.Context, _ string, locales []string) (map[string]string, error) {
+	f.Calls++
+	f.LastLocale = locales
 	return f.Result, f.Err
 }
 
@@ -985,4 +989,138 @@ func TestQueryService_WithTranslations_Option(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "Pelicula", result.Title)
+}
+
+// Kills mutation at query_service.go:104:95 (len(s.translationLocales) > 0).
+// With an empty locale list, FetchPersonTranslations must NOT be invoked.
+// Flipping "> 0" to ">= 0" would call the fetcher even with no locales.
+func TestQueryService_GetPerson_LazyFetch_EmptyLocales_FetcherNotCalled(t *testing.T) {
+	t.Parallel()
+	people := libfakes.NewFakePersonRepository()
+	people.Create(context.Background(), &library.Person{ID: "p1", Name: "Alice", Biography: ""})
+
+	detailsFetcher := &fakePersonDetailsFetcher{
+		Result: &library.PersonDetailsResult{Biography: "Bio EN"},
+	}
+	personTransRepo := newFakePersonTranslationRepo()
+	transFetcher := &fakePersonTranslationFetcher{}
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+		applib.WithPersonFetcher(detailsFetcher),
+		applib.WithTranslations(newFakeMediaItemTranslationRepo(), personTransRepo, transFetcher, []string{}),
+	)
+
+	_, err := svc.GetPerson(context.Background(), "p1")
+	require.NoError(t, err)
+	assert.Equal(t, 0, transFetcher.Calls, "translation fetcher must not be invoked when locales list is empty")
+}
+
+// --- personRepo wrapper to inject Update-only errors (kills mutations around
+// updateErr != nil at query_service.go:100:60 and uErr != nil at 109:15 by
+// keeping GetByID functional while Update / Upsert fail). ---
+
+type updateFailPersonRepo struct {
+	inner     *libfakes.FakePersonRepository
+	updateErr error
+}
+
+func (r *updateFailPersonRepo) Create(ctx context.Context, p *library.Person) error {
+	return r.inner.Create(ctx, p)
+}
+func (r *updateFailPersonRepo) Update(_ context.Context, _ *library.Person) error {
+	return r.updateErr
+}
+func (r *updateFailPersonRepo) GetByID(ctx context.Context, id string) (*library.Person, error) {
+	return r.inner.GetByID(ctx, id)
+}
+func (r *updateFailPersonRepo) GetByName(ctx context.Context, name string) (*library.Person, error) {
+	return r.inner.GetByName(ctx, name)
+}
+func (r *updateFailPersonRepo) List(ctx context.Context) ([]*library.Person, error) {
+	return r.inner.List(ctx)
+}
+
+// Kills mutation at query_service.go:100:60 (updateErr != nil) + confirms the
+// service still returns the fetched bio even when the update call fails.
+// The prod code warns-and-continues; we verify the populated bio is returned.
+func TestQueryService_GetPerson_LazyFetch_UpdateFails_BioStillReturned(t *testing.T) {
+	t.Parallel()
+	inner := libfakes.NewFakePersonRepository()
+	inner.Create(context.Background(), &library.Person{ID: "p1", Name: "Alice", Biography: ""})
+	people := &updateFailPersonRepo{inner: inner, updateErr: errors.New("update boom")}
+
+	fetcher := &fakePersonDetailsFetcher{
+		Result: &library.PersonDetailsResult{Biography: "From TMDB", Birthday: "1970-01-01"},
+	}
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+		applib.WithPersonFetcher(fetcher),
+	)
+
+	person, err := svc.GetPerson(context.Background(), "p1")
+	require.NoError(t, err)
+	require.NotNil(t, person)
+	assert.Equal(t, "From TMDB", person.Biography)
+	assert.Equal(t, "1970-01-01", person.Birthday)
+}
+
+// --- person translation repo wrapper to fail Upsert only (kills mutation at
+// query_service.go:109:15 by letting the Upsert error path execute without
+// affecting the returned person). ---
+
+type upsertFailPersonTransRepo struct {
+	Err error
+}
+
+func (r *upsertFailPersonTransRepo) Upsert(_ context.Context, _ *library.PersonTranslation) error {
+	return r.Err
+}
+func (r *upsertFailPersonTransRepo) GetByPersonAndLocale(_ context.Context, _, _ string) (*library.PersonTranslation, error) {
+	return nil, nil
+}
+func (r *upsertFailPersonTransRepo) GetByPerson(_ context.Context, _ string) ([]*library.PersonTranslation, error) {
+	return nil, nil
+}
+func (r *upsertFailPersonTransRepo) DeleteByPerson(_ context.Context, _ string) error { return nil }
+
+// Kills mutation at query_service.go:109:15 (uErr != nil): a failing Upsert
+// inside the translation-fetch loop must not propagate; person is still returned.
+func TestQueryService_GetPerson_LazyFetch_TranslationUpsertFails_StillReturns(t *testing.T) {
+	t.Parallel()
+	people := libfakes.NewFakePersonRepository()
+	people.Create(context.Background(), &library.Person{ID: "p1", Name: "Alice", Biography: ""})
+
+	detailsFetcher := &fakePersonDetailsFetcher{
+		Result: &library.PersonDetailsResult{Biography: "Bio EN"},
+	}
+	transFetcher := &fakePersonTranslationFetcher{
+		Result: map[string]string{"fr": "Bio FR"},
+	}
+	transRepo := &upsertFailPersonTransRepo{Err: errors.New("upsert boom")}
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+		applib.WithPersonFetcher(detailsFetcher),
+		applib.WithTranslations(newFakeMediaItemTranslationRepo(), transRepo, transFetcher, []string{"fr"}),
+	)
+
+	person, err := svc.GetPerson(context.Background(), "p1")
+	require.NoError(t, err)
+	require.NotNil(t, person)
+	assert.Equal(t, "Bio EN", person.Biography)
+	assert.Equal(t, 1, transFetcher.Calls, "translation fetcher was invoked")
 }
