@@ -161,7 +161,7 @@ export function UserStats() {
               spacing={8}
               initialSpacing={0}
               endSpacing={0}
-              width={Math.max(monthBarData.length * 28 + 40, 340)}
+              width={Math.max(monthBarData.length * 28 + 56, 360)}
               roundedTop
               noOfSections={4}
               maxValue={Math.ceil(monthMax * 1.1) || 1}
