@@ -355,34 +355,6 @@ audit:
   noEntries: Keine Einträge gefunden
   entries: "{{count}} Einträge"
 
-logs:
-  title: Live-Protokolle
-  live: Live
-  searchLogs: "Protokolle durchsuchen…"
-  component: "Komponente…"
-  noMatch: Keine Protokolleinträge entsprechen Ihrem Filter.
-
-metadata:
-  title: Metadaten
-  refreshAll: Alle aktualisieren
-  refreshStarted: Massenaktualisierung der Metadaten gestartet
-  failedRefresh: Aktualisierung konnte nicht gestartet werden
-  searchPlaceholder: "Medienelemente suchen..."
-  noResults: Keine Ergebnisse
-  noMedia: Keine Medienelemente gefunden
-  tryDifferent: Versuchen Sie einen anderen Suchbegriff.
-  editMetadata: Metadaten bearbeiten
-  titleLabel: Titel
-  overview: Übersicht
-  overviewPlaceholder: "Übersicht..."
-  year: Jahr
-  genres: Genres
-  addGenre: "Genre hinzufügen..."
-  searchTmdb: TMDB durchsuchen
-  hideTmdbSearch: TMDB-Suche ausblenden
-  noTmdbResults: Keine TMDB-Ergebnisse gefunden.
-  failedLoad: Element konnte nicht geladen werden.
-
 serverConfig:
   title: Serverkonfiguration
   subtitle: Schlüssel-Wert-Konfigurationseinträge in der Datenbank gespeichert.
@@ -480,35 +452,6 @@ transcodeCache:
     file: Datei
     size: Größe
     modified: Geändert
-
-transcodingProfiles:
-  title: Transkodierungsprofile
-  createProfile: Profil erstellen
-  editProfile: Profil bearbeiten
-  deleteProfile: Profil löschen
-  profileCreated: Profil erstellt
-  profileUpdated: Profil aktualisiert
-  profileDeleted: Profil gelöscht
-  failedSave: Profil konnte nicht gespeichert werden
-  failedDeleteProfile: Profil konnte nicht gelöscht werden
-  noProfiles: Keine Transkodierungsprofile gefunden.
-  deleteConfirm: "Profil <strong>{{name}}</strong> löschen? Dies kann nicht rückgängig gemacht werden."
-  default: Standard
-  form:
-    name: Name
-    maxResolution: Max. Auflösung
-    hwAccel: Hardware-Beschleunigung
-    videoCodec: Video-Codec
-    audioCodec: Audio-Codec
-    maxBitrate: Max. Video-Bitrate (kbps)
-    defaultProfile: Standardprofil
-  tableHeaders:
-    name: Name
-    resolution: Auflösung
-    videoCodec: Video-Codec
-    audioCodec: Audio-Codec
-    bitrate: Bitrate
-    hwAccel: HW-Beschl.
 
 dashboardStats:
   movies: Filme

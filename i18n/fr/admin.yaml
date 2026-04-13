@@ -354,34 +354,6 @@ audit:
   noEntries: "Aucune entrée trouvée"
   entries: "{{count}} entrées"
 
-logs:
-  title: "Logs en direct"
-  live: "En direct"
-  searchLogs: "Rechercher dans les logs…"
-  component: "Composant…"
-  noMatch: "Aucun log ne correspond à votre filtre."
-
-metadata:
-  title: "Métadonnées"
-  refreshAll: "Tout actualiser"
-  refreshStarted: "Actualisation en masse des métadonnées lancée"
-  failedRefresh: "Échec du lancement de l'actualisation"
-  searchPlaceholder: "Rechercher des éléments multimédias..."
-  noResults: "Aucun résultat"
-  noMedia: "Aucun élément multimédia trouvé"
-  tryDifferent: "Essayez un autre terme de recherche."
-  editMetadata: "Modifier les métadonnées"
-  titleLabel: "Titre"
-  overview: "Synopsis"
-  overviewPlaceholder: "Synopsis..."
-  year: "Année"
-  genres: "Genres"
-  addGenre: "Ajouter un genre..."
-  searchTmdb: "Rechercher sur TMDB"
-  hideTmdbSearch: "Masquer la recherche TMDB"
-  noTmdbResults: "Aucun résultat TMDB trouvé."
-  failedLoad: "Échec du chargement de l'élément."
-
 serverConfig:
   title: "Configuration du serveur"
   subtitle: "Entrées de configuration clé-valeur stockées dans la base de données."
@@ -479,35 +451,6 @@ transcodeCache:
     file: "Fichier"
     size: "Taille"
     modified: "Modifié"
-
-transcodingProfiles:
-  title: "Profils de transcodage"
-  createProfile: "Créer un profil"
-  editProfile: "Modifier le profil"
-  deleteProfile: "Supprimer le profil"
-  profileCreated: "Profil créé"
-  profileUpdated: "Profil mis à jour"
-  profileDeleted: "Profil supprimé"
-  failedSave: "Échec de l'enregistrement du profil"
-  failedDeleteProfile: "Échec de la suppression du profil"
-  noProfiles: "Aucun profil de transcodage trouvé."
-  deleteConfirm: "Supprimer le profil <strong>{{name}}</strong> ? Cette action est irréversible."
-  default: "Par défaut"
-  form:
-    name: "Nom"
-    maxResolution: "Résolution maximale"
-    hwAccel: "Accélération matérielle"
-    videoCodec: "Codec vidéo"
-    audioCodec: "Codec audio"
-    maxBitrate: "Débit vidéo maximal (kbps)"
-    defaultProfile: "Profil par défaut"
-  tableHeaders:
-    name: "Nom"
-    resolution: "Résolution"
-    videoCodec: "Codec vidéo"
-    audioCodec: "Codec audio"
-    bitrate: "Débit"
-    hwAccel: "Accél. HW"
 
 dashboardStats:
   movies: "Films"

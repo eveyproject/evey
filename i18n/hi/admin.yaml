@@ -354,34 +354,6 @@ audit:
   noEntries: "कोई प्रविष्टि नहीं मिली"
   entries: "{{count}} प्रविष्टियां"
 
-logs:
-  title: "लाइव लॉग"
-  live: "लाइव"
-  searchLogs: "लॉग खोजें…"
-  component: "कंपोनेंट…"
-  noMatch: "आपके फ़िल्टर से कोई लॉग मेल नहीं खाता।"
-
-metadata:
-  title: "मेटाडेटा"
-  refreshAll: "सभी रिफ्रेश करें"
-  refreshStarted: "बल्क मेटाडेटा रिफ्रेश शुरू हुआ"
-  failedRefresh: "रिफ्रेश शुरू करने में विफल"
-  searchPlaceholder: "मीडिया आइटम खोजें..."
-  noResults: "कोई परिणाम नहीं"
-  noMedia: "कोई मीडिया आइटम नहीं मिला"
-  tryDifferent: "कोई अलग खोज शब्द आज़माएं।"
-  editMetadata: "मेटाडेटा संपादित करें"
-  titleLabel: "शीर्षक"
-  overview: "सारांश"
-  overviewPlaceholder: "सारांश..."
-  year: "वर्ष"
-  genres: "शैलियां"
-  addGenre: "शैली जोड़ें..."
-  searchTmdb: "TMDB में खोजें"
-  hideTmdbSearch: "TMDB खोज छुपाएं"
-  noTmdbResults: "कोई TMDB परिणाम नहीं मिला।"
-  failedLoad: "आइटम लोड करने में विफल।"
-
 serverConfig:
   title: "सर्वर कॉन्फ़िग"
   subtitle: "डेटाबेस में संग्रहीत कुंजी-मान कॉन्फ़िगरेशन प्रविष्टियां।"
@@ -479,35 +451,6 @@ transcodeCache:
     file: "फ़ाइल"
     size: "आकार"
     modified: "संशोधित"
-
-transcodingProfiles:
-  title: "ट्रांसकोडिंग प्रोफाइल"
-  createProfile: "प्रोफाइल बनाएं"
-  editProfile: "प्रोफाइल संपादित करें"
-  deleteProfile: "प्रोफाइल मिटाएं"
-  profileCreated: "प्रोफाइल बनाई गई"
-  profileUpdated: "प्रोफाइल अपडेट हुई"
-  profileDeleted: "प्रोफाइल मिटाई गई"
-  failedSave: "प्रोफाइल सहेजने में विफल"
-  failedDeleteProfile: "प्रोफाइल मिटाने में विफल"
-  noProfiles: "कोई ट्रांसकोडिंग प्रोफाइल नहीं मिली।"
-  deleteConfirm: "प्रोफाइल <strong>{{name}}</strong> मिटाएं? यह क्रिया पूर्ववत नहीं की जा सकती।"
-  default: "डिफ़ॉल्ट"
-  form:
-    name: "नाम"
-    maxResolution: "अधिकतम रेज़ोल्यूशन"
-    hwAccel: "हार्डवेयर एक्सीलरेशन"
-    videoCodec: "वीडियो कोडेक"
-    audioCodec: "ऑडियो कोडेक"
-    maxBitrate: "अधिकतम वीडियो बिटरेट (kbps)"
-    defaultProfile: "डिफ़ॉल्ट प्रोफाइल"
-  tableHeaders:
-    name: "नाम"
-    resolution: "रेज़ोल्यूशन"
-    videoCodec: "वीडियो कोडेक"
-    audioCodec: "ऑडियो कोडेक"
-    bitrate: "बिटरेट"
-    hwAccel: "HW एक्सीलरेशन"
 
 dashboardStats:
   movies: "फ़िल्में"

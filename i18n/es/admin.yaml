@@ -354,34 +354,6 @@ audit:
   noEntries: "No se encontraron registros"
   entries: "{{count}} registros"
 
-logs:
-  title: "Logs en vivo"
-  live: "En vivo"
-  searchLogs: "Buscar logs…"
-  component: "Componente…"
-  noMatch: "Ningún log coincide con tu filtro."
-
-metadata:
-  title: "Metadatos"
-  refreshAll: "Actualizar todo"
-  refreshStarted: "Actualización masiva de metadatos iniciada"
-  failedRefresh: "Error al iniciar la actualización"
-  searchPlaceholder: "Buscar elementos multimedia..."
-  noResults: "Sin resultados"
-  noMedia: "No se encontraron elementos multimedia"
-  tryDifferent: "Prueba un término de búsqueda diferente."
-  editMetadata: "Editar metadatos"
-  titleLabel: "Título"
-  overview: "Sinopsis"
-  overviewPlaceholder: "Sinopsis..."
-  year: "Año"
-  genres: "Géneros"
-  addGenre: "Añadir género..."
-  searchTmdb: "Buscar en TMDB"
-  hideTmdbSearch: "Ocultar búsqueda TMDB"
-  noTmdbResults: "No se encontraron resultados en TMDB."
-  failedLoad: "Error al cargar el elemento."
-
 serverConfig:
   title: "Configuración del servidor"
   subtitle: "Entradas de configuración clave-valor almacenadas en la base de datos."
@@ -479,35 +451,6 @@ transcodeCache:
     file: "Archivo"
     size: "Tamaño"
     modified: "Modificado"
-
-transcodingProfiles:
-  title: "Perfiles de transcodificación"
-  createProfile: "Crear perfil"
-  editProfile: "Editar perfil"
-  deleteProfile: "Eliminar perfil"
-  profileCreated: "Perfil creado"
-  profileUpdated: "Perfil actualizado"
-  profileDeleted: "Perfil eliminado"
-  failedSave: "Error al guardar el perfil"
-  failedDeleteProfile: "Error al eliminar el perfil"
-  noProfiles: "No se encontraron perfiles de transcodificación."
-  deleteConfirm: "¿Eliminar el perfil <strong>{{name}}</strong>? Esta acción no se puede deshacer."
-  default: "Predeterminado"
-  form:
-    name: "Nombre"
-    maxResolution: "Resolución máxima"
-    hwAccel: "Aceleración por hardware"
-    videoCodec: "Códec de video"
-    audioCodec: "Códec de audio"
-    maxBitrate: "Bitrate máximo de video (kbps)"
-    defaultProfile: "Perfil predeterminado"
-  tableHeaders:
-    name: "Nombre"
-    resolution: "Resolución"
-    videoCodec: "Códec de video"
-    audioCodec: "Códec de audio"
-    bitrate: "Bitrate"
-    hwAccel: "Aceleración HW"
 
 dashboardStats:
   movies: "Películas"
