@@ -28,6 +28,7 @@ func isBase64(s string) bool {
 type webPushHandler struct {
 	eveyv1.UnimplementedPushServiceServer
 	notifCmd    *appnotification.CommandService
+	notifQuery  *appnotification.QueryService
 	vapidPubKey string
 }
 
@@ -73,7 +74,7 @@ func (h *webPushHandler) ListWebPushSubscriptions(ctx context.Context, _ *eveyv1
 	if err != nil {
 		return nil, err
 	}
-	subs, err := h.notifCmd.ListPushSubscriptions(ctx, claims.UserID)
+	subs, err := h.notifQuery.ListPushSubscriptions(ctx, claims.UserID)
 	if err != nil {
 		slog.Error("push: list subscriptions", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, "failed to list")
@@ -108,7 +109,7 @@ func (h *webPushHandler) GetPushConsent(ctx context.Context, _ *eveyv1.GetPushCo
 	if err != nil {
 		return nil, err
 	}
-	subs, err := h.notifCmd.ListPushSubscriptions(ctx, claims.UserID)
+	subs, err := h.notifQuery.ListPushSubscriptions(ctx, claims.UserID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to check consent")
 	}

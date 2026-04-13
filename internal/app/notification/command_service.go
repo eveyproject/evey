@@ -571,10 +571,3 @@ func (s *CommandService) DeletePushByUser(ctx context.Context, userID string) er
 	return s.subs.DeleteByUser(ctx, userID)
 }
 
-func (s *CommandService) ListPushSubscriptions(ctx context.Context, userID string) ([]notification.PushSubscription, error) {
-	if s.subs == nil {
-		return nil, nil
-	}
-	return s.subs.ListByUser(ctx, userID)
-}
-
