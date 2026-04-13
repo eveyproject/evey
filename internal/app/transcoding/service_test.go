@@ -34,7 +34,7 @@ func TestStartTranscode(t *testing.T) {
 
 	err := svc.StartTranscode(context.Background(), job)
 	require.NoError(t, err)
-	assert.Equal(t, string(transcoding.Running), job.Status)
+	assert.Equal(t, transcoding.Running, job.Status)
 	assert.Len(t, bus.PublishedEvents(), 1)
 }
 
@@ -53,13 +53,13 @@ func TestStartTranscode_MaxConcurrentBoundary(t *testing.T) {
 		j2 := &transcoding.TranscodeJob{ID: "j2", MediaItemID: "m2", InputPath: "/b.mkv", InputCodec: "h264", OutputCodec: "h265"}
 		require.NoError(t, svc.StartTranscode(ctx, j1))
 		require.NoError(t, svc.StartTranscode(ctx, j2))
-		assert.Equal(t, string(transcoding.Running), j1.Status)
-		assert.Equal(t, string(transcoding.Running), j2.Status)
+		assert.Equal(t, transcoding.Running, j1.Status)
+		assert.Equal(t, transcoding.Running, j2.Status)
 
 		j3 := &transcoding.TranscodeJob{ID: "j3", MediaItemID: "m3", InputPath: "/c.mkv", InputCodec: "h264", OutputCodec: "h265"}
 		err := svc.StartTranscode(ctx, j3)
 		require.ErrorIs(t, err, apptranscode.ErrMaxConcurrent)
-		assert.Equal(t, string(transcoding.Queued), j3.Status)
+		assert.Equal(t, transcoding.Queued, j3.Status)
 	})
 
 	t.Run("one below limit succeeds", func(t *testing.T) {
@@ -76,7 +76,7 @@ func TestStartTranscode_MaxConcurrentBoundary(t *testing.T) {
 		j2 := &transcoding.TranscodeJob{ID: "j2", MediaItemID: "m2", InputPath: "/b.mkv", InputCodec: "h264", OutputCodec: "h265"}
 		err := svc.StartTranscode(ctx, j2)
 		require.NoError(t, err)
-		assert.Equal(t, string(transcoding.Running), j2.Status)
+		assert.Equal(t, transcoding.Running, j2.Status)
 	})
 }
 
@@ -96,7 +96,7 @@ func TestStartTranscode_MaxConcurrentZero_Unlimited(t *testing.T) {
 		}
 		err := svc.StartTranscode(ctx, j)
 		require.NoError(t, err, "maxConcurrent=0 should allow unlimited transcodes")
-		assert.Equal(t, string(transcoding.Running), j.Status)
+		assert.Equal(t, transcoding.Running, j.Status)
 	}
 }
 
@@ -111,12 +111,12 @@ func TestStartTranscode_MaxConcurrentOne_RejectsSecond(t *testing.T) {
 
 	j1 := &transcoding.TranscodeJob{ID: "j1", MediaItemID: "m1", InputPath: "/a.mkv", InputCodec: "h264", OutputCodec: "h265"}
 	require.NoError(t, svc.StartTranscode(ctx, j1))
-	assert.Equal(t, string(transcoding.Running), j1.Status)
+	assert.Equal(t, transcoding.Running, j1.Status)
 
 	j2 := &transcoding.TranscodeJob{ID: "j2", MediaItemID: "m2", InputPath: "/b.mkv", InputCodec: "h264", OutputCodec: "h265"}
 	err := svc.StartTranscode(ctx, j2)
 	require.ErrorIs(t, err, apptranscode.ErrMaxConcurrent)
-	assert.Equal(t, string(transcoding.Queued), j2.Status)
+	assert.Equal(t, transcoding.Queued, j2.Status)
 }
 
 func TestStartTranscode_TranscoderError_FailsJob(t *testing.T) {
@@ -134,7 +134,7 @@ func TestStartTranscode_TranscoderError_FailsJob(t *testing.T) {
 	require.Error(t, err)
 
 	stored, _ := jobRepo.GetByID(ctx, "j1")
-	assert.Equal(t, string(transcoding.Failed), stored.Status)
+	assert.Equal(t, transcoding.Failed, stored.Status)
 	assert.NotEmpty(t, stored.ErrorMessage)
 
 	var found bool
@@ -440,7 +440,7 @@ func TestStopTranscode_HappyPath(t *testing.T) {
 
 	job, err := jobRepo.GetByID(context.Background(), "j1")
 	require.NoError(t, err)
-	assert.Equal(t, string(transcoding.Cancelled), job.Status)
+	assert.Equal(t, transcoding.Cancelled, job.Status)
 	assert.NotNil(t, job.EndedAt)
 
 	events := bus.PublishedEvents()

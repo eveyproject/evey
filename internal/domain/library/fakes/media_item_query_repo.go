@@ -89,7 +89,7 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 		if filter.ParentID != nil && item.ParentID != *filter.ParentID {
 			continue
 		}
-		if filter.Type != nil && item.Type != *filter.Type {
+		if filter.Type != nil && string(item.Type) != *filter.Type {
 			continue
 		}
 		if allowedSet != nil {
@@ -142,7 +142,7 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 		if len(countLibIDsSet) > 0 && !countLibIDsSet[item.LibraryID] {
 			continue
 		}
-		if filter.Type != nil && item.Type != *filter.Type {
+		if filter.Type != nil && string(item.Type) != *filter.Type {
 			continue
 		}
 		if filter.ParentID != nil && item.ParentID != *filter.ParentID {

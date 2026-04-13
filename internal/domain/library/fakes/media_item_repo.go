@@ -61,7 +61,7 @@ func (r *FakeMediaItemRepository) List(_ context.Context, filter library.ListMed
 		if filter.ParentID != nil && item.ParentID != *filter.ParentID {
 			continue
 		}
-		if filter.Type != nil && item.Type != *filter.Type {
+		if filter.Type != nil && string(item.Type) != *filter.Type {
 			continue
 		}
 		result = append(result, item)
@@ -136,7 +136,7 @@ func (r *FakeMediaItemRepository) Count(_ context.Context, filter library.ListMe
 		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
 			continue
 		}
-		if filter.Type != nil && item.Type != *filter.Type {
+		if filter.Type != nil && string(item.Type) != *filter.Type {
 			continue
 		}
 		if filter.ParentID != nil && item.ParentID != *filter.ParentID {
@@ -154,7 +154,7 @@ func (r *FakeMediaItemRepository) GetByLibraryTypeTitle(_ context.Context, libra
 		return nil, r.GetByLibraryTypeTitleErr
 	}
 	for _, item := range r.items {
-		if item.LibraryID == libraryID && item.Type == itemType && item.Title == title &&
+		if item.LibraryID == libraryID && string(item.Type) == itemType && item.Title == title &&
 			(parentID == "" || item.ParentID == parentID) {
 			return item, nil
 		}

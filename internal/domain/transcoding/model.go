@@ -41,7 +41,7 @@ type TranscodeJob struct {
 	BitrateIn     int64
 	BitrateOut    int64
 	Speed         float64
-	Status        string
+	Status        JobStatus
 	ErrorMessage  string
 	StartedAt     time.Time
 	EndedAt       *time.Time
@@ -62,7 +62,7 @@ func (j *TranscodeJob) Validate() error {
 }
 
 func (j *TranscodeJob) IsTerminal() bool {
-	return j.Status == string(Completed) || j.Status == string(Failed) || j.Status == string(Cancelled)
+	return j.Status == Completed || j.Status == Failed || j.Status == Cancelled
 }
 
 type TranscodeProfile struct {

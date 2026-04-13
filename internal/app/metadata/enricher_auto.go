@@ -20,12 +20,12 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		return
 	}
 
-	if item.Type == string(domainlib.Episode) {
+	if item.Type == domainlib.Episode {
 		e.autoEnrichEpisode(ctx, item, log)
 		return
 	}
 
-	if item.Type == string(domainlib.Season) {
+	if item.Type == domainlib.Season {
 		e.autoEnrichSeason(ctx, item, log)
 		return
 	}
@@ -35,7 +35,7 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 	}
 
 	mediaType := "movie"
-	if item.Type == string(domainlib.Series) {
+	if item.Type == domainlib.Series {
 		mediaType = "tv"
 	}
 

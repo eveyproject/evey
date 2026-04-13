@@ -46,7 +46,7 @@ const (
 type Library struct {
 	ID                  string
 	Name                string
-	Type                string
+	Type                LibraryType
 	Paths               []string
 	ScanIntervalMinutes int
 	Enabled             bool
@@ -61,7 +61,7 @@ type MediaItem struct {
 	ID              string
 	LibraryID       string
 	ParentID        string
-	Type            string
+	Type            MediaItemType
 	Title           string
 	SortTitle       string
 	OriginalTitle   string
@@ -133,7 +133,7 @@ func (m *MediaItem) HasFile() bool {
 }
 
 func (m *MediaItem) IsPlayable() bool {
-	return m.HasFile() && (m.Type == string(MovieItem) || m.Type == string(Episode) || m.Type == string(Track))
+	return m.HasFile() && (m.Type == MovieItem || m.Type == Episode || m.Type == Track)
 }
 
 type MediaStream struct {

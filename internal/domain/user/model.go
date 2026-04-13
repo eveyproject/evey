@@ -92,7 +92,7 @@ type QuickConnectRequest struct {
 	Secret     string
 	UserID     *string
 	DeviceName *string
-	Status     string
+	Status     QuickConnectStatus
 	ExpiresAt  time.Time
 	CreatedAt  time.Time
 }

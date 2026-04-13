@@ -15,7 +15,7 @@ func intPtr(v int) *int { return &v }
 func itemsByType(repo *libfakes.FakeMediaItemCommandRepo, t string) []*library.MediaItem {
 	var out []*library.MediaItem
 	for _, item := range repo.All() {
-		if item.Type == t {
+		if string(item.Type) == t {
 			out = append(out, item)
 		}
 	}

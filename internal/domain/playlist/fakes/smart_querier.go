@@ -64,7 +64,7 @@ func matchRule(item *library.MediaItem, rule playlist.Rule) bool {
 		}
 		return false
 	case "type":
-		return item.Type == rule.Value
+		return string(item.Type) == rule.Value
 	case "year":
 		if item.Year == nil {
 			return false

@@ -74,7 +74,7 @@ func (s *FakeSearchIndex) Search(_ context.Context, query string, _ map[string]s
 				LibraryID:      item.LibraryID,
 				Title:          item.Title,
 				Year:           item.Year,
-				Type:           item.Type,
+				Type:           string(item.Type),
 				Genres:         item.Genres,
 				Tags:           item.Tags,
 				OfficialRating: item.OfficialRating,

@@ -16,7 +16,7 @@ func newTestMediaItem(id, libraryID string) *library.MediaItem {
 	return &library.MediaItem{
 		ID:          id,
 		LibraryID:   libraryID,
-		Type:        string(library.MovieItem),
+		Type:        library.MovieItem,
 		Title:       "Movie " + id,
 		SortTitle:   "movie " + id,
 		ProviderIDs: map[string]string{"tmdb": "123"},

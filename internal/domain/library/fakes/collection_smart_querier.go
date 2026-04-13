@@ -53,7 +53,7 @@ func matchCollectionRule(item *library.MediaItem, rule library.CollectionRule) b
 		}
 		return false
 	case "type":
-		return item.Type == rule.Value
+		return string(item.Type) == rule.Value
 	default:
 		return true
 	}

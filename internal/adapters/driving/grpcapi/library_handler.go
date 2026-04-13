@@ -37,7 +37,7 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 	lib := &library.Library{
 		ID:                  id.New("lib-"),
 		Name:                req.Name,
-		Type:                libraryTypeFromProto[req.Type],
+		Type:                library.LibraryType(libraryTypeFromProto[req.Type]),
 		Paths:               req.Paths,
 		Enabled:             true,
 		ScanOnStartup:       req.ScanOnStartup,

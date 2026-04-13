@@ -187,7 +187,7 @@ func TestMediaItem_IsPlayable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			m := &library.MediaItem{Type: tt.typ, FilePath: tt.filePath}
+			m := &library.MediaItem{Type: library.MediaItemType(tt.typ), FilePath: tt.filePath}
 			if got := m.IsPlayable(); got != tt.want {
 				t.Errorf("IsPlayable() = %v, want %v", got, tt.want)
 			}
@@ -201,7 +201,7 @@ func TestMediaItem_NilableFields(t *testing.T) {
 	item := &library.MediaItem{
 		ID:    "m1",
 		Title: "Test Movie",
-		Type:  string(library.MovieItem),
+		Type:  library.MovieItem,
 	}
 
 	if item.IndexNumber != nil {

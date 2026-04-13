@@ -66,7 +66,7 @@ func TestTranscodeJob_IsTerminal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.status, func(t *testing.T) {
 			t.Parallel()
-			j := &transcoding.TranscodeJob{Status: tt.status}
+			j := &transcoding.TranscodeJob{Status: transcoding.JobStatus(tt.status)}
 			if got := j.IsTerminal(); got != tt.want {
 				t.Errorf("IsTerminal() = %v, want %v", got, tt.want)
 			}

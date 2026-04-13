@@ -259,7 +259,7 @@ func mediaItemToProto(item *library.MediaItem) *pluginv1.MediaItem {
 		Id:        item.ID,
 		LibraryId: item.LibraryID,
 		ParentId:  item.ParentID,
-		Type:      item.Type,
+		Type:      string(item.Type),
 		Title:     item.Title,
 		Overview:  item.Overview,
 		FilePath:  item.FilePath,

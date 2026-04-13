@@ -62,7 +62,7 @@ func (r *FakeTranscodeJobRepository) ListActive(_ context.Context) ([]*transcodi
 	defer r.mu.RUnlock()
 	var result []*transcoding.TranscodeJob
 	for _, j := range r.items {
-		if j.Status == string(transcoding.Running) || j.Status == string(transcoding.Queued) {
+		if j.Status == transcoding.Running || j.Status == transcoding.Queued {
 			result = append(result, j)
 		}
 	}

@@ -31,7 +31,7 @@ func transcodeJobToProto(j *transcoding.TranscodeJob) *eveyv1.TranscodeJob {
 	pb := &eveyv1.TranscodeJob{
 		Id:          j.ID,
 		MediaItemId: j.MediaItemID,
-		State:       transcodeStateToProto[j.Status],
+		State:       transcodeStateToProto[string(j.Status)],
 		VideoCodec:  j.OutputCodec,
 		AudioCodec:  j.AudioCodec,
 		HwAccel:     hwAccelTypeToProto[j.HWAccelType],

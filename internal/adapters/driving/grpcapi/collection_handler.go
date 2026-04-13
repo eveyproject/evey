@@ -86,7 +86,7 @@ func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.
 		ci := &eveyv1.CollectionItemProto{
 			Id:       it.ID,
 			Title:    it.Title,
-			Type:     it.Type,
+			Type:     string(it.Type),
 			Overview: it.Overview,
 			Genres:   it.Genres,
 		}

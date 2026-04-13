@@ -53,19 +53,19 @@ func TestTranscodingListActiveTranscodes(t *testing.T) {
 	jobRepo.Create(context.Background(), &transcoding.TranscodeJob{
 		ID:          "tj-1",
 		MediaItemID: "mi-1",
-		Status:      string(transcoding.Running),
+		Status:      transcoding.Running,
 		OutputCodec: "h264",
 	})
 	jobRepo.Create(context.Background(), &transcoding.TranscodeJob{
 		ID:          "tj-2",
 		MediaItemID: "mi-2",
-		Status:      string(transcoding.Running),
+		Status:      transcoding.Running,
 		OutputCodec: "hevc",
 	})
 	jobRepo.Create(context.Background(), &transcoding.TranscodeJob{
 		ID:          "tj-3",
 		MediaItemID: "mi-3",
-		Status:      string(transcoding.Completed),
+		Status:      transcoding.Completed,
 		OutputCodec: "h264",
 	})
 

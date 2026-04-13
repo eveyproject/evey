@@ -429,7 +429,7 @@ func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.Initia
 		ID:        id.New("qc-"),
 		Code:      secureToken("qc-code-", 16),
 		Secret:    secureToken("qc-secret-", 16),
-		Status:    string(user.Pending),
+		Status:    user.Pending,
 		ExpiresAt: time.Now().Add(2 * time.Minute),
 	}
 	if err := h.access.InitiateQuickConnect(ctx, qc); err != nil {
@@ -467,7 +467,7 @@ func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQu
 	if err != nil {
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.invalid_expired_code")
 	}
-	authorized := qc.Status == string(user.Authorized)
+	authorized := qc.Status == user.Authorized
 	resp := &eveyv1.CheckQuickConnectResponse{Authorized: authorized}
 	if authorized && qc.UserID != nil {
 		access, refresh, err := h.auth.GenerateTokensForUser(ctx, *qc.UserID, h.refreshTTLOverride(ctx)...)
