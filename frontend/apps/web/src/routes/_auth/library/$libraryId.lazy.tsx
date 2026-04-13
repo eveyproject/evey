@@ -5,13 +5,13 @@ import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
+  useLibraryServiceFilterMediaItems,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
 } from "@evey/api";
 import type {
   LibraryServiceListMediaItemsType,
   LibraryServiceListMediaItemsSortField,
-  LibraryServiceListMediaItemsSortOrder,
   V1MediaItem,
 } from "@evey/api";
 import { Button } from "@/components/ui/Button";
@@ -30,8 +30,8 @@ import {
 import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 import { slugify } from "@/utils/slugify";
 import { toast, useAuthStore } from "@evey/store";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { eveyFetch, favoriteServiceAddFavorite } from "@evey/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { favoriteServiceAddFavorite } from "@evey/api";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { AddToCollectionModal } from "@/features/collection/AddToCollectionModal";
 import { SortOrderButton, ViewToggleButton } from "./LibraryToolbar";
@@ -56,44 +56,6 @@ const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSo
 ];
 
 const PAGE_SIZE = 48;
-
-type FilterApiItem = {
-  id: string;
-  title: string;
-  type: string;
-  year?: number;
-  communityRating?: number;
-  libraryId: string;
-};
-
-type FilterApiResponse = {
-  items: FilterApiItem[];
-  total: number;
-};
-
-function toFilterSortField(f: LibraryServiceListMediaItemsSortField): string {
-  switch (f) {
-    case "MEDIA_SORT_FIELD_YEAR": return "year";
-    case "MEDIA_SORT_FIELD_RATING": return "community_rating";
-    case "MEDIA_SORT_FIELD_DATE_ADDED": return "added_at";
-    default: return "sort_title";
-  }
-}
-
-function toFilterSortOrder(o: LibraryServiceListMediaItemsSortOrder): string {
-  return o === "SORT_ORDER_DESC" ? "desc" : "asc";
-}
-
-function filterItemToMediaItem(item: FilterApiItem): V1MediaItem {
-  return {
-    id: item.id,
-    title: item.title,
-    type: item.type as V1MediaItem["type"],
-    year: item.year,
-    communityRating: item.communityRating,
-    libraryId: item.libraryId,
-  };
-}
 
 function LibraryPage() {
   const { t } = useTranslation();
@@ -221,31 +183,27 @@ function LibraryPage() {
     query: { enabled: !hasServerFilters && !!libraryId },
   });
 
-  const filterParams = useMemo(() => {
-    if (!hasServerFilters || !libraryId) return null;
-    const p = new URLSearchParams({ library_id: libraryId });
-    if (search.yearFrom != null) p.set("year_from", String(search.yearFrom));
-    if (search.yearTo != null) p.set("year_to", String(search.yearTo));
-    if (search.minRating != null && search.minRating > 0) p.set("min_rating", String(search.minRating));
-    if (typeFilter) p.set("type", typeFilter);
-    if (genreFilter) p.set("genre", genreFilter);
-    p.set("sort_field", toFilterSortField(sortField));
-    p.set("sort_order", toFilterSortOrder(sortOrder));
-    p.set("limit", String(page * PAGE_SIZE));
-    p.set("offset", "0");
-    return p;
-  }, [hasServerFilters, libraryId, search.yearFrom, search.yearTo, search.minRating, typeFilter, genreFilter, sortField, sortOrder, page]);
+  const filterParams = {
+    libraryId,
+    ...(typeFilter ? { type: typeFilter } : {}),
+    ...(genreFilter ? { genre: genreFilter } : {}),
+    ...(search.yearFrom != null ? { yearFrom: search.yearFrom } : {}),
+    ...(search.yearTo != null ? { yearTo: search.yearTo } : {}),
+    ...(search.minRating != null && search.minRating > 0 ? { minRating: search.minRating } : {}),
+    sortField,
+    sortOrder,
+    limit: page * PAGE_SIZE,
+    offset: 0,
+  };
 
-  const { data: filterData, isLoading: filterLoading } = useQuery<FilterApiResponse>({
-    queryKey: ["media-filter", libraryId, search.yearFrom, search.yearTo, search.minRating, typeFilter, genreFilter, sortField, sortOrder, page],
-    queryFn: () => eveyFetch<FilterApiResponse>({ url: `/api/v1/media/filter?${filterParams!.toString()}`, method: "GET" }),
-    enabled: hasServerFilters && !!libraryId && filterParams !== null,
+  const { data: filterData, isLoading: filterLoading } = useLibraryServiceFilterMediaItems(filterParams, {
+    query: { enabled: hasServerFilters && !!libraryId },
   });
 
   const isLoading = hasServerFilters ? filterLoading : regularLoading;
 
   const items: V1MediaItem[] = hasServerFilters
-    ? (filterData?.items ?? []).map(filterItemToMediaItem)
+    ? (filterData?.items ?? [])
     : (regularData?.items ?? []);
   const totalItems = hasServerFilters
     ? (filterData?.total ?? 0)
