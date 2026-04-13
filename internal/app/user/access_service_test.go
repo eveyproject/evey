@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -559,6 +560,122 @@ func TestRegisterWithInvite_WithProfiles_ProfileCreateError_NonFatal(t *testing.
 	}
 	if u == nil {
 		t.Fatal("expected user")
+	}
+}
+
+// --- Publish error observability (kills err != nil mutations) ---
+
+// inviteRepoIncrementFail wraps FakeInviteLinkRepository to fail only on IncrementUsedCount.
+type inviteRepoIncrementFail struct {
+	*ufakes.FakeInviteLinkRepository
+	incErr error
+}
+
+func (r *inviteRepoIncrementFail) IncrementUsedCount(ctx context.Context, id string) error {
+	return r.incErr
+}
+
+func TestRegisterWithInvite_IncrementUsedCountError_EmitsWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	base := ufakes.NewFakeInviteLinkRepository()
+	_ = base.Create(context.Background(), &user.InviteLink{ID: "inv1", Token: "tok"})
+	invites := &inviteRepoIncrementFail{FakeInviteLinkRepository: base, incErr: errors.New("increment fail")}
+
+	users := ufakes.NewFakeUserRepository()
+	apiKeys := ufakes.NewFakeAPIKeyRepository()
+	qc := ufakes.NewFakeQuickConnectRepository()
+	hasher := ufakes.NewFakePasswordHasher()
+	events := fakes.NewFakeEventBus()
+	svc := NewAccessService(users, apiKeys, invites, qc, hasher, events)
+
+	u, err := svc.RegisterWithInvite(context.Background(), "tok", "bob", "longpassword", "b@b.com")
+	if err != nil {
+		t.Fatalf("increment error should be non-fatal, got %v", err)
+	}
+	if u == nil {
+		t.Fatal("expected user")
+	}
+	if !strings.Contains(read(), "increment invite used count failed") {
+		t.Fatalf("expected warn on increment fail, got: %q", read())
+	}
+}
+
+func TestRegisterWithInvite_PublishError_EmitsWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok"})
+	d.events.PublishErr = errors.New("bus down")
+
+	if _, err := d.svc.RegisterWithInvite(ctx, "tok", "bob", "longpassword", "b@b.com"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(read(), "publish event") {
+		t.Fatalf("expected publish warning, got: %q", read())
+	}
+}
+
+func TestRegisterWithInvite_WithProfiles_PublishError_EmitsWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	users := ufakes.NewFakeUserRepository()
+	apiKeys := ufakes.NewFakeAPIKeyRepository()
+	invites := ufakes.NewFakeInviteLinkRepository()
+	qc := ufakes.NewFakeQuickConnectRepository()
+	hasher := ufakes.NewFakePasswordHasher()
+	profiles := ufakes.NewFakeProfileRepository()
+	events := fakes.NewFakeEventBus()
+	svc := NewAccessService(users, apiKeys, invites, qc, hasher, events, WithProfiles(profiles))
+
+	ctx := context.Background()
+	_ = invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok"})
+	events.PublishErr = errors.New("bus down")
+
+	u, err := svc.RegisterWithInvite(ctx, "tok", "bob", "longpassword", "b@b.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u == nil {
+		t.Fatal("expected user")
+	}
+	out := read()
+	if strings.Count(out, "publish event") < 2 {
+		t.Fatalf("expected >=2 publish warnings (user + profile), got: %q", out)
+	}
+}
+
+func TestCreateAPIKey_PublishError_EmitsWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	d := newAccessTestDeps()
+	d.events.PublishErr = errors.New("bus down")
+	if err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "k", KeyHash: "h"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(read(), "publish event") {
+		t.Fatalf("expected publish warning, got: %q", read())
+	}
+}
+
+func TestRevokeAPIKey_PublishError_EmitsWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.apiKeys.Create(ctx, &user.APIKeyModel{ID: "k1", UserID: "u1"})
+	d.events.PublishErr = errors.New("bus down")
+	if err := d.svc.RevokeAPIKey(ctx, "k1"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(read(), "publish event") {
+		t.Fatalf("expected publish warning, got: %q", read())
 	}
 }
 

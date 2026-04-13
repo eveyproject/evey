@@ -1,14 +1,36 @@
 package user
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	ufakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 )
+
+// captureSlog swaps default slog logger to capture warn messages for assertions.
+// Returns a function to read captured output and a cleanup to restore.
+func captureSlog(t *testing.T) (read func() string, restore func()) {
+	t.Helper()
+	var mu sync.Mutex
+	buf := &bytes.Buffer{}
+	h := slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelWarn})
+	prev := slog.Default()
+	slog.SetDefault(slog.New(h))
+	return func() string {
+			mu.Lock()
+			defer mu.Unlock()
+			return buf.String()
+		}, func() {
+			slog.SetDefault(prev)
+		}
+}
 
 type userTestDeps struct {
 	users       *ufakes.FakeUserRepository
@@ -723,4 +745,146 @@ func TestChangePassword_PasswordBoundary(t *testing.T) {
 			t.Fatalf("8-char password should be accepted, got %v", err)
 		}
 	})
+}
+
+// --- Publish error observability (kills err != nil mutations on slog.Warn branches) ---
+
+func TestCreateUser_PublishError_EmitsWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	d := newUserTestDeps()
+	d.events.PublishErr = errors.New("bus down")
+	if err := d.svc.CreateUser(context.Background(), true, &user.User{ID: "u1", Username: "bob"}, "password123"); err != nil {
+		t.Fatal(err)
+	}
+	out := read()
+	if !strings.Contains(out, "publish event") {
+		t.Fatalf("expected slog.Warn about publish event, got: %q", out)
+	}
+	// Two events attempted -> two warnings expected (UserCreated + ProfileCreated)
+	if strings.Count(out, "publish event") < 2 {
+		t.Fatalf("expected 2 warnings (user+profile), got: %q", out)
+	}
+}
+
+func TestCreateUser_PublishOK_NoWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	d := newUserTestDeps()
+	if err := d.svc.CreateUser(context.Background(), true, &user.User{ID: "u1", Username: "bob"}, "password123"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(read(), "publish event") {
+		t.Fatalf("expected no publish warnings on success, got: %q", read())
+	}
+}
+
+func TestChangePassword_PublishError_EmitsWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "alice", "pw", false, true)
+	d.events.PublishErr = errors.New("bus down")
+	d.refreshTkns.Err = errors.New("cleanup fail")
+	if err := d.svc.ChangePassword(ctx, "u1", "longpassword"); err != nil {
+		t.Fatal(err)
+	}
+	out := read()
+	if !strings.Contains(out, "publish event") {
+		t.Fatalf("expected publish warning, got: %q", out)
+	}
+	if !strings.Contains(out, "delete refresh tokens after password change") {
+		t.Fatalf("expected refresh-token cleanup warning, got: %q", out)
+	}
+}
+
+func TestChangePassword_PublishOK_NoWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "alice", "pw", false, true)
+	if err := d.svc.ChangePassword(ctx, "u1", "longpassword"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(read(), "publish event") {
+		t.Fatalf("no warnings expected on success, got: %q", read())
+	}
+}
+
+func TestDeleteUser_PublishError_EmitsWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "bob", "pw", false, true)
+	d.events.PublishErr = errors.New("bus down")
+	d.refreshTkns.Err = errors.New("cleanup fail")
+	if err := d.svc.DeleteUser(ctx, "u1"); err != nil {
+		t.Fatal(err)
+	}
+	out := read()
+	if !strings.Contains(out, "publish event") {
+		t.Fatalf("expected publish warning, got: %q", out)
+	}
+	if !strings.Contains(out, "delete refresh tokens for deleted user failed") {
+		t.Fatalf("expected refresh-token cleanup warning, got: %q", out)
+	}
+}
+
+func TestDisableUser_PublishError_EmitsWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "bob", "pw", false, true)
+	d.events.PublishErr = errors.New("bus down")
+	d.refreshTkns.Err = errors.New("cleanup fail")
+	if err := d.svc.DisableUser(ctx, "u1"); err != nil {
+		t.Fatal(err)
+	}
+	out := read()
+	if !strings.Contains(out, "publish event") {
+		t.Fatalf("expected publish warning, got: %q", out)
+	}
+	if !strings.Contains(out, "delete refresh tokens for disabled user failed") {
+		t.Fatalf("expected refresh-token cleanup warning, got: %q", out)
+	}
+}
+
+func TestCreateProfile_PublishError_EmitsWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	d := newUserTestDeps()
+	d.events.PublishErr = errors.New("bus down")
+	if err := d.svc.CreateProfile(context.Background(), &user.Profile{ID: "p1", UserID: "u1", Name: "M"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(read(), "publish event") {
+		t.Fatalf("expected publish warning, got: %q", read())
+	}
+}
+
+func TestDeleteProfile_PublishError_EmitsWarning(t *testing.T) {
+	read, restore := captureSlog(t)
+	defer restore()
+
+	d := newUserTestDeps()
+	ctx := context.Background()
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "M"})
+	d.events.PublishErr = errors.New("bus down")
+	if err := d.svc.DeleteProfile(ctx, "p1"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(read(), "publish event") {
+		t.Fatalf("expected publish warning, got: %q", read())
+	}
 }
