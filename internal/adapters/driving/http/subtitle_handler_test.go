@@ -1,0 +1,342 @@
+package httpapi
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	domainsubtitle "github.com/gravity-zero/evey/internal/domain/subtitle"
+)
+
+type fakeSubtitleService struct {
+	searchResults []domainsubtitle.SearchResult
+	searchErr     error
+	downloadSub   *domainsubtitle.SubtitleDownload
+	downloadErr   error
+	listSubs      []*domainsubtitle.SubtitleDownload
+	listErr       error
+	deleteErr     error
+
+	lastSearchLang string
+	lastDownload   struct {
+		fileID         int
+		language       string
+		format         string
+	}
+	lastDeleteID string
+}
+
+func (f *fakeSubtitleService) Search(_ context.Context, _ string, language string) ([]domainsubtitle.SearchResult, error) {
+	f.lastSearchLang = language
+	return f.searchResults, f.searchErr
+}
+
+func (f *fakeSubtitleService) Download(_ context.Context, _ string, fileID int, language, format string) (*domainsubtitle.SubtitleDownload, error) {
+	f.lastDownload.fileID = fileID
+	f.lastDownload.language = language
+	f.lastDownload.format = format
+	return f.downloadSub, f.downloadErr
+}
+
+func (f *fakeSubtitleService) List(_ context.Context, _ string) ([]*domainsubtitle.SubtitleDownload, error) {
+	return f.listSubs, f.listErr
+}
+
+func (f *fakeSubtitleService) Delete(_ context.Context, subtitleID string) error {
+	f.lastDeleteID = subtitleID
+	return f.deleteErr
+}
+
+func newSubtitleRoutes(svc subtitleService, tokens TokenVerifier, mg MediaItemGetter, la LibraryAccessChecker) *subtitleRoutes {
+	return &subtitleRoutes{subtitleSvc: svc, tokens: tokens, mediaGetter: mg, libraryAccess: la}
+}
+
+func subtitleMediaGetter(libraryID string) *fakeMediaGetter {
+	mg := newFakeMediaGetter()
+	mg.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: libraryID}
+	return mg
+}
+
+// --- search ---
+
+func TestSubtitleSearch_Success(t *testing.T) {
+	svc := &fakeSubtitleService{searchResults: []domainsubtitle.SearchResult{
+		{FileID: 1, FileName: "a.srt", Language: "en", Format: "srt", Rating: 9.5},
+	}}
+	h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitles/search", h.search)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitles/search?language=fr", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if svc.lastSearchLang != "fr" {
+		t.Errorf("expected lang fr, got %s", svc.lastSearchLang)
+	}
+	var resp struct {
+		Results []struct{ FileID int `json:"fileId"` } `json:"results"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Results) != 1 || resp.Results[0].FileID != 1 {
+		t.Errorf("unexpected results: %+v", resp.Results)
+	}
+}
+
+func TestSubtitleSearch_NoLanguage_DefaultsEmpty(t *testing.T) {
+	svc := &fakeSubtitleService{}
+	h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitles/search", h.search)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitles/search", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if svc.lastSearchLang != "" {
+		t.Errorf("expected empty lang, got %q", svc.lastSearchLang)
+	}
+}
+
+func TestSubtitleSearch_Unauthenticated(t *testing.T) {
+	h := newSubtitleRoutes(&fakeSubtitleService{}, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitles/search", h.search)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitles/search", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestSubtitleSearch_NonAdmin_NoLibraryAccess_Forbidden(t *testing.T) {
+	h := newSubtitleRoutes(&fakeSubtitleService{}, validUserValidator(false), subtitleMediaGetter("lib1"), denyAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitles/search", h.search)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitles/search", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestSubtitleSearch_ServiceError_500(t *testing.T) {
+	svc := &fakeSubtitleService{searchErr: errors.New("boom")}
+	h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitles/search", h.search)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitles/search", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
+}
+
+// --- download ---
+
+func TestSubtitleDownload_Success(t *testing.T) {
+	svc := &fakeSubtitleService{downloadSub: &domainsubtitle.SubtitleDownload{
+		ID: "s1", MediaItemID: "m1", Language: "en", Format: "srt", FilePath: "/p", Source: "opensubtitles", DownloadedAt: time.Unix(0, 0),
+	}}
+	h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/media/{id}/subtitles/download", h.download)
+
+	body := strings.NewReader(`{"fileId":42,"language":"en","format":"srt"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/subtitles/download", body)
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", w.Code)
+	}
+	if svc.lastDownload.fileID != 42 {
+		t.Errorf("expected fileID 42, got %d", svc.lastDownload.fileID)
+	}
+	var out map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if out["id"] != "s1" {
+		t.Errorf("unexpected id: %v", out["id"])
+	}
+}
+
+func TestSubtitleDownload_BadJSON_400(t *testing.T) {
+	h := newSubtitleRoutes(&fakeSubtitleService{}, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/media/{id}/subtitles/download", h.download)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/subtitles/download", strings.NewReader("not json"))
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestSubtitleDownload_MissingFileID_400(t *testing.T) {
+	h := newSubtitleRoutes(&fakeSubtitleService{}, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/media/{id}/subtitles/download", h.download)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/subtitles/download", strings.NewReader(`{"language":"en"}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestSubtitleDownload_ServiceError_500(t *testing.T) {
+	svc := &fakeSubtitleService{downloadErr: errors.New("boom")}
+	h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/media/{id}/subtitles/download", h.download)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/subtitles/download", strings.NewReader(`{"fileId":1}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
+}
+
+// --- list ---
+
+func TestSubtitleList_Success(t *testing.T) {
+	svc := &fakeSubtitleService{listSubs: []*domainsubtitle.SubtitleDownload{
+		{ID: "s1", MediaItemID: "m1", Language: "en", Format: "srt", DownloadedAt: time.Unix(0, 0)},
+		{ID: "s2", MediaItemID: "m1", Language: "fr", Format: "srt", DownloadedAt: time.Unix(0, 0)},
+	}}
+	h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitles", h.list)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitles", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp struct {
+		Subtitles []struct{ ID string `json:"id"` } `json:"subtitles"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Subtitles) != 2 {
+		t.Errorf("expected 2 subs, got %d", len(resp.Subtitles))
+	}
+}
+
+func TestSubtitleList_ServiceError_500(t *testing.T) {
+	svc := &fakeSubtitleService{listErr: errors.New("boom")}
+	h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitles", h.list)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitles", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", w.Code)
+	}
+}
+
+// --- delete ---
+
+func TestSubtitleDelete_Success(t *testing.T) {
+	svc := &fakeSubtitleService{listSubs: []*domainsubtitle.SubtitleDownload{{ID: "s1", MediaItemID: "m1"}}}
+	h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", h.delete)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/media/m1/subtitles/s1", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", w.Code)
+	}
+	if svc.lastDeleteID != "s1" {
+		t.Errorf("expected delete id s1, got %q", svc.lastDeleteID)
+	}
+}
+
+func TestSubtitleDelete_NotInList_404(t *testing.T) {
+	svc := &fakeSubtitleService{listSubs: []*domainsubtitle.SubtitleDownload{{ID: "other"}}}
+	h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", h.delete)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/media/m1/subtitles/s1", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w.Code)
+	}
+	if svc.lastDeleteID != "" {
+		t.Errorf("Delete should not have been called")
+	}
+}
+
+func TestSubtitleDelete_ServiceError_404(t *testing.T) {
+	svc := &fakeSubtitleService{
+		listSubs:  []*domainsubtitle.SubtitleDownload{{ID: "s1"}},
+		deleteErr: errors.New("boom"),
+	}
+	h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", h.delete)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/media/m1/subtitles/s1", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w.Code)
+	}
+}
