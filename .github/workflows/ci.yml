@@ -30,6 +30,10 @@ jobs:
       - name: generate proto
         run: buf generate
 
+      - name: check proto breaking changes
+        if: github.event_name == 'pull_request'
+        run: buf breaking --against "https://github.com/${{ github.repository }}.git#branch=master,ref=HEAD~1"
+
       - name: vet
         run: go vet $(go list ./... | grep -v /gen/)
 
@@ -81,6 +85,10 @@ jobs:
       - name: typecheck
         working-directory: frontend
         run: pnpm run typecheck
+
+      - name: lint
+        working-directory: frontend
+        run: pnpm run lint
 
       - name: build
         working-directory: frontend
