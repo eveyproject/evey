@@ -39,6 +39,8 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.AdminSessionService/GetAuditLog":          RoleAdmin,
 			"/evey.v1.AdminSessionService/ListActiveSessions":  RoleAdmin,
 			"/evey.v1.AdminSessionService/KillSession":         RoleAdmin,
+			"/evey.v1.AdminSessionService/SendSessionCommand":  RoleAdmin,
+			"/evey.v1.UserService/CreateInviteLink":            RoleAdmin,
 			"/evey.v1.AdminPluginService/ListPluginRuntimes":    RoleAdmin,
 			"/evey.v1.AdminPluginService/AddPluginRuntime":      RoleAdmin,
 			"/evey.v1.AdminPluginService/RemovePluginRuntime":   RoleAdmin,

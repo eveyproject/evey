@@ -60,6 +60,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminSessionService/GetAuditLog",
 		"/evey.v1.AdminSessionService/ListActiveSessions",
 		"/evey.v1.AdminSessionService/KillSession",
+		"/evey.v1.AdminSessionService/SendSessionCommand",
 		// AdminPluginService
 		"/evey.v1.AdminPluginService/ListPluginRuntimes",
 		"/evey.v1.AdminPluginService/AddPluginRuntime",
@@ -90,6 +91,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.UserService/CreateAPIKey",
 		"/evey.v1.UserService/ListAPIKeys",
 		"/evey.v1.UserService/RevokeAPIKey",
+		"/evey.v1.UserService/CreateInviteLink",
 		// LibraryService (admin-only)
 		"/evey.v1.LibraryService/CreateLibrary",
 		"/evey.v1.LibraryService/UpdateLibrary",

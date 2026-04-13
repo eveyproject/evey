@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	"google.golang.org/grpc/codes"
 )
 
 func TestAdminGetAuditLog(t *testing.T) {
@@ -17,6 +18,19 @@ func TestAdminGetAuditLog(t *testing.T) {
 	if resp.Total != 0 {
 		t.Errorf("expected 0 audit entries, got %d", resp.Total)
 	}
+}
+
+func TestSendSessionCommand_NonAdminDenied(t *testing.T) {
+	audit := &adminSessionHandler{}
+	ctx := userCtx("usr-1", "prf-1")
+	_, err := audit.SendSessionCommand(ctx, &eveyv1.SendSessionCommandRequest{SessionId: "s-1", Command: "pause"})
+	assertCode(t, err, codes.PermissionDenied)
+}
+
+func TestSendSessionCommand_Unauthenticated(t *testing.T) {
+	audit := &adminSessionHandler{}
+	_, err := audit.SendSessionCommand(context.Background(), &eveyv1.SendSessionCommandRequest{SessionId: "s-1", Command: "pause"})
+	assertCode(t, err, codes.Unauthenticated)
 }
 
 func TestAdminGetAuditLog_WithFilters(t *testing.T) {

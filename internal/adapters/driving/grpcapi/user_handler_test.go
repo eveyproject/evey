@@ -551,7 +551,7 @@ func TestListProfiles_NonAdminForcesOwnID(t *testing.T) {
 
 func TestCreateInviteLink_Success(t *testing.T) {
 	env := setupUserHandler()
-	ctx := userCtx("usr-1", "prf-1")
+	ctx := adminCtx()
 
 	resp, err := env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 5})
 	if err != nil {
@@ -574,9 +574,16 @@ func TestCreateInviteLink_Unauthenticated(t *testing.T) {
 	assertCode(t, err, codes.Unauthenticated)
 }
 
-func TestListInviteLinks_Success(t *testing.T) {
+func TestCreateInviteLink_NonAdminDenied(t *testing.T) {
 	env := setupUserHandler()
 	ctx := userCtx("usr-1", "prf-1")
+	_, err := env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 1})
+	assertCode(t, err, codes.PermissionDenied)
+}
+
+func TestListInviteLinks_Success(t *testing.T) {
+	env := setupUserHandler()
+	ctx := adminCtx()
 
 	_, _ = env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 1})
 	_, _ = env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 2})
@@ -592,7 +599,7 @@ func TestListInviteLinks_Success(t *testing.T) {
 
 func TestRevokeInviteLink_OwnerSuccess(t *testing.T) {
 	env := setupUserHandler()
-	ctx := userCtx("usr-1", "prf-1")
+	ctx := adminCtx()
 
 	created, _ := env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 1})
 	_, err := env.handler.RevokeInviteLink(ctx, &eveyv1.RevokeInviteLinkRequest{Id: created.Id})
@@ -603,7 +610,7 @@ func TestRevokeInviteLink_OwnerSuccess(t *testing.T) {
 
 func TestRevokeInviteLink_NonOwnerDenied(t *testing.T) {
 	env := setupUserHandler()
-	ctxOwner := userCtx("usr-1", "prf-1")
+	ctxOwner := adminCtx()
 	created, _ := env.handler.CreateInviteLink(ctxOwner, &eveyv1.CreateInviteLinkRequest{MaxUses: 1})
 
 	ctxOther := userCtx("usr-2", "prf-2")
@@ -615,7 +622,7 @@ func TestRevokeInviteLink_NonOwnerDenied(t *testing.T) {
 
 func TestRegisterWithInvite_Success(t *testing.T) {
 	env := setupUserHandler()
-	ctx := userCtx("usr-1", "prf-1")
+	ctx := adminCtx()
 	created, _ := env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 1})
 
 	resp, err := env.handler.RegisterWithInvite(context.Background(), &eveyv1.RegisterWithInviteRequest{
