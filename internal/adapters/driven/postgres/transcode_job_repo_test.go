@@ -49,7 +49,7 @@ func TestTranscodeJobRepo_Create_GetByID(t *testing.T) {
 
 	got, err := repo.GetByID(ctx, "tj1")
 	require.NoError(t, err)
-	assert.Equal(t, "queued", got.Status)
+	assert.Equal(t, transcoding.Queued, got.Status)
 	assert.Equal(t, "h265", got.InputCodec)
 }
 
@@ -70,13 +70,13 @@ func TestTranscodeJobRepo_Update(t *testing.T) {
 	job := newTestTranscodeJob("tj2", item.ID, "queued")
 	require.NoError(t, repo.Create(ctx, job))
 
-	job.Status = "running"
+	job.Status = transcoding.Running
 	job.Speed = 2.0
 	require.NoError(t, repo.Update(ctx, job))
 
 	got, err := repo.GetByID(ctx, "tj2")
 	require.NoError(t, err)
-	assert.Equal(t, "running", got.Status)
+	assert.Equal(t, transcoding.Running, got.Status)
 }
 
 func TestTranscodeJobRepo_ListActive(t *testing.T) {

@@ -45,7 +45,7 @@ func TestPlayHistoryRepo_List_Basic(t *testing.T) {
 	assert.Equal(t, p.ID, e.ProfileID)
 	assert.Equal(t, item.ID, e.MediaItemID)
 	assert.Equal(t, item.Title, e.MediaTitle)
-	assert.Equal(t, item.Type, e.MediaType)
+	assert.Equal(t, string(item.Type), e.MediaType)
 	assert.NotEmpty(t, e.PlayMethod)
 }
 

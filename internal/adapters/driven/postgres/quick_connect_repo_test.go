@@ -23,7 +23,7 @@ func TestQuickConnectRepo_Create_GetByCode(t *testing.T) {
 		ID:        "qc1",
 		Code:      "ABC123",
 		Secret:    "secret123",
-		Status:    "pending",
+		Status:    user.Pending,
 		ExpiresAt: time.Now().Add(10 * time.Minute).UTC().Truncate(time.Millisecond),
 		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
@@ -32,7 +32,7 @@ func TestQuickConnectRepo_Create_GetByCode(t *testing.T) {
 	got, err := repo.GetByCode(ctx, "ABC123")
 	require.NoError(t, err)
 	assert.Equal(t, "qc1", got.ID)
-	assert.Equal(t, "pending", got.Status)
+	assert.Equal(t, user.Pending, got.Status)
 }
 
 func TestQuickConnectRepo_UpdateStatus(t *testing.T) {
@@ -50,18 +50,18 @@ func TestQuickConnectRepo_UpdateStatus(t *testing.T) {
 		ID:        "qc2",
 		Code:      "DEF456",
 		Secret:    "secret456",
-		Status:    "pending",
+		Status:    user.Pending,
 		ExpiresAt: time.Now().Add(10 * time.Minute).UTC().Truncate(time.Millisecond),
 		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, repo.Create(ctx, req))
 
 	userID := u.ID
-	require.NoError(t, repo.UpdateStatus(ctx, "qc2", "authorized", &userID))
+	require.NoError(t, repo.UpdateStatus(ctx, "qc2", string(user.Authorized), &userID))
 
 	got, err := repo.GetByCode(ctx, "DEF456")
 	require.NoError(t, err)
-	assert.Equal(t, "authorized", got.Status)
+	assert.Equal(t, user.Authorized, got.Status)
 	assert.NotNil(t, got.UserID)
 	assert.Equal(t, userID, *got.UserID)
 }
@@ -77,7 +77,7 @@ func TestQuickConnectRepo_DeleteExpired(t *testing.T) {
 		ID:        "qc3",
 		Code:      "GHI789",
 		Secret:    "secret789",
-		Status:    "pending",
+		Status:    user.Pending,
 		ExpiresAt: time.Now().Add(-1 * time.Hour).UTC().Truncate(time.Millisecond),
 		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
