@@ -154,7 +154,7 @@ export function UserStats() {
           <h3 className="text-sm font-semibold mb-4 text-[var(--text)]">
             {t("common.userStats.monthlyActivity")}
           </h3>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-visible">
             <BarChart
               data={monthBarData}
               barWidth={20}
