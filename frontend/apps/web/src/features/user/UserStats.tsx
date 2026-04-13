@@ -110,6 +110,8 @@ export function UserStats() {
 
   const monthBarData = buildMonthlyData(data.byMonth ?? [], accent);
   const monthMax = Math.max(...monthBarData.map((d) => d.value), 0.1);
+  // react-gifted-charts clips the rightmost bar — append invisible spacer.
+  const monthBarDataPadded = [...monthBarData, { value: 0, label: "", frontColor: "transparent" }];
 
   const mostPlayed = data.mostPlayed ?? [];
   const favoriteGenre = genres.length > 0 ? translateGenre(genres[0].genre ?? "-", lang) : "-";
@@ -156,12 +158,12 @@ export function UserStats() {
           </h3>
           <div className="overflow-x-auto pr-6">
             <BarChart
-              data={monthBarData}
+              data={monthBarDataPadded}
               barWidth={20}
               spacing={8}
               initialSpacing={0}
               endSpacing={0}
-              width={Math.max(monthBarData.length * 28 + 56, 360)}
+              width={Math.max(monthBarDataPadded.length * 28 + 40, 360)}
               roundedTop
               noOfSections={4}
               maxValue={Math.ceil(monthMax * 1.1) || 1}
