@@ -72,12 +72,11 @@ export function ParentalPINDialog({ open, onClose, onVerified, profileId }: Pare
               setPin(val);
               if (error) setError(null);
             }}
-            className="w-full px-3 py-2 rounded text-center text-2xl tracking-[0.5em] font-mono"
+            className="w-full px-3 py-2 rounded text-center text-2xl tracking-[0.5em] font-mono focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:[outline-color:var(--accent)]"
             style={{
               backgroundColor: "var(--surface-raised)",
               border: `1px solid ${error ? "var(--danger-bg, #ef4444)" : "var(--border)"}`,
               color: "var(--text)",
-              outline: "none",
             }}
             placeholder="••••"
             autoComplete="off"

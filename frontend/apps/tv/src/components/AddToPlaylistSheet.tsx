@@ -66,6 +66,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
                   <FocusableCard
                     onPress={() => !added && handleAdd(item.id)}
                     hasTVPreferredFocus={index === 0}
+                    accessibilityLabel={added ? `${item.name}, ${t("common.added", "Added")}` : item.name}
                     style={[styles.row, { borderBottomColor: theme.colors.border }]}
                   >
                     <Text style={[styles.icon, { color: theme.colors.accent }]}>
@@ -85,6 +86,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
 
           <FocusableCard
             onPress={onClose}
+            accessibilityLabel={t("media.detail.close", "Close")}
             style={[styles.closeBtn, { backgroundColor: theme.colors.surfaceRaised }]}
           >
             <Text style={[styles.closeBtnText, { color: theme.colors.text }]}>{t("media.detail.close", "Close")}</Text>

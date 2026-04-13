@@ -28,6 +28,7 @@ export function AdminTrickplayThumbnail({ mediaId, positionMs, mediaType, fullWi
       <img
         src={src}
         alt=""
+        role="presentation"
         className="w-full object-cover"
         style={{ aspectRatio: "16/9", backgroundColor: "var(--surface-raised)" }}
         onError={() => setError(true)}
@@ -39,6 +40,7 @@ export function AdminTrickplayThumbnail({ mediaId, positionMs, mediaType, fullWi
     <img
       src={src}
       alt=""
+      role="presentation"
       className="rounded-[var(--radius)] shrink-0 object-cover"
       style={{ width: 160, aspectRatio: "16/9", backgroundColor: "var(--surface-raised)" }}
       onError={() => setError(true)}

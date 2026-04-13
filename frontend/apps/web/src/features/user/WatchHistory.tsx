@@ -81,12 +81,14 @@ function HistoryItem({ item }: { item: WatchProgress }) {
       <Link
         to="/media/$mediaId"
         params={{ mediaId: item.mediaItemId ?? "" }}
+        aria-label={t("auth.watchHistory.openMedia", "Open media details")}
         className="shrink-0 w-12 h-16 rounded-[var(--radius-sm)] overflow-hidden bg-[var(--surface-raised)] block"
       >
         {posterUrl ? (
           <img
             src={posterUrl}
             alt=""
+            aria-hidden="true"
             className="w-full h-full object-cover"
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
