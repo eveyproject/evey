@@ -23,7 +23,7 @@ export function RouteErrorComponent({ error, reset }: ErrorComponentProps) {
         className="flex h-16 w-16 items-center justify-center rounded-full"
         style={{ backgroundColor: "var(--error-bg-subtle)" }}
       >
-        <TriangleAlert size={32} stroke="var(--color-danger, #ef4444)" strokeWidth={1.5} />
+        <TriangleAlert size={32} stroke="var(--danger-bg, #dc2626)" strokeWidth={1.5} />
       </div>
       <h1 className="text-2xl font-semibold text-text">
         {t("common.routeError.title")}

@@ -13,6 +13,8 @@ export interface ThemeTokens {
     textMuted: string;
     border: string;
     error: string;
+    danger: string;
+    dangerHover: string;
     onAccent: string;
     overlay: string;
     divider: string;
@@ -36,6 +38,8 @@ export const defaultTheme: ThemeTokens = {
     textMuted:    "#90a4bd",
     border:       "#1e293b",
     error:        "#e57373",
+    danger:       "#dc2626",
+    dangerHover:  "#b91c1c",
     onAccent:     "#ffffff",
     overlay:      "rgba(0,0,0,0.5)",
     divider:      "rgba(255,255,255,0.08)",
@@ -59,6 +63,8 @@ export const amoledTheme: ThemeTokens = {
     textMuted:    "#71717a",
     border:       "#1a1a1a",
     error:        "#f87171",
+    danger:       "#dc2626",
+    dangerHover:  "#b91c1c",
     onAccent:     "#ffffff",
     overlay:      "rgba(0,0,0,0.7)",
     divider:      "rgba(255,255,255,0.06)",
@@ -82,6 +88,8 @@ export const lightDefaultTheme: ThemeTokens = {
     textMuted:    "#94a3b8",
     border:       "#e2e8f0",
     error:        "#ef4444",
+    danger:       "#dc2626",
+    dangerHover:  "#b91c1c",
     onAccent:     "#ffffff",
     overlay:      "rgba(0,0,0,0.4)",
     divider:      "rgba(0,0,0,0.08)",
@@ -105,6 +113,8 @@ export const lightBlueTheme: ThemeTokens = {
     textMuted:    "#94a3b8",
     border:       "#cbd5e1",
     error:        "#dc2626",
+    danger:       "#dc2626",
+    dangerHover:  "#b91c1c",
     onAccent:     "#ffffff",
     overlay:      "rgba(0,0,0,0.4)",
     divider:      "rgba(0,0,0,0.08)",

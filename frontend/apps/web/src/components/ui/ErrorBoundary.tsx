@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
         className="min-h-screen flex flex-col items-center justify-center gap-6 p-8 bg-[var(--bg)] text-[var(--text)] font-[var(--font-family,system-ui,-apple-system,sans-serif)]"
       >
         <div className="w-16 h-16 rounded-full bg-[var(--error-bg-subtle)] flex items-center justify-center">
-          <TriangleAlert size={32} stroke="var(--color-danger, #ef4444)" strokeWidth={1.5} />
+          <TriangleAlert size={32} stroke="var(--danger-bg, #dc2626)" strokeWidth={1.5} />
         </div>
         <h1 className="text-2xl font-semibold text-[var(--text)] m-0">
           {i18n.t("common.errorBoundary.title")}

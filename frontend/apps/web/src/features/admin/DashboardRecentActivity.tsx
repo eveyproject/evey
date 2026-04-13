@@ -51,7 +51,7 @@ export function RecentActivity() {
               return (
                 <tr
                   key={entry.id}
-                  className={`border-b border-[var(--border)] hover:bg-[var(--surface-raised)] transition-colors-fast ${isFailed ? "bg-[color-mix(in_srgb,var(--color-danger)_10%,transparent)]" : ""}`}
+                  className={`border-b border-[var(--border)] hover:bg-[var(--surface-raised)] transition-colors-fast ${isFailed ? "bg-[color-mix(in_srgb,var(--danger-bg)_10%,transparent)]" : ""}`}
                 >
                   <td className="px-3 py-2 whitespace-nowrap text-xs text-[var(--text-muted)]">
                     {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "-"}
