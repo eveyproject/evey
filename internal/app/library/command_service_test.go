@@ -188,29 +188,6 @@ func TestDeleteMediaItem_NotFound(t *testing.T) {
 	require.Error(t, err)
 }
 
-// --- GetMediaStreams ---
-
-func TestCommandService_GetMediaStreams_ReturnsStreams(t *testing.T) {
-	t.Parallel()
-	svc, _, _, _, _, _, _, streamRepo := newCmdSvcWithSearch()
-	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
-		{ID: "s1", MediaItemID: "item-1", StreamType: "video", Codec: "h264"},
-		{ID: "s2", MediaItemID: "item-1", StreamType: "audio", Codec: "aac"},
-	})
-
-	streams, err := svc.GetMediaStreams(context.Background(), "item-1")
-	require.NoError(t, err)
-	assert.Len(t, streams, 2)
-}
-
-func TestCommandService_GetMediaStreams_Empty(t *testing.T) {
-	t.Parallel()
-	svc, _, _, _, _, _ := newCmdSvc()
-	streams, err := svc.GetMediaStreams(context.Background(), "no-item")
-	require.NoError(t, err)
-	assert.Empty(t, streams)
-}
-
 // --- ScanLibrary ---
 
 func TestScanLibrary_LibraryNotFound(t *testing.T) {
@@ -788,24 +765,6 @@ func TestExtractChapters_ReadError_NonFatal(t *testing.T) {
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err, "chapter read error should not fail scan")
-}
-
-// --- GetChapters ---
-
-func TestGetChapters_WithRepo_ReturnsChapters(t *testing.T) {
-	t.Parallel()
-	chapterRepo := libfakes.NewFakeChapterRepository()
-	reader := mkvfakes.NewFakeContainerReader()
-	h := newHarnessWithOpts(&harnessOpts{chapterRepo: chapterRepo, ebmlReader: reader})
-
-	chapterRepo.ReplaceBatch(context.Background(), "item-1", []*library.Chapter{
-		{ID: "ch-1", MediaItemID: "item-1", Title: "Ch1"},
-	})
-
-	chs, err := h.svc.GetChapters(context.Background(), "item-1")
-	require.NoError(t, err)
-	require.Len(t, chs, 1)
-	assert.Equal(t, "Ch1", chs[0].Title)
 }
 
 // --- discoverExternalSubtitles ---

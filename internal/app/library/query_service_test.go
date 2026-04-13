@@ -986,3 +986,71 @@ func TestQueryService_WithTranslations_Option(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, "Pelicula", result.Title)
 }
+
+// --- GetChapters ---
+
+func TestQueryService_GetChapters_NilRepo(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	chs, err := f.svc.GetChapters(context.Background(), "any-id")
+	require.NoError(t, err)
+	assert.Nil(t, chs)
+}
+
+func TestQueryService_GetChapters_Found(t *testing.T) {
+	t.Parallel()
+	chapterRepo := libfakes.NewFakeChapterRepository()
+	chapterRepo.ReplaceBatch(context.Background(), "item-1", []*library.Chapter{
+		{ID: "ch-1", MediaItemID: "item-1", Title: "Ch1"},
+	})
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithChapters(chapterRepo),
+	)
+	chs, err := svc.GetChapters(context.Background(), "item-1")
+	require.NoError(t, err)
+	require.Len(t, chs, 1)
+	assert.Equal(t, "Ch1", chs[0].Title)
+}
+
+// --- GetTrickplayManifest ---
+
+func TestQueryService_GetTrickplayManifest_NilRepo(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	_, err := f.svc.GetTrickplayManifest(context.Background(), "any-id")
+	require.Error(t, err)
+}
+
+func TestQueryService_GetTrickplayManifest_NotFound(t *testing.T) {
+	t.Parallel()
+	trickplayRepo := libfakes.NewFakeTrickplayRepository()
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithTrickplay(trickplayRepo),
+	)
+	_, err := svc.GetTrickplayManifest(context.Background(), "nonexistent")
+	require.Error(t, err)
+}
+
+func TestQueryService_GetTrickplayManifest_Found(t *testing.T) {
+	t.Parallel()
+	trickplayRepo := libfakes.NewFakeTrickplayRepository()
+	trickplayRepo.Create(context.Background(), &library.TrickplayManifest{MediaItemID: "m1", Width: 320, Interval: 15})
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithTrickplay(trickplayRepo),
+	)
+	manifest, err := svc.GetTrickplayManifest(context.Background(), "m1")
+	require.NoError(t, err)
+	assert.Equal(t, "m1", manifest.MediaItemID)
+}

@@ -24,10 +24,9 @@ func WithShutdownCtx(ctx context.Context) CommandServiceOption {
 }
 
 type CommandService struct {
-	libraries   library.LibraryCommandRepo
-	mediaItems  library.MediaItemCommandRepo
-	mediaStreams library.MediaStreamRepository
-	events      shared.EventBus
+	libraries  library.LibraryCommandRepo
+	mediaItems library.MediaItemCommandRepo
+	events     shared.EventBus
 
 	scan      *ScanService
 	trickplay *TrickplayService
@@ -60,13 +59,12 @@ func NewCommandService(
 	metadata := NewMetadataExtractionService(chapters, ebmlReader, mediaStreams)
 	scanSvc.WithMetadataExtraction(metadata)
 	s := &CommandService{
-		libraries:   libraries,
-		mediaItems:  mediaItems,
-		mediaStreams: mediaStreams,
-		events:      events,
-		scan:        scanSvc,
-		metadata:    metadata,
-		trickplay:   NewTrickplayService(trickplayRepo, trickplayGen, trickplayCacheDir, mediaItems, events, trickplayConfigRepo),
+		libraries:  libraries,
+		mediaItems: mediaItems,
+		events:     events,
+		scan:       scanSvc,
+		metadata:   metadata,
+		trickplay:  NewTrickplayService(trickplayRepo, trickplayGen, trickplayCacheDir, mediaItems, events, trickplayConfigRepo),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -89,15 +87,6 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 
 func (s *CommandService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) int64 {
 	return s.scan.ProbeAndStoreStreams(ctx, mediaItemID, filePath)
-}
-
-// --- Delegated to MetadataExtractionService ---
-
-func (s *CommandService) GetChapters(ctx context.Context, mediaItemID string) ([]*library.Chapter, error) {
-	if s.metadata == nil {
-		return nil, nil
-	}
-	return s.metadata.GetChapters(ctx, mediaItemID)
 }
 
 // StartPeriodicScan runs a lightweight scan at the given interval for specific library IDs
@@ -167,13 +156,6 @@ func (s *CommandService) GenerateTrickplay(ctx context.Context, mediaItemID stri
 		return errors.New("trickplay not configured")
 	}
 	return s.trickplay.GenerateTrickplay(ctx, mediaItemID)
-}
-
-func (s *CommandService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
-	if s.trickplay == nil {
-		return nil, errors.New("trickplay not configured")
-	}
-	return s.trickplay.GetTrickplayManifest(ctx, mediaItemID)
 }
 
 func (s *CommandService) GenerateAllMissingTrickplays(ctx context.Context) (int, error) {
@@ -251,8 +233,4 @@ func (s *CommandService) DeleteMediaItem(ctx context.Context, id string) error {
 		return fmt.Errorf("CommandService.DeleteMediaItem: %w", err)
 	}
 	return nil
-}
-
-func (s *CommandService) GetMediaStreams(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error) {
-	return s.mediaStreams.GetByMediaItemID(ctx, mediaItemID)
 }
