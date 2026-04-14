@@ -122,14 +122,14 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 				slog.Warn("music scan: upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
 				return
 			}
-			if pubErr := s.bus.Publish(ctx, music.TrackScanned{LibraryID: libraryID, TrackID: t.ID, Title: t.Title, Path: j.path, OccurredAt: time.Now()}); pubErr != nil {
+			if pubErr := s.bus.Publish(ctx, music.TrackScanned{LibraryID: shared.LibraryID(libraryID), TrackID: t.ID, Title: t.Title, Path: j.path, OccurredAt: time.Now()}); pubErr != nil {
 				slog.Warn("music scan: event publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 			}
-			if pubErr := s.bus.Publish(ctx, music.TrackAdded{LibraryID: libraryID, TrackID: t.ID, Title: t.Title, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
+			if pubErr := s.bus.Publish(ctx, music.TrackAdded{LibraryID: shared.LibraryID(libraryID), TrackID: t.ID, Title: t.Title, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
 				slog.Warn("music scan: TrackAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 			}
 			if t.Album != "" {
-				if pubErr := s.bus.Publish(ctx, music.AlbumCreated{LibraryID: libraryID, AlbumName: t.Album, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
+				if pubErr := s.bus.Publish(ctx, music.AlbumCreated{LibraryID: shared.LibraryID(libraryID), AlbumName: t.Album, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
 					slog.Warn("music scan: AlbumCreated publish failed", slog.String("album", t.Album), slog.Any("err", pubErr))
 				}
 			}
@@ -152,10 +152,10 @@ func (s *CommandService) DeleteTrack(ctx context.Context, trackID string) error 
 	if err := s.tracks.Delete(ctx, trackID); err != nil {
 		return fmt.Errorf("CommandService.DeleteTrack: %w", err)
 	}
-	if pubErr := s.bus.Publish(ctx, music.TrackDeleted{TrackID: trackID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
+	if pubErr := s.bus.Publish(ctx, music.TrackDeleted{TrackID: trackID, LibraryID: shared.LibraryID(libraryID), OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("music: TrackDeleted publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
 	}
-	if pubErr := s.bus.Publish(ctx, music.TrackRemoved{TrackID: trackID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
+	if pubErr := s.bus.Publish(ctx, music.TrackRemoved{TrackID: trackID, LibraryID: shared.LibraryID(libraryID), OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("music: TrackRemoved publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
 	}
 	return nil

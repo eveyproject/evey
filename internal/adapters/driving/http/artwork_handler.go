@@ -9,6 +9,7 @@ import (
 
 	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/pkg/urlvalidator"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +18,7 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	claims := HTTPClaimsFromContext(r.Context())
 
 	if st, ok := StreamTokenFromContext(r.Context()); ok {
-		if st.MediaItemID != mediaID {
+		if st.MediaItemID != shared.MediaItemID(mediaID) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}

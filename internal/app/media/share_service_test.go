@@ -41,7 +41,7 @@ func (r *fakeShareLinkRepo) GetByToken(_ context.Context, token string) (*shared
 func (r *fakeShareLinkRepo) ListByUser(_ context.Context, userID string) ([]*shared.ShareLink, error) {
 	var result []*shared.ShareLink
 	for _, l := range r.links {
-		if l.CreatedBy == userID {
+		if l.CreatedBy == shared.UserID(userID) {
 			result = append(result, l)
 		}
 	}

@@ -32,8 +32,8 @@ func TestShareLinkRepo_Create_GetByToken(t *testing.T) {
 	link := &shared.ShareLink{
 		ID:          "sl1",
 		Token:       "share-tok-1",
-		MediaItemID: string(item.ID),
-		CreatedBy:   string(u.ID),
+		MediaItemID: item.ID,
+		CreatedBy:   u.ID,
 		ExpiresAt:   time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond),
 		ViewCount:   0,
 		CreatedAt:   time.Now().UTC().Truncate(time.Millisecond),
@@ -43,7 +43,7 @@ func TestShareLinkRepo_Create_GetByToken(t *testing.T) {
 	got, err := repo.GetByToken(ctx, "share-tok-1")
 	require.NoError(t, err)
 	assert.Equal(t, "sl1", got.ID)
-	assert.Equal(t, string(item.ID), got.MediaItemID)
+	assert.Equal(t, item.ID, got.MediaItemID)
 }
 
 func TestShareLinkRepo_ListByUser(t *testing.T) {
@@ -67,8 +67,8 @@ func TestShareLinkRepo_ListByUser(t *testing.T) {
 		link := &shared.ShareLink{
 			ID:          tok,
 			Token:       tok,
-			MediaItemID: string(item.ID),
-			CreatedBy:   string(u.ID),
+			MediaItemID: item.ID,
+			CreatedBy:   u.ID,
 			ExpiresAt:   time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond),
 			CreatedAt:   time.Now().Add(time.Duration(i) * time.Second).UTC().Truncate(time.Millisecond),
 		}
@@ -100,8 +100,8 @@ func TestShareLinkRepo_ListAll(t *testing.T) {
 	link := &shared.ShareLink{
 		ID:          "sl3",
 		Token:       "sl3-tok",
-		MediaItemID: string(item.ID),
-		CreatedBy:   string(u.ID),
+		MediaItemID: item.ID,
+		CreatedBy:   u.ID,
 		ExpiresAt:   time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond),
 		CreatedAt:   time.Now().UTC().Truncate(time.Millisecond),
 	}
@@ -132,8 +132,8 @@ func TestShareLinkRepo_IncrementViewCount(t *testing.T) {
 	link := &shared.ShareLink{
 		ID:          "sl4",
 		Token:       "sl4-tok",
-		MediaItemID: string(item.ID),
-		CreatedBy:   string(u.ID),
+		MediaItemID: item.ID,
+		CreatedBy:   u.ID,
 		ExpiresAt:   time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond),
 		CreatedAt:   time.Now().UTC().Truncate(time.Millisecond),
 	}
@@ -165,8 +165,8 @@ func TestShareLinkRepo_Delete(t *testing.T) {
 	link := &shared.ShareLink{
 		ID:          "sl5",
 		Token:       "sl5-tok",
-		MediaItemID: string(item.ID),
-		CreatedBy:   string(u.ID),
+		MediaItemID: item.ID,
+		CreatedBy:   u.ID,
 		ExpiresAt:   time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond),
 		CreatedAt:   time.Now().UTC().Truncate(time.Millisecond),
 	}
@@ -197,8 +197,8 @@ func TestShareLinkRepo_DeleteExpired(t *testing.T) {
 	link := &shared.ShareLink{
 		ID:          "sl6",
 		Token:       "sl6-tok",
-		MediaItemID: string(item.ID),
-		CreatedBy:   string(u.ID),
+		MediaItemID: item.ID,
+		CreatedBy:   u.ID,
 		ExpiresAt:   time.Now().Add(-1 * time.Hour).UTC().Truncate(time.Millisecond),
 		CreatedAt:   time.Now().UTC().Truncate(time.Millisecond),
 	}

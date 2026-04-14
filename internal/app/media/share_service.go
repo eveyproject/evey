@@ -25,8 +25,8 @@ func (s *ShareService) Create(ctx context.Context, mediaItemID, createdBy string
 	link := &shared.ShareLink{
 		ID:          uuid.New().String(),
 		Token:       uuid.New().String(),
-		MediaItemID: mediaItemID,
-		CreatedBy:   createdBy,
+		MediaItemID: shared.MediaItemID(mediaItemID),
+		CreatedBy:   shared.UserID(createdBy),
 		ExpiresAt:   time.Now().Add(duration),
 		MaxViews:    maxViews,
 		ViewCount:   0,

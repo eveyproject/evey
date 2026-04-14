@@ -55,7 +55,7 @@ func (h *shareHandler) CreateShareLink(ctx context.Context, req *eveyv1.CreateSh
 	resp := &eveyv1.CreateShareLinkResponse{
 		Id:        link.ID,
 		Token:     link.Token,
-		MediaId:   link.MediaItemID,
+		MediaId:   string(link.MediaItemID),
 		ExpiresAt: toTimestamppb(link.ExpiresAt),
 		Url:       "/share/" + link.Token,
 	}
@@ -86,8 +86,8 @@ func (h *shareHandler) ListShareLinks(ctx context.Context, _ *eveyv1.ListShareLi
 		item := &eveyv1.ShareLinkProto{
 			Id:          l.ID,
 			Token:       l.Token,
-			MediaItemId: l.MediaItemID,
-			CreatedBy:   l.CreatedBy,
+			MediaItemId: string(l.MediaItemID),
+			CreatedBy:   string(l.CreatedBy),
 			ExpiresAt:   toTimestamppb(l.ExpiresAt),
 			ViewCount:   int32(l.ViewCount),
 			Url:         "/share/" + l.Token,
@@ -111,7 +111,7 @@ func (h *shareHandler) RevokeShareLink(ctx context.Context, req *eveyv1.RevokeSh
 	if err != nil || link == nil {
 		return nil, status.Error(codes.NotFound, "share link not found")
 	}
-	if !claims.IsAdmin && link.CreatedBy != claims.UserID {
+	if !claims.IsAdmin && string(link.CreatedBy) != claims.UserID {
 		return nil, status.Error(codes.PermissionDenied, "cannot revoke another user's share link")
 	}
 
@@ -130,7 +130,7 @@ func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.Valida
 		return nil, status.Error(codes.NotFound, "share link not found")
 	}
 
-	item, err := h.libQuery.GetMediaItem(ctx, link.MediaItemID)
+	item, err := h.libQuery.GetMediaItem(ctx, string(link.MediaItemID))
 	if err != nil || item == nil {
 		return nil, status.Error(codes.NotFound, "media not found")
 	}

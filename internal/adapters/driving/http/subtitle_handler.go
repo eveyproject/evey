@@ -14,6 +14,7 @@ import (
 	"time"
 
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
+	"github.com/evey-project/evey/internal/domain/shared"
 	domainsubtitle "github.com/evey-project/evey/internal/domain/subtitle"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
@@ -33,7 +34,7 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 		claims := HTTPClaimsFromContext(r.Context())
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
-			if st.MediaItemID != mediaID {
+			if st.MediaItemID != shared.MediaItemID(mediaID) {
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/app/media"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,8 +19,8 @@ func TestStreamTokenStore_CreateAndValidate(t *testing.T) {
 
 	st, ok := store.Validate(token, "media-1")
 	require.True(t, ok)
-	assert.Equal(t, "user-1", st.UserID)
-	assert.Equal(t, "media-1", st.MediaItemID)
+	assert.Equal(t, shared.UserID("user-1"), st.UserID)
+	assert.Equal(t, shared.MediaItemID("media-1"), st.MediaItemID)
 	assert.Equal(t, "stream", st.Scope)
 }
 
@@ -41,7 +42,7 @@ func TestStreamTokenStore_ValidateAny(t *testing.T) {
 
 	st, ok := store.ValidateAny(token)
 	require.True(t, ok)
-	assert.Equal(t, "media-1", st.MediaItemID)
+	assert.Equal(t, shared.MediaItemID("media-1"), st.MediaItemID)
 }
 
 func TestStreamTokenStore_Expired(t *testing.T) {
@@ -110,7 +111,7 @@ func TestStreamTokenStore_MultipleMedias(t *testing.T) {
 
 	st1, ok := store.Validate(t1, "media-1")
 	require.True(t, ok)
-	assert.Equal(t, "media-1", st1.MediaItemID)
+	assert.Equal(t, shared.MediaItemID("media-1"), st1.MediaItemID)
 
 	st2, ok := store.Validate(t2, "media-2")
 	require.True(t, ok)

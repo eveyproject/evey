@@ -5,8 +5,8 @@ import "time"
 type ShareLink struct {
 	ID          string
 	Token       string
-	MediaItemID string
-	CreatedBy   string
+	MediaItemID MediaItemID
+	CreatedBy   UserID
 	ExpiresAt   time.Time
 	MaxViews    *int
 	ViewCount   int

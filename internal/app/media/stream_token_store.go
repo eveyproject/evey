@@ -36,8 +36,8 @@ func (s *StreamTokenStore) Create(userID, mediaItemID string) string {
 	token := uuid.New().String()
 	s.tokens.Store(token, &shared.StreamToken{
 		Token:       token,
-		UserID:      userID,
-		MediaItemID: mediaItemID,
+		UserID:      shared.UserID(userID),
+		MediaItemID: shared.MediaItemID(mediaItemID),
 		Scope:       "stream",
 		ExpiresAt:   time.Now().Add(s.ttl),
 	})
@@ -56,7 +56,7 @@ func (s *StreamTokenStore) Validate(token, mediaItemID string) (*shared.StreamTo
 		s.tokens.Delete(token)
 		return nil, false
 	}
-	if mediaItemID != "" && st.MediaItemID != mediaItemID {
+	if mediaItemID != "" && st.MediaItemID != shared.MediaItemID(mediaItemID) {
 		return nil, false
 	}
 	st.ExpiresAt = time.Now().Add(s.ttl)

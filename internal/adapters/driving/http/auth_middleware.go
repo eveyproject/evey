@@ -22,7 +22,7 @@ func httpAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.Hand
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			if st, ok := StreamTokenFromContext(r.Context()); ok {
-				claims := &domainuser.Claims{UserID: st.UserID}
+				claims := &domainuser.Claims{UserID: string(st.UserID)}
 				ctx := context.WithValue(r.Context(), httpClaimsCtxKey{}, claims)
 				next(w, r.WithContext(ctx))
 				return

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	_ "golang.org/x/image/webp"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
@@ -22,7 +23,7 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 		claims := HTTPClaimsFromContext(r.Context())
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
-			if st.MediaItemID != mediaID {
+			if st.MediaItemID != shared.MediaItemID(mediaID) {
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
@@ -115,7 +116,7 @@ func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseU
 		claims := HTTPClaimsFromContext(r.Context())
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
-			if st.MediaItemID != mediaID {
+			if st.MediaItemID != shared.MediaItemID(mediaID) {
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}

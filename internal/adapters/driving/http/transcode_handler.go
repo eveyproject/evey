@@ -16,6 +16,7 @@ import (
 	"time"
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
 
@@ -30,7 +31,7 @@ func chaptersHandler(tokenGen TokenVerifier, libSvc ChaptersGetter, baseURL stri
 		claims := HTTPClaimsFromContext(r.Context())
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
-			if st.MediaItemID != mediaID {
+			if st.MediaItemID != shared.MediaItemID(mediaID) {
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
@@ -194,7 +195,7 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	userID := claims.UserID
 
 	if st, ok := StreamTokenFromContext(r.Context()); ok {
-		if st.MediaItemID != mediaID {
+		if st.MediaItemID != shared.MediaItemID(mediaID) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -323,7 +324,7 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 		sessionUserID := claims.UserID
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
-			if st.MediaItemID != mediaID {
+			if st.MediaItemID != shared.MediaItemID(mediaID) {
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
@@ -421,7 +422,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	userID := claims.UserID
 
 	if st, ok := StreamTokenFromContext(r.Context()); ok {
-		if st.MediaItemID != mediaID {
+		if st.MediaItemID != shared.MediaItemID(mediaID) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}

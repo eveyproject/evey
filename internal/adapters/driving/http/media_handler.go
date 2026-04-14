@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 // filterMasterPlaylist removes #EXT-X-STREAM-INF variants exceeding maxBps (bps).
@@ -121,7 +122,7 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 	claims := HTTPClaimsFromContext(r.Context())
 
 	if st, ok := StreamTokenFromContext(r.Context()); ok {
-		if st.MediaItemID != mediaID {
+		if st.MediaItemID != shared.MediaItemID(mediaID) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -145,7 +146,7 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL strin
 		claims := HTTPClaimsFromContext(r.Context())
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
-			if st.MediaItemID != mediaID {
+			if st.MediaItemID != shared.MediaItemID(mediaID) {
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}

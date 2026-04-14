@@ -1,9 +1,13 @@
 package music
 
-import "time"
+import (
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+)
 
 type TrackScanned struct {
-	LibraryID  string
+	LibraryID  shared.LibraryID
 	TrackID    string
 	Title      string
 	Path       string
@@ -13,7 +17,7 @@ type TrackScanned struct {
 func (e TrackScanned) EventName() string { return "music.track.scanned" }
 
 type TrackDeleted struct {
-	LibraryID  string
+	LibraryID  shared.LibraryID
 	TrackID    string
 	OccurredAt time.Time
 }
@@ -21,7 +25,7 @@ type TrackDeleted struct {
 func (e TrackDeleted) EventName() string { return "music.track.deleted" }
 
 type TrackAdded struct {
-	LibraryID  string
+	LibraryID  shared.LibraryID
 	TrackID    string
 	Title      string
 	Artist     string
@@ -31,7 +35,7 @@ type TrackAdded struct {
 func (e TrackAdded) EventName() string { return "music.track.added" }
 
 type TrackRemoved struct {
-	LibraryID  string
+	LibraryID  shared.LibraryID
 	TrackID    string
 	OccurredAt time.Time
 }
@@ -39,7 +43,7 @@ type TrackRemoved struct {
 func (e TrackRemoved) EventName() string { return "music.track.removed" }
 
 type AlbumCreated struct {
-	LibraryID  string
+	LibraryID  shared.LibraryID
 	AlbumName  string
 	Artist     string
 	OccurredAt time.Time

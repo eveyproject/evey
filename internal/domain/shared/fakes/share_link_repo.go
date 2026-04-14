@@ -63,7 +63,7 @@ func (r *FakeShareLinkRepo) ListByUser(_ context.Context, userID string) ([]*sha
 	defer r.mu.RUnlock()
 	var result []*shared.ShareLink
 	for _, l := range r.links {
-		if l.CreatedBy == userID {
+		if l.CreatedBy == shared.UserID(userID) {
 			result = append(result, l)
 		}
 	}
