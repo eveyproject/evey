@@ -62,7 +62,7 @@ func (r *FakePasswordResetTokenRepository) DeleteByUserID(_ context.Context, use
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for id, t := range r.items {
-		if t.UserID == string(userID) {
+		if t.UserID == userID {
 			delete(r.items, id)
 		}
 	}

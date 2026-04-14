@@ -79,7 +79,7 @@ func apiKeyToProto(k *user.APIKeyModel) *eveyv1.APIKey {
 	return &eveyv1.APIKey{
 		Id:         k.ID,
 		Name:       k.Name,
-		UserId:     k.UserID,
+		UserId:     string(k.UserID),
 		LastUsedAt: toTimestamppbPtr(k.LastUsedAt),
 		CreatedAt:  toTimestamppb(k.CreatedAt),
 	}

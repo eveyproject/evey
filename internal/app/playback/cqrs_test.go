@@ -154,7 +154,7 @@ func TestQueryService_GetResumeItems(t *testing.T) {
 	items, err := q.GetResumeItems(ctx, "p1", 10)
 	require.NoError(t, err)
 	assert.Len(t, items, 1)
-	assert.Equal(t, "m1", items[0].MediaItemID)
+	assert.Equal(t, shared.MediaItemID("m1"), items[0].MediaItemID)
 }
 
 func TestServiceWrapper_DelegatesToCQRS(t *testing.T) {

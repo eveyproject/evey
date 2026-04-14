@@ -60,7 +60,7 @@ func (r *FakeAPIKeyRepository) ListByUserID(_ context.Context, userID shared.Use
 	}
 	var result []*user.APIKeyModel
 	for _, k := range r.items {
-		if k.UserID == string(userID) {
+		if k.UserID == userID {
 			result = append(result, k)
 		}
 	}

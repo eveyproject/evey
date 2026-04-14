@@ -188,8 +188,8 @@ func TestStartStream_PublishesStartedEvent(t *testing.T) {
 	assert.Equal(t, "playback.started", events[0].EventName())
 	started := events[0].(playback.PlaybackStarted)
 	assert.Equal(t, "s1", started.SessionID)
-	assert.Equal(t, "p1", started.ProfileID)
-	assert.Equal(t, "m1", started.MediaItemID)
+	assert.Equal(t, shared.ProfileID("p1"), started.ProfileID)
+	assert.Equal(t, shared.MediaItemID("m1"), started.MediaItemID)
 	assert.Equal(t, "direct_play", started.PlayMethod)
 }
 
@@ -228,8 +228,8 @@ func TestStopStream_PublishesStoppedEvent(t *testing.T) {
 	}
 	require.NotNil(t, found)
 	assert.Equal(t, "s1", found.SessionID)
-	assert.Equal(t, "p1", found.ProfileID)
-	assert.Equal(t, "m1", found.MediaItemID)
+	assert.Equal(t, shared.ProfileID("p1"), found.ProfileID)
+	assert.Equal(t, shared.MediaItemID("m1"), found.MediaItemID)
 }
 
 func TestReportProgressBySession_UpdatesSessionPosition(t *testing.T) {
@@ -310,8 +310,8 @@ func TestMarkAsWatched_SetsCompleted(t *testing.T) {
 	for _, e := range bus.PublishedEvents() {
 		if e.EventName() == "media.marked.watched" {
 			watched := e.(playback.MediaMarkedWatched)
-			assert.Equal(t, "p1", watched.ProfileID)
-			assert.Equal(t, "m1", watched.MediaItemID)
+			assert.Equal(t, shared.ProfileID("p1"), watched.ProfileID)
+			assert.Equal(t, shared.MediaItemID("m1"), watched.MediaItemID)
 			found = true
 		}
 	}
@@ -481,8 +481,8 @@ func TestReportProgress_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(12000), wp.PositionMs)
 	assert.True(t, wp.Completed)
-	assert.Equal(t, "p1", wp.ProfileID)
-	assert.Equal(t, "m1", wp.MediaItemID)
+	assert.Equal(t, shared.ProfileID("p1"), wp.ProfileID)
+	assert.Equal(t, shared.MediaItemID("m1"), wp.MediaItemID)
 }
 
 func TestMarkAsUnwatched_UpsertError(t *testing.T) {

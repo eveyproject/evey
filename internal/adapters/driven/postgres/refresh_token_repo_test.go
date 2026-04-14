@@ -8,6 +8,7 @@ import (
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,7 @@ func seedUser(t *testing.T, db *sql.DB, id string) {
 func newRefreshToken(id, userID, hash string) *user.RefreshToken {
 	return &user.RefreshToken{
 		ID:         id,
-		UserID:     userID,
+		UserID:     shared.UserID(userID),
 		TokenHash:  hash,
 		DeviceName: "Firefox on Linux",
 		ClientIP:   strPtr("192.168.1.10"),

@@ -132,7 +132,7 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	if err := s.users.Create(ctx, u); err != nil {
 		return nil, fmt.Errorf("CommandService.Setup: %w", err)
 	}
-	evtSetupCreated := user.UserCreated{UserID: string(u.ID), Username: u.Username, IsAdmin: true, OccurredAt: time.Now()}
+	evtSetupCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: true, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtSetupCreated); err != nil {
 		slog.Warn("publish event", slog.String("event", evtSetupCreated.EventName()), slog.Any("err", err))
 	}
@@ -146,7 +146,7 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	if err := s.profiles.Create(ctx, p); err != nil {
 		return nil, fmt.Errorf("create default profile: %w", err)
 	}
-	evtProfileCreated := user.ProfileCreated{ProfileID: string(p.ID), UserID: string(p.UserID), Name: p.Name, OccurredAt: time.Now()}
+	evtProfileCreated := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtProfileCreated); err != nil {
 		slog.Warn("publish event", slog.String("event", evtProfileCreated.EventName()), slog.Any("err", err))
 	}
@@ -223,7 +223,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		return "", "", fmt.Errorf("CommandService.Login: %w", err)
 	}
 
-	evtLogin := user.LoginSucceeded{UserID: string(u.ID), AuthMethod: "local", OccurredAt: time.Now()}
+	evtLogin := user.LoginSucceeded{UserID: u.ID, AuthMethod: "local", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtLogin); err != nil {
 		slog.Warn("publish event", slog.String("event", evtLogin.EventName()), slog.Any("err", err))
 	}
@@ -297,7 +297,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 
 	if rt.Used {
 		if delErr := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(rt.UserID)); delErr != nil {
-			slog.Warn("delete refresh tokens by user failed", slog.String("userID", rt.UserID), slog.Any("err", delErr))
+			slog.Warn("delete refresh tokens by user failed", slog.String("userID", string(rt.UserID)), slog.Any("err", delErr))
 		}
 		return "", "", ErrInvalidCredentials
 	}
@@ -315,7 +315,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 	}
 	if !claimed {
 		if delErr := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(rt.UserID)); delErr != nil {
-			slog.Warn("delete refresh tokens by user failed", slog.String("userID", rt.UserID), slog.Any("err", delErr))
+			slog.Warn("delete refresh tokens by user failed", slog.String("userID", string(rt.UserID)), slog.Any("err", delErr))
 		}
 		return "", "", ErrInvalidCredentials
 	}
@@ -402,7 +402,7 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 		h := sha256.Sum256([]byte(token))
 		rt := &user.RefreshToken{
 			ID:        id.New("rt-"),
-			UserID:    userID,
+			UserID:    shared.UserID(userID),
 			TokenHash: hex.EncodeToString(h[:]),
 			ExpiresAt: time.Now().Add(ttl),
 			CreatedAt: time.Now(),
@@ -499,7 +499,7 @@ func (s *CommandService) RequestPasswordReset(ctx context.Context, email string)
 
 	t := &user.PasswordResetToken{
 		ID:        id.New("prt-"),
-		UserID:    string(u.ID),
+		UserID:    u.ID,
 		TokenHash: hex.EncodeToString(h[:]),
 		ExpiresAt: time.Now().Add(passwordResetTokenTTL),
 		CreatedAt: time.Now(),
@@ -509,7 +509,7 @@ func (s *CommandService) RequestPasswordReset(ctx context.Context, email string)
 	}
 
 	evt := user.PasswordResetRequested{
-		UserID:     string(u.ID),
+		UserID:     u.ID,
 		Email:      u.Email,
 		ResetToken: rawHex,
 		ExpiresAt:  t.ExpiresAt,
@@ -577,7 +577,7 @@ func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPasswor
 		slog.Warn("delete refresh tokens after password reset", slog.Any("err", err))
 	}
 
-	evt := user.PasswordChanged{UserID: string(u.ID), OccurredAt: time.Now()}
+	evt := user.PasswordChanged{UserID: u.ID, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}

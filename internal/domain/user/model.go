@@ -58,7 +58,7 @@ type Profile struct {
 
 type RefreshToken struct {
 	ID         string
-	UserID     string
+	UserID     shared.UserID
 	TokenHash  string
 	DeviceName string
 	ClientIP   *string
@@ -69,7 +69,7 @@ type RefreshToken struct {
 
 type APIKeyModel struct {
 	ID          string
-	UserID      string
+	UserID      shared.UserID
 	KeyHash     string
 	Name        string
 	Permissions []string
@@ -225,7 +225,7 @@ func (k *APIKeyModel) HasPermission(perm string) bool {
 
 type PasswordResetToken struct {
 	ID        string
-	UserID    string
+	UserID    shared.UserID
 	TokenHash string
 	ExpiresAt time.Time
 	Used      bool

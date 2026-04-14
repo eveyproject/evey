@@ -17,7 +17,7 @@ import (
 func newTestAPIKey(id, userID, hash string) *user.APIKeyModel {
 	return &user.APIKeyModel{
 		ID:          id,
-		UserID:      userID,
+		UserID:      shared.UserID(userID),
 		KeyHash:     hash,
 		Name:        "key_" + id,
 		Permissions: []string{"read", "write"},

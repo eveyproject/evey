@@ -16,7 +16,7 @@ import (
 func newPRT(id, userID, hash string, expiresAt time.Time) *user.PasswordResetToken {
 	return &user.PasswordResetToken{
 		ID:        id,
-		UserID:    userID,
+		UserID:    shared.UserID(userID),
 		TokenHash: hash,
 		ExpiresAt: expiresAt.UTC().Truncate(time.Millisecond),
 		Used:      false,

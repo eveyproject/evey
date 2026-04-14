@@ -501,7 +501,7 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 
 	key := &user.APIKeyModel{
 		ID:      id.New("ak-"),
-		UserID:  claims.UserID,
+		UserID:  shared.UserID(claims.UserID),
 		Name:    req.Name,
 		KeyHash: keyHash,
 	}

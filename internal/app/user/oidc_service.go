@@ -235,7 +235,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 		return "", "", "", fmt.Errorf("OIDCService.HandleCallback: %w", err)
 	}
 
-	evt := domainuser.LoginSucceeded{UserID: string(u.ID), AuthMethod: "oidc", OccurredAt: time.Now()}
+	evt := domainuser.LoginSucceeded{UserID: u.ID, AuthMethod: "oidc", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.Warn("oidc: publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
@@ -296,7 +296,7 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 		slog.Warn("oidc: create default profile failed", slog.Any("err", err))
 	}
 
-	evt := domainuser.UserCreated{UserID: string(newUser.ID), Username: newUser.Username, OccurredAt: now}
+	evt := domainuser.UserCreated{UserID: newUser.ID, Username: newUser.Username, OccurredAt: now}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.Warn("oidc: publish user.created", slog.Any("err", err))
 	}
@@ -333,7 +333,7 @@ func (s *OIDCService) generateAndStoreRefreshToken(ctx context.Context, userID s
 		h := sha256.Sum256([]byte(token))
 		rt := &domainuser.RefreshToken{
 			ID:        id.New("rt-"),
-			UserID:    userID,
+			UserID:    shared.UserID(userID),
 			TokenHash: hex.EncodeToString(h[:]),
 			ExpiresAt: time.Now().Add(s.refreshTokenTTL),
 			CreatedAt: time.Now(),

@@ -1,9 +1,13 @@
 package user
 
-import "time"
+import (
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+)
 
 type UserCreated struct {
-	UserID     string
+	UserID     shared.UserID
 	Username   string
 	IsAdmin    bool
 	OccurredAt time.Time
@@ -12,22 +16,22 @@ type UserCreated struct {
 func (e UserCreated) EventName() string { return "user.created" }
 
 type UserDeleted struct {
-	UserID     string
+	UserID     shared.UserID
 	OccurredAt time.Time
 }
 
 func (e UserDeleted) EventName() string { return "user.deleted" }
 
 type UserDisabled struct {
-	UserID     string
+	UserID     shared.UserID
 	OccurredAt time.Time
 }
 
 func (e UserDisabled) EventName() string { return "user.disabled" }
 
 type ProfileCreated struct {
-	ProfileID  string
-	UserID     string
+	ProfileID  shared.ProfileID
+	UserID     shared.UserID
 	Name       string
 	OccurredAt time.Time
 }
@@ -35,7 +39,7 @@ type ProfileCreated struct {
 func (e ProfileCreated) EventName() string { return "user.profile.created" }
 
 type LoginSucceeded struct {
-	UserID     string
+	UserID     shared.UserID
 	ClientIP   string
 	AuthMethod string
 	OccurredAt time.Time
@@ -53,15 +57,15 @@ type LoginFailed struct {
 func (e LoginFailed) EventName() string { return "user.login.failed" }
 
 type PasswordChanged struct {
-	UserID     string
+	UserID     shared.UserID
 	OccurredAt time.Time
 }
 
 func (e PasswordChanged) EventName() string { return "user.password.changed" }
 
 type ProfileDeleted struct {
-	ProfileID  string
-	UserID     string
+	ProfileID  shared.ProfileID
+	UserID     shared.UserID
 	OccurredAt time.Time
 }
 
@@ -69,7 +73,7 @@ func (e ProfileDeleted) EventName() string { return "user.profile.deleted" }
 
 type APIKeyCreated struct {
 	KeyID      string
-	UserID     string
+	UserID     shared.UserID
 	Name       string
 	OccurredAt time.Time
 }
@@ -84,7 +88,7 @@ type APIKeyRevoked struct {
 func (e APIKeyRevoked) EventName() string { return "user.apikey.revoked" }
 
 type PasswordResetRequested struct {
-	UserID     string
+	UserID     shared.UserID
 	Email      string
 	ResetToken string // raw token for email sending
 	ExpiresAt  time.Time
