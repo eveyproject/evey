@@ -40,7 +40,7 @@ func chaptersHandler(tokenGen TokenVerifier, libSvc ChaptersGetter, baseURL stri
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), libraryAccess) {
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 		chapters, err := libSvc.GetChapters(r.Context(), mediaID)
@@ -113,7 +113,7 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), h.libraryAccess) {
+	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
 		return
 	}
 
@@ -205,7 +205,7 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), h.libraryAccess) {
+	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
 		return
 	}
 
@@ -333,7 +333,7 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 				return
 			}
-			if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), libraryAccess) {
+			if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 				return
 			}
 		}
@@ -431,7 +431,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), h.libraryAccess) {
+	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
 		return
 	}
 	maxStreams := 0

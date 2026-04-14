@@ -11,6 +11,7 @@ import (
 	"time"
 
 	appphoto "github.com/gravity-zero/evey/internal/app/photo"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/exifstrip"
 )
@@ -33,7 +34,7 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, p.LibraryID, h.libChecker) {
+	if !checkLibraryAccess(r.Context(), w, claims, shared.LibraryID(p.LibraryID), h.libChecker) {
 		return
 	}
 	w.Header().Set("Content-Type", p.MimeType)

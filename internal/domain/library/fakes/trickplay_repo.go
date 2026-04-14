@@ -27,7 +27,7 @@ func (r *FakeTrickplayRepository) Create(_ context.Context, m *library.Trickplay
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[m.MediaItemID] = m
+	r.items[string(m.MediaItemID)] = m
 	return nil
 }
 

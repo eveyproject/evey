@@ -40,7 +40,7 @@ func TestExtractAndStoreChapters_MKV(t *testing.T) {
 
 	stored := chapterRepo.All()
 	require.Len(t, stored, 2)
-	assert.Equal(t, "m1", stored[0].MediaItemID)
+	assert.Equal(t, shared.MediaItemID("m1"), stored[0].MediaItemID)
 	assert.Equal(t, "Intro", stored[0].Title)
 	assert.Equal(t, int64(0), stored[0].StartTimeMs)
 	assert.Equal(t, int64(5000), stored[0].EndTimeMs)

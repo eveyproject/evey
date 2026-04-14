@@ -7,6 +7,7 @@ import (
 	"time"
 
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
 
@@ -30,7 +31,7 @@ func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, track.LibraryID, h.libChecker) {
+	if !checkLibraryAccess(r.Context(), w, claims, shared.LibraryID(track.LibraryID), h.libChecker) {
 		return
 	}
 	data, mimeType, err := h.svc.GetTrackArt(r.Context(), id)
@@ -67,7 +68,7 @@ func (h *musicHandler) streamTrack(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, track.LibraryID, h.libChecker) {
+	if !checkLibraryAccess(r.Context(), w, claims, shared.LibraryID(track.LibraryID), h.libChecker) {
 		return
 	}
 	filePath, mimeType, err := h.svc.StreamTrack(r.Context(), id)

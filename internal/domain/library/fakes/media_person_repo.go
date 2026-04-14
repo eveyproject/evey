@@ -27,7 +27,7 @@ func (r *FakeMediaPersonRepository) Create(_ context.Context, mp *library.MediaP
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[mp.MediaItemID] = append(r.items[mp.MediaItemID], mp)
+	r.items[string(mp.MediaItemID)] = append(r.items[string(mp.MediaItemID)], mp)
 	return nil
 }
 
@@ -38,7 +38,7 @@ func (r *FakeMediaPersonRepository) CreateBatch(_ context.Context, mps []*librar
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, mp := range mps {
-		r.items[mp.MediaItemID] = append(r.items[mp.MediaItemID], mp)
+		r.items[string(mp.MediaItemID)] = append(r.items[string(mp.MediaItemID)], mp)
 	}
 	return nil
 }

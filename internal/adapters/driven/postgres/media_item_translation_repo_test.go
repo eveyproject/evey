@@ -27,7 +27,7 @@ func TestMediaItemTranslationRepo_Upsert_Get(t *testing.T) {
 	item := newTestMediaItem("tmi1", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	tr := &library.MediaItemTranslation{MediaItemID: string(item.ID), Locale: "fr-FR", Title: "Titre", Overview: "Résumé", Tagline: "Slogan"}
+	tr := &library.MediaItemTranslation{MediaItemID: item.ID, Locale: "fr-FR", Title: "Titre", Overview: "Résumé", Tagline: "Slogan"}
 	require.NoError(t, repo.Upsert(ctx, tr))
 
 	got, err := repo.GetByMediaItemAndLocale(ctx, string(item.ID), "fr-FR")
@@ -37,7 +37,7 @@ func TestMediaItemTranslationRepo_Upsert_Get(t *testing.T) {
 	assert.Equal(t, "Slogan", got.Tagline)
 
 	// Upsert overwrites
-	tr2 := &library.MediaItemTranslation{MediaItemID: string(item.ID), Locale: "fr-FR", Title: "Nouveau", Overview: "O", Tagline: "T"}
+	tr2 := &library.MediaItemTranslation{MediaItemID: item.ID, Locale: "fr-FR", Title: "Nouveau", Overview: "O", Tagline: "T"}
 	require.NoError(t, repo.Upsert(ctx, tr2))
 	got2, err := repo.GetByMediaItemAndLocale(ctx, string(item.ID), "fr-FR")
 	require.NoError(t, err)
@@ -68,7 +68,7 @@ func TestMediaItemTranslationRepo_GetByMediaItem_OrderedAndDelete(t *testing.T) 
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	for _, loc := range []string{"fr-FR", "en-US", "de-DE"} {
-		require.NoError(t, repo.Upsert(ctx, &library.MediaItemTranslation{MediaItemID: string(item.ID), Locale: loc, Title: "t-" + loc}))
+		require.NoError(t, repo.Upsert(ctx, &library.MediaItemTranslation{MediaItemID: item.ID, Locale: loc, Title: "t-" + loc}))
 	}
 
 	list, err := repo.GetByMediaItem(ctx, string(item.ID))

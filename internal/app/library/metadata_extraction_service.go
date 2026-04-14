@@ -46,7 +46,7 @@ func (s *MetadataExtractionService) extractAndStoreChapters(ctx context.Context,
 	for i, ch := range mkvChapters {
 		chapters[i] = &library.Chapter{
 			ID:          uuid.New().String(),
-			MediaItemID: mediaItemID,
+			MediaItemID: shared.MediaItemID(mediaItemID),
 			Title:       ch.Title,
 			StartTimeMs: ch.StartMs,
 			EndTimeMs:   ch.EndMs,

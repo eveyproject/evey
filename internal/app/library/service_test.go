@@ -334,7 +334,7 @@ func TestGenerateTrickplay_Success(t *testing.T) {
 
 	manifest, err := trickplayRepo.GetByMediaItemID(context.Background(), "media-1")
 	require.NoError(t, err)
-	assert.Equal(t, "media-1", manifest.MediaItemID)
+	assert.Equal(t, shared.MediaItemID("media-1"), manifest.MediaItemID)
 	assert.Equal(t, 15, manifest.Interval)
 	assert.Equal(t, 320, manifest.Width)
 	assert.Equal(t, 5, manifest.TileWidth)

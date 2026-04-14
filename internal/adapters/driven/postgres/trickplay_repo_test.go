@@ -30,7 +30,7 @@ func TestTrickplayRepo_Create_GetByMediaItemID(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	m := &library.TrickplayManifest{
 		ID:          "trick1",
-		MediaItemID: string(item.ID),
+		MediaItemID: item.ID,
 		Interval:    10,
 		Width:       320,
 		Height:      180,
@@ -72,7 +72,7 @@ func TestTrickplayRepo_Create_Upsert(t *testing.T) {
 
 	first := &library.TrickplayManifest{
 		ID:          "trick2a",
-		MediaItemID: string(item.ID),
+		MediaItemID: item.ID,
 		Interval:    5,
 		Width:       160,
 		Height:      90,
@@ -86,7 +86,7 @@ func TestTrickplayRepo_Create_Upsert(t *testing.T) {
 
 	updated := &library.TrickplayManifest{
 		ID:          "trick2b",
-		MediaItemID: string(item.ID),
+		MediaItemID: item.ID,
 		Interval:    10,
 		Width:       320,
 		Height:      180,
@@ -133,7 +133,7 @@ func TestTrickplayRepo_Delete(t *testing.T) {
 
 	m := &library.TrickplayManifest{
 		ID:          "trick3",
-		MediaItemID: string(item.ID),
+		MediaItemID: item.ID,
 		Interval:    10,
 		Width:       320,
 		Height:      180,

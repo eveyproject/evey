@@ -182,7 +182,7 @@ type Person struct {
 }
 
 type MediaPerson struct {
-	MediaItemID   string
+	MediaItemID   shared.MediaItemID
 	PersonID      string
 	RoleType      string
 	CharacterName *string
@@ -191,7 +191,7 @@ type MediaPerson struct {
 
 type Chapter struct {
 	ID          string
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	Title       string
 	StartTimeMs int64
 	EndTimeMs   int64
@@ -228,7 +228,7 @@ type Collection struct {
 }
 
 type MediaItemTranslation struct {
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	Locale      string
 	Title       string
 	Overview    string
@@ -243,7 +243,7 @@ type PersonTranslation struct {
 
 type TrickplayManifest struct {
 	ID          string
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	Interval    int // seconds between frames
 	Width       int
 	Height      int

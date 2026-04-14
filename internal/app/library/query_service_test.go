@@ -32,10 +32,10 @@ func (r *fakeMediaItemTranslationRepo) Upsert(_ context.Context, t *library.Medi
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.items[t.MediaItemID] == nil {
-		r.items[t.MediaItemID] = make(map[string]*library.MediaItemTranslation)
+	if r.items[string(t.MediaItemID)] == nil {
+		r.items[string(t.MediaItemID)] = make(map[string]*library.MediaItemTranslation)
 	}
-	r.items[t.MediaItemID][t.Locale] = t
+	r.items[string(t.MediaItemID)][t.Locale] = t
 	return nil
 }
 
@@ -1057,7 +1057,7 @@ func TestQueryService_GetTrickplayManifest_Found(t *testing.T) {
 	)
 	manifest, err := svc.GetTrickplayManifest(context.Background(), "m1")
 	require.NoError(t, err)
-	assert.Equal(t, "m1", manifest.MediaItemID)
+	assert.Equal(t, shared.MediaItemID("m1"), manifest.MediaItemID)
 }
 // Kills mutation at query_service.go:104:95 (len(s.translationLocales) > 0).
 // With an empty locale list, FetchPersonTranslations must NOT be invoked.

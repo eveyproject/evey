@@ -37,14 +37,14 @@ func TestMediaItemQueryRepoAdapter_GetCastByMediaItem(t *testing.T) {
 
 	char := "Hero"
 	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{
-		MediaItemID:   string(item.ID),
+		MediaItemID:   item.ID,
 		PersonID:      p1.ID,
 		RoleType:      "actor",
 		CharacterName: &char,
 		SortOrder:     0,
 	}))
 	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{
-		MediaItemID:   string(item.ID),
+		MediaItemID:   item.ID,
 		PersonID:      p2.ID,
 		RoleType:      "director",
 		CharacterName: nil,
@@ -120,8 +120,8 @@ func TestMediaItemQueryRepoAdapter_GetCastForItems(t *testing.T) {
 	require.NoError(t, personRepo.Create(ctx, p2))
 
 	char := "Hero"
-	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: string(item1.ID), PersonID: p1.ID, RoleType: "actor", CharacterName: &char, SortOrder: 0}))
-	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: string(item2.ID), PersonID: p2.ID, RoleType: "director", CharacterName: nil, SortOrder: 0}))
+	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: item1.ID, PersonID: p1.ID, RoleType: "actor", CharacterName: &char, SortOrder: 0}))
+	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: item2.ID, PersonID: p2.ID, RoleType: "director", CharacterName: nil, SortOrder: 0}))
 	// item3 has no cast
 
 	result, err := queryRepo.GetCastForItems(ctx, []shared.MediaItemID{item1.ID, item2.ID, item3.ID})

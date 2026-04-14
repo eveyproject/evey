@@ -102,16 +102,16 @@ func serveFileWithCache(w http.ResponseWriter, r *http.Request, filePath string)
 	http.ServeFile(w, r, filePath)
 }
 
-func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *domainuser.Claims, libraryID string, checker LibraryAccessChecker) bool {
+func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *domainuser.Claims, libraryID shared.LibraryID, checker LibraryAccessChecker) bool {
 	if claims.IsAdmin {
 		return true
 	}
 	if checker == nil {
-		slog.Warn("library access checker is nil, denying access", slog.String("user_id", claims.UserID), slog.String("library_id", libraryID))
+		slog.Warn("library access checker is nil, denying access", slog.String("user_id", claims.UserID), slog.String("library_id", string(libraryID)))
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return false
 	}
-	ok, err := checker.HasAccess(ctx, shared.UserID(claims.UserID), shared.LibraryID(libraryID))
+	ok, err := checker.HasAccess(ctx, shared.UserID(claims.UserID), libraryID)
 	if err != nil || !ok {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return false

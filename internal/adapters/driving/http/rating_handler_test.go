@@ -22,7 +22,7 @@ func TestRatingIDOR_DeniedWhenNoLibraryAccess(t *testing.T) {
 		t.Fatal("item not found in fake getter")
 	}
 
-	ok := checkLibraryAccess(ctx, w, claims, string(item.LibraryID), denyAll())
+	ok := checkLibraryAccess(ctx, w, claims, item.LibraryID, denyAll())
 	if ok {
 		t.Error("expected IDOR check to block access")
 	}
@@ -44,7 +44,7 @@ func TestRatingIDOR_AllowedWhenLibraryAccess(t *testing.T) {
 		t.Fatal("item not found in fake getter")
 	}
 
-	ok := checkLibraryAccess(ctx, w, claims, string(item.LibraryID), allowAll())
+	ok := checkLibraryAccess(ctx, w, claims, item.LibraryID, allowAll())
 	if !ok {
 		t.Error("expected access to be allowed")
 	}
@@ -65,7 +65,7 @@ func TestRatingAggregateIDOR_Denied(t *testing.T) {
 	if err != nil || item == nil {
 		t.Fatal("item not found")
 	}
-	ok := checkLibraryAccess(ctx, w, claims, string(item.LibraryID), denyAll())
+	ok := checkLibraryAccess(ctx, w, claims, item.LibraryID, denyAll())
 	if ok {
 		t.Error("aggregate IDOR: expected 403 for restricted library")
 	}
@@ -86,7 +86,7 @@ func TestRatingAggregateIDOR_Allowed(t *testing.T) {
 	if err != nil || item == nil {
 		t.Fatal("item not found")
 	}
-	ok := checkLibraryAccess(ctx, w, claims, string(item.LibraryID), allowAll())
+	ok := checkLibraryAccess(ctx, w, claims, item.LibraryID, allowAll())
 	if !ok {
 		t.Error("aggregate IDOR: expected access for authorized user")
 	}

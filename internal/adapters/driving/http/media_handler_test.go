@@ -179,7 +179,7 @@ func TestCheckLibraryAccess_Admin_AlwaysAllowed(t *testing.T) {
 	claims := testClaims(true)
 	checker := &fakeLibraryAccessChecker{allowed: false}
 	w := httptest.NewRecorder()
-	ok := checkLibraryAccess(context.Background(), w, claims, "lib1", checker)
+	ok := checkLibraryAccess(context.Background(), w, claims, shared.LibraryID("lib1"), checker)
 	if !ok {
 		t.Error("admin should always have access")
 	}
@@ -192,7 +192,7 @@ func TestCheckLibraryAccess_User_Denied(t *testing.T) {
 	claims := testClaims(false)
 	checker := &fakeLibraryAccessChecker{allowed: false}
 	w := httptest.NewRecorder()
-	ok := checkLibraryAccess(context.Background(), w, claims, "lib1", checker)
+	ok := checkLibraryAccess(context.Background(), w, claims, shared.LibraryID("lib1"), checker)
 	if ok {
 		t.Error("should be denied")
 	}
@@ -205,7 +205,7 @@ func TestCheckLibraryAccess_User_Allowed(t *testing.T) {
 	claims := testClaims(false)
 	checker := &fakeLibraryAccessChecker{allowed: true}
 	w := httptest.NewRecorder()
-	ok := checkLibraryAccess(context.Background(), w, claims, "lib1", checker)
+	ok := checkLibraryAccess(context.Background(), w, claims, shared.LibraryID("lib1"), checker)
 	if !ok {
 		t.Error("should be allowed")
 	}

@@ -88,7 +88,7 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), s.libChecker) {
+	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, s.libChecker) {
 		return
 	}
 	if !room.IsMember(claims.UserID) {

@@ -26,7 +26,7 @@ func TestSyncPlayIDOR_CreateRoomDenied(t *testing.T) {
 	getter.items["vid-1"] = &domainlibrary.MediaItem{ID: "vid-1", LibraryID: shared.LibraryID("lib-private")}
 
 	item, _ := getter.GetMediaItem(ctx, "vid-1")
-	ok := checkLibraryAccess(ctx, w, claims, string(item.LibraryID), denyAll())
+	ok := checkLibraryAccess(ctx, w, claims, item.LibraryID, denyAll())
 	if ok {
 		t.Error("syncplay room creation should be blocked when no library access")
 	}
@@ -41,7 +41,7 @@ func TestSyncPlayIDOR_CreateRoomAllowed(t *testing.T) {
 	getter.items["vid-1"] = &domainlibrary.MediaItem{ID: "vid-1", LibraryID: shared.LibraryID("lib-allowed")}
 
 	item, _ := getter.GetMediaItem(ctx, "vid-1")
-	ok := checkLibraryAccess(ctx, w, claims, string(item.LibraryID), allowAll())
+	ok := checkLibraryAccess(ctx, w, claims, item.LibraryID, allowAll())
 	if !ok {
 		t.Error("syncplay room creation should be allowed with library access")
 	}

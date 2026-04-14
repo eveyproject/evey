@@ -216,7 +216,7 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 			charName = &c
 		}
 		batch = append(batch, &domainlib.MediaPerson{
-			MediaItemID:   mediaItemID,
+			MediaItemID:   shared.MediaItemID(mediaItemID),
 			PersonID:      person.ID,
 			RoleType:      roleType(p.Role),
 			CharacterName: charName,
@@ -380,7 +380,7 @@ func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.Media
 	}
 	for locale, result := range results {
 		if err := e.mediaTranslations.Upsert(ctx, &domainlib.MediaItemTranslation{
-			MediaItemID: string(item.ID),
+			MediaItemID: item.ID,
 			Locale:      locale,
 			Title:       result.Title,
 			Overview:    result.Overview,

@@ -125,7 +125,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 
 	manifest := &library.TrickplayManifest{
 		ID:          uuid.New().String(),
-		MediaItemID: mediaItemID,
+		MediaItemID: shared.MediaItemID(mediaItemID),
 		Interval:    interval,
 		Width:       width,
 		Height:      0,

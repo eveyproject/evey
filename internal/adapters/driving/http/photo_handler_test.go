@@ -11,6 +11,7 @@ import (
 
 	appphoto "github.com/gravity-zero/evey/internal/app/photo"
 	photofakes "github.com/gravity-zero/evey/internal/domain/photo/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
@@ -20,7 +21,7 @@ func TestCheckLibraryAccess_AdminBypass(t *testing.T) {
 	ctx := context.Background()
 	w := httptest.NewRecorder()
 	claims := &domainuser.Claims{UserID: "admin", IsAdmin: true}
-	ok := checkLibraryAccess(ctx, w, claims, "lib-restricted", denyAll())
+	ok := checkLibraryAccess(ctx, w, claims, shared.LibraryID("lib-restricted"), denyAll())
 	if !ok {
 		t.Error("admin should bypass library access check")
 	}
@@ -30,7 +31,7 @@ func TestCheckLibraryAccess_UserDenied(t *testing.T) {
 	ctx := context.Background()
 	w := httptest.NewRecorder()
 	claims := &domainuser.Claims{UserID: "u1", IsAdmin: false}
-	ok := checkLibraryAccess(ctx, w, claims, "lib-restricted", denyAll())
+	ok := checkLibraryAccess(ctx, w, claims, shared.LibraryID("lib-restricted"), denyAll())
 	if ok {
 		t.Error("expected access denied")
 	}
@@ -43,7 +44,7 @@ func TestCheckLibraryAccess_UserAllowed(t *testing.T) {
 	ctx := context.Background()
 	w := httptest.NewRecorder()
 	claims := &domainuser.Claims{UserID: "u1", IsAdmin: false}
-	ok := checkLibraryAccess(ctx, w, claims, "lib-allowed", allowAll())
+	ok := checkLibraryAccess(ctx, w, claims, shared.LibraryID("lib-allowed"), allowAll())
 	if !ok {
 		t.Error("expected access allowed")
 	}
@@ -53,7 +54,7 @@ func TestCheckLibraryAccess_NilChecker_DeniesNonAdmin(t *testing.T) {
 	ctx := context.Background()
 	w := httptest.NewRecorder()
 	claims := &domainuser.Claims{UserID: "u1", IsAdmin: false}
-	ok := checkLibraryAccess(ctx, w, claims, "lib-x", nil)
+	ok := checkLibraryAccess(ctx, w, claims, shared.LibraryID("lib-x"), nil)
 	if ok {
 		t.Error("nil checker should deny non-admin")
 	}
@@ -66,7 +67,7 @@ func TestCheckLibraryAccess_NilChecker_AllowsAdmin(t *testing.T) {
 	ctx := context.Background()
 	w := httptest.NewRecorder()
 	claims := &domainuser.Claims{UserID: "u1", IsAdmin: true}
-	ok := checkLibraryAccess(ctx, w, claims, "lib-x", nil)
+	ok := checkLibraryAccess(ctx, w, claims, shared.LibraryID("lib-x"), nil)
 	if !ok {
 		t.Error("nil checker should allow admin")
 	}

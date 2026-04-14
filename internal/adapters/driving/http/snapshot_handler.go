@@ -17,7 +17,7 @@ func snapshotHandler(tokenGen TokenVerifier, frameExt FrameExtractor, libraryAcc
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), libraryAccess) {
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 
