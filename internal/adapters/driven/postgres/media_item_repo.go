@@ -104,11 +104,11 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 	return nil
 }
 
-func (r *MediaItemRepository) GetByID(ctx context.Context, id string) (*library.MediaItem, error) {
+func (r *MediaItemRepository) GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
-		fmt.Sprintf("SELECT %s FROM media_items WHERE id = $1", mediaItemColumns), id))
+		fmt.Sprintf("SELECT %s FROM media_items WHERE id = $1", mediaItemColumns), string(id)))
 }
 
 func (r *MediaItemRepository) GetByFilePath(ctx context.Context, path string) (*library.MediaItem, error) {
@@ -125,11 +125,11 @@ func (r *MediaItemRepository) GetByFileFingerprint(ctx context.Context, fingerpr
 		fmt.Sprintf("SELECT %s FROM media_items WHERE file_fingerprint = $1", mediaItemColumns), fingerprint))
 }
 
-func (r *MediaItemRepository) GetByLibraryTypeTitle(ctx context.Context, libraryID, itemType, title, parentID string) (*library.MediaItem, error) {
+func (r *MediaItemRepository) GetByLibraryTypeTitle(ctx context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
-		fmt.Sprintf("SELECT %s FROM media_items WHERE library_id = $1 AND type = $2 AND title = $3 AND ($4 = '' OR parent_id = $4) LIMIT 1", mediaItemColumns), libraryID, itemType, title, parentID))
+		fmt.Sprintf("SELECT %s FROM media_items WHERE library_id = $1 AND type = $2 AND title = $3 AND ($4 = '' OR parent_id = $4) LIMIT 1", mediaItemColumns), string(libraryID), itemType, title, parentID))
 }
 
 func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (string, []any) {
@@ -356,10 +356,10 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	return nil
 }
 
-func (r *MediaItemRepository) Delete(ctx context.Context, id string) error {
+func (r *MediaItemRepository) Delete(ctx context.Context, id shared.MediaItemID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = $1`, id)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("MediaItemRepo.Delete: %w", err)
 	}

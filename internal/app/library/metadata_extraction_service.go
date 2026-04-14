@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/mkv"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type MetadataExtractionService struct {
@@ -52,7 +53,7 @@ func (s *MetadataExtractionService) extractAndStoreChapters(ctx context.Context,
 			SortOrder:   i,
 		}
 	}
-	if err := s.chapters.ReplaceBatch(ctx, mediaItemID, chapters); err != nil {
+	if err := s.chapters.ReplaceBatch(ctx, shared.MediaItemID(mediaItemID), chapters); err != nil {
 		slog.Warn("store chapters failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
 	}
 }
@@ -101,5 +102,5 @@ func (s *MetadataExtractionService) GetChapters(ctx context.Context, mediaItemID
 	if s.chapters == nil {
 		return nil, nil
 	}
-	return s.chapters.GetByMediaItemID(ctx, mediaItemID)
+	return s.chapters.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
 }

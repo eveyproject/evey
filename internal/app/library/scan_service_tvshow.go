@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, files []library.ScannedFile) (added, updated int, err error) {
@@ -36,7 +37,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			if ex.FileFingerprint != item.FileFingerprint {
 				ex.FileFingerprint = item.FileFingerprint
 				if updateErr := s.mediaItems.Update(ctx, ex); updateErr != nil {
-					slog.Warn("update media item fingerprint failed", slog.String("mediaItemID", ex.ID), slog.Any("err", updateErr))
+					slog.Warn("update media item fingerprint failed", slog.String("mediaItemID", string(ex.ID)), slog.Any("err", updateErr))
 				}
 			}
 			return ex, false, nil
@@ -63,8 +64,8 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 		if !ok {
 			fp := fmt.Sprintf("series:%s:%s", libraryID, showTitle)
 			seriesItem, created, createErr := lookupOrCreate(&library.MediaItem{
-				ID:              uuid.New().String(),
-				LibraryID:       libraryID,
+				ID:              shared.MediaItemID(uuid.New().String()),
+				LibraryID:       shared.LibraryID(libraryID),
 				Type:            library.Series,
 				Title:           showTitle,
 				FileFingerprint: fp,
@@ -76,7 +77,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			}
 			if created {
 				evtSeriesAdded := library.MediaItemAdded{
-					MediaItemID: seriesItem.ID,
+					MediaItemID: string(seriesItem.ID),
 					LibraryID:   libraryID,
 					Title:       seriesItem.Title,
 					Type:        string(seriesItem.Type),
@@ -88,7 +89,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 				}
 				added++
 			}
-			seriesID = seriesItem.ID
+			seriesID = string(seriesItem.ID)
 			seriesIDs[showTitle] = seriesID
 		}
 
@@ -98,8 +99,8 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			fp := fmt.Sprintf("season:%s:%s:%d", libraryID, showTitle, seasonNum)
 			n := seasonNum
 			seasonItem, created, createErr := lookupOrCreate(&library.MediaItem{
-				ID:              uuid.New().String(),
-				LibraryID:       libraryID,
+				ID:              shared.MediaItemID(uuid.New().String()),
+				LibraryID:       shared.LibraryID(libraryID),
 				ParentID:        seriesID,
 				Type:            library.Season,
 				Title:           fmt.Sprintf("Season %d", seasonNum),
@@ -114,7 +115,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			if created {
 				added++
 			}
-			seasonID = seasonItem.ID
+			seasonID = string(seasonItem.ID)
 			seasonIDs[seasonKey] = seasonID
 		}
 
@@ -155,7 +156,7 @@ func (svc *ScanService) pruneEmptyContainers(ctx context.Context, libraryID stri
 		if childCount[item.ID] > 0 {
 			continue
 		}
-		if dErr := svc.mediaItems.Delete(ctx, item.ID); dErr != nil {
+		if dErr := svc.mediaItems.Delete(ctx, shared.MediaItemID(item.ID)); dErr != nil {
 			slog.Warn("delete empty season", slog.String("id", item.ID), slog.Any("err", dErr))
 			continue
 		}
@@ -169,7 +170,7 @@ func (svc *ScanService) pruneEmptyContainers(ctx context.Context, libraryID stri
 		if childCount[item.ID] > 0 {
 			continue
 		}
-		if dErr := svc.mediaItems.Delete(ctx, item.ID); dErr != nil {
+		if dErr := svc.mediaItems.Delete(ctx, shared.MediaItemID(item.ID)); dErr != nil {
 			slog.Warn("delete empty series", slog.String("id", item.ID), slog.Any("err", dErr))
 			continue
 		}

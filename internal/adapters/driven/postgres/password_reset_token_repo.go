@@ -53,11 +53,11 @@ func (r *PasswordResetTokenRepository) MarkUsed(ctx context.Context, id string) 
 	return err
 }
 
-func (r *PasswordResetTokenRepository) DeleteByUserID(ctx context.Context, userID string) error {
+func (r *PasswordResetTokenRepository) DeleteByUserID(ctx context.Context, userID shared.UserID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
-		`DELETE FROM password_reset_tokens WHERE user_id = $1`, userID)
+		`DELETE FROM password_reset_tokens WHERE user_id = $1`, string(userID))
 	return err
 }
 

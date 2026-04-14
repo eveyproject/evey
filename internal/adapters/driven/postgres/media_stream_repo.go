@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type MediaStreamRepository struct {
@@ -51,7 +52,7 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 	return err
 }
 
-func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID string, streams []*library.MediaStream) error {
+func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID shared.MediaItemID, streams []*library.MediaStream) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -60,7 +61,7 @@ func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID st
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.ExecContext(ctx, `DELETE FROM media_streams WHERE media_item_id = $1`, mediaItemID); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM media_streams WHERE media_item_id = $1`, string(mediaItemID)); err != nil {
 		return fmt.Errorf("MediaStreamRepo.ReplaceBatch delete: %w", err)
 	}
 
@@ -97,14 +98,14 @@ func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID st
 	return tx.Commit()
 }
 
-func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error) {
+func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*library.MediaStream, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, stream_index, stream_type, codec, codec_long_name, profile, language, title,
 		 is_default, is_forced, width, height, framerate, bit_depth, color_space, hdr_type, channels,
 		 channel_layout, sample_rate, bitrate, is_external, external_path
-		 FROM media_streams WHERE media_item_id = $1 ORDER BY stream_index`, mediaItemID)
+		 FROM media_streams WHERE media_item_id = $1 ORDER BY stream_index`, string(mediaItemID))
 	if err != nil {
 		return nil, err
 	}
@@ -126,10 +127,10 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 	return result, rows.Err()
 }
 
-func (r *MediaStreamRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID string) error {
+func (r *MediaStreamRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM media_streams WHERE media_item_id = $1`, mediaItemID)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM media_streams WHERE media_item_id = $1`, string(mediaItemID))
 	return err
 }
 

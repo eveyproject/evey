@@ -89,8 +89,8 @@ type fakeProfileGetter struct {
 	profiles map[string]*domainuser.Profile
 }
 
-func (f *fakeProfileGetter) GetByID(_ context.Context, id string) (*domainuser.Profile, error) {
-	p, ok := f.profiles[id]
+func (f *fakeProfileGetter) GetByID(_ context.Context, id shared.ProfileID) (*domainuser.Profile, error) {
+	p, ok := f.profiles[string(id)]
 	if !ok {
 		return nil, errors.New("not found")
 	}
@@ -101,8 +101,8 @@ type fakeUserGetter struct {
 	users map[string]*domainuser.User
 }
 
-func (f *fakeUserGetter) GetByID(_ context.Context, id string) (*domainuser.User, error) {
-	u, ok := f.users[id]
+func (f *fakeUserGetter) GetByID(_ context.Context, id shared.UserID) (*domainuser.User, error) {
+	u, ok := f.users[string(id)]
 	if !ok {
 		return nil, errors.New("not found")
 	}

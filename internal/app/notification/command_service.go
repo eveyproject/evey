@@ -340,7 +340,7 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 
 	profileIDs := make([]string, len(profiles))
 	for i, p := range profiles {
-		profileIDs[i] = p.ID
+		profileIDs[i] = string(p.ID)
 	}
 	allSettings, err := s.settings.GetByProfiles(ctx, profileIDs)
 	if err != nil {
@@ -355,17 +355,17 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
 	for _, p := range profiles {
-		cfg := allSettings[p.ID]
+		cfg := allSettings[string(p.ID)]
 		if cfg == nil {
 			continue
 		}
 		lvl := levelForType(cfg, notifType)
-		if !shouldNotify(lvl, genres, favoritesByProfile[p.ID]) {
+		if !shouldNotify(lvl, genres, favoritesByProfile[string(p.ID)]) {
 			continue
 		}
 		n := &notification.Notification{
 			ID:          uuid.New().String(),
-			ProfileID:   p.ID,
+			ProfileID:   string(p.ID),
 			Type:        notifType,
 			Title:       notifTitle,
 			Message:     "",
@@ -387,13 +387,13 @@ func (s *CommandService) fetchFavoriteGenres(
 ) (map[string][]string, error) {
 	var relevanceIDs []string
 	for _, p := range profiles {
-		cfg := allSettings[p.ID]
+		cfg := allSettings[string(p.ID)]
 		if cfg == nil {
 			continue
 		}
 		lvl := levelForType(cfg, notifType)
 		if (lvl == notification.LevelRelevant || lvl == notification.LevelHighlyRelevant) && len(genres) > 0 {
-			relevanceIDs = append(relevanceIDs, p.ID)
+			relevanceIDs = append(relevanceIDs, string(p.ID))
 		}
 	}
 	if len(relevanceIDs) == 0 {
@@ -483,7 +483,7 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 	for _, p := range profiles {
 		n := &notification.Notification{
 			ID:        uuid.New().String(),
-			ProfileID: p.ID,
+			ProfileID: string(p.ID),
 			Type:      notification.TypeBackupFailed,
 			Title:     title,
 			Message:   e.Error,

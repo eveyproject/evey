@@ -29,17 +29,17 @@ func TestSubtitleRepo_Save_ListByMediaItem(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	sub1 := &subtitle.SubtitleDownload{
-		ID: "sub1", MediaItemID: item.ID, Language: "en", Format: "srt",
+		ID: "sub1", MediaItemID: string(item.ID), Language: "en", Format: "srt",
 		FilePath: "/subs/en.srt", Source: "opensubtitles", DownloadedAt: now,
 	}
 	sub2 := &subtitle.SubtitleDownload{
-		ID: "sub2", MediaItemID: item.ID, Language: "fr", Format: "ass",
+		ID: "sub2", MediaItemID: string(item.ID), Language: "fr", Format: "ass",
 		FilePath: "/subs/fr.ass", Source: "opensubtitles", DownloadedAt: now.Add(time.Second),
 	}
 	require.NoError(t, subRepo.Save(ctx, sub1))
 	require.NoError(t, subRepo.Save(ctx, sub2))
 
-	got, err := subRepo.GetByMediaItem(ctx, item.ID)
+	got, err := subRepo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 
@@ -65,7 +65,7 @@ func TestSubtitleRepo_Save_Upsert(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	sub := &subtitle.SubtitleDownload{
-		ID: "subu1", MediaItemID: item.ID, Language: "en", Format: "srt",
+		ID: "subu1", MediaItemID: string(item.ID), Language: "en", Format: "srt",
 		FilePath: "/subs/old.srt", Source: "opensubtitles", DownloadedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, subRepo.Save(ctx, sub))
@@ -74,7 +74,7 @@ func TestSubtitleRepo_Save_Upsert(t *testing.T) {
 	sub.Language = "de"
 	require.NoError(t, subRepo.Save(ctx, sub))
 
-	got, err := subRepo.GetByMediaItem(ctx, item.ID)
+	got, err := subRepo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "/subs/new.srt", got[0].FilePath)
@@ -96,13 +96,13 @@ func TestSubtitleRepo_Delete(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	sub := &subtitle.SubtitleDownload{
-		ID: "subdel1", MediaItemID: item.ID, Language: "en", Format: "srt",
+		ID: "subdel1", MediaItemID: string(item.ID), Language: "en", Format: "srt",
 		FilePath: "/subs/en.srt", Source: "opensubtitles", DownloadedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, subRepo.Save(ctx, sub))
 	require.NoError(t, subRepo.Delete(ctx, sub.ID))
 
-	got, err := subRepo.GetByMediaItem(ctx, item.ID)
+	got, err := subRepo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }

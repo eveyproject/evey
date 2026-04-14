@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type FakeMediaItemCommandRepo struct {
@@ -29,7 +30,7 @@ func (r *FakeMediaItemCommandRepo) Create(_ context.Context, item *library.Media
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.items[item.ID] = item
+	r.items[string(item.ID)] = item
 	return nil
 }
 
@@ -39,23 +40,23 @@ func (r *FakeMediaItemCommandRepo) Update(_ context.Context, item *library.Media
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.items[item.ID]; !ok {
+	if _, ok := r.items[string(item.ID)]; !ok {
 		return ErrNotFound
 	}
-	r.items[item.ID] = item
+	r.items[string(item.ID)] = item
 	return nil
 }
 
-func (r *FakeMediaItemCommandRepo) Delete(_ context.Context, id string) error {
+func (r *FakeMediaItemCommandRepo) Delete(_ context.Context, id shared.MediaItemID) error {
 	if r.ErrDelete != nil {
 		return r.ErrDelete
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.items[id]; !ok {
+	if _, ok := r.items[string(id)]; !ok {
 		return ErrNotFound
 	}
-	delete(r.items, id)
+	delete(r.items, string(id))
 	return nil
 }
 
@@ -96,7 +97,7 @@ func (r *FakeMediaItemCommandRepo) GetByFileFingerprint(_ context.Context, finge
 	return nil, ErrNotFound
 }
 
-func (r *FakeMediaItemCommandRepo) GetByLibraryTypeTitle(_ context.Context, libraryID, itemType, title, parentID string) (*library.MediaItem, error) {
+func (r *FakeMediaItemCommandRepo) GetByLibraryTypeTitle(_ context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.GetByLibraryTypeTitleErr != nil {
@@ -111,11 +112,11 @@ func (r *FakeMediaItemCommandRepo) GetByLibraryTypeTitle(_ context.Context, libr
 	return nil, ErrNotFound
 }
 
-// GetByID is a test helper to inspect created items (not part of the command interface).
-func (r *FakeMediaItemCommandRepo) GetByID(_ context.Context, id string) (*library.MediaItem, error) {
+// GetByID satisfies MediaItemCommandRepo and is also used as a test helper.
+func (r *FakeMediaItemCommandRepo) GetByID(_ context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	item, ok := r.items[id]
+	item, ok := r.items[string(id)]
 	if !ok {
 		return nil, ErrNotFound
 	}
@@ -127,8 +128,8 @@ func (r *FakeMediaItemCommandRepo) ListFilePaths(_ context.Context, libraryID st
 	defer r.mu.RUnlock()
 	result := make(map[string]string)
 	for _, item := range r.items {
-		if item.LibraryID == libraryID && item.FilePath != "" {
-			result[item.ID] = item.FilePath
+		if string(item.LibraryID) == libraryID && item.FilePath != "" {
+			result[string(item.ID)] = item.FilePath
 		}
 	}
 	return result, nil
@@ -142,7 +143,7 @@ func (r *FakeMediaItemCommandRepo) ListByLibraryID(_ context.Context, libraryID 
 	}
 	var result []*library.MediaItem
 	for _, item := range r.items {
-		if item.LibraryID == libraryID {
+		if string(item.LibraryID) == libraryID {
 			result = append(result, item)
 		}
 	}
@@ -154,9 +155,9 @@ func (r *FakeMediaItemCommandRepo) ListScanSummaries(_ context.Context, libraryI
 	defer r.mu.RUnlock()
 	var result []library.MediaItemScanRow
 	for _, item := range r.items {
-		if item.LibraryID == libraryID {
+		if string(item.LibraryID) == libraryID {
 			result = append(result, library.MediaItemScanRow{
-				ID:              item.ID,
+				ID:              string(item.ID),
 				FilePath:        item.FilePath,
 				FileFingerprint: item.FileFingerprint,
 				FileSize:        item.FileSize,
@@ -172,9 +173,9 @@ func (r *FakeMediaItemCommandRepo) ListContainerInfo(_ context.Context, libraryI
 	defer r.mu.RUnlock()
 	var result []library.MediaItemContainerRow
 	for _, item := range r.items {
-		if item.LibraryID == libraryID {
+		if string(item.LibraryID) == libraryID {
 			result = append(result, library.MediaItemContainerRow{
-				ID:       item.ID,
+				ID:       string(item.ID),
 				ParentID: item.ParentID,
 				Type:     string(item.Type),
 			})

@@ -56,7 +56,7 @@ func TestQuickConnectRepo_UpdateStatus(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, req))
 
-	userID := u.ID
+	userID := string(u.ID)
 	require.NoError(t, repo.UpdateStatus(ctx, "qc2", string(user.Authorized), &userID))
 
 	got, err := repo.GetByCode(ctx, "DEF456")

@@ -103,7 +103,7 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 	}()
 	s.scanMu.Unlock()
 
-	lib, err := s.libQueries.GetByID(ctx, libraryID)
+	lib, err := s.libQueries.GetByID(ctx, shared.LibraryID(libraryID))
 	if err != nil {
 		return 0, 0, fmt.Errorf("get library: %w", err)
 	}
@@ -180,7 +180,7 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 			for _, f := range files {
 				seenPaths[f.Path] = struct{}{}
 			}
-			a, u, e := s.scanTVShowFiles(ctx, lib.ID, files)
+			a, u, e := s.scanTVShowFiles(ctx, string(lib.ID), files)
 			if e != nil {
 				return nil, nil, 0, 0, e
 			}
@@ -209,7 +209,7 @@ func (s *ScanService) detectChanges(ctx context.Context, files []library.Scanned
 
 		if idx.byPath[f.Path] == nil && f.Fingerprint != "" {
 			if ref := idx.byFingerprint[f.Fingerprint]; ref != nil {
-				fullItem, getErr := s.mediaItems.GetByID(ctx, ref.ID)
+				fullItem, getErr := s.mediaItems.GetByID(ctx, shared.MediaItemID(ref.ID))
 				if getErr != nil {
 					slog.Warn("get moved item", slog.String("id", ref.ID), slog.Any("err", getErr))
 				} else {
@@ -346,8 +346,8 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 	}
 	if errors.Is(getErr, shared.ErrNotFound) {
 		item := &library.MediaItem{
-			ID:              uuid.New().String(),
-			LibraryID:       libraryID,
+			ID:              shared.MediaItemID(uuid.New().String()),
+			LibraryID:       shared.LibraryID(libraryID),
 			ParentID:        parentID,
 			FilePath:        f.Path,
 			FileSize:        f.Size,
@@ -362,18 +362,18 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 		if err = s.mediaItems.Create(ctx, item); err != nil {
 			return 0, 0, fmt.Errorf("create media item: %w", err)
 		}
-		if dur := s.ProbeAndStoreStreams(ctx, item.ID, f.Path); dur > 0 {
+		if dur := s.ProbeAndStoreStreams(ctx, string(item.ID), f.Path); dur > 0 {
 			item.DurationMs = dur
 			if err := s.mediaItems.Update(ctx, item); err != nil {
-				slog.Warn("update media item duration failed", slog.String("mediaItemID", item.ID), slog.Any("err", err))
+				slog.Warn("update media item duration failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
 			}
 		}
 		if s.metadata != nil {
-			s.metadata.extractAndStoreChapters(ctx, item.ID, f.Path)
+			s.metadata.extractAndStoreChapters(ctx, string(item.ID), f.Path)
 		}
 		if s.search != nil {
 			if err := s.search.IndexMediaItem(ctx, item, nil); err != nil {
-				slog.Warn("index media item failed", slog.String("mediaItemID", item.ID), slog.Any("err", err))
+				slog.Warn("index media item failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
 			}
 		}
 		showTitle := ""
@@ -381,7 +381,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			showTitle = seriesTitle[0]
 		}
 		evtAdded := library.MediaItemAdded{
-			MediaItemID: item.ID,
+			MediaItemID: string(item.ID),
 			LibraryID:   libraryID,
 			Title:       item.Title,
 			SeriesTitle: showTitle,
@@ -401,7 +401,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			existing.ParentID = parentID
 			existing.UpdatedAt = time.Now()
 			if err := s.mediaItems.Update(ctx, existing); err != nil {
-				slog.Warn("update media item failed", slog.String("mediaItemID", existing.ID), slog.Any("err", err))
+				slog.Warn("update media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 			}
 		}
 		return 0, 1, nil
@@ -411,18 +411,18 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 	existing.FileSize = f.Size
 	existing.FileFingerprint = f.Fingerprint
 	existing.UpdatedAt = time.Now()
-	if dur := s.ProbeAndStoreStreams(ctx, existing.ID, f.Path); dur > 0 {
+	if dur := s.ProbeAndStoreStreams(ctx, string(existing.ID), f.Path); dur > 0 {
 		existing.DurationMs = dur
 	}
 	if s.metadata != nil {
-		s.metadata.extractAndStoreChapters(ctx, existing.ID, f.Path)
+		s.metadata.extractAndStoreChapters(ctx, string(existing.ID), f.Path)
 	}
 	if err := s.mediaItems.Update(ctx, existing); err != nil {
-		slog.Warn("update media item failed", slog.String("mediaItemID", existing.ID), slog.Any("err", err))
+		slog.Warn("update media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 	}
 	if s.search != nil {
 		if err := s.search.IndexMediaItem(ctx, existing, nil); err != nil {
-			slog.Warn("index media item failed", slog.String("mediaItemID", existing.ID), slog.Any("err", err))
+			slog.Warn("index media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 		}
 	}
 	if existing.Overview == "" {
@@ -431,8 +431,8 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			showTitle = seriesTitle[0]
 		}
 		evtReAdded := library.MediaItemAdded{
-			MediaItemID: existing.ID,
-			LibraryID:   existing.LibraryID,
+			MediaItemID: string(existing.ID),
+			LibraryID:   string(existing.LibraryID),
 			Title:       existing.Title,
 			SeriesTitle: showTitle,
 			Type:        string(existing.Type),
@@ -468,7 +468,7 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 	result.Streams = append(result.Streams, extSubs...)
 	allStreams := result.Streams
 
-	if err := s.mediaStreams.ReplaceBatch(ctx, mediaItemID, allStreams); err != nil {
+	if err := s.mediaStreams.ReplaceBatch(ctx, shared.MediaItemID(mediaItemID), allStreams); err != nil {
 		slog.Warn("replace media streams failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
 	}
 	return result.DurationMs

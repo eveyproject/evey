@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,7 @@ func TestAPIKeyRepo_Create_GetByKeyHash(t *testing.T) {
 	u := newTestUser("ak-u1")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	key := newTestAPIKey("ak1", u.ID, "hash-ak1")
+	key := newTestAPIKey("ak1", string(u.ID), "hash-ak1")
 	require.NoError(t, keyRepo.Create(ctx, key))
 
 	got, err := keyRepo.GetByKeyHash(ctx, "hash-ak1")
@@ -65,23 +66,23 @@ func TestAPIKeyRepo_ListByUserID(t *testing.T) {
 	require.NoError(t, userRepo.Create(ctx, u1))
 	require.NoError(t, userRepo.Create(ctx, u2))
 
-	k1 := newTestAPIKey("ak2", u1.ID, "hash-ak2")
+	k1 := newTestAPIKey("ak2", string(u1.ID), "hash-ak2")
 	k1.CreatedAt = time.Now().UTC().Truncate(time.Millisecond)
-	k2 := newTestAPIKey("ak3", u1.ID, "hash-ak3")
+	k2 := newTestAPIKey("ak3", string(u1.ID), "hash-ak3")
 	k2.CreatedAt = k1.CreatedAt.Add(time.Second)
-	k3 := newTestAPIKey("ak4", u2.ID, "hash-ak4")
+	k3 := newTestAPIKey("ak4", string(u2.ID), "hash-ak4")
 
 	require.NoError(t, keyRepo.Create(ctx, k1))
 	require.NoError(t, keyRepo.Create(ctx, k2))
 	require.NoError(t, keyRepo.Create(ctx, k3))
 
-	list1, err := keyRepo.ListByUserID(ctx, u1.ID)
+	list1, err := keyRepo.ListByUserID(ctx, shared.UserID(u1.ID))
 	require.NoError(t, err)
 	require.Len(t, list1, 2)
 	assert.Equal(t, k1.ID, list1[0].ID)
 	assert.Equal(t, k2.ID, list1[1].ID)
 
-	list2, err := keyRepo.ListByUserID(ctx, u2.ID)
+	list2, err := keyRepo.ListByUserID(ctx, shared.UserID(u2.ID))
 	require.NoError(t, err)
 	require.Len(t, list2, 1)
 	assert.Equal(t, k3.ID, list2[0].ID)
@@ -98,7 +99,7 @@ func TestAPIKeyRepo_Delete(t *testing.T) {
 	u := newTestUser("ak-u4")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	key := newTestAPIKey("ak5", u.ID, "hash-ak5")
+	key := newTestAPIKey("ak5", string(u.ID), "hash-ak5")
 	require.NoError(t, keyRepo.Create(ctx, key))
 	require.NoError(t, keyRepo.Delete(ctx, key.ID))
 
@@ -117,7 +118,7 @@ func TestAPIKeyRepo_UpdateLastUsed(t *testing.T) {
 	u := newTestUser("ak-u5")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	key := newTestAPIKey("ak6", u.ID, "hash-ak6")
+	key := newTestAPIKey("ak6", string(u.ID), "hash-ak6")
 	require.NoError(t, keyRepo.Create(ctx, key))
 
 	lastUsed := time.Now().UTC().Truncate(time.Millisecond)

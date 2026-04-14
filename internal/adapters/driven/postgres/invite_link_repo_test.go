@@ -35,7 +35,7 @@ func TestInviteLinkRepo_Create_GetByToken(t *testing.T) {
 	u := newTestUser("inv-u1")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	link := newTestInviteLink("inv1", u.ID, "tok-abc")
+	link := newTestInviteLink("inv1", string(u.ID), "tok-abc")
 	require.NoError(t, repo.Create(ctx, link))
 
 	got, err := repo.GetByToken(ctx, "tok-abc")
@@ -56,10 +56,10 @@ func TestInviteLinkRepo_ListByCreator(t *testing.T) {
 	u := newTestUser("inv-u2")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	require.NoError(t, repo.Create(ctx, newTestInviteLink("inv2a", u.ID, "tok-1")))
-	require.NoError(t, repo.Create(ctx, newTestInviteLink("inv2b", u.ID, "tok-2")))
+	require.NoError(t, repo.Create(ctx, newTestInviteLink("inv2a", string(u.ID), "tok-1")))
+	require.NoError(t, repo.Create(ctx, newTestInviteLink("inv2b", string(u.ID), "tok-2")))
 
-	list, err := repo.ListByCreator(ctx, u.ID)
+	list, err := repo.ListByCreator(ctx, string(u.ID))
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
 }
@@ -75,7 +75,7 @@ func TestInviteLinkRepo_IncrementUsedCount(t *testing.T) {
 	u := newTestUser("inv-u3")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	link := newTestInviteLink("inv3", u.ID, "tok-inc")
+	link := newTestInviteLink("inv3", string(u.ID), "tok-inc")
 	require.NoError(t, repo.Create(ctx, link))
 	require.NoError(t, repo.IncrementUsedCount(ctx, link.ID))
 
@@ -95,7 +95,7 @@ func TestInviteLinkRepo_Delete(t *testing.T) {
 	u := newTestUser("inv-u4")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	link := newTestInviteLink("inv4", u.ID, "tok-del")
+	link := newTestInviteLink("inv4", string(u.ID), "tok-del")
 	require.NoError(t, repo.Create(ctx, link))
 	require.NoError(t, repo.Delete(ctx, link.ID))
 

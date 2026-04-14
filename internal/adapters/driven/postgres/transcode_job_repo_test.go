@@ -44,7 +44,7 @@ func TestTranscodeJobRepo_Create_GetByID(t *testing.T) {
 	item := newTestMediaItem("tj-mi1", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	job := newTestTranscodeJob("tj1", item.ID, "queued")
+	job := newTestTranscodeJob("tj1", string(item.ID), "queued")
 	require.NoError(t, repo.Create(ctx, job))
 
 	got, err := repo.GetByID(ctx, "tj1")
@@ -67,7 +67,7 @@ func TestTranscodeJobRepo_Update(t *testing.T) {
 	item := newTestMediaItem("tj-mi2", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	job := newTestTranscodeJob("tj2", item.ID, "queued")
+	job := newTestTranscodeJob("tj2", string(item.ID), "queued")
 	require.NoError(t, repo.Create(ctx, job))
 
 	job.Status = transcoding.Running
@@ -93,8 +93,8 @@ func TestTranscodeJobRepo_ListActive(t *testing.T) {
 	item := newTestMediaItem("tj-mi3", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	require.NoError(t, repo.Create(ctx, newTestTranscodeJob("tj3a", item.ID, "running")))
-	completedJob := newTestTranscodeJob("tj3b", item.ID, "completed")
+	require.NoError(t, repo.Create(ctx, newTestTranscodeJob("tj3a", string(item.ID), "running")))
+	completedJob := newTestTranscodeJob("tj3b", string(item.ID), "completed")
 	require.NoError(t, repo.Create(ctx, completedJob))
 
 	active, err := repo.ListActive(ctx)
@@ -117,10 +117,10 @@ func TestTranscodeJobRepo_ListByMediaItem(t *testing.T) {
 	item := newTestMediaItem("tj-mi4", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	require.NoError(t, repo.Create(ctx, newTestTranscodeJob("tj4a", item.ID, "completed")))
-	require.NoError(t, repo.Create(ctx, newTestTranscodeJob("tj4b", item.ID, "running")))
+	require.NoError(t, repo.Create(ctx, newTestTranscodeJob("tj4a", string(item.ID), "completed")))
+	require.NoError(t, repo.Create(ctx, newTestTranscodeJob("tj4b", string(item.ID), "running")))
 
-	jobs, err := repo.ListByMediaItem(ctx, item.ID)
+	jobs, err := repo.ListByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	assert.Len(t, jobs, 2)
 }

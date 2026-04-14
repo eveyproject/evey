@@ -7,6 +7,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 // MediaItemQueryRepoAdapter wraps the existing MediaItemRepository and adds
@@ -23,23 +24,27 @@ func NewMediaItemQueryRepoAdapter(db *sql.DB) *MediaItemQueryRepoAdapter {
 	}
 }
 
-func (r *MediaItemQueryRepoAdapter) GetByID(ctx context.Context, id string) (*library.MediaItem, error) {
+func (r *MediaItemQueryRepoAdapter) GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.items.GetByID(ctx, id)
 }
 
-func (r *MediaItemQueryRepoAdapter) GetByIDs(ctx context.Context, ids []string) ([]*library.MediaItem, error) {
+func (r *MediaItemQueryRepoAdapter) GetByIDs(ctx context.Context, ids []shared.MediaItemID) ([]*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(ids) == 0 {
 		return nil, nil
 	}
+	strIDs := make([]string, len(ids))
+	for i, id := range ids {
+		strIDs[i] = string(id)
+	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating,
 		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at
-		 FROM media_items WHERE id = ANY($1) ORDER BY sort_title`, pq.Array(ids))
+		 FROM media_items WHERE id = ANY($1) ORDER BY sort_title`, pq.Array(strIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +73,7 @@ func (r *MediaItemQueryRepoAdapter) Count(ctx context.Context, filter library.Li
 }
 
 // GetCastByMediaItem returns cast members with person info in a single JOIN query.
-func (r *MediaItemQueryRepoAdapter) GetCastByMediaItem(ctx context.Context, mediaItemID string) ([]library.CastMember, error) {
+func (r *MediaItemQueryRepoAdapter) GetCastByMediaItem(ctx context.Context, mediaItemID shared.MediaItemID) ([]library.CastMember, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -76,7 +81,7 @@ func (r *MediaItemQueryRepoAdapter) GetCastByMediaItem(ctx context.Context, medi
 		 FROM media_people mp
 		 JOIN people p ON p.id = mp.person_id
 		 WHERE mp.media_item_id = $1
-		 ORDER BY mp.sort_order`, mediaItemID)
+		 ORDER BY mp.sort_order`, string(mediaItemID))
 	if err != nil {
 		return nil, err
 	}
@@ -94,31 +99,35 @@ func (r *MediaItemQueryRepoAdapter) GetCastByMediaItem(ctx context.Context, medi
 }
 
 // GetCastForItems fetches cast for multiple media items in one query — eliminates N+1 in gallery listing.
-func (r *MediaItemQueryRepoAdapter) GetCastForItems(ctx context.Context, mediaItemIDs []string) (map[string][]library.CastMember, error) {
+func (r *MediaItemQueryRepoAdapter) GetCastForItems(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]library.CastMember, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(mediaItemIDs) == 0 {
-		return map[string][]library.CastMember{}, nil
+		return map[shared.MediaItemID][]library.CastMember{}, nil
+	}
+	strIDs := make([]string, len(mediaItemIDs))
+	for i, id := range mediaItemIDs {
+		strIDs[i] = string(id)
 	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT mp.media_item_id, mp.person_id, p.name, p.thumb_path, mp.role_type, mp.character_name, mp.sort_order
 		 FROM media_people mp
 		 JOIN people p ON p.id = mp.person_id
 		 WHERE mp.media_item_id = ANY($1)
-		 ORDER BY mp.media_item_id, mp.sort_order`, pq.Array(mediaItemIDs))
+		 ORDER BY mp.media_item_id, mp.sort_order`, pq.Array(strIDs))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	result := make(map[string][]library.CastMember)
+	result := make(map[shared.MediaItemID][]library.CastMember)
 	for rows.Next() {
 		var mediaItemID string
 		var cm library.CastMember
 		if err := rows.Scan(&mediaItemID, &cm.PersonID, &cm.PersonName, &cm.ThumbPath, &cm.RoleType, &cm.CharacterName, &cm.SortOrder); err != nil {
 			return nil, err
 		}
-		result[mediaItemID] = append(result[mediaItemID], cm)
+		result[shared.MediaItemID(mediaItemID)] = append(result[shared.MediaItemID(mediaItemID)], cm)
 	}
 	return result, rows.Err()
 }

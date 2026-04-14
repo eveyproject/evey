@@ -40,7 +40,7 @@ func NewCommandService(
 }
 
 func (s *CommandService) validateProfile(ctx context.Context, profileID string) error {
-	if _, err := s.profiles.GetByID(ctx, profileID); err != nil {
+	if _, err := s.profiles.GetByID(ctx, shared.ProfileID(profileID)); err != nil {
 		return ErrProfileNotFound
 	}
 	return nil
@@ -53,7 +53,7 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 	if err := s.validateProfile(ctx, session.ProfileID); err != nil {
 		return err
 	}
-	u, err := s.users.GetByID(ctx, userID)
+	u, err := s.users.GetByID(ctx, shared.UserID(userID))
 	if err != nil {
 		return fmt.Errorf("get user: %w", err)
 	}

@@ -29,7 +29,7 @@ func (h *libraryAccessHandler) GetUserLibraryAccess(ctx context.Context, req *ev
 		slog.Warn("list libraries for access", slog.Any("err", err))
 	}
 	for _, l := range libs {
-		resp.Libraries = append(resp.Libraries, &eveyv1.LibraryRef{Id: l.ID, Name: l.Name})
+		resp.Libraries = append(resp.Libraries, &eveyv1.LibraryRef{Id: string(l.ID), Name: l.Name})
 	}
 	return resp, nil
 }

@@ -49,7 +49,7 @@ type rtRepoDeleteByUserIDFail struct {
 	*ufakes.FakeRefreshTokenRepository
 }
 
-func (r *rtRepoDeleteByUserIDFail) DeleteByUserID(_ context.Context, _ string) error {
+func (r *rtRepoDeleteByUserIDFail) DeleteByUserID(_ context.Context, _ shared.UserID) error {
 	return errors.New("delete by user boom")
 }
 
@@ -77,14 +77,14 @@ func TestSetup_AssertsIDPrefixes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(u.ID, "usr-") {
+	if !strings.HasPrefix(string(u.ID), "usr-") {
 		t.Fatalf("expected user ID prefix 'usr-', got %q", u.ID)
 	}
 	profs, _ := d.profiles.GetByUserID(context.Background(), u.ID)
 	if len(profs) != 1 {
 		t.Fatalf("expected 1 profile, got %d", len(profs))
 	}
-	if !strings.HasPrefix(profs[0].ID, "prf-") {
+	if !strings.HasPrefix(string(profs[0].ID), "prf-") {
 		t.Fatalf("expected profile ID prefix 'prf-', got %q", profs[0].ID)
 	}
 	if profs[0].Name != u.Username {
@@ -472,7 +472,7 @@ func newSnapshotUserUOW(ctx context.Context, users *ufakes.FakeUserRepository) *
 	all, _ := users.List(ctx)
 	snap := make(map[string]user.User, len(all))
 	for _, u := range all {
-		snap[u.ID] = *u
+		snap[string(u.ID)] = *u
 	}
 	return &snapshotUserUOW{users: users, snap: snap}
 }

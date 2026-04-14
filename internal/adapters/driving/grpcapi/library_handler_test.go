@@ -11,6 +11,7 @@ import (
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
 	metafakes "github.com/gravity-zero/evey/internal/domain/metadata/fakes"
 	mkvfakes "github.com/gravity-zero/evey/internal/domain/mkv/fakes"
@@ -238,7 +239,7 @@ func TestLibraryHandler_ListMediaItems_WithPagination(t *testing.T) {
 
 	for i := range 5 {
 		mediaQuery.Seed(&library.MediaItem{
-			ID:        "mi-" + string(rune('a'+i)),
+			ID:        shared.MediaItemID("mi-" + string(rune('a'+i))),
 			LibraryID: "lib-1",
 			Title:     "Movie " + string(rune('A'+i)),
 			Type:      "movie",

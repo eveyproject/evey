@@ -33,7 +33,7 @@ func (h *favoriteHandler) requireMediaAccess(ctx context.Context, mediaItemID st
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "not found")
 	}
-	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, item.LibraryID)
+	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
 	if accessErr != nil || !ok {
 		return status.Error(codes.NotFound, "not found")
 	}
@@ -63,7 +63,7 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 		}
 		items, _ := h.libQuery.GetMediaItemsByIDs(ctx, ids)
 		for _, it := range items {
-			itemByID[it.ID] = it
+			itemByID[string(it.ID)] = it
 		}
 	}
 	allowed := func(libraryID string) bool { return true }
@@ -84,7 +84,7 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 			CreatedAt:   toTimestamppb(f.CreatedAt),
 		}
 		if it := itemByID[f.MediaItemID]; it != nil {
-			if !allowed(it.LibraryID) {
+			if !allowed(string(it.LibraryID)) {
 				continue
 			}
 			fp.Title = it.Title

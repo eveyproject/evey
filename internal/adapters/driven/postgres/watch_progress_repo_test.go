@@ -26,7 +26,7 @@ func TestWatchProgressRepo_Upsert_GetByProfileAndMedia(t *testing.T) {
 
 	u := newTestUser("wpu1")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("wpp1", u.ID)
+	p := newTestProfile("wpp1", string(u.ID))
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("wplib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -35,8 +35,8 @@ func TestWatchProgressRepo_Upsert_GetByProfileAndMedia(t *testing.T) {
 
 	wp := &playback.WatchProgress{
 		ID:           "wp1",
-		ProfileID:    p.ID,
-		MediaItemID:  item.ID,
+		ProfileID:    string(p.ID),
+		MediaItemID:  string(item.ID),
 		PositionMs:   30000,
 		Completed:    false,
 		PlayCount:    1,
@@ -44,7 +44,7 @@ func TestWatchProgressRepo_Upsert_GetByProfileAndMedia(t *testing.T) {
 	}
 	require.NoError(t, wpRepo.Upsert(ctx, wp))
 
-	got, err := wpRepo.GetByProfileAndMedia(ctx, p.ID, item.ID)
+	got, err := wpRepo.GetByProfileAndMedia(ctx, string(p.ID), string(item.ID))
 	require.NoError(t, err)
 	assert.Equal(t, int64(30000), got.PositionMs)
 	assert.Equal(t, 1, got.PlayCount)
@@ -64,7 +64,7 @@ func TestWatchProgressRepo_Upsert_UpdatesOnConflict(t *testing.T) {
 
 	u := newTestUser("wpu2")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("wpp2", u.ID)
+	p := newTestProfile("wpp2", string(u.ID))
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("wplib2")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -72,7 +72,7 @@ func TestWatchProgressRepo_Upsert_UpdatesOnConflict(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	wp := &playback.WatchProgress{
-		ID: "wp2", ProfileID: p.ID, MediaItemID: item.ID,
+		ID: "wp2", ProfileID: string(p.ID), MediaItemID: string(item.ID),
 		PositionMs: 10000, PlayCount: 1, LastPlayedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, wpRepo.Upsert(ctx, wp))
@@ -82,7 +82,7 @@ func TestWatchProgressRepo_Upsert_UpdatesOnConflict(t *testing.T) {
 	wp.PlayCount = 2
 	require.NoError(t, wpRepo.Upsert(ctx, wp))
 
-	got, err := wpRepo.GetByProfileAndMedia(ctx, p.ID, item.ID)
+	got, err := wpRepo.GetByProfileAndMedia(ctx, string(p.ID), string(item.ID))
 	require.NoError(t, err)
 	assert.Equal(t, int64(90000), got.PositionMs)
 	assert.True(t, got.Completed)
@@ -102,7 +102,7 @@ func TestWatchProgressRepo_GetByProfile(t *testing.T) {
 
 	u := newTestUser("wpu3")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("wpp3", u.ID)
+	p := newTestProfile("wpp3", string(u.ID))
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("wplib3")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -112,15 +112,15 @@ func TestWatchProgressRepo_GetByProfile(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item2))
 
 	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
-		ID: "wp3a", ProfileID: p.ID, MediaItemID: item1.ID,
+		ID: "wp3a", ProfileID: string(p.ID), MediaItemID: string(item1.ID),
 		PositionMs: 1000, PlayCount: 1, LastPlayedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}))
 	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
-		ID: "wp3b", ProfileID: p.ID, MediaItemID: item2.ID,
+		ID: "wp3b", ProfileID: string(p.ID), MediaItemID: string(item2.ID),
 		PositionMs: 2000, PlayCount: 1, LastPlayedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}))
 
-	list, err := wpRepo.GetByProfile(ctx, p.ID, 10, 0)
+	list, err := wpRepo.GetByProfile(ctx, string(p.ID), 10, 0)
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
 }

@@ -13,6 +13,7 @@ import (
 
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	metafakes "github.com/gravity-zero/evey/internal/domain/metadata/fakes"
@@ -257,7 +258,7 @@ func seedNItems(t *testing.T, repo *countingMediaRepo, n int) {
 	ctx := context.Background()
 	for i := 0; i < n; i++ {
 		id := "seed-" + strings.Repeat("0", 0) + itoaFast(i)
-		require.NoError(t, repo.Create(ctx, &library.MediaItem{ID: id, Title: id}))
+		require.NoError(t, repo.Create(ctx, &library.MediaItem{ID: shared.MediaItemID(id), Title: id}))
 	}
 }
 

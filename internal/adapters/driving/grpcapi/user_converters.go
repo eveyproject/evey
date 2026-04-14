@@ -11,7 +11,7 @@ import (
 
 func userToProto(u *user.User) *eveyv1.User {
 	pb := &eveyv1.User{
-		Id:        u.ID,
+		Id:        string(u.ID),
 		Username:  u.Username,
 		Email:     u.Email,
 		IsAdmin:   u.IsAdmin,
@@ -38,8 +38,8 @@ func profileToProto(p *user.Profile) *eveyv1.Profile {
 		prefs["max_bitrate_kbps"] = fmt.Sprintf("%d", *p.MaxBitrateKbps)
 	}
 	pb := &eveyv1.Profile{
-		Id:          p.ID,
-		UserId:      p.UserID,
+		Id:          string(p.ID),
+		UserId:      string(p.UserID),
 		Name:        p.Name,
 		Preferences: prefs,
 		IsDefault:   p.IsDefault,

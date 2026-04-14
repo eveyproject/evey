@@ -101,7 +101,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 	}
 	s.waitForIdleStreams(ctx)
 
-	item, err := s.mediaItems.GetByID(ctx, mediaItemID)
+	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		return fmt.Errorf("get media item: %w", err)
 	}

@@ -27,7 +27,7 @@ func TestRatingRepo_Upsert_Get(t *testing.T) {
 
 	u := newTestUser("rat-u1")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := &user.Profile{ID: "rat-p1", UserID: u.ID, Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
+	p := &user.Profile{ID: "rat-p1", UserID: shared.UserID(u.ID), Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("rat-lib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -38,13 +38,13 @@ func TestRatingRepo_Upsert_Get(t *testing.T) {
 	require.NoError(t, err)
 
 	rt := rating.Rating{
-		MediaItemID: item.ID,
-		ProfileID:   p.ID,
+		MediaItemID: string(item.ID),
+		ProfileID:   string(p.ID),
 		Value:       val,
 	}
 	require.NoError(t, repo.Upsert(ctx, rt))
 
-	got, err := repo.Get(ctx, item.ID, p.ID)
+	got, err := repo.Get(ctx, string(item.ID), string(p.ID))
 	require.NoError(t, err)
 	assert.Equal(t, 4, got.Value.Int())
 }
@@ -73,7 +73,7 @@ func TestRatingRepo_Delete(t *testing.T) {
 
 	u := newTestUser("rat-u2")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := &user.Profile{ID: "rat-p2", UserID: u.ID, Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
+	p := &user.Profile{ID: "rat-p2", UserID: shared.UserID(u.ID), Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("rat-lib2")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -81,10 +81,10 @@ func TestRatingRepo_Delete(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	val, _ := rating.NewRatingValue(3)
-	require.NoError(t, repo.Upsert(ctx, rating.Rating{MediaItemID: item.ID, ProfileID: p.ID, Value: val}))
-	require.NoError(t, repo.Delete(ctx, item.ID, p.ID))
+	require.NoError(t, repo.Upsert(ctx, rating.Rating{MediaItemID: string(item.ID), ProfileID: string(p.ID), Value: val}))
+	require.NoError(t, repo.Delete(ctx, string(item.ID), string(p.ID)))
 
-	_, err := repo.Get(ctx, item.ID, p.ID)
+	_, err := repo.Get(ctx, string(item.ID), string(p.ID))
 	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
@@ -101,8 +101,8 @@ func TestRatingRepo_GetAggregates(t *testing.T) {
 
 	u := newTestUser("rat-u3")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p1 := &user.Profile{ID: "rat-p3a", UserID: u.ID, Name: "P1", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
-	p2 := &user.Profile{ID: "rat-p3b", UserID: u.ID, Name: "P2", Preferences: map[string]string{}, CreatedAt: time.Now().UTC()}
+	p1 := &user.Profile{ID: "rat-p3a", UserID: shared.UserID(u.ID), Name: "P1", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
+	p2 := &user.Profile{ID: "rat-p3b", UserID: shared.UserID(u.ID), Name: "P2", Preferences: map[string]string{}, CreatedAt: time.Now().UTC()}
 	require.NoError(t, profileRepo.Create(ctx, p1))
 	require.NoError(t, profileRepo.Create(ctx, p2))
 	lib := newTestLibrary("rat-lib3")
@@ -112,12 +112,12 @@ func TestRatingRepo_GetAggregates(t *testing.T) {
 
 	val2, _ := rating.NewRatingValue(2)
 	val4, _ := rating.NewRatingValue(4)
-	require.NoError(t, repo.Upsert(ctx, rating.Rating{MediaItemID: item.ID, ProfileID: p1.ID, Value: val2}))
-	require.NoError(t, repo.Upsert(ctx, rating.Rating{MediaItemID: item.ID, ProfileID: p2.ID, Value: val4}))
+	require.NoError(t, repo.Upsert(ctx, rating.Rating{MediaItemID: string(item.ID), ProfileID: string(p1.ID), Value: val2}))
+	require.NoError(t, repo.Upsert(ctx, rating.Rating{MediaItemID: string(item.ID), ProfileID: string(p2.ID), Value: val4}))
 
-	aggs, err := repo.GetAggregates(ctx, []string{item.ID})
+	aggs, err := repo.GetAggregates(ctx, []string{string(item.ID)})
 	require.NoError(t, err)
-	agg, ok := aggs[item.ID]
+	agg, ok := aggs[string(item.ID)]
 	require.True(t, ok)
 	assert.Equal(t, 2, agg.Count)
 	assert.InDelta(t, 3.0, agg.Average, 0.1)

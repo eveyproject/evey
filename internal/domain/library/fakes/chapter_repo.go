@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type FakeChapterRepository struct {
@@ -17,7 +18,7 @@ func NewFakeChapterRepository() *FakeChapterRepository {
 	return &FakeChapterRepository{items: make(map[string][]*library.Chapter)}
 }
 
-func (r *FakeChapterRepository) ReplaceBatch(_ context.Context, mediaItemID string, chapters []*library.Chapter) error {
+func (r *FakeChapterRepository) ReplaceBatch(_ context.Context, mediaItemID shared.MediaItemID, chapters []*library.Chapter) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -27,14 +28,14 @@ func (r *FakeChapterRepository) ReplaceBatch(_ context.Context, mediaItemID stri
 		return r.Err
 	}
 	if len(chapters) == 0 {
-		delete(r.items, mediaItemID)
+		delete(r.items, string(mediaItemID))
 		return nil
 	}
-	r.items[mediaItemID] = chapters
+	r.items[string(mediaItemID)] = chapters
 	return nil
 }
 
-func (r *FakeChapterRepository) GetByMediaItemID(_ context.Context, mediaItemID string) ([]*library.Chapter, error) {
+func (r *FakeChapterRepository) GetByMediaItemID(_ context.Context, mediaItemID shared.MediaItemID) ([]*library.Chapter, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -43,7 +44,7 @@ func (r *FakeChapterRepository) GetByMediaItemID(_ context.Context, mediaItemID 
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	return r.items[mediaItemID], nil
+	return r.items[string(mediaItemID)], nil
 }
 
 func (r *FakeChapterRepository) All() []*library.Chapter {

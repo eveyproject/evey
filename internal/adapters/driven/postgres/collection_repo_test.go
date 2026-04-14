@@ -146,8 +146,8 @@ func TestCollectionRepo_GetItems(t *testing.T) {
 	col.TmdbID = nil
 	require.NoError(t, colRepo.Create(ctx, col))
 
-	require.NoError(t, colRepo.LinkItem(ctx, col.ID, item1.ID, 0))
-	require.NoError(t, colRepo.LinkItem(ctx, col.ID, item2.ID, 1))
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, string(item1.ID), 0))
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, string(item2.ID), 1))
 
 	items, err := colRepo.GetItems(ctx, col.ID, 100, 0)
 	require.NoError(t, err)

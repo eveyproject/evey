@@ -27,19 +27,19 @@ func TestMediaItemTranslationRepo_Upsert_Get(t *testing.T) {
 	item := newTestMediaItem("tmi1", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	tr := &library.MediaItemTranslation{MediaItemID: item.ID, Locale: "fr-FR", Title: "Titre", Overview: "Résumé", Tagline: "Slogan"}
+	tr := &library.MediaItemTranslation{MediaItemID: string(item.ID), Locale: "fr-FR", Title: "Titre", Overview: "Résumé", Tagline: "Slogan"}
 	require.NoError(t, repo.Upsert(ctx, tr))
 
-	got, err := repo.GetByMediaItemAndLocale(ctx, item.ID, "fr-FR")
+	got, err := repo.GetByMediaItemAndLocale(ctx, string(item.ID), "fr-FR")
 	require.NoError(t, err)
 	assert.Equal(t, "Titre", got.Title)
 	assert.Equal(t, "Résumé", got.Overview)
 	assert.Equal(t, "Slogan", got.Tagline)
 
 	// Upsert overwrites
-	tr2 := &library.MediaItemTranslation{MediaItemID: item.ID, Locale: "fr-FR", Title: "Nouveau", Overview: "O", Tagline: "T"}
+	tr2 := &library.MediaItemTranslation{MediaItemID: string(item.ID), Locale: "fr-FR", Title: "Nouveau", Overview: "O", Tagline: "T"}
 	require.NoError(t, repo.Upsert(ctx, tr2))
-	got2, err := repo.GetByMediaItemAndLocale(ctx, item.ID, "fr-FR")
+	got2, err := repo.GetByMediaItemAndLocale(ctx, string(item.ID), "fr-FR")
 	require.NoError(t, err)
 	assert.Equal(t, "Nouveau", got2.Title)
 }
@@ -68,10 +68,10 @@ func TestMediaItemTranslationRepo_GetByMediaItem_OrderedAndDelete(t *testing.T) 
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	for _, loc := range []string{"fr-FR", "en-US", "de-DE"} {
-		require.NoError(t, repo.Upsert(ctx, &library.MediaItemTranslation{MediaItemID: item.ID, Locale: loc, Title: "t-" + loc}))
+		require.NoError(t, repo.Upsert(ctx, &library.MediaItemTranslation{MediaItemID: string(item.ID), Locale: loc, Title: "t-" + loc}))
 	}
 
-	list, err := repo.GetByMediaItem(ctx, item.ID)
+	list, err := repo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	require.Len(t, list, 3)
 	// Ordered by locale ASC
@@ -79,8 +79,8 @@ func TestMediaItemTranslationRepo_GetByMediaItem_OrderedAndDelete(t *testing.T) 
 	assert.Equal(t, "en-US", list[1].Locale)
 	assert.Equal(t, "fr-FR", list[2].Locale)
 
-	require.NoError(t, repo.DeleteByMediaItem(ctx, item.ID))
-	list2, err := repo.GetByMediaItem(ctx, item.ID)
+	require.NoError(t, repo.DeleteByMediaItem(ctx, string(item.ID)))
+	list2, err := repo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	assert.Empty(t, list2)
 }

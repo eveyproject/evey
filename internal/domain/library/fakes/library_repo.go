@@ -29,11 +29,11 @@ func (r *FakeLibraryRepository) Create(_ context.Context, lib *library.Library) 
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[lib.ID] = lib
+	r.items[string(lib.ID)] = lib
 	return nil
 }
 
-func (r *FakeLibraryRepository) GetByID(_ context.Context, id string) (*library.Library, error) {
+func (r *FakeLibraryRepository) GetByID(_ context.Context, id shared.LibraryID) (*library.Library, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -42,7 +42,7 @@ func (r *FakeLibraryRepository) GetByID(_ context.Context, id string) (*library.
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	lib, ok := r.items[id]
+	lib, ok := r.items[string(id)]
 	if !ok {
 		return nil, ErrNotFound
 	}
@@ -74,14 +74,14 @@ func (r *FakeLibraryRepository) Update(_ context.Context, lib *library.Library) 
 	if r.Err != nil {
 		return r.Err
 	}
-	if _, ok := r.items[lib.ID]; !ok {
+	if _, ok := r.items[string(lib.ID)]; !ok {
 		return ErrNotFound
 	}
-	r.items[lib.ID] = lib
+	r.items[string(lib.ID)] = lib
 	return nil
 }
 
-func (r *FakeLibraryRepository) Delete(_ context.Context, id string) error {
+func (r *FakeLibraryRepository) Delete(_ context.Context, id shared.LibraryID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -90,9 +90,9 @@ func (r *FakeLibraryRepository) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err
 	}
-	if _, ok := r.items[id]; !ok {
+	if _, ok := r.items[string(id)]; !ok {
 		return ErrNotFound
 	}
-	delete(r.items, id)
+	delete(r.items, string(id))
 	return nil
 }

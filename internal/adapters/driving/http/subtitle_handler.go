@@ -44,7 +44,7 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+		if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), libraryAccess) {
 			return
 		}
 
@@ -178,7 +178,7 @@ func (h *subtitleRoutes) requireMediaAccess(w http.ResponseWriter, r *http.Reque
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return nil, false
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
+	if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), h.libraryAccess) {
 		return nil, false
 	}
 	return claims, true

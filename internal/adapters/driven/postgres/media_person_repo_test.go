@@ -30,7 +30,7 @@ func TestMediaPersonRepo_Create_GetByMediaItemID(t *testing.T) {
 
 	charName := "Hero"
 	mp := &library.MediaPerson{
-		MediaItemID:   item.ID,
+		MediaItemID:   string(item.ID),
 		PersonID:      person.ID,
 		RoleType:      "actor",
 		CharacterName: &charName,
@@ -63,7 +63,7 @@ func TestMediaPersonRepo_DeleteByMediaItemID(t *testing.T) {
 	require.NoError(t, personRepo.Create(ctx, person))
 
 	mp := &library.MediaPerson{
-		MediaItemID: item.ID,
+		MediaItemID: string(item.ID),
 		PersonID:    person.ID,
 		RoleType:    "director",
 		SortOrder:   0,

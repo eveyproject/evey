@@ -15,6 +15,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 	"github.com/gravity-zero/evey/internal/pkg/ratings"
@@ -35,7 +36,7 @@ type libraryHandler struct {
 
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
 	lib := &library.Library{
-		ID:                  id.New("lib-"),
+		ID:                  shared.LibraryID(id.New("lib-")),
 		Name:                req.Name,
 		Type:                library.LibraryType(libraryTypeFromProto[req.Type]),
 		Paths:               req.Paths,
@@ -55,7 +56,7 @@ func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryR
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "library not found: %v", err)
 	}
-	if ok, accessErr := h.checkLibraryAccess(ctx, lib.ID); !ok {
+	if ok, accessErr := h.checkLibraryAccess(ctx, string(lib.ID)); !ok {
 		if accessErr != nil {
 			slog.Warn("check library access", slog.Any("err", accessErr))
 		}
@@ -131,7 +132,7 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
 	}
-	if ok, accessErr := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
+	if ok, accessErr := h.checkLibraryAccess(ctx, string(item.LibraryID)); !ok {
 		if accessErr != nil {
 			slog.Warn("check library access", slog.Any("err", accessErr))
 		}
@@ -239,7 +240,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	}
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
-		ids = append(ids, item.ID)
+		ids = append(ids, string(item.ID))
 	}
 	var artworkMap map[string][]*domainmetadata.ArtworkRecord
 	if h.metadataSvc != nil {
@@ -265,10 +266,10 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 			continue
 		}
 		pb := mediaItemToProto(item)
-		for _, a := range artworkMap[item.ID] {
+		for _, a := range artworkMap[string(item.ID)] {
 			pb.Artwork = append(pb.Artwork, artworkRecordToProto(a))
 		}
-		for _, cm := range castMap[item.ID] {
+		for _, cm := range castMap[string(item.ID)] {
 			pb.People = append(pb.People, castMemberToProto(cm))
 		}
 		resp.Items = append(resp.Items, pb)
@@ -433,7 +434,7 @@ func (h *libraryHandler) filterLibrariesByAccess(ctx context.Context, libs []*li
 	}
 	filtered := make([]*library.Library, 0, len(libs))
 	for _, lib := range libs {
-		if allowed[lib.ID] {
+		if allowed[string(lib.ID)] {
 			filtered = append(filtered, lib)
 		}
 	}

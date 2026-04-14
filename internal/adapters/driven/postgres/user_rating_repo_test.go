@@ -27,17 +27,17 @@ func TestUserRatingRepo_Upsert_Get(t *testing.T) {
 
 	u := newTestUser("urat-u1")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := &user.Profile{ID: "urat-p1", UserID: u.ID, Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
+	p := &user.Profile{ID: "urat-p1", UserID: shared.UserID(u.ID), Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("urat-lib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
 	item := newTestMediaItem("urat-mi1", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	r := &library.UserRating{ProfileID: p.ID, MediaItemID: item.ID, Value: 1}
+	r := &library.UserRating{ProfileID: string(p.ID), MediaItemID: string(item.ID), Value: 1}
 	require.NoError(t, repo.Upsert(ctx, r))
 
-	got, err := repo.Get(ctx, p.ID, item.ID)
+	got, err := repo.Get(ctx, string(p.ID), string(item.ID))
 	require.NoError(t, err)
 	assert.Equal(t, 1, got.Value)
 }
@@ -66,7 +66,7 @@ func TestUserRatingRepo_GetForItems(t *testing.T) {
 
 	u := newTestUser("urat-u2")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := &user.Profile{ID: "urat-p2", UserID: u.ID, Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
+	p := &user.Profile{ID: "urat-p2", UserID: shared.UserID(u.ID), Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("urat-lib2")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -75,14 +75,14 @@ func TestUserRatingRepo_GetForItems(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item1))
 	require.NoError(t, itemRepo.Create(ctx, item2))
 
-	require.NoError(t, repo.Upsert(ctx, &library.UserRating{ProfileID: p.ID, MediaItemID: item1.ID, Value: 1}))
-	require.NoError(t, repo.Upsert(ctx, &library.UserRating{ProfileID: p.ID, MediaItemID: item2.ID, Value: -1}))
+	require.NoError(t, repo.Upsert(ctx, &library.UserRating{ProfileID: string(p.ID), MediaItemID: string(item1.ID), Value: 1}))
+	require.NoError(t, repo.Upsert(ctx, &library.UserRating{ProfileID: string(p.ID), MediaItemID: string(item2.ID), Value: -1}))
 
-	result, err := repo.GetForItems(ctx, p.ID, []string{item1.ID, item2.ID})
+	result, err := repo.GetForItems(ctx, string(p.ID), []string{string(item1.ID), string(item2.ID)})
 	require.NoError(t, err)
 	assert.Len(t, result, 2)
-	assert.Equal(t, 1, result[item1.ID].Value)
-	assert.Equal(t, -1, result[item2.ID].Value)
+	assert.Equal(t, 1, result[string(item1.ID)].Value)
+	assert.Equal(t, -1, result[string(item2.ID)].Value)
 }
 
 func TestUserRatingRepo_GetForItems_Empty(t *testing.T) {

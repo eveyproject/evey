@@ -8,6 +8,7 @@ import (
 	applib "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,7 +80,7 @@ func TestCachedMediaItemQueryRepo_PassthroughMethods(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 
-	byIDs, err := cache.GetByIDs(context.Background(), []string{"m1", "m2"})
+	byIDs, err := cache.GetByIDs(context.Background(), []shared.MediaItemID{"m1", "m2"})
 	require.NoError(t, err)
 	assert.Len(t, byIDs, 2)
 }
@@ -186,7 +187,7 @@ func TestCachedMediaItemQueryRepo_GetCastForItems(t *testing.T) {
 	cache := applib.NewCachedMediaItemQueryRepo(inner, 5*time.Second)
 	defer cache.Stop()
 
-	castMap, err := cache.GetCastForItems(context.Background(), []string{"m1", "m2"})
+	castMap, err := cache.GetCastForItems(context.Background(), []shared.MediaItemID{"m1", "m2"})
 	require.NoError(t, err)
 	assert.Len(t, castMap, 2)
 }

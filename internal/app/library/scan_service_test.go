@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -66,7 +67,7 @@ func TestScanLibrary_NewFile_CreatesMediaItem(t *testing.T) {
 	require.Len(t, items, 1)
 	assert.Equal(t, "Test Movie", items[0].Title)
 	assert.Equal(t, "/movies/test.mkv", items[0].FilePath)
-	assert.Equal(t, "lib-1", items[0].LibraryID)
+	assert.Equal(t, shared.LibraryID("lib-1"), items[0].LibraryID)
 	assert.Equal(t, library.MediaItemType("movie"), items[0].Type)
 	assert.Equal(t, int64(1024), items[0].FileSize)
 	assert.Equal(t, "fp-1", items[0].FileFingerprint)

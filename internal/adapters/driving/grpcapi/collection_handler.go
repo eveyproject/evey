@@ -37,7 +37,7 @@ func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListC
 			}
 			visible := false
 			for _, it := range items {
-				if slices.Contains(allowed, it.LibraryID) {
+				if slices.Contains(allowed, string(it.LibraryID)) {
 					visible = true
 					break
 				}
@@ -67,7 +67,7 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 		}
 		visible := false
 		for _, it := range items {
-			if slices.Contains(allowed, it.LibraryID) {
+			if slices.Contains(allowed, string(it.LibraryID)) {
 				visible = true
 				break
 			}
@@ -98,13 +98,13 @@ func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.
 	ids := make([]string, 0, len(items))
 	enriched := make([]*eveyv1.CollectionItemProto, 0, len(items))
 	for _, it := range items {
-		if allowed != nil && !slices.Contains(allowed, it.LibraryID) {
+		if allowed != nil && !slices.Contains(allowed, string(it.LibraryID)) {
 			total--
 			continue
 		}
-		ids = append(ids, it.ID)
+		ids = append(ids, string(it.ID))
 		ci := &eveyv1.CollectionItemProto{
-			Id:       it.ID,
+			Id:       string(it.ID),
 			Title:    it.Title,
 			Type:     string(it.Type),
 			Overview: it.Overview,

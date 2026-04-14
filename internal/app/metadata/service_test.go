@@ -13,6 +13,7 @@ import (
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	metafakes "github.com/gravity-zero/evey/internal/domain/metadata/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -282,7 +283,7 @@ func TestReEnrichWithoutOverrides_SkipsOverriddenItems(t *testing.T) {
 	assert.Len(t, enricher.enrichedItems, 2)
 	ids := make(map[string]bool)
 	for _, it := range enricher.enrichedItems {
-		ids[it.ID] = true
+		ids[string(it.ID)] = true
 	}
 	assert.True(t, ids["item-1"])
 	assert.True(t, ids["item-3"])
@@ -405,7 +406,7 @@ func TestRefreshItemMetadata_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, enricher.enrichedPairs, 1)
 	assert.Equal(t, "Interstellar", enricher.enrichedPairs[0].result.Title)
-	assert.Equal(t, "item-1", enricher.enrichedPairs[0].item.ID)
+	assert.Equal(t, shared.MediaItemID("item-1"), enricher.enrichedPairs[0].item.ID)
 	require.Len(t, bus.PublishedEvents(), 1)
 	assert.Equal(t, "metadata.refreshed", bus.PublishedEvents()[0].EventName())
 }
@@ -764,7 +765,7 @@ func TestStartEnrichmentWorker_SingleEnrich_ViaEvent(t *testing.T) {
 	enricher.mu.Lock()
 	defer enricher.mu.Unlock()
 	assert.Len(t, enricher.autoItems, 1)
-	assert.Equal(t, "item-99", enricher.autoItems[0].ID)
+	assert.Equal(t, shared.MediaItemID("item-99"), enricher.autoItems[0].ID)
 }
 
 func TestStartEnrichmentWorker_NoEnricher(t *testing.T) {

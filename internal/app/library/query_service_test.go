@@ -9,6 +9,7 @@ import (
 	applib "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -495,7 +496,7 @@ func TestQueryService_GetMediaItemsByIDs_Found(t *testing.T) {
 	items, err := f.svc.GetMediaItemsByIDs(context.Background(), []string{"m1", "m3"})
 	require.NoError(t, err)
 	assert.Len(t, items, 2)
-	ids := []string{items[0].ID, items[1].ID}
+	ids := []string{string(items[0].ID), string(items[1].ID)}
 	assert.Contains(t, ids, "m1")
 	assert.Contains(t, ids, "m3")
 }
@@ -508,7 +509,7 @@ func TestQueryService_GetMediaItemsByIDs_PartialMatch(t *testing.T) {
 	items, err := f.svc.GetMediaItemsByIDs(context.Background(), []string{"m1", "nonexistent"})
 	require.NoError(t, err)
 	assert.Len(t, items, 1)
-	assert.Equal(t, "m1", items[0].ID)
+	assert.Equal(t, shared.MediaItemID("m1"), items[0].ID)
 }
 
 func TestQueryService_GetMediaItemsByIDs_EmptyInput(t *testing.T) {
@@ -534,9 +535,9 @@ func TestQueryService_CountMediaItems_WithItems(t *testing.T) {
 	f := newQuerySvcFull()
 	lib1 := "lib-1"
 	lib2 := "lib-2"
-	f.media.Seed(&library.MediaItem{ID: "m1", LibraryID: lib1})
-	f.media.Seed(&library.MediaItem{ID: "m2", LibraryID: lib1})
-	f.media.Seed(&library.MediaItem{ID: "m3", LibraryID: lib2})
+	f.media.Seed(&library.MediaItem{ID: "m1", LibraryID: shared.LibraryID(lib1)})
+	f.media.Seed(&library.MediaItem{ID: "m2", LibraryID: shared.LibraryID(lib1)})
+	f.media.Seed(&library.MediaItem{ID: "m3", LibraryID: shared.LibraryID(lib2)})
 
 	count, err := f.svc.CountMediaItems(context.Background(), library.ListMediaItemsFilter{LibraryID: &lib1})
 	require.NoError(t, err)
@@ -743,7 +744,7 @@ func TestQueryService_GetLibrary_Found(t *testing.T) {
 
 	lib, err := f.svc.GetLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
-	assert.Equal(t, "lib-1", lib.ID)
+	assert.Equal(t, shared.LibraryID("lib-1"), lib.ID)
 	assert.Equal(t, "Movies", lib.Name)
 	assert.Equal(t, library.LibraryType("movie"), lib.Type)
 }
@@ -767,7 +768,7 @@ func TestQueryService_ListLibraries_Multiple(t *testing.T) {
 	libs, err := f.svc.ListLibraries(context.Background())
 	require.NoError(t, err)
 	assert.Len(t, libs, 2)
-	ids := []string{libs[0].ID, libs[1].ID}
+	ids := []string{string(libs[0].ID), string(libs[1].ID)}
 	assert.Contains(t, ids, "lib-1")
 	assert.Contains(t, ids, "lib-2")
 }
@@ -787,10 +788,10 @@ func TestQueryService_GetMediaItem_Found(t *testing.T) {
 
 	item, err := f.svc.GetMediaItem(context.Background(), "m1")
 	require.NoError(t, err)
-	assert.Equal(t, "m1", item.ID)
+	assert.Equal(t, shared.MediaItemID("m1"), item.ID)
 	assert.Equal(t, "Inception", item.Title)
 	assert.Equal(t, library.MediaItemType("movie"), item.Type)
-	assert.Equal(t, "lib-1", item.LibraryID)
+	assert.Equal(t, shared.LibraryID("lib-1"), item.LibraryID)
 	assert.Equal(t, 2020, *item.Year)
 	assert.InEpsilon(t, 8.5, *item.CommunityRating, 1e-9)
 	assert.Equal(t, []string{"sci-fi", "thriller"}, item.Genres)
@@ -850,7 +851,7 @@ func TestQueryService_ListMediaItems_Pagination(t *testing.T) {
 	f := newQuerySvcFull()
 	for i := range 5 {
 		id := "m" + string(rune('A'+i))
-		f.media.Seed(&library.MediaItem{ID: id, Title: "Film " + id})
+		f.media.Seed(&library.MediaItem{ID: shared.MediaItemID(id), Title: "Film " + id})
 	}
 
 	page1, err := f.svc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{Limit: 2, Offset: 0})
@@ -871,15 +872,15 @@ func TestQueryService_ListMediaItems_FilterByLibraryID(t *testing.T) {
 	f := newQuerySvcFull()
 	lib1 := "lib-1"
 	lib2 := "lib-2"
-	f.media.Seed(&library.MediaItem{ID: "m1", LibraryID: lib1, Title: "Film A"})
-	f.media.Seed(&library.MediaItem{ID: "m2", LibraryID: lib2, Title: "Film B"})
-	f.media.Seed(&library.MediaItem{ID: "m3", LibraryID: lib1, Title: "Film C"})
+	f.media.Seed(&library.MediaItem{ID: "m1", LibraryID: shared.LibraryID(lib1), Title: "Film A"})
+	f.media.Seed(&library.MediaItem{ID: "m2", LibraryID: shared.LibraryID(lib2), Title: "Film B"})
+	f.media.Seed(&library.MediaItem{ID: "m3", LibraryID: shared.LibraryID(lib1), Title: "Film C"})
 
 	items, err := f.svc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{LibraryID: &lib1})
 	require.NoError(t, err)
 	assert.Len(t, items, 2)
 	for _, item := range items {
-		assert.Equal(t, lib1, item.LibraryID)
+		assert.Equal(t, shared.LibraryID(lib1), item.LibraryID)
 	}
 }
 
@@ -910,7 +911,7 @@ func TestQueryService_ListMediaItems_FilterByYearRange(t *testing.T) {
 	items, err := f.svc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{YearFrom: 2005, YearTo: 2015})
 	require.NoError(t, err)
 	assert.Len(t, items, 1)
-	assert.Equal(t, "m2", items[0].ID)
+	assert.Equal(t, shared.MediaItemID("m2"), items[0].ID)
 }
 
 func TestQueryService_ListMediaItems_FilterByMinRating(t *testing.T) {
@@ -923,7 +924,7 @@ func TestQueryService_ListMediaItems_FilterByMinRating(t *testing.T) {
 	items, err := f.svc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{MinRating: 7.0})
 	require.NoError(t, err)
 	assert.Len(t, items, 1)
-	assert.Equal(t, "m2", items[0].ID)
+	assert.Equal(t, shared.MediaItemID("m2"), items[0].ID)
 }
 
 // --- Options ---

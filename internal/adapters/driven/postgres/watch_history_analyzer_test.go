@@ -26,7 +26,7 @@ func TestWatchHistoryAnalyzer_GetFavoriteGenres(t *testing.T) {
 
 	u := newTestUser("wha1")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("whap1", u.ID)
+	p := newTestProfile("whap1", string(u.ID))
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("whalib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -43,21 +43,21 @@ func TestWatchHistoryAnalyzer_GetFavoriteGenres(t *testing.T) {
 
 	base := time.Now().UTC().Truncate(time.Millisecond)
 	for i, sid := range []string{"whaps1a", "whaps1b", "whaps1c"} {
-		s := newTestPlaySession(sid, p.ID, item1.ID)
+		s := newTestPlaySession(sid, string(p.ID), string(item1.ID))
 		s.StartedAt = base.Add(time.Duration(i) * time.Minute)
 		require.NoError(t, sessionRepo.Create(ctx, s))
 	}
-	s := newTestPlaySession("whaps1d", p.ID, item2.ID)
+	s := newTestPlaySession("whaps1d", string(p.ID), string(item2.ID))
 	s.StartedAt = base.Add(4 * time.Minute)
 	require.NoError(t, sessionRepo.Create(ctx, s))
 
 	// minCount=3: only "Action" qualifies
-	genres, err := analyzer.GetFavoriteGenres(ctx, p.ID, 3)
+	genres, err := analyzer.GetFavoriteGenres(ctx, string(p.ID), 3)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"Action"}, genres)
 
 	// minCount=1: both qualify, Action first (higher count)
-	genres2, err := analyzer.GetFavoriteGenres(ctx, p.ID, 1)
+	genres2, err := analyzer.GetFavoriteGenres(ctx, string(p.ID), 1)
 	require.NoError(t, err)
 	assert.Contains(t, genres2, "Action")
 	assert.Contains(t, genres2, "Drama")
@@ -74,10 +74,10 @@ func TestWatchHistoryAnalyzer_GetFavoriteGenres_Empty(t *testing.T) {
 
 	u := newTestUser("wha2")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("whap2", u.ID)
+	p := newTestProfile("whap2", string(u.ID))
 	require.NoError(t, profileRepo.Create(ctx, p))
 
-	genres, err := analyzer.GetFavoriteGenres(ctx, p.ID, 1)
+	genres, err := analyzer.GetFavoriteGenres(ctx, string(p.ID), 1)
 	require.NoError(t, err)
 	assert.Empty(t, genres)
 }
@@ -96,7 +96,7 @@ func TestWatchHistoryAnalyzer_HasWatchedSeries(t *testing.T) {
 
 	u := newTestUser("wha3")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("whap3", u.ID)
+	p := newTestProfile("whap3", string(u.ID))
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("whalib3")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -109,32 +109,32 @@ func TestWatchHistoryAnalyzer_HasWatchedSeries(t *testing.T) {
 	// season (parent_id = series)
 	season := newTestMediaItem("whami3season", lib.ID)
 	season.Type = "season"
-	season.ParentID = series.ID
+	season.ParentID = string(series.ID)
 	require.NoError(t, itemRepo.Create(ctx, season))
 
 	// episode (parent_id = season)
 	episode := newTestMediaItem("whami3ep1", lib.ID)
 	episode.Type = "episode"
-	episode.ParentID = season.ID
+	episode.ParentID = string(season.ID)
 	require.NoError(t, itemRepo.Create(ctx, episode))
 
 	// no watch progress yet
-	watched, err := analyzer.HasWatchedSeries(ctx, p.ID, series.ID)
+	watched, err := analyzer.HasWatchedSeries(ctx, string(p.ID), string(series.ID))
 	require.NoError(t, err)
 	assert.False(t, watched)
 
 	// mark episode as completed
 	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
 		ID:           "whawp3",
-		ProfileID:    p.ID,
-		MediaItemID:  episode.ID,
+		ProfileID:    string(p.ID),
+		MediaItemID:  string(episode.ID),
 		PositionMs:   90000,
 		Completed:    true,
 		PlayCount:    1,
 		LastPlayedAt: time.Now().UTC(),
 	}))
 
-	watched, err = analyzer.HasWatchedSeries(ctx, p.ID, series.ID)
+	watched, err = analyzer.HasWatchedSeries(ctx, string(p.ID), string(series.ID))
 	require.NoError(t, err)
 	assert.True(t, watched)
 }
@@ -153,7 +153,7 @@ func TestWatchHistoryAnalyzer_IsCurrentlyWatchingSeries(t *testing.T) {
 
 	u := newTestUser("wha4")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("whap4", u.ID)
+	p := newTestProfile("whap4", string(u.ID))
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("whalib4")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -164,46 +164,46 @@ func TestWatchHistoryAnalyzer_IsCurrentlyWatchingSeries(t *testing.T) {
 
 	season := newTestMediaItem("whami4season", lib.ID)
 	season.Type = "season"
-	season.ParentID = series.ID
+	season.ParentID = string(series.ID)
 	require.NoError(t, itemRepo.Create(ctx, season))
 
 	episode := newTestMediaItem("whami4ep1", lib.ID)
 	episode.Type = "episode"
-	episode.ParentID = season.ID
+	episode.ParentID = string(season.ID)
 	require.NoError(t, itemRepo.Create(ctx, episode))
 
 	// no progress yet
-	inProgress, err := analyzer.IsCurrentlyWatchingSeries(ctx, p.ID, series.ID)
+	inProgress, err := analyzer.IsCurrentlyWatchingSeries(ctx, string(p.ID), string(series.ID))
 	require.NoError(t, err)
 	assert.False(t, inProgress)
 
 	// in-progress (position > 0, not completed)
 	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
 		ID:           "whawp4",
-		ProfileID:    p.ID,
-		MediaItemID:  episode.ID,
+		ProfileID:    string(p.ID),
+		MediaItemID:  string(episode.ID),
 		PositionMs:   30000,
 		Completed:    false,
 		PlayCount:    1,
 		LastPlayedAt: time.Now().UTC(),
 	}))
 
-	inProgress, err = analyzer.IsCurrentlyWatchingSeries(ctx, p.ID, series.ID)
+	inProgress, err = analyzer.IsCurrentlyWatchingSeries(ctx, string(p.ID), string(series.ID))
 	require.NoError(t, err)
 	assert.True(t, inProgress)
 
 	// once completed it should no longer be "currently watching"
 	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
 		ID:           "whawp4",
-		ProfileID:    p.ID,
-		MediaItemID:  episode.ID,
+		ProfileID:    string(p.ID),
+		MediaItemID:  string(episode.ID),
 		PositionMs:   90000,
 		Completed:    true,
 		PlayCount:    1,
 		LastPlayedAt: time.Now().UTC(),
 	}))
 
-	inProgress, err = analyzer.IsCurrentlyWatchingSeries(ctx, p.ID, series.ID)
+	inProgress, err = analyzer.IsCurrentlyWatchingSeries(ctx, string(p.ID), string(series.ID))
 	require.NoError(t, err)
 	assert.False(t, inProgress)
 }
@@ -222,7 +222,7 @@ func TestWatchHistoryAnalyzer_CalculateRelevanceScore(t *testing.T) {
 
 	u := newTestUser("wha5")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("whap5", u.ID)
+	p := newTestProfile("whap5", string(u.ID))
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("whalib5")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -234,23 +234,23 @@ func TestWatchHistoryAnalyzer_CalculateRelevanceScore(t *testing.T) {
 
 	base := time.Now().UTC().Truncate(time.Millisecond)
 	for i, sid := range []string{"whaps5a", "whaps5b", "whaps5c"} {
-		s := newTestPlaySession(sid, p.ID, item.ID)
+		s := newTestPlaySession(sid, string(p.ID), string(item.ID))
 		s.StartedAt = base.Add(time.Duration(i) * time.Minute)
 		require.NoError(t, sessionRepo.Create(ctx, s))
 	}
 
 	// 2 overlapping genres → score 2
-	score, err := analyzer.CalculateRelevanceScore(ctx, p.ID, []string{"Action", "Sci-Fi", "Drama"})
+	score, err := analyzer.CalculateRelevanceScore(ctx, string(p.ID), []string{"Action", "Sci-Fi", "Drama"})
 	require.NoError(t, err)
 	assert.Equal(t, 2, score)
 
 	// no overlap
-	score, err = analyzer.CalculateRelevanceScore(ctx, p.ID, []string{"Romance", "Horror"})
+	score, err = analyzer.CalculateRelevanceScore(ctx, string(p.ID), []string{"Romance", "Horror"})
 	require.NoError(t, err)
 	assert.Equal(t, 0, score)
 
 	// empty genres slice → always 0
-	score, err = analyzer.CalculateRelevanceScore(ctx, p.ID, []string{})
+	score, err = analyzer.CalculateRelevanceScore(ctx, string(p.ID), []string{})
 	require.NoError(t, err)
 	assert.Equal(t, 0, score)
 }

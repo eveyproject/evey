@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type FakeMediaStreamRepository struct {
@@ -32,20 +33,20 @@ func (r *FakeMediaStreamRepository) CreateBatch(_ context.Context, streams []*li
 	return nil
 }
 
-func (r *FakeMediaStreamRepository) ReplaceBatch(_ context.Context, mediaItemID string, streams []*library.MediaStream) error {
+func (r *FakeMediaStreamRepository) ReplaceBatch(_ context.Context, mediaItemID shared.MediaItemID, streams []*library.MediaStream) error {
 	if r.Err != nil {
 		return r.Err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.items, mediaItemID)
+	delete(r.items, string(mediaItemID))
 	for _, s := range streams {
 		r.items[s.MediaItemID] = append(r.items[s.MediaItemID], s)
 	}
 	return nil
 }
 
-func (r *FakeMediaStreamRepository) GetByMediaItemID(_ context.Context, mediaItemID string) ([]*library.MediaStream, error) {
+func (r *FakeMediaStreamRepository) GetByMediaItemID(_ context.Context, mediaItemID shared.MediaItemID) ([]*library.MediaStream, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -54,10 +55,10 @@ func (r *FakeMediaStreamRepository) GetByMediaItemID(_ context.Context, mediaIte
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	return r.items[mediaItemID], nil
+	return r.items[string(mediaItemID)], nil
 }
 
-func (r *FakeMediaStreamRepository) DeleteByMediaItemID(_ context.Context, mediaItemID string) error {
+func (r *FakeMediaStreamRepository) DeleteByMediaItemID(_ context.Context, mediaItemID shared.MediaItemID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -66,6 +67,6 @@ func (r *FakeMediaStreamRepository) DeleteByMediaItemID(_ context.Context, media
 	if r.Err != nil {
 		return r.Err
 	}
-	delete(r.items, mediaItemID)
+	delete(r.items, string(mediaItemID))
 	return nil
 }

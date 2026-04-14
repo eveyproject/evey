@@ -32,13 +32,13 @@ func TestMediaStreamRepo_CreateBatch_GetByMediaItemID(t *testing.T) {
 
 	streams := []*library.MediaStream{
 		{
-			ID: "s1", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video",
+			ID: "s1", MediaItemID: string(item.ID), StreamIndex: 0, StreamType: "video",
 			Codec: "h264", CodecLongName: "H.264", Profile: "High", Language: "und",
 			IsDefault: true, Width: intPtr(1920), Height: intPtr(1080),
 			Framerate: float64Ptr(23.976), BitDepth: intPtr(8),
 		},
 		{
-			ID: "s2", MediaItemID: item.ID, StreamIndex: 1, StreamType: "audio",
+			ID: "s2", MediaItemID: string(item.ID), StreamIndex: 1, StreamType: "audio",
 			Codec: "aac", CodecLongName: "AAC", Language: "en",
 			IsDefault: true, Channels: intPtr(6), ChannelLayout: stringPtr("5.1"),
 			SampleRate: intPtr(48000), Bitrate: int64Ptr(384000),
@@ -84,7 +84,7 @@ func TestMediaStreamRepo_DeleteByMediaItemID(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	streams := []*library.MediaStream{
-		{ID: "sd1", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video", Codec: "h264"},
+		{ID: "sd1", MediaItemID: string(item.ID), StreamIndex: 0, StreamType: "video", Codec: "h264"},
 	}
 	require.NoError(t, streamRepo.CreateBatch(ctx, streams))
 

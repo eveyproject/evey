@@ -29,7 +29,7 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Artwork is public: skip library access check when no auth claims.
-	if claims != nil && !checkLibraryAccess(r.Context(), w, claims, artItem.LibraryID, h.libraryAccess) {
+	if claims != nil && !checkLibraryAccess(r.Context(), w, claims, string(artItem.LibraryID), h.libraryAccess) {
 		return
 	}
 
@@ -146,7 +146,7 @@ func selectArtworkHandler(tokens TokenVerifier, artworkRepo ArtworkRepo, libSvc 
 			http.NotFound(w, r)
 			return
 		}
-		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+		if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), libraryAccess) {
 			return
 		}
 		records, err := artworkRepo.GetByMediaItem(r.Context(), mediaID)

@@ -7,6 +7,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,14 +37,14 @@ func TestMediaItemQueryRepoAdapter_GetCastByMediaItem(t *testing.T) {
 
 	char := "Hero"
 	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{
-		MediaItemID:   item.ID,
+		MediaItemID:   string(item.ID),
 		PersonID:      p1.ID,
 		RoleType:      "actor",
 		CharacterName: &char,
 		SortOrder:     0,
 	}))
 	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{
-		MediaItemID:   item.ID,
+		MediaItemID:   string(item.ID),
 		PersonID:      p2.ID,
 		RoleType:      "director",
 		CharacterName: nil,
@@ -119,11 +120,11 @@ func TestMediaItemQueryRepoAdapter_GetCastForItems(t *testing.T) {
 	require.NoError(t, personRepo.Create(ctx, p2))
 
 	char := "Hero"
-	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: item1.ID, PersonID: p1.ID, RoleType: "actor", CharacterName: &char, SortOrder: 0}))
-	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: item2.ID, PersonID: p2.ID, RoleType: "director", CharacterName: nil, SortOrder: 0}))
+	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: string(item1.ID), PersonID: p1.ID, RoleType: "actor", CharacterName: &char, SortOrder: 0}))
+	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: string(item2.ID), PersonID: p2.ID, RoleType: "director", CharacterName: nil, SortOrder: 0}))
 	// item3 has no cast
 
-	result, err := queryRepo.GetCastForItems(ctx, []string{item1.ID, item2.ID, item3.ID})
+	result, err := queryRepo.GetCastForItems(ctx, []shared.MediaItemID{item1.ID, item2.ID, item3.ID})
 	require.NoError(t, err)
 
 	require.Len(t, result[item1.ID], 1)
@@ -142,7 +143,7 @@ func TestMediaItemQueryRepoAdapter_GetCastForItems_Empty(t *testing.T) {
 	defer cleanup()
 
 	queryRepo := postgres.NewMediaItemQueryRepoAdapter(db)
-	result, err := queryRepo.GetCastForItems(context.Background(), []string{})
+	result, err := queryRepo.GetCastForItems(context.Background(), []shared.MediaItemID{})
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Empty(t, result)
@@ -164,7 +165,7 @@ func TestMediaItemQueryRepoAdapter_List_Count(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("cq-mi3b", lib.ID)))
 	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("cq-mi3c", lib.ID)))
 
-	libID := lib.ID
+	libID := string(lib.ID)
 	filter := library.ListMediaItemsFilter{LibraryID: &libID, Limit: 10}
 
 	list, err := queryRepo.List(ctx, filter)
@@ -199,7 +200,7 @@ func TestMediaItemRepo_List_AllowedRatings(t *testing.T) {
 	noRating.OfficialRating = ""
 	require.NoError(t, itemRepo.Create(ctx, noRating))
 
-	libID := lib.ID
+	libID := string(lib.ID)
 	filter := library.ListMediaItemsFilter{
 		LibraryID:      &libID,
 		AllowedRatings: []string{"G", "TV-Y", "TV-Y7", "TV-G", "PG", "TV-PG", "PG-13", "TV-14"},
@@ -212,7 +213,7 @@ func TestMediaItemRepo_List_AllowedRatings(t *testing.T) {
 
 	ids := make(map[string]bool)
 	for _, item := range list {
-		ids[item.ID] = true
+		ids[string(item.ID)] = true
 	}
 	assert.True(t, ids["cq-mi-pg"])
 	assert.True(t, ids["cq-mi-norating"])

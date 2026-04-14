@@ -10,12 +10,12 @@ import (
 // UserMaxStreamsAdapter adapts a UserRepository to the UserMaxStreamsGetter interface.
 type UserMaxStreamsAdapter struct {
 	repo interface {
-		GetByID(ctx context.Context, id string) (*domainuser.User, error)
+		GetByID(ctx context.Context, id domainshared.UserID) (*domainuser.User, error)
 	}
 }
 
 func (a *UserMaxStreamsAdapter) GetMaxStreams(ctx context.Context, userID string) *int {
-	u, err := a.repo.GetByID(ctx, userID)
+	u, err := a.repo.GetByID(ctx, domainshared.UserID(userID))
 	if err != nil {
 		return nil
 	}
@@ -23,7 +23,7 @@ func (a *UserMaxStreamsAdapter) GetMaxStreams(ctx context.Context, userID string
 }
 
 func NewUserMaxStreamsAdapter(repo interface {
-	GetByID(ctx context.Context, id string) (*domainuser.User, error)
+	GetByID(ctx context.Context, id domainshared.UserID) (*domainuser.User, error)
 }) *UserMaxStreamsAdapter {
 	return &UserMaxStreamsAdapter{repo: repo}
 }

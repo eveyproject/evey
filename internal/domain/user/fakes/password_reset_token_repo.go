@@ -55,14 +55,14 @@ func (r *FakePasswordResetTokenRepository) MarkUsed(_ context.Context, id string
 	return nil
 }
 
-func (r *FakePasswordResetTokenRepository) DeleteByUserID(_ context.Context, userID string) error {
+func (r *FakePasswordResetTokenRepository) DeleteByUserID(_ context.Context, userID shared.UserID) error {
 	if r.Err != nil {
 		return r.Err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for id, t := range r.items {
-		if t.UserID == userID {
+		if t.UserID == string(userID) {
 			delete(r.items, id)
 		}
 	}

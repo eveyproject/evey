@@ -8,6 +8,7 @@ import (
 	appcol "github.com/gravity-zero/evey/internal/app/collection"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -196,7 +197,7 @@ func TestLinkMediaItem(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	assert.Len(t, items, 1)
-	assert.Equal(t, "m1", items[0].ID)
+	assert.Equal(t, shared.MediaItemID("m1"), items[0].ID)
 }
 
 func TestGetItems_ZeroLimit_DefaultsTo50(t *testing.T) {
@@ -231,7 +232,7 @@ func TestGetItems_NegativeLimit_DefaultsTo50(t *testing.T) {
 	// create 3 items and link them
 	for i := range 3 {
 		id := fmt.Sprintf("m%d", i)
-		mediaRepo.Create(ctx, &library.MediaItem{ID: id, Title: id})
+		mediaRepo.Create(ctx, &library.MediaItem{ID: shared.MediaItemID(id), Title: id})
 	}
 	col, err := svc.Upsert(ctx, 80, "Saga", "", "", "")
 	require.NoError(t, err)
@@ -397,8 +398,8 @@ func TestGetItems_SmartCollection_LimitTruncatesResults(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3, total)
 	assert.Len(t, items, 2)
-	assert.Equal(t, "m1", items[0].ID)
-	assert.Equal(t, "m2", items[1].ID)
+	assert.Equal(t, shared.MediaItemID("m1"), items[0].ID)
+	assert.Equal(t, shared.MediaItemID("m2"), items[1].ID)
 }
 
 func TestCreateSmart(t *testing.T) {
@@ -687,5 +688,5 @@ func TestGetItems_SmartCollection_RulesEvaluated(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	assert.Len(t, items, 1)
-	assert.Equal(t, "m1", items[0].ID)
+	assert.Equal(t, shared.MediaItemID("m1"), items[0].ID)
 }

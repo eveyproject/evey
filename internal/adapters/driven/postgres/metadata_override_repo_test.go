@@ -38,7 +38,7 @@ func TestMetadataOverrideRepo_Set_Get(t *testing.T) {
 	item := newTestMediaItem("ovmi1", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	o := newTestOverride("ov1", item.ID, "title", "Custom Title")
+	o := newTestOverride("ov1", string(item.ID), "title", "Custom Title")
 	require.NoError(t, overrideRepo.Set(ctx, o))
 
 	got, err := overrideRepo.Get(ctx, o.ID)
@@ -65,7 +65,7 @@ func TestMetadataOverrideRepo_Set_Upsert(t *testing.T) {
 	item := newTestMediaItem("ovmi2", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	o := newTestOverride("ov2", item.ID, "overview", "Original overview")
+	o := newTestOverride("ov2", string(item.ID), "overview", "Original overview")
 	require.NoError(t, overrideRepo.Set(ctx, o))
 
 	// Same id, same (media_item_id, field_name), updated value — upsert updates
@@ -77,7 +77,7 @@ func TestMetadataOverrideRepo_Set_Upsert(t *testing.T) {
 	assert.Equal(t, "Updated overview", got.CustomValue)
 
 	// Only one row for (media_item_id, field_name)
-	list, err := overrideRepo.GetByMediaItem(ctx, item.ID)
+	list, err := overrideRepo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	assert.Len(t, list, 1)
 }
@@ -96,10 +96,10 @@ func TestMetadataOverrideRepo_GetByMediaItem(t *testing.T) {
 	item := newTestMediaItem("ovmi3", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ov3a", item.ID, "title", "T")))
-	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ov3b", item.ID, "overview", "O")))
+	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ov3a", string(item.ID), "title", "T")))
+	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ov3b", string(item.ID), "overview", "O")))
 
-	list, err := overrideRepo.GetByMediaItem(ctx, item.ID)
+	list, err := overrideRepo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	require.Len(t, list, 2)
 	// ORDER BY field_name: "overview" < "title"
@@ -121,7 +121,7 @@ func TestMetadataOverrideRepo_Delete(t *testing.T) {
 	item := newTestMediaItem("ovmi4", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	o := newTestOverride("ov4", item.ID, "title", "To delete")
+	o := newTestOverride("ov4", string(item.ID), "title", "To delete")
 	require.NoError(t, overrideRepo.Set(ctx, o))
 	require.NoError(t, overrideRepo.Delete(ctx, o.ID))
 
@@ -143,12 +143,12 @@ func TestMetadataOverrideRepo_DeleteByMediaItemID(t *testing.T) {
 	item := newTestMediaItem("ovmi5", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ov5a", item.ID, "title", "T")))
-	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ov5b", item.ID, "tagline", "S")))
+	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ov5a", string(item.ID), "title", "T")))
+	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ov5b", string(item.ID), "tagline", "S")))
 
-	require.NoError(t, overrideRepo.DeleteByMediaItemID(ctx, item.ID))
+	require.NoError(t, overrideRepo.DeleteByMediaItemID(ctx, string(item.ID)))
 
-	list, err := overrideRepo.GetByMediaItem(ctx, item.ID)
+	list, err := overrideRepo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	assert.Empty(t, list)
 }

@@ -87,7 +87,7 @@ func (r *FakeRefreshTokenRepository) DeleteByID(_ context.Context, id string) er
 	return nil
 }
 
-func (r *FakeRefreshTokenRepository) DeleteByUserID(_ context.Context, userID string) error {
+func (r *FakeRefreshTokenRepository) DeleteByUserID(_ context.Context, userID shared.UserID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -97,7 +97,7 @@ func (r *FakeRefreshTokenRepository) DeleteByUserID(_ context.Context, userID st
 		return r.Err
 	}
 	for id, t := range r.items {
-		if t.UserID == userID {
+		if t.UserID == string(userID) {
 			delete(r.items, id)
 		}
 	}

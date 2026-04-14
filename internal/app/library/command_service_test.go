@@ -349,7 +349,7 @@ func TestUpsertMediaFile_NewItem_ByFingerprint_FallbackToPath(t *testing.T) {
 	assert.Equal(t, "fp-123", items[0].FileFingerprint)
 	assert.Equal(t, int64(1000), items[0].FileSize)
 	assert.Equal(t, "/movies/film.mkv", items[0].FilePath)
-	assert.Equal(t, "lib-1", items[0].LibraryID)
+	assert.Equal(t, shared.LibraryID("lib-1"), items[0].LibraryID)
 }
 
 func TestUpsertMediaFile_ExistingByFingerprint_Unchanged_NoPathChange(t *testing.T) {
@@ -794,7 +794,7 @@ func TestDiscoverExternalSubtitles_VttCodecRenamed(t *testing.T) {
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 
-	streams, _ := h.streams.GetByMediaItemID(context.Background(), h.mediaItems.All()[0].ID)
+	streams, _ := h.streams.GetByMediaItemID(context.Background(), shared.MediaItemID(h.mediaItems.All()[0].ID))
 	var subStream *library.MediaStream
 	for _, s := range streams {
 		if s.StreamType == "subtitle" {
@@ -834,7 +834,7 @@ func TestDiscoverExternalSubtitles_NonVttCodecKept(t *testing.T) {
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 
-	streams, _ := h.streams.GetByMediaItemID(context.Background(), h.mediaItems.All()[0].ID)
+	streams, _ := h.streams.GetByMediaItemID(context.Background(), shared.MediaItemID(h.mediaItems.All()[0].ID))
 	var subStream *library.MediaStream
 	for _, s := range streams {
 		if s.StreamType == "subtitle" {
@@ -874,7 +874,7 @@ func TestDiscoverExternalSubtitles_MaxIdxContinuesFromExisting(t *testing.T) {
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 
-	streams, _ := h.streams.GetByMediaItemID(context.Background(), h.mediaItems.All()[0].ID)
+	streams, _ := h.streams.GetByMediaItemID(context.Background(), shared.MediaItemID(h.mediaItems.All()[0].ID))
 	var extSub *library.MediaStream
 	for _, s := range streams {
 		if s.IsExternal {
@@ -910,7 +910,7 @@ func TestDiscoverExternalSubtitles_ForcedFlag(t *testing.T) {
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 
-	streams, _ := h.streams.GetByMediaItemID(context.Background(), h.mediaItems.All()[0].ID)
+	streams, _ := h.streams.GetByMediaItemID(context.Background(), shared.MediaItemID(h.mediaItems.All()[0].ID))
 	require.Len(t, streams, 1)
 	assert.True(t, streams[0].IsForced)
 }
@@ -934,7 +934,7 @@ func TestDiscoverExternalSubtitles_NilScanner_NoSubs(t *testing.T) {
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 
-	streams, _ := h.streams.GetByMediaItemID(context.Background(), h.mediaItems.All()[0].ID)
+	streams, _ := h.streams.GetByMediaItemID(context.Background(), shared.MediaItemID(h.mediaItems.All()[0].ID))
 	for _, s := range streams {
 		assert.False(t, s.IsExternal)
 	}
@@ -1621,7 +1621,7 @@ func TestUpsertMediaFile_NewItem_ParentID_Propagated(t *testing.T) {
 	var seasonID string
 	for _, item := range items {
 		if item.Type == "season" {
-			seasonID = item.ID
+			seasonID = string(item.ID)
 		}
 		if item.FilePath == "/tv/show/s01e01.mkv" {
 			episode = item

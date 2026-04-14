@@ -116,14 +116,14 @@ func (s *CommandService) GetMediaItem(ctx context.Context, id string) (*library.
 	if s.mediaItems == nil {
 		return nil, errors.New("media items repo not configured")
 	}
-	return s.mediaItems.GetByID(ctx, id)
+	return s.mediaItems.GetByID(ctx, shared.MediaItemID(id))
 }
 
 func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, tmdbID, mediaType string) error {
 	if s.enricher == nil || s.mediaItems == nil {
 		return errors.New("enricher not configured")
 	}
-	item, err := s.mediaItems.GetByID(ctx, mediaItemID)
+	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		return fmt.Errorf("get media item: %w", err)
 	}
@@ -145,7 +145,7 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 	if s.enricher == nil || s.mediaItems == nil {
 		return errors.New("enricher not configured")
 	}
-	item, err := s.mediaItems.GetByID(ctx, mediaItemID)
+	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		return fmt.Errorf("get media item: %w", err)
 	}
@@ -253,7 +253,8 @@ func (s *CommandService) deriveTitleFromChildren(ctx context.Context, seriesID s
 		return ""
 	}
 	episodeType := "episode"
-	episodes, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{ParentID: &seasons[0].ID, Type: &episodeType, Limit: 1})
+	seasonID := string(seasons[0].ID)
+	episodes, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{ParentID: &seasonID, Type: &episodeType, Limit: 1})
 	if err != nil || len(episodes) == 0 {
 		return ""
 	}
@@ -270,7 +271,7 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 	if s.mediaItems == nil {
 		return errors.New("media item repository not configured")
 	}
-	item, err := s.mediaItems.GetByID(ctx, mediaItemID)
+	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		return fmt.Errorf("get media item: %w", err)
 	}
@@ -280,7 +281,7 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 
 	// Cascade to children (series → seasons + episodes, season → episodes)
 	if item.Type == library.Series || item.Type == library.Season {
-		s.resetChildren(ctx, item.ID)
+		s.resetChildren(ctx, string(item.ID))
 	}
 
 	// Trigger re-enrichment with background context (request ctx may be done)
@@ -306,7 +307,7 @@ func (s *CommandService) resetSingleItem(ctx context.Context, item *library.Medi
 	if item.FilePath != "" {
 		item.Title = deriveTitle(item.FilePath, string(item.Type))
 	} else if item.Type == library.Series {
-		if dirName := s.deriveTitleFromChildren(ctx, item.ID); dirName != "" {
+		if dirName := s.deriveTitleFromChildren(ctx, string(item.ID)); dirName != "" {
 			item.Title = dirName
 		}
 	}
@@ -326,17 +327,17 @@ func (s *CommandService) resetSingleItem(ctx context.Context, item *library.Medi
 	item.UpdatedAt = time.Now()
 
 	if err := s.mediaItems.Update(ctx, item); err != nil {
-		slog.Warn("reset: update item", slog.String("id", item.ID), slog.Any("err", err))
+		slog.Warn("reset: update item", slog.String("id", string(item.ID)), slog.Any("err", err))
 	}
-	if err := s.artwork.DeleteByMediaItemID(ctx, item.ID); err != nil {
-		slog.Warn("reset: delete artwork", slog.String("id", item.ID), slog.Any("err", err))
+	if err := s.artwork.DeleteByMediaItemID(ctx, string(item.ID)); err != nil {
+		slog.Warn("reset: delete artwork", slog.String("id", string(item.ID)), slog.Any("err", err))
 	}
-	if err := s.overrides.DeleteByMediaItemID(ctx, item.ID); err != nil {
-		slog.Warn("reset: delete overrides", slog.String("id", item.ID), slog.Any("err", err))
+	if err := s.overrides.DeleteByMediaItemID(ctx, string(item.ID)); err != nil {
+		slog.Warn("reset: delete overrides", slog.String("id", string(item.ID)), slog.Any("err", err))
 	}
 	if s.mediaPersons != nil {
-		if err := s.mediaPersons.DeleteByMediaItemID(ctx, item.ID); err != nil {
-			slog.Warn("reset: delete media persons", slog.String("id", item.ID), slog.Any("err", err))
+		if err := s.mediaPersons.DeleteByMediaItemID(ctx, shared.MediaItemID(item.ID)); err != nil {
+			slog.Warn("reset: delete media persons", slog.String("id", string(item.ID)), slog.Any("err", err))
 		}
 	}
 }
@@ -352,7 +353,7 @@ func (s *CommandService) resetChildren(ctx context.Context, parentID string) {
 		s.resetSingleItem(ctx, child)
 		// Recurse (series → seasons → episodes)
 		if child.Type == library.Season {
-			s.resetChildren(ctx, child.ID)
+			s.resetChildren(ctx, string(child.ID))
 		}
 	}
 }
@@ -445,7 +446,7 @@ func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
 						if !ok {
 							return
 						}
-						item, err := s.mediaItems.GetByID(ctx, mediaID)
+						item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaID))
 						if err == nil {
 							se.AutoEnrichItem(ctx, item, slog.Default())
 						}
@@ -498,7 +499,7 @@ func (s *CommandService) ReEnrichWithoutOverrides(ctx context.Context, be BulkIt
 
 		ids := make([]string, len(items))
 		for i, item := range items {
-			ids[i] = item.ID
+			ids[i] = string(item.ID)
 		}
 		overridden, oErr := s.overrides.ListOverriddenMediaItemIDs(ctx, ids)
 		if oErr != nil {
@@ -508,7 +509,7 @@ func (s *CommandService) ReEnrichWithoutOverrides(ctx context.Context, be BulkIt
 
 		var toEnrich []*library.MediaItem
 		for _, item := range items {
-			if overridden[item.ID] {
+			if overridden[string(item.ID)] {
 				skipped++
 				continue
 			}

@@ -92,14 +92,14 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 	if err := e.mediaItems.Update(ctx, item); err != nil {
 		return fmt.Errorf("update media item: %w", err)
 	}
-	if err := e.replaceArtwork(ctx, item.ID, result.Artwork); err != nil {
+	if err := e.replaceArtwork(ctx, string(item.ID), result.Artwork); err != nil {
 		return fmt.Errorf("Enricher.EnrichItem: %w", err)
 	}
-	if err := e.upsertPeople(ctx, item.ID, result.People); err != nil {
+	if err := e.upsertPeople(ctx, string(item.ID), result.People); err != nil {
 		return fmt.Errorf("Enricher.EnrichItem: %w", err)
 	}
 	e.indexSearch(ctx, item, result.People)
-	e.linkCollection(ctx, item.ID, result.Collection)
+	e.linkCollection(ctx, string(item.ID), result.Collection)
 	// Fetch translations for all supported locales
 	if tmdbID := item.ProviderIDs["tmdb"]; tmdbID != "" {
 		mediaType := "movie"
@@ -193,7 +193,7 @@ func buildArtworkRecord(mediaItemID string, sortOrder int, art domainmetadata.Ar
 }
 
 func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people []domainmetadata.PersonResult) error {
-	if err := e.mediaPersons.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
+	if err := e.mediaPersons.DeleteByMediaItemID(ctx, shared.MediaItemID(mediaItemID)); err != nil {
 		return fmt.Errorf("delete old media_people: %w", err)
 	}
 	seenPersons := make(map[string]bool)
@@ -375,12 +375,12 @@ func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.Media
 	}
 	results, err := tp.FetchTranslations(ctx, providerID, mediaType, e.translationLocales)
 	if err != nil {
-		slog.Warn("fetch translations", slog.String("item", item.ID), slog.Any("err", err))
+		slog.Warn("fetch translations", slog.String("item", string(item.ID)), slog.Any("err", err))
 		return
 	}
 	for locale, result := range results {
 		if err := e.mediaTranslations.Upsert(ctx, &domainlib.MediaItemTranslation{
-			MediaItemID: item.ID,
+			MediaItemID: string(item.ID),
 			Locale:      locale,
 			Title:       result.Title,
 			Overview:    result.Overview,

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 // SmartQuerier evaluates collection rules against media_items.
@@ -13,7 +14,7 @@ type SmartQuerier interface {
 
 // MediaItemGetter is a narrow read interface for media item lookups.
 type MediaItemGetter interface {
-	GetByID(ctx context.Context, id string) (*library.MediaItem, error)
+	GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error)
 }
 
 // Service is a backward-compatible facade delegating to CommandService and QueryService.

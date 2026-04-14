@@ -11,6 +11,7 @@ import (
 	"time"
 
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	domainsubtitle "github.com/gravity-zero/evey/internal/domain/subtitle"
 )
 
@@ -59,7 +60,7 @@ func newSubtitleRoutes(svc subtitleService, tokens TokenVerifier, mg MediaItemGe
 
 func subtitleMediaGetter(libraryID string) *fakeMediaGetter {
 	mg := newFakeMediaGetter()
-	mg.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: libraryID}
+	mg.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: shared.LibraryID(libraryID)}
 	return mg
 }
 

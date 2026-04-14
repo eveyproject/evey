@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 )
@@ -30,7 +31,7 @@ var pngPixel = []byte{
 
 func seedProfile(t *testing.T, repo domainuser.ProfileRepository, id, userID string) *domainuser.Profile {
 	t.Helper()
-	p := &domainuser.Profile{ID: id, UserID: userID, Name: "P"}
+	p := &domainuser.Profile{ID: shared.ProfileID(id), UserID: shared.UserID(userID), Name: "P"}
 	if err := repo.Create(context.Background(), p); err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +61,7 @@ func TestAvatarUpload_Success(t *testing.T) {
 	p := seedProfile(t, repo, "p1", "u1")
 
 	h := avatarUploadHandler(repo, tmp)
-	req := newUploadRequest(t, p.ID, "avatar", pngPixel)
+	req := newUploadRequest(t, string(p.ID), "avatar", pngPixel)
 	req = withHTTPClaims(req, &domainuser.Claims{UserID: "u1", ProfileID: "p1"})
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)

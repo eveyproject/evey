@@ -132,7 +132,7 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
+	if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), h.libraryAccess) {
 		return
 	}
 	setCORSHeaders(w, r, h.baseURL)
@@ -156,7 +156,7 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL strin
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+		if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), libraryAccess) {
 			return
 		}
 		serveDownload(w, r, item, baseURL)

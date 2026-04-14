@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -48,7 +49,7 @@ func (r *FakeAPIKeyRepository) GetByKeyHash(_ context.Context, hash string) (*us
 	return nil, ErrNotFound
 }
 
-func (r *FakeAPIKeyRepository) ListByUserID(_ context.Context, userID string) ([]*user.APIKeyModel, error) {
+func (r *FakeAPIKeyRepository) ListByUserID(_ context.Context, userID shared.UserID) ([]*user.APIKeyModel, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -59,7 +60,7 @@ func (r *FakeAPIKeyRepository) ListByUserID(_ context.Context, userID string) ([
 	}
 	var result []*user.APIKeyModel
 	for _, k := range r.items {
-		if k.UserID == userID {
+		if k.UserID == string(userID) {
 			result = append(result, k)
 		}
 	}

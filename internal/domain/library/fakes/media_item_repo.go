@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type FakeMediaItemRepository struct {
@@ -30,17 +31,17 @@ func (r *FakeMediaItemRepository) Create(_ context.Context, item *library.MediaI
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.items[item.ID] = item
+	r.items[string(item.ID)] = item
 	return nil
 }
 
-func (r *FakeMediaItemRepository) GetByID(_ context.Context, id string) (*library.MediaItem, error) {
+func (r *FakeMediaItemRepository) GetByID(_ context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
 	if r.ErrGetByID != nil {
 		return nil, r.ErrGetByID
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	item, ok := r.items[id]
+	item, ok := r.items[string(id)]
 	if !ok {
 		return nil, ErrNotFound
 	}
@@ -55,7 +56,7 @@ func (r *FakeMediaItemRepository) List(_ context.Context, filter library.ListMed
 	defer r.mu.RUnlock()
 	var result []*library.MediaItem
 	for _, item := range r.items {
-		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
+		if filter.LibraryID != nil && string(item.LibraryID) != *filter.LibraryID {
 			continue
 		}
 		if filter.ParentID != nil && item.ParentID != *filter.ParentID {
@@ -83,23 +84,23 @@ func (r *FakeMediaItemRepository) Update(_ context.Context, item *library.MediaI
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.items[item.ID]; !ok {
+	if _, ok := r.items[string(item.ID)]; !ok {
 		return ErrNotFound
 	}
-	r.items[item.ID] = item
+	r.items[string(item.ID)] = item
 	return nil
 }
 
-func (r *FakeMediaItemRepository) Delete(_ context.Context, id string) error {
+func (r *FakeMediaItemRepository) Delete(_ context.Context, id shared.MediaItemID) error {
 	if r.ErrDelete != nil {
 		return r.ErrDelete
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, ok := r.items[id]; !ok {
+	if _, ok := r.items[string(id)]; !ok {
 		return ErrNotFound
 	}
-	delete(r.items, id)
+	delete(r.items, string(id))
 	return nil
 }
 
@@ -133,7 +134,7 @@ func (r *FakeMediaItemRepository) Count(_ context.Context, filter library.ListMe
 	defer r.mu.RUnlock()
 	count := 0
 	for _, item := range r.items {
-		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
+		if filter.LibraryID != nil && string(item.LibraryID) != *filter.LibraryID {
 			continue
 		}
 		if filter.Type != nil && string(item.Type) != *filter.Type {
@@ -147,7 +148,7 @@ func (r *FakeMediaItemRepository) Count(_ context.Context, filter library.ListMe
 	return count, nil
 }
 
-func (r *FakeMediaItemRepository) GetByLibraryTypeTitle(_ context.Context, libraryID, itemType, title, parentID string) (*library.MediaItem, error) {
+func (r *FakeMediaItemRepository) GetByLibraryTypeTitle(_ context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.GetByLibraryTypeTitleErr != nil {

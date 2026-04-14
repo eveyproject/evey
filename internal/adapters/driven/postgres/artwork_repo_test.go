@@ -43,12 +43,12 @@ func TestArtworkRepo_Create_GetByMediaItem(t *testing.T) {
 	item := newTestMediaItem("artmi1", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	a1 := newTestArtwork("art1a", item.ID, 1)
-	a2 := newTestArtwork("art1b", item.ID, 0)
+	a1 := newTestArtwork("art1a", string(item.ID), 1)
+	a2 := newTestArtwork("art1b", string(item.ID), 0)
 	require.NoError(t, artRepo.Create(ctx, a1))
 	require.NoError(t, artRepo.Create(ctx, a2))
 
-	got, err := artRepo.GetByMediaItem(ctx, item.ID)
+	got, err := artRepo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 	assert.Equal(t, "art1b", got[0].ID)
@@ -76,7 +76,7 @@ func TestArtworkRepo_GetByPerson(t *testing.T) {
 	require.NoError(t, personRepo.Create(ctx, person))
 
 	personID := person.ID
-	a := newTestArtwork("art2a", item.ID, 0)
+	a := newTestArtwork("art2a", string(item.ID), 0)
 	a.PersonID = &personID
 	require.NoError(t, artRepo.Create(ctx, a))
 
@@ -102,12 +102,12 @@ func TestArtworkRepo_UpdateSortOrder(t *testing.T) {
 	item := newTestMediaItem("artmi3", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	a := newTestArtwork("art3a", item.ID, 0)
+	a := newTestArtwork("art3a", string(item.ID), 0)
 	require.NoError(t, artRepo.Create(ctx, a))
 
 	require.NoError(t, artRepo.UpdateSortOrder(ctx, "art3a", 5))
 
-	got, err := artRepo.GetByMediaItem(ctx, item.ID)
+	got, err := artRepo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, 5, got[0].SortOrder)
@@ -127,12 +127,12 @@ func TestArtworkRepo_Delete(t *testing.T) {
 	item := newTestMediaItem("artmi4", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	a := newTestArtwork("art4a", item.ID, 0)
+	a := newTestArtwork("art4a", string(item.ID), 0)
 	require.NoError(t, artRepo.Create(ctx, a))
 
 	require.NoError(t, artRepo.Delete(ctx, "art4a"))
 
-	got, err := artRepo.GetByMediaItem(ctx, item.ID)
+	got, err := artRepo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
@@ -151,12 +151,12 @@ func TestArtworkRepo_DeleteByMediaItemID(t *testing.T) {
 	item := newTestMediaItem("artmi5", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	require.NoError(t, artRepo.Create(ctx, newTestArtwork("art5a", item.ID, 0)))
-	require.NoError(t, artRepo.Create(ctx, newTestArtwork("art5b", item.ID, 1)))
+	require.NoError(t, artRepo.Create(ctx, newTestArtwork("art5a", string(item.ID), 0)))
+	require.NoError(t, artRepo.Create(ctx, newTestArtwork("art5b", string(item.ID), 1)))
 
-	require.NoError(t, artRepo.DeleteByMediaItemID(ctx, item.ID))
+	require.NoError(t, artRepo.DeleteByMediaItemID(ctx, string(item.ID)))
 
-	got, err := artRepo.GetByMediaItem(ctx, item.ID)
+	got, err := artRepo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }

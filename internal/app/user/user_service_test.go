@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	ufakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
@@ -57,7 +58,7 @@ func newUserTestDeps() *userTestDeps {
 func seedUserSvcUser(t *testing.T, d *userTestDeps, id, username, password string, admin, enabled bool) *user.User {
 	t.Helper()
 	u := &user.User{
-		ID:           id,
+		ID:           shared.UserID(id),
 		Username:     username,
 		PasswordHash: "hashed:" + password,
 		IsAdmin:      admin,
@@ -173,13 +174,13 @@ func (s *snapshotUOW) Do(ctx context.Context, fn func(context.Context) error) er
 	before, _ := s.users.List(ctx)
 	beforeIDs := map[string]struct{}{}
 	for _, u := range before {
-		beforeIDs[u.ID] = struct{}{}
+		beforeIDs[string(u.ID)] = struct{}{}
 	}
 	err := s.inner.Do(ctx, fn)
 	if err != nil {
 		after, _ := s.users.List(ctx)
 		for _, u := range after {
-			if _, ok := beforeIDs[u.ID]; !ok {
+			if _, ok := beforeIDs[string(u.ID)]; !ok {
 				_ = s.users.Delete(ctx, u.ID)
 			}
 		}

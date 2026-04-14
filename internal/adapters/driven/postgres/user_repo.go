@@ -33,12 +33,12 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 	return nil
 }
 
-func (r *UserRepository) GetByID(ctx context.Context, id string) (*user.User, error) {
+func (r *UserRepository) GetByID(ctx context.Context, id shared.UserID) (*user.User, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanUser(r.db.QueryRowContext(ctx,
 		`SELECT id, username, email, password_hash, is_admin, enabled, oidc_subject, oidc_issuer, max_streams, max_bitrate_kbps, push_consent, created_at, updated_at
-		 FROM users WHERE id = $1`, id))
+		 FROM users WHERE id = $1`, string(id)))
 }
 
 func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*user.User, error) {
@@ -106,10 +106,10 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 	return nil
 }
 
-func (r *UserRepository) Delete(ctx context.Context, id string) error {
+func (r *UserRepository) Delete(ctx context.Context, id shared.UserID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, id)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("delete user: %w", err)
 	}

@@ -18,7 +18,7 @@ func streamTokenHandler(tokenGen *auth.JWTGenerator, store *appmedia.StreamToken
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libAccess) {
+		if !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), libAccess) {
 			return
 		}
 

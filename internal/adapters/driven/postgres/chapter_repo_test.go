@@ -26,9 +26,9 @@ func TestChapterRepo_ReplaceBatch_GetByMediaItemID(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	chapters := []*library.Chapter{
-		{ID: "ch1", MediaItemID: item.ID, Title: "Intro", StartTimeMs: 0, EndTimeMs: 90000, SortOrder: 0},
-		{ID: "ch2", MediaItemID: item.ID, Title: "Act 1", StartTimeMs: 90000, EndTimeMs: 300000, SortOrder: 1},
-		{ID: "ch3", MediaItemID: item.ID, Title: "Credits", StartTimeMs: 300000, EndTimeMs: 360000, SortOrder: 2},
+		{ID: "ch1", MediaItemID: string(item.ID), Title: "Intro", StartTimeMs: 0, EndTimeMs: 90000, SortOrder: 0},
+		{ID: "ch2", MediaItemID: string(item.ID), Title: "Act 1", StartTimeMs: 90000, EndTimeMs: 300000, SortOrder: 1},
+		{ID: "ch3", MediaItemID: string(item.ID), Title: "Credits", StartTimeMs: 300000, EndTimeMs: 360000, SortOrder: 2},
 	}
 	require.NoError(t, chRepo.ReplaceBatch(ctx, item.ID, chapters))
 
@@ -60,13 +60,13 @@ func TestChapterRepo_ReplaceBatch_OverwriteExisting(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	initial := []*library.Chapter{
-		{ID: "old1", MediaItemID: item.ID, Title: "Old Chapter", StartTimeMs: 0, EndTimeMs: 1000, SortOrder: 0},
+		{ID: "old1", MediaItemID: string(item.ID), Title: "Old Chapter", StartTimeMs: 0, EndTimeMs: 1000, SortOrder: 0},
 	}
 	require.NoError(t, chRepo.ReplaceBatch(ctx, item.ID, initial))
 
 	replacement := []*library.Chapter{
-		{ID: "new1", MediaItemID: item.ID, Title: "New Chapter A", StartTimeMs: 0, EndTimeMs: 500, SortOrder: 0},
-		{ID: "new2", MediaItemID: item.ID, Title: "New Chapter B", StartTimeMs: 500, EndTimeMs: 1000, SortOrder: 1},
+		{ID: "new1", MediaItemID: string(item.ID), Title: "New Chapter A", StartTimeMs: 0, EndTimeMs: 500, SortOrder: 0},
+		{ID: "new2", MediaItemID: string(item.ID), Title: "New Chapter B", StartTimeMs: 500, EndTimeMs: 1000, SortOrder: 1},
 	}
 	require.NoError(t, chRepo.ReplaceBatch(ctx, item.ID, replacement))
 
@@ -92,7 +92,7 @@ func TestChapterRepo_ReplaceBatch_EmptyClears(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	chapters := []*library.Chapter{
-		{ID: "clear1", MediaItemID: item.ID, Title: "To Remove", StartTimeMs: 0, EndTimeMs: 1000, SortOrder: 0},
+		{ID: "clear1", MediaItemID: string(item.ID), Title: "To Remove", StartTimeMs: 0, EndTimeMs: 1000, SortOrder: 0},
 	}
 	require.NoError(t, chRepo.ReplaceBatch(ctx, item.ID, chapters))
 

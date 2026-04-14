@@ -43,7 +43,7 @@ func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.Libra
 		}
 		allLibs := make([]libInfo, 0, len(libs))
 		for _, l := range libs {
-			allLibs = append(allLibs, libInfo{ID: l.ID, Name: l.Name})
+			allLibs = append(allLibs, libInfo{ID: string(l.ID), Name: l.Name})
 		}
 		if ids == nil {
 			ids = []shared.LibraryID{}

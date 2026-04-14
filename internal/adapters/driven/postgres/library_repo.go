@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type LibraryRepository struct {
@@ -35,14 +36,14 @@ func (r *LibraryRepository) Create(ctx context.Context, lib *library.Library) er
 	return nil
 }
 
-func (r *LibraryRepository) GetByID(ctx context.Context, id string) (*library.Library, error) {
+func (r *LibraryRepository) GetByID(ctx context.Context, id shared.LibraryID) (*library.Library, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	lib := &library.Library{}
 	var pathsJSON []byte
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at
-		 FROM libraries WHERE id = $1`, id,
+		 FROM libraries WHERE id = $1`, string(id),
 	).Scan(&lib.ID, &lib.Name, &lib.Type, &pathsJSON, &lib.ScanIntervalMinutes, &lib.Enabled, &lib.LastScannedAt, &lib.CreatedAt, &lib.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("LibraryRepo.GetByID: %w", err)
@@ -100,10 +101,10 @@ func (r *LibraryRepository) Update(ctx context.Context, lib *library.Library) er
 	return nil
 }
 
-func (r *LibraryRepository) Delete(ctx context.Context, id string) error {
+func (r *LibraryRepository) Delete(ctx context.Context, id shared.LibraryID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM libraries WHERE id = $1`, id)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM libraries WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Delete: %w", err)
 	}

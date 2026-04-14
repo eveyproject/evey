@@ -34,7 +34,7 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 			return
 		}
 		// Trickplay is public: skip library access check when no auth claims.
-		if claims != nil && !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+		if claims != nil && !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), libraryAccess) {
 			return
 		}
 
@@ -127,7 +127,7 @@ func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseU
 			return
 		}
 		// Trickplay image is public: skip library access check when no auth claims.
-		if claims != nil && !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+		if claims != nil && !checkLibraryAccess(r.Context(), w, claims, string(item.LibraryID), libraryAccess) {
 			return
 		}
 

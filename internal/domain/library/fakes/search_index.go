@@ -27,7 +27,7 @@ func (s *FakeSearchIndex) IndexMediaItem(_ context.Context, item *library.MediaI
 	if s.Err != nil {
 		return s.Err
 	}
-	s.items[item.ID] = item
+	s.items[string(item.ID)] = item
 	return nil
 }
 
@@ -38,7 +38,7 @@ func (s *FakeSearchIndex) IndexMediaItemsBatch(_ context.Context, items []*libra
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, item := range items {
-		s.items[item.ID] = item
+		s.items[string(item.ID)] = item
 	}
 	return nil
 }
@@ -70,8 +70,8 @@ func (s *FakeSearchIndex) Search(_ context.Context, query string, _ map[string]s
 	for _, item := range s.items {
 		if strings.Contains(strings.ToLower(item.Title), q) {
 			hits = append(hits, library.SearchHit{
-				ID:             item.ID,
-				LibraryID:      item.LibraryID,
+				ID:             string(item.ID),
+				LibraryID:      string(item.LibraryID),
 				Title:          item.Title,
 				Year:           item.Year,
 				Type:           string(item.Type),

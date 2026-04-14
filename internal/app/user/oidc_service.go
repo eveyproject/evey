@@ -192,7 +192,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 
 	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
 	if err != nil {
-		slog.Warn("oidc: get roles", slog.String("userID", u.ID), slog.Any("err", err))
+		slog.Warn("oidc: get roles", slog.String("userID", string(u.ID)), slog.Any("err", err))
 	}
 	var perms []string
 	for _, r := range roles {
@@ -203,23 +203,23 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
 		for _, p := range profs {
 			if p.IsDefault {
-				defaultProfileID = p.ID
+				defaultProfileID = string(p.ID)
 				break
 			}
 		}
 		if defaultProfileID == "" && len(profs) > 0 {
-			defaultProfileID = profs[0].ID
+			defaultProfileID = string(profs[0].ID)
 		}
 	}
 
 	var oidcLocale string
 	if defaultProfileID != "" {
-		if prof, pErr := s.profiles.GetByID(ctx, defaultProfileID); pErr == nil && prof != nil {
+		if prof, pErr := s.profiles.GetByID(ctx, shared.ProfileID(defaultProfileID)); pErr == nil && prof != nil {
 			oidcLocale = prof.Locale
 		}
 	}
 	accessToken, err = s.tokens.GenerateAccessToken(domainuser.Claims{
-		UserID:      u.ID,
+		UserID:      string(u.ID),
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
 		ProfileID:   defaultProfileID,
@@ -230,12 +230,12 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 		return "", "", "", fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID)
+	refreshToken, err = s.generateAndStoreRefreshToken(ctx, string(u.ID))
 	if err != nil {
 		return "", "", "", fmt.Errorf("OIDCService.HandleCallback: %w", err)
 	}
 
-	evt := domainuser.LoginSucceeded{UserID: u.ID, AuthMethod: "oidc", OccurredAt: time.Now()}
+	evt := domainuser.LoginSucceeded{UserID: string(u.ID), AuthMethod: "oidc", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.Warn("oidc: publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
@@ -251,7 +251,7 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 		}
 		u.UpdatedAt = time.Now()
 		if updateErr := s.userRepo.Update(ctx, u); updateErr != nil {
-			slog.Warn("oidc: update user timestamp", slog.String("user_id", u.ID), slog.Any("err", updateErr))
+			slog.Warn("oidc: update user timestamp", slog.String("user_id", string(u.ID)), slog.Any("err", updateErr))
 		}
 		return u, nil
 	}
@@ -286,8 +286,8 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 	}
 
 	p := &domainuser.Profile{
-		ID:        id.New("prf-"),
-		UserID:    newUser.ID,
+		ID:        shared.ProfileID(id.New("prf-")),
+		UserID:    shared.UserID(newUser.ID),
 		Name:      newUser.Username,
 		IsDefault: true,
 		CreatedAt: now,
@@ -296,7 +296,7 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 		slog.Warn("oidc: create default profile failed", slog.Any("err", err))
 	}
 
-	evt := domainuser.UserCreated{UserID: newUser.ID, Username: newUser.Username, OccurredAt: now}
+	evt := domainuser.UserCreated{UserID: string(newUser.ID), Username: newUser.Username, OccurredAt: now}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.Warn("oidc: publish user.created", slog.Any("err", err))
 	}
@@ -322,7 +322,7 @@ func IsEmailAllowed(email string, allowedDomains []string) bool {
 }
 
 func (s *OIDCService) generateAndStoreRefreshToken(ctx context.Context, userID string) (string, error) {
-	if err := s.refreshTkns.DeleteByUserID(ctx, userID); err != nil {
+	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
 		slog.Warn("oidc: purge old refresh tokens", slog.String("user_id", userID), slog.Any("err", err))
 	}
 	for range maxRefreshTokenRetries {

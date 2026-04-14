@@ -3,14 +3,16 @@ package library
 import (
 	"context"
 	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type LibraryRepository interface {
 	Create(ctx context.Context, lib *Library) error
-	GetByID(ctx context.Context, id string) (*Library, error)
+	GetByID(ctx context.Context, id shared.LibraryID) (*Library, error)
 	List(ctx context.Context) ([]*Library, error)
 	Update(ctx context.Context, lib *Library) error
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id shared.LibraryID) error
 }
 
 type ListMediaItemsFilter struct {
@@ -33,26 +35,26 @@ type ListMediaItemsFilter struct {
 
 type MediaItemRepository interface {
 	Create(ctx context.Context, item *MediaItem) error
-	GetByID(ctx context.Context, id string) (*MediaItem, error)
+	GetByID(ctx context.Context, id shared.MediaItemID) (*MediaItem, error)
 	List(ctx context.Context, filter ListMediaItemsFilter) ([]*MediaItem, error)
 	Update(ctx context.Context, item *MediaItem) error
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id shared.MediaItemID) error
 	GetByFilePath(ctx context.Context, path string) (*MediaItem, error)
 	GetByFileFingerprint(ctx context.Context, fingerprint string) (*MediaItem, error)
-	GetByLibraryTypeTitle(ctx context.Context, libraryID, itemType, title, parentID string) (*MediaItem, error)
+	GetByLibraryTypeTitle(ctx context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*MediaItem, error)
 	Count(ctx context.Context, filter ListMediaItemsFilter) (int, error)
 }
 
 type MediaStreamRepository interface {
 	CreateBatch(ctx context.Context, streams []*MediaStream) error
-	ReplaceBatch(ctx context.Context, mediaItemID string, streams []*MediaStream) error
-	GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*MediaStream, error)
-	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
+	ReplaceBatch(ctx context.Context, mediaItemID shared.MediaItemID, streams []*MediaStream) error
+	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*MediaStream, error)
+	DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error
 }
 
 type ChapterRepository interface {
-	ReplaceBatch(ctx context.Context, mediaItemID string, chapters []*Chapter) error
-	GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*Chapter, error)
+	ReplaceBatch(ctx context.Context, mediaItemID shared.MediaItemID, chapters []*Chapter) error
+	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*Chapter, error)
 }
 
 type PersonRepository interface {
@@ -66,8 +68,8 @@ type PersonRepository interface {
 type MediaPersonRepository interface {
 	Create(ctx context.Context, mp *MediaPerson) error
 	CreateBatch(ctx context.Context, mps []*MediaPerson) error
-	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
-	GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*MediaPerson, error)
+	DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error
+	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*MediaPerson, error)
 }
 
 type CollectionCommandRepo interface {

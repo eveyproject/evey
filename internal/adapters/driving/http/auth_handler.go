@@ -10,6 +10,7 @@ import (
 
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
@@ -147,7 +148,7 @@ func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
-	profile, err := h.profileRepo.GetByID(r.Context(), profileID)
+	profile, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
 	if err != nil {
 		http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
 		return
@@ -191,7 +192,7 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 		return
 	}
-	profile, err := h.profileRepo.GetByID(r.Context(), profileID)
+	profile, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
 	if err != nil {
 		http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
 		return
@@ -258,12 +259,12 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 		return
 	}
-	profile, err := h.profileRepo.GetByID(r.Context(), profileID)
+	profile, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
 	if err != nil {
 		http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
 		return
 	}
-	if !claims.IsAdmin && profile.UserID != claims.UserID {
+	if !claims.IsAdmin && string(profile.UserID) != claims.UserID {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}

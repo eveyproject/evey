@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -40,7 +41,7 @@ func (s *QueryService) ListUsers(ctx context.Context) ([]*user.User, error) {
 }
 
 func (s *QueryService) ListProfiles(ctx context.Context, userID string) ([]*user.Profile, error) {
-	return s.profiles.GetByUserID(ctx, userID)
+	return s.profiles.GetByUserID(ctx, shared.UserID(userID))
 }
 
 func (s *QueryService) ListInviteLinks(ctx context.Context, creatorID string) ([]*user.InviteLink, error) {
@@ -52,11 +53,11 @@ func (s *QueryService) CheckQuickConnect(ctx context.Context, code string) (*use
 }
 
 func (s *QueryService) ListAPIKeys(ctx context.Context, userID string) ([]*user.APIKeyModel, error) {
-	return s.apiKeys.ListByUserID(ctx, userID)
+	return s.apiKeys.ListByUserID(ctx, shared.UserID(userID))
 }
 
 func (s *QueryService) GetUserByID(ctx context.Context, id string) (*user.User, error) {
-	return s.users.GetByID(ctx, id)
+	return s.users.GetByID(ctx, shared.UserID(id))
 }
 
 func (s *QueryService) GetUserByUsername(ctx context.Context, username string) (*user.User, error) {
@@ -64,11 +65,11 @@ func (s *QueryService) GetUserByUsername(ctx context.Context, username string) (
 }
 
 func (s *QueryService) GetProfileByID(ctx context.Context, profileID string) (*user.Profile, error) {
-	return s.profiles.GetByID(ctx, profileID)
+	return s.profiles.GetByID(ctx, shared.ProfileID(profileID))
 }
 
 func (s *QueryService) GetUserBitrateLimit(ctx context.Context, userID string) (int, error) {
-	u, err := s.users.GetByID(ctx, userID)
+	u, err := s.users.GetByID(ctx, shared.UserID(userID))
 	if err != nil {
 		return 0, fmt.Errorf("QueryService.GetUserBitrateLimit: %w", err)
 	}

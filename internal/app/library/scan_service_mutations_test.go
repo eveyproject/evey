@@ -12,6 +12,7 @@ import (
 	applib "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -743,7 +744,7 @@ func TestScanService_ProbeAndStoreStreams_UsesSubScannerWhenMetadataNil(t *testi
 
 	items := h.media.All()
 	require.Len(t, items, 1)
-	streams, err := h.streams.GetByMediaItemID(context.Background(), items[0].ID)
+	streams, err := h.streams.GetByMediaItemID(context.Background(), shared.MediaItemID(items[0].ID))
 	require.NoError(t, err)
 	var extFound bool
 	for _, st := range streams {

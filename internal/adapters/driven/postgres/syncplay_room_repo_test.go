@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/syncplay"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ func seedSyncplayDeps(t *testing.T, db *sql.DB, profileID, userID, libraryID, me
 	require.NoError(t, userRepo.Create(ctx, newTestUser(userID)))
 	require.NoError(t, profileRepo.Create(ctx, newTestProfile(profileID, userID)))
 	require.NoError(t, libRepo.Create(ctx, newTestLibrary(libraryID)))
-	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(mediaID, libraryID)))
+	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(mediaID, shared.LibraryID(libraryID))))
 }
 
 func TestSyncPlayRoomRepo_Create_Get(t *testing.T) {

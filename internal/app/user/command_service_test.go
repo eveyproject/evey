@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	ufakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
@@ -44,7 +45,7 @@ func newAuthTestDeps() *authTestDeps {
 func seedAuthUser(t *testing.T, d *authTestDeps, id, username, password string, admin, enabled bool) *user.User {
 	t.Helper()
 	u := &user.User{
-		ID:           id,
+		ID:           shared.UserID(id),
 		Username:     username,
 		PasswordHash: "hashed:" + password,
 		IsAdmin:      admin,
@@ -901,7 +902,7 @@ func (r *failOnSecondCreateRT) MarkUsedIfNotUsed(ctx context.Context, id string)
 func (r *failOnSecondCreateRT) DeleteByID(ctx context.Context, id string) error {
 	return r.inner.DeleteByID(ctx, id)
 }
-func (r *failOnSecondCreateRT) DeleteByUserID(ctx context.Context, userID string) error {
+func (r *failOnSecondCreateRT) DeleteByUserID(ctx context.Context, userID shared.UserID) error {
 	return r.inner.DeleteByUserID(ctx, userID)
 }
 func (r *failOnSecondCreateRT) DeleteExpired(ctx context.Context) error {

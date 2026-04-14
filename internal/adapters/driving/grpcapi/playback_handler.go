@@ -281,8 +281,8 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 		}
 		allowed := make(map[string]bool, len(mis))
 		for _, mi := range mis {
-			if slices.Contains(allowedIDs, mi.LibraryID) {
-				allowed[mi.ID] = true
+			if slices.Contains(allowedIDs, string(mi.LibraryID)) {
+				allowed[string(mi.ID)] = true
 			}
 		}
 		for _, wp := range items {
@@ -329,8 +329,8 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 		}
 		allowed := make(map[string]bool, len(mis))
 		for _, mi := range mis {
-			if slices.Contains(allowedIDs, mi.LibraryID) {
-				allowed[mi.ID] = true
+			if slices.Contains(allowedIDs, string(mi.LibraryID)) {
+				allowed[string(mi.ID)] = true
 			}
 		}
 		for _, wp := range items {
@@ -376,10 +376,10 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	byID := make(map[string]*library.MediaItem, len(mediaItems))
 	for _, mi := range mediaItems {
-		if allowedIDs != nil && !slices.Contains(allowedIDs, mi.LibraryID) {
+		if allowedIDs != nil && !slices.Contains(allowedIDs, string(mi.LibraryID)) {
 			continue
 		}
-		byID[mi.ID] = mi
+		byID[string(mi.ID)] = mi
 	}
 	resp := &eveyv1.GetNextUpResponse{}
 	for _, wp := range progresses {
@@ -446,7 +446,7 @@ func (h *playbackHandler) requireMediaAccess(ctx context.Context, mediaItemID st
 	if err != nil {
 		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
-	ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, item.LibraryID)
+	ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
 	if !ok {
 		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}

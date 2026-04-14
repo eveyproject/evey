@@ -19,7 +19,7 @@ type CachedMediaItemQueryRepo struct {
 	ttl   time.Duration
 
 	mu    sync.RWMutex
-	items map[string]cacheEntry
+	items map[shared.MediaItemID]cacheEntry
 	done  chan struct{}
 }
 
@@ -27,7 +27,7 @@ func NewCachedMediaItemQueryRepo(inner library.MediaItemQueryRepo, ttl time.Dura
 	c := &CachedMediaItemQueryRepo{
 		inner: inner,
 		ttl:   ttl,
-		items: make(map[string]cacheEntry),
+		items: make(map[shared.MediaItemID]cacheEntry),
 		done:  make(chan struct{}),
 	}
 	go c.evictLoop()
@@ -42,7 +42,7 @@ func (c *CachedMediaItemQueryRepo) Stop() {
 	}
 }
 
-func (c *CachedMediaItemQueryRepo) GetByID(ctx context.Context, id string) (*library.MediaItem, error) {
+func (c *CachedMediaItemQueryRepo) GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
 	c.mu.RLock()
 	if e, ok := c.items[id]; ok && time.Now().Before(e.expiresAt) {
 		c.mu.RUnlock()
@@ -61,7 +61,7 @@ func (c *CachedMediaItemQueryRepo) GetByID(ctx context.Context, id string) (*lib
 	return item, nil
 }
 
-func (c *CachedMediaItemQueryRepo) Invalidate(id string) {
+func (c *CachedMediaItemQueryRepo) Invalidate(id shared.MediaItemID) {
 	c.mu.Lock()
 	delete(c.items, id)
 	c.mu.Unlock()
@@ -70,17 +70,17 @@ func (c *CachedMediaItemQueryRepo) Invalidate(id string) {
 func (c *CachedMediaItemQueryRepo) Register(bus shared.EventBus) {
 	bus.Subscribe("media.item.removed", func(_ context.Context, ev shared.Event) {
 		if e, ok := ev.(library.MediaItemRemoved); ok {
-			c.Invalidate(e.MediaItemID)
+			c.Invalidate(shared.MediaItemID(e.MediaItemID))
 		}
 	})
 	bus.Subscribe("media.item.updated", func(_ context.Context, ev shared.Event) {
 		if e, ok := ev.(library.MediaItemUpdated); ok {
-			c.Invalidate(e.MediaItemID)
+			c.Invalidate(shared.MediaItemID(e.MediaItemID))
 		}
 	})
 }
 
-func (c *CachedMediaItemQueryRepo) GetByIDs(ctx context.Context, ids []string) ([]*library.MediaItem, error) {
+func (c *CachedMediaItemQueryRepo) GetByIDs(ctx context.Context, ids []shared.MediaItemID) ([]*library.MediaItem, error) {
 	return c.inner.GetByIDs(ctx, ids)
 }
 
@@ -92,11 +92,11 @@ func (c *CachedMediaItemQueryRepo) Count(ctx context.Context, filter library.Lis
 	return c.inner.Count(ctx, filter)
 }
 
-func (c *CachedMediaItemQueryRepo) GetCastByMediaItem(ctx context.Context, mediaItemID string) ([]library.CastMember, error) {
+func (c *CachedMediaItemQueryRepo) GetCastByMediaItem(ctx context.Context, mediaItemID shared.MediaItemID) ([]library.CastMember, error) {
 	return c.inner.GetCastByMediaItem(ctx, mediaItemID)
 }
 
-func (c *CachedMediaItemQueryRepo) GetCastForItems(ctx context.Context, mediaItemIDs []string) (map[string][]library.CastMember, error) {
+func (c *CachedMediaItemQueryRepo) GetCastForItems(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]library.CastMember, error) {
 	return c.inner.GetCastForItems(ctx, mediaItemIDs)
 }
 

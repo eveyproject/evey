@@ -30,7 +30,7 @@ func TestTrickplayRepo_Create_GetByMediaItemID(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	m := &library.TrickplayManifest{
 		ID:          "trick1",
-		MediaItemID: item.ID,
+		MediaItemID: string(item.ID),
 		Interval:    10,
 		Width:       320,
 		Height:      180,
@@ -42,7 +42,7 @@ func TestTrickplayRepo_Create_GetByMediaItemID(t *testing.T) {
 	}
 	require.NoError(t, tpRepo.Create(ctx, m))
 
-	got, err := tpRepo.GetByMediaItemID(ctx, item.ID)
+	got, err := tpRepo.GetByMediaItemID(ctx, string(item.ID))
 	require.NoError(t, err)
 	assert.Equal(t, m.ID, got.ID)
 	assert.Equal(t, m.MediaItemID, got.MediaItemID)
@@ -72,7 +72,7 @@ func TestTrickplayRepo_Create_Upsert(t *testing.T) {
 
 	first := &library.TrickplayManifest{
 		ID:          "trick2a",
-		MediaItemID: item.ID,
+		MediaItemID: string(item.ID),
 		Interval:    5,
 		Width:       160,
 		Height:      90,
@@ -86,7 +86,7 @@ func TestTrickplayRepo_Create_Upsert(t *testing.T) {
 
 	updated := &library.TrickplayManifest{
 		ID:          "trick2b",
-		MediaItemID: item.ID,
+		MediaItemID: string(item.ID),
 		Interval:    10,
 		Width:       320,
 		Height:      180,
@@ -98,7 +98,7 @@ func TestTrickplayRepo_Create_Upsert(t *testing.T) {
 	}
 	require.NoError(t, tpRepo.Create(ctx, updated))
 
-	got, err := tpRepo.GetByMediaItemID(ctx, item.ID)
+	got, err := tpRepo.GetByMediaItemID(ctx, string(item.ID))
 	require.NoError(t, err)
 	assert.Equal(t, updated.Interval, got.Interval)
 	assert.Equal(t, updated.Width, got.Width)
@@ -133,7 +133,7 @@ func TestTrickplayRepo_Delete(t *testing.T) {
 
 	m := &library.TrickplayManifest{
 		ID:          "trick3",
-		MediaItemID: item.ID,
+		MediaItemID: string(item.ID),
 		Interval:    10,
 		Width:       320,
 		Height:      180,
@@ -145,8 +145,8 @@ func TestTrickplayRepo_Delete(t *testing.T) {
 	}
 	require.NoError(t, tpRepo.Create(ctx, m))
 
-	require.NoError(t, tpRepo.Delete(ctx, item.ID))
+	require.NoError(t, tpRepo.Delete(ctx, string(item.ID)))
 
-	_, err := tpRepo.GetByMediaItemID(ctx, item.ID)
+	_, err := tpRepo.GetByMediaItemID(ctx, string(item.ID))
 	assert.Equal(t, shared.ErrNotFound, err)
 }

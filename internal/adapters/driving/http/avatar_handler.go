@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -35,12 +36,12 @@ func avatarUploadHandler(
 		claims := HTTPClaimsFromContext(r.Context())
 
 		profileID := r.PathValue("profileId")
-		profile, err := profileRepo.GetByID(r.Context(), profileID)
+		profile, err := profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
 		if err != nil || profile == nil {
 			http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
 			return
 		}
-		if profile.UserID != claims.UserID {
+		if string(profile.UserID) != claims.UserID {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -133,7 +134,7 @@ func avatarServeHandler(
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		profileID := r.PathValue("profileId")
-		profile, err := profileRepo.GetByID(r.Context(), profileID)
+		profile, err := profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
 		if err != nil || profile == nil || profile.AvatarPath == nil {
 			http.NotFound(w, r)
 			return

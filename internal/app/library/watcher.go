@@ -79,7 +79,7 @@ func (ws *WatcherService) Start(ctx context.Context) error {
 	if ws.bus != nil {
 		ws.bus.Subscribe("library.created", func(ctx context.Context, ev shared.Event) {
 			if e, ok := ev.(library.LibraryCreated); ok {
-				lib, err := ws.libraries.GetByID(ctx, e.LibraryID)
+				lib, err := ws.libraries.GetByID(ctx, shared.LibraryID(e.LibraryID))
 				if err == nil {
 					ws.AddLibrary(lib)
 				}
@@ -106,11 +106,11 @@ func (ws *WatcherService) watchLibrary(lib *library.Library) {
 			continue
 		}
 		allFailed = false
-		ws.pathToLib[p] = lib.ID
+		ws.pathToLib[p] = string(lib.ID)
 		ws.log.Info("watcher: watching", slog.String("path", p), slog.String("library", lib.Name))
 	}
 	if allFailed && len(lib.Paths) > 0 {
-		ws.failedLibs[lib.ID] = true
+		ws.failedLibs[string(lib.ID)] = true
 		ws.log.Info("watcher: library needs periodic scan fallback", slog.String("library", lib.Name))
 	}
 }

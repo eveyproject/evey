@@ -19,6 +19,7 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/oauth2"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
@@ -870,14 +871,14 @@ func (r *errProfileRepo) Create(ctx context.Context, p *domainuser.Profile) erro
 	return r.ProfileRepository.Create(ctx, p)
 }
 
-func (r *errProfileRepo) GetByUserID(ctx context.Context, userID string) ([]*domainuser.Profile, error) {
+func (r *errProfileRepo) GetByUserID(ctx context.Context, userID shared.UserID) ([]*domainuser.Profile, error) {
 	if r.getByUserErr != nil {
 		return nil, r.getByUserErr
 	}
 	return r.ProfileRepository.GetByUserID(ctx, userID)
 }
 
-func (r *errProfileRepo) GetByID(ctx context.Context, id string) (*domainuser.Profile, error) {
+func (r *errProfileRepo) GetByID(ctx context.Context, id shared.ProfileID) (*domainuser.Profile, error) {
 	if r.getByIDErr != nil {
 		return nil, r.getByIDErr
 	}
@@ -889,7 +890,7 @@ type errUserRoleRepo struct {
 	getErr error
 }
 
-func (r *errUserRoleRepo) GetRolesByUserID(ctx context.Context, userID string) ([]*domainuser.Role, error) {
+func (r *errUserRoleRepo) GetRolesByUserID(ctx context.Context, userID shared.UserID) ([]*domainuser.Role, error) {
 	if r.getErr != nil {
 		return nil, r.getErr
 	}
@@ -901,7 +902,7 @@ type errRefreshRepo struct {
 	deleteByUserErr error
 }
 
-func (r *errRefreshRepo) DeleteByUserID(ctx context.Context, userID string) error {
+func (r *errRefreshRepo) DeleteByUserID(ctx context.Context, userID shared.UserID) error {
 	if r.deleteByUserErr != nil {
 		return r.deleteByUserErr
 	}

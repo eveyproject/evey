@@ -120,7 +120,7 @@ func authedCtx(userID, profileID string, isAdmin bool) context.Context {
 }
 
 func (f *ratingFixture) seedMedia(id, libraryID string) {
-	f.mediaItems.Seed(&library.MediaItem{ID: id, LibraryID: libraryID})
+	f.mediaItems.Seed(&library.MediaItem{ID: shared.MediaItemID(id), LibraryID: shared.LibraryID(libraryID)})
 }
 
 // --- PutThumbRating ---

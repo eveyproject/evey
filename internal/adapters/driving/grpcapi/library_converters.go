@@ -23,7 +23,7 @@ var libraryTypeFromProto = map[eveyv1.LibraryType]string{
 
 func libraryToProto(lib *library.Library) *eveyv1.Library {
 	out := &eveyv1.Library{
-		Id:                 lib.ID,
+		Id:                 string(lib.ID),
 		Name:               lib.Name,
 		Type:               libraryTypeToProto[string(lib.Type)],
 		Paths:              lib.Paths,
@@ -64,8 +64,8 @@ var mediaItemTypeFromProto = map[eveyv1.MediaItemType]string{
 
 func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 	pb := &eveyv1.MediaItem{
-		Id:              item.ID,
-		LibraryId:       item.LibraryID,
+		Id:              string(item.ID),
+		LibraryId:       string(item.LibraryID),
 		ParentId:        item.ParentID,
 		Type:            mediaItemTypeToProto[string(item.Type)],
 		Title:           item.Title,

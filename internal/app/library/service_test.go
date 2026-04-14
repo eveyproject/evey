@@ -492,7 +492,7 @@ func TestListMediaItems_ParentalFilter_ExcludesRatedR(t *testing.T) {
 
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
-		ids = append(ids, item.ID)
+		ids = append(ids, string(item.ID))
 	}
 	assert.Contains(t, ids, "g-movie")
 	assert.Contains(t, ids, "pg-movie")
@@ -514,7 +514,7 @@ func TestListMediaItems_ParentalFilter_NoRating(t *testing.T) {
 
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
-		ids = append(ids, item.ID)
+		ids = append(ids, string(item.ID))
 	}
 	assert.Contains(t, ids, "g-movie")
 	assert.Contains(t, ids, "r-movie")
@@ -535,7 +535,7 @@ func TestListMediaItems_ParentalFilter_UnratedItemVisible(t *testing.T) {
 
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
-		ids = append(ids, item.ID)
+		ids = append(ids, string(item.ID))
 	}
 	assert.Contains(t, ids, "unrated", "unrated items should pass through parental filter")
 	assert.NotContains(t, ids, "r-movie")
@@ -580,7 +580,7 @@ func TestScanLibrary_RemovesOrphanedItems(t *testing.T) {
 	items := mediaRepo.All()
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
-		ids = append(ids, item.ID)
+		ids = append(ids, string(item.ID))
 	}
 	assert.Contains(t, ids, "item-keep", "surviving file must remain in DB")
 	assert.NotContains(t, ids, "item-deleted", "deleted file must be removed from DB")
@@ -788,7 +788,7 @@ func TestScanLibrary_PrunesEmptySeasonAndSeries(t *testing.T) {
 	items := mediaRepo.All()
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
-		ids = append(ids, item.ID)
+		ids = append(ids, string(item.ID))
 	}
 	assert.NotContains(t, ids, "ep-1", "orphaned episode removed")
 	assert.NotContains(t, ids, "season-1", "empty season pruned")
@@ -835,7 +835,7 @@ func TestScanLibrary_PrunesEmptySeason_KeepsSeriesWithOtherChildren(t *testing.T
 	items := mediaRepo.All()
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
-		ids = append(ids, item.ID)
+		ids = append(ids, string(item.ID))
 	}
 	assert.NotContains(t, ids, "season-1", "empty season-1 pruned")
 	assert.NotContains(t, ids, "ep-1", "orphaned episode removed")

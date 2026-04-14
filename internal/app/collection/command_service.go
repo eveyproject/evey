@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type CommandService struct {
@@ -119,7 +120,7 @@ func (s *CommandService) LinkMediaItem(ctx context.Context, collectionID, mediaI
 	if _, err := s.query.GetByID(ctx, collectionID); err != nil {
 		return fmt.Errorf("collection not found: %w", err)
 	}
-	if _, err := s.mediaItems.GetByID(ctx, mediaItemID); err != nil {
+	if _, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID)); err != nil {
 		return fmt.Errorf("media item not found: %w", err)
 	}
 	return s.cmd.LinkItem(ctx, collectionID, mediaItemID, sortOrder)

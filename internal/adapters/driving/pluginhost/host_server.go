@@ -22,7 +22,7 @@ import (
 const hostSockPath = "/tmp/evey/plugins/evey-host.sock"
 
 type MediaItemQuerier interface {
-	GetByID(ctx context.Context, id string) (*library.MediaItem, error)
+	GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error)
 	List(ctx context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error)
 	Count(ctx context.Context, filter library.ListMediaItemsFilter) (int, error)
 }
@@ -135,7 +135,7 @@ func (h *HostServer) GetMediaItem(ctx context.Context, req *pluginv1.GetMediaIte
 	if req.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "id required")
 	}
-	item, err := h.mediaItems.GetByID(ctx, req.Id)
+	item, err := h.mediaItems.GetByID(ctx, shared.MediaItemID(req.Id))
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "media item %s not found", req.Id)
 	}
@@ -256,8 +256,8 @@ func (h *HostServer) SetConfig(ctx context.Context, req *pluginv1.SetConfigReque
 
 func mediaItemToProto(item *library.MediaItem) *pluginv1.MediaItem {
 	pb := &pluginv1.MediaItem{
-		Id:        item.ID,
-		LibraryId: item.LibraryID,
+		Id:        string(item.ID),
+		LibraryId: string(item.LibraryID),
 		ParentId:  item.ParentID,
 		Type:      string(item.Type),
 		Title:     item.Title,

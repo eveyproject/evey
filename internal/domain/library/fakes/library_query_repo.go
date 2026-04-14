@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type FakeLibraryQueryRepo struct {
@@ -17,7 +18,7 @@ func NewFakeLibraryQueryRepo() *FakeLibraryQueryRepo {
 	return &FakeLibraryQueryRepo{items: make(map[string]*library.Library)}
 }
 
-func (r *FakeLibraryQueryRepo) GetByID(_ context.Context, id string) (*library.Library, error) {
+func (r *FakeLibraryQueryRepo) GetByID(_ context.Context, id shared.LibraryID) (*library.Library, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -26,7 +27,7 @@ func (r *FakeLibraryQueryRepo) GetByID(_ context.Context, id string) (*library.L
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	lib, ok := r.items[id]
+	lib, ok := r.items[string(id)]
 	if !ok {
 		return nil, ErrNotFound
 	}
@@ -53,5 +54,5 @@ func (r *FakeLibraryQueryRepo) List(_ context.Context) ([]*library.Library, erro
 func (r *FakeLibraryQueryRepo) Seed(lib *library.Library) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.items[lib.ID] = lib
+	r.items[string(lib.ID)] = lib
 }

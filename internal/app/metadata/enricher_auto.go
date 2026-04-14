@@ -11,6 +11,7 @@ import (
 
 	domainlib "github.com/gravity-zero/evey/internal/domain/library"
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 // AutoEnrichItem searches providers and enriches a single item.
@@ -42,7 +43,7 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 	// For series, count episodes in S01 on disk to validate TMDB matches
 	var diskS01Episodes int
 	if mediaType == "tv" {
-		diskS01Episodes = e.countDiskEpisodesForSeason(ctx, item.ID, 1)
+		diskS01Episodes = e.countDiskEpisodesForSeason(ctx, string(item.ID), 1)
 	}
 
 	// 1. Try primary provider
@@ -174,8 +175,9 @@ func (e *Enricher) countDiskEpisodesForSeason(ctx context.Context, seriesID stri
 	for _, s := range seasons {
 		if s.IndexNumber != nil && *s.IndexNumber == seasonNum {
 			episodeType := "episode"
+			seasonID := string(s.ID)
 			episodes, epErr := e.mediaItems.List(ctx, domainlib.ListMediaItemsFilter{
-				ParentID: &s.ID,
+				ParentID: &seasonID,
 				Type:     &episodeType,
 			})
 			if epErr != nil {
@@ -350,7 +352,7 @@ func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaIt
 	if item.ParentID == "" || item.IndexNumber == nil {
 		return
 	}
-	series, err := e.mediaItems.GetByID(ctx, item.ParentID)
+	series, err := e.mediaItems.GetByID(ctx, shared.MediaItemID(item.ParentID))
 	if err != nil {
 		return
 	}
@@ -358,7 +360,7 @@ func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaIt
 	// Ensure series is enriched first
 	if series.Overview == "" {
 		e.AutoEnrichItem(ctx, series, log)
-		series, err = e.mediaItems.GetByID(ctx, item.ParentID)
+		series, err = e.mediaItems.GetByID(ctx, shared.MediaItemID(item.ParentID))
 		if err != nil {
 			return
 		}
@@ -386,7 +388,7 @@ func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaIt
 			continue
 		}
 		if err := e.EnrichItem(ctx, item, result); err != nil && log != nil {
-			log.Warn("season enrich failed", slog.String("id", item.ID), slog.Any("err", err))
+			log.Warn("season enrich failed", slog.String("id", string(item.ID)), slog.Any("err", err))
 		}
 		return
 	}
@@ -396,11 +398,11 @@ func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaI
 	if item.ParentID == "" || item.IndexNumber == nil {
 		return
 	}
-	season, err := e.mediaItems.GetByID(ctx, item.ParentID)
+	season, err := e.mediaItems.GetByID(ctx, shared.MediaItemID(item.ParentID))
 	if err != nil || season.ParentID == "" || season.IndexNumber == nil {
 		return
 	}
-	series, err := e.mediaItems.GetByID(ctx, season.ParentID)
+	series, err := e.mediaItems.GetByID(ctx, shared.MediaItemID(season.ParentID))
 	if err != nil {
 		return
 	}
@@ -413,7 +415,7 @@ func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaI
 			// For primary, try enriching the series first
 			if ep.provider.Name() == e.primary.Name() && series.Overview == "" {
 				e.AutoEnrichItem(ctx, series, log)
-				series, err = e.mediaItems.GetByID(ctx, season.ParentID)
+				series, err = e.mediaItems.GetByID(ctx, shared.MediaItemID(season.ParentID))
 				if err != nil {
 					continue
 				}
@@ -438,7 +440,7 @@ func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaI
 		}
 
 		if err := e.EnrichItem(ctx, item, result); err != nil && log != nil {
-			log.Warn("episode enrich failed", slog.String("id", item.ID), slog.Any("err", err))
+			log.Warn("episode enrich failed", slog.String("id", string(item.ID)), slog.Any("err", err))
 		}
 		return
 	}

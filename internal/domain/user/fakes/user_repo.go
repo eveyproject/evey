@@ -29,11 +29,11 @@ func (r *FakeUserRepository) Create(_ context.Context, u *user.User) error {
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[u.ID] = u
+	r.items[string(u.ID)] = u
 	return nil
 }
 
-func (r *FakeUserRepository) GetByID(_ context.Context, id string) (*user.User, error) {
+func (r *FakeUserRepository) GetByID(_ context.Context, id shared.UserID) (*user.User, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -42,7 +42,7 @@ func (r *FakeUserRepository) GetByID(_ context.Context, id string) (*user.User, 
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	u, ok := r.items[id]
+	u, ok := r.items[string(id)]
 	if !ok {
 		return nil, ErrNotFound
 	}
@@ -91,14 +91,14 @@ func (r *FakeUserRepository) Update(_ context.Context, u *user.User) error {
 	if r.Err != nil {
 		return r.Err
 	}
-	if _, ok := r.items[u.ID]; !ok {
+	if _, ok := r.items[string(u.ID)]; !ok {
 		return ErrNotFound
 	}
-	r.items[u.ID] = u
+	r.items[string(u.ID)] = u
 	return nil
 }
 
-func (r *FakeUserRepository) Delete(_ context.Context, id string) error {
+func (r *FakeUserRepository) Delete(_ context.Context, id shared.UserID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -107,10 +107,10 @@ func (r *FakeUserRepository) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err
 	}
-	if _, ok := r.items[id]; !ok {
+	if _, ok := r.items[string(id)]; !ok {
 		return ErrNotFound
 	}
-	delete(r.items, id)
+	delete(r.items, string(id))
 	return nil
 }
 

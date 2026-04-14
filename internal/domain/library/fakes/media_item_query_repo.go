@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type FakeMediaItemQueryRepo struct {
@@ -22,7 +23,7 @@ func NewFakeMediaItemQueryRepo() *FakeMediaItemQueryRepo {
 	}
 }
 
-func (r *FakeMediaItemQueryRepo) GetByID(_ context.Context, id string) (*library.MediaItem, error) {
+func (r *FakeMediaItemQueryRepo) GetByID(_ context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -31,14 +32,14 @@ func (r *FakeMediaItemQueryRepo) GetByID(_ context.Context, id string) (*library
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	item, ok := r.items[id]
+	item, ok := r.items[string(id)]
 	if !ok {
 		return nil, ErrNotFound
 	}
 	return item, nil
 }
 
-func (r *FakeMediaItemQueryRepo) GetByIDs(_ context.Context, ids []string) ([]*library.MediaItem, error) {
+func (r *FakeMediaItemQueryRepo) GetByIDs(_ context.Context, ids []shared.MediaItemID) ([]*library.MediaItem, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -46,7 +47,7 @@ func (r *FakeMediaItemQueryRepo) GetByIDs(_ context.Context, ids []string) ([]*l
 	defer r.mu.RUnlock()
 	var result []*library.MediaItem
 	for _, id := range ids {
-		if item, ok := r.items[id]; ok {
+		if item, ok := r.items[string(id)]; ok {
 			result = append(result, item)
 		}
 	}
@@ -80,10 +81,10 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 		libIDsSet[id] = true
 	}
 	for _, item := range r.items {
-		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
+		if filter.LibraryID != nil && string(item.LibraryID) != *filter.LibraryID {
 			continue
 		}
-		if len(libIDsSet) > 0 && !libIDsSet[item.LibraryID] {
+		if len(libIDsSet) > 0 && !libIDsSet[string(item.LibraryID)] {
 			continue
 		}
 		if filter.ParentID != nil && item.ParentID != *filter.ParentID {
@@ -136,10 +137,10 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 	}
 	count := 0
 	for _, item := range r.items {
-		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
+		if filter.LibraryID != nil && string(item.LibraryID) != *filter.LibraryID {
 			continue
 		}
-		if len(countLibIDsSet) > 0 && !countLibIDsSet[item.LibraryID] {
+		if len(countLibIDsSet) > 0 && !countLibIDsSet[string(item.LibraryID)] {
 			continue
 		}
 		if filter.Type != nil && string(item.Type) != *filter.Type {
@@ -168,7 +169,7 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 	return count, nil
 }
 
-func (r *FakeMediaItemQueryRepo) GetCastByMediaItem(_ context.Context, mediaItemID string) ([]library.CastMember, error) {
+func (r *FakeMediaItemQueryRepo) GetCastByMediaItem(_ context.Context, mediaItemID shared.MediaItemID) ([]library.CastMember, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -177,10 +178,10 @@ func (r *FakeMediaItemQueryRepo) GetCastByMediaItem(_ context.Context, mediaItem
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	return r.cast[mediaItemID], nil
+	return r.cast[string(mediaItemID)], nil
 }
 
-func (r *FakeMediaItemQueryRepo) GetCastForItems(_ context.Context, mediaItemIDs []string) (map[string][]library.CastMember, error) {
+func (r *FakeMediaItemQueryRepo) GetCastForItems(_ context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]library.CastMember, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -189,9 +190,9 @@ func (r *FakeMediaItemQueryRepo) GetCastForItems(_ context.Context, mediaItemIDs
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	result := make(map[string][]library.CastMember)
+	result := make(map[shared.MediaItemID][]library.CastMember)
 	for _, id := range mediaItemIDs {
-		if cast, ok := r.cast[id]; ok {
+		if cast, ok := r.cast[string(id)]; ok {
 			result[id] = cast
 		}
 	}
@@ -202,7 +203,7 @@ func (r *FakeMediaItemQueryRepo) GetCastForItems(_ context.Context, mediaItemIDs
 func (r *FakeMediaItemQueryRepo) Seed(item *library.MediaItem) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.items[item.ID] = item
+	r.items[string(item.ID)] = item
 }
 
 // SeedCast sets cast for a media item.

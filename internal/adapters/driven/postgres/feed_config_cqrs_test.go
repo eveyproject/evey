@@ -8,6 +8,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/gravity-zero/evey/internal/domain/feed"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,12 +56,12 @@ func TestFeedConfigCQRS_UpsertProfileConfig_GetProfileConfig(t *testing.T) {
 
 	u := newTestUser("fc-u1")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := &user.Profile{ID: "fc-p1", UserID: u.ID, Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
+	p := &user.Profile{ID: "fc-p1", UserID: shared.UserID(u.ID), Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
 	require.NoError(t, profileRepo.Create(ctx, p))
 
 	enabled := true
 	cfg := &feed.ProfileConfig{
-		ProfileID:    p.ID,
+		ProfileID:    string(p.ID),
 		FeedType:     feed.TypeRecentlyAdded,
 		Enabled:      &enabled,
 		DisplayOrder: intPtr(0),
@@ -69,7 +70,7 @@ func TestFeedConfigCQRS_UpsertProfileConfig_GetProfileConfig(t *testing.T) {
 	}
 	require.NoError(t, cmdRepo.UpsertProfileConfig(ctx, cfg))
 
-	configs, err := queryRepo.GetProfileConfig(ctx, p.ID)
+	configs, err := queryRepo.GetProfileConfig(ctx, string(p.ID))
 	require.NoError(t, err)
 	assert.Len(t, configs, 1)
 	assert.Equal(t, feed.TypeRecentlyAdded, configs[0].FeedType)
@@ -111,20 +112,20 @@ func TestFeedConfigCQRS_DeleteProfileConfig(t *testing.T) {
 
 	u := newTestUser("fc-u2")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := &user.Profile{ID: "fc-p2", UserID: u.ID, Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
+	p := &user.Profile{ID: "fc-p2", UserID: shared.UserID(u.ID), Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
 	require.NoError(t, profileRepo.Create(ctx, p))
 
 	enabled := true
 	cfg := &feed.ProfileConfig{
-		ProfileID: p.ID,
+		ProfileID: string(p.ID),
 		FeedType:  feed.TypeRecentlyAdded,
 		Enabled:   &enabled,
 		Params:    map[string]any{},
 	}
 	require.NoError(t, cmdRepo.UpsertProfileConfig(ctx, cfg))
-	require.NoError(t, cmdRepo.DeleteProfileConfig(ctx, p.ID, feed.TypeRecentlyAdded))
+	require.NoError(t, cmdRepo.DeleteProfileConfig(ctx, string(p.ID), feed.TypeRecentlyAdded))
 
-	configs, err := queryRepo.GetProfileConfig(ctx, p.ID)
+	configs, err := queryRepo.GetProfileConfig(ctx, string(p.ID))
 	require.NoError(t, err)
 	assert.Empty(t, configs)
 }

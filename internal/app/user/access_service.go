@@ -101,23 +101,23 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 	if err := s.invites.IncrementUsedCount(ctx, invite.ID); err != nil {
 		slog.Warn("increment invite used count failed", slog.String("inviteID", invite.ID), slog.Any("err", err))
 	}
-	evtInviteCreated := user.UserCreated{UserID: u.ID, Username: u.Username, OccurredAt: time.Now()}
+	evtInviteCreated := user.UserCreated{UserID: string(u.ID), Username: u.Username, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtInviteCreated); err != nil {
 		slog.Warn("publish event", slog.String("event", evtInviteCreated.EventName()), slog.Any("err", err))
 	}
 
 	if s.profiles != nil {
 		p := &user.Profile{
-			ID:        id.New("prf-"),
+			ID:        shared.ProfileID(id.New("prf-")),
 			UserID:    u.ID,
 			Name:      u.Username,
 			IsDefault: true,
 			CreatedAt: time.Now(),
 		}
 		if pErr := s.profiles.Create(ctx, p); pErr != nil {
-			slog.Warn("auto-create profile", slog.String("userID", u.ID), slog.Any("err", pErr))
+			slog.Warn("auto-create profile", slog.String("userID", string(u.ID)), slog.Any("err", pErr))
 		} else {
-			evtProfile := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
+			evtProfile := user.ProfileCreated{ProfileID: string(p.ID), UserID: string(p.UserID), Name: p.Name, OccurredAt: time.Now()}
 			if err := s.events.Publish(ctx, evtProfile); err != nil {
 				slog.Warn("publish event", slog.String("event", evtProfile.EventName()), slog.Any("err", err))
 			}

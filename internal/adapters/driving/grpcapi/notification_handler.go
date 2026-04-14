@@ -39,7 +39,7 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 	for _, n := range items {
 		if n.MediaItemID != "" && allowed != nil {
 			item, itemErr := h.libQuery.GetMediaItem(ctx, n.MediaItemID)
-			if itemErr != nil || !containsStr(allowed, item.LibraryID) {
+			if itemErr != nil || !containsStr(allowed, string(item.LibraryID)) {
 				continue
 			}
 		}

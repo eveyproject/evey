@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,19 +40,19 @@ func TestPlaySessionStatsRepo_GetUserStats_WithData(t *testing.T) {
 
 	u := newTestUser("pss-u1")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := &user.Profile{ID: "pss-p1", UserID: u.ID, Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
+	p := &user.Profile{ID: "pss-p1", UserID: shared.UserID(u.ID), Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("pss-lib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
 	item := newTestMediaItem("pss-mi1", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	session := newTestPlaySession("pss-ps1", p.ID, item.ID)
+	session := newTestPlaySession("pss-ps1", string(p.ID), string(item.ID))
 	dur := int64(60000)
 	session.DurationMs = &dur
 	require.NoError(t, sessionRepo.Create(ctx, session))
 
-	stats, err := statsRepo.GetUserStats(ctx, p.ID)
+	stats, err := statsRepo.GetUserStats(ctx, string(p.ID))
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.TotalPlayCount)
 	assert.Equal(t, int64(60000), stats.TotalWatchTimeMs)

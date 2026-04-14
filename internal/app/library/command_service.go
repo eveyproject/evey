@@ -123,7 +123,7 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 					continue
 				}
 				for _, lib := range libs {
-					if len(targetSet) > 0 && !targetSet[lib.ID] {
+					if len(targetSet) > 0 && !targetSet[string(lib.ID)] {
 						continue
 					}
 					added, scanErr := func() (a int, err error) {
@@ -133,7 +133,7 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 								err = fmt.Errorf("panic: %v", r)
 							}
 						}()
-						a, _, err = s.ScanLibrary(ctx, lib.ID)
+						a, _, err = s.ScanLibrary(ctx, string(lib.ID))
 						return
 					}()
 					if scanErr != nil {
@@ -195,7 +195,7 @@ func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library
 		return fmt.Errorf("create library: %w", err)
 	}
 	evtCreated := library.LibraryCreated{
-		LibraryID:  lib.ID,
+		LibraryID:  string(lib.ID),
 		Name:       lib.Name,
 		Type:       string(lib.Type),
 		OccurredAt: now,
@@ -215,7 +215,7 @@ func (s *CommandService) UpdateLibrary(ctx context.Context, lib *library.Library
 }
 
 func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
-	if err := s.libraries.Delete(ctx, id); err != nil {
+	if err := s.libraries.Delete(ctx, shared.LibraryID(id)); err != nil {
 		return fmt.Errorf("delete library: %w", err)
 	}
 	evtDeleted := library.LibraryDeleted{
@@ -229,7 +229,7 @@ func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
 }
 
 func (s *CommandService) DeleteMediaItem(ctx context.Context, id string) error {
-	if err := s.mediaItems.Delete(ctx, id); err != nil {
+	if err := s.mediaItems.Delete(ctx, shared.MediaItemID(id)); err != nil {
 		return fmt.Errorf("CommandService.DeleteMediaItem: %w", err)
 	}
 	return nil

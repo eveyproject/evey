@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,7 @@ import (
 
 func newTestUser(id string) *user.User {
 	return &user.User{
-		ID:           id,
+		ID:           shared.UserID(id),
 		Username:     "user_" + id,
 		Email:        id + "@example.com",
 		PasswordHash: "hash",
@@ -86,7 +87,7 @@ func TestUserRepo_Update(t *testing.T) {
 	u.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond)
 	require.NoError(t, repo.Update(ctx, u))
 
-	got, err := repo.GetByID(ctx, u.ID)
+	got, err := repo.GetByID(ctx, shared.UserID(u.ID))
 	require.NoError(t, err)
 	assert.Equal(t, "updated@example.com", got.Email)
 	assert.True(t, got.IsAdmin)
@@ -101,9 +102,9 @@ func TestUserRepo_Delete(t *testing.T) {
 
 	u := newTestUser("u6")
 	require.NoError(t, repo.Create(ctx, u))
-	require.NoError(t, repo.Delete(ctx, u.ID))
+	require.NoError(t, repo.Delete(ctx, shared.UserID(u.ID)))
 
-	_, err := repo.GetByID(ctx, u.ID)
+	_, err := repo.GetByID(ctx, shared.UserID(u.ID))
 	assert.Error(t, err)
 }
 

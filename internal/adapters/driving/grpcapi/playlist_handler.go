@@ -147,7 +147,7 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 	}
 	mediaByID := make(map[string]*library.MediaItem, len(mediaItems))
 	for _, m := range mediaItems {
-		mediaByID[m.ID] = m
+		mediaByID[string(m.ID)] = m
 	}
 	// For manual playlists we need to fetch metadata separately
 	if h.libQuery != nil && len(plItems) > 0 {
@@ -160,7 +160,7 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 		if len(ids) > 0 {
 			extra, _ := h.libQuery.GetMediaItemsByIDs(ctx, ids)
 			for _, m := range extra {
-				mediaByID[m.ID] = m
+				mediaByID[string(m.ID)] = m
 			}
 		}
 	}
@@ -184,7 +184,7 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 	for i, item := range mediaItems {
 		pi := &eveyv1.PlaylistItemProto{
 			PlaylistId:  req.Id,
-			MediaItemId: item.ID,
+			MediaItemId: string(item.ID),
 			SortOrder:   int32(i),
 			Title:       item.Title,
 			Type:        string(item.Type),

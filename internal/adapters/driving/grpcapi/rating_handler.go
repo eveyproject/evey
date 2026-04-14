@@ -37,7 +37,7 @@ func (h *ratingHandler) requireMediaAccess(ctx context.Context, mediaItemID stri
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "not found")
 	}
-	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, item.LibraryID)
+	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
 	if accessErr != nil || !ok {
 		return status.Error(codes.NotFound, "not found")
 	}

@@ -32,7 +32,7 @@ func (h *shareHandler) CreateShareLink(ctx context.Context, req *eveyv1.CreateSh
 	if err != nil || item == nil {
 		return nil, status.Error(codes.NotFound, "media item not found")
 	}
-	if ok, _ := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
+	if ok, _ := h.checkLibraryAccess(ctx, string(item.LibraryID)); !ok {
 		return nil, status.Error(codes.NotFound, "media item not found")
 	}
 
@@ -136,11 +136,11 @@ func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.Valida
 	}
 
 	return &eveyv1.ValidateShareLinkResponse{
-		MediaId:    item.ID,
+		MediaId:    string(item.ID),
 		Title:      item.Title,
 		MediaType:  string(item.Type),
 		DurationMs: int64(item.DurationMs),
-		StreamUrl:  "/api/v1/media/" + item.ID + "/stream",
+		StreamUrl:  "/api/v1/media/" + string(item.ID) + "/stream",
 	}, nil
 }
 

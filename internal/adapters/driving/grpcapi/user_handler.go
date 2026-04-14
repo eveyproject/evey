@@ -19,6 +19,7 @@ import (
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/activity"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
@@ -91,7 +92,8 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 	}
 	if u != nil {
 		resp.User = userToProto(u)
-		h.audit(ctx, u.ID, "login", "user", &u.ID, map[string]any{"status": "success"})
+		uidStr := string(u.ID)
+		h.audit(ctx, uidStr, "login", "user", &uidStr, map[string]any{"status": "success"})
 	}
 	return resp, nil
 }
@@ -142,7 +144,8 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 	if err := h.userSvc.CreateUser(ctx, claims.IsAdmin, u, req.Password); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "%v", err)
 	}
-	h.audit(ctx, claims.UserID, "create_user", "user", &u.ID, map[string]any{"username": u.Username, "is_admin": u.IsAdmin})
+	uidStr := string(u.ID)
+	h.audit(ctx, claims.UserID, "create_user", "user", &uidStr, map[string]any{"username": u.Username, "is_admin": u.IsAdmin})
 	return userToProto(u), nil
 }
 
@@ -238,8 +241,8 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_create_profile_other")
 	}
 	p := &user.Profile{
-		ID:          id.New("prf-"),
-		UserID:      req.UserId,
+		ID:          shared.ProfileID(id.New("prf-")),
+		UserID:      shared.UserID(req.UserId),
 		Name:        req.Name,
 		Preferences: req.Preferences,
 	}
@@ -268,7 +271,7 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
 	}
 	p := &user.Profile{
-		ID:          req.Id,
+		ID:          shared.ProfileID(req.Id),
 		Preferences: req.Preferences,
 	}
 	if req.Name != nil {

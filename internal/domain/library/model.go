@@ -3,6 +3,8 @@ package library
 import (
 	"errors"
 	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type LibraryType string
@@ -44,7 +46,7 @@ const (
 )
 
 type Library struct {
-	ID                  string
+	ID                  shared.LibraryID
 	Name                string
 	Type                LibraryType
 	Paths               []string
@@ -58,8 +60,8 @@ type Library struct {
 }
 
 type MediaItem struct {
-	ID              string
-	LibraryID       string
+	ID              shared.MediaItemID
+	LibraryID       shared.LibraryID
 	ParentID        string
 	Type            MediaItemType
 	Title           string

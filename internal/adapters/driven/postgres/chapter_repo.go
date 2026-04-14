@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type ChapterRepository struct {
@@ -17,7 +18,7 @@ func NewChapterRepository(db *sql.DB) *ChapterRepository {
 	return &ChapterRepository{db: db}
 }
 
-func (r *ChapterRepository) ReplaceBatch(ctx context.Context, mediaItemID string, chapters []*library.Chapter) error {
+func (r *ChapterRepository) ReplaceBatch(ctx context.Context, mediaItemID shared.MediaItemID, chapters []*library.Chapter) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -26,7 +27,7 @@ func (r *ChapterRepository) ReplaceBatch(ctx context.Context, mediaItemID string
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.ExecContext(ctx, `DELETE FROM chapters WHERE media_item_id = $1`, mediaItemID); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM chapters WHERE media_item_id = $1`, string(mediaItemID)); err != nil {
 		return err
 	}
 
@@ -52,12 +53,12 @@ func (r *ChapterRepository) ReplaceBatch(ctx context.Context, mediaItemID string
 	return tx.Commit()
 }
 
-func (r *ChapterRepository) GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*library.Chapter, error) {
+func (r *ChapterRepository) GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*library.Chapter, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, title, start_time_ms, end_time_ms, sort_order
-		 FROM chapters WHERE media_item_id = $1 ORDER BY sort_order`, mediaItemID)
+		 FROM chapters WHERE media_item_id = $1 ORDER BY sort_order`, string(mediaItemID))
 	if err != nil {
 		return nil, err
 	}

@@ -11,12 +11,12 @@ import (
 
 // ProfileGetter resolves a profile by ID.
 type ProfileGetter interface {
-	GetByID(ctx context.Context, id string) (*domainuser.Profile, error)
+	GetByID(ctx context.Context, id shared.ProfileID) (*domainuser.Profile, error)
 }
 
 // UserGetter resolves a user by ID.
 type UserGetter interface {
-	GetByID(ctx context.Context, id string) (*domainuser.User, error)
+	GetByID(ctx context.Context, id shared.UserID) (*domainuser.User, error)
 }
 
 // NotificationEmailer subscribes to notification.created and sends emails.
@@ -41,7 +41,7 @@ func (e *NotificationEmailer) handle(ctx context.Context, ev shared.Event) {
 		return
 	}
 
-	profile, err := e.profiles.GetByID(ctx, notif.ProfileID)
+	profile, err := e.profiles.GetByID(ctx, shared.ProfileID(notif.ProfileID))
 	if err != nil {
 		slog.Warn("email: get profile", slog.String("profile_id", notif.ProfileID), slog.Any("err", err))
 		return
@@ -49,7 +49,7 @@ func (e *NotificationEmailer) handle(ctx context.Context, ev shared.Event) {
 
 	u, err := e.users.GetByID(ctx, profile.UserID)
 	if err != nil {
-		slog.Warn("email: get user", slog.String("user_id", profile.UserID), slog.Any("err", err))
+		slog.Warn("email: get user", slog.String("user_id", string(profile.UserID)), slog.Any("err", err))
 		return
 	}
 

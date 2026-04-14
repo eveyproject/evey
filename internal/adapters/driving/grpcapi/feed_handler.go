@@ -48,7 +48,7 @@ func (h *feedHandler) filterByLibraryAccess(ctx context.Context, items []*feed.F
 	}
 	libByID := make(map[string]string, len(mediaItems))
 	for _, mi := range mediaItems {
-		libByID[mi.ID] = mi.LibraryID
+		libByID[string(mi.ID)] = string(mi.LibraryID)
 	}
 	filtered := items[:0]
 	for _, item := range items {

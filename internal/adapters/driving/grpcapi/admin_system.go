@@ -100,7 +100,7 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 	return &eveyv1.SetupWizardResponse{
 		AccessToken:  access,
 		RefreshToken: refresh,
-		ServerId:     u.ID,
+		ServerId:     string(u.ID),
 	}, nil
 }
 

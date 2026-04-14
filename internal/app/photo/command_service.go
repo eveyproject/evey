@@ -30,7 +30,7 @@ func NewCommandService(repo photo.Repository, bus shared.EventBus, libRepo libra
 
 func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir string) (int, error) {
 	if s.libRepo != nil {
-		if _, err := s.libRepo.GetByID(ctx, libraryID); err != nil {
+		if _, err := s.libRepo.GetByID(ctx, shared.LibraryID(libraryID)); err != nil {
 			return 0, fmt.Errorf("library %s not found: %w", libraryID, err)
 		}
 	}

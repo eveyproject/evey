@@ -26,16 +26,16 @@ func TestScanScheduleRepo_Upsert_GetByLibraryID(t *testing.T) {
 
 	nextRun := time.Now().UTC().Add(time.Hour).Truncate(time.Millisecond)
 	sched := &library.ScanSchedule{
-		LibraryID:      lib.ID,
+		LibraryID:      string(lib.ID),
 		CronExpression: "0 */6 * * *",
 		Enabled:        true,
 		NextRunAt:      &nextRun,
 	}
 	require.NoError(t, schedRepo.Upsert(ctx, sched))
 
-	got, err := schedRepo.GetByLibraryID(ctx, lib.ID)
+	got, err := schedRepo.GetByLibraryID(ctx, string(lib.ID))
 	require.NoError(t, err)
-	assert.Equal(t, lib.ID, got.LibraryID)
+	assert.Equal(t, string(lib.ID), got.LibraryID)
 	assert.Equal(t, "0 */6 * * *", got.CronExpression)
 	assert.True(t, got.Enabled)
 	assert.NotNil(t, got.NextRunAt)
@@ -53,7 +53,7 @@ func TestScanScheduleRepo_Upsert_Update(t *testing.T) {
 	require.NoError(t, libRepo.Create(ctx, lib))
 
 	sched := &library.ScanSchedule{
-		LibraryID: lib.ID, CronExpression: "0 0 * * *", Enabled: true,
+		LibraryID: string(lib.ID), CronExpression: "0 0 * * *", Enabled: true,
 	}
 	require.NoError(t, schedRepo.Upsert(ctx, sched))
 
@@ -61,7 +61,7 @@ func TestScanScheduleRepo_Upsert_Update(t *testing.T) {
 	sched.Enabled = false
 	require.NoError(t, schedRepo.Upsert(ctx, sched))
 
-	got, err := schedRepo.GetByLibraryID(ctx, lib.ID)
+	got, err := schedRepo.GetByLibraryID(ctx, string(lib.ID))
 	require.NoError(t, err)
 	assert.Equal(t, "0 */12 * * *", got.CronExpression)
 	assert.False(t, got.Enabled)
@@ -81,16 +81,16 @@ func TestScanScheduleRepo_ListEnabled(t *testing.T) {
 	require.NoError(t, libRepo.Create(ctx, lib2))
 
 	require.NoError(t, schedRepo.Upsert(ctx, &library.ScanSchedule{
-		LibraryID: lib1.ID, CronExpression: "0 0 * * *", Enabled: true,
+		LibraryID: string(lib1.ID), CronExpression: "0 0 * * *", Enabled: true,
 	}))
 	require.NoError(t, schedRepo.Upsert(ctx, &library.ScanSchedule{
-		LibraryID: lib2.ID, CronExpression: "0 12 * * *", Enabled: false,
+		LibraryID: string(lib2.ID), CronExpression: "0 12 * * *", Enabled: false,
 	}))
 
 	got, err := schedRepo.ListEnabled(ctx)
 	require.NoError(t, err)
 	assert.Len(t, got, 1)
-	assert.Equal(t, lib1.ID, got[0].LibraryID)
+	assert.Equal(t, string(lib1.ID), got[0].LibraryID)
 }
 
 func TestScanScheduleRepo_Delete(t *testing.T) {
@@ -104,12 +104,12 @@ func TestScanScheduleRepo_Delete(t *testing.T) {
 	lib := newTestLibrary("sslib4")
 	require.NoError(t, libRepo.Create(ctx, lib))
 	require.NoError(t, schedRepo.Upsert(ctx, &library.ScanSchedule{
-		LibraryID: lib.ID, CronExpression: "0 0 * * *", Enabled: true,
+		LibraryID: string(lib.ID), CronExpression: "0 0 * * *", Enabled: true,
 	}))
 
-	require.NoError(t, schedRepo.Delete(ctx, lib.ID))
+	require.NoError(t, schedRepo.Delete(ctx, string(lib.ID)))
 
-	_, err := schedRepo.GetByLibraryID(ctx, lib.ID)
+	_, err := schedRepo.GetByLibraryID(ctx, string(lib.ID))
 	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
@@ -124,14 +124,14 @@ func TestScanScheduleRepo_UpdateAfterRun(t *testing.T) {
 	lib := newTestLibrary("sslib5")
 	require.NoError(t, libRepo.Create(ctx, lib))
 	require.NoError(t, schedRepo.Upsert(ctx, &library.ScanSchedule{
-		LibraryID: lib.ID, CronExpression: "0 0 * * *", Enabled: true,
+		LibraryID: string(lib.ID), CronExpression: "0 0 * * *", Enabled: true,
 	}))
 
 	lastRun := time.Now().UTC().Truncate(time.Millisecond)
 	nextRun := lastRun.Add(24 * time.Hour)
-	require.NoError(t, schedRepo.UpdateAfterRun(ctx, lib.ID, lastRun, nextRun))
+	require.NoError(t, schedRepo.UpdateAfterRun(ctx, string(lib.ID), lastRun, nextRun))
 
-	got, err := schedRepo.GetByLibraryID(ctx, lib.ID)
+	got, err := schedRepo.GetByLibraryID(ctx, string(lib.ID))
 	require.NoError(t, err)
 	require.NotNil(t, got.LastRunAt)
 	assert.Equal(t, lastRun, got.LastRunAt.Truncate(time.Millisecond))

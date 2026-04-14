@@ -90,14 +90,14 @@ type mediaDocument struct {
 
 func ToDocument(item *library.MediaItem, castNames []string) mediaDocument {
 	return mediaDocument{
-		ID:            item.ID,
+		ID:            string(item.ID),
 		Title:         item.Title,
 		OriginalTitle: item.OriginalTitle,
 		Genres:        item.Genres,
 		Cast:          castNames,
 		Year:          item.Year,
 		Type:          string(item.Type),
-		LibraryID:     item.LibraryID,
+		LibraryID:     string(item.LibraryID),
 		AddedAt:       item.AddedAt.Unix(),
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type FakeMediaPersonRepository struct {
@@ -42,7 +43,7 @@ func (r *FakeMediaPersonRepository) CreateBatch(_ context.Context, mps []*librar
 	return nil
 }
 
-func (r *FakeMediaPersonRepository) DeleteByMediaItemID(_ context.Context, mediaItemID string) error {
+func (r *FakeMediaPersonRepository) DeleteByMediaItemID(_ context.Context, mediaItemID shared.MediaItemID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -51,11 +52,11 @@ func (r *FakeMediaPersonRepository) DeleteByMediaItemID(_ context.Context, media
 	if r.Err != nil {
 		return r.Err
 	}
-	delete(r.items, mediaItemID)
+	delete(r.items, string(mediaItemID))
 	return nil
 }
 
-func (r *FakeMediaPersonRepository) GetByMediaItemID(_ context.Context, mediaItemID string) ([]*library.MediaPerson, error) {
+func (r *FakeMediaPersonRepository) GetByMediaItemID(_ context.Context, mediaItemID shared.MediaItemID) ([]*library.MediaPerson, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -64,5 +65,5 @@ func (r *FakeMediaPersonRepository) GetByMediaItemID(_ context.Context, mediaIte
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	return r.items[mediaItemID], nil
+	return r.items[string(mediaItemID)], nil
 }

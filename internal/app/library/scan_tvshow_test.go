@@ -44,12 +44,12 @@ func TestScanTVShow_SingleEpisode_CreatesHierarchy(t *testing.T) {
 	seasons := itemsByType(mediaRepo, "season")
 	require.Len(t, seasons, 1)
 	assert.Equal(t, "Season 1", seasons[0].Title)
-	assert.Equal(t, series[0].ID, seasons[0].ParentID)
+	assert.Equal(t, string(series[0].ID), seasons[0].ParentID)
 
 	episodes := itemsByType(mediaRepo, "episode")
 	require.Len(t, episodes, 1)
 	assert.Equal(t, "S01E01", episodes[0].Title)
-	assert.Equal(t, seasons[0].ID, episodes[0].ParentID)
+	assert.Equal(t, string(seasons[0].ID), episodes[0].ParentID)
 	assert.Equal(t, "/tv/MyShow/S01/e01.mkv", episodes[0].FilePath)
 
 	// series + season + episode = 3 added

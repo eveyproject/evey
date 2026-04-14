@@ -9,23 +9,23 @@ import (
 
 type UserRepository interface {
 	Create(ctx context.Context, u *User) error
-	GetByID(ctx context.Context, id string) (*User, error)
+	GetByID(ctx context.Context, id shared.UserID) (*User, error)
 	GetByUsername(ctx context.Context, username string) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByOIDCSubject(ctx context.Context, issuer, subject string) (*User, error)
 	List(ctx context.Context) ([]*User, error)
 	Update(ctx context.Context, u *User) error
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id shared.UserID) error
 	CountAdmins(ctx context.Context) (int, error)
 }
 
 type ProfileRepository interface {
 	Create(ctx context.Context, p *Profile) error
-	GetByID(ctx context.Context, id string) (*Profile, error)
-	GetByUserID(ctx context.Context, userID string) ([]*Profile, error)
+	GetByID(ctx context.Context, id shared.ProfileID) (*Profile, error)
+	GetByUserID(ctx context.Context, userID shared.UserID) ([]*Profile, error)
 	GetAll(ctx context.Context) ([]*Profile, error)
 	Update(ctx context.Context, p *Profile) error
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id shared.ProfileID) error
 }
 
 type RefreshTokenRepository interface {
@@ -35,14 +35,14 @@ type RefreshTokenRepository interface {
 	// Returns true if the token was claimed, false if it was already used.
 	MarkUsedIfNotUsed(ctx context.Context, id string) (bool, error)
 	DeleteByID(ctx context.Context, id string) error
-	DeleteByUserID(ctx context.Context, userID string) error
+	DeleteByUserID(ctx context.Context, userID shared.UserID) error
 	DeleteExpired(ctx context.Context) error
 }
 
 type APIKeyRepository interface {
 	Create(ctx context.Context, key *APIKeyModel) error
 	GetByKeyHash(ctx context.Context, hash string) (*APIKeyModel, error)
-	ListByUserID(ctx context.Context, userID string) ([]*APIKeyModel, error)
+	ListByUserID(ctx context.Context, userID shared.UserID) ([]*APIKeyModel, error)
 	Delete(ctx context.Context, id string) error
 	UpdateLastUsed(ctx context.Context, id string, t time.Time) error
 }
@@ -71,9 +71,9 @@ type RoleRepository interface {
 }
 
 type UserRoleRepository interface {
-	AssignRole(ctx context.Context, userID, roleID string) error
-	RemoveRole(ctx context.Context, userID, roleID string) error
-	GetRolesByUserID(ctx context.Context, userID string) ([]*Role, error)
+	AssignRole(ctx context.Context, userID shared.UserID, roleID string) error
+	RemoveRole(ctx context.Context, userID shared.UserID, roleID string) error
+	GetRolesByUserID(ctx context.Context, userID shared.UserID) ([]*Role, error)
 }
 
 type LibraryAccessRepository interface {
@@ -88,7 +88,7 @@ type PasswordResetTokenRepository interface {
 	Create(ctx context.Context, t *PasswordResetToken) error
 	GetByTokenHash(ctx context.Context, hash string) (*PasswordResetToken, error)
 	MarkUsed(ctx context.Context, id string) error
-	DeleteByUserID(ctx context.Context, userID string) error
+	DeleteByUserID(ctx context.Context, userID shared.UserID) error
 	DeleteExpired(ctx context.Context) error
 }
 

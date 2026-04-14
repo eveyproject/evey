@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/lib/pq"
 )
@@ -53,7 +54,7 @@ func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
 	return nil
 }
 
-func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profile, error) {
+func (r *ProfileRepository) GetByID(ctx context.Context, id shared.ProfileID) (*user.Profile, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	p := &user.Profile{}
@@ -63,7 +64,7 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profi
 	var pEnabled bool
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, created_at
-		 FROM profiles WHERE id = $1`, id,
+		 FROM profiles WHERE id = $1`, string(id),
 	).Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
 		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps,
 		&pMaxRating, pq.Array(&pBlockedTags), &pPINHash, &pEnabled,
@@ -78,12 +79,12 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profi
 	return p, nil
 }
 
-func (r *ProfileRepository) GetByUserID(ctx context.Context, userID string) ([]*user.Profile, error) {
+func (r *ProfileRepository) GetByUserID(ctx context.Context, userID shared.UserID) ([]*user.Profile, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, created_at
-		 FROM profiles WHERE user_id = $1 ORDER BY is_default DESC, name`, userID)
+		 FROM profiles WHERE user_id = $1 ORDER BY is_default DESC, name`, string(userID))
 	if err != nil {
 		return nil, fmt.Errorf("ProfileRepo.GetByUserID: %w", err)
 	}
@@ -161,10 +162,10 @@ func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error)
 	return result, nil
 }
 
-func (r *ProfileRepository) Delete(ctx context.Context, id string) error {
+func (r *ProfileRepository) Delete(ctx context.Context, id shared.ProfileID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM profiles WHERE id = $1`, id)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM profiles WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("delete profile: %w", err)
 	}

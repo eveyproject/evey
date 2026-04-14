@@ -63,7 +63,7 @@ func newSyncplayTestEnv() *syncplayTestEnv {
 }
 
 func (e *syncplayTestEnv) seedMedia(id, libraryID string) {
-	e.mediaItemRepo.Seed(&library.MediaItem{ID: id, LibraryID: libraryID, Title: "Test"})
+	e.mediaItemRepo.Seed(&library.MediaItem{ID: shared.MediaItemID(id), LibraryID: shared.LibraryID(libraryID), Title: "Test"})
 }
 
 func (e *syncplayTestEnv) grantAccess(userID, libraryID string) {

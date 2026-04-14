@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -21,7 +22,7 @@ func NewFakeUserRoleRepository(roles *FakeRoleRepository) *FakeUserRoleRepositor
 	}
 }
 
-func (r *FakeUserRoleRepository) AssignRole(_ context.Context, userID, roleID string) error {
+func (r *FakeUserRoleRepository) AssignRole(_ context.Context, userID shared.UserID, roleID string) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -30,11 +31,11 @@ func (r *FakeUserRoleRepository) AssignRole(_ context.Context, userID, roleID st
 	if r.Err != nil {
 		return r.Err
 	}
-	r.assigned[userID] = append(r.assigned[userID], roleID)
+	r.assigned[string(userID)] = append(r.assigned[string(userID)], roleID)
 	return nil
 }
 
-func (r *FakeUserRoleRepository) RemoveRole(_ context.Context, userID, roleID string) error {
+func (r *FakeUserRoleRepository) RemoveRole(_ context.Context, userID shared.UserID, roleID string) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -43,17 +44,17 @@ func (r *FakeUserRoleRepository) RemoveRole(_ context.Context, userID, roleID st
 	if r.Err != nil {
 		return r.Err
 	}
-	ids := r.assigned[userID]
+	ids := r.assigned[string(userID)]
 	for i, id := range ids {
 		if id == roleID {
-			r.assigned[userID] = append(ids[:i], ids[i+1:]...)
+			r.assigned[string(userID)] = append(ids[:i], ids[i+1:]...)
 			break
 		}
 	}
 	return nil
 }
 
-func (r *FakeUserRoleRepository) GetRolesByUserID(ctx context.Context, userID string) ([]*user.Role, error) {
+func (r *FakeUserRoleRepository) GetRolesByUserID(ctx context.Context, userID shared.UserID) ([]*user.Role, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -63,7 +64,7 @@ func (r *FakeUserRoleRepository) GetRolesByUserID(ctx context.Context, userID st
 		return nil, r.Err
 	}
 	var result []*user.Role
-	for _, roleID := range r.assigned[userID] {
+	for _, roleID := range r.assigned[string(userID)] {
 		role, err := r.roles.GetByID(ctx, roleID)
 		if err == nil {
 			result = append(result, role)

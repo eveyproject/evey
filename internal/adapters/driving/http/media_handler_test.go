@@ -9,6 +9,7 @@ import (
 	"time"
 
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -48,7 +49,7 @@ func testClaims(admin bool) *domainuser.Claims {
 }
 
 func testMediaItem(libraryID string) *domainlibrary.MediaItem {
-	return &domainlibrary.MediaItem{ID: "m1", LibraryID: libraryID, FilePath: "/tmp/fake.mkv"}
+	return &domainlibrary.MediaItem{ID: "m1", LibraryID: shared.LibraryID(libraryID), FilePath: "/tmp/fake.mkv"}
 }
 
 // --- tests: downloadHandler ---

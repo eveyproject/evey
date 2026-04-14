@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +44,7 @@ func TestScanTVShow_TitleMatch_UpdatesStaleFingerprint(t *testing.T) {
 	// Still one series, same ID, but fingerprint refreshed to canonical one.
 	series := itemsByType(mediaRepo, "series")
 	require.Len(t, series, 1)
-	assert.Equal(t, "series-existing", series[0].ID)
+	assert.Equal(t, shared.MediaItemID("series-existing"), series[0].ID)
 	assert.Equal(t, "series:lib-tv:Show", series[0].FileFingerprint,
 		"title-matched series must have fingerprint refreshed via Update")
 }
@@ -77,7 +78,7 @@ func TestScanTVShow_FingerprintHit_ReusesExistingSeriesDespiteTitleDiff(t *testi
 
 	series := itemsByType(mediaRepo, "series")
 	require.Len(t, series, 1, "series must be looked up via fingerprint (non-empty) map")
-	assert.Equal(t, "series-existing", series[0].ID)
+	assert.Equal(t, shared.MediaItemID("series-existing"), series[0].ID)
 }
 
 // Kills mutation at scan_service_tvshow.go:160:9 (childCount[item.ParentID]--).

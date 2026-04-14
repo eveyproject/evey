@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type MediaPersonRepository struct {
@@ -51,19 +52,19 @@ func (r *MediaPersonRepository) CreateBatch(ctx context.Context, mps []*library.
 	return err
 }
 
-func (r *MediaPersonRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID string) error {
+func (r *MediaPersonRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM media_people WHERE media_item_id = $1`, mediaItemID)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM media_people WHERE media_item_id = $1`, string(mediaItemID))
 	return err
 }
 
-func (r *MediaPersonRepository) GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*library.MediaPerson, error) {
+func (r *MediaPersonRepository) GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*library.MediaPerson, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT media_item_id, person_id, role_type, character_name, sort_order
-		 FROM media_people WHERE media_item_id = $1 ORDER BY sort_order`, mediaItemID)
+		 FROM media_people WHERE media_item_id = $1 ORDER BY sort_order`, string(mediaItemID))
 	if err != nil {
 		return nil, err
 	}

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type QueryServiceOption func(*QueryService)
@@ -129,7 +130,7 @@ func (s *QueryService) GetPerson(ctx context.Context, id string) (*library.Perso
 }
 
 func (s *QueryService) GetLibrary(ctx context.Context, id string) (*library.Library, error) {
-	return s.libraries.GetByID(ctx, id)
+	return s.libraries.GetByID(ctx, shared.LibraryID(id))
 }
 
 func (s *QueryService) ListLibraries(ctx context.Context) ([]*library.Library, error) {
@@ -137,11 +138,15 @@ func (s *QueryService) ListLibraries(ctx context.Context) ([]*library.Library, e
 }
 
 func (s *QueryService) GetMediaItem(ctx context.Context, id string) (*library.MediaItem, error) {
-	return s.mediaItems.GetByID(ctx, id)
+	return s.mediaItems.GetByID(ctx, shared.MediaItemID(id))
 }
 
 func (s *QueryService) GetMediaItemsByIDs(ctx context.Context, ids []string) ([]*library.MediaItem, error) {
-	return s.mediaItems.GetByIDs(ctx, ids)
+	typedIDs := make([]shared.MediaItemID, len(ids))
+	for i, id := range ids {
+		typedIDs[i] = shared.MediaItemID(id)
+	}
+	return s.mediaItems.GetByIDs(ctx, typedIDs)
 }
 
 func (s *QueryService) ListMediaItems(ctx context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
@@ -153,22 +158,34 @@ func (s *QueryService) CountMediaItems(ctx context.Context, filter library.ListM
 }
 
 func (s *QueryService) GetCast(ctx context.Context, mediaItemID string) ([]library.CastMember, error) {
-	return s.mediaItems.GetCastByMediaItem(ctx, mediaItemID)
+	return s.mediaItems.GetCastByMediaItem(ctx, shared.MediaItemID(mediaItemID))
 }
 
 func (s *QueryService) GetCastForItems(ctx context.Context, mediaItemIDs []string) (map[string][]library.CastMember, error) {
-	return s.mediaItems.GetCastForItems(ctx, mediaItemIDs)
+	typedIDs := make([]shared.MediaItemID, len(mediaItemIDs))
+	for i, id := range mediaItemIDs {
+		typedIDs[i] = shared.MediaItemID(id)
+	}
+	typed, err := s.mediaItems.GetCastForItems(ctx, typedIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string][]library.CastMember, len(typed))
+	for k, v := range typed {
+		out[string(k)] = v
+	}
+	return out, nil
 }
 
 func (s *QueryService) GetMediaStreams(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error) {
-	return s.streams.GetByMediaItemID(ctx, mediaItemID)
+	return s.streams.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
 }
 
 func (s *QueryService) GetChapters(ctx context.Context, mediaItemID string) ([]*library.Chapter, error) {
 	if s.chapters == nil {
 		return nil, nil
 	}
-	return s.chapters.GetByMediaItemID(ctx, mediaItemID)
+	return s.chapters.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
 }
 
 func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {

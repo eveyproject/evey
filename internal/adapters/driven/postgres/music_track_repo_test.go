@@ -8,14 +8,15 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/gravity-zero/evey/internal/domain/music"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestTrack(id, libID, title, artist, album string) music.Track {
+func newTestTrack(id string, libID shared.LibraryID, title, artist, album string) music.Track {
 	return music.Track{
 		ID:          id,
-		LibraryID:   libID,
+		LibraryID:   string(libID),
 		Title:       title,
 		Artist:      artist,
 		Album:       album,
@@ -97,7 +98,7 @@ func TestMusicTrackRepo_ListByLibrary(t *testing.T) {
 	t2.FilePath = "/music/mt3b.flac"
 	require.NoError(t, repo.Upsert(ctx, t2))
 
-	tracks, total, err := repo.ListByLibrary(ctx, lib.ID, 10, 0, "")
+	tracks, total, err := repo.ListByLibrary(ctx, string(lib.ID), 10, 0, "")
 	require.NoError(t, err)
 	assert.Equal(t, 2, total)
 	assert.Len(t, tracks, 2)
@@ -185,7 +186,7 @@ func TestMusicTrackRepo_GetAlbums(t *testing.T) {
 	t2.FilePath = "/music/mt7b.flac"
 	require.NoError(t, repo.Upsert(ctx, t2))
 
-	albums, err := repo.GetAlbums(ctx, lib.ID)
+	albums, err := repo.GetAlbums(ctx, string(lib.ID))
 	require.NoError(t, err)
 	assert.Len(t, albums, 1)
 	assert.Equal(t, "TheAlbum", albums[0].Title)
@@ -206,7 +207,7 @@ func TestMusicTrackRepo_GetArtists(t *testing.T) {
 
 	require.NoError(t, repo.Upsert(ctx, newTestTrack("mt8", lib.ID, "T1", "UniqueArtist", "A")))
 
-	artists, err := repo.GetArtists(ctx, lib.ID)
+	artists, err := repo.GetArtists(ctx, string(lib.ID))
 	require.NoError(t, err)
 	assert.Len(t, artists, 1)
 	assert.Equal(t, "UniqueArtist", artists[0].Name)
@@ -229,7 +230,7 @@ func TestMusicTrackRepo_ListAllByLibrary(t *testing.T) {
 	t2.FilePath = "/music/mt9b.flac"
 	require.NoError(t, repo.Upsert(ctx, t2))
 
-	tracks, err := repo.ListAllByLibrary(ctx, lib.ID)
+	tracks, err := repo.ListAllByLibrary(ctx, string(lib.ID))
 	require.NoError(t, err)
 	assert.Len(t, tracks, 2)
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	authpkg "github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"google.golang.org/grpc"
@@ -157,7 +158,7 @@ func (i *AuthInterceptor) authenticateAPIKey(ctx context.Context, rawKey string)
 	if key.ExpiresAt != nil && time.Now().After(*key.ExpiresAt) {
 		return nil, status.Error(codes.Unauthenticated, "api key expired")
 	}
-	u, err := i.users.GetByID(ctx, key.UserID)
+	u, err := i.users.GetByID(ctx, shared.UserID(key.UserID))
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid api key")
 	}
@@ -165,7 +166,7 @@ func (i *AuthInterceptor) authenticateAPIKey(ctx context.Context, rawKey string)
 		return nil, status.Error(codes.Unauthenticated, "user disabled")
 	}
 	claims := &user.Claims{
-		UserID:      u.ID,
+		UserID:      string(u.ID),
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
 		Permissions: key.Permissions,

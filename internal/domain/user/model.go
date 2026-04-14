@@ -18,7 +18,7 @@ const (
 )
 
 type User struct {
-	ID               string
+	ID               shared.UserID
 	Username         string
 	Email            string
 	PasswordHash     string
@@ -41,8 +41,8 @@ type ParentalSettings struct {
 }
 
 type Profile struct {
-	ID                string
-	UserID            string
+	ID                shared.ProfileID
+	UserID            shared.UserID
 	Name              string
 	AvatarPath        *string
 	Preferences       map[string]string
@@ -130,7 +130,7 @@ func (u *User) Validate() error {
 func NewUser(username, email, passwordHash string) (*User, error) {
 	now := time.Now()
 	u := &User{
-		ID:           id.New("usr-"),
+		ID:           shared.UserID(id.New("usr-")),
 		Username:     username,
 		Email:        email,
 		PasswordHash: passwordHash,

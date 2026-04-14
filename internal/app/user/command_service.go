@@ -132,13 +132,13 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	if err := s.users.Create(ctx, u); err != nil {
 		return nil, fmt.Errorf("CommandService.Setup: %w", err)
 	}
-	evtSetupCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: true, OccurredAt: time.Now()}
+	evtSetupCreated := user.UserCreated{UserID: string(u.ID), Username: u.Username, IsAdmin: true, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtSetupCreated); err != nil {
 		slog.Warn("publish event", slog.String("event", evtSetupCreated.EventName()), slog.Any("err", err))
 	}
 
 	p := &user.Profile{
-		ID:        id.New("prf-"),
+		ID:        shared.ProfileID(id.New("prf-")),
 		UserID:    u.ID,
 		Name:      u.Username,
 		IsDefault: true,
@@ -146,7 +146,7 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	if err := s.profiles.Create(ctx, p); err != nil {
 		return nil, fmt.Errorf("create default profile: %w", err)
 	}
-	evtProfileCreated := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
+	evtProfileCreated := user.ProfileCreated{ProfileID: string(p.ID), UserID: string(p.UserID), Name: p.Name, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtProfileCreated); err != nil {
 		slog.Warn("publish event", slog.String("event", evtProfileCreated.EventName()), slog.Any("err", err))
 	}
@@ -180,7 +180,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 
 	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
 	if err != nil {
-		slog.Warn("get roles by user failed", slog.String("userID", u.ID), slog.Any("err", err))
+		slog.Warn("get roles by user failed", slog.String("userID", string(u.ID)), slog.Any("err", err))
 	}
 	var perms []string
 	for _, r := range roles {
@@ -191,23 +191,23 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
 		for _, p := range profs {
 			if p.IsDefault {
-				defaultProfileID = p.ID
+				defaultProfileID = string(p.ID)
 				break
 			}
 		}
 		if defaultProfileID == "" && len(profs) > 0 {
-			defaultProfileID = profs[0].ID
+			defaultProfileID = string(profs[0].ID)
 		}
 	}
 	var profileLocale string
 	if defaultProfileID != "" {
-		if prof, pErr := s.profiles.GetByID(ctx, defaultProfileID); pErr == nil && prof != nil {
+		if prof, pErr := s.profiles.GetByID(ctx, shared.ProfileID(defaultProfileID)); pErr == nil && prof != nil {
 			profileLocale = prof.Locale
 		}
 	}
 
 	accessToken, err = s.tokens.GenerateAccessToken(user.Claims{
-		UserID:      u.ID,
+		UserID:      string(u.ID),
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
 		ProfileID:   defaultProfileID,
@@ -218,12 +218,12 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		return "", "", fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID, ttlOverride...)
+	refreshToken, err = s.generateAndStoreRefreshToken(ctx, string(u.ID), ttlOverride...)
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.Login: %w", err)
 	}
 
-	evtLogin := user.LoginSucceeded{UserID: u.ID, AuthMethod: "local", OccurredAt: time.Now()}
+	evtLogin := user.LoginSucceeded{UserID: string(u.ID), AuthMethod: "local", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtLogin); err != nil {
 		slog.Warn("publish event", slog.String("event", evtLogin.EventName()), slog.Any("err", err))
 	}
@@ -231,7 +231,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 }
 
 func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID string, ttlOverride ...time.Duration) (accessToken, refreshToken string, err error) {
-	u, err := s.users.GetByID(ctx, userID)
+	u, err := s.users.GetByID(ctx, shared.UserID(userID))
 	if err != nil {
 		return "", "", fmt.Errorf("user not found: %w", err)
 	}
@@ -241,7 +241,7 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 
 	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
 	if err != nil {
-		slog.Warn("get roles by user failed", slog.String("userID", u.ID), slog.Any("err", err))
+		slog.Warn("get roles by user failed", slog.String("userID", string(u.ID)), slog.Any("err", err))
 	}
 	var perms []string
 	for _, r := range roles {
@@ -252,23 +252,23 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
 		for _, p := range profs {
 			if p.IsDefault {
-				defaultProfileID = p.ID
+				defaultProfileID = string(p.ID)
 				break
 			}
 		}
 		if defaultProfileID == "" && len(profs) > 0 {
-			defaultProfileID = profs[0].ID
+			defaultProfileID = string(profs[0].ID)
 		}
 	}
 	var profileLocale string
 	if defaultProfileID != "" {
-		if prof, pErr := s.profiles.GetByID(ctx, defaultProfileID); pErr == nil && prof != nil {
+		if prof, pErr := s.profiles.GetByID(ctx, shared.ProfileID(defaultProfileID)); pErr == nil && prof != nil {
 			profileLocale = prof.Locale
 		}
 	}
 
 	accessToken, err = s.tokens.GenerateAccessToken(user.Claims{
-		UserID:      u.ID,
+		UserID:      string(u.ID),
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
 		ProfileID:   defaultProfileID,
@@ -279,7 +279,7 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 		return "", "", fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID, ttlOverride...)
+	refreshToken, err = s.generateAndStoreRefreshToken(ctx, string(u.ID), ttlOverride...)
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.GenerateTokensForUser: %w", err)
 	}
@@ -296,7 +296,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 	}
 
 	if rt.Used {
-		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
+		if delErr := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(rt.UserID)); delErr != nil {
 			slog.Warn("delete refresh tokens by user failed", slog.String("userID", rt.UserID), slog.Any("err", delErr))
 		}
 		return "", "", ErrInvalidCredentials
@@ -314,13 +314,13 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", markErr)
 	}
 	if !claimed {
-		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
+		if delErr := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(rt.UserID)); delErr != nil {
 			slog.Warn("delete refresh tokens by user failed", slog.String("userID", rt.UserID), slog.Any("err", delErr))
 		}
 		return "", "", ErrInvalidCredentials
 	}
 
-	u, err := s.users.GetByID(ctx, rt.UserID)
+	u, err := s.users.GetByID(ctx, shared.UserID(rt.UserID))
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}
@@ -330,7 +330,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 
 	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
 	if err != nil {
-		slog.Warn("get roles by user failed", slog.String("userID", u.ID), slog.Any("err", err))
+		slog.Warn("get roles by user failed", slog.String("userID", string(u.ID)), slog.Any("err", err))
 	}
 	var perms []string
 	for _, r := range roles {
@@ -341,23 +341,23 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
 		for _, p := range profs {
 			if p.IsDefault {
-				defaultProfileID = p.ID
+				defaultProfileID = string(p.ID)
 				break
 			}
 		}
 		if defaultProfileID == "" && len(profs) > 0 {
-			defaultProfileID = profs[0].ID
+			defaultProfileID = string(profs[0].ID)
 		}
 	}
 
 	var refreshLocale string
 	if defaultProfileID != "" {
-		if prof, pErr := s.profiles.GetByID(ctx, defaultProfileID); pErr == nil && prof != nil {
+		if prof, pErr := s.profiles.GetByID(ctx, shared.ProfileID(defaultProfileID)); pErr == nil && prof != nil {
 			refreshLocale = prof.Locale
 		}
 	}
 	accessToken, err := s.tokens.GenerateAccessToken(user.Claims{
-		UserID:      u.ID,
+		UserID:      string(u.ID),
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
 		ProfileID:   defaultProfileID,
@@ -368,7 +368,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}
 
-	newRefresh, err := s.generateAndStoreRefreshToken(ctx, u.ID, ttlOverride...)
+	newRefresh, err := s.generateAndStoreRefreshToken(ctx, string(u.ID), ttlOverride...)
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}
@@ -377,7 +377,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 }
 
 func (s *CommandService) Logout(ctx context.Context, userID string) error {
-	if err := s.refreshTkns.DeleteByUserID(ctx, userID); err != nil {
+	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
 		return fmt.Errorf("CommandService.Logout: %w", err)
 	}
 	return nil
@@ -386,7 +386,7 @@ func (s *CommandService) Logout(ctx context.Context, userID string) error {
 const maxRefreshTokenRetries = 3
 
 func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userID string, ttlOverride ...time.Duration) (string, error) {
-	if err := s.refreshTkns.DeleteByUserID(ctx, userID); err != nil {
+	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
 		slog.Warn("cleanup old refresh tokens", slog.String("userID", userID), slog.Any("err", err))
 	}
 	ttl := s.refreshTokenTTL
@@ -487,7 +487,7 @@ func (s *CommandService) RequestPasswordReset(ctx context.Context, email string)
 	}
 
 	if err := s.resetTokens.DeleteByUserID(ctx, u.ID); err != nil {
-		slog.Warn("cleanup old reset tokens", slog.String("userID", u.ID), slog.Any("err", err))
+		slog.Warn("cleanup old reset tokens", slog.String("userID", string(u.ID)), slog.Any("err", err))
 	}
 
 	rawToken := make([]byte, 32)
@@ -499,7 +499,7 @@ func (s *CommandService) RequestPasswordReset(ctx context.Context, email string)
 
 	t := &user.PasswordResetToken{
 		ID:        id.New("prt-"),
-		UserID:    u.ID,
+		UserID:    string(u.ID),
 		TokenHash: hex.EncodeToString(h[:]),
 		ExpiresAt: time.Now().Add(passwordResetTokenTTL),
 		CreatedAt: time.Now(),
@@ -509,7 +509,7 @@ func (s *CommandService) RequestPasswordReset(ctx context.Context, email string)
 	}
 
 	evt := user.PasswordResetRequested{
-		UserID:     u.ID,
+		UserID:     string(u.ID),
 		Email:      u.Email,
 		ResetToken: rawHex,
 		ExpiresAt:  t.ExpiresAt,
@@ -541,7 +541,7 @@ func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPasswor
 		return ErrPasswordTooShort
 	}
 
-	u, err := s.users.GetByID(ctx, t.UserID)
+	u, err := s.users.GetByID(ctx, shared.UserID(t.UserID))
 	if err != nil {
 		return ErrResetTokenInvalid
 	}
@@ -577,7 +577,7 @@ func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPasswor
 		slog.Warn("delete refresh tokens after password reset", slog.Any("err", err))
 	}
 
-	evt := user.PasswordChanged{UserID: u.ID, OccurredAt: time.Now()}
+	evt := user.PasswordChanged{UserID: string(u.ID), OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}

@@ -34,7 +34,7 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID string
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "media not found")
 	}
-	ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, item.LibraryID)
+	ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
 	if !ok {
 		return status.Error(codes.NotFound, "media not found")
 	}

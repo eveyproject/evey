@@ -24,8 +24,8 @@ type fakeMediaQuerier struct {
 	cntErr  error
 }
 
-func (f *fakeMediaQuerier) GetByID(_ context.Context, id string) (*library.MediaItem, error) {
-	item, ok := f.items[id]
+func (f *fakeMediaQuerier) GetByID(_ context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
+	item, ok := f.items[string(id)]
 	if !ok {
 		return nil, shared.ErrNotFound
 	}
@@ -38,7 +38,7 @@ func (f *fakeMediaQuerier) List(_ context.Context, filter library.ListMediaItems
 	}
 	var result []*library.MediaItem
 	for _, item := range f.items {
-		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
+		if filter.LibraryID != nil && string(item.LibraryID) != *filter.LibraryID {
 			continue
 		}
 		result = append(result, item)

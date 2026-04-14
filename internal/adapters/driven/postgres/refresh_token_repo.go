@@ -72,10 +72,10 @@ func (r *RefreshTokenRepository) DeleteByID(ctx context.Context, id string) erro
 	return err
 }
 
-func (r *RefreshTokenRepository) DeleteByUserID(ctx context.Context, userID string) error {
+func (r *RefreshTokenRepository) DeleteByUserID(ctx context.Context, userID shared.UserID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, userID)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, string(userID))
 	return err
 }
 

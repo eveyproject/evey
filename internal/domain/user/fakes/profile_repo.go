@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -26,11 +27,11 @@ func (r *FakeProfileRepository) Create(_ context.Context, p *user.Profile) error
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[p.ID] = p
+	r.items[string(p.ID)] = p
 	return nil
 }
 
-func (r *FakeProfileRepository) GetByID(_ context.Context, id string) (*user.Profile, error) {
+func (r *FakeProfileRepository) GetByID(_ context.Context, id shared.ProfileID) (*user.Profile, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -39,14 +40,14 @@ func (r *FakeProfileRepository) GetByID(_ context.Context, id string) (*user.Pro
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	p, ok := r.items[id]
+	p, ok := r.items[string(id)]
 	if !ok {
 		return nil, ErrNotFound
 	}
 	return p, nil
 }
 
-func (r *FakeProfileRepository) GetByUserID(_ context.Context, userID string) ([]*user.Profile, error) {
+func (r *FakeProfileRepository) GetByUserID(_ context.Context, userID shared.UserID) ([]*user.Profile, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -73,10 +74,10 @@ func (r *FakeProfileRepository) Update(_ context.Context, p *user.Profile) error
 	if r.Err != nil {
 		return r.Err
 	}
-	if _, ok := r.items[p.ID]; !ok {
+	if _, ok := r.items[string(p.ID)]; !ok {
 		return ErrNotFound
 	}
-	r.items[p.ID] = p
+	r.items[string(p.ID)] = p
 	return nil
 }
 
@@ -96,7 +97,7 @@ func (r *FakeProfileRepository) GetAll(_ context.Context) ([]*user.Profile, erro
 	return out, nil
 }
 
-func (r *FakeProfileRepository) Delete(_ context.Context, id string) error {
+func (r *FakeProfileRepository) Delete(_ context.Context, id shared.ProfileID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -105,9 +106,9 @@ func (r *FakeProfileRepository) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err
 	}
-	if _, ok := r.items[id]; !ok {
+	if _, ok := r.items[string(id)]; !ok {
 		return ErrNotFound
 	}
-	delete(r.items, id)
+	delete(r.items, string(id))
 	return nil
 }
