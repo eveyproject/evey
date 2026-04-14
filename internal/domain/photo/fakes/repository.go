@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/photo"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type FakeRepository struct {
@@ -56,7 +57,7 @@ func (r *FakeRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (r *FakeRepository) ListByLibrary(_ context.Context, libraryID string, limit, offset int) ([]photo.Photo, int, error) {
+func (r *FakeRepository) ListByLibrary(_ context.Context, libraryID shared.LibraryID, limit, offset int) ([]photo.Photo, int, error) {
 	if r.Err != nil {
 		return nil, 0, r.Err
 	}
@@ -79,7 +80,7 @@ func (r *FakeRepository) ListByLibrary(_ context.Context, libraryID string, limi
 	return result, total, nil
 }
 
-func (r *FakeRepository) ListByAlbum(_ context.Context, libraryID, album string, limit, offset int) ([]photo.Photo, int, error) {
+func (r *FakeRepository) ListByAlbum(_ context.Context, libraryID shared.LibraryID, album string, limit, offset int) ([]photo.Photo, int, error) {
 	if r.Err != nil {
 		return nil, 0, r.Err
 	}
@@ -102,7 +103,7 @@ func (r *FakeRepository) ListByAlbum(_ context.Context, libraryID, album string,
 	return result, total, nil
 }
 
-func (r *FakeRepository) GetAlbums(_ context.Context, libraryID string) ([]photo.Album, error) {
+func (r *FakeRepository) GetAlbums(_ context.Context, libraryID shared.LibraryID) ([]photo.Album, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -132,7 +133,7 @@ func (r *FakeRepository) GetAlbums(_ context.Context, libraryID string) ([]photo
 	return result, nil
 }
 
-func (r *FakeRepository) Search(_ context.Context, libraryID, query string, limit int) ([]photo.Photo, error) {
+func (r *FakeRepository) Search(_ context.Context, libraryID shared.LibraryID, query string, limit int) ([]photo.Photo, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -154,7 +155,7 @@ func (r *FakeRepository) Search(_ context.Context, libraryID, query string, limi
 	return result, nil
 }
 
-func (r *FakeRepository) ListAllByLibrary(_ context.Context, libraryID string) ([]photo.Photo, error) {
+func (r *FakeRepository) ListAllByLibrary(_ context.Context, libraryID shared.LibraryID) ([]photo.Photo, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}

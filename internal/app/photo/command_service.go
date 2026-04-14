@@ -35,7 +35,7 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 		}
 	}
 
-	existing, err := s.repo.ListAllByLibrary(ctx, libraryID)
+	existing, err := s.repo.ListAllByLibrary(ctx, shared.LibraryID(libraryID))
 	if err != nil {
 		return 0, fmt.Errorf("list existing photos: %w", err)
 	}
@@ -122,7 +122,7 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 			now := time.Now()
 			p := photo.Photo{
 				ID:          id.New("photo-"),
-				LibraryID:   libraryID,
+				LibraryID:   shared.LibraryID(libraryID),
 				Title:       title,
 				FilePath:    j.path,
 				FileSize:    j.size,
@@ -142,7 +142,7 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 				slog.Warn("photo upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
 				return
 			}
-			if pubErr := s.bus.Publish(ctx, photo.PhotoAdded{LibraryID: libraryID, PhotoID: p.ID, Path: j.path, Title: title, Album: album, OccurredAt: time.Now()}); pubErr != nil {
+			if pubErr := s.bus.Publish(ctx, photo.PhotoAdded{LibraryID: shared.LibraryID(libraryID), PhotoID: p.ID, Path: j.path, Title: title, Album: album, OccurredAt: time.Now()}); pubErr != nil {
 				slog.Warn("photo scan: PhotoAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 			}
 			total.Add(1)
@@ -157,7 +157,7 @@ func (s *CommandService) DeletePhoto(ctx context.Context, photoID string) error 
 	if err != nil {
 		return fmt.Errorf("CommandService.DeletePhoto: %w", err)
 	}
-	libraryID := ""
+	var libraryID shared.LibraryID
 	if p != nil {
 		libraryID = p.LibraryID
 	}

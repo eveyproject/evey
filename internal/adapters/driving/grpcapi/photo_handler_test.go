@@ -10,6 +10,7 @@ import (
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/photo"
+	"github.com/evey-project/evey/internal/domain/shared"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	photofakes "github.com/evey-project/evey/internal/domain/photo/fakes"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
@@ -52,7 +53,7 @@ func newTestPhotoHandler() (*photoHandler, *photofakes.FakeRepository, *userfake
 
 func seedPhoto(repo *photofakes.FakeRepository, id, libraryID, title string) {
 	repo.Upsert(context.Background(), photo.Photo{
-		ID: id, LibraryID: libraryID, Title: title,
+		ID: id, LibraryID: shared.LibraryID(libraryID), Title: title,
 		FilePath: "/photos/" + id + ".jpg",
 	})
 }
@@ -154,11 +155,11 @@ func TestPhotoHandler_GetPhoto_Unauthenticated(t *testing.T) {
 func TestPhotoHandler_ListPhotoAlbums_Success(t *testing.T) {
 	h, repo, _, _ := newTestPhotoHandler()
 	repo.Upsert(context.Background(), photo.Photo{
-		ID: "p-1", LibraryID: "lib-1", Title: "Beach", Album: "Vacation",
+		ID: "p-1", LibraryID: shared.LibraryID("lib-1"), Title: "Beach", Album: "Vacation",
 		FilePath: "/photos/p-1.jpg",
 	})
 	repo.Upsert(context.Background(), photo.Photo{
-		ID: "p-2", LibraryID: "lib-1", Title: "Pool", Album: "Vacation",
+		ID: "p-2", LibraryID: shared.LibraryID("lib-1"), Title: "Pool", Album: "Vacation",
 		FilePath: "/photos/p-2.jpg",
 	})
 

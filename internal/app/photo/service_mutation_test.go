@@ -12,6 +12,7 @@ import (
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/photo"
 	photofakes "github.com/evey-project/evey/internal/domain/photo/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -189,7 +190,7 @@ func TestScanDirectory_PublishesPhotoAddedEvent(t *testing.T) {
 	require.Len(t, events, 1)
 	assert.Equal(t, "photo.added", events[0].EventName())
 	added := events[0].(photo.PhotoAdded)
-	assert.Equal(t, "lib-ev", added.LibraryID)
+	assert.Equal(t, shared.LibraryID("lib-ev"), added.LibraryID)
 	assert.NotEmpty(t, added.PhotoID)
 	assert.Contains(t, added.Path, "pic.jpg")
 }
@@ -226,7 +227,7 @@ func TestScanDirectory_PhotoFields(t *testing.T) {
 	p := photos[0]
 
 	assert.Equal(t, "sunset", p.Title)
-	assert.Equal(t, "lib-f", p.LibraryID)
+	assert.Equal(t, shared.LibraryID("lib-f"), p.LibraryID)
 	assert.Equal(t, "image/jpeg", p.MimeType)
 	assert.Contains(t, p.FilePath, "sunset.jpg")
 	assert.NotEmpty(t, p.ID)
@@ -620,7 +621,7 @@ func TestDeletePhoto_SetsLibraryIDFromPhoto(t *testing.T) {
 	events := bus2.PublishedEvents()
 	require.Len(t, events, 1)
 	removed := events[0].(photo.PhotoRemoved)
-	assert.Equal(t, "lib-del", removed.LibraryID)
+	assert.Equal(t, shared.LibraryID("lib-del"), removed.LibraryID)
 }
 
 func TestDeletePhoto_BusPublishError_StillReturnsNil(t *testing.T) {

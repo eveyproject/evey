@@ -8,7 +8,7 @@ import (
 func photoToProto(p photo.Photo) *eveyv1.Photo {
 	return &eveyv1.Photo{
 		Id:          p.ID,
-		LibraryId:   p.LibraryID,
+		LibraryId:   string(p.LibraryID),
 		Title:       p.Title,
 		FilePath:    p.FilePath,
 		FileSize:    p.FileSize,

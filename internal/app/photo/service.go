@@ -31,11 +31,11 @@ func (s *Service) DeletePhoto(ctx context.Context, photoID string) error {
 	return s.cmd.DeletePhoto(ctx, photoID)
 }
 
-func (s *Service) ListPhotos(ctx context.Context, libraryID string, limit, offset int) ([]photo.Photo, int, error) {
+func (s *Service) ListPhotos(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]photo.Photo, int, error) {
 	return s.query.ListPhotos(ctx, libraryID, limit, offset)
 }
 
-func (s *Service) GetAlbums(ctx context.Context, libraryID string) ([]photo.Album, error) {
+func (s *Service) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]photo.Album, error) {
 	return s.query.GetAlbums(ctx, libraryID)
 }
 
@@ -43,6 +43,6 @@ func (s *Service) GetPhoto(ctx context.Context, photoID string) (*photo.Photo, e
 	return s.query.GetPhoto(ctx, photoID)
 }
 
-func (s *Service) Search(ctx context.Context, libraryID, query string, limit int) ([]photo.Photo, error) {
+func (s *Service) Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]photo.Photo, error) {
 	return s.query.Search(ctx, libraryID, query, limit)
 }

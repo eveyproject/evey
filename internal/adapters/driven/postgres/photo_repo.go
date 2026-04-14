@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/photo"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type PhotoRepository struct {
@@ -74,7 +75,7 @@ func (r *PhotoRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
-func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID string, limit, offset int) ([]photo.Photo, int, error) {
+func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]photo.Photo, int, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -92,7 +93,7 @@ func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID string, l
 	return scanPhotosWithTotal(rows)
 }
 
-func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID, album string, limit, offset int) ([]photo.Photo, int, error) {
+func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID shared.LibraryID, album string, limit, offset int) ([]photo.Photo, int, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -110,7 +111,7 @@ func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID, album stri
 	return scanPhotosWithTotal(rows)
 }
 
-func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID string) ([]photo.Album, error) {
+func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]photo.Album, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -134,7 +135,7 @@ func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID string) ([]ph
 	return albums, rows.Err()
 }
 
-func (r *PhotoRepository) Search(ctx context.Context, libraryID, query string, limit int) ([]photo.Photo, error) {
+func (r *PhotoRepository) Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]photo.Photo, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	pattern := "%" + query + "%"
@@ -152,7 +153,7 @@ func (r *PhotoRepository) Search(ctx context.Context, libraryID, query string, l
 	return scanPhotos(rows)
 }
 
-func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID string) ([]photo.Photo, error) {
+func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]photo.Photo, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `

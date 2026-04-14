@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/evey-project/evey/internal/domain/photo"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type QueryService struct {
@@ -14,14 +15,14 @@ func NewQueryService(repo photo.Repository) *QueryService {
 	return &QueryService{repo: repo}
 }
 
-func (s *QueryService) ListPhotos(ctx context.Context, libraryID string, limit, offset int) ([]photo.Photo, int, error) {
+func (s *QueryService) ListPhotos(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]photo.Photo, int, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 50
 	}
 	return s.repo.ListByLibrary(ctx, libraryID, limit, offset)
 }
 
-func (s *QueryService) GetAlbums(ctx context.Context, libraryID string) ([]photo.Album, error) {
+func (s *QueryService) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]photo.Album, error) {
 	return s.repo.GetAlbums(ctx, libraryID)
 }
 
@@ -29,7 +30,7 @@ func (s *QueryService) GetPhoto(ctx context.Context, id string) (*photo.Photo, e
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *QueryService) Search(ctx context.Context, libraryID, query string, limit int) ([]photo.Photo, error) {
+func (s *QueryService) Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]photo.Photo, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}

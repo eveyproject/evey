@@ -12,6 +12,7 @@ import (
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -25,7 +26,7 @@ type photoHandler struct {
 	serverCtx     context.Context
 }
 
-func (h *photoHandler) checkLibraryAccess(ctx context.Context, libraryID string) error {
+func (h *photoHandler) checkLibraryAccess(ctx context.Context, libraryID shared.LibraryID) error {
 	if h.userAccess == nil {
 		return nil
 	}
@@ -33,7 +34,7 @@ func (h *photoHandler) checkLibraryAccess(ctx context.Context, libraryID string)
 	if claims == nil || claims.IsAdmin {
 		return nil
 	}
-	ok, err := h.userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
+	ok, err := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(libraryID))
 	if err != nil {
 		return internalError("check library access", err)
 	}
@@ -50,7 +51,7 @@ func (h *photoHandler) ListPhotos(ctx context.Context, req *eveyv1.ListPhotosReq
 	if req.LibraryId == "" {
 		return nil, status.Error(codes.InvalidArgument, "library_id required")
 	}
-	if err := h.checkLibraryAccess(ctx, req.LibraryId); err != nil {
+	if err := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); err != nil {
 		return nil, err
 	}
 	limit := int(req.Limit)
@@ -58,7 +59,7 @@ func (h *photoHandler) ListPhotos(ctx context.Context, req *eveyv1.ListPhotosReq
 		limit = 50
 	}
 	offset := int(req.Offset)
-	photos, total, err := h.svc.ListPhotos(ctx, req.LibraryId, limit, offset)
+	photos, total, err := h.svc.ListPhotos(ctx, shared.LibraryID(req.LibraryId), limit, offset)
 	if err != nil {
 		return nil, internalError("list photos", err)
 	}
@@ -93,10 +94,10 @@ func (h *photoHandler) ListPhotoAlbums(ctx context.Context, req *eveyv1.ListPhot
 	if req.LibraryId == "" {
 		return nil, status.Error(codes.InvalidArgument, "library_id required")
 	}
-	if err := h.checkLibraryAccess(ctx, req.LibraryId); err != nil {
+	if err := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); err != nil {
 		return nil, err
 	}
-	albums, err := h.svc.GetAlbums(ctx, req.LibraryId)
+	albums, err := h.svc.GetAlbums(ctx, shared.LibraryID(req.LibraryId))
 	if err != nil {
 		return nil, internalError("list photo albums", err)
 	}
@@ -104,7 +105,7 @@ func (h *photoHandler) ListPhotoAlbums(ctx context.Context, req *eveyv1.ListPhot
 	for _, a := range albums {
 		resp.Albums = append(resp.Albums, &eveyv1.PhotoAlbum{
 			Name:         a.Name,
-			LibraryId:    a.LibraryID,
+			LibraryId:    string(a.LibraryID),
 			PhotoCount:   int32(a.PhotoCount),
 			CoverPhotoId: a.CoverPhotoID,
 		})
@@ -119,14 +120,14 @@ func (h *photoHandler) SearchPhotos(ctx context.Context, req *eveyv1.SearchPhoto
 	if req.LibraryId == "" || req.Query == "" {
 		return nil, status.Error(codes.InvalidArgument, "library_id and query required")
 	}
-	if err := h.checkLibraryAccess(ctx, req.LibraryId); err != nil {
+	if err := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); err != nil {
 		return nil, err
 	}
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 50
 	}
-	photos, err := h.svc.Search(ctx, req.LibraryId, req.Query, limit)
+	photos, err := h.svc.Search(ctx, shared.LibraryID(req.LibraryId), req.Query, limit)
 	if err != nil {
 		return nil, internalError("search photos", err)
 	}
@@ -148,7 +149,7 @@ func (h *photoHandler) ScanPhotoDirectory(ctx context.Context, req *eveyv1.ScanP
 	if req.LibraryId == "" || req.Directory == "" {
 		return nil, status.Error(codes.InvalidArgument, "library_id and directory required")
 	}
-	if err := h.checkLibraryAccess(ctx, req.LibraryId); err != nil {
+	if err := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); err != nil {
 		return nil, err
 	}
 	dir := filepath.Clean(req.Directory)

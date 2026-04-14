@@ -3,11 +3,13 @@ package photo
 import (
 	"errors"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type Photo struct {
 	ID          string
-	LibraryID   string
+	LibraryID   shared.LibraryID
 	Title       string
 	FilePath    string
 	FileSize    int64
@@ -37,7 +39,7 @@ func (p *Photo) Validate() error {
 
 type Album struct {
 	Name         string
-	LibraryID    string
+	LibraryID    shared.LibraryID
 	PhotoCount   int
 	CoverPhotoID string
 }

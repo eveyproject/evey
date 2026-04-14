@@ -1,9 +1,13 @@
 package photo
 
-import "time"
+import (
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+)
 
 type PhotoAdded struct {
-	LibraryID  string
+	LibraryID  shared.LibraryID
 	PhotoID    string
 	Path       string
 	Title      string
@@ -14,7 +18,7 @@ type PhotoAdded struct {
 func (e PhotoAdded) EventName() string { return "photo.added" }
 
 type PhotoRemoved struct {
-	LibraryID  string
+	LibraryID  shared.LibraryID
 	PhotoID    string
 	OccurredAt time.Time
 }
@@ -22,7 +26,7 @@ type PhotoRemoved struct {
 func (e PhotoRemoved) EventName() string { return "photo.removed" }
 
 type PhotoDeleted struct {
-	LibraryID  string
+	LibraryID  shared.LibraryID
 	PhotoID    string
 	OccurredAt time.Time
 }
@@ -30,7 +34,7 @@ type PhotoDeleted struct {
 func (e PhotoDeleted) EventName() string { return "photo.deleted" }
 
 type AlbumCreated struct {
-	LibraryID  string
+	LibraryID  shared.LibraryID
 	AlbumName  string
 	OccurredAt time.Time
 }
