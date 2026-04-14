@@ -722,7 +722,7 @@ const file_evey_v1_syncplay_proto_rawDesc = "" +
 	"JoinByCode\x12\".evey.v1.JoinSyncPlayByCodeRequest\x1a#.evey.v1.JoinSyncPlayByCodeResponse\" \x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/api/v1/syncplay/join\x12v\n" +
 	"\aGetRoom\x12\x1f.evey.v1.GetSyncPlayRoomRequest\x1a .evey.v1.GetSyncPlayRoomResponse\"(\x82\xd3\xe4\x93\x02\"\x12 /api/v1/syncplay/rooms/{room_id}\x12\x81\x01\n" +
 	"\bJoinRoom\x12 .evey.v1.JoinSyncPlayRoomRequest\x1a!.evey.v1.JoinSyncPlayRoomResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/api/v1/syncplay/rooms/{room_id}/join\x12\x82\x01\n" +
-	"\tLeaveRoom\x12!.evey.v1.LeaveSyncPlayRoomRequest\x1a\".evey.v1.LeaveSyncPlayRoomResponse\".\x82\xd3\xe4\x93\x02(*&/api/v1/syncplay/rooms/{room_id}/leaveB,Z*github.com/gravity/evey/gen/evey/v1;eveyv1b\x06proto3"
+	"\tLeaveRoom\x12!.evey.v1.LeaveSyncPlayRoomRequest\x1a\".evey.v1.LeaveSyncPlayRoomResponse\".\x82\xd3\xe4\x93\x02(*&/api/v1/syncplay/rooms/{room_id}/leaveB,Z*github.com/evey-project/evey/gen/evey/v1;eveyv1b\x06proto3"
 
 var (
 	file_evey_v1_syncplay_proto_rawDescOnce sync.Once
