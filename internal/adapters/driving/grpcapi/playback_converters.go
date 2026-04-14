@@ -20,8 +20,8 @@ var playMethodFromProto = map[eveyv1.PlayMethod]string{
 func watchProgressToProto(wp *playback.WatchProgress) *eveyv1.WatchProgress {
 	return &eveyv1.WatchProgress{
 		Id:           wp.ID,
-		ProfileId:    wp.ProfileID,
-		MediaItemId:  wp.MediaItemID,
+		ProfileId:    string(wp.ProfileID),
+		MediaItemId:  string(wp.MediaItemID),
 		PositionMs:   wp.PositionMs,
 		Played:       wp.Completed,
 		PlayCount:    int32(wp.PlayCount),
@@ -32,8 +32,8 @@ func watchProgressToProto(wp *playback.WatchProgress) *eveyv1.WatchProgress {
 func playSessionToProto(s *playback.PlaySession) *eveyv1.PlaySession {
 	ps := &eveyv1.PlaySession{
 		Id:          s.ID,
-		ProfileId:   s.ProfileID,
-		MediaItemId: s.MediaItemID,
+		ProfileId:   string(s.ProfileID),
+		MediaItemId: string(s.MediaItemID),
 		PlayMethod:  playMethodToProto[s.PlayMethod],
 		DeviceName:  s.DeviceName,
 		ClientName:  s.DeviceType,

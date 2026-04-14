@@ -8,6 +8,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,8 +16,8 @@ import (
 func newTestPlaySession(id, profileID, mediaItemID string) *playback.PlaySession {
 	return &playback.PlaySession{
 		ID:           id,
-		ProfileID:    profileID,
-		MediaItemID:  mediaItemID,
+		ProfileID:    shared.ProfileID(profileID),
+		MediaItemID:  shared.MediaItemID(mediaItemID),
 		DeviceName:   "TestDevice",
 		DeviceType:   "browser",
 		ClientIP:     "127.0.0.1",

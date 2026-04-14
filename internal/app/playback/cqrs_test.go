@@ -7,6 +7,7 @@ import (
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	"github.com/evey-project/evey/internal/domain/playback"
 	pbfakes "github.com/evey-project/evey/internal/domain/playback/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"

@@ -126,8 +126,8 @@ func TestWatchHistoryAnalyzer_HasWatchedSeries(t *testing.T) {
 	// mark episode as completed
 	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
 		ID:           "whawp3",
-		ProfileID:    string(p.ID),
-		MediaItemID:  string(episode.ID),
+		ProfileID:    p.ID,
+		MediaItemID:  episode.ID,
 		PositionMs:   90000,
 		Completed:    true,
 		PlayCount:    1,
@@ -180,8 +180,8 @@ func TestWatchHistoryAnalyzer_IsCurrentlyWatchingSeries(t *testing.T) {
 	// in-progress (position > 0, not completed)
 	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
 		ID:           "whawp4",
-		ProfileID:    string(p.ID),
-		MediaItemID:  string(episode.ID),
+		ProfileID:    p.ID,
+		MediaItemID:  episode.ID,
 		PositionMs:   30000,
 		Completed:    false,
 		PlayCount:    1,
@@ -195,8 +195,8 @@ func TestWatchHistoryAnalyzer_IsCurrentlyWatchingSeries(t *testing.T) {
 	// once completed it should no longer be "currently watching"
 	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
 		ID:           "whawp4",
-		ProfileID:    string(p.ID),
-		MediaItemID:  string(episode.ID),
+		ProfileID:    p.ID,
+		MediaItemID:  episode.ID,
 		PositionMs:   90000,
 		Completed:    true,
 		PlayCount:    1,

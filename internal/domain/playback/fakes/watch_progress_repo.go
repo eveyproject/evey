@@ -33,7 +33,7 @@ func (r *FakeWatchProgressRepository) Upsert(_ context.Context, wp *playback.Wat
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[key(wp.ProfileID, wp.MediaItemID)] = wp
+	r.items[key(string(wp.ProfileID), string(wp.MediaItemID))] = wp
 	return nil
 }
 
@@ -64,7 +64,7 @@ func (r *FakeWatchProgressRepository) GetByProfile(_ context.Context, profileID 
 	}
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
-		if wp.ProfileID == profileID {
+		if string(wp.ProfileID) == profileID {
 			result = append(result, wp)
 		}
 	}
@@ -90,7 +90,7 @@ func (r *FakeWatchProgressRepository) GetResumeItems(_ context.Context, profileI
 	}
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
-		if wp.ProfileID == profileID && !wp.Completed && wp.PositionMs > 0 {
+		if string(wp.ProfileID) == profileID && !wp.Completed && wp.PositionMs > 0 {
 			result = append(result, wp)
 		}
 	}
@@ -111,7 +111,7 @@ func (r *FakeWatchProgressRepository) GetNextUp(_ context.Context, profileID str
 	}
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
-		if wp.ProfileID == profileID && wp.Completed {
+		if string(wp.ProfileID) == profileID && wp.Completed {
 			result = append(result, wp)
 		}
 	}

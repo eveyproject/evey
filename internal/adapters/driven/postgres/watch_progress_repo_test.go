@@ -35,8 +35,8 @@ func TestWatchProgressRepo_Upsert_GetByProfileAndMedia(t *testing.T) {
 
 	wp := &playback.WatchProgress{
 		ID:           "wp1",
-		ProfileID:    string(p.ID),
-		MediaItemID:  string(item.ID),
+		ProfileID:    p.ID,
+		MediaItemID:  item.ID,
 		PositionMs:   30000,
 		Completed:    false,
 		PlayCount:    1,
@@ -72,7 +72,7 @@ func TestWatchProgressRepo_Upsert_UpdatesOnConflict(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	wp := &playback.WatchProgress{
-		ID: "wp2", ProfileID: string(p.ID), MediaItemID: string(item.ID),
+		ID: "wp2", ProfileID: p.ID, MediaItemID: item.ID,
 		PositionMs: 10000, PlayCount: 1, LastPlayedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, wpRepo.Upsert(ctx, wp))
@@ -112,11 +112,11 @@ func TestWatchProgressRepo_GetByProfile(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item2))
 
 	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
-		ID: "wp3a", ProfileID: string(p.ID), MediaItemID: string(item1.ID),
+		ID: "wp3a", ProfileID: p.ID, MediaItemID: item1.ID,
 		PositionMs: 1000, PlayCount: 1, LastPlayedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}))
 	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
-		ID: "wp3b", ProfileID: string(p.ID), MediaItemID: string(item2.ID),
+		ID: "wp3b", ProfileID: p.ID, MediaItemID: item2.ID,
 		PositionMs: 2000, PlayCount: 1, LastPlayedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}))
 

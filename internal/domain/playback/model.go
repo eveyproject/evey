@@ -3,6 +3,8 @@ package playback
 import (
 	"errors"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type PlayMethod string
@@ -15,8 +17,8 @@ const (
 
 type WatchProgress struct {
 	ID           string
-	ProfileID    string
-	MediaItemID  string
+	ProfileID    shared.ProfileID
+	MediaItemID  shared.MediaItemID
 	PositionMs   int64
 	Completed    bool
 	PlayCount    int
@@ -25,8 +27,8 @@ type WatchProgress struct {
 
 type PlaySession struct {
 	ID           string
-	ProfileID    string
-	MediaItemID  string
+	ProfileID    shared.ProfileID
+	MediaItemID  shared.MediaItemID
 	DeviceName   string
 	DeviceType   string
 	ClientIP     string
@@ -54,9 +56,9 @@ func (s *PlaySession) Validate() error {
 
 type ActiveSessionInfo struct {
 	SessionID     string
-	ProfileID     string
+	ProfileID     shared.ProfileID
 	ProfileName   string
-	MediaItemID   string
+	MediaItemID   shared.MediaItemID
 	MediaTitle    string
 	MediaType     string
 	DurationMs    int64

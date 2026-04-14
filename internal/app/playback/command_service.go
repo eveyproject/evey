@@ -39,8 +39,8 @@ func NewCommandService(
 	}
 }
 
-func (s *CommandService) validateProfile(ctx context.Context, profileID string) error {
-	if _, err := s.profiles.GetByID(ctx, shared.ProfileID(profileID)); err != nil {
+func (s *CommandService) validateProfile(ctx context.Context, profileID shared.ProfileID) error {
+	if _, err := s.profiles.GetByID(ctx, profileID); err != nil {
 		return ErrProfileNotFound
 	}
 	return nil
@@ -134,13 +134,13 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 }
 
 func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaItemID string, positionMs int64, completed bool) error {
-	if err := s.validateProfile(ctx, profileID); err != nil {
+	if err := s.validateProfile(ctx, shared.ProfileID(profileID)); err != nil {
 		return err
 	}
 	wp := &playback.WatchProgress{
 		ID:           id.New("wp-"),
-		ProfileID:    profileID,
-		MediaItemID:  mediaItemID,
+		ProfileID:    shared.ProfileID(profileID),
+		MediaItemID:  shared.MediaItemID(mediaItemID),
 		PositionMs:   positionMs,
 		Completed:    completed,
 		LastPlayedAt: time.Now(),
@@ -152,13 +152,13 @@ func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaIte
 }
 
 func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItemID string) error {
-	if err := s.validateProfile(ctx, profileID); err != nil {
+	if err := s.validateProfile(ctx, shared.ProfileID(profileID)); err != nil {
 		return err
 	}
 	wp := &playback.WatchProgress{
 		ID:           id.New("wp-"),
-		ProfileID:    profileID,
-		MediaItemID:  mediaItemID,
+		ProfileID:    shared.ProfileID(profileID),
+		MediaItemID:  shared.MediaItemID(mediaItemID),
 		Completed:    true,
 		PlayCount:    1,
 		LastPlayedAt: time.Now(),
@@ -167,8 +167,8 @@ func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItem
 		return fmt.Errorf("CommandService.MarkAsWatched: %w", err)
 	}
 	evtWatched := playback.MediaMarkedWatched{
-		ProfileID:   profileID,
-		MediaItemID: mediaItemID,
+		ProfileID:   shared.ProfileID(profileID),
+		MediaItemID: shared.MediaItemID(mediaItemID),
 		OccurredAt:  time.Now(),
 	}
 	if err := s.events.Publish(ctx, evtWatched); err != nil {
@@ -227,13 +227,13 @@ func (s *CommandService) runCleanup(ctx context.Context, maxAge time.Duration) {
 }
 
 func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaItemID string) error {
-	if err := s.validateProfile(ctx, profileID); err != nil {
+	if err := s.validateProfile(ctx, shared.ProfileID(profileID)); err != nil {
 		return err
 	}
 	wp := &playback.WatchProgress{
 		ID:           id.New("wp-"),
-		ProfileID:    profileID,
-		MediaItemID:  mediaItemID,
+		ProfileID:    shared.ProfileID(profileID),
+		MediaItemID:  shared.MediaItemID(mediaItemID),
 		Completed:    false,
 		PositionMs:   0,
 		PlayCount:    0,

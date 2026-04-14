@@ -61,11 +61,11 @@ func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.
 	for _, s := range sessions {
 		as := &eveyv1.ActiveSession{
 			SessionId:    s.SessionID,
-			ProfileId:    s.ProfileID,
+			ProfileId:    string(s.ProfileID),
 			ProfileName:  s.ProfileName,
 			MediaTitle:   s.MediaTitle,
 			MediaType:    s.MediaType,
-			MediaItemId:  s.MediaItemID,
+			MediaItemId:  string(s.MediaItemID),
 			Progress:     s.ProgressPercent(),
 			DurationMs:   s.DurationMs,
 			PositionMs:   s.PositionMs,
@@ -114,7 +114,7 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 			slog.Warn("stop stream failed", slog.String("session_id", sessionID), slog.Any("err", err))
 		}
 		if hlsMgr != nil {
-			hlsMgr.RemoveSession(mediaItemID)
+			hlsMgr.RemoveSession(string(mediaItemID))
 		}
 	}()
 	return &eveyv1.KillSessionResponse{}, nil

@@ -145,8 +145,8 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 
 	session := &playback.PlaySession{
 		ID:          id.New("ps-"),
-		ProfileID:   profileID,
-		MediaItemID: req.MediaItemId,
+		ProfileID:   shared.ProfileID(profileID),
+		MediaItemID: shared.MediaItemID(req.MediaItemId),
 		PlayMethod:  playMethodFromProto[req.PlayMethod],
 		DeviceName:  req.DeviceName,
 		DeviceType:  req.ClientName,
@@ -176,7 +176,7 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 		if sessErr != nil {
 			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
 		}
-		if sess.ProfileID != claims.ProfileID {
+		if string(sess.ProfileID) != claims.ProfileID {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.cannot_stop_other_session")
 		}
 	}
@@ -185,7 +185,7 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	if sessErr == nil && sess != nil && h.hlsManager != nil {
-		h.hlsManager.RemoveSession(sess.MediaItemID)
+		h.hlsManager.RemoveSession(string(sess.MediaItemID))
 	}
 	sid := req.SessionId
 	h.audit(ctx, claims.UserID, "stop_stream", "session", &sid, nil)
@@ -202,7 +202,7 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 		if err != nil {
 			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
 		}
-		if session.ProfileID != claims.ProfileID {
+		if string(session.ProfileID) != claims.ProfileID {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.cannot_report_other_session")
 		}
 	}
@@ -273,7 +273,7 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 	if allowedIDs != nil {
 		ids := make([]string, len(items))
 		for i, wp := range items {
-			ids[i] = wp.MediaItemID
+			ids[i] = string(wp.MediaItemID)
 		}
 		mis, mErr := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
 		if mErr != nil {
@@ -286,7 +286,7 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 			}
 		}
 		for _, wp := range items {
-			if allowed[wp.MediaItemID] {
+			if allowed[string(wp.MediaItemID)] {
 				resp.Items = append(resp.Items, watchProgressToProto(wp))
 			}
 		}
@@ -321,7 +321,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	if allowedIDs != nil {
 		ids := make([]string, len(items))
 		for i, wp := range items {
-			ids[i] = wp.MediaItemID
+			ids[i] = string(wp.MediaItemID)
 		}
 		mis, mErr := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
 		if mErr != nil {
@@ -334,7 +334,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 			}
 		}
 		for _, wp := range items {
-			if allowed[wp.MediaItemID] {
+			if allowed[string(wp.MediaItemID)] {
 				resp.Progress = append(resp.Progress, watchProgressToProto(wp))
 			}
 		}
@@ -366,7 +366,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	}
 	ids := make([]string, len(progresses))
 	for i, wp := range progresses {
-		ids[i] = wp.MediaItemID
+		ids[i] = string(wp.MediaItemID)
 	}
 	mediaItems, err := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
 	if err != nil {
@@ -383,7 +383,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	}
 	resp := &eveyv1.GetNextUpResponse{}
 	for _, wp := range progresses {
-		if item, ok := byID[wp.MediaItemID]; ok {
+		if item, ok := byID[string(wp.MediaItemID)]; ok {
 			resp.Items = append(resp.Items, mediaItemToProto(item))
 		}
 	}

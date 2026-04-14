@@ -78,9 +78,9 @@ func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*pl
 			info := &playback.ActiveSessionInfo{
 				SessionID:    s.ID,
 				ProfileID:    s.ProfileID,
-				ProfileName:  "profile-" + s.ProfileID,
+				ProfileName:  "profile-" + string(s.ProfileID),
 				MediaItemID:  s.MediaItemID,
-				MediaTitle:   "media-" + s.MediaItemID,
+				MediaTitle:   "media-" + string(s.MediaItemID),
 				MediaType:    "movie",
 				StartedAt:    s.StartedAt,
 				DeviceName:   s.DeviceName,
@@ -116,7 +116,7 @@ func (r *FakePlaySessionRepository) GetActiveByProfile(_ context.Context, profil
 	}
 	var result []*playback.PlaySession
 	for _, s := range r.items {
-		if s.ProfileID == profileID && s.EndedAt == nil {
+		if string(s.ProfileID) == profileID && s.EndedAt == nil {
 			result = append(result, s)
 		}
 	}
@@ -134,7 +134,7 @@ func (r *FakePlaySessionRepository) GetHistory(_ context.Context, filter playbac
 	}
 	var result []*playback.PlaySession
 	for _, s := range r.items {
-		if filter.ProfileID != nil && s.ProfileID != *filter.ProfileID {
+		if filter.ProfileID != nil && string(s.ProfileID) != *filter.ProfileID {
 			continue
 		}
 		if filter.StartFrom != nil && s.StartedAt.Before(*filter.StartFrom) {

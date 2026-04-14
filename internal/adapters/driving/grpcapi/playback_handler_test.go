@@ -15,6 +15,7 @@ import (
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/playback"
 	pbfakes "github.com/evey-project/evey/internal/domain/playback/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
@@ -444,8 +445,8 @@ func TestPlaybackHandler_GetWatchHistory_Pagination(t *testing.T) {
 
 	for i := range 5 {
 		progressRepo.Upsert(context.Background(), &playback.WatchProgress{
-			ID: fmt.Sprintf("wp-%d", i), ProfileID: "profile-1",
-			MediaItemID: fmt.Sprintf("mi-%d", i), PositionMs: int64(i * 1000),
+			ID: fmt.Sprintf("wp-%d", i), ProfileID: shared.ProfileID("profile-1"),
+			MediaItemID: shared.MediaItemID(fmt.Sprintf("mi-%d", i)), PositionMs: int64(i * 1000),
 			LastPlayedAt: time.Now(),
 		})
 	}
