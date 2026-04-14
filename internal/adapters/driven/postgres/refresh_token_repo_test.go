@@ -83,7 +83,7 @@ func TestRefreshTokenRepo_GetByTokenHash(t *testing.T) {
 	got, err := repo.GetByTokenHash(ctx, "hash_get")
 	require.NoError(t, err)
 	assert.Equal(t, "rt2", got.ID)
-	assert.Equal(t, "rt-user-2", got.UserID)
+	assert.Equal(t, shared.UserID("rt-user-2"), got.UserID)
 	assert.Equal(t, "hash_get", got.TokenHash)
 	assert.Equal(t, "Firefox on Linux", got.DeviceName)
 	assert.NotNil(t, got.ClientIP)
@@ -143,7 +143,7 @@ func TestRefreshTokenRepo_DeleteByUserID(t *testing.T) {
 
 	got, err := repo.GetByTokenHash(ctx, "hash_u4b_a")
 	require.NoError(t, err, "token of different user should survive")
-	assert.Equal(t, "rt-user-4b", got.UserID)
+	assert.Equal(t, shared.UserID("rt-user-4b"), got.UserID)
 }
 
 func TestRefreshTokenRepo_DeleteExpired(t *testing.T) {
