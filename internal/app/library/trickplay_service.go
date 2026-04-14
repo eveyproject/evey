@@ -212,7 +212,7 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 		select {
 		case sem <- struct{}{}:
 		default:
-			slog.Warn("trickplay queue full, dropping", slog.String("media_id", e.MediaItemID))
+			slog.Warn("trickplay queue full, dropping", slog.String("media_id", string(e.MediaItemID)))
 			return
 		}
 		go func() {
@@ -224,11 +224,11 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 			}()
 			tctx, cancel := context.WithTimeout(ctx, 2*time.Hour)
 			defer cancel()
-			if _, err := s.GetTrickplayManifest(tctx, e.MediaItemID); err == nil {
+			if _, err := s.GetTrickplayManifest(tctx, string(e.MediaItemID)); err == nil {
 				return
 			}
-			if err := s.GenerateTrickplay(tctx, e.MediaItemID); err != nil {
-				slog.Warn("trickplay generation failed", slog.String("media_id", e.MediaItemID), slog.Any("err", err))
+			if err := s.GenerateTrickplay(tctx, string(e.MediaItemID)); err != nil {
+				slog.Warn("trickplay generation failed", slog.String("media_id", string(e.MediaItemID)), slog.Any("err", err))
 			}
 		}()
 	})

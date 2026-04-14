@@ -77,8 +77,8 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			}
 			if created {
 				evtSeriesAdded := library.MediaItemAdded{
-					MediaItemID: string(seriesItem.ID),
-					LibraryID:   libraryID,
+					MediaItemID: seriesItem.ID,
+					LibraryID:   shared.LibraryID(libraryID),
 					Title:       seriesItem.Title,
 					Type:        string(seriesItem.Type),
 					Genres:      seriesItem.Genres,

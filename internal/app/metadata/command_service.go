@@ -457,9 +457,9 @@ func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
 		s.events.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
 			if e, ok := ev.(library.MediaItemAdded); ok {
 				select {
-				case queue <- e.MediaItemID:
+				case queue <- string(e.MediaItemID):
 				default:
-					slog.Warn("enrich queue full, dropping", slog.String("media_id", e.MediaItemID))
+					slog.Warn("enrich queue full, dropping", slog.String("media_id", string(e.MediaItemID)))
 				}
 			}
 		})

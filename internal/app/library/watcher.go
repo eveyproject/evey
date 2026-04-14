@@ -87,7 +87,7 @@ func (ws *WatcherService) Start(ctx context.Context) error {
 		})
 		ws.bus.Subscribe("library.deleted", func(_ context.Context, ev shared.Event) {
 			if e, ok := ev.(library.LibraryDeleted); ok {
-				ws.RemoveLibraryByID(e.LibraryID)
+				ws.RemoveLibraryByID(string(e.LibraryID))
 			}
 		})
 	}

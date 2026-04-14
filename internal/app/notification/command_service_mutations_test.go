@@ -499,7 +499,7 @@ func TestNotificationService_BatchEviction_AtLimit(t *testing.T) {
 	// Publish 1001 unique series to trigger eviction at 1000.
 	for i := 0; i < 1001; i++ {
 		bus.Publish(ctx, libevent.MediaItemAdded{
-			MediaItemID: "sid-" + itoa(i),
+			MediaItemID: shared.MediaItemID("sid-" + itoa(i)),
 			LibraryID:   "lib1",
 			Title:       "Series-" + itoa(i),
 			Type:        "series",

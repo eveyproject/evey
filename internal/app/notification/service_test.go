@@ -12,6 +12,7 @@ import (
 	libevent "github.com/evey-project/evey/internal/domain/library"
 	notifdom "github.com/evey-project/evey/internal/domain/notification"
 	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
@@ -1066,14 +1067,14 @@ func TestNotificationService_Batch_SeriesWithSeasonsAndEpisodes(t *testing.T) {
 	})
 	for i := range 2 {
 		bus.Publish(ctx, libevent.MediaItemAdded{
-			MediaItemID: fmt.Sprintf("sn%d", i), LibraryID: "lib1",
+			MediaItemID: shared.MediaItemID(fmt.Sprintf("sn%d", i)), LibraryID: "lib1",
 			Title: fmt.Sprintf("Season %d", i+1), SeriesTitle: "Breaking Bad",
 			Type: "season", OccurredAt: time.Now(),
 		})
 	}
 	for i := range 5 {
 		bus.Publish(ctx, libevent.MediaItemAdded{
-			MediaItemID: fmt.Sprintf("ep%d", i), LibraryID: "lib1",
+			MediaItemID: shared.MediaItemID(fmt.Sprintf("ep%d", i)), LibraryID: "lib1",
 			Title: fmt.Sprintf("S01E%02d", i+1), SeriesTitle: "Breaking Bad",
 			Type: "episode", OccurredAt: time.Now(),
 		})
@@ -1107,7 +1108,7 @@ func TestNotificationService_Batch_EpisodesOnly_MultipleAmalgamated(t *testing.T
 	// 3 episodes from same series, no series event
 	for i := range 3 {
 		bus.Publish(ctx, libevent.MediaItemAdded{
-			MediaItemID: fmt.Sprintf("ep%d", i), LibraryID: "lib1",
+			MediaItemID: shared.MediaItemID(fmt.Sprintf("ep%d", i)), LibraryID: "lib1",
 			Title: fmt.Sprintf("S02E%02d", i+1), SeriesTitle: "The Wire",
 			Type: "episode", OccurredAt: time.Now(),
 		})
@@ -1239,7 +1240,7 @@ func TestNotificationService_Batch_SeasonWithEpisodes(t *testing.T) {
 	})
 	for i := range 3 {
 		bus.Publish(ctx, libevent.MediaItemAdded{
-			MediaItemID: fmt.Sprintf("ep%d", i), LibraryID: "lib1",
+			MediaItemID: shared.MediaItemID(fmt.Sprintf("ep%d", i)), LibraryID: "lib1",
 			Title: fmt.Sprintf("S04E%02d", i+1), SeriesTitle: "Breaking Bad",
 			Type: "episode", OccurredAt: time.Now(),
 		})

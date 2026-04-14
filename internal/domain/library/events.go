@@ -1,9 +1,13 @@
 package library
 
-import "time"
+import (
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+)
 
 type LibraryCreated struct {
-	LibraryID string
+	LibraryID shared.LibraryID
 	Name      string
 	Type      string
 	OccurredAt time.Time
@@ -12,21 +16,21 @@ type LibraryCreated struct {
 func (e LibraryCreated) EventName() string { return "library.created" }
 
 type LibraryDeleted struct {
-	LibraryID  string
+	LibraryID  shared.LibraryID
 	OccurredAt time.Time
 }
 
 func (e LibraryDeleted) EventName() string { return "library.deleted" }
 
 type LibraryScanStarted struct {
-	LibraryID  string
+	LibraryID  shared.LibraryID
 	OccurredAt time.Time
 }
 
 func (e LibraryScanStarted) EventName() string { return "library.scan.started" }
 
 type LibraryScanCompleted struct {
-	LibraryID    string
+	LibraryID    shared.LibraryID
 	ItemsFound   int
 	ItemsAdded   int
 	ItemsUpdated int
@@ -37,8 +41,8 @@ type LibraryScanCompleted struct {
 func (e LibraryScanCompleted) EventName() string { return "library.scan.completed" }
 
 type MediaItemAdded struct {
-	MediaItemID string
-	LibraryID   string
+	MediaItemID shared.MediaItemID
+	LibraryID   shared.LibraryID
 	Title       string
 	SeriesTitle string // non-empty for episodes/seasons
 	Type        string
@@ -49,15 +53,15 @@ type MediaItemAdded struct {
 func (e MediaItemAdded) EventName() string { return "media.item.added" }
 
 type MediaItemUpdated struct {
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	OccurredAt  time.Time
 }
 
 func (e MediaItemUpdated) EventName() string { return "media.item.updated" }
 
 type MediaItemRemoved struct {
-	MediaItemID string
-	LibraryID   string
+	MediaItemID shared.MediaItemID
+	LibraryID   shared.LibraryID
 	OccurredAt  time.Time
 }
 

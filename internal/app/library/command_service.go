@@ -195,7 +195,7 @@ func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library
 		return fmt.Errorf("create library: %w", err)
 	}
 	evtCreated := library.LibraryCreated{
-		LibraryID:  string(lib.ID),
+		LibraryID:  lib.ID,
 		Name:       lib.Name,
 		Type:       string(lib.Type),
 		OccurredAt: now,
@@ -219,7 +219,7 @@ func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
 		return fmt.Errorf("delete library: %w", err)
 	}
 	evtDeleted := library.LibraryDeleted{
-		LibraryID:  id,
+		LibraryID:  shared.LibraryID(id),
 		OccurredAt: time.Now(),
 	}
 	if err := s.events.Publish(ctx, evtDeleted); err != nil {

@@ -181,7 +181,7 @@ func (s *CommandService) handleMediaItemAdded(_ context.Context, ev shared.Event
 	}
 	s.mu.Unlock()
 
-	s.emitNotifications(e.Type, e.Title, e.SeriesTitle, e.MediaItemID, e.Genres, "")
+	s.emitNotifications(e.Type, e.Title, e.SeriesTitle, string(e.MediaItemID), e.Genres, "")
 }
 
 func isBatchable(e libevent.MediaItemAdded) bool {
@@ -271,11 +271,11 @@ func (s *CommandService) flushBatch(key string) {
 	if batch.seriesEvent != nil {
 		if batch.seriesEvent.Type == "album" {
 			title, pushTitle := batchedAlbumTitle(batch.seriesEvent.Title, episodeCount)
-			s.emitNotifications("album", title, "", batch.seriesEvent.MediaItemID, batch.seriesEvent.Genres, pushTitle)
+			s.emitNotifications("album", title, "", string(batch.seriesEvent.MediaItemID), batch.seriesEvent.Genres, pushTitle)
 			return
 		}
 		title, pushTitle := batchedSeriesTitle(batch.seriesEvent.Title, seasonCount, episodeCount)
-		s.emitNotifications("series", title, "", batch.seriesEvent.MediaItemID, batch.seriesEvent.Genres, pushTitle)
+		s.emitNotifications("series", title, "", string(batch.seriesEvent.MediaItemID), batch.seriesEvent.Genres, pushTitle)
 		return
 	}
 
@@ -287,14 +287,14 @@ func (s *CommandService) flushBatch(key string) {
 			seriesTitle = season.Title
 		}
 		title, pushTitle := batchedSeasonTitle(seriesTitle, season.Title, episodeCount)
-		s.emitNotifications("season", title, "", season.MediaItemID, season.Genres, pushTitle)
+		s.emitNotifications("season", title, "", string(season.MediaItemID), season.Genres, pushTitle)
 		return
 	}
 
 	// Season(s) alone — emit each one
 	if seasonCount > 0 {
 		for _, season := range batch.seasons {
-			s.emitNotifications(season.Type, season.Title, season.SeriesTitle, season.MediaItemID, season.Genres, "")
+			s.emitNotifications(season.Type, season.Title, season.SeriesTitle, string(season.MediaItemID), season.Genres, "")
 		}
 		return
 	}
@@ -302,14 +302,14 @@ func (s *CommandService) flushBatch(key string) {
 	// Just episodes
 	if episodeCount == 1 {
 		ep := batch.episodes[0]
-		s.emitNotifications(ep.Type, ep.Title, ep.SeriesTitle, ep.MediaItemID, ep.Genres, "")
+		s.emitNotifications(ep.Type, ep.Title, ep.SeriesTitle, string(ep.MediaItemID), ep.Genres, "")
 		return
 	}
 
 	if episodeCount > 1 {
 		first := batch.episodes[0]
 		title, pushTitle := batchedEpisodesTitle(first.SeriesTitle, episodeCount)
-		s.emitNotifications("episode", title, "", first.MediaItemID, first.Genres, pushTitle)
+		s.emitNotifications("episode", title, "", string(first.MediaItemID), first.Genres, pushTitle)
 	}
 }
 

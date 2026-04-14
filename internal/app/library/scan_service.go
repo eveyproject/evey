@@ -134,7 +134,7 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 
 func (s *ScanService) publishScanStarted(ctx context.Context, libraryID string) {
 	evt := library.LibraryScanStarted{
-		LibraryID:  libraryID,
+		LibraryID:  shared.LibraryID(libraryID),
 		OccurredAt: time.Now(),
 	}
 	if err := s.events.Publish(ctx, evt); err != nil {
@@ -278,7 +278,7 @@ func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, li
 	}
 
 	evt := library.LibraryScanCompleted{
-		LibraryID:    libraryID,
+		LibraryID:    shared.LibraryID(libraryID),
 		ItemsAdded:   added,
 		ItemsUpdated: updated,
 		ItemsRemoved: removed,
@@ -311,8 +311,8 @@ func (s *ScanService) removeOrphanedItems(ctx context.Context, libraryID string,
 				}
 			}
 			evt := library.MediaItemRemoved{
-				MediaItemID: id,
-				LibraryID:   libraryID,
+				MediaItemID: shared.MediaItemID(id),
+				LibraryID:   shared.LibraryID(libraryID),
 				OccurredAt:  time.Now(),
 			}
 			if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
@@ -381,8 +381,8 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			showTitle = seriesTitle[0]
 		}
 		evtAdded := library.MediaItemAdded{
-			MediaItemID: string(item.ID),
-			LibraryID:   libraryID,
+			MediaItemID: item.ID,
+			LibraryID:   shared.LibraryID(libraryID),
 			Title:       item.Title,
 			SeriesTitle: showTitle,
 			Type:        string(item.Type),
@@ -431,8 +431,8 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			showTitle = seriesTitle[0]
 		}
 		evtReAdded := library.MediaItemAdded{
-			MediaItemID: string(existing.ID),
-			LibraryID:   string(existing.LibraryID),
+			MediaItemID: existing.ID,
+			LibraryID:   existing.LibraryID,
 			Title:       existing.Title,
 			SeriesTitle: showTitle,
 			Type:        string(existing.Type),

@@ -120,7 +120,7 @@ func TestCreateLibrary_EventFields(t *testing.T) {
 	events := h.bus.PublishedEvents()
 	require.Len(t, events, 1)
 	evt := events[0].(library.LibraryCreated)
-	assert.Equal(t, "lib-1", evt.LibraryID)
+	assert.Equal(t, shared.LibraryID("lib-1"), evt.LibraryID)
 	assert.Equal(t, "My Movies", evt.Name)
 	assert.Equal(t, "movie", evt.Type)
 	assert.False(t, evt.OccurredAt.IsZero())
@@ -161,7 +161,7 @@ func TestDeleteLibrary_EventFields(t *testing.T) {
 	events := h.bus.PublishedEvents()
 	require.Len(t, events, 1)
 	evt := events[0].(library.LibraryDeleted)
-	assert.Equal(t, "lib-del", evt.LibraryID)
+	assert.Equal(t, shared.LibraryID("lib-del"), evt.LibraryID)
 	assert.True(t, evt.OccurredAt.After(before))
 }
 
@@ -323,7 +323,7 @@ func TestScanLibrary_ScanCompletedEvent_HasCorrectCounts(t *testing.T) {
 	require.NotNil(t, completed)
 	assert.Equal(t, 1, completed.ItemsAdded)
 	assert.Equal(t, 1, completed.ItemsRemoved)
-	assert.Equal(t, "lib-1", completed.LibraryID)
+	assert.Equal(t, shared.LibraryID("lib-1"), completed.LibraryID)
 }
 
 // --- upsertMediaFile branches ---
@@ -523,7 +523,7 @@ func TestUpsertMediaFile_NewItem_PublishesMediaItemAdded(t *testing.T) {
 	}
 	require.NotNil(t, evt)
 	assert.Equal(t, "Batman", evt.Title)
-	assert.Equal(t, "lib-1", evt.LibraryID)
+	assert.Equal(t, shared.LibraryID("lib-1"), evt.LibraryID)
 	assert.Equal(t, "movie", evt.Type)
 	assert.Empty(t, evt.SeriesTitle, "non-tvshow should have empty SeriesTitle")
 }
@@ -1289,8 +1289,8 @@ func TestRemoveOrphans_PublishesMediaItemRemoved(t *testing.T) {
 		}
 	}
 	require.NotNil(t, removedEvt)
-	assert.Equal(t, "orphan-1", removedEvt.MediaItemID)
-	assert.Equal(t, "lib-1", removedEvt.LibraryID)
+	assert.Equal(t, shared.MediaItemID("orphan-1"), removedEvt.MediaItemID)
+	assert.Equal(t, shared.LibraryID("lib-1"), removedEvt.LibraryID)
 }
 
 func TestRemoveOrphans_AlsoRemovesFromSearchIndex(t *testing.T) {

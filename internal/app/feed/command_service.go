@@ -21,8 +21,8 @@ func CommandWithEventBus(bus shared.EventBus) CommandServiceOption {
 			if !ok {
 				return
 			}
-			if err := s.EnsureLibraryFeedConfig(ctx, shared.LibraryID(e.LibraryID), e.Name); err != nil {
-				slog.Warn("auto-create library feed config", slog.String("library", e.LibraryID), slog.Any("err", err))
+			if err := s.EnsureLibraryFeedConfig(ctx, e.LibraryID, e.Name); err != nil {
+				slog.Warn("auto-create library feed config", slog.String("library", string(e.LibraryID)), slog.Any("err", err))
 			}
 		})
 		bus.Subscribe("library.deleted", func(ctx context.Context, ev shared.Event) {
@@ -30,8 +30,8 @@ func CommandWithEventBus(bus shared.EventBus) CommandServiceOption {
 			if !ok {
 				return
 			}
-			if err := s.DeleteLibraryFeedConfig(ctx, shared.LibraryID(e.LibraryID)); err != nil {
-				slog.Warn("auto-delete library feed config", slog.String("library", e.LibraryID), slog.Any("err", err))
+			if err := s.DeleteLibraryFeedConfig(ctx, e.LibraryID); err != nil {
+				slog.Warn("auto-delete library feed config", slog.String("library", string(e.LibraryID)), slog.Any("err", err))
 			}
 		})
 	}
