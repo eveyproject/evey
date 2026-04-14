@@ -80,7 +80,7 @@ func (r *ArtworkRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []
 	}
 	result := make(map[string][]*metadata.ArtworkRecord, len(mediaItemIDs))
 	for _, a := range records {
-		result[a.MediaItemID] = append(result[a.MediaItemID], a)
+		result[string(a.MediaItemID)] = append(result[string(a.MediaItemID)], a)
 	}
 	return result, nil
 }

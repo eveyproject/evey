@@ -1,9 +1,13 @@
 package subtitle
 
-import "time"
+import (
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+)
 
 type SubtitleDownloaded struct {
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	Language    string
 	Format      string
 	Source      string
@@ -13,7 +17,7 @@ type SubtitleDownloaded struct {
 func (e SubtitleDownloaded) EventName() string { return "subtitle.downloaded" }
 
 type SubtitleDeleted struct {
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	Language    string
 	OccurredAt  time.Time
 }

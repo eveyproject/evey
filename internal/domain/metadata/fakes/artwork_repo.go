@@ -53,7 +53,7 @@ func (r *FakeArtworkRepository) GetByMediaItem(_ context.Context, mediaItemID st
 	}
 	var result []*metadata.ArtworkRecord
 	for _, a := range r.items {
-		if a.MediaItemID == mediaItemID {
+		if string(a.MediaItemID) == mediaItemID {
 			result = append(result, a)
 		}
 	}
@@ -72,8 +72,8 @@ func (r *FakeArtworkRepository) GetByMediaItems(_ context.Context, mediaItemIDs 
 	}
 	result := make(map[string][]*metadata.ArtworkRecord)
 	for _, a := range r.items {
-		if idSet[a.MediaItemID] {
-			result[a.MediaItemID] = append(result[a.MediaItemID], a)
+		if idSet[string(a.MediaItemID)] {
+			result[string(a.MediaItemID)] = append(result[string(a.MediaItemID)], a)
 		}
 	}
 	return result, nil
@@ -135,7 +135,7 @@ func (r *FakeArtworkRepository) DeleteByMediaItemID(_ context.Context, mediaItem
 		return r.Err
 	}
 	for id, a := range r.items {
-		if a.MediaItemID == mediaItemID {
+		if string(a.MediaItemID) == mediaItemID {
 			delete(r.items, id)
 		}
 	}

@@ -29,11 +29,11 @@ func TestSubtitleRepo_Save_ListByMediaItem(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	sub1 := &subtitle.SubtitleDownload{
-		ID: "sub1", MediaItemID: string(item.ID), Language: "en", Format: "srt",
+		ID: "sub1", MediaItemID: item.ID, Language: "en", Format: "srt",
 		FilePath: "/subs/en.srt", Source: "opensubtitles", DownloadedAt: now,
 	}
 	sub2 := &subtitle.SubtitleDownload{
-		ID: "sub2", MediaItemID: string(item.ID), Language: "fr", Format: "ass",
+		ID: "sub2", MediaItemID: item.ID, Language: "fr", Format: "ass",
 		FilePath: "/subs/fr.ass", Source: "opensubtitles", DownloadedAt: now.Add(time.Second),
 	}
 	require.NoError(t, subRepo.Save(ctx, sub1))
@@ -65,7 +65,7 @@ func TestSubtitleRepo_Save_Upsert(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	sub := &subtitle.SubtitleDownload{
-		ID: "subu1", MediaItemID: string(item.ID), Language: "en", Format: "srt",
+		ID: "subu1", MediaItemID: item.ID, Language: "en", Format: "srt",
 		FilePath: "/subs/old.srt", Source: "opensubtitles", DownloadedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, subRepo.Save(ctx, sub))
@@ -96,7 +96,7 @@ func TestSubtitleRepo_Delete(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	sub := &subtitle.SubtitleDownload{
-		ID: "subdel1", MediaItemID: string(item.ID), Language: "en", Format: "srt",
+		ID: "subdel1", MediaItemID: item.ID, Language: "en", Format: "srt",
 		FilePath: "/subs/en.srt", Source: "opensubtitles", DownloadedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, subRepo.Save(ctx, sub))

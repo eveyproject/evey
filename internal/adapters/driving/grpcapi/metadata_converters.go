@@ -30,7 +30,7 @@ func metadataOverrideToProto(o *domainmetadata.MetadataOverride) *eveyv1.Metadat
 	}
 	return &eveyv1.MetadataOverride{
 		Id:          o.ID,
-		MediaItemId: o.MediaItemID,
+		MediaItemId: string(o.MediaItemID),
 		FieldName:   o.FieldName,
 		CustomValue: cv,
 		CreatedAt:   toTimestamppb(o.CreatedAt),

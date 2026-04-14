@@ -11,6 +11,7 @@ import (
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/feed"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -40,7 +41,7 @@ func (h *feedHandler) filterByLibraryAccess(ctx context.Context, items []*feed.F
 	}
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
-		ids = append(ids, item.MediaItemID)
+		ids = append(ids, string(item.MediaItemID))
 	}
 	mediaItems, err := h.libQuery.GetMediaItemsByIDs(ctx, ids)
 	if err != nil {
@@ -52,7 +53,7 @@ func (h *feedHandler) filterByLibraryAccess(ctx context.Context, items []*feed.F
 	}
 	filtered := items[:0]
 	for _, item := range items {
-		if libID, ok := libByID[item.MediaItemID]; ok && slices.Contains(allowedIDs, libID) {
+		if libID, ok := libByID[string(item.MediaItemID)]; ok && slices.Contains(allowedIDs, libID) {
 			filtered = append(filtered, item)
 		}
 	}
@@ -182,7 +183,7 @@ func (h *feedHandler) UpdateProfileFeedConfig(ctx context.Context, req *eveyv1.U
 		return nil, fmt.Errorf("feedHandler.UpdateProfileFeedConfig: %w", err)
 	}
 	cfg := &feed.ProfileConfig{
-		ProfileID:    profileID,
+		ProfileID:    shared.ProfileID(profileID),
 		FeedType:     feed.Type(req.FeedType),
 		Enabled:      req.Enabled,
 		DisplayOrder: (*int)(nil),
@@ -283,7 +284,7 @@ func (h *feedHandler) BatchUpdateAdminFeedConfigs(ctx context.Context, req *evey
 
 func feedItemToProto(item *feed.FeedItem) *eveyv1.FeedItem {
 	return &eveyv1.FeedItem{
-		MediaItemId: item.MediaItemID,
+		MediaItemId: string(item.MediaItemID),
 		ParentId:    item.ParentID,
 		Title:       item.Title,
 		Type:        item.Type,
@@ -321,7 +322,7 @@ func adminConfigToProto(c *feed.AdminConfig) *eveyv1.AdminFeedConfig {
 
 func profileConfigToProto(c *feed.ProfileConfig) *eveyv1.ProfileFeedConfig {
 	pb := &eveyv1.ProfileFeedConfig{
-		ProfileId: c.ProfileID,
+		ProfileId: string(c.ProfileID),
 		FeedType:  string(c.FeedType),
 		Enabled:   c.Enabled,
 	}

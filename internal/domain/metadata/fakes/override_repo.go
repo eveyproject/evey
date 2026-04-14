@@ -57,7 +57,7 @@ func (r *FakeMetadataOverrideRepository) GetByMediaItem(_ context.Context, media
 	}
 	var result []*metadata.MetadataOverride
 	for _, o := range r.items {
-		if o.MediaItemID == mediaItemID {
+		if string(o.MediaItemID) == mediaItemID {
 			result = append(result, o)
 		}
 	}
@@ -76,8 +76,8 @@ func (r *FakeMetadataOverrideRepository) ListOverriddenMediaItemIDs(_ context.Co
 	}
 	result := make(map[string]bool)
 	for _, o := range r.items {
-		if wanted[o.MediaItemID] {
-			result[o.MediaItemID] = true
+		if wanted[string(o.MediaItemID)] {
+			result[string(o.MediaItemID)] = true
 		}
 	}
 	return result, nil
@@ -109,7 +109,7 @@ func (r *FakeMetadataOverrideRepository) DeleteByMediaItemID(_ context.Context, 
 		return r.Err
 	}
 	for id, o := range r.items {
-		if o.MediaItemID == mediaItemID {
+		if string(o.MediaItemID) == mediaItemID {
 			delete(r.items, id)
 		}
 	}

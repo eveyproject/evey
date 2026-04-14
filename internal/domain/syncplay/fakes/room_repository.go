@@ -83,7 +83,7 @@ func (r *FakeRoomRepository) RemoveMember(_ context.Context, roomID string, user
 	}
 	members := make([]syncplay.Member, 0, len(room.Members))
 	for _, m := range room.Members {
-		if m.UserID != userID {
+		if string(m.UserID) != userID {
 			members = append(members, m)
 		}
 	}

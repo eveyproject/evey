@@ -61,7 +61,7 @@ func TestFeedConfigCQRS_UpsertProfileConfig_GetProfileConfig(t *testing.T) {
 
 	enabled := true
 	cfg := &feed.ProfileConfig{
-		ProfileID:    string(p.ID),
+		ProfileID:    p.ID,
 		FeedType:     feed.TypeRecentlyAdded,
 		Enabled:      &enabled,
 		DisplayOrder: intPtr(0),
@@ -117,7 +117,7 @@ func TestFeedConfigCQRS_DeleteProfileConfig(t *testing.T) {
 
 	enabled := true
 	cfg := &feed.ProfileConfig{
-		ProfileID: string(p.ID),
+		ProfileID: p.ID,
 		FeedType:  feed.TypeRecentlyAdded,
 		Enabled:   &enabled,
 		Params:    map[string]any{},

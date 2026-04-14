@@ -3,6 +3,8 @@ package feed
 import (
 	"errors"
 	"strings"
+
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type Type string
@@ -57,7 +59,7 @@ func (c *AdminConfig) Validate() error {
 // ProfileConfig is an optional per-profile override.
 // nil fields mean "use admin default".
 type ProfileConfig struct {
-	ProfileID    string
+	ProfileID    shared.ProfileID
 	FeedType     Type
 	Enabled      *bool
 	DisplayOrder *int
@@ -86,7 +88,7 @@ type MergedConfig struct {
 
 // FeedItem is a generic item returned by any feed.
 type FeedItem struct {
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	ParentID    string // for episodes: series ID
 	Title       string
 	Type        string

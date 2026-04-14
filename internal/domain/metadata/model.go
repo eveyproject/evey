@@ -3,6 +3,8 @@ package metadata
 import (
 	"errors"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 const (
@@ -71,16 +73,16 @@ type ArtworkResult struct {
 
 type MetadataOverride struct {
 	ID          string
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	FieldName   string
 	CustomValue any
-	EditedBy    string
+	EditedBy    shared.UserID
 	CreatedAt   time.Time
 }
 
 type ArtworkRecord struct {
 	ID          string
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	PersonID    *string
 	Type        string
 	Provider    string

@@ -71,10 +71,10 @@ func (r *FakeConfigCommandRepo) UpsertProfileConfig(_ context.Context, cfg *feed
 	if r.Err != nil {
 		return r.Err
 	}
-	if r.ProfileConfigs[cfg.ProfileID] == nil {
-		r.ProfileConfigs[cfg.ProfileID] = make(map[feed.Type]*feed.ProfileConfig)
+	if r.ProfileConfigs[string(cfg.ProfileID)] == nil {
+		r.ProfileConfigs[string(cfg.ProfileID)] = make(map[feed.Type]*feed.ProfileConfig)
 	}
-	r.ProfileConfigs[cfg.ProfileID][cfg.FeedType] = cfg
+	r.ProfileConfigs[string(cfg.ProfileID)][cfg.FeedType] = cfg
 	return nil
 }
 

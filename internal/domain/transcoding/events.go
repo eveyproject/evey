@@ -1,10 +1,14 @@
 package transcoding
 
-import "time"
+import (
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+)
 
 type TranscodeStarted struct {
 	JobID       string
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	OutputCodec string
 	OccurredAt  time.Time
 }
@@ -13,7 +17,7 @@ func (e TranscodeStarted) EventName() string { return "transcode.started" }
 
 type TranscodeCompleted struct {
 	JobID       string
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	DurationMs  int64
 	OccurredAt  time.Time
 }
@@ -22,7 +26,7 @@ func (e TranscodeCompleted) EventName() string { return "transcode.completed" }
 
 type TranscodeFailed struct {
 	JobID        string
-	MediaItemID  string
+	MediaItemID  shared.MediaItemID
 	ErrorMessage string
 	OccurredAt   time.Time
 }
@@ -31,7 +35,7 @@ func (e TranscodeFailed) EventName() string { return "transcode.failed" }
 
 type TranscodeCancelled struct {
 	JobID       string
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	OccurredAt  time.Time
 }
 

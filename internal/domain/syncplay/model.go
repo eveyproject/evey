@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math/big"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 func GenerateCode() (string, error) {
@@ -19,15 +21,15 @@ type Room struct {
 	ID        string
 	Code      string
 	Name      string
-	HostID    string
-	MediaID   string
+	HostID    shared.UserID
+	MediaID   shared.MediaItemID
 	Members   []Member
 	State     PlaybackState
 	CreatedAt time.Time
 }
 
 type Member struct {
-	UserID   string
+	UserID   shared.UserID
 	Username string
 	JoinedAt time.Time
 }
@@ -36,7 +38,7 @@ type PlaybackState struct {
 	Playing    bool
 	PositionMs int64
 	UpdatedAt  time.Time
-	UpdatedBy  string
+	UpdatedBy  shared.UserID
 }
 
 type SyncCommand struct {
@@ -57,15 +59,15 @@ func MaskUsername(name string) string {
 }
 
 func (r *Room) IsHost(userID string) bool {
-	return r.HostID == userID
+	return string(r.HostID) == userID
 }
 
 func (r *Room) IsMember(userID string) bool {
-	if r.HostID == userID {
+	if string(r.HostID) == userID {
 		return true
 	}
 	for _, m := range r.Members {
-		if m.UserID == userID {
+		if string(m.UserID) == userID {
 			return true
 		}
 	}

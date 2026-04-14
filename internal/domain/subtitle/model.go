@@ -3,11 +3,13 @@ package subtitle
 import (
 	"errors"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type SubtitleDownload struct {
 	ID           string
-	MediaItemID  string
+	MediaItemID  shared.MediaItemID
 	Language     string
 	Format       string
 	FilePath     string

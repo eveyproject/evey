@@ -111,7 +111,7 @@ func (r *SyncPlayRoomRepo) RemoveMember(ctx context.Context, roomID string, user
 	}
 	filtered := room.Members[:0]
 	for _, m := range room.Members {
-		if m.UserID != userID {
+		if string(m.UserID) != userID {
 			filtered = append(filtered, m)
 		}
 	}

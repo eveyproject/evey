@@ -42,7 +42,7 @@ func (r *FakeRepository) GetByMediaItem(_ context.Context, mediaItemID string) (
 	}
 	var result []*subtitle.SubtitleDownload
 	for _, s := range r.items {
-		if s.MediaItemID == mediaItemID {
+		if string(s.MediaItemID) == mediaItemID {
 			result = append(result, s)
 		}
 	}

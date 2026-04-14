@@ -76,7 +76,7 @@ func (s *CommandService) RefreshMetadata(ctx context.Context, mediaItemID, provi
 			return nil, fmt.Errorf("get metadata from %s: %w", providerName, err)
 		}
 		// Log-only: notification event — actual metadata fetch already succeeded above
-		evt := metadata.MetadataRefreshed{MediaItemID: mediaItemID, Provider: providerName, OccurredAt: time.Now()}
+		evt := metadata.MetadataRefreshed{MediaItemID: shared.MediaItemID(mediaItemID), Provider: providerName, OccurredAt: time.Now()}
 		if err := s.events.Publish(ctx, evt); err != nil {
 			slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 		}
@@ -134,7 +134,7 @@ func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, t
 	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
 		return fmt.Errorf("enrich item: %w", err)
 	}
-	evtTmdb := metadata.MetadataRefreshed{MediaItemID: mediaItemID, Provider: "tmdb", OccurredAt: time.Now()}
+	evtTmdb := metadata.MetadataRefreshed{MediaItemID: shared.MediaItemID(mediaItemID), Provider: "tmdb", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtTmdb); err != nil {
 		slog.Warn("publish event", slog.String("event", evtTmdb.EventName()), slog.Any("err", err))
 	}
@@ -162,7 +162,7 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
 		return fmt.Errorf("enrich item: %w", err)
 	}
-	evtImdb := metadata.MetadataRefreshed{MediaItemID: mediaItemID, Provider: usedProvider, OccurredAt: time.Now()}
+	evtImdb := metadata.MetadataRefreshed{MediaItemID: shared.MediaItemID(mediaItemID), Provider: usedProvider, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtImdb); err != nil {
 		slog.Warn("publish event", slog.String("event", evtImdb.EventName()), slog.Any("err", err))
 	}
@@ -220,7 +220,7 @@ func (s *CommandService) ResetOverrides(ctx context.Context, mediaItemID string)
 		return fmt.Errorf("CommandService.ResetOverrides: %w", err)
 	}
 	// Log-only: audit event — overrides already deleted above
-	evtRemoved := metadata.MetadataOverrideRemoved{MediaItemID: mediaItemID, FieldName: "*", OccurredAt: time.Now()}
+	evtRemoved := metadata.MetadataOverrideRemoved{MediaItemID: shared.MediaItemID(mediaItemID), FieldName: "*", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtRemoved); err != nil {
 		slog.Warn("publish event", slog.String("event", evtRemoved.EventName()), slog.Any("err", err))
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +19,7 @@ func newTestArtwork(id, mediaItemID string, sortOrder int) *metadata.ArtworkReco
 	w, h := 1000, 1500
 	return &metadata.ArtworkRecord{
 		ID:          id,
-		MediaItemID: mediaItemID,
+		MediaItemID: shared.MediaItemID(mediaItemID),
 		Type:        "poster",
 		Provider:    "tmdb",
 		SourceURL:   &src,

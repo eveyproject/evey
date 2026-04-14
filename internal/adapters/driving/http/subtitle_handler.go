@@ -283,7 +283,7 @@ func (h *subtitleRoutes) list(w http.ResponseWriter, r *http.Request) {
 	for _, s := range subs {
 		out = append(out, subJSON{
 			ID:           s.ID,
-			MediaItemID:  s.MediaItemID,
+			MediaItemID:  string(s.MediaItemID),
 			Language:     s.Language,
 			Format:       s.Format,
 			FilePath:     s.FilePath,

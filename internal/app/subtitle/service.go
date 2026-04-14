@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/subtitle"
 	"github.com/evey-project/evey/internal/pkg/id"
 )
@@ -45,7 +46,7 @@ func (s *Service) Download(ctx context.Context, mediaItemID string, fileID int, 
 	}
 	sub := &subtitle.SubtitleDownload{
 		ID:           id.New("sub-"),
-		MediaItemID:  mediaItemID,
+		MediaItemID:  shared.MediaItemID(mediaItemID),
 		Language:     language,
 		Format:       format,
 		FilePath:     filePath,

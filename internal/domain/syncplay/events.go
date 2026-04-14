@@ -1,11 +1,15 @@
 package syncplay
 
-import "time"
+import (
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+)
 
 type RoomCreated struct {
 	RoomID     string
-	HostID     string
-	MediaID    string
+	HostID     shared.UserID
+	MediaID    shared.MediaItemID
 	OccurredAt time.Time
 }
 
@@ -20,7 +24,7 @@ func (e RoomClosed) EventName() string { return "syncplay.room.closed" }
 
 type MemberJoined struct {
 	RoomID     string
-	UserID     string
+	UserID     shared.UserID
 	OccurredAt time.Time
 }
 
@@ -28,7 +32,7 @@ func (e MemberJoined) EventName() string { return "syncplay.member.joined" }
 
 type MemberLeft struct {
 	RoomID     string
-	UserID     string
+	UserID     shared.UserID
 	OccurredAt time.Time
 }
 

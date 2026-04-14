@@ -68,8 +68,8 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		Id:      room.ID,
 		Code:    room.Code,
 		Name:    room.Name,
-		MediaId: room.MediaID,
-		HostId:  room.HostID,
+		MediaId: string(room.MediaID),
+		HostId:  string(room.HostID),
 	}, nil
 }
 
@@ -85,7 +85,7 @@ func (h *syncplayHandler) JoinByCode(ctx context.Context, req *eveyv1.JoinSyncPl
 	if err != nil || room == nil {
 		return nil, status.Error(codes.NotFound, "room not found")
 	}
-	if err := h.requireMediaAccess(ctx, room.MediaID); err != nil {
+	if err := h.requireMediaAccess(ctx, string(room.MediaID)); err != nil {
 		return nil, err
 	}
 	if err := h.hub.JoinRoom(ctx, room.ID, claims.UserID, claims.Username); err != nil {
@@ -93,7 +93,7 @@ func (h *syncplayHandler) JoinByCode(ctx context.Context, req *eveyv1.JoinSyncPl
 	}
 	return &eveyv1.JoinSyncPlayByCodeResponse{
 		RoomId:  room.ID,
-		MediaId: room.MediaID,
+		MediaId: string(room.MediaID),
 		WsUrl:   "/api/v1/syncplay/rooms/" + room.ID + "/ws",
 	}, nil
 }
@@ -107,12 +107,12 @@ func (h *syncplayHandler) GetRoom(ctx context.Context, req *eveyv1.GetSyncPlayRo
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "room not found")
 	}
-	if err := h.requireMediaAccess(ctx, room.MediaID); err != nil {
+	if err := h.requireMediaAccess(ctx, string(room.MediaID)); err != nil {
 		return nil, err
 	}
-	isMember := room.HostID == claims.ProfileID || room.HostID == claims.UserID
+	isMember := string(room.HostID) == claims.ProfileID || string(room.HostID) == claims.UserID
 	for _, m := range room.Members {
-		if m.UserID == claims.UserID {
+		if string(m.UserID) == claims.UserID {
 			isMember = true
 			break
 		}
@@ -123,22 +123,22 @@ func (h *syncplayHandler) GetRoom(ctx context.Context, req *eveyv1.GetSyncPlayRo
 	members := make([]*eveyv1.SyncPlayMember, 0, len(room.Members))
 	for _, m := range room.Members {
 		members = append(members, &eveyv1.SyncPlayMember{
-			UserId:   m.UserID,
+			UserId:   string(m.UserID),
 			Username: domainsyncplay.MaskUsername(m.Username),
 		})
 	}
 	resp := &eveyv1.GetSyncPlayRoomResponse{
 		Id:      room.ID,
 		Name:    room.Name,
-		MediaId: room.MediaID,
-		HostId:  room.HostID,
+		MediaId: string(room.MediaID),
+		HostId:  string(room.HostID),
 		Members: members,
 		State: &eveyv1.SyncPlayState{
 			Playing:    room.State.Playing,
 			PositionMs: room.State.PositionMs,
 		},
 	}
-	if room.HostID == claims.ProfileID || room.HostID == claims.UserID || claims.IsAdmin {
+	if string(room.HostID) == claims.ProfileID || string(room.HostID) == claims.UserID || claims.IsAdmin {
 		resp.Code = room.Code
 	}
 	return resp, nil
@@ -153,7 +153,7 @@ func (h *syncplayHandler) JoinRoom(ctx context.Context, req *eveyv1.JoinSyncPlay
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "room not found")
 	}
-	if err := h.requireMediaAccess(ctx, room.MediaID); err != nil {
+	if err := h.requireMediaAccess(ctx, string(room.MediaID)); err != nil {
 		return nil, err
 	}
 	if err := h.hub.JoinRoom(ctx, req.RoomId, claims.UserID, claims.Username); err != nil {

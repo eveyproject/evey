@@ -174,7 +174,7 @@ func buildArtworkRecord(mediaItemID string, sortOrder int, art domainmetadata.Ar
 	}
 	rec := &domainmetadata.ArtworkRecord{
 		ID:          uuid.New().String(),
-		MediaItemID: mediaItemID,
+		MediaItemID: shared.MediaItemID(mediaItemID),
 		Type:        art.Type,
 		Provider:    provider,
 		SourceURL:   &src,

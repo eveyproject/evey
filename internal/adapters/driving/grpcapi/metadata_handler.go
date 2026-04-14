@@ -9,6 +9,7 @@ import (
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -109,7 +110,7 @@ func (h *metadataHandler) GetArtwork(ctx context.Context, req *eveyv1.GetArtwork
 func (h *metadataHandler) SetMetadataOverride(ctx context.Context, req *eveyv1.SetMetadataOverrideRequest) (*eveyv1.MetadataOverride, error) {
 	override := &domainmetadata.MetadataOverride{
 		ID:          id.New("mo-"),
-		MediaItemID: req.MediaItemId,
+		MediaItemID: shared.MediaItemID(req.MediaItemId),
 		FieldName:   req.FieldName,
 		CustomValue: req.CustomValue,
 	}

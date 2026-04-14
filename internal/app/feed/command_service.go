@@ -102,7 +102,7 @@ func (s *CommandService) ResetProfileConfig(ctx context.Context, profileID strin
 	if err := s.commands.DeleteProfileConfig(ctx, profileID, feedType); err != nil {
 		return fmt.Errorf("CommandService.ResetProfileConfig: %w", err)
 	}
-	s.publish(ctx, feed.FeedConfigRemoved{FeedType: feedType, ProfileID: profileID, OccurredAt: time.Now()})
+	s.publish(ctx, feed.FeedConfigRemoved{FeedType: feedType, ProfileID: shared.ProfileID(profileID), OccurredAt: time.Now()})
 	return nil
 }
 

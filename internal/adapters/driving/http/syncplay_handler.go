@@ -83,7 +83,7 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 		http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
 		return
 	}
-	item, mErr := s.media.GetMediaItem(r.Context(), room.MediaID)
+	item, mErr := s.media.GetMediaItem(r.Context(), string(room.MediaID))
 	if mErr != nil || item == nil {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return

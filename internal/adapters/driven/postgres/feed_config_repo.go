@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/evey-project/evey/internal/domain/feed"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type FeedAdminConfigRepository struct {
@@ -126,7 +127,7 @@ func (r *FeedProfileConfigRepository) GetByProfile(ctx context.Context, profileI
 
 	var result []*feed.ProfileConfig
 	for rows.Next() {
-		cfg := &feed.ProfileConfig{ProfileID: profileID}
+		cfg := &feed.ProfileConfig{ProfileID: shared.ProfileID(profileID)}
 		var ft string
 		var paramsJSON []byte
 		if err := rows.Scan(&ft, &cfg.Enabled, &cfg.DisplayOrder, &cfg.MaxItems, &paramsJSON); err != nil {

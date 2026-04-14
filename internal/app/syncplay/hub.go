@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/syncplay"
 	"github.com/evey-project/evey/internal/pkg/id"
 )
@@ -39,8 +40,8 @@ func (h *Hub) CreateRoom(ctx context.Context, hostID, mediaID, name string) (*sy
 		ID:        id.New("room-"),
 		Code:      code,
 		Name:      name,
-		HostID:    hostID,
-		MediaID:   mediaID,
+		HostID:    shared.UserID(hostID),
+		MediaID:   shared.MediaItemID(mediaID),
 		CreatedAt: time.Now().UTC(),
 		State:     syncplay.PlaybackState{UpdatedAt: time.Now().UTC()},
 	}
@@ -60,7 +61,7 @@ func (h *Hub) GetRoomByCode(ctx context.Context, code string) (*syncplay.Room, e
 
 func (h *Hub) JoinRoom(ctx context.Context, roomID, userID, username string) error {
 	member := syncplay.Member{
-		UserID:   userID,
+		UserID:   shared.UserID(userID),
 		Username: username,
 		JoinedAt: time.Now().UTC(),
 	}
@@ -88,7 +89,7 @@ func (h *Hub) LeaveRoom(ctx context.Context, roomID, userID string) error {
 // sends the current state to the new member, and broadcasts member_joined.
 func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string, sender syncplay.MessageSender) (*syncplay.Room, error) {
 	if err := h.repo.AddMember(ctx, roomID, syncplay.Member{
-		UserID:   userID,
+		UserID:   shared.UserID(userID),
 		Username: username,
 		JoinedAt: time.Now().UTC(),
 	}); err != nil {
@@ -162,7 +163,7 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 			Playing:    cmd.Type == "play",
 			PositionMs: cmd.PositionMs,
 			UpdatedAt:  time.Now().UTC(),
-			UpdatedBy:  userID,
+			UpdatedBy:  shared.UserID(userID),
 		}
 		if cmd.Type == "pause" {
 			state.Playing = false
