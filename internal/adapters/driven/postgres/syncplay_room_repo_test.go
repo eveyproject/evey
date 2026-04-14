@@ -22,7 +22,7 @@ func seedSyncplayDeps(t *testing.T, db *sql.DB, profileID, userID, libraryID, me
 	libRepo := postgres.NewLibraryRepository(db)
 	itemRepo := postgres.NewMediaItemRepository(db)
 	require.NoError(t, userRepo.Create(ctx, newTestUser(userID)))
-	require.NoError(t, profileRepo.Create(ctx, newTestProfile(profileID, userID)))
+	require.NoError(t, profileRepo.Create(ctx, newTestProfile(profileID, shared.UserID(userID))))
 	require.NoError(t, libRepo.Create(ctx, newTestLibrary(libraryID)))
 	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(mediaID, shared.LibraryID(libraryID))))
 }

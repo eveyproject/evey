@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type LoginHistoryRepository struct {
@@ -26,7 +27,7 @@ func (r *LoginHistoryRepository) Create(ctx context.Context, e *activity.LoginEn
 	return err
 }
 
-func (r *LoginHistoryRepository) GetByUserID(ctx context.Context, userID string, limit, offset int) ([]*activity.LoginEntry, error) {
+func (r *LoginHistoryRepository) GetByUserID(ctx context.Context, userID shared.UserID, limit, offset int) ([]*activity.LoginEntry, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,

@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestProfile(id, userID string) *user.Profile {
+func newTestProfile(id string, userID shared.UserID) *user.Profile {
 	return &user.Profile{
 		ID:          shared.ProfileID(id),
-		UserID:      shared.UserID(userID),
+		UserID:      userID,
 		Name:        "Profile " + id,
 		Preferences: map[string]string{"lang": "en"},
 		IsDefault:   false,
@@ -36,7 +36,7 @@ func TestProfileRepo_Create_GetByID(t *testing.T) {
 	u := newTestUser("pu1")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	p := newTestProfile("p1", string(u.ID))
+	p := newTestProfile("p1", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 
 	got, err := profileRepo.GetByID(ctx, shared.ProfileID(p.ID))
@@ -57,8 +57,8 @@ func TestProfileRepo_GetByUserID(t *testing.T) {
 	u := newTestUser("pu2")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	require.NoError(t, profileRepo.Create(ctx, newTestProfile("p2a", string(u.ID))))
-	require.NoError(t, profileRepo.Create(ctx, newTestProfile("p2b", string(u.ID))))
+	require.NoError(t, profileRepo.Create(ctx, newTestProfile("p2a", u.ID)))
+	require.NoError(t, profileRepo.Create(ctx, newTestProfile("p2b", u.ID)))
 
 	profiles, err := profileRepo.GetByUserID(ctx, shared.UserID(u.ID))
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestProfileRepo_Update(t *testing.T) {
 	u := newTestUser("pu3")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	p := newTestProfile("p3", string(u.ID))
+	p := newTestProfile("p3", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 
 	p.Name = "Updated Profile"
@@ -100,7 +100,7 @@ func TestProfileRepo_LanguagePreferences(t *testing.T) {
 	u := newTestUser("pu5")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	p := newTestProfile("p5", string(u.ID))
+	p := newTestProfile("p5", u.ID)
 	p.AudioLanguages = []string{"fr", "en"}
 	p.SubtitleLanguages = []string{"fr"}
 	require.NoError(t, profileRepo.Create(ctx, p))
@@ -129,7 +129,7 @@ func TestProfileRepo_Delete(t *testing.T) {
 	u := newTestUser("pu4")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	p := newTestProfile("p4", string(u.ID))
+	p := newTestProfile("p4", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	require.NoError(t, profileRepo.Delete(ctx, shared.ProfileID(p.ID)))
 

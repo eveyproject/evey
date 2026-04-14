@@ -41,7 +41,7 @@ func (r *FakeAuditLogRepository) List(_ context.Context, filter activity.AuditLo
 	}
 	var result []*activity.AuditLogEntry
 	for _, e := range r.items {
-		if filter.UserID != nil && e.UserID != *filter.UserID {
+		if filter.UserID != nil && string(e.UserID) != *filter.UserID {
 			continue
 		}
 		if filter.Action != nil && e.Action != *filter.Action {

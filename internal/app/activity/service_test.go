@@ -9,6 +9,7 @@ import (
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	"github.com/evey-project/evey/internal/domain/activity"
 	actfakes "github.com/evey-project/evey/internal/domain/activity/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -264,7 +265,7 @@ func TestWithAnalyticsReader(t *testing.T) {
 	data, err := querySvc.GetAnalytics(context.Background())
 	require.NoError(t, err)
 	assert.Len(t, data.TopMedia, 1)
-	assert.Equal(t, "m1", data.TopMedia[0].MediaItemID)
+	assert.Equal(t, shared.MediaItemID("m1"), data.TopMedia[0].MediaItemID)
 }
 
 func TestGetMostPopular(t *testing.T) {

@@ -1,11 +1,15 @@
 package activity
 
-import "time"
+import (
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+)
 
 type PlayHistoryEntry struct {
 	ID          string
-	ProfileID   string
-	MediaItemID string
+	ProfileID   shared.ProfileID
+	MediaItemID shared.MediaItemID
 	MediaTitle  string
 	MediaType   string
 	DurationMs  int64
@@ -29,7 +33,7 @@ const (
 
 type LoginEntry struct {
 	ID            string
-	UserID        string
+	UserID        shared.UserID
 	ClientIP      string
 	UserAgent     string
 	AuthMethod    string
@@ -52,7 +56,7 @@ type ServerMetric struct {
 }
 
 type UserStats struct {
-	ProfileID          string
+	ProfileID          shared.ProfileID
 	TotalWatchTimeMs   int64
 	TotalPlayCount     int
 	UniqueItemsWatched int
@@ -72,7 +76,7 @@ type GenreStats struct {
 }
 
 type MediaPlayCount struct {
-	MediaItemID  string
+	MediaItemID  shared.MediaItemID
 	Title        string
 	PlayCount    int
 	TotalTimeMs  int64
@@ -80,7 +84,7 @@ type MediaPlayCount struct {
 
 type AuditLogEntry struct {
 	ID           string
-	UserID       string
+	UserID       shared.UserID
 	Username     string // populated by JOIN, not persisted
 	Action       string
 	ResourceType string
@@ -102,14 +106,14 @@ type ServerStatsResult struct {
 }
 
 type TopMediaItem struct {
-	MediaItemID          string
+	MediaItemID          shared.MediaItemID
 	Title                string
 	PlayCount            int
 	TotalDurationSeconds int64
 }
 
 type RecentActivityEntry struct {
-	UserID     string
+	UserID     shared.UserID
 	Username   string
 	MediaTitle string
 	PlayedAt   time.Time

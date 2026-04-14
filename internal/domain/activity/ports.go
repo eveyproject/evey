@@ -3,11 +3,13 @@ package activity
 import (
 	"context"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type LoginHistoryRepository interface {
 	Create(ctx context.Context, entry *LoginEntry) error
-	GetByUserID(ctx context.Context, userID string, limit, offset int) ([]*LoginEntry, error)
+	GetByUserID(ctx context.Context, userID shared.UserID, limit, offset int) ([]*LoginEntry, error)
 }
 
 type ServerMetricRepository interface {
@@ -30,14 +32,14 @@ type AuditLogRepository interface {
 }
 
 type PlaySessionStatsReader interface {
-	GetUserStats(ctx context.Context, profileID string) (*UserStats, error)
+	GetUserStats(ctx context.Context, profileID shared.ProfileID) (*UserStats, error)
 	GetServerStats(ctx context.Context) (*ServerStatsResult, error)
 	GetMostPopular(ctx context.Context, limit int) ([]MediaPlayCount, error)
 }
 
 type PlayHistoryFilter struct {
-	ProfileID   string
-	MediaItemID string
+	ProfileID   shared.ProfileID
+	MediaItemID shared.MediaItemID
 	From        *time.Time
 	To          *time.Time
 	Limit       int

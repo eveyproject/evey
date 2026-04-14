@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type PlaySessionStatsReader struct {
@@ -23,7 +24,7 @@ func NewPlaySessionStatsReader(db *sql.DB) *PlaySessionStatsReader {
 	return &PlaySessionStatsReader{db: db}
 }
 
-func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID string) (*activity.UserStats, error) {
+func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID shared.ProfileID) (*activity.UserStats, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	stats := &activity.UserStats{
@@ -109,7 +110,7 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 				fmt.Sscan(parts[1], &totalMs)
 			}
 			stats.MostPlayedItems = append(stats.MostPlayedItems, activity.MediaPlayCount{
-				MediaItemID: col1,
+				MediaItemID: shared.MediaItemID(col1),
 				Title:       col2,
 				PlayCount:   cnt,
 				TotalTimeMs: totalMs,

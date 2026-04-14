@@ -26,7 +26,7 @@ func TestWatchProgressRepo_Upsert_GetByProfileAndMedia(t *testing.T) {
 
 	u := newTestUser("wpu1")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("wpp1", string(u.ID))
+	p := newTestProfile("wpp1", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("wplib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -64,7 +64,7 @@ func TestWatchProgressRepo_Upsert_UpdatesOnConflict(t *testing.T) {
 
 	u := newTestUser("wpu2")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("wpp2", string(u.ID))
+	p := newTestProfile("wpp2", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("wplib2")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -102,7 +102,7 @@ func TestWatchProgressRepo_GetByProfile(t *testing.T) {
 
 	u := newTestUser("wpu3")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("wpp3", string(u.ID))
+	p := newTestProfile("wpp3", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("wplib3")
 	require.NoError(t, libRepo.Create(ctx, lib))

@@ -10,7 +10,7 @@ import (
 func loginEntryToProto(e *activity.LoginEntry) *eveyv1.LoginEntry {
 	pb := &eveyv1.LoginEntry{
 		Id:        e.ID,
-		UserId:    e.UserID,
+		UserId:    string(e.UserID),
 		IpAddress: e.ClientIP,
 		UserAgent: e.UserAgent,
 		Success:   e.Success,
@@ -40,8 +40,8 @@ func serverMetricToProto(m *activity.ServerMetric) *eveyv1.ServerMetric {
 func playHistoryEntryToProto(e *activity.PlayHistoryEntry) *eveyv1.PlayHistoryEntry {
 	pb := &eveyv1.PlayHistoryEntry{
 		Id:          e.ID,
-		ProfileId:   e.ProfileID,
-		MediaItemId: e.MediaItemID,
+		ProfileId:   string(e.ProfileID),
+		MediaItemId: string(e.MediaItemID),
 		MediaTitle:  e.MediaTitle,
 		MediaType:   mediaItemTypeToProto[e.MediaType],
 		DurationMs:  e.DurationMs,
@@ -59,7 +59,7 @@ func playHistoryEntryToProto(e *activity.PlayHistoryEntry) *eveyv1.PlayHistoryEn
 func auditLogEntryToProto(e *activity.AuditLogEntry) *eveyv1.AuditLogEntry {
 	pb := &eveyv1.AuditLogEntry{
 		Id:           e.ID,
-		UserId:       e.UserID,
+		UserId:       string(e.UserID),
 		Username:     e.Username,
 		Action:       e.Action,
 		ResourceType: e.ResourceType,

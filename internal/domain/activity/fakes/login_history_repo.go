@@ -33,7 +33,7 @@ func (r *FakeLoginHistoryRepository) Create(_ context.Context, entry *activity.L
 	return nil
 }
 
-func (r *FakeLoginHistoryRepository) GetByUserID(_ context.Context, userID string, limit, offset int) ([]*activity.LoginEntry, error) {
+func (r *FakeLoginHistoryRepository) GetByUserID(_ context.Context, userID shared.UserID, limit, offset int) ([]*activity.LoginEntry, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}

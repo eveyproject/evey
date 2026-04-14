@@ -10,6 +10,7 @@ import (
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/runtimedetect"
@@ -38,7 +39,7 @@ func (h *adminHandler) audit(r *http.Request, action, resourceType string, resou
 	ip := r.RemoteAddr
 	ua := r.UserAgent()
 	e := &activity.AuditLogEntry{
-		UserID:       claims.UserID,
+		UserID:       shared.UserID(claims.UserID),
 		Action:       action,
 		ResourceType: resourceType,
 		ResourceID:   resourceID,

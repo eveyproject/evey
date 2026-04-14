@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type QueryService struct {
@@ -44,7 +45,7 @@ func NewQueryService(
 }
 
 func (s *QueryService) GetLoginHistory(ctx context.Context, userID string, limit, offset int) ([]*activity.LoginEntry, error) {
-	return s.loginHistory.GetByUserID(ctx, userID, limit, offset)
+	return s.loginHistory.GetByUserID(ctx, shared.UserID(userID), limit, offset)
 }
 
 func (s *QueryService) GetServerMetrics(ctx context.Context, from, to time.Time) ([]*activity.ServerMetric, error) {
@@ -56,7 +57,7 @@ func (s *QueryService) GetAuditLog(ctx context.Context, filter activity.AuditLog
 }
 
 func (s *QueryService) GetUserStats(ctx context.Context, profileID string) (*activity.UserStats, error) {
-	return s.statsReader.GetUserStats(ctx, profileID)
+	return s.statsReader.GetUserStats(ctx, shared.ProfileID(profileID))
 }
 
 func (s *QueryService) GetServerStats(ctx context.Context) (*activity.ServerStatsResult, error) {

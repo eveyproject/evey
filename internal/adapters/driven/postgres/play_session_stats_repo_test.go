@@ -52,7 +52,7 @@ func TestPlaySessionStatsRepo_GetUserStats_WithData(t *testing.T) {
 	session.DurationMs = &dur
 	require.NoError(t, sessionRepo.Create(ctx, session))
 
-	stats, err := statsRepo.GetUserStats(ctx, string(p.ID))
+	stats, err := statsRepo.GetUserStats(ctx, p.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.TotalPlayCount)
 	assert.Equal(t, int64(60000), stats.TotalWatchTimeMs)

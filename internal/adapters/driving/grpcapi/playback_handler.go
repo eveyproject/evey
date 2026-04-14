@@ -43,7 +43,7 @@ func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceTyp
 		return
 	}
 	e := &activity.AuditLogEntry{
-		UserID:       userID,
+		UserID:       shared.UserID(userID),
 		Action:       action,
 		ResourceType: resourceType,
 		ResourceID:   resourceID,

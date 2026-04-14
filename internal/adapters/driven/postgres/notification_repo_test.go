@@ -9,6 +9,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,7 @@ func seedNotifProfile(t *testing.T, db *sql.DB, profileID, userID string) {
 	userRepo := postgres.NewUserRepository(db)
 	profileRepo := postgres.NewProfileRepository(db)
 	require.NoError(t, userRepo.Create(ctx, newTestUser(userID)))
-	require.NoError(t, profileRepo.Create(ctx, newTestProfile(profileID, userID)))
+	require.NoError(t, profileRepo.Create(ctx, newTestProfile(profileID, shared.UserID(userID))))
 }
 
 func TestNotificationRepo_CRUD(t *testing.T) {

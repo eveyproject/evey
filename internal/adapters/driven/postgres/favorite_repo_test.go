@@ -25,7 +25,7 @@ func TestFavoriteRepo_Add(t *testing.T) {
 
 	u := newTestUser("favu1")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("favp1", string(u.ID))
+	p := newTestProfile("favp1", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("favlib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -67,7 +67,7 @@ func TestFavoriteRepo_Remove(t *testing.T) {
 
 	u := newTestUser("favu2")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("favp2", string(u.ID))
+	p := newTestProfile("favp2", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("favlib2")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -103,7 +103,7 @@ func TestFavoriteRepo_List(t *testing.T) {
 
 	u := newTestUser("favu3")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("favp3", string(u.ID))
+	p := newTestProfile("favp3", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("favlib3")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -146,7 +146,7 @@ func TestFavoriteRepo_IsFavorite(t *testing.T) {
 
 	u := newTestUser("favu4")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("favp4", string(u.ID))
+	p := newTestProfile("favp4", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("favlib4")
 	require.NoError(t, libRepo.Create(ctx, lib))

@@ -43,7 +43,7 @@ func TestPlaySessionRepo_Create_GetByID(t *testing.T) {
 
 	u := newTestUser("psu1")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("psp1", string(u.ID))
+	p := newTestProfile("psp1", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("pslib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -73,7 +73,7 @@ func TestPlaySessionRepo_Update(t *testing.T) {
 
 	u := newTestUser("psu2")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("psp2", string(u.ID))
+	p := newTestProfile("psp2", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("pslib2")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -111,7 +111,7 @@ func TestPlaySessionRepo_GetActiveByProfile(t *testing.T) {
 
 	u := newTestUser("psu3")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("psp3", string(u.ID))
+	p := newTestProfile("psp3", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("pslib3")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -140,7 +140,7 @@ func TestPlaySessionRepo_GetHistory(t *testing.T) {
 
 	u := newTestUser("psu4")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("psp4", string(u.ID))
+	p := newTestProfile("psp4", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("pslib4")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -169,7 +169,7 @@ func TestPlaySessionRepo_CloseStale(t *testing.T) {
 
 	u := newTestUser("psu5")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("psp5", string(u.ID))
+	p := newTestProfile("psp5", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("pslib5")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -198,7 +198,7 @@ func TestPlaySessionRepo_CountActiveByUser(t *testing.T) {
 
 	u := newTestUser("psu6")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("psp6", string(u.ID))
+	p := newTestProfile("psp6", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("pslib6")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -226,7 +226,7 @@ func TestPlaySessionRepo_ListActiveSessions(t *testing.T) {
 
 	u := newTestUser("psu7")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("psp7", string(u.ID))
+	p := newTestProfile("psp7", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("pslib7")
 	require.NoError(t, libRepo.Create(ctx, lib))

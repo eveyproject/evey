@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type FakePlaySessionStatsReader struct {
@@ -20,7 +21,7 @@ func NewFakePlaySessionStatsReader() *FakePlaySessionStatsReader {
 	}
 }
 
-func (r *FakePlaySessionStatsReader) GetUserStats(_ context.Context, _ string) (*activity.UserStats, error) {
+func (r *FakePlaySessionStatsReader) GetUserStats(_ context.Context, _ shared.ProfileID) (*activity.UserStats, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}

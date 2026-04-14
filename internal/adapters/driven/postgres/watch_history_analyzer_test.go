@@ -26,7 +26,7 @@ func TestWatchHistoryAnalyzer_GetFavoriteGenres(t *testing.T) {
 
 	u := newTestUser("wha1")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("whap1", string(u.ID))
+	p := newTestProfile("whap1", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("whalib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -74,7 +74,7 @@ func TestWatchHistoryAnalyzer_GetFavoriteGenres_Empty(t *testing.T) {
 
 	u := newTestUser("wha2")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("whap2", string(u.ID))
+	p := newTestProfile("whap2", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 
 	genres, err := analyzer.GetFavoriteGenres(ctx, string(p.ID), 1)
@@ -96,7 +96,7 @@ func TestWatchHistoryAnalyzer_HasWatchedSeries(t *testing.T) {
 
 	u := newTestUser("wha3")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("whap3", string(u.ID))
+	p := newTestProfile("whap3", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("whalib3")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -153,7 +153,7 @@ func TestWatchHistoryAnalyzer_IsCurrentlyWatchingSeries(t *testing.T) {
 
 	u := newTestUser("wha4")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("whap4", string(u.ID))
+	p := newTestProfile("whap4", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("whalib4")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -222,7 +222,7 @@ func TestWatchHistoryAnalyzer_CalculateRelevanceScore(t *testing.T) {
 
 	u := newTestUser("wha5")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("whap5", string(u.ID))
+	p := newTestProfile("whap5", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("whalib5")
 	require.NoError(t, libRepo.Create(ctx, lib))

@@ -26,7 +26,7 @@ func TestPlayHistoryRepo_List_Basic(t *testing.T) {
 
 	u := newTestUser("phu1")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("php1", string(u.ID))
+	p := newTestProfile("php1", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("phlib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -36,13 +36,13 @@ func TestPlayHistoryRepo_List_Basic(t *testing.T) {
 	session := newTestPlaySession("phps1", string(p.ID), string(item.ID))
 	require.NoError(t, sessionRepo.Create(ctx, session))
 
-	entries, err := historyRepo.List(ctx, activity.PlayHistoryFilter{ProfileID: string(p.ID)})
+	entries, err := historyRepo.List(ctx, activity.PlayHistoryFilter{ProfileID: p.ID})
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 
 	e := entries[0]
 	assert.Equal(t, "phps1", e.ID)
-	assert.Equal(t, string(p.ID), e.ProfileID)
+	assert.Equal(t, p.ID, e.ProfileID)
 	assert.Equal(t, string(item.ID), e.MediaItemID)
 	assert.Equal(t, item.Title, e.MediaTitle)
 	assert.Equal(t, string(item.Type), e.MediaType)
@@ -63,7 +63,7 @@ func TestPlayHistoryRepo_List_FilterByMediaItemID(t *testing.T) {
 
 	u := newTestUser("phu2")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("php2", string(u.ID))
+	p := newTestProfile("php2", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("phlib2")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -76,12 +76,12 @@ func TestPlayHistoryRepo_List_FilterByMediaItemID(t *testing.T) {
 	require.NoError(t, sessionRepo.Create(ctx, newTestPlaySession("phps2b", string(p.ID), string(itemB.ID))))
 
 	entries, err := historyRepo.List(ctx, activity.PlayHistoryFilter{
-		ProfileID:   string(p.ID),
-		MediaItemID: string(itemA.ID),
+		ProfileID:   p.ID,
+		MediaItemID: itemA.ID,
 	})
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
-	assert.Equal(t, string(itemA.ID), entries[0].MediaItemID)
+	assert.Equal(t, itemA.ID, entries[0].MediaItemID)
 }
 
 func TestPlayHistoryRepo_List_Pagination(t *testing.T) {
@@ -98,7 +98,7 @@ func TestPlayHistoryRepo_List_Pagination(t *testing.T) {
 
 	u := newTestUser("phu3")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("php3", string(u.ID))
+	p := newTestProfile("php3", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("phlib3")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -112,11 +112,11 @@ func TestPlayHistoryRepo_List_Pagination(t *testing.T) {
 		require.NoError(t, sessionRepo.Create(ctx, s))
 	}
 
-	page1, err := historyRepo.List(ctx, activity.PlayHistoryFilter{ProfileID: string(p.ID), Limit: 2})
+	page1, err := historyRepo.List(ctx, activity.PlayHistoryFilter{ProfileID: p.ID, Limit: 2})
 	require.NoError(t, err)
 	assert.Len(t, page1, 2)
 
-	page2, err := historyRepo.List(ctx, activity.PlayHistoryFilter{ProfileID: string(p.ID), Limit: 2, Offset: 2})
+	page2, err := historyRepo.List(ctx, activity.PlayHistoryFilter{ProfileID: p.ID, Limit: 2, Offset: 2})
 	require.NoError(t, err)
 	assert.Len(t, page2, 1)
 
@@ -136,10 +136,10 @@ func TestPlayHistoryRepo_List_Empty(t *testing.T) {
 
 	u := newTestUser("phu4")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("php4", string(u.ID))
+	p := newTestProfile("php4", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 
-	entries, err := historyRepo.List(ctx, activity.PlayHistoryFilter{ProfileID: string(p.ID)})
+	entries, err := historyRepo.List(ctx, activity.PlayHistoryFilter{ProfileID: p.ID})
 	require.NoError(t, err)
 	assert.Empty(t, entries)
 }
@@ -158,7 +158,7 @@ func TestPlayHistoryRepo_List_TimeRange(t *testing.T) {
 
 	u := newTestUser("phu5")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("php5", string(u.ID))
+	p := newTestProfile("php5", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("phlib5")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -179,7 +179,7 @@ func TestPlayHistoryRepo_List_TimeRange(t *testing.T) {
 	// only fetch the recent one using From filter
 	cutoff := time.Now().UTC().Add(-1 * time.Hour)
 	entries, err := historyRepo.List(ctx, activity.PlayHistoryFilter{
-		ProfileID: string(p.ID),
+		ProfileID: p.ID,
 		From:      &cutoff,
 	})
 	require.NoError(t, err)
@@ -201,7 +201,7 @@ func TestPlayHistoryRepo_List_DefaultLimit(t *testing.T) {
 
 	u := newTestUser("phu6")
 	require.NoError(t, userRepo.Create(ctx, u))
-	p := newTestProfile("php6", string(u.ID))
+	p := newTestProfile("php6", u.ID)
 	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("phlib6")
 	require.NoError(t, libRepo.Create(ctx, lib))
@@ -212,7 +212,7 @@ func TestPlayHistoryRepo_List_DefaultLimit(t *testing.T) {
 	require.NoError(t, sessionRepo.Create(ctx, newTestPlaySession("phps6b", string(p.ID), string(item.ID))))
 
 	// limit 0 should default to 500 — we just confirm it returns all
-	entries, err := historyRepo.List(ctx, activity.PlayHistoryFilter{ProfileID: string(p.ID), Limit: 0})
+	entries, err := historyRepo.List(ctx, activity.PlayHistoryFilter{ProfileID: p.ID, Limit: 0})
 	require.NoError(t, err)
 	assert.Len(t, entries, 2)
 }

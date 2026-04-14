@@ -12,6 +12,7 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -36,8 +37,8 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 		return nil, fmt.Errorf("activityHandler.GetPlayHistory: %w", err)
 	}
 	filter := activity.PlayHistoryFilter{
-		ProfileID:   profileID,
-		MediaItemID: req.MediaItemId,
+		ProfileID:   shared.ProfileID(profileID),
+		MediaItemID: shared.MediaItemID(req.MediaItemId),
 		From:        fromTimestamppbPtr(req.From),
 		To:          fromTimestamppbPtr(req.To),
 	}
@@ -74,7 +75,7 @@ func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserS
 	}
 
 	pb := &eveyv1.UserStats{
-		ProfileId:          stats.ProfileID,
+		ProfileId:          string(stats.ProfileID),
 		TotalWatchTimeMs:   stats.TotalWatchTimeMs,
 		TotalPlays:         int32(stats.TotalPlayCount),
 		UniqueItemsWatched: int32(stats.UniqueItemsWatched),
@@ -93,7 +94,7 @@ func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserS
 	}
 	for _, mp := range stats.MostPlayedItems {
 		pb.MostPlayed = append(pb.MostPlayed, &eveyv1.MostPlayed{
-			MediaItemId: mp.MediaItemID,
+			MediaItemId: string(mp.MediaItemID),
 			Title:       mp.Title,
 			PlayCount:   int32(mp.PlayCount),
 			TotalTimeMs: mp.TotalTimeMs,
@@ -185,7 +186,7 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 	}
 	ids := make([]string, len(popular))
 	for i, p := range popular {
-		ids[i] = p.MediaItemID
+		ids[i] = string(p.MediaItemID)
 	}
 	type miInfo struct {
 		typ       string
@@ -213,7 +214,7 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 	}
 	resp := &eveyv1.GetPopularMediaResponse{}
 	for _, p := range popular {
-		info, exists := infoByID[p.MediaItemID]
+		info, exists := infoByID[string(p.MediaItemID)]
 		if !exists {
 			continue
 		}
@@ -221,7 +222,7 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 			continue
 		}
 		resp.Items = append(resp.Items, &eveyv1.PopularMediaItem{
-			MediaItemId: p.MediaItemID,
+			MediaItemId: string(p.MediaItemID),
 			Title:       p.Title,
 			Type:        info.typ,
 			PlayCount:   int32(p.PlayCount),
@@ -246,7 +247,7 @@ func (h *activityHandler) GetAnalytics(ctx context.Context, _ *eveyv1.GetAnalyti
 	}
 	for _, item := range data.TopMedia {
 		resp.TopMedia = append(resp.TopMedia, &eveyv1.AnalyticsTopMedia{
-			MediaItemId:          item.MediaItemID,
+			MediaItemId:          string(item.MediaItemID),
 			Title:                item.Title,
 			PlayCount:            int32(item.PlayCount),
 			TotalDurationSeconds: item.TotalDurationSeconds,
@@ -254,7 +255,7 @@ func (h *activityHandler) GetAnalytics(ctx context.Context, _ *eveyv1.GetAnalyti
 	}
 	for _, entry := range data.RecentActivity {
 		resp.RecentActivity = append(resp.RecentActivity, &eveyv1.AnalyticsRecentActivity{
-			UserId:    entry.UserID,
+			UserId:    string(entry.UserID),
 			Username:  entry.Username,
 			MediaTitle: entry.MediaTitle,
 			PlayedAt:  timestamppb.New(entry.PlayedAt),

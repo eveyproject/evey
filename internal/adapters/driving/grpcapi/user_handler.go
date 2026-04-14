@@ -48,7 +48,7 @@ func (h *userHandler) audit(ctx context.Context, userID, action, resourceType st
 	dn := interceptors.DeviceNameFromCtx(ctx)
 	ip := interceptors.ClientIPFromCtx(ctx)
 	e := &activity.AuditLogEntry{
-		UserID:       userID,
+		UserID:       shared.UserID(userID),
 		Action:       action,
 		ResourceType: resourceType,
 		ResourceID:   resourceID,

@@ -8,11 +8,12 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newLoginEntry(id, userID string, success bool, createdAt time.Time) *activity.LoginEntry {
+func newLoginEntry(id string, userID shared.UserID, success bool, createdAt time.Time) *activity.LoginEntry {
 	e := &activity.LoginEntry{
 		ID:         id,
 		UserID:     userID,
@@ -40,15 +41,15 @@ func TestLoginHistoryRepo_Create_GetByUserID(t *testing.T) {
 	require.NoError(t, userRepo.Create(ctx, u))
 
 	now := time.Now().UTC()
-	e1 := newLoginEntry("lh-e1", string(u.ID), true, now.Add(-2*time.Minute))
-	e2 := newLoginEntry("lh-e2", string(u.ID), false, now.Add(-1*time.Minute))
-	e3 := newLoginEntry("lh-e3", string(u.ID), true, now)
+	e1 := newLoginEntry("lh-e1", u.ID, true, now.Add(-2*time.Minute))
+	e2 := newLoginEntry("lh-e2", u.ID, false, now.Add(-1*time.Minute))
+	e3 := newLoginEntry("lh-e3", u.ID, true, now)
 
 	require.NoError(t, repo.Create(ctx, e1))
 	require.NoError(t, repo.Create(ctx, e2))
 	require.NoError(t, repo.Create(ctx, e3))
 
-	entries, err := repo.GetByUserID(ctx, string(u.ID), 10, 0)
+	entries, err := repo.GetByUserID(ctx, u.ID, 10, 0)
 	require.NoError(t, err)
 	require.Len(t, entries, 3)
 
@@ -72,18 +73,18 @@ func TestLoginHistoryRepo_GetByUserID_Pagination(t *testing.T) {
 	now := time.Now().UTC()
 	ids := []string{"lh-p1", "lh-p2", "lh-p3", "lh-p4", "lh-p5"}
 	for i, id := range ids {
-		e := newLoginEntry(id, string(u.ID), true, now.Add(time.Duration(i)*time.Minute))
+		e := newLoginEntry(id, u.ID, true, now.Add(time.Duration(i)*time.Minute))
 		require.NoError(t, repo.Create(ctx, e))
 	}
 
 	// DESC order: p5, p4, p3, p2, p1
-	page1, err := repo.GetByUserID(ctx, string(u.ID), 2, 0)
+	page1, err := repo.GetByUserID(ctx, u.ID, 2, 0)
 	require.NoError(t, err)
 	require.Len(t, page1, 2)
 	assert.Equal(t, "lh-p5", page1[0].ID)
 	assert.Equal(t, "lh-p4", page1[1].ID)
 
-	page2, err := repo.GetByUserID(ctx, string(u.ID), 2, 2)
+	page2, err := repo.GetByUserID(ctx, u.ID, 2, 2)
 	require.NoError(t, err)
 	require.Len(t, page2, 2)
 	assert.Equal(t, "lh-p3", page2[0].ID)
@@ -101,7 +102,7 @@ func TestLoginHistoryRepo_GetByUserID_Empty(t *testing.T) {
 	u := newTestUser("lh-u4")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	entries, err := repo.GetByUserID(ctx, string(u.ID), 10, 0)
+	entries, err := repo.GetByUserID(ctx, u.ID, 10, 0)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
 }
