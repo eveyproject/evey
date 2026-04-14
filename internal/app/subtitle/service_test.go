@@ -68,7 +68,7 @@ func TestDownload(t *testing.T) {
 
 	sub, err := svc.Download(context.Background(), "m1", 100, "en", "srt")
 	require.NoError(t, err)
-	assert.Equal(t, "m1", sub.MediaItemID)
+	assert.Equal(t, shared.MediaItemID("m1"), sub.MediaItemID)
 	assert.Equal(t, "en", sub.Language)
 	assert.Equal(t, "srt", sub.Format)
 	assert.Equal(t, "/media/.subtitles/100.srt", sub.FilePath)

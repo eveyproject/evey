@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type FakeSettingsRepository struct {
@@ -30,10 +31,10 @@ func (r *FakeSettingsRepository) GetByProfiles(_ context.Context, profileIDs []s
 			result[id] = s
 		} else if r.defaults != nil {
 			cp := *r.defaults
-			cp.ProfileID = id
+			cp.ProfileID = shared.ProfileID(id)
 			result[id] = &cp
 		} else {
-			result[id] = &notification.Settings{ProfileID: id, MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}
+			result[id] = &notification.Settings{ProfileID: shared.ProfileID(id), MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}
 		}
 	}
 	return result, nil
@@ -53,10 +54,10 @@ func (r *FakeSettingsRepository) GetByProfile(_ context.Context, profileID strin
 	}
 	if r.defaults != nil {
 		cp := *r.defaults
-		cp.ProfileID = profileID
+		cp.ProfileID = shared.ProfileID(profileID)
 		return &cp, nil
 	}
-	return &notification.Settings{ProfileID: profileID, MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}, nil
+	return &notification.Settings{ProfileID: shared.ProfileID(profileID), MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}, nil
 }
 
 func (r *FakeSettingsRepository) Upsert(_ context.Context, s *notification.Settings) error {
@@ -68,7 +69,7 @@ func (r *FakeSettingsRepository) Upsert(_ context.Context, s *notification.Setti
 	if r.Err != nil {
 		return r.Err
 	}
-	r.byProfile[s.ProfileID] = s
+	r.byProfile[string(s.ProfileID)] = s
 	return nil
 }
 

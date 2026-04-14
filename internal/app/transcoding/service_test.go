@@ -448,7 +448,7 @@ func TestStopTranscode_HappyPath(t *testing.T) {
 	cancelled, ok := events[1].(transcoding.TranscodeCancelled)
 	require.True(t, ok)
 	assert.Equal(t, "j1", cancelled.JobID)
-	assert.Equal(t, "m1", cancelled.MediaItemID)
+	assert.Equal(t, shared.MediaItemID("m1"), cancelled.MediaItemID)
 }
 
 func TestStopTranscode_NonExistentJob(t *testing.T) {
@@ -469,7 +469,7 @@ func TestStopTranscode_EventPublished(t *testing.T) {
 		if evt.EventName() == "transcode.cancelled" {
 			c := evt.(transcoding.TranscodeCancelled)
 			assert.Equal(t, "j1", c.JobID)
-			assert.Equal(t, "m1", c.MediaItemID)
+			assert.Equal(t, shared.MediaItemID("m1"), c.MediaItemID)
 			assert.False(t, c.OccurredAt.IsZero())
 			found = true
 		}

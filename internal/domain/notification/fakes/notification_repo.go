@@ -42,7 +42,7 @@ func (r *FakeNotificationRepository) ListByProfile(_ context.Context, profileID 
 	}
 	var out []*notification.Notification
 	for _, n := range r.items {
-		if n.ProfileID != profileID {
+		if string(n.ProfileID) != profileID {
 			continue
 		}
 		if unreadOnly && n.ReadAt != nil {
@@ -71,7 +71,7 @@ func (r *FakeNotificationRepository) MarkRead(_ context.Context, id, profileID s
 	}
 	now := time.Now()
 	for _, n := range r.items {
-		if n.ID == id && n.ProfileID == profileID {
+		if n.ID == id && string(n.ProfileID) == profileID {
 			n.ReadAt = &now
 			return nil
 		}
@@ -90,7 +90,7 @@ func (r *FakeNotificationRepository) MarkAllRead(_ context.Context, profileID st
 	}
 	now := time.Now()
 	for _, n := range r.items {
-		if n.ProfileID == profileID && n.ReadAt == nil {
+		if string(n.ProfileID) == profileID && n.ReadAt == nil {
 			n.ReadAt = &now
 		}
 	}
@@ -108,7 +108,7 @@ func (r *FakeNotificationRepository) UnreadCount(_ context.Context, profileID st
 	}
 	count := 0
 	for _, n := range r.items {
-		if n.ProfileID == profileID && n.ReadAt == nil {
+		if string(n.ProfileID) == profileID && n.ReadAt == nil {
 			count++
 		}
 	}
@@ -126,7 +126,7 @@ func (r *FakeNotificationRepository) DeleteAll(_ context.Context, profileID stri
 	}
 	var out []*notification.Notification
 	for _, n := range r.items {
-		if n.ProfileID != profileID {
+		if string(n.ProfileID) != profileID {
 			out = append(out, n)
 		}
 	}

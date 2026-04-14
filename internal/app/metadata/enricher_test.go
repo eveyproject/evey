@@ -11,6 +11,7 @@ import (
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	domain "github.com/evey-project/evey/internal/domain/metadata"
 	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -231,7 +232,7 @@ func TestBuildArtworkRecord(t *testing.T) {
 	}
 	rec := buildArtworkRecord("media-1", 0, art)
 	assert.NotEmpty(t, rec.ID)
-	assert.Equal(t, "media-1", rec.MediaItemID)
+	assert.Equal(t, shared.MediaItemID("media-1"), rec.MediaItemID)
 	assert.Equal(t, "poster", rec.Type)
 	assert.Equal(t, "tmdb", rec.Provider)
 	require.NotNil(t, rec.SourceURL)

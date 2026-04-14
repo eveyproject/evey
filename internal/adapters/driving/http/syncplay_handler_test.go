@@ -111,7 +111,7 @@ func (r *fakeSyncPlayRepo) RemoveMember(_ context.Context, roomID, userID string
 	}
 	filtered := make([]domainsyncplay.Member, 0, len(room.Members))
 	for _, m := range room.Members {
-		if m.UserID != userID {
+		if string(m.UserID) != userID {
 			filtered = append(filtered, m)
 		}
 	}

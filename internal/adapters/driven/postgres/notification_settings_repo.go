@@ -6,6 +6,7 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type NotificationSettingsRepository struct {
@@ -19,7 +20,7 @@ func NewNotificationSettingsRepository(db *sql.DB) *NotificationSettingsReposito
 func (r *NotificationSettingsRepository) GetByProfile(ctx context.Context, profileID string) (*notification.Settings, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	s := &notification.Settings{ProfileID: profileID}
+	s := &notification.Settings{ProfileID: shared.ProfileID(profileID)}
 	var ml, sl, msl string
 	err := r.db.QueryRowContext(ctx,
 		`SELECT movie_level, series_level, music_level FROM notification_settings WHERE profile_id = $1`, profileID,
@@ -34,7 +35,7 @@ func (r *NotificationSettingsRepository) GetByProfile(ctx context.Context, profi
 	s.MovieLevel = notification.Level(ml)
 	s.SeriesLevel = notification.Level(sl)
 	s.MusicLevel = notification.Level(msl)
-	s.ProfileID = profileID
+	s.ProfileID = shared.ProfileID(profileID)
 	return s, nil
 }
 
@@ -59,7 +60,7 @@ func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, prof
 			return nil, scanErr
 		}
 		result[pid] = &notification.Settings{
-			ProfileID:   pid,
+			ProfileID:   shared.ProfileID(pid),
 			MovieLevel:  notification.Level(ml),
 			SeriesLevel: notification.Level(sl),
 			MusicLevel:  notification.Level(msl),
@@ -76,7 +77,7 @@ func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, prof
 	for _, pid := range profileIDs {
 		if _, ok := result[pid]; !ok {
 			cp := *defaults
-			cp.ProfileID = pid
+			cp.ProfileID = shared.ProfileID(pid)
 			result[pid] = &cp
 		}
 	}
@@ -93,7 +94,7 @@ func (r *NotificationSettingsRepository) Upsert(ctx context.Context, s *notifica
 		   movie_level = EXCLUDED.movie_level,
 		   series_level = EXCLUDED.series_level,
 		   music_level = EXCLUDED.music_level`,
-		s.ProfileID, string(s.MovieLevel), string(s.SeriesLevel), string(s.MusicLevel),
+		string(s.ProfileID), string(s.MovieLevel), string(s.SeriesLevel), string(s.MusicLevel),
 	)
 	return err
 }

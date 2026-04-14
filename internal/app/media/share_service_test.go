@@ -94,12 +94,12 @@ func TestShareService_CreateAndValidate(t *testing.T) {
 	link, err := svc.Create(ctx, "media-1", "admin-1", 48*time.Hour, nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, link.Token)
-	assert.Equal(t, "media-1", link.MediaItemID)
-	assert.Equal(t, "admin-1", link.CreatedBy)
+	assert.Equal(t, shared.MediaItemID("media-1"), link.MediaItemID)
+	assert.Equal(t, shared.UserID("admin-1"), link.CreatedBy)
 
 	validated, err := svc.Validate(ctx, link.Token)
 	require.NoError(t, err)
-	assert.Equal(t, "media-1", validated.MediaItemID)
+	assert.Equal(t, shared.MediaItemID("media-1"), validated.MediaItemID)
 	assert.Equal(t, 1, validated.ViewCount)
 }
 

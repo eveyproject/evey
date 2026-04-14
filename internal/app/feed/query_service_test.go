@@ -9,6 +9,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/feed/fakes"
 	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -121,7 +122,7 @@ func TestQueryService_ContinueWatching(t *testing.T) {
 	items, err := svc.ContinueWatching(context.Background(), "p1", 10)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	assert.Equal(t, "m1", items[0].MediaItemID)
+	assert.Equal(t, shared.MediaItemID("m1"), items[0].MediaItemID)
 }
 
 func TestQueryService_RecentlyAdded(t *testing.T) {
@@ -137,7 +138,7 @@ func TestQueryService_RecentlyAdded(t *testing.T) {
 	items, err := svc.RecentlyAdded(context.Background(), 30, 10)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	assert.Equal(t, "m2", items[0].MediaItemID)
+	assert.Equal(t, shared.MediaItemID("m2"), items[0].MediaItemID)
 }
 
 func TestQueryService_Recommended(t *testing.T) {
@@ -154,7 +155,7 @@ func TestQueryService_Recommended(t *testing.T) {
 	items, err := svc.Recommended(context.Background(), "p1", 10)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	assert.Equal(t, "m3", items[0].MediaItemID)
+	assert.Equal(t, shared.MediaItemID("m3"), items[0].MediaItemID)
 }
 
 func TestQueryService_SimilarItems(t *testing.T) {
@@ -170,7 +171,7 @@ func TestQueryService_SimilarItems(t *testing.T) {
 	items, err := svc.SimilarItems(context.Background(), "m1", "p1", 10)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	assert.Equal(t, "m4", items[0].MediaItemID)
+	assert.Equal(t, shared.MediaItemID("m4"), items[0].MediaItemID)
 }
 
 func TestQueryService_ContinueWatching_Empty(t *testing.T) {
@@ -234,7 +235,7 @@ func TestQueryService_ResumePlayback(t *testing.T) {
 	items, err := svc.ResumePlayback(context.Background(), "p1", 10)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	assert.Equal(t, "m10", items[0].MediaItemID)
+	assert.Equal(t, shared.MediaItemID("m10"), items[0].MediaItemID)
 }
 
 func TestQueryService_NextEpisode(t *testing.T) {
@@ -250,7 +251,7 @@ func TestQueryService_NextEpisode(t *testing.T) {
 	items, err := svc.NextEpisode(context.Background(), "p1", 10)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	assert.Equal(t, "ep5", items[0].MediaItemID)
+	assert.Equal(t, shared.MediaItemID("ep5"), items[0].MediaItemID)
 }
 
 func TestQueryService_Recommended_AnalyzerError(t *testing.T) {

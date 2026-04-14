@@ -115,7 +115,7 @@ func TestStreamTokenStore_MultipleMedias(t *testing.T) {
 
 	st2, ok := store.Validate(t2, "media-2")
 	require.True(t, ok)
-	assert.Equal(t, "media-2", st2.MediaItemID)
+	assert.Equal(t, shared.MediaItemID("media-2"), st2.MediaItemID)
 
 	// Cross-validate should fail
 	_, ok = store.Validate(t1, "media-2")

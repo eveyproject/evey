@@ -41,9 +41,9 @@ func (e *NotificationEmailer) handle(ctx context.Context, ev shared.Event) {
 		return
 	}
 
-	profile, err := e.profiles.GetByID(ctx, shared.ProfileID(notif.ProfileID))
+	profile, err := e.profiles.GetByID(ctx, notif.ProfileID)
 	if err != nil {
-		slog.Warn("email: get profile", slog.String("profile_id", notif.ProfileID), slog.Any("err", err))
+		slog.Warn("email: get profile", slog.String("profile_id", string(notif.ProfileID)), slog.Any("err", err))
 		return
 	}
 

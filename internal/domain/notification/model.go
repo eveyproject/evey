@@ -3,12 +3,14 @@ package notification
 import (
 	"errors"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type PushSubscription struct {
 	ID        string
-	UserID    string
-	ProfileID string
+	UserID    shared.UserID
+	ProfileID shared.ProfileID
 	Endpoint  string
 	P256dh    string
 	Auth      string
@@ -41,11 +43,11 @@ const (
 
 type Notification struct {
 	ID          string
-	ProfileID   string
+	ProfileID   shared.ProfileID
 	Type        Type
 	Title       string
 	Message     string
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	Level       Level
 	CreatedAt   time.Time
 	ExpiresAt   *time.Time
@@ -54,7 +56,7 @@ type Notification struct {
 }
 
 type Settings struct {
-	ProfileID   string
+	ProfileID   shared.ProfileID
 	MovieLevel  Level
 	SeriesLevel Level
 	MusicLevel  Level

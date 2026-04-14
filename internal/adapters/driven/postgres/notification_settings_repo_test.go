@@ -29,7 +29,7 @@ func TestNotificationSettingsRepo_Upsert_GetByProfile(t *testing.T) {
 	require.NoError(t, profileRepo.Create(ctx, p))
 
 	s := &notification.Settings{
-		ProfileID:   string(p.ID),
+		ProfileID:   p.ID,
 		MovieLevel:  notification.LevelAll,
 		SeriesLevel: notification.LevelRelevant,
 		MusicLevel:  notification.LevelDisabled,
@@ -72,7 +72,7 @@ func TestNotificationSettingsRepo_GetByProfiles(t *testing.T) {
 	require.NoError(t, profileRepo.Create(ctx, p2))
 
 	require.NoError(t, repo.Upsert(ctx, &notification.Settings{
-		ProfileID:   string(p1.ID),
+		ProfileID:   p1.ID,
 		MovieLevel:  notification.LevelAll,
 		SeriesLevel: notification.LevelAll,
 		MusicLevel:  notification.LevelAll,

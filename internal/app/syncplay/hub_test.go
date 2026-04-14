@@ -90,7 +90,7 @@ func (r *fakeRoomRepo) RemoveMember(_ context.Context, roomID, userID string) er
 	}
 	filtered := room.Members[:0]
 	for _, m := range room.Members {
-		if m.UserID != userID {
+		if string(m.UserID) != userID {
 			filtered = append(filtered, m)
 		}
 	}

@@ -10,6 +10,7 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type notificationHandler struct {
@@ -38,7 +39,7 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 	resp := &eveyv1.ListNotificationsResponse{}
 	for _, n := range items {
 		if n.MediaItemID != "" && allowed != nil {
-			item, itemErr := h.libQuery.GetMediaItem(ctx, n.MediaItemID)
+			item, itemErr := h.libQuery.GetMediaItem(ctx, string(n.MediaItemID))
 			if itemErr != nil || !containsStr(allowed, string(item.LibraryID)) {
 				continue
 			}
@@ -131,7 +132,7 @@ func (h *notificationHandler) UpdateNotificationSettings(ctx context.Context, re
 		return nil, fmt.Errorf("notificationHandler.UpdateNotificationSettings: %w", err)
 	}
 	s := &notification.Settings{
-		ProfileID:   profileID,
+		ProfileID:   shared.ProfileID(profileID),
 		MovieLevel:  levelFromProto(req.MovieLevel),
 		SeriesLevel: levelFromProto(req.SeriesLevel),
 		MusicLevel:  levelFromProto(req.MusicLevel),
@@ -187,11 +188,11 @@ func containsStr(ss []string, s string) bool {
 func notificationToProto(n *notification.Notification) *eveyv1.Notification {
 	return &eveyv1.Notification{
 		Id:          n.ID,
-		ProfileId:   n.ProfileID,
+		ProfileId:   string(n.ProfileID),
 		Type:        string(n.Type),
 		Title:       n.Title,
 		Message:     n.Message,
-		MediaItemId: n.MediaItemID,
+		MediaItemId: string(n.MediaItemID),
 		Level:       string(n.Level),
 		CreatedAt:   toTimestamppb(n.CreatedAt),
 		ExpiresAt:   toTimestamppbPtr(n.ExpiresAt),
@@ -201,7 +202,7 @@ func notificationToProto(n *notification.Notification) *eveyv1.Notification {
 
 func settingsToProto(s *notification.Settings) *eveyv1.NotificationSettings {
 	return &eveyv1.NotificationSettings{
-		ProfileId:   s.ProfileID,
+		ProfileId:   string(s.ProfileID),
 		MovieLevel:  levelToProto(s.MovieLevel),
 		SeriesLevel: levelToProto(s.SeriesLevel),
 		MusicLevel:  levelToProto(s.MusicLevel),

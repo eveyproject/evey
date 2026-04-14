@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type subEntry struct {
@@ -84,8 +85,8 @@ func (r *FakePushSubscriptionRepository) GetByProfile(_ context.Context, profile
 	for _, e := range r.entries {
 		if e.profileID == profileID {
 			out = append(out, notification.PushSubscription{
-				UserID:    e.userID,
-				ProfileID: e.profileID,
+				UserID:    shared.UserID(e.userID),
+				ProfileID: shared.ProfileID(e.profileID),
 				Endpoint:  e.endpoint,
 				P256dh:    e.p256dh,
 				Auth:      e.auth,
@@ -107,8 +108,8 @@ func (r *FakePushSubscriptionRepository) ListByUser(_ context.Context, userID st
 	for _, e := range r.entries {
 		if e.userID == userID {
 			out = append(out, notification.PushSubscription{
-				UserID:    e.userID,
-				ProfileID: e.profileID,
+				UserID:    shared.UserID(e.userID),
+				ProfileID: shared.ProfileID(e.profileID),
 				Endpoint:  e.endpoint,
 				P256dh:    e.p256dh,
 				Auth:      e.auth,

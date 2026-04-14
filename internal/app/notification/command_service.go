@@ -365,11 +365,11 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 		}
 		n := &notification.Notification{
 			ID:          uuid.New().String(),
-			ProfileID:   string(p.ID),
+			ProfileID:   p.ID,
 			Type:        notifType,
 			Title:       notifTitle,
 			Message:     "",
-			MediaItemID: mediaItemID,
+			MediaItemID: shared.MediaItemID(mediaItemID),
 			Level:       lvl,
 			CreatedAt:   time.Now(),
 			ExpiresAt:   &expires,
@@ -431,10 +431,10 @@ func shouldNotify(lvl notification.Level, genres, favorites []string) bool {
 
 func (s *CommandService) persistAndDispatch(ctx context.Context, n *notification.Notification, pushTitle string) {
 	if createErr := s.repo.Create(ctx, n); createErr != nil {
-		slog.Warn("create notification failed", slog.String("profileID", n.ProfileID), slog.Any("err", createErr))
+		slog.Warn("create notification failed", slog.String("profileID", string(n.ProfileID)), slog.Any("err", createErr))
 		return
 	}
-	s.sendPush(ctx, n.ProfileID, pushTitle, n.Message)
+	s.sendPush(ctx, string(n.ProfileID), pushTitle, n.Message)
 	evt := notification.NotificationCreated{
 		NotificationID: n.ID,
 		ProfileID:      n.ProfileID,
@@ -483,7 +483,7 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 	for _, p := range profiles {
 		n := &notification.Notification{
 			ID:        uuid.New().String(),
-			ProfileID: string(p.ID),
+			ProfileID: p.ID,
 			Type:      notification.TypeBackupFailed,
 			Title:     title,
 			Message:   e.Error,
