@@ -7,9 +7,9 @@ import (
 	"runtime/debug"
 	"time"
 
-	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	eveymetrics "github.com/gravity-zero/evey/internal/pkg/metrics"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 type mediaItemCounter interface {

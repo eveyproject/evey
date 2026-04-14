@@ -1,7 +1,7 @@
 package fakes
 
 import (
-	"github.com/gravity-zero/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/domain/plugin"
 )
 
 type FakeManifestParser struct {

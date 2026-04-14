@@ -9,11 +9,11 @@ import (
 	"sync"
 	"testing"
 
-	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	domainsyncplay "github.com/gravity-zero/evey/internal/domain/syncplay"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
+	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"golang.org/x/net/websocket"
 )
 

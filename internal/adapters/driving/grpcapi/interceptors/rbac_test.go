@@ -3,7 +3,7 @@ package interceptors_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/domain/webhook"
-	"github.com/gravity-zero/evey/internal/pkg/urlvalidator"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/webhook"
+	"github.com/evey-project/evey/internal/pkg/urlvalidator"
 )
 
 const (

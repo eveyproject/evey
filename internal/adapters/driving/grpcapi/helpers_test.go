@@ -3,7 +3,7 @@ package grpcapi
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/domain/user"
 )
 
 func TestSecureToken(t *testing.T) {

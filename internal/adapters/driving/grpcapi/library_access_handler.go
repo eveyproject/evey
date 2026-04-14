@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	appuser "github.com/evey-project/evey/internal/app/user"
 )
 
 type libraryAccessHandler struct {

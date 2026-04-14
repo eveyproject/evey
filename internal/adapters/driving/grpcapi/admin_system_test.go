@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	transcodingfakes "github.com/gravity-zero/evey/internal/domain/transcoding/fakes"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	transcodingfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
 )
 
 func TestAdminGetSetupStatus_NoAdmins(t *testing.T) {

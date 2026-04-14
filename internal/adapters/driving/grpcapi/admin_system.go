@@ -8,12 +8,12 @@ import (
 	"runtime"
 	"time"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
-	appactivity "github.com/gravity-zero/evey/internal/app/activity"
-	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
-	"github.com/gravity-zero/evey/internal/pkg/sysinfo"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	appactivity "github.com/evey-project/evey/internal/app/activity"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 	"google.golang.org/grpc/codes"
 )
 

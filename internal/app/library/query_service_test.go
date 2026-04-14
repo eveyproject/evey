@@ -6,10 +6,10 @@ import (
 	"sync"
 	"testing"
 
-	applib "github.com/gravity-zero/evey/internal/app/library"
-	"github.com/gravity-zero/evey/internal/domain/library"
-	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	applib "github.com/evey-project/evey/internal/app/library"
+	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

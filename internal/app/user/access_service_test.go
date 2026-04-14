@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	"github.com/gravity-zero/evey/internal/domain/user"
-	ufakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
+	"github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/user"
+	ufakes "github.com/evey-project/evey/internal/domain/user/fakes"
 )
 
 type accessTestDeps struct {

@@ -3,7 +3,7 @@ package subtitle_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/subtitle"
+	"github.com/evey-project/evey/internal/domain/subtitle"
 )
 
 func TestEventNames(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/gravity-zero/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/domain/plugin"
 )
 
 var ErrPermissionDenied = errors.New("plugin permission denied")

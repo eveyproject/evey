@@ -3,7 +3,7 @@ package webhook_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/webhook"
+	"github.com/evey-project/evey/internal/domain/webhook"
 )
 
 func TestEventNames(t *testing.T) {

@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/playback"
-	pbfakes "github.com/gravity-zero/evey/internal/domain/playback/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	"github.com/gravity-zero/evey/internal/domain/user"
-	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
+	"github.com/evey-project/evey/internal/domain/playback"
+	pbfakes "github.com/evey-project/evey/internal/domain/playback/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/user"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 )
 
 // captureSlogBuffer redirects slog output to a buffer.

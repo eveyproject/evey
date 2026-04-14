@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/user/fakes"
+	"github.com/evey-project/evey/internal/domain/user/fakes"
 )
 
 func TestLibraryAccess_GrantAndGetByUserID(t *testing.T) {

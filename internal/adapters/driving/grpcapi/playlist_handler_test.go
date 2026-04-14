@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
-	playlistfakes "github.com/gravity-zero/evey/internal/domain/playlist/fakes"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appplaylist "github.com/evey-project/evey/internal/app/playlist"
+	playlistfakes "github.com/evey-project/evey/internal/domain/playlist/fakes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

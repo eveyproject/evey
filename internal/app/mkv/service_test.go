@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	appmkv "github.com/gravity-zero/evey/internal/app/mkv"
-	"github.com/gravity-zero/evey/internal/domain/mkv"
-	mkvfakes "github.com/gravity-zero/evey/internal/domain/mkv/fakes"
+	appmkv "github.com/evey-project/evey/internal/app/mkv"
+	"github.com/evey-project/evey/internal/domain/mkv"
+	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	appdlna "github.com/gravity-zero/evey/internal/app/dlna"
+	appdlna "github.com/evey-project/evey/internal/app/dlna"
 )
 
 type fakeDLNAClient struct {

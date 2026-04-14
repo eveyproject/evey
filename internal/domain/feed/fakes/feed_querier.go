@@ -3,7 +3,7 @@ package fakes
 import (
 	"context"
 
-	"github.com/gravity-zero/evey/internal/domain/feed"
+	"github.com/evey-project/evey/internal/domain/feed"
 )
 
 type FakeFeedQuerier struct {

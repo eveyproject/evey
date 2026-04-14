@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravity-zero/evey/internal/domain/activity"
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type CommandService struct {

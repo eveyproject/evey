@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravity-zero/evey/internal/pkg/hdr"
+	"github.com/evey-project/evey/internal/pkg/hdr"
 )
 
 func (h *transcodeServe) buildFFmpegArgs(filePath string, p transcodeParams, a transcodeAnalysis) []string {

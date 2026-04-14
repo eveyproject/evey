@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/library"
 )
 
 type FSWatcher struct {

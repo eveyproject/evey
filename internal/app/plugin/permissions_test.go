@@ -3,8 +3,8 @@ package plugin_test
 import (
 	"testing"
 
-	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
-	plgfakes "github.com/gravity-zero/evey/internal/domain/plugin/fakes"
+	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	plgfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

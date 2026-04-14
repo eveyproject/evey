@@ -6,12 +6,12 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi"
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
-	"github.com/gravity-zero/evey/internal/config"
-	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
-	"github.com/gravity-zero/evey/internal/pkg/quickconnecthub"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/evey-project/evey/internal/config"
+	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
+	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, logDir string, serverCtx context.Context, qcHub *quickconnecthub.Hub) *grpcapi.GRPCServer {

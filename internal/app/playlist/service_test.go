@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/library"
-	"github.com/gravity-zero/evey/internal/domain/playlist"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/domain/playlist/fakes"
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/playlist"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/playlist/fakes"
 )
 
 func newTestService() (*Service, *fakes.FakePlaylistRepository, *fakes.FakePlaylistItemRepository, *fakes.FakeSmartPlaylistQuerier) {

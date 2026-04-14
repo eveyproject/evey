@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/webhook"
+	"github.com/evey-project/evey/internal/domain/webhook"
 )
 
 var _ webhook.Sender = (*HTTPSender)(nil)

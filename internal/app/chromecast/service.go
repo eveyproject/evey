@@ -10,7 +10,7 @@ import (
 	"github.com/vishen/go-chromecast/application"
 	"github.com/vishen/go-chromecast/dns"
 
-	domaincast "github.com/gravity-zero/evey/internal/domain/chromecast"
+	domaincast "github.com/evey-project/evey/internal/domain/chromecast"
 )
 
 const (

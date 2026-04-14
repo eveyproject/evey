@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/gravity-zero/evey/internal/domain/feed"
+	"github.com/evey-project/evey/internal/domain/feed"
 )
 
 // FeedConfigCommandRepo implements feed.ConfigCommandRepo (write side).

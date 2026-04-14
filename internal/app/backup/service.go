@@ -14,9 +14,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/backup"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/domain/backup"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/id"
 )
 
 var BackupTables = []string{

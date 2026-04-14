@@ -3,7 +3,7 @@ package rating_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/rating"
+	"github.com/evey-project/evey/internal/domain/rating"
 )
 
 func TestRatingEventNames(t *testing.T) {

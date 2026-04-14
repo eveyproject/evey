@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/gravity-zero/evey/internal/domain/favorite"
+	"github.com/evey-project/evey/internal/domain/favorite"
 )
 
 type FavoriteRepository struct {

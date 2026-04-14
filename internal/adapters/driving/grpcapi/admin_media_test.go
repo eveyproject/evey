@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 )
 
 func TestAdminAcquireReleaseHeavyOp(t *testing.T) {

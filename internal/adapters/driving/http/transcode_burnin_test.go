@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/pkg/hdr"
+	"github.com/evey-project/evey/internal/pkg/hdr"
 )
 
 func TestBuildFFmpegArgs_NoSubtitle_CopyVideo(t *testing.T) {

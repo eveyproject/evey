@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appconfig "github.com/gravity-zero/evey/internal/app/config"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appconfig "github.com/evey-project/evey/internal/app/config"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"

@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/library"
-	"github.com/gravity-zero/evey/internal/domain/transcoding"
-	"github.com/gravity-zero/evey/internal/pkg/hdr"
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/hdr"
 )
 
 var _ transcoding.HLSProcess = (*HLSTranscoder)(nil)

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/pkg/eventbus"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/eventbus"
 	"github.com/stretchr/testify/assert"
 )
 

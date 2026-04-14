@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/gravity-zero/evey/internal/domain/library"
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type TrickplayRepository struct {

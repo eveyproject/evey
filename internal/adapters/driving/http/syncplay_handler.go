@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
-	domainsyncplay "github.com/gravity-zero/evey/internal/domain/syncplay"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
+	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
+	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
+	"github.com/evey-project/evey/internal/pkg/auth"
 	"golang.org/x/net/websocket"
 )
 

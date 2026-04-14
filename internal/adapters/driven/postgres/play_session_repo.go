@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/domain/playback"
 )
 
 type PlaySessionRepository struct {

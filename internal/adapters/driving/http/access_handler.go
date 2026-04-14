@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	"github.com/gravity-zero/evey/internal/config"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
-	"github.com/gravity-zero/evey/internal/pkg/network"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/config"
+	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/network"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 const remoteAccessConfigKey = "remote_access"

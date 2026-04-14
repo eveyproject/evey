@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"log/slog"
 
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
-	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/evey-project/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

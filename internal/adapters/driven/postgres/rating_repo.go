@@ -6,8 +6,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/rating"
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/rating"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/lib/pq"
 )
 

@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/pkg/network"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/pkg/network"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

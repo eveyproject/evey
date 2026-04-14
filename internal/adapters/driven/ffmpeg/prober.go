@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/library"
 )
 
 type Prober struct {

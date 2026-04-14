@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	appuser "github.com/gravity-zero/evey/internal/app/user"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"github.com/evey-project/evey/internal/pkg/auth"
 )
 
 // newMockOIDCServer returns an httptest.Server that serves minimal OIDC discovery + JWKS.

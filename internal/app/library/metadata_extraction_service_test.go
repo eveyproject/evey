@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	libdomain "github.com/gravity-zero/evey/internal/domain/library"
-	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/domain/mkv"
-	mkvfakes "github.com/gravity-zero/evey/internal/domain/mkv/fakes"
+	libdomain "github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/mkv"
+	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

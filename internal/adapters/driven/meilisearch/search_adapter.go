@@ -10,7 +10,7 @@ import (
 
 	ms "github.com/meilisearch/meilisearch-go"
 
-	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/library"
 )
 
 const (

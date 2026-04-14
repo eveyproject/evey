@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
-	plugindomain "github.com/gravity-zero/evey/internal/domain/plugin"
-	plgfakes "github.com/gravity-zero/evey/internal/domain/plugin/fakes"
+	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	plugindomain "github.com/evey-project/evey/internal/domain/plugin"
+	plgfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

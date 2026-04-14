@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
+	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 )

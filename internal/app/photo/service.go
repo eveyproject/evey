@@ -3,9 +3,9 @@ package photo
 import (
 	"context"
 
-	"github.com/gravity-zero/evey/internal/domain/library"
-	"github.com/gravity-zero/evey/internal/domain/photo"
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/photo"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 // Service wraps CommandService + QueryService for backward compatibility.

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/subtitle"
-	"github.com/gravity-zero/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/domain/subtitle"
+	"github.com/evey-project/evey/internal/pkg/id"
 )
 
 type Service struct {

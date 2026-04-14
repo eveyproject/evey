@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 var _ shared.ShareLinkRepository = (*ShareLinkRepo)(nil)

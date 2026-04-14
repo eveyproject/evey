@@ -6,13 +6,13 @@ import (
 	"log/slog"
 	"net/http"
 
-	appactivity "github.com/gravity-zero/evey/internal/app/activity"
-	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
-	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	"github.com/gravity-zero/evey/internal/domain/activity"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
-	"github.com/gravity-zero/evey/internal/pkg/runtimedetect"
+	appactivity "github.com/evey-project/evey/internal/app/activity"
+	appmetadata "github.com/evey-project/evey/internal/app/metadata"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/pkg/runtimedetect"
 )
 
 type adminHandler struct {

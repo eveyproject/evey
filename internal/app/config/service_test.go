@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

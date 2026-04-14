@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	appmusic "github.com/gravity-zero/evey/internal/app/music"
-	musicfakes "github.com/gravity-zero/evey/internal/domain/music/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
+	appmusic "github.com/evey-project/evey/internal/app/music"
+	musicfakes "github.com/evey-project/evey/internal/domain/music/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/auth"
 )
 
 func TestIsWithinDir_Inside(t *testing.T) {

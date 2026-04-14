@@ -3,7 +3,7 @@ package library_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/library"
 )
 
 func TestEventNames(t *testing.T) {

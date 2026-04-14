@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/adapters/driven/webhooksender"
-	"github.com/gravity-zero/evey/internal/app/webhook"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	webhookdomain "github.com/gravity-zero/evey/internal/domain/webhook"
-	webhookfakes "github.com/gravity-zero/evey/internal/domain/webhook/fakes"
+	"github.com/evey-project/evey/internal/adapters/driven/webhooksender"
+	"github.com/evey-project/evey/internal/app/webhook"
+	"github.com/evey-project/evey/internal/domain/shared"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	webhookdomain "github.com/evey-project/evey/internal/domain/webhook"
+	webhookfakes "github.com/evey-project/evey/internal/domain/webhook/fakes"
 )
 
 // --- fakes ---

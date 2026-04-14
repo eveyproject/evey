@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	authpkg "github.com/gravity-zero/evey/internal/pkg/auth"
+	authpkg "github.com/evey-project/evey/internal/pkg/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"

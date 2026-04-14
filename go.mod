@@ -1,4 +1,4 @@
-module github.com/gravity-zero/evey
+module github.com/evey-project/evey
 
 go 1.26.1
 

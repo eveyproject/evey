@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/library"
 )
 
 var videoExtensions = map[string]bool{

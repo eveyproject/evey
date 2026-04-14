@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	domainlib "github.com/gravity-zero/evey/internal/domain/library"
-	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	domainlib "github.com/evey-project/evey/internal/domain/library"
+	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"golang.org/x/time/rate"
 )
 

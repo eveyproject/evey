@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gravity-zero/evey/internal/domain/playback"
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type WatchProgressRepository struct {

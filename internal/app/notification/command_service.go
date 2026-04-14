@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravity-zero/evey/internal/domain/backup"
-	libevent "github.com/gravity-zero/evey/internal/domain/library"
-	"github.com/gravity-zero/evey/internal/domain/notification"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/domain/backup"
+	libevent "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/user"
 )
 
 type batchEntry struct {

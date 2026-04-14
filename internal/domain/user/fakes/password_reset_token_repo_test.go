@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/user"
 )
 
 func validToken(id, userID, hash string, expiresAt time.Time) *user.PasswordResetToken {

@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
-	"github.com/gravity-zero/evey/internal/domain/metadata"
-	metafakes "github.com/gravity-zero/evey/internal/domain/metadata/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appmetadata "github.com/evey-project/evey/internal/app/metadata"
+	"github.com/evey-project/evey/internal/domain/metadata"
+	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 )
 
 func newTestMetadataHandler() (*metadataHandler, *metafakes.FakeMetadataProvider, *metafakes.FakeArtworkRepository, *metafakes.FakeMetadataOverrideRepository) {

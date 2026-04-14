@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/notification"
-	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/user"
 )
 
 const dedupeWindow = 5 * time.Minute

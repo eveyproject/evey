@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
+	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"

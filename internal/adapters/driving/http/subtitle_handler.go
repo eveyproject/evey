@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
-	domainsubtitle "github.com/gravity-zero/evey/internal/domain/subtitle"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
+	domainsubtitle "github.com/evey-project/evey/internal/domain/subtitle"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
 // subtitleService is the subset of appsubtitle.Service used by HTTP routes.

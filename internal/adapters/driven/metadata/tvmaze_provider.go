@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	domain "github.com/gravity-zero/evey/internal/domain/metadata"
+	domain "github.com/evey-project/evey/internal/domain/metadata"
 	"golang.org/x/time/rate"
 )
 

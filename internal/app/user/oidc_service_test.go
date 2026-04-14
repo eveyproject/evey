@@ -19,10 +19,10 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/oauth2"
 
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 )
 
 // --- test OIDC infra ---

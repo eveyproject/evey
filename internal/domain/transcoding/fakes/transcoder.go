@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
 var ErrNotFound = shared.ErrNotFound

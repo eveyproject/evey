@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/auth"
 )
 
 var methodKeyRe = regexp.MustCompile(`^/evey\.v1\.\w+Service/\w+$`)

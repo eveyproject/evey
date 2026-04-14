@@ -5,7 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/lib/pq"
-	"github.com/gravity-zero/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/notification"
 )
 
 type NotificationSettingsRepository struct {

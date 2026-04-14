@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/plugin"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/pkg/auth"
 )
 
 // PluginTokenTTL is the fixed lifetime for iframe-scoped JWTs.

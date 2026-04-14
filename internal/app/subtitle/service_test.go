@@ -6,9 +6,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/domain/subtitle"
-	"github.com/gravity-zero/evey/internal/domain/subtitle/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/subtitle"
+	"github.com/evey-project/evey/internal/domain/subtitle/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

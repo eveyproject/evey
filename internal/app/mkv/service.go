@@ -3,7 +3,7 @@ package mkv
 import (
 	"context"
 
-	"github.com/gravity-zero/evey/internal/domain/mkv"
+	"github.com/evey-project/evey/internal/domain/mkv"
 )
 
 type Service struct {

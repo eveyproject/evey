@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	appbackup "github.com/gravity-zero/evey/internal/app/backup"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	appbackup "github.com/evey-project/evey/internal/app/backup"
+	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *auth.JWTGenerator, heavyRL, writeRL *ratelimit.Limiter) {

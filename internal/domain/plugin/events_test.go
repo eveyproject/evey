@@ -3,7 +3,7 @@ package plugin_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/domain/plugin"
 )
 
 func TestEventNames(t *testing.T) {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi"
-	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
-	plgfakes "github.com/gravity-zero/evey/internal/domain/plugin/fakes"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi"
+	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	plgfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	grpclib "google.golang.org/grpc"

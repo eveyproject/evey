@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	ufakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
+	ufakes "github.com/evey-project/evey/internal/domain/user/fakes"
 )
 
 func TestLibraryAccess_UserWithAccess_Authorized(t *testing.T) {

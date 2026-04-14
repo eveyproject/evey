@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/notification"
 )
 
 type subEntry struct {

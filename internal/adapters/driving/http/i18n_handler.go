@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gravity-zero/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/i18n"
 )
 
 func i18nHandler(translator *i18n.Translator, devMode ...bool) http.HandlerFunc {

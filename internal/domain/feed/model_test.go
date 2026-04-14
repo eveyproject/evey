@@ -3,7 +3,7 @@ package feed_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/feed"
+	"github.com/evey-project/evey/internal/domain/feed"
 )
 
 func TestType_IsValid(t *testing.T) {

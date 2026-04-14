@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	backupmodel "github.com/gravity-zero/evey/internal/domain/backup"
-	"github.com/gravity-zero/evey/internal/domain/backup/fakes"
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	backupmodel "github.com/evey-project/evey/internal/domain/backup"
+	"github.com/evey-project/evey/internal/domain/backup/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type fakeEventCollector struct {

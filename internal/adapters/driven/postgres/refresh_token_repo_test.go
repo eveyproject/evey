@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
-	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
-	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/adapters/driven/postgres"
+	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	appactivity "github.com/gravity-zero/evey/internal/app/activity"
-	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
-	activityfakes "github.com/gravity-zero/evey/internal/domain/activity/fakes"
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	pluginfakes "github.com/gravity-zero/evey/internal/domain/plugin/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
+	appactivity "github.com/evey-project/evey/internal/app/activity"
+	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	activityfakes "github.com/evey-project/evey/internal/domain/activity/fakes"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	pluginfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 )
 
 func newTestSystemHandler() *adminSystemHandler {

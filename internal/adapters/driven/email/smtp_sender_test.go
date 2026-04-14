@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	domainnotif "github.com/gravity-zero/evey/internal/domain/notification"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	domainnotif "github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
 // --- interface compliance ---

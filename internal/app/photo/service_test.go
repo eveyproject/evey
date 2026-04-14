@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	appphoto "github.com/gravity-zero/evey/internal/app/photo"
-	"github.com/gravity-zero/evey/internal/domain/photo"
-	photofakes "github.com/gravity-zero/evey/internal/domain/photo/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	appphoto "github.com/evey-project/evey/internal/app/photo"
+	"github.com/evey-project/evey/internal/domain/photo"
+	photofakes "github.com/evey-project/evey/internal/domain/photo/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 )
 
 var imageExts = map[string]string{

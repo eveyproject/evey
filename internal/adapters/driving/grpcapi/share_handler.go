@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	appmedia "github.com/gravity-zero/evey/internal/app/media"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	appmedia "github.com/evey-project/evey/internal/app/media"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

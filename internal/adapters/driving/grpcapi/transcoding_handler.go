@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
-	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
-	"github.com/gravity-zero/evey/internal/domain/transcoding"
-	"github.com/gravity-zero/evey/internal/pkg/id"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"testing"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	libraryfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	libraryfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 )
 
 func newTestScheduler() (*applibrary.Scheduler, *libraryfakes.FakeScanScheduleRepository) {

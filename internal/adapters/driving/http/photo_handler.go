@@ -10,10 +10,10 @@ import (
 	"path/filepath"
 	"time"
 
-	appphoto "github.com/gravity-zero/evey/internal/app/photo"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
-	"github.com/gravity-zero/evey/internal/pkg/exifstrip"
+	appphoto "github.com/evey-project/evey/internal/app/photo"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/exifstrip"
 )
 
 type photoHandler struct {

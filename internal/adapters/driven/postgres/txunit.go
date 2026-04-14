@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 // dbExecutor is the subset of *sql.DB / *sql.Tx used by repos. Lets repos run

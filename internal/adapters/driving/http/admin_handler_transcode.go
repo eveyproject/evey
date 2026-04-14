@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
-	"github.com/gravity-zero/evey/internal/pkg/id"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/id"
 )
 
 type profileBody struct {

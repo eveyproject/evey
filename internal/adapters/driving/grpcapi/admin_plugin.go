@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
-	"github.com/gravity-zero/evey/internal/domain/plugin"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	"github.com/evey-project/evey/internal/domain/plugin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"

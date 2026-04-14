@@ -7,11 +7,11 @@ import (
 	"log/slog"
 	"testing"
 
-	appfeed "github.com/gravity-zero/evey/internal/app/feed"
-	"github.com/gravity-zero/evey/internal/domain/feed"
-	"github.com/gravity-zero/evey/internal/domain/feed/fakes"
-	"github.com/gravity-zero/evey/internal/domain/library"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	appfeed "github.com/evey-project/evey/internal/app/feed"
+	"github.com/evey-project/evey/internal/domain/feed"
+	"github.com/evey-project/evey/internal/domain/feed/fakes"
+	"github.com/evey-project/evey/internal/domain/library"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	domainsubtitle "github.com/gravity-zero/evey/internal/domain/subtitle"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
+	domainsubtitle "github.com/evey-project/evey/internal/domain/subtitle"
 )
 
 type fakeSubtitleService struct {

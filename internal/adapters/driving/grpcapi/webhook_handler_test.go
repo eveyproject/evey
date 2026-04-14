@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"testing"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	"github.com/gravity-zero/evey/internal/domain/webhook"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appwebhook "github.com/evey-project/evey/internal/app/webhook"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/webhook"
 )
 
 type noopSender struct{}

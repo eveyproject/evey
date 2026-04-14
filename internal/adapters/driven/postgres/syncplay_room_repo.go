@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/gravity-zero/evey/internal/domain/syncplay"
+	"github.com/evey-project/evey/internal/domain/syncplay"
 )
 
 type SyncPlayRoomRepo struct {

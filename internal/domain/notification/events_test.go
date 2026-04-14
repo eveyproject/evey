@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/notification"
 )
 
 func TestNotificationEventNames(t *testing.T) {

@@ -3,7 +3,7 @@ package music_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/music"
+	"github.com/evey-project/evey/internal/domain/music"
 )
 
 func TestMusicEventNames(t *testing.T) {

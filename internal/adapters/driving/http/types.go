@@ -3,10 +3,10 @@ package httpapi
 import (
 	"context"
 
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
 // LibraryAccessChecker checks whether a user has access to a library.

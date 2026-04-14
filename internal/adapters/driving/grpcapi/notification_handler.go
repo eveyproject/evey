@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
-	appnotification "github.com/gravity-zero/evey/internal/app/notification"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	"github.com/gravity-zero/evey/internal/domain/notification"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	appnotification "github.com/evey-project/evey/internal/app/notification"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	"github.com/evey-project/evey/internal/domain/notification"
 )
 
 type notificationHandler struct {

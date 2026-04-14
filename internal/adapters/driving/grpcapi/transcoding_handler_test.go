@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	"github.com/gravity-zero/evey/internal/domain/transcoding"
-	tcfakes "github.com/gravity-zero/evey/internal/domain/transcoding/fakes"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/transcoding"
+	tcfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
 )
 
 func newTestTranscodingHandler() (*transcodingHandler, *tcfakes.FakeTranscoder, *tcfakes.FakeTranscodeJobRepository, *tcfakes.FakeTranscodeProfileRepository) {

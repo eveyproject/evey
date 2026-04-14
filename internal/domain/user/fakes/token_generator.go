@@ -6,7 +6,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/domain/user"
 )
 
 type FakeTokenGenerator struct {

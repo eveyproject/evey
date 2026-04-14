@@ -3,9 +3,9 @@ package transcoding_test
 import (
 	"testing"
 
-	apptranscode "github.com/gravity-zero/evey/internal/app/transcoding"
-	"github.com/gravity-zero/evey/internal/domain/library"
-	"github.com/gravity-zero/evey/internal/domain/transcoding"
+	apptranscode "github.com/evey-project/evey/internal/app/transcoding"
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gravity-zero/evey/internal/domain/library"
-	"github.com/gravity-zero/evey/internal/domain/playlist"
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/playlist"
 )
 
 const maxItems = 500

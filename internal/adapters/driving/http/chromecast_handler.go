@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	appcast "github.com/gravity-zero/evey/internal/app/chromecast"
+	appcast "github.com/evey-project/evey/internal/app/chromecast"
 )
 
 const castMaxBodySize = 4096

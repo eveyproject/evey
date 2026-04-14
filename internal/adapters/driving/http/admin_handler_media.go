@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 func (h *adminHandler) handleMedia(w http.ResponseWriter, r *http.Request) {

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/domain/user"
 )
 
 func TestQuickConnectStatusConstants(t *testing.T) {

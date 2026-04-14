@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
-	shared "github.com/gravity-zero/evey/internal/domain/shared"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
+	shared "github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
 func TestArtwork_LocalFile_200(t *testing.T) {

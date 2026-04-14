@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	domaincast "github.com/gravity-zero/evey/internal/domain/chromecast"
-	castfakes "github.com/gravity-zero/evey/internal/domain/chromecast/fakes"
+	domaincast "github.com/evey-project/evey/internal/domain/chromecast"
+	castfakes "github.com/evey-project/evey/internal/domain/chromecast/fakes"
 )
 
 func newTestSvc(devices ...domaincast.Device) (*Service, *castfakes.FakeDiscoverer, *castfakes.FakeSessionFactory) {

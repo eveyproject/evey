@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/subtitle"
+	"github.com/evey-project/evey/internal/domain/subtitle"
 )
 
 const (

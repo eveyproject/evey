@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"sync"
 
-	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	"github.com/gravity-zero/evey/internal/config"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	"github.com/evey-project/evey/internal/config"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 const (

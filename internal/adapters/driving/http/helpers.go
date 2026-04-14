@@ -12,8 +12,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
 var unsafeFilenameChars = regexp.MustCompile(`[^\w\s.\-()]`)

@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	appmusic "github.com/gravity-zero/evey/internal/app/music"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
+	appmusic "github.com/evey-project/evey/internal/app/music"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/auth"
 )
 
 type musicHandler struct {

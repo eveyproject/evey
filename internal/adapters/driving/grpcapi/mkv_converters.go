@@ -3,8 +3,8 @@ package grpcapi
 import (
 	"fmt"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/domain/mkv"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/domain/mkv"
 )
 
 var mkvTrackTypeToProto = map[mkv.TrackType]eveyv1.TrackType{

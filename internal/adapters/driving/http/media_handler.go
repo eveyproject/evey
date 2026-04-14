@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/library"
 )
 
 // filterMasterPlaylist removes #EXT-X-STREAM-INF variants exceeding maxBps (bps).

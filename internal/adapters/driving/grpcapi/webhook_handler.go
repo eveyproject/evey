@@ -3,9 +3,9 @@ package grpcapi
 import (
 	"context"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
-	"github.com/gravity-zero/evey/internal/domain/webhook"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appwebhook "github.com/evey-project/evey/internal/app/webhook"
+	"github.com/evey-project/evey/internal/domain/webhook"
 )
 
 type webhookHandler struct {

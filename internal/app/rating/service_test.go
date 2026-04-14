@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	apprating "github.com/gravity-zero/evey/internal/app/rating"
-	"github.com/gravity-zero/evey/internal/domain/rating/fakes"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	apprating "github.com/evey-project/evey/internal/app/rating"
+	"github.com/evey-project/evey/internal/domain/rating/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 )
 
 func newSvc(t *testing.T) *apprating.Service {

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	appmusic "github.com/gravity-zero/evey/internal/app/music"
-	"github.com/gravity-zero/evey/internal/domain/music"
-	"github.com/gravity-zero/evey/internal/domain/music/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	appmusic "github.com/evey-project/evey/internal/app/music"
+	"github.com/evey-project/evey/internal/domain/music"
+	"github.com/evey-project/evey/internal/domain/music/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 )
 
 // --- ID3v2 helpers ---

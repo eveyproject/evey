@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
+	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 )
 
 func TestRestoreTables_Validation(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/gravity-zero/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/activity"
 )
 
 type PlayHistoryRepository struct {

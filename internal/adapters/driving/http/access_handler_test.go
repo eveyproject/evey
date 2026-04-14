@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/config"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/config"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 func setupRemoteAccessMux(t *testing.T) (*http.ServeMux, string, string) {

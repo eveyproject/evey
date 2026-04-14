@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/domain/plugin"
 )
 
 const (

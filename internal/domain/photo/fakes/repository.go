@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/photo"
+	"github.com/evey-project/evey/internal/domain/photo"
 )
 
 type FakeRepository struct {

@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	appphoto "github.com/gravity-zero/evey/internal/app/photo"
-	"github.com/gravity-zero/evey/internal/domain/library"
-	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
-	"github.com/gravity-zero/evey/internal/domain/photo"
-	photofakes "github.com/gravity-zero/evey/internal/domain/photo/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	appphoto "github.com/evey-project/evey/internal/app/photo"
+	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/photo"
+	photofakes "github.com/evey-project/evey/internal/domain/photo/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

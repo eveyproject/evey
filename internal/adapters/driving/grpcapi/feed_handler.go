@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"slices"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
-	appfeed "github.com/gravity-zero/evey/internal/app/feed"
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
-	"github.com/gravity-zero/evey/internal/domain/feed"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	appfeed "github.com/evey-project/evey/internal/app/feed"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/feed"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

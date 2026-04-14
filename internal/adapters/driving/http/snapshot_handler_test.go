@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
 type fakeFrameExt struct {

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/gravity-zero/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
 var _ transcoding.HLSProcess = (*HLSProcess)(nil)

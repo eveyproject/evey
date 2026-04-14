@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/syncplay"
-	"github.com/gravity-zero/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/domain/syncplay"
+	"github.com/evey-project/evey/internal/pkg/id"
 )
 
 type connEntry struct {

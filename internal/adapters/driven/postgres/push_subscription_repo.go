@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/gravity-zero/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/notification"
 )
 
 type PushSubscriptionRepository struct {

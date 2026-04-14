@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/gravity-zero/evey/internal/domain/chromecast"
+	"github.com/evey-project/evey/internal/domain/chromecast"
 )
 
 type FakeDiscoverer struct {

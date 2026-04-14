@@ -5,15 +5,15 @@ import (
 	"testing"
 	"time"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
-	appcollection "github.com/gravity-zero/evey/internal/app/collection"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
-	"github.com/gravity-zero/evey/internal/domain/library"
-	libraryfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	"github.com/gravity-zero/evey/internal/domain/user"
-	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	appcollection "github.com/evey-project/evey/internal/app/collection"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/library"
+	libraryfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/user"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 )
 
 func newTestCollectionHandler() (*collectionHandler, *libraryfakes.FakeCollectionCommandRepo) {

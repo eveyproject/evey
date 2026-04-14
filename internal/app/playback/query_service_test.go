@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	appplayback "github.com/gravity-zero/evey/internal/app/playback"
-	pbfakes "github.com/gravity-zero/evey/internal/domain/playback/fakes"
+	appplayback "github.com/evey-project/evey/internal/app/playback"
+	pbfakes "github.com/evey-project/evey/internal/domain/playback/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

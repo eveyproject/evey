@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	appmedia "github.com/gravity-zero/evey/internal/app/media"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
+	appmedia "github.com/evey-project/evey/internal/app/media"
+	"github.com/evey-project/evey/internal/pkg/auth"
 )
 
 func streamTokenHandler(tokenGen *auth.JWTGenerator, store *appmedia.StreamTokenStore, libAccess LibraryAccessChecker, mediaGetter mediaLibraryGetter) http.HandlerFunc {

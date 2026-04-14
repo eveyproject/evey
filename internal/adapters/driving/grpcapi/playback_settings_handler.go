@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"sync"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appconfig "github.com/gravity-zero/evey/internal/app/config"
-	"github.com/gravity-zero/evey/internal/config"
-	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appconfig "github.com/evey-project/evey/internal/app/config"
+	"github.com/evey-project/evey/internal/config"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
 )
 

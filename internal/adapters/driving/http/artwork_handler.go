@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
-	"github.com/gravity-zero/evey/internal/pkg/urlvalidator"
+	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/pkg/urlvalidator"
 )
 
 func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {

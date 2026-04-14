@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
 type httpClaimsCtxKey struct{}

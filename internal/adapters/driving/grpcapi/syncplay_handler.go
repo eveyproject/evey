@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
-	domainsyncplay "github.com/gravity-zero/evey/internal/domain/syncplay"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

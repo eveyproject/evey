@@ -13,15 +13,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/config"
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
-	shared "github.com/gravity-zero/evey/internal/domain/shared"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/config"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
+	shared "github.com/evey-project/evey/internal/domain/shared"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 // --- shared helpers ---

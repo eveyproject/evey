@@ -3,7 +3,7 @@ package photo_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/photo"
+	"github.com/evey-project/evey/internal/domain/photo"
 )
 
 func TestPhoto_Validate(t *testing.T) {

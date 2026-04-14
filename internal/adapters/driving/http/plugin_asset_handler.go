@@ -11,10 +11,10 @@ import (
 	"slices"
 	"strings"
 
-	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
-	domainplugin "github.com/gravity-zero/evey/internal/domain/plugin"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 type pluginManager interface {

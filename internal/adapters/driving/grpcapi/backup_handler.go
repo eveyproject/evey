@@ -3,9 +3,9 @@ package grpcapi
 import (
 	"context"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appbackup "github.com/gravity-zero/evey/internal/app/backup"
-	domainbackup "github.com/gravity-zero/evey/internal/domain/backup"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appbackup "github.com/evey-project/evey/internal/app/backup"
+	domainbackup "github.com/evey-project/evey/internal/domain/backup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"

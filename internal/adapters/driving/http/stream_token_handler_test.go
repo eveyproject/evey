@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	appmedia "github.com/gravity-zero/evey/internal/app/media"
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
+	appmedia "github.com/evey-project/evey/internal/app/media"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/auth"
 )
 
 func TestStreamTokenHandler_CreateToken(t *testing.T) {

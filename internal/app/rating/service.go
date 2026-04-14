@@ -3,9 +3,9 @@ package rating
 import (
 	"context"
 
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	"github.com/gravity-zero/evey/internal/domain/rating"
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/rating"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 // Service is a facade over CommandService and QueryService for backward compatibility.

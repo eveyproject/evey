@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

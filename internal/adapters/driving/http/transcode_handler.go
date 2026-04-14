@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
 
 func chaptersHandler(tokenGen TokenVerifier, libSvc ChaptersGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {

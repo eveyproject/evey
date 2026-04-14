@@ -7,8 +7,8 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
-	"github.com/gravity-zero/evey/internal/config"
+	"github.com/evey-project/evey/internal/adapters/driven/postgres"
+	"github.com/evey-project/evey/internal/config"
 )
 
 func openDB(cfg *config.Config) (*sql.DB, error) {

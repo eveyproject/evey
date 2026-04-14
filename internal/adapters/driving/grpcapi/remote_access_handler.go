@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"sync"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/config"
-	"github.com/gravity-zero/evey/internal/pkg/network"
-	"github.com/gravity-zero/evey/internal/pkg/urlvalidator"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/config"
+	"github.com/evey-project/evey/internal/pkg/network"
+	"github.com/evey-project/evey/internal/pkg/urlvalidator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

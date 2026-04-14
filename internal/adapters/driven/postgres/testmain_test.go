@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 )
 
 func TestMain(m *testing.M) {

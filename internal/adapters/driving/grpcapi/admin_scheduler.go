@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/adapters/driven/filesystem"
+	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

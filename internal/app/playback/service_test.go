@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	appplayback "github.com/gravity-zero/evey/internal/app/playback"
-	"github.com/gravity-zero/evey/internal/domain/playback"
-	pbfakes "github.com/gravity-zero/evey/internal/domain/playback/fakes"
-	"github.com/gravity-zero/evey/internal/domain/user"
-	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	appplayback "github.com/evey-project/evey/internal/app/playback"
+	"github.com/evey-project/evey/internal/domain/playback"
+	pbfakes "github.com/evey-project/evey/internal/domain/playback/fakes"
+	"github.com/evey-project/evey/internal/domain/user"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

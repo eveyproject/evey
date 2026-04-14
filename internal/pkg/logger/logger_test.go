@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/pkg/logger"
+	"github.com/evey-project/evey/internal/pkg/logger"
 )
 
 func todayLogFile(dir string) string {

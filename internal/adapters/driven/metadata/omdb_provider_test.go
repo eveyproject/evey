@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	domain "github.com/gravity-zero/evey/internal/domain/metadata"
+	domain "github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

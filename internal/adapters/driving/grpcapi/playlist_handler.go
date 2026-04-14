@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
-	"github.com/gravity-zero/evey/internal/domain/library"
-	"github.com/gravity-zero/evey/internal/domain/playlist"
-	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	appplaylist "github.com/evey-project/evey/internal/app/playlist"
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/playlist"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

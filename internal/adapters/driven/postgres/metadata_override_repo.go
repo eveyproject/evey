@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/gravity-zero/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/domain/metadata"
 )
 
 type MetadataOverrideRepository struct {

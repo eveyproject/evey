@@ -8,12 +8,12 @@ import (
 	"log/slog"
 	"net/http"
 
-	appuser "github.com/gravity-zero/evey/internal/app/user"
+	appuser "github.com/evey-project/evey/internal/app/user"
 
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 const (

@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 )
 
 func newTranscodeServe(tv TokenVerifier, libSvc MediaStreamsGetter, la LibraryAccessChecker) http.HandlerFunc {

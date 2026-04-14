@@ -1,8 +1,8 @@
 package grpcapi
 
 import (
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/domain/plugin"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/domain/plugin"
 )
 
 var pluginStateToProto = map[string]eveyv1.PluginState{

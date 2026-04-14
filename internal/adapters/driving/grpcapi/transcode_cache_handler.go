@@ -3,8 +3,8 @@ package grpcapi
 import (
 	"context"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

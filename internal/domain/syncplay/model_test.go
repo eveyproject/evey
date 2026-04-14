@@ -3,7 +3,7 @@ package syncplay_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/syncplay"
+	"github.com/evey-project/evey/internal/domain/syncplay"
 )
 
 func TestGenerateCode(t *testing.T) {

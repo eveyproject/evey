@@ -3,13 +3,13 @@ package grpcapi
 import (
 	"context"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
-	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
-	"github.com/gravity-zero/evey/internal/pkg/id"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	appmetadata "github.com/evey-project/evey/internal/app/metadata"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

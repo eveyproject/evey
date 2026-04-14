@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravity-zero/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/activity"
 )
 
 type FakeAuditLogRepository struct {

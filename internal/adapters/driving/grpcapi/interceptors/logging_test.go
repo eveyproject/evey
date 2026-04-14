@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
-	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

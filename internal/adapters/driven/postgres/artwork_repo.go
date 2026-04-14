@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravity-zero/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/lib/pq"
 )
 

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/config"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/config"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 type fakeSettingsStore struct {

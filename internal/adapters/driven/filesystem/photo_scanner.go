@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravity-zero/evey/internal/domain/photo"
-	"github.com/gravity-zero/evey/internal/pkg/filehash"
+	"github.com/evey-project/evey/internal/domain/photo"
+	"github.com/evey-project/evey/internal/pkg/filehash"
 )
 
 var imageExts = map[string]string{

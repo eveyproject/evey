@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/gravity-zero/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/activity"
 )
 
 type LoginHistoryRepository struct {

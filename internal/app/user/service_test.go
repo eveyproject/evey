@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	appuser "github.com/gravity-zero/evey/internal/app/user"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

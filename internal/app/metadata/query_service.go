@@ -3,7 +3,7 @@ package metadata
 import (
 	"context"
 
-	"github.com/gravity-zero/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/domain/metadata"
 )
 
 type QueryService struct {

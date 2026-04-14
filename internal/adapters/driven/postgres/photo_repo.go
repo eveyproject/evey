@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/photo"
+	"github.com/evey-project/evey/internal/domain/photo"
 )
 
 type PhotoRepository struct {

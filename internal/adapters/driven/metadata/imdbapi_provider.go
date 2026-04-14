@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	domain "github.com/gravity-zero/evey/internal/domain/metadata"
+	domain "github.com/evey-project/evey/internal/domain/metadata"
 )
 
 const imdbAPIBaseURL = "https://api.imdbapi.dev"

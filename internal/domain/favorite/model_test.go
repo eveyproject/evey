@@ -3,7 +3,7 @@ package favorite_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/favorite"
+	"github.com/evey-project/evey/internal/domain/favorite"
 )
 
 func TestFavorite_Validate(t *testing.T) {

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/syncplay"
-	"github.com/gravity-zero/evey/internal/domain/syncplay/fakes"
+	"github.com/evey-project/evey/internal/domain/syncplay"
+	"github.com/evey-project/evey/internal/domain/syncplay/fakes"
 )
 
 // captureSlog swaps the default slog logger for the duration of the test

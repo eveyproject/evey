@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	appbackup "github.com/gravity-zero/evey/internal/app/backup"
-	backupfakes "github.com/gravity-zero/evey/internal/domain/backup/fakes"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	appbackup "github.com/evey-project/evey/internal/app/backup"
+	backupfakes "github.com/evey-project/evey/internal/domain/backup/fakes"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 func newBackupTestMux(t *testing.T, isAdmin bool) (*http.ServeMux, string) {

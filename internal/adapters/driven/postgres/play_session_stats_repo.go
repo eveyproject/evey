@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/activity"
 )
 
 type PlaySessionStatsReader struct {

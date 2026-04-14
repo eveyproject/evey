@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appnotification "github.com/gravity-zero/evey/internal/app/notification"
-	notiffakes "github.com/gravity-zero/evey/internal/domain/notification/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appnotification "github.com/evey-project/evey/internal/app/notification"
+	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

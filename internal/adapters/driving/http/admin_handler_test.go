@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/auth"
 )
 
 func TestTailFile_ReturnsLastN(t *testing.T) {

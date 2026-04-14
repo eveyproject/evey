@@ -3,10 +3,10 @@ package grpcapi
 import (
 	"context"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
-	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	appmetadata "github.com/evey-project/evey/internal/app/metadata"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
 )
 

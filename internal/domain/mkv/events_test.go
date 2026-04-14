@@ -3,7 +3,7 @@ package mkv_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/domain/mkv"
+	"github.com/evey-project/evey/internal/domain/mkv"
 )
 
 func TestEventNames(t *testing.T) {

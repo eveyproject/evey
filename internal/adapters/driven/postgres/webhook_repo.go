@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/gravity-zero/evey/internal/domain/webhook"
+	"github.com/evey-project/evey/internal/domain/webhook"
 	"github.com/lib/pq"
 )
 

@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"log/slog"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appnotification "github.com/gravity-zero/evey/internal/app/notification"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appnotification "github.com/evey-project/evey/internal/app/notification"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"

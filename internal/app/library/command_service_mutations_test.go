@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	applib "github.com/gravity-zero/evey/internal/app/library"
-	"github.com/gravity-zero/evey/internal/domain/library"
-	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
-	mkvfakes "github.com/gravity-zero/evey/internal/domain/mkv/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	applib "github.com/evey-project/evey/internal/app/library"
+	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

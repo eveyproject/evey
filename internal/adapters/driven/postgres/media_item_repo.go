@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/lib/pq"
-	"github.com/gravity-zero/evey/internal/domain/library"
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 const mediaItemColumns = `id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,

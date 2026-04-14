@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	appdlna "github.com/gravity-zero/evey/internal/app/dlna"
+	appdlna "github.com/evey-project/evey/internal/app/dlna"
 )
 
 const dlnaMaxBodySize = 4096

@@ -8,16 +8,16 @@ import (
 	"runtime/debug"
 	"time"
 
-	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
-	appcast "github.com/gravity-zero/evey/internal/app/chromecast"
-	appdlna "github.com/gravity-zero/evey/internal/app/dlna"
-	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
-	"github.com/gravity-zero/evey/internal/config"
-	"github.com/gravity-zero/evey/internal/domain/shared"
-	eveymetrics "github.com/gravity-zero/evey/internal/pkg/metrics"
-	"github.com/gravity-zero/evey/internal/pkg/network"
-	"github.com/gravity-zero/evey/internal/pkg/quickconnecthub"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
+	appcast "github.com/evey-project/evey/internal/app/chromecast"
+	appdlna "github.com/evey-project/evey/internal/app/dlna"
+	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
+	"github.com/evey-project/evey/internal/config"
+	"github.com/evey-project/evey/internal/domain/shared"
+	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/evey-project/evey/internal/pkg/network"
+	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, startTime time.Time, logDir string, ctx context.Context, qcHub *quickconnecthub.Hub) (http.Handler, error) {

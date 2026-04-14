@@ -3,7 +3,7 @@ package id_test
 import (
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/id"
 )
 
 func TestNew_HasPrefix(t *testing.T) {

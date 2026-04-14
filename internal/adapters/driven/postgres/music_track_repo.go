@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravity-zero/evey/internal/domain/music"
-	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/music"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type MusicTrackRepository struct {

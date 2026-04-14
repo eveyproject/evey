@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gravity-zero/evey/internal/adapters/driven/search"
-	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/adapters/driven/search"
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

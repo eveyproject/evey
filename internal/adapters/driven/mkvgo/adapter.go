@@ -10,7 +10,7 @@ import (
 	"github.com/gravity-zero/mkvgo/mkv/ops"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
 
-	"github.com/gravity-zero/evey/internal/domain/mkv"
+	"github.com/evey-project/evey/internal/domain/mkv"
 )
 
 type Adapter struct{}

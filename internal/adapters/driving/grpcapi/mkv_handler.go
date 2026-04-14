@@ -3,9 +3,9 @@ package grpcapi
 import (
 	"context"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appmkv "github.com/gravity-zero/evey/internal/app/mkv"
-	"github.com/gravity-zero/evey/internal/domain/mkv"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appmkv "github.com/evey-project/evey/internal/app/mkv"
+	"github.com/evey-project/evey/internal/domain/mkv"
 )
 
 type mkvHandler struct {

@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
-	"github.com/gravity-zero/evey/internal/config"
-	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
-	"github.com/gravity-zero/evey/internal/pkg/quickconnecthub"
+	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
+	"github.com/evey-project/evey/internal/config"
+	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
+	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 )
 
 // version is set at build time via -ldflags "-X main.version=..."

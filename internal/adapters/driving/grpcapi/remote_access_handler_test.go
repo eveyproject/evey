@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/config"
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/config"
 	"google.golang.org/grpc/codes"
 )
 
