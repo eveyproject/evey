@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Play } from "lucide-react";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
 import { eveyFetch, useAdminSystemServiceSetupWizard, useLibraryServiceCreateLibrary, adminSystemServiceGetSetupStatus } from "@evey/api";
+import type { V1LibraryType } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
@@ -35,7 +36,7 @@ interface AdminForm {
 
 interface LibraryForm {
   name: string;
-  type: string;
+  type: V1LibraryType;
   paths: string[];
 }
 
@@ -169,8 +170,7 @@ function SetupPage() {
       setLibraryError(t("admin.libraries.pathRequired") || "At least one path is required");
       return;
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    createLibrary.mutate({ data: { name: libraryForm.name, type: libraryForm.type as any, paths: validPaths } });
+    createLibrary.mutate({ data: { name: libraryForm.name, type: libraryForm.type, paths: validPaths } });
   };
 
   const logoIcon = (
@@ -302,7 +302,7 @@ function SetupPage() {
               label={t("auth.setup.libraryType")}
               options={LIBRARY_TYPE_OPTIONS}
               value={libraryForm.type}
-              onChange={(value) => setLibraryForm((prev) => ({ ...prev, type: value }))}
+              onChange={(value) => setLibraryForm((prev) => ({ ...prev, type: value as V1LibraryType }))}
             />
             <div className="flex flex-col gap-2">
               <span className="text-sm font-medium text-[var(--text-muted)]">
