@@ -19,7 +19,7 @@ func newTestPlaylist(id, userID string) *domainplaylist.Playlist {
 		ID:          id,
 		Name:        "Playlist " + id,
 		Description: "Desc for " + id,
-		UserID:      userID,
+		UserID:      shared.UserID(userID),
 		Type:        domainplaylist.Manual,
 		Rules:       []domainplaylist.Rule{},
 		SortBy:      "sort_order",
@@ -105,18 +105,18 @@ func TestPlaylistRepo_AddItem(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{
-		PlaylistID: pl.ID, MediaItemID: string(mi1.ID), SortOrder: 0, AddedAt: now,
+		PlaylistID: pl.ID, MediaItemID: mi1.ID, SortOrder: 0, AddedAt: now,
 	}))
 	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{
-		PlaylistID: pl.ID, MediaItemID: string(mi2.ID), SortOrder: 1, AddedAt: now,
+		PlaylistID: pl.ID, MediaItemID: mi2.ID, SortOrder: 1, AddedAt: now,
 	}))
 
 	items, err := plItemRepo.GetByPlaylistID(ctx, pl.ID)
 	require.NoError(t, err)
 	assert.Len(t, items, 2)
-	assert.Equal(t, string(mi1.ID), items[0].MediaItemID)
+	assert.Equal(t, mi1.ID, items[0].MediaItemID)
 	assert.Equal(t, 0, items[0].SortOrder)
-	assert.Equal(t, string(mi2.ID), items[1].MediaItemID)
+	assert.Equal(t, mi2.ID, items[1].MediaItemID)
 	assert.Equal(t, 1, items[1].SortOrder)
 }
 
@@ -146,20 +146,20 @@ func TestPlaylistRepo_ReorderItems(t *testing.T) {
 	require.NoError(t, plRepo.Create(ctx, pl))
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
-	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{PlaylistID: pl.ID, MediaItemID: string(mi1.ID), SortOrder: 0, AddedAt: now}))
-	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{PlaylistID: pl.ID, MediaItemID: string(mi2.ID), SortOrder: 1, AddedAt: now}))
-	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{PlaylistID: pl.ID, MediaItemID: string(mi3.ID), SortOrder: 2, AddedAt: now}))
+	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{PlaylistID: pl.ID, MediaItemID: mi1.ID, SortOrder: 0, AddedAt: now}))
+	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{PlaylistID: pl.ID, MediaItemID: mi2.ID, SortOrder: 1, AddedAt: now}))
+	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{PlaylistID: pl.ID, MediaItemID: mi3.ID, SortOrder: 2, AddedAt: now}))
 
 	require.NoError(t, plItemRepo.Reorder(ctx, pl.ID, []string{string(mi3.ID), string(mi1.ID), string(mi2.ID)}))
 
 	items, err := plItemRepo.GetByPlaylistID(ctx, pl.ID)
 	require.NoError(t, err)
 	assert.Len(t, items, 3)
-	assert.Equal(t, string(mi3.ID), items[0].MediaItemID)
+	assert.Equal(t, mi3.ID, items[0].MediaItemID)
 	assert.Equal(t, 0, items[0].SortOrder)
-	assert.Equal(t, string(mi1.ID), items[1].MediaItemID)
+	assert.Equal(t, mi1.ID, items[1].MediaItemID)
 	assert.Equal(t, 1, items[1].SortOrder)
-	assert.Equal(t, string(mi2.ID), items[2].MediaItemID)
+	assert.Equal(t, mi2.ID, items[2].MediaItemID)
 	assert.Equal(t, 2, items[2].SortOrder)
 }
 
@@ -237,7 +237,7 @@ func TestPlaylistRepo_Delete(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{
-		PlaylistID: pl.ID, MediaItemID: string(mi.ID), SortOrder: 0, AddedAt: now,
+		PlaylistID: pl.ID, MediaItemID: mi.ID, SortOrder: 0, AddedAt: now,
 	}))
 
 	require.NoError(t, plRepo.Delete(ctx, pl.ID))

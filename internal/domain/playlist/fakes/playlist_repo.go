@@ -49,7 +49,7 @@ func (r *FakePlaylistRepository) List(_ context.Context, userID string) ([]*play
 	defer r.mu.RUnlock()
 	var result []*playlist.Playlist
 	for _, pl := range r.items {
-		if pl.UserID == userID {
+		if string(pl.UserID) == userID {
 			result = append(result, pl)
 		}
 	}

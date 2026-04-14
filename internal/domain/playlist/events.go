@@ -1,10 +1,14 @@
 package playlist
 
-import "time"
+import (
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+)
 
 type PlaylistCreated struct {
 	ID         string
-	UserID     string
+	UserID     shared.UserID
 	Name       string
 	OccurredAt time.Time
 }
@@ -20,7 +24,7 @@ func (e PlaylistUpdated) EventName() string { return "playlist.updated" }
 
 type ItemAdded struct {
 	PlaylistID  string
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	OccurredAt  time.Time
 }
 
@@ -28,7 +32,7 @@ func (e ItemAdded) EventName() string { return "playlist.item.added" }
 
 type ItemRemoved struct {
 	PlaylistID  string
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	OccurredAt  time.Time
 }
 

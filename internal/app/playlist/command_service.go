@@ -113,7 +113,7 @@ func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, u
 	}
 	return s.items.Add(ctx, &playlist.PlaylistItem{
 		PlaylistID:  playlistID,
-		MediaItemID: mediaItemID,
+		MediaItemID: shared.MediaItemID(mediaItemID),
 		SortOrder:   nextOrder,
 		AddedAt:     time.Now(),
 	})

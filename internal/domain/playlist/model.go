@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/id"
 )
 
@@ -18,7 +19,7 @@ type Playlist struct {
 	ID          string
 	Name        string
 	Description string
-	UserID      string
+	UserID      shared.UserID
 	Type        PlaylistType
 	Rules       []Rule
 	SortBy      string
@@ -29,7 +30,7 @@ type Playlist struct {
 
 type PlaylistItem struct {
 	PlaylistID  string
-	MediaItemID string
+	MediaItemID shared.MediaItemID
 	SortOrder   int
 	AddedAt     time.Time
 }
@@ -59,7 +60,7 @@ func NewPlaylist(name, userID string, ptype PlaylistType) (*Playlist, error) {
 	p := &Playlist{
 		ID:        id.New("pl-"),
 		Name:      name,
-		UserID:    userID,
+		UserID:    shared.UserID(userID),
 		Type:      ptype,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -71,7 +72,7 @@ func NewPlaylist(name, userID string, ptype PlaylistType) (*Playlist, error) {
 }
 
 func (p *Playlist) IsOwner(userID string) bool {
-	return p.UserID == userID
+	return p.UserID == shared.UserID(userID)
 }
 
 func (p *Playlist) IsSmart() bool {

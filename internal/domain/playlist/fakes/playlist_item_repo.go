@@ -42,7 +42,7 @@ func (r *FakePlaylistItemRepository) Remove(_ context.Context, playlistID, media
 	defer r.mu.Unlock()
 	items := r.items[playlistID]
 	for i, it := range items {
-		if it.MediaItemID == mediaItemID {
+		if string(it.MediaItemID) == mediaItemID {
 			r.items[playlistID] = append(items[:i], items[i+1:]...)
 			return nil
 		}
@@ -74,7 +74,7 @@ func (r *FakePlaylistItemRepository) Reorder(_ context.Context, playlistID strin
 	items := r.items[playlistID]
 	byID := make(map[string]*playlist.PlaylistItem, len(items))
 	for _, it := range items {
-		byID[it.MediaItemID] = it
+		byID[string(it.MediaItemID)] = it
 	}
 	reordered := make([]*playlist.PlaylistItem, 0, len(mediaItemIDs))
 	for i, mid := range mediaItemIDs {

@@ -153,8 +153,8 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 	if h.libQuery != nil && len(plItems) > 0 {
 		ids := make([]string, 0, len(plItems))
 		for _, it := range plItems {
-			if _, ok := mediaByID[it.MediaItemID]; !ok {
-				ids = append(ids, it.MediaItemID)
+			if _, ok := mediaByID[string(it.MediaItemID)]; !ok {
+				ids = append(ids, string(it.MediaItemID))
 			}
 		}
 		if len(ids) > 0 {
@@ -168,11 +168,11 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 	for _, it := range plItems {
 		pi := &eveyv1.PlaylistItemProto{
 			PlaylistId:  it.PlaylistID,
-			MediaItemId: it.MediaItemID,
+			MediaItemId: string(it.MediaItemID),
 			SortOrder:   int32(it.SortOrder),
 			AddedAt:     toTimestamppb(it.AddedAt),
 		}
-		if m := mediaByID[it.MediaItemID]; m != nil {
+		if m := mediaByID[string(it.MediaItemID)]; m != nil {
 			pi.Title = m.Title
 			pi.Type = string(m.Type)
 			if m.Year != nil {
@@ -265,7 +265,7 @@ func playlistToProto(pl *playlist.Playlist) *eveyv1.PlaylistProto {
 		Id:          pl.ID,
 		Name:        pl.Name,
 		Description: pl.Description,
-		UserId:      pl.UserID,
+		UserId:      string(pl.UserID),
 		Type:        playlistTypeToProtoMap[pl.Type],
 		SortBy:      pl.SortBy,
 		SortOrder:   pl.SortOrder,
