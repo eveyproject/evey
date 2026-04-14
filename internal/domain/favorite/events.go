@@ -1,18 +1,22 @@
 package favorite
 
-import "time"
+import (
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+)
 
 type FavoriteAdded struct {
-	UserID      string
-	MediaItemID string
+	UserID      shared.UserID
+	MediaItemID shared.MediaItemID
 	OccurredAt  time.Time
 }
 
 func (e FavoriteAdded) EventName() string { return "favorite.added" }
 
 type FavoriteRemoved struct {
-	UserID      string
-	MediaItemID string
+	UserID      shared.UserID
+	MediaItemID shared.MediaItemID
 	OccurredAt  time.Time
 }
 

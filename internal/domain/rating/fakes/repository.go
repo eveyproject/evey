@@ -26,7 +26,7 @@ func (r *FakeRepository) Upsert(_ context.Context, rt rating.Rating) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.ratings[key(rt.MediaItemID, rt.ProfileID)] = rt
+	r.ratings[key(string(rt.MediaItemID), string(rt.ProfileID))] = rt
 	return nil
 }
 
@@ -63,10 +63,10 @@ func (r *FakeRepository) GetAggregates(_ context.Context, mediaItemIDs []string)
 	type sum struct{ total, count int }
 	sums := make(map[string]sum)
 	for _, rt := range r.ratings {
-		s := sums[rt.MediaItemID]
+		s := sums[string(rt.MediaItemID)]
 		s.total += rt.Value.Int()
 		s.count++
-		sums[rt.MediaItemID] = s
+		sums[string(rt.MediaItemID)] = s
 	}
 	result := make(map[string]rating.Aggregate, len(mediaItemIDs))
 	for _, id := range mediaItemIDs {

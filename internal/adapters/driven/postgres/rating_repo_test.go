@@ -38,8 +38,8 @@ func TestRatingRepo_Upsert_Get(t *testing.T) {
 	require.NoError(t, err)
 
 	rt := rating.Rating{
-		MediaItemID: string(item.ID),
-		ProfileID:   string(p.ID),
+		MediaItemID: item.ID,
+		ProfileID:   p.ID,
 		Value:       val,
 	}
 	require.NoError(t, repo.Upsert(ctx, rt))
@@ -81,7 +81,7 @@ func TestRatingRepo_Delete(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	val, _ := rating.NewRatingValue(3)
-	require.NoError(t, repo.Upsert(ctx, rating.Rating{MediaItemID: string(item.ID), ProfileID: string(p.ID), Value: val}))
+	require.NoError(t, repo.Upsert(ctx, rating.Rating{MediaItemID: item.ID, ProfileID: p.ID, Value: val}))
 	require.NoError(t, repo.Delete(ctx, string(item.ID), string(p.ID)))
 
 	_, err := repo.Get(ctx, string(item.ID), string(p.ID))
@@ -112,8 +112,8 @@ func TestRatingRepo_GetAggregates(t *testing.T) {
 
 	val2, _ := rating.NewRatingValue(2)
 	val4, _ := rating.NewRatingValue(4)
-	require.NoError(t, repo.Upsert(ctx, rating.Rating{MediaItemID: string(item.ID), ProfileID: string(p1.ID), Value: val2}))
-	require.NoError(t, repo.Upsert(ctx, rating.Rating{MediaItemID: string(item.ID), ProfileID: string(p2.ID), Value: val4}))
+	require.NoError(t, repo.Upsert(ctx, rating.Rating{MediaItemID: item.ID, ProfileID: p1.ID, Value: val2}))
+	require.NoError(t, repo.Upsert(ctx, rating.Rating{MediaItemID: item.ID, ProfileID: p2.ID, Value: val4}))
 
 	aggs, err := repo.GetAggregates(ctx, []string{string(item.ID)})
 	require.NoError(t, err)

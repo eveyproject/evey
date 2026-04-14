@@ -32,7 +32,7 @@ func newFakeStarRatingRepo() *fakeStarRatingRepo {
 }
 
 func (r *fakeStarRatingRepo) Upsert(_ context.Context, rt domainrating.Rating) error {
-	r.ratings[rt.MediaItemID+":"+rt.ProfileID] = &rt
+	r.ratings[string(rt.MediaItemID)+":"+string(rt.ProfileID)] = &rt
 	return nil
 }
 

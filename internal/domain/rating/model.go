@@ -3,11 +3,13 @@ package rating
 import (
 	"errors"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type Rating struct {
-	MediaItemID string
-	ProfileID   string
+	MediaItemID shared.MediaItemID
+	ProfileID   shared.ProfileID
 	Value       RatingValue
 	CreatedAt   time.Time
 	UpdatedAt   time.Time

@@ -34,8 +34,8 @@ func TestFavoriteRepo_Add(t *testing.T) {
 
 	fav := &favorite.Favorite{
 		ID:          "fav1",
-		ProfileID:   string(p.ID),
-		MediaItemID: string(mi.ID),
+		ProfileID:   p.ID,
+		MediaItemID: mi.ID,
 		CreatedAt:   time.Now().UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, favRepo.Add(ctx, fav))
@@ -47,8 +47,8 @@ func TestFavoriteRepo_Add(t *testing.T) {
 	// duplicate add should not error (ON CONFLICT DO NOTHING)
 	fav2 := &favorite.Favorite{
 		ID:          "fav1dup",
-		ProfileID:   string(p.ID),
-		MediaItemID: string(mi.ID),
+		ProfileID:   p.ID,
+		MediaItemID: mi.ID,
 		CreatedAt:   time.Now().UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, favRepo.Add(ctx, fav2))
@@ -75,7 +75,7 @@ func TestFavoriteRepo_Remove(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, mi))
 
 	fav := &favorite.Favorite{
-		ID: "fav2", ProfileID: string(p.ID), MediaItemID: string(mi.ID),
+		ID: "fav2", ProfileID: p.ID, MediaItemID: mi.ID,
 		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, favRepo.Add(ctx, fav))
@@ -115,9 +115,9 @@ func TestFavoriteRepo_List(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, mi3))
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
-	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav3a", ProfileID: string(p.ID), MediaItemID: string(mi1.ID), CreatedAt: now}))
-	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav3b", ProfileID: string(p.ID), MediaItemID: string(mi2.ID), CreatedAt: now}))
-	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav3c", ProfileID: string(p.ID), MediaItemID: string(mi3.ID), CreatedAt: now}))
+	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav3a", ProfileID: p.ID, MediaItemID: mi1.ID, CreatedAt: now}))
+	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav3b", ProfileID: p.ID, MediaItemID: mi2.ID, CreatedAt: now}))
+	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav3c", ProfileID: p.ID, MediaItemID: mi3.ID, CreatedAt: now}))
 
 	list, err := favRepo.List(ctx, string(p.ID), 10, 0)
 	require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestFavoriteRepo_IsFavorite(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, mi2))
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
-	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav4", ProfileID: string(p.ID), MediaItemID: string(mi1.ID), CreatedAt: now}))
+	require.NoError(t, favRepo.Add(ctx, &favorite.Favorite{ID: "fav4", ProfileID: p.ID, MediaItemID: mi1.ID, CreatedAt: now}))
 
 	isFav, err := favRepo.IsFavorite(ctx, string(p.ID), string(mi1.ID))
 	require.NoError(t, err)

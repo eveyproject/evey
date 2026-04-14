@@ -28,7 +28,7 @@ func (r *FakeRepository) Add(_ context.Context, fav *favorite.Favorite) error {
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[key(fav.ProfileID, fav.MediaItemID)] = fav
+	r.items[key(string(fav.ProfileID), string(fav.MediaItemID))] = fav
 	return nil
 }
 
@@ -56,7 +56,7 @@ func (r *FakeRepository) List(_ context.Context, profileID string, limit, offset
 	}
 	var result []*favorite.Favorite
 	for _, f := range r.items {
-		if f.ProfileID == profileID {
+		if string(f.ProfileID) == profileID {
 			result = append(result, f)
 		}
 	}

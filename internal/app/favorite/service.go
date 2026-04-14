@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/favorite"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/id"
 )
 
@@ -27,8 +28,8 @@ func (s *Service) Toggle(ctx context.Context, profileID, mediaItemID string) (bo
 	}
 	fav := &favorite.Favorite{
 		ID:          id.New("fav-"),
-		ProfileID:   profileID,
-		MediaItemID: mediaItemID,
+		ProfileID:   shared.ProfileID(profileID),
+		MediaItemID: shared.MediaItemID(mediaItemID),
 		CreatedAt:   time.Now(),
 	}
 	return true, s.repo.Add(ctx, fav)

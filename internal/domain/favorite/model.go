@@ -3,12 +3,14 @@ package favorite
 import (
 	"errors"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type Favorite struct {
 	ID          string
-	ProfileID   string
-	MediaItemID string
+	ProfileID   shared.ProfileID
+	MediaItemID shared.MediaItemID
 	CreatedAt   time.Time
 }
 

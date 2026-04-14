@@ -1,10 +1,14 @@
 package rating
 
-import "time"
+import (
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+)
 
 type RatingSet struct {
-	MediaID    string
-	UserID     string
+	MediaID    shared.MediaItemID
+	UserID     shared.UserID
 	Score      int
 	OccurredAt time.Time
 }
@@ -12,16 +16,16 @@ type RatingSet struct {
 func (e RatingSet) EventName() string { return "rating.set" }
 
 type RatingDeleted struct {
-	MediaID    string
-	UserID     string
+	MediaID    shared.MediaItemID
+	UserID     shared.UserID
 	OccurredAt time.Time
 }
 
 func (e RatingDeleted) EventName() string { return "rating.deleted" }
 
 type RatingRemoved struct {
-	MediaID    string
-	UserID     string
+	MediaID    shared.MediaItemID
+	UserID     shared.UserID
 	OccurredAt time.Time
 }
 

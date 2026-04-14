@@ -59,7 +59,7 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 	if h.libQuery != nil {
 		ids := make([]string, 0, len(favs))
 		for _, f := range favs {
-			ids = append(ids, f.MediaItemID)
+			ids = append(ids, string(f.MediaItemID))
 		}
 		items, _ := h.libQuery.GetMediaItemsByIDs(ctx, ids)
 		for _, it := range items {
@@ -79,11 +79,11 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 	for _, f := range favs {
 		fp := &eveyv1.FavoriteProto{
 			Id:          f.ID,
-			ProfileId:   f.ProfileID,
-			MediaItemId: f.MediaItemID,
+			ProfileId:   string(f.ProfileID),
+			MediaItemId: string(f.MediaItemID),
 			CreatedAt:   toTimestamppb(f.CreatedAt),
 		}
-		if it := itemByID[f.MediaItemID]; it != nil {
+		if it := itemByID[string(f.MediaItemID)]; it != nil {
 			if !allowed(string(it.LibraryID)) {
 				continue
 			}

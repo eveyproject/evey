@@ -26,15 +26,15 @@ func (s *CommandService) Rate(ctx context.Context, mediaItemID, profileID string
 	}
 	now := time.Now()
 	if err := s.repo.Upsert(ctx, rating.Rating{
-		MediaItemID: mediaItemID,
-		ProfileID:   profileID,
+		MediaItemID: shared.MediaItemID(mediaItemID),
+		ProfileID:   shared.ProfileID(profileID),
 		Value:       score,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}); err != nil {
 		return fmt.Errorf("CommandService.Rate: %w", err)
 	}
-	if pubErr := s.bus.Publish(ctx, rating.RatingSet{MediaID: mediaItemID, UserID: profileID, Score: score.Int(), OccurredAt: now}); pubErr != nil {
+	if pubErr := s.bus.Publish(ctx, rating.RatingSet{MediaID: shared.MediaItemID(mediaItemID), UserID: shared.UserID(profileID), Score: score.Int(), OccurredAt: now}); pubErr != nil {
 		slog.Warn("rating: event publish failed", slog.String("mediaID", mediaItemID), slog.Any("err", pubErr))
 	}
 	return nil
@@ -44,7 +44,7 @@ func (s *CommandService) DeleteRating(ctx context.Context, mediaItemID, profileI
 	if err := s.repo.Delete(ctx, mediaItemID, profileID); err != nil {
 		return fmt.Errorf("CommandService.DeleteRating: %w", err)
 	}
-	if pubErr := s.bus.Publish(ctx, rating.RatingRemoved{MediaID: mediaItemID, UserID: profileID, OccurredAt: time.Now()}); pubErr != nil {
+	if pubErr := s.bus.Publish(ctx, rating.RatingRemoved{MediaID: shared.MediaItemID(mediaItemID), UserID: shared.UserID(profileID), OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("rating: RatingRemoved publish failed", slog.String("mediaID", mediaItemID), slog.Any("err", pubErr))
 	}
 	return nil
