@@ -67,7 +67,7 @@ func TestMediaItemRepo_GetByFilePath(t *testing.T) {
 
 	got, err := itemRepo.GetByFilePath(ctx, "/media/movie.mkv")
 	require.NoError(t, err)
-	assert.Equal(t, string(item.ID), got.ID)
+	assert.Equal(t, item.ID, got.ID)
 }
 
 func TestMediaItemRepo_List(t *testing.T) {
@@ -84,7 +84,7 @@ func TestMediaItemRepo_List(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("mi3a", lib.ID)))
 	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("mi3b", lib.ID)))
 
-	libID := string(lib.ID)
+	libID := lib.ID
 	list, err := itemRepo.List(ctx, library.ListMediaItemsFilter{LibraryID: &libID})
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
@@ -152,7 +152,7 @@ func TestMediaItemRepo_GetByFileFingerprint(t *testing.T) {
 
 	got, err := itemRepo.GetByFileFingerprint(ctx, "fp-unique-123")
 	require.NoError(t, err)
-	assert.Equal(t, string(item.ID), got.ID)
+	assert.Equal(t, item.ID, got.ID)
 }
 
 func TestMediaItemRepo_GetByLibraryTypeTitle(t *testing.T) {
@@ -171,7 +171,7 @@ func TestMediaItemRepo_GetByLibraryTypeTitle(t *testing.T) {
 
 	got, err := itemRepo.GetByLibraryTypeTitle(ctx, shared.LibraryID(lib.ID), string(library.MovieItem), item.Title, "")
 	require.NoError(t, err)
-	assert.Equal(t, string(item.ID), got.ID)
+	assert.Equal(t, item.ID, got.ID)
 }
 
 func TestMediaItemRepo_DeleteByIDs(t *testing.T) {
@@ -218,7 +218,7 @@ func TestMediaItemRepo_ListFilePaths(t *testing.T) {
 	item.FilePath = "/media/test.mkv"
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	paths, err := itemRepo.ListFilePaths(ctx, string(lib.ID))
+	paths, err := itemRepo.ListFilePaths(ctx, lib.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "/media/test.mkv", paths["mi9"])
 }
@@ -237,7 +237,7 @@ func TestMediaItemRepo_ListByLibraryID(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("mi10a", lib.ID)))
 	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("mi10b", lib.ID)))
 
-	items, err := itemRepo.ListByLibraryID(ctx, string(lib.ID))
+	items, err := itemRepo.ListByLibraryID(ctx, lib.ID)
 	require.NoError(t, err)
 	assert.Len(t, items, 2)
 }
@@ -258,7 +258,7 @@ func TestMediaItemRepo_ListScanSummaries(t *testing.T) {
 	item.FileFingerprint = "scan-fp"
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	summaries, err := itemRepo.ListScanSummaries(ctx, string(lib.ID))
+	summaries, err := itemRepo.ListScanSummaries(ctx, lib.ID)
 	require.NoError(t, err)
 	assert.Len(t, summaries, 1)
 	assert.Equal(t, "mi11", summaries[0].ID)
@@ -278,7 +278,7 @@ func TestMediaItemRepo_ListContainerInfo(t *testing.T) {
 
 	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("mi12", lib.ID)))
 
-	rows, err := itemRepo.ListContainerInfo(ctx, string(lib.ID))
+	rows, err := itemRepo.ListContainerInfo(ctx, lib.ID)
 	require.NoError(t, err)
 	assert.Len(t, rows, 1)
 	assert.Equal(t, "mi12", rows[0].ID)

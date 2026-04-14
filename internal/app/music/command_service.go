@@ -36,7 +36,7 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 		}
 	}
 
-	existing, err := s.tracks.ListAllByLibrary(ctx, libraryID)
+	existing, err := s.tracks.ListAllByLibrary(ctx, shared.LibraryID(libraryID))
 	if err != nil {
 		return 0, fmt.Errorf("list existing tracks: %w", err)
 	}

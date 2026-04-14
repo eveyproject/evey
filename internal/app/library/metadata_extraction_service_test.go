@@ -7,6 +7,7 @@ import (
 
 	libdomain "github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/mkv"
 	mkvfakes "github.com/gravity-zero/evey/internal/domain/mkv/fakes"
 	"github.com/stretchr/testify/assert"
@@ -138,7 +139,7 @@ func TestDiscoverExternalSubtitles_Found(t *testing.T) {
 	streams := svc.discoverExternalSubtitles(existing, "m1", "/media/movie.mkv")
 	require.Len(t, streams, 2)
 
-	assert.Equal(t, "m1", streams[0].MediaItemID)
+	assert.Equal(t, shared.MediaItemID("m1"), streams[0].MediaItemID)
 	assert.Equal(t, 2, streams[0].StreamIndex)
 	assert.Equal(t, "srt", streams[0].Codec)
 	assert.Equal(t, "eng", streams[0].Language)

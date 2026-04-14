@@ -28,7 +28,7 @@ func (r *FakeMediaStreamRepository) CreateBatch(_ context.Context, streams []*li
 		return r.Err
 	}
 	for _, s := range streams {
-		r.items[s.MediaItemID] = append(r.items[s.MediaItemID], s)
+		r.items[string(s.MediaItemID)] = append(r.items[string(s.MediaItemID)], s)
 	}
 	return nil
 }
@@ -41,7 +41,7 @@ func (r *FakeMediaStreamRepository) ReplaceBatch(_ context.Context, mediaItemID 
 	defer r.mu.Unlock()
 	delete(r.items, string(mediaItemID))
 	for _, s := range streams {
-		r.items[s.MediaItemID] = append(r.items[s.MediaItemID], s)
+		r.items[string(s.MediaItemID)] = append(r.items[string(s.MediaItemID)], s)
 	}
 	return nil
 }

@@ -56,7 +56,7 @@ func (r *FakeMediaItemRepository) List(_ context.Context, filter library.ListMed
 	defer r.mu.RUnlock()
 	var result []*library.MediaItem
 	for _, item := range r.items {
-		if filter.LibraryID != nil && string(item.LibraryID) != *filter.LibraryID {
+		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
 			continue
 		}
 		if filter.ParentID != nil && item.ParentID != *filter.ParentID {
@@ -134,7 +134,7 @@ func (r *FakeMediaItemRepository) Count(_ context.Context, filter library.ListMe
 	defer r.mu.RUnlock()
 	count := 0
 	for _, item := range r.items {
-		if filter.LibraryID != nil && string(item.LibraryID) != *filter.LibraryID {
+		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
 			continue
 		}
 		if filter.Type != nil && string(item.Type) != *filter.Type {

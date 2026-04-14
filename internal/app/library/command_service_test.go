@@ -961,7 +961,7 @@ func TestProbeAndStoreStreams_StoresStreams(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, streams, 2)
 	for _, s := range streams {
-		assert.Equal(t, "item-1", s.MediaItemID)
+		assert.Equal(t, shared.MediaItemID("item-1"), s.MediaItemID)
 	}
 }
 

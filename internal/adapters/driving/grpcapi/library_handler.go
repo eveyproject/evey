@@ -56,7 +56,7 @@ func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryR
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "library not found: %v", err)
 	}
-	if ok, accessErr := h.checkLibraryAccess(ctx, string(lib.ID)); !ok {
+	if ok, accessErr := h.checkLibraryAccess(ctx, lib.ID); !ok {
 		if accessErr != nil {
 			slog.Warn("check library access", slog.Any("err", accessErr))
 		}
@@ -132,7 +132,7 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
 	}
-	if ok, accessErr := h.checkLibraryAccess(ctx, string(item.LibraryID)); !ok {
+	if ok, accessErr := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
 		if accessErr != nil {
 			slog.Warn("check library access", slog.Any("err", accessErr))
 		}
@@ -186,7 +186,8 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		SortOrder: sortOrderFromProto[req.SortOrder],
 	}
 	if req.LibraryId != "" {
-		filter.LibraryID = &req.LibraryId
+		libID := shared.LibraryID(req.LibraryId)
+		filter.LibraryID = &libID
 	}
 	if req.Type != eveyv1.MediaItemType_MEDIA_ITEM_TYPE_UNSPECIFIED {
 		t := mediaItemTypeFromProto[req.Type]
@@ -206,7 +207,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		filter.PersonID = &req.PersonId
 	}
 	if req.LibraryId != "" {
-		if ok, accessErr := h.checkLibraryAccess(ctx, req.LibraryId); !ok {
+		if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); !ok {
 			if accessErr != nil {
 				slog.Warn("check library access", slog.Any("err", accessErr))
 			}
@@ -214,7 +215,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		}
 	} else {
 		if ids, err := h.getAllowedLibraryIDs(ctx); err == nil && ids != nil {
-			filter.LibraryIDs = ids
+			filter.LibraryIDs = toLibraryIDs(ids)
 		}
 	}
 	if req.Pagination != nil {
@@ -459,7 +460,15 @@ func (h *libraryHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, er
 	return ids, nil
 }
 
-func (h *libraryHandler) checkLibraryAccess(ctx context.Context, libraryID string) (bool, error) {
+func toLibraryIDs(ids []string) []shared.LibraryID {
+	out := make([]shared.LibraryID, len(ids))
+	for i, id := range ids {
+		out[i] = shared.LibraryID(id)
+	}
+	return out
+}
+
+func (h *libraryHandler) checkLibraryAccess(ctx context.Context, libraryID shared.LibraryID) (bool, error) {
 	if h.userAccess == nil {
 		return true, nil
 	}
@@ -467,7 +476,7 @@ func (h *libraryHandler) checkLibraryAccess(ctx context.Context, libraryID strin
 	if claims == nil || claims.IsAdmin {
 		return true, nil
 	}
-	return h.userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
+	return h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(libraryID))
 }
 
 func (h *libraryHandler) GetLibrarySchedule(ctx context.Context, req *eveyv1.GetLibraryScheduleRequest) (*eveyv1.GetLibraryScheduleResponse, error) {
@@ -544,16 +553,17 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 		YearTo:    int(req.YearTo),
 	}
 	if req.LibraryId != "" {
-		if ok, accessErr := h.checkLibraryAccess(ctx, req.LibraryId); !ok {
+		if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); !ok {
 			if accessErr != nil {
 				slog.Warn("check library access", slog.Any("err", accessErr))
 			}
 			return &eveyv1.FilterMediaItemsResponse{}, nil
 		}
-		filter.LibraryID = &req.LibraryId
+		libID := shared.LibraryID(req.LibraryId)
+		filter.LibraryID = &libID
 	} else {
 		if ids, idErr := h.getAllowedLibraryIDs(ctx); idErr == nil && ids != nil {
-			filter.LibraryIDs = ids
+			filter.LibraryIDs = toLibraryIDs(ids)
 		}
 	}
 	if req.Type != eveyv1.MediaItemType_MEDIA_ITEM_TYPE_UNSPECIFIED {

@@ -39,15 +39,15 @@ func (s *Service) GetTrackArt(ctx context.Context, trackID string) (data []byte,
 	return s.query.GetTrackArt(ctx, trackID)
 }
 
-func (s *Service) ListTracks(ctx context.Context, libraryID string, limit, offset int, search string) ([]music.Track, int, error) {
+func (s *Service) ListTracks(ctx context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]music.Track, int, error) {
 	return s.query.ListTracks(ctx, libraryID, limit, offset, search)
 }
 
-func (s *Service) GetAlbums(ctx context.Context, libraryID string) ([]music.Album, error) {
+func (s *Service) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]music.Album, error) {
 	return s.query.GetAlbums(ctx, libraryID)
 }
 
-func (s *Service) GetArtists(ctx context.Context, libraryID string) ([]music.Artist, error) {
+func (s *Service) GetArtists(ctx context.Context, libraryID shared.LibraryID) ([]music.Artist, error) {
 	return s.query.GetArtists(ctx, libraryID)
 }
 

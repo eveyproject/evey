@@ -38,7 +38,7 @@ func (f *fakeMediaQuerier) List(_ context.Context, filter library.ListMediaItems
 	}
 	var result []*library.MediaItem
 	for _, item := range f.items {
-		if filter.LibraryID != nil && string(item.LibraryID) != *filter.LibraryID {
+		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
 			continue
 		}
 		result = append(result, item)

@@ -12,6 +12,7 @@ import (
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -54,7 +55,7 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 		limit = 50
 	}
 	offset := int(req.Offset)
-	tracks, total, err := h.svc.ListTracks(ctx, req.LibraryId, limit, offset, req.Search)
+	tracks, total, err := h.svc.ListTracks(ctx, shared.LibraryID(req.LibraryId), limit, offset, req.Search)
 	if err != nil {
 		return nil, internalError("list tracks", err)
 	}
@@ -72,7 +73,7 @@ func (h *musicHandler) GetAlbums(ctx context.Context, req *eveyv1.GetAlbumsReque
 	if err := h.checkLibraryAccess(ctx, req.LibraryId); err != nil {
 		return nil, err
 	}
-	albums, err := h.svc.GetAlbums(ctx, req.LibraryId)
+	albums, err := h.svc.GetAlbums(ctx, shared.LibraryID(req.LibraryId))
 	if err != nil {
 		return nil, internalError("get albums", err)
 	}
@@ -98,7 +99,7 @@ func (h *musicHandler) GetArtists(ctx context.Context, req *eveyv1.GetArtistsReq
 	if err := h.checkLibraryAccess(ctx, req.LibraryId); err != nil {
 		return nil, err
 	}
-	artists, err := h.svc.GetArtists(ctx, req.LibraryId)
+	artists, err := h.svc.GetArtists(ctx, shared.LibraryID(req.LibraryId))
 	if err != nil {
 		return nil, internalError("get artists", err)
 	}

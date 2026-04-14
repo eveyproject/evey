@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type FakeTrickplayRepository struct {
@@ -30,7 +31,7 @@ func (r *FakeTrickplayRepository) Create(_ context.Context, m *library.Trickplay
 	return nil
 }
 
-func (r *FakeTrickplayRepository) GetByMediaItemID(_ context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
+func (r *FakeTrickplayRepository) GetByMediaItemID(_ context.Context, mediaItemID shared.MediaItemID) (*library.TrickplayManifest, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -39,14 +40,14 @@ func (r *FakeTrickplayRepository) GetByMediaItemID(_ context.Context, mediaItemI
 	if r.Err != nil {
 		return nil, r.Err
 	}
-	m, ok := r.items[mediaItemID]
+	m, ok := r.items[string(mediaItemID)]
 	if !ok {
 		return nil, ErrNotFound
 	}
 	return m, nil
 }
 
-func (r *FakeTrickplayRepository) Delete(_ context.Context, mediaItemID string) error {
+func (r *FakeTrickplayRepository) Delete(_ context.Context, mediaItemID shared.MediaItemID) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -55,7 +56,7 @@ func (r *FakeTrickplayRepository) Delete(_ context.Context, mediaItemID string) 
 	if r.Err != nil {
 		return r.Err
 	}
-	delete(r.items, mediaItemID)
+	delete(r.items, string(mediaItemID))
 	return nil
 }
 

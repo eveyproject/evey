@@ -165,7 +165,7 @@ func TestMediaItemQueryRepoAdapter_List_Count(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("cq-mi3b", lib.ID)))
 	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("cq-mi3c", lib.ID)))
 
-	libID := string(lib.ID)
+	libID := lib.ID
 	filter := library.ListMediaItemsFilter{LibraryID: &libID, Limit: 10}
 
 	list, err := queryRepo.List(ctx, filter)
@@ -200,7 +200,7 @@ func TestMediaItemRepo_List_AllowedRatings(t *testing.T) {
 	noRating.OfficialRating = ""
 	require.NoError(t, itemRepo.Create(ctx, noRating))
 
-	libID := string(lib.ID)
+	libID := lib.ID
 	filter := library.ListMediaItemsFilter{
 		LibraryID:      &libID,
 		AllowedRatings: []string{"G", "TV-Y", "TV-Y7", "TV-G", "PG", "TV-PG", "PG-13", "TV-14"},

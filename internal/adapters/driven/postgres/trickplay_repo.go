@@ -37,7 +37,7 @@ func (r *TrickplayRepository) Create(ctx context.Context, m *library.TrickplayMa
 	return err
 }
 
-func (r *TrickplayRepository) GetByMediaItemID(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
+func (r *TrickplayRepository) GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) (*library.TrickplayManifest, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	m := &library.TrickplayManifest{}
@@ -51,7 +51,7 @@ func (r *TrickplayRepository) GetByMediaItemID(ctx context.Context, mediaItemID 
 	return m, err
 }
 
-func (r *TrickplayRepository) Delete(ctx context.Context, mediaItemID string) error {
+func (r *TrickplayRepository) Delete(ctx context.Context, mediaItemID shared.MediaItemID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM trickplay_manifests WHERE media_item_id = $1`, mediaItemID)

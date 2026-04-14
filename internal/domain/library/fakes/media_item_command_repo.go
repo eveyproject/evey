@@ -123,19 +123,19 @@ func (r *FakeMediaItemCommandRepo) GetByID(_ context.Context, id shared.MediaIte
 	return item, nil
 }
 
-func (r *FakeMediaItemCommandRepo) ListFilePaths(_ context.Context, libraryID string) (map[string]string, error) {
+func (r *FakeMediaItemCommandRepo) ListFilePaths(_ context.Context, libraryID shared.LibraryID) (map[string]string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make(map[string]string)
 	for _, item := range r.items {
-		if string(item.LibraryID) == libraryID && item.FilePath != "" {
+		if item.LibraryID == libraryID && item.FilePath != "" {
 			result[string(item.ID)] = item.FilePath
 		}
 	}
 	return result, nil
 }
 
-func (r *FakeMediaItemCommandRepo) ListByLibraryID(_ context.Context, libraryID string) ([]*library.MediaItem, error) {
+func (r *FakeMediaItemCommandRepo) ListByLibraryID(_ context.Context, libraryID shared.LibraryID) ([]*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.ListByLibraryIDErr != nil {
@@ -143,19 +143,19 @@ func (r *FakeMediaItemCommandRepo) ListByLibraryID(_ context.Context, libraryID 
 	}
 	var result []*library.MediaItem
 	for _, item := range r.items {
-		if string(item.LibraryID) == libraryID {
+		if item.LibraryID == libraryID {
 			result = append(result, item)
 		}
 	}
 	return result, nil
 }
 
-func (r *FakeMediaItemCommandRepo) ListScanSummaries(_ context.Context, libraryID string) ([]library.MediaItemScanRow, error) {
+func (r *FakeMediaItemCommandRepo) ListScanSummaries(_ context.Context, libraryID shared.LibraryID) ([]library.MediaItemScanRow, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []library.MediaItemScanRow
 	for _, item := range r.items {
-		if string(item.LibraryID) == libraryID {
+		if item.LibraryID == libraryID {
 			result = append(result, library.MediaItemScanRow{
 				ID:              string(item.ID),
 				FilePath:        item.FilePath,
@@ -168,12 +168,12 @@ func (r *FakeMediaItemCommandRepo) ListScanSummaries(_ context.Context, libraryI
 	return result, nil
 }
 
-func (r *FakeMediaItemCommandRepo) ListContainerInfo(_ context.Context, libraryID string) ([]library.MediaItemContainerRow, error) {
+func (r *FakeMediaItemCommandRepo) ListContainerInfo(_ context.Context, libraryID shared.LibraryID) ([]library.MediaItemContainerRow, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []library.MediaItemContainerRow
 	for _, item := range r.items {
-		if string(item.LibraryID) == libraryID {
+		if item.LibraryID == libraryID {
 			result = append(result, library.MediaItemContainerRow{
 				ID:       string(item.ID),
 				ParentID: item.ParentID,

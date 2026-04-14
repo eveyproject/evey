@@ -42,7 +42,7 @@ func TestTrickplayRepo_Create_GetByMediaItemID(t *testing.T) {
 	}
 	require.NoError(t, tpRepo.Create(ctx, m))
 
-	got, err := tpRepo.GetByMediaItemID(ctx, string(item.ID))
+	got, err := tpRepo.GetByMediaItemID(ctx, item.ID)
 	require.NoError(t, err)
 	assert.Equal(t, m.ID, got.ID)
 	assert.Equal(t, m.MediaItemID, got.MediaItemID)
@@ -98,7 +98,7 @@ func TestTrickplayRepo_Create_Upsert(t *testing.T) {
 	}
 	require.NoError(t, tpRepo.Create(ctx, updated))
 
-	got, err := tpRepo.GetByMediaItemID(ctx, string(item.ID))
+	got, err := tpRepo.GetByMediaItemID(ctx, item.ID)
 	require.NoError(t, err)
 	assert.Equal(t, updated.Interval, got.Interval)
 	assert.Equal(t, updated.Width, got.Width)
@@ -145,8 +145,8 @@ func TestTrickplayRepo_Delete(t *testing.T) {
 	}
 	require.NoError(t, tpRepo.Create(ctx, m))
 
-	require.NoError(t, tpRepo.Delete(ctx, string(item.ID)))
+	require.NoError(t, tpRepo.Delete(ctx, item.ID))
 
-	_, err := tpRepo.GetByMediaItemID(ctx, string(item.ID))
+	_, err := tpRepo.GetByMediaItemID(ctx, item.ID)
 	assert.Equal(t, shared.ErrNotFound, err)
 }

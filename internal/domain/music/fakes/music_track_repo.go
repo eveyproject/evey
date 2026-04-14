@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravity-zero/evey/internal/domain/music"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type FakeMusicTrackRepository struct {
@@ -69,7 +70,7 @@ func (r *FakeMusicTrackRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (r *FakeMusicTrackRepository) ListByLibrary(_ context.Context, libraryID string, limit, offset int, search string) ([]music.Track, int, error) {
+func (r *FakeMusicTrackRepository) ListByLibrary(_ context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]music.Track, int, error) {
 	if r.Err != nil {
 		return nil, 0, r.Err
 	}
@@ -78,7 +79,7 @@ func (r *FakeMusicTrackRepository) ListByLibrary(_ context.Context, libraryID st
 	q := strings.ToLower(search)
 	var out []music.Track
 	for _, t := range r.tracks {
-		if t.LibraryID != libraryID {
+		if t.LibraryID != string(libraryID) {
 			continue
 		}
 		if q != "" &&
@@ -161,7 +162,7 @@ func (r *FakeMusicTrackRepository) Search(_ context.Context, query string, limit
 	return out, nil
 }
 
-func (r *FakeMusicTrackRepository) GetAlbums(_ context.Context, libraryID string) ([]music.Album, error) {
+func (r *FakeMusicTrackRepository) GetAlbums(_ context.Context, libraryID shared.LibraryID) ([]music.Album, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -170,7 +171,7 @@ func (r *FakeMusicTrackRepository) GetAlbums(_ context.Context, libraryID string
 	type key struct{ album, artist string }
 	m := make(map[key]*music.Album)
 	for _, t := range r.tracks {
-		if t.LibraryID != libraryID {
+		if t.LibraryID != string(libraryID) {
 			continue
 		}
 		artist := t.AlbumArtist
@@ -199,7 +200,7 @@ func (r *FakeMusicTrackRepository) GetAlbums(_ context.Context, libraryID string
 	return out, nil
 }
 
-func (r *FakeMusicTrackRepository) GetArtists(_ context.Context, libraryID string) ([]music.Artist, error) {
+func (r *FakeMusicTrackRepository) GetArtists(_ context.Context, libraryID shared.LibraryID) ([]music.Artist, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -211,7 +212,7 @@ func (r *FakeMusicTrackRepository) GetArtists(_ context.Context, libraryID strin
 	}
 	m := make(map[string]*stats)
 	for _, t := range r.tracks {
-		if t.LibraryID != libraryID {
+		if t.LibraryID != string(libraryID) {
 			continue
 		}
 		name := t.AlbumArtist
@@ -238,7 +239,7 @@ func (r *FakeMusicTrackRepository) GetArtists(_ context.Context, libraryID strin
 	return out, nil
 }
 
-func (r *FakeMusicTrackRepository) ListAllByLibrary(_ context.Context, libraryID string) ([]music.Track, error) {
+func (r *FakeMusicTrackRepository) ListAllByLibrary(_ context.Context, libraryID shared.LibraryID) ([]music.Track, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -246,7 +247,7 @@ func (r *FakeMusicTrackRepository) ListAllByLibrary(_ context.Context, libraryID
 	defer r.mu.RUnlock()
 	var out []music.Track
 	for _, t := range r.tracks {
-		if t.LibraryID == libraryID {
+		if t.LibraryID == string(libraryID) {
 			out = append(out, t)
 		}
 	}

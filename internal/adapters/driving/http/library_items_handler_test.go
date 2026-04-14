@@ -6,6 +6,7 @@ import (
 
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 func ptr[T any](v T) *T { return &v }
@@ -16,7 +17,7 @@ func TestLibraryItemsFilter_YearFrom(t *testing.T) {
 	repo.Seed(&domainlibrary.MediaItem{ID: "new", LibraryID: "lib-1", Type: "movie", Title: "New Film", Year: ptr(2020)})
 
 	filter := domainlibrary.ListMediaItemsFilter{
-		LibraryID: ptr("lib-1"),
+		LibraryID: ptr(shared.LibraryID("lib-1")),
 		YearFrom:  2000,
 	}
 	items, err := repo.List(context.Background(), filter)
@@ -34,7 +35,7 @@ func TestLibraryItemsFilter_YearTo(t *testing.T) {
 	repo.Seed(&domainlibrary.MediaItem{ID: "new", LibraryID: "lib-1", Type: "movie", Title: "New Film", Year: ptr(2020)})
 
 	filter := domainlibrary.ListMediaItemsFilter{
-		LibraryID: ptr("lib-1"),
+		LibraryID: ptr(shared.LibraryID("lib-1")),
 		YearTo:    1999,
 	}
 	items, err := repo.List(context.Background(), filter)
@@ -52,7 +53,7 @@ func TestLibraryItemsFilter_MinRating(t *testing.T) {
 	repo.Seed(&domainlibrary.MediaItem{ID: "high", LibraryID: "lib-1", Type: "movie", Title: "High Rated", CommunityRating: ptr(8.5)})
 
 	filter := domainlibrary.ListMediaItemsFilter{
-		LibraryID: ptr("lib-1"),
+		LibraryID: ptr(shared.LibraryID("lib-1")),
 		MinRating: 7.0,
 	}
 	items, err := repo.List(context.Background(), filter)
@@ -71,7 +72,7 @@ func TestLibraryItemsFilter_YearRange(t *testing.T) {
 	repo.Seed(&domainlibrary.MediaItem{ID: "late", LibraryID: "lib-1", Type: "movie", Title: "Late", Year: ptr(2023)})
 
 	filter := domainlibrary.ListMediaItemsFilter{
-		LibraryID: ptr("lib-1"),
+		LibraryID: ptr(shared.LibraryID("lib-1")),
 		YearFrom:  2000,
 		YearTo:    2010,
 	}
@@ -90,7 +91,7 @@ func TestLibraryItemsFilter_Count_WithFilters(t *testing.T) {
 	repo.Seed(&domainlibrary.MediaItem{ID: "b", LibraryID: "lib-1", Type: "movie", Title: "B", Year: ptr(2010), CommunityRating: ptr(6.0)})
 
 	filter := domainlibrary.ListMediaItemsFilter{
-		LibraryID: ptr("lib-1"),
+		LibraryID: ptr(shared.LibraryID("lib-1")),
 		YearFrom:  2015,
 		MinRating: 8.0,
 	}

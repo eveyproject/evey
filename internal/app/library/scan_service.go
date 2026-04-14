@@ -143,7 +143,7 @@ func (s *ScanService) publishScanStarted(ctx context.Context, libraryID string) 
 }
 
 func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*scanIndex, error) {
-	summaries, err := s.mediaItems.ListScanSummaries(ctx, libraryID)
+	summaries, err := s.mediaItems.ListScanSummaries(ctx, shared.LibraryID(libraryID))
 	if err != nil {
 		return nil, fmt.Errorf("list existing items: %w", err)
 	}
@@ -290,7 +290,7 @@ func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, li
 }
 
 func (s *ScanService) removeOrphanedItems(ctx context.Context, libraryID string, seenPaths map[string]struct{}) (int, error) {
-	dbPaths, err := s.mediaItems.ListFilePaths(ctx, libraryID)
+	dbPaths, err := s.mediaItems.ListFilePaths(ctx, shared.LibraryID(libraryID))
 	if err != nil {
 		return 0, fmt.Errorf("list file paths: %w", err)
 	}
@@ -455,7 +455,7 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 		return 0
 	}
 	for _, st := range result.Streams {
-		st.MediaItemID = mediaItemID
+		st.MediaItemID = shared.MediaItemID(mediaItemID)
 	}
 
 	var extSubs []*library.MediaStream

@@ -16,8 +16,8 @@ type LibraryRepository interface {
 }
 
 type ListMediaItemsFilter struct {
-	LibraryID      *string
-	LibraryIDs     []string // filter to these library IDs (nil = no filter)
+	LibraryID      *shared.LibraryID
+	LibraryIDs     []shared.LibraryID // filter to these library IDs (nil = no filter)
 	ParentID       *string
 	Type           *string
 	Genres         []string
@@ -180,8 +180,8 @@ type FileWatcher interface {
 
 type TrickplayRepository interface {
 	Create(ctx context.Context, manifest *TrickplayManifest) error
-	GetByMediaItemID(ctx context.Context, mediaItemID string) (*TrickplayManifest, error)
-	Delete(ctx context.Context, mediaItemID string) error
+	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) (*TrickplayManifest, error)
+	Delete(ctx context.Context, mediaItemID shared.MediaItemID) error
 	ListMissingMediaItemIDs(ctx context.Context) ([]string, error)
 }
 

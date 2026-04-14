@@ -22,8 +22,8 @@ type MediaItemCommandRepo interface {
 	GetByFileFingerprint(ctx context.Context, fingerprint string) (*MediaItem, error)
 	GetByLibraryTypeTitle(ctx context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*MediaItem, error)
 	// ListFilePaths returns id→filePath for all items in a library (for orphan detection).
-	ListFilePaths(ctx context.Context, libraryID string) (map[string]string, error)
-	ListByLibraryID(ctx context.Context, libraryID string) ([]*MediaItem, error)
-	ListScanSummaries(ctx context.Context, libraryID string) ([]MediaItemScanRow, error)
-	ListContainerInfo(ctx context.Context, libraryID string) ([]MediaItemContainerRow, error)
+	ListFilePaths(ctx context.Context, libraryID shared.LibraryID) (map[string]string, error)
+	ListByLibraryID(ctx context.Context, libraryID shared.LibraryID) ([]*MediaItem, error)
+	ListScanSummaries(ctx context.Context, libraryID shared.LibraryID) ([]MediaItemScanRow, error)
+	ListContainerInfo(ctx context.Context, libraryID shared.LibraryID) ([]MediaItemContainerRow, error)
 }

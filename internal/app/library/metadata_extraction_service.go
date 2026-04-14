@@ -83,7 +83,7 @@ func (s *MetadataExtractionService) discoverExternalSubtitles(existing []*librar
 		}
 		st := &library.MediaStream{
 			ID:           uuid.New().String(),
-			MediaItemID:  mediaItemID,
+			MediaItemID:  shared.MediaItemID(mediaItemID),
 			StreamIndex:  maxIdx,
 			StreamType:   string(library.Subtitle),
 			Codec:        codec,

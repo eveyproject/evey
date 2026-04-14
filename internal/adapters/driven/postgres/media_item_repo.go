@@ -379,7 +379,7 @@ func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) err
 	return nil
 }
 
-func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID string) (map[string]string, error) {
+func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID shared.LibraryID) (map[string]string, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -406,7 +406,7 @@ func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID strin
 
 const listByLibraryIDMaxRows = 10000
 
-func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID string) ([]*library.MediaItem, error) {
+func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID shared.LibraryID) ([]*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -429,7 +429,7 @@ func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID str
 	return result, nil
 }
 
-func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID string) ([]library.MediaItemScanRow, error) {
+func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID shared.LibraryID) ([]library.MediaItemScanRow, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	const batchSize = 5000
@@ -447,7 +447,7 @@ func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID s
 	return result, nil
 }
 
-func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, libraryID string, limit, offset int) ([]library.MediaItemScanRow, error) {
+func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]library.MediaItemScanRow, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, file_path, file_fingerprint, file_size, mod_time
 		 FROM media_items WHERE library_id = $1 ORDER BY id LIMIT $2 OFFSET $3`,
@@ -477,7 +477,7 @@ func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, librar
 	return result, nil
 }
 
-func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID string) ([]library.MediaItemContainerRow, error) {
+func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID shared.LibraryID) ([]library.MediaItemContainerRow, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	const batchSize = 5000
@@ -495,7 +495,7 @@ func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID s
 	return result, nil
 }
 
-func (r *MediaItemRepository) listContainerInfoBatch(ctx context.Context, libraryID string, limit, offset int) ([]library.MediaItemContainerRow, error) {
+func (r *MediaItemRepository) listContainerInfoBatch(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]library.MediaItemContainerRow, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, parent_id, type FROM media_items WHERE library_id = $1 ORDER BY id LIMIT $2 OFFSET $3`,
 		libraryID, limit, offset)

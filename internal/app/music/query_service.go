@@ -7,6 +7,7 @@ import (
 
 	"github.com/dhowden/tag"
 	"github.com/gravity-zero/evey/internal/domain/music"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type QueryService struct {
@@ -50,15 +51,15 @@ func (s *QueryService) GetTrackArt(ctx context.Context, trackID string) (data []
 	return pic.Data, mt, nil
 }
 
-func (s *QueryService) ListTracks(ctx context.Context, libraryID string, limit, offset int, search string) ([]music.Track, int, error) {
+func (s *QueryService) ListTracks(ctx context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]music.Track, int, error) {
 	return s.tracks.ListByLibrary(ctx, libraryID, limit, offset, search)
 }
 
-func (s *QueryService) GetAlbums(ctx context.Context, libraryID string) ([]music.Album, error) {
+func (s *QueryService) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]music.Album, error) {
 	return s.tracks.GetAlbums(ctx, libraryID)
 }
 
-func (s *QueryService) GetArtists(ctx context.Context, libraryID string) ([]music.Artist, error) {
+func (s *QueryService) GetArtists(ctx context.Context, libraryID shared.LibraryID) ([]music.Artist, error) {
 	return s.tracks.GetArtists(ctx, libraryID)
 }
 

@@ -12,7 +12,7 @@ import (
 )
 
 func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, files []library.ScannedFile) (added, updated int, err error) {
-	existing, err := s.mediaItems.ListByLibraryID(ctx, libraryID)
+	existing, err := s.mediaItems.ListByLibraryID(ctx, shared.LibraryID(libraryID))
 	if err != nil {
 		return 0, 0, fmt.Errorf("preload containers: %w", err)
 	}
@@ -138,7 +138,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 }
 
 func (svc *ScanService) pruneEmptyContainers(ctx context.Context, libraryID string) (int, error) {
-	all, err := svc.mediaItems.ListContainerInfo(ctx, libraryID)
+	all, err := svc.mediaItems.ListContainerInfo(ctx, shared.LibraryID(libraryID))
 	if err != nil {
 		return 0, err
 	}

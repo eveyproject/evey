@@ -533,8 +533,8 @@ func TestQueryService_CountMediaItems_Empty(t *testing.T) {
 func TestQueryService_CountMediaItems_WithItems(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
-	lib1 := "lib-1"
-	lib2 := "lib-2"
+	lib1 := shared.LibraryID("lib-1")
+	lib2 := shared.LibraryID("lib-2")
 	f.media.Seed(&library.MediaItem{ID: "m1", LibraryID: shared.LibraryID(lib1)})
 	f.media.Seed(&library.MediaItem{ID: "m2", LibraryID: shared.LibraryID(lib1)})
 	f.media.Seed(&library.MediaItem{ID: "m3", LibraryID: shared.LibraryID(lib2)})
@@ -870,8 +870,8 @@ func TestQueryService_ListMediaItems_Pagination(t *testing.T) {
 func TestQueryService_ListMediaItems_FilterByLibraryID(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
-	lib1 := "lib-1"
-	lib2 := "lib-2"
+	lib1 := shared.LibraryID("lib-1")
+	lib2 := shared.LibraryID("lib-2")
 	f.media.Seed(&library.MediaItem{ID: "m1", LibraryID: shared.LibraryID(lib1), Title: "Film A"})
 	f.media.Seed(&library.MediaItem{ID: "m2", LibraryID: shared.LibraryID(lib2), Title: "Film B"})
 	f.media.Seed(&library.MediaItem{ID: "m3", LibraryID: shared.LibraryID(lib1), Title: "Film C"})

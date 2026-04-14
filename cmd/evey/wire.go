@@ -360,7 +360,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	if libs, libErr := r.Library.List(ctx); libErr == nil {
 		for _, lib := range libs {
-			if err := feedCmdSvc.EnsureLibraryFeedConfig(ctx, string(lib.ID), lib.Name); err != nil {
+			if err := feedCmdSvc.EnsureLibraryFeedConfig(ctx, lib.ID, lib.Name); err != nil {
 				slog.Warn("ensure library feed config", slog.String("library", string(lib.ID)), slog.Any("err", err))
 			}
 		}

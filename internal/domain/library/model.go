@@ -140,7 +140,7 @@ func (m *MediaItem) IsPlayable() bool {
 
 type MediaStream struct {
 	ID             string
-	MediaItemID    string
+	MediaItemID    shared.MediaItemID
 	StreamIndex    int
 	StreamType     string
 	Codec          string

@@ -192,7 +192,7 @@ func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID str
 	if s.trickplay == nil {
 		return nil, errors.New("trickplay not configured")
 	}
-	return s.trickplay.GetByMediaItemID(ctx, mediaItemID)
+	return s.trickplay.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
 }
 
 func (s *QueryService) SearchMedia(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {

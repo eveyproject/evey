@@ -21,7 +21,7 @@ func CommandWithEventBus(bus shared.EventBus) CommandServiceOption {
 			if !ok {
 				return
 			}
-			if err := s.EnsureLibraryFeedConfig(ctx, e.LibraryID, e.Name); err != nil {
+			if err := s.EnsureLibraryFeedConfig(ctx, shared.LibraryID(e.LibraryID), e.Name); err != nil {
 				slog.Warn("auto-create library feed config", slog.String("library", e.LibraryID), slog.Any("err", err))
 			}
 		})
@@ -30,7 +30,7 @@ func CommandWithEventBus(bus shared.EventBus) CommandServiceOption {
 			if !ok {
 				return
 			}
-			if err := s.DeleteLibraryFeedConfig(ctx, e.LibraryID); err != nil {
+			if err := s.DeleteLibraryFeedConfig(ctx, shared.LibraryID(e.LibraryID)); err != nil {
 				slog.Warn("auto-delete library feed config", slog.String("library", e.LibraryID), slog.Any("err", err))
 			}
 		})
@@ -106,12 +106,12 @@ func (s *CommandService) ResetProfileConfig(ctx context.Context, profileID strin
 	return nil
 }
 
-func (s *CommandService) EnsureLibraryFeedConfig(ctx context.Context, libraryID, name string) error {
+func (s *CommandService) EnsureLibraryFeedConfig(ctx context.Context, libraryID shared.LibraryID, name string) error {
 	existing, err := s.queries.GetAdminConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("CommandService.EnsureLibraryFeedConfig: %w", err)
 	}
-	ft := feed.LibraryType(libraryID)
+	ft := feed.LibraryType(string(libraryID))
 	for _, c := range existing {
 		if c.FeedType == ft {
 			return nil
@@ -137,8 +137,8 @@ func (s *CommandService) EnsureLibraryFeedConfig(ctx context.Context, libraryID,
 	return nil
 }
 
-func (s *CommandService) DeleteLibraryFeedConfig(ctx context.Context, libraryID string) error {
-	ft := feed.LibraryType(libraryID)
+func (s *CommandService) DeleteLibraryFeedConfig(ctx context.Context, libraryID shared.LibraryID) error {
+	ft := feed.LibraryType(string(libraryID))
 	if err := s.commands.DeleteAdminConfigByType(ctx, ft); err != nil {
 		return fmt.Errorf("CommandService.DeleteLibraryFeedConfig: %w", err)
 	}

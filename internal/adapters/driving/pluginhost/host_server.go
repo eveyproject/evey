@@ -145,7 +145,8 @@ func (h *HostServer) GetMediaItem(ctx context.Context, req *pluginv1.GetMediaIte
 func (h *HostServer) ListMediaItems(ctx context.Context, req *pluginv1.ListMediaItemsRequest) (*pluginv1.ListMediaItemsResponse, error) {
 	filter := library.ListMediaItemsFilter{}
 	if req.LibraryId != "" {
-		filter.LibraryID = &req.LibraryId
+		libID := shared.LibraryID(req.LibraryId)
+		filter.LibraryID = &libID
 	}
 	if req.Type != "" {
 		filter.Type = &req.Type

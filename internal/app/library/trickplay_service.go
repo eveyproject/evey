@@ -146,7 +146,7 @@ func (s *TrickplayService) GetTrickplayManifest(ctx context.Context, mediaItemID
 	if s.trickplayRepo == nil {
 		return nil, errors.New("trickplay not configured")
 	}
-	return s.trickplayRepo.GetByMediaItemID(ctx, mediaItemID)
+	return s.trickplayRepo.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
 }
 
 func (s *TrickplayService) GenerateAllMissingTrickplays(ctx context.Context) (int, error) {

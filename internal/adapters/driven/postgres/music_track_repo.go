@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravity-zero/evey/internal/domain/music"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type MusicTrackRepository struct {
@@ -77,7 +78,7 @@ func (r *MusicTrackRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
-func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID string, limit, offset int, search string) ([]music.Track, int, error) {
+func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]music.Track, int, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if limit <= 0 {
@@ -163,7 +164,7 @@ func (r *MusicTrackRepository) Search(ctx context.Context, query string, limit i
 	return scanTracks(rows)
 }
 
-func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID string) ([]music.Album, error) {
+func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]music.Album, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -189,7 +190,7 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID string) 
 	return albums, rows.Err()
 }
 
-func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID string) ([]music.Artist, error) {
+func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID shared.LibraryID) ([]music.Artist, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -213,7 +214,7 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID string)
 	return artists, rows.Err()
 }
 
-func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID string) ([]music.Track, error) {
+func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]music.Track, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
