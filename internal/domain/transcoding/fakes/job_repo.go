@@ -77,7 +77,7 @@ func (r *FakeTranscodeJobRepository) ListByMediaItem(_ context.Context, mediaIte
 	defer r.mu.RUnlock()
 	var result []*transcoding.TranscodeJob
 	for _, j := range r.items {
-		if j.MediaItemID == mediaItemID {
+		if string(j.MediaItemID) == mediaItemID {
 			result = append(result, j)
 		}
 	}

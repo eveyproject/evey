@@ -16,7 +16,7 @@ import (
 func newTestTrack(id string, libID shared.LibraryID, title, artist, album string) music.Track {
 	return music.Track{
 		ID:          id,
-		LibraryID:   string(libID),
+		LibraryID:   shared.LibraryID(libID),
 		Title:       title,
 		Artist:      artist,
 		Album:       album,

@@ -71,7 +71,7 @@ func (s *FakeSearchIndex) Search(_ context.Context, query string, _ map[string]s
 		if strings.Contains(strings.ToLower(item.Title), q) {
 			hits = append(hits, library.SearchHit{
 				ID:             string(item.ID),
-				LibraryID:      string(item.LibraryID),
+				LibraryID:      item.LibraryID,
 				Title:          item.Title,
 				Year:           item.Year,
 				Type:           string(item.Type),

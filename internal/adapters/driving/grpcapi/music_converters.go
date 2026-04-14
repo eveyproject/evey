@@ -8,7 +8,7 @@ import (
 func trackToProto(t music.Track) *eveyv1.Track {
 	return &eveyv1.Track{
 		Id:          t.ID,
-		LibraryId:   t.LibraryID,
+		LibraryId:   string(t.LibraryID),
 		Title:       t.Title,
 		Artist:      t.Artist,
 		Album:       t.Album,

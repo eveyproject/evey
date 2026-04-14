@@ -12,6 +12,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/music"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	musicfakes "github.com/evey-project/evey/internal/domain/music/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
@@ -52,7 +53,7 @@ func newTestMusicHandler() (*musicHandler, *musicfakes.FakeMusicTrackRepository,
 
 func seedTrack(repo *musicfakes.FakeMusicTrackRepository, id, libraryID, title, artist string) {
 	repo.Upsert(context.Background(), music.Track{
-		ID: id, LibraryID: libraryID, Title: title, Artist: artist,
+		ID: id, LibraryID: shared.LibraryID(libraryID), Title: title, Artist: artist,
 		FilePath: "/music/" + id + ".mp3",
 	})
 }

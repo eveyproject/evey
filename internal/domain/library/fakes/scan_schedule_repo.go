@@ -27,7 +27,7 @@ func (r *FakeScanScheduleRepository) Upsert(_ context.Context, s *library.ScanSc
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[s.LibraryID] = s
+	r.items[string(s.LibraryID)] = s
 	return nil
 }
 

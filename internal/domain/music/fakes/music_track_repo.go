@@ -79,7 +79,7 @@ func (r *FakeMusicTrackRepository) ListByLibrary(_ context.Context, libraryID sh
 	q := strings.ToLower(search)
 	var out []music.Track
 	for _, t := range r.tracks {
-		if t.LibraryID != string(libraryID) {
+		if t.LibraryID != libraryID {
 			continue
 		}
 		if q != "" &&
@@ -171,7 +171,7 @@ func (r *FakeMusicTrackRepository) GetAlbums(_ context.Context, libraryID shared
 	type key struct{ album, artist string }
 	m := make(map[key]*music.Album)
 	for _, t := range r.tracks {
-		if t.LibraryID != string(libraryID) {
+		if t.LibraryID != libraryID {
 			continue
 		}
 		artist := t.AlbumArtist
@@ -212,7 +212,7 @@ func (r *FakeMusicTrackRepository) GetArtists(_ context.Context, libraryID share
 	}
 	m := make(map[string]*stats)
 	for _, t := range r.tracks {
-		if t.LibraryID != string(libraryID) {
+		if t.LibraryID != libraryID {
 			continue
 		}
 		name := t.AlbumArtist
@@ -247,7 +247,7 @@ func (r *FakeMusicTrackRepository) ListAllByLibrary(_ context.Context, libraryID
 	defer r.mu.RUnlock()
 	var out []music.Track
 	for _, t := range r.tracks {
-		if t.LibraryID == string(libraryID) {
+		if t.LibraryID == libraryID {
 			out = append(out, t)
 		}
 	}

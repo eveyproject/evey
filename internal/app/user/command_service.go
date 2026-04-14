@@ -296,7 +296,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 	}
 
 	if rt.Used {
-		if delErr := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(rt.UserID)); delErr != nil {
+		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
 			slog.Warn("delete refresh tokens by user failed", slog.String("userID", string(rt.UserID)), slog.Any("err", delErr))
 		}
 		return "", "", ErrInvalidCredentials
@@ -314,13 +314,13 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", markErr)
 	}
 	if !claimed {
-		if delErr := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(rt.UserID)); delErr != nil {
+		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
 			slog.Warn("delete refresh tokens by user failed", slog.String("userID", string(rt.UserID)), slog.Any("err", delErr))
 		}
 		return "", "", ErrInvalidCredentials
 	}
 
-	u, err := s.users.GetByID(ctx, shared.UserID(rt.UserID))
+	u, err := s.users.GetByID(ctx, rt.UserID)
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}

@@ -16,7 +16,7 @@ func NewFakeUserRatingRepository() *FakeUserRatingRepository {
 }
 
 func (r *FakeUserRatingRepository) Upsert(_ context.Context, rating *library.UserRating) error {
-	r.ratings[rating.ProfileID+":"+rating.MediaItemID] = rating
+	r.ratings[string(rating.ProfileID)+":"+string(rating.MediaItemID)] = rating
 	return nil
 }
 

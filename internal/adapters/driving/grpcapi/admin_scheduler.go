@@ -32,8 +32,8 @@ func (d *adminTaskHandler) ListScheduledTasks(ctx context.Context, _ *eveyv1.Lis
 	resp := &eveyv1.ListScheduledTasksResponse{}
 	for _, s := range schedules {
 		task := &eveyv1.ScheduledTask{
-			Id:             s.LibraryID,
-			Name:           "Library scan: " + s.LibraryID,
+			Id:             string(s.LibraryID),
+			Name:           "Library scan: " + string(s.LibraryID),
 			CronExpression: s.CronExpression,
 			Enabled:        s.Enabled,
 		}
@@ -58,7 +58,7 @@ func (d *adminTaskHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.
 	}
 	var current *domainlibrary.ScanSchedule
 	for _, s := range existing {
-		if s.LibraryID == req.Id {
+		if string(s.LibraryID) == req.Id {
 			current = s
 			break
 		}
@@ -80,8 +80,8 @@ func (d *adminTaskHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	task := &eveyv1.ScheduledTask{
-		Id:             updated.LibraryID,
-		Name:           "Library scan: " + updated.LibraryID,
+		Id:             string(updated.LibraryID),
+		Name:           "Library scan: " + string(updated.LibraryID),
 		CronExpression: updated.CronExpression,
 		Enabled:        updated.Enabled,
 	}

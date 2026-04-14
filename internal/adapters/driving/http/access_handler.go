@@ -244,7 +244,7 @@ func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler,
 			NextRunAt *string `json:"nextRunAt"`
 		}
 		out := resp{
-			LibraryID: sched.LibraryID,
+			LibraryID: string(sched.LibraryID),
 			Cron:      sched.CronExpression,
 			Enabled:   sched.Enabled,
 		}
@@ -295,7 +295,7 @@ func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler,
 			Enabled   bool    `json:"enabled"`
 			NextRunAt *string `json:"nextRunAt"`
 		}
-		out := resp{LibraryID: sched.LibraryID, Cron: sched.CronExpression, Enabled: sched.Enabled}
+		out := resp{LibraryID: string(sched.LibraryID), Cron: sched.CronExpression, Enabled: sched.Enabled}
 		if sched.NextRunAt != nil {
 			s := sched.NextRunAt.UTC().Format(time.RFC3339)
 			out.NextRunAt = &s

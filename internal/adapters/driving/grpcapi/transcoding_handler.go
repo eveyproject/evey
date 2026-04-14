@@ -8,6 +8,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
@@ -34,7 +35,7 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 	}
 	job := &transcoding.TranscodeJob{
 		ID:            id.New("tj-"),
-		MediaItemID:   req.MediaItemId,
+		MediaItemID:   shared.MediaItemID(req.MediaItemId),
 		OutputCodec:   req.VideoCodec,
 		AudioCodec:    req.AudioCodec,
 		HWAccelType:   hwAccelTypeFromProto[req.HwAccel],

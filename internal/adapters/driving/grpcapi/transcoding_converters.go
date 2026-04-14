@@ -30,7 +30,7 @@ var transcodeStateToProto = map[string]eveyv1.TranscodeState{
 func transcodeJobToProto(j *transcoding.TranscodeJob) *eveyv1.TranscodeJob {
 	pb := &eveyv1.TranscodeJob{
 		Id:          j.ID,
-		MediaItemId: j.MediaItemID,
+		MediaItemId: string(j.MediaItemID),
 		State:       transcodeStateToProto[string(j.Status)],
 		VideoCodec:  j.OutputCodec,
 		AudioCodec:  j.AudioCodec,

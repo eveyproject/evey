@@ -56,8 +56,8 @@ func (h *ratingHandler) PutThumbRating(ctx context.Context, req *eveyv1.PutThumb
 		return nil, fmt.Errorf("ratingHandler.PutThumbRating: %w", accessErr)
 	}
 	r := &domainlibrary.UserRating{
-		ProfileID:   claims.ProfileID,
-		MediaItemID: req.MediaItemId,
+		ProfileID:   shared.ProfileID(claims.ProfileID),
+		MediaItemID: shared.MediaItemID(req.MediaItemId),
 		Value:       int(req.Value),
 	}
 	if upsertErr := h.starSvc.UpsertThumb(ctx, r); upsertErr != nil {

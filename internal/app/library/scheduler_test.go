@@ -84,7 +84,7 @@ func TestScheduler_SetAndGetSchedule(t *testing.T) {
 
 	got, err := sched.SetSchedule(context.Background(), "lib-1", "0 */6 * * *", true)
 	require.NoError(t, err)
-	assert.Equal(t, "lib-1", got.LibraryID)
+	assert.Equal(t, shared.LibraryID("lib-1"), got.LibraryID)
 	assert.True(t, got.Enabled)
 	assert.NotNil(t, got.NextRunAt)
 
@@ -147,7 +147,7 @@ func TestScheduler_ListSchedules_Multiple(t *testing.T) {
 	list, err := sched.ListSchedules(context.Background())
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
-	ids := []string{list[0].LibraryID, list[1].LibraryID}
+	ids := []string{string(list[0].LibraryID), string(list[1].LibraryID)}
 	assert.Contains(t, ids, "lib-1")
 	assert.Contains(t, ids, "lib-2")
 }

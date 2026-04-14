@@ -199,7 +199,7 @@ type Chapter struct {
 }
 
 type ScanSchedule struct {
-	LibraryID      string
+	LibraryID      shared.LibraryID
 	CronExpression string
 	Enabled        bool
 	LastRunAt      *time.Time

@@ -134,7 +134,7 @@ type ScanScheduleRepository interface {
 
 type SearchHit struct {
 	ID               string
-	LibraryID        string
+	LibraryID        shared.LibraryID
 	Title            string
 	Year             *int
 	Type             string
@@ -187,8 +187,8 @@ type TrickplayRepository interface {
 
 // UserRating values: -1=dislike, 0=neutral/removed, 1=like
 type UserRating struct {
-	ProfileID   string
-	MediaItemID string
+	ProfileID   shared.ProfileID
+	MediaItemID shared.MediaItemID
 	Value       int // -1, 0, 1
 }
 

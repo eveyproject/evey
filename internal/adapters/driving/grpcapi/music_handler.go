@@ -191,7 +191,7 @@ func (h *musicHandler) DeleteTrack(ctx context.Context, req *eveyv1.DeleteTrackR
 		return nil, status.Error(codes.NotFound, "track not found")
 	}
 	if !claims.IsAdmin {
-		if accessErr := h.checkLibraryAccess(ctx, track.LibraryID); accessErr != nil {
+		if accessErr := h.checkLibraryAccess(ctx, string(track.LibraryID)); accessErr != nil {
 			return nil, accessErr
 		}
 	}

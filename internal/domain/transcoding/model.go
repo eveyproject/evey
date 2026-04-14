@@ -3,6 +3,8 @@ package transcoding
 import (
 	"errors"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type HWAccelType string
@@ -29,7 +31,7 @@ const (
 
 type TranscodeJob struct {
 	ID            string
-	MediaItemID   string
+	MediaItemID   shared.MediaItemID
 	InputPath     string
 	InputCodec    string
 	OutputCodec   string

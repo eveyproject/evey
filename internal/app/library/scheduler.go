@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type Scheduler struct {
@@ -38,7 +39,7 @@ func (s *Scheduler) SetSchedule(ctx context.Context, libraryID, cronExpr string,
 		return nil, fmt.Errorf("invalid cron: %w", err)
 	}
 	sched := &library.ScanSchedule{
-		LibraryID:      libraryID,
+		LibraryID:      shared.LibraryID(libraryID),
 		CronExpression: cronExpr,
 		Enabled:        enabled,
 		NextRunAt:      &nextRun,
@@ -85,24 +86,24 @@ func (s *Scheduler) tick(ctx context.Context) {
 		if sched.NextRunAt == nil || now.Before(*sched.NextRunAt) {
 			continue
 		}
-		s.logger.Info("scheduler: triggering scan", slog.String("library_id", sched.LibraryID))
+		s.logger.Info("scheduler: triggering scan", slog.String("library_id", string(sched.LibraryID)))
 		go s.runScan(ctx, sched)
 	}
 }
 
 func (s *Scheduler) runScan(ctx context.Context, sched *library.ScanSchedule) {
 	now := s.nowFunc()
-	added, updated, err := s.scanner.ScanLibrary(ctx, sched.LibraryID)
+	added, updated, err := s.scanner.ScanLibrary(ctx, string(sched.LibraryID))
 	if err != nil {
-		s.logger.Error("scheduler: scan failed", slog.String("library_id", sched.LibraryID), slog.Any("err", err))
+		s.logger.Error("scheduler: scan failed", slog.String("library_id", string(sched.LibraryID)), slog.Any("err", err))
 	} else {
-		s.logger.Info("scheduler: scan done", slog.String("library_id", sched.LibraryID), slog.Int("added", added), slog.Int("updated", updated))
+		s.logger.Info("scheduler: scan done", slog.String("library_id", string(sched.LibraryID)), slog.Int("added", added), slog.Int("updated", updated))
 	}
 	nextRun, err := NextCronTime(sched.CronExpression, now)
 	if err != nil {
-		s.logger.Warn("scheduler: invalid cron expression", slog.String("library_id", sched.LibraryID), slog.Any("err", err))
+		s.logger.Warn("scheduler: invalid cron expression", slog.String("library_id", string(sched.LibraryID)), slog.Any("err", err))
 	}
-	if updateErr := s.schedules.UpdateAfterRun(ctx, sched.LibraryID, now, nextRun); updateErr != nil {
+	if updateErr := s.schedules.UpdateAfterRun(ctx, string(sched.LibraryID), now, nextRun); updateErr != nil {
 		s.logger.Error("scheduler: update after run", slog.Any("err", updateErr))
 	}
 }

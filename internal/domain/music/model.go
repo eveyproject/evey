@@ -3,11 +3,13 @@ package music
 import (
 	"errors"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type Track struct {
 	ID          string
-	LibraryID   string
+	LibraryID   shared.LibraryID
 	Title       string
 	Artist      string
 	Album       string

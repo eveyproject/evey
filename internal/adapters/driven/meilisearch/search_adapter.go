@@ -11,6 +11,7 @@ import (
 	ms "github.com/meilisearch/meilisearch-go"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 const (
@@ -234,7 +235,7 @@ func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[st
 		}
 		h := library.SearchHit{
 			ID:             doc.ID,
-			LibraryID:      doc.LibraryID,
+			LibraryID:      shared.LibraryID(doc.LibraryID),
 			Title:          doc.Title,
 			Year:           doc.Year,
 			Type:           doc.Type,

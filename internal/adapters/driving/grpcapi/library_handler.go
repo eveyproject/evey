@@ -321,7 +321,7 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 		TotalHits: int32(total),
 	}
 	for _, hit := range hits {
-		if allowedIDs != nil && !slices.Contains(allowedIDs, hit.LibraryID) {
+		if allowedIDs != nil && !slices.Contains(allowedIDs, string(hit.LibraryID)) {
 			continue
 		}
 		if pf.maxRating != "" && !ratings.IsAllowed(hit.OfficialRating, pf.maxRating) {
@@ -591,7 +591,7 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 
 func scheduleToProto(s *library.ScanSchedule) *eveyv1.LibrarySchedule {
 	pb := &eveyv1.LibrarySchedule{
-		LibraryId: s.LibraryID,
+		LibraryId: string(s.LibraryID),
 		Cron:      s.CronExpression,
 		Enabled:   s.Enabled,
 	}

@@ -78,7 +78,7 @@ func (r *UserRatingRepository) GetForItems(ctx context.Context, profileID string
 		if err := rows.Scan(&ur.ProfileID, &ur.MediaItemID, &ur.Value); err != nil {
 			return nil, err
 		}
-		result[ur.MediaItemID] = &ur
+		result[string(ur.MediaItemID)] = &ur
 	}
 	return result, rows.Err()
 }

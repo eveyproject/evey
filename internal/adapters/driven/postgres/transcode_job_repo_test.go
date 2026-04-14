@@ -7,6 +7,7 @@ import (
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ import (
 func newTestTranscodeJob(id, mediaItemID, status string) *transcoding.TranscodeJob {
 	return &transcoding.TranscodeJob{
 		ID:            id,
-		MediaItemID:   mediaItemID,
+		MediaItemID:   shared.MediaItemID(mediaItemID),
 		InputCodec:    "h265",
 		OutputCodec:   "h264",
 		HWAccelType:   "none",

@@ -108,7 +108,7 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 				slog.Warn("music scan: parse failed", slog.String("path", j.path), slog.Any("err", parseErr))
 				t = &music.Track{
 					ID:        uuid.New().String(),
-					LibraryID: libraryID,
+					LibraryID: shared.LibraryID(libraryID),
 					Title:     filepath.Base(j.path),
 					FilePath:  j.path,
 					FileSize:  j.size,
@@ -145,17 +145,17 @@ func (s *CommandService) DeleteTrack(ctx context.Context, trackID string) error 
 	if err != nil {
 		return fmt.Errorf("CommandService.DeleteTrack: %w", err)
 	}
-	libraryID := ""
+	var libraryID shared.LibraryID
 	if t != nil {
 		libraryID = t.LibraryID
 	}
 	if err := s.tracks.Delete(ctx, trackID); err != nil {
 		return fmt.Errorf("CommandService.DeleteTrack: %w", err)
 	}
-	if pubErr := s.bus.Publish(ctx, music.TrackDeleted{TrackID: trackID, LibraryID: shared.LibraryID(libraryID), OccurredAt: time.Now()}); pubErr != nil {
+	if pubErr := s.bus.Publish(ctx, music.TrackDeleted{TrackID: trackID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("music: TrackDeleted publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
 	}
-	if pubErr := s.bus.Publish(ctx, music.TrackRemoved{TrackID: trackID, LibraryID: shared.LibraryID(libraryID), OccurredAt: time.Now()}); pubErr != nil {
+	if pubErr := s.bus.Publish(ctx, music.TrackRemoved{TrackID: trackID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("music: TrackRemoved publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
 	}
 	return nil
@@ -214,7 +214,7 @@ func (s *CommandService) parseTrack(path, libraryID, mimeType string, fileSize i
 
 	t := &music.Track{
 		ID:          uuid.New().String(),
-		LibraryID:   libraryID,
+		LibraryID:   shared.LibraryID(libraryID),
 		Title:       m.Title(),
 		Artist:      artist,
 		Album:       m.Album(),

@@ -91,7 +91,7 @@ func TestStartTranscode_MaxConcurrentZero_Unlimited(t *testing.T) {
 
 	for i := range 10 {
 		j := &transcoding.TranscodeJob{
-			ID: fmt.Sprintf("j%d", i), MediaItemID: fmt.Sprintf("m%d", i),
+			ID: fmt.Sprintf("j%d", i), MediaItemID: shared.MediaItemID(fmt.Sprintf("m%d", i)),
 			InputPath: "/a.mkv", InputCodec: "h264", OutputCodec: "h265",
 		}
 		err := svc.StartTranscode(ctx, j)
@@ -422,7 +422,7 @@ func startJob(t *testing.T, svc *apptranscode.Service, id, mediaID string) *tran
 	t.Helper()
 	job := &transcoding.TranscodeJob{
 		ID:          id,
-		MediaItemID: mediaID,
+		MediaItemID: shared.MediaItemID(mediaID),
 		InputPath:   "/media/movie.mkv",
 		InputCodec:  "h264",
 		OutputCodec: "h265",
