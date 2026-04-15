@@ -12,6 +12,21 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// identityAttrs appends user_id / is_admin to log attrs if claims are in ctx.
+// Returns the attrs slice so LoggingUnary/Stream can emit consistent audit
+// context alongside request_id.
+func identityAttrs(ctx context.Context, attrs []any) []any {
+	if c := ClaimsFromContext(ctx); c != nil {
+		if c.UserID != "" {
+			attrs = append(attrs, slog.String("user_id", c.UserID))
+		}
+		if c.IsAdmin {
+			attrs = append(attrs, slog.Bool("admin", true))
+		}
+	}
+	return attrs
+}
+
 func LoggingUnary(log *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		ctx = eveylogger.WithRequestID(ctx, newRequestID())
@@ -24,6 +39,9 @@ func LoggingUnary(log *slog.Logger) grpc.UnaryServerInterceptor {
 			slog.String("status", st.Code().String()),
 			slog.String("request_id", eveylogger.RequestIDFromCtx(ctx)),
 		}
+		// ClaimsFromContext is populated by AuthInterceptor (chained earlier);
+		// ctx may not have claims on unauthenticated endpoints — that's fine.
+		attrs = identityAttrs(ctx, attrs)
 		if err != nil {
 			attrs = append(attrs, slog.String("error", st.Message()))
 		}
@@ -39,12 +57,14 @@ func LoggingStream(log *slog.Logger) grpc.StreamServerInterceptor {
 		start := time.Now()
 		err := handler(srv, wrapped)
 		st, _ := status.FromError(err)
-		log.InfoContext(ctx, "grpc stream",
+		attrs := []any{
 			slog.String("method", info.FullMethod),
 			slog.Duration("duration", time.Since(start)),
 			slog.String("status", st.Code().String()),
 			slog.String("request_id", eveylogger.RequestIDFromCtx(ctx)),
-		)
+		}
+		attrs = identityAttrs(ctx, attrs)
+		log.InfoContext(ctx, "grpc stream", attrs...)
 		return err
 	}
 }
