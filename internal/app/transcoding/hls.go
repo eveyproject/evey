@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
@@ -25,8 +26,8 @@ func IsImageSubtitle(codec string) bool {
 
 type HLSSession struct {
 	ID                  string
-	MediaItemID         string
-	UserID              string
+	MediaItemID         shared.MediaItemID
+	UserID              shared.UserID
 	OutputDir           string
 	Profiles            []transcoding.HLSProfile
 	VideoDecision       string // "copy" or "transcode"
@@ -79,7 +80,7 @@ func (s *HLSSession) stop() {
 	s.mu.Unlock()
 	if h != nil {
 		if err := h.Stop(); err != nil {
-			slog.Warn("hls: stop handle failed", slog.String("media_id", s.MediaItemID), slog.Any("err", err))
+			slog.Warn("hls: stop handle failed", slog.String("media_id", string(s.MediaItemID)), slog.Any("err", err))
 		}
 	}
 	// Wait for startSession goroutine to finish before removing files
@@ -233,8 +234,8 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 	now := time.Now()
 	session := &HLSSession{
 		ID:                 mediaItemID,
-		MediaItemID:        mediaItemID,
-		UserID:             userID,
+		MediaItemID:        shared.MediaItemID(mediaItemID),
+		UserID:             shared.UserID(userID),
 		OutputDir:          outputDir,
 		Profiles:           profiles,
 		VideoDecision:      videoDecision,
@@ -270,12 +271,12 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 }
 
 func (m *HLSManager) evictSessionLocked(session *HLSSession) {
-	delete(m.sessions, session.MediaItemID)
-	m.userSessions[session.UserID]--
-	if m.userSessions[session.UserID] <= 0 {
-		delete(m.userSessions, session.UserID)
+	delete(m.sessions, string(session.MediaItemID))
+	m.userSessions[string(session.UserID)]--
+	if m.userSessions[string(session.UserID)] <= 0 {
+		delete(m.userSessions, string(session.UserID))
 	}
-	dir := filepath.Join(m.cacheDir, session.MediaItemID)
+	dir := filepath.Join(m.cacheDir, string(session.MediaItemID))
 	if err := os.RemoveAll(dir); err != nil {
 		slog.Warn("evict session cache failed", slog.String("dir", dir), slog.Any("err", err))
 	}
@@ -335,9 +336,9 @@ func (m *HLSManager) RestartFromPosition(userID, mediaItemID, filePath string, s
 	m.mu.Lock()
 	if old, ok := m.sessions[mediaItemID]; ok {
 		delete(m.sessions, mediaItemID)
-		m.userSessions[old.UserID]--
-		if m.userSessions[old.UserID] <= 0 {
-			delete(m.userSessions, old.UserID)
+		m.userSessions[string(old.UserID)]--
+		if m.userSessions[string(old.UserID)] <= 0 {
+			delete(m.userSessions, string(old.UserID))
 		}
 		m.mu.Unlock()
 		old.stop()
@@ -356,9 +357,9 @@ func (m *HLSManager) RemoveSession(mediaItemID string) {
 		return
 	}
 	delete(m.sessions, mediaItemID)
-	m.userSessions[session.UserID]--
-	if m.userSessions[session.UserID] <= 0 {
-		delete(m.userSessions, session.UserID)
+	m.userSessions[string(session.UserID)]--
+	if m.userSessions[string(session.UserID)] <= 0 {
+		delete(m.userSessions, string(session.UserID))
 	}
 	m.mu.Unlock()
 	session.stop()
@@ -379,9 +380,9 @@ func (m *HLSManager) CleanupAll() {
 	for id, session := range m.sessions {
 		toStop = append(toStop, session)
 		delete(m.sessions, id)
-		m.userSessions[session.UserID]--
-		if m.userSessions[session.UserID] <= 0 {
-			delete(m.userSessions, session.UserID)
+		m.userSessions[string(session.UserID)]--
+		if m.userSessions[string(session.UserID)] <= 0 {
+			delete(m.userSessions, string(session.UserID))
 		}
 	}
 	m.mu.Unlock()
@@ -416,9 +417,9 @@ func (m *HLSManager) cleanupStale(maxIdle time.Duration) {
 			slog.Info("hls: cleaning stale session", slog.String("media_id", id))
 			toStop = append(toStop, session)
 			delete(m.sessions, id)
-			m.userSessions[session.UserID]--
-			if m.userSessions[session.UserID] <= 0 {
-				delete(m.userSessions, session.UserID)
+			m.userSessions[string(session.UserID)]--
+			if m.userSessions[string(session.UserID)] <= 0 {
+				delete(m.userSessions, string(session.UserID))
 			}
 		}
 	}

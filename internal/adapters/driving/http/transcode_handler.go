@@ -341,7 +341,7 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 
 		var outputDir string
 		if session, ok := hlsManager.GetSession(mediaID); ok {
-			if sessionUserID != session.UserID {
+			if sessionUserID != string(session.UserID) {
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
