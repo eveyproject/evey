@@ -159,12 +159,12 @@ describe("useSyncPlay", () => {
       eveyFetchFn.mockResolvedValueOnce({ roomId: "room-3", mediaId: "media-5", wsUrl: "ws://x" });
       const { result } = await loadHook();
 
-      let res: { roomId: string; mediaId: string };
+      let res: { roomId: string; mediaId: string; mediaType?: string };
       await act(async () => {
         res = await result.current[1].joinByCode("MYCODE");
       });
 
-      expect(res!).toEqual({ roomId: "room-3", mediaId: "media-5" });
+      expect(res!).toMatchObject({ roomId: "room-3", mediaId: "media-5" });
       expect(eveyFetchFn).toHaveBeenCalled();
       expect(latestWs().url).toContain("/api/v1/syncplay/rooms/room-3/ws");
     });

@@ -83,17 +83,7 @@ describe("MusicPage search", () => {
     await waitFor(() => expect(screen.getByText("No tracks match your search.")).toBeInTheDocument());
   });
 
-  it("delete button (Trash2) is not visible when isAdmin is false", async () => {
-    setup();
-    const mod = await import("./index.lazy");
-    const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
-    render(React.createElement(MusicPage), { wrapper: createWrapper() });
-
-    await waitFor(() => expect(screen.getByText("Blue Sky")).toBeInTheDocument());
-    expect(screen.queryByTitle("Delete track")).not.toBeInTheDocument();
-  });
-
-  it("delete button (Trash2) is visible when isAdmin is true", async () => {
+  it("delete button was removed — never rendered regardless of role", async () => {
     mockUseAuthStore.mockImplementation((s: (state: { isAdmin: boolean }) => unknown) => s({ isAdmin: true }));
     setup();
     const mod = await import("./index.lazy");
@@ -101,6 +91,6 @@ describe("MusicPage search", () => {
     render(React.createElement(MusicPage), { wrapper: createWrapper() });
 
     await waitFor(() => expect(screen.getByText("Blue Sky")).toBeInTheDocument());
-    expect(screen.getByTitle("Delete track")).toBeInTheDocument();
+    expect(screen.queryByTitle("Delete track")).not.toBeInTheDocument();
   });
 });

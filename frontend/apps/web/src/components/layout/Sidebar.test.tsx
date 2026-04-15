@@ -30,6 +30,7 @@ vi.mock("lucide-react", () => {
   return {
     Home: Icon, Library: Icon, Heart: Icon, Music2: Icon, Images: Icon,
     Settings: Icon, PanelLeftClose: Icon, PanelLeft: Icon, ArrowLeft: Icon,
+    Headphones: Icon,
   };
 });
 

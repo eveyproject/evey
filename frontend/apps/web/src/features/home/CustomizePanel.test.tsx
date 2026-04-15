@@ -77,12 +77,12 @@ describe("CustomizePanel", () => {
     expect(screen.getByText("Movies")).toBeInTheDocument();
   });
 
-  it("renders unknown feed type as-is", () => {
+  it("filters out unknown feed types (not in KNOWN_FEED_TYPES)", () => {
     mockFeedData = {
       configs: [{ feedType: "custom_unknown", enabled: true, displayOrder: 0 }],
     };
     renderPanel();
-    expect(screen.getByText("custom_unknown")).toBeInTheDocument();
+    expect(screen.queryByText("custom_unknown")).not.toBeInTheDocument();
   });
 
   it("toggle calls updateMutation with flipped enabled", async () => {
