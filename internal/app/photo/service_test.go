@@ -471,14 +471,17 @@ func TestListPhotos_LimitBoundaries(t *testing.T) {
 		})
 	}
 
+	// Limit 0/neg/over-max clamp to default 200 (cap 5000). Photos are
+	// lightweight to list, grid uses lazy <img loading>, virtualizer
+	// renders on-screen rows only — higher default is fine.
 	tests := []struct {
 		name      string
 		limit     int
 		wantLimit int
 	}{
-		{"zero clamps to 50", 0, 50},
-		{"negative clamps to 50", -1, 50},
-		{"501 clamps to 50", 501, 50},
+		{"zero clamps to default 200", 0, 60},
+		{"negative clamps to default 200", -1, 60},
+		{"5001 clamps to default 200", 5001, 60},
 		{"500 accepted", 500, 60},
 		{"1 accepted", 1, 1},
 		{"50 accepted", 50, 50},

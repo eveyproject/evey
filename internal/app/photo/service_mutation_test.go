@@ -254,7 +254,10 @@ func TestScanDirectory_AlbumFromSubdir(t *testing.T) {
 	assert.Equal(t, "beach", photos[0].Title)
 }
 
-func TestScanDirectory_RootFileAlbumIsDirBasename(t *testing.T) {
+func TestScanDirectory_RootFileAlbumIsEmpty(t *testing.T) {
+	// Files sitting at the library root have no album subfolder: album=""
+	// by design (disambiguates nested folders with colliding basenames —
+	// album now stores the relative subpath from the library root).
 	dir := "/fake/photos"
 	scanner := scannerFromFiles(dir, []fakeFile{{relPath: "root.jpg", data: minimalJPEG}})
 
@@ -267,9 +270,7 @@ func TestScanDirectory_RootFileAlbumIsDirBasename(t *testing.T) {
 
 	photos, _, _ := repo.ListByLibrary(ctx, "lib-r", 10, 0)
 	require.Len(t, photos, 1)
-	p := photos[0]
-	dirBase := filepath.Base(dir)
-	assert.Equal(t, dirBase, p.Album)
+	assert.Equal(t, "", photos[0].Album)
 }
 
 func TestScanDirectory_AllImageExtensions(t *testing.T) {
