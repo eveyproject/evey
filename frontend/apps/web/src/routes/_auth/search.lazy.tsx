@@ -140,7 +140,7 @@ function SearchPage() {
               className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-[var(--surface-raised)] transition-colors-fast cursor-pointer text-[var(--text-muted)]"
               aria-label={t("media.search.clearSearch")}
             >
-              <X size={16} />
+              <X size={16}  aria-hidden="true" />
             </button>
           )}
         </div>
@@ -311,7 +311,7 @@ function SearchPage() {
                   className="ml-1 cursor-pointer transition-colors-fast hover:opacity-80 text-[var(--text-muted)]"
                   aria-label={`Remove ${r}`}
                 >
-                  <X size={12} />
+                  <X size={12}  aria-hidden="true" />
                 </button>
               </div>
             ))}

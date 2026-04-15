@@ -64,10 +64,10 @@ export function CastCarousel({ people, title }: { people: V1MediaPerson[]; title
         {people.length > 6 && (
           <div className="flex gap-1">
             <button onClick={() => scroll("left")} aria-label="Scroll left" className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]">
-              <ChevronLeft size={16} />
+              <ChevronLeft size={16}  aria-hidden="true" />
             </button>
             <button onClick={() => scroll("right")} aria-label="Scroll right" className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]">
-              <ChevronRight size={16} />
+              <ChevronRight size={16}  aria-hidden="true" />
             </button>
           </div>
         )}

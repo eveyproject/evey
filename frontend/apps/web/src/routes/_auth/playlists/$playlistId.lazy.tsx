@@ -51,8 +51,9 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
           disabled={remove.isPending}
           className="p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast flex-shrink-0 text-[var(--text-muted)]"
           title={t("common.remove")}
+          aria-label={t("common.remove")}
         >
-          <X size={16} />
+          <X size={16} aria-hidden="true" />
         </button>
       )}
     </div>

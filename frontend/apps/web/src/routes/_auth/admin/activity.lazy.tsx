@@ -314,7 +314,7 @@ function ActivityPage() {
           title={t("common.export") || "Export JSON"}
           aria-label={t("common.export", "Export JSON")}
         >
-          <Download size={14} />
+          <Download size={14}  aria-hidden="true" />
           JSON
         </button>
       </div>

@@ -125,7 +125,7 @@ function ProfileCard() {
               initial
             )}
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <Pencil size={16} className="text-white" />
+              <Pencil size={16} className="text-white"  aria-hidden="true" />
             </div>
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
@@ -144,7 +144,7 @@ function ProfileCard() {
             className="p-2 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--surface-raised)] transition-colors-fast"
             aria-label={editing ? "Cancel" : "Edit profile"}
           >
-            {editing ? <X size={18} /> : <Pencil size={18} />}
+            {editing ? <X size={18}  aria-hidden="true" /> : <Pencil size={18}  aria-hidden="true" />}
           </button>
         </div>
 

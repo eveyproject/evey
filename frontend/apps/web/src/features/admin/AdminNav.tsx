@@ -130,7 +130,7 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                   style={{
                     transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
                   }}
-                />
+                 aria-hidden="true" />
               </button>
             )}
 

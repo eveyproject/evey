@@ -161,7 +161,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
             className="transition-colors-fast text-[var(--overlay-text-muted)]"
             aria-label="Delete photo"
           >
-            <Trash2 size={22} />
+            <Trash2 size={22}  aria-hidden="true" />
           </button>
         )}
         <button
@@ -169,7 +169,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
           className="transition-colors-fast text-[var(--overlay-text)]"
           aria-label="Close"
         >
-          <X size={28} />
+          <X size={28}  aria-hidden="true" />
         </button>
       </div>
 
@@ -179,7 +179,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
           className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-3 sm:p-2 rounded-full bg-black/40 hover:bg-black/60 text-[var(--overlay-text)]"
           aria-label="Previous"
         >
-          <ChevronLeft size={28} />
+          <ChevronLeft size={28}  aria-hidden="true" />
         </button>
       )}
 
@@ -189,7 +189,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
           className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-3 sm:p-2 rounded-full bg-black/40 hover:bg-black/60 text-[var(--overlay-text)]"
           aria-label="Next"
         >
-          <ChevronRight size={28} />
+          <ChevronRight size={28}  aria-hidden="true" />
         </button>
       )}
 

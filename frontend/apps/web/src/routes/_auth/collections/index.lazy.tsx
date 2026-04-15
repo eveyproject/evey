@@ -70,7 +70,7 @@ function CollectionPosterCard({ col }: { col: Collection }) {
         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity-fast p-1.5 rounded-full bg-black/60 text-[var(--overlay-text)]"
         aria-label="Delete collection"
       >
-        <Trash2 size={16} />
+        <Trash2 size={16}  aria-hidden="true" />
       </button>
     </div>
   );
@@ -120,14 +120,14 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
             aria-label="Edit filter"
             className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]"
           >
-            <Pencil size={16} strokeWidth={1.5} />
+            <Pencil size={16} strokeWidth={1.5}  aria-hidden="true" />
           </button>
           <button
             onClick={onDelete}
             aria-label="Delete filter"
             className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]"
           >
-            <Trash2 size={16} strokeWidth={1.5} />
+            <Trash2 size={16} strokeWidth={1.5}  aria-hidden="true" />
           </button>
         </div>
       </div>

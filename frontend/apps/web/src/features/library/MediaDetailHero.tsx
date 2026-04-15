@@ -107,7 +107,7 @@ export function MediaDetailHero({
               aria-label={t("media.detail.editMetadata")}
               className="flex-shrink-0 p-1.5 rounded-full transition-opacity-fast hover:opacity-80 bg-[var(--overlay-chip-bg)] text-[var(--overlay-text-muted)]"
             >
-              <Pencil size={16} />
+              <Pencil size={16}  aria-hidden="true" />
             </button>
           )}
         </div>

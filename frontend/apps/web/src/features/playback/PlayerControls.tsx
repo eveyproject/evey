@@ -312,7 +312,7 @@ export function PlayerControls({
           aria-label={t("common.back")}
           className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
         >
-          <ArrowLeft size={24} />
+          <ArrowLeft size={24}  aria-hidden="true" />
         </button>
         {title && <span className="text-[var(--overlay-text)] text-sm font-medium truncate">{title}</span>}
         {isCasting && castDeviceName && (
@@ -358,7 +358,7 @@ export function PlayerControls({
               className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
               title={prevEpisode.title ? `E${prevEpisode.indexNumber} - ${prevEpisode.title}` : undefined}
             >
-              <SkipBack size={22} fill="currentColor" />
+              <SkipBack size={22} fill="currentColor"  aria-hidden="true" />
             </button>
           )}
 
@@ -369,7 +369,7 @@ export function PlayerControls({
               aria-label={t("player.controls.chapters")}
               className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
             >
-              <ChevronFirst size={22} />
+              <ChevronFirst size={22}  aria-hidden="true" />
             </button>
           )}
 
@@ -394,9 +394,9 @@ export function PlayerControls({
             className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
           >
             {playing ? (
-              <Pause size={28} fill="currentColor" />
+              <Pause size={28} fill="currentColor"  aria-hidden="true" />
             ) : (
-              <Play size={28} fill="currentColor" />
+              <Play size={28} fill="currentColor"  aria-hidden="true" />
             )}
           </button>
 
@@ -420,7 +420,7 @@ export function PlayerControls({
               aria-label={t("player.controls.chapters")}
               className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
             >
-              <ChevronLast size={22} />
+              <ChevronLast size={22}  aria-hidden="true" />
             </button>
           )}
 
@@ -436,7 +436,7 @@ export function PlayerControls({
                 className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
                 title={next.title ? `E${next.indexNumber} - ${next.title}` : undefined}
               >
-                <SkipForward size={22} fill="currentColor" />
+                <SkipForward size={22} fill="currentColor"  aria-hidden="true" />
               </button>
             );
           })()}
@@ -514,7 +514,7 @@ export function PlayerControls({
               title={castConnected && castDeviceName ? castDeviceName : undefined}
               className={`transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded ${castConnected ? "text-[var(--accent)]" : "text-[var(--overlay-text)] hover:text-[var(--accent)]"}`}
             >
-              <Cast size={20} />
+              <Cast size={20}  aria-hidden="true" />
             </button>
           )}
 
@@ -527,9 +527,9 @@ export function PlayerControls({
               className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
             >
               {isPip ? (
-                <PictureInPicture2 size={20} />
+                <PictureInPicture2 size={20}  aria-hidden="true" />
               ) : (
-                <PictureInPicture size={20} />
+                <PictureInPicture size={20}  aria-hidden="true" />
               )}
             </button>
           )}
@@ -542,9 +542,9 @@ export function PlayerControls({
             className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
           >
             {fullscreen ? (
-              <Minimize size={20} />
+              <Minimize size={20}  aria-hidden="true" />
             ) : (
-              <Maximize size={20} />
+              <Maximize size={20}  aria-hidden="true" />
             )}
           </button>
         </div>

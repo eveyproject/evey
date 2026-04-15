@@ -17,7 +17,7 @@ export function SortOrderButton({
       title={isAsc ? "Ascending" : "Descending"}
       aria-label={isAsc ? "Sort ascending" : "Sort descending"}
     >
-      {isAsc ? <ArrowUpNarrowWide size={16} /> : <ArrowDownWideNarrow size={16} />}
+      {isAsc ? <ArrowUpNarrowWide size={16}  aria-hidden="true" /> : <ArrowDownWideNarrow size={16}  aria-hidden="true" />}
     </button>
   );
 }
@@ -38,7 +38,7 @@ export function ViewToggleButton({
       aria-label={mode === "grid" ? "Switch to list view" : "Switch to grid view"}
       data-testid="view-toggle"
     >
-      {mode === "grid" ? <List size={16} /> : <LayoutGrid size={16} />}
+      {mode === "grid" ? <List size={16}  aria-hidden="true" /> : <LayoutGrid size={16}  aria-hidden="true" />}
     </button>
   );
 }

@@ -20,11 +20,11 @@ export function PlayerVolumeControl({ volume, muted, onToggleMute, onVolumeChang
         className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
       >
         {muted || volume === 0 ? (
-          <VolumeX size={18} />
+          <VolumeX size={18}  aria-hidden="true" />
         ) : volume < 0.5 ? (
-          <Volume1 size={18} />
+          <Volume1 size={18}  aria-hidden="true" />
         ) : (
-          <Volume2 size={18} />
+          <Volume2 size={18}  aria-hidden="true" />
         )}
       </button>
       <input

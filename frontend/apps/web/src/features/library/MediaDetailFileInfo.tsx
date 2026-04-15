@@ -27,7 +27,7 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
           className="transition-transform-fast"
           size={16}
           style={{ transform: fileInfoOpen ? "rotate(90deg)" : "rotate(0deg)" }}
-        />
+         aria-hidden="true" />
         {t("media.detail.fileInfo")}
       </button>
       {fileInfoOpen && (

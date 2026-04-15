@@ -66,8 +66,9 @@ function PlaylistCard({ playlist, onDelete }: { playlist: Playlist; onDelete: ()
           onClick={(e) => { e.preventDefault(); onDelete(); }}
           className="opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-all text-[var(--text-muted)]"
           title={t("media.playlist.deletePlaylist")}
+          aria-label={t("media.playlist.deletePlaylist")}
         >
-          <Trash2 size={16} />
+          <Trash2 size={16} aria-hidden="true" />
         </button>
       </div>
     </div>

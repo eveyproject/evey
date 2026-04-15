@@ -137,7 +137,7 @@ export const SearchDropdown = memo(function SearchDropdown({
                   className="p-1 rounded hover:bg-[var(--surface)] transition-colors-fast cursor-pointer text-[var(--text-muted)]"
                   aria-label={`Remove ${r}`}
                 >
-                  <X size={12} />
+                  <X size={12}  aria-hidden="true" />
                 </button>
               )}
             </li>

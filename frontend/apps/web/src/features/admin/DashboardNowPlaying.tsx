@@ -120,7 +120,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
             title={session.isPaused ? t("common.play") : t("common.pause")}
             aria-label={session.isPaused ? t("common.play") : t("common.pause")}
           >
-            {session.isPaused ? <Play size={18} fill="currentColor" /> : <Pause size={18} />}
+            {session.isPaused ? <Play size={18} fill="currentColor"  aria-hidden="true" /> : <Pause size={18}  aria-hidden="true" />}
           </button>
           <button
             className="p-2 rounded-full hover:bg-[var(--danger-hover,#b91c1c)] transition-colors text-[var(--danger-bg,#dc2626)]"
@@ -132,7 +132,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
             title={t("admin.sessions.stopSession")}
             aria-label={t("admin.sessions.stopSession")}
           >
-            <Square size={16} fill="currentColor" />
+            <Square size={16} fill="currentColor"  aria-hidden="true" />
           </button>
           <button
             className="p-2 rounded-full hover:bg-[var(--border)] transition-colors text-[var(--text-muted)] hover:text-[var(--text)]"
@@ -140,7 +140,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
             title={t("admin.sessions.sendMessage")}
             aria-label={t("admin.sessions.sendMessage")}
           >
-            <MessageSquare size={16} />
+            <MessageSquare size={16}  aria-hidden="true" />
           </button>
         </div>
         {showMsg && (
@@ -171,7 +171,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
               disabled={!msgText.trim()}
               aria-label={t("admin.sessions.sendMessage")}
             >
-              <Send size={14} />
+              <Send size={14}  aria-hidden="true" />
             </button>
           </form>
         )}

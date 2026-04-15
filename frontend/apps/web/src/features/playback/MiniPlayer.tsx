@@ -140,7 +140,7 @@ export function MiniPlayer() {
           className="p-1 rounded hover:opacity-80 text-[var(--text)]"
           aria-label={playing ? t("common.aria.pause") : t("common.aria.play")}
         >
-          {playing ? <Pause size={16} /> : <Play size={16} />}
+          {playing ? <Pause size={16}  aria-hidden="true" /> : <Play size={16}  aria-hidden="true" />}
         </button>
 
         {/* Progress bar */}
@@ -160,7 +160,7 @@ export function MiniPlayer() {
           className="p-1 rounded hover:opacity-80 text-[var(--text-muted)]"
           aria-label={t("common.aria.expand")}
         >
-          <Maximize size={14} />
+          <Maximize size={14}  aria-hidden="true" />
         </button>
 
         <button
@@ -168,7 +168,7 @@ export function MiniPlayer() {
           className="p-1 rounded hover:opacity-80 text-[var(--text-muted)]"
           aria-label={t("common.aria.close")}
         >
-          <X size={14} />
+          <X size={14}  aria-hidden="true" />
         </button>
       </div>
     </div>

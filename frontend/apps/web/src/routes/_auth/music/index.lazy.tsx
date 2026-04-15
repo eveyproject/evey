@@ -311,14 +311,14 @@ function NowPlayingBar({
             className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer"
             aria-label="Previous"
           >
-            <SkipBack size={18} />
+            <SkipBack size={18}  aria-hidden="true" />
           </button>
           <button
             onClick={togglePlay}
             className="bg-[var(--accent)] border-none cursor-pointer text-[var(--filter-active-text)] rounded-full w-9 h-9 flex items-center justify-center"
             aria-label={isPlaying ? "Pause" : "Play"}
           >
-            {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+            {isPlaying ? <Pause size={16}  aria-hidden="true" /> : <Play size={16}  aria-hidden="true" />}
           </button>
           <button
             onClick={playNext}
@@ -326,7 +326,7 @@ function NowPlayingBar({
             className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer"
             aria-label="Next"
           >
-            <SkipForward size={18} />
+            <SkipForward size={18}  aria-hidden="true" />
           </button>
         </div>
         <div className="flex items-center gap-2 w-full max-w-[200px] sm:max-w-[400px]">
@@ -367,7 +367,7 @@ function NowPlayingBar({
         className="text-[var(--text-muted)] bg-transparent border-none cursor-pointer"
         aria-label="Close player"
       >
-        <X size={18} />
+        <X size={18}  aria-hidden="true" />
       </button>
     </div>
   );

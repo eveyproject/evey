@@ -310,7 +310,7 @@ export const MediaCard = memo(function MediaCard({
             }}
           >
             {selected && (
-              <Check size={12} className="text-[var(--filter-active-text)]" strokeWidth={3} />
+              <Check size={12} className="text-[var(--filter-active-text)]" strokeWidth={3}  aria-hidden="true" />
             )}
           </button>
         ) : (item.id && !lite) ? (
@@ -415,7 +415,7 @@ export const MediaCard = memo(function MediaCard({
           else markWatched.mutate({ mediaItemId: item.id!, params: { profileId } });
         }}
       >
-        <Check size={14} strokeWidth={3} />
+        <Check size={14} strokeWidth={3}  aria-hidden="true" />
       </button>
     )}
     </div>

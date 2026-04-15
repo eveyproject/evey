@@ -247,7 +247,7 @@ function RatingFilter({
               className="p-0.5 transition-colors-fast"
               style={{ color: active ? "var(--accent)" : "var(--border)" }}
             >
-              <Star size={20} fill="currentColor" />
+              <Star size={20} fill="currentColor"  aria-hidden="true" />
             </button>
           );
         })}
@@ -405,7 +405,7 @@ export function LibraryFilterToggle({
         aria-label={t("media.library.filters")}
         data-testid="filter-toggle"
       >
-        <Filter size={16} />
+        <Filter size={16}  aria-hidden="true" />
         {t("media.library.filters")}
         {count > 0 && (
           <span

@@ -417,7 +417,7 @@ function HomePage() {
             className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-[var(--radius-sm)] transition-colors-fast hover:opacity-80 text-[var(--text-muted)]"
             aria-label={t("common.feeds.customize")}
           >
-            <Settings2 size={14} />
+            <Settings2 size={14}  aria-hidden="true" />
             {t("common.feeds.customize")}
           </button>
         </div>

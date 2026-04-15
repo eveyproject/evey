@@ -254,7 +254,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             className="absolute top-4 right-4 z-overlay-raised flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity-fast hover:opacity-80"
             style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
           >
-            <Users size={16} />
+            <Users size={16}  aria-hidden="true" />
             {t("player.watchTogether")}
           </button>
         )}

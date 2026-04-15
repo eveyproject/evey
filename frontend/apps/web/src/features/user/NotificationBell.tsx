@@ -81,7 +81,7 @@ export function NotificationBell() {
         aria-haspopup="true"
         aria-expanded={open}
       >
-        <Bell size={20} strokeWidth={1.5} />
+        <Bell size={20} strokeWidth={1.5}  aria-hidden="true" />
         {countError && !open ? (
           <span className="absolute -top-1 -right-1 w-2 h-2 bg-[var(--text-muted)] rounded-full" aria-label={t("common.unableToLoadNotifications")} />
         ) : count > 0 ? (
