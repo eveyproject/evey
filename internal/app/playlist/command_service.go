@@ -8,7 +8,6 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/playlist"
 	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/id"
 )
 
 type CommandService struct {
@@ -30,22 +29,26 @@ func (s *CommandService) WithMediaChecker(checker MediaItemExistsChecker) *Comma
 }
 
 func (s *CommandService) Create(ctx context.Context, pl *playlist.Playlist) error {
-	if pl.Type == "" {
-		pl.Type = playlist.Manual
+	ptype := pl.Type
+	if ptype == "" {
+		ptype = playlist.Manual
 	}
-	if err := pl.Validate(); err != nil {
+	created, err := playlist.NewPlaylist(pl.Name, string(pl.UserID), ptype)
+	if err != nil {
 		return fmt.Errorf("invalid playlist: %w", err)
 	}
-	now := time.Now()
-	pl.ID = id.New("pl-")
-	pl.CreatedAt = now
-	pl.UpdatedAt = now
-	if pl.SortBy == "" {
-		pl.SortBy = "sort_order"
+	created.Description = pl.Description
+	created.Rules = pl.Rules
+	created.SortBy = pl.SortBy
+	created.SortOrder = pl.SortOrder
+	if created.SortBy == "" {
+		created.SortBy = "sort_order"
 	}
-	if pl.SortOrder == "" {
-		pl.SortOrder = "asc"
+	if created.SortOrder == "" {
+		created.SortOrder = "asc"
 	}
+	// Mutate caller's struct so callers keep access to generated ID/timestamps.
+	*pl = *created
 	return s.playlists.Create(ctx, pl)
 }
 

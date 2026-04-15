@@ -359,6 +359,22 @@ func TestList_MultipleUsers(t *testing.T) {
 	}
 }
 
+func TestCreate_EmptyNameRejected(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	pl := &playlist.Playlist{Name: "", UserID: "u1", Type: playlist.Manual}
+	if err := svc.Create(context.Background(), pl); err == nil {
+		t.Fatal("expected error for empty name")
+	}
+}
+
+func TestCreate_InvalidTypeRejected(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.PlaylistType("bogus")}
+	if err := svc.Create(context.Background(), pl); err == nil {
+		t.Fatal("expected error for invalid type")
+	}
+}
+
 func TestCreate_DefaultSortOrder(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
