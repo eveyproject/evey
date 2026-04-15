@@ -17,6 +17,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthSyncplayRouteImport } from './routes/_auth/syncplay'
 import { Route as AuthSearchRouteImport } from './routes/_auth/search'
 import { Route as AuthQuickconnectRouteImport } from './routes/_auth/quickconnect'
 import { Route as AuthHomeRouteImport } from './routes/_auth/home'
@@ -94,6 +95,13 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthSyncplayRoute = AuthSyncplayRouteImport.update({
+  id: '/syncplay',
+  path: '/syncplay',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/syncplay.lazy').then((d) => d.Route),
+)
 const AuthSearchRoute = AuthSearchRouteImport.update({
   id: '/search',
   path: '/search',
@@ -368,6 +376,7 @@ export interface FileRoutesByFullPath {
   '/home': typeof AuthHomeRoute
   '/quickconnect': typeof AuthQuickconnectRoute
   '/search': typeof AuthSearchRoute
+  '/syncplay': typeof AuthSyncplayRoute
   '/admin/activity': typeof AuthAdminActivityRoute
   '/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/admin/api-keys': typeof AuthAdminApiKeysRoute
@@ -413,6 +422,7 @@ export interface FileRoutesByTo {
   '/home': typeof AuthHomeRoute
   '/quickconnect': typeof AuthQuickconnectRoute
   '/search': typeof AuthSearchRoute
+  '/syncplay': typeof AuthSyncplayRoute
   '/admin/activity': typeof AuthAdminActivityRoute
   '/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/admin/api-keys': typeof AuthAdminApiKeysRoute
@@ -461,6 +471,7 @@ export interface FileRoutesById {
   '/_auth/home': typeof AuthHomeRoute
   '/_auth/quickconnect': typeof AuthQuickconnectRoute
   '/_auth/search': typeof AuthSearchRoute
+  '/_auth/syncplay': typeof AuthSyncplayRoute
   '/_auth/admin/activity': typeof AuthAdminActivityRoute
   '/_auth/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/_auth/admin/api-keys': typeof AuthAdminApiKeysRoute
@@ -509,6 +520,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/quickconnect'
     | '/search'
+    | '/syncplay'
     | '/admin/activity'
     | '/admin/analytics'
     | '/admin/api-keys'
@@ -554,6 +566,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/quickconnect'
     | '/search'
+    | '/syncplay'
     | '/admin/activity'
     | '/admin/analytics'
     | '/admin/api-keys'
@@ -601,6 +614,7 @@ export interface FileRouteTypes {
     | '/_auth/home'
     | '/_auth/quickconnect'
     | '/_auth/search'
+    | '/_auth/syncplay'
     | '/_auth/admin/activity'
     | '/_auth/admin/analytics'
     | '/_auth/admin/api-keys'
@@ -703,6 +717,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_auth/syncplay': {
+      id: '/_auth/syncplay'
+      path: '/syncplay'
+      fullPath: '/syncplay'
+      preLoaderRoute: typeof AuthSyncplayRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/_auth/search': {
       id: '/_auth/search'
@@ -1012,6 +1033,7 @@ interface AuthRouteChildren {
   AuthHomeRoute: typeof AuthHomeRoute
   AuthQuickconnectRoute: typeof AuthQuickconnectRoute
   AuthSearchRoute: typeof AuthSearchRoute
+  AuthSyncplayRoute: typeof AuthSyncplayRoute
   AuthCollectionsCollectionIdRoute: typeof AuthCollectionsCollectionIdRoute
   AuthLibraryLibraryIdRoute: typeof AuthLibraryLibraryIdRoute
   AuthMediaMediaIdRoute: typeof AuthMediaMediaIdRoute
@@ -1037,6 +1059,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthHomeRoute: AuthHomeRoute,
   AuthQuickconnectRoute: AuthQuickconnectRoute,
   AuthSearchRoute: AuthSearchRoute,
+  AuthSyncplayRoute: AuthSyncplayRoute,
   AuthCollectionsCollectionIdRoute: AuthCollectionsCollectionIdRoute,
   AuthLibraryLibraryIdRoute: AuthLibraryLibraryIdRoute,
   AuthMediaMediaIdRoute: AuthMediaMediaIdRoute,

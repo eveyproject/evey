@@ -53,8 +53,9 @@ type Album struct {
 }
 
 type Artist struct {
-	ID         string
-	Name       string
-	TrackCount int
-	AlbumCount int
+	ID          string
+	Name        string
+	TrackCount  int
+	AlbumCount  int
+	CoverArtURL string
 }

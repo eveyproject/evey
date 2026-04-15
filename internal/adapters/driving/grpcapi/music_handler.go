@@ -106,10 +106,11 @@ func (h *musicHandler) GetArtists(ctx context.Context, req *eveyv1.GetArtistsReq
 	resp := &eveyv1.GetArtistsResponse{}
 	for _, a := range artists {
 		resp.Artists = append(resp.Artists, &eveyv1.MusicArtist{
-			Id:         a.ID,
-			Name:       a.Name,
-			TrackCount: int32(a.TrackCount),
-			AlbumCount: int32(a.AlbumCount),
+			Id:          a.ID,
+			Name:        a.Name,
+			TrackCount:  int32(a.TrackCount),
+			AlbumCount:  int32(a.AlbumCount),
+			CoverArtUrl: a.CoverArtURL,
 		})
 	}
 	return resp, nil

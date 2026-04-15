@@ -44,7 +44,7 @@ test.describe("Media > Navigation flow", () => {
     test.skip(!(await card.isVisible({ timeout: 3_000 }).catch(() => false)), "No cards in library");
     await card.click();
     await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 });
-    const url1 = page.url();
+    page.url();
     const playBtn = page.locator('[data-testid="play-button"]');
     if (await playBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await playBtn.click();

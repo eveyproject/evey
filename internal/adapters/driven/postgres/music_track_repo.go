@@ -25,13 +25,16 @@ func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error 
 	if t.ID == "" {
 		t.ID = uuid.New().String()
 	}
+	hasCover := t.CoverArtURL != ""
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO music_tracks (
 			id, library_id, title, artist, album, album_artist,
 			year, track_number, disk_number, duration, file_path,
 			file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 			genre, cover_art_url, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NOW(),NOW())
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
+			CASE WHEN $20::bool THEN '/api/v1/music/tracks/' || $1 || '/art' ELSE '' END,
+			NOW(),NOW())
 		ON CONFLICT (file_path) DO UPDATE SET
 			library_id=EXCLUDED.library_id, title=EXCLUDED.title, artist=EXCLUDED.artist,
 			album=EXCLUDED.album, album_artist=EXCLUDED.album_artist, year=EXCLUDED.year,
@@ -40,12 +43,13 @@ func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error 
 			file_hash=EXCLUDED.file_hash, mod_time=EXCLUDED.mod_time,
 			mime_type=EXCLUDED.mime_type, bitrate=EXCLUDED.bitrate,
 			sample_rate=EXCLUDED.sample_rate, channels=EXCLUDED.channels,
-			genre=EXCLUDED.genre, cover_art_url=EXCLUDED.cover_art_url,
+			genre=EXCLUDED.genre,
+			cover_art_url=CASE WHEN $20::bool THEN '/api/v1/music/tracks/' || music_tracks.id || '/art' ELSE '' END,
 			updated_at=NOW()`,
 		t.ID, t.LibraryID, t.Title, t.Artist, t.Album, t.AlbumArtist,
 		t.Year, t.TrackNumber, t.DiskNumber, t.Duration, t.FilePath,
 		t.FileSize, t.FileHash, t.ModTime, t.MimeType, t.Bitrate, t.SampleRate, t.Channels,
-		t.Genre, t.CoverArtURL,
+		t.Genre, hasCover,
 	)
 	return err
 }
@@ -169,7 +173,7 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.L
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT album, COALESCE(NULLIF(album_artist,''), artist),
-		       MIN(year), COUNT(*), SUM(duration), MIN(cover_art_url)
+		       MIN(year), COUNT(*), SUM(duration), MIN(NULLIF(cover_art_url,''))
 		FROM music_tracks WHERE library_id=$1
 		GROUP BY album, COALESCE(NULLIF(album_artist,''), artist)
 		ORDER BY album
@@ -181,9 +185,11 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.L
 	var albums []music.Album
 	for rows.Next() {
 		var a music.Album
-		if err := rows.Scan(&a.Title, &a.Artist, &a.Year, &a.TrackCount, &a.Duration, &a.CoverArtURL); err != nil {
+		var cover sql.NullString
+		if err := rows.Scan(&a.Title, &a.Artist, &a.Year, &a.TrackCount, &a.Duration, &cover); err != nil {
 			return nil, err
 		}
+		a.CoverArtURL = cover.String
 		a.ID = fmt.Sprintf("%s|%s", a.Title, a.Artist)
 		albums = append(albums, a)
 	}
@@ -194,7 +200,7 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID shared.
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT COALESCE(NULLIF(album_artist,''), artist), COUNT(*), COUNT(DISTINCT album)
+		SELECT COALESCE(NULLIF(album_artist,''), artist), COUNT(*), COUNT(DISTINCT album), MIN(NULLIF(cover_art_url,''))
 		FROM music_tracks WHERE library_id=$1
 		GROUP BY 1 ORDER BY 1
 		LIMIT 10000`, libraryID)
@@ -205,9 +211,11 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID shared.
 	var artists []music.Artist
 	for rows.Next() {
 		var a music.Artist
-		if err := rows.Scan(&a.Name, &a.TrackCount, &a.AlbumCount); err != nil {
+		var cover sql.NullString
+		if err := rows.Scan(&a.Name, &a.TrackCount, &a.AlbumCount, &cover); err != nil {
 			return nil, err
 		}
+		a.CoverArtURL = cover.String
 		a.ID = a.Name
 		artists = append(artists, a)
 	}

@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { goto, collectErrors, apiGet } from "../shared/helpers";
+import { goto, collectErrors } from "../shared/helpers";
 
 test.describe("Admin > Feeds deep", () => {
   const waitForFeedsPage = async (page: import("@playwright/test").Page) => {

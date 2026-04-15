@@ -6,7 +6,6 @@ import {
   useLibraryServiceListLibraries,
   useLibraryServiceDeleteLibrary,
   useLibraryServiceScanLibrary,
-  libraryServiceListMediaItems,
   eveyFetch,
 } from "@evey/api";
 import { toast } from "@evey/store";
@@ -30,6 +29,7 @@ function libraryTypeLabel(type: string | undefined, t: (key: string) => string):
     case "LIBRARY_TYPE_MOVIES": return t("admin.libraries.types.movies");
     case "LIBRARY_TYPE_SHOWS": return t("admin.libraries.types.shows");
     case "LIBRARY_TYPE_MUSIC": return t("admin.libraries.types.music");
+    case "LIBRARY_TYPE_PHOTOS": return t("admin.libraries.types.photos");
     default: return t("admin.libraries.types.library");
   }
 }
@@ -46,6 +46,7 @@ function formatDate(iso?: string): string {
 interface LibraryStat {
   id: string;
   lastScannedAt?: string | null;
+  itemCount?: number;
 }
 
 interface ScanSchedule {
@@ -243,18 +244,8 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
     },
   });
 
-  const { data: mediaData } = useQuery({
-    queryKey: ["/api/v1/media", { libraryId: library.id, page: 1, pageSize: 1 }],
-    queryFn: ({ signal }) =>
-      libraryServiceListMediaItems(
-        { libraryId: library.id, "pagination.page": 1, "pagination.pageSize": 1 },
-        signal,
-      ),
-    enabled: !!library.id,
-  });
-
-  const totalItems = mediaData?.pagination?.totalItems;
   const libStat = stats.find((s) => s.id === library.id);
+  const totalItems = libStat?.itemCount;
 
   return (
     <tr className="border-b border-[var(--border)]">

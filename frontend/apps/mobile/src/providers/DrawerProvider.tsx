@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useRef, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from "react";
 import { Animated } from "react-native";
 
 interface DrawerContextValue {

@@ -105,7 +105,9 @@ type HTTPServer struct {
 	StarRatingSvc  *apprating.Service
 
 	// Photo
-	PhotoSvc *appphoto.Service
+	PhotoSvc        *appphoto.Service
+	PhotoTranscoder PhotoTranscoder
+	PhotoCacheDir   string
 
 	// SyncPlay
 	SyncPlayHub *appsyncplay.Hub
@@ -227,7 +229,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	hlsMediaCache := NewCachedMediaItemGetter(s.LibQuerySvc)
 	hlsAccessCache := NewCachedLibraryAccessChecker(s.LibraryAccessRepo)
 	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", auth(hlsSegmentHandler(s.TokenGen, hlsMediaCache, s.HLSManager, hlsAccessCache)))
-	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.TokenGen, s.LibQuerySvc)))
+	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.TokenGen, s.LibQuerySvc, NewLibraryItemCounter(s.LibQuerySvc, s.MusicSvc, s.PhotoSvc))))
 
 	// DLNA
 	if s.DLNASvc != nil {
@@ -287,12 +289,19 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 				}
 			}
 			clearOIDCIDTokenCookie(w, s.HTTPSOnly)
+			// Logout is best-effort: cookie cleared above. If there's no auth,
+			// don't call the gateway (it would return 401 → frontend retry loops).
+			if r.Header.Get("Authorization") == "" {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{}`))
+				return
+			}
 			gwMux.ServeHTTP(w, r)
 		})
 	}
 
 	// JSON CRUD → gRPC: favorites, playlists, metadata overrides, transcode cache/profiles, library access, admin
-	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx) // binary: photo/serve
+	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx, s.PhotoTranscoder, s.PhotoCacheDir) // binary: photo/serve
 	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo) // binary: WebSocket
 	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL) // binary: download/restore
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)

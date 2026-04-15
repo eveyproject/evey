@@ -47,9 +47,12 @@ func LoadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot save jwt key to %s: %w", path, err)
 	}
-	defer f.Close()
 	if err := pem.Encode(f, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}); err != nil {
+		_ = f.Close()
 		return nil, fmt.Errorf("encode jwt key: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return nil, fmt.Errorf("close jwt key: %w", err)
 	}
 	return key, nil
 }

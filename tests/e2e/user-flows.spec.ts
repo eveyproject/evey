@@ -1,7 +1,5 @@
 import { test, expect } from "./fixtures/auth";
 
-const BASE = process.env.BASE_URL ?? "https://evey.test";
-
 // ─── Helpers ────────────────────────────────────────────────────────
 
 async function goto(page: import("@playwright/test").Page, path: string) {

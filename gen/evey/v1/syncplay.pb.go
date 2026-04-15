@@ -130,6 +130,7 @@ type CreateSyncPlayRoomRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MediaId       string                 `protobuf:"bytes,1,opt,name=media_id,json=mediaId,proto3" json:"media_id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	MediaType     string                 `protobuf:"bytes,3,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"` // "video" (default) or "music"
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -178,6 +179,13 @@ func (x *CreateSyncPlayRoomRequest) GetName() string {
 	return ""
 }
 
+func (x *CreateSyncPlayRoomRequest) GetMediaType() string {
+	if x != nil {
+		return x.MediaType
+	}
+	return ""
+}
+
 type CreateSyncPlayRoomResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -185,6 +193,7 @@ type CreateSyncPlayRoomResponse struct {
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	MediaId       string                 `protobuf:"bytes,4,opt,name=media_id,json=mediaId,proto3" json:"media_id,omitempty"`
 	HostId        string                 `protobuf:"bytes,5,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
+	MediaType     string                 `protobuf:"bytes,6,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -254,6 +263,13 @@ func (x *CreateSyncPlayRoomResponse) GetHostId() string {
 	return ""
 }
 
+func (x *CreateSyncPlayRoomResponse) GetMediaType() string {
+	if x != nil {
+		return x.MediaType
+	}
+	return ""
+}
+
 type JoinSyncPlayByCodeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
@@ -303,6 +319,7 @@ type JoinSyncPlayByCodeResponse struct {
 	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
 	MediaId       string                 `protobuf:"bytes,2,opt,name=media_id,json=mediaId,proto3" json:"media_id,omitempty"`
 	WsUrl         string                 `protobuf:"bytes,3,opt,name=ws_url,json=wsUrl,proto3" json:"ws_url,omitempty"`
+	MediaType     string                 `protobuf:"bytes,4,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -354,6 +371,13 @@ func (x *JoinSyncPlayByCodeResponse) GetMediaId() string {
 func (x *JoinSyncPlayByCodeResponse) GetWsUrl() string {
 	if x != nil {
 		return x.WsUrl
+	}
+	return ""
+}
+
+func (x *JoinSyncPlayByCodeResponse) GetMediaType() string {
+	if x != nil {
+		return x.MediaType
 	}
 	return ""
 }
@@ -411,6 +435,7 @@ type GetSyncPlayRoomResponse struct {
 	Members       []*SyncPlayMember      `protobuf:"bytes,5,rep,name=members,proto3" json:"members,omitempty"`
 	State         *SyncPlayState         `protobuf:"bytes,6,opt,name=state,proto3" json:"state,omitempty"`
 	Code          string                 `protobuf:"bytes,7,opt,name=code,proto3" json:"code,omitempty"`
+	MediaType     string                 `protobuf:"bytes,8,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -490,6 +515,13 @@ func (x *GetSyncPlayRoomResponse) GetState() *SyncPlayState {
 func (x *GetSyncPlayRoomResponse) GetCode() string {
 	if x != nil {
 		return x.Code
+	}
+	return ""
+}
+
+func (x *GetSyncPlayRoomResponse) GetMediaType() string {
+	if x != nil {
+		return x.MediaType
 	}
 	return ""
 }
@@ -681,24 +713,30 @@ const file_evey_v1_syncplay_proto_rawDesc = "" +
 	"\rSyncPlayState\x12\x18\n" +
 	"\aplaying\x18\x01 \x01(\bR\aplaying\x12\x1f\n" +
 	"\vposition_ms\x18\x02 \x01(\x03R\n" +
-	"positionMs\"J\n" +
+	"positionMs\"i\n" +
 	"\x19CreateSyncPlayRoomRequest\x12\x19\n" +
 	"\bmedia_id\x18\x01 \x01(\tR\amediaId\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"\x88\x01\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
+	"\n" +
+	"media_type\x18\x03 \x01(\tR\tmediaType\"\xa7\x01\n" +
 	"\x1aCreateSyncPlayRoomResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x19\n" +
 	"\bmedia_id\x18\x04 \x01(\tR\amediaId\x12\x17\n" +
-	"\ahost_id\x18\x05 \x01(\tR\x06hostId\"/\n" +
+	"\ahost_id\x18\x05 \x01(\tR\x06hostId\x12\x1d\n" +
+	"\n" +
+	"media_type\x18\x06 \x01(\tR\tmediaType\"/\n" +
 	"\x19JoinSyncPlayByCodeRequest\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\tR\x04code\"g\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\"\x86\x01\n" +
 	"\x1aJoinSyncPlayByCodeResponse\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x19\n" +
 	"\bmedia_id\x18\x02 \x01(\tR\amediaId\x12\x15\n" +
-	"\x06ws_url\x18\x03 \x01(\tR\x05wsUrl\"1\n" +
+	"\x06ws_url\x18\x03 \x01(\tR\x05wsUrl\x12\x1d\n" +
+	"\n" +
+	"media_type\x18\x04 \x01(\tR\tmediaType\"1\n" +
 	"\x16GetSyncPlayRoomRequest\x12\x17\n" +
-	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"\xe6\x01\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"\x85\x02\n" +
 	"\x17GetSyncPlayRoomResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
@@ -706,7 +744,9 @@ const file_evey_v1_syncplay_proto_rawDesc = "" +
 	"\ahost_id\x18\x04 \x01(\tR\x06hostId\x121\n" +
 	"\amembers\x18\x05 \x03(\v2\x17.evey.v1.SyncPlayMemberR\amembers\x12,\n" +
 	"\x05state\x18\x06 \x01(\v2\x16.evey.v1.SyncPlayStateR\x05state\x12\x12\n" +
-	"\x04code\x18\a \x01(\tR\x04code\"2\n" +
+	"\x04code\x18\a \x01(\tR\x04code\x12\x1d\n" +
+	"\n" +
+	"media_type\x18\b \x01(\tR\tmediaType\"2\n" +
 	"\x17JoinSyncPlayRoomRequest\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"J\n" +
 	"\x18JoinSyncPlayRoomResponse\x12\x17\n" +

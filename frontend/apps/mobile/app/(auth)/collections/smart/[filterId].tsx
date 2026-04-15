@@ -138,7 +138,7 @@ export default function SmartFilterScreen() {
           numColumns={NUM_COLUMNS}
           contentContainerStyle={{ paddingTop: SPACING }}
           ListHeaderComponent={
-            !isLoading && data ? (
+            data ? (
               <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginLeft: SPACING, marginBottom: SPACING }}>
                 {t("common.item", { count: data.total ?? items.length })}
               </Text>

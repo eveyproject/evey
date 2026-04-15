@@ -15,10 +15,50 @@ import (
 	"strings"
 	"time"
 
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	appmusic "github.com/evey-project/evey/internal/app/music"
+	appphoto "github.com/evey-project/evey/internal/app/photo"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
+
+// libraryItemCounter implements LibraryItemCounter by dispatching to the right
+// service depending on library type (movie/tvshow -> media_items, music -> tracks, photo -> photos).
+type libraryItemCounter struct {
+	lib   *applibrary.QueryService
+	music *appmusic.Service
+	photo *appphoto.Service
+}
+
+// NewLibraryItemCounter wires the composite counter.
+func NewLibraryItemCounter(lib *applibrary.QueryService, music *appmusic.Service, photo *appphoto.Service) LibraryItemCounter {
+	return &libraryItemCounter{lib: lib, music: music, photo: photo}
+}
+
+func (c *libraryItemCounter) CountByLibrary(ctx context.Context, libraryID shared.LibraryID, libType string) (int, error) {
+	switch domainlibrary.LibraryType(libType) {
+	case domainlibrary.Music:
+		if c.music == nil {
+			return 0, nil
+		}
+		_, total, err := c.music.ListTracks(ctx, libraryID, 1, 0, "")
+		return total, err
+	case domainlibrary.Photo:
+		if c.photo == nil {
+			return 0, nil
+		}
+		_, total, err := c.photo.ListPhotos(ctx, libraryID, 1, 0)
+		return total, err
+	default:
+		if c.lib == nil {
+			return 0, nil
+		}
+		lid := libraryID
+		return c.lib.CountMediaItems(ctx, domainlibrary.ListMediaItemsFilter{LibraryID: &lid})
+	}
+}
 
 func chaptersHandler(tokenGen TokenVerifier, libSvc ChaptersGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
 	type chapterJSON struct {
@@ -65,7 +105,13 @@ func chaptersHandler(tokenGen TokenVerifier, libSvc ChaptersGetter, baseURL stri
 	}
 }
 
-func libraryStatsHandler(tokenGen TokenVerifier, libSvc LibraryLister) http.HandlerFunc {
+// LibraryItemCounter counts items per library, dispatching to the right backend
+// (media_items for movie/tvshow, music_tracks for music, photos for photo).
+type LibraryItemCounter interface {
+	CountByLibrary(ctx context.Context, libraryID shared.LibraryID, libType string) (int, error)
+}
+
+func libraryStatsHandler(tokenGen TokenVerifier, libSvc LibraryLister, counter LibraryItemCounter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		libs, err := libSvc.ListLibraries(r.Context())
 		if err != nil {
@@ -75,6 +121,7 @@ func libraryStatsHandler(tokenGen TokenVerifier, libSvc LibraryLister) http.Hand
 		type libStat struct {
 			ID            string  `json:"id"`
 			LastScannedAt *string `json:"lastScannedAt"`
+			ItemCount     int     `json:"itemCount"`
 		}
 		stats := make([]libStat, 0, len(libs))
 		for _, lib := range libs {
@@ -83,7 +130,15 @@ func libraryStatsHandler(tokenGen TokenVerifier, libSvc LibraryLister) http.Hand
 				s := lib.LastScannedAt.UTC().Format(time.RFC3339)
 				ts = &s
 			}
-			stats = append(stats, libStat{ID: string(lib.ID), LastScannedAt: ts})
+			count := 0
+			if counter != nil {
+				if n, cerr := counter.CountByLibrary(r.Context(), lib.ID, string(lib.Type)); cerr == nil {
+					count = n
+				} else {
+					slog.Warn("library-stats count failed", slog.String("lib", string(lib.ID)), slog.Any("err", cerr))
+				}
+			}
+			stats = append(stats, libStat{ID: string(lib.ID), LastScannedAt: ts, ItemCount: count})
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"stats": stats}); err != nil {

@@ -6,8 +6,9 @@ import (
 	"log/slog"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	applibrary "github.com/evey-project/evey/internal/app/library"
+	appmusic "github.com/evey-project/evey/internal/app/music"
+	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
@@ -20,12 +21,31 @@ type syncplayHandler struct {
 	hub        *appsyncplay.Hub
 	libQuery   *applibrary.QueryService
 	userAccess *appuser.AccessService
+	musicSvc   *appmusic.Service
 }
 
-func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID string) error {
+func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, mediaType string) error {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+	if mediaType == "music" {
+		if h.musicSvc == nil {
+			return status.Error(codes.NotFound, "media not found")
+		}
+		t, err := h.musicSvc.GetTrack(ctx, mediaID)
+		if err != nil || t == nil {
+			return status.Error(codes.NotFound, "media not found")
+		}
+		if claims.IsAdmin || h.userAccess == nil {
+			return nil
+		}
+		// TODO: wire proper LibraryAccessChecker for music tracks
+		ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(t.LibraryID))
+		if !ok {
+			return status.Error(codes.NotFound, "media not found")
+		}
+		return nil
 	}
 	if claims.IsAdmin || h.userAccess == nil {
 		return nil
@@ -49,27 +69,36 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 	if req.MediaId == "" {
 		return nil, status.Error(codes.InvalidArgument, "media_id required")
 	}
-	if err := h.requireMediaAccess(ctx, req.MediaId); err != nil {
+	mediaType := req.MediaType
+	if mediaType == "" {
+		mediaType = "video"
+	}
+	if err := h.requireMediaAccess(ctx, req.MediaId, mediaType); err != nil {
 		return nil, err
 	}
 	name := req.Name
 	if name == "" {
-		name = "Watch Together"
+		if mediaType == "music" {
+			name = "Listen Together"
+		} else {
+			name = "Watch Together"
+		}
 	}
 	hostID := claims.ProfileID
 	if hostID == "" {
 		hostID = claims.UserID
 	}
-	room, err := h.hub.CreateRoom(ctx, hostID, req.MediaId, name)
+	room, err := h.hub.CreateRoomTyped(ctx, hostID, req.MediaId, name, mediaType)
 	if err != nil {
 		return nil, internalError("create room", err)
 	}
 	return &eveyv1.CreateSyncPlayRoomResponse{
-		Id:      room.ID,
-		Code:    room.Code,
-		Name:    room.Name,
-		MediaId: string(room.MediaID),
-		HostId:  string(room.HostID),
+		Id:        room.ID,
+		Code:      room.Code,
+		Name:      room.Name,
+		MediaId:   string(room.MediaID),
+		HostId:    string(room.HostID),
+		MediaType: room.MediaType,
 	}, nil
 }
 
@@ -85,16 +114,17 @@ func (h *syncplayHandler) JoinByCode(ctx context.Context, req *eveyv1.JoinSyncPl
 	if err != nil || room == nil {
 		return nil, status.Error(codes.NotFound, "room not found")
 	}
-	if err := h.requireMediaAccess(ctx, string(room.MediaID)); err != nil {
+	if err := h.requireMediaAccess(ctx, string(room.MediaID), room.MediaType); err != nil {
 		return nil, err
 	}
 	if err := h.hub.JoinRoom(ctx, room.ID, claims.UserID, claims.Username); err != nil {
 		return nil, status.Error(codes.NotFound, "room not found")
 	}
 	return &eveyv1.JoinSyncPlayByCodeResponse{
-		RoomId:  room.ID,
-		MediaId: string(room.MediaID),
-		WsUrl:   "/api/v1/syncplay/rooms/" + room.ID + "/ws",
+		RoomId:    room.ID,
+		MediaId:   string(room.MediaID),
+		WsUrl:     "/api/v1/syncplay/rooms/" + room.ID + "/ws",
+		MediaType: room.MediaType,
 	}, nil
 }
 
@@ -107,7 +137,7 @@ func (h *syncplayHandler) GetRoom(ctx context.Context, req *eveyv1.GetSyncPlayRo
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "room not found")
 	}
-	if err := h.requireMediaAccess(ctx, string(room.MediaID)); err != nil {
+	if err := h.requireMediaAccess(ctx, string(room.MediaID), room.MediaType); err != nil {
 		return nil, err
 	}
 	isMember := string(room.HostID) == claims.ProfileID || string(room.HostID) == claims.UserID
@@ -128,11 +158,12 @@ func (h *syncplayHandler) GetRoom(ctx context.Context, req *eveyv1.GetSyncPlayRo
 		})
 	}
 	resp := &eveyv1.GetSyncPlayRoomResponse{
-		Id:      room.ID,
-		Name:    room.Name,
-		MediaId: string(room.MediaID),
-		HostId:  string(room.HostID),
-		Members: members,
+		Id:        room.ID,
+		Name:      room.Name,
+		MediaId:   string(room.MediaID),
+		HostId:    string(room.HostID),
+		MediaType: room.MediaType,
+		Members:   members,
 		State: &eveyv1.SyncPlayState{
 			Playing:    room.State.Playing,
 			PositionMs: room.State.PositionMs,
@@ -153,7 +184,7 @@ func (h *syncplayHandler) JoinRoom(ctx context.Context, req *eveyv1.JoinSyncPlay
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "room not found")
 	}
-	if err := h.requireMediaAccess(ctx, string(room.MediaID)); err != nil {
+	if err := h.requireMediaAccess(ctx, string(room.MediaID), room.MediaType); err != nil {
 		return nil, err
 	}
 	if err := h.hub.JoinRoom(ctx, req.RoomId, claims.UserID, claims.Username); err != nil {

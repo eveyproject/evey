@@ -59,11 +59,6 @@ test.describe("Library access restriction", () => {
   const testPassword = "TestPassword1234";
   let testUserId: string;
 
-  function getToken(page: import("@playwright/test").Page): string | null {
-    // Retrieve the auth token from localStorage via the page context
-    return null; // will use page.evaluate instead
-  }
-
   test("setup: create non-admin test user", async ({ page }) => {
     // Extract token from the authed page session
     const token = await page.evaluate(() => {

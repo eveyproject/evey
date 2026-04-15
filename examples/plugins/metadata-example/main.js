@@ -20,9 +20,6 @@ const proto = grpc.loadPackageDefinition(pkgDef).plugin.v1;
 const HOST_ADDR = process.env.EVEY_HOST_ADDR || "localhost:50051";
 const PLUGIN_PORT = process.env.EVEY_PLUGIN_PORT || "50052";
 
-// gRPC client to call back into the Evey host
-const hostClient = new proto.HostService(HOST_ADDR, grpc.credentials.createInsecure());
-
 // PluginService implementation (host -> plugin)
 const pluginImpl = {
   Initialize(call, callback) {

@@ -1,0 +1,1 @@
+ALTER TABLE syncplay_rooms ADD COLUMN IF NOT EXISTS media_type TEXT NOT NULL DEFAULT 'video';

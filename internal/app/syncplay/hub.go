@@ -32,9 +32,16 @@ func NewHub(repo syncplay.RoomRepository) *Hub {
 }
 
 func (h *Hub) CreateRoom(ctx context.Context, hostID, mediaID, name string) (*syncplay.Room, error) {
+	return h.CreateRoomTyped(ctx, hostID, mediaID, name, "video")
+}
+
+func (h *Hub) CreateRoomTyped(ctx context.Context, hostID, mediaID, name, mediaType string) (*syncplay.Room, error) {
 	code, err := syncplay.GenerateCode()
 	if err != nil {
 		return nil, fmt.Errorf("generate room code: %w", err)
+	}
+	if mediaType == "" {
+		mediaType = "video"
 	}
 	room := &syncplay.Room{
 		ID:        id.New("room-"),
@@ -42,6 +49,7 @@ func (h *Hub) CreateRoom(ctx context.Context, hostID, mediaID, name string) (*sy
 		Name:      name,
 		HostID:    shared.UserID(hostID),
 		MediaID:   shared.MediaItemID(mediaID),
+		MediaType: mediaType,
 		CreatedAt: time.Now().UTC(),
 		State:     syncplay.PlaybackState{UpdatedAt: time.Now().UTC()},
 	}

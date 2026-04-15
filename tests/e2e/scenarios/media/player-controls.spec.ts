@@ -76,7 +76,7 @@ test.describe("Media > Player controls", () => {
 
   test("keyboard ArrowRight seeks forward", async ({ page }) => {
     test.skip(!(await openPlayer(page)), "Could not open player");
-    const timeBefore = await page.evaluate(() => document.querySelector("video")?.currentTime ?? 0);
+    await page.evaluate(() => document.querySelector("video")?.currentTime ?? 0);
     await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(2_000);
     await showControls(page);

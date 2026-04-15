@@ -1,17 +1,15 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   useLibraryServiceListLibraries,
   useMusicServiceListTracks,
   useMusicServiceGetAlbums,
   useMusicServiceGetArtists,
-  musicServiceDeleteTrack,
 } from "@evey/api";
-import { toast, useAuthStore } from "@evey/store";
+import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
-import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, Trash2 } from "lucide-react";
+import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, Shuffle } from "lucide-react";
 
 export const Route = createLazyFileRoute("/_auth/music/")({
   component: MusicPage,
@@ -48,6 +46,7 @@ type Artist = {
   Name: string;
   TrackCount: number;
   AlbumCount: number;
+  CoverArtURL: string;
 };
 
 interface LibraryItem {
@@ -62,9 +61,11 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function TrackArt({ trackID, size = 36 }: { trackID: string; size?: number }) {
+function TrackArt({ trackID, coverArtURL, size = 36 }: { trackID: string; coverArtURL?: string; size?: number }) {
   const [error, setError] = useState(false);
-  if (error) {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+  if (error || !coverArtURL) {
     return (
       <div
         className="flex items-center justify-center bg-[var(--surface)] rounded-[var(--radius-sm)]"
@@ -80,7 +81,7 @@ function TrackArt({ trackID, size = 36 }: { trackID: string; size?: number }) {
   }
   return (
     <img
-      src={`/api/v1/music/tracks/${trackID}/art`}
+      src={`/api/v1/music/tracks/${trackID}/art${tokenParam}`}
       alt=""
       aria-hidden="true"
       width={size}
@@ -164,6 +165,7 @@ function useMusicArtists(libraryID: string | undefined) {
           Name: a.name ?? "",
           TrackCount: a.trackCount ?? 0,
           AlbumCount: a.albumCount ?? 0,
+          CoverArtURL: a.coverArtUrl ?? "",
         })),
         staleTime: 60_000,
       },
@@ -176,19 +178,26 @@ type Tab = "tracks" | "albums" | "artists";
 function NowPlayingBar({
   playing,
   queue,
+  shuffle,
+  onToggleShuffle,
   onClose,
   onSelectTrack,
 }: {
   playing: Track;
   queue: Track[];
+  shuffle: boolean;
+  onToggleShuffle: () => void;
   onClose: () => void;
   onSelectTrack: (t: Track) => void;
 }) {
+  const { t } = useTranslation();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
 
   const currentIndex = queue.findIndex((t) => t.ID === playing.ID);
 
@@ -235,11 +244,28 @@ function NowPlayingBar({
     setCurrentTime(val);
   }
 
+  function pickRandom(): Track | null {
+    if (queue.length <= 1) return null;
+    const others = queue.filter((t) => t.ID !== playing.ID);
+    if (!others.length) return null;
+    return others[Math.floor(Math.random() * others.length)];
+  }
+
   function playPrev() {
+    if (shuffle) {
+      const t = pickRandom();
+      if (t) onSelectTrack(t);
+      return;
+    }
     if (currentIndex > 0) onSelectTrack(queue[currentIndex - 1]);
   }
 
   function playNext() {
+    if (shuffle) {
+      const t = pickRandom();
+      if (t) onSelectTrack(t);
+      return;
+    }
     if (currentIndex < queue.length - 1) onSelectTrack(queue[currentIndex + 1]);
   }
 
@@ -250,7 +276,7 @@ function NowPlayingBar({
       <audio
         ref={audioRef}
         key={playing.ID}
-        src={`/api/v1/music/tracks/${playing.ID}/stream`}
+        src={`/api/v1/music/tracks/${playing.ID}/stream${tokenParam}`}
         onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
         onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
         onEnded={playNext}
@@ -260,7 +286,7 @@ function NowPlayingBar({
 
       {/* Album art + info */}
       <div className="flex items-center gap-3 min-w-0 w-[120px] sm:w-[200px]">
-        <TrackArt trackID={playing.ID} size={48} />
+        <TrackArt trackID={playing.ID} coverArtURL={playing.CoverArtURL} size={48} />
         <div className="min-w-0">
           <p className="font-medium truncate text-sm text-[var(--text)]">{playing.Title || "—"}</p>
           <p className="text-xs truncate text-[var(--text-muted)]">{playing.Artist || "—"}</p>
@@ -271,8 +297,17 @@ function NowPlayingBar({
       <div className="flex flex-col items-center gap-1 flex-1">
         <div className="flex items-center gap-4">
           <button
+            onClick={onToggleShuffle}
+            className={`bg-transparent border-none cursor-pointer ${shuffle ? "text-[var(--accent)]" : "text-[var(--text-muted)]"}`}
+            aria-label={t("media.music.shuffle")}
+            aria-pressed={shuffle}
+            title={t("media.music.shuffle")}
+          >
+            <Shuffle size={16} />
+          </button>
+          <button
             onClick={playPrev}
-            disabled={currentIndex <= 0}
+            disabled={!shuffle && currentIndex <= 0}
             className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer"
             aria-label="Previous"
           >
@@ -287,7 +322,7 @@ function NowPlayingBar({
           </button>
           <button
             onClick={playNext}
-            disabled={currentIndex >= queue.length - 1}
+            disabled={!shuffle && currentIndex >= queue.length - 1}
             className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer"
             aria-label="Next"
           >
@@ -345,8 +380,17 @@ function MusicPage() {
   const [playing, setPlaying] = useState<Track | null>(null);
   const [queue, setQueue] = useState<Track[]>([]);
   const [searchInput, setSearchInput] = useState("");
-  const isAdmin = useAuthStore((s) => s.isAdmin);
-  const qc = useQueryClient();
+  const [albumFilter, setAlbumFilter] = useState<string | null>(null);
+  const [artistFilter, setArtistFilter] = useState<string | null>(null);
+  const [genreFilter, setGenreFilter] = useState<string>("");
+  const [yearFilter, setYearFilter] = useState<number>(0);
+  const [artistSelectFilter, setArtistSelectFilter] = useState<string>("");
+  const [shuffle, setShuffle] = useState<boolean>(() => {
+    try { return localStorage.getItem("evey-music-shuffle") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("evey-music-shuffle", shuffle ? "1" : "0"); } catch { /* ignore */ }
+  }, [shuffle]);
   const search = useDebounce(searchInput, 300);
 
   const { data: libraries, isLoading: libLoading } = useMusicLibraries();
@@ -361,20 +405,6 @@ function MusicPage() {
   function handlePlay(t: Track, allTracks: Track[]) {
     setQueue(allTracks);
     setPlaying(t);
-  }
-
-  const deleteTrackMutation = useMutation({
-    mutationFn: (id: string) => musicServiceDeleteTrack(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["music", "tracks"] });
-      toast.success(t("media.music.trackDeleted"));
-    },
-    onError: (err: Error) => toast.error(err.message || t("media.music.failedDeleteTrack")),
-  });
-
-  function handleDeleteTrack(id: string) {
-    if (!window.confirm(t("media.music.deleteTrackConfirm"))) return;
-    deleteTrackMutation.mutate(id);
   }
 
   const tabClass = (active: boolean) =>
@@ -430,27 +460,45 @@ function MusicPage() {
 
       {tab === "tracks" && (
         <TracksTab
-          tracks={tracks ?? []}
+          allTracks={tracks ?? []}
           loading={tracksLoading}
           playing={playing}
-          onPlay={(t) => handlePlay(t, tracks ?? [])}
-          isAdmin={isAdmin}
-          onDelete={handleDeleteTrack}
+          onPlay={(tr, filtered) => handlePlay(tr, filtered)}
           search={searchInput}
           onSearchChange={setSearchInput}
+          albumFilter={albumFilter}
+          artistFilter={artistFilter}
+          onClearAlbumFilter={() => setAlbumFilter(null)}
+          onClearArtistFilter={() => setArtistFilter(null)}
+          genreFilter={genreFilter}
+          yearFilter={yearFilter}
+          artistSelectFilter={artistSelectFilter}
+          onGenreChange={setGenreFilter}
+          onYearChange={setYearFilter}
+          onArtistSelectChange={setArtistSelectFilter}
         />
       )}
       {tab === "albums" && (
-        <AlbumsTab albums={albums ?? []} loading={albumsLoading} />
+        <AlbumsTab
+          albums={albums ?? []}
+          loading={albumsLoading}
+          onAlbumClick={(a) => { setAlbumFilter(a.Title); setArtistFilter(null); setTab("tracks"); }}
+        />
       )}
       {tab === "artists" && (
-        <ArtistsTab artists={artists ?? []} loading={artistsLoading} />
+        <ArtistsTab
+          artists={artists ?? []}
+          loading={artistsLoading}
+          onArtistClick={(a) => { setArtistFilter(a.Name); setAlbumFilter(null); setTab("tracks"); }}
+        />
       )}
 
       {playing && (
         <NowPlayingBar
           playing={playing}
           queue={queue}
+          shuffle={shuffle}
+          onToggleShuffle={() => setShuffle((s) => !s)}
           onClose={() => setPlaying(null)}
           onSelectTrack={setPlaying}
         />
@@ -462,35 +510,84 @@ function MusicPage() {
 const TRACKS_PAGE_SIZE = 50;
 
 function TracksTab({
-  tracks,
+  allTracks,
   loading,
   playing,
   onPlay,
-  isAdmin,
-  onDelete,
   search,
   onSearchChange,
+  albumFilter,
+  artistFilter,
+  onClearAlbumFilter,
+  onClearArtistFilter,
+  genreFilter,
+  yearFilter,
+  artistSelectFilter,
+  onGenreChange,
+  onYearChange,
+  onArtistSelectChange,
 }: {
-  tracks: Track[];
+  allTracks: Track[];
   loading: boolean;
   playing: Track | null;
-  onPlay: (t: Track) => void;
-  isAdmin: boolean;
-  onDelete: (id: string) => void;
+  onPlay: (t: Track, filtered: Track[]) => void;
   search: string;
   onSearchChange: (v: string) => void;
+  albumFilter: string | null;
+  artistFilter: string | null;
+  onClearAlbumFilter: () => void;
+  onClearArtistFilter: () => void;
+  genreFilter: string;
+  yearFilter: number;
+  artistSelectFilter: string;
+  onGenreChange: (v: string) => void;
+  onYearChange: (v: number) => void;
+  onArtistSelectChange: (v: string) => void;
 }) {
   const { t } = useTranslation();
   const [page, setPage] = useState(0);
+
+  const genreOptions = useMemo(
+    () => Array.from(new Set(allTracks.map((x) => x.Genre).filter((g) => !!g))).sort((a, b) => a.localeCompare(b)),
+    [allTracks],
+  );
+  const yearOptions = useMemo(
+    () => Array.from(new Set(allTracks.map((x) => x.Year).filter((y) => y > 0))).sort((a, b) => b - a),
+    [allTracks],
+  );
+  const artistOptions = useMemo(() => {
+    const set = new Set<string>();
+    allTracks.forEach((x) => { if (x.Artist) set.add(x.Artist); if (x.AlbumArtist) set.add(x.AlbumArtist); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [allTracks]);
+
+  const tracks = useMemo(
+    () => allTracks.filter((x) => {
+      if (albumFilter && x.Album !== albumFilter) return false;
+      if (artistFilter && x.Artist !== artistFilter && x.AlbumArtist !== artistFilter) return false;
+      if (genreFilter && x.Genre !== genreFilter) return false;
+      if (yearFilter && x.Year !== yearFilter) return false;
+      if (artistSelectFilter && x.Artist !== artistSelectFilter && x.AlbumArtist !== artistSelectFilter) return false;
+      return true;
+    }),
+    [allTracks, albumFilter, artistFilter, genreFilter, yearFilter, artistSelectFilter],
+  );
+
+  const hasExtraFilter = !!genreFilter || yearFilter > 0 || !!artistSelectFilter;
+
   const totalPages = Math.ceil(tracks.length / TRACKS_PAGE_SIZE);
   const pageTrack = useMemo(
     () => tracks.slice(page * TRACKS_PAGE_SIZE, (page + 1) * TRACKS_PAGE_SIZE),
     [tracks, page],
   );
 
+  useEffect(() => { setPage(0); }, [genreFilter, yearFilter, artistSelectFilter, albumFilter, artistFilter]);
+
+  const selectClass = "text-sm px-2 py-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] cursor-pointer";
+
   return (
     <div>
-      <div className="mb-4">
+      <div className="mb-4 flex items-center gap-2 flex-wrap">
         <input
           type="search"
           placeholder={t("media.music.searchPlaceholder")}
@@ -498,6 +595,61 @@ function TracksTab({
           onChange={(e) => { onSearchChange(e.target.value); setPage(0); }}
           className="w-full max-w-[400px] px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] text-sm"
         />
+        {albumFilter && (
+          <button
+            onClick={onClearAlbumFilter}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs bg-[var(--accent)] text-[var(--filter-active-text)] cursor-pointer border-none"
+            title={t("common.clear")}
+          >
+            {t("media.music.albums")}: {albumFilter} <X size={12} />
+          </button>
+        )}
+        {artistFilter && (
+          <button
+            onClick={onClearArtistFilter}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs bg-[var(--accent)] text-[var(--filter-active-text)] cursor-pointer border-none"
+            title={t("common.clear")}
+          >
+            {t("media.music.artists")}: {artistFilter} <X size={12} />
+          </button>
+        )}
+      </div>
+      <div className="mb-4 flex items-center gap-2 flex-wrap">
+        <select
+          value={genreFilter}
+          onChange={(e) => onGenreChange(e.target.value)}
+          className={selectClass}
+          aria-label={t("media.music.genre")}
+        >
+          <option value="">{t("media.music.genre") || "Genre"}</option>
+          {genreOptions.map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
+        <select
+          value={yearFilter || ""}
+          onChange={(e) => onYearChange(Number(e.target.value) || 0)}
+          className={selectClass}
+          aria-label={t("media.music.year")}
+        >
+          <option value="">{t("media.music.year") || "Year"}</option>
+          {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <select
+          value={artistSelectFilter}
+          onChange={(e) => onArtistSelectChange(e.target.value)}
+          className={selectClass}
+          aria-label={t("media.music.artists")}
+        >
+          <option value="">{t("media.music.artists")}</option>
+          {artistOptions.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+        {hasExtraFilter && (
+          <button
+            onClick={() => { onGenreChange(""); onYearChange(0); onArtistSelectChange(""); }}
+            className="px-3 py-1.5 rounded-[var(--radius-sm)] text-xs border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] cursor-pointer"
+          >
+            {t("media.music.resetFilters")}
+          </button>
+        )}
       </div>
       {loading && <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>}
       {!loading && !tracks.length && <p className="text-[var(--text-muted)]">{search ? t("media.music.noTracksSearch") : t("media.music.noTracks")}</p>}
@@ -510,7 +662,6 @@ function TracksTab({
             <th className="px-3 py-2">{t("media.music.artists")}</th>
             <th className="px-3 py-2">{t("media.music.albums")}</th>
             <th className="px-3 py-2 text-right">{t("media.library.duration")}</th>
-            {isAdmin && <th className="px-3 py-2"></th>}
           </tr>
         </thead>
         <tbody>
@@ -519,12 +670,12 @@ function TracksTab({
             return (
               <tr
                 key={track.ID}
-                onClick={() => onPlay(track)}
+                onClick={() => onPlay(track, tracks)}
                 className={`cursor-pointer border-b border-[var(--border)] hover:bg-[var(--surface-raised)] ${isActive ? "bg-[var(--surface-raised)]" : ""}`}
               >
                 <td className="px-3 py-2 text-[var(--text-muted)]">{page * TRACKS_PAGE_SIZE + i + 1}</td>
                 <td className="px-1 py-2">
-                  <TrackArt trackID={track.ID} size={36} />
+                  <TrackArt trackID={track.ID} coverArtURL={track.CoverArtURL} size={36} />
                 </td>
                 <td className={`px-3 py-2 font-medium ${isActive ? "text-[var(--accent)]" : "text-[var(--text)]"}`}>{track.Title || "—"}</td>
                 <td className="px-3 py-2 text-[var(--text-secondary)]">{track.Artist || "—"}</td>
@@ -532,18 +683,6 @@ function TracksTab({
                 <td className="px-3 py-2 text-[var(--text-muted)] text-right">
                   {track.Duration > 0 ? formatDuration(track.Duration) : "—"}
                 </td>
-                {isAdmin && (
-                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => onDelete(track.ID)}
-                      title={t("media.music.deleteTrack")}
-                      aria-label={t("media.music.deleteTrack")}
-                      className="bg-transparent border-none cursor-pointer text-[var(--color-danger)] p-1 rounded-[var(--radius-sm)] flex items-center hover:opacity-80"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                )}
               </tr>
             );
           })}
@@ -559,7 +698,7 @@ function TracksTab({
             {t("common.previous")}
           </button>
           <span>
-            {page + 1} / {totalPages} · {tracks.length} tracks
+            {page + 1} / {totalPages} · {t("media.music.trackCount", { count: tracks.length })}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
@@ -574,8 +713,10 @@ function TracksTab({
   );
 }
 
-function AlbumsTab({ albums, loading }: { albums: Album[]; loading: boolean }) {
+function AlbumsTab({ albums, loading, onAlbumClick }: { albums: Album[]; loading: boolean; onAlbumClick: (a: Album) => void }) {
   const { t } = useTranslation();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   if (loading) return <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>;
   if (!albums.length) return <p className="text-[var(--text-muted)]">{t("media.music.noAlbums")}</p>;
 
@@ -584,12 +725,16 @@ function AlbumsTab({ albums, loading }: { albums: Album[]; loading: boolean }) {
       {albums.map((a) => (
         <div
           key={a.ID}
-          className="rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)]"
+          onClick={() => onAlbumClick(a)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onAlbumClick(a); } }}
+          className="rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)] cursor-pointer hover:border-[var(--accent)] transition-colors-fast"
         >
           <div
             className="w-full flex items-center justify-center bg-[var(--surface)] bg-cover bg-center aspect-square"
             style={{
-              backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL})` : undefined,
+              backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL}${tokenParam})` : undefined,
             }}
           >
             {!a.CoverArtURL && (
@@ -600,7 +745,7 @@ function AlbumsTab({ albums, loading }: { albums: Album[]; loading: boolean }) {
             <p className="font-medium text-sm truncate text-[var(--text)]">{a.Title || "—"}</p>
             <p className="text-xs truncate text-[var(--text-muted)]">{a.Artist || "—"}</p>
             <p className="text-xs text-[var(--text-muted)]">
-              {a.TrackCount} {a.TrackCount === 1 ? "track" : "tracks"}
+              {t("media.music.trackCount", { count: a.TrackCount })}
               {a.Year > 0 ? ` · ${a.Year}` : ""}
             </p>
           </div>
@@ -610,8 +755,10 @@ function AlbumsTab({ albums, loading }: { albums: Album[]; loading: boolean }) {
   );
 }
 
-function ArtistsTab({ artists, loading }: { artists: Artist[]; loading: boolean }) {
+function ArtistsTab({ artists, loading, onArtistClick }: { artists: Artist[]; loading: boolean; onArtistClick: (a: Artist) => void }) {
   const { t } = useTranslation();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   if (loading) return <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>;
   if (!artists.length) return <p className="text-[var(--text-muted)]">{t("media.music.noArtists")}</p>;
 
@@ -620,11 +767,23 @@ function ArtistsTab({ artists, loading }: { artists: Artist[]; loading: boolean 
       {artists.map((a) => (
         <div
           key={a.ID}
-          className="flex items-center justify-between px-4 py-3 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)]"
+          onClick={() => onArtistClick(a)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onArtistClick(a); } }}
+          className="flex items-center justify-between px-4 py-3 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] cursor-pointer hover:border-[var(--accent)] transition-colors-fast"
         >
-          <span className="font-medium text-[var(--text)]">{a.Name}</span>
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="w-12 h-12 rounded-full bg-cover bg-center bg-[var(--surface)] flex items-center justify-center flex-shrink-0"
+              style={{ backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL}${tokenParam})` : undefined }}
+            >
+              {!a.CoverArtURL && <Music size={20} className="opacity-30 text-[var(--text-muted)]" />}
+            </div>
+            <span className="font-medium text-[var(--text)] truncate">{a.Name}</span>
+          </div>
           <span className="text-sm text-[var(--text-muted)]">
-            {a.AlbumCount} {a.AlbumCount === 1 ? "album" : "albums"} · {a.TrackCount} tracks
+            {t("media.music.albumCount", { count: a.AlbumCount })} · {t("media.music.trackCount", { count: a.TrackCount })}
           </span>
         </div>
       ))}

@@ -1252,6 +1252,7 @@ func TestLibraryStatsHandler_InvalidToken_401(t *testing.T) {
 	h := httpAuthMiddleware(verifier)(libraryStatsHandler(
 		verifier,
 		&fakeLibraryLister{},
+		nil,
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/library-stats", nil)
 	req.Header.Set("Authorization", "Bearer bad")
@@ -1266,6 +1267,7 @@ func TestLibraryStatsHandler_ServiceError_500(t *testing.T) {
 	h := libraryStatsHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeLibraryLister{err: errTest},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/library-stats", nil)
 	w := httptest.NewRecorder()
@@ -1279,6 +1281,7 @@ func TestLibraryStatsHandler_QueryToken(t *testing.T) {
 	h := libraryStatsHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeLibraryLister{},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/library-stats?token=valid", nil)
 	w := httptest.NewRecorder()

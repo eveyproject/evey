@@ -372,6 +372,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	starRatingSvc := apprating.NewService(r.Rating, bus, apprating.WithThumbRating(r.UserRating))
 	musicScanner := filesystem.NewMusicScanner()
 	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library, musicScanner)
+	musicSvc.CommandService().WithProber(infra.prober)
+	libCmdSvc.WithMusicScanner(musicSvc)
+	libCmdSvc.WithPhotoScanner(photoSvc)
 	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist)
 
 	var subtitleSvc *appsubtitle.Service
@@ -417,6 +420,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			mkvSvc:           mkvSvc,
 			musicSvc:         musicSvc,
 			photoSvc:         photoSvc,
+			photoTranscoder:  ffmpeg.NewPhotoTranscoder("ffmpeg"),
 			subtitleSvc:      subtitleSvc,
 			syncPlayHub:      syncPlayHub,
 			streamTokenStore: streamTokenStore,

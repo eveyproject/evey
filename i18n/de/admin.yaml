@@ -184,6 +184,8 @@ libraries:
     movies: Filme
     shows: Serien
     music: Musik
+    photos: Fotos
+    books: Bücher
     library: Bibliothek
   scan: Scannen
   scanAgain: Erneut scannen

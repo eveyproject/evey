@@ -23,10 +23,16 @@ type CommandService struct {
 	bus     shared.EventBus
 	libRepo library.LibraryQueryRepo
 	scanner music.MusicScanner
+	prober  library.StreamProber
 }
 
 func NewCommandService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner music.MusicScanner) *CommandService {
 	return &CommandService{tracks: tracks, bus: bus, libRepo: libRepo, scanner: scanner}
+}
+
+func (s *CommandService) WithProber(p library.StreamProber) *CommandService {
+	s.prober = p
+	return s
 }
 
 func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir string) (int, error) {
@@ -230,6 +236,28 @@ func (s *CommandService) parseTrack(path, libraryID, mimeType string, fileSize i
 	}
 	if m.Picture() != nil {
 		t.CoverArtURL = fmt.Sprintf("/api/v1/music/tracks/%s/art", t.ID)
+	}
+	if s.prober != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if pr, perr := s.prober.ProbeStreams(ctx, path); perr == nil && pr != nil {
+			t.Duration = float64(pr.DurationMs) / 1000.0
+			for _, st := range pr.Streams {
+				if st == nil || st.StreamType != "audio" {
+					continue
+				}
+				if st.Bitrate != nil {
+					t.Bitrate = int(*st.Bitrate)
+				}
+				if st.SampleRate != nil {
+					t.SampleRate = *st.SampleRate
+				}
+				if st.Channels != nil {
+					t.Channels = *st.Channels
+				}
+				break
+			}
+		}
 	}
 	return t, nil
 }

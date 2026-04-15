@@ -54,6 +54,7 @@ message SyncPlayState {
 message CreateSyncPlayRoomRequest {
   string media_id = 1;
   string name = 2;
+  string media_type = 3; // "video" (default) or "music"
 }
 
 message CreateSyncPlayRoomResponse {
@@ -62,6 +63,7 @@ message CreateSyncPlayRoomResponse {
   string name = 3;
   string media_id = 4;
   string host_id = 5;
+  string media_type = 6;
 }
 
 message JoinSyncPlayByCodeRequest {
@@ -72,6 +74,7 @@ message JoinSyncPlayByCodeResponse {
   string room_id = 1;
   string media_id = 2;
   string ws_url = 3;
+  string media_type = 4;
 }
 
 message GetSyncPlayRoomRequest {
@@ -86,6 +89,7 @@ message GetSyncPlayRoomResponse {
   repeated SyncPlayMember members = 5;
   SyncPlayState state = 6;
   string code = 7;
+  string media_type = 8;
 }
 
 message JoinSyncPlayRoomRequest {

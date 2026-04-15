@@ -251,6 +251,10 @@ music:
   trackCount_plural: "{{count}} pistes"
   albumCount: "{{count}} album"
   albumCount_plural: "{{count}} albums"
+  genre: Genre
+  year: Année
+  shuffle: Aléatoire
+  resetFilters: Réinitialiser les filtres
 photos:
   title: Photos
   albums: Albums
@@ -278,6 +282,17 @@ syncplay:
   watchTogetherRoom: Salle Regarder ensemble
   watchingWith: "Avec : {{names}}"
   watchingWithMore: "Avec : {{names}} +{{count}} de plus"
+  title: Écoute partagée
+  create: Créer une salle
+  createRoom: Créer
+  join: Rejoindre une salle
+  joinRoom: Rejoindre
+  codeLabel: Code
+  members: membres
+  sharedTrack: Piste partagée
+  followingHost: "Vous êtes synchronisé avec l'hôte."
+  noTracks: Aucune piste trouvée
+  notMusicRoom: "Cette salle n'est pas une salle musicale."
 playlist:
   name: Nom
   description: Description

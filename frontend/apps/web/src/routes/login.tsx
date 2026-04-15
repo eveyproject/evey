@@ -47,7 +47,7 @@ function LoginPage() {
   const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const { setTokens } = useAuthStore();
+  const { setTokens, accessToken } = useAuthStore();
   const navigate = useNavigate();
   const { oidc_error } = Route.useSearch();
 
@@ -57,7 +57,8 @@ function LoginPage() {
     staleTime: 60 * 1000,
   });
 
-  const systemInfo = useAdminSystemServiceGetSystemInfo({ query: { staleTime: 60 * 1000 } });
+  // Endpoint requires admin auth — only fetch when authenticated, else 401 loop.
+  const systemInfo = useAdminSystemServiceGetSystemInfo({ query: { staleTime: 60 * 1000, enabled: !!accessToken } });
 
   const login = useUserServiceLogin({
     mutation: {

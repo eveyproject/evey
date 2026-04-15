@@ -65,10 +65,12 @@ func extractZipFile(f *zip.File, destDir string) error {
 	if err != nil {
 		return fmt.Errorf("create file %s: %w", target, err)
 	}
-	defer out.Close()
-
 	if _, err := io.Copy(out, io.LimitReader(rc, int64(maxZipFileSize)+1)); err != nil {
+		_ = out.Close()
 		return fmt.Errorf("write file %s: %w", target, err)
+	}
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("close file %s: %w", target, err)
 	}
 	return nil
 }

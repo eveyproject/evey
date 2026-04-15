@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { View, Text, TextInput, Pressable, FlatList, ActivityIndicator, Alert, StyleSheet } from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { setServerUrl, getServerUrl } from "../src/lib/server-config";

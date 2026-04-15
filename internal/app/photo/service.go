@@ -35,6 +35,10 @@ func (s *Service) ListPhotos(ctx context.Context, libraryID shared.LibraryID, li
 	return s.query.ListPhotos(ctx, libraryID, limit, offset)
 }
 
+func (s *Service) ListPhotosByAlbum(ctx context.Context, libraryID shared.LibraryID, album string, limit, offset int) ([]photo.Photo, int, error) {
+	return s.query.ListPhotosByAlbum(ctx, libraryID, album, limit, offset)
+}
+
 func (s *Service) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]photo.Album, error) {
 	return s.query.GetAlbums(ctx, libraryID)
 }

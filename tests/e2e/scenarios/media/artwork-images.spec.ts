@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { gotoRandomMedia, gotoRandomMovie, goto, collectErrors } from "../shared/helpers";
+import { gotoRandomMedia, goto } from "../shared/helpers";
 
 test.describe("Media > Artwork & Images", () => {
   test("poster loads without error (not broken)", async ({ page }) => {

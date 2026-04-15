@@ -112,7 +112,7 @@ func TestDownloadHandler_Allowed_FileNotFound(t *testing.T) {
 
 func TestLibraryStatsHandler_Unauthenticated(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
-	inner := libraryStatsHandler(verifier, &fakeLibraryLister{})
+	inner := libraryStatsHandler(verifier, &fakeLibraryLister{}, nil)
 	h := httpAdminMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/library-stats", nil)
 	w := httptest.NewRecorder()
@@ -129,6 +129,7 @@ func TestLibraryStatsHandler_OK(t *testing.T) {
 		&fakeLibraryLister{libs: []*domainlibrary.Library{
 			{ID: "lib1", LastScannedAt: &now},
 		}},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/library-stats", nil)
 	req = withHTTPClaims(req, testClaims(true))

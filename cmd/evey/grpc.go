@@ -18,6 +18,12 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 	authInterceptor := interceptors.NewAuthInterceptor(deps.auth.tokenGen).WithAPIKeys(deps.repos.apiKeyRepo, deps.repos.userRepo).WithTranslator(deps.translator)
 	pluginTokenInterceptor := interceptors.NewPluginTokenInterceptor(deps.auth.tokenGen)
 	publicRL := interceptors.DefaultPublicMethodLimiters()
+	if cfg.Log.DevMode {
+		for _, ml := range publicRL {
+			ml.Limiter = ratelimit.NewWithBurst(10000, 10000)
+			ml.RetryAfterSecs = 0
+		}
+	}
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
 
 	grpcDeps := grpcapi.GRPCServerDeps{

@@ -140,6 +140,7 @@ nav:
   favorites: "Favoris"
   search: "Rechercher"
   music: "Musique"
+  syncplay: "Écoute partagée"
   admin: "Administration"
   backToApp: "Retour à l'application"
   profile: "Profil"

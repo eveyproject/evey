@@ -138,7 +138,7 @@ test.describe("Home > Search deep", () => {
     const emptyState = page.locator(DROPDOWN_EMPTY);
     const dropdown = page.locator(DROPDOWN);
     // either empty message or no dropdown at all
-    const hasEmpty = await emptyState.isVisible({ timeout: 3_000 }).catch(() => false);
+    await emptyState.isVisible({ timeout: 3_000 }).catch(() => false);
     const hasDropdown = await dropdown.isVisible({ timeout: 500 }).catch(() => false);
     if (hasDropdown) {
       // if dropdown visible, must show empty state (no clickable items)

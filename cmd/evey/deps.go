@@ -13,6 +13,7 @@ import (
 	appmusic "github.com/evey-project/evey/internal/app/music"
 	appnotification "github.com/evey-project/evey/internal/app/notification"
 	appphoto "github.com/evey-project/evey/internal/app/photo"
+	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
@@ -58,7 +59,8 @@ type mediaDeps struct {
 	hlsManager     *apptranscoding.HLSManager
 	mkvSvc         *appmkv.Service
 	musicSvc       *appmusic.Service
-	photoSvc       *appphoto.Service
+	photoSvc        *appphoto.Service
+	photoTranscoder *ffmpeg.PhotoTranscoder
 	subtitleSvc    *appsubtitle.Service
 	syncPlayHub      *appsyncplay.Hub
 	streamTokenStore *appmedia.StreamTokenStore

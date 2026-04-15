@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { gotoRandomMedia, collectErrors } from "../shared/helpers";
+import { gotoRandomMedia } from "../shared/helpers";
 
 test.describe("Media > Play button", () => {
   test("play button exists on movie/episode detail", async ({ page }) => {

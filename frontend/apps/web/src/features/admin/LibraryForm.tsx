@@ -88,6 +88,8 @@ export function LibraryForm({ onSuccess, library }: LibraryFormProps) {
             { value: "LIBRARY_TYPE_MOVIES", label: t("admin.libraries.types.movies") },
             { value: "LIBRARY_TYPE_SHOWS", label: t("admin.libraries.tvShows") },
             { value: "LIBRARY_TYPE_MUSIC", label: t("admin.libraries.types.music") },
+            { value: "LIBRARY_TYPE_PHOTOS", label: t("admin.libraries.types.photos") },
+            { value: "LIBRARY_TYPE_BOOKS", label: t("admin.libraries.types.books") },
           ]}
         />
       )}

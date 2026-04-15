@@ -23,6 +23,7 @@ type Room struct {
 	Name      string
 	HostID    shared.UserID
 	MediaID   shared.MediaItemID
+	MediaType string // "video" (default) or "music"
 	Members   []Member
 	State     PlaybackState
 	CreatedAt time.Time

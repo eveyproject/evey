@@ -551,7 +551,6 @@ export default function PlayerScreen() {
   }
 
   const seekProgress = effectiveDuration > 0 ? currentTime / effectiveDuration : 0;
-  const volumePct = Math.round(volume * 100);
 
   // Casting mode: show controller instead of local player
   if (castConnected) {
@@ -844,7 +843,7 @@ export default function PlayerScreen() {
               >
                 {seekTouchX != null && (
                   <View style={{ position: "absolute", bottom: "50%", left: seekTouchX, transform: [{ translateX: -80 }] }}>
-                    <TrickplayPreview mediaId={mediaId} currentTime={currentTime} visible={showControls && effectiveDuration > 0} />
+                    <TrickplayPreview mediaId={mediaId} currentTime={currentTime} visible={effectiveDuration > 0} />
                   </View>
                 )}
                 <View style={styles.seekBarTrack}>

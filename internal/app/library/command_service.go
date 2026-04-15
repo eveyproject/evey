@@ -79,6 +79,14 @@ func (s *CommandService) WithSubtitleScanner(sc library.ExternalSubtitleScanner)
 	}
 }
 
+func (s *CommandService) WithMusicScanner(sc TypedDirectoryScanner) {
+	s.scan.WithMusicScanner(sc)
+}
+
+func (s *CommandService) WithPhotoScanner(sc TypedDirectoryScanner) {
+	s.scan.WithPhotoScanner(sc)
+}
+
 // --- Delegated to ScanService ---
 
 func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error) {

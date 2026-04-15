@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, FlatList, ActivityIndicator, StyleSheet, Dimensions } from "react-native";
+import { View, Text, ScrollView, Pressable, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import {
   useLibraryServiceGetMediaItem,
@@ -16,8 +16,6 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 function formatRuntime(ms?: string): string {
   if (!ms) return "";

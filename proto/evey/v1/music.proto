@@ -85,6 +85,7 @@ message MusicArtist {
   string name = 2;
   int32 track_count = 3;
   int32 album_count = 4;
+  string cover_art_url = 5;
 }
 
 message ListTracksRequest {

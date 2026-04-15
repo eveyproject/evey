@@ -28,7 +28,10 @@ export function QuickConnect() {
     },
   });
 
+  const initiated = useRef(false);
   useEffect(() => {
+    if (initiated.current) return;
+    initiated.current = true;
     initiate.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once on mount
   }, []);

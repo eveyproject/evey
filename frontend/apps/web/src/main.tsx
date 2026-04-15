@@ -27,6 +27,10 @@ useLocaleStore.subscribe((state) => {
 
 // Logout on 401 and redirect to login (queryClient cleared lazily — defined below)
 window.addEventListener("evey:unauthorized", () => {
+  // Guard against feedback loop on already-logged-out pages: if no token,
+  // a 401 just means the page made an unnecessary auth call — don't clear
+  // queries or redirect, that triggers another mount → query → 401 → loop.
+  if (!useAuthStore.getState().accessToken) return;
   queryClientRef?.clear();
   useAuthStore.getState().logout();
   localStorage.removeItem("evey-recent-searches");

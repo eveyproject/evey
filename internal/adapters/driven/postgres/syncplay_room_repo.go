@@ -28,10 +28,14 @@ func (r *SyncPlayRoomRepo) Create(ctx context.Context, room *syncplay.Room) erro
 	if err != nil {
 		return err
 	}
+	mediaType := room.MediaType
+	if mediaType == "" {
+		mediaType = "video"
+	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO syncplay_rooms (id, code, name, host_id, media_id, members, state, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-		room.ID, room.Code, room.Name, room.HostID, room.MediaID, membersJSON, stateJSON, room.CreatedAt,
+		`INSERT INTO syncplay_rooms (id, code, name, host_id, media_id, members, state, created_at, media_type)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+		room.ID, room.Code, room.Name, room.HostID, room.MediaID, membersJSON, stateJSON, room.CreatedAt, mediaType,
 	)
 	return err
 }
@@ -39,14 +43,14 @@ func (r *SyncPlayRoomRepo) Create(ctx context.Context, room *syncplay.Room) erro
 func (r *SyncPlayRoomRepo) Get(ctx context.Context, id string) (*syncplay.Room, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at
+	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at, media_type
 		 FROM syncplay_rooms WHERE id = $1`, id)
 }
 
 func (r *SyncPlayRoomRepo) GetByCode(ctx context.Context, code string) (*syncplay.Room, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at
+	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at, media_type
 		 FROM syncplay_rooms WHERE code = $1`, code)
 }
 
@@ -55,7 +59,7 @@ func (r *SyncPlayRoomRepo) scanRoom(ctx context.Context, query string, arg strin
 	var membersJSON, stateJSON []byte
 	err := r.db.QueryRowContext(ctx, query, arg).Scan(
 		&room.ID, &room.Code, &room.Name, &room.HostID, &room.MediaID,
-		&membersJSON, &stateJSON, &room.CreatedAt,
+		&membersJSON, &stateJSON, &room.CreatedAt, &room.MediaType,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil

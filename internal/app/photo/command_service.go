@@ -112,8 +112,13 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 			}
 
 			title := strings.TrimSuffix(j.name, filepath.Ext(j.name))
-			album := filepath.Base(filepath.Dir(j.path))
-			if album == "." || album == j.dir {
+			// Album = subdirectory path relative to the library root, so two
+			// physical folders with the same name (e.g. nested "Ma Sorciere…"
+			// dirs) don't collapse into one logical album.
+			parentDir := filepath.Dir(j.path)
+			album := strings.TrimPrefix(parentDir, j.dir)
+			album = strings.TrimPrefix(album, string(filepath.Separator))
+			if album == "." || parentDir == j.dir {
 				album = ""
 			}
 

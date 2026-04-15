@@ -251,6 +251,10 @@ music:
   trackCount_plural: "{{count}} ट्रैक"
   albumCount: "{{count}} एल्बम"
   albumCount_plural: "{{count}} एल्बम"
+  genre: Genre
+  year: Year
+  shuffle: Shuffle
+  resetFilters: Reset filters
 photos:
   title: फ़ोटो
   albums: एल्बम

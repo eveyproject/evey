@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { goto, getToken, apiGet, apiPost, apiDelete, pickRandomMediaId } from "../shared/helpers";
+import { goto, getToken, apiGet, pickRandomMediaId } from "../shared/helpers";
 
 /**
  * API CRUD matrix: test every endpoint with valid/invalid/missing params

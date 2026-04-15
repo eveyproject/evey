@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { goto, getToken, apiGet, pickRandomMediaId } from "../shared/helpers";
+import { goto, apiGet, pickRandomMediaId } from "../shared/helpers";
 
 test.describe("Media > API endpoint validation", () => {
   test("GET /api/v1/media returns items array", async ({ page }) => {

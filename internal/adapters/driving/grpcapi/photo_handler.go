@@ -12,6 +12,7 @@ import (
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	appuser "github.com/evey-project/evey/internal/app/user"
+	photodomain "github.com/evey-project/evey/internal/domain/photo"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -59,7 +60,14 @@ func (h *photoHandler) ListPhotos(ctx context.Context, req *eveyv1.ListPhotosReq
 		limit = 50
 	}
 	offset := int(req.Offset)
-	photos, total, err := h.svc.ListPhotos(ctx, shared.LibraryID(req.LibraryId), limit, offset)
+	var photos []photodomain.Photo
+	var total int
+	var err error
+	if req.Album != "" {
+		photos, total, err = h.svc.ListPhotosByAlbum(ctx, shared.LibraryID(req.LibraryId), req.Album, limit, offset)
+	} else {
+		photos, total, err = h.svc.ListPhotos(ctx, shared.LibraryID(req.LibraryId), limit, offset)
+	}
 	if err != nil {
 		return nil, internalError("list photos", err)
 	}

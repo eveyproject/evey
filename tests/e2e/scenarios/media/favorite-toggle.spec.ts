@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { gotoRandomMedia, goto, collectErrors } from "../shared/helpers";
+import { gotoRandomMedia, collectErrors } from "../shared/helpers";
 
 test.describe("Media > Favorite toggle", () => {
   test("favorite button exists on detail page", async ({ page }) => {

@@ -90,7 +90,7 @@ describe("fetchStreamToken", () => {
 
 describe("usePlaySession integration", () => {
   it("calls getStreamInfo with supported codecs", async () => {
-    const { renderHook, act } = await import("@testing-library/react");
+    const { renderHook } = await import("@testing-library/react");
     const { usePlaySession } = await import("./usePlaySession");
 
     getStreamInfoMock.mockResolvedValue({

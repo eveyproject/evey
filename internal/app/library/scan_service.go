@@ -16,6 +16,10 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
+type TypedDirectoryScanner interface {
+	ScanDirectory(ctx context.Context, libraryID, dir string) (int, error)
+}
+
 type ScanService struct {
 	scanner      library.FileScanner
 	prober       library.StreamProber
@@ -29,7 +33,9 @@ type ScanService struct {
 	persons      library.PersonRepository
 	mediaPersons library.MediaPersonRepository
 
-	metadata *MetadataExtractionService
+	metadata     *MetadataExtractionService
+	musicScanner TypedDirectoryScanner
+	photoScanner TypedDirectoryScanner
 
 	scanMu   sync.Mutex
 	scanning map[string]bool
@@ -68,6 +74,14 @@ func (s *ScanService) WithMetadataExtraction(m *MetadataExtractionService) {
 
 func (s *ScanService) WithSubtitleScanner(sc library.ExternalSubtitleScanner) {
 	s.subScanner = sc
+}
+
+func (s *ScanService) WithMusicScanner(sc TypedDirectoryScanner) {
+	s.musicScanner = sc
+}
+
+func (s *ScanService) WithPhotoScanner(sc TypedDirectoryScanner) {
+	s.photoScanner = sc
 }
 
 type scanRef struct {
@@ -109,6 +123,39 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 	}
 
 	s.publishScanStarted(ctx, libraryID)
+
+	switch string(lib.Type) {
+	case "music":
+		if s.musicScanner == nil {
+			return 0, 0, fmt.Errorf("music scanner not configured")
+		}
+		var total int
+		for _, p := range lib.Paths {
+			n, e := s.musicScanner.ScanDirectory(ctx, libraryID, p)
+			if e != nil {
+				slog.Warn("music scan path failed", slog.String("path", p), slog.Any("err", e))
+				continue
+			}
+			total += n
+		}
+		s.finalizeScan(ctx, lib, libraryID, total, 0, 0)
+		return total, 0, nil
+	case "photo":
+		if s.photoScanner == nil {
+			return 0, 0, fmt.Errorf("photo scanner not configured")
+		}
+		var total int
+		for _, p := range lib.Paths {
+			n, e := s.photoScanner.ScanDirectory(ctx, libraryID, p)
+			if e != nil {
+				slog.Warn("photo scan path failed", slog.String("path", p), slog.Any("err", e))
+				continue
+			}
+			total += n
+		}
+		s.finalizeScan(ctx, lib, libraryID, total, 0, 0)
+		return total, 0, nil
+	}
 
 	idx, err := s.loadScanIndex(ctx, libraryID)
 	if err != nil {

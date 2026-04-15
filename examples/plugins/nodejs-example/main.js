@@ -41,7 +41,6 @@ function hostLog(level, message, fields = {}) {
 // Plugin server implementation
 const pluginImpl = {
   Initialize(call, callback) {
-    const config = call.request.config || {};
     hostLog("LOG_LEVEL_INFO", `plugin initialized (host ${call.request.host_version})`);
     callback(null, { success: true });
   },

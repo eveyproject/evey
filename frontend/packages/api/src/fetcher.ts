@@ -97,7 +97,7 @@ async function fetchWithRefresh(
 ): Promise<Response> {
   let response = await doFetch(initialToken);
 
-  if (response.status === 401 && !url.includes("/auth/refresh")) {
+  if (response.status === 401 && !url.includes("/auth/refresh") && !url.includes("/auth/logout")) {
     if (refreshFailed) {
       fireUnauthorized();
       throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });

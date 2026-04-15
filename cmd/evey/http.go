@@ -84,7 +84,9 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		UserRatingRepo: deps.repos.userRatingRepo,
 		StarRatingSvc:  deps.content.starRatingSvc,
 
-		PhotoSvc: deps.media.photoSvc,
+		PhotoSvc:        deps.media.photoSvc,
+		PhotoTranscoder: deps.media.photoTranscoder,
+		PhotoCacheDir:   cfg.Transcoding.CacheDir,
 
 		SyncPlayHub: deps.media.syncPlayHub,
 

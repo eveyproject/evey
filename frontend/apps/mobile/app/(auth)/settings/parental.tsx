@@ -32,7 +32,7 @@ export default function ParentalSettingsScreen() {
   const [maxRating, setMaxRating] = useState((defaultProfile as any)?.maxRating ?? "");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [saving] = useState(false);
 
   useEffect(() => {
     setMaxRating((defaultProfile as any)?.maxRating ?? "");

@@ -12,6 +12,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   ArrowLeft,
+  Headphones,
 } from "lucide-react";
 import { AdminNav } from "@/features/admin/AdminNav";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
@@ -24,6 +25,7 @@ const navItems = [
   { to: "/photos" as const, labelKey: "common.nav.photos", icon: Images },
   { to: "/favorites" as const, labelKey: "common.nav.favorites", icon: Heart },
   { to: "/music" as const, labelKey: "common.nav.music", icon: Music2 },
+  { to: "/syncplay" as const, labelKey: "common.nav.syncplay", icon: Headphones },
 ];
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {

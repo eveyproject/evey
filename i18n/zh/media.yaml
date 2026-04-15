@@ -251,6 +251,10 @@ music:
   trackCount_plural: "{{count}} 首曲目"
   albumCount: "{{count}} 张专辑"
   albumCount_plural: "{{count}} 张专辑"
+  genre: Genre
+  year: Year
+  shuffle: Shuffle
+  resetFilters: Reset filters
 photos:
   title: 照片
   albums: 相册

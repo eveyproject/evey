@@ -11,7 +11,7 @@ import {
 import { toast, useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Images, ChevronLeft, ChevronRight, X, Trash2 } from "lucide-react";
+import { Images, ChevronLeft, ChevronRight, X, Trash2, RotateCcw, RotateCw } from "lucide-react";
 
 export const Route = createLazyFileRoute("/_auth/photos/")({
   component: PhotosPage,
@@ -75,9 +75,9 @@ function useAlbums(libraryID: string | undefined) {
   );
 }
 
-function usePhotos(libraryID: string | undefined, limit = 200, offset = 0) {
+function usePhotos(libraryID: string | undefined, album?: string, limit = 5000, offset = 0) {
   return usePhotoServiceListPhotos(
-    { libraryId: libraryID, limit, offset },
+    { libraryId: libraryID, limit, offset, album },
     {
       query: {
         enabled: !!libraryID,
@@ -116,12 +116,19 @@ interface LightboxProps {
 
 function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: LightboxProps) {
   const photo = photos[index];
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+  const [rotation, setRotation] = useState(0);
+
+  useEffect(() => { setRotation(0); }, [index]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       else if (e.key === "ArrowLeft") onPrev();
       else if (e.key === "ArrowRight") onNext();
+      else if (e.key === "r") setRotation((r) => (r + 90) % 360);
+      else if (e.key === "R") setRotation((r) => (r + 270) % 360);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -132,6 +139,22 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
   return (
     <div className="fixed inset-0 z-overlay flex items-center justify-center bg-black/90" onClick={onClose}>
       <div className="absolute top-4 right-4 flex items-center gap-3 z-raised">
+        <button
+          onClick={(e) => { e.stopPropagation(); setRotation((r) => (r + 270) % 360); }}
+          className="transition-colors-fast text-[var(--overlay-text)]"
+          aria-label="Rotate left"
+          title="Rotate left (Shift+R)"
+        >
+          <RotateCcw size={22} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); setRotation((r) => (r + 90) % 360); }}
+          className="transition-colors-fast text-[var(--overlay-text)]"
+          aria-label="Rotate right"
+          title="Rotate right (R)"
+        >
+          <RotateCw size={22} />
+        </button>
         {onDelete && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(photo); }}
@@ -172,9 +195,10 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
 
       <div className="max-w-[90vw] max-h-[90vh] flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
         <img
-          src={`/api/v1/photos/${photo.ID}/serve`}
+          src={`/api/v1/photos/${photo.ID}/serve${tokenParam}`}
           alt={photo.Title}
-          className="max-w-full max-h-[80vh] object-contain rounded"
+          className="max-w-full max-h-[80vh] object-contain rounded transition-transform"
+          style={{ transform: `rotate(${rotation}deg)` }}
         />
         <div className="text-white text-sm text-center">
           <span className="font-medium">{photo.Title}</span>
@@ -209,14 +233,28 @@ function getPhotoCols(width: number): number {
   return 2;
 }
 
+function findScrollParent(el: HTMLElement | null): HTMLElement {
+  let node: HTMLElement | null = el?.parentElement ?? null;
+  while (node) {
+    const style = getComputedStyle(node);
+    if (/(auto|scroll|overlay)/.test(style.overflowY)) return node;
+    node = node.parentElement;
+  }
+  return (document.scrollingElement as HTMLElement) ?? document.documentElement;
+}
+
 function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
   const { t } = useTranslation();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const thumbParam = `?${accessToken ? `token=${encodeURIComponent(accessToken)}&` : ""}w=400&fmt=webp`;
   const parentRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(800);
+  const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     const el = parentRef.current;
     if (!el) return;
+    setScrollEl(findScrollParent(el));
     const ro = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width;
       if (w) setContainerWidth(w);
@@ -239,10 +277,10 @@ function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
 
   const virtualizer = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => document.scrollingElement as HTMLElement,
+    getScrollElement: () => scrollEl,
     estimateSize: () => cellSize + PHOTO_GAP,
     overscan: 3,
-    scrollMargin: parentRef.current?.offsetTop ?? 0,
+    scrollMargin: parentRef.current && scrollEl ? parentRef.current.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop : 0,
   });
 
   if (photos.length === 0) return <EmptyState title={t("media.photos.noPhotos")} description={t("media.photos.noPhotosDesc")} />;
@@ -275,7 +313,7 @@ function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
                   aria-label={photo.Title}
                 >
                   <img
-                    src={`/api/v1/photos/${photo.ID}/serve`}
+                    src={`/api/v1/photos/${photo.ID}/serve${thumbParam}`}
                     alt={photo.Title}
                     loading="lazy"
                     className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
@@ -300,6 +338,8 @@ interface AlbumGridProps {
 
 function AlbumGrid({ albums, onAlbumClick }: AlbumGridProps) {
   const { t } = useTranslation();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const thumbParam = `?${accessToken ? `token=${encodeURIComponent(accessToken)}&` : ""}w=400&fmt=webp`;
   if (albums.length === 0) return <EmptyState title={t("media.photos.noAlbums")} description={t("media.photos.noAlbumsDesc")} />;
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -314,7 +354,7 @@ function AlbumGrid({ albums, onAlbumClick }: AlbumGridProps) {
           >
             {album.CoverPhotoID ? (
               <img
-                src={`/api/v1/photos/${album.CoverPhotoID}/serve`}
+                src={`/api/v1/photos/${album.CoverPhotoID}/serve${thumbParam}`}
                 alt={album.Name}
                 loading="lazy"
                 className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
@@ -326,7 +366,7 @@ function AlbumGrid({ albums, onAlbumClick }: AlbumGridProps) {
             )}
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors-fast duration-200" />
           </div>
-          <p className="text-sm font-medium text-[var(--text)] truncate">{album.Name}</p>
+          <p className="text-sm font-medium text-[var(--text)] truncate" title={album.Name}>{album.Name.split("/").pop()}</p>
           <p className="text-xs text-[var(--text-muted)]">{album.PhotoCount} photo{album.PhotoCount !== 1 ? "s" : ""}</p>
         </button>
       ))}
@@ -352,7 +392,7 @@ function PhotosPage() {
   const activeLibraryID = selectedLibraryID ?? firstLib?.id;
 
   const { data: albumsData, isLoading: albumsLoading } = useAlbums(activeLibraryID);
-  const { data: photosData, isLoading: photosLoading } = usePhotos(activeLibraryID);
+  const { data: photosData, isLoading: photosLoading } = usePhotos(activeLibraryID, selectedAlbum);
 
   const displayedPhotos = photosData?.photos ?? [];
 
@@ -468,7 +508,7 @@ function PhotosPage() {
                 {t("media.photos.albums")}
               </button>
               <span className="text-[var(--text-muted)]">/</span>
-              <span className="text-sm font-medium text-[var(--text)]">{selectedAlbum}</span>
+              <span className="text-sm font-medium text-[var(--text)]" title={selectedAlbum}>{selectedAlbum.split("/").pop()}</span>
             </div>
           )}
           {photosLoading ? (

@@ -16,10 +16,17 @@ func NewQueryService(repo photo.Repository) *QueryService {
 }
 
 func (s *QueryService) ListPhotos(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]photo.Photo, int, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 50
+	if limit <= 0 || limit > 5000 {
+		limit = 200
 	}
 	return s.repo.ListByLibrary(ctx, libraryID, limit, offset)
+}
+
+func (s *QueryService) ListPhotosByAlbum(ctx context.Context, libraryID shared.LibraryID, album string, limit, offset int) ([]photo.Photo, int, error) {
+	if limit <= 0 || limit > 5000 {
+		limit = 200
+	}
+	return s.repo.ListByAlbum(ctx, libraryID, album, limit, offset)
 }
 
 func (s *QueryService) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]photo.Album, error) {

@@ -29,6 +29,8 @@ services:
     environment:
       EVEY_LOG_DEV_MODE: "true"
       EVEY_LOG_LEVEL: debug
+      EVEY_RATELIMIT_LOGIN_MAX: "1000"
+      EVEY_RATELIMIT_GLOBAL_MAX: "10000"
     volumes:
       - .:/app
       - ./evey-data:/data
@@ -36,6 +38,8 @@ services:
       - evey-cache:/cache
       - /path/to/movies:/media
       - /path/to/series:/media2
+      - /path/to/photos:/media3
+      - /path/to/music:/media4
     healthcheck:
       start_period: 60s
       retries: 10

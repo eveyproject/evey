@@ -22,9 +22,9 @@ interface SyncPlayState {
 }
 
 interface SyncPlayControls {
-  createRoom: (mediaId: string) => Promise<string>;
+  createRoom: (mediaId: string, mediaType?: string) => Promise<string>;
   joinRoom: (roomId: string) => Promise<void>;
-  joinByCode: (code: string) => Promise<{ roomId: string; mediaId: string }>;
+  joinByCode: (code: string) => Promise<{ roomId: string; mediaId: string; mediaType: string }>;
   leaveRoom: () => Promise<void>;
   sendPlay: (positionMs: number) => void;
   sendPause: (positionMs: number) => void;
@@ -148,8 +148,8 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     };
   }, []);
 
-  const createRoom = useCallback(async (mediaId: string): Promise<string> => {
-    const data = await syncPlayServiceCreateRoom({ mediaId, name: "Watch Together" });
+  const createRoom = useCallback(async (mediaId: string, mediaType?: string): Promise<string> => {
+    const data = await syncPlayServiceCreateRoom({ mediaId, name: mediaType === "music" ? "Listen Together" : "Watch Together", mediaType });
     const id = data.id ?? "";
     setState({ roomId: id, roomCode: data.code ?? null, members: [], connected: false, isHost: true });
     connect(id);
@@ -169,13 +169,14 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     connect(roomId);
   }, [connect]);
 
-  const joinByCode = useCallback(async (code: string): Promise<{ roomId: string; mediaId: string }> => {
+  const joinByCode = useCallback(async (code: string): Promise<{ roomId: string; mediaId: string; mediaType: string }> => {
     const data = await syncPlayServiceJoinByCode({ code });
     const roomId = data.roomId ?? "";
     const mediaId = data.mediaId ?? "";
+    const mediaType = data.mediaType ?? "video";
     setState({ roomId, roomCode: null, members: [], connected: false, isHost: false });
     connect(roomId);
-    return { roomId, mediaId };
+    return { roomId, mediaId, mediaType };
   }, [connect]);
 
   const leaveRoom = useCallback(async (): Promise<void> => {

@@ -219,6 +219,10 @@
         },
         "name": {
           "type": "string"
+        },
+        "mediaType": {
+          "type": "string",
+          "title": "\"video\" (default) or \"music\""
         }
       }
     },
@@ -238,6 +242,9 @@
           "type": "string"
         },
         "hostId": {
+          "type": "string"
+        },
+        "mediaType": {
           "type": "string"
         }
       }
@@ -269,6 +276,9 @@
         },
         "code": {
           "type": "string"
+        },
+        "mediaType": {
+          "type": "string"
         }
       }
     },
@@ -290,6 +300,9 @@
           "type": "string"
         },
         "wsUrl": {
+          "type": "string"
+        },
+        "mediaType": {
           "type": "string"
         }
       }

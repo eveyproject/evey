@@ -251,6 +251,10 @@ music:
   trackCount_plural: "{{count}} tracks"
   albumCount: "{{count}} album"
   albumCount_plural: "{{count}} albums"
+  genre: Genre
+  year: Year
+  shuffle: Shuffle
+  resetFilters: Reset filters
 photos:
   title: Photos
   albums: Albums
@@ -278,6 +282,17 @@ syncplay:
   watchTogetherRoom: Watch Together room
   watchingWith: "Watching with: {{names}}"
   watchingWithMore: "Watching with: {{names}} +{{count}} more"
+  title: Listen Together
+  create: Create a room
+  createRoom: Create room
+  join: Join a room
+  joinRoom: Join room
+  codeLabel: Code
+  members: members
+  sharedTrack: Shared track
+  followingHost: "You're synced with the host."
+  noTracks: No tracks found
+  notMusicRoom: "This room isn't a music room."
 playlist:
   name: Name
   description: Description
