@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 )
 
@@ -75,7 +76,12 @@ func (r *FakeQuickConnectRepository) UpdateStatus(_ context.Context, id, status 
 	for _, req := range r.items {
 		if req.ID == id {
 			req.Status = user.QuickConnectStatus(status)
-			req.UserID = userID
+			if userID != nil {
+				uid := shared.UserID(*userID)
+				req.UserID = &uid
+			} else {
+				req.UserID = nil
+			}
 			return nil
 		}
 	}

@@ -118,7 +118,7 @@ func TestPasswordResetTokenRepo_DeleteByUserID(t *testing.T) {
 
 	got, err := repo.GetByTokenHash(ctx, "hash_c")
 	require.NoError(t, err)
-	assert.Equal(t, "prt-u3b", got.UserID)
+	assert.Equal(t, "prt-u3b", string(got.UserID))
 }
 
 func TestPasswordResetTokenRepo_DeleteExpired(t *testing.T) {

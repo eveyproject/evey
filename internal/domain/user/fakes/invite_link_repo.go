@@ -58,7 +58,7 @@ func (r *FakeInviteLinkRepository) ListByCreator(_ context.Context, creatorID st
 	}
 	var result []*user.InviteLink
 	for _, l := range r.items {
-		if l.CreatedBy == creatorID {
+		if string(l.CreatedBy) == creatorID {
 			result = append(result, l)
 		}
 	}

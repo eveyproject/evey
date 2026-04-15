@@ -350,7 +350,7 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 	}
 	link := &user.InviteLink{
 		ID:        id.New("inv-"),
-		CreatedBy: claims.UserID,
+		CreatedBy: shared.UserID(claims.UserID),
 		Token:     secureToken("inv-tok-", 16),
 		MaxUses:   int(req.MaxUses),
 		ExpiresAt: fromTimestamppbPtr(req.ExpiresAt),
@@ -471,7 +471,7 @@ func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQu
 	authorized := qc.Status == user.Authorized
 	resp := &eveyv1.CheckQuickConnectResponse{Authorized: authorized}
 	if authorized && qc.UserID != nil {
-		access, refresh, err := h.auth.GenerateTokensForUser(ctx, *qc.UserID, h.refreshTTLOverride(ctx)...)
+		access, refresh, err := h.auth.GenerateTokensForUser(ctx, string(*qc.UserID), h.refreshTTLOverride(ctx)...)
 		if err != nil {
 			slog.Error("generate tokens for quick connect", slog.Any("err", err))
 			return nil, status.Errorf(codes.Internal, "internal error")

@@ -72,7 +72,7 @@ func TestPlaylistRepo_List(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
 	for _, pl := range list {
-		assert.Equal(t, string(u1.ID), pl.UserID)
+		assert.Equal(t, string(u1.ID), string(pl.UserID))
 	}
 
 	list2, err := plRepo.List(ctx, string(u2.ID))

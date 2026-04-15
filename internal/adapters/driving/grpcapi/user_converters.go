@@ -59,7 +59,7 @@ func inviteLinkToProto(l *user.InviteLink) *eveyv1.InviteLink {
 	return &eveyv1.InviteLink{
 		Id:        l.ID,
 		Code:      l.Token,
-		CreatedBy: l.CreatedBy,
+		CreatedBy: string(l.CreatedBy),
 		MaxUses:   int32(l.MaxUses),
 		TimesUsed: int32(l.UsedCount),
 		ExpiresAt: toTimestamppbPtr(l.ExpiresAt),

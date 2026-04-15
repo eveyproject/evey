@@ -63,7 +63,7 @@ func TestQuickConnectRepo_UpdateStatus(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, user.Authorized, got.Status)
 	assert.NotNil(t, got.UserID)
-	assert.Equal(t, userID, *got.UserID)
+	assert.Equal(t, userID, string(*got.UserID))
 }
 
 func TestQuickConnectRepo_DeleteExpired(t *testing.T) {

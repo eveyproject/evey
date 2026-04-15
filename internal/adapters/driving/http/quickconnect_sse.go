@@ -33,7 +33,7 @@ func (a *qcCheckerAdapter) checkAndGenerateTokens(ctx context.Context, code stri
 	if persistent {
 		ttlOverride = []time.Duration{a.cfg.JWT.RefreshTokenLongTTL}
 	}
-	access, refresh, err := a.auth.GenerateTokensForUser(ctx, *qc.UserID, ttlOverride...)
+	access, refresh, err := a.auth.GenerateTokensForUser(ctx, string(*qc.UserID), ttlOverride...)
 	if err != nil {
 		return "", "", false, err
 	}

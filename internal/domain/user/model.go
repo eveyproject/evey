@@ -80,7 +80,7 @@ type APIKeyModel struct {
 
 type InviteLink struct {
 	ID        string
-	CreatedBy string
+	CreatedBy shared.UserID
 	Token     string
 	Label     *string
 	MaxUses   int
@@ -94,7 +94,7 @@ type QuickConnectRequest struct {
 	ID         string
 	Code       string
 	Secret     string
-	UserID     *string
+	UserID     *shared.UserID
 	DeviceName *string
 	Status     QuickConnectStatus
 	ExpiresAt  time.Time
