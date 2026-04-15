@@ -183,7 +183,7 @@ func (s *QueryService) GetMediaStreams(ctx context.Context, mediaItemID string) 
 
 func (s *QueryService) GetChapters(ctx context.Context, mediaItemID string) ([]*library.Chapter, error) {
 	if s.chapters == nil {
-		return nil, nil
+		return []*library.Chapter{}, nil
 	}
 	return s.chapters.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
 }

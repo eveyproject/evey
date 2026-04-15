@@ -58,3 +58,9 @@ func (s *Service) Search(ctx context.Context, query string, limit int) ([]music.
 func (s *Service) StreamTrack(ctx context.Context, trackID string) (filePath string, mimeType string, err error) {
 	return s.query.StreamTrack(ctx, trackID)
 }
+
+func (s *Service) AlbumArtDir() string { return s.cmd.AlbumArtDir() }
+
+func (s *Service) FetchMissingAlbumArtAllLibraries(ctx context.Context) (int, error) {
+	return s.cmd.FetchMissingAlbumArtAllLibraries(ctx)
+}

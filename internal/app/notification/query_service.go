@@ -44,7 +44,7 @@ func (s *QueryService) GetGlobalSettings(ctx context.Context) (*notification.Set
 
 func (s *QueryService) ListPushSubscriptions(ctx context.Context, userID string) ([]notification.PushSubscription, error) {
 	if s.subs == nil {
-		return nil, nil
+		return []notification.PushSubscription{}, nil
 	}
 	return s.subs.ListByUser(ctx, userID)
 }

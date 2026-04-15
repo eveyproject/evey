@@ -39,6 +39,7 @@ import (
 	webpushadapter "github.com/evey-project/evey/internal/adapters/driven/webpush"
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
+	itunesadapter "github.com/evey-project/evey/internal/adapters/driven/itunes"
 	meili "github.com/evey-project/evey/internal/adapters/driven/meilisearch"
 	"github.com/evey-project/evey/internal/adapters/driven/search"
 	"github.com/evey-project/evey/internal/adapters/driven/webhooksender"
@@ -373,6 +374,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	musicScanner := filesystem.NewMusicScanner()
 	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library, musicScanner)
 	musicSvc.CommandService().WithProber(infra.prober)
+	musicSvc.CommandService().WithAlbumArtFetcher(itunesadapter.NewAlbumArtFetcher(infra.metadataHTTP), cfg.Transcoding.CacheDir)
 	libCmdSvc.WithMusicScanner(musicSvc)
 	libCmdSvc.WithPhotoScanner(photoSvc)
 	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist)

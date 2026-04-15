@@ -999,7 +999,7 @@ func TestQueryService_GetChapters_NilRepo(t *testing.T) {
 	f := newQuerySvcFull()
 	chs, err := f.svc.GetChapters(context.Background(), "any-id")
 	require.NoError(t, err)
-	assert.Nil(t, chs)
+	assert.Empty(t, chs)
 }
 
 func TestQueryService_GetChapters_Found(t *testing.T) {

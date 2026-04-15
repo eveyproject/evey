@@ -268,3 +268,61 @@ func (r *FakeMusicTrackRepository) UpdateFilePath(_ context.Context, id, newPath
 	return nil
 }
 
+func (r *FakeMusicTrackRepository) ListAlbumsMissingArt(_ context.Context, libraryID shared.LibraryID) ([]music.AlbumKey, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	type key struct{ album, artist string }
+	hasArt := make(map[key]bool)
+	keys := make(map[key]struct{})
+	for _, t := range r.tracks {
+		if t.LibraryID != libraryID || t.Album == "" {
+			continue
+		}
+		artist := t.AlbumArtist
+		if artist == "" {
+			artist = t.Artist
+		}
+		if artist == "" {
+			continue
+		}
+		k := key{t.Album, artist}
+		keys[k] = struct{}{}
+		if t.CoverArtURL != "" {
+			hasArt[k] = true
+		}
+	}
+	var out []music.AlbumKey
+	for k := range keys {
+		if !hasArt[k] {
+			out = append(out, music.AlbumKey{Album: k.album, Artist: k.artist})
+		}
+	}
+	return out, nil
+}
+
+func (r *FakeMusicTrackRepository) SetAlbumCoverArtURL(_ context.Context, libraryID shared.LibraryID, album, albumArtist, url string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for id, t := range r.tracks {
+		if t.LibraryID != libraryID || t.Album != album {
+			continue
+		}
+		a := t.AlbumArtist
+		if a == "" {
+			a = t.Artist
+		}
+		if a != albumArtist {
+			continue
+		}
+		t.CoverArtURL = url
+		r.tracks[id] = t
+	}
+	return nil
+}
+

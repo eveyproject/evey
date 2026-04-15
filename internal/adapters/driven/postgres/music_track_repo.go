@@ -44,7 +44,10 @@ func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error 
 			mime_type=EXCLUDED.mime_type, bitrate=EXCLUDED.bitrate,
 			sample_rate=EXCLUDED.sample_rate, channels=EXCLUDED.channels,
 			genre=EXCLUDED.genre,
-			cover_art_url=CASE WHEN $20::bool THEN '/api/v1/music/tracks/' || music_tracks.id || '/art' ELSE '' END,
+			cover_art_url=CASE
+				WHEN $20::bool THEN '/api/v1/music/tracks/' || music_tracks.id || '/art'
+				WHEN music_tracks.cover_art_url LIKE '/api/v1/music/album-art/%' THEN music_tracks.cover_art_url
+				ELSE '' END,
 			updated_at=NOW()`,
 		t.ID, t.LibraryID, t.Title, t.Artist, t.Album, t.AlbumArtist,
 		t.Year, t.TrackNumber, t.DiskNumber, t.Duration, t.FilePath,
@@ -238,6 +241,42 @@ func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID s
 	}
 	defer rows.Close()
 	return scanTracks(rows)
+}
+
+func (r *MusicTrackRepository) ListAlbumsMissingArt(ctx context.Context, libraryID shared.LibraryID) ([]music.AlbumKey, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT album, COALESCE(NULLIF(album_artist,''), artist) AS artist
+		FROM music_tracks
+		WHERE library_id=$1 AND album <> '' AND COALESCE(NULLIF(album_artist,''), artist) <> ''
+		GROUP BY album, COALESCE(NULLIF(album_artist,''), artist)
+		HAVING BOOL_AND(COALESCE(cover_art_url,'') = '')
+		LIMIT 5000`, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []music.AlbumKey
+	for rows.Next() {
+		var k music.AlbumKey
+		if err := rows.Scan(&k.Album, &k.Artist); err != nil {
+			return nil, err
+		}
+		out = append(out, k)
+	}
+	return out, rows.Err()
+}
+
+func (r *MusicTrackRepository) SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, album, albumArtist, url string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE music_tracks
+		SET cover_art_url=$4, updated_at=NOW()
+		WHERE library_id=$1 AND album=$2 AND COALESCE(NULLIF(album_artist,''), artist)=$3`,
+		libraryID, album, albumArtist, url)
+	return err
 }
 
 func (r *MusicTrackRepository) UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error {

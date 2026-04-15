@@ -21,7 +21,7 @@ func NewQueryService(progress playback.ProgressQueryRepo, sessions ...playback.S
 
 func (s *QueryService) GetActiveSessions(ctx context.Context) ([]*playback.ActiveSessionInfo, error) {
 	if s.sessions == nil {
-		return nil, nil
+		return []*playback.ActiveSessionInfo{}, nil
 	}
 	return s.sessions.ListActiveSessions(ctx)
 }

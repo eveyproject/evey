@@ -1,9 +1,12 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
+	"regexp"
 	"time"
 
 	appmusic "github.com/evey-project/evey/internal/app/music"
@@ -16,11 +19,48 @@ type musicHandler struct {
 	libChecker LibraryAccessChecker
 }
 
+var albumArtHashRe = regexp.MustCompile(`^[a-f0-9]{16,128}$`)
+
 func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter) {
 	authMw := httpAuthMiddleware(tokenGen)
+	adminMw := httpAdminMiddleware(tokenGen)
 	h := &musicHandler{svc: svc, libChecker: libChecker}
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/art", authMw(h.getTrackArt))
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/stream", authMw(h.streamTrack))
+	mux.HandleFunc("GET /api/v1/music/album-art/{hash}", authMw(h.serveAlbumArt))
+	mux.HandleFunc("POST /api/v1/admin/music/fetch-missing-art", adminMw(h.fetchMissingArt))
+}
+
+func (h *musicHandler) serveAlbumArt(w http.ResponseWriter, r *http.Request) {
+	hash := r.PathValue("hash")
+	if !albumArtHashRe.MatchString(hash) {
+		http.NotFound(w, r)
+		return
+	}
+	dir := h.svc.AlbumArtDir()
+	if dir == "" {
+		http.NotFound(w, r)
+		return
+	}
+	path := filepath.Join(dir, hash+".jpg")
+	if _, err := os.Stat(path); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "public, max-age=2592000")
+	http.ServeFile(w, r, path)
+}
+
+func (h *musicHandler) fetchMissingArt(w http.ResponseWriter, r *http.Request) {
+	n, err := h.svc.FetchMissingAlbumArtAllLibraries(r.Context())
+	if err != nil {
+		slog.Error("music: fetch missing art", slog.Any("err", err))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]int{"fetched": n})
 }
 
 func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {

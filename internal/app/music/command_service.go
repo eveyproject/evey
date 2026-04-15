@@ -2,8 +2,11 @@ package music
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
@@ -18,12 +21,19 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
+// AlbumArtFetcher fetches album artwork from an external source.
+type AlbumArtFetcher interface {
+	Fetch(ctx context.Context, artist, album string) (data []byte, mimeType string, err error)
+}
+
 type CommandService struct {
-	tracks  music.TrackRepository
-	bus     shared.EventBus
-	libRepo library.LibraryQueryRepo
-	scanner music.MusicScanner
-	prober  library.StreamProber
+	tracks          music.TrackRepository
+	bus             shared.EventBus
+	libRepo         library.LibraryQueryRepo
+	scanner         music.MusicScanner
+	prober          library.StreamProber
+	albumArtFetcher AlbumArtFetcher
+	albumArtDir     string
 }
 
 func NewCommandService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner music.MusicScanner) *CommandService {
@@ -33,6 +43,65 @@ func NewCommandService(tracks music.TrackRepository, bus shared.EventBus, libRep
 func (s *CommandService) WithProber(p library.StreamProber) *CommandService {
 	s.prober = p
 	return s
+}
+
+func (s *CommandService) WithAlbumArtFetcher(f AlbumArtFetcher, dataDir string) *CommandService {
+	s.albumArtFetcher = f
+	s.albumArtDir = filepath.Join(dataDir, "music_album_art")
+	return s
+}
+
+// AlbumArtDir returns the configured album art directory (empty if not set).
+func (s *CommandService) AlbumArtDir() string { return s.albumArtDir }
+
+func albumArtHash(artist, album string) string {
+	sum := sha256.Sum256([]byte(artist + "|" + album))
+	return hex.EncodeToString(sum[:])
+}
+
+// FetchMissingAlbumArt queries albums without cover art in libraryID and attempts
+// to fetch artwork via the configured AlbumArtFetcher, persists to disk, and
+// updates track rows. Returns the number of albums successfully updated.
+func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID string) (int, error) {
+	if s.albumArtFetcher == nil || s.albumArtDir == "" {
+		return 0, nil
+	}
+	if err := os.MkdirAll(s.albumArtDir, 0o755); err != nil {
+		return 0, fmt.Errorf("music: mkdir album art dir: %w", err)
+	}
+	albums, err := s.tracks.ListAlbumsMissingArt(ctx, shared.LibraryID(libraryID))
+	if err != nil {
+		return 0, fmt.Errorf("music: list albums missing art: %w", err)
+	}
+	fetched := 0
+	for _, ak := range albums {
+		if ctx.Err() != nil {
+			return fetched, ctx.Err()
+		}
+		if ak.Artist == "" || ak.Album == "" {
+			continue
+		}
+		data, _, ferr := s.albumArtFetcher.Fetch(ctx, ak.Artist, ak.Album)
+		if ferr != nil {
+			if !os.IsNotExist(ferr) {
+				slog.Warn("music: fetch album art", slog.String("artist", ak.Artist), slog.String("album", ak.Album), slog.Any("err", ferr))
+			}
+			continue
+		}
+		hash := albumArtHash(ak.Artist, ak.Album)
+		dst := filepath.Join(s.albumArtDir, hash+".jpg")
+		if werr := os.WriteFile(dst, data, 0o644); werr != nil {
+			slog.Warn("music: write album art", slog.String("path", dst), slog.Any("err", werr))
+			continue
+		}
+		url := "/api/v1/music/album-art/" + hash
+		if uerr := s.tracks.SetAlbumCoverArtURL(ctx, shared.LibraryID(libraryID), ak.Album, ak.Artist, url); uerr != nil {
+			slog.Warn("music: set cover url", slog.String("album", ak.Album), slog.Any("err", uerr))
+			continue
+		}
+		fetched++
+	}
+	return fetched, nil
 }
 
 func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir string) (int, error) {
@@ -143,7 +212,50 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 		}(j)
 	}
 	wg.Wait()
+	if s.albumArtFetcher != nil && s.albumArtDir != "" {
+		go func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					slog.Error("music: fetch missing album art panic", slog.Any("recover", rec))
+				}
+			}()
+			bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			defer cancel()
+			n, err := s.FetchMissingAlbumArt(bgCtx, libraryID)
+			if err != nil {
+				slog.Warn("music: fetch missing album art failed", slog.Any("err", err))
+				return
+			}
+			if n > 0 {
+				slog.Info("music: fetched missing album arts", slog.Int("count", n), slog.String("library", libraryID))
+			}
+		}()
+	}
 	return int(total.Load()), walkErr
+}
+
+// FetchMissingAlbumArtAllLibraries iterates music libraries and fetches missing art.
+func (s *CommandService) FetchMissingAlbumArtAllLibraries(ctx context.Context) (int, error) {
+	if s.libRepo == nil {
+		return 0, nil
+	}
+	libs, err := s.libRepo.List(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list libraries: %w", err)
+	}
+	total := 0
+	for _, lib := range libs {
+		if lib.Type != library.Music {
+			continue
+		}
+		n, err := s.FetchMissingAlbumArt(ctx, string(lib.ID))
+		if err != nil {
+			slog.Warn("music: fetch missing album art for library", slog.String("lib", string(lib.ID)), slog.Any("err", err))
+			continue
+		}
+		total += n
+	}
+	return total, nil
 }
 
 func (s *CommandService) DeleteTrack(ctx context.Context, trackID string) error {

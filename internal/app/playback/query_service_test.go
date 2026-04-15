@@ -17,7 +17,7 @@ func TestQueryService_NilSessions_ReturnsNil(t *testing.T) {
 
 	sessions, err := q.GetActiveSessions(context.Background())
 	require.NoError(t, err)
-	assert.Nil(t, sessions)
+	assert.Empty(t, sessions)
 }
 
 func TestQueryService_GetNextUp(t *testing.T) {

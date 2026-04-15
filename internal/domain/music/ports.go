@@ -20,6 +20,14 @@ type TrackRepository interface {
 	GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]Album, error)
 	GetArtists(ctx context.Context, libraryID shared.LibraryID) ([]Artist, error)
 	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error
+	ListAlbumsMissingArt(ctx context.Context, libraryID shared.LibraryID) ([]AlbumKey, error)
+	SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, album, albumArtist, url string) error
+}
+
+// AlbumKey identifies a distinct (artist, album) pair within a library.
+type AlbumKey struct {
+	Artist string
+	Album  string
 }
 
 // ScannedAudioFile represents a discovered audio file during directory walking.
