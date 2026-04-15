@@ -314,6 +314,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.MetadataCmdSvc != nil {
 		mux.HandleFunc("POST /api/v1/admin/translations/refresh-all", admin(func(w http.ResponseWriter, r *http.Request) {
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("panic in RefreshAllTranslations goroutine", slog.Any("recover", r))
+					}
+				}()
 				if err := s.MetadataCmdSvc.RefreshAllTranslations(s.ServerCtx, nil); err != nil {
 					slog.Error("refresh all translations", slog.Any("err", err))
 				} else {
