@@ -1,0 +1,188 @@
+package httpapi
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	appmetadata "github.com/evey-project/evey/internal/app/metadata"
+	"github.com/evey-project/evey/internal/domain/metadata"
+	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
+)
+
+func newAdminMediaMux(t *testing.T) (mux *http.ServeMux, adminTok, userTok string, provider *metafakes.FakeMetadataProvider) {
+	t.Helper()
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	gen := auth.NewJWTGenerator(key, time.Minute)
+	adminTok, _ = gen.GenerateAccessToken(domainuser.Claims{UserID: "admin-1", IsAdmin: true})
+	userTok, _ = gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", IsAdmin: false})
+
+	overrides := metafakes.NewFakeMetadataOverrideRepository()
+	artwork := metafakes.NewFakeArtworkRepository()
+	downloader := metafakes.NewFakeArtworkDownloader()
+	bus := sharedfakes.NewFakeEventBus()
+	provider = metafakes.NewFakeMetadataProvider("tmdb")
+	providers := []metadata.MetadataProvider{provider}
+
+	metaCmd := appmetadata.NewCommandService(overrides, artwork, downloader, bus, providers)
+	metaQuery := appmetadata.NewQueryService(overrides, artwork, providers)
+
+	heavyRL := ratelimit.New(1000)
+	writeRL := ratelimit.New(1000)
+	t.Cleanup(func() { heavyRL.Stop(); writeRL.Stop() })
+
+	mux = http.NewServeMux()
+	registerAdminRoutes(mux, metaCmd, metaQuery, gen, heavyRL, writeRL, context.Background(), nil)
+	return mux, adminTok, userTok, provider
+}
+
+// --- GET /api/v1/admin/media/{id}/search-metadata ---
+
+func TestAdminMedia_SearchMetadata_NoAuth_401(t *testing.T) {
+	mux, _, _, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/media/mi-1/search-metadata?query=foo&type=movie", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestAdminMedia_SearchMetadata_NonAdmin_403(t *testing.T) {
+	mux, _, userTok, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/media/mi-1/search-metadata?query=foo&type=movie", nil)
+	req.Header.Set("Authorization", "Bearer "+userTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestAdminMedia_SearchMetadata_Admin_OK(t *testing.T) {
+	mux, adminTok, _, provider := newAdminMediaMux(t)
+	year := 2001
+	provider.SearchResults = map[string][]metadata.MetadataResult{
+		"hobbit": {{
+			Title:       "The Hobbit",
+			Year:        &year,
+			Overview:    "Bilbo's journey",
+			ProviderIDs: map[string]string{"tmdb": "42"},
+			Artwork: []metadata.ArtworkResult{
+				{Type: "poster", URL: "https://img/p.jpg"},
+			},
+		}},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/media/mi-1/search-metadata?query=hobbit&type=movie", nil)
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+	var out []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(out))
+	}
+	if out[0]["tmdb_id"] != "42" || out[0]["title"] != "The Hobbit" {
+		t.Errorf("unexpected result: %+v", out[0])
+	}
+	if out[0]["poster_url"] != "https://img/p.jpg" {
+		t.Errorf("missing poster_url: %+v", out[0])
+	}
+}
+
+func TestAdminMedia_SearchMetadata_MissingParams_400(t *testing.T) {
+	mux, adminTok, _, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/media/mi-1/search-metadata?query=foo", nil)
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+// --- POST /api/v1/admin/media/{id}/refresh-metadata ---
+
+func TestAdminMedia_RefreshMetadata_NoAuth_401(t *testing.T) {
+	mux, _, _, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/mi-1/refresh-metadata", strings.NewReader(`{}`))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestAdminMedia_RefreshMetadata_NonAdmin_403(t *testing.T) {
+	mux, _, userTok, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/mi-1/refresh-metadata", strings.NewReader(`{}`))
+	req.Header.Set("Authorization", "Bearer "+userTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestAdminMedia_RefreshMetadata_BadJSON_400(t *testing.T) {
+	mux, adminTok, _, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/mi-1/refresh-metadata", strings.NewReader("not-json"))
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestAdminMedia_RefreshMetadata_NoEnricher_500(t *testing.T) {
+	// Enricher not configured → service returns error → 500
+	mux, adminTok, _, _ := newAdminMediaMux(t)
+	body := `{"tmdb_id":"42","media_type":"movie"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/mi-1/refresh-metadata", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
+}
+
+// --- unknown action → 404 ---
+
+func TestAdminMedia_UnknownAction_404(t *testing.T) {
+	mux, adminTok, _, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/media/mi-1/nope", nil)
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestAdminMedia_MissingAction_404(t *testing.T) {
+	mux, adminTok, _, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/media/justid", nil)
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
