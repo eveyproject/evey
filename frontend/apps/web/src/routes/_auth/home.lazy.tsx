@@ -10,6 +10,8 @@ import {
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
   libraryServiceGetMediaItem,
+  useMusicServiceGetAlbums,
+  usePhotoServiceListPhotos,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
@@ -214,7 +216,55 @@ const HeroBanner = memo(function HeroBanner() {
   );
 });
 
+const MusicLibrarySlider = memo(function MusicLibrarySlider({ libraryId, name }: { libraryId: string; name: string }) {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+  const { data, isLoading } = useMusicServiceGetAlbums({ libraryId });
+  const albums = (data?.albums ?? []).slice(0, 20);
+  if (!isLoading && albums.length === 0) return null;
+  return (
+    <MediaSlider title={name} seeAllHref="/music" isLoading={isLoading}>
+      {albums.map((a) => (
+        <Link key={a.id} to="/music" className="block w-[160px] flex-shrink-0">
+          <div
+            className="aspect-square rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] bg-cover bg-center"
+            style={{ backgroundImage: a.coverArtUrl ? `url(${a.coverArtUrl}${tokenParam})` : undefined }}
+          />
+          <p className="text-sm font-medium text-[var(--text)] truncate mt-2">{a.title}</p>
+          <p className="text-xs text-[var(--text-muted)] truncate">{a.artist}</p>
+        </Link>
+      ))}
+    </MediaSlider>
+  );
+});
+
+const PhotoLibrarySlider = memo(function PhotoLibrarySlider({ libraryId, name }: { libraryId: string; name: string }) {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+  const { data, isLoading } = usePhotoServiceListPhotos({ libraryId, limit: 20 });
+  const photos = data?.photos ?? [];
+  if (!isLoading && photos.length === 0) return null;
+  return (
+    <MediaSlider title={name} seeAllHref="/photos" isLoading={isLoading}>
+      {photos.map((p) => (
+        <Link key={p.id} to="/photos" className="block w-[160px] flex-shrink-0">
+          <div
+            className="aspect-square rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] bg-cover bg-center"
+            style={{ backgroundImage: `url(/api/v1/photos/${p.id}/serve${tokenParam}&w=400&fmt=webp)` }}
+          />
+        </Link>
+      ))}
+    </MediaSlider>
+  );
+});
+
 const LibrarySlider = memo(function LibrarySlider({ libraryId, name, libraryType }: { libraryId: string; name: string; libraryType?: string }) {
+  if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicLibrarySlider libraryId={libraryId} name={name} />;
+  if (libraryType === "LIBRARY_TYPE_PHOTOS") return <PhotoLibrarySlider libraryId={libraryId} name={name} />;
+  return <MediaItemsLibrarySlider libraryId={libraryId} name={name} libraryType={libraryType} />;
+});
+
+const MediaItemsLibrarySlider = memo(function MediaItemsLibrarySlider({ libraryId, name, libraryType }: { libraryId: string; name: string; libraryType?: string }) {
   const typeFilter = libraryType === "LIBRARY_TYPE_SHOWS"
     ? "MEDIA_ITEM_TYPE_SERIES"
     : libraryType === "LIBRARY_TYPE_MOVIES"
@@ -324,6 +374,7 @@ const SECTION_REGISTRY: Record<string, FC> = {
   most_popular: MostPopularSlider,
 };
 
+// Keep in sync with KNOWN_FEED_TYPES in features/home/feedTypes.ts.
 const FALLBACK_ORDER = [
   "resume_playback", "next_up", "collections",
   "recommended", "most_popular",

@@ -235,11 +235,21 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 	args = append(args, limit)
 	limitIdx := len(args)
 
+	// Exclude items that the user has watched, finished, OR is currently
+	// watching (any watch_progress row): for movies this is the row on mi
+	// itself; for series this is any episode whose chain leads back to mi.
 	q2 := fmt.Sprintf(`
 		SELECT mi.id, COALESCE(mi.parent_id,''), mi.title, mi.type, 0, '', (%s) AS score
 		FROM media_items mi
 		WHERE mi.type IN ('movie', 'series')
-		  AND NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $1 AND wp2.completed = TRUE)
+		  AND NOT EXISTS (SELECT 1 FROM watch_progress wp WHERE wp.media_item_id = mi.id AND wp.profile_id = $1)
+		  AND NOT EXISTS (
+		    SELECT 1
+		    FROM watch_progress wp_ep
+		    JOIN media_items ep ON ep.id = wp_ep.media_item_id
+		    JOIN media_items se ON se.id = ep.parent_id
+		    WHERE wp_ep.profile_id = $1 AND se.parent_id = mi.id
+		  )
 		  AND (%s) >= 1
 		ORDER BY score DESC, mi.community_rating DESC NULLS LAST
 		LIMIT $%d

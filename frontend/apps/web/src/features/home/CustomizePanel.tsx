@@ -9,21 +9,14 @@ import {
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { X, GripVertical, RotateCcw } from "lucide-react";
-
-const FEED_LABEL_KEYS: Record<string, string> = {
-  resume_playback: "common.feeds.labels.resume_playback",
-  next_up: "common.feeds.labels.next_up",
-  recommended: "common.feeds.labels.recommended",
-  most_popular: "common.feeds.labels.most_popular",
-  collections: "common.feeds.labels.collections",
-};
+import { FEED_LABEL_KEYS, isKnownFeedType } from "./feedTypes";
 
 function feedLabel(t: (k: string) => string, feedType: string, libraryNames: Map<string, string>): string {
   if (feedType.startsWith("library:")) {
     const libId = feedType.slice("library:".length);
     return libraryNames.get(libId) ?? feedType;
   }
-  return FEED_LABEL_KEYS[feedType] ? t(FEED_LABEL_KEYS[feedType]) : feedType;
+  return isKnownFeedType(feedType) ? t(FEED_LABEL_KEYS[feedType]) : feedType;
 }
 
 interface Row {
@@ -58,6 +51,10 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
             enabled: c.enabled ?? true,
             displayOrder: c.displayOrder ?? 0,
           }))
+          // Hide feed types that don't have a renderable section on the home
+          // page (e.g. legacy `continue_watching`, `recently_added`,
+          // `next_episode`). Keep all `library:*` since each is rendered.
+          .filter((c) => isKnownFeedType(c.feedType) || c.feedType.startsWith("library:"))
           .sort((a, b) => a.displayOrder - b.displayOrder),
       );
     }
