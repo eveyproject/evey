@@ -60,14 +60,20 @@ async function loadSubtitleFile(file: File): Promise<string> {
   return URL.createObjectURL(file);
 }
 
-const CheckIcon = () => <Check size={14} />;
+const CheckIcon = () => <Check size={14} aria-hidden="true" />;
 
-const ChevronRightIcon = () => <ChevronRight size={14} className="text-[var(--text-muted)]" />;
+const ChevronRightIcon = () => <ChevronRight size={14} className="text-[var(--text-muted)]" aria-hidden="true" />;
 
 function SubMenuHeader({ label, onBack }: { label: string; onBack: () => void }) {
+  const { t } = useTranslation();
   return (
-    <button onClick={onBack} className="flex items-center gap-2 w-full px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]">
-      <ChevronLeft size={14} />
+    <button
+      onClick={onBack}
+      aria-label={t("common.back")}
+      title={t("common.back")}
+      className="flex items-center gap-2 w-full px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]"
+    >
+      <ChevronLeft size={14} aria-hidden="true" />
       {label}
     </button>
   );
@@ -167,7 +173,7 @@ export function SettingsPanel({
         title={t("player.controls.settings")}
         className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
       >
-        <Settings size={20} />
+        <Settings size={20} aria-hidden="true" />
       </button>
 
       {open && (
@@ -355,7 +361,7 @@ export function SettingsPanel({
                     onClick={() => extSubInputRef.current?.click()}
                     className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
                   >
-                    <Upload size={16} className="flex-shrink-0" />
+                    <Upload size={16} className="flex-shrink-0" aria-hidden="true" />
                     {t("player.settings.uploadSubtitle")}
                   </button>
                 </>
