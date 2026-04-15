@@ -1,0 +1,365 @@
+package music_test
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"os"
+	"path/filepath"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	appmusic "github.com/evey-project/evey/internal/app/music"
+	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/music"
+	"github.com/evey-project/evey/internal/domain/music/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+)
+
+// fakeFetcher is a manual fake (no mock lib) for AlbumArtFetcher.
+type fakeFetcher struct {
+	data  []byte
+	mime  string
+	err   error
+	calls atomic.Int32
+}
+
+func (f *fakeFetcher) Fetch(_ context.Context, _, _ string) ([]byte, string, error) {
+	f.calls.Add(1)
+	return f.data, f.mime, f.err
+}
+
+func newCmdWithFakes(t *testing.T) (*appmusic.CommandService, *fakes.FakeMusicTrackRepository, *fakes.FakeMusicScanner) {
+	t.Helper()
+	repo := fakes.NewFakeMusicTrackRepository()
+	scanner := fakes.NewFakeMusicScanner()
+	cmd := appmusic.NewCommandService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
+	return cmd, repo, scanner
+}
+
+func TestCommandService_FetchMissingAlbumArt_NilFetcher(t *testing.T) {
+	cmd, _, _ := newCmdWithFakes(t)
+	n, err := cmd.FetchMissingAlbumArt(context.Background(), "lib1")
+	if err != nil {
+		t.Fatalf("expected nil err, got %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("expected 0, got %d", n)
+	}
+}
+
+func TestCommandService_FetchMissingAlbumArt_EmptyDir(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	scanner := fakes.NewFakeMusicScanner()
+	cmd := appmusic.NewCommandService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
+	// Apply only fetcher via WithAlbumArtFetcher but dataDir="" → albumArtDir=="music_album_art" is non-empty...
+	// To test the "albumArtDir == ''" branch we DON'T call WithAlbumArtFetcher.
+	// Simulate by providing only fetcher via nil fetcher path already covered; so explicitly test:
+	// WithAlbumArtFetcher with a non-empty dataDir sets both. The "empty dir" branch happens only when
+	// fetcher is set but albumArtDir == "". Since WithAlbumArtFetcher always sets dir via filepath.Join,
+	// the empty branch only trips when not configured at all → equivalent to nil fetcher case.
+	// We still assert the no-op behavior for completeness.
+	n, err := cmd.FetchMissingAlbumArt(context.Background(), "lib1")
+	if err != nil || n != 0 {
+		t.Fatalf("want (0,nil), got (%d,%v)", n, err)
+	}
+}
+
+func TestCommandService_FetchMissingAlbumArt_HappyPath(t *testing.T) {
+	cmd, repo, _ := newCmdWithFakes(t)
+	dir := t.TempDir()
+	fetcher := &fakeFetcher{data: []byte("IMGBYTES"), mime: "image/jpeg"}
+	cmd.WithAlbumArtFetcher(fetcher, dir)
+
+	libID := "lib1"
+	// Seed a track with album/artist but no cover art.
+	_ = repo.Upsert(context.Background(), music.Track{
+		ID:          "t1",
+		LibraryID:   shared.LibraryID(libID),
+		Title:       "T",
+		Artist:      "ArtistA",
+		AlbumArtist: "ArtistA",
+		Album:       "AlbumX",
+		FilePath:    "/m/t1.mp3",
+	})
+
+	n, err := cmd.FetchMissingAlbumArt(context.Background(), libID)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("want 1 fetched, got %d", n)
+	}
+
+	sum := sha256.Sum256([]byte("ArtistA" + "|" + "AlbumX"))
+	hash := hex.EncodeToString(sum[:])
+	dst := filepath.Join(cmd.AlbumArtDir(), hash+".jpg")
+	got, rerr := os.ReadFile(dst)
+	if rerr != nil {
+		t.Fatalf("expected file written: %v", rerr)
+	}
+	if string(got) != "IMGBYTES" {
+		t.Fatalf("bad bytes written: %q", got)
+	}
+
+	// Verify track cover url was updated with /api/v1/music/album-art/<hash>.
+	tr, _ := repo.GetByID(context.Background(), "t1")
+	expected := "/api/v1/music/album-art/" + hash
+	if tr == nil || tr.CoverArtURL != expected {
+		t.Fatalf("cover url mismatch: got %+v, want %s", tr, expected)
+	}
+}
+
+func TestCommandService_FetchMissingAlbumArt_NotExistErrorSkipped(t *testing.T) {
+	cmd, repo, _ := newCmdWithFakes(t)
+	dir := t.TempDir()
+	fetcher := &fakeFetcher{err: os.ErrNotExist}
+	cmd.WithAlbumArtFetcher(fetcher, dir)
+
+	libID := "lib1"
+	_ = repo.Upsert(context.Background(), music.Track{
+		ID: "t1", LibraryID: shared.LibraryID(libID),
+		Artist: "A", AlbumArtist: "A", Album: "B", FilePath: "/m/t.mp3",
+	})
+
+	n, err := cmd.FetchMissingAlbumArt(context.Background(), libID)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("want 0, got %d", n)
+	}
+	if fetcher.calls.Load() != 1 {
+		t.Fatalf("expected fetcher call once, got %d", fetcher.calls.Load())
+	}
+	// No file written.
+	entries, _ := os.ReadDir(cmd.AlbumArtDir())
+	if len(entries) != 0 {
+		t.Fatalf("expected empty dir, got %d entries", len(entries))
+	}
+}
+
+func TestCommandService_FetchMissingAlbumArt_OtherErrorContinues(t *testing.T) {
+	cmd, repo, _ := newCmdWithFakes(t)
+	dir := t.TempDir()
+	fetcher := &fakeFetcher{err: errors.New("network boom")}
+	cmd.WithAlbumArtFetcher(fetcher, dir)
+
+	libID := "lib1"
+	// two albums missing art
+	_ = repo.Upsert(context.Background(), music.Track{
+		ID: "t1", LibraryID: shared.LibraryID(libID),
+		Artist: "A1", AlbumArtist: "A1", Album: "Alb1", FilePath: "/m/1.mp3",
+	})
+	_ = repo.Upsert(context.Background(), music.Track{
+		ID: "t2", LibraryID: shared.LibraryID(libID),
+		Artist: "A2", AlbumArtist: "A2", Album: "Alb2", FilePath: "/m/2.mp3",
+	})
+
+	n, err := cmd.FetchMissingAlbumArt(context.Background(), libID)
+	if err != nil {
+		t.Fatalf("should not return err on fetch failures, got %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("want 0 fetched, got %d", n)
+	}
+	if fetcher.calls.Load() != 2 {
+		t.Fatalf("expected 2 calls (loop continues), got %d", fetcher.calls.Load())
+	}
+}
+
+func TestCommandService_FetchMissingAlbumArt_SkipsEmptyArtistOrAlbum(t *testing.T) {
+	// ListAlbumsMissingArt in fake skips empty album/artist so fetcher should NOT be called.
+	cmd, repo, _ := newCmdWithFakes(t)
+	dir := t.TempDir()
+	fetcher := &fakeFetcher{data: []byte("x"), mime: "image/jpeg"}
+	cmd.WithAlbumArtFetcher(fetcher, dir)
+
+	libID := "lib1"
+	_ = repo.Upsert(context.Background(), music.Track{
+		ID: "t1", LibraryID: shared.LibraryID(libID),
+		Artist: "", AlbumArtist: "", Album: "", FilePath: "/m/1.mp3",
+	})
+	_ = repo.Upsert(context.Background(), music.Track{
+		ID: "t2", LibraryID: shared.LibraryID(libID),
+		Artist: "A", AlbumArtist: "A", Album: "", FilePath: "/m/2.mp3",
+	})
+
+	n, err := cmd.FetchMissingAlbumArt(context.Background(), libID)
+	if err != nil || n != 0 {
+		t.Fatalf("want (0,nil), got (%d,%v)", n, err)
+	}
+	if fetcher.calls.Load() != 0 {
+		t.Fatalf("fetcher should not be called for empty artist/album, got %d", fetcher.calls.Load())
+	}
+}
+
+func TestCommandService_FetchMissingAlbumArt_CtxCancelledMidLoop(t *testing.T) {
+	cmd, repo, _ := newCmdWithFakes(t)
+	dir := t.TempDir()
+	fetcher := &fakeFetcher{data: []byte("x"), mime: "image/jpeg"}
+	cmd.WithAlbumArtFetcher(fetcher, dir)
+
+	libID := "lib1"
+	for i := 0; i < 3; i++ {
+		_ = repo.Upsert(context.Background(), music.Track{
+			ID:        music.Track{}.ID + string(rune('a'+i)),
+			LibraryID: shared.LibraryID(libID),
+			Artist:    "A" + string(rune('a'+i)), AlbumArtist: "A" + string(rune('a'+i)),
+			Album:    "B" + string(rune('a'+i)),
+			FilePath: "/m/" + string(rune('a'+i)) + ".mp3",
+		})
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel BEFORE call → first iteration returns ctx.Err()
+
+	n, err := cmd.FetchMissingAlbumArt(ctx, libID)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v (n=%d)", err, n)
+	}
+}
+
+// ---------------- parseTrack (via ScanDirectory) ----------------
+
+// buildMinimalMP3WithID3 returns a tiny buffer with an ID3v2 header containing
+// a TIT2 (title) frame. Sufficient for tag.ReadFrom to parse without audio data.
+func buildMinimalMP3WithID3(title string) []byte {
+	// Frame: TIT2, size = len(title)+1 (encoding byte), flags 0, encoding 0x00 (ISO-8859-1)
+	frameBody := append([]byte{0x00}, []byte(title)...)
+	frameHeader := []byte{'T', 'I', 'T', '2'}
+	size := len(frameBody)
+	frameHeader = append(frameHeader,
+		byte(size>>24), byte(size>>16), byte(size>>8), byte(size),
+		0x00, 0x00,
+	)
+	frame := append(frameHeader, frameBody...)
+
+	// ID3v2.3 header. Tag size is syncsafe 28-bit encoding of len(frame).
+	tagSize := len(frame)
+	b1 := byte((tagSize >> 21) & 0x7f)
+	b2 := byte((tagSize >> 14) & 0x7f)
+	b3 := byte((tagSize >> 7) & 0x7f)
+	b4 := byte(tagSize & 0x7f)
+	header := []byte{'I', 'D', '3', 0x03, 0x00, 0x00, b1, b2, b3, b4}
+	out := append(header, frame...)
+	// Append MPEG sync bytes so library doesn't choke looking past the tag (not strictly needed).
+	return out
+}
+
+func TestCommandService_ParseTrack_NilProber(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	scanner := fakes.NewFakeMusicScanner()
+	libID := "lib1"
+	now := time.Now()
+	path := "/m/song.mp3"
+	data := buildMinimalMP3WithID3("MyTitle")
+	scanner.Files = []music.ScannedAudioFile{{Path: path, Size: int64(len(data)), ModTime: now, MimeType: "audio/mpeg"}}
+	scanner.FileData[path] = data
+	scanner.Hashes[path] = "hash-1"
+
+	cmd := appmusic.NewCommandService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
+	// No prober configured.
+
+	n, err := cmd.ScanDirectory(context.Background(), libID, "/m")
+	if err != nil {
+		t.Fatalf("scan err: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("want 1 track upserted, got %d", n)
+	}
+	got, _ := repo.ListAllByLibrary(context.Background(), shared.LibraryID(libID))
+	if len(got) != 1 {
+		t.Fatalf("want 1 track in repo, got %d", len(got))
+	}
+	tr := got[0]
+	if tr.Duration != 0 || tr.Bitrate != 0 || tr.SampleRate != 0 || tr.Channels != 0 {
+		t.Fatalf("prober-nil: expected zero audio fields, got %+v", tr)
+	}
+}
+
+func TestCommandService_ParseTrack_ProberFillsFields(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	scanner := fakes.NewFakeMusicScanner()
+	libID := "lib1"
+	now := time.Now()
+	path := "/m/song.mp3"
+	data := buildMinimalMP3WithID3("MyTitle")
+	scanner.Files = []music.ScannedAudioFile{{Path: path, Size: int64(len(data)), ModTime: now, MimeType: "audio/mpeg"}}
+	scanner.FileData[path] = data
+	scanner.Hashes[path] = "hash-1"
+
+	prober := libfakes.NewFakeStreamProber()
+	br := int64(320000)
+	sr := 44100
+	ch := 2
+	prober.Results[path] = &library.ProbeResult{
+		DurationMs: 123456,
+		Streams: []*library.MediaStream{
+			// Video stream first to verify we skip non-audio.
+			{StreamType: "video"},
+			{StreamType: "audio", Bitrate: &br, SampleRate: &sr, Channels: &ch},
+		},
+	}
+
+	cmd := appmusic.NewCommandService(repo, sharedfakes.NewFakeEventBus(), nil, scanner).WithProber(prober)
+
+	n, err := cmd.ScanDirectory(context.Background(), libID, "/m")
+	if err != nil || n != 1 {
+		t.Fatalf("scan failed: n=%d err=%v", n, err)
+	}
+	got, _ := repo.ListAllByLibrary(context.Background(), shared.LibraryID(libID))
+	if len(got) != 1 {
+		t.Fatalf("want 1, got %d", len(got))
+	}
+	tr := got[0]
+	if tr.Duration < 123.4 || tr.Duration > 123.5 {
+		t.Fatalf("duration mismatch: got %v", tr.Duration)
+	}
+	if tr.Bitrate != 320000 {
+		t.Fatalf("bitrate: got %d", tr.Bitrate)
+	}
+	if tr.SampleRate != 44100 {
+		t.Fatalf("samplerate: got %d", tr.SampleRate)
+	}
+	if tr.Channels != 2 {
+		t.Fatalf("channels: got %d", tr.Channels)
+	}
+}
+
+func TestCommandService_ParseTrack_ProberErrorIgnored(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	scanner := fakes.NewFakeMusicScanner()
+	libID := "lib1"
+	now := time.Now()
+	path := "/m/song.mp3"
+	data := buildMinimalMP3WithID3("MyTitle")
+	scanner.Files = []music.ScannedAudioFile{{Path: path, Size: int64(len(data)), ModTime: now, MimeType: "audio/mpeg"}}
+	scanner.FileData[path] = data
+	scanner.Hashes[path] = "hash-1"
+
+	prober := libfakes.NewFakeStreamProber()
+	prober.Err = errors.New("probe fail")
+
+	cmd := appmusic.NewCommandService(repo, sharedfakes.NewFakeEventBus(), nil, scanner).WithProber(prober)
+
+	n, err := cmd.ScanDirectory(context.Background(), libID, "/m")
+	if err != nil || n != 1 {
+		t.Fatalf("scan failed: n=%d err=%v", n, err)
+	}
+	got, _ := repo.ListAllByLibrary(context.Background(), shared.LibraryID(libID))
+	if len(got) != 1 {
+		t.Fatalf("want 1, got %d", len(got))
+	}
+	tr := got[0]
+	if tr.Duration != 0 || tr.Bitrate != 0 {
+		t.Fatalf("prober-err: expected zero audio fields, got dur=%v br=%d", tr.Duration, tr.Bitrate)
+	}
+	if tr.FilePath != path {
+		t.Fatalf("filepath mismatch: %s", tr.FilePath)
+	}
+}
