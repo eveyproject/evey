@@ -312,6 +312,113 @@ func TestMiddlewareFunc_AllowsAndBlocks(t *testing.T) {
 	assert.Equal(t, 2, called, "inner handler should not be called when rate limited")
 }
 
+// TestLimiter_RateExactDivisionByMinute kills ARITHMETIC_BASE on
+// `requestsPerMinute / 60.0` (limiter.go:28) by asserting refill cadence
+// matches rpm/60 tokens/sec, distinguishing /, *, +, - variants.
+func TestLimiter_RateExactDivisionByMinute(t *testing.T) {
+	t.Parallel()
+	l := New(60) // rate = 1 token/sec
+	defer l.Stop()
+	ip := "rate-div-ip"
+
+	for range 60 {
+		l.Allow(ip)
+	}
+	require.False(t, l.Allow(ip), "should be exhausted")
+
+	// advance exactly 0.5s — original yields 0.5 tokens (blocked).
+	// mutated * (rate=3600): allowed. mutated + (rate=61): allowed.
+	l.mu.Lock()
+	l.visitors[ip].lastCheck = l.visitors[ip].lastCheck.Add(-500 * time.Millisecond)
+	l.mu.Unlock()
+	assert.False(t, l.Allow(ip), "0.5s elapsed @ 1tok/s should still be blocked (kills *,+ on /60)")
+
+	// advance another 1.0s. original yields 1 token (allowed once, then blocked).
+	// mutated - (rate=-59): tokens drop further, blocked.
+	l.mu.Lock()
+	l.visitors[ip].lastCheck = l.visitors[ip].lastCheck.Add(-1 * time.Second)
+	l.mu.Unlock()
+	assert.True(t, l.Allow(ip), "1s elapsed @ 1tok/s should allow once (kills - on /60)")
+	assert.False(t, l.Allow(ip), "second immediate request should be blocked")
+}
+
+// TestLimiter_NewWithBurstRateExactDivision kills ARITHMETIC_BASE on
+// `refilledPerMinute / 60.0` (limiter.go:41).
+func TestLimiter_NewWithBurstRateExactDivision(t *testing.T) {
+	t.Parallel()
+	l := NewWithBurst(2, 60.0) // burst=2, rate=1 tok/s
+	defer l.Stop()
+	ip := "burst-rate-ip"
+
+	l.Allow(ip)
+	l.Allow(ip)
+	require.False(t, l.Allow(ip), "should be exhausted at burst=2")
+
+	l.mu.Lock()
+	l.visitors[ip].lastCheck = l.visitors[ip].lastCheck.Add(-500 * time.Millisecond)
+	l.mu.Unlock()
+	assert.False(t, l.Allow(ip), "0.5s @ 1tok/s should be blocked (kills *,+ on /60)")
+
+	l.mu.Lock()
+	l.visitors[ip].lastCheck = l.visitors[ip].lastCheck.Add(-1 * time.Second)
+	l.mu.Unlock()
+	assert.True(t, l.Allow(ip), "1s @ 1tok/s should allow once (kills - on /60)")
+	assert.False(t, l.Allow(ip))
+}
+
+// TestLimiter_RefillIsMultiplicative kills ARITHMETIC_BASE on
+// `elapsed * l.rate` (limiter.go:73). With rate=2/s and elapsed=3s,
+// original yields exactly 6 tokens; +(=5), -(=1), /(=1.5) all differ.
+func TestLimiter_RefillIsMultiplicative(t *testing.T) {
+	t.Parallel()
+	l := New(120) // rate = 2 tok/s, burst=120
+	defer l.Stop()
+	ip := "mul-ip"
+
+	for range 120 {
+		l.Allow(ip)
+	}
+	require.False(t, l.Allow(ip), "exhausted")
+
+	l.mu.Lock()
+	l.visitors[ip].lastCheck = l.visitors[ip].lastCheck.Add(-3 * time.Second)
+	l.mu.Unlock()
+
+	allowed := 0
+	for range 6 {
+		if l.Allow(ip) {
+			allowed++
+		}
+	}
+	assert.Equal(t, 6, allowed, "exactly 6 refilled (kills + - / on elapsed*rate)")
+	assert.False(t, l.Allow(ip), "7th should be blocked")
+}
+
+// TestLimiter_AllowsAtExactlyOneToken kills CONDITIONALS_BOUNDARY on
+// `e.tokens < 1` (limiter.go:79). With tokens == 1.0 exactly, original
+// (`<`) allows; mutated (`<=`) denies.
+func TestLimiter_AllowsAtExactlyOneToken(t *testing.T) {
+	t.Parallel()
+	l := New(60) // rate=1/s, burst=60
+	defer l.Stop()
+	ip := "boundary-one-ip"
+
+	for range 60 {
+		l.Allow(ip)
+	}
+	require.False(t, l.Allow(ip))
+
+	// Pin state: tokens=1.0 exactly, rate=0 so refill contributes 0,
+	// lastCheck=now so elapsed ≈ 0. Net: tokens stays at 1.0 entering the
+	// boundary check. Original `<1`: false → allow. Mutated `<=1`: true → deny.
+	l.mu.Lock()
+	l.rate = 0
+	l.visitors[ip].tokens = 1.0
+	l.visitors[ip].lastCheck = time.Now()
+	l.mu.Unlock()
+	assert.True(t, l.Allow(ip), "tokens==1.0 must be allowed (kills <= mutation on <1)")
+}
+
 func TestMiddleware_NoExemptPrefixes(t *testing.T) {
 	t.Parallel()
 	l := newTestLimiter(1)
