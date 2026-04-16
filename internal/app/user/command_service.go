@@ -22,6 +22,14 @@ const (
 	loginAttemptWindow = 15 * time.Minute
 )
 
+// safeTokenPrefix returns the first 8 chars of a token (safe for logs).
+func safeTokenPrefix(token string) string {
+	if len(token) < 8 {
+		return "<short>"
+	}
+	return token[:8] + "…"
+}
+
 // CommandService handles auth, setup and token management.
 type CommandService struct {
 	users           user.UserRepository
@@ -292,10 +300,14 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 
 	rt, err := s.refreshTkns.GetByTokenHash(ctx, hash)
 	if err != nil {
+		slog.Info("refresh rejected: token not found", slog.String("tokenPrefix", safeTokenPrefix(token)))
 		return "", "", ErrInvalidCredentials
 	}
 
 	if rt.Used {
+		slog.Warn("refresh rejected: token reuse detected, purging all user tokens",
+			slog.String("userID", string(rt.UserID)),
+			slog.String("tokenID", rt.ID))
 		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
 			slog.Warn("delete refresh tokens by user failed", slog.String("userID", string(rt.UserID)), slog.Any("err", delErr))
 		}
@@ -303,6 +315,10 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 	}
 
 	if rt.IsExpired() {
+		slog.Info("refresh rejected: token expired",
+			slog.String("userID", string(rt.UserID)),
+			slog.String("tokenID", rt.ID),
+			slog.Time("expiredAt", rt.ExpiresAt))
 		if delErr := s.refreshTkns.DeleteByID(ctx, rt.ID); delErr != nil {
 			slog.Warn("delete refresh token failed", slog.String("tokenID", rt.ID), slog.Any("err", delErr))
 		}
@@ -314,6 +330,9 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", markErr)
 	}
 	if !claimed {
+		slog.Warn("refresh rejected: concurrent claim race, purging all user tokens",
+			slog.String("userID", string(rt.UserID)),
+			slog.String("tokenID", rt.ID))
 		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
 			slog.Warn("delete refresh tokens by user failed", slog.String("userID", string(rt.UserID)), slog.Any("err", delErr))
 		}
