@@ -148,6 +148,9 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.ServerConfigService/DeleteServerConfigEntry",
 		// CollectionService
 		"/evey.v1.CollectionService/DeleteCollection",
+		"/evey.v1.CollectionService/CreateCollection",
+		"/evey.v1.CollectionService/UpdateCollection",
+		"/evey.v1.CollectionService/AddCollectionItem",
 		// PhotoService
 		"/evey.v1.PhotoService/DeletePhoto",
 	}

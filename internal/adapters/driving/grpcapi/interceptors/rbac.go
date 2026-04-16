@@ -109,6 +109,9 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.ServerConfigService/ListServerConfigEntries":          RoleAdmin,
 			"/evey.v1.ServerConfigService/DeleteServerConfigEntry":          RoleAdmin,
 			"/evey.v1.CollectionService/DeleteCollection":                   RoleAdmin,
+			"/evey.v1.CollectionService/CreateCollection":                   RoleAdmin,
+			"/evey.v1.CollectionService/UpdateCollection":                   RoleAdmin,
+			"/evey.v1.CollectionService/AddCollectionItem":                  RoleAdmin,
 			"/evey.v1.PhotoService/DeletePhoto":                             RoleAdmin,
 		},
 	}
