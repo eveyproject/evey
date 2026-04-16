@@ -310,11 +310,20 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Wire user transcoding prefs from the decision (preferred codec /
+	// audio channels / subtitle mode) into the HLS pipeline so the ffmpeg
+	// adapter actually emits hevc / opus / -ac N / sidecar-subs when asked.
+	overrides := apptranscoding.WithOverrides(apptranscoding.HLSOverrides{
+		VideoCodec:       decision.VideoCodec,
+		AudioCodec:       decision.AudioCodec,
+		MaxAudioChannels: decision.MaxAudioChannels,
+		ForceSidecarSubs: decision.SubtitleDecision == "external",
+	})
 	var session *apptranscoding.HLSSession
 	if startSec > 0 {
-		session, err = h.hlsManager.RestartFromPosition(userID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, startSec, videoDecision, audioDecision)
+		session, err = h.hlsManager.RestartFromPosition(userID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, startSec, videoDecision, audioDecision, overrides)
 	} else {
-		session, err = h.hlsManager.GetOrCreate(userID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, 0, videoDecision, audioDecision)
+		session, err = h.hlsManager.GetOrCreate(userID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, 0, videoDecision, audioDecision, overrides)
 	}
 	if err != nil {
 		slog.Error("hls: get or create session", slog.Any("err", err))
