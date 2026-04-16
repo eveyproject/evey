@@ -91,4 +91,21 @@ func TestService_repo_error(t *testing.T) {
 		_, err := svc.List(ctx)
 		assert.ErrorIs(t, err, repoErr)
 	})
+	t.Run("Get", func(t *testing.T) {
+		_, err := svc.Get(ctx, "k")
+		assert.ErrorIs(t, err, repoErr)
+	})
+}
+
+func TestService_Get(t *testing.T) {
+	repo := fakes.NewFakeServerConfigRepository()
+	svc := NewService(repo)
+	ctx := context.Background()
+
+	require.NoError(t, svc.Set(ctx, "theme", "dark"))
+	entry, err := svc.Get(ctx, "theme")
+	require.NoError(t, err)
+	require.NotNil(t, entry)
+	assert.Equal(t, "theme", entry.Key)
+	assert.Equal(t, "dark", entry.Value)
 }
