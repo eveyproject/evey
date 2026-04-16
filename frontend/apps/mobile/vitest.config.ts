@@ -9,6 +9,7 @@ export default defineConfig({
     alias: {
       "@evey/api": resolve(__dirname, "../../packages/api/src/fetcher.ts"),
       "react-native": resolve(__dirname, "./src/test/__mocks__/react-native.ts"),
+      "expo-localization": resolve(__dirname, "./src/test/__mocks__/expo-localization.ts"),
     },
   },
   define: {
