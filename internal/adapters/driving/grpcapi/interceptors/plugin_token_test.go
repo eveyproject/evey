@@ -115,3 +115,47 @@ func TestRequireScope_MissingScope_PermissionDenied(t *testing.T) {
 		t.Fatalf("code = %v, want PermissionDenied", code)
 	}
 }
+
+type streamStub struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (s *streamStub) Context() context.Context { return s.ctx }
+
+// Stream interceptor injects claims into ss.Context() when a valid plugin token is present.
+func TestPluginTokenInterceptor_Stream_ValidToken_PopulatesCtx(t *testing.T) {
+	claims := &authpkg.PluginClaims{UserID: "u1", PluginID: "plg1", Scopes: []string{"media:read"}, TokenType: "plugin", ExpiresAt: time.Now().Add(time.Minute)}
+	i := NewPluginTokenInterceptor(&fakeParser{claims: claims})
+	md := metadata.New(map[string]string{"authorization": "Bearer abc.def.ghi"})
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	var seen *authpkg.PluginClaims
+	handler := func(_ any, ss grpc.ServerStream) error {
+		if v, ok := ss.Context().Value(pluginClaimsKey{}).(*authpkg.PluginClaims); ok {
+			seen = v
+		}
+		return nil
+	}
+	err := i.Stream()(nil, &streamStub{ctx: ctx}, nil, handler)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if seen == nil || seen.PluginID != "plg1" {
+		t.Fatalf("stream claims not populated: %+v", seen)
+	}
+}
+
+// Stream interceptor is a passthrough when no Authorization metadata is set.
+func TestPluginTokenInterceptor_Stream_NoAuth_Passthrough(t *testing.T) {
+	i := NewPluginTokenInterceptor(&fakeParser{err: errors.New("should not be called")})
+	called := false
+	handler := func(_ any, _ grpc.ServerStream) error { called = true; return nil }
+	err := i.Stream()(nil, &streamStub{ctx: context.Background()}, nil, handler)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if !called {
+		t.Fatal("handler must be called on passthrough")
+	}
+}
