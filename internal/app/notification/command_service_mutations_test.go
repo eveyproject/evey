@@ -538,3 +538,115 @@ func itoa(i int) string {
 	}
 	return string(b[pos:])
 }
+
+// countingAnalyzer wraps FakeWatchHistoryAnalyzer and counts GetFavoriteGenresBatch calls.
+type countingAnalyzer struct {
+	*notiffakes.FakeWatchHistoryAnalyzer
+	mu         sync.Mutex
+	batchCalls int
+}
+
+func (c *countingAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profileIDs []string, minCount int) (map[string][]string, error) {
+	c.mu.Lock()
+	c.batchCalls++
+	c.mu.Unlock()
+	return c.FakeWatchHistoryAnalyzer.GetFavoriteGenresBatch(ctx, profileIDs, minCount)
+}
+
+func (c *countingAnalyzer) calls() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.batchCalls
+}
+
+// TestNotif_KillMutant_BatchedEpisodesUsePluralPushTitle kills the mutant at
+// command_service.go:329 (pushTitleOverride != ""). If the guard is negated,
+// the override is ignored and the push title becomes the singular default
+// "New Episode: ..." instead of the batched plural "New Episodes: ...".
+func TestNotif_KillMutant_BatchedEpisodesUsePluralPushTitle(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	pushSender := notiffakes.NewFakePushSender()
+	subRepo := notiffakes.NewFakePushSubscriptionRepository()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+	_ = subRepo.Upsert(ctx, "u1", "p1", "https://push.example.com/1", "k", "a")
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	appnotification.WithPush(pushSender, subRepo)(svc)
+	svc.Register()
+
+	// Two episodes of the same series batch into one notification with plural push title.
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "e1", LibraryID: "lib1", Title: "Ep 1", SeriesTitle: "Breaking Bad", Type: "episode", OccurredAt: time.Now(),
+	})
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "e2", LibraryID: "lib1", Title: "Ep 2", SeriesTitle: "Breaking Bad", Type: "episode", OccurredAt: time.Now(),
+	})
+	svc.FlushBatches()
+
+	require.Len(t, pushSender.Calls, 1)
+	// Must be the OVERRIDE plural title; the non-override default would be "New Episode: ...".
+	assert.True(t, strings.HasPrefix(pushSender.Calls[0].Title, "New Episodes: "),
+		"expected plural override push title, got %q", pushSender.Calls[0].Title)
+}
+
+// TestNotif_KillMutant_EmptyGenresSkipsAnalyzerBatch kills the mutant at
+// command_service.go:395 (len(genres) > 0 boundary). If the condition flips to
+// >= 0, the analyzer batch call is made even when genres are empty.
+func TestNotif_KillMutant_EmptyGenresSkipsAnalyzerBatch(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settingsRepo := notiffakes.NewFakeSettingsRepository()
+	wrapped := notiffakes.NewFakeWatchHistoryAnalyzer()
+	analyzer := &countingAnalyzer{FakeWatchHistoryAnalyzer: wrapped}
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+	_ = settingsRepo.Upsert(ctx, &notifdom.Settings{
+		ProfileID:  "p1",
+		MovieLevel: notifdom.LevelRelevant,
+	})
+
+	svc := appnotification.NewCommandService(repo, settingsRepo, analyzer, profileRepo, bus)
+	svc.Register()
+
+	// Genres is nil/empty: the analyzer batch call must NOT happen.
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "m1", LibraryID: "lib1", Title: "X", Type: "movie", OccurredAt: time.Now(),
+	})
+
+	assert.Equal(t, 0, analyzer.calls(), "analyzer batch must not be called when genres empty")
+}
+
+// TestNotif_KillMutant_StartCleanupNoPanic_NoRecoverLog kills the mutant at
+// command_service.go:531 (r != nil in recover). If the guard is negated, the
+// recovered-panic slog line is emitted on every normal goroutine exit too.
+func TestNotif_KillMutant_StartCleanupNoPanic_NoRecoverLog(t *testing.T) {
+	buf, restore := captureSlogBuffer(t)
+	defer restore()
+
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	svc.StartCleanup(ctx)
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	time.Sleep(100 * time.Millisecond)
+
+	assert.NotContains(t, buf.String(), "recovered panic in notification cleanup",
+		"recover branch must not log when no panic occurred")
+}
