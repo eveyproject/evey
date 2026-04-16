@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strconv"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appactivity "github.com/evey-project/evey/internal/app/activity"
@@ -106,10 +107,14 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	}
 
 	prefs := apptranscoding.DefaultTranscodingPreferences()
+	prefs.NetworkType = normalizeNetworkType(req.NetworkType)
 	if h.userQuery != nil {
 		if claims := interceptors.ClaimsFromContext(ctx); claims != nil && claims.ProfileID != "" {
 			if prof, err := h.userQuery.GetProfileByID(ctx, claims.ProfileID); err == nil && prof != nil {
-				prefs = apptranscoding.ParseTranscodingPreferences(prof.Preferences)
+				parsed := apptranscoding.ParseTranscodingPreferences(prof.Preferences)
+				// Keep network type from request; everything else from profile.
+				parsed.NetworkType = prefs.NetworkType
+				prefs = parsed
 				if prof.MaxBitrateKbps != nil && *prof.MaxBitrateKbps > 0 {
 					if maxBitrateKbps == 0 || *prof.MaxBitrateKbps < maxBitrateKbps {
 						maxBitrateKbps = *prof.MaxBitrateKbps
@@ -479,6 +484,28 @@ func (h *playbackHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, e
 		return nil, nil
 	}
 	return h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+}
+
+// normalizeNetworkType accepts "wifi" or "cellular" and defaults unknown/empty to "wifi".
+func normalizeNetworkType(raw string) string {
+	if raw == "cellular" {
+		return "cellular"
+	}
+	return "wifi"
+}
+
+// cellularCapFromPreferences parses max_bitrate_cellular_kbps out of a profile's
+// preferences map. Returns 0 when missing, empty, or invalid.
+func cellularCapFromPreferences(prefs map[string]string) int {
+	v, ok := prefs["max_bitrate_cellular_kbps"]
+	if !ok || v == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
 }
 
 func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, mediaItemID string) (bool, string) {

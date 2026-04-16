@@ -217,3 +217,99 @@ func TestPref_SubtitleBurnIn_Auto_Default(t *testing.T) {
 	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "burn", d.SubtitleDecision)
 }
+
+func fourKStreams() []*library.MediaStream {
+	return []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(3840), Height: intPtr(2160), Bitrate: int64Ptr(40_000_000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), Bitrate: int64Ptr(192_000), IsDefault: true},
+	}
+}
+
+func TestEffectiveMaxBitrateKbps_WifiFallsBackToGeneral(t *testing.T) {
+	p := apptranscode.TranscodingPreferences{
+		MaxBitrateKbps:         10_000,
+		MaxBitrateCellularKbps: 1_500,
+		NetworkType:            "wifi",
+	}
+	assert.Equal(t, 10_000, p.EffectiveMaxBitrateKbps())
+}
+
+func TestEffectiveMaxBitrateKbps_CellularUsesCellularCap(t *testing.T) {
+	p := apptranscode.TranscodingPreferences{
+		MaxBitrateKbps:         10_000,
+		MaxBitrateCellularKbps: 1_500,
+		NetworkType:            "cellular",
+	}
+	assert.Equal(t, 1_500, p.EffectiveMaxBitrateKbps())
+}
+
+func TestEffectiveMaxBitrateKbps_CellularWithoutCellularCapFallsBack(t *testing.T) {
+	p := apptranscode.TranscodingPreferences{
+		MaxBitrateKbps: 10_000,
+		NetworkType:    "cellular",
+	}
+	assert.Equal(t, 10_000, p.EffectiveMaxBitrateKbps())
+}
+
+func TestEffectiveMaxBitrateKbps_CellularCapNotLowerThanGeneralIgnored(t *testing.T) {
+	// If cellular cap is >= general cap, the general cap (smaller-or-equal) still wins.
+	p := apptranscode.TranscodingPreferences{
+		MaxBitrateKbps:         5_000,
+		MaxBitrateCellularKbps: 8_000,
+		NetworkType:            "cellular",
+	}
+	assert.Equal(t, 5_000, p.EffectiveMaxBitrateKbps())
+}
+
+func TestEffectiveMaxBitrateKbps_CellularCapUsedWhenNoGeneralCap(t *testing.T) {
+	p := apptranscode.TranscodingPreferences{
+		MaxBitrateCellularKbps: 1_500,
+		NetworkType:            "cellular",
+	}
+	assert.Equal(t, 1_500, p.EffectiveMaxBitrateKbps())
+}
+
+func TestEffectiveMaxBitrateKbps_EmptyNetworkTypeTreatedAsWifi(t *testing.T) {
+	p := apptranscode.TranscodingPreferences{
+		MaxBitrateKbps:         10_000,
+		MaxBitrateCellularKbps: 1_500,
+	}
+	assert.Equal(t, 10_000, p.EffectiveMaxBitrateKbps())
+}
+
+func TestMakePlaybackDecisionWithPrefs_CellularCapTriggersTranscode(t *testing.T) {
+	prefs := apptranscode.TranscodingPreferences{
+		MaxBitrateKbps:         50_000,
+		MaxBitrateCellularKbps: 1_500,
+		NetworkType:            "cellular",
+	}
+	d := apptranscode.MakePlaybackDecisionWithPrefs(fourKStreams(), "mp4", transcoding.DefaultWebProfile, prefs.MaxBitrateKbps, prefs)
+
+	assert.Equal(t, "transcode", d.PlayMethod)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "bitrate_exceeded")
+	assert.Equal(t, int64(1_500), d.VideoBitrate)
+}
+
+func TestMakePlaybackDecisionWithPrefs_WifiUsesGeneralCap(t *testing.T) {
+	prefs := apptranscode.TranscodingPreferences{
+		MaxBitrateKbps:         50_000,
+		MaxBitrateCellularKbps: 1_500,
+		NetworkType:            "wifi",
+	}
+	// source total ~40 Mbps, general cap 50 Mbps → no bitrate_exceeded.
+	d := apptranscode.MakePlaybackDecisionWithPrefs(fourKStreams(), "mp4", transcoding.DefaultWebProfile, prefs.MaxBitrateKbps, prefs)
+
+	assert.NotContains(t, d.TranscodeReasons, "bitrate_exceeded")
+}
+
+func TestMakePlaybackDecisionWithPrefs_CellularButNoCellularCapUsesGeneral(t *testing.T) {
+	prefs := apptranscode.TranscodingPreferences{
+		MaxBitrateKbps: 8_000,
+		NetworkType:    "cellular",
+	}
+	d := apptranscode.MakePlaybackDecisionWithPrefs(fourKStreams(), "mp4", transcoding.DefaultWebProfile, prefs.MaxBitrateKbps, prefs)
+
+	assert.Contains(t, d.TranscodeReasons, "bitrate_exceeded")
+	assert.Equal(t, int64(8_000), d.VideoBitrate)
+}

@@ -130,6 +130,10 @@ message GetStreamInfoRequest {
   int32 audio_stream_index = 8;
   int32 subtitle_stream_index = 9;
   repeated string supported_audio_codecs = 10;
+  // network_type hints the active client connection ("wifi" or "cellular").
+  // Empty defaults to wifi. When "cellular", the profile's
+  // max_bitrate_cellular_kbps preference (if set) caps the stream.
+  string network_type = 11;
 }
 
 message StartStreamRequest {

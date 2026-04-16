@@ -17,18 +17,24 @@ var bitmapSubCodecs = map[string]bool{
 	"xsub":              true,
 }
 
-// TranscodingPreferences are client-side playback prefs persisted in profile.preferences (JSONB)
-// and enforced by the server when computing PlaybackDecision.
+// TranscodingPreferences are client-side playback prefs persisted in
+// profile.preferences (JSONB) and enforced by the server when computing
+// PlaybackDecision.
 //
-// Empty / zero values mean "auto" (use existing defaults).
+// Empty / zero values mean "auto" (use existing defaults). MaxBitrateKbps is
+// the baseline cap; MaxBitrateCellularKbps overrides it when NetworkType ==
+// "cellular" and is > 0 (lets mobile clients save data on cellular).
 type TranscodingPreferences struct {
-	PreferredVideoCodec string // "", "auto", or e.g. "h264", "hevc", "av1"
-	PreferredAudioCodec string // "", "auto", or e.g. "aac", "ac3", "eac3", "opus"
-	MaxAudioChannels    int    // 0 = unlimited, 2 = force stereo, 6 = 5.1, etc.
-	SubtitleBurnIn      string // "", "auto", "always", "never"
-	AllowDirectPlay     bool
-	AllowDirectStream   bool
-	AllowTranscoding    bool
+	PreferredVideoCodec    string // "", "auto", or e.g. "h264", "hevc", "av1"
+	PreferredAudioCodec    string // "", "auto", or e.g. "aac", "ac3", "eac3", "opus"
+	MaxAudioChannels       int    // 0 = unlimited, 2 = force stereo, 6 = 5.1, etc.
+	SubtitleBurnIn         string // "", "auto", "always", "never"
+	AllowDirectPlay        bool
+	AllowDirectStream      bool
+	AllowTranscoding       bool
+	MaxBitrateKbps         int
+	MaxBitrateCellularKbps int
+	NetworkType            string // "wifi" (default) or "cellular"
 }
 
 // DefaultTranscodingPreferences returns prefs with all flags enabled (client defaults).
@@ -38,6 +44,18 @@ func DefaultTranscodingPreferences() TranscodingPreferences {
 		AllowDirectStream: true,
 		AllowTranscoding:  true,
 	}
+}
+
+// EffectiveMaxBitrateKbps returns the bitrate cap to apply given the current
+// network. Cellular cap is preferred only when explicitly set and smaller than
+// the general cap (or when no general cap exists).
+func (p TranscodingPreferences) EffectiveMaxBitrateKbps() int {
+	if p.NetworkType == "cellular" && p.MaxBitrateCellularKbps > 0 {
+		if p.MaxBitrateKbps <= 0 || p.MaxBitrateCellularKbps < p.MaxBitrateKbps {
+			return p.MaxBitrateCellularKbps
+		}
+	}
+	return p.MaxBitrateKbps
 }
 
 // ParseTranscodingPreferences extracts transcoding prefs from a profile.Preferences map.
@@ -69,6 +87,16 @@ func ParseTranscodingPreferences(prefs map[string]string) TranscodingPreferences
 	}
 	if v, ok := prefs["allow_transcoding"]; ok {
 		tp.AllowTranscoding = parseBool(v, true)
+	}
+	if v, ok := prefs["max_bitrate_kbps"]; ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
+			tp.MaxBitrateKbps = n
+		}
+	}
+	if v, ok := prefs["max_bitrate_cellular_kbps"]; ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
+			tp.MaxBitrateCellularKbps = n
+		}
 	}
 	return tp
 }
@@ -109,6 +137,11 @@ func MakePlaybackDecisionWithPrefs(
 		TranscodeReasons: []string{},
 	}
 
+	// Apply cellular cap if the client signaled it: prefs.EffectiveMaxBitrateKbps
+	// returns the cellular value when NetworkType=="cellular" and a cap is set.
+	if cellCap := prefs.EffectiveMaxBitrateKbps(); cellCap > 0 && (maxBitrateKbps <= 0 || cellCap < maxBitrateKbps) {
+		maxBitrateKbps = cellCap
+	}
 	effectiveMaxBitrate := resolveMaxBitrate(client.MaxBitrate, maxBitrateKbps)
 	totalBitrate := sumBitrates(streams)
 

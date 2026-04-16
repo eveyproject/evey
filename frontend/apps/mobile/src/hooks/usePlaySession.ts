@@ -16,6 +16,12 @@ const VIDEO_CODECS = ["h264", "hevc", "vp9"];
 const AUDIO_CODECS = ["aac", "mp3", "opus", "flac", "ac3", "eac3"];
 const CONTAINERS = ["mp4", "hls"];
 
+// TODO: detect actual network state via @react-native-community/netinfo or
+// expo-network (neither currently in deps). When added, replace the constant
+// with a runtime check: NetInfo.fetch().then(s => s.type === "cellular" ? "cellular" : "wifi").
+// Until then we default to "wifi" (no cellular cap applied).
+const NETWORK_TYPE: "wifi" | "cellular" = "wifi";
+
 interface StreamTokenResponse {
   token: string;
   mediaId: string;
@@ -106,6 +112,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             maxHeight: maxHeight && maxHeight > 0 ? Math.min(maxHeight, screenH) : screenH,
             audioStreamIndex,
             subtitleStreamIndex,
+            networkType: NETWORK_TYPE,
           }),
           eveyFetch<V1WatchProgress>({
             url: `/api/v1/playback/progress/${mediaId}`,
