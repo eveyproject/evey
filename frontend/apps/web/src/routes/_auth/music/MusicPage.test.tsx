@@ -20,10 +20,21 @@ vi.mock("@evey/api", () => ({
   useMusicServiceGetAlbums: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockAlbumsHook(), opts),
   useMusicServiceGetArtists: (_p: unknown, opts: { query?: { select?: (d: unknown) => unknown } }) => applySelect(mockArtistsHook(), opts),
   musicServiceDeleteTrack: vi.fn(),
+  usePlaylistServiceListPlaylists: () => ({ data: { playlists: [] }, isLoading: false }),
+  usePlaylistServiceCreatePlaylist: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  usePlaylistServiceAddPlaylistItem: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  usePlaylistServiceGetPlaylistItems: () => ({ data: { items: [] } }),
+  usePlaylistServiceRemovePlaylistItem: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  usePlaylistServiceDeletePlaylist: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  getPlaylistServiceListPlaylistsQueryKey: () => ["playlists"],
+  getPlaylistServiceGetPlaylistItemsQueryKey: () => ["playlist-items"],
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  createLazyFileRoute: () => (def: { component: React.ComponentType }) => def,
+  createLazyFileRoute: () => (def: { component: React.ComponentType }) => ({
+    ...def,
+    useSearch: () => ({}),
+  }),
 }));
 
 function createWrapper() {

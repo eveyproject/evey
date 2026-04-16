@@ -99,6 +99,8 @@ describe("useSyncPlay", () => {
       members: [],
       connected: false,
       isHost: false,
+      queue: [],
+      trackIndex: 0,
     });
   });
 

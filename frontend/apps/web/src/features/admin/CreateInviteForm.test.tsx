@@ -8,6 +8,7 @@ const mutateMock = vi.fn();
 
 vi.mock("@evey/api", () => ({
   useUserServiceCreateInviteLink: () => ({ mutate: mutateMock, isPending: false }),
+  useLibraryServiceListLibraries: () => ({ data: { libraries: [] }, isLoading: false }),
 }));
 
 function createWrapper() {
@@ -33,7 +34,7 @@ describe("CreateInviteForm", () => {
     render(<CreateInviteForm onSuccess={vi.fn()} />, { wrapper: createWrapper() });
     await userEvent.click(screen.getByRole("button", { name: "Create Invite Link" }));
     expect(mutateMock).toHaveBeenCalledWith({
-      data: { maxUses: undefined, expiresAt: undefined },
+      data: { maxUses: undefined, expiresAt: undefined, isAdmin: false, libraryIds: [] },
     });
   });
 
@@ -42,7 +43,7 @@ describe("CreateInviteForm", () => {
     await userEvent.type(screen.getByLabelText("Max uses (empty = unlimited)"), "5");
     await userEvent.click(screen.getByRole("button", { name: "Create Invite Link" }));
     expect(mutateMock).toHaveBeenCalledWith({
-      data: { maxUses: 5, expiresAt: undefined },
+      data: { maxUses: 5, expiresAt: undefined, isAdmin: false, libraryIds: [] },
     });
   });
 
@@ -52,7 +53,7 @@ describe("CreateInviteForm", () => {
     fireChange(expires, "2026-12-31T10:00");
     await userEvent.click(screen.getByRole("button", { name: "Create Invite Link" }));
     expect(mutateMock).toHaveBeenCalledWith({
-      data: { maxUses: undefined, expiresAt: "2026-12-31T10:00" },
+      data: { maxUses: undefined, expiresAt: "2026-12-31T10:00", isAdmin: false, libraryIds: [] },
     });
   });
 });
