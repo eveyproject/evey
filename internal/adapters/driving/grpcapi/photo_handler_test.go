@@ -9,10 +9,11 @@ import (
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/domain/photo"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/photo"
 	photofakes "github.com/evey-project/evey/internal/domain/photo/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
@@ -260,4 +261,104 @@ func TestPhotoHandler_ScanPhotoDirectory_RelativePath(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestPhotoHandler_ScanPhotoDirectory_LibraryNotFound(t *testing.T) {
+	h, _, _, _ := newTestPhotoHandler()
+
+	_, err := h.ScanPhotoDirectory(adminCtx(), &eveyv1.ScanPhotoDirectoryRequest{
+		LibraryId: "lib-missing", Directory: "/media/photos",
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
+func TestPhotoHandler_ScanPhotoDirectory_DirectoryOutsideLibrary(t *testing.T) {
+	h, _, _, libQueryRepo := newTestPhotoHandler()
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-1", Name: "Photos", Type: "photo",
+		Paths: []string{"/media/photos"},
+	})
+
+	_, err := h.ScanPhotoDirectory(adminCtx(), &eveyv1.ScanPhotoDirectoryRequest{
+		LibraryId: "lib-1", Directory: "/elsewhere/random",
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestPhotoHandler_ScanPhotoDirectory_Unauthenticated(t *testing.T) {
+	h, _, _, _ := newTestPhotoHandler()
+
+	_, err := h.ScanPhotoDirectory(context.Background(), &eveyv1.ScanPhotoDirectoryRequest{
+		LibraryId: "lib-1", Directory: "/media/photos",
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestPhotoHandler_ListPhotos_WithAlbumFilter(t *testing.T) {
+	h, repo, _, _ := newTestPhotoHandler()
+	repo.Upsert(context.Background(), photo.Photo{
+		ID: "p-1", LibraryID: shared.LibraryID("lib-1"), Title: "Beach", Album: "Vacation",
+		FilePath: "/photos/p-1.jpg",
+	})
+	repo.Upsert(context.Background(), photo.Photo{
+		ID: "p-2", LibraryID: shared.LibraryID("lib-1"), Title: "Pool", Album: "Vacation",
+		FilePath: "/photos/p-2.jpg",
+	})
+	repo.Upsert(context.Background(), photo.Photo{
+		ID: "p-3", LibraryID: shared.LibraryID("lib-1"), Title: "Snow", Album: "Winter",
+		FilePath: "/photos/p-3.jpg",
+	})
+
+	resp, err := h.ListPhotos(adminCtx(), &eveyv1.ListPhotosRequest{
+		LibraryId: "lib-1", Album: "Vacation",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), resp.Total)
+	assert.Len(t, resp.Photos, 2)
+	for _, p := range resp.Photos {
+		assert.Equal(t, "Vacation", p.Album)
+	}
+}
+
+func TestPhotoHandler_GetPhoto_NoAccess(t *testing.T) {
+	h, repo, libraryAccess, _ := newTestPhotoHandler()
+	seedPhoto(repo, "p-1", "lib-1", "Sunset")
+	libraryAccess.Grant(context.Background(), "user-2", "lib-other")
+
+	ctx := userCtx("user-2", "profile-2")
+	_, err := h.GetPhoto(ctx, &eveyv1.GetPhotoRequest{Id: "p-1"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestPhotoHandler_ListPhotoAlbums_NoAccess(t *testing.T) {
+	h, _, libraryAccess, _ := newTestPhotoHandler()
+	libraryAccess.Grant(context.Background(), "user-2", "lib-other")
+
+	ctx := userCtx("user-2", "profile-2")
+	_, err := h.ListPhotoAlbums(ctx, &eveyv1.ListPhotoAlbumsRequest{LibraryId: "lib-1"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestPhotoHandler_SearchPhotos_NoAccess(t *testing.T) {
+	h, _, libraryAccess, _ := newTestPhotoHandler()
+	libraryAccess.Grant(context.Background(), "user-2", "lib-other")
+
+	ctx := userCtx("user-2", "profile-2")
+	_, err := h.SearchPhotos(ctx, &eveyv1.SearchPhotosRequest{
+		LibraryId: "lib-1", Query: "test",
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
