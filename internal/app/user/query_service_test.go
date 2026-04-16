@@ -110,6 +110,58 @@ func TestQueryListProfiles_RepoError(t *testing.T) {
 
 // --- ListInviteLinks ---
 
+// --- GetUserByID / GetUserByUsername / GetProfileByID ---
+
+func TestQueryGetUserByID_Happy(t *testing.T) {
+	d := newQueryTestDeps()
+	ctx := context.Background()
+	_ = d.users.Create(ctx, &user.User{ID: "u7", Username: "zoe", Enabled: true})
+
+	got, err := d.svc.GetUserByID(ctx, "u7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.Username != "zoe" {
+		t.Fatalf("want zoe, got %+v", got)
+	}
+}
+
+func TestQueryGetUserByID_RepoError(t *testing.T) {
+	d := newQueryTestDeps()
+	d.users.Err = errors.New("db down")
+	if _, err := d.svc.GetUserByID(context.Background(), "u1"); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestQueryGetUserByUsername_Happy(t *testing.T) {
+	d := newQueryTestDeps()
+	ctx := context.Background()
+	_ = d.users.Create(ctx, &user.User{ID: "u8", Username: "flo", Enabled: true})
+
+	got, err := d.svc.GetUserByUsername(ctx, "flo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || string(got.ID) != "u8" {
+		t.Fatalf("want u8, got %+v", got)
+	}
+}
+
+func TestQueryGetProfileByID_Happy(t *testing.T) {
+	d := newQueryTestDeps()
+	ctx := context.Background()
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "prof1", UserID: "u1", Name: "main"})
+
+	got, err := d.svc.GetProfileByID(ctx, "prof1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.Name != "main" {
+		t.Fatalf("want main, got %+v", got)
+	}
+}
+
 func TestQueryListInviteLinks_Happy(t *testing.T) {
 	d := newQueryTestDeps()
 	ctx := context.Background()
