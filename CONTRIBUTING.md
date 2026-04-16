@@ -54,8 +54,18 @@ Hexagonal layering means most logic is unit-testable — prefer that layer.
 
 Do not add dependencies without approval. For JS/TS use pnpm with `--save-exact`. For Go, pin in `go.mod` and run `go mod tidy`.
 
+## Operations
+
+Ops playbooks live in [docs/runbooks/](docs/runbooks/):
+
+- [migration-runbook.md](docs/runbooks/migration-runbook.md) — schema migrations (apply, roll back, recover from dirty state, large-table patterns).
+- [incident-runbook.md](docs/runbooks/incident-runbook.md) — first-response for server/auth/transcode/DB/Meili/cache/plugin outages.
+
+Update these whenever you ship a change that alters ops behaviour (new env var, new failure mode, schema change pattern).
+
 ## References
 
 - [DEV.md](DEV.md) — setup, build, run
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [docs/adr/](docs/adr/) — decision records
+- [docs/runbooks/](docs/runbooks/) — operations playbooks
