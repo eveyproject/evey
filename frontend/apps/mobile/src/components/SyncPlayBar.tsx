@@ -11,9 +11,13 @@ interface Props {
   members: SyncPlayMember[];
   connected: boolean;
   onLeave: () => void;
+  queue?: string[];
+  trackIndex?: number;
+  onNext?: () => void;
+  onPrev?: () => void;
 }
 
-export function SyncPlayBar({ roomCode, isHost, members, connected, onLeave }: Props) {
+export function SyncPlayBar({ roomCode, isHost, members, connected, onLeave, queue, trackIndex, onNext, onPrev }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
   const [copied, setCopied] = useState(false);
@@ -35,10 +39,38 @@ export function SyncPlayBar({ roomCode, isHost, members, connected, onLeave }: P
     setTimeout(() => setCopied(false), 2000);
   }
 
+  const hasQueue = (queue?.length ?? 0) > 0;
+  const idx = trackIndex ?? 0;
+  const total = queue?.length ?? 0;
+
   return (
     <View style={[styles.bar, { backgroundColor: theme.colors.overlay }]}>
       <View style={[styles.dot, { backgroundColor: connected ? theme.colors.success : theme.colors.error }]} />
       <Text style={[styles.label, { color: theme.colors.text }]} numberOfLines={1}>{label}</Text>
+      {hasQueue && isHost && (
+        <>
+          <Pressable
+            onPress={onPrev}
+            disabled={idx <= 0}
+            style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised, opacity: idx <= 0 ? 0.4 : 1 }]}
+            accessibilityLabel={t("common.previous", "Previous")}
+          >
+            <Ionicons name="play-skip-back" size={14} color={theme.colors.text} />
+          </Pressable>
+          <Text style={[styles.chipText, { color: theme.colors.text }]}>{idx + 1}/{total}</Text>
+          <Pressable
+            onPress={onNext}
+            disabled={idx >= total - 1}
+            style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised, opacity: idx >= total - 1 ? 0.4 : 1 }]}
+            accessibilityLabel={t("common.next", "Next")}
+          >
+            <Ionicons name="play-skip-forward" size={14} color={theme.colors.text} />
+          </Pressable>
+        </>
+      )}
+      {hasQueue && !isHost && (
+        <Text style={[styles.chipText, { color: theme.colors.textMuted }]}>{idx + 1}/{total}</Text>
+      )}
       {isHost && roomCode && (
         <Pressable onPress={handleCopyCode} style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised }]}>
           <Text style={[styles.chipText, { color: theme.colors.text }]}>{copied ? t("common.copied", "Copied") : roomCode}</Text>

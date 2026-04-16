@@ -1,22 +1,27 @@
 import { useState } from "react";
-import { View, Text, Pressable, TextInput, Modal, StyleSheet } from "react-native";
+import { View, Text, Pressable, TextInput, Modal, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
+import { usePlaylistList } from "../api/playlists";
 
 interface Props {
   visible: boolean;
   onClose: () => void;
   onCreateRoom: () => void;
   onJoinRoom: (code: string) => void;
+  onCreateRoomFromPlaylist?: (playlistId: string, name?: string) => void;
   creating?: boolean;
   joining?: boolean;
+  showPlaylistOption?: boolean;
 }
 
-export function SyncPlayModal({ visible, onClose, onCreateRoom, onJoinRoom, creating, joining }: Props) {
+export function SyncPlayModal({ visible, onClose, onCreateRoom, onJoinRoom, onCreateRoomFromPlaylist, creating, joining, showPlaylistOption }: Props) {
   const { t } = useTranslation();
   const theme = useTheme();
   const [code, setCode] = useState("");
+  const [mode, setMode] = useState<"single" | "playlist">("single");
+  const { data: playlists } = usePlaylistList();
 
   function handleJoin() {
     const trimmed = code.trim();
@@ -31,14 +36,52 @@ export function SyncPlayModal({ visible, onClose, onCreateRoom, onJoinRoom, crea
           {t("media.syncplay.title", "Watch Together")}
         </Text>
 
-        <Pressable
-          onPress={onCreateRoom}
-          disabled={creating}
-          style={[styles.btn, { backgroundColor: theme.colors.accent, opacity: creating ? 0.5 : 1 }]}
-        >
-          <Ionicons name="add-circle-outline" size={18} color={theme.colors.onAccent} />
-          <Text style={[styles.btnText, { color: theme.colors.onAccent }]}>{t("media.syncplay.createRoom", "Create room")}</Text>
-        </Pressable>
+        {showPlaylistOption && onCreateRoomFromPlaylist && (playlists ?? []).length > 0 && (
+          <View style={[styles.tabs, { borderColor: theme.colors.border }]}>
+            <Pressable
+              onPress={() => setMode("single")}
+              style={[styles.tab, mode === "single" && { backgroundColor: theme.colors.surfaceRaised }]}
+            >
+              <Text style={{ color: mode === "single" ? theme.colors.accent : theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>
+                {t("media.syncplay.createRoom", "Create room")}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setMode("playlist")}
+              style={[styles.tab, mode === "playlist" && { backgroundColor: theme.colors.surfaceRaised }]}
+            >
+              <Text style={{ color: mode === "playlist" ? theme.colors.accent : theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>
+                {t("media.syncplay.orPlaylist", "Or pick a playlist")}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {mode === "single" || !showPlaylistOption || !onCreateRoomFromPlaylist ? (
+          <Pressable
+            onPress={onCreateRoom}
+            disabled={creating}
+            style={[styles.btn, { backgroundColor: theme.colors.accent, opacity: creating ? 0.5 : 1 }]}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={theme.colors.onAccent} />
+            <Text style={[styles.btnText, { color: theme.colors.onAccent }]}>{t("media.syncplay.createRoom", "Create room")}</Text>
+          </Pressable>
+        ) : (
+          <ScrollView style={styles.playlistList}>
+            {(playlists ?? []).map((pl) => (
+              <Pressable
+                key={pl.id}
+                onPress={() => onCreateRoomFromPlaylist(pl.id, pl.name)}
+                disabled={creating}
+                style={[styles.playlistRow, { borderColor: theme.colors.border, opacity: creating ? 0.5 : 1 }]}
+              >
+                <Ionicons name="list-outline" size={16} color={theme.colors.text} />
+                <Text style={[styles.playlistName, { color: theme.colors.text }]} numberOfLines={1}>{pl.name}</Text>
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
 
         <View style={[styles.divider, { backgroundColor: theme.colors.border }]}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 11, paddingHorizontal: 8 }}>
@@ -80,8 +123,13 @@ const styles = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject },
   sheet: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: 32 },
   title: { fontSize: 18, fontWeight: "700", marginBottom: 16 },
+  tabs: { flexDirection: "row", borderWidth: 1, borderRadius: 6, marginBottom: 12, overflow: "hidden" },
+  tab: { flex: 1, paddingVertical: 8, alignItems: "center" },
   btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 8 },
   btnText: { fontWeight: "600", fontSize: 14 },
+  playlistList: { maxHeight: 180 },
+  playlistRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1 },
+  playlistName: { flex: 1, fontSize: 14 },
   divider: { height: 1, marginVertical: 16, position: "relative", alignItems: "center", justifyContent: "center" },
   label: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", marginBottom: 8 },
   input: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, borderWidth: 1, fontSize: 18, fontWeight: "700", letterSpacing: 4, textAlign: "center" },

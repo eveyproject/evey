@@ -889,6 +889,10 @@ export default function PlayerScreen() {
               members={syncPlay.state.members}
               connected={syncPlay.state.connected}
               onLeave={syncPlay.leaveRoom}
+              queue={syncPlay.state.queue}
+              trackIndex={syncPlay.state.trackIndex}
+              onNext={syncPlay.sendNext}
+              onPrev={syncPlay.sendPrev}
             />
           </View>
         )}
