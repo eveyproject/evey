@@ -662,6 +662,31 @@ func TestGetItems_NotFound(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestCollection_KillMutant_ZeroLimitClampedTo50_NonSmart ensures that limit=0
+// is clamped to 50 on the non-smart path: with 51 linked items and limit=0,
+// we must get exactly 50 results (mutant "limit < 0" would leave limit=0,
+// causing the fake repo to return all 51).
+func TestCollection_KillMutant_ZeroLimitClampedTo50_NonSmart(t *testing.T) {
+	t.Parallel()
+	svc, colRepo, mediaRepo := newSvc()
+	ctx := context.Background()
+
+	for i := range 51 {
+		id := fmt.Sprintf("m%d", i)
+		mediaRepo.Create(ctx, &library.MediaItem{ID: shared.MediaItemID(id), Title: id})
+	}
+	col, err := svc.Upsert(ctx, 150, "Big Saga", "", "", "")
+	require.NoError(t, err)
+	for i := range 51 {
+		colRepo.LinkItem(ctx, col.ID, fmt.Sprintf("m%d", i), i)
+	}
+
+	items, total, err := svc.GetItems(ctx, col.ID, 0, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 51, total)
+	assert.Len(t, items, 50, "limit=0 must be clamped to 50")
+}
+
 func TestGetItems_SmartCollection_RulesEvaluated(t *testing.T) {
 	t.Parallel()
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
