@@ -40,7 +40,11 @@ window.addEventListener("evey:unauthorized", () => {
 });
 let queryClientRef: QueryClient | null = null;
 
-// Proactive token refresh — refresh 2 min before expiry to avoid 401 retries
+// Proactive token refresh — refresh a bit before expiry to avoid 401 retries.
+// Jitter + Web Locks serialize refreshes across tabs so two timers firing at
+// the same instant don't both hit /auth/refresh with the same (in-flight-
+// rotated) cookie, which the server would treat as reuse and purge all of
+// the user's refresh tokens.
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleTokenRefresh() {
   if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
@@ -49,19 +53,65 @@ function scheduleTokenRefresh() {
   try {
     const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
     const expiresMs = payload.exp * 1000;
-    const refreshAt = expiresMs - 2 * 60 * 1000; // 2 min before expiry
+    // Random jitter in [0, 30s] so two tabs don't wake at the same millisecond.
+    const jitter = Math.floor(Math.random() * 30_000);
+    const refreshAt = expiresMs - 2 * 60 * 1000 + jitter;
     const delay = Math.max(refreshAt - Date.now(), 0);
     refreshTimer = setTimeout(async () => {
       try {
-        const data = await userServiceRefreshToken({});
-        if (data?.accessToken) {
-          useAuthStore.getState().setTokens(data.accessToken);
-        }
+        await runUnderTabLock(async () => {
+          // Another tab may have refreshed while we waited on the lock — if
+          // our access token has been replaced and is not about to expire, skip.
+          const current = useAuthStore.getState().accessToken;
+          if (current && current !== token && !isNearExpiry(current)) return;
+          const data = await userServiceRefreshToken({});
+          if (data?.accessToken) {
+            useAuthStore.getState().setTokens(data.accessToken);
+          }
+        });
       } catch (err) { console.warn("token refresh failed", err); }
       scheduleTokenRefresh();
     }, delay);
   } catch (err) { console.warn("parse JWT failed", err); }
 }
+
+async function runUnderTabLock(fn: () => Promise<void>): Promise<void> {
+  if (typeof navigator !== "undefined" && "locks" in navigator) {
+    await (navigator as Navigator & { locks: LockManager }).locks.request(
+      "evey-refresh-token",
+      { mode: "exclusive" },
+      fn,
+    );
+    return;
+  }
+  await fn();
+}
+
+function isNearExpiry(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    const msLeft = payload.exp * 1000 - Date.now();
+    return msLeft < 60_000;
+  } catch { return true; }
+}
+
+// Cross-tab sync: when Zustand persist writes to localStorage from another
+// tab, our in-memory store is stale. Rehydrate on storage events so both
+// tabs see the newly-refreshed access token.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (ev) => {
+    if (ev.key !== "evey-auth" || !ev.newValue) return;
+    try {
+      const next = JSON.parse(ev.newValue) as { state?: { accessToken?: string | null } };
+      const newAccess = next.state?.accessToken ?? null;
+      const current = useAuthStore.getState().accessToken;
+      if (newAccess && newAccess !== current) {
+        useAuthStore.getState().setTokens(newAccess);
+      }
+    } catch { /* ignore malformed payload */ }
+  });
+}
+
 useAuthStore.subscribe((state, prev) => {
   if (state.accessToken !== prev.accessToken) scheduleTokenRefresh();
 });
