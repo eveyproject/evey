@@ -195,6 +195,7 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s *library.MediaStream, clie
 		if d.AudioCodec == "" {
 			d.AudioCodec = transcoding.DefaultAudioCodec
 		}
+		d.MaxAudioChannels = client.MaxAudioChannels
 	}
 	// Per-profile cap on audio channels (user pref).
 	if s.Channels != nil && prefs.MaxAudioChannels > 0 && *s.Channels > prefs.MaxAudioChannels {

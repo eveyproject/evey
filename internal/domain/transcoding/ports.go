@@ -62,10 +62,18 @@ type HLSProcessOpts struct {
 	VideoDecision      string // "copy", "transcode", or "" (multi-variant)
 	AudioDecision      string // "copy" or "transcode"
 	AudioTrackIndex    int
-	SubtitleTrackIndex int    // -1 = no subtitle
+	SubtitleTrackIndex int // -1 = no subtitle
 	SubtitleCodec      string
 	HDRSupported       bool
 	AudioNormalize     bool
 	StartSec           float64
 	Streams            []*library.MediaStream
+
+	// Overrides propagated from the playback decision. Empty / zero values
+	// preserve the previous default behavior (libx264 + aac + 2-channel + burn-in
+	// for bitmap subs).
+	VideoCodec       string // domain codec name: "h264"|"hevc"/"h265"|"av1". Empty → libx264.
+	AudioCodec       string // domain codec name: "aac"|"ac3"|"eac3"|"opus". Empty → aac.
+	MaxAudioChannels int    // 0 = no cap (preserves current -ac 2 default when transcoding audio).
+	ForceSidecarSubs bool   // true → skip burn-in even for bitmap subs (served as sidecar externally).
 }

@@ -292,6 +292,70 @@ func TestGetOrCreate_DelegatestoProcess(t *testing.T) {
 	assert.InEpsilon(t, 42.5, opts.StartSec, 1e-9)
 }
 
+func TestGetOrCreate_WithOverrides_PlumbsToOpts(t *testing.T) {
+	m, fake := newTestManager(t, 5)
+
+	sess, err := m.GetOrCreate(
+		"u", "override-test", "/f.mkv", 1920, 1080,
+		0, 0, 1, "pgssub", nil, false, false, 0,
+		"transcode", "transcode",
+		apptranscode.WithOverrides(apptranscode.HLSOverrides{
+			VideoCodec:       "hevc",
+			AudioCodec:       "eac3",
+			MaxAudioChannels: 6,
+			ForceSidecarSubs: true,
+		}),
+	)
+	require.NoError(t, err)
+	require.NoError(t, sess.WaitReady(context.Background()))
+
+	require.Len(t, fake.Started, 1)
+	opts := fake.Started[0]
+	assert.Equal(t, "hevc", opts.VideoCodec)
+	assert.Equal(t, "eac3", opts.AudioCodec)
+	assert.Equal(t, 6, opts.MaxAudioChannels)
+	assert.True(t, opts.ForceSidecarSubs)
+}
+
+func TestGetOrCreate_NoOverrides_LeavesZeroValues(t *testing.T) {
+	m, fake := newTestManager(t, 5)
+
+	sess, err := m.GetOrCreate("u", "no-override", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "copy", "transcode")
+	require.NoError(t, err)
+	require.NoError(t, sess.WaitReady(context.Background()))
+
+	require.Len(t, fake.Started, 1)
+	opts := fake.Started[0]
+	assert.Empty(t, opts.VideoCodec)
+	assert.Empty(t, opts.AudioCodec)
+	assert.Equal(t, 0, opts.MaxAudioChannels)
+	assert.False(t, opts.ForceSidecarSubs)
+}
+
+func TestRestartFromPosition_PropagatesOverrides(t *testing.T) {
+	m, fake := newTestManager(t, 5)
+
+	_, err := m.GetOrCreate("u", "restart-override", "/a.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "copy", "transcode")
+	require.NoError(t, err)
+
+	s2, err := m.RestartFromPosition(
+		"u", "restart-override", "/a.mkv", 1920, 1080,
+		0, 0, -1, "", nil, false, false, 60.0,
+		"transcode", "transcode",
+		apptranscode.WithOverrides(apptranscode.HLSOverrides{
+			VideoCodec:       "hevc",
+			MaxAudioChannels: 8,
+		}),
+	)
+	require.NoError(t, err)
+	require.NoError(t, s2.WaitReady(context.Background()))
+
+	require.GreaterOrEqual(t, len(fake.Started), 2)
+	last := fake.Started[len(fake.Started)-1]
+	assert.Equal(t, "hevc", last.VideoCodec)
+	assert.Equal(t, 8, last.MaxAudioChannels)
+}
+
 func TestActiveSessionCount(t *testing.T) {
 	m, _ := newTestManager(t, 5)
 

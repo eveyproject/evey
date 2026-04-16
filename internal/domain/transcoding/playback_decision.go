@@ -24,6 +24,7 @@ type PlaybackDecision struct {
 	AudioBitrate     int64    `json:"audio_bitrate,omitempty"`
 	MaxWidth         int      `json:"max_width,omitempty"`
 	MaxHeight        int      `json:"max_height,omitempty"`
+	MaxAudioChannels int      `json:"max_audio_channels,omitempty"`
 }
 
 var DefaultWebProfile = ClientProfile{

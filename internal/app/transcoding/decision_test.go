@@ -198,6 +198,24 @@ func TestAudioChannelsExceeded(t *testing.T) {
 	assert.Equal(t, "transcode", d.AudioDecision)
 	assert.Contains(t, d.TranscodeReasons, "audio_channels_exceeded")
 	assert.Equal(t, "aac", d.AudioCodec)
+	assert.Equal(t, 2, d.MaxAudioChannels)
+}
+
+func TestAudioChannelsNotExceeded_NoCap(t *testing.T) {
+	client := transcoding.ClientProfile{
+		VideoCodecs:      []string{"h264"},
+		AudioCodecs:      []string{"aac"},
+		Containers:       []string{"mp4"},
+		MaxWidth:         3840,
+		MaxHeight:        2160,
+		MaxAudioChannels: 8,
+	}
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+	}
+	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 0)
+	assert.Equal(t, 0, d.MaxAudioChannels, "MaxAudioChannels should stay zero when channels fit")
 }
 
 func TestHDRClient_DirectPlay(t *testing.T) {

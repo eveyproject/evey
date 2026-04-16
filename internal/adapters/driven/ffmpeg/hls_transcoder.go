@@ -148,6 +148,48 @@ func IsImageSubtitle(codec string) bool {
 	return false
 }
 
+// resolveVideoEncoder maps a domain codec name ("h264"/"hevc"/"h265"/"av1") to
+// the ffmpeg encoder name. Empty → libx264 (previous hardcoded default).
+func resolveVideoEncoder(codec string) string {
+	switch strings.ToLower(codec) {
+	case "", "h264", "libx264":
+		return "libx264"
+	case "hevc", "h265", "libx265":
+		return "libx265"
+	case "av1", "libaom-av1":
+		// libaom-av1 is extremely slow for real-time HLS and may be absent
+		// from minimal ffmpeg builds — accept the mapping but callers should
+		// avoid requesting av1 unless the build supports it.
+		return "libaom-av1"
+	}
+	return "libx264"
+}
+
+// resolveAudioEncoder maps a domain audio codec to the ffmpeg encoder name.
+// Empty → aac (previous hardcoded default).
+func resolveAudioEncoder(codec string) string {
+	switch strings.ToLower(codec) {
+	case "", "aac":
+		return "aac"
+	case "ac3":
+		return "ac3"
+	case "eac3":
+		return "eac3"
+	case "opus", "libopus":
+		return "libopus"
+	}
+	return "aac"
+}
+
+// resolveAudioChannels returns the -ac value. Zero MaxAudioChannels preserves
+// the previous default of 2.
+func resolveAudioChannels(maxChannels int) string {
+	if maxChannels > 0 {
+		return fmt.Sprintf("%d", maxChannels)
+	}
+	return "2"
+}
+
 func BuildFFmpegArgs(opts transcoding.HLSProcessOpts) []string {
 	if opts.VideoDecision == "copy" {
 		return buildCopyVideoArgs(opts)
@@ -181,7 +223,11 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		"-c:v", "copy",
 	)
 	if opts.AudioDecision == "transcode" {
-		args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", "192k")
+		args = append(args,
+			"-c:a", resolveAudioEncoder(opts.AudioCodec),
+			"-ac", resolveAudioChannels(opts.MaxAudioChannels),
+			"-b:a", "192k",
+		)
 		if opts.AudioNormalize {
 			args = append(args, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
 		}
@@ -207,7 +253,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 }
 
 func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
-	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec)
+	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec) && !opts.ForceSidecarSubs
 	toneMap := detectToneMap(opts.HDRSupported, opts.Streams)
 
 	var args []string
@@ -244,7 +290,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 
 	args = append(args, "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
-		"-c:v", "libx264",
+		"-c:v", resolveVideoEncoder(opts.VideoCodec),
 		"-profile:v", "high", "-level:v", "4.1",
 		"-b:v", fmt.Sprintf("%dk", p.VideoBitrate),
 		"-preset", "veryfast",
@@ -252,7 +298,11 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	)
 
 	if opts.AudioDecision == "transcode" {
-		args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", fmt.Sprintf("%dk", p.AudioBitrate))
+		args = append(args,
+			"-c:a", resolveAudioEncoder(opts.AudioCodec),
+			"-ac", resolveAudioChannels(opts.MaxAudioChannels),
+			"-b:a", fmt.Sprintf("%dk", p.AudioBitrate),
+		)
 		if opts.AudioNormalize {
 			args = append(args, "-filter:a:0", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
 		}
@@ -272,8 +322,11 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 
 func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	n := len(opts.Profiles)
-	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec)
+	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec) && !opts.ForceSidecarSubs
 	toneMap := detectToneMap(opts.HDRSupported, opts.Streams)
+	vcodec := resolveVideoEncoder(opts.VideoCodec)
+	acodec := resolveAudioEncoder(opts.AudioCodec)
+	acChannels := resolveAudioChannels(opts.MaxAudioChannels)
 
 	var args []string
 	if opts.StartSec > 0 {
@@ -321,13 +374,13 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	for i, p := range opts.Profiles {
 		args = append(args,
 			"-map", fmt.Sprintf("[o%d]", i),
-			fmt.Sprintf("-c:v:%d", i), "libx264",
+			fmt.Sprintf("-c:v:%d", i), vcodec,
 			fmt.Sprintf("-profile:v:%d", i), "high", fmt.Sprintf("-level:v:%d", i), "4.1",
 			fmt.Sprintf("-b:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate),
 			"-preset", "veryfast",
 			"-pix_fmt", "yuv420p",
 			"-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
-			fmt.Sprintf("-c:a:%d", i), "aac", "-ac", "2",
+			fmt.Sprintf("-c:a:%d", i), acodec, "-ac", acChannels,
 			fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", p.AudioBitrate),
 		)
 		if opts.AudioNormalize {

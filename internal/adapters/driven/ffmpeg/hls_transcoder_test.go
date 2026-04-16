@@ -295,6 +295,232 @@ func TestIsImageSubtitle(t *testing.T) {
 	assert.False(t, ffmpeg.IsImageSubtitle("ass"), "ass is not image subtitle")
 }
 
+// --- Decision override tests ---
+
+func TestBuildFFmpegArgs_VideoCodecOverride_HEVC_SingleTranscode(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles[:1],
+		VideoDecision: "transcode",
+		AudioDecision: "transcode",
+		VideoCodec:    "hevc",
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "libx265")
+	assert.NotContains(t, joined, "libx264")
+}
+
+func TestBuildFFmpegArgs_VideoCodecOverride_MultiVariant(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles,
+		VideoDecision: "transcode",
+		AudioDecision: "transcode",
+		VideoCodec:    "h265",
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-c:v:0 libx265")
+	assert.Contains(t, joined, "-c:v:3 libx265")
+	assert.NotContains(t, joined, "libx264")
+}
+
+// av1 mapping accepted at the arg-building layer. The libaom-av1 encoder is
+// extremely slow and may be absent from minimal ffmpeg images; we assert the
+// mapping here without spawning a real encode.
+func TestBuildFFmpegArgs_VideoCodecOverride_AV1_Mapping(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles[:1],
+		VideoDecision: "transcode",
+		AudioDecision: "copy",
+		VideoCodec:    "av1",
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "libaom-av1")
+}
+
+func TestBuildFFmpegArgs_AudioCodecOverride_EAC3_CopyVideo(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles,
+		VideoDecision: "copy",
+		AudioDecision: "transcode",
+		AudioCodec:    "eac3",
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-c:a eac3")
+	assert.NotContains(t, joined, "-c:a aac")
+}
+
+func TestBuildFFmpegArgs_AudioCodecOverride_AC3_SingleTranscode(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles[:1],
+		VideoDecision: "transcode",
+		AudioDecision: "transcode",
+		AudioCodec:    "ac3",
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-c:a ac3")
+}
+
+// opus → libopus mapping. libopus may be absent from very old ffmpeg builds;
+// the mapping itself is verified without spawning ffmpeg.
+func TestBuildFFmpegArgs_AudioCodecOverride_Opus_Mapping(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles,
+		VideoDecision: "transcode",
+		AudioDecision: "transcode",
+		AudioCodec:    "opus",
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "libopus")
+}
+
+func TestBuildFFmpegArgs_MaxAudioChannels_CopyVideo(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:        "/tmp/test",
+		FilePath:         "/f.mkv",
+		Profiles:         transcoding.DefaultHLSProfiles,
+		VideoDecision:    "copy",
+		AudioDecision:    "transcode",
+		MaxAudioChannels: 6,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-ac 6")
+	assert.NotContains(t, joined, "-ac 2")
+}
+
+func TestBuildFFmpegArgs_MaxAudioChannels_SingleTranscode(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:        "/tmp/test",
+		FilePath:         "/f.mkv",
+		Profiles:         transcoding.DefaultHLSProfiles[:1],
+		VideoDecision:    "transcode",
+		AudioDecision:    "transcode",
+		MaxAudioChannels: 8,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-ac 8")
+}
+
+func TestBuildFFmpegArgs_MaxAudioChannels_MultiVariant(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:        "/tmp/test",
+		FilePath:         "/f.mkv",
+		Profiles:         transcoding.DefaultHLSProfiles,
+		VideoDecision:    "transcode",
+		AudioDecision:    "transcode",
+		MaxAudioChannels: 6,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-ac 6")
+	assert.NotContains(t, joined, "-ac 2")
+}
+
+// Zero MaxAudioChannels must preserve the legacy -ac 2 default.
+func TestBuildFFmpegArgs_MaxAudioChannels_ZeroKeepsDefault(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles,
+		VideoDecision: "copy",
+		AudioDecision: "transcode",
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-ac 2")
+}
+
+func TestBuildFFmpegArgs_ForceSidecarSubs_SkipsBurnIn_SingleTranscode(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:          "/tmp/test",
+		FilePath:           "/f.mkv",
+		Profiles:           transcoding.DefaultHLSProfiles[:1],
+		VideoDecision:      "transcode",
+		AudioDecision:      "transcode",
+		SubtitleTrackIndex: 0,
+		SubtitleCodec:      "pgssub",
+		ForceSidecarSubs:   true,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.NotContains(t, joined, "overlay")
+	assert.NotContains(t, joined, "[0:s:0]")
+}
+
+func TestBuildFFmpegArgs_ForceSidecarSubs_SkipsBurnIn_MultiVariant(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:          "/tmp/test",
+		FilePath:           "/f.mkv",
+		Profiles:           transcoding.DefaultHLSProfiles,
+		VideoDecision:      "transcode",
+		AudioDecision:      "transcode",
+		SubtitleTrackIndex: 2,
+		SubtitleCodec:      "hdmv_pgs_subtitle",
+		ForceSidecarSubs:   true,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.NotContains(t, joined, "overlay")
+	assert.Contains(t, joined, "[0:v]split=")
+}
+
+// Without ForceSidecarSubs the existing burn-in behavior remains (regression guard).
+func TestBuildFFmpegArgs_ForceSidecarSubs_DefaultStillBurns(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:          "/tmp/test",
+		FilePath:           "/f.mkv",
+		Profiles:           transcoding.DefaultHLSProfiles,
+		VideoDecision:      "transcode",
+		AudioDecision:      "transcode",
+		SubtitleTrackIndex: 2,
+		SubtitleCodec:      "hdmv_pgs_subtitle",
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "overlay")
+}
+
+// All overrides combined: h265 + eac3 + 6 channels + sidecar subs.
+func TestBuildFFmpegArgs_AllOverridesCombined(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:          "/tmp/test",
+		FilePath:           "/f.mkv",
+		Profiles:           transcoding.DefaultHLSProfiles[:1],
+		VideoDecision:      "transcode",
+		AudioDecision:      "transcode",
+		SubtitleTrackIndex: 0,
+		SubtitleCodec:      "pgssub",
+		VideoCodec:         "hevc",
+		AudioCodec:         "eac3",
+		MaxAudioChannels:   6,
+		ForceSidecarSubs:   true,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "libx265")
+	assert.Contains(t, joined, "-c:a eac3")
+	assert.Contains(t, joined, "-ac 6")
+	assert.NotContains(t, joined, "overlay")
+}
+
 func TestBuildFFmpegArgs_HEVCCopy_UsesFMP4Segments(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:       "/tmp/test",

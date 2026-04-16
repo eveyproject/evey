@@ -25,27 +25,55 @@ func IsImageSubtitle(codec string) bool {
 }
 
 type HLSSession struct {
-	ID                  string
-	MediaItemID         shared.MediaItemID
-	UserID              shared.UserID
-	OutputDir           string
-	Profiles            []transcoding.HLSProfile
-	VideoDecision       string // "copy" or "transcode"
-	AudioDecision       string // "copy" or "transcode"
-	AudioTrackIndex     int    // ffmpeg audio stream index (0:a:N)
-	SubtitleTrackIndex  int    // -1 = no subtitle
-	SubtitleCodec       string
-	HDRSupported        bool
-	AudioNormalize      bool
-	StartSec            float64 // seek offset
-	streams             []*library.MediaStream
-	StartedAt           time.Time
-	LastAccess          time.Time
-	mu                  sync.Mutex
-	handle              transcoding.HLSProcessHandle // nil when serving cached transcode
-	ready               chan struct{}
-	done                chan struct{}
-	err                 error
+	ID                 string
+	MediaItemID        shared.MediaItemID
+	UserID             shared.UserID
+	OutputDir          string
+	Profiles           []transcoding.HLSProfile
+	VideoDecision      string // "copy" or "transcode"
+	AudioDecision      string // "copy" or "transcode"
+	AudioTrackIndex    int    // ffmpeg audio stream index (0:a:N)
+	SubtitleTrackIndex int    // -1 = no subtitle
+	SubtitleCodec      string
+	HDRSupported       bool
+	AudioNormalize     bool
+	StartSec           float64 // seek offset
+	// Overrides plumbed to the ffmpeg adapter. Zero values preserve legacy defaults.
+	VideoCodec       string
+	AudioCodec       string
+	MaxAudioChannels int
+	ForceSidecarSubs bool
+	streams          []*library.MediaStream
+	StartedAt        time.Time
+	LastAccess       time.Time
+	mu               sync.Mutex
+	handle           transcoding.HLSProcessHandle // nil when serving cached transcode
+	ready            chan struct{}
+	done             chan struct{}
+	err              error
+}
+
+// HLSOverrides carries decision-derived overrides (video codec, audio codec,
+// channel cap, sidecar subtitle flag) into session creation. Zero values mean
+// "use legacy defaults".
+type HLSOverrides struct {
+	VideoCodec       string
+	AudioCodec       string
+	MaxAudioChannels int
+	ForceSidecarSubs bool
+}
+
+// HLSOption mutates session construction. Currently only WithOverrides is
+// provided; kept as a functional option to avoid breaking existing callers.
+type HLSOption func(*HLSSession)
+
+func WithOverrides(o HLSOverrides) HLSOption {
+	return func(s *HLSSession) {
+		s.VideoCodec = o.VideoCodec
+		s.AudioCodec = o.AudioCodec
+		s.MaxAudioChannels = o.MaxAudioChannels
+		s.ForceSidecarSubs = o.ForceSidecarSubs
+	}
 }
 
 func (s *HLSSession) IsSingleStream() bool {
@@ -182,7 +210,7 @@ func (m *HLSManager) countByUser(userID string) int {
 	return m.userSessions[userID]
 }
 
-func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool, startSec float64, videoDecision, audioDecision string) (*HLSSession, error) {
+func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool, startSec float64, videoDecision, audioDecision string, opts ...HLSOption) (*HLSSession, error) {
 	m.mu.Lock()
 	if session, ok := m.sessions[mediaItemID]; ok {
 		if session.VideoDecision == videoDecision && session.AudioDecision == audioDecision {
@@ -252,6 +280,9 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 		ready:              make(chan struct{}),
 		done:               make(chan struct{}),
 	}
+	for _, apply := range opts {
+		apply(session)
+	}
 	m.sessions[mediaItemID] = session
 	m.userSessions[userID]++
 
@@ -298,6 +329,10 @@ func (m *HLSManager) startSession(session *HLSSession, filePath string) {
 		AudioNormalize:     session.AudioNormalize,
 		StartSec:           session.StartSec,
 		Streams:            session.streams,
+		VideoCodec:         session.VideoCodec,
+		AudioCodec:         session.AudioCodec,
+		MaxAudioChannels:   session.MaxAudioChannels,
+		ForceSidecarSubs:   session.ForceSidecarSubs,
 	}
 
 	handle, err := m.process.Start(m.shutdownCtx, opts)
@@ -332,7 +367,7 @@ func (m *HLSManager) GetSession(mediaItemID string) (*HLSSession, bool) {
 // CacheDir returns the base directory where HLS segments are stored.
 func (m *HLSManager) CacheDir() string { return m.cacheDir }
 
-func (m *HLSManager) RestartFromPosition(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool, startSec float64, videoDecision, audioDecision string) (*HLSSession, error) {
+func (m *HLSManager) RestartFromPosition(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool, startSec float64, videoDecision, audioDecision string, opts ...HLSOption) (*HLSSession, error) {
 	m.mu.Lock()
 	if old, ok := m.sessions[mediaItemID]; ok {
 		delete(m.sessions, mediaItemID)
@@ -346,7 +381,7 @@ func (m *HLSManager) RestartFromPosition(userID, mediaItemID, filePath string, s
 	} else {
 		m.mu.Unlock()
 	}
-	return m.GetOrCreate(userID, mediaItemID, filePath, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, streams, hdrSupported, audioNormalize, startSec, videoDecision, audioDecision)
+	return m.GetOrCreate(userID, mediaItemID, filePath, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, streams, hdrSupported, audioNormalize, startSec, videoDecision, audioDecision, opts...)
 }
 
 func (m *HLSManager) RemoveSession(mediaItemID string) {
