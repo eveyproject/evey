@@ -55,6 +55,7 @@ message CreateSyncPlayRoomRequest {
   string media_id = 1;
   string name = 2;
   string media_type = 3; // "video" (default) or "music"
+  string playlist_id = 4; // optional: bind room to a music playlist (implies media_type=music)
 }
 
 message CreateSyncPlayRoomResponse {
@@ -90,6 +91,9 @@ message GetSyncPlayRoomResponse {
   SyncPlayState state = 6;
   string code = 7;
   string media_type = 8;
+  repeated string queue = 9;
+  int32 track_index = 10;
+  string playlist_id = 11;
 }
 
 message JoinSyncPlayRoomRequest {

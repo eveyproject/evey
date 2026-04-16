@@ -130,7 +130,8 @@ type CreateSyncPlayRoomRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MediaId       string                 `protobuf:"bytes,1,opt,name=media_id,json=mediaId,proto3" json:"media_id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	MediaType     string                 `protobuf:"bytes,3,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"` // "video" (default) or "music"
+	MediaType     string                 `protobuf:"bytes,3,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`    // "video" (default) or "music"
+	PlaylistId    string                 `protobuf:"bytes,4,opt,name=playlist_id,json=playlistId,proto3" json:"playlist_id,omitempty"` // optional: bind room to a music playlist (implies media_type=music)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -182,6 +183,13 @@ func (x *CreateSyncPlayRoomRequest) GetName() string {
 func (x *CreateSyncPlayRoomRequest) GetMediaType() string {
 	if x != nil {
 		return x.MediaType
+	}
+	return ""
+}
+
+func (x *CreateSyncPlayRoomRequest) GetPlaylistId() string {
+	if x != nil {
+		return x.PlaylistId
 	}
 	return ""
 }
@@ -436,6 +444,9 @@ type GetSyncPlayRoomResponse struct {
 	State         *SyncPlayState         `protobuf:"bytes,6,opt,name=state,proto3" json:"state,omitempty"`
 	Code          string                 `protobuf:"bytes,7,opt,name=code,proto3" json:"code,omitempty"`
 	MediaType     string                 `protobuf:"bytes,8,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"`
+	Queue         []string               `protobuf:"bytes,9,rep,name=queue,proto3" json:"queue,omitempty"`
+	TrackIndex    int32                  `protobuf:"varint,10,opt,name=track_index,json=trackIndex,proto3" json:"track_index,omitempty"`
+	PlaylistId    string                 `protobuf:"bytes,11,opt,name=playlist_id,json=playlistId,proto3" json:"playlist_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -522,6 +533,27 @@ func (x *GetSyncPlayRoomResponse) GetCode() string {
 func (x *GetSyncPlayRoomResponse) GetMediaType() string {
 	if x != nil {
 		return x.MediaType
+	}
+	return ""
+}
+
+func (x *GetSyncPlayRoomResponse) GetQueue() []string {
+	if x != nil {
+		return x.Queue
+	}
+	return nil
+}
+
+func (x *GetSyncPlayRoomResponse) GetTrackIndex() int32 {
+	if x != nil {
+		return x.TrackIndex
+	}
+	return 0
+}
+
+func (x *GetSyncPlayRoomResponse) GetPlaylistId() string {
+	if x != nil {
+		return x.PlaylistId
 	}
 	return ""
 }
@@ -713,12 +745,14 @@ const file_evey_v1_syncplay_proto_rawDesc = "" +
 	"\rSyncPlayState\x12\x18\n" +
 	"\aplaying\x18\x01 \x01(\bR\aplaying\x12\x1f\n" +
 	"\vposition_ms\x18\x02 \x01(\x03R\n" +
-	"positionMs\"i\n" +
+	"positionMs\"\x8a\x01\n" +
 	"\x19CreateSyncPlayRoomRequest\x12\x19\n" +
 	"\bmedia_id\x18\x01 \x01(\tR\amediaId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
-	"media_type\x18\x03 \x01(\tR\tmediaType\"\xa7\x01\n" +
+	"media_type\x18\x03 \x01(\tR\tmediaType\x12\x1f\n" +
+	"\vplaylist_id\x18\x04 \x01(\tR\n" +
+	"playlistId\"\xa7\x01\n" +
 	"\x1aCreateSyncPlayRoomResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x12\n" +
@@ -736,7 +770,7 @@ const file_evey_v1_syncplay_proto_rawDesc = "" +
 	"\n" +
 	"media_type\x18\x04 \x01(\tR\tmediaType\"1\n" +
 	"\x16GetSyncPlayRoomRequest\x12\x17\n" +
-	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"\x85\x02\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"\xdd\x02\n" +
 	"\x17GetSyncPlayRoomResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
@@ -746,7 +780,13 @@ const file_evey_v1_syncplay_proto_rawDesc = "" +
 	"\x05state\x18\x06 \x01(\v2\x16.evey.v1.SyncPlayStateR\x05state\x12\x12\n" +
 	"\x04code\x18\a \x01(\tR\x04code\x12\x1d\n" +
 	"\n" +
-	"media_type\x18\b \x01(\tR\tmediaType\"2\n" +
+	"media_type\x18\b \x01(\tR\tmediaType\x12\x14\n" +
+	"\x05queue\x18\t \x03(\tR\x05queue\x12\x1f\n" +
+	"\vtrack_index\x18\n" +
+	" \x01(\x05R\n" +
+	"trackIndex\x12\x1f\n" +
+	"\vplaylist_id\x18\v \x01(\tR\n" +
+	"playlistId\"2\n" +
 	"\x17JoinSyncPlayRoomRequest\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"J\n" +
 	"\x18JoinSyncPlayRoomResponse\x12\x17\n" +

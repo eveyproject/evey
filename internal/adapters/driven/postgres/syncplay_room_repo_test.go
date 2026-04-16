@@ -146,6 +146,51 @@ func TestSyncPlayRoomRepo_UpdateState(t *testing.T) {
 	assert.Equal(t, int64(5000), got.State.PositionMs)
 }
 
+func TestSyncPlayRoomRepo_QueueAndTrackIndex(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedSyncplayDeps(t, db, "host-uq", "sp-userq", "sp-libq", "media-q1")
+	itemRepo := postgres.NewMediaItemRepository(db)
+	require.NoError(t, itemRepo.Create(context.Background(), newTestMediaItem("media-q2", shared.LibraryID("sp-libq"))))
+	require.NoError(t, itemRepo.Create(context.Background(), newTestMediaItem("media-q3", shared.LibraryID("sp-libq"))))
+
+	repo := postgres.NewSyncPlayRoomRepo(db)
+	ctx := context.Background()
+
+	plID := "pl-test-1"
+	room := &syncplay.Room{
+		ID:         "spq",
+		Code:       "QUEUE1",
+		Name:       "Queue Room",
+		HostID:     "host-uq",
+		MediaID:    "media-q1",
+		MediaType:  "music",
+		PlaylistID: &plID,
+		Queue:      []shared.MediaItemID{"media-q1", "media-q2", "media-q3"},
+		TrackIndex: 0,
+		Members:    []syncplay.Member{},
+		State:      syncplay.PlaybackState{},
+		CreatedAt:  time.Now().UTC().Truncate(time.Millisecond),
+	}
+	require.NoError(t, repo.Create(ctx, room))
+
+	got, err := repo.Get(ctx, "spq")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, []shared.MediaItemID{"media-q1", "media-q2", "media-q3"}, got.Queue)
+	assert.Equal(t, 0, got.TrackIndex)
+	require.NotNil(t, got.PlaylistID)
+	assert.Equal(t, plID, *got.PlaylistID)
+
+	// Advance to next track
+	require.NoError(t, repo.UpdateTrackIndex(ctx, "spq", 1, "media-q2"))
+	got, err = repo.Get(ctx, "spq")
+	require.NoError(t, err)
+	assert.Equal(t, 1, got.TrackIndex)
+	assert.Equal(t, shared.MediaItemID("media-q2"), got.MediaID)
+}
+
 func TestSyncPlayRoomRepo_Delete(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

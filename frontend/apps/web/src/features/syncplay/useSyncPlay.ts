@@ -19,16 +19,22 @@ interface SyncPlayState {
   members: SyncPlayMember[];
   connected: boolean;
   isHost: boolean;
+  queue: string[];
+  trackIndex: number;
 }
 
 interface SyncPlayControls {
   createRoom: (mediaId: string, mediaType?: string) => Promise<string>;
+  createRoomFromPlaylist: (playlistId: string, name?: string) => Promise<string>;
   joinRoom: (roomId: string) => Promise<void>;
   joinByCode: (code: string) => Promise<{ roomId: string; mediaId: string; mediaType: string }>;
   leaveRoom: () => Promise<void>;
   sendPlay: (positionMs: number) => void;
   sendPause: (positionMs: number) => void;
   sendSeek: (positionMs: number) => void;
+  sendNext: () => void;
+  sendPrev: () => void;
+  sendSetIndex: (index: number) => void;
 }
 
 interface SyncMessage {
@@ -37,6 +43,8 @@ interface SyncMessage {
   userId?: string;
   username?: string;
   playing?: boolean;
+  trackIndex?: number;
+  mediaId?: string;
 }
 
 interface UseSyncPlayOptions {
@@ -45,11 +53,12 @@ interface UseSyncPlayOptions {
   onSeek?: (positionMs: number) => void;
   onMemberJoined?: (userId: string, username: string) => void;
   onMemberLeft?: (userId: string) => void;
+  onTrackChange?: (trackIndex: number, mediaId: string) => void;
 }
 
 export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, SyncPlayControls] {
   const accessToken = useAuthStore((s) => s.accessToken);
-  const [state, setState] = useState<SyncPlayState>({ roomId: null, roomCode: null, members: [], connected: false, isHost: false });
+  const [state, setState] = useState<SyncPlayState>({ roomId: null, roomCode: null, members: [], connected: false, isHost: false, queue: [], trackIndex: 0 });
   const wsRef = useRef<WebSocket | null>(null);
   const myUserIdRef = useRef<string | null>(null);
   const optsRef = useRef(opts);
@@ -111,6 +120,14 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
         case "seek":
           optsRef.current.onSeek?.(msg.positionMs ?? 0);
           break;
+        case "next":
+        case "prev":
+        case "setIndex":
+          if (msg.trackIndex !== undefined && msg.mediaId) {
+            setState((prev) => ({ ...prev, trackIndex: msg.trackIndex! }));
+            optsRef.current.onTrackChange?.(msg.trackIndex, msg.mediaId);
+          }
+          break;
         case "member_joined":
           if (msg.userId && msg.username) {
             setState((prev) => ({
@@ -151,7 +168,25 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
   const createRoom = useCallback(async (mediaId: string, mediaType?: string): Promise<string> => {
     const data = await syncPlayServiceCreateRoom({ mediaId, name: mediaType === "music" ? "Listen Together" : "Watch Together", mediaType });
     const id = data.id ?? "";
-    setState({ roomId: id, roomCode: data.code ?? null, members: [], connected: false, isHost: true });
+    setState({ roomId: id, roomCode: data.code ?? null, members: [], connected: false, isHost: true, queue: [], trackIndex: 0 });
+    connect(id);
+    return id;
+  }, [connect]);
+
+  const createRoomFromPlaylist = useCallback(async (playlistId: string, name?: string): Promise<string> => {
+    const data = await syncPlayServiceCreateRoom({ playlistId, name });
+    const id = data.id ?? "";
+    // Fetch the room to populate queue/trackIndex
+    const info = await syncPlayServiceGetRoom(id);
+    setState({
+      roomId: id,
+      roomCode: data.code ?? null,
+      members: [],
+      connected: false,
+      isHost: true,
+      queue: info.queue ?? [],
+      trackIndex: info.trackIndex ?? 0,
+    });
     connect(id);
     return id;
   }, [connect]);
@@ -165,6 +200,8 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
       members: (info.members ?? []).map((m) => ({ userId: m.userId ?? "", username: m.username ?? "" })),
       connected: false,
       isHost: false,
+      queue: info.queue ?? [],
+      trackIndex: info.trackIndex ?? 0,
     });
     connect(roomId);
   }, [connect]);
@@ -174,7 +211,17 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     const roomId = data.roomId ?? "";
     const mediaId = data.mediaId ?? "";
     const mediaType = data.mediaType ?? "video";
-    setState({ roomId, roomCode: null, members: [], connected: false, isHost: false });
+    // Pull room info to grab queue if any
+    let queue: string[] = [];
+    let trackIndex = 0;
+    try {
+      const info = await syncPlayServiceGetRoom(roomId);
+      queue = info.queue ?? [];
+      trackIndex = info.trackIndex ?? 0;
+    } catch {
+      // ignore
+    }
+    setState({ roomId, roomCode: null, members: [], connected: false, isHost: false, queue, trackIndex });
     connect(roomId);
     return { roomId, mediaId, mediaType };
   }, [connect]);
@@ -188,7 +235,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     const roomId = state.roomId;
     wsRef.current?.close();
     wsRef.current = null;
-    setState({ roomId: null, roomCode: null, members: [], connected: false, isHost: false });
+    setState({ roomId: null, roomCode: null, members: [], connected: false, isHost: false, queue: [], trackIndex: 0 });
     if (roomId) {
       await syncPlayServiceLeaveRoom(roomId).catch((err) => console.warn("syncplay leave failed", err));
     }
@@ -217,6 +264,18 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     send({ type: "seek", positionMs });
   }, [send]);
 
+  const sendNext = useCallback(() => {
+    send({ type: "next" });
+  }, [send]);
+
+  const sendPrev = useCallback(() => {
+    send({ type: "prev" });
+  }, [send]);
+
+  const sendSetIndex = useCallback((index: number) => {
+    send({ type: "setIndex", trackIndex: index });
+  }, [send]);
+
   useEffect(() => {
     if (!accessToken) return;
     try {
@@ -227,5 +286,5 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     }
   }, [accessToken]);
 
-  return [state, { createRoom, joinRoom, joinByCode, leaveRoom, sendPlay, sendPause, sendSeek }];
+  return [state, { createRoom, createRoomFromPlaylist, joinRoom, joinByCode, leaveRoom, sendPlay, sendPause, sendSeek, sendNext, sendPrev, sendSetIndex }];
 }

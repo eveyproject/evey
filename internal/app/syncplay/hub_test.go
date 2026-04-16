@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/syncplay"
 	"github.com/evey-project/evey/internal/domain/syncplay/fakes"
 )
@@ -106,6 +107,18 @@ func (r *fakeRoomRepo) UpdateState(_ context.Context, roomID string, state syncp
 		return errors.New("room not found")
 	}
 	room.State = state
+	return nil
+}
+
+func (r *fakeRoomRepo) UpdateTrackIndex(_ context.Context, roomID string, idx int, mediaID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	room, ok := r.rooms[roomID]
+	if !ok {
+		return errors.New("room not found")
+	}
+	room.TrackIndex = idx
+	room.MediaID = shared.MediaItemID(mediaID)
 	return nil
 }
 
@@ -1026,5 +1039,128 @@ func TestHub_DisconnectMember_BroadcastsLeave(t *testing.T) {
 	_ = json.Unmarshal(msgs[0], &cmd)
 	if cmd.Type != "member_left" {
 		t.Errorf("type = %q, want member_left", cmd.Type)
+	}
+}
+
+// --- Queue / playlist room tests ---
+
+func TestHub_CreateRoomFromPlaylist_OK(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+	tracks := []string{"t1", "t2", "t3"}
+
+	room, err := h.CreateRoomFromPlaylist(ctx, "host-1", "pl-1", "My Playlist", tracks)
+	if err != nil {
+		t.Fatalf("CreateRoomFromPlaylist: %v", err)
+	}
+	if room.MediaType != "music" {
+		t.Errorf("MediaType = %q, want music", room.MediaType)
+	}
+	if string(room.MediaID) != "t1" {
+		t.Errorf("MediaID = %q, want t1", room.MediaID)
+	}
+	if room.PlaylistID == nil || *room.PlaylistID != "pl-1" {
+		t.Errorf("PlaylistID = %v, want pl-1", room.PlaylistID)
+	}
+	if len(room.Queue) != 3 {
+		t.Errorf("Queue len = %d, want 3", len(room.Queue))
+	}
+	if room.TrackIndex != 0 {
+		t.Errorf("TrackIndex = %d, want 0", room.TrackIndex)
+	}
+}
+
+func TestHub_CreateRoomFromPlaylist_Empty(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	_, err := h.CreateRoomFromPlaylist(context.Background(), "host-1", "pl-1", "X", nil)
+	if err == nil {
+		t.Error("expected error for empty playlist")
+	}
+}
+
+func TestHub_HandleNext_AdvancesQueue(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+	room, err := h.CreateRoomFromPlaylist(ctx, "host-1", "pl-1", "X", []string{"t1", "t2", "t3"})
+	if err != nil {
+		t.Fatalf("CreateRoomFromPlaylist: %v", err)
+	}
+	cmd, err := h.HandleCommand(ctx, room.ID, "host-1", "host", syncplay.SyncCommand{Type: "next"})
+	if err != nil {
+		t.Fatalf("HandleCommand next: %v", err)
+	}
+	if cmd.TrackIndex != 1 {
+		t.Errorf("TrackIndex = %d, want 1", cmd.TrackIndex)
+	}
+	if cmd.MediaID != "t2" {
+		t.Errorf("MediaID = %q, want t2", cmd.MediaID)
+	}
+	got, _ := h.GetRoom(ctx, room.ID)
+	if got.TrackIndex != 1 || string(got.MediaID) != "t2" {
+		t.Errorf("room state mismatch: idx=%d media=%s", got.TrackIndex, got.MediaID)
+	}
+}
+
+func TestHub_HandleNext_AtEndIsNoop(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+	room, _ := h.CreateRoomFromPlaylist(ctx, "host-1", "pl-1", "X", []string{"t1"})
+	_, _ = h.HandleCommand(ctx, room.ID, "host-1", "host", syncplay.SyncCommand{Type: "next"})
+	got, _ := h.GetRoom(ctx, room.ID)
+	if got.TrackIndex != 0 {
+		t.Errorf("TrackIndex = %d, want 0 (no advance past end)", got.TrackIndex)
+	}
+}
+
+func TestHub_HandlePrev_GoesBack(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+	room, _ := h.CreateRoomFromPlaylist(ctx, "host-1", "pl-1", "X", []string{"t1", "t2"})
+	_, _ = h.HandleCommand(ctx, room.ID, "host-1", "host", syncplay.SyncCommand{Type: "next"})
+	_, _ = h.HandleCommand(ctx, room.ID, "host-1", "host", syncplay.SyncCommand{Type: "prev"})
+	got, _ := h.GetRoom(ctx, room.ID)
+	if got.TrackIndex != 0 {
+		t.Errorf("TrackIndex = %d, want 0", got.TrackIndex)
+	}
+}
+
+func TestHub_HandleSetIndex_OK(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+	room, _ := h.CreateRoomFromPlaylist(ctx, "host-1", "pl-1", "X", []string{"t1", "t2", "t3"})
+	_, _ = h.HandleCommand(ctx, room.ID, "host-1", "host", syncplay.SyncCommand{Type: "setIndex", TrackIndex: 2})
+	got, _ := h.GetRoom(ctx, room.ID)
+	if got.TrackIndex != 2 || string(got.MediaID) != "t3" {
+		t.Errorf("idx=%d media=%s, want 2/t3", got.TrackIndex, got.MediaID)
+	}
+}
+
+func TestHub_HandleSetIndex_OutOfRange(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+	room, _ := h.CreateRoomFromPlaylist(ctx, "host-1", "pl-1", "X", []string{"t1", "t2"})
+	_, _ = h.HandleCommand(ctx, room.ID, "host-1", "host", syncplay.SyncCommand{Type: "setIndex", TrackIndex: 99})
+	got, _ := h.GetRoom(ctx, room.ID)
+	if got.TrackIndex != 0 {
+		t.Errorf("TrackIndex = %d, want 0 (oor noop)", got.TrackIndex)
+	}
+}
+
+func TestHub_HandleNext_NonHostIgnored(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+	room, _ := h.CreateRoomFromPlaylist(ctx, "host-1", "pl-1", "X", []string{"t1", "t2"})
+	_, _ = h.HandleCommand(ctx, room.ID, "guest-1", "guest", syncplay.SyncCommand{Type: "next"})
+	got, _ := h.GetRoom(ctx, room.ID)
+	if got.TrackIndex != 0 {
+		t.Errorf("TrackIndex = %d, want 0 (guest cannot advance)", got.TrackIndex)
 	}
 }

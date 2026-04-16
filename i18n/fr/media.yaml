@@ -298,6 +298,8 @@ syncplay:
   followingHost: "Vous êtes synchronisé avec l'hôte."
   noTracks: Aucune piste trouvée
   notMusicRoom: "Cette salle n'est pas une salle musicale."
+  orPlaylist: "Ou choisir une playlist"
+  queue: "File d'attente"
 playlist:
   name: Nom
   description: Description

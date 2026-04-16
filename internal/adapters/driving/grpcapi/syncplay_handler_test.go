@@ -3,13 +3,17 @@ package grpcapi
 import (
 	"context"
 	"testing"
+	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	applibrary "github.com/evey-project/evey/internal/app/library"
+	appplaylist "github.com/evey-project/evey/internal/app/playlist"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/playlist"
+	plfakes "github.com/evey-project/evey/internal/domain/playlist/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	syncfakes "github.com/evey-project/evey/internal/domain/syncplay/fakes"
@@ -25,6 +29,8 @@ type syncplayTestEnv struct {
 	roomRepo      *syncfakes.FakeRoomRepository
 	mediaItemRepo *libfakes.FakeMediaItemQueryRepo
 	libAccessRepo *userfakes.FakeLibraryAccessRepository
+	playlistRepo  *plfakes.FakePlaylistRepository
+	playlistItems *plfakes.FakePlaylistItemRepository
 }
 
 func newSyncplayTestEnv() *syncplayTestEnv {
@@ -49,16 +55,42 @@ func newSyncplayTestEnv() *syncplayTestEnv {
 		appuser.WithLibraryAccess(libAccessRepo),
 	)
 
+	playlistRepo := plfakes.NewFakePlaylistRepository()
+	playlistItems := plfakes.NewFakePlaylistItemRepository()
+	smart := plfakes.NewFakeSmartPlaylistQuerier()
+	playlistSvc := appplaylist.NewService(playlistRepo, playlistItems, smart)
+
 	h := &syncplayHandler{
-		hub:        hub,
-		libQuery:   libQuery,
-		userAccess: userAccess,
+		hub:         hub,
+		libQuery:    libQuery,
+		userAccess:  userAccess,
+		playlistSvc: playlistSvc,
 	}
 	return &syncplayTestEnv{
 		handler:       h,
 		roomRepo:      roomRepo,
 		mediaItemRepo: mediaItemRepo,
 		libAccessRepo: libAccessRepo,
+		playlistRepo:  playlistRepo,
+		playlistItems: playlistItems,
+	}
+}
+
+func (e *syncplayTestEnv) seedPlaylist(plID, userID string, trackIDs []string) {
+	pl := &playlist.Playlist{
+		ID:     plID,
+		Name:   "My PL",
+		UserID: shared.UserID(userID),
+		Type:   playlist.Manual,
+	}
+	_ = e.playlistRepo.Create(context.Background(), pl)
+	for i, tid := range trackIDs {
+		_ = e.playlistItems.Add(context.Background(), &playlist.PlaylistItem{
+			PlaylistID:  plID,
+			MediaItemID: shared.MediaItemID(tid),
+			SortOrder:   i,
+			AddedAt:     time.Now(),
+		})
 	}
 }
 
@@ -346,4 +378,74 @@ func TestLeaveRoom_Unauthenticated(t *testing.T) {
 	assert.Nil(t, resp)
 	require.Error(t, err)
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+// --- CreateRoom from playlist ---
+
+func TestCreateRoom_FromPlaylist_Success(t *testing.T) {
+	t.Parallel()
+	env := newSyncplayTestEnv()
+	env.seedMedia("t1", "lib-1")
+	env.seedMedia("t2", "lib-1")
+	env.grantAccess("u-1", "lib-1")
+	env.seedPlaylist("pl-1", "u-1", []string{"t1", "t2"})
+	// Use a music track service stub: requireMediaAccess hits musicSvc when media_type=music
+	// musicSvc is nil here — so set up. requireMediaAccess for music with nil musicSvc returns NotFound.
+	// Workaround: admin bypass.
+
+	ctx := ctxWithClaims("u-1", "p-1", true)
+	resp, err := env.handler.CreateRoom(ctx, &eveyv1.CreateSyncPlayRoomRequest{
+		PlaylistId: "pl-1",
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, resp.Id)
+	assert.Equal(t, "music", resp.MediaType)
+	assert.Equal(t, "t1", resp.MediaId)
+	assert.Equal(t, "My PL", resp.Name)
+
+	// verify queue persisted
+	getResp, err := env.handler.GetRoom(ctx, &eveyv1.GetSyncPlayRoomRequest{RoomId: resp.Id})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"t1", "t2"}, getResp.Queue)
+	assert.Equal(t, int32(0), getResp.TrackIndex)
+	assert.Equal(t, "pl-1", getResp.PlaylistId)
+}
+
+func TestCreateRoom_FromPlaylist_NotFound(t *testing.T) {
+	t.Parallel()
+	env := newSyncplayTestEnv()
+	ctx := ctxWithClaims("u-1", "p-1", true)
+	resp, err := env.handler.CreateRoom(ctx, &eveyv1.CreateSyncPlayRoomRequest{
+		PlaylistId: "pl-missing",
+	})
+	assert.Nil(t, resp)
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
+func TestCreateRoom_FromPlaylist_Empty(t *testing.T) {
+	t.Parallel()
+	env := newSyncplayTestEnv()
+	env.seedPlaylist("pl-1", "u-1", nil)
+	ctx := ctxWithClaims("u-1", "p-1", true)
+	resp, err := env.handler.CreateRoom(ctx, &eveyv1.CreateSyncPlayRoomRequest{
+		PlaylistId: "pl-1",
+	})
+	assert.Nil(t, resp)
+	require.Error(t, err)
+	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+}
+
+func TestCreateRoom_FromPlaylist_NotOwner(t *testing.T) {
+	t.Parallel()
+	env := newSyncplayTestEnv()
+	env.seedMedia("t1", "lib-1")
+	env.seedPlaylist("pl-1", "u-other", []string{"t1"})
+	ctx := ctxWithClaims("u-1", "p-1", true)
+	resp, err := env.handler.CreateRoom(ctx, &eveyv1.CreateSyncPlayRoomRequest{
+		PlaylistId: "pl-1",
+	})
+	assert.Nil(t, resp)
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
 }

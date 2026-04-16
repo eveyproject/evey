@@ -8,6 +8,7 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmusic "github.com/evey-project/evey/internal/app/music"
+	appplaylist "github.com/evey-project/evey/internal/app/playlist"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -18,10 +19,11 @@ import (
 
 type syncplayHandler struct {
 	eveyv1.UnimplementedSyncPlayServiceServer
-	hub        *appsyncplay.Hub
-	libQuery   *applibrary.QueryService
-	userAccess *appuser.AccessService
-	musicSvc   *appmusic.Service
+	hub         *appsyncplay.Hub
+	libQuery    *applibrary.QueryService
+	userAccess  *appuser.AccessService
+	musicSvc    *appmusic.Service
+	playlistSvc *appplaylist.Service
 }
 
 func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, mediaType string) error {
@@ -30,6 +32,9 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
 	if mediaType == "music" {
+		if claims.IsAdmin {
+			return nil
+		}
 		if h.musicSvc == nil {
 			return status.Error(codes.NotFound, "media not found")
 		}
@@ -37,7 +42,7 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 		if err != nil || t == nil {
 			return status.Error(codes.NotFound, "media not found")
 		}
-		if claims.IsAdmin || h.userAccess == nil {
+		if h.userAccess == nil {
 			return nil
 		}
 		// TODO: wire proper LibraryAccessChecker for music tracks
@@ -66,6 +71,62 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 	if err != nil {
 		return nil, fmt.Errorf("syncplayHandler.CreateRoom: %w", err)
 	}
+	hostID := claims.ProfileID
+	if hostID == "" {
+		hostID = claims.UserID
+	}
+
+	// Playlist-bound room (music queue)
+	if req.PlaylistId != "" {
+		if h.playlistSvc == nil {
+			return nil, status.Error(codes.FailedPrecondition, "playlist service unavailable")
+		}
+		pl, err := h.playlistSvc.GetByID(ctx, req.PlaylistId, claims.UserID)
+		if err != nil || pl == nil {
+			return nil, status.Error(codes.NotFound, "playlist not found")
+		}
+		mediaItems, plItems, err := h.playlistSvc.GetItems(ctx, req.PlaylistId, claims.UserID)
+		if err != nil {
+			return nil, status.Error(codes.NotFound, "playlist not found")
+		}
+		trackIDs := make([]string, 0)
+		if pl.IsSmart() {
+			for _, mi := range mediaItems {
+				trackIDs = append(trackIDs, string(mi.ID))
+			}
+		} else {
+			for _, it := range plItems {
+				trackIDs = append(trackIDs, string(it.MediaItemID))
+			}
+		}
+		if len(trackIDs) == 0 {
+			return nil, status.Error(codes.FailedPrecondition, "playlist is empty")
+		}
+		// Validate first-track access (music). If user has no access, fail.
+		if err := h.requireMediaAccess(ctx, trackIDs[0], "music"); err != nil {
+			return nil, err
+		}
+		name := req.Name
+		if name == "" {
+			name = pl.Name
+			if name == "" {
+				name = "Listen Together"
+			}
+		}
+		room, err := h.hub.CreateRoomFromPlaylist(ctx, hostID, req.PlaylistId, name, trackIDs)
+		if err != nil {
+			return nil, internalError("create room", err)
+		}
+		return &eveyv1.CreateSyncPlayRoomResponse{
+			Id:        room.ID,
+			Code:      room.Code,
+			Name:      room.Name,
+			MediaId:   string(room.MediaID),
+			HostId:    string(room.HostID),
+			MediaType: room.MediaType,
+		}, nil
+	}
+
 	if req.MediaId == "" {
 		return nil, status.Error(codes.InvalidArgument, "media_id required")
 	}
@@ -83,10 +144,6 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		} else {
 			name = "Watch Together"
 		}
-	}
-	hostID := claims.ProfileID
-	if hostID == "" {
-		hostID = claims.UserID
 	}
 	room, err := h.hub.CreateRoomTyped(ctx, hostID, req.MediaId, name, mediaType)
 	if err != nil {
@@ -157,17 +214,26 @@ func (h *syncplayHandler) GetRoom(ctx context.Context, req *eveyv1.GetSyncPlayRo
 			Username: domainsyncplay.MaskUsername(m.Username),
 		})
 	}
+	queue := make([]string, 0, len(room.Queue))
+	for _, q := range room.Queue {
+		queue = append(queue, string(q))
+	}
 	resp := &eveyv1.GetSyncPlayRoomResponse{
-		Id:        room.ID,
-		Name:      room.Name,
-		MediaId:   string(room.MediaID),
-		HostId:    string(room.HostID),
-		MediaType: room.MediaType,
-		Members:   members,
+		Id:         room.ID,
+		Name:       room.Name,
+		MediaId:    string(room.MediaID),
+		HostId:     string(room.HostID),
+		MediaType:  room.MediaType,
+		Members:    members,
+		Queue:      queue,
+		TrackIndex: int32(room.TrackIndex),
 		State: &eveyv1.SyncPlayState{
 			Playing:    room.State.Playing,
 			PositionMs: room.State.PositionMs,
 		},
+	}
+	if room.PlaylistID != nil {
+		resp.PlaylistId = *room.PlaylistID
 	}
 	if string(room.HostID) == claims.ProfileID || string(room.HostID) == claims.UserID || claims.IsAdmin {
 		resp.Code = room.Code

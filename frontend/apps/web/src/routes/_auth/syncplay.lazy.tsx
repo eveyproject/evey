@@ -7,10 +7,11 @@ import {
   syncPlayServiceGetRoom,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
+import { usePlaylistList } from "@/features/playlist/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Play, Pause, Music2, Users, LogOut } from "lucide-react";
+import { Play, Pause, Music2, Users, LogOut, SkipForward, SkipBack, ListMusic } from "lucide-react";
 import { useSyncPlay } from "@/features/syncplay/useSyncPlay";
 
 export const Route = createLazyFileRoute("/_auth/syncplay")({
@@ -58,7 +59,9 @@ function SyncPlayPage() {
   const libraryId = useMusicLibraryId();
   const [search, setSearch] = useState("");
   const { data: tracks } = useTracksList(libraryId, search);
+  const { data: playlists } = usePlaylistList();
   const [selectedTrackId, setSelectedTrackId] = useState<string>("");
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>("");
   const [code, setCode] = useState("");
   const [currentTrack, setCurrentTrack] = useState<TrackLite | null>(null);
   const [joining, setJoining] = useState(false);
@@ -92,7 +95,21 @@ function SyncPlayPage() {
       audio.currentTime = posMs / 1000;
       setTimeout(() => (programmaticRef.current = false), 100);
     },
+    onTrackChange: (_idx, mediaId) => {
+      // Rotate to new track: try to find metadata in already-fetched tracks list
+      const found = (tracks ?? []).find((tr) => tr.id === mediaId);
+      setCurrentTrack(found ?? { id: mediaId, title: "", artist: "", duration: 0, coverArtUrl: "" });
+    },
   });
+
+  // Keep currentTrack in sync with the queue's current track (useful after createRoomFromPlaylist or join)
+  useEffect(() => {
+    const queueId = state.queue[state.trackIndex];
+    if (!queueId) return;
+    if (currentTrack?.id === queueId) return;
+    const found = (tracks ?? []).find((tr) => tr.id === queueId);
+    setCurrentTrack(found ?? { id: queueId, title: "", artist: "", duration: 0, coverArtUrl: "" });
+  }, [state.queue, state.trackIndex, tracks, currentTrack?.id]);
 
   const inRoom = !!state.roomId;
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
@@ -100,13 +117,21 @@ function SyncPlayPage() {
   const artUrl = currentTrack ? `/api/v1/music/tracks/${currentTrack.id}/art${tokenParam}` : "";
 
   async function handleCreate() {
-    if (!selectedTrackId) return;
+    if (!selectedTrackId && !selectedPlaylistId) return;
     setCreating(true);
     setError(null);
     try {
-      const track = (tracks ?? []).find((x) => x.id === selectedTrackId) ?? null;
-      setCurrentTrack(track);
-      await controls.createRoom(selectedTrackId, "music");
+      if (selectedPlaylistId) {
+        const pl = (playlists ?? []).find((p) => p.id === selectedPlaylistId);
+        const id = await controls.createRoomFromPlaylist(selectedPlaylistId, pl?.name);
+        // After creation, useSyncPlay state will hold queue/trackIndex; set a stub track
+        // (metadata enrichment happens when tracks list contains the id, or remains stub)
+        void id;
+      } else {
+        const track = (tracks ?? []).find((x) => x.id === selectedTrackId) ?? null;
+        setCurrentTrack(track);
+        await controls.createRoom(selectedTrackId, "music");
+      }
     } catch (e) {
       setError((e as Error).message || "error");
       setCurrentTrack(null);
@@ -219,6 +244,54 @@ function SyncPlayPage() {
             <p className="text-xs text-[var(--text-muted)]">{t("media.syncplay.followingHost")}</p>
           )}
 
+          {state.queue.length > 0 && state.isHost && (
+            <div className="flex items-center justify-center gap-2">
+              <Button
+                variant="secondary"
+                disabled={state.trackIndex <= 0}
+                onClick={() => controls.sendPrev()}
+              >
+                <SkipBack size={16} />
+              </Button>
+              <span className="text-xs text-[var(--text-muted)]">
+                {state.trackIndex + 1} / {state.queue.length}
+              </span>
+              <Button
+                variant="secondary"
+                disabled={state.trackIndex >= state.queue.length - 1}
+                onClick={() => controls.sendNext()}
+              >
+                <SkipForward size={16} />
+              </Button>
+            </div>
+          )}
+
+          {state.queue.length > 0 && (
+            <div className="flex flex-col gap-1 border border-[var(--border)] rounded-[var(--radius-sm)] p-2 max-h-48 overflow-y-auto">
+              <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] mb-1">
+                <ListMusic size={14} />
+                <span>{t("media.syncplay.queue")}</span>
+              </div>
+              {state.queue.map((trackId, idx) => (
+                <button
+                  key={`${trackId}-${idx}`}
+                  type="button"
+                  disabled={!state.isHost}
+                  onClick={() => state.isHost && controls.sendSetIndex(idx)}
+                  className={`flex items-center gap-2 text-left px-2 py-1 rounded-[var(--radius-sm)] text-sm ${
+                    idx === state.trackIndex
+                      ? "bg-[var(--surface-raised)] text-[var(--accent)] font-semibold"
+                      : "text-[var(--text)] " + (state.isHost ? "hover:bg-[var(--surface-raised)]" : "opacity-70")
+                  }`}
+                >
+                  <span className="text-xs text-[var(--text-muted)] w-6 text-right">{idx + 1}</span>
+                  <Music2 size={12} />
+                  <span className="flex-1 truncate font-mono text-xs">{trackId}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
             <Users size={16} />
             <span>{state.members.length + 1} {t("media.syncplay.members")}</span>
@@ -251,13 +324,13 @@ function SyncPlayPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("common.search")}
           />
-          <div className="max-h-64 overflow-y-auto flex flex-col gap-1 border border-[var(--border)] rounded-[var(--radius-sm)] p-1">
+          <div className="max-h-48 overflow-y-auto flex flex-col gap-1 border border-[var(--border)] rounded-[var(--radius-sm)] p-1">
             {(tracks ?? []).map((tr) => (
               <button
                 key={tr.id}
                 type="button"
-                onClick={() => setSelectedTrackId(tr.id)}
-                className={`flex items-center gap-2 text-left px-2 py-1 rounded-[var(--radius-sm)] ${selectedTrackId === tr.id ? "bg-[var(--surface-raised)] text-[var(--accent)]" : "hover:bg-[var(--surface-raised)] text-[var(--text)]"}`}
+                onClick={() => { setSelectedTrackId(tr.id); setSelectedPlaylistId(""); }}
+                className={`flex items-center gap-2 text-left px-2 py-1 rounded-[var(--radius-sm)] ${selectedTrackId === tr.id && !selectedPlaylistId ? "bg-[var(--surface-raised)] text-[var(--accent)]" : "hover:bg-[var(--surface-raised)] text-[var(--text)]"}`}
               >
                 <Music2 size={14} />
                 <span className="flex-1 truncate text-sm">{tr.title}</span>
@@ -268,7 +341,30 @@ function SyncPlayPage() {
               <div className="text-xs text-[var(--text-muted)] p-2">{t("media.syncplay.noTracks")}</div>
             )}
           </div>
-          <Button variant="primary" loading={creating} disabled={!selectedTrackId} onClick={() => void handleCreate()}>
+
+          {(playlists ?? []).length > 0 && (
+            <>
+              <div className="text-xs uppercase tracking-wide text-[var(--text-muted)] mt-2 flex items-center gap-2">
+                <ListMusic size={14} />
+                {t("media.syncplay.orPlaylist")}
+              </div>
+              <div className="max-h-40 overflow-y-auto flex flex-col gap-1 border border-[var(--border)] rounded-[var(--radius-sm)] p-1">
+                {(playlists ?? []).map((pl) => (
+                  <button
+                    key={pl.id}
+                    type="button"
+                    onClick={() => { setSelectedPlaylistId(pl.id); setSelectedTrackId(""); }}
+                    className={`flex items-center gap-2 text-left px-2 py-1 rounded-[var(--radius-sm)] ${selectedPlaylistId === pl.id ? "bg-[var(--surface-raised)] text-[var(--accent)]" : "hover:bg-[var(--surface-raised)] text-[var(--text)]"}`}
+                  >
+                    <ListMusic size={14} />
+                    <span className="flex-1 truncate text-sm">{pl.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          <Button variant="primary" loading={creating} disabled={!selectedTrackId && !selectedPlaylistId} onClick={() => void handleCreate()}>
             <Play size={16} className="mr-2" />
             {t("media.syncplay.createRoom")}
           </Button>

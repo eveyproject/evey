@@ -28,14 +28,22 @@ func (r *SyncPlayRoomRepo) Create(ctx context.Context, room *syncplay.Room) erro
 	if err != nil {
 		return err
 	}
+	queueJSON, err := json.Marshal(room.Queue)
+	if err != nil {
+		return err
+	}
 	mediaType := room.MediaType
 	if mediaType == "" {
 		mediaType = "video"
 	}
+	var playlistID sql.NullString
+	if room.PlaylistID != nil {
+		playlistID = sql.NullString{String: *room.PlaylistID, Valid: true}
+	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO syncplay_rooms (id, code, name, host_id, media_id, members, state, created_at, media_type)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-		room.ID, room.Code, room.Name, room.HostID, room.MediaID, membersJSON, stateJSON, room.CreatedAt, mediaType,
+		`INSERT INTO syncplay_rooms (id, code, name, host_id, media_id, members, state, created_at, media_type, playlist_id, queue, track_index)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		room.ID, room.Code, room.Name, room.HostID, room.MediaID, membersJSON, stateJSON, room.CreatedAt, mediaType, playlistID, queueJSON, room.TrackIndex,
 	)
 	return err
 }
@@ -43,23 +51,25 @@ func (r *SyncPlayRoomRepo) Create(ctx context.Context, room *syncplay.Room) erro
 func (r *SyncPlayRoomRepo) Get(ctx context.Context, id string) (*syncplay.Room, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at, media_type
+	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at, media_type, playlist_id, queue, track_index
 		 FROM syncplay_rooms WHERE id = $1`, id)
 }
 
 func (r *SyncPlayRoomRepo) GetByCode(ctx context.Context, code string) (*syncplay.Room, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at, media_type
+	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at, media_type, playlist_id, queue, track_index
 		 FROM syncplay_rooms WHERE code = $1`, code)
 }
 
 func (r *SyncPlayRoomRepo) scanRoom(ctx context.Context, query string, arg string) (*syncplay.Room, error) {
 	var room syncplay.Room
-	var membersJSON, stateJSON []byte
+	var membersJSON, stateJSON, queueJSON []byte
+	var playlistID sql.NullString
 	err := r.db.QueryRowContext(ctx, query, arg).Scan(
 		&room.ID, &room.Code, &room.Name, &room.HostID, &room.MediaID,
 		&membersJSON, &stateJSON, &room.CreatedAt, &room.MediaType,
+		&playlistID, &queueJSON, &room.TrackIndex,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -72,6 +82,15 @@ func (r *SyncPlayRoomRepo) scanRoom(ctx context.Context, query string, arg strin
 	}
 	if err := json.Unmarshal(stateJSON, &room.State); err != nil {
 		slog.Warn("syncplay_rooms: unmarshal state", slog.Any("err", err))
+	}
+	if len(queueJSON) > 0 {
+		if err := json.Unmarshal(queueJSON, &room.Queue); err != nil {
+			slog.Warn("syncplay_rooms: unmarshal queue", slog.Any("err", err))
+		}
+	}
+	if playlistID.Valid {
+		v := playlistID.String
+		room.PlaylistID = &v
 	}
 	return &room, nil
 }
@@ -140,6 +159,16 @@ func (r *SyncPlayRoomRepo) UpdateState(ctx context.Context, roomID string, state
 	_, err = r.db.ExecContext(ctx,
 		`UPDATE syncplay_rooms SET state = $1 WHERE id = $2`,
 		stateJSON, roomID,
+	)
+	return err
+}
+
+func (r *SyncPlayRoomRepo) UpdateTrackIndex(ctx context.Context, roomID string, idx int, mediaID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE syncplay_rooms SET track_index = $1, media_id = $2 WHERE id = $3`,
+		idx, mediaID, roomID,
 	)
 	return err
 }

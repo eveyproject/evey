@@ -105,6 +105,21 @@ func (r *FakeRoomRepository) UpdateState(_ context.Context, roomID string, state
 	return nil
 }
 
+func (r *FakeRoomRepository) UpdateTrackIndex(_ context.Context, roomID string, idx int, mediaID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	room, ok := r.items[roomID]
+	if !ok {
+		return ErrNotFound
+	}
+	room.TrackIndex = idx
+	room.MediaID = shared.MediaItemID(mediaID)
+	return nil
+}
+
 func (r *FakeRoomRepository) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err

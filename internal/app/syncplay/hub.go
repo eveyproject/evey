@@ -59,6 +59,41 @@ func (h *Hub) CreateRoomTyped(ctx context.Context, hostID, mediaID, name, mediaT
 	return room, nil
 }
 
+// CreateRoomFromPlaylist creates a music room with a queue of track IDs from a playlist.
+// The first track becomes the current MediaID; track_index starts at 0.
+// trackIDs must be non-empty.
+func (h *Hub) CreateRoomFromPlaylist(ctx context.Context, hostID, playlistID, name string, trackIDs []string) (*syncplay.Room, error) {
+	if len(trackIDs) == 0 {
+		return nil, fmt.Errorf("playlist has no tracks")
+	}
+	code, err := syncplay.GenerateCode()
+	if err != nil {
+		return nil, fmt.Errorf("generate room code: %w", err)
+	}
+	queue := make([]shared.MediaItemID, 0, len(trackIDs))
+	for _, t := range trackIDs {
+		queue = append(queue, shared.MediaItemID(t))
+	}
+	plID := playlistID
+	room := &syncplay.Room{
+		ID:         id.New("room-"),
+		Code:       code,
+		Name:       name,
+		HostID:     shared.UserID(hostID),
+		MediaID:    shared.MediaItemID(trackIDs[0]),
+		MediaType:  "music",
+		PlaylistID: &plID,
+		Queue:      queue,
+		TrackIndex: 0,
+		CreatedAt:  time.Now().UTC(),
+		State:      syncplay.PlaybackState{UpdatedAt: time.Now().UTC()},
+	}
+	if err := h.repo.Create(ctx, room); err != nil {
+		return nil, fmt.Errorf("create room: %w", err)
+	}
+	return room, nil
+}
+
 func (h *Hub) GetRoom(ctx context.Context, roomID string) (*syncplay.Room, error) {
 	return h.repo.Get(ctx, roomID)
 }
@@ -184,6 +219,47 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 		if err := h.repo.UpdateState(ctx, roomID, state); err != nil {
 			return cmd, fmt.Errorf("update room state: %w", err)
 		}
+		h.broadcast(roomID, userID, cmd)
+	case "next", "prev", "setIndex":
+		room, err := h.repo.Get(ctx, roomID)
+		if err != nil || room == nil {
+			return cmd, fmt.Errorf("get room: %w", err)
+		}
+		if len(room.Queue) == 0 {
+			return cmd, nil
+		}
+		// host-only check
+		if string(room.HostID) != userID {
+			return cmd, nil
+		}
+		idx := room.TrackIndex
+		switch cmd.Type {
+		case "next":
+			idx++
+		case "prev":
+			idx--
+		case "setIndex":
+			idx = cmd.TrackIndex
+		}
+		if idx < 0 || idx >= len(room.Queue) {
+			return cmd, nil
+		}
+		mediaID := string(room.Queue[idx])
+		if err := h.repo.UpdateTrackIndex(ctx, roomID, idx, mediaID); err != nil {
+			return cmd, fmt.Errorf("update track index: %w", err)
+		}
+		// reset playback state for new track
+		state := syncplay.PlaybackState{
+			Playing:    true,
+			PositionMs: 0,
+			UpdatedAt:  time.Now().UTC(),
+			UpdatedBy:  shared.UserID(userID),
+		}
+		if err := h.repo.UpdateState(ctx, roomID, state); err != nil {
+			return cmd, fmt.Errorf("update state: %w", err)
+		}
+		cmd.TrackIndex = idx
+		cmd.MediaID = mediaID
 		h.broadcast(roomID, userID, cmd)
 	}
 	return cmd, nil

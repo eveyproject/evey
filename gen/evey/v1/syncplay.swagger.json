@@ -223,6 +223,10 @@
         "mediaType": {
           "type": "string",
           "title": "\"video\" (default) or \"music\""
+        },
+        "playlistId": {
+          "type": "string",
+          "title": "optional: bind room to a music playlist (implies media_type=music)"
         }
       }
     },
@@ -278,6 +282,19 @@
           "type": "string"
         },
         "mediaType": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trackIndex": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "playlistId": {
           "type": "string"
         }
       }

@@ -130,6 +130,18 @@ func (r *fakeSyncPlayRepo) UpdateState(_ context.Context, roomID string, state d
 	return nil
 }
 
+func (r *fakeSyncPlayRepo) UpdateTrackIndex(_ context.Context, roomID string, idx int, mediaID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	room, ok := r.rooms[roomID]
+	if !ok {
+		return http.ErrNoCookie
+	}
+	room.TrackIndex = idx
+	room.MediaID = shared.MediaItemID(mediaID)
+	return nil
+}
+
 func (r *fakeSyncPlayRepo) Delete(_ context.Context, id string) error {
 	delete(r.rooms, id)
 	return nil

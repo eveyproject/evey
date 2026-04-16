@@ -298,6 +298,8 @@ syncplay:
   followingHost: "You're synced with the host."
   noTracks: No tracks found
   notMusicRoom: "This room isn't a music room."
+  orPlaylist: "Or pick a playlist"
+  queue: "Queue"
 playlist:
   name: Name
   description: Description

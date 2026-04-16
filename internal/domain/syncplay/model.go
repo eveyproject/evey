@@ -18,15 +18,18 @@ func GenerateCode() (string, error) {
 }
 
 type Room struct {
-	ID        string
-	Code      string
-	Name      string
-	HostID    shared.UserID
-	MediaID   shared.MediaItemID
-	MediaType string // "video" (default) or "music"
-	Members   []Member
-	State     PlaybackState
-	CreatedAt time.Time
+	ID         string
+	Code       string
+	Name       string
+	HostID     shared.UserID
+	MediaID    shared.MediaItemID
+	MediaType  string // "video" (default) or "music"
+	PlaylistID *string
+	Queue      []shared.MediaItemID
+	TrackIndex int
+	Members    []Member
+	State      PlaybackState
+	CreatedAt  time.Time
 }
 
 type Member struct {
@@ -49,6 +52,8 @@ type SyncCommand struct {
 	Username   string `json:"username,omitempty"`
 	RoomID     string `json:"roomId,omitempty"`
 	Playing    bool   `json:"playing,omitempty"`
+	TrackIndex int    `json:"trackIndex,omitempty"`
+	MediaID    string `json:"mediaId,omitempty"`
 }
 
 // MaskUsername returns first rune + "***" to avoid leaking login usernames.
