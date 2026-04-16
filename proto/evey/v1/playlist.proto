@@ -93,6 +93,7 @@ message PlaylistItemProto {
   string title = 5;
   string type = 6;
   int32 year = 7;
+  string media_type = 8;
 }
 
 message ListPlaylistsRequest {
@@ -148,6 +149,7 @@ message AddPlaylistItemRequest {
   string id = 1;
   string media_item_id = 2;
   string profile_id = 3;
+  string media_type = 4;
 }
 
 message AddPlaylistItemResponse {}

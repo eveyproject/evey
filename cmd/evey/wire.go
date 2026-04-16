@@ -378,6 +378,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	libCmdSvc.WithMusicScanner(musicSvc)
 	libCmdSvc.WithPhotoScanner(photoSvc)
 	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist)
+	playlistSvc.WithMusicTrackChecker(musicTrackCheckerAdapter{repo: r.MusicTrack})
 
 	var subtitleSvc *appsubtitle.Service
 	if osAPIKey := resolveAPIKey(ctx, r.ServerCfg, "api.opensubtitles_key", "EVEY_OPENSUBTITLES_API_KEY"); osAPIKey != "" {
@@ -644,4 +645,18 @@ func (a *pluginIDLister) ListIDs(ctx context.Context) ([]string, error) {
 		ids[i] = p.ID
 	}
 	return ids, nil
+}
+
+// musicTrackCheckerAdapter adapts the music TrackRepository to playlist.MusicTrackChecker.
+// Postgres repo returns (nil, nil) when not found; we surface that as ok=false.
+type musicTrackCheckerAdapter struct {
+	repo *postgres.MusicTrackRepository
+}
+
+func (a musicTrackCheckerAdapter) Exists(ctx context.Context, id string) (bool, error) {
+	t, err := a.repo.GetByID(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	return t != nil, nil
 }

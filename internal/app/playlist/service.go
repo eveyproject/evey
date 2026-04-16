@@ -21,6 +21,12 @@ type MediaItemExistsChecker interface {
 	GetByID(ctx context.Context, id string) (*library.MediaItem, error)
 }
 
+// MusicTrackChecker verifies a music track exists.
+// Implementations return (nil, nil) OR (nil, shared.ErrNotFound) when absent.
+type MusicTrackChecker interface {
+	Exists(ctx context.Context, id string) (bool, error)
+}
+
 // Service wraps CommandService + QueryService for backward compatibility.
 type Service struct {
 	cmd   *CommandService
@@ -45,6 +51,11 @@ func (s *Service) WithMediaChecker(checker MediaItemExistsChecker) *Service {
 	return s
 }
 
+func (s *Service) WithMusicTrackChecker(checker MusicTrackChecker) *Service {
+	s.cmd.WithMusicTrackChecker(checker)
+	return s
+}
+
 func (s *Service) Create(ctx context.Context, pl *playlist.Playlist) error {
 	return s.cmd.Create(ctx, pl)
 }
@@ -58,7 +69,11 @@ func (s *Service) Delete(ctx context.Context, id, userID string) error {
 }
 
 func (s *Service) AddItem(ctx context.Context, playlistID, mediaItemID, userID string) error {
-	return s.cmd.AddItem(ctx, playlistID, mediaItemID, userID)
+	return s.cmd.AddItem(ctx, playlistID, mediaItemID, userID, "")
+}
+
+func (s *Service) AddItemWithType(ctx context.Context, playlistID, mediaItemID, userID, mediaType string) error {
+	return s.cmd.AddItem(ctx, playlistID, mediaItemID, userID, mediaType)
 }
 
 func (s *Service) RemoveItem(ctx context.Context, playlistID, mediaItemID, userID string) error {

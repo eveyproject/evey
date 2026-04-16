@@ -14,6 +14,7 @@ type CommandService struct {
 	playlists    playlist.PlaylistRepository
 	items        playlist.PlaylistItemRepository
 	mediaChecker MediaItemExistsChecker
+	musicChecker MusicTrackChecker
 }
 
 func NewCommandService(
@@ -25,6 +26,11 @@ func NewCommandService(
 
 func (s *CommandService) WithMediaChecker(checker MediaItemExistsChecker) *CommandService {
 	s.mediaChecker = checker
+	return s
+}
+
+func (s *CommandService) WithMusicTrackChecker(checker MusicTrackChecker) *CommandService {
+	s.musicChecker = checker
 	return s
 }
 
@@ -81,7 +87,7 @@ func (s *CommandService) Delete(ctx context.Context, id, userID string) error {
 	return s.playlists.Delete(ctx, id)
 }
 
-func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, userID string) error {
+func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, userID, mediaType string) error {
 	pl, err := s.playlists.GetByID(ctx, playlistID)
 	if err != nil {
 		return fmt.Errorf("CommandService.AddItem: %w", err)
@@ -92,13 +98,29 @@ func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, u
 	if pl.IsSmart() {
 		return ErrSmartItems
 	}
-	if s.mediaChecker != nil {
-		_, checkErr := s.mediaChecker.GetByID(ctx, mediaItemID)
-		if errors.Is(checkErr, shared.ErrNotFound) {
-			return ErrMediaItemNotFound
+	if mediaType == "" {
+		mediaType = playlist.MediaTypeVideo
+	}
+	switch mediaType {
+	case playlist.MediaTypeMusic:
+		if s.musicChecker != nil {
+			ok, checkErr := s.musicChecker.Exists(ctx, mediaItemID)
+			if errors.Is(checkErr, shared.ErrNotFound) || (checkErr == nil && !ok) {
+				return ErrMediaItemNotFound
+			}
+			if checkErr != nil {
+				return fmt.Errorf("check music track: %w", checkErr)
+			}
 		}
-		if checkErr != nil {
-			return fmt.Errorf("check media item: %w", checkErr)
+	default:
+		if s.mediaChecker != nil {
+			_, checkErr := s.mediaChecker.GetByID(ctx, mediaItemID)
+			if errors.Is(checkErr, shared.ErrNotFound) {
+				return ErrMediaItemNotFound
+			}
+			if checkErr != nil {
+				return fmt.Errorf("check media item: %w", checkErr)
+			}
 		}
 	}
 	existing, err := s.items.GetByPlaylistID(ctx, playlistID)
@@ -119,6 +141,7 @@ func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, u
 		MediaItemID: shared.MediaItemID(mediaItemID),
 		SortOrder:   nextOrder,
 		AddedAt:     time.Now(),
+		MediaType:   mediaType,
 	})
 }
 

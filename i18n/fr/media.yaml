@@ -255,6 +255,11 @@ music:
   year: Année
   shuffle: Aléatoire
   resetFilters: Réinitialiser les filtres
+  addToPlaylist: Ajouter à la playlist
+  newPlaylist: "Nouvelle playlist\u2026"
+  playlistCreated: Playlist créée
+  addedToPlaylist: Ajouté à la playlist
+  createPlaylistPrompt: Nom de la playlist
 photos:
   title: Photos
   albums: Albums

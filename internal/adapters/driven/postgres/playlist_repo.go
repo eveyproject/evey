@@ -131,10 +131,14 @@ func NewPlaylistItemRepository(db *sql.DB) *PlaylistItemRepository {
 func (r *PlaylistItemRepository) Add(ctx context.Context, item *playlist.PlaylistItem) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	mediaType := item.MediaType
+	if mediaType == "" {
+		mediaType = playlist.MediaTypeVideo
+	}
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO playlist_items (playlist_id, media_item_id, sort_order, added_at)
-		 VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
-		item.PlaylistID, item.MediaItemID, item.SortOrder, item.AddedAt,
+		`INSERT INTO playlist_items (playlist_id, media_item_id, sort_order, added_at, media_type)
+		 VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,
+		item.PlaylistID, item.MediaItemID, item.SortOrder, item.AddedAt, mediaType,
 	)
 	if err != nil {
 		return fmt.Errorf("PlaylistItemRepo.Add: %w", err)
@@ -166,7 +170,7 @@ func (r *PlaylistItemRepository) GetByPlaylistID(ctx context.Context, playlistID
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT playlist_id, media_item_id, sort_order, added_at
+		`SELECT playlist_id, media_item_id, sort_order, added_at, media_type
 		 FROM playlist_items WHERE playlist_id = $1 ORDER BY sort_order`, playlistID,
 	)
 	if err != nil {
@@ -177,7 +181,7 @@ func (r *PlaylistItemRepository) GetByPlaylistID(ctx context.Context, playlistID
 	var result []*playlist.PlaylistItem
 	for rows.Next() {
 		item := &playlist.PlaylistItem{}
-		if err := rows.Scan(&item.PlaylistID, &item.MediaItemID, &item.SortOrder, &item.AddedAt); err != nil {
+		if err := rows.Scan(&item.PlaylistID, &item.MediaItemID, &item.SortOrder, &item.AddedAt, &item.MediaType); err != nil {
 			return nil, fmt.Errorf("PlaylistItemRepo.GetByPlaylistID scan: %w", err)
 		}
 		result = append(result, item)

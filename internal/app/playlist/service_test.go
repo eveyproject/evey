@@ -253,6 +253,70 @@ func TestAddItem_ValidMediaID(t *testing.T) {
 	}
 }
 
+type fakeMusicChecker struct {
+	ids map[string]bool
+	err error
+}
+
+func (f *fakeMusicChecker) Exists(_ context.Context, id string) (bool, error) {
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.ids[id], nil
+}
+
+func TestAddItem_MusicType_ValidTrack(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	svc.WithMusicTrackChecker(&fakeMusicChecker{ids: map[string]bool{"track-1": true}})
+
+	pl := &playlist.Playlist{Name: "Mix", UserID: "u1", Type: playlist.Manual}
+	svc.Create(context.Background(), pl)
+
+	if err := svc.AddItemWithType(context.Background(), pl.ID, "track-1", "u1", "music"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	_, items, err := svc.GetItems(context.Background(), pl.ID, "u1")
+	if err != nil {
+		t.Fatalf("get items: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if items[0].MediaType != "music" {
+		t.Fatalf("MediaType = %q, want music", items[0].MediaType)
+	}
+}
+
+func TestAddItem_MusicType_UnknownTrack(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	svc.WithMusicTrackChecker(&fakeMusicChecker{ids: map[string]bool{}})
+
+	pl := &playlist.Playlist{Name: "Mix", UserID: "u1", Type: playlist.Manual}
+	svc.Create(context.Background(), pl)
+
+	err := svc.AddItemWithType(context.Background(), pl.ID, "missing", "u1", "music")
+	if !errors.Is(err, ErrMediaItemNotFound) {
+		t.Fatalf("expected ErrMediaItemNotFound, got %v", err)
+	}
+}
+
+func TestAddItem_DefaultMediaType_IsVideo(t *testing.T) {
+	svc, _, itemRepo, _ := newTestService()
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	svc.Create(context.Background(), pl)
+
+	if err := svc.AddItem(context.Background(), pl.ID, "m1", "u1"); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	items, _ := itemRepo.GetByPlaylistID(context.Background(), pl.ID)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if items[0].MediaType != "video" {
+		t.Fatalf("MediaType = %q, want video", items[0].MediaType)
+	}
+}
+
 func TestReorderItems(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	pl := &playlist.Playlist{Name: "Ordered", UserID: "user-1", Type: playlist.Manual}

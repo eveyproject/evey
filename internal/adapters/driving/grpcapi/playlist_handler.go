@@ -166,11 +166,16 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 	}
 	resp := &eveyv1.GetPlaylistItemsResponse{}
 	for _, it := range plItems {
+		mt := it.MediaType
+		if mt == "" {
+			mt = playlist.MediaTypeVideo
+		}
 		pi := &eveyv1.PlaylistItemProto{
 			PlaylistId:  it.PlaylistID,
 			MediaItemId: string(it.MediaItemID),
 			SortOrder:   int32(it.SortOrder),
 			AddedAt:     toTimestamppb(it.AddedAt),
+			MediaType:   mt,
 		}
 		if m := mediaByID[string(it.MediaItemID)]; m != nil {
 			pi.Title = m.Title
@@ -206,7 +211,7 @@ func (h *playlistHandler) AddPlaylistItem(ctx context.Context, req *eveyv1.AddPl
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.AddPlaylistItem: %w", err)
 	}
-	if err := h.svc.AddItem(ctx, req.Id, req.MediaItemId, userID); err != nil {
+	if err := h.svc.AddItemWithType(ctx, req.Id, req.MediaItemId, userID, req.MediaType); err != nil {
 		switch {
 		case errors.Is(err, appplaylist.ErrNotOwner):
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")

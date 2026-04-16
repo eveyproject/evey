@@ -28,11 +28,17 @@ type Playlist struct {
 	UpdatedAt   time.Time
 }
 
+const (
+	MediaTypeVideo = "video"
+	MediaTypeMusic = "music"
+)
+
 type PlaylistItem struct {
 	PlaylistID  string
 	MediaItemID shared.MediaItemID
 	SortOrder   int
 	AddedAt     time.Time
+	MediaType   string
 }
 
 type Rule struct {
