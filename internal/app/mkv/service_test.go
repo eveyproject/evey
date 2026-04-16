@@ -131,6 +131,25 @@ func TestExtractAttachment(t *testing.T) {
 	assert.Equal(t, []uint64{1}, writer.ExtractAttachmentCalls)
 }
 
+// ExtractTrack is a convenience wrapper around the writer's extraction.
+func TestExtractTrack(t *testing.T) {
+	t.Parallel()
+	svc, _, writer := newMKVService()
+
+	err := svc.ExtractTrack(context.Background(), "/media/movie.mkv", 2, "/tmp/out/track")
+	require.NoError(t, err)
+	assert.Equal(t, []uint64{2}, writer.ExtractAttachmentCalls)
+}
+
+func TestExtractTrack_Error(t *testing.T) {
+	t.Parallel()
+	svc, _, writer := newMKVService()
+	writer.Err = errors.New("extract failed")
+
+	err := svc.ExtractTrack(context.Background(), "/media/movie.mkv", 2, "/tmp/out/track")
+	require.Error(t, err)
+}
+
 func TestExtractAttachment_Error(t *testing.T) {
 	t.Parallel()
 	svc, _, writer := newMKVService()
