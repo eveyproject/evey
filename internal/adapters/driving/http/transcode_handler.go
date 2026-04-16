@@ -153,10 +153,11 @@ type playbackServe struct {
 	tokens        TokenVerifier
 	libSvc        MediaStreamsGetter
 	libraryAccess LibraryAccessChecker
+	profilePrefs  ProfilePrefsGetter
 }
 
-func playbackInfoHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, libraryAccess LibraryAccessChecker) http.HandlerFunc {
-	h := &playbackServe{tokens: tokenGen, libSvc: libSvc, libraryAccess: libraryAccess}
+func playbackInfoHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, libraryAccess LibraryAccessChecker, profilePrefs ProfilePrefsGetter) http.HandlerFunc {
+	h := &playbackServe{tokens: tokenGen, libSvc: libSvc, libraryAccess: libraryAccess, profilePrefs: profilePrefs}
 	return h.serveHTTP
 }
 
@@ -187,7 +188,12 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		client.MaxBitrate = 0
 	}
 
-	decision := apptranscoding.MakePlaybackDecision(streams, item.ContainerFormat, client, userMaxBitrate)
+	prefs := loadProfilePrefs(r.Context(), h.profilePrefs, claims.ProfileID)
+	decision := apptranscoding.MakePlaybackDecisionWithPrefs(streams, item.ContainerFormat, client, userMaxBitrate, prefs)
+	if apptranscoding.TranscodeDisallowed(decision, prefs) {
+		http.Error(w, `{"message":"transcoding disabled by user preferences"}`, http.StatusUnprocessableEntity)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(decision); err != nil {
@@ -237,6 +243,7 @@ type hlsMasterServe struct {
 	userMaxStreams       UserMaxStreamsGetter
 	audioNormalizeGetter func(ctx context.Context) bool
 	bitrateGetter       UserBitrateGetter
+	profilePrefs        ProfilePrefsGetter
 }
 
 func hlsMasterHandler(deps hlsMasterServe) http.HandlerFunc {
@@ -287,7 +294,12 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Compute playback decision to determine video/audio copy vs transcode
 	client := parseClientCapabilities(r, hdrSupported)
-	decision := apptranscoding.MakePlaybackDecision(mediaStreams, item.ContainerFormat, client, 0)
+	prefs := loadProfilePrefs(r.Context(), h.profilePrefs, claims.ProfileID)
+	decision := apptranscoding.MakePlaybackDecisionWithPrefs(mediaStreams, item.ContainerFormat, client, 0, prefs)
+	if apptranscoding.TranscodeDisallowed(decision, prefs) {
+		http.Error(w, `{"message":"transcoding disabled by user preferences"}`, http.StatusUnprocessableEntity)
+		return
+	}
 	videoDecision := decision.VideoDecision
 	audioDecision := decision.AudioDecision
 
@@ -549,5 +561,19 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := cmd.Wait(); err != nil && ctx.Err() == nil {
 		slog.Warn("ffmpeg transcode", slog.String("media_id", mediaID), slog.Any("err", err))
 	}
+}
+
+// loadProfilePrefs fetches transcoding prefs for the profile and falls back to
+// permissive defaults on any error or when no getter is configured.
+func loadProfilePrefs(ctx context.Context, getter ProfilePrefsGetter, profileID string) apptranscoding.TranscodingPreferences {
+	if getter == nil || profileID == "" {
+		return apptranscoding.DefaultTranscodingPreferences()
+	}
+	raw, err := getter.GetProfilePreferences(ctx, profileID)
+	if err != nil {
+		slog.Debug("load profile prefs failed, using defaults", slog.String("profile_id", profileID), slog.Any("err", err))
+		return apptranscoding.DefaultTranscodingPreferences()
+	}
+	return apptranscoding.ParseTranscodingPreferences(raw)
 }
 

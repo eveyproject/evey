@@ -45,6 +45,27 @@ func NewUserBitrateAdapter(svc interface {
 	return &UserBitrateAdapter{svc: svc}
 }
 
+// ProfilePrefsAdapter adapts a profile-getter service to ProfilePrefsGetter.
+type ProfilePrefsAdapter struct {
+	svc interface {
+		GetProfileByID(ctx context.Context, profileID string) (*domainuser.Profile, error)
+	}
+}
+
+func (a *ProfilePrefsAdapter) GetProfilePreferences(ctx context.Context, profileID string) (map[string]string, error) {
+	p, err := a.svc.GetProfileByID(ctx, profileID)
+	if err != nil {
+		return nil, err
+	}
+	return p.Preferences, nil
+}
+
+func NewProfilePrefsAdapter(svc interface {
+	GetProfileByID(ctx context.Context, profileID string) (*domainuser.Profile, error)
+}) *ProfilePrefsAdapter {
+	return &ProfilePrefsAdapter{svc: svc}
+}
+
 // ServerConfigStore adapts ServerConfigRepository to the remoteAccessPersister interface.
 type ServerConfigStore struct {
 	repo domainshared.ServerConfigRepository

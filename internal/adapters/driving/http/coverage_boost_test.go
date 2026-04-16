@@ -385,6 +385,7 @@ func TestPlaybackInfo_NoAuth_401(t *testing.T) {
 		verifier,
 		&fakeMediaStreamsGetter{},
 		allowAll(),
+		nil,
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
@@ -401,6 +402,7 @@ func TestPlaybackInfo_InvalidToken_401(t *testing.T) {
 		verifier,
 		&fakeMediaStreamsGetter{},
 		allowAll(),
+		nil,
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
@@ -417,6 +419,7 @@ func TestPlaybackInfo_NotFound_404(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{itemErr: errTest},
 		allowAll(),
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
@@ -433,6 +436,7 @@ func TestPlaybackInfo_IDOR_403(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", FilePath: "/a"}},
 		denyAll(),
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
@@ -457,6 +461,7 @@ func TestPlaybackInfo_OK(t *testing.T) {
 			},
 		},
 		allowAll(),
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
@@ -476,6 +481,7 @@ func TestPlaybackInfo_StreamsError_500(t *testing.T) {
 			sErr: errTest,
 		},
 		allowAll(),
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")

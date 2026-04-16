@@ -105,7 +105,24 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		maxBitrateKbps = int(req.MaxBitrate / 1000)
 	}
 
-	decision := apptranscoding.MakePlaybackDecision(streams, item.ContainerFormat, client, maxBitrateKbps)
+	prefs := apptranscoding.DefaultTranscodingPreferences()
+	if h.userQuery != nil {
+		if claims := interceptors.ClaimsFromContext(ctx); claims != nil && claims.ProfileID != "" {
+			if prof, err := h.userQuery.GetProfileByID(ctx, claims.ProfileID); err == nil && prof != nil {
+				prefs = apptranscoding.ParseTranscodingPreferences(prof.Preferences)
+				if prof.MaxBitrateKbps != nil && *prof.MaxBitrateKbps > 0 {
+					if maxBitrateKbps == 0 || *prof.MaxBitrateKbps < maxBitrateKbps {
+						maxBitrateKbps = *prof.MaxBitrateKbps
+					}
+				}
+			}
+		}
+	}
+
+	decision := apptranscoding.MakePlaybackDecisionWithPrefs(streams, item.ContainerFormat, client, maxBitrateKbps, prefs)
+	if apptranscoding.TranscodeDisallowed(decision, prefs) {
+		return nil, status.Errorf(codes.FailedPrecondition, "transcoding disabled by user preferences")
+	}
 	resp.TranscodeReasons = decision.TranscodeReasons
 	resp.VideoDecision = decision.VideoDecision
 	resp.AudioDecision = decision.AudioDecision

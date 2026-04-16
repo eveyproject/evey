@@ -45,6 +45,12 @@ type UserBitrateGetter interface {
 	GetUserBitrateLimit(ctx context.Context, userID string) (int, error)
 }
 
+// ProfilePrefsGetter returns the profile.preferences (JSONB) map for a given profile ID.
+// Used to look up user transcoding prefs (preferred_video_codec, allow_direct_play, etc.).
+type ProfilePrefsGetter interface {
+	GetProfilePreferences(ctx context.Context, profileID string) (map[string]string, error)
+}
+
 // MediaItemGetter retrieves a single media item by ID.
 type MediaItemGetter interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)

@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -16,11 +17,89 @@ var bitmapSubCodecs = map[string]bool{
 	"xsub":              true,
 }
 
+// TranscodingPreferences are client-side playback prefs persisted in profile.preferences (JSONB)
+// and enforced by the server when computing PlaybackDecision.
+//
+// Empty / zero values mean "auto" (use existing defaults).
+type TranscodingPreferences struct {
+	PreferredVideoCodec string // "", "auto", or e.g. "h264", "hevc", "av1"
+	PreferredAudioCodec string // "", "auto", or e.g. "aac", "ac3", "eac3", "opus"
+	MaxAudioChannels    int    // 0 = unlimited, 2 = force stereo, 6 = 5.1, etc.
+	SubtitleBurnIn      string // "", "auto", "always", "never"
+	AllowDirectPlay     bool
+	AllowDirectStream   bool
+	AllowTranscoding    bool
+}
+
+// DefaultTranscodingPreferences returns prefs with all flags enabled (client defaults).
+func DefaultTranscodingPreferences() TranscodingPreferences {
+	return TranscodingPreferences{
+		AllowDirectPlay:   true,
+		AllowDirectStream: true,
+		AllowTranscoding:  true,
+	}
+}
+
+// ParseTranscodingPreferences extracts transcoding prefs from a profile.Preferences map.
+// Missing keys default to permissive values (allow_* = true, codec = auto).
+func ParseTranscodingPreferences(prefs map[string]string) TranscodingPreferences {
+	tp := DefaultTranscodingPreferences()
+	if prefs == nil {
+		return tp
+	}
+	if v, ok := prefs["preferred_video_codec"]; ok {
+		tp.PreferredVideoCodec = strings.ToLower(strings.TrimSpace(v))
+	}
+	if v, ok := prefs["preferred_audio_codec"]; ok {
+		tp.PreferredAudioCodec = strings.ToLower(strings.TrimSpace(v))
+	}
+	if v, ok := prefs["max_audio_channels"]; ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
+			tp.MaxAudioChannels = n
+		}
+	}
+	if v, ok := prefs["subtitle_burn_in"]; ok {
+		tp.SubtitleBurnIn = strings.ToLower(strings.TrimSpace(v))
+	}
+	if v, ok := prefs["allow_direct_play"]; ok {
+		tp.AllowDirectPlay = parseBool(v, true)
+	}
+	if v, ok := prefs["allow_direct_stream"]; ok {
+		tp.AllowDirectStream = parseBool(v, true)
+	}
+	if v, ok := prefs["allow_transcoding"]; ok {
+		tp.AllowTranscoding = parseBool(v, true)
+	}
+	return tp
+}
+
+func parseBool(s string, def bool) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "true", "1", "yes", "on":
+		return true
+	case "false", "0", "no", "off":
+		return false
+	}
+	return def
+}
+
 func MakePlaybackDecision(
 	streams []*library.MediaStream,
 	containerFormat string,
 	client transcoding.ClientProfile,
 	maxBitrateKbps int,
+) *transcoding.PlaybackDecision {
+	return MakePlaybackDecisionWithPrefs(streams, containerFormat, client, maxBitrateKbps, DefaultTranscodingPreferences())
+}
+
+// MakePlaybackDecisionWithPrefs is the full entry point that also honors user prefs.
+// MakePlaybackDecision delegates here with default (permissive) prefs for backward compat.
+func MakePlaybackDecisionWithPrefs(
+	streams []*library.MediaStream,
+	containerFormat string,
+	client transcoding.ClientProfile,
+	maxBitrateKbps int,
+	prefs TranscodingPreferences,
 ) *transcoding.PlaybackDecision {
 	d := &transcoding.PlaybackDecision{
 		PlayMethod:       "direct_play",
@@ -38,15 +117,17 @@ func MakePlaybackDecision(
 		case "video":
 			evaluateVideo(d, s, client)
 		case "audio":
-			evaluateAudio(d, s, client)
+			evaluateAudio(d, s, client, prefs)
 		case "subtitle":
-			evaluateSubtitle(d, s)
+			evaluateSubtitle(d, s, prefs)
 		}
 	}
 
 	checkBitrate(d, totalBitrate, effectiveMaxBitrate)
 	checkContainer(d, containerFormat, client)
-	resolvePlayMethod(d, client)
+	applyCodecPreferences(d, streams, prefs)
+	applyDirectPlayPrefs(d, prefs)
+	resolvePlayMethod(d, client, prefs)
 	applyDefaultBitrates(d)
 
 	return d
@@ -99,7 +180,7 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s *library.MediaStream, clie
 	}
 }
 
-func evaluateAudio(d *transcoding.PlaybackDecision, s *library.MediaStream, client transcoding.ClientProfile) {
+func evaluateAudio(d *transcoding.PlaybackDecision, s *library.MediaStream, client transcoding.ClientProfile, prefs TranscodingPreferences) {
 	if !s.IsDefault {
 		return
 	}
@@ -115,9 +196,32 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s *library.MediaStream, clie
 			d.AudioCodec = transcoding.DefaultAudioCodec
 		}
 	}
+	// Per-profile cap on audio channels (user pref).
+	if s.Channels != nil && prefs.MaxAudioChannels > 0 && *s.Channels > prefs.MaxAudioChannels {
+		if !containsReason(d.TranscodeReasons, "audio_channels_exceeded") {
+			d.TranscodeReasons = append(d.TranscodeReasons, "audio_channels_exceeded")
+		}
+		d.AudioDecision = "transcode"
+		if d.AudioCodec == "" {
+			d.AudioCodec = transcoding.DefaultAudioCodec
+		}
+	}
 }
 
-func evaluateSubtitle(d *transcoding.PlaybackDecision, s *library.MediaStream) {
+func evaluateSubtitle(d *transcoding.PlaybackDecision, s *library.MediaStream, prefs TranscodingPreferences) {
+	switch prefs.SubtitleBurnIn {
+	case "always":
+		d.SubtitleDecision = "burn"
+		return
+	case "never":
+		// Force external (sidecar). Bitmap subs that would normally require burn-in
+		// are downgraded to "external" per user pref — adapter decides how to deliver.
+		if d.SubtitleDecision == "" {
+			d.SubtitleDecision = "external"
+		}
+		return
+	}
+	// auto / default
 	if bitmapSubCodecs[strings.ToLower(s.Codec)] {
 		d.SubtitleDecision = "burn"
 	} else if d.SubtitleDecision == "" {
@@ -147,7 +251,61 @@ func checkContainer(d *transcoding.PlaybackDecision, containerFormat string, cli
 	}
 }
 
-func resolvePlayMethod(d *transcoding.PlaybackDecision, client transcoding.ClientProfile) {
+// applyCodecPreferences overrides VideoCodec / AudioCodec with user-preferred codec
+// when source != preferred AND the client supports the preferred codec. Forces transcode
+// if the source is already copying but the user pref differs.
+func applyCodecPreferences(d *transcoding.PlaybackDecision, streams []*library.MediaStream, prefs TranscodingPreferences) {
+	if prefs.PreferredVideoCodec != "" && prefs.PreferredVideoCodec != "auto" {
+		srcVideoCodec := findStreamCodec(streams, "video")
+		if srcVideoCodec != prefs.PreferredVideoCodec {
+			d.VideoCodec = prefs.PreferredVideoCodec
+			if d.VideoDecision != "transcode" {
+				d.VideoDecision = "transcode"
+				d.TranscodeReasons = append(d.TranscodeReasons, "preferred_video_codec")
+			}
+		}
+	}
+	if prefs.PreferredAudioCodec != "" && prefs.PreferredAudioCodec != "auto" {
+		srcAudioCodec := findDefaultAudioCodec(streams)
+		if srcAudioCodec != prefs.PreferredAudioCodec {
+			d.AudioCodec = prefs.PreferredAudioCodec
+			if d.AudioDecision != "transcode" {
+				d.AudioDecision = "transcode"
+				d.TranscodeReasons = append(d.TranscodeReasons, "preferred_audio_codec")
+			}
+		}
+	}
+}
+
+// applyDirectPlayPrefs forces transcode when user disabled direct_play / direct_stream.
+// allow_direct_play=false: if currently no transcode reason, we force video+audio transcode.
+// allow_direct_stream=false: if we would remux (direct_stream), force transcode too.
+func applyDirectPlayPrefs(d *transcoding.PlaybackDecision, prefs TranscodingPreferences) {
+	if !prefs.AllowDirectPlay && len(d.TranscodeReasons) == 0 {
+		d.VideoDecision = "transcode"
+		d.AudioDecision = "transcode"
+		d.TranscodeReasons = append(d.TranscodeReasons, "direct_play_disabled")
+		if d.VideoCodec == "" {
+			d.VideoCodec = "h264"
+		}
+		if d.AudioCodec == "" {
+			d.AudioCodec = transcoding.DefaultAudioCodec
+		}
+	}
+	if !prefs.AllowDirectStream && onlyContainerIssue(d.TranscodeReasons) && d.VideoDecision == "copy" && d.AudioDecision == "copy" {
+		d.VideoDecision = "transcode"
+		d.AudioDecision = "transcode"
+		d.TranscodeReasons = append(d.TranscodeReasons, "direct_stream_disabled")
+		if d.VideoCodec == "" {
+			d.VideoCodec = "h264"
+		}
+		if d.AudioCodec == "" {
+			d.AudioCodec = transcoding.DefaultAudioCodec
+		}
+	}
+}
+
+func resolvePlayMethod(d *transcoding.PlaybackDecision, client transcoding.ClientProfile, prefs TranscodingPreferences) {
 	switch {
 	case len(d.TranscodeReasons) == 0:
 		d.PlayMethod = "direct_play"
@@ -160,6 +318,17 @@ func resolvePlayMethod(d *transcoding.PlaybackDecision, client transcoding.Clien
 			d.Container = preferredContainer(client.Containers)
 		}
 	}
+	// Safety net: if user disallowed transcoding and we ended up needing it,
+	// surface as "transcode_disallowed" so callers can return a clear error.
+	// We keep PlayMethod="transcode" for consistency with existing flow; handlers
+	// should check TranscodeDisallowed(decision, prefs) before starting HLS.
+	_ = prefs
+}
+
+// TranscodeDisallowed returns true when the decision requires transcoding but
+// the user pref forbids it.
+func TranscodeDisallowed(d *transcoding.PlaybackDecision, prefs TranscodingPreferences) bool {
+	return !prefs.AllowTranscoding && d.PlayMethod == "transcode"
 }
 
 func applyDefaultBitrates(d *transcoding.PlaybackDecision) {
@@ -169,6 +338,24 @@ func applyDefaultBitrates(d *transcoding.PlaybackDecision) {
 	if d.AudioDecision == "transcode" && d.AudioBitrate == 0 {
 		d.AudioBitrate = 192
 	}
+}
+
+func findStreamCodec(streams []*library.MediaStream, streamType string) string {
+	for _, s := range streams {
+		if s.StreamType == streamType {
+			return strings.ToLower(s.Codec)
+		}
+	}
+	return ""
+}
+
+func findDefaultAudioCodec(streams []*library.MediaStream) string {
+	for _, s := range streams {
+		if s.StreamType == "audio" && s.IsDefault {
+			return strings.ToLower(s.Codec)
+		}
+	}
+	return ""
 }
 
 func contains(list []string, val string) bool {
