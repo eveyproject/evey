@@ -179,6 +179,22 @@ func TestShareService_List(t *testing.T) {
 	assert.Len(t, all, 3)
 }
 
+func TestShareService_GetByID(t *testing.T) {
+	repo := &fakeShareLinkRepo{}
+	svc := media.NewShareService(repo)
+	ctx := context.Background()
+
+	link, err := svc.Create(ctx, "media-1", "admin-1", 24*time.Hour, nil)
+	require.NoError(t, err)
+
+	got, err := svc.GetByID(ctx, link.ID)
+	require.NoError(t, err)
+	assert.Equal(t, link.ID, got.ID)
+
+	_, err = svc.GetByID(ctx, "not-exist")
+	require.Error(t, err)
+}
+
 func TestShareService_CleanupExpired(t *testing.T) {
 	repo := &fakeShareLinkRepo{}
 	svc := media.NewShareService(repo)
