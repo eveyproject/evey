@@ -227,6 +227,43 @@ func TestResetItemMetadata_MovieClearsFields(t *testing.T) {
 	assert.Empty(t, persons)
 }
 
+// Series with no FilePath falls back to deriveTitleFromChildren: the top-level
+// directory extracted from the first episode's file path.
+func TestResetItemMetadata_Series_TitleFromChildren(t *testing.T) {
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	cmdSvc := appmetadata.NewCommandService(
+		overrideRepo,
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		sharedfakes.NewFakeEventBus(),
+		nil,
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	// Series: no FilePath
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "s-1", Type: library.Series, Title: "Old Series Title",
+	}))
+	// Season (parent = series)
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "se-1", Type: library.Season, ParentID: "s-1", Title: "S01",
+	}))
+	// Episode with FilePath → extract directory name = top-level dir above season dir
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "ep-1", Type: library.Episode, ParentID: "se-1",
+		FilePath: "/media/Wednesday Addams/S01/E01.mkv",
+	}))
+
+	err := cmdSvc.ResetItemMetadata(ctx, "s-1")
+	require.NoError(t, err)
+
+	reset, err := mediaRepo.GetByID(ctx, shared.MediaItemID("s-1"))
+	require.NoError(t, err)
+	assert.Equal(t, "Wednesday Addams", reset.Title)
+}
+
 func TestResetItemMetadata_SeriesCascadesToChildren(t *testing.T) {
 	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
 	cmdSvc := appmetadata.NewCommandService(
