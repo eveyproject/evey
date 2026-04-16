@@ -173,7 +173,7 @@ function useMusicArtists(libraryID: string | undefined) {
   );
 }
 
-type Tab = "tracks" | "albums" | "artists";
+type Tab = "albums" | "tracks" | "artists";
 
 function NowPlayingBar({
   playing,
@@ -375,7 +375,7 @@ function NowPlayingBar({
 
 function MusicPage() {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<Tab>("tracks");
+  const [tab, setTab] = useState<Tab>("albums");
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
   const [playing, setPlaying] = useState<Track | null>(null);
   const [queue, setQueue] = useState<Track[]>([]);
@@ -451,7 +451,7 @@ function MusicPage() {
       </div>
 
       <div className="flex gap-2 mb-6">
-        {(["tracks", "albums", "artists"] as Tab[]).map((tabKey) => (
+        {(["albums", "tracks", "artists"] as Tab[]).map((tabKey) => (
           <button key={tabKey} className={tabClass(tab === tabKey)} onClick={() => setTab(tabKey)}>
             {t(`media.music.${tabKey}`)}
           </button>

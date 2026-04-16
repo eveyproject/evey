@@ -1,7 +1,7 @@
 import { Film, Monitor, Music, Folder, ChevronRight } from "lucide-react";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useLibraryServiceListLibraries, useLibraryServiceListMediaItems } from "@evey/api";
+import { useLibraryServiceListLibraries, useLibraryServiceListMediaItems, useMusicServiceListTracks, usePhotoServiceListPhotos } from "@evey/api";
 import type { V1Library, V1LibraryType } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -50,8 +50,27 @@ function LibraryCardSkeleton() {
   );
 }
 
-function LibraryItemCount({ libraryId }: { libraryId: string }) {
+function MusicItemCount({ libraryId }: { libraryId: string }) {
   const { t } = useTranslation();
+  const { data } = useMusicServiceListTracks({ libraryId, limit: 1 });
+  const total = data?.total;
+  if (total === undefined) return null;
+  return <span className="text-sm text-[var(--text-muted)]">{t("common.item", { count: total })}</span>;
+}
+
+function PhotoItemCount({ libraryId }: { libraryId: string }) {
+  const { t } = useTranslation();
+  const { data } = usePhotoServiceListPhotos({ libraryId, limit: 1 });
+  const total = data?.total;
+  if (total === undefined) return null;
+  return <span className="text-sm text-[var(--text-muted)]">{t("common.item", { count: total })}</span>;
+}
+
+function LibraryItemCount({ libraryId, libraryType }: { libraryId: string; libraryType?: V1LibraryType }) {
+  const { t } = useTranslation();
+  // Music + photo libraries live in their own tables, not media_items.
+  if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicItemCount libraryId={libraryId} />;
+  if (libraryType === "LIBRARY_TYPE_PHOTOS") return <PhotoItemCount libraryId={libraryId} />;
   const { data } = useLibraryServiceListMediaItems({
     libraryId,
     "pagination.page": 1,
@@ -104,7 +123,7 @@ function LibraryCard({ library }: { library: V1Library }) {
             </h2>
             <Badge variant="info">{label}</Badge>
           </div>
-          {library.id && <LibraryItemCount libraryId={library.id} />}
+          {library.id && <LibraryItemCount libraryId={library.id} libraryType={library.type} />}
           {library.updatedAt && (
             <p className="text-xs mt-2 text-[var(--text-muted)]">
               {t("media.updated")} {new Date(library.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}

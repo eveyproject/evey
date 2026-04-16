@@ -11,7 +11,7 @@ import {
   useLibraryServiceListMediaItems,
   libraryServiceGetMediaItem,
   useMusicServiceGetAlbums,
-  usePhotoServiceListPhotos,
+  usePhotoServiceListPhotoAlbums,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
@@ -241,17 +241,19 @@ const MusicLibrarySlider = memo(function MusicLibrarySlider({ libraryId, name }:
 const PhotoLibrarySlider = memo(function PhotoLibrarySlider({ libraryId, name }: { libraryId: string; name: string }) {
   const accessToken = useAuthStore((s) => s.accessToken);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
-  const { data, isLoading } = usePhotoServiceListPhotos({ libraryId, limit: 20 });
-  const photos = data?.photos ?? [];
-  if (!isLoading && photos.length === 0) return null;
+  const { data, isLoading } = usePhotoServiceListPhotoAlbums({ libraryId });
+  const albums = (data?.albums ?? []).slice(0, 20);
+  if (!isLoading && albums.length === 0) return null;
   return (
     <MediaSlider title={name} seeAllHref="/photos" isLoading={isLoading}>
-      {photos.map((p) => (
-        <Link key={p.id} to="/photos" className="block w-[160px] flex-shrink-0">
+      {albums.map((a) => (
+        <Link key={a.name} to="/photos" className="block w-[160px] flex-shrink-0">
           <div
             className="aspect-square rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] bg-cover bg-center"
-            style={{ backgroundImage: `url(/api/v1/photos/${p.id}/serve${tokenParam}&w=400&fmt=webp)` }}
+            style={{ backgroundImage: a.coverPhotoId ? `url(/api/v1/photos/${a.coverPhotoId}/serve${tokenParam}&w=400&fmt=webp)` : undefined }}
           />
+          <p className="text-sm font-medium text-[var(--text)] truncate mt-2" title={a.name}>{(a.name ?? "").split("/").pop()}</p>
+          <p className="text-xs text-[var(--text-muted)] truncate">{a.photoCount} photo{(a.photoCount ?? 0) !== 1 ? "s" : ""}</p>
         </Link>
       ))}
     </MediaSlider>
