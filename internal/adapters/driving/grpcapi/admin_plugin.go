@@ -104,14 +104,28 @@ func (d *adminPluginHandler) UninstallPlugin(ctx context.Context, req *eveyv1.Un
 
 func (d *adminPluginHandler) EnablePlugin(ctx context.Context, req *eveyv1.EnablePluginRequest) (*eveyv1.Plugin, error) {
 	if err := d.pluginRuntime.EnablePlugin(ctx, req.Id); err != nil {
-		return nil, internalError("enable plugin", err)
+		switch {
+		case errors.Is(err, appplugin.ErrPluginNotFound):
+			return nil, status.Error(codes.NotFound, "plugin not found")
+		case errors.Is(err, appplugin.ErrAlreadyRunning):
+			return nil, status.Error(codes.FailedPrecondition, "plugin already running")
+		default:
+			return nil, internalError("enable plugin", err)
+		}
 	}
 	return &eveyv1.Plugin{Id: req.Id, Enabled: true}, nil
 }
 
 func (d *adminPluginHandler) DisablePlugin(ctx context.Context, req *eveyv1.DisablePluginRequest) (*eveyv1.Plugin, error) {
 	if err := d.pluginRuntime.DisablePlugin(ctx, req.Id); err != nil {
-		return nil, internalError("disable plugin", err)
+		switch {
+		case errors.Is(err, appplugin.ErrPluginNotFound):
+			return nil, status.Error(codes.NotFound, "plugin not found")
+		case errors.Is(err, appplugin.ErrNotRunning):
+			return nil, status.Error(codes.FailedPrecondition, "plugin not running")
+		default:
+			return nil, internalError("disable plugin", err)
+		}
 	}
 	return &eveyv1.Plugin{Id: req.Id, Enabled: false}, nil
 }
