@@ -60,3 +60,23 @@ func TestFeedHandler_NextEpisode_Unauthenticated(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
+
+// BatchUpdate success delegates to the service.
+func TestFeedHandler_BatchUpdateAdminFeedConfigs_Success(t *testing.T) {
+	h, cmdRepo, _, _ := newFeedHandler()
+	_, err := h.BatchUpdateAdminFeedConfigs(context.Background(), &eveyv1.BatchUpdateAdminFeedConfigsRequest{
+		Configs: []*eveyv1.AdminFeedConfig{
+			{FeedType: "continue_watching", Enabled: true, DisplayOrder: 1, MaxItems: 10},
+			{FeedType: "recently_added", Enabled: false, DisplayOrder: 2, MaxItems: 20},
+		},
+	})
+	require.NoError(t, err)
+	assert.Len(t, cmdRepo.AdminConfigs, 2)
+}
+
+// BatchUpdate with empty list still succeeds (no-op).
+func TestFeedHandler_BatchUpdateAdminFeedConfigs_Empty(t *testing.T) {
+	h, _, _, _ := newFeedHandler()
+	_, err := h.BatchUpdateAdminFeedConfigs(context.Background(), &eveyv1.BatchUpdateAdminFeedConfigsRequest{})
+	require.NoError(t, err)
+}
