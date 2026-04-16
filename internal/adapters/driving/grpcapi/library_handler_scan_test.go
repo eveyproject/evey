@@ -1,0 +1,87 @@
+package grpcapi
+
+import (
+	"context"
+	"testing"
+
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"google.golang.org/grpc"
+)
+
+type scanLibStream struct {
+	grpc.ServerStream
+	ctx  context.Context
+	sent []*eveyv1.ScanProgress
+}
+
+func (s *scanLibStream) Send(p *eveyv1.ScanProgress) error {
+	s.sent = append(s.sent, p)
+	return nil
+}
+func (s *scanLibStream) Context() context.Context { return s.ctx }
+
+func newScanLibHandler() (*libraryHandler, *libfakes.FakeLibraryQueryRepo, *libfakes.FakeLibraryCommandRepo) {
+	libCmd := libfakes.NewFakeLibraryCommandRepo()
+	libQuery := libfakes.NewFakeLibraryQueryRepo()
+	mediaCmd := libfakes.NewFakeMediaItemCommandRepo()
+	mediaQuery := libfakes.NewFakeMediaItemQueryRepo()
+	streamRepo := libfakes.NewFakeMediaStreamRepository()
+	personRepo := libfakes.NewFakePersonRepository()
+	mediaPersonRepo := libfakes.NewFakeMediaPersonRepository()
+	scanner := libfakes.NewFakeFileScanner()
+	prober := libfakes.NewFakeStreamProber()
+	searchIdx := libfakes.NewFakeSearchIndex()
+	bus := sharedfakes.NewFakeEventBus()
+
+	cmdSvc := applibrary.NewCommandService(
+		libCmd, libQuery, mediaCmd, streamRepo,
+		personRepo, mediaPersonRepo, scanner, prober, searchIdx, bus,
+		libfakes.NewFakeChapterRepository(), mkvfakes.NewFakeContainerReader(),
+		libfakes.NewFakeTrickplayRepository(), libfakes.NewFakeTrickplayGenerator(),
+		"/tmp/test-trickplay", sharedfakes.NewFakeServerConfigRepository(),
+	)
+	querySvc := applibrary.NewQueryService(libQuery, mediaQuery, streamRepo, searchIdx)
+
+	return &libraryHandler{
+		cmd: cmdSvc, query: querySvc,
+		translator: eveyi18n.NewEmpty(),
+	}, libQuery, libCmd
+}
+
+// ScanLibrary: success → one progress event emitted with COMPLETE phase.
+func TestGrpcScanLibrary_Success(t *testing.T) {
+	t.Parallel()
+	h, libQuery, libCmd := newScanLibHandler()
+	lib := &library.Library{ID: "lib-1", Name: "L", Type: "movie", Paths: []string{"/media/x"}}
+	libQuery.Seed(lib)
+	libCmd.Seed(lib)
+
+	ss := &scanLibStream{ctx: context.Background()}
+	err := h.ScanLibrary(&eveyv1.ScanLibraryRequest{Id: "lib-1"}, ss)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if len(ss.sent) != 1 {
+		t.Fatalf("want 1 progress msg, got %d", len(ss.sent))
+	}
+	if ss.sent[0].Phase != eveyv1.ScanPhase_SCAN_PHASE_COMPLETE {
+		t.Fatalf("phase: want COMPLETE, got %v", ss.sent[0].Phase)
+	}
+}
+
+// ScanLibrary: non-existent library → error.
+func TestGrpcScanLibrary_NotFound(t *testing.T) {
+	t.Parallel()
+	h, _, _ := newScanLibHandler()
+	ss := &scanLibStream{ctx: context.Background()}
+	err := h.ScanLibrary(&eveyv1.ScanLibraryRequest{Id: "missing"}, ss)
+	if err == nil {
+		t.Fatal("want error")
+	}
+}
