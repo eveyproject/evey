@@ -11,11 +11,13 @@ function selCollections(raw: { data?: { collections?: unknown[] }; [k: string]: 
 }
 
 vi.mock("@evey/api", () => ({
-  eveyFetch: vi.fn(),
+  collectionServiceAddCollectionItem: vi.fn(),
+  collectionServiceCreateCollection: vi.fn(),
+  collectionServiceUpdateCollection: vi.fn(),
+  collectionServiceDeleteCollection: vi.fn(),
   useCollectionServiceListCollections: (opts: { query?: { select?: (d: unknown) => unknown } }) => selCollections(mockListCollections(), opts),
   useCollectionServiceGetCollection: () => ({ data: undefined }),
   useCollectionServiceGetCollectionItems: () => ({ data: { items: [], total: 0 } }),
-  collectionServiceDeleteCollection: vi.fn(),
   getCollectionServiceListCollectionsQueryKey: () => ["collections"],
   getCollectionServiceGetCollectionQueryKey: (id: string) => ["collection", id],
   getCollectionServiceGetCollectionItemsQueryKey: (id: string) => ["collection-items", id],
@@ -121,10 +123,10 @@ describe("AddToCollectionModal", () => {
     expect(screen.getByText("Watch Later")).toBeInTheDocument();
   });
 
-  it("calls eveyFetch POST and onClose on successful add", async () => {
-    const { eveyFetch } = await import("@evey/api");
+  it("calls AddCollectionItem RPC and onClose on successful add", async () => {
+    const { collectionServiceAddCollectionItem } = await import("@evey/api");
     const { toast } = await import("@evey/store");
-    vi.mocked(eveyFetch).mockResolvedValue({});
+    vi.mocked(collectionServiceAddCollectionItem).mockResolvedValue({});
     mockListCollections.mockReturnValue({ data: { collections: [{ id: "c1", name: "Favorites", createdAt: "", updatedAt: "" }] }, isLoading: false });
 
     const onClose = vi.fn();
@@ -137,16 +139,21 @@ describe("AddToCollectionModal", () => {
     fireEvent.click(screen.getByText("Favorites"));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(vi.mocked(eveyFetch)).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "/api/v1/collections/c1/items", method: "POST", data: { mediaItemId: "m1" } })
+    expect(vi.mocked(collectionServiceAddCollectionItem)).toHaveBeenCalledWith(
+      "c1",
+      { mediaItemId: "m1", sortOrder: 0 }
+    );
+    expect(vi.mocked(collectionServiceAddCollectionItem)).toHaveBeenCalledWith(
+      "c1",
+      { mediaItemId: "m2", sortOrder: 0 }
     );
     expect(vi.mocked(toast.success)).toHaveBeenCalledWith(expect.stringContaining("Favorites"));
   });
 
   it("shows error toast when API call fails", async () => {
-    const { eveyFetch } = await import("@evey/api");
+    const { collectionServiceAddCollectionItem } = await import("@evey/api");
     const { toast } = await import("@evey/store");
-    vi.mocked(eveyFetch).mockRejectedValue(new Error("Network error"));
+    vi.mocked(collectionServiceAddCollectionItem).mockRejectedValue(new Error("Network error"));
     mockListCollections.mockReturnValue({ data: { collections: [{ id: "c1", name: "Favorites", createdAt: "", updatedAt: "" }] }, isLoading: false });
 
     const { AddToCollectionModal } = await import("./AddToCollectionModal");

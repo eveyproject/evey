@@ -1,10 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  eveyFetch,
   useCollectionServiceListCollections,
   useCollectionServiceGetCollection,
   useCollectionServiceGetCollectionItems,
+  collectionServiceCreateCollection,
+  collectionServiceUpdateCollection,
   collectionServiceDeleteCollection,
+  collectionServiceAddCollectionItem,
   getCollectionServiceListCollectionsQueryKey,
   getCollectionServiceGetCollectionQueryKey,
   getCollectionServiceGetCollectionItemsQueryKey,
@@ -48,6 +50,8 @@ function mapCollection(c: V1CollectionProto): Collection {
     overview: c.overview,
     posterUrl: c.posterUrl,
     backdropUrl: c.backdropUrl,
+    rules: c.rules?.map((r) => ({ field: r.field ?? "", operator: r.operator ?? "", value: r.value ?? "" })),
+    sortBy: c.sortBy,
     createdAt: c.createdAt ?? "",
     updatedAt: c.updatedAt ?? "",
   };
@@ -100,6 +104,7 @@ interface CreateCollectionInput {
   name: string;
   rules?: CollectionRule[];
   sortBy?: string;
+  smart?: boolean;
 }
 
 interface UpdateCollectionInput {
@@ -107,14 +112,19 @@ interface UpdateCollectionInput {
   name: string;
   rules?: CollectionRule[];
   sortBy?: string;
+  smart?: boolean;
 }
 
-// Create/Update use eveyFetch — no proto equivalent (rules/sortBy not in proto)
 export function useCreateCollection() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateCollectionInput) =>
-      eveyFetch<{ id: string }>({ url: "/api/v1/collections", method: "POST", data: input }),
+      collectionServiceCreateCollection({
+        name: input.name,
+        rules: input.rules?.map((r) => ({ field: r.field, operator: r.operator, value: r.value })),
+        sortBy: input.sortBy,
+        smart: input.smart ?? (input.rules != null && input.rules.length > 0),
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: getCollectionServiceListCollectionsQueryKey() }),
   });
 }
@@ -122,8 +132,13 @@ export function useCreateCollection() {
 export function useUpdateCollection() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: UpdateCollectionInput) =>
-      eveyFetch<void>({ url: `/api/v1/collections/${id}`, method: "PUT", data: body }),
+    mutationFn: ({ id, name, rules, sortBy, smart }: UpdateCollectionInput) =>
+      collectionServiceUpdateCollection(id, {
+        name,
+        rules: rules?.map((r) => ({ field: r.field, operator: r.operator, value: r.value })),
+        sortBy,
+        smart: smart ?? (rules != null && rules.length > 0),
+      }),
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: getCollectionServiceListCollectionsQueryKey() });
       qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionQueryKey(vars.id) });
@@ -137,6 +152,10 @@ export function useDeleteCollection() {
     mutationFn: (id: string) => collectionServiceDeleteCollection(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: getCollectionServiceListCollectionsQueryKey() }),
   });
+}
+
+export function addCollectionItem(collectionId: string, mediaItemId: string) {
+  return collectionServiceAddCollectionItem(collectionId, { mediaItemId, sortOrder: 0 });
 }
 
 export { getCollectionServiceGetCollectionItemsQueryKey };

@@ -2,7 +2,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { toast } from "@evey/store";
-import { eveyFetch } from "@evey/api";
+import { collectionServiceAddCollectionItem } from "@evey/api";
 import { useCollections } from "./api";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,11 +24,7 @@ export function AddToCollectionModal({ open, onClose, mediaItemIds }: Props) {
     try {
       await Promise.all(
         mediaItemIds.map((id) =>
-          eveyFetch<unknown>({
-            url: `/api/v1/collections/${collectionId}/items`,
-            method: "POST",
-            data: { mediaItemId: id },
-          })
+          collectionServiceAddCollectionItem(collectionId, { mediaItemId: id, sortOrder: 0 })
         )
       );
       toast.success(
