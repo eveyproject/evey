@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, FlatList, Pressable, TextInput, Modal, Switch, Alert, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, TextInput, Modal, Switch, Alert, ActivityIndicator, ScrollView, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -17,6 +17,24 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 
 const QUERY_KEY = getWebhookServiceListWebhooksQueryKey();
 
+const EVENT_TYPES = [
+  "media.item.added",
+  "media.item.updated",
+  "media.item.removed",
+  "library.created",
+  "library.deleted",
+  "library.scan.started",
+  "library.scan.completed",
+  "playback.started",
+  "playback.stopped",
+  "user.created",
+  "user.deleted",
+  "user.login.succeeded",
+  "user.login.failed",
+  "backup.created",
+  "backup.failed",
+] as const;
+
 export default function AdminWebhooksScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -28,14 +46,18 @@ export default function AdminWebhooksScreen() {
   const [editTarget, setEditTarget] = useState<V1WebhookConfig | null>(null);
   const [formName, setFormName] = useState("");
   const [formUrl, setFormUrl] = useState("");
-  const [formEvents, setFormEvents] = useState("");
+  const [formSecret, setFormSecret] = useState("");
+  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set(["*"]));
+  const [allEvents, setAllEvents] = useState(true);
   const [formEnabled, setFormEnabled] = useState(true);
 
   const openCreate = useCallback(() => {
     setEditTarget(null);
     setFormName("");
     setFormUrl("");
-    setFormEvents("");
+    setFormSecret("");
+    setSelectedEvents(new Set(["*"]));
+    setAllEvents(true);
     setFormEnabled(true);
     setShowForm(true);
   }, []);
@@ -44,7 +66,11 @@ export default function AdminWebhooksScreen() {
     setEditTarget(wh);
     setFormName(wh.name ?? "");
     setFormUrl(wh.url ?? "");
-    setFormEvents((wh.events ?? []).join(", "));
+    setFormSecret(wh.secret ?? "");
+    const evs = wh.events ?? [];
+    const isAll = evs.length === 0 || (evs.length === 1 && evs[0] === "*");
+    setAllEvents(isAll);
+    setSelectedEvents(isAll ? new Set(["*"]) : new Set(evs));
     setFormEnabled(wh.enabled ?? true);
     setShowForm(true);
   }, []);
@@ -52,6 +78,15 @@ export default function AdminWebhooksScreen() {
   const closeForm = useCallback(() => {
     setShowForm(false);
     setEditTarget(null);
+  }, []);
+
+  const toggleEvent = useCallback((evt: string) => {
+    setSelectedEvents((prev) => {
+      const next = new Set(prev);
+      if (next.has(evt)) next.delete(evt);
+      else next.add(evt);
+      return next;
+    });
   }, []);
 
   const createWebhook = useWebhookServiceCreateWebhook({
@@ -94,13 +129,20 @@ export default function AdminWebhooksScreen() {
 
   const handleSubmit = useCallback(() => {
     if (!formUrl.trim()) return;
-    const events = formEvents.split(",").map((e) => e.trim()).filter(Boolean);
+    const events = allEvents ? ["*"] : Array.from(selectedEvents);
+    const payload = {
+      name: formName,
+      url: formUrl,
+      events,
+      secret: formSecret || undefined,
+      enabled: formEnabled,
+    };
     if (editTarget?.id) {
-      updateWebhook.mutate({ id: editTarget.id, data: { name: formName, url: formUrl, events, enabled: formEnabled } });
+      updateWebhook.mutate({ id: editTarget.id, data: payload });
     } else {
-      createWebhook.mutate({ data: { name: formName, url: formUrl, events, enabled: formEnabled } });
+      createWebhook.mutate({ data: payload });
     }
-  }, [formName, formUrl, formEvents, formEnabled, editTarget, createWebhook, updateWebhook]);
+  }, [formName, formUrl, formSecret, allEvents, selectedEvents, formEnabled, editTarget, createWebhook, updateWebhook]);
 
   const handleDelete = useCallback((wh: V1WebhookConfig) => {
     Alert.alert(t("common.delete"), `Delete "${wh.name || wh.url}"?`, [
@@ -184,42 +226,89 @@ export default function AdminWebhooksScreen() {
           <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 16 }}>
             {editTarget ? t("admin.webhooks.editWebhook", "Edit Webhook") : t("admin.webhooks.createWebhook", "Create Webhook")}
           </Text>
-          <TextInput
-            placeholder="Name"
-            placeholderTextColor={theme.colors.textMuted}
-            value={formName}
-            onChangeText={setFormName}
-            style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
-          />
-          <TextInput
-            placeholder="URL"
-            placeholderTextColor={theme.colors.textMuted}
-            value={formUrl}
-            onChangeText={setFormUrl}
-            autoCapitalize="none"
-            keyboardType="url"
-            style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
-          />
-          <TextInput
-            placeholder="Events (comma-separated)"
-            placeholderTextColor={theme.colors.textMuted}
-            value={formEvents}
-            onChangeText={setFormEvents}
-            autoCapitalize="none"
-            style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
-          />
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <Text style={{ color: theme.colors.text, fontSize: 15 }}>{t("common.enabled", "Enabled")}</Text>
-            <Switch
-              value={formEnabled}
-              onValueChange={setFormEnabled}
-              trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
+          <ScrollView style={{ maxHeight: 480 }} keyboardShouldPersistTaps="handled">
+            <TextInput
+              placeholder={t("admin.webhooks.form.name", "Name")}
+              placeholderTextColor={theme.colors.textMuted}
+              value={formName}
+              onChangeText={setFormName}
+              style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
             />
-          </View>
+            <TextInput
+              placeholder={t("admin.webhooks.form.url", "URL")}
+              placeholderTextColor={theme.colors.textMuted}
+              value={formUrl}
+              onChangeText={setFormUrl}
+              autoCapitalize="none"
+              keyboardType="url"
+              style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
+            />
+            <TextInput
+              placeholder={t("admin.webhooks.form.secret", "Secret")}
+              placeholderTextColor={theme.colors.textMuted}
+              value={formSecret}
+              onChangeText={setFormSecret}
+              autoCapitalize="none"
+              style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
+            />
+
+            <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginBottom: 8 }}>
+              {t("admin.webhooks.form.events", "Events")}
+            </Text>
+            <Pressable
+              onPress={() => setAllEvents((v) => !v)}
+              style={[styles.scopeRow, { borderColor: theme.colors.border }]}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: allEvents }}
+            >
+              <Ionicons
+                name={allEvents ? "checkbox" : "square-outline"}
+                size={20}
+                color={allEvents ? theme.colors.accent : theme.colors.textMuted}
+              />
+              <Text style={{ color: theme.colors.text, fontSize: 13 }}>
+                {t("admin.webhooks.form.allEvents", "All events")}
+              </Text>
+            </Pressable>
+
+            {!allEvents && (
+              <View style={{ marginTop: 4 }}>
+                {EVENT_TYPES.map((evt) => {
+                  const checked = selectedEvents.has(evt);
+                  return (
+                    <Pressable
+                      key={evt}
+                      onPress={() => toggleEvent(evt)}
+                      style={[styles.scopeRow, { borderColor: theme.colors.border }]}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked }}
+                    >
+                      <Ionicons
+                        name={checked ? "checkbox" : "square-outline"}
+                        size={20}
+                        color={checked ? theme.colors.accent : theme.colors.textMuted}
+                      />
+                      <Text style={{ color: theme.colors.text, fontSize: 12, fontFamily: "monospace" }}>{evt}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16, marginBottom: 16 }}>
+              <Text style={{ color: theme.colors.text, fontSize: 15 }}>{t("common.enabled", "Enabled")}</Text>
+              <Switch
+                value={formEnabled}
+                onValueChange={setFormEnabled}
+                trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
+              />
+            </View>
+          </ScrollView>
+
           <Pressable
             onPress={handleSubmit}
-            disabled={createWebhook.isPending || updateWebhook.isPending}
-            style={[styles.submitBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md }]}
+            disabled={createWebhook.isPending || updateWebhook.isPending || !formUrl.trim()}
+            style={[styles.submitBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: !formUrl.trim() ? 0.5 : 1 }]}
           >
             <Text style={{ color: "#fff", fontWeight: "600" }}>
               {editTarget ? t("common.save", "Save") : t("common.create", "Create")}
@@ -234,7 +323,8 @@ export default function AdminWebhooksScreen() {
 const styles = StyleSheet.create({
   card: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: 32 },
+  sheet: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: 32, maxHeight: "90%" },
   input: { paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, marginBottom: 12 },
-  submitBtn: { paddingVertical: 14, alignItems: "center" },
+  submitBtn: { paddingVertical: 14, alignItems: "center", marginTop: 8 },
+  scopeRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6, paddingHorizontal: 4 },
 });

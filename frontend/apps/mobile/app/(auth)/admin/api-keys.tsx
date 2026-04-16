@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, FlatList, Pressable, TextInput, Modal, Alert, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, TextInput, Modal, Alert, ActivityIndicator, ScrollView, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -13,6 +13,17 @@ import {
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
+const SCOPE_OPTIONS = [
+  "media:read",
+  "media:write",
+  "admin:read",
+  "admin:write",
+  "users:read",
+  "users:write",
+  "playback:read",
+  "playback:write",
+] as const;
+
 export default function AdminAPIKeysScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -22,7 +33,13 @@ export default function AdminAPIKeysScreen() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [keyName, setKeyName] = useState("");
+  const [selectedScopes, setSelectedScopes] = useState<Set<string>>(new Set());
   const [newKey, setNewKey] = useState<string | null>(null);
+
+  const resetForm = useCallback(() => {
+    setKeyName("");
+    setSelectedScopes(new Set());
+  }, []);
 
   const createKey = useUserServiceCreateAPIKey({
     mutation: {
@@ -45,21 +62,35 @@ export default function AdminAPIKeysScreen() {
     },
   });
 
+  const toggleScope = useCallback((sc: string) => {
+    setSelectedScopes((prev) => {
+      const next = new Set(prev);
+      if (next.has(sc)) next.delete(sc);
+      else next.add(sc);
+      return next;
+    });
+  }, []);
+
   const handleCreate = useCallback(async () => {
     if (!keyName.trim()) return;
     try {
-      await createKey.mutateAsync({ data: { name: keyName.trim() } });
-      setKeyName("");
+      await createKey.mutateAsync({ data: { name: keyName.trim(), scopes: Array.from(selectedScopes) } });
+      resetForm();
       setShowCreate(false);
     } catch (err) { console.warn("caught", err); }
-  }, [keyName, createKey]);
+  }, [keyName, selectedScopes, createKey, resetForm]);
 
   const handleRevoke = useCallback((keyId: string, name: string) => {
     Alert.alert(t("auth.apiKeys.revoke", "Revoke Key"), `${t("auth.apiKeys.revoke", "Revoke")} "${name}"?`, [
       { text: t("common.cancel"), style: "cancel" },
       { text: t("auth.apiKeys.revoke", "Revoke"), style: "destructive", onPress: () => revokeKey.mutate({ id: keyId }) },
     ]);
-  }, [revokeKey]);
+  }, [revokeKey, t]);
+
+  const closeCreate = useCallback(() => {
+    setShowCreate(false);
+    resetForm();
+  }, [resetForm]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
@@ -86,19 +117,37 @@ export default function AdminAPIKeysScreen() {
           contentContainerStyle={{ padding: 16, gap: 8 }}
           refreshing={false}
           onRefresh={refetch}
-          renderItem={({ item }: { item: any }) => (
-            <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>{item.name ?? t("common.unknown")}</Text>
-                <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-                  {item.lastUsedAt ? `Last used: ${new Date(item.lastUsedAt).toLocaleDateString()}` : "Never used"}
-                </Text>
+          renderItem={({ item }: { item: any }) => {
+            const scopes: string[] = item.scopes ?? [];
+            return (
+              <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>{item.name ?? t("common.unknown")}</Text>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                    {item.lastUsedAt ? `Last used: ${new Date(item.lastUsedAt).toLocaleDateString()}` : "Never used"}
+                  </Text>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+                    {scopes.length === 0 ? (
+                      <View style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised }]}>
+                        <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>
+                          {t("auth.apiKeys.scopesAll")}
+                        </Text>
+                      </View>
+                    ) : (
+                      scopes.map((sc) => (
+                        <View key={sc} style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised }]}>
+                          <Text style={{ color: theme.colors.textMuted, fontSize: 10, fontFamily: "monospace" }}>{sc}</Text>
+                        </View>
+                      ))
+                    )}
+                  </View>
+                </View>
+                <Pressable onPress={() => handleRevoke(item.id, item.name)} hitSlop={8}>
+                  <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
+                </Pressable>
               </View>
-              <Pressable onPress={() => handleRevoke(item.id, item.name)} hitSlop={8}>
-                <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
-              </Pressable>
-            </View>
-          )}
+            );
+          }}
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 60 }}>
               <Text style={{ color: theme.colors.textMuted }}>{t("auth.apiKeys.noKeys")}</Text>
@@ -124,8 +173,8 @@ export default function AdminAPIKeysScreen() {
         </Modal>
       )}
 
-      <Modal visible={showCreate} transparent animationType="slide" onRequestClose={() => setShowCreate(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setShowCreate(false)} />
+      <Modal visible={showCreate} transparent animationType="slide" onRequestClose={closeCreate}>
+        <Pressable style={styles.backdrop} onPress={closeCreate} />
         <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
           <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 16 }}>{t("auth.apiKeys.newKeyTitle")}</Text>
           <TextInput
@@ -135,7 +184,43 @@ export default function AdminAPIKeysScreen() {
             onChangeText={setKeyName}
             style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
           />
-          <Pressable onPress={handleCreate} disabled={createKey.isPending} style={[styles.createBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md }]}>
+          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginBottom: 4 }}>
+            {t("auth.apiKeys.scopes")}
+          </Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginBottom: 8 }}>
+            {t("auth.apiKeys.scopesHint")}
+          </Text>
+          <ScrollView style={{ maxHeight: 240 }} contentContainerStyle={{ gap: 6, paddingBottom: 4 }}>
+            {SCOPE_OPTIONS.map((sc) => {
+              const checked = selectedScopes.has(sc);
+              return (
+                <Pressable
+                  key={sc}
+                  onPress={() => toggleScope(sc)}
+                  style={[styles.scopeRow, { borderColor: theme.colors.border }]}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked }}
+                >
+                  <Ionicons
+                    name={checked ? "checkbox" : "square-outline"}
+                    size={20}
+                    color={checked ? theme.colors.accent : theme.colors.textMuted}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: theme.colors.text, fontSize: 12, fontFamily: "monospace" }}>{sc}</Text>
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>
+                      {t(`auth.apiKeys.scopeLabels.${sc}`)}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <Pressable
+            onPress={handleCreate}
+            disabled={createKey.isPending || !keyName.trim()}
+            style={[styles.createBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: !keyName.trim() ? 0.5 : 1 }]}
+          >
             <Text style={{ color: "#fff", fontWeight: "600" }}>{t("common.create")}</Text>
           </Pressable>
         </View>
@@ -148,7 +233,9 @@ const styles = StyleSheet.create({
   card: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
   keyModal: { padding: 24, marginHorizontal: 24, width: "85%" },
-  sheet: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: 32 },
+  sheet: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: 32, maxHeight: "85%" },
   input: { paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, marginBottom: 12 },
-  createBtn: { paddingVertical: 14, alignItems: "center" },
+  createBtn: { paddingVertical: 14, alignItems: "center", marginTop: 12 },
+  chip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  scopeRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6, paddingHorizontal: 4 },
 });
