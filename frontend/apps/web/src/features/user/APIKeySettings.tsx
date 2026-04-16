@@ -13,6 +13,17 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 
+const SCOPE_OPTIONS = [
+  "media:read",
+  "media:write",
+  "admin:read",
+  "admin:write",
+  "users:read",
+  "users:write",
+  "playback:read",
+  "playback:write",
+] as const;
+
 function maskKey(key: string): string {
   if (key.length <= 4) return "\u2022\u2022\u2022\u2022";
   return `evey_${"\u2022".repeat(8)}${key.slice(-4)}`;
@@ -38,6 +49,7 @@ export function APIKeySettings() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [nameError, setNameError] = useState("");
+  const [selectedScopes, setSelectedScopes] = useState<Set<string>>(new Set());
   const [createdKey, setCreatedKey] = useState<CreatedKey | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<V1APIKey | null>(null);
   const [copied, setCopied] = useState(false);
@@ -49,6 +61,7 @@ export function APIKeySettings() {
         setCreateOpen(false);
         setNewName("");
         setNameError("");
+        setSelectedScopes(new Set());
         if (key.key && key.id && key.name) {
           setCreatedKey({ id: key.id, name: key.name, key: key.key });
         }
@@ -74,7 +87,18 @@ export function APIKeySettings() {
       return;
     }
     setNameError("");
-    createMutation.mutate({ data: { name: newName.trim() } });
+    createMutation.mutate({
+      data: { name: newName.trim(), scopes: Array.from(selectedScopes) },
+    });
+  }
+
+  function toggleScope(scope: string) {
+    setSelectedScopes((prev) => {
+      const next = new Set(prev);
+      if (next.has(scope)) next.delete(scope);
+      else next.add(scope);
+      return next;
+    });
   }
 
   function handleCopy() {
@@ -109,6 +133,7 @@ export function APIKeySettings() {
             <tr className="text-left text-xs text-[var(--text-muted)] border-b border-[var(--border)]">
               <th className="pb-2 font-semibold">{t("auth.apiKeys.name")}</th>
               <th className="pb-2 font-semibold">{t("auth.apiKeys.key")}</th>
+              <th className="pb-2 font-semibold">{t("auth.apiKeys.scopes")}</th>
               <th className="pb-2 font-semibold">{t("auth.apiKeys.created")}</th>
               <th className="pb-2 font-semibold">{t("auth.apiKeys.lastUsed")}</th>
               <th className="pb-2" />
@@ -120,6 +145,19 @@ export function APIKeySettings() {
                 <td className="py-3 pr-4 font-medium text-[var(--text)]">{k.name}</td>
                 <td className="py-3 pr-4 font-mono text-[var(--text-muted)]">
                   {k.key ? maskKey(k.key) : "evey_\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"}
+                </td>
+                <td className="py-3 pr-4">
+                  <div className="flex flex-wrap gap-1">
+                    {(k.scopes ?? []).length === 0 ? (
+                      <span className="text-xs text-[var(--text-muted)]">{t("auth.apiKeys.scopesAll")}</span>
+                    ) : (
+                      (k.scopes ?? []).map((sc) => (
+                        <span key={sc} className="text-xs px-1.5 py-0.5 rounded font-mono bg-[var(--surface-raised)] text-[var(--text-muted)]">
+                          {sc}
+                        </span>
+                      ))
+                    )}
+                  </div>
                 </td>
                 <td className="py-3 pr-4 text-[var(--text-muted)]">{formatDate(k.createdAt)}</td>
                 <td className="py-3 pr-4 text-[var(--text-muted)]">{formatDate(k.lastUsedAt)}</td>
@@ -139,7 +177,7 @@ export function APIKeySettings() {
       )}
 
       {/* Create dialog */}
-      <Modal open={createOpen} onClose={() => { setCreateOpen(false); setNewName(""); setNameError(""); }} title={t("auth.apiKeys.newKeyTitle")}>
+      <Modal open={createOpen} onClose={() => { setCreateOpen(false); setNewName(""); setNameError(""); setSelectedScopes(new Set()); }} title={t("auth.apiKeys.newKeyTitle")}>
         <div className="flex flex-col gap-4">
           <Input
             label={t("auth.apiKeys.name")}
@@ -150,8 +188,26 @@ export function APIKeySettings() {
             onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
             autoFocus
           />
+          <div>
+            <p className="text-xs font-medium mb-2 text-[var(--text)]">{t("auth.apiKeys.scopes")}</p>
+            <p className="text-xs text-[var(--text-muted)] mb-2">{t("auth.apiKeys.scopesHint")}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-2">
+              {SCOPE_OPTIONS.map((sc) => (
+                <label key={sc} className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={selectedScopes.has(sc)}
+                    onChange={() => toggleScope(sc)}
+                    className="accent-[var(--accent)]"
+                  />
+                  <span className="text-xs font-mono text-[var(--text-muted)]">{sc}</span>
+                  <span className="text-xs text-[var(--text-muted)]">— {t(`auth.apiKeys.scopeLabels.${sc}`)}</span>
+                </label>
+              ))}
+            </div>
+          </div>
           <div className="flex justify-end gap-2 mt-2">
-            <Button variant="secondary" onClick={() => { setCreateOpen(false); setNewName(""); setNameError(""); }}>
+            <Button variant="secondary" onClick={() => { setCreateOpen(false); setNewName(""); setNameError(""); setSelectedScopes(new Set()); }}>
               {t("common.cancel")}
             </Button>
             <Button variant="primary" loading={createMutation.isPending} onClick={handleCreate}>

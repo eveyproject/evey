@@ -43,8 +43,8 @@ describe("WebhookForm", () => {
 
   it("shows event checkboxes when All events unchecked", async () => {
     render(<WebhookForm onSuccess={vi.fn()} />, { wrapper: createWrapper() });
-    expect(screen.queryByLabelText("media.added")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("media.item.added")).not.toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("All events"));
-    expect(screen.getByLabelText("media.added")).toBeInTheDocument();
+    expect(screen.getByLabelText("media.item.added")).toBeInTheDocument();
   });
 });

@@ -179,6 +179,18 @@ apiKeys:
   namePlaceholder: "My integration"
   nameRequired: Name is required
   key: Key
+  scopes: Scopes
+  scopesAll: All (legacy)
+  scopesHint: "Leave empty to grant full access (legacy). Select specific scopes to restrict."
+  scopeLabels:
+    "media:read": Read media metadata
+    "media:write": Modify media and trigger scans
+    "admin:read": Read admin activity and stats
+    "admin:write": Modify admin settings
+    "users:read": Read users
+    "users:write": Modify users
+    "playback:read": Read playback state and history
+    "playback:write": Control playback and progress
   lastUsed: Last Used
   created: Created
   keyCreatedTitle: API Key Created

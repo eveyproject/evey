@@ -6,16 +6,21 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
 const EVENT_TYPES = [
-  "media.added",
-  "media.updated",
-  "media.deleted",
+  "media.item.added",
+  "media.item.updated",
+  "media.item.removed",
+  "library.created",
+  "library.deleted",
+  "library.scan.started",
+  "library.scan.completed",
   "playback.started",
-  "playback.finished",
-  "playback.paused",
+  "playback.stopped",
   "user.created",
   "user.deleted",
-  "library.scanned",
-  "library.added",
+  "user.login.succeeded",
+  "user.login.failed",
+  "backup.created",
+  "backup.failed",
 ] as const;
 
 interface WebhookFormProps {

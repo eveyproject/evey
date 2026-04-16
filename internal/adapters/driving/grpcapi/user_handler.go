@@ -500,10 +500,11 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 	keyHash := hex.EncodeToString(hash[:])
 
 	key := &user.APIKeyModel{
-		ID:      id.New("ak-"),
-		UserID:  shared.UserID(claims.UserID),
-		Name:    req.Name,
-		KeyHash: keyHash,
+		ID:          id.New("ak-"),
+		UserID:      shared.UserID(claims.UserID),
+		Name:        req.Name,
+		KeyHash:     keyHash,
+		Permissions: req.Scopes,
 	}
 	if err := h.access.CreateAPIKey(ctx, key); err != nil {
 		slog.Error("create api key", slog.Any("err", err))

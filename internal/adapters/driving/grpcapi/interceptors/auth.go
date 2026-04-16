@@ -111,15 +111,19 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 		}
 	}
 
-	// Enforce API key permissions: empty permissions = deny-all.
-	if isAPIKey {
-		if len(claims.Permissions) == 0 {
-			slog.Warn("api key permission denied (no permissions)", slog.String("method", method))
-			return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.insufficient_permissions")
-		}
-		if requiredPerm, hasMapping := authpkg.MethodPermissions[method]; hasMapping && !claims.HasPermission(requiredPerm) {
-			slog.Warn("api key permission denied", slog.String("method", method), slog.String("required", requiredPerm))
-			return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.insufficient_permissions")
+	// Enforce API key scopes. Empty scopes = allow-all (legacy keys).
+	// A key with scopes is authorized for a method if it holds either the coarse
+	// scope (APIKeyScopeFor, colon notation) or the fine-grained legacy permission
+	// (MethodPermissions, dot notation).
+	if isAPIKey && len(claims.Permissions) > 0 {
+		scope, hasScope := authpkg.APIKeyScopeFor[method]
+		perm, hasPerm := authpkg.MethodPermissions[method]
+		if hasScope || hasPerm {
+			ok := (hasScope && claims.HasPermission(scope)) || (hasPerm && claims.HasPermission(perm))
+			if !ok {
+				slog.Warn("api key scope denied", slog.String("method", method), slog.String("required_scope", scope), slog.String("required_perm", perm))
+				return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.insufficient_permissions")
+			}
 		}
 	}
 

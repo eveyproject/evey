@@ -82,6 +82,65 @@ var MethodPermissions = map[string]string{
 	"/evey.v1.AdminPluginService/UninstallPlugin":  PermPluginManage,
 }
 
+// API key scopes (coarse-grained, user-facing).
+const (
+	ScopeMediaRead     = "media:read"
+	ScopeMediaWrite    = "media:write"
+	ScopeAdminRead     = "admin:read"
+	ScopeAdminWrite    = "admin:write"
+	ScopeUsersRead     = "users:read"
+	ScopeUsersWrite    = "users:write"
+	ScopePlaybackRead  = "playback:read"
+	ScopePlaybackWrite = "playback:write"
+)
+
+// AllAPIKeyScopes lists the canonical set of scopes presented to users.
+var AllAPIKeyScopes = []string{
+	ScopeMediaRead, ScopeMediaWrite,
+	ScopeAdminRead, ScopeAdminWrite,
+	ScopeUsersRead, ScopeUsersWrite,
+	ScopePlaybackRead, ScopePlaybackWrite,
+}
+
+// APIKeyScopeFor maps gRPC method full names to the coarse-grained API key scope
+// required. Keys that include fine-grained permissions from MethodPermissions
+// are also honored as a compatibility fallback.
+var APIKeyScopeFor = map[string]string{
+	// Media read
+	"/evey.v1.LibraryService/GetLibrary":       ScopeMediaRead,
+	"/evey.v1.LibraryService/ListLibraries":    ScopeMediaRead,
+	"/evey.v1.LibraryService/GetMediaItem":     ScopeMediaRead,
+	"/evey.v1.LibraryService/ListMediaItems":   ScopeMediaRead,
+	"/evey.v1.LibraryService/SearchMedia":      ScopeMediaRead,
+	"/evey.v1.LibraryService/FilterMediaItems": ScopeMediaRead,
+	"/evey.v1.LibraryService/GetPerson":        ScopeMediaRead,
+	// Media write
+	"/evey.v1.LibraryService/ScanLibrary":             ScopeMediaWrite,
+	"/evey.v1.MetadataService/RefreshMetadata":        ScopeMediaWrite,
+	"/evey.v1.MetadataService/SetMetadataOverride":    ScopeMediaWrite,
+	"/evey.v1.MetadataService/RemoveMetadataOverride": ScopeMediaWrite,
+	// Users read
+	"/evey.v1.UserService/ListUsers": ScopeUsersRead,
+	// Users write
+	"/evey.v1.UserService/UpdateUser": ScopeUsersWrite,
+	// Playback read
+	"/evey.v1.PlaybackService/GetStreamInfo":    ScopePlaybackRead,
+	"/evey.v1.PlaybackService/GetWatchProgress": ScopePlaybackRead,
+	"/evey.v1.PlaybackService/GetHistory":       ScopePlaybackRead,
+	"/evey.v1.PlaybackService/GetResumeItems":   ScopePlaybackRead,
+	"/evey.v1.PlaybackService/GetNextUp":        ScopePlaybackRead,
+	// Playback write
+	"/evey.v1.PlaybackService/StartStream":    ScopePlaybackWrite,
+	"/evey.v1.PlaybackService/StopStream":     ScopePlaybackWrite,
+	"/evey.v1.PlaybackService/ReportProgress": ScopePlaybackWrite,
+	"/evey.v1.PlaybackService/MarkWatched":    ScopePlaybackWrite,
+	"/evey.v1.PlaybackService/MarkUnwatched":  ScopePlaybackWrite,
+	// Admin read
+	"/evey.v1.ActivityService/GetAuditLog":    ScopeAdminRead,
+	"/evey.v1.ActivityService/GetServerStats": ScopeAdminRead,
+	"/evey.v1.ActivityService/GetUserStats":   ScopeAdminRead,
+}
+
 // InternalMethods lists methods that can ONLY be called via JWT (browser/app).
 // API keys are blocked from calling these — they are infrastructure/ops/auth
 // concerns, not domain operations.

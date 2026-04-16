@@ -82,5 +82,6 @@ func apiKeyToProto(k *user.APIKeyModel) *eveyv1.APIKey {
 		UserId:     string(k.UserID),
 		LastUsedAt: toTimestamppbPtr(k.LastUsedAt),
 		CreatedAt:  toTimestamppb(k.CreatedAt),
+		Scopes:     k.Permissions,
 	}
 }

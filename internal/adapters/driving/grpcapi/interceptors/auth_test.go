@@ -429,6 +429,85 @@ func TestAuthInterceptor_APIKey_WithBearerPrefix(t *testing.T) {
 	assert.Equal(t, "usr-b", claims.UserID)
 }
 
+// TestAPIKeyScope_EmptyAllowsAll: legacy API keys with no scopes must be allowed.
+func TestAPIKeyScope_EmptyAllowsAll(t *testing.T) {
+	tokenGen := fakes.NewFakeTokenGenerator()
+	apiKeyRepo := fakes.NewFakeAPIKeyRepository()
+	userRepo := fakes.NewFakeUserRepository()
+
+	rawKey := "evey_legacynoperm"
+	apiKeyRepo.Create(context.Background(), &user.APIKeyModel{
+		ID:          "ak-legacy",
+		UserID:      "usr-1",
+		KeyHash:     apiKeyHash(rawKey),
+		Name:        "legacy",
+		Permissions: nil,
+	})
+	userRepo.Create(context.Background(), &user.User{
+		ID: "usr-1", Username: "alice", Enabled: true,
+	})
+
+	ai := interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo)
+	interceptor := ai.Unary()
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	_, err := interceptor(ctxWithAPIKey(rawKey), nil, info, nopHandler)
+	require.NoError(t, err)
+}
+
+// TestAPIKeyScope_Granted: scope matching the APIKeyScopeFor map allows the call.
+func TestAPIKeyScope_Granted(t *testing.T) {
+	tokenGen := fakes.NewFakeTokenGenerator()
+	apiKeyRepo := fakes.NewFakeAPIKeyRepository()
+	userRepo := fakes.NewFakeUserRepository()
+
+	rawKey := "evey_scopedkey"
+	apiKeyRepo.Create(context.Background(), &user.APIKeyModel{
+		ID:          "ak-scoped",
+		UserID:      "usr-1",
+		KeyHash:     apiKeyHash(rawKey),
+		Name:        "scoped",
+		Permissions: []string{auth.ScopeMediaRead},
+	})
+	userRepo.Create(context.Background(), &user.User{
+		ID: "usr-1", Username: "alice", Enabled: true,
+	})
+
+	ai := interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo)
+	interceptor := ai.Unary()
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	_, err := interceptor(ctxWithAPIKey(rawKey), nil, info, nopHandler)
+	require.NoError(t, err)
+}
+
+// TestAPIKeyScope_Denied: scope absent from key and no fine-grained fallback -> deny.
+func TestAPIKeyScope_Denied(t *testing.T) {
+	tokenGen := fakes.NewFakeTokenGenerator()
+	apiKeyRepo := fakes.NewFakeAPIKeyRepository()
+	userRepo := fakes.NewFakeUserRepository()
+
+	rawKey := "evey_wrongscope"
+	apiKeyRepo.Create(context.Background(), &user.APIKeyModel{
+		ID:          "ak-wrong",
+		UserID:      "usr-1",
+		KeyHash:     apiKeyHash(rawKey),
+		Name:        "wrong",
+		Permissions: []string{auth.ScopePlaybackRead},
+	})
+	userRepo.Create(context.Background(), &user.User{
+		ID: "usr-1", Username: "alice", Enabled: true,
+	})
+
+	ai := interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo)
+	interceptor := ai.Unary()
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	_, err := interceptor(ctxWithAPIKey(rawKey), nil, info, nopHandler)
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
 func TestEnforceRBAC_ContextClaims(t *testing.T) {
 	ai, tokenGen := setupInterceptor()
 	interceptor := ai.Unary()
