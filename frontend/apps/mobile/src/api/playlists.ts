@@ -111,14 +111,16 @@ export function useAddToPlaylist() {
     mutationFn: ({
       playlistId,
       mediaItemId,
+      mediaType,
     }: {
       playlistId: string;
       mediaItemId: string;
+      mediaType?: string;
     }) =>
       eveyFetch<void>({
         url: `/api/v1/playlists/${playlistId}/items`,
         method: "POST",
-        data: { mediaItemId },
+        data: mediaType ? { mediaItemId, mediaType } : { mediaItemId },
       }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] });

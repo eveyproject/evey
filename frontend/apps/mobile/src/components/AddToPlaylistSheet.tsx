@@ -6,41 +6,69 @@ import {
   FlatList,
   TouchableOpacity,
   Pressable,
+  TextInput,
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
-import { usePlaylistList, useAddToPlaylist } from "../api/playlists";
+import { usePlaylistList, useAddToPlaylist, useCreatePlaylist } from "../api/playlists";
 
 interface Props {
   visible: boolean;
   mediaItemId: string;
+  mediaType?: string;
   onClose: () => void;
 }
 
-export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
+export function AddToPlaylistSheet({ visible, mediaItemId, mediaType, onClose }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const { data: playlists, isLoading } = usePlaylistList();
   const addTo = useAddToPlaylist();
+  const createPl = useCreatePlaylist();
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
 
   const manualPlaylists = (playlists ?? []).filter((p) => p.type === "manual");
 
   function handleAdd(playlistId: string) {
     addTo.mutate(
-      { playlistId, mediaItemId },
+      { playlistId, mediaItemId, mediaType },
       {
         onSuccess: () => setAddedIds((prev) => new Set(prev).add(playlistId)),
       },
     );
   }
 
+  async function handleCreateAndAdd() {
+    const name = newName.trim();
+    if (!name) return;
+    try {
+      const res = await createPl.mutateAsync({ name, type: "manual" });
+      const newId = res?.playlist?.id;
+      if (newId) {
+        await addTo.mutateAsync({ playlistId: newId, mediaItemId, mediaType });
+        setAddedIds((prev) => new Set(prev).add(newId));
+      }
+      setCreating(false);
+      setNewName("");
+    } catch {
+      // toasts are handled by hooks
+    }
+  }
+
+  function handleCloseAll() {
+    setCreating(false);
+    setNewName("");
+    onClose();
+  }
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleCloseAll}>
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={handleCloseAll}>
         <Pressable
           style={[styles.sheet, { backgroundColor: theme.colors.surface, borderTopLeftRadius: theme.radii.lg, borderTopRightRadius: theme.radii.lg }]}
           onPress={(e) => e.stopPropagation()}
@@ -52,7 +80,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
 
           {isLoading ? (
             <ActivityIndicator color={theme.colors.accent} style={{ marginTop: 24 }} />
-          ) : manualPlaylists.length === 0 ? (
+          ) : manualPlaylists.length === 0 && !creating ? (
             <Text style={[styles.empty, { color: theme.colors.textMuted }]}>
               {t("common.noManualPlaylists")}
             </Text>
@@ -85,9 +113,50 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
             />
           )}
 
+          {creating ? (
+            <View style={styles.createRow}>
+              <TextInput
+                value={newName}
+                onChangeText={setNewName}
+                placeholder={t("media.music.createPlaylistPrompt")}
+                placeholderTextColor={theme.colors.textMuted}
+                autoFocus
+                style={[
+                  styles.input,
+                  { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised },
+                ]}
+                onSubmitEditing={handleCreateAndAdd}
+                returnKeyType="done"
+                editable={!createPl.isPending && !addTo.isPending}
+              />
+              <TouchableOpacity
+                onPress={handleCreateAndAdd}
+                disabled={!newName.trim() || createPl.isPending || addTo.isPending}
+                style={[styles.createBtn, { backgroundColor: theme.colors.accent, opacity: !newName.trim() ? 0.5 : 1 }]}
+              >
+                {createPl.isPending ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Ionicons name="checkmark" size={20} color="#fff" />
+                )}
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => setCreating(true)}
+              style={[styles.newPlaylistRow, { borderTopColor: theme.colors.border }]}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add-circle" size={18} color={theme.colors.accent} />
+              <Text style={[styles.newPlaylistText, { color: theme.colors.accent }]}>
+                {t("media.music.newPlaylist")}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={[styles.closeBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}
-            onPress={onClose}
+            onPress={handleCloseAll}
           >
             <Text style={[styles.closeBtnText, { color: theme.colors.text }]}>{t("common.close", "Close")}</Text>
           </TouchableOpacity>
@@ -106,6 +175,11 @@ const styles = StyleSheet.create({
   empty: { fontSize: 14, textAlign: "center", marginTop: 24 },
   row: { flexDirection: "row", alignItems: "center", paddingVertical: 14, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth },
   playlistName: { flex: 1, fontSize: 15, fontWeight: "500" },
+  newPlaylistRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth, marginTop: 4 },
+  newPlaylistText: { fontSize: 15, fontWeight: "600" },
+  createRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12 },
+  input: { flex: 1, borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
+  createBtn: { width: 44, height: 44, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   closeBtn: { marginTop: 16, paddingVertical: 12, alignItems: "center" },
   closeBtnText: { fontSize: 15, fontWeight: "600" },
 });

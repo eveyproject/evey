@@ -19,6 +19,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQueue";
+import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 
 interface LibraryItem {
   id: string;
@@ -109,6 +110,7 @@ export default function MusicScreen() {
   const [tab, setTab] = useState<Tab>("tracks");
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
   const [showQueue, setShowQueue] = useState(false);
+  const [playlistTrackId, setPlaylistTrackId] = useState<string | null>(null);
 
   const queue = useMusicQueueStore((s) => s.queue);
   const currentIndex = useMusicQueueStore((s) => s.currentIndex);
@@ -159,6 +161,17 @@ export default function MusicScreen() {
         {item.Duration > 0 && (
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{formatDuration(item.Duration)}</Text>
         )}
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            setPlaylistTrackId(item.ID);
+          }}
+          hitSlop={8}
+          style={styles.addBtn}
+          accessibilityLabel="Add to playlist"
+        >
+          <Ionicons name="add-circle-outline" size={20} color={theme.colors.textMuted} />
+        </Pressable>
       </TouchableOpacity>
     );},
     [theme, currentIndex, queue, handlePlayTrack],
@@ -397,6 +410,15 @@ export default function MusicScreen() {
           />
         </View>
       </Modal>
+
+      {playlistTrackId && (
+        <AddToPlaylistSheet
+          visible={!!playlistTrackId}
+          mediaItemId={playlistTrackId}
+          mediaType="music"
+          onClose={() => setPlaylistTrackId(null)}
+        />
+      )}
     </View>
   );
 }
@@ -418,6 +440,7 @@ const styles = StyleSheet.create({
   trackIndex: { width: 28, alignItems: "center" },
   trackInfo: { flex: 1, paddingHorizontal: 10 },
   trackTitle: { fontSize: 14, fontWeight: "500" },
+  addBtn: { padding: 6, marginLeft: 8 },
   albumCard: { overflow: "hidden" },
   albumTitle: { fontSize: 13, fontWeight: "600" },
   artPlaceholder: { justifyContent: "center", alignItems: "center" },
