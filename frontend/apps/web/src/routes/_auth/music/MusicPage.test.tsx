@@ -100,6 +100,8 @@ describe("MusicPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Music")).toBeInTheDocument();
     });
+    // Default tab is now Albums; switch to Tracks for these assertions.
+    fireEvent.click(screen.getByRole("button", { name: "Tracks" }));
     await waitFor(() => {
       expect(screen.getByText("Blue Sky")).toBeInTheDocument();
       expect(screen.getByText("Dark Night")).toBeInTheDocument();
@@ -115,6 +117,8 @@ describe("MusicPage", () => {
 
     render(React.createElement(MusicPage), { wrapper: createWrapper() });
 
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tracks" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Tracks" }));
     await waitFor(() => expect(screen.getByPlaceholderText(/Search tracks/i)).toBeInTheDocument());
 
     const input = screen.getByPlaceholderText(/Search tracks/i);
@@ -132,6 +136,8 @@ describe("MusicPage", () => {
 
     render(React.createElement(MusicPage), { wrapper: createWrapper() });
 
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tracks" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Tracks" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Previous" })).toBeInTheDocument());
 
     expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
@@ -147,6 +153,8 @@ describe("MusicPage", () => {
 
     render(React.createElement(MusicPage), { wrapper: createWrapper() });
 
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tracks" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Tracks" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
 

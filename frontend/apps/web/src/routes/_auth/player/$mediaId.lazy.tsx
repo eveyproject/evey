@@ -15,7 +15,7 @@ import { SyncPlayBar } from "@/features/syncplay/SyncPlayBar";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useParentalGate, markUnlocked } from "@/hooks/useParentalGate";
 import { ParentalPINDialog } from "@/components/ParentalPINDialog";
-import { useAuthStore, usePlayerStore, setPlayerCleanup } from "@evey/store";
+import { useAuthStore, usePlayerStore, setPlayerCleanup, useMusicPlayerStore } from "@evey/store";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
@@ -29,6 +29,11 @@ function PlayerPage() {
   const { mediaId } = Route.useParams();
   const router = useRouter();
   const profileId = useAuthStore((s) => s.profileId);
+
+  // Close the global music mini-player when a full-screen video player opens —
+  // audio + video playback at the same time is bad UX.
+  const closeMusic = useMusicPlayerStore((s) => s.close);
+  useEffect(() => { closeMusic(); }, [closeMusic]);
 
   const { data: gateItem, isLoading: gateLoading } = useQuery({
     queryKey: [`/api/v1/media/${mediaId}`],

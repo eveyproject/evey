@@ -6,6 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { KeyboardShortcutsHelp } from "@/components/ui/KeyboardShortcutsHelp";
+import { GlobalAudioPlayer } from "@/features/music/GlobalAudioPlayer";
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -76,6 +77,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       </div>
 
       <KeyboardShortcutsHelp open={showHelp} onClose={() => setShowHelp(false)} />
+      <GlobalAudioPlayer />
     </div>
   );
 }

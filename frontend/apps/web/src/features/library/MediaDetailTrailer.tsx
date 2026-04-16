@@ -1,11 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useMusicPlayerStore } from "@evey/store";
 import type { V1Trailer } from "@evey/api";
 
 function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: string }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const pauseMusic = useMusicPlayerStore((s) => s.pauseExternal);
+  const resumeMusic = useMusicPlayerStore((s) => s.resumeExternal);
+
+  // Pause the global mini-player while a trailer modal is open so we don't
+  // have music competing with trailer audio. Resume on close.
+  useEffect(() => {
+    if (!open) return;
+    pauseMusic();
+    return () => { resumeMusic(); };
+  }, [open, pauseMusic, resumeMusic]);
 
   if (!trailer.key || !trailer.site) return null;
 

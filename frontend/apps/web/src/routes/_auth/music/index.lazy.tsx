@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import {
@@ -7,9 +7,9 @@ import {
   useMusicServiceGetAlbums,
   useMusicServiceGetArtists,
 } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, useMusicPlayerStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
-import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, Shuffle } from "lucide-react";
+import { Music, X } from "lucide-react";
 
 export const Route = createLazyFileRoute("/_auth/music/")({
   component: MusicPage,
@@ -175,222 +175,19 @@ function useMusicArtists(libraryID: string | undefined) {
 
 type Tab = "albums" | "tracks" | "artists";
 
-function NowPlayingBar({
-  playing,
-  queue,
-  shuffle,
-  onToggleShuffle,
-  onClose,
-  onSelectTrack,
-}: {
-  playing: Track;
-  queue: Track[];
-  shuffle: boolean;
-  onToggleShuffle: () => void;
-  onClose: () => void;
-  onSelectTrack: (t: Track) => void;
-}) {
-  const { t } = useTranslation();
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
-
-  const currentIndex = queue.findIndex((t) => t.ID === playing.ID);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const tryPlay = async () => {
-      try {
-        await audio.play();
-        setIsPlaying(true);
-      } catch (e: unknown) {
-        setIsPlaying(false);
-        if (e instanceof DOMException && e.name !== "AbortError") console.warn("Autoplay blocked:", e.message);
-      }
-    };
-    tryPlay();
-  }, [playing.ID]);
-
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume;
-  }, [volume]);
-
-  async function togglePlay() {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (isPlaying) {
-      audio.pause();
-      setIsPlaying(false);
-    } else {
-      try {
-        await audio.play();
-        setIsPlaying(true);
-      } catch (e: unknown) {
-        if (e instanceof DOMException && e.name !== "AbortError") console.warn("Autoplay blocked:", e.message);
-      }
-    }
-  }
-
-  function seek(e: React.ChangeEvent<HTMLInputElement>) {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const val = Number(e.target.value);
-    audio.currentTime = val;
-    setCurrentTime(val);
-  }
-
-  function pickRandom(): Track | null {
-    if (queue.length <= 1) return null;
-    const others = queue.filter((t) => t.ID !== playing.ID);
-    if (!others.length) return null;
-    return others[Math.floor(Math.random() * others.length)];
-  }
-
-  function playPrev() {
-    if (shuffle) {
-      const t = pickRandom();
-      if (t) onSelectTrack(t);
-      return;
-    }
-    if (currentIndex > 0) onSelectTrack(queue[currentIndex - 1]);
-  }
-
-  function playNext() {
-    if (shuffle) {
-      const t = pickRandom();
-      if (t) onSelectTrack(t);
-      return;
-    }
-    if (currentIndex < queue.length - 1) onSelectTrack(queue[currentIndex + 1]);
-  }
-
-  return (
-    <div
-      className="fixed bottom-0 left-0 right-0 flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 bg-[var(--surface)] border-t border-[var(--border)] z-overlay"
-    >
-      <audio
-        ref={audioRef}
-        key={playing.ID}
-        src={`/api/v1/music/tracks/${playing.ID}/stream${tokenParam}`}
-        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
-        onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
-        onEnded={playNext}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-      />
-
-      {/* Album art + info */}
-      <div className="flex items-center gap-3 min-w-0 w-[120px] sm:w-[200px]">
-        <TrackArt trackID={playing.ID} coverArtURL={playing.CoverArtURL} size={48} />
-        <div className="min-w-0">
-          <p className="font-medium truncate text-sm text-[var(--text)]">{playing.Title || "—"}</p>
-          <p className="text-xs truncate text-[var(--text-muted)]">{playing.Artist || "—"}</p>
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="flex flex-col items-center gap-1 flex-1">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onToggleShuffle}
-            className={`bg-transparent border-none cursor-pointer ${shuffle ? "text-[var(--accent)]" : "text-[var(--text-muted)]"}`}
-            aria-label={t("media.music.shuffle")}
-            aria-pressed={shuffle}
-            title={t("media.music.shuffle")}
-          >
-            <Shuffle size={16} />
-          </button>
-          <button
-            onClick={playPrev}
-            disabled={!shuffle && currentIndex <= 0}
-            className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer"
-            aria-label="Previous"
-          >
-            <SkipBack size={18}  aria-hidden="true" />
-          </button>
-          <button
-            onClick={togglePlay}
-            className="bg-[var(--accent)] border-none cursor-pointer text-[var(--filter-active-text)] rounded-full w-9 h-9 flex items-center justify-center"
-            aria-label={isPlaying ? "Pause" : "Play"}
-          >
-            {isPlaying ? <Pause size={16}  aria-hidden="true" /> : <Play size={16}  aria-hidden="true" />}
-          </button>
-          <button
-            onClick={playNext}
-            disabled={!shuffle && currentIndex >= queue.length - 1}
-            className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer"
-            aria-label="Next"
-          >
-            <SkipForward size={18}  aria-hidden="true" />
-          </button>
-        </div>
-        <div className="flex items-center gap-2 w-full max-w-[200px] sm:max-w-[400px]">
-          <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8 text-right">
-            {formatDuration(currentTime)}
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={duration || 0}
-            step={1}
-            value={currentTime}
-            onChange={seek}
-            className="flex-1 accent-[var(--accent)]"
-          />
-          <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8">
-            {duration > 0 ? formatDuration(duration) : "—"}
-          </span>
-        </div>
-      </div>
-
-      {/* Volume */}
-      <div className="hidden sm:flex items-center gap-2 min-w-[100px]">
-        <Volume2 size={16} className="text-[var(--text-muted)]" />
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.02}
-          value={volume}
-          onChange={(e) => setVolume(Number(e.target.value))}
-          className="w-[72px] accent-[var(--accent)]"
-        />
-      </div>
-
-      <button
-        onClick={onClose}
-        className="text-[var(--text-muted)] bg-transparent border-none cursor-pointer"
-        aria-label="Close player"
-      >
-        <X size={18}  aria-hidden="true" />
-      </button>
-    </div>
-  );
-}
 
 function MusicPage() {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("albums");
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
-  const [playing, setPlaying] = useState<Track | null>(null);
-  const [queue, setQueue] = useState<Track[]>([]);
+  const playing = useMusicPlayerStore((s) => s.playing);
+  const playInStore = useMusicPlayerStore((s) => s.play);
   const [searchInput, setSearchInput] = useState("");
   const [albumFilter, setAlbumFilter] = useState<string | null>(null);
   const [artistFilter, setArtistFilter] = useState<string | null>(null);
   const [genreFilter, setGenreFilter] = useState<string>("");
   const [yearFilter, setYearFilter] = useState<number>(0);
   const [artistSelectFilter, setArtistSelectFilter] = useState<string>("");
-  const [shuffle, setShuffle] = useState<boolean>(() => {
-    try { return localStorage.getItem("evey-music-shuffle") === "1"; } catch { return false; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem("evey-music-shuffle", shuffle ? "1" : "0"); } catch { /* ignore */ }
-  }, [shuffle]);
   const search = useDebounce(searchInput, 300);
 
   const { data: libraries, isLoading: libLoading } = useMusicLibraries();
@@ -403,8 +200,7 @@ function MusicPage() {
   const { data: artists, isLoading: artistsLoading } = useMusicArtists(activeLibraryID);
 
   function handlePlay(t: Track, allTracks: Track[]) {
-    setQueue(allTracks);
-    setPlaying(t);
+    playInStore(t, allTracks);
   }
 
   const tabClass = (active: boolean) =>
@@ -493,16 +289,7 @@ function MusicPage() {
         />
       )}
 
-      {playing && (
-        <NowPlayingBar
-          playing={playing}
-          queue={queue}
-          shuffle={shuffle}
-          onToggleShuffle={() => setShuffle((s) => !s)}
-          onClose={() => setPlaying(null)}
-          onSelectTrack={setPlaying}
-        />
-      )}
+      {/* NowPlayingBar is now rendered globally via AuthLayout's GlobalAudioPlayer */}
     </div>
   );
 }

@@ -29,9 +29,26 @@ vi.mock("@tanstack/react-router", () => ({
 
 const mockUseAuthStore = vi.fn((s: (state: { isAdmin: boolean }) => unknown) => s({ isAdmin: false }));
 
+const mockMusicStore = {
+  playing: null as unknown,
+  queue: [] as unknown[],
+  shuffle: false,
+  externallyPaused: false,
+  play: vi.fn(),
+  setQueue: vi.fn(),
+  toggleShuffle: vi.fn(),
+  pauseExternal: vi.fn(),
+  resumeExternal: vi.fn(),
+  next: vi.fn(),
+  prev: vi.fn(),
+  close: vi.fn(),
+};
+
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   useAuthStore: (s: (state: { isAdmin: boolean }) => unknown) => mockUseAuthStore(s),
+  useMusicPlayerStore: <T,>(selector?: (s: typeof mockMusicStore) => T): T | typeof mockMusicStore =>
+    selector ? selector(mockMusicStore) : mockMusicStore,
 }));
 
 const mockLibraries = [{ id: "lib1", name: "My Music", type: "LIBRARY_TYPE_MUSIC" }];
@@ -62,6 +79,8 @@ describe("MusicPage search", () => {
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(MusicPage), { wrapper: createWrapper() });
 
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tracks" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Tracks" }));
     await waitFor(() => expect(screen.getByPlaceholderText(/Search tracks/i)).toBeInTheDocument());
     fireEvent.change(screen.getByPlaceholderText(/Search tracks/i), { target: { value: "Blue" } });
 
@@ -77,6 +96,8 @@ describe("MusicPage search", () => {
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(MusicPage), { wrapper: createWrapper() });
 
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tracks" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Tracks" }));
     await waitFor(() => expect(screen.getByPlaceholderText(/Search tracks/i)).toBeInTheDocument());
     fireEvent.change(screen.getByPlaceholderText(/Search tracks/i), { target: { value: "xyz" } });
 
@@ -90,6 +111,8 @@ describe("MusicPage search", () => {
     const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(MusicPage), { wrapper: createWrapper() });
 
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tracks" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Tracks" }));
     await waitFor(() => expect(screen.getByText("Blue Sky")).toBeInTheDocument());
     expect(screen.queryByTitle("Delete track")).not.toBeInTheDocument();
   });
