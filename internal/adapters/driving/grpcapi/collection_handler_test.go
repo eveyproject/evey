@@ -14,6 +14,8 @@ import (
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func newTestCollectionHandler() (*collectionHandler, *libraryfakes.FakeCollectionCommandRepo) {
@@ -175,6 +177,150 @@ func TestCollectionGetCollection_IDOR_AllowsAuthorizedLibrary(t *testing.T) {
 	}
 	if resp.Collection.Id != "col-lib2" {
 		t.Errorf("expected col-lib2, got %q", resp.Collection.Id)
+	}
+}
+
+func TestCollectionCreateCollection_EmptyName_400(t *testing.T) {
+	h, _ := newTestCollectionHandler()
+	_, err := h.CreateCollection(context.Background(), &eveyv1.CreateCollectionRequest{Name: ""})
+	if err == nil {
+		t.Fatal("expected error for empty name")
+	}
+	if got := status.Code(err); got != codes.InvalidArgument {
+		t.Errorf("expected InvalidArgument, got %v", got)
+	}
+}
+
+func TestCollectionCreateCollection_OK(t *testing.T) {
+	h, _ := newTestCollectionHandler()
+	resp, err := h.CreateCollection(context.Background(), &eveyv1.CreateCollectionRequest{
+		Name:   "New Collection",
+		Smart:  false,
+		SortBy: "title",
+	})
+	if err != nil {
+		t.Fatalf("CreateCollection: %v", err)
+	}
+	if resp.Collection == nil || resp.Collection.Id == "" {
+		t.Fatal("expected a collection with id")
+	}
+	if resp.Collection.Name != "New Collection" {
+		t.Errorf("expected name 'New Collection', got %q", resp.Collection.Name)
+	}
+	list, err := h.ListCollections(context.Background(), &eveyv1.ListCollectionsRequest{})
+	if err != nil {
+		t.Fatalf("ListCollections: %v", err)
+	}
+	found := false
+	for _, c := range list.Collections {
+		if c.Id == resp.Collection.Id {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected created collection to be listed")
+	}
+}
+
+func TestCollectionCreateCollection_Smart_OK(t *testing.T) {
+	h, _ := newTestCollectionHandler()
+	resp, err := h.CreateCollection(context.Background(), &eveyv1.CreateCollectionRequest{
+		Name:  "Smart Col",
+		Smart: true,
+		Rules: []*eveyv1.CollectionRule{{Field: "genre", Operator: "equals", Value: "action"}},
+	})
+	if err != nil {
+		t.Fatalf("CreateCollection smart: %v", err)
+	}
+	if resp.Collection == nil || resp.Collection.Id == "" {
+		t.Fatal("expected a smart collection with id")
+	}
+	if len(resp.Collection.Rules) != 1 || resp.Collection.Rules[0].Field != "genre" {
+		t.Errorf("expected rules to round-trip, got %+v", resp.Collection.Rules)
+	}
+}
+
+func TestCollectionUpdateCollection_OK(t *testing.T) {
+	h, cmdRepo := newTestCollectionHandler()
+	seedCollection(cmdRepo, "col-1", "Old Name")
+	resp, err := h.UpdateCollection(context.Background(), &eveyv1.UpdateCollectionRequest{
+		Id:     "col-1",
+		Name:   "New Name",
+		SortBy: "title",
+	})
+	if err != nil {
+		t.Fatalf("UpdateCollection: %v", err)
+	}
+	if resp.Collection == nil || resp.Collection.Name != "New Name" {
+		t.Errorf("expected name 'New Name', got %+v", resp.Collection)
+	}
+}
+
+func TestCollectionUpdateCollection_NotFound(t *testing.T) {
+	h, _ := newTestCollectionHandler()
+	_, err := h.UpdateCollection(context.Background(), &eveyv1.UpdateCollectionRequest{
+		Id:   "nonexistent",
+		Name: "X",
+	})
+	if err == nil {
+		t.Fatal("expected error for nonexistent collection")
+	}
+}
+
+func TestCollectionUpdateCollection_MissingName_400(t *testing.T) {
+	h, _ := newTestCollectionHandler()
+	_, err := h.UpdateCollection(context.Background(), &eveyv1.UpdateCollectionRequest{
+		Id:   "col-1",
+		Name: "",
+	})
+	if err == nil {
+		t.Fatal("expected error for empty name")
+	}
+	if got := status.Code(err); got != codes.InvalidArgument {
+		t.Errorf("expected InvalidArgument, got %v", got)
+	}
+}
+
+func TestCollectionAddCollectionItem_OK(t *testing.T) {
+	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-1", "C")
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "A", Type: "movie"})
+	_, err := h.AddCollectionItem(context.Background(), &eveyv1.AddCollectionItemRequest{
+		Id:          "col-1",
+		MediaItemId: "m1",
+		SortOrder:   0,
+	})
+	if err != nil {
+		t.Fatalf("AddCollectionItem: %v", err)
+	}
+}
+
+func TestCollectionAddCollectionItem_MissingID_400(t *testing.T) {
+	h, _ := newTestCollectionHandler()
+	_, err := h.AddCollectionItem(context.Background(), &eveyv1.AddCollectionItemRequest{
+		Id:          "",
+		MediaItemId: "m1",
+	})
+	if err == nil {
+		t.Fatal("expected error for missing id")
+	}
+	if got := status.Code(err); got != codes.InvalidArgument {
+		t.Errorf("expected InvalidArgument, got %v", got)
+	}
+}
+
+func TestCollectionAddCollectionItem_MissingMediaItemID_400(t *testing.T) {
+	h, _ := newTestCollectionHandler()
+	_, err := h.AddCollectionItem(context.Background(), &eveyv1.AddCollectionItemRequest{
+		Id:          "col-1",
+		MediaItemId: "",
+	})
+	if err == nil {
+		t.Fatal("expected error for missing media_item_id")
+	}
+	if got := status.Code(err); got != codes.InvalidArgument {
+		t.Errorf("expected InvalidArgument, got %v", got)
 	}
 }
 

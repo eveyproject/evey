@@ -20,6 +20,20 @@ service CollectionService {
     };
   }
 
+  rpc CreateCollection(CreateCollectionRequest) returns (CreateCollectionResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/collections"
+      body: "*"
+    };
+  }
+
+  rpc UpdateCollection(UpdateCollectionRequest) returns (UpdateCollectionResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/collections/{id}"
+      body: "*"
+    };
+  }
+
   rpc DeleteCollection(DeleteCollectionRequest) returns (DeleteCollectionResponse) {
     option (google.api.http) = {
       delete: "/api/v1/collections/{id}"
@@ -29,6 +43,13 @@ service CollectionService {
   rpc GetCollectionItems(GetCollectionItemsRequest) returns (GetCollectionItemsResponse) {
     option (google.api.http) = {
       get: "/api/v1/collections/{id}/items"
+    };
+  }
+
+  rpc AddCollectionItem(AddCollectionItemRequest) returns (AddCollectionItemResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/collections/{id}/items"
+      body: "*"
     };
   }
 }
@@ -42,6 +63,15 @@ message CollectionProto {
   string backdrop_url = 6;
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
+  repeated CollectionRule rules = 9;
+  string sort_by = 10;
+  string sort_order = 11;
+}
+
+message CollectionRule {
+  string field = 1;
+  string operator = 2;
+  string value = 3;
 }
 
 message ListCollectionsRequest {}
@@ -55,6 +85,29 @@ message GetCollectionRequest {
 }
 
 message GetCollectionResponse {
+  CollectionProto collection = 1;
+}
+
+message CreateCollectionRequest {
+  string name = 1;
+  repeated CollectionRule rules = 2;
+  string sort_by = 3;
+  bool smart = 4;
+}
+
+message CreateCollectionResponse {
+  CollectionProto collection = 1;
+}
+
+message UpdateCollectionRequest {
+  string id = 1;
+  string name = 2;
+  repeated CollectionRule rules = 3;
+  string sort_by = 4;
+  bool smart = 5;
+}
+
+message UpdateCollectionResponse {
   CollectionProto collection = 1;
 }
 
@@ -75,6 +128,14 @@ message GetCollectionItemsResponse {
   int32 total = 2;
   repeated CollectionItemProto items = 3;
 }
+
+message AddCollectionItemRequest {
+  string id = 1;
+  string media_item_id = 2;
+  int32 sort_order = 3;
+}
+
+message AddCollectionItemResponse {}
 
 message CollectionItemProto {
   string id = 1;

@@ -86,6 +86,82 @@ func (h *collectionHandler) DeleteCollection(ctx context.Context, req *eveyv1.De
 	return &eveyv1.DeleteCollectionResponse{}, nil
 }
 
+func (h *collectionHandler) CreateCollection(ctx context.Context, req *eveyv1.CreateCollectionRequest) (*eveyv1.CreateCollectionResponse, error) {
+	if req.GetName() == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "name is required")
+	}
+	rules := protoRulesToDomain(req.GetRules())
+	var (
+		created *library.Collection
+		err     error
+	)
+	if req.GetSmart() {
+		created, err = h.svc.CreateSmart(ctx, req.GetName(), rules, req.GetSortBy())
+	} else {
+		created, err = h.svc.Create(ctx, req.GetName(), rules, req.GetSortBy())
+	}
+	if err != nil {
+		return nil, internalError("create collection", err)
+	}
+	return &eveyv1.CreateCollectionResponse{Collection: collectionToProto(created)}, nil
+}
+
+func (h *collectionHandler) UpdateCollection(ctx context.Context, req *eveyv1.UpdateCollectionRequest) (*eveyv1.UpdateCollectionResponse, error) {
+	if req.GetId() == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+	}
+	if req.GetName() == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "name is required")
+	}
+	rules := protoRulesToDomain(req.GetRules())
+	if req.GetSmart() {
+		col, err := h.svc.UpdateSmart(ctx, req.GetId(), req.GetName(), rules, req.GetSortBy())
+		if err != nil {
+			return nil, internalError("update smart collection", err)
+		}
+		return &eveyv1.UpdateCollectionResponse{Collection: collectionToProto(col)}, nil
+	}
+	if err := h.svc.Update(ctx, req.GetId(), req.GetName(), rules, req.GetSortBy()); err != nil {
+		return nil, internalError("update collection", err)
+	}
+	col, err := h.svc.GetByID(ctx, req.GetId())
+	if err != nil {
+		return nil, internalError("fetch updated collection", err)
+	}
+	return &eveyv1.UpdateCollectionResponse{Collection: collectionToProto(col)}, nil
+}
+
+func (h *collectionHandler) AddCollectionItem(ctx context.Context, req *eveyv1.AddCollectionItemRequest) (*eveyv1.AddCollectionItemResponse, error) {
+	if req.GetId() == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+	}
+	if req.GetMediaItemId() == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "media_item_id is required")
+	}
+	if err := h.svc.LinkMediaItem(ctx, req.GetId(), req.GetMediaItemId(), int(req.GetSortOrder())); err != nil {
+		return nil, internalError("add collection item", err)
+	}
+	return &eveyv1.AddCollectionItemResponse{}, nil
+}
+
+func protoRulesToDomain(in []*eveyv1.CollectionRule) []library.CollectionRule {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]library.CollectionRule, 0, len(in))
+	for _, r := range in {
+		if r == nil {
+			continue
+		}
+		out = append(out, library.CollectionRule{
+			Field:    r.GetField(),
+			Operator: r.GetOperator(),
+			Value:    r.GetValue(),
+		})
+	}
+	return out
+}
+
 func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.GetCollectionItemsRequest) (*eveyv1.GetCollectionItemsResponse, error) {
 	items, total, err := h.svc.GetItems(ctx, req.Id, int(req.Limit), int(req.Offset))
 	if err != nil {
@@ -146,10 +222,21 @@ func collectionToProto(c *library.Collection) *eveyv1.CollectionProto {
 		BackdropUrl: c.BackdropURL,
 		CreatedAt:   toTimestamppb(c.CreatedAt),
 		UpdatedAt:   toTimestamppb(c.UpdatedAt),
+		SortBy:      c.SortBy,
 	}
 	if c.TmdbID != nil {
 		v := int32(*c.TmdbID)
 		pb.TmdbId = &v
+	}
+	if len(c.Rules) > 0 {
+		pb.Rules = make([]*eveyv1.CollectionRule, 0, len(c.Rules))
+		for _, r := range c.Rules {
+			pb.Rules = append(pb.Rules, &eveyv1.CollectionRule{
+				Field:    r.Field,
+				Operator: r.Operator,
+				Value:    r.Value,
+			})
+		}
 	}
 	return pb
 }
