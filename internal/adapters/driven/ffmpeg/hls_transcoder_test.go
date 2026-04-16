@@ -560,6 +560,103 @@ func TestBuildFFmpegArgs_H264Copy_UsesTSSegments(t *testing.T) {
 	assert.NotContains(t, joined, "-hls_segment_type fmp4")
 }
 
+// Kills hls_transcoder.go:175:19 CONDITIONALS_BOUNDARY (`StartSec > 0` vs `>= 0`)
+// in buildCopyVideoArgs. With StartSec==0, the `>` branch skips -ss; mutation `>=`
+// would emit `-ss 0.000`.
+func TestTranscoding_KillMutant_BuildFFmpegArgs_CopyVideoNoSeekWhenZero(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:       "/tmp/test",
+		FilePath:        "/f.mkv",
+		Profiles:        transcoding.DefaultHLSProfiles,
+		VideoDecision:   "copy",
+		AudioDecision:   "copy",
+		AudioTrackIndex: 0,
+		StartSec:        0,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	for _, a := range args {
+		assert.NotEqual(t, "-ss", a, "StartSec=0 must NOT emit -ss in copy mode")
+	}
+}
+
+// Kills hls_transcoder.go:214:19 CONDITIONALS_BOUNDARY (`StartSec > 0` vs `>= 0`)
+// in buildSingleTranscodeArgs. Force single-transcode path via Profiles[:1] +
+// VideoDecision="transcode".
+func TestTranscoding_KillMutant_BuildFFmpegArgs_SingleTranscodeNoSeekWhenZero(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles[:1],
+		VideoDecision: "transcode",
+		AudioDecision: "copy",
+		StartSec:      0,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	for _, a := range args {
+		assert.NotEqual(t, "-ss", a, "StartSec=0 must NOT emit -ss in single-transcode mode")
+	}
+}
+
+// Kills hls_transcoder.go:279:19 CONDITIONALS_BOUNDARY (`StartSec > 0` vs `>= 0`)
+// in buildMultiVariantArgs (VideoDecision="" falls through to multi-variant).
+func TestTranscoding_KillMutant_BuildFFmpegArgs_MultiVariantNoSeekWhenZero(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:       "/tmp/test",
+		FilePath:        "/f.mkv",
+		Profiles:        transcoding.DefaultHLSProfiles,
+		VideoDecision:   "",
+		AudioDecision:   "",
+		AudioTrackIndex: 0,
+		StartSec:        0,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	for _, a := range args {
+		assert.NotEqual(t, "-ss", a, "StartSec=0 must NOT emit -ss in multi-variant mode")
+	}
+}
+
+// Kills hls_transcoder.go:210:36 CONDITIONALS_NEGATION/BOUNDARY on
+// `SubtitleTrackIndex >= 0 && IsImageSubtitle(...)` inside buildSingleTranscodeArgs.
+// With index=0 + image codec + single profile, mutant `> 0` disables burn-in and
+// overlay filter disappears.
+func TestTranscoding_KillMutant_BuildFFmpegArgs_SingleTranscodeBurnInImageSubtitle(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:          "/tmp/test",
+		FilePath:           "/f.mkv",
+		Profiles:           transcoding.DefaultHLSProfiles[:1],
+		VideoDecision:      "transcode",
+		AudioDecision:      "copy",
+		SubtitleTrackIndex: 0,
+		SubtitleCodec:      "pgssub",
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "filter_complex", "image subtitle burn-in must use filter_complex in single-transcode")
+	assert.Contains(t, joined, "overlay", "burn-in overlay must be present")
+	assert.Contains(t, joined, "[0:s:0]", "subtitle index 0 must be referenced")
+}
+
+// Kills hls_transcoder.go:221:23 CONDITIONALS_NEGATION on `toneMap != ""` inside
+// buildSingleTranscodeArgs. With burnIn=false and no HDR streams (toneMap==""),
+// original skips filter_complex; mutant flips to `toneMap == ""` → enters the
+// block and emits filter_complex unnecessarily. We assert NO filter_complex.
+func TestTranscoding_KillMutant_BuildFFmpegArgs_SingleTranscodeNoFilterComplexWhenNoBurnInNoHDR(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:          "/tmp/test",
+		FilePath:           "/f.mkv",
+		Profiles:           transcoding.DefaultHLSProfiles[:1],
+		VideoDecision:      "transcode",
+		AudioDecision:      "copy",
+		SubtitleTrackIndex: -1, // no subtitles → burnIn=false
+		// no Streams → toneMap=""
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.NotContains(t, joined, "filter_complex",
+		"single-transcode without burn-in and without HDR must use simple -vf scale (no filter_complex)")
+	assert.Contains(t, joined, "-vf", "should use simple -vf scale path")
+}
+
 // Integration test — requires ffmpeg binary
 func TestHLSTranscoder_Integration_ModeA(t *testing.T) {
 	requireFFmpeg(t)

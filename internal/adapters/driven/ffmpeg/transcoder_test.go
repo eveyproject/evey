@@ -328,6 +328,56 @@ func TestMapVideoEncoder_Passthrough(t *testing.T) {
 	assert.Equal(t, "custom_codec", got, "unknown codec passes through")
 }
 
+// Kills transcoder.go:150:20 CONDITIONALS_BOUNDARY (`BitrateOut > 0` vs `>= 0`).
+// When BitrateOut=0, the `>` branch must skip -b:v; mutation `>=` would emit `-b:v 0`.
+func TestTranscoding_KillMutant_BuildTranscodeArgs_NoBitrateWhenZero(t *testing.T) {
+	t.Parallel()
+	tr := newTestTranscoder()
+	job := &transcoding.TranscodeJob{
+		ID:          "job-zero-bitrate",
+		InputPath:   "/input/video.mkv",
+		OutputCodec: "h264",
+		HWAccelType: "none",
+		BitrateOut:  0,
+	}
+	args := tr.BuildTranscodeArgs(job)
+	for _, a := range args {
+		assert.NotEqual(t, "-b:v", a, "BitrateOut=0 must NOT emit -b:v")
+	}
+}
+
+// Kills transcoder.go:237 ARITHMETIC_BASE mutants in currentMs computation
+// (hours*3600000, secs*1000, centis*10) and 253/255 ETA arithmetic
+// (durationMs-currentMs, /1000, /speed*1000). Uses non-zero hours/mins/secs/centis
+// with a tight InDelta on both Percent and ETAMs.
+func TestTranscoding_KillMutant_ParseProgress_AllComponentsAndETA(t *testing.T) {
+	t.Parallel()
+	// 01:02:03.99 = 1*3600000 + 2*60000 + 3*1000 + 99*10 = 3723990 ms
+	line := "frame=  200 fps= 25.0 q=28.0 size=    512kB time=01:02:03.99 bitrate= 800.0kbits/s speed= 2.0x"
+	dur := int64(7447980) // exactly 2x currentMs → Percent must be 50.0
+	p, ok := ParseProgress(line, "j-precise", &dur)
+	require.True(t, ok)
+	// Mutant centis*10 → centis/10 yields currentMs=3723009, percent=49.9878 → ~0.012 off.
+	assert.InDelta(t, 50.0, p.Percent, 0.001,
+		"percent = currentMs/dur*100; tight delta kills arithmetic mutations in all time components")
+	// remaining = (dur-currentMs)/1000 = 3723.99s; ETAMs = 3723.99/2.0 * 1000 = 1861995
+	assert.InDelta(t, int64(1861995), p.ETAMs, 100,
+		"ETAMs exact value kills 253 subtraction/division and 255 division mutations")
+}
+
+// Kills transcoder.go:254:12 CONDITIONALS_BOUNDARY on `speed > 0` vs `>= 0`.
+// With speed=0, orig skips ETA calc leaving ETAMs=0; mutant would divide by
+// zero (Inf → int64 overflow or garbage).
+func TestTranscoding_KillMutant_ParseProgress_SpeedZeroKeepsETAZero(t *testing.T) {
+	t.Parallel()
+	line := "frame=  120 fps= 0.0 q=28.0 size=    256kB time=00:00:04.00 bitrate= 100.0kbits/s speed= 0.0x"
+	dur := int64(10000)
+	p, ok := ParseProgress(line, "j-zero-speed", &dur)
+	require.True(t, ok)
+	assert.Equal(t, int64(0), p.ETAMs,
+		"speed=0 must leave ETAMs=0 (no division); mutation >= 0 would divide by zero")
+}
+
 func TestMapVideoEncoder(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
