@@ -6,6 +6,26 @@ import (
 	"testing"
 )
 
+// Exported wrapper just calls the internal helper; assert it's wired.
+func TestCSRFMiddleware_ExportedWrapper(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	rec := httptest.NewRecorder()
+	CSRFMiddleware(false, next).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", rec.Code)
+	}
+	found := false
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "_csrf" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected _csrf cookie set via exported CSRFMiddleware")
+	}
+}
+
 func TestCSRFMiddleware_GET_SetsToken(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
