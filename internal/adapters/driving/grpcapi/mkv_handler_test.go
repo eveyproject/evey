@@ -45,6 +45,47 @@ func seedContainer(reader *mkvfakes.FakeContainerReader) {
 	}
 }
 
+func TestMKVGetContainerInfo_Success(t *testing.T) {
+	h, reader, _ := newTestMKVHandler()
+	seedContainer(reader)
+
+	resp, err := h.GetContainerInfo(context.Background(), &eveyv1.GetContainerInfoRequest{Path: "/media/movie.mkv"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Path != "/media/movie.mkv" {
+		t.Fatalf("path: want /media/movie.mkv, got %q", resp.Path)
+	}
+	if resp.DurationMs != 7200000 {
+		t.Fatalf("duration: want 7200000, got %d", resp.DurationMs)
+	}
+}
+
+func TestMKVGetContainerInfo_NotFound(t *testing.T) {
+	h, _, _ := newTestMKVHandler()
+	_, err := h.GetContainerInfo(context.Background(), &eveyv1.GetContainerInfoRequest{Path: "/missing"})
+	if err == nil {
+		t.Fatal("want error")
+	}
+}
+
+// ExtractAttachment delegates via the service; fake writer just records the call.
+func TestMKVExtractAttachment_Success(t *testing.T) {
+	h, _, writer := newTestMKVHandler()
+	resp, err := h.ExtractAttachment(context.Background(), &eveyv1.ExtractAttachmentRequest{
+		Path: "/media/movie.mkv", AttachmentId: 1, OutputPath: "/tmp/out/cover.jpg",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.OutputPath != "/tmp/out/cover.jpg" {
+		t.Fatalf("output: want /tmp/out/cover.jpg, got %q", resp.OutputPath)
+	}
+	if len(writer.ExtractAttachmentCalls) != 1 {
+		t.Fatalf("call count: want 1, got %d", len(writer.ExtractAttachmentCalls))
+	}
+}
+
 func TestMKVListChapters(t *testing.T) {
 	h, reader, _ := newTestMKVHandler()
 	seedContainer(reader)
