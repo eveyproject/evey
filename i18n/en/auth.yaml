@@ -117,8 +117,29 @@ settings:
   playback:
     bitrateTitle: Max Streaming Bitrate
     bitrateDesc: Limit the maximum bitrate when streaming. Lower values use less bandwidth.
+    cellularBitrateTitle: Max Cellular Bitrate
+    cellularBitrateDesc: Lower cap applied when using mobile data.
     subtitleLanguage: Default Subtitle Language
     audioLanguage: Default Audio Language
+    preferredVideoCodec: Preferred Video Codec
+    preferredAudioCodec: Preferred Audio Codec
+    maxAudioChannels: Max Audio Channels
+    codecAuto: Auto
+    channelsStereo: Stereo (2.0)
+    channels51: Surround (5.1)
+    channels71: Surround (7.1)
+    subtitleBurnIn: Subtitle Burn-in
+    subtitleBurnInDesc: Burn subtitles directly into the video stream when needed.
+    subtitleBurnAuto: Auto
+    subtitleBurnAlways: Always burn in
+    subtitleBurnNever: Never burn in
+    transcodeTitle: Transcoding
+    allowDirectPlay: Allow direct play
+    allowDirectPlayDesc: Play original file when device supports it.
+    allowDirectStream: Allow direct stream
+    allowDirectStreamDesc: Remux container without re-encoding when possible.
+    allowTranscoding: Allow transcoding
+    allowTranscodingDesc: Fall back to transcoding if direct play/stream is unavailable.
   quickConnect:
     title: Quick Connect
     description: Enter the code displayed on the device you want to sign in to.
