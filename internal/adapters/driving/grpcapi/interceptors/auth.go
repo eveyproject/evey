@@ -9,7 +9,6 @@ import (
 	"time"
 
 	authpkg "github.com/evey-project/evey/internal/pkg/auth"
-	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"google.golang.org/grpc"
@@ -162,7 +161,7 @@ func (i *AuthInterceptor) authenticateAPIKey(ctx context.Context, rawKey string)
 	if key.ExpiresAt != nil && time.Now().After(*key.ExpiresAt) {
 		return nil, status.Error(codes.Unauthenticated, "api key expired")
 	}
-	u, err := i.users.GetByID(ctx, shared.UserID(key.UserID))
+	u, err := i.users.GetByID(ctx, key.UserID)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid api key")
 	}
