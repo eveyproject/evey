@@ -1,17 +1,15 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   useLibraryServiceListLibraries,
   usePhotoServiceListPhotos,
   usePhotoServiceListPhotoAlbums,
-  photoServiceDeletePhoto,
 } from "@evey/api";
-import { toast, useAuthStore } from "@evey/store";
+import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Images, ChevronLeft, ChevronRight, X, Trash2, RotateCcw, RotateCw } from "lucide-react";
+import { Images, ChevronLeft, ChevronRight, X, RotateCcw, RotateCw } from "lucide-react";
 
 export const Route = createLazyFileRoute("/_auth/photos/")({
   component: PhotosPage,
@@ -111,10 +109,9 @@ interface LightboxProps {
   onClose: () => void;
   onPrev: () => void;
   onNext: () => void;
-  onDelete?: (photo: Photo) => void;
 }
 
-function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: LightboxProps) {
+function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
   const photo = photos[index];
   const accessToken = useAuthStore((s) => s.accessToken);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
@@ -155,15 +152,6 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
         >
           <RotateCw size={22} />
         </button>
-        {onDelete && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(photo); }}
-            className="transition-colors-fast text-[var(--overlay-text-muted)]"
-            aria-label="Delete photo"
-          >
-            <Trash2 size={22}  aria-hidden="true" />
-          </button>
-        )}
         <button
           onClick={(e) => { e.stopPropagation(); onClose(); }}
           className="transition-colors-fast text-[var(--overlay-text)]"
@@ -386,8 +374,6 @@ function PhotosPage() {
   const [view, setView] = useState<View>("albums");
   const [selectedAlbum, setSelectedAlbum] = useState<string | undefined>(undefined);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const isAdmin = useAuthStore((s) => s.isAdmin);
-  const qc = useQueryClient();
 
   const firstLib = libraries?.[0];
   const activeLibraryID = selectedLibraryID ?? firstLib?.id;
@@ -401,21 +387,6 @@ function PhotosPage() {
   const closeLightbox = useCallback(() => setLightboxIndex(null), []);
   const prevPhoto = useCallback(() => setLightboxIndex((i) => (i !== null && i > 0 ? i - 1 : i)), []);
   const nextPhoto = useCallback(() => setLightboxIndex((i) => (i !== null && i < displayedPhotos.length - 1 ? i + 1 : i)), [displayedPhotos.length]);
-
-  const deletePhotoMutation = useMutation({
-    mutationFn: (id: string) => photoServiceDeletePhoto(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["photos"] });
-      setLightboxIndex(null);
-      toast.success(t("media.photos.photoDeleted"));
-    },
-    onError: (err: Error) => toast.error(err.message || t("media.photos.failedDeletePhoto")),
-  });
-
-  function handleDeletePhoto(photo: Photo) {
-    if (!window.confirm(t("media.photos.deletePhotoConfirm", { title: photo.Title }))) return;
-    deletePhotoMutation.mutate(photo.ID);
-  }
 
   if (libLoading) {
     return (
@@ -540,7 +511,6 @@ function PhotosPage() {
           onClose={closeLightbox}
           onPrev={prevPhoto}
           onNext={nextPhoto}
-          onDelete={isAdmin ? handleDeletePhoto : undefined}
         />
       )}
     </div>

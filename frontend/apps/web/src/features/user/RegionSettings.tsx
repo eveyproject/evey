@@ -3,18 +3,20 @@ import { useTranslation } from "react-i18next";
 import { Select } from "@/components/ui/Select";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
+import { ISO_REGIONS } from "./regionList";
 
 function regionOptions(locale: string): { value: string; label: string }[] {
   try {
     const sv = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
-    const codes: string[] = typeof sv === "function" ? sv("region") : [];
+    const dynamic = typeof sv === "function" ? sv("region") : [];
+    const codes = dynamic.length > 0 ? dynamic : Array.from(ISO_REGIONS);
     const names = new Intl.DisplayNames([locale], { type: "region" });
     return codes
       .filter((c) => /^[A-Z]{2}$/.test(c))
       .map((c) => ({ value: c, label: names.of(c) ?? c }))
       .sort((a, b) => a.label.localeCompare(b.label, locale));
   } catch {
-    return [];
+    return Array.from(ISO_REGIONS).map((c) => ({ value: c, label: c }));
   }
 }
 
