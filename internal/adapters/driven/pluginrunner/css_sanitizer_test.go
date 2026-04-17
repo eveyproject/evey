@@ -376,6 +376,21 @@ func TestSanitizeCSS_JavascriptURLCaseInsensitive(t *testing.T) {
 	}
 }
 
+func TestRegexCSSSanitizer_Wrapper_DelegatesToPackageFn(t *testing.T) {
+	s := NewCSSSanitizer()
+	if s == nil {
+		t.Fatal("NewCSSSanitizer returned nil")
+	}
+	input := []byte(`@import "https://evil.example/x.css"; body { color: red; }`)
+	out, warns := s.SanitizeCSS(input)
+	if containsString(out, "@import") {
+		t.Errorf("wrapper did not remove @import: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("wrapper did not surface warnings")
+	}
+}
+
 func containsString(b []byte, s string) bool {
 	return len(b) > 0 && len(s) > 0 && string(b) != "" && contains(string(b), s)
 }
