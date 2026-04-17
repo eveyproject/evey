@@ -642,6 +642,50 @@ func TestRegisterWithInvite_IncrementUsedCountError_FailsClosed(t *testing.T) {
 	}
 }
 
+// userRepoCreateErr wraps FakeUserRepository to inject a transient Create
+// error without breaking reads/writes after the first attempt.
+type userRepoCreateErrOnce struct {
+	*ufakes.FakeUserRepository
+	failOnce bool
+}
+
+func (r *userRepoCreateErrOnce) Create(ctx context.Context, u *user.User) error {
+	if r.failOnce {
+		r.failOnce = false
+		return errors.New("transient db error")
+	}
+	return r.FakeUserRepository.Create(ctx, u)
+}
+
+// When user.Create fails AFTER the invite slot is claimed, the slot must be
+// decremented so a MaxUses=1 invite remains usable for a valid retry.
+func TestRegisterWithInvite_UsersCreateFailure_DecrementsSlot(t *testing.T) {
+	base := ufakes.NewFakeInviteLinkRepository()
+	_ = base.Create(context.Background(), &user.InviteLink{ID: "inv-rb", Token: "tok-rb", MaxUses: 1})
+
+	users := &userRepoCreateErrOnce{FakeUserRepository: ufakes.NewFakeUserRepository(), failOnce: true}
+	apiKeys := ufakes.NewFakeAPIKeyRepository()
+	qc := ufakes.NewFakeQuickConnectRepository()
+	hasher := ufakes.NewFakePasswordHasher()
+	events := fakes.NewFakeEventBus()
+	svc := NewAccessService(users, apiKeys, base, qc, hasher, events)
+
+	_, err := svc.RegisterWithInvite(context.Background(), "tok-rb", "bob", "longpassword", "b@b.com")
+	if err == nil {
+		t.Fatal("expected error on transient create failure")
+	}
+
+	// Slot must have been rolled back. A retry on the same (MaxUses=1) invite
+	// should succeed — fail-closed if the slot were still burned.
+	u, err := svc.RegisterWithInvite(context.Background(), "tok-rb", "carol", "longpassword", "c@b.com")
+	if err != nil {
+		t.Fatalf("slot should have been rolled back, got %v", err)
+	}
+	if u == nil {
+		t.Fatal("expected user on retry")
+	}
+}
+
 func TestRegisterWithInvite_PublishError_EmitsWarning(t *testing.T) {
 	read, restore := captureSlog(t)
 	defer restore()

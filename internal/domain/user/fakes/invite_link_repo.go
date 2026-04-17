@@ -89,6 +89,25 @@ func (r *FakeInviteLinkRepository) IncrementUsedCount(_ context.Context, id stri
 	return nil
 }
 
+func (r *FakeInviteLinkRepository) DecrementUsedCount(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
+	l, ok := r.items[id]
+	if !ok {
+		return shared.ErrNotFound
+	}
+	if l.UsedCount > 0 {
+		l.UsedCount--
+	}
+	return nil
+}
+
 func (r *FakeInviteLinkRepository) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err

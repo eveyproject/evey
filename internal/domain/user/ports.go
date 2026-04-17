@@ -52,6 +52,7 @@ type InviteLinkRepository interface {
 	GetByToken(ctx context.Context, token string) (*InviteLink, error)
 	ListByCreator(ctx context.Context, creatorID string) ([]*InviteLink, error)
 	IncrementUsedCount(ctx context.Context, id string) error
+	DecrementUsedCount(ctx context.Context, id string) error
 	Delete(ctx context.Context, id string) error
 }
 

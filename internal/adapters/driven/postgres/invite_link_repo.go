@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"log/slog"
+	"fmt"
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
@@ -47,7 +47,9 @@ func scanInviteLink(scanner interface {
 	}
 	if len(libJSON) > 0 {
 		if err := json.Unmarshal(libJSON, &link.LibraryIDs); err != nil {
-			slog.Warn("invite_link: unmarshal library_ids", slog.String("id", link.ID), slog.Any("err", err))
+			// Poisoned row: fail loudly so the admin can re-create the invite,
+			// rather than silently stripping library grants on registration.
+			return nil, fmt.Errorf("invite_link %s: unmarshal library_ids: %w", link.ID, err)
 		}
 	}
 	return link, nil
@@ -82,6 +84,18 @@ func (r *InviteLinkRepository) ListByCreator(ctx context.Context, creatorID stri
 		result = append(result, link)
 	}
 	return result, rows.Err()
+}
+
+// DecrementUsedCount rolls back a previously-claimed use slot. Guarded to
+// never go below 0. Used by registration flow when user.Create fails after a
+// successful claim to avoid leaking a slot.
+func (r *InviteLinkRepository) DecrementUsedCount(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE invite_links SET used_count = used_count - 1
+		 WHERE id = $1 AND used_count > 0`, id)
+	return err
 }
 
 // IncrementUsedCount atomically increments used_count iff the invite still has

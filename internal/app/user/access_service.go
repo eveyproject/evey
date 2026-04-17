@@ -90,20 +90,29 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
 	}
 
-	// Atomically claim one invite use-slot BEFORE creating the user. The repo's
-	// IncrementUsedCount rejects the claim if the invite has been exhausted
-	// since our IsUsable() check above, closing a TOCTOU window where N
-	// concurrent registrations on a MaxUses=1 token all succeeded.
-	if err := s.invites.IncrementUsedCount(ctx, invite.ID); err != nil {
-		return nil, ErrInviteInvalid
-	}
-
+	// Build + validate the user BEFORE claiming the invite slot so a malformed
+	// input doesn't burn a MaxUses=1 slot.
 	u, err := user.NewUser(username, email, hash)
 	if err != nil {
 		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
 	}
 	u.IsAdmin = invite.IsAdmin
+
+	// Atomically claim one invite use-slot. The repo's IncrementUsedCount
+	// rejects the claim if the invite has been exhausted since our IsUsable()
+	// check above, closing a TOCTOU window where N concurrent registrations
+	// on a MaxUses=1 token all succeeded.
+	if err := s.invites.IncrementUsedCount(ctx, invite.ID); err != nil {
+		return nil, ErrInviteInvalid
+	}
+
 	if err := s.users.Create(ctx, u); err != nil {
+		// Best-effort rollback of the claim we just took. If this too fails,
+		// the slot stays consumed — that's a degraded outcome (admin can
+		// re-create the invite) rather than a security risk.
+		if decErr := s.invites.DecrementUsedCount(ctx, invite.ID); decErr != nil {
+			slog.Warn("invite: decrement after user.Create failed", slog.String("inviteID", invite.ID), slog.Any("err", decErr))
+		}
 		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
 	}
 	if s.libraryAccess != nil && !u.IsAdmin && len(invite.LibraryIDs) > 0 {
@@ -149,7 +158,7 @@ func (s *AccessService) AuthorizeQuickConnect(ctx context.Context, code string, 
 	if err != nil {
 		return "", fmt.Errorf("AccessService.AuthorizeQuickConnect: %w", err)
 	}
-	if err := s.quickConnect.UpdateStatus(ctx, req.ID, "authorized", &userID); err != nil {
+	if err := s.quickConnect.UpdateStatus(ctx, req.ID, string(user.Authorized), &userID); err != nil {
 		return "", fmt.Errorf("AccessService.AuthorizeQuickConnect: %w", err)
 	}
 	return req.Code, nil
@@ -160,7 +169,7 @@ func (s *AccessService) AuthorizeByShortCode(ctx context.Context, shortCode stri
 	if err != nil {
 		return "", fmt.Errorf("AccessService.AuthorizeByShortCode: %w", err)
 	}
-	if err := s.quickConnect.UpdateStatus(ctx, req.ID, "authorized", &userID); err != nil {
+	if err := s.quickConnect.UpdateStatus(ctx, req.ID, string(user.Authorized), &userID); err != nil {
 		return "", fmt.Errorf("AccessService.AuthorizeByShortCode: %w", err)
 	}
 	return req.Code, nil
