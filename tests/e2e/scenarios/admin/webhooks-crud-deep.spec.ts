@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { goto, apiGet, apiPost, apiDelete, collectErrors } from "../shared/helpers";
+import { goto, apiGet, apiDelete, collectErrors } from "../shared/helpers";
 
 test.describe("Admin > Webhooks CRUD (deep)", () => {
   const webhookName = `E2E-Webhook-${Date.now()}`;

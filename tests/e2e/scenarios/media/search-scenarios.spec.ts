@@ -25,7 +25,6 @@ test.describe("Search > Dropdown behavior", () => {
     await page.waitForTimeout(800);
     await page.fill('[data-testid="topbar-search-input"]', "");
     await page.waitForTimeout(500);
-    const dropdown = page.locator('[data-testid="search-dropdown"]');
     // dropdown should close or show recents, not search results
     const items = page.locator("[data-search-item]");
     const count = await items.count();

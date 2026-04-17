@@ -1,8 +1,6 @@
 import { test, expect } from "../../fixtures/auth";
 import { goto, collectErrors } from "../shared/helpers";
 
-const LIB_NAME = `E2E-Test-${Date.now()}`;
-
 test.describe("Admin > Library CRUD", () => {
   test("add library button opens modal", async ({ page }) => {
     await goto(page, "/admin/libraries");

@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { goto, collectErrors } from "../shared/helpers";
+import { goto } from "../shared/helpers";
 
 test.describe("Home > Search deep", () => {
   const SEARCH_INPUT = '[data-testid="topbar-search-input"]';

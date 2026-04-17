@@ -57,7 +57,6 @@ test.describe("Media > Metadata save (full CRUD)", () => {
 
     const titleInput = page.locator('input').first();
     test.skip(!(await titleInput.isVisible({ timeout: 2_000 }).catch(() => false)), "No input");
-    const original = await titleInput.inputValue();
 
     // clear title
     await titleInput.fill("");

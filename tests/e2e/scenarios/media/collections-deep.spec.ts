@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { goto, apiGet, apiPost, apiDelete, collectErrors } from "../shared/helpers";
+import { goto, apiPost, apiDelete, collectErrors } from "../shared/helpers";
 
 test.describe("Collections > Full CRUD", () => {
   let collectionId: string | null = null;

@@ -18,7 +18,6 @@ test.describe("Home > Slider interaction", () => {
     await goto(page, "/home");
     const card = page.locator('[data-testid="media-card"]').first();
     await card.waitFor({ state: "visible", timeout: 10_000 });
-    const href = await card.getAttribute("href");
     await card.click();
     await page.waitForTimeout(2_000);
     expect(page.url()).toContain("/media/");

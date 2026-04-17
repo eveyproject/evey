@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { goto, gotoRandomMedia, apiGet, apiPost, apiDelete, getToken, collectErrors } from "../shared/helpers";
+import { goto, gotoRandomMedia, apiPost, apiDelete, collectErrors } from "../shared/helpers";
 
 test.describe("Media > Playlist full CRUD", () => {
   let playlistId: string | null = null;

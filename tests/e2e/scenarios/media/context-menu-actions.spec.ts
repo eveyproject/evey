@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { goto, apiPost, apiDelete, collectErrors, pickRandomMediaId } from "../shared/helpers";
+import { goto, apiPost, apiDelete, collectErrors } from "../shared/helpers";
 
 async function openContextMenuOnCard(page: import("@playwright/test").Page): Promise<string | null> {
   await goto(page, "/home");

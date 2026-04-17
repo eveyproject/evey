@@ -6,12 +6,6 @@ async function goto(page: import("@playwright/test").Page, path: string) {
   await page.goto(path, { waitUntil: "domcontentloaded", timeout: 10_000 });
 }
 
-async function text(page: import("@playwright/test").Page, selector: string, timeout = 5_000) {
-  const el = page.locator(selector).first();
-  await el.waitFor({ state: "visible", timeout });
-  return el.textContent();
-}
-
 // ─── HOME ───────────────────────────────────────────────────────────
 
 test.describe("Home", () => {

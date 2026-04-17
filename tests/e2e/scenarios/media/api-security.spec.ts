@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { goto, getToken, pickRandomMediaId } from "../shared/helpers";
+import { goto, getToken } from "../shared/helpers";
 
 /**
  * API security tests: auth, invalid inputs, edge cases

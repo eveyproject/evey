@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { gotoRandomMedia, goto, apiGet, collectErrors } from "../shared/helpers";
+import { gotoRandomMedia, apiGet, collectErrors } from "../shared/helpers";
 
 async function gotoPersonFromMedia(page: import("@playwright/test").Page): Promise<boolean> {
   const id = await gotoRandomMedia(page);

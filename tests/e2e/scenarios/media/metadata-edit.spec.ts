@@ -24,7 +24,6 @@ test.describe("Media > Metadata edit", () => {
   test("edit panel shows title input with current value", async ({ page }) => {
     const id = await gotoRandomMedia(page);
     test.skip(!id, "No media found");
-    const title = await page.locator('[data-testid="media-title"]').textContent();
     const editBtn = page.locator('button[title*="edit" i]').first();
     await editBtn.click();
     await page.waitForTimeout(1_000);

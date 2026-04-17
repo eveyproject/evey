@@ -19,7 +19,6 @@ test.describe("Metadata editing", () => {
     await expect(detail).toBeVisible({ timeout: 15_000 });
 
     // Form fields: Title, Year, Overview, Genres, Rating, IMDB ID, TMDB ID
-    const titleInput = page.locator('input').filter({ has: page.locator('..', { hasText: 'Title' }) }).first();
     // Fallback: look for labeled inputs inside the edit form
     const form = page.locator("form");
     await expect(form).toBeVisible({ timeout: 10_000 });

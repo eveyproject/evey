@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { goto, getToken, pickRandomMediaId } from "../shared/helpers";
+import { goto, getToken } from "../shared/helpers";
 
 const FAKE_UUID = "00000000-0000-0000-0000-000000000099";
 

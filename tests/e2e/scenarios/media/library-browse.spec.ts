@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { goto, getToken, collectErrors } from "../shared/helpers";
+import { goto, collectErrors } from "../shared/helpers";
 
 test.describe("Library > Browse & Filter", () => {
   let librarySlug: string | null = null;
