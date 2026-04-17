@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user/fakes"
 )
 
@@ -138,6 +139,37 @@ func TestLibraryAccess_GrantIdempotent(t *testing.T) {
 	}
 	if len(ids) != 1 {
 		t.Fatalf("expected 1 library after duplicate grant, got %d", len(ids))
+	}
+}
+
+// GrantMany inserts all library IDs in one call; empty slice is a no-op.
+func TestLibraryAccess_GrantMany(t *testing.T) {
+	repo := fakes.NewFakeLibraryAccessRepository()
+	ctx := context.Background()
+
+	if err := repo.GrantMany(ctx, "u1", nil); err != nil {
+		t.Fatalf("empty GrantMany should be no-op, got %v", err)
+	}
+	ids, _ := repo.GetByUserID(ctx, "u1")
+	if len(ids) != 0 {
+		t.Fatalf("empty GrantMany created %d grants", len(ids))
+	}
+
+	if err := repo.GrantMany(ctx, "u1", []shared.LibraryID{"lib-a", "lib-b", "lib-c"}); err != nil {
+		t.Fatalf("GrantMany: %v", err)
+	}
+	ids, _ = repo.GetByUserID(ctx, "u1")
+	if len(ids) != 3 {
+		t.Fatalf("expected 3 grants, got %d", len(ids))
+	}
+
+	// Duplicate: library already granted → idempotent.
+	if err := repo.GrantMany(ctx, "u1", []shared.LibraryID{"lib-a", "lib-d"}); err != nil {
+		t.Fatalf("GrantMany (dup): %v", err)
+	}
+	ids, _ = repo.GetByUserID(ctx, "u1")
+	if len(ids) != 4 {
+		t.Fatalf("expected 4 unique grants after dup GrantMany, got %d", len(ids))
 	}
 }
 
