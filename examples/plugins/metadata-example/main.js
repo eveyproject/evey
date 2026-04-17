@@ -17,7 +17,6 @@ const PROTO_PATH = path.join(__dirname, "plugin_api.proto");
 const pkgDef = protoLoader.loadSync(PROTO_PATH, { keepCase: true });
 const proto = grpc.loadPackageDefinition(pkgDef).plugin.v1;
 
-const HOST_ADDR = process.env.EVEY_HOST_ADDR || "localhost:50051";
 const PLUGIN_PORT = process.env.EVEY_PLUGIN_PORT || "50052";
 
 // PluginService implementation (host -> plugin)
