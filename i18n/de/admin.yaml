@@ -151,6 +151,9 @@ users:
   inviteCreated: Einladungslink erstellt
   maxUsesLabel: Max. Verwendungen (leer = unbegrenzt)
   expiresAtLabel: Ablaufdatum (optional)
+  inviteIsAdmin: Als Administrator anlegen
+  inviteLibraries: Zugängliche Bibliotheken
+  inviteLibrariesHelp: "Leer lassen, um Zugriff auf alle Bibliotheken zu gewähren."
   noUsers: Keine Benutzer gefunden
   noInvites: Keine Einladungslinks
   editUser: Benutzer bearbeiten

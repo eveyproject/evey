@@ -236,6 +236,11 @@ music:
   tracks: Pistes
   albums: Albums
   artists: Artistes
+  playlists: Playlists
+  noPlaylists: Aucune playlist.
+  emptyPlaylist: Cette playlist est vide.
+  downloadTrack: Télécharger la piste
+  downloadAlbum: Télécharger l'album
   searchPlaceholder: "Rechercher pistes, artistes, albums\u2026"
   loading: "Chargement\u2026"
   noTracks: Aucune piste trouvée.
@@ -254,6 +259,8 @@ music:
   genre: Genre
   year: Année
   shuffle: Aléatoire
+  mute: Couper le son
+  unmute: Rétablir le son
   resetFilters: Réinitialiser les filtres
   addToPlaylist: Ajouter à la playlist
   newPlaylist: "Nouvelle playlist\u2026"

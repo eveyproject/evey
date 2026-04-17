@@ -151,6 +151,9 @@ users:
   inviteCreated: Invite link created
   maxUsesLabel: Max uses (empty = unlimited)
   expiresAtLabel: Expires at (optional)
+  inviteIsAdmin: Create as administrator
+  inviteLibraries: Accessible libraries
+  inviteLibrariesHelp: "Leave empty to grant access to all libraries."
   noUsers: No users found
   noInvites: No invite links
   editUser: Edit User
