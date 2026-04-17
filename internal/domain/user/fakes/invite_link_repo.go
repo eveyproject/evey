@@ -42,7 +42,10 @@ func (r *FakeInviteLinkRepository) GetByToken(_ context.Context, token string) (
 	}
 	for _, l := range r.items {
 		if l.Token == token {
-			return l, nil
+			// Return a copy to avoid racing with IncrementUsedCount on the shared
+			// pointer. Real postgres repo already returns a fresh struct per Scan.
+			cp := *l
+			return &cp, nil
 		}
 	}
 	return nil, ErrNotFound
