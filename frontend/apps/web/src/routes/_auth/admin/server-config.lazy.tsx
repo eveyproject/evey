@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Folder } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -138,47 +138,94 @@ const LOCALE_OPTIONS = [
   { label: "\u4E2D\u6587 (CN)", value: "zh-CN" },
 ];
 
+const SERVER_LANG_KEY = "server.language";
+const SERVER_REGION_KEY = "server.region";
 const METADATA_LANG_KEY = "metadata.language";
 
+function regionOptionsForLocale(locale: string): { value: string; label: string }[] {
+  try {
+    const sv = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
+    const dynamic: string[] = typeof sv === "function" ? sv("region") : [];
+    const codes = dynamic.length > 0 ? dynamic : [
+      "FR","BE","CH","CA","LU","US","GB","IE","DE","AT","ES","IT","NL","PT",
+      "AU","NZ","JP","KR","IN","CN","HK","TW","SG","BR","MX","AR","RU","PL",
+      "SE","NO","DK","FI","GR","HU","CZ","RO","ZA","SN","MA","TN","DZ","CI",
+    ];
+    const names = new Intl.DisplayNames([locale || "en"], { type: "region" });
+    return codes
+      .filter((c) => /^[A-Z]{2}$/.test(c))
+      .map((c) => ({ value: c, label: names.of(c) ?? c }))
+      .sort((a, b) => a.label.localeCompare(b.label, locale || "en"));
+  } catch {
+    return [];
+  }
+}
+
 function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const setEntry = useSetConfigEntry();
   const setLocale = useLocaleStore((s) => s.setLocale);
 
-  const current = entries?.find((e) => e.key === METADATA_LANG_KEY)?.value ?? "";
+  const serverLang = entries?.find((e) => e.key === SERVER_LANG_KEY)?.value ?? "";
+  const serverRegion = entries?.find((e) => e.key === SERVER_REGION_KEY)?.value ?? "";
+  const metaLang = entries?.find((e) => e.key === METADATA_LANG_KEY)?.value ?? "";
 
-  function handleChange(value: string) {
+  function handleServerLang(value: string) {
+    setEntry.mutate(
+      { key: SERVER_LANG_KEY, value },
+      { onSuccess: () => {
+          if (value) setLocale(value);
+          toast.success(t("admin.serverConfig.languageUpdated"));
+        } },
+    );
+  }
+  function handleServerRegion(value: string) {
+    setEntry.mutate(
+      { key: SERVER_REGION_KEY, value },
+      { onSuccess: () => toast.success(t("admin.serverConfig.languageUpdated")) },
+    );
+  }
+  function handleMetaLang(value: string) {
     setEntry.mutate(
       { key: METADATA_LANG_KEY, value },
-      {
-        onSuccess: () => {
-          setLocale(value);
-          toast.success(t("admin.serverConfig.languageUpdated"));
-        },
-      }
+      { onSuccess: () => toast.success(t("admin.serverConfig.languageUpdated")) },
     );
   }
 
+  const regionOptions = useMemo(() => regionOptionsForLocale(i18n.language || "en"), [i18n.language]);
+
   return (
-    <div
-      className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]"
-    >
+    <div className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]">
       <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
         {t("admin.serverConfig.languageRegion")}
       </h2>
       <p className="text-sm mb-4 text-[var(--text-muted)]">
         {t("admin.serverConfig.languageRegionDesc")}
       </p>
-      <div className="flex items-end gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Select
+          id="server-lang"
+          label={t("admin.serverConfig.serverLanguage")}
+          value={serverLang}
+          onChange={handleServerLang}
+          options={[{ label: t("admin.serverConfig.envDefault"), value: "" }, ...LOCALE_OPTIONS]}
+        />
+        <Select
+          id="server-region"
+          label={t("admin.serverConfig.serverRegion")}
+          value={serverRegion}
+          onChange={handleServerRegion}
+          options={[{ label: t("admin.serverConfig.envDefault"), value: "" }, ...regionOptions]}
+        />
         <Select
           id="metadata-lang"
           label={t("admin.serverConfig.metadataLanguage")}
-          value={current}
-          onChange={handleChange}
+          value={metaLang}
+          onChange={handleMetaLang}
           options={[{ label: t("admin.serverConfig.envDefault"), value: "" }, ...LOCALE_OPTIONS]}
         />
-        {setEntry.isPending && <Spinner size="sm" />}
       </div>
+      {setEntry.isPending && <div className="mt-3"><Spinner size="sm" /></div>}
     </div>
   );
 }

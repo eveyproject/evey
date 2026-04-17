@@ -376,7 +376,9 @@ serverConfig:
   title: Server Config
   subtitle: Key-value configuration entries persisted in the database.
   languageRegion: Language & Region
-  languageRegionDesc: Metadata language used when fetching from TMDB and other providers.
+  languageRegionDesc: "Server language and region settings. Affects default UI language, default classification region and metadata language."
+  serverLanguage: "Server language"
+  serverRegion: "Server region"
   metadataLanguage: Metadata language
   envDefault: "— env default —"
   languageUpdated: "Language updated"

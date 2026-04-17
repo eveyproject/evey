@@ -376,7 +376,9 @@ serverConfig:
   title: Serverkonfiguration
   subtitle: Schlüssel-Wert-Konfigurationseinträge in der Datenbank gespeichert.
   languageRegion: Sprache & Region
-  languageRegionDesc: Metadatensprache für TMDB und andere Anbieter. Wird nach Serverneustart wirksam.
+  languageRegionDesc: "Server-Sprach- und Regionseinstellungen. Beeinflusst Standard-UI-Sprache, Standard-Klassifizierungsregion und Metadaten-Sprache."
+  serverLanguage: "Serversprache"
+  serverRegion: "Serverregion"
   metadataLanguage: Metadatensprache
   envDefault: "— Umgebungsstandard —"
   languageUpdated: "Sprache aktualisiert - Server neu starten, um auf Metadaten anzuwenden"
