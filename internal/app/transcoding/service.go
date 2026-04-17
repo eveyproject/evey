@@ -88,14 +88,14 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 		if updateErr := s.jobs.Update(ctx, job); updateErr != nil {
 			slog.Warn("update transcode job failed", slog.String("jobID", job.ID), slog.Any("err", updateErr))
 		}
-		evtFailed := transcoding.TranscodeFailed{JobID: job.ID, MediaItemID: shared.MediaItemID(job.MediaItemID), ErrorMessage: err.Error(), OccurredAt: time.Now()}
+		evtFailed := transcoding.TranscodeFailed{JobID: job.ID, MediaItemID: job.MediaItemID, ErrorMessage: err.Error(), OccurredAt: time.Now()}
 		if pubErr := s.events.Publish(ctx, evtFailed); pubErr != nil {
 			slog.Warn("publish event", slog.String("event", evtFailed.EventName()), slog.Any("err", pubErr))
 		}
 		return fmt.Errorf("start transcode: %w", err)
 	}
 
-	evtStarted := transcoding.TranscodeStarted{JobID: job.ID, MediaItemID: shared.MediaItemID(job.MediaItemID), OutputCodec: job.OutputCodec, OccurredAt: time.Now()}
+	evtStarted := transcoding.TranscodeStarted{JobID: job.ID, MediaItemID: job.MediaItemID, OutputCodec: job.OutputCodec, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtStarted); err != nil {
 		slog.Warn("publish event", slog.String("event", evtStarted.EventName()), slog.Any("err", err))
 	}
@@ -116,7 +116,7 @@ func (s *Service) StopTranscode(ctx context.Context, jobID string) error {
 	if err := s.jobs.Update(ctx, job); err != nil {
 		slog.Warn("update transcode job failed", slog.String("jobID", jobID), slog.Any("err", err))
 	}
-	evtCancelled := transcoding.TranscodeCancelled{JobID: jobID, MediaItemID: shared.MediaItemID(job.MediaItemID), OccurredAt: now}
+	evtCancelled := transcoding.TranscodeCancelled{JobID: jobID, MediaItemID: job.MediaItemID, OccurredAt: now}
 	if err := s.events.Publish(ctx, evtCancelled); err != nil {
 		slog.Warn("publish event", slog.String("event", evtCancelled.EventName()), slog.Any("err", err))
 	}
