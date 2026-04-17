@@ -389,14 +389,32 @@ export default function AdminUsersScreen() {
         <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{item.email || "—"}</Text>
       </View>
       {!item.isAdmin && (
-        <Pressable onPress={() => setLibAccessUser(item)} hitSlop={8} style={{ padding: 4 }}>
+        <Pressable
+          onPress={() => setLibAccessUser(item)}
+          hitSlop={8}
+          style={{ padding: 4 }}
+          accessibilityRole="button"
+          accessibilityLabel={t("admin.users.libraryAccess")}
+        >
           <Ionicons name="library-outline" size={18} color={theme.colors.textMuted} />
         </Pressable>
       )}
-      <Pressable onPress={() => handleToggleDisable(item)} hitSlop={8} style={{ padding: 4 }}>
-        <Ionicons name={(item as any).disabled ? "eye-off-outline" : "eye-outline"} size={18} color={theme.colors.textMuted} />
+      <Pressable
+        onPress={() => handleToggleDisable(item)}
+        hitSlop={8}
+        style={{ padding: 4 }}
+        accessibilityRole="button"
+        accessibilityLabel={(item as { disabled?: boolean }).disabled ? t("common.enable") : t("common.disable")}
+      >
+        <Ionicons name={(item as { disabled?: boolean }).disabled ? "eye-off-outline" : "eye-outline"} size={18} color={theme.colors.textMuted} />
       </Pressable>
-      <Pressable onPress={() => handleDelete(item)} hitSlop={8} style={{ padding: 4 }}>
+      <Pressable
+        onPress={() => handleDelete(item)}
+        hitSlop={8}
+        style={{ padding: 4 }}
+        accessibilityRole="button"
+        accessibilityLabel={t("common.delete")}
+      >
         <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
       </Pressable>
     </View>
