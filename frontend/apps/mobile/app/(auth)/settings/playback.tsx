@@ -8,6 +8,7 @@ import {
   useUserServiceListProfiles,
   getUserServiceListProfilesQueryKey,
   eveyFetch,
+  type V1Profile,
 } from "@evey/api";
 import { useMutation } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -88,7 +89,7 @@ export default function PlaybackSettingsScreen() {
   });
 
   const profiles = profilesResp?.profiles;
-  const defaultProfile = profiles?.find((p: any) => p.isDefault) ?? profiles?.[0];
+  const defaultProfile: V1Profile | undefined = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
 
   const [bitrate, setBitrate] = useState("0");
   const [cellularBitrate, setCellularBitrate] = useState("0");
@@ -103,7 +104,7 @@ export default function PlaybackSettingsScreen() {
   const [allowTranscoding, setAllowTranscoding] = useState(true);
 
   useEffect(() => {
-    const prefs: PrefMap = (defaultProfile as any)?.preferences ?? {};
+    const prefs: PrefMap = defaultProfile?.preferences ?? {};
     if (prefs.max_bitrate_kbps) setBitrate(prefs.max_bitrate_kbps);
     if (prefs.max_bitrate_cellular_kbps) setCellularBitrate(prefs.max_bitrate_cellular_kbps);
     if (prefs.default_subtitle_language) setSubtitleLang(prefs.default_subtitle_language);
@@ -125,7 +126,7 @@ export default function PlaybackSettingsScreen() {
         headers: { "Content-Type": "application/json" },
         data: {
           preferences: {
-            ...((defaultProfile as any)?.preferences ?? {}),
+            ...(defaultProfile?.preferences ?? {}),
             ...patch,
           },
         },
