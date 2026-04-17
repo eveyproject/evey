@@ -173,17 +173,20 @@ export const MediaSlider = memo(function MediaSlider({
   return (
     <section className="mb-10 group/slider" data-testid="media-slider">
       <div className="flex items-center justify-between mb-3 px-1">
-        <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--text)]">
-          {title}
-        </h2>
-        {seeAllHref && (
+        {seeAllHref ? (
           <Link
             to={seeAllHref}
             params={seeAllParams as never}
-            className="text-sm transition-colors-fast text-[var(--accent)]"
+            className="group/title inline-flex items-baseline gap-1 no-underline hover:opacity-90 transition-opacity-fast"
           >
-            {t("common.seeAll")}
+            <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--text)]">
+              {title}
+            </h2>
           </Link>
+        ) : (
+          <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--text)]">
+            {title}
+          </h2>
         )}
       </div>
 

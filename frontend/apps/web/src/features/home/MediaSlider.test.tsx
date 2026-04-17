@@ -35,20 +35,20 @@ describe("MediaSlider", () => {
     expect(skeletons.length).toBe(3);
   });
 
-  it("renders See all link when seeAllHref provided", () => {
+  it("wraps title in a link when seeAllHref provided", () => {
     render(
       <MediaSlider title="Movies" seeAllHref="/library">
         <div>item</div>
       </MediaSlider>
     );
-    const link = screen.getByText("See all →");
-    expect(link).toBeInTheDocument();
-    expect(link.closest("a")).toHaveAttribute("href", "/library");
+    const heading = screen.getByRole("heading", { name: "Movies" });
+    expect(heading.closest("a")).toHaveAttribute("href", "/library");
   });
 
-  it("does not render See all when no seeAllHref", () => {
+  it("renders title without link when no seeAllHref", () => {
     render(<MediaSlider title="Movies"><div>item</div></MediaSlider>);
-    expect(screen.queryByText("See all →")).not.toBeInTheDocument();
+    const heading = screen.getByRole("heading", { name: "Movies" });
+    expect(heading.closest("a")).toBeNull();
   });
 
   it("has data-testid media-slider", () => {
