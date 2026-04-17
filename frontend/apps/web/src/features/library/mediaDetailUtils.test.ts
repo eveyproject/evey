@@ -26,8 +26,12 @@ describe("formatDuration", () => {
     expect(formatDuration("5520000")).toBe("1h 32m");
   });
 
-  it("returns 0m for 0", () => {
-    expect(formatDuration("0")).toBe("0m");
+  it("returns empty for 0 (series carry durationMs=0)", () => {
+    expect(formatDuration("0")).toBe("");
+  });
+
+  it("returns empty for negative", () => {
+    expect(formatDuration("-1")).toBe("");
   });
 
   it("floors partial seconds", () => {

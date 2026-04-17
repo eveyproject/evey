@@ -1,7 +1,9 @@
 export function formatDuration(ms?: string): string {
   if (!ms) return "";
   const totalMs = parseInt(ms, 10);
-  if (isNaN(totalMs)) return "";
+  // Series carry durationMs="0" because only their episodes have a runtime.
+  // Return empty so the UI doesn't show a meaningless "0m" badge.
+  if (isNaN(totalMs) || totalMs <= 0) return "";
   const totalSec = Math.floor(totalMs / 1000);
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
