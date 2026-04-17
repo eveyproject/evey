@@ -33,6 +33,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
+import { certForLocale } from "../../../src/lib/certifications";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
 import { startDownload, getDownloadPath } from "../../../src/lib/downloads";
 import { toast } from "@evey/store";
@@ -374,7 +375,7 @@ function InfoBadge({ label }: { label: string }) {
 
 export default function MediaDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const theme = useTheme();
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
@@ -612,19 +613,22 @@ export default function MediaDetailScreen() {
               {media.durationMs ? (
                 <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{formatRuntime(media.durationMs)}</Text>
               ) : null}
-              {media.officialRating ? (
-                <View style={{
-                  borderWidth: 1,
-                  borderColor: theme.colors.textMuted,
-                  borderRadius: theme.radii.sm,
-                  paddingHorizontal: 5,
-                  paddingVertical: 1,
-                }}>
-                  <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: "500" }}>
-                    {media.officialRating}
-                  </Text>
-                </View>
-              ) : null}
+              {(() => {
+                const cert = certForLocale(media.certificationsByCountry, i18n.language, media.officialRating);
+                return cert ? (
+                  <View style={{
+                    borderWidth: 1,
+                    borderColor: theme.colors.textMuted,
+                    borderRadius: theme.radii.sm,
+                    paddingHorizontal: 5,
+                    paddingVertical: 1,
+                  }}>
+                    <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: "500" }}>
+                      {cert}
+                    </Text>
+                  </View>
+                ) : null;
+              })()}
             </View>
 
             {/* Community rating stars */}

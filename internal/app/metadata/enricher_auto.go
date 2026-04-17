@@ -31,7 +31,7 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		return
 	}
 
-	if item.Overview != "" {
+	if item.Overview != "" && len(item.CertificationsByCountry) > 0 {
 		return
 	}
 
@@ -470,7 +470,7 @@ func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 	sem := make(chan struct{}, 3)
 	var wg sync.WaitGroup
 	for _, item := range items {
-		if item.Overview != "" && len(item.Trailers) > 0 {
+		if item.Overview != "" && len(item.Trailers) > 0 && len(item.CertificationsByCountry) > 0 {
 			continue
 		}
 		if err := e.apiLimiter.Wait(ctx); err != nil {
