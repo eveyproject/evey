@@ -27,11 +27,7 @@ func (h *playlistHandler) ListPlaylists(ctx context.Context, req *eveyv1.ListPla
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.ListPlaylists: %w", err)
 	}
-	userID, err := resolveProfileID(claims, req.ProfileId)
-	if err != nil {
-		return nil, fmt.Errorf("playlistHandler.ListPlaylists: %w", err)
-	}
-	pls, err := h.svc.List(ctx, userID)
+	pls, err := h.svc.List(ctx, claims.UserID)
 	if err != nil {
 		return nil, internalError("list playlists", err)
 	}
@@ -47,11 +43,7 @@ func (h *playlistHandler) GetPlaylist(ctx context.Context, req *eveyv1.GetPlayli
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.GetPlaylist: %w", err)
 	}
-	userID, err := resolveProfileID(claims, req.ProfileId)
-	if err != nil {
-		return nil, fmt.Errorf("playlistHandler.GetPlaylist: %w", err)
-	}
-	pl, err := h.svc.GetByID(ctx, req.Id, userID)
+	pl, err := h.svc.GetByID(ctx, req.Id, claims.UserID)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "playlist not found: %v", err)
 	}
@@ -63,11 +55,7 @@ func (h *playlistHandler) CreatePlaylist(ctx context.Context, req *eveyv1.Create
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.CreatePlaylist: %w", err)
 	}
-	userID, err := resolveProfileID(claims, req.ProfileId)
-	if err != nil {
-		return nil, fmt.Errorf("playlistHandler.CreatePlaylist: %w", err)
-	}
-	pl, err := playlist.NewPlaylist(req.Name, userID, playlistTypeFromProto(req.Type))
+	pl, err := playlist.NewPlaylist(req.Name, claims.UserID, playlistTypeFromProto(req.Type))
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
@@ -86,10 +74,7 @@ func (h *playlistHandler) UpdatePlaylist(ctx context.Context, req *eveyv1.Update
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.UpdatePlaylist: %w", err)
 	}
-	userID, err := resolveProfileID(claims, req.ProfileId)
-	if err != nil {
-		return nil, fmt.Errorf("playlistHandler.UpdatePlaylist: %w", err)
-	}
+	userID := claims.UserID
 	pl := &playlist.Playlist{
 		ID:          req.Id,
 		Name:        req.Name,
@@ -116,11 +101,7 @@ func (h *playlistHandler) DeletePlaylist(ctx context.Context, req *eveyv1.Delete
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.DeletePlaylist: %w", err)
 	}
-	userID, err := resolveProfileID(claims, req.ProfileId)
-	if err != nil {
-		return nil, fmt.Errorf("playlistHandler.DeletePlaylist: %w", err)
-	}
-	if err := h.svc.Delete(ctx, req.Id, userID); err != nil {
+	if err := h.svc.Delete(ctx, req.Id, claims.UserID); err != nil {
 		if errors.Is(err, appplaylist.ErrNotOwner) {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
 		}
@@ -134,11 +115,7 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.GetPlaylistItems: %w", err)
 	}
-	userID, err := resolveProfileID(claims, req.ProfileId)
-	if err != nil {
-		return nil, fmt.Errorf("playlistHandler.GetPlaylistItems: %w", err)
-	}
-	mediaItems, plItems, err := h.svc.GetItems(ctx, req.Id, userID)
+	mediaItems, plItems, err := h.svc.GetItems(ctx, req.Id, claims.UserID)
 	if err != nil {
 		if errors.Is(err, appplaylist.ErrNotOwner) {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
@@ -207,11 +184,7 @@ func (h *playlistHandler) AddPlaylistItem(ctx context.Context, req *eveyv1.AddPl
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.AddPlaylistItem: %w", err)
 	}
-	userID, err := resolveProfileID(claims, req.ProfileId)
-	if err != nil {
-		return nil, fmt.Errorf("playlistHandler.AddPlaylistItem: %w", err)
-	}
-	if err := h.svc.AddItemWithType(ctx, req.Id, req.MediaItemId, userID, req.MediaType); err != nil {
+	if err := h.svc.AddItemWithType(ctx, req.Id, req.MediaItemId, claims.UserID, req.MediaType); err != nil {
 		switch {
 		case errors.Is(err, appplaylist.ErrNotOwner):
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
@@ -231,11 +204,7 @@ func (h *playlistHandler) RemovePlaylistItem(ctx context.Context, req *eveyv1.Re
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.RemovePlaylistItem: %w", err)
 	}
-	userID, err := resolveProfileID(claims, req.ProfileId)
-	if err != nil {
-		return nil, fmt.Errorf("playlistHandler.RemovePlaylistItem: %w", err)
-	}
-	if err := h.svc.RemoveItem(ctx, req.Id, req.MediaItemId, userID); err != nil {
+	if err := h.svc.RemoveItem(ctx, req.Id, req.MediaItemId, claims.UserID); err != nil {
 		if errors.Is(err, appplaylist.ErrNotOwner) {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
 		} else if errors.Is(err, appplaylist.ErrSmartItems) {

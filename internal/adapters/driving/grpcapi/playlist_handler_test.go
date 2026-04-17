@@ -221,19 +221,6 @@ func TestPlaylistAddItem_Owner(t *testing.T) {
 	}
 }
 
-func TestPlaylistOtherProfileID_NonAdminDenied(t *testing.T) {
-	h := newTestPlaylistHandler()
-	ctx := ctxWithClaims("user-1", "profile-1", false)
-	// profile-2 != profile-1, non-admin → PermissionDenied
-	_, err := h.ListPlaylists(ctx, &eveyv1.ListPlaylistsRequest{ProfileId: "profile-2"})
-	if err == nil {
-		t.Fatal("expected error accessing other profile")
-	}
-	if status.Code(err) != codes.PermissionDenied {
-		t.Errorf("expected PermissionDenied, got %v", status.Code(err))
-	}
-}
-
 func TestPlaylistUpdatePlaylist_Success(t *testing.T) {
 	h := newTestPlaylistHandler()
 	ctx := ctxWithClaims("user-1", "profile-1", false)
@@ -393,13 +380,13 @@ func TestPlaylistRemovePlaylistItem_NoAuth(t *testing.T) {
 	}
 }
 
-func TestPlaylistOtherProfileID_AdminAllowed(t *testing.T) {
+func TestPlaylistProfileIDIgnored(t *testing.T) {
 	h := newTestPlaylistHandler()
-	ctx := ctxWithClaims("admin-1", "profile-admin", true)
-	// admin can list another profile's playlists
-	resp, err := h.ListPlaylists(ctx, &eveyv1.ListPlaylistsRequest{ProfileId: "profile-other"})
+	// Playlists are user-scoped; req.ProfileId is ignored.
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	resp, err := h.ListPlaylists(ctx, &eveyv1.ListPlaylistsRequest{ProfileId: "profile-2"})
 	if err != nil {
-		t.Fatalf("admin ListPlaylists for other profile: %v", err)
+		t.Fatalf("ListPlaylists: %v", err)
 	}
 	if len(resp.Playlists) != 0 {
 		t.Errorf("expected 0 playlists, got %d", len(resp.Playlists))
