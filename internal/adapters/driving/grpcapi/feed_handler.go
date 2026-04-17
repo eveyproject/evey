@@ -309,13 +309,15 @@ func (h *feedHandler) BatchUpdateAdminFeedConfigs(ctx context.Context, req *evey
 
 func feedItemToProto(item *feed.FeedItem) *eveyv1.FeedItem {
 	return &eveyv1.FeedItem{
-		MediaItemId: string(item.MediaItemID),
-		ParentId:    item.ParentID,
-		Title:       item.Title,
-		Type:        item.Type,
-		PositionMs:  item.PositionMs,
-		AddedAt:     item.AddedAt,
-		Score:       int32(item.Score),
+		MediaItemId:   string(item.MediaItemID),
+		ParentId:      item.ParentID,
+		Title:         item.Title,
+		Type:          item.Type,
+		PositionMs:    item.PositionMs,
+		AddedAt:       item.AddedAt,
+		Score:         int32(item.Score),
+		SeasonNumber:  int32(item.SeasonNumber),
+		EpisodeNumber: int32(item.EpisodeNumber),
 	}
 }
 

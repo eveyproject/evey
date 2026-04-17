@@ -34,7 +34,8 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 	rows, err := q.db.QueryContext(ctx, `
 		WITH in_progress_movies AS (
 			SELECT mi.id, ''::text AS parent_id, mi.title, mi.type,
-			       wp.position_ms, ''::text AS added_at, wp.last_played_at
+			       wp.position_ms, ''::text AS added_at, wp.last_played_at,
+			       NULL::int AS season_number, NULL::int AS episode_number
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
 			WHERE wp.profile_id = $1
@@ -52,7 +53,8 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 		),
 		in_progress_eps AS (
 			SELECT mi.id, mi.parent_id, mi.title, 'episode'::text AS type,
-			       wp.position_ms, ''::text AS added_at, wp.last_played_at
+			       wp.position_ms, ''::text AS added_at, wp.last_played_at,
+			       s.index_number AS season_number, mi.index_number AS episode_number
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
 			INNER JOIN media_items s ON s.id = mi.parent_id
@@ -64,7 +66,8 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 		next_unwatched AS (
 			SELECT DISTINCT ON (s.parent_id)
 			       mi.id, mi.parent_id, mi.title, 'episode'::text AS type,
-			       0::bigint AS position_ms, ''::text AS added_at, NOW() AS last_played_at
+			       0::bigint AS position_ms, ''::text AS added_at, NOW() AS last_played_at,
+			       s.index_number AS season_number, mi.index_number AS episode_number
 			FROM media_items mi
 			INNER JOIN media_items s ON s.id = mi.parent_id
 			INNER JOIN series_list sl ON sl.series_id = s.parent_id
@@ -73,7 +76,7 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			  AND NOT EXISTS (SELECT 1 FROM in_progress_eps ip WHERE ip.id = mi.id)
 			ORDER BY s.parent_id, s.index_number, mi.index_number
 		)
-		SELECT id, parent_id, title, type, position_ms, added_at
+		SELECT id, parent_id, title, type, position_ms, added_at, season_number, episode_number
 		FROM (
 			SELECT * FROM in_progress_movies
 			UNION ALL
@@ -99,9 +102,11 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 	rows, err := q.db.QueryContext(ctx, `
 		WITH in_progress AS (
 			SELECT mi.id, COALESCE(mi.parent_id,'') AS parent_id, mi.title, mi.type,
-			       wp.position_ms, wp.last_played_at
+			       wp.position_ms, wp.last_played_at,
+			       sea.index_number AS season_number, mi.index_number AS episode_number
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
+			LEFT JOIN media_items sea ON mi.type = 'episode' AND sea.id = mi.parent_id
 			WHERE wp.profile_id = $1
 			  AND wp.position_ms > 0
 			  AND wp.completed = FALSE
@@ -120,7 +125,8 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 		next_ep AS (
 			SELECT DISTINCT ON (ws.series_id)
 			       mi.id, COALESCE(mi.parent_id,'') AS parent_id, mi.title, mi.type,
-			       0::bigint AS position_ms, ws.last_played_at
+			       0::bigint AS position_ms, ws.last_played_at,
+			       sea.index_number AS season_number, mi.index_number AS episode_number
 			FROM watched_series ws
 			INNER JOIN media_items sea ON sea.parent_id = ws.series_id AND sea.type = 'season'
 			INNER JOIN media_items mi  ON mi.parent_id = sea.id       AND mi.type  = 'episode'
@@ -128,11 +134,11 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 			AND NOT EXISTS (SELECT 1 FROM in_progress ip WHERE ip.id = mi.id)
 			ORDER BY ws.series_id, sea.index_number, mi.index_number
 		)
-		SELECT id, parent_id, title, type, position_ms, ''
+		SELECT id, parent_id, title, type, position_ms, '', season_number, episode_number
 		FROM (
-			SELECT id, parent_id, title, type, position_ms, last_played_at FROM in_progress
+			SELECT id, parent_id, title, type, position_ms, last_played_at, season_number, episode_number FROM in_progress
 			UNION ALL
-			SELECT id, parent_id, title, type, position_ms, last_played_at FROM next_ep
+			SELECT id, parent_id, title, type, position_ms, last_played_at, season_number, episode_number FROM next_ep
 		) combined
 		ORDER BY last_played_at DESC
 		LIMIT $2
@@ -162,14 +168,15 @@ func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit i
 		next_ep AS (
 			SELECT DISTINCT ON (ws.series_id)
 			       mi.id, mi.parent_id, mi.title, mi.type,
-			       0::bigint AS position_ms, '' AS added_at
+			       0::bigint AS position_ms, '' AS added_at,
+			       sea.index_number AS season_number, mi.index_number AS episode_number
 			FROM watched_series ws
 			INNER JOIN media_items sea ON sea.parent_id = ws.series_id AND sea.type = 'season'
 			INNER JOIN media_items mi  ON mi.parent_id = sea.id       AND mi.type  = 'episode'
 			WHERE NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $1 AND wp2.completed = TRUE)
 			ORDER BY ws.series_id, sea.index_number, mi.index_number
 		)
-		SELECT id, parent_id, title, type, position_ms, added_at
+		SELECT id, parent_id, title, type, position_ms, added_at, season_number, episode_number
 		FROM next_ep
 		LIMIT $2
 	`, profileID, limit)
@@ -188,7 +195,7 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) 
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := q.db.QueryContext(ctx, `
-		SELECT id, COALESCE(parent_id,''), title, type, 0, effective_added::text
+		SELECT id, COALESCE(parent_id,''), title, type, 0, effective_added::text, NULL::int, NULL::int
 		FROM (
 			SELECT m.id, m.parent_id, m.title, m.type,
 				CASE WHEN m.type = 'series'
@@ -302,8 +309,15 @@ func scanFeedItems(rows *sql.Rows) ([]*feed.FeedItem, error) {
 	var result []*feed.FeedItem
 	for rows.Next() {
 		item := &feed.FeedItem{}
-		if err := rows.Scan(&item.MediaItemID, &item.ParentID, &item.Title, &item.Type, &item.PositionMs, &item.AddedAt); err != nil {
+		var season, episode sql.NullInt64
+		if err := rows.Scan(&item.MediaItemID, &item.ParentID, &item.Title, &item.Type, &item.PositionMs, &item.AddedAt, &season, &episode); err != nil {
 			return nil, err
+		}
+		if season.Valid {
+			item.SeasonNumber = int(season.Int64)
+		}
+		if episode.Valid {
+			item.EpisodeNumber = int(episode.Int64)
 		}
 		result = append(result, item)
 	}

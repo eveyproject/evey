@@ -88,12 +88,14 @@ type MergedConfig struct {
 
 // FeedItem is a generic item returned by any feed.
 type FeedItem struct {
-	MediaItemID shared.MediaItemID
-	ParentID    string // for episodes: series ID
-	Title       string
-	Type        string
-	PositionMs  int64
-	DurationMs  int64
-	AddedAt     string
-	Score       int
+	MediaItemID   shared.MediaItemID
+	ParentID      string // for episodes: series ID
+	Title         string
+	Type          string
+	PositionMs    int64
+	DurationMs    int64
+	AddedAt       string
+	Score         int
+	SeasonNumber  int // episodes have both set; zero for other types
+	EpisodeNumber int
 }

@@ -305,15 +305,22 @@ const ResumePlaybackSlider = memo(function ResumePlaybackSlider() {
 
   return (
     <MediaSlider title={t("common.feeds.labels.resume_playback")} isLoading={isLoading}>
-      {items.map((item) => (
-        <MediaCard
-          key={item.mediaItemId}
-          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
-          showYear={false}
-          showProgress={!!item.positionMs}
-          lite
-        />
-      ))}
+      {items.map((item) => {
+        const isEpisode = item.type === "episode" || item.type === "MEDIA_ITEM_TYPE_EPISODE";
+        const title =
+          isEpisode && item.seasonNumber && item.episodeNumber
+            ? `S${item.seasonNumber}E${item.episodeNumber} - ${item.title}`
+            : item.title;
+        return (
+          <MediaCard
+            key={item.mediaItemId}
+            item={{ id: item.mediaItemId, title, type: item.type }}
+            showYear={false}
+            showProgress={!!item.positionMs}
+            lite
+          />
+        );
+      })}
     </MediaSlider>
   );
 });

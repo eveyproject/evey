@@ -91,6 +91,10 @@ message FeedItem {
   int64 position_ms = 5;
   string added_at = 6;
   int32 score = 7;
+  // Populated for episodes (zero otherwise) so clients can render
+  // "S{season}E{episode} - {title}" without another roundtrip.
+  int32 season_number = 8;
+  int32 episode_number = 9;
 }
 
 message MergedFeedConfig {
