@@ -22,6 +22,14 @@ func userToProto(u *user.User) *eveyv1.User {
 	if u.MaxStreams != nil {
 		pb.MaxStreams = int32(*u.MaxStreams)
 	}
+	if u.MaxProfiles != nil {
+		v := int32(*u.MaxProfiles)
+		pb.MaxProfiles = &v
+	}
+	if u.MaxDevicesPerProfile != nil {
+		v := int32(*u.MaxDevicesPerProfile)
+		pb.MaxDevicesPerProfile = &v
+	}
 	return pb
 }
 
@@ -43,6 +51,7 @@ func profileToProto(p *user.Profile) *eveyv1.Profile {
 		Name:        p.Name,
 		Preferences: prefs,
 		IsDefault:   p.IsDefault,
+		IsKids:      p.IsKids,
 		Locale:      p.Locale,
 		CreatedAt:   toTimestamppb(p.CreatedAt),
 	}

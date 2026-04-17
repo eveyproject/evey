@@ -53,6 +53,24 @@ func NewUserService(
 	return s
 }
 
+// HashPIN validates a 4-digit PIN and returns its hash, suitable for
+// assigning to Profile.Parental.PINHash before Create/UpdateProfile.
+// Empty input returns an empty hash (used to clear a PIN).
+func (s *UserService) HashPIN(plain string) (string, error) {
+	if plain == "" {
+		return "", nil
+	}
+	if len(plain) != 4 {
+		return "", ErrInvalidPINFormat
+	}
+	for _, r := range plain {
+		if r < '0' || r > '9' {
+			return "", ErrInvalidPINFormat
+		}
+	}
+	return s.hasher.Hash(plain)
+}
+
 func (s *UserService) resolveDefaultLocale() string {
 	if s.defaultLocale == nil {
 		return ""
@@ -237,6 +255,9 @@ func (s *UserService) CreateProfile(ctx context.Context, p *user.Profile) error 
 	if err := p.Validate(); err != nil {
 		return fmt.Errorf("invalid profile: %w", err)
 	}
+	if err := s.checkProfileInvariants(ctx, p, false); err != nil {
+		return err
+	}
 	p.CreatedAt = time.Now()
 	if err := s.profiles.Create(ctx, p); err != nil {
 		return fmt.Errorf("UserService.CreateProfile: %w", err)
@@ -249,8 +270,51 @@ func (s *UserService) CreateProfile(ctx context.Context, p *user.Profile) error 
 }
 
 func (s *UserService) UpdateProfile(ctx context.Context, p *user.Profile) error {
+	if err := s.checkProfileInvariants(ctx, p, true); err != nil {
+		return err
+	}
 	if err := s.profiles.Update(ctx, p); err != nil {
 		return fmt.Errorf("UserService.UpdateProfile: %w", err)
+	}
+	return nil
+}
+
+// checkProfileInvariants enforces:
+//  1. User.MaxProfiles cap (create only, skipped for updates)
+//  2. Kids invariant: when any kids profile exists on this user, every
+//     non-kids profile must have a PIN set.
+// isUpdate skips the profile-count check (updating an existing profile
+// doesn't increase the count).
+func (s *UserService) checkProfileInvariants(ctx context.Context, p *user.Profile, isUpdate bool) error {
+	// Load user opportunistically to read MaxProfiles. Missing user is not
+	// fatal here (FK will reject the insert downstream); we just skip the
+	// cap check — useful for test scaffolds that don't seed users.
+	var maxProfiles *int
+	if u, err := s.users.GetByID(ctx, p.UserID); err == nil && u != nil {
+		maxProfiles = u.MaxProfiles
+	}
+	existing, err := s.profiles.GetByUserID(ctx, p.UserID)
+	if err != nil {
+		return fmt.Errorf("list profiles: %w", err)
+	}
+	if !isUpdate && maxProfiles != nil && *maxProfiles > 0 && len(existing) >= *maxProfiles {
+		return ErrMaxProfilesReached
+	}
+	hasKids := false
+	for _, other := range existing {
+		if string(other.ID) == string(p.ID) {
+			continue // ignore self when updating
+		}
+		if other.IsKids {
+			hasKids = true
+			break
+		}
+	}
+	if p.IsKids {
+		hasKids = true
+	}
+	if hasKids && !p.IsKids && !p.HasPIN() {
+		return ErrKidsRequiresPIN
 	}
 	return nil
 }
@@ -259,6 +323,9 @@ func (s *UserService) DeleteProfile(ctx context.Context, profileID string) error
 	p, err := s.profiles.GetByID(ctx, shared.ProfileID(profileID))
 	if err != nil {
 		return fmt.Errorf("UserService.DeleteProfile: %w", err)
+	}
+	if p.IsDefault {
+		return ErrCannotDeleteDefault
 	}
 	if err := s.profiles.Delete(ctx, shared.ProfileID(profileID)); err != nil {
 		return fmt.Errorf("UserService.DeleteProfile: %w", err)

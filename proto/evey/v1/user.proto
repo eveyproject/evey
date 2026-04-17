@@ -181,6 +181,9 @@ message User {
   int32 max_streams = 6;
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
+  // Per-user caps. 0 / absent = unlimited.
+  optional int32 max_profiles = 9;
+  optional int32 max_devices_per_profile = 10;
 }
 
 message Profile {
@@ -196,6 +199,9 @@ message Profile {
   optional int32 max_bitrate_kbps = 10;
   string locale = 11;
   optional string region = 12; // ISO 3166-1 alpha-2, empty/absent = resolve via server/locale fallback
+  // Kids profile: restricted content by default + forces non-kids profiles
+  // on the same user to have a PIN set.
+  bool is_kids = 13;
 }
 
 message AuthResponse {
@@ -254,6 +260,8 @@ message CreateUserRequest {
   string password = 2;
   string email = 3;
   bool is_admin = 4;
+  optional int32 max_profiles = 5;
+  optional int32 max_devices_per_profile = 6;
 }
 
 message UpdateUserRequest {
@@ -263,6 +271,8 @@ message UpdateUserRequest {
   optional string password = 4;
   optional bool is_admin = 5;
   optional int32 max_streams = 6;
+  optional int32 max_profiles = 7;
+  optional int32 max_devices_per_profile = 8;
 }
 
 message DeleteUserRequest {
@@ -288,6 +298,10 @@ message CreateProfileRequest {
   string avatar_path = 3;
   map<string, string> preferences = 4;
   string max_rating = 5;
+  bool is_kids = 6;
+  optional string pin = 7; // 4-digit PIN required when kids profile exists
+  optional string locale = 8;
+  optional string region = 9;
 }
 
 message UpdateProfileRequest {
@@ -299,6 +313,8 @@ message UpdateProfileRequest {
   optional int32 max_bitrate_kbps = 6;
   optional string locale = 7;
   optional string region = 8;
+  optional bool is_kids = 9;
+  optional string pin = 10; // empty string clears the PIN; 4 digits sets it
 }
 
 message DeleteProfileRequest {

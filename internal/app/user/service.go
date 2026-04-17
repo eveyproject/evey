@@ -13,4 +13,8 @@ var (
 	ErrAccountLocked            = errors.New("too many login attempts, try again later")
 	ErrPasswordRecoveryDisabled = errors.New("password recovery is not enabled")
 	ErrResetTokenInvalid        = errors.New("invalid or expired reset token")
+	ErrMaxProfilesReached       = errors.New("user has reached the maximum number of profiles")
+	ErrKidsRequiresPIN          = errors.New("non-kids profile must have a PIN when a kids profile exists")
+	ErrCannotDeleteDefault      = errors.New("cannot delete the default profile")
+	ErrInvalidPINFormat         = errors.New("PIN must be exactly 4 digits")
 )

@@ -27,6 +27,12 @@ type User struct {
 	OIDCSubject      *string
 	OIDCIssuer       *string
 	MaxStreams        *int
+	// MaxProfiles bounds the number of profiles this user can have.
+	// nil / 0 means unlimited. Enforced at CreateProfile.
+	MaxProfiles      *int
+	// MaxDevicesPerProfile bounds concurrent devices per profile.
+	// nil / 0 means unlimited. Enforced at playback start.
+	MaxDevicesPerProfile *int
 	MaxBitrateKbps   int
 	PushConsent      bool
 	CreatedAt        time.Time
@@ -48,6 +54,10 @@ type Profile struct {
 	Preferences       map[string]string
 	MaxRating         *string
 	IsDefault         bool
+	// IsKids marks a restricted profile intended for minors. When at least
+	// one kids profile exists on the user, all non-kids profiles MUST have a
+	// PIN set so switching to them from kids requires a challenge.
+	IsKids            bool
 	AudioLanguages    []string // ordered fallback list, e.g. ["fr","en"]
 	SubtitleLanguages []string // ordered fallback list
 	MaxBitrateKbps    *int
@@ -55,6 +65,12 @@ type Profile struct {
 	Locale            string  // UI locale (en, fr, es, zh, hi)
 	Region            *string // ISO 3166-1 alpha-2 (FR, BE, CH, SN, ...) — nil = resolve via server/locale fallback
 	CreatedAt         time.Time
+}
+
+// HasPIN returns true when the profile has a PIN set (used by kids-profile
+// invariant: every non-kids profile needs one when a kids profile exists).
+func (p *Profile) HasPIN() bool {
+	return p != nil && p.Parental != nil && p.Parental.PINHash != ""
 }
 
 type RefreshToken struct {

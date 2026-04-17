@@ -142,6 +142,14 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	u.IsAdmin = req.IsAdmin
+	if req.MaxProfiles != nil {
+		mp := int(*req.MaxProfiles)
+		u.MaxProfiles = &mp
+	}
+	if req.MaxDevicesPerProfile != nil {
+		md := int(*req.MaxDevicesPerProfile)
+		u.MaxDevicesPerProfile = &md
+	}
 	if err := h.userSvc.CreateUser(ctx, claims.IsAdmin, u, req.Password); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "%v", err)
 	}
@@ -179,6 +187,14 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 	if req.MaxStreams != nil {
 		ms := int(*req.MaxStreams)
 		u.MaxStreams = &ms
+	}
+	if req.MaxProfiles != nil {
+		mp := int(*req.MaxProfiles)
+		u.MaxProfiles = &mp
+	}
+	if req.MaxDevicesPerProfile != nil {
+		md := int(*req.MaxDevicesPerProfile)
+		u.MaxDevicesPerProfile = &md
 	}
 	if err := h.userSvc.UpdateUser(ctx, u); err != nil {
 		slog.Error("update user", slog.Any("err", err))
@@ -257,6 +273,7 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 		UserID:      shared.UserID(req.UserId),
 		Name:        req.Name,
 		Preferences: req.Preferences,
+		IsKids:      req.IsKids,
 	}
 	if req.AvatarPath != "" {
 		if strings.Contains(req.AvatarPath, "..") || !strings.HasPrefix(req.AvatarPath, "avatars/") {
@@ -267,7 +284,24 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	if req.MaxRating != "" {
 		p.MaxRating = &req.MaxRating
 	}
+	if req.Locale != nil {
+		p.Locale = *req.Locale
+	}
+	if req.Region != nil && *req.Region != "" {
+		r := strings.ToUpper(*req.Region)
+		p.Region = &r
+	}
+	if req.Pin != nil && *req.Pin != "" {
+		hash, hErr := h.userSvc.HashPIN(*req.Pin)
+		if hErr != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "%v", hErr)
+		}
+		p.Parental = &user.ParentalSettings{PINHash: hash}
+	}
 	if err := h.userSvc.CreateProfile(ctx, p); err != nil {
+		if errors.Is(err, appuser.ErrMaxProfilesReached) || errors.Is(err, appuser.ErrKidsRequiresPIN) {
+			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+		}
 		slog.Error("create profile", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -317,7 +351,23 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 			p.MaxBitrateKbps = &n
 		}
 	}
+	if req.IsKids != nil {
+		p.IsKids = *req.IsKids
+	}
+	if req.Pin != nil {
+		hash, hErr := h.userSvc.HashPIN(*req.Pin)
+		if hErr != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "%v", hErr)
+		}
+		if p.Parental == nil {
+			p.Parental = &user.ParentalSettings{}
+		}
+		p.Parental.PINHash = hash
+	}
 	if err := h.userSvc.UpdateProfile(ctx, p); err != nil {
+		if errors.Is(err, appuser.ErrKidsRequiresPIN) {
+			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+		}
 		slog.Error("update profile", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -333,6 +383,9 @@ func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfi
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_delete_profile_other")
 	}
 	if err := h.userSvc.DeleteProfile(ctx, req.Id); err != nil {
+		if errors.Is(err, appuser.ErrCannotDeleteDefault) {
+			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+		}
 		slog.Error("delete profile", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
