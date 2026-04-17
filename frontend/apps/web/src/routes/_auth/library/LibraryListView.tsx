@@ -13,13 +13,13 @@ function formatDuration(ms: string): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-const ListRow = memo(function ListRow({ item }: { item: Record<string, unknown> }) {
-  const title = (item.title as string) ?? "";
-  const year = item.year as number | undefined;
-  const rating = item.communityRating as number | undefined;
-  const type = item.type as string | undefined;
-  const id = item.id as string | undefined;
-  const durationMs = item.durationMs as string | undefined;
+const ListRow = memo(function ListRow({ item }: { item: V1MediaItem }) {
+  const title = item.title ?? "";
+  const year = item.year;
+  const rating = item.communityRating;
+  const type = item.type;
+  const id = item.id;
+  const durationMs = item.durationMs;
   const poster = id ? `/api/v1/media/${id}/artwork/poster` : null;
 
   return (
@@ -82,7 +82,7 @@ export function LibraryListView({ items }: { items: V1MediaItem[] }) {
         <span className="hidden lg:block w-16 text-right flex-shrink-0">{t("media.library.duration")}</span>
       </div>
       {items.map((item) => (
-        <ListRow key={item.id} item={item as unknown as Record<string, unknown>} />
+        <ListRow key={item.id} item={item} />
       ))}
     </div>
   );
