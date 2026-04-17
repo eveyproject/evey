@@ -78,6 +78,7 @@ type UserRoleRepository interface {
 
 type LibraryAccessRepository interface {
 	Grant(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error
+	GrantMany(ctx context.Context, userID shared.UserID, libraryIDs []shared.LibraryID) error
 	Revoke(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error
 	GetByUserID(ctx context.Context, userID shared.UserID) ([]shared.LibraryID, error)
 	HasAccess(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) (bool, error)

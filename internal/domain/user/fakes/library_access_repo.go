@@ -34,6 +34,25 @@ func (r *FakeLibraryAccessRepository) Grant(_ context.Context, userID shared.Use
 	return nil
 }
 
+func (r *FakeLibraryAccessRepository) GrantMany(_ context.Context, userID shared.UserID, libraryIDs []shared.LibraryID) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
+	if r.items[userID] == nil {
+		r.items[userID] = make(map[shared.LibraryID]time.Time)
+	}
+	now := time.Now()
+	for _, id := range libraryIDs {
+		r.items[userID][id] = now
+	}
+	return nil
+}
+
 func (r *FakeLibraryAccessRepository) Revoke(_ context.Context, userID shared.UserID, libraryID shared.LibraryID) error {
 	if r.Err != nil {
 		return r.Err

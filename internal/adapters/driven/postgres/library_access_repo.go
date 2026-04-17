@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/lib/pq"
+
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 )
@@ -22,6 +24,27 @@ func (r *LibraryAccessRepository) Grant(ctx context.Context, userID shared.UserI
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO library_access (user_id, library_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
 		string(userID), string(libraryID))
+	return err
+}
+
+// GrantMany inserts N grants for the same user in a single round-trip via
+// unnest on a text[]. Used by invite registration to avoid N serial INSERTs
+// when a library-scoped invite spans multiple libraries.
+func (r *LibraryAccessRepository) GrantMany(ctx context.Context, userID shared.UserID, libraryIDs []shared.LibraryID) error {
+	if len(libraryIDs) == 0 {
+		return nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	ids := make([]string, len(libraryIDs))
+	for i, id := range libraryIDs {
+		ids[i] = string(id)
+	}
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO library_access (user_id, library_id)
+		 SELECT $1, unnest($2::text[])
+		 ON CONFLICT DO NOTHING`,
+		string(userID), pq.Array(ids))
 	return err
 }
 

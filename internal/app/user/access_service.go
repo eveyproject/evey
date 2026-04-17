@@ -106,11 +106,9 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 	if err := s.users.Create(ctx, u); err != nil {
 		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
 	}
-	if s.libraryAccess != nil && !u.IsAdmin {
-		for _, libID := range invite.LibraryIDs {
-			if grantErr := s.libraryAccess.Grant(ctx, u.ID, libID); grantErr != nil {
-				slog.Warn("invite: grant library access", slog.String("userID", string(u.ID)), slog.String("libraryID", string(libID)), slog.Any("err", grantErr))
-			}
+	if s.libraryAccess != nil && !u.IsAdmin && len(invite.LibraryIDs) > 0 {
+		if grantErr := s.libraryAccess.GrantMany(ctx, u.ID, invite.LibraryIDs); grantErr != nil {
+			slog.Warn("invite: grant library access", slog.String("userID", string(u.ID)), slog.Any("err", grantErr))
 		}
 	}
 	evtInviteCreated := user.UserCreated{UserID: u.ID, Username: u.Username, OccurredAt: time.Now()}
