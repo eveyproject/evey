@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +13,8 @@ import (
 	"time"
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	tcfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
@@ -261,5 +265,99 @@ func TestAdminTranscode_DeleteCacheFile_NotFound_404(t *testing.T) {
 	f.mux.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
+// --- UpdateProfile + DeleteProfile additional auth/validation coverage ---
+
+func TestAdminTranscode_UpdateProfile_NoAuth_401(t *testing.T) {
+	f := newAdminTranscodeMux(t)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/transcoding/profiles/tp-x", strings.NewReader(`{}`))
+	w := httptest.NewRecorder()
+	f.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestAdminTranscode_UpdateProfile_BadJSON_400(t *testing.T) {
+	f := newAdminTranscodeMux(t)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/transcoding/profiles/tp-1", strings.NewReader("garbage"))
+	req.Header.Set("Authorization", "Bearer "+f.adminTok)
+	w := httptest.NewRecorder()
+	f.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestAdminTranscode_DeleteProfile_NoAuth_401(t *testing.T) {
+	f := newAdminTranscodeMux(t)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/transcoding/profiles/tp-x", nil)
+	w := httptest.NewRecorder()
+	f.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestAdminTranscode_DeleteProfile_NonAdmin_403(t *testing.T) {
+	f := newAdminTranscodeMux(t)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/transcoding/profiles/tp-x", nil)
+	req.Header.Set("Authorization", "Bearer "+f.userTok)
+	w := httptest.NewRecorder()
+	f.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+// --- DeleteCacheFile invalid filename branch ---
+
+// mapMediaItemGetter is a trivial MediaItemGetter used to verify the display-name
+// resolution path in handleGetTranscodeCache.
+type mapMediaItemGetter struct {
+	byID map[string]string // id → title
+}
+
+func (g *mapMediaItemGetter) GetMediaItem(_ context.Context, id string) (*domainlibrary.MediaItem, error) {
+	title, ok := g.byID[id]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+	return &domainlibrary.MediaItem{ID: shared.MediaItemID(id), Title: title}, nil
+}
+
+// GetCache overrides the display name from mediaGetter when item exists.
+func TestAdminTranscode_GetCache_ResolvesTitleFromMediaGetter(t *testing.T) {
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	gen := auth.NewJWTGenerator(key, time.Minute)
+	adminTok, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "admin-1", IsAdmin: true})
+
+	tc := tcfakes.NewFakeTranscoder()
+	hw := tcfakes.NewFakeHWDetector()
+	jobs := tcfakes.NewFakeTranscodeJobRepository()
+	profiles := tcfakes.NewFakeTranscodeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	cache := tcfakes.NewFakeCacheStore()
+	cache.AddFile(transcoding.CacheFileInfo{Name: "mi-42", Size: 10, LastModified: time.Now()})
+	svc := apptranscoding.NewService(tc, hw, jobs, profiles, bus, 2, apptranscoding.WithCacheStore(cache))
+
+	writeRL := ratelimit.New(1000)
+	t.Cleanup(func() { writeRL.Stop() })
+
+	mux := http.NewServeMux()
+	mediaGetter := &mapMediaItemGetter{byID: map[string]string{"mi-42": "My Movie"}}
+	registerTranscodeCacheRoutes(mux, svc, gen, mediaGetter, nil, writeRL)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/transcode-cache", nil)
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), `"name":"My Movie"`) {
+		t.Errorf("expected title resolution, got %s", w.Body.String())
 	}
 }

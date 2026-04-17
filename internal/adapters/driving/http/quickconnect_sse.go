@@ -15,6 +15,10 @@ import (
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 )
 
+type qcTokenChecker interface {
+	checkAndGenerateTokens(ctx context.Context, code string, persistent bool) (string, string, bool, error)
+}
+
 type qcCheckerAdapter struct {
 	query *appuser.QueryService
 	auth  *appuser.CommandService
@@ -40,7 +44,7 @@ func (a *qcCheckerAdapter) checkAndGenerateTokens(ctx context.Context, code stri
 	return access, refresh, true, nil
 }
 
-func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker *qcCheckerAdapter) http.HandlerFunc {
+func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker qcTokenChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		code := r.PathValue("code")
 		if code == "" {

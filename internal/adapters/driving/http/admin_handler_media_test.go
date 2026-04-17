@@ -186,3 +186,114 @@ func TestAdminMedia_MissingAction_404(t *testing.T) {
 		t.Errorf("expected 404, got %d", w.Code)
 	}
 }
+
+// --- POST /api/v1/admin/media/{id}/reset-metadata ---
+
+func TestAdminMedia_ResetMetadata_NoAuth_401(t *testing.T) {
+	mux, _, _, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/mi-1/reset-metadata", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+// Without mediaItems repository configured, ResetItemMetadata returns an
+// error → 500. This verifies auth + routing reach the service layer.
+func TestAdminMedia_ResetMetadata_NoMediaRepo_500(t *testing.T) {
+	mux, adminTok, _, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/mi-1/reset-metadata", nil)
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 (no media repo), got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+// Wrong-method branch in handleMedia switch: GET on refresh-metadata → 404.
+func TestAdminMedia_RefreshMetadata_WrongMethod_404(t *testing.T) {
+	mux, adminTok, _, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/media/mi-1/refresh-metadata", nil)
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for wrong method, got %d", w.Code)
+	}
+}
+
+// IMDB branch: refresh by imdb_id instead of tmdb_id should also hit the service path.
+func TestAdminMedia_RefreshMetadata_IMDBBranch_500NoEnricher(t *testing.T) {
+	mux, adminTok, _, _ := newAdminMediaMux(t)
+	body := `{"imdb_id":"tt123","media_type":"movie"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/mi-1/refresh-metadata", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 (no enricher configured), got %d", w.Code)
+	}
+}
+
+// --- POST /api/v1/admin/metadata/refresh-all ---
+
+func TestAdminRefreshAll_NoAuth_401(t *testing.T) {
+	mux, _, _, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/metadata/refresh-all", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestAdminRefreshAll_Admin_202(t *testing.T) {
+	mux, adminTok, _, _ := newAdminMediaMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/metadata/refresh-all", nil)
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Errorf("expected 202, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "refresh started") {
+		t.Errorf("expected 'refresh started', got %q", w.Body.String())
+	}
+}
+
+// RateLimit 429 on refresh-metadata when heavyRL is saturated.
+func TestAdminMedia_RefreshMetadata_RateLimit_429(t *testing.T) {
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	gen := auth.NewJWTGenerator(key, time.Minute)
+	adminTok, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "admin-1", IsAdmin: true})
+
+	overrides := metafakes.NewFakeMetadataOverrideRepository()
+	artwork := metafakes.NewFakeArtworkRepository()
+	downloader := metafakes.NewFakeArtworkDownloader()
+	bus := sharedfakes.NewFakeEventBus()
+	provider := metafakes.NewFakeMetadataProvider("tmdb")
+	providers := []metadata.MetadataProvider{provider}
+
+	metaCmd := appmetadata.NewCommandService(overrides, artwork, downloader, bus, providers)
+	metaQuery := appmetadata.NewQueryService(overrides, artwork, providers)
+
+	heavyRL := ratelimit.New(1) // burst 1
+	writeRL := ratelimit.New(1000)
+	t.Cleanup(func() { heavyRL.Stop(); writeRL.Stop() })
+
+	mux := http.NewServeMux()
+	registerAdminRoutes(mux, metaCmd, metaQuery, gen, heavyRL, writeRL, context.Background(), nil)
+
+	// First request consumes the single token.
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/mi-1/refresh-metadata", strings.NewReader(`{"tmdb_id":"1","media_type":"movie"}`))
+		req.Header.Set("Authorization", "Bearer "+adminTok)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if i == 1 && w.Code != http.StatusTooManyRequests {
+			t.Fatalf("second call should be 429, got %d", w.Code)
+		}
+	}
+}
