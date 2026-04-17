@@ -5,6 +5,7 @@ import { vi } from "vitest";
 
 // jsdom doesn't provide ResizeObserver
 (globalThis as Record<string, unknown>).ResizeObserver = class {
+  constructor(_cb: ResizeObserverCallback) {}
   observe() {}
   unobserve() {}
   disconnect() {}
