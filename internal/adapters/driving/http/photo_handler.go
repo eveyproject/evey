@@ -105,8 +105,7 @@ func (h *photoHandler) serveTranscoded(w http.ResponseWriter, r *http.Request, p
 		}
 		width = v
 	}
-	ext := ""
-	contentType := ""
+	var ext, contentType string
 	switch fmtStr {
 	case "webp":
 		ext = "webp"
