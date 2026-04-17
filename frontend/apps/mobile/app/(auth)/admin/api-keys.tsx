@@ -100,7 +100,12 @@ export default function AdminAPIKeysScreen() {
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
         headerRight: () => (
-          <Pressable onPress={() => setShowCreate(true)} style={{ marginRight: 16 }}>
+          <Pressable
+            onPress={() => setShowCreate(true)}
+            style={{ marginRight: 16 }}
+            accessibilityRole="button"
+            accessibilityLabel={t("apiKeys.newKeyTitle")}
+          >
             <Ionicons name="add" size={24} color={theme.colors.accent} />
           </Pressable>
         ),
@@ -142,7 +147,12 @@ export default function AdminAPIKeysScreen() {
                     )}
                   </View>
                 </View>
-                <Pressable onPress={() => handleRevoke(item.id, item.name)} hitSlop={8}>
+                <Pressable
+                  onPress={() => handleRevoke(item.id, item.name)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("apiKeys.revokeTitle")}
+                >
                   <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
                 </Pressable>
               </View>

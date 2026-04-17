@@ -204,7 +204,12 @@ export default function AdminWebhooksScreen() {
                 onValueChange={() => handleToggle(item)}
                 trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
               />
-              <Pressable onPress={() => handleDelete(item)} hitSlop={8}>
+              <Pressable
+                onPress={() => handleDelete(item)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t("common.delete")}
+              >
                 <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
               </Pressable>
             </View>
