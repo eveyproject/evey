@@ -200,6 +200,13 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 	defer zw.Close()
 	seen := make(map[string]int)
 	for _, tr := range tracks {
+		// Defense-in-depth: the query already filtered by library_id, but assert
+		// each track we're about to serve matches the access-checked library.
+		if string(tr.LibraryID) != libraryID {
+			slog.Warn("music album download: cross-library track skipped",
+				slog.String("track_id", tr.ID), slog.String("expected_lib", libraryID), slog.String("got_lib", string(tr.LibraryID)))
+			continue
+		}
 		func() {
 			f, openErr := os.Open(tr.FilePath)
 			if openErr != nil {
