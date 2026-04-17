@@ -12,12 +12,22 @@ import (
 )
 
 type UserService struct {
-	users       user.UserRepository
-	profiles    user.ProfileRepository
-	refreshTkns user.RefreshTokenRepository
-	hasher      user.PasswordHasher
-	events      shared.EventBus
-	uow         shared.TransactionalUnit
+	users          user.UserRepository
+	profiles       user.ProfileRepository
+	refreshTkns    user.RefreshTokenRepository
+	hasher         user.PasswordHasher
+	events         shared.EventBus
+	uow            shared.TransactionalUnit
+	defaultLocale  func() string // optional: resolves server.language, defaults to "en"
+}
+
+type UserServiceOption func(*UserService)
+
+// WithDefaultLocale lets wire inject a function that returns the server-wide
+// default locale (typically reading `server.language` from ServerConfig).
+// Profile.Locale is set to this value at creation when empty.
+func WithDefaultLocale(fn func() string) UserServiceOption {
+	return func(s *UserService) { s.defaultLocale = fn }
 }
 
 func NewUserService(
@@ -27,8 +37,9 @@ func NewUserService(
 	hasher user.PasswordHasher,
 	events shared.EventBus,
 	uow shared.TransactionalUnit,
+	opts ...UserServiceOption,
 ) *UserService {
-	return &UserService{
+	s := &UserService{
 		users:       users,
 		profiles:    profiles,
 		refreshTkns: refreshTkns,
@@ -36,6 +47,17 @@ func NewUserService(
 		events:      events,
 		uow:         uow,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+func (s *UserService) resolveDefaultLocale() string {
+	if s.defaultLocale == nil {
+		return ""
+	}
+	return s.defaultLocale()
 }
 
 func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *user.User, password string) error {
@@ -61,6 +83,7 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 		UserID:    u.ID,
 		Name:      u.Username,
 		IsDefault: true,
+		Locale:    s.resolveDefaultLocale(),
 		CreatedAt: time.Now(),
 	}
 

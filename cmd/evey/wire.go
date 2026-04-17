@@ -148,8 +148,14 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	tmdbKey := resolveAPIKey(ctx, r.ServerCfg, "api.tmdb_key", "EVEY_TMDB_API_KEY")
 	serverCfgForLang := r.ServerCfg
 	defaultLang := cfg.Metadata.Language
+	// Resolution order: metadata.language override → server.language (hydrates
+	// both UI and metadata by default) → env-level default → hardcoded "en".
 	tmdbProvider := metadataadapter.NewTMDBProviderWithGetter(tmdbKey, func() string {
-		if entry, err2 := serverCfgForLang.Get(context.Background(), "metadata.language"); err2 == nil && entry.Value != "" {
+		bg := context.Background()
+		if entry, err2 := serverCfgForLang.Get(bg, "metadata.language"); err2 == nil && entry.Value != "" {
+			return entry.Value
+		}
+		if entry, err2 := serverCfgForLang.Get(bg, "server.language"); err2 == nil && entry.Value != "" {
 			return entry.Value
 		}
 		return defaultLang
@@ -252,8 +258,20 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		7*24*time.Hour, r.QuickConnect,
 	)
 	userAuthSvc.InitSetupState(ctx)
-	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db))
-	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile), appuser.WithLibraryAccess(r.LibraryAccess))
+	// server.language (admin-editable) drives the default UI locale for new
+	// profiles. Fallback chain: server.language → env default → "en".
+	serverLocaleFn := func() string {
+		bg := context.Background()
+		if entry, err2 := r.ServerCfg.Get(bg, "server.language"); err2 == nil && entry.Value != "" {
+			return entry.Value
+		}
+		if cfg.Metadata.Language != "" {
+			return cfg.Metadata.Language
+		}
+		return "en"
+	}
+	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db), appuser.WithDefaultLocale(serverLocaleFn))
+	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile), appuser.WithLibraryAccess(r.LibraryAccess), appuser.WithAccessDefaultLocale(serverLocaleFn))
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
 
 	var oidcSvc *appuser.OIDCService

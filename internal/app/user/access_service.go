@@ -20,6 +20,7 @@ type AccessService struct {
 	libraryAccess user.LibraryAccessRepository
 	hasher        user.PasswordHasher
 	events        shared.EventBus
+	defaultLocale func() string
 }
 
 type AccessServiceOption func(*AccessService)
@@ -30,6 +31,12 @@ func WithProfiles(profiles user.ProfileRepository) AccessServiceOption {
 
 func WithLibraryAccess(la user.LibraryAccessRepository) AccessServiceOption {
 	return func(s *AccessService) { s.libraryAccess = la }
+}
+
+// WithAccessDefaultLocale sets the server-wide default locale resolver used
+// when creating a new Profile via invite registration (mirrors UserService).
+func WithAccessDefaultLocale(fn func() string) AccessServiceOption {
+	return func(s *AccessService) { s.defaultLocale = fn }
 }
 
 func NewAccessService(
@@ -126,11 +133,16 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 	}
 
 	if s.profiles != nil {
+		locale := ""
+		if s.defaultLocale != nil {
+			locale = s.defaultLocale()
+		}
 		p := &user.Profile{
 			ID:        shared.ProfileID(id.New("prf-")),
 			UserID:    u.ID,
 			Name:      u.Username,
 			IsDefault: true,
+			Locale:    locale,
 			CreatedAt: time.Now(),
 		}
 		if pErr := s.profiles.Create(ctx, p); pErr != nil {
