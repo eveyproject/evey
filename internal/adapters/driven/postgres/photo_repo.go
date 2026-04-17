@@ -138,11 +138,11 @@ func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID shared.Librar
 func (r *PhotoRepository) Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]photo.Photo, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	pattern := "%" + query + "%"
+	pattern := "%" + likeEscape(query) + "%"
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at
-		FROM photos WHERE library_id = $1 AND (title ILIKE $2 OR album ILIKE $2)
+		FROM photos WHERE library_id = $1 AND (title ILIKE $2 ESCAPE '\' OR album ILIKE $2 ESCAPE '\')
 		ORDER BY taken_at DESC NULLS LAST
 		LIMIT $3`, libraryID, pattern, limit,
 	)

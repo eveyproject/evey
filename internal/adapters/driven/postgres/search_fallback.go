@@ -38,9 +38,9 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 		return nil, 0, nil
 	}
 
-	pattern := "%" + q + "%"
+	pattern := "%" + likeEscape(q) + "%"
 	args := []any{pattern, pattern}
-	where := "(title ILIKE $1 OR COALESCE(original_title,'') ILIKE $2)"
+	where := "(title ILIKE $1 ESCAPE '\\' OR COALESCE(original_title,'') ILIKE $2 ESCAPE '\\')"
 	argN := 3
 
 	if typ, ok := filters["type"]; ok && typ != "" {
