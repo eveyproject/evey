@@ -32,7 +32,10 @@ jobs:
 
       - name: check proto breaking changes
         if: github.event_name == 'pull_request'
-        run: buf breaking --against "https://github.com/${{ github.repository }}.git#branch=master,ref=HEAD~1"
+        # Diff current HEAD against the PR's base branch tip (not HEAD~1, which
+        # silently passes on multi-commit PRs since it only looks at the last
+        # commit). github.base_ref is the target branch name for pull_request.
+        run: buf breaking --against "https://github.com/${{ github.repository }}.git#branch=${{ github.base_ref }}"
 
       - name: vet
         run: go vet $(go list ./... | grep -v /gen/)
