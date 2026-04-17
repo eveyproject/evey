@@ -45,6 +45,7 @@ playback:
   cannot_stop_other_session: "No se puede detener la sesión de otro usuario"
   cannot_report_other_session: "No se puede reportar progreso de la sesión de otro usuario"
   session_not_found: "Sesión no encontrada"
+  max_streams_reached: "Has alcanzado el número máximo de reproducciones simultáneas"
 
 activity:
   cannot_access_other_history: "No se puede acceder al historial de inicio de sesión de otro usuario"
@@ -52,6 +53,7 @@ activity:
 library:
   parental_restricted: "Contenido restringido por control parental"
   name_required: "El nombre de la biblioteca es obligatorio"
+  scan_in_progress: "Ya hay un escaneo en curso para esta biblioteca"
 
 admin:
   setup_already_completed: "La configuración ya fue completada"
@@ -91,6 +93,7 @@ transcode:
   no_active_session: "No hay sesión de transcodificación activa"
   session_not_ready: "La sesión no está lista"
   segment_not_found: "Segmento no encontrado"
+  max_concurrent_reached: "El servidor está ocupado transcodificando otros flujos. Inténtalo de nuevo en un momento."
 
 subtitle:
   not_found: "Subtítulo no encontrado"

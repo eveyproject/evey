@@ -177,6 +177,9 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
 			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
 		}
+		if errors.Is(err, appplayback.ErrMaxStreams) {
+			return nil, h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.playback.max_streams_reached")
+		}
 		slog.Error("start stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -203,6 +206,9 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 		}
 	}
 	if err := h.cmd.StopStream(ctx, req.SessionId); err != nil {
+		if errors.Is(err, appplayback.ErrSessionNotFound) {
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
+		}
 		slog.Error("stop stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}

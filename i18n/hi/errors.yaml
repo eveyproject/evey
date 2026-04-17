@@ -45,6 +45,7 @@ playback:
   cannot_stop_other_session: "अन्य उपयोगकर्ता का सत्र रोका नहीं जा सकता"
   cannot_report_other_session: "अन्य उपयोगकर्ता के सत्र की प्रगति रिपोर्ट नहीं की जा सकती"
   session_not_found: "सत्र नहीं मिला"
+  max_streams_reached: "आप एक साथ चलाए जा सकने वाले स्ट्रीम की अधिकतम संख्या तक पहुँच गए हैं"
 
 activity:
   cannot_access_other_history: "अन्य उपयोगकर्ता का लॉगिन इतिहास एक्सेस नहीं किया जा सकता"
@@ -52,6 +53,7 @@ activity:
 library:
   parental_restricted: "अभिभावक नियंत्रण द्वारा सामग्री प्रतिबंधित"
   name_required: "लाइब्रेरी का नाम आवश्यक है"
+  scan_in_progress: "इस लाइब्रेरी के लिए पहले से ही स्कैन चल रहा है"
 
 admin:
   setup_already_completed: "सेटअप पहले ही पूर्ण हो चुका है"
@@ -91,6 +93,7 @@ transcode:
   no_active_session: "कोई सक्रिय ट्रांसकोड सत्र नहीं"
   session_not_ready: "सत्र तैयार नहीं है"
   segment_not_found: "सेगमेंट नहीं मिला"
+  max_concurrent_reached: "सर्वर अन्य स्ट्रीम ट्रांसकोड करने में व्यस्त है। कृपया थोड़ी देर में पुनः प्रयास करें।"
 
 subtitle:
   not_found: "उपशीर्षक नहीं मिला"

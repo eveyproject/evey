@@ -45,6 +45,7 @@ playback:
   cannot_stop_other_session: "无法停止其他用户的会话"
   cannot_report_other_session: "无法为其他用户的会话报告进度"
   session_not_found: "会话未找到"
+  max_streams_reached: "您已达到并发播放数上限"
 
 activity:
   cannot_access_other_history: "无法访问其他用户的登录历史"
@@ -52,6 +53,7 @@ activity:
 library:
   parental_restricted: "内容被家长控制限制"
   name_required: "媒体库名称为必填项"
+  scan_in_progress: "此媒体库已有扫描任务正在进行"
 
 admin:
   setup_already_completed: "设置已完成"
@@ -91,6 +93,7 @@ transcode:
   no_active_session: "没有活跃的转码会话"
   session_not_ready: "会话未就绪"
   segment_not_found: "片段未找到"
+  max_concurrent_reached: "服务器正忙于转码其他流，请稍后重试"
 
 subtitle:
   not_found: "字幕未找到"

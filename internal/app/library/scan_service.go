@@ -16,6 +16,11 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
+// ErrScanInProgress is returned by ScanLibrary when a scan is already running
+// for the given library. Callers (gRPC handler, HTTP handler) should map this
+// to a user-friendly 409/FailedPrecondition response.
+var ErrScanInProgress = errors.New("scan already in progress")
+
 type TypedDirectoryScanner interface {
 	ScanDirectory(ctx context.Context, libraryID, dir string) (int, error)
 }
@@ -107,7 +112,7 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 	s.scanMu.Lock()
 	if s.scanning[libraryID] {
 		s.scanMu.Unlock()
-		return 0, 0, fmt.Errorf("scan already in progress for library %s", libraryID)
+		return 0, 0, fmt.Errorf("%w for library %s", ErrScanInProgress, libraryID)
 	}
 	s.scanning[libraryID] = true
 	defer func() {

@@ -45,6 +45,7 @@ playback:
   cannot_stop_other_session: "Sitzung eines anderen Benutzers kann nicht beendet werden"
   cannot_report_other_session: "Fortschritt für die Sitzung eines anderen Benutzers kann nicht gemeldet werden"
   session_not_found: "Sitzung nicht gefunden"
+  max_streams_reached: "Maximale Anzahl gleichzeitiger Wiedergaben erreicht"
 
 activity:
   cannot_access_other_history: "Anmeldeverlauf eines anderen Benutzers kann nicht aufgerufen werden"
@@ -52,6 +53,7 @@ activity:
 library:
   parental_restricted: "Inhalt durch Kindersicherung eingeschränkt"
   name_required: "Bibliotheksname ist erforderlich"
+  scan_in_progress: "Für diese Bibliothek läuft bereits ein Scan"
 
 admin:
   setup_already_completed: "Einrichtung bereits abgeschlossen"
@@ -91,6 +93,7 @@ transcode:
   no_active_session: "Keine aktive Transkodierungssitzung"
   session_not_ready: "Sitzung nicht bereit"
   segment_not_found: "Segment nicht gefunden"
+  max_concurrent_reached: "Der Server transkodiert gerade andere Streams. Bitte versuche es gleich erneut."
 
 subtitle:
   not_found: "Untertitel nicht gefunden"

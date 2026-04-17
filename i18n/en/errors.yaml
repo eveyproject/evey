@@ -45,6 +45,7 @@ playback:
   cannot_stop_other_session: "Cannot stop another user's session"
   cannot_report_other_session: "Cannot report progress for another user's session"
   session_not_found: "Session not found"
+  max_streams_reached: "You've reached the maximum number of concurrent streams"
 
 activity:
   cannot_access_other_history: "Cannot access another user's login history"
@@ -52,6 +53,7 @@ activity:
 library:
   parental_restricted: "Content restricted by parental controls"
   name_required: "Library name is required"
+  scan_in_progress: "A scan is already running for this library"
 
 admin:
   setup_already_completed: "Setup already completed"
@@ -91,6 +93,7 @@ transcode:
   no_active_session: "No active transcode session"
   session_not_ready: "Session not ready"
   segment_not_found: "Segment not found"
+  max_concurrent_reached: "The server is busy transcoding other streams. Please try again in a moment."
 
 subtitle:
   not_found: "Subtitle not found"

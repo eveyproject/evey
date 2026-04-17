@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -116,6 +117,9 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 func (h *libraryHandler) ScanLibrary(req *eveyv1.ScanLibraryRequest, stream eveyv1.LibraryService_ScanLibraryServer) error {
 	added, updated, err := h.cmd.ScanLibrary(stream.Context(), req.Id)
 	if err != nil {
+		if errors.Is(err, applibrary.ErrScanInProgress) {
+			return h.translator.TranslatedError(stream.Context(), codes.FailedPrecondition, "errors.library.scan_in_progress")
+		}
 		return internalError("scan library", err)
 	}
 	return stream.Send(&eveyv1.ScanProgress{
@@ -454,8 +458,8 @@ func (h *libraryHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, er
 	if err != nil {
 		return nil, fmt.Errorf("libraryHandler.getAllowedLibraryIDs: %w", err)
 	}
-	if ids == nil {
-		ids = []string{}
+	if len(ids) == 0 {
+		return nil, nil
 	}
 	return ids, nil
 }
