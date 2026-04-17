@@ -447,12 +447,31 @@ func TestDisableUser_Success(t *testing.T) {
 	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
 
 	ctx := adminCtx()
-	resp, err := env.handler.DisableUser(ctx, &eveyv1.DisableUserRequest{Id: "usr-1"})
+	resp, err := env.handler.DisableUser(ctx, &eveyv1.DisableUserRequest{Id: "usr-1", Disabled: true})
 	if err != nil {
 		t.Fatalf("DisableUser: %v", err)
 	}
 	if resp.Enabled {
 		t.Fatal("expected user to be disabled")
+	}
+}
+
+func TestDisableUser_EnableToggle(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
+
+	ctx := adminCtx()
+	// Disable.
+	if _, err := env.handler.DisableUser(ctx, &eveyv1.DisableUserRequest{Id: "usr-1", Disabled: true}); err != nil {
+		t.Fatalf("Disable: %v", err)
+	}
+	// Re-enable via the same RPC with Disabled=false.
+	resp, err := env.handler.DisableUser(ctx, &eveyv1.DisableUserRequest{Id: "usr-1", Disabled: false})
+	if err != nil {
+		t.Fatalf("Enable: %v", err)
+	}
+	if !resp.Enabled {
+		t.Fatal("expected user to be re-enabled")
 	}
 }
 

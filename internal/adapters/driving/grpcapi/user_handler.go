@@ -201,20 +201,31 @@ func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequ
 }
 
 func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRequest) (*eveyv1.User, error) {
-	if err := h.userSvc.DisableUser(ctx, req.Id); err != nil {
-		slog.Error("disable user", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+	// req.Disabled = true → disable, false → enable. The previous handler
+	// ignored the flag and always disabled, leaving no way to re-enable.
+	op := "disable_user"
+	if req.Disabled {
+		if err := h.userSvc.DisableUser(ctx, req.Id); err != nil {
+			slog.Error("disable user", slog.Any("err", err))
+			return nil, status.Errorf(codes.Internal, "internal error")
+		}
+	} else {
+		op = "enable_user"
+		if err := h.userSvc.EnableUser(ctx, req.Id); err != nil {
+			slog.Error("enable user", slog.Any("err", err))
+			return nil, status.Errorf(codes.Internal, "internal error")
+		}
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	callerID := req.Id
 	if claims != nil {
 		callerID = claims.UserID
 	}
-	h.audit(ctx, callerID, "disable_user", "user", &req.Id, map[string]any{"target_user_id": req.Id})
+	h.audit(ctx, callerID, op, "user", &req.Id, map[string]any{"target_user_id": req.Id})
 	u, err := h.query.GetUserByID(ctx, req.Id)
 	if err != nil {
-		slog.Warn("disable user: could not reload user", slog.String("user_id", req.Id), slog.Any("err", err))
-		return &eveyv1.User{Id: req.Id, Enabled: false}, nil
+		slog.Warn(op+": could not reload user", slog.String("user_id", req.Id), slog.Any("err", err))
+		return &eveyv1.User{Id: req.Id, Enabled: !req.Disabled}, nil
 	}
 	return userToProto(u), nil
 }

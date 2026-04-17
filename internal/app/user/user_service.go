@@ -191,6 +191,25 @@ func (s *UserService) DisableUser(ctx context.Context, userID string) error {
 	return nil
 }
 
+// EnableUser re-enables a previously-disabled account. Idempotent if already
+// enabled. Publishes UserEnabled for audit-trail symmetry with UserDisabled.
+func (s *UserService) EnableUser(ctx context.Context, userID string) error {
+	u, err := s.users.GetByID(ctx, shared.UserID(userID))
+	if err != nil {
+		return fmt.Errorf("UserService.EnableUser: %w", err)
+	}
+	u.Enabled = true
+	u.UpdatedAt = time.Now()
+	if err := s.users.Update(ctx, u); err != nil {
+		return fmt.Errorf("UserService.EnableUser: %w", err)
+	}
+	evt := user.UserEnabled{UserID: shared.UserID(userID), OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
+	return nil
+}
+
 func (s *UserService) CreateProfile(ctx context.Context, p *user.Profile) error {
 	if err := p.Validate(); err != nil {
 		return fmt.Errorf("invalid profile: %w", err)

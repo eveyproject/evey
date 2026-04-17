@@ -29,6 +29,13 @@ type UserDisabled struct {
 
 func (e UserDisabled) EventName() string { return "user.disabled" }
 
+type UserEnabled struct {
+	UserID     shared.UserID
+	OccurredAt time.Time
+}
+
+func (e UserEnabled) EventName() string { return "user.enabled" }
+
 type ProfileCreated struct {
 	ProfileID  shared.ProfileID
 	UserID     shared.UserID
