@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -587,10 +588,10 @@ func (h *userHandler) RequestPasswordReset(ctx context.Context, req *eveyv1.Requ
 
 func (h *userHandler) ResetPassword(ctx context.Context, req *eveyv1.ResetPasswordRequest) (*eveyv1.ResetPasswordResponse, error) {
 	if err := h.auth.ResetPassword(ctx, req.Token, req.NewPassword); err != nil {
-		switch err {
-		case appuser.ErrResetTokenInvalid:
+		switch {
+		case errors.Is(err, appuser.ErrResetTokenInvalid):
 			return nil, status.Errorf(codes.InvalidArgument, "invalid or expired reset token")
-		case appuser.ErrPasswordTooShort:
+		case errors.Is(err, appuser.ErrPasswordTooShort):
 			return nil, status.Errorf(codes.InvalidArgument, "password must be at least 8 characters")
 		default:
 			slog.Error("reset password", slog.Any("err", err))
