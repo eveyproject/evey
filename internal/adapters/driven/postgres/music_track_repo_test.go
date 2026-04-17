@@ -164,7 +164,7 @@ func TestMusicTrackRepo_Search(t *testing.T) {
 
 	require.NoError(t, repo.Upsert(ctx, newTestTrack("mt6", lib.ID, "Searchable Song", "Art", "Alb")))
 
-	tracks, err := repo.Search(ctx, "Searchable", 10)
+	tracks, err := repo.Search(ctx, lib.ID, "Searchable", 10)
 	require.NoError(t, err)
 	assert.Len(t, tracks, 1)
 }

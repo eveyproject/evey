@@ -80,19 +80,21 @@ func (r *LibraryAccessRepository) GetByUserID(ctx context.Context, userID shared
 func (r *LibraryAccessRepository) HasAccess(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) (bool, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	var count int
+	// Single round-trip: COUNT(*) = total restrictions, matched = whether the
+	// requested library is in the user's set. Convention: zero restrictions =
+	// full access.
+	var total, matched int
 	err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM library_access WHERE user_id = $1`, string(userID)).Scan(&count)
+		`SELECT COUNT(*), COUNT(*) FILTER (WHERE library_id = $2)
+		 FROM library_access WHERE user_id = $1`,
+		string(userID), string(libraryID)).Scan(&total, &matched)
 	if err != nil {
 		return false, err
 	}
-	if count == 0 {
+	if total == 0 {
 		return true, nil // no restrictions = full access
 	}
-	err = r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM library_access WHERE user_id = $1 AND library_id = $2`,
-		string(userID), string(libraryID)).Scan(&count)
-	return count > 0, err
+	return matched > 0, nil
 }
 
 func (r *LibraryAccessRepository) ListUsersWithRestrictions(ctx context.Context) (map[shared.UserID][]shared.LibraryID, error) {
