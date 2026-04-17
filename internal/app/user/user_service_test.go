@@ -523,6 +523,55 @@ func TestDisableUser_EventPublishError_NonFatal(t *testing.T) {
 	}
 }
 
+// --- EnableUser ---
+
+func TestEnableUser_Happy(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "bob", "pw", false, false) // starts disabled
+
+	if err := d.svc.EnableUser(ctx, "u1"); err != nil {
+		t.Fatalf("EnableUser: %v", err)
+	}
+	u, _ := d.users.GetByID(ctx, "u1")
+	if !u.Enabled {
+		t.Fatal("expected user to be enabled")
+	}
+	found := false
+	for _, e := range d.events.PublishedEvents() {
+		if _, ok := e.(user.UserEnabled); ok {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected UserEnabled event")
+	}
+}
+
+func TestEnableUser_Idempotent(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "bob", "pw", false, true) // already enabled
+
+	// Calling enable on an already-enabled user is a no-op (state-wise).
+	if err := d.svc.EnableUser(ctx, "u1"); err != nil {
+		t.Fatalf("EnableUser: %v", err)
+	}
+	u, _ := d.users.GetByID(ctx, "u1")
+	if !u.Enabled {
+		t.Fatal("expected still enabled")
+	}
+}
+
+func TestEnableUser_NotFound(t *testing.T) {
+	d := newUserTestDeps()
+	err := d.svc.EnableUser(context.Background(), "ghost")
+	if err == nil {
+		t.Fatal("expected error for missing user")
+	}
+}
+
 // --- CreateProfile ---
 
 func TestCreateProfile_Happy(t *testing.T) {
