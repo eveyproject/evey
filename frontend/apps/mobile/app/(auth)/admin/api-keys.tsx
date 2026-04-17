@@ -29,7 +29,7 @@ export default function AdminAPIKeysScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { data, isLoading, refetch } = useUserServiceListAPIKeys();
-  const keys = (data as any)?.apiKeys ?? [];
+  const keys = data?.apiKeys ?? [];
 
   const [showCreate, setShowCreate] = useState(false);
   const [keyName, setKeyName] = useState("");
@@ -43,9 +43,8 @@ export default function AdminAPIKeysScreen() {
 
   const createKey = useUserServiceCreateAPIKey({
     mutation: {
-      onSuccess: async (resp: unknown) => {
-        const key = (resp as any)?.key ?? (resp as any)?.apiKey?.key;
-        if (key) setNewKey(key);
+      onSuccess: async (resp) => {
+        if (resp?.key) setNewKey(resp.key);
         toast.success(t("auth.apiKeys.keyCreated"));
         await qc.invalidateQueries({ queryKey: getUserServiceListAPIKeysQueryKey() });
       },
