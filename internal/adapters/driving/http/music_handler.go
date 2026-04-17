@@ -1,7 +1,10 @@
 package httpapi
 
 import (
+	"archive/zip"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -27,6 +30,8 @@ func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen *au
 	h := &musicHandler{svc: svc, libChecker: libChecker}
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/art", authMw(h.getTrackArt))
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/stream", authMw(h.streamTrack))
+	mux.HandleFunc("GET /api/v1/music/tracks/{id}/download", authMw(h.downloadTrack))
+	mux.HandleFunc("GET /api/v1/music/albums/download", authMw(h.downloadAlbum))
 	mux.HandleFunc("GET /api/v1/music/album-art/{hash}", authMw(h.serveAlbumArt))
 	mux.HandleFunc("POST /api/v1/admin/music/fetch-missing-art", adminMw(h.fetchMissingArt))
 }
@@ -137,3 +142,91 @@ func (h *musicHandler) streamTrack(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, filePath, time.Time{}, f)
 }
 
+func (h *musicHandler) downloadTrack(w http.ResponseWriter, r *http.Request) {
+	claims := HTTPClaimsFromContext(r.Context())
+	id := r.PathValue("id")
+	track, err := h.svc.GetTrack(r.Context(), id)
+	if err != nil || track == nil {
+		http.NotFound(w, r)
+		return
+	}
+	if !checkLibraryAccess(r.Context(), w, claims, shared.LibraryID(track.LibraryID), h.libChecker) {
+		return
+	}
+	f, err := os.Open(track.FilePath)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	ext := filepath.Ext(track.FilePath)
+	name := sanitizeFilename(track.Title) + ext
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
+		slog.Warn("set write deadline", slog.Any("err", err))
+	}
+	http.ServeContent(w, r, track.FilePath, time.Time{}, f)
+}
+
+func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
+	claims := HTTPClaimsFromContext(r.Context())
+	libraryID := r.URL.Query().Get("libraryId")
+	album := r.URL.Query().Get("album")
+	if libraryID == "" || album == "" {
+		http.Error(w, "libraryId and album are required", http.StatusBadRequest)
+		return
+	}
+	if !checkLibraryAccess(r.Context(), w, claims, shared.LibraryID(libraryID), h.libChecker) {
+		return
+	}
+	tracks, err := h.svc.ListTracksByAlbum(r.Context(), shared.LibraryID(libraryID), album)
+	if err != nil {
+		slog.Error("music: list tracks by album", slog.Any("err", err))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if len(tracks) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	zipName := sanitizeFilename(album) + ".zip"
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipName))
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
+		slog.Warn("set write deadline", slog.Any("err", err))
+	}
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+	seen := make(map[string]int)
+	for _, tr := range tracks {
+		func() {
+			f, openErr := os.Open(tr.FilePath)
+			if openErr != nil {
+				slog.Warn("music album download: open", slog.String("path", tr.FilePath), slog.Any("err", openErr))
+				return
+			}
+			defer f.Close()
+			ext := filepath.Ext(tr.FilePath)
+			base := sanitizeFilename(tr.Title)
+			if tr.TrackNumber > 0 {
+				base = fmt.Sprintf("%02d - %s", tr.TrackNumber, base)
+			}
+			entryName := base + ext
+			if n, ok := seen[entryName]; ok {
+				entryName = fmt.Sprintf("%s (%d)%s", base, n+1, ext)
+				seen[base+ext] = n + 1
+			} else {
+				seen[entryName] = 1
+			}
+			zfw, zipErr := zw.Create(entryName)
+			if zipErr != nil {
+				slog.Warn("music album download: zip create", slog.Any("err", zipErr))
+				return
+			}
+			if _, copyErr := io.Copy(zfw, f); copyErr != nil {
+				slog.Warn("music album download: zip copy", slog.Any("err", copyErr))
+			}
+		}()
+	}
+}

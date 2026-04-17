@@ -15,6 +15,7 @@ type TrackRepository interface {
 	ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]Track, int, error)
 	ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]Track, error)
 	ListByAlbum(ctx context.Context, album, artist string) ([]Track, error)
+	ListByLibraryAndAlbum(ctx context.Context, libraryID shared.LibraryID, album string) ([]Track, error)
 	ListByArtist(ctx context.Context, artist string, limit, offset int) ([]Track, int, error)
 	Search(ctx context.Context, query string, limit int) ([]Track, error)
 	GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]Album, error)

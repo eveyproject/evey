@@ -117,6 +117,21 @@ func (r *FakeMusicTrackRepository) ListByAlbum(_ context.Context, album, artist 
 	return out, nil
 }
 
+func (r *FakeMusicTrackRepository) ListByLibraryAndAlbum(_ context.Context, libraryID shared.LibraryID, album string) ([]music.Track, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []music.Track
+	for _, t := range r.tracks {
+		if t.LibraryID == libraryID && t.Album == album {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
 func (r *FakeMusicTrackRepository) ListByArtist(_ context.Context, artist string, limit, offset int) ([]music.Track, int, error) {
 	if r.Err != nil {
 		return nil, 0, r.Err

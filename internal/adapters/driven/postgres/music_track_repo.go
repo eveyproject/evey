@@ -127,6 +127,24 @@ func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist st
 	return scanTracks(rows)
 }
 
+func (r *MusicTrackRepository) ListByLibraryAndAlbum(ctx context.Context, libraryID shared.LibraryID, album string) ([]music.Track, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, library_id, title, artist, album, album_artist,
+		       year, track_number, disk_number, duration, file_path,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
+		       genre, cover_art_url, created_at, updated_at
+		FROM music_tracks WHERE library_id=$1 AND album=$2
+		ORDER BY disk_number, track_number
+		LIMIT 1000`, libraryID, album)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanTracks(rows)
+}
+
 func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, limit, offset int) ([]music.Track, int, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
@@ -174,11 +192,15 @@ func (r *MusicTrackRepository) Search(ctx context.Context, query string, limit i
 func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]music.Album, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// Group by album only: tracks with a "feat." in artist (and empty
+	// album_artist) must not spawn a phantom album for the same title.
+	// Prefer any non-empty album_artist as the display artist.
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT album, COALESCE(NULLIF(album_artist,''), artist),
+		SELECT album,
+		       COALESCE(MIN(NULLIF(album_artist,'')), MIN(artist)),
 		       MIN(year), COUNT(*), SUM(duration), MIN(NULLIF(cover_art_url,''))
 		FROM music_tracks WHERE library_id=$1
-		GROUP BY album, COALESCE(NULLIF(album_artist,''), artist)
+		GROUP BY album
 		ORDER BY album
 		LIMIT 10000`, libraryID)
 	if err != nil {
