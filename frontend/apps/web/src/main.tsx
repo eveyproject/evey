@@ -139,7 +139,37 @@ const queryClient = queryClientRef = new QueryClient({
   },
 });
 
-const router = createRouter({ routeTree, context: { queryClient } });
+// Fallback shown when a route render throws. Keeps the rest of the app
+// functional and gives the user an escape hatch (reload) instead of a blank
+// white page. The inner component receives `error` + `reset` via props; we
+// render minimal, dependency-free HTML so even if the theme CSS fails, the
+// message is legible.
+function RouterErrorFallback({ error, reset }: { error: Error; reset: () => void }) {
+  return (
+    <div role="alert" style={{ padding: 24, color: "var(--text, #eee)", background: "var(--bg, #111)" }}>
+      <h1 style={{ fontSize: 20, marginBottom: 8 }}>Something went wrong</h1>
+      <p style={{ fontSize: 14, opacity: 0.8, marginBottom: 16 }}>
+        The app hit an unexpected error. Try reloading; if it persists, check the
+        server logs or open an issue.
+      </p>
+      <pre style={{ fontSize: 12, opacity: 0.6, whiteSpace: "pre-wrap", marginBottom: 16 }}>
+        {error.message}
+      </pre>
+      <button
+        onClick={() => { reset(); window.location.reload(); }}
+        style={{ padding: "8px 16px", background: "var(--accent, #3b82f6)", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}
+      >
+        Reload
+      </button>
+    </div>
+  );
+}
+
+const router = createRouter({
+  routeTree,
+  context: { queryClient },
+  defaultErrorComponent: RouterErrorFallback,
+});
 
 declare module "@tanstack/react-router" {
   interface Register { router: typeof router }
