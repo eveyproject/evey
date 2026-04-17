@@ -9,6 +9,7 @@ import (
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appconfig "github.com/evey-project/evey/internal/app/config"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appactivity "github.com/evey-project/evey/internal/app/activity"
@@ -30,6 +31,7 @@ type adminSystemHandler struct {
 	ffmpegPath     string
 	translator     *eveyi18n.Translator
 	smtpConfigured bool
+	serverCfgSvc   *appconfig.Service // optional: nil = server.language/region can't be persisted via setup
 }
 
 func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSetupStatusRequest) (*eveyv1.SetupStatusResponse, error) {
@@ -86,6 +88,20 @@ func (d *adminSystemHandler) UpdateServerConfig(_ context.Context, req *eveyv1.U
 }
 
 func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupWizardRequest) (*eveyv1.SetupWizardResponse, error) {
+	// Persist language/region FIRST so the admin profile created just below
+	// inherits them via the server-wide defaults.
+	if d.serverCfgSvc != nil {
+		if req.ServerLanguage != "" {
+			if err := d.serverCfgSvc.Set(ctx, "server.language", req.ServerLanguage); err != nil {
+				slog.Warn("setup: persist server.language", slog.Any("err", err))
+			}
+		}
+		if req.ServerRegion != "" {
+			if err := d.serverCfgSvc.Set(ctx, "server.region", req.ServerRegion); err != nil {
+				slog.Warn("setup: persist server.region", slog.Any("err", err))
+			}
+		}
+	}
 	u, err := d.userCmd.Setup(ctx, req.AdminUsername, req.AdminPassword, req.AdminEmail)
 	if err != nil {
 		if errors.Is(err, appuser.ErrSetupDone) {

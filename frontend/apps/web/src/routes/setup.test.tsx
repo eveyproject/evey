@@ -16,6 +16,9 @@ vi.mock("@evey/api", () => ({
 
 vi.mock("@evey/store", () => ({
   useAuthStore: vi.fn(() => ({ setTokens: mockSetTokens })),
+  useLocaleStore: vi.fn((sel?: (s: { setLocale: (v: string) => void }) => unknown) =>
+    sel ? sel({ setLocale: vi.fn() }) : { setLocale: vi.fn() }
+  ),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -41,35 +44,52 @@ async function getSetupPage() {
   return (mod.Route as unknown as { component: React.ComponentType }).component;
 }
 
+async function advanceToWelcome() {
+  // Step 0 is now the language picker. Click Continue to land on welcome.
+  fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+  await waitFor(() => expect(screen.getByText("Welcome to Evey")).toBeInTheDocument());
+}
+
+async function advanceToAdmin() {
+  await advanceToWelcome();
+  fireEvent.click(screen.getByRole("button", { name: /Get Started/i }));
+  await waitFor(() => expect(screen.getByText("Create admin account")).toBeInTheDocument());
+}
+
 describe("SetupPage", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it("renders welcome step by default", async () => {
+  it("starts on language step with a Continue button", async () => {
     const SetupPage = await getSetupPage();
     render(React.createElement(SetupPage), { wrapper: createWrapper() });
-    expect(screen.getByText("Welcome to Evey")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Get Started/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Continue/i })).toBeInTheDocument();
   });
 
-  it("shows step indicator — step 1 of 3", async () => {
+  it("shows step indicator — step 1 of 4", async () => {
     const SetupPage = await getSetupPage();
     render(React.createElement(SetupPage), { wrapper: createWrapper() });
-    expect(screen.getByText(/Step 1 of 3/i)).toBeInTheDocument();
+    expect(screen.getByText(/Step 1 of 4/i)).toBeInTheDocument();
+  });
+
+  it("Continue advances to welcome step", async () => {
+    const SetupPage = await getSetupPage();
+    render(React.createElement(SetupPage), { wrapper: createWrapper() });
+    await advanceToWelcome();
+    expect(screen.getByText(/Step 2 of 4/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Get Started/i })).toBeInTheDocument();
   });
 
   it("Get Started advances to admin account step", async () => {
     const SetupPage = await getSetupPage();
     render(React.createElement(SetupPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Get Started/i }));
-    await waitFor(() => expect(screen.getByText("Create admin account")).toBeInTheDocument());
-    expect(screen.getByText(/Step 2 of 3/i)).toBeInTheDocument();
+    await advanceToAdmin();
+    expect(screen.getByText(/Step 3 of 4/i)).toBeInTheDocument();
   });
 
   it("admin form shows validation error for short username", async () => {
     const SetupPage = await getSetupPage();
     render(React.createElement(SetupPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Get Started/i }));
-    await waitFor(() => expect(screen.getByText("Create admin account")).toBeInTheDocument());
+    await advanceToAdmin();
     fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: "ab" } });
     fireEvent.change(screen.getByLabelText(/^Password$/i), { target: { value: "password123" } });
     fireEvent.change(screen.getByLabelText(/Confirm password/i), { target: { value: "password123" } });
@@ -81,8 +101,7 @@ describe("SetupPage", () => {
   it("admin form shows validation error for short password", async () => {
     const SetupPage = await getSetupPage();
     render(React.createElement(SetupPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Get Started/i }));
-    await waitFor(() => expect(screen.getByText("Create admin account")).toBeInTheDocument());
+    await advanceToAdmin();
     fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: "admin" } });
     fireEvent.change(screen.getByLabelText(/^Password$/i), { target: { value: "short" } });
     fireEvent.change(screen.getByLabelText(/Confirm password/i), { target: { value: "short" } });
@@ -94,8 +113,7 @@ describe("SetupPage", () => {
   it("admin form shows error when passwords do not match", async () => {
     const SetupPage = await getSetupPage();
     render(React.createElement(SetupPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Get Started/i }));
-    await waitFor(() => expect(screen.getByText("Create admin account")).toBeInTheDocument());
+    await advanceToAdmin();
     fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: "admin" } });
     fireEvent.change(screen.getByLabelText(/^Password$/i), { target: { value: "password123" } });
     fireEvent.change(screen.getByLabelText(/Confirm password/i), { target: { value: "different123" } });
@@ -107,8 +125,7 @@ describe("SetupPage", () => {
   it("valid admin form calls setup mutation", async () => {
     const SetupPage = await getSetupPage();
     render(React.createElement(SetupPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Get Started/i }));
-    await waitFor(() => expect(screen.getByText("Create admin account")).toBeInTheDocument());
+    await advanceToAdmin();
     fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: "admin" } });
     fireEvent.change(screen.getByLabelText(/^Password$/i), { target: { value: "password123" } });
     fireEvent.change(screen.getByLabelText(/Confirm password/i), { target: { value: "password123" } });
@@ -119,12 +136,11 @@ describe("SetupPage", () => {
     expect(callArg.data.adminPassword).toBe("password123");
   });
 
-  it("Back button from step 2 returns to welcome step", async () => {
+  it("Back from admin step returns to welcome", async () => {
     const SetupPage = await getSetupPage();
     render(React.createElement(SetupPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Get Started/i }));
-    await waitFor(() => expect(screen.getByText("Create admin account")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: /Back/i }));
+    await advanceToAdmin();
+    fireEvent.click(screen.getByRole("button", { name: /^Back$/i }));
     await waitFor(() => expect(screen.getByText("Welcome to Evey")).toBeInTheDocument());
   });
 });

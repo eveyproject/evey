@@ -127,6 +127,7 @@ func (s *GRPCServer) RegisterServices() {
 		ffmpegPath:     s.ffmpegPath,
 		translator:     d.Translator,
 		smtpConfigured: d.SMTPConfigured,
+		serverCfgSvc:   d.ServerCfgSvc,
 	})
 	eveyv1.RegisterAdminPluginServiceServer(s.server, &adminPluginHandler{
 		pluginInstaller: d.PluginInstaller,

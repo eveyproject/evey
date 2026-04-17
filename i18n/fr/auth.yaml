@@ -2,8 +2,11 @@ setup:
   welcome: Bienvenue sur Evey
   description: "Configurons votre serveur multimédia. Cela ne prend qu'une minute."
   getStarted: Commencer
+  languageTitle: "Choisissez la langue du serveur"
+  languageHint: "Cette langue devient la langue par défaut pour les nouveaux profils et pour la récupération des métadonnées. Modifiable ensuite dans l admin."
   stepOf: "Étape {{current}} sur {{total}} - {{name}}"
   steps:
+    language: "Langue"
     welcome: Bienvenue
     admin: Compte administrateur
     library: Première bibliothèque

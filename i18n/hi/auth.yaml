@@ -2,6 +2,8 @@ setup:
   welcome: "Evey में आपका स्वागत है"
   description: "आइए आपका मीडिया सर्वर सेटअप करें। बस एक मिनट लगेगा।"
   getStarted: "शुरू करें"
+  languageTitle: "सर्वर भाषा चुनें"
+  languageHint: "यह नए प्रोफ़ाइलों और मेटाडेटा के लिए डिफ़ॉल्ट भाषा होगी। बाद में व्यवस्थापक पैनल से बदल सकते हैं।"
   stepOf: "चरण {{current}} / {{total}} - {{name}}"
   steps:
     welcome: "स्वागत"

@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Play } from "lucide-react";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
 import { eveyFetch, useAdminSystemServiceSetupWizard, useLibraryServiceCreateLibrary, adminSystemServiceGetSetupStatus } from "@evey/api";
 import type { V1LibraryType } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, useLocaleStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
+import { supportedLanguages } from "@/i18n";
+import { ISO_REGIONS } from "@/features/user/regionList";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -65,18 +67,48 @@ function StepDots({ current, total }: { current: number; total: number }) {
 }
 
 function SetupPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { setTokens } = useAuthStore();
+  const setLocaleStore = useLocaleStore((s) => s.setLocale);
   const [step, setStep] = useState(0);
+  const [serverLang, setServerLang] = useState<string>(() => {
+    const code = (i18n.language || "en").split("-")[0];
+    return supportedLanguages.some((l) => l.code === code) ? code : "en";
+  });
+  const [serverRegion, setServerRegion] = useState<string>("");
   const [adminForm, setAdminForm] = useState<AdminForm>({ username: "", password: "", confirmPassword: "" });
   const [adminErrors, setAdminErrors] = useState<AdminErrors>({});
   const [libraryForm, setLibraryForm] = useState<LibraryForm>({ name: "", type: "LIBRARY_TYPE_MOVIES", paths: [""] });
   const [libraryError, setLibraryError] = useState<string | undefined>();
   const [mediaDirs, setMediaDirs] = useState<string[]>([]);
 
+  // Region options in the currently-selected language. Falls back to hardcoded
+  // ISO list when Intl.supportedValuesOf("region") is unavailable.
+  const regionOptions = useMemo(() => {
+    try {
+      const sv = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
+      const dynamic: string[] = typeof sv === "function" ? sv("region") : [];
+      const codes = dynamic.length > 0 ? dynamic : Array.from(ISO_REGIONS);
+      const names = new Intl.DisplayNames([serverLang || "en"], { type: "region" });
+      return codes
+        .filter((c) => /^[A-Z]{2}$/.test(c))
+        .map((c) => ({ value: c, label: names.of(c) ?? c }))
+        .sort((a, b) => a.label.localeCompare(b.label, serverLang || "en"));
+    } catch {
+      return Array.from(ISO_REGIONS).map((c) => ({ value: c, label: c }));
+    }
+  }, [serverLang]);
+
+  // Apply language immediately so the rest of the wizard is already localized.
+  const handlePickLanguage = (code: string) => {
+    setServerLang(code);
+    setLocaleStore(code);
+    void i18n.changeLanguage(code);
+  };
+
   useEffect(() => {
-    if (step !== 2) return;
+    if (step !== 3) return;
     (async () => {
       try {
         const dirs = await eveyFetch<{ name: string; path: string }[]>({
@@ -92,7 +124,12 @@ function SetupPage() {
   }, [step]);
   const [setupError, setSetupError] = useState<string | undefined>();
 
-  const STEPS = [t("auth.setup.steps.welcome"), t("auth.setup.steps.admin"), t("auth.setup.steps.library")] as const;
+  const STEPS = [
+    t("auth.setup.steps.language"),
+    t("auth.setup.steps.welcome"),
+    t("auth.setup.steps.admin"),
+    t("auth.setup.steps.library"),
+  ] as const;
 
   const LIBRARY_TYPE_OPTIONS = [
     { value: "LIBRARY_TYPE_MOVIES", label: t("auth.setup.libraryTypes.movies") },
@@ -113,7 +150,7 @@ function SetupPage() {
     mutation: {
       onSuccess: (data) => {
         if (data.accessToken) setTokens(data.accessToken);
-        setStep(2);
+        setStep(3);
       },
       onError: (err: Error & { httpStatus?: number }) => {
         if (err?.httpStatus === 409) {
@@ -154,6 +191,8 @@ function SetupPage() {
         adminEmail: "",
         serverName: "Evey",
         baseUrl: window.location.origin,
+        serverLanguage: serverLang,
+        serverRegion: serverRegion || undefined,
       },
     });
   };
@@ -193,8 +232,33 @@ function SetupPage() {
         </p>
         <StepDots current={step} total={STEPS.length} />
 
-        {/* Step 0: Welcome */}
+        {/* Step 0: Language + Region */}
         {step === 0 && (
+          <div className="flex flex-col gap-4">
+            <h2 className="text-xl font-bold text-[var(--text)] text-center">{t("auth.setup.languageTitle")}</h2>
+            <p className="text-sm text-center text-[var(--text-muted)]">
+              {t("auth.setup.languageHint")}
+            </p>
+            <Select
+              label={t("common.language")}
+              value={serverLang}
+              onChange={handlePickLanguage}
+              options={supportedLanguages.map((l) => ({ value: l.code, label: l.label }))}
+            />
+            <Select
+              label={t("common.region.title")}
+              value={serverRegion}
+              onChange={setServerRegion}
+              options={[{ value: "", label: t("common.region.auto") }, ...regionOptions]}
+            />
+            <Button className="w-full mt-2" onClick={() => setStep(1)}>
+              {t("common.continue")}
+            </Button>
+          </div>
+        )}
+
+        {/* Step 1: Welcome */}
+        {step === 1 && (
           <div className="flex flex-col items-center gap-6 text-center">
             <div>
               <h1 className="text-2xl font-bold text-[var(--text)]">{t("auth.setup.welcome")}</h1>
@@ -202,14 +266,19 @@ function SetupPage() {
                 {t("auth.setup.description")}
               </p>
             </div>
-            <Button className="w-full" onClick={() => setStep(1)}>
-              {t("auth.setup.getStarted")}
-            </Button>
+            <div className="flex gap-2 w-full">
+              <Button variant="secondary" className="flex-1" onClick={() => setStep(0)}>
+                {t("common.back")}
+              </Button>
+              <Button className="flex-1" onClick={() => setStep(2)}>
+                {t("auth.setup.getStarted")}
+              </Button>
+            </div>
           </div>
         )}
 
-        {/* Step 1: Admin account */}
-        {step === 1 && (
+        {/* Step 2: Admin account */}
+        {step === 2 && (
           <form onSubmit={handleAdminSubmit} className="flex flex-col gap-4">
             <h2 className="text-xl font-bold text-[var(--text)] text-center">{t("auth.setup.createAdmin")}</h2>
             <div className="flex flex-col gap-1">
@@ -264,7 +333,7 @@ function SetupPage() {
                 type="button"
                 variant="secondary"
                 className="flex-1"
-                onClick={() => setStep(0)}
+                onClick={() => setStep(1)}
               >
                 {t("common.back")}
               </Button>
@@ -275,8 +344,8 @@ function SetupPage() {
           </form>
         )}
 
-        {/* Step 2: First library */}
-        {step === 2 && (
+        {/* Step 3: First library */}
+        {step === 3 && (
           <form onSubmit={handleCreateLibrary} className="flex flex-col gap-4">
             <h2 className="text-xl font-bold text-[var(--text)] text-center">{t("auth.setup.addLibrary")}</h2>
             <p className="text-sm text-center text-[var(--text-muted)]">

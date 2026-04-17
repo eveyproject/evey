@@ -2,6 +2,8 @@ setup:
   welcome: "欢迎使用 Evey"
   description: "让我们来设置您的媒体服务器。只需一分钟。"
   getStarted: "开始设置"
+  languageTitle: "选择服务器语言"
+  languageHint: "这将成为新配置文件和元数据查询的默认语言。可在管理面板中更改。"
   stepOf: "第 {{current}} 步，共 {{total}} 步 - {{name}}"
   steps:
     welcome: "欢迎"

@@ -2,8 +2,11 @@ setup:
   welcome: Welcome to Evey
   description: Let's set up your media server. It only takes a minute.
   getStarted: Get Started
+  languageTitle: "Choose your server language"
+  languageHint: "This becomes the default language for new profiles and metadata lookups. You can change it later from the admin panel."
   stepOf: "Step {{current}} of {{total}} - {{name}}"
   steps:
+    language: "Language"
     welcome: Welcome
     admin: Admin account
     library: First library

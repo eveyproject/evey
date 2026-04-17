@@ -2,8 +2,11 @@ setup:
   welcome: Willkommen bei Evey
   description: Richten wir Ihren Medienserver ein. Es dauert nur eine Minute.
   getStarted: Loslegen
+  languageTitle: "Wählen Sie die Serversprache"
+  languageHint: "Dies wird die Standardsprache für neue Profile und Metadatensuchen. Später im Admin-Panel änderbar."
   stepOf: "Schritt {{current}} von {{total}} - {{name}}"
   steps:
+    language: "Sprache"
     welcome: Willkommen
     admin: Admin-Konto
     library: Erste Bibliothek
