@@ -54,7 +54,7 @@ func (r *CachingPersonRepo) GetByID(ctx context.Context, id string) (*library.Pe
 	if details.ThumbURL != "" && person.ThumbPath == nil {
 		person.ThumbPath = &details.ThumbURL
 	}
-	if updateErr := r.PersonRepository.Update(ctx, person); updateErr != nil {
+	if updateErr := r.Update(ctx, person); updateErr != nil {
 		slog.Warn("cache person bio failed", slog.String("personID", person.ID), slog.Any("err", updateErr))
 	}
 	if r.transFetcher != nil && r.personTranslations != nil && len(r.locales) > 0 {
