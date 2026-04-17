@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore, useMusicPlayerStore } from "@evey/store";
-import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, Shuffle } from "lucide-react";
+import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, VolumeX, Shuffle } from "lucide-react";
 
 function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
@@ -49,18 +49,33 @@ export function GlobalAudioPlayer() {
   const next = useMusicPlayerStore((s) => s.next);
   const prev = useMusicPlayerStore((s) => s.prev);
   const close = useMusicPlayerStore((s) => s.close);
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+  // Pin token at track-change time: subscribing to accessToken would rebuild
+  // src on every refresh cycle, which aborts the in-flight audio stream.
+  const src = useMemo(() => {
+    if (!playing) return undefined;
+    const tok = useAuthStore.getState().accessToken;
+    const tp = tok ? `?token=${encodeURIComponent(tok)}` : "";
+    return `/api/v1/music/tracks/${playing.ID}/stream${tp}`;
+  }, [playing?.ID]);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
+  // Ref mirrors keep the latest value accessible from the track-change effect
+  // without re-triggering play() on every volume/mute change.
+  const volumeRef = useRef(volume);
+  volumeRef.current = volume;
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !playing) return;
+    audio.volume = volumeRef.current;
+    audio.muted = mutedRef.current;
     (async () => {
       try {
         await audio.play();
@@ -75,6 +90,10 @@ export function GlobalAudioPlayer() {
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.muted = muted;
+  }, [muted]);
 
   // React to externally-forced pause (e.g. trailer modal opened).
   useEffect(() => {
@@ -120,7 +139,7 @@ export function GlobalAudioPlayer() {
       <audio
         ref={audioRef}
         key={playing.ID}
-        src={`/api/v1/music/tracks/${playing.ID}/stream${tokenParam}`}
+        src={src}
         onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
         onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
         onEnded={next}
@@ -162,7 +181,15 @@ export function GlobalAudioPlayer() {
         </div>
       </div>
       <div className="hidden sm:flex items-center gap-2 min-w-[100px]">
-        <Volume2 size={16} className="text-[var(--text-muted)]" aria-hidden="true" />
+        <button
+          onClick={() => setMuted((m) => !m)}
+          className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast p-0 flex items-center"
+          aria-label={muted ? t("media.music.unmute") : t("media.music.mute")}
+          aria-pressed={muted}
+          title={muted ? t("media.music.unmute") : t("media.music.mute")}
+        >
+          {muted || volume === 0 ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
+        </button>
         <input type="range" min={0} max={1} step={0.02} value={volume} onChange={(e) => setVolume(Number(e.target.value))} className="w-[72px] accent-[var(--accent)]" />
       </div>
       <button onClick={close} className="text-[var(--text-muted)] bg-transparent border-none cursor-pointer" aria-label="Close player" title="Close">
