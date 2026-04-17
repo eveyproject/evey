@@ -20,7 +20,7 @@ type castClient interface {
 	Stop(ctx context.Context, uuid string) error
 	Pause(ctx context.Context, uuid string) error
 	Seek(ctx context.Context, uuid string, positionSec int) error
-	Status(ctx context.Context, uuid string) (map[string]interface{}, error)
+	Status(ctx context.Context, uuid string) (map[string]any, error)
 }
 
 func castDevicesHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {

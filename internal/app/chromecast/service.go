@@ -198,7 +198,7 @@ func (s *Service) SetVolume(_ context.Context, uuid string, level float32) error
 	return sess.SetVolume(level)
 }
 
-func (s *Service) Status(_ context.Context, uuid string) (map[string]interface{}, error) {
+func (s *Service) Status(_ context.Context, uuid string) (map[string]any, error) {
 	device, err := s.findDevice(uuid)
 	if err != nil {
 		return nil, err
@@ -211,7 +211,7 @@ func (s *Service) Status(_ context.Context, uuid string) (map[string]interface{}
 	if err != nil {
 		return nil, err
 	}
-	result := map[string]interface{}{
+	result := map[string]any{
 		"device": device.Name,
 	}
 	if st.App != "" {
