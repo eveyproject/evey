@@ -8,6 +8,7 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appconfig "github.com/evey-project/evey/internal/app/config"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -111,4 +112,16 @@ func TestServerConfigHandler_SetEntry_RepoError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+func TestServerConfigHandler_SetTranslator_SetsField(t *testing.T) {
+	h, _ := newTestServerConfigHandler()
+	if h.translator != nil {
+		t.Fatal("expected nil translator before SetTranslator")
+	}
+	tr := eveyi18n.NewEmpty()
+	h.SetTranslator(tr)
+	if h.translator != tr {
+		t.Error("SetTranslator did not assign translator")
+	}
 }
