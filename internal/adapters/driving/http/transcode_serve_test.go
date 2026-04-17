@@ -61,6 +61,30 @@ func TestInjectTokenIntoPlaylist_HandlesEmptyLines(t *testing.T) {
 	}
 }
 
+// Edge: URI already carries a query string — must use & not ? a second time.
+func TestInjectTokenIntoPlaylist_AppendsWithAmpersandOnExistingQuery(t *testing.T) {
+	in := "#EXTM3U\nseg_0.ts?variant=sdr\n"
+	got := injectTokenIntoPlaylist(in, "tok123")
+	if !strings.Contains(got, "seg_0.ts?variant=sdr&token=tok123") {
+		t.Errorf("expected & separator when ? already present, got:\n%s", got)
+	}
+	if strings.Contains(got, "seg_0.ts?variant=sdr?token=") {
+		t.Errorf("must not emit two ? in the same URI, got:\n%s", got)
+	}
+}
+
+// Edge: CRLF line endings must survive so strict TV clients still parse.
+func TestInjectTokenIntoPlaylist_PreservesCRLF(t *testing.T) {
+	in := "#EXTM3U\r\nseg.ts\r\n"
+	got := injectTokenIntoPlaylist(in, "tok")
+	if !strings.Contains(got, "seg.ts?token=tok\r\n") {
+		t.Errorf("expected CRLF preserved around segment, got: %q", got)
+	}
+	if !strings.Contains(got, "#EXTM3U\r\n") {
+		t.Errorf("expected CRLF preserved around comment, got: %q", got)
+	}
+}
+
 // ============================================================
 // parseClientCapabilities (pure function, was 0% covered)
 // ============================================================
