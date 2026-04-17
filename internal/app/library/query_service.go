@@ -132,6 +132,10 @@ func (s *QueryService) GetCastForItems(ctx context.Context, mediaItemIDs []strin
 	return out, nil
 }
 
+func (s *QueryService) GetSeriesAggregate(ctx context.Context, seriesID string) (library.SeriesAggregate, error) {
+	return s.mediaItems.SeriesAggregate(ctx, shared.MediaItemID(seriesID))
+}
+
 func (s *QueryService) GetMediaStreams(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error) {
 	return s.streams.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
 }

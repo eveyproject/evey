@@ -199,6 +199,46 @@ func (r *FakeMediaItemQueryRepo) GetCastForItems(_ context.Context, mediaItemIDs
 	return result, nil
 }
 
+func (r *FakeMediaItemQueryRepo) SeriesAggregate(_ context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
+	if r.Err != nil {
+		return library.SeriesAggregate{}, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return library.SeriesAggregate{}, r.Err
+	}
+	visited := map[string]bool{string(seriesID): true}
+	queue := []string{string(seriesID)}
+	var agg library.SeriesAggregate
+	seasons := make(map[string]bool)
+	for len(queue) > 0 {
+		parent := queue[0]
+		queue = queue[1:]
+		for _, item := range r.items {
+			if item.ParentID != parent {
+				continue
+			}
+			if visited[string(item.ID)] {
+				continue
+			}
+			visited[string(item.ID)] = true
+			queue = append(queue, string(item.ID))
+			if string(item.Type) == "episode" {
+				if item.DurationMs > 0 {
+					agg.TotalDurationMs += item.DurationMs
+				}
+				agg.EpisodeCount++
+				if item.ParentID != "" {
+					seasons[item.ParentID] = true
+				}
+			}
+		}
+	}
+	agg.SeasonCount = len(seasons)
+	return agg, nil
+}
+
 // Seed adds items for testing.
 func (r *FakeMediaItemQueryRepo) Seed(item *library.MediaItem) {
 	r.mu.Lock()

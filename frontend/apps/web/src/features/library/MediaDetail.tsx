@@ -3,13 +3,14 @@ import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import {
   useLibraryServiceGetMediaItem,
+  useLibraryServiceGetSeriesAggregate,
   useLibraryServiceListLibraries,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { slugify } from "@/utils/slugify";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useStreamToken } from "@/hooks/useStreamToken";
-import { formatDuration } from "./mediaDetailUtils";
+import { formatDuration, formatSeriesRuntime } from "./mediaDetailUtils";
 import { MediaDetailHero } from "./MediaDetailHero";
 import { MediaDetailActions } from "./MediaDetailActions";
 import { CastCarousel } from "./MediaDetailCast";
@@ -64,7 +65,13 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
     return `${posterUrl}${sep}w=200 200w, ${posterUrl}${sep}w=300 300w, ${posterUrl}${sep}w=400 400w`;
   }, [posterUrl]);
 
-  const duration = formatDuration(item.durationMs);
+  const { data: seriesAggregate } = useLibraryServiceGetSeriesAggregate(
+    item.id ?? "",
+    { query: { enabled: isSeries && !!item.id } } as never,
+  );
+  const duration = isSeries
+    ? formatSeriesRuntime(seriesAggregate?.totalDurationMs, seriesAggregate?.episodeCount)
+    : formatDuration(item.durationMs);
   const actors = item.people?.filter((p) => p.type === "PERSON_TYPE_ACTOR") ?? [];
   const directors = item.people?.filter((p) => p.type === "PERSON_TYPE_DIRECTOR") ?? [];
   const writers = item.people?.filter((p) => p.type === "PERSON_TYPE_WRITER") ?? [];

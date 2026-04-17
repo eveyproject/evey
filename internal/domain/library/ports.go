@@ -43,6 +43,18 @@ type MediaItemRepository interface {
 	GetByFileFingerprint(ctx context.Context, fingerprint string) (*MediaItem, error)
 	GetByLibraryTypeTitle(ctx context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*MediaItem, error)
 	Count(ctx context.Context, filter ListMediaItemsFilter) (int, error)
+	// SeriesAggregate returns the total runtime + episode/season counts for a
+	// series by recursively descending the parent→child hierarchy. Only counts
+	// media items that are actually present in the library.
+	SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (SeriesAggregate, error)
+}
+
+// SeriesAggregate is the denormalized runtime view of a series computed on the
+// fly. Season count is the distinct parent_ids of the counted episodes.
+type SeriesAggregate struct {
+	TotalDurationMs int64
+	EpisodeCount    int
+	SeasonCount     int
 }
 
 type MediaStreamRepository interface {

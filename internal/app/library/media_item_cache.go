@@ -100,6 +100,10 @@ func (c *CachedMediaItemQueryRepo) GetCastForItems(ctx context.Context, mediaIte
 	return c.inner.GetCastForItems(ctx, mediaItemIDs)
 }
 
+func (c *CachedMediaItemQueryRepo) SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
+	return c.inner.SeriesAggregate(ctx, seriesID)
+}
+
 func (c *CachedMediaItemQueryRepo) evictLoop() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()

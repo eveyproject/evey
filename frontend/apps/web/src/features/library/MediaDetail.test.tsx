@@ -35,6 +35,7 @@ vi.mock("@evey/api", () => ({
   useFeedServiceSimilarItems: () => ({ data: undefined }),
   useLibraryServiceListMediaItems: () => ({ data: undefined }),
   useLibraryServiceGetMediaItem: () => ({ data: undefined }),
+  useLibraryServiceGetSeriesAggregate: () => ({ data: undefined }),
   useLibraryServiceListLibraries: () => ({ data: { libraries: [] } }),
   useMetadataServiceSetMetadataOverride: () => ({ mutateAsync: vi.fn(), isError: false }),
   useMetadataServiceRefreshMetadata: () => ({ mutateAsync: vi.fn() }),

@@ -184,6 +184,35 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 	return pb, nil
 }
 
+func (h *libraryHandler) GetSeriesAggregate(ctx context.Context, req *eveyv1.GetSeriesAggregateRequest) (*eveyv1.SeriesAggregate, error) {
+	item, err := h.query.GetMediaItem(ctx, req.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
+	}
+	if ok, accessErr := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
+		if accessErr != nil {
+			slog.Warn("check library access", slog.Any("err", accessErr))
+		}
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
+	}
+	if blocked, parentalErr := h.isBlockedByParental(ctx, item); blocked {
+		if parentalErr != nil {
+			slog.Warn("parental check", slog.Any("err", parentalErr))
+		}
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.library.parental_restricted")
+	}
+	agg, err := h.query.GetSeriesAggregate(ctx, req.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "aggregate series: %v", err)
+	}
+	return &eveyv1.SeriesAggregate{
+		SeriesId:        req.Id,
+		TotalDurationMs: agg.TotalDurationMs,
+		EpisodeCount:    int32(agg.EpisodeCount),
+		SeasonCount:     int32(agg.SeasonCount),
+	}, nil
+}
+
 func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMediaItemsRequest) (*eveyv1.ListMediaItemsResponse, error) {
 	filter := library.ListMediaItemsFilter{
 		SortField: mediaSortFieldFromProto[req.SortField],

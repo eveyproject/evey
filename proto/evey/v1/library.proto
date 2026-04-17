@@ -94,6 +94,12 @@ service LibraryService {
       get: "/api/v1/media/filter"
     };
   }
+
+  rpc GetSeriesAggregate(GetSeriesAggregateRequest) returns (SeriesAggregate) {
+    option (google.api.http) = {
+      get: "/api/v1/media/{id}/series-aggregate"
+    };
+  }
 }
 
 message Library {
@@ -444,4 +450,18 @@ message FilterMediaItemsRequest {
 message FilterMediaItemsResponse {
   repeated MediaItem items = 1;
   int32 total = 2;
+}
+
+message GetSeriesAggregateRequest {
+  string id = 1;
+}
+
+// Aggregate runtime for a series: sum of every episode's duration across all
+// seasons that are actually present in the library. Computed live (not
+// denormalized) via a recursive CTE.
+message SeriesAggregate {
+  string series_id = 1;
+  int64 total_duration_ms = 2;
+  int32 episode_count = 3;
+  int32 season_count = 4;
 }

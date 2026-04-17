@@ -493,6 +493,35 @@ func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, librar
 	return result, nil
 }
 
+// SeriesAggregate walks the parent_id tree rooted at seriesID via a recursive
+// CTE and sums the runtime of every episode it finds. season_count counts the
+// distinct season parents actually contributing episodes (so missing seasons
+// that exist only as empty folders don't inflate the number).
+func (r *MediaItemRepository) SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var agg library.SeriesAggregate
+	err := r.db.QueryRowContext(ctx, `
+		WITH RECURSIVE descendants AS (
+		  SELECT id, parent_id, type, duration_ms
+		  FROM media_items
+		  WHERE id = $1
+		  UNION ALL
+		  SELECT m.id, m.parent_id, m.type, m.duration_ms
+		  FROM media_items m
+		  INNER JOIN descendants d ON m.parent_id = d.id
+		)
+		SELECT
+		  COALESCE(SUM(duration_ms) FILTER (WHERE type = 'episode' AND duration_ms > 0), 0) AS total_ms,
+		  COUNT(*) FILTER (WHERE type = 'episode')                                         AS episode_count,
+		  COUNT(DISTINCT parent_id) FILTER (WHERE type = 'episode')                        AS season_count
+		FROM descendants`, string(seriesID)).Scan(&agg.TotalDurationMs, &agg.EpisodeCount, &agg.SeasonCount)
+	if err != nil {
+		return library.SeriesAggregate{}, fmt.Errorf("MediaItemRepo.SeriesAggregate: %w", err)
+	}
+	return agg, nil
+}
+
 func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID shared.LibraryID) ([]library.MediaItemContainerRow, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()

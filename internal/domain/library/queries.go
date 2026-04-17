@@ -28,4 +28,5 @@ type MediaItemQueryRepo interface {
 	GetCastByMediaItem(ctx context.Context, mediaItemID shared.MediaItemID) ([]CastMember, error)
 	// GetCastForItems fetches cast for multiple media items in one query (batch to avoid N+1).
 	GetCastForItems(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]CastMember, error)
+	SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (SeriesAggregate, error)
 }

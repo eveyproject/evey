@@ -148,6 +148,44 @@ func (r *FakeMediaItemRepository) Count(_ context.Context, filter library.ListMe
 	return count, nil
 }
 
+func (r *FakeMediaItemRepository) SeriesAggregate(_ context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	// Collect descendants iteratively (BFS over parent_id links).
+	want := map[string]bool{string(seriesID): true}
+	for {
+		grew := false
+		for _, item := range r.items {
+			if want[item.ParentID] && !want[string(item.ID)] {
+				want[string(item.ID)] = true
+				grew = true
+			}
+		}
+		if !grew {
+			break
+		}
+	}
+	agg := library.SeriesAggregate{}
+	seasonIDs := map[string]bool{}
+	for _, item := range r.items {
+		if !want[string(item.ID)] {
+			continue
+		}
+		if string(item.Type) != "episode" {
+			continue
+		}
+		agg.EpisodeCount++
+		if item.DurationMs > 0 {
+			agg.TotalDurationMs += item.DurationMs
+		}
+		if item.ParentID != "" {
+			seasonIDs[item.ParentID] = true
+		}
+	}
+	agg.SeasonCount = len(seasonIDs)
+	return agg, nil
+}
+
 func (r *FakeMediaItemRepository) GetByLibraryTypeTitle(_ context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

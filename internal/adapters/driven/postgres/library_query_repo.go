@@ -132,4 +132,8 @@ func (r *MediaItemQueryRepoAdapter) GetCastForItems(ctx context.Context, mediaIt
 	return result, rows.Err()
 }
 
+func (r *MediaItemQueryRepoAdapter) SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
+	return r.items.SeriesAggregate(ctx, seriesID)
+}
+
 var _ library.MediaItemQueryRepo = (*MediaItemQueryRepoAdapter)(nil)
