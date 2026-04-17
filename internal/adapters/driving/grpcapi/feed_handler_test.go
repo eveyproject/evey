@@ -205,3 +205,13 @@ func TestFeedHandler_SimilarItems_Unauthenticated(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
+
+func TestFeedHandler_SimilarItems_EmptyMediaID_InvalidArgument(t *testing.T) {
+	h, _, _, _ := newFeedHandler()
+
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	_, err := h.SimilarItems(ctx, &eveyv1.SimilarItemsRequest{MediaItemId: "", Limit: 10})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}

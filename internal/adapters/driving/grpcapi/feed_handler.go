@@ -24,6 +24,28 @@ type feedHandler struct {
 	libQuery   *applibrary.QueryService
 }
 
+func (h *feedHandler) requireMediaAccess(ctx context.Context, mediaItemID string) error {
+	if mediaItemID == "" {
+		return status.Error(codes.InvalidArgument, "media_item_id required")
+	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+	if claims.IsAdmin || h.userAccess == nil || h.libQuery == nil {
+		return nil
+	}
+	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)
+	if err != nil || item == nil {
+		return status.Error(codes.NotFound, "not found")
+	}
+	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
+	if accessErr != nil || !ok {
+		return status.Error(codes.NotFound, "not found")
+	}
+	return nil
+}
+
 func (h *feedHandler) filterByLibraryAccess(ctx context.Context, items []*feed.FeedItem) ([]*feed.FeedItem, error) {
 	if h.userAccess == nil || h.libQuery == nil {
 		return items, nil
@@ -135,6 +157,9 @@ func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItems
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
+		return nil, fmt.Errorf("feedHandler.SimilarItems: %w", err)
+	}
+	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
 		return nil, fmt.Errorf("feedHandler.SimilarItems: %w", err)
 	}
 	items, err := h.queries.SimilarItems(ctx, req.MediaItemId, profileID, int(req.Limit))
