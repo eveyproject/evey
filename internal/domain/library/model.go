@@ -79,7 +79,10 @@ type MediaItem struct {
 	IndexNumber     *int
 	CommunityRating *float64
 	OfficialRating  string
-	PremiereDate    *time.Time
+	// CertificationsByCountry holds per-country content ratings (e.g. {"US":"PG-13","FR":"-12"}).
+	// OfficialRating mirrors the US entry when available for parental-gate backcompat.
+	CertificationsByCountry map[string]string
+	PremiereDate            *time.Time
 	Year            *int
 	ProviderIDs     map[string]string
 	Ratings         map[string]float64

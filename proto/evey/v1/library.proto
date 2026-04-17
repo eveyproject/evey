@@ -148,6 +148,9 @@ message MediaItem {
   google.protobuf.Timestamp updated_at = 28;
   repeated Rating ratings = 29;
   repeated Trailer trailers = 30;
+  // Per-country content ratings (e.g. {"US":"PG-13","FR":"-12"}).
+  // official_rating mirrors the "US" entry when available.
+  map<string, string> certifications_by_country = 31;
 }
 
 message Rating {

@@ -31,7 +31,10 @@ type MetadataResult struct {
 	Year            *int
 	CommunityRating *float64
 	OfficialRating  string
-	Genres          []string
+	// CertificationsByCountry holds per-country content ratings when a provider
+	// (e.g. TMDB release_dates / content_ratings) exposes them.
+	CertificationsByCountry map[string]string
+	Genres                  []string
 	Studios         []string
 	ProviderIDs     map[string]string
 	Ratings         map[string]float64 // imdb, rt, metacritic, tmdb

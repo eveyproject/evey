@@ -238,7 +238,7 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 	}
 
 	params := url.Values{
-		"append_to_response":     {"credits,keywords,images,external_ids,videos"},
+		"append_to_response":     {"credits,keywords,images,external_ids,videos,release_dates,content_ratings"},
 		"language":               {p.language()},
 		"include_image_language": {p.language() + ",en,null"},
 		"include_video_language": {p.language() + ",en,null"},

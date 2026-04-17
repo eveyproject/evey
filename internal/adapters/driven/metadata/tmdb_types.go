@@ -85,11 +85,36 @@ type tmdbDetailResponse struct {
 	Seasons              []tmdbSeasonInfo `json:"seasons"`
 	Genres               []tmdbGenre      `json:"genres"`
 	ProductionCompanies  []tmdbCompany    `json:"production_companies"`
-	Credits             *tmdbCredits     `json:"credits"`
-	Images              *tmdbImages      `json:"images"`
-	Videos              *tmdbVideos      `json:"videos"`
-	ExternalIDs         *tmdbExternalIDs `json:"external_ids"`
-	BelongsToCollection *tmdbCollection  `json:"belongs_to_collection"`
+	Credits             *tmdbCredits         `json:"credits"`
+	Images              *tmdbImages          `json:"images"`
+	Videos              *tmdbVideos          `json:"videos"`
+	ExternalIDs         *tmdbExternalIDs     `json:"external_ids"`
+	BelongsToCollection *tmdbCollection      `json:"belongs_to_collection"`
+	ReleaseDates        *tmdbReleaseDates    `json:"release_dates"`
+	ContentRatings      *tmdbContentRatings  `json:"content_ratings"`
+}
+
+type tmdbReleaseDates struct {
+	Results []tmdbCountryReleaseDates `json:"results"`
+}
+
+type tmdbCountryReleaseDates struct {
+	Country      string                 `json:"iso_3166_1"`
+	ReleaseDates []tmdbReleaseDateEntry `json:"release_dates"`
+}
+
+type tmdbReleaseDateEntry struct {
+	Certification string `json:"certification"`
+	Type          int    `json:"type"` // 1=Premiere, 3=Theatrical, 4=Digital, 5=Physical, 6=TV
+}
+
+type tmdbContentRatings struct {
+	Results []tmdbCountryContentRating `json:"results"`
+}
+
+type tmdbCountryContentRating struct {
+	Country string `json:"iso_3166_1"`
+	Rating  string `json:"rating"`
 }
 
 type tmdbSeasonInfo struct {

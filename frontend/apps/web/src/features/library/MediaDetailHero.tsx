@@ -6,6 +6,7 @@ import { Pencil } from "lucide-react";
 import { BackButton } from "@/components/ui/BackButton";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Stars } from "./MediaDetailStars";
+import { certForLocale } from "@/utils/certifications";
 
 interface MediaDetailHeroProps {
   item: V1MediaItem;
@@ -25,7 +26,8 @@ export function MediaDetailHero({
   parentItem,
   onEditToggle,
 }: MediaDetailHeroProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const certification = certForLocale(item.certificationsByCountry, i18n.language, item.officialRating);
 
   const backdropSrcSet = useMemo(() => {
     if (!backdropUrl) return undefined;
@@ -48,11 +50,11 @@ export function MediaDetailHero({
       <div className="absolute inset-0 gradient-hero-overlay" />
       <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-6 pb-4 sm:pb-6">
         <div className="flex items-center gap-2 mb-2 flex-wrap">
-          {item.officialRating && (
+          {certification && (
             <span
               className="text-xs font-medium px-2 py-0.5 border text-[var(--overlay-text-bright)] border-[var(--overlay-dot-inactive)] rounded-[var(--radius-sm)]"
             >
-              {item.officialRating}
+              {certification}
             </span>
           )}
           {duration && (

@@ -88,7 +88,43 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string, serverLang string) 
 		}
 	}
 
+	mapDetailCertifications(&result, d, mediaType)
+
 	return result
+}
+
+// mapDetailCertifications fills CertificationsByCountry and sets OfficialRating
+// to the US entry as a backcompat default for the parental gate.
+func mapDetailCertifications(result *domain.MetadataResult, d tmdbDetailResponse, mediaType string) {
+	certs := map[string]string{}
+	if mediaType == "tv" {
+		if d.ContentRatings != nil {
+			for _, r := range d.ContentRatings.Results {
+				if r.Rating != "" {
+					certs[r.Country] = r.Rating
+				}
+			}
+		}
+	} else {
+		if d.ReleaseDates != nil {
+			for _, r := range d.ReleaseDates.Results {
+				// Prefer the first non-empty certification across the country's release types.
+				for _, entry := range r.ReleaseDates {
+					if entry.Certification != "" {
+						certs[r.Country] = entry.Certification
+						break
+					}
+				}
+			}
+		}
+	}
+	if len(certs) == 0 {
+		return
+	}
+	result.CertificationsByCountry = certs
+	if us, ok := certs["US"]; ok && result.OfficialRating == "" {
+		result.OfficialRating = us
+	}
 }
 
 func mapDetailExternalIDs(result *domain.MetadataResult, ext *tmdbExternalIDs) {
