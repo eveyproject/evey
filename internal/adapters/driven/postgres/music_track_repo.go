@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -167,20 +168,27 @@ func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, 
 	return scanTracksWithTotal(rows)
 }
 
+// likeEscape escapes LIKE/ILIKE meta-characters so caller-supplied input is
+// matched literally. Uses the default '\' escape character.
+func likeEscape(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
 func (r *MusicTrackRepository) Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]music.Track, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if limit <= 0 {
 		limit = 20
 	}
-	like := fmt.Sprintf("%%%s%%", query)
+	// Escape % and _ so user input cannot construct pathological ILIKE patterns.
+	like := "%" + likeEscape(query) + "%"
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 		       genre, cover_art_url, created_at, updated_at
 		FROM music_tracks
-		WHERE library_id = $1 AND (title ILIKE $2 OR artist ILIKE $2 OR album ILIKE $2)
+		WHERE library_id = $1 AND (title ILIKE $2 ESCAPE '\' OR artist ILIKE $2 ESCAPE '\' OR album ILIKE $2 ESCAPE '\')
 		ORDER BY title LIMIT $3`, string(libraryID), like, limit)
 	if err != nil {
 		return nil, err
