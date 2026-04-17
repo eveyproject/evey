@@ -496,7 +496,10 @@ func (h *libraryHandler) GetLibrarySchedule(ctx context.Context, req *eveyv1.Get
 	}
 	sched, err := h.scheduler.GetSchedule(ctx, req.Id)
 	if err != nil {
-		return &eveyv1.GetLibraryScheduleResponse{}, nil
+		if errors.Is(err, shared.ErrNotFound) {
+			return &eveyv1.GetLibraryScheduleResponse{}, nil
+		}
+		return nil, internalError("get library schedule", err)
 	}
 	return &eveyv1.GetLibraryScheduleResponse{
 		Schedule: scheduleToProto(sched),
