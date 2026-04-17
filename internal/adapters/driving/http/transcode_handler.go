@@ -376,17 +376,33 @@ func (h *hlsMasterServe) serveMaster(w http.ResponseWriter, r *http.Request, out
 	_, _ = w.Write([]byte(content))
 }
 
-// injectTokenIntoPlaylist appends ?token= to relative .m3u8 and .ts references
+// injectTokenIntoPlaylist appends ?token= to relative segment/playlist URIs
 // in HLS playlists so native players can auth without custom headers.
+// Handles URIs that already carry a query string, CRLF line endings, and
+// both http:// and https:// absolute URLs.
 func injectTokenIntoPlaylist(content, token string) string {
 	var result strings.Builder
 	for _, line := range strings.Split(content, "\n") {
+		// Preserve any trailing \r so CRLF-strict clients (some TVs) are happy.
+		var suffix string
+		if strings.HasSuffix(line, "\r") {
+			line = strings.TrimSuffix(line, "\r")
+			suffix = "\r"
+		}
 		trimmed := strings.TrimSpace(line)
-		// Append token to relative segment/playlist references (not comments, not absolute URLs)
-		if trimmed != "" && !strings.HasPrefix(trimmed, "#") && !strings.HasPrefix(trimmed, "http") {
-			line = trimmed + "?token=" + token
+		// Rewrite only relative URIs (not comments, not absolute URLs).
+		if trimmed != "" &&
+			!strings.HasPrefix(trimmed, "#") &&
+			!strings.HasPrefix(trimmed, "http://") &&
+			!strings.HasPrefix(trimmed, "https://") {
+			sep := "?"
+			if strings.Contains(trimmed, "?") {
+				sep = "&"
+			}
+			line = trimmed + sep + "token=" + token
 		}
 		result.WriteString(line)
+		result.WriteString(suffix)
 		result.WriteByte('\n')
 	}
 	return result.String()
