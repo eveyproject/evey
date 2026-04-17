@@ -438,7 +438,7 @@ func TestSearch_EmptyResults(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
-	results, err := svc.Search(context.Background(), "nonexistent-query-xyz", 50)
+	results, err := svc.Search(context.Background(), "lib-1", "nonexistent-query-xyz", 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +459,7 @@ func TestSearch_ReturnsMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results, err := svc.Search(ctx, "beethoven", 50)
+	results, err := svc.Search(ctx, "lib-1", "beethoven", 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -486,7 +486,7 @@ func TestSearch_LimitApplied(t *testing.T) {
 		}
 	}
 
-	results, err := svc.Search(ctx, "track", 3)
+	results, err := svc.Search(ctx, "lib-1", "track", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -866,7 +866,7 @@ func TestSearch_RepoError(t *testing.T) {
 	repo.Err = fmt.Errorf("db error")
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
-	_, err := svc.Search(context.Background(), "query", 50)
+	_, err := svc.Search(context.Background(), "lib-1", "query", 50)
 	if err == nil {
 		t.Fatal("expected error from repo")
 	}

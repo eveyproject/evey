@@ -17,7 +17,7 @@ type TrackRepository interface {
 	ListByAlbum(ctx context.Context, album, artist string) ([]Track, error)
 	ListByLibraryAndAlbum(ctx context.Context, libraryID shared.LibraryID, album string) ([]Track, error)
 	ListByArtist(ctx context.Context, artist string, limit, offset int) ([]Track, int, error)
-	Search(ctx context.Context, query string, limit int) ([]Track, error)
+	Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]Track, error)
 	GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]Album, error)
 	GetArtists(ctx context.Context, libraryID shared.LibraryID) ([]Artist, error)
 	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error

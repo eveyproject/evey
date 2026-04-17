@@ -127,7 +127,7 @@ func (h *musicHandler) SearchMusic(ctx context.Context, req *eveyv1.SearchMusicR
 	if limit <= 0 {
 		limit = 20
 	}
-	tracks, err := h.svc.Search(ctx, req.Query, limit)
+	tracks, err := h.svc.Search(ctx, shared.LibraryID(req.LibraryId), req.Query, limit)
 	if err != nil {
 		return nil, internalError("search music", err)
 	}

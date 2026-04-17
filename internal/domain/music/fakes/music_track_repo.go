@@ -156,7 +156,7 @@ func (r *FakeMusicTrackRepository) ListByArtist(_ context.Context, artist string
 	return out, total, nil
 }
 
-func (r *FakeMusicTrackRepository) Search(_ context.Context, query string, limit int) ([]music.Track, error) {
+func (r *FakeMusicTrackRepository) Search(_ context.Context, libraryID shared.LibraryID, query string, limit int) ([]music.Track, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -165,6 +165,9 @@ func (r *FakeMusicTrackRepository) Search(_ context.Context, query string, limit
 	q := strings.ToLower(query)
 	var out []music.Track
 	for _, t := range r.tracks {
+		if t.LibraryID != libraryID {
+			continue
+		}
 		if strings.Contains(strings.ToLower(t.Title), q) ||
 			strings.Contains(strings.ToLower(t.Artist), q) ||
 			strings.Contains(strings.ToLower(t.Album), q) {

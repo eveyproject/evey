@@ -55,8 +55,8 @@ func (s *Service) GetArtists(ctx context.Context, libraryID shared.LibraryID) ([
 	return s.query.GetArtists(ctx, libraryID)
 }
 
-func (s *Service) Search(ctx context.Context, query string, limit int) ([]music.Track, error) {
-	return s.query.Search(ctx, query, limit)
+func (s *Service) Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]music.Track, error) {
+	return s.query.Search(ctx, libraryID, query, limit)
 }
 
 func (s *Service) StreamTrack(ctx context.Context, trackID string) (filePath string, mimeType string, err error) {
