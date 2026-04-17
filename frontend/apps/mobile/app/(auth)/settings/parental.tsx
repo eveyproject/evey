@@ -2,7 +2,12 @@ import { useState, useEffect } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Switch, StyleSheet } from "react-native";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
+import {
+  useUserServiceGetCurrentUser,
+  useUserServiceListProfiles,
+  useUserServiceUpdateProfile,
+  type V1Profile,
+} from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
@@ -26,15 +31,15 @@ export default function ParentalSettingsScreen() {
   });
 
   const profiles = profilesResp?.profiles;
-  const defaultProfile = profiles?.find((p: any) => p.isDefault) ?? profiles?.[0];
+  const defaultProfile: V1Profile | undefined = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
 
-  const enabled = (defaultProfile as any)?.preferences?.parental_enabled === "true";
-  const [maxRating, setMaxRating] = useState((defaultProfile as any)?.maxRating ?? "");
+  const enabled = defaultProfile?.preferences?.parental_enabled === "true";
+  const [maxRating, setMaxRating] = useState(defaultProfile?.maxRating ?? "");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
 
   useEffect(() => {
-    setMaxRating((defaultProfile as any)?.maxRating ?? "");
+    setMaxRating(defaultProfile?.maxRating ?? "");
   }, [defaultProfile]);
 
   const updateProfile = useUserServiceUpdateProfile({
@@ -54,7 +59,7 @@ export default function ParentalSettingsScreen() {
       id: defaultProfile.id,
       data: {
         preferences: {
-          ...(defaultProfile as any).preferences,
+          ...defaultProfile?.preferences,
           parental_enabled: enabled ? "false" : "true",
         },
         maxRating: enabled ? undefined : (maxRating || undefined),
@@ -85,7 +90,7 @@ export default function ParentalSettingsScreen() {
       id: defaultProfile.id,
       data: {
         preferences: {
-          ...(defaultProfile as any).preferences,
+          ...defaultProfile?.preferences,
           parental_pin: pin,
         },
       },
