@@ -11,6 +11,11 @@ vi.mock("@tanstack/react-router", () => ({
   useRouterState: () => ({ history: { back: vi.fn() } }),
 }));
 
+vi.mock("@evey/api", () => ({
+  useUserServiceGetCurrentUser: () => ({ data: undefined }),
+  useUserServiceListProfiles: () => ({ data: undefined }),
+}));
+
 vi.mock("@/components/ui/BackButton", () => ({
   BackButton: () => <button>Back</button>,
 }));
@@ -70,7 +75,7 @@ describe("MediaDetailHero", () => {
 
   it("renders official rating", () => {
     render(<MediaDetailHero {...defaultProps} />);
-    expect(screen.getByText("PG-13")).toBeInTheDocument();
+    expect(screen.getByText(/PG-13$/)).toBeInTheDocument();
   });
 
   it("renders community rating with stars", () => {
@@ -161,13 +166,13 @@ describe("MediaDetailHero", () => {
     // it here, but we assert that at least one of the listed ratings renders
     // (exact value depends on test-env locale, typically 'en' → US → PG-13).
     render(<MediaDetailHero {...defaultProps} item={item} />);
-    expect(screen.queryByText(/^(PG-13|-12|12)$/)).toBeInTheDocument();
+    expect(screen.queryByText(/(PG-13|-12| 12)$/)).toBeInTheDocument();
   });
 
   it("falls back to officialRating when certificationsByCountry is empty", () => {
     const item = { ...baseItem, officialRating: "R", certificationsByCountry: {} };
     render(<MediaDetailHero {...defaultProps} item={item} />);
-    expect(screen.getByText("R")).toBeInTheDocument();
+    expect(screen.getByText(/ R$/)).toBeInTheDocument();
   });
 
   it("renders nothing when no certification anywhere", () => {

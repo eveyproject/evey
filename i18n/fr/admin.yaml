@@ -107,6 +107,7 @@ users:
   username: "Nom d'utilisateur"
   email: "E-mail"
   password: "Mot de passe"
+  newPassword: "Nouveau mot de passe"
   admin: "Administrateur"
   role: "Rôle"
   user: "Utilisateur"

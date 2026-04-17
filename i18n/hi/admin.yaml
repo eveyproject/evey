@@ -107,6 +107,7 @@ users:
   username: "उपयोगकर्ता नाम"
   email: "ईमेल"
   password: "पासवर्ड"
+  newPassword: "नया पासवर्ड"
   admin: "एडमिन"
   role: "भूमिका"
   user: "उपयोगकर्ता"

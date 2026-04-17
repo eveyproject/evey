@@ -20,6 +20,33 @@ export function certForLocale(
   return certs[first] || fallback;
 }
 
+// certInfoForLocale returns the matched country + rating so callers can render
+// the local classification board label (CSA, MPAA, FSK, …) next to the rating.
+// The body label itself lives in i18n (key: media.certBody.<COUNTRY>).
+// If `preferredCountry` is provided (e.g. from profile.region), it wins over
+// the locale-derived default.
+export function certInfoForLocale(
+  certs: Record<string, string> | undefined,
+  locale: string | undefined,
+  fallback?: string,
+  preferredCountry?: string,
+): { country: string; rating: string } | undefined {
+  if (!certs || Object.keys(certs).length === 0) {
+    if (fallback) return { country: preferredCountry || "US", rating: fallback };
+    return undefined;
+  }
+  if (preferredCountry && certs[preferredCountry]) {
+    return { country: preferredCountry, rating: certs[preferredCountry] };
+  }
+  const country = countryFromLocale(locale);
+  if (country && certs[country]) return { country, rating: certs[country] };
+  if (certs.US) return { country: "US", rating: certs.US };
+  const first = Object.keys(certs).sort()[0];
+  if (certs[first]) return { country: first, rating: certs[first] };
+  if (fallback) return { country: preferredCountry || "US", rating: fallback };
+  return undefined;
+}
+
 function countryFromLocale(locale: string | undefined): string | undefined {
   if (!locale) return undefined;
   const parts = locale.replace("_", "-").split("-");

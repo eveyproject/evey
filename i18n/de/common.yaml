@@ -47,6 +47,10 @@ appearance: Darstellung
 appearanceDesc: "Wählen Sie Ihr Farbdesign und Ihre Sprache."
 language: Sprache
 languageDesc: Wählen Sie Ihre bevorzugte Sprache
+region:
+  title: Region
+  desc: Für Inhaltsklassifizierungen und regionale Einstellungen.
+  auto: Automatisch
 newKey: Neuer Schlüssel
 copyKey: Schlüssel kopieren
 unableToLoadNotifications: Benachrichtigungen konnten nicht geladen werden

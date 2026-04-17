@@ -47,6 +47,10 @@ appearance: Appearance
 appearanceDesc: "Choose your color theme and language."
 language: Language
 languageDesc: Choose your preferred language
+region:
+  title: Region
+  desc: Used for content classifications and regional preferences.
+  auto: Automatic
 newKey: New Key
 copyKey: Copy Key
 unableToLoadNotifications: Unable to load notifications

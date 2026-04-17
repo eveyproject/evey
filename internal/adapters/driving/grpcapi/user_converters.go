@@ -52,6 +52,9 @@ func profileToProto(p *user.Profile) *eveyv1.Profile {
 	if p.MaxRating != nil {
 		pb.MaxRating = *p.MaxRating
 	}
+	if p.Region != nil {
+		pb.Region = p.Region
+	}
 	return pb
 }
 

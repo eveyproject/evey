@@ -195,6 +195,7 @@ message Profile {
   google.protobuf.Timestamp updated_at = 9;
   optional int32 max_bitrate_kbps = 10;
   string locale = 11;
+  optional string region = 12; // ISO 3166-1 alpha-2, empty/absent = resolve via server/locale fallback
 }
 
 message AuthResponse {
@@ -297,6 +298,7 @@ message UpdateProfileRequest {
   optional string max_rating = 5;
   optional int32 max_bitrate_kbps = 6;
   optional string locale = 7;
+  optional string region = 8;
 }
 
 message DeleteProfileRequest {

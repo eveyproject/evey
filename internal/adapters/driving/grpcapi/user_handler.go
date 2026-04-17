@@ -301,6 +301,14 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 	if req.Locale != nil {
 		p.Locale = *req.Locale
 	}
+	if req.Region != nil {
+		if *req.Region == "" {
+			p.Region = nil
+		} else {
+			r := strings.ToUpper(*req.Region)
+			p.Region = &r
+		}
+	}
 	if v, ok := req.Preferences["max_bitrate_kbps"]; ok {
 		delete(p.Preferences, "max_bitrate_kbps")
 		if v == "" || v == "0" {

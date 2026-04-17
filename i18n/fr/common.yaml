@@ -47,6 +47,10 @@ appearance: Apparence
 appearanceDesc: "Choisissez votre thème et votre langue."
 language: Langue
 languageDesc: Choisissez votre langue préférée
+region:
+  title: Région
+  desc: Utilisée pour les classifications de contenu et les préférences régionales.
+  auto: Automatique
 newKey: Nouvelle clé
 copyKey: Copier la clé
 unableToLoadNotifications: Impossible de charger les notifications

@@ -1,12 +1,13 @@
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import type { V1MediaItem } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { useTranslation } from "react-i18next";
 import { Pencil } from "lucide-react";
 import { BackButton } from "@/components/ui/BackButton";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Stars } from "./MediaDetailStars";
-import { certForLocale } from "@/utils/certifications";
+import { certInfoForLocale } from "@/utils/certifications";
 
 interface MediaDetailHeroProps {
   item: V1MediaItem;
@@ -27,7 +28,10 @@ export function MediaDetailHero({
   onEditToggle,
 }: MediaDetailHeroProps) {
   const { t, i18n } = useTranslation();
-  const certification = certForLocale(item.certificationsByCountry, i18n.language, item.officialRating);
+  const { data: currentUser } = useUserServiceGetCurrentUser();
+  const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } });
+  const profileRegion = (profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0])?.region;
+  const certInfo = certInfoForLocale(item.certificationsByCountry, i18n.language, item.officialRating, profileRegion);
 
   const backdropSrcSet = useMemo(() => {
     if (!backdropUrl) return undefined;
@@ -50,11 +54,12 @@ export function MediaDetailHero({
       <div className="absolute inset-0 gradient-hero-overlay" />
       <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-6 pb-4 sm:pb-6">
         <div className="flex items-center gap-2 mb-2 flex-wrap">
-          {certification && (
+          {certInfo && (
             <span
-              className="text-xs font-medium px-2 py-0.5 border text-[var(--overlay-text-bright)] border-[var(--overlay-dot-inactive)] rounded-[var(--radius-sm)]"
+              className="text-xs font-bold px-2 py-0.5 border text-[var(--overlay-text-bright)] border-[var(--overlay-dot-inactive)] rounded-[var(--radius-sm)]"
+              title={`${t(`certBody.${certInfo.country}`, { defaultValue: certInfo.country })} ${certInfo.rating}`}
             >
-              {certification}
+              {t(`certBody.${certInfo.country}`, { defaultValue: certInfo.country })} {certInfo.rating}
             </span>
           )}
           {duration && (

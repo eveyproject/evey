@@ -218,6 +218,34 @@ detail:
   downloadStarted: डाउनलोड शुरू हुआ
   downloadComplete: डाउनलोड पूरा हुआ
   downloadFailed: डाउनलोड विफल
+certBody:
+  FR: CSA
+  US: MPAA
+  GB: BBFC
+  IE: IFCO
+  DE: FSK
+  ES: ICAA
+  IT: CNC
+  AU: ACB
+  NZ: OFLC
+  CA: CBFC
+  JP: EIRIN
+  KR: KMRB
+  IN: CBFC
+  BR: ClassInd
+  NL: Kijkwijzer
+  FI: KAVI
+  DK: Medierådet
+  SE: SMRC
+  NO: Medietilsynet
+  CH: FSK
+  AT: FSK
+  BE: NICAM
+  PL: KRRiT
+  PT: CCE
+  CN: NRTA
+  HK: OFNAA
+  TW: MOC
 contextMenu:
   editMetadata: मेटाडेटा संपादित करें
   addToPlaylist: प्लेलिस्ट में जोड़ें

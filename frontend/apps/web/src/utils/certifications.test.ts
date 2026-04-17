@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { certForLocale } from "./certifications";
+import { certForLocale, certInfoForLocale } from "./certifications";
 
 describe("certForLocale", () => {
   it("returns fallback when certs empty", () => {
@@ -38,5 +38,23 @@ describe("certForLocale", () => {
   it("accepts underscore-separated locales", () => {
     const certs = { FR: "-12", US: "PG-13" };
     expect(certForLocale(certs, "fr_FR")).toBe("-12");
+  });
+});
+
+describe("certInfoForLocale", () => {
+  it("returns country + rating for matched locale", () => {
+    expect(certInfoForLocale({ FR: "-12", US: "PG-13" }, "fr-FR")).toEqual({ country: "FR", rating: "-12" });
+  });
+
+  it("falls back to US", () => {
+    expect(certInfoForLocale({ US: "PG-13" }, "zz")).toEqual({ country: "US", rating: "PG-13" });
+  });
+
+  it("uses fallback rating when certs empty", () => {
+    expect(certInfoForLocale({}, "fr", "R")).toEqual({ country: "US", rating: "R" });
+  });
+
+  it("returns undefined when nothing", () => {
+    expect(certInfoForLocale({}, "fr")).toBeUndefined();
   });
 });

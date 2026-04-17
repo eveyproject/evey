@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { ThemeSettings } from "@/features/user/ThemeSettings";
 import { LanguageSettings } from "@/features/user/LanguageSettings";
+import { RegionSettings } from "@/features/user/RegionSettings";
 import { NotificationSettings } from "@/features/user/NotificationSettings";
 import { DeviceSettings } from "@/features/user/DeviceSettings";
 import { QuickConnectSettings } from "@/features/user/QuickConnectSettings";
@@ -216,6 +217,9 @@ function SettingsPage() {
               <ThemeSettings />
               <div className="border-t border-[var(--border)] mt-6 pt-6">
                 <LanguageSettings />
+              </div>
+              <div className="border-t border-[var(--border)] mt-6 pt-6">
+                <RegionSettings />
               </div>
             </>
           )}

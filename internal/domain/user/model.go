@@ -52,7 +52,8 @@ type Profile struct {
 	SubtitleLanguages []string // ordered fallback list
 	MaxBitrateKbps    *int
 	Parental          *ParentalSettings
-	Locale            string // UI locale (en, fr, es, zh, hi)
+	Locale            string  // UI locale (en, fr, es, zh, hi)
+	Region            *string // ISO 3166-1 alpha-2 (FR, BE, CH, SN, ...) — nil = resolve via server/locale fallback
 	CreatedAt         time.Time
 }
 

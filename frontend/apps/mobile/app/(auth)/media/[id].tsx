@@ -25,6 +25,8 @@ import {
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
   useFeedServiceSimilarItems,
+  useUserServiceGetCurrentUser,
+  useUserServiceListProfiles,
 } from "@evey/api";
 import type { V1MediaItem, V1MediaPerson, V1Trailer } from "@evey/api";
 import { useAuthStore } from "@evey/store";
@@ -33,7 +35,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
-import { certForLocale } from "../../../src/lib/certifications";
+import { certInfoForLocale } from "../../../src/lib/certifications";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
 import { startDownload, getDownloadPath } from "../../../src/lib/downloads";
 import { toast } from "@evey/store";
@@ -399,6 +401,10 @@ export default function MediaDetailScreen() {
 
   const { data: media, isLoading } = useLibraryServiceGetMediaItem(id ?? "");
 
+  const { data: currentUser } = useUserServiceGetCurrentUser();
+  const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } } as never);
+  const profileRegion = (profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0])?.region;
+
   const { data: watchProgress } = usePlaybackServiceGetWatchProgress(id ?? "", undefined, {
     query: { enabled: !!id, retry: false },
   });
@@ -614,8 +620,10 @@ export default function MediaDetailScreen() {
                 <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{formatRuntime(media.durationMs)}</Text>
               ) : null}
               {(() => {
-                const cert = certForLocale(media.certificationsByCountry, i18n.language, media.officialRating);
-                return cert ? (
+                const info = certInfoForLocale(media.certificationsByCountry, i18n.language, media.officialRating, profileRegion);
+                if (!info) return null;
+                const body = t(`certBody.${info.country}`, { defaultValue: info.country });
+                return (
                   <View style={{
                     borderWidth: 1,
                     borderColor: theme.colors.textMuted,
@@ -623,11 +631,11 @@ export default function MediaDetailScreen() {
                     paddingHorizontal: 5,
                     paddingVertical: 1,
                   }}>
-                    <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: "500" }}>
-                      {cert}
+                    <Text style={{ color: theme.colors.text, fontSize: 11, fontWeight: "700" }}>
+                      {body} {info.rating}
                     </Text>
                   </View>
-                ) : null;
+                );
               })()}
             </View>
 

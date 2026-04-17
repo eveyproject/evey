@@ -321,6 +321,15 @@ export default function SettingsScreen() {
         ))}
       </View>
 
+      {/* Region */}
+      <Text style={s.sectionTitle}>{t("common.region.title")}</Text>
+      <View style={s.section}>
+        <Pressable style={s.row} onPress={() => router.push("/settings/region")} accessible={true} accessibilityLabel={t("common.region.title")} accessibilityRole="button">
+          <Text style={s.label}>{t("common.region.title")}</Text>
+          <ChevronRight color={theme.colors.textMuted} />
+        </Pressable>
+      </View>
+
       {/* Playback */}
       <Text style={s.sectionTitle}>{t("auth.settings.tabs.playback")}</Text>
       <View style={s.section}>
