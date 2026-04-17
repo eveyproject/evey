@@ -415,21 +415,26 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 			}
 		}
 
-		var outputDir string
-		if session, ok := hlsManager.GetSession(mediaID); ok {
-			if sessionUserID != string(session.UserID) {
-				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-				return
-			}
-			if waitErr := session.WaitReady(r.Context()); waitErr != nil {
-				http.Error(w, `{"message":"session not ready"}`, http.StatusServiceUnavailable)
-				return
-			}
-			outputDir = session.OutputDir
-		} else {
-			// No active session but segments may exist on disk (server restart)
-			outputDir = filepath.Join(hlsManager.CacheDir(), mediaID)
+		// Segments MUST be tied to a live session. The disk-only fallback was
+		// a cross-user leak vector: after a server restart, segments cached by
+		// User A (with forced audio/subtitle tracks reflecting A's preferences)
+		// could be read by any User B with library access. Return 404 instead;
+		// clients re-fetch master.m3u8 which re-creates the session with the
+		// caller's own decisions.
+		session, ok := hlsManager.GetSession(mediaID)
+		if !ok {
+			http.Error(w, `{"message":"session expired, refresh playlist"}`, http.StatusNotFound)
+			return
 		}
+		if sessionUserID != string(session.UserID) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if waitErr := session.WaitReady(r.Context()); waitErr != nil {
+			http.Error(w, `{"message":"session not ready"}`, http.StatusServiceUnavailable)
+			return
+		}
+		outputDir := session.OutputDir
 
 		filePath, err := safeJoin(outputDir, filepath.Base(file))
 		if err != nil {

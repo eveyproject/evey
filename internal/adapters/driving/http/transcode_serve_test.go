@@ -332,16 +332,17 @@ func TestHLSSegmentHandler_NoSession_SegmentMissing_404(t *testing.T) {
 	}
 }
 
-func TestHLSSegmentHandler_NoSession_ServesM3U8FromDisk(t *testing.T) {
+// Post-fix: segments require a live session. Stale disk cache without a
+// session must return 404 — the client re-fetches master.m3u8 which recreates
+// the session with the caller's own decisions (closes cross-user leak after
+// server restart).
+func TestHLSSegmentHandler_NoSession_M3U8_404(t *testing.T) {
 	cacheDir := t.TempDir()
-	// Pre-create the per-media cache dir + a sub-playlist on disk
 	mediaDir := filepath.Join(cacheDir, "m1")
 	if err := os.MkdirAll(mediaDir, 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(mediaDir, "stream_0.m3u8"), []byte("#EXTM3U\nseg_0.ts\n"), 0644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
+	_ = os.WriteFile(filepath.Join(mediaDir, "stream_0.m3u8"), []byte("#EXTM3U\nseg_0.ts\n"), 0644)
 	mgr := apptranscoding.NewHLSManager(context.Background(), cacheDir, 1, &transcodingfakes.HLSProcess{})
 	h := hlsSegmentHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
@@ -354,55 +355,18 @@ func TestHLSSegmentHandler_NoSession_ServesM3U8FromDisk(t *testing.T) {
 	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if got := w.Header().Get("Content-Type"); got != "application/vnd.apple.mpegurl" {
-		t.Errorf("expected mpegurl content-type, got %q", got)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 (no session), got %d", w.Code)
 	}
 }
 
-func TestHLSSegmentHandler_NoSession_ServesM3U8WithTokenInjection(t *testing.T) {
+func TestHLSSegmentHandler_NoSession_TS_404(t *testing.T) {
 	cacheDir := t.TempDir()
 	mediaDir := filepath.Join(cacheDir, "m1")
 	if err := os.MkdirAll(mediaDir, 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(mediaDir, "stream_0.m3u8"), []byte("#EXTM3U\nseg_0.ts\n"), 0644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	mgr := apptranscoding.NewHLSManager(context.Background(), cacheDir, 1, &transcodingfakes.HLSProcess{})
-	h := hlsSegmentHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaItemGetter{item: testMediaItem("lib1")},
-		mgr, allowAll(),
-	)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/stream_0.m3u8", nil)
-	req.SetPathValue("id", "m1")
-	req.SetPathValue("file", "stream_0.m3u8")
-	req = withHTTPClaims(req, testClaims(false))
-	// Simulate TokenRedactMiddleware injecting raw token
-	ctx := context.WithValue(req.Context(), rawTokenCtxKey, "tok-abc")
-	req = req.WithContext(ctx)
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if !strings.Contains(w.Body.String(), "seg_0.ts?token=tok-abc") {
-		t.Errorf("expected token-injected playlist, got: %s", w.Body.String())
-	}
-}
-
-func TestHLSSegmentHandler_NoSession_ServesTSFromDisk(t *testing.T) {
-	cacheDir := t.TempDir()
-	mediaDir := filepath.Join(cacheDir, "m1")
-	if err := os.MkdirAll(mediaDir, 0755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(mediaDir, "seg_0.ts"), []byte("ts-bytes"), 0644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
+	_ = os.WriteFile(filepath.Join(mediaDir, "seg_0.ts"), []byte("ts-bytes"), 0644)
 	mgr := apptranscoding.NewHLSManager(context.Background(), cacheDir, 1, &transcodingfakes.HLSProcess{})
 	h := hlsSegmentHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
@@ -415,23 +379,18 @@ func TestHLSSegmentHandler_NoSession_ServesTSFromDisk(t *testing.T) {
 	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if got := w.Header().Get("Content-Type"); got != "video/mp2t" {
-		t.Errorf("expected video/mp2t, got %q", got)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 (no session), got %d", w.Code)
 	}
 }
 
-func TestHLSSegmentHandler_NoSession_ServesM4SFromDisk(t *testing.T) {
+func TestHLSSegmentHandler_NoSession_M4S_404(t *testing.T) {
 	cacheDir := t.TempDir()
 	mediaDir := filepath.Join(cacheDir, "m1")
 	if err := os.MkdirAll(mediaDir, 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(mediaDir, "seg.m4s"), []byte("m4s"), 0644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
+	_ = os.WriteFile(filepath.Join(mediaDir, "seg.m4s"), []byte("m4s"), 0644)
 	mgr := apptranscoding.NewHLSManager(context.Background(), cacheDir, 1, &transcodingfakes.HLSProcess{})
 	h := hlsSegmentHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
@@ -444,11 +403,8 @@ func TestHLSSegmentHandler_NoSession_ServesM4SFromDisk(t *testing.T) {
 	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if got := w.Header().Get("Content-Type"); got != "video/mp4" {
-		t.Errorf("expected video/mp4, got %q", got)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 (no session), got %d", w.Code)
 	}
 }
 
