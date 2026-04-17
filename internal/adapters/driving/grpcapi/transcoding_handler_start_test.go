@@ -6,7 +6,9 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 type fakeStartTranscodeStream struct {
@@ -26,21 +28,29 @@ func (s *fakeStartTranscodeStream) SetTrailer(metadata.MD)           {}
 func (s *fakeStartTranscodeStream) SendMsg(any) error                { return nil }
 func (s *fakeStartTranscodeStream) RecvMsg(any) error                { return nil }
 
-// StartTranscode: the handler builds a TranscodeJob without InputPath and delegates
-// to the service. The domain model requires InputPath, so the service returns a
-// validation error and the handler surfaces Internal. This test locks in that
-// current behavior (fixing the handler to resolve InputPath from media_item_id is
-// out-of-scope for a coverage test).
-func TestTranscodingStartTranscode_ValidationErrorSurfaced(t *testing.T) {
+func TestTranscodingStartTranscode_EmptyMediaID_InvalidArgument(t *testing.T) {
 	h, _, _, _ := newTestTranscodingHandler()
 	stream := &fakeStartTranscodeStream{ctx: context.Background()}
 
-	err := h.StartTranscode(&eveyv1.StartTranscodeRequest{
-		MediaItemId: "mi-1",
-		VideoCodec:  "h264",
-	}, stream)
+	err := h.StartTranscode(&eveyv1.StartTranscodeRequest{MediaItemId: ""}, stream)
 	if err == nil {
-		t.Fatal("expected error (handler does not set InputPath)")
+		t.Fatal("expected InvalidArgument for empty media_item_id")
+	}
+	if status.Code(err) != codes.InvalidArgument {
+		t.Errorf("code = %v, want InvalidArgument", status.Code(err))
+	}
+}
+
+func TestTranscodingStartTranscode_NoLibQuery_FailedPrecondition(t *testing.T) {
+	h, _, _, _ := newTestTranscodingHandler()
+	stream := &fakeStartTranscodeStream{ctx: context.Background()}
+
+	err := h.StartTranscode(&eveyv1.StartTranscodeRequest{MediaItemId: "mi-1"}, stream)
+	if err == nil {
+		t.Fatal("expected FailedPrecondition when libQuery is nil")
+	}
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Errorf("code = %v, want FailedPrecondition", status.Code(err))
 	}
 }
 

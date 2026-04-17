@@ -2,14 +2,17 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -17,15 +20,44 @@ import (
 
 type transcodingHandler struct {
 	eveyv1.UnimplementedTranscodingServiceServer
-	svc       *apptranscoding.Service
-	userQuery *appuser.QueryService
+	svc        *apptranscoding.Service
+	userQuery  *appuser.QueryService
+	libQuery   *applibrary.QueryService
+	userAccess *appuser.AccessService
+	translator *eveyi18n.Translator
 }
 
 func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, stream eveyv1.TranscodingService_StartTranscodeServer) error {
+	ctx := stream.Context()
+	if req.MediaItemId == "" {
+		return status.Error(codes.InvalidArgument, "media_item_id required")
+	}
+	// Resolve media item: we need FilePath for InputPath + library check.
+	if h.libQuery == nil {
+		return status.Error(codes.FailedPrecondition, "library service not configured")
+	}
+	item, err := h.libQuery.GetMediaItem(ctx, req.MediaItemId)
+	if err != nil || item == nil {
+		return status.Error(codes.NotFound, "media item not found")
+	}
+	// IDOR: restrict to libraries the caller has access to.
+	if h.userAccess != nil {
+		claims := interceptors.ClaimsFromContext(ctx)
+		if claims == nil {
+			return status.Error(codes.Unauthenticated, "unauthenticated")
+		}
+		if !claims.IsAdmin {
+			ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
+			if accessErr != nil || !ok {
+				return status.Error(codes.NotFound, "media item not found")
+			}
+		}
+	}
+
 	bitrateOut := req.Bitrate
 	if h.userQuery != nil {
-		if claims := interceptors.ClaimsFromContext(stream.Context()); claims != nil && claims.ProfileID != "" {
-			if prof, err := h.userQuery.GetProfileByID(stream.Context(), claims.ProfileID); err == nil && prof.MaxBitrateKbps != nil {
+		if claims := interceptors.ClaimsFromContext(ctx); claims != nil && claims.ProfileID != "" {
+			if prof, err := h.userQuery.GetProfileByID(ctx, claims.ProfileID); err == nil && prof.MaxBitrateKbps != nil {
 				capKbps := int64(*prof.MaxBitrateKbps) * 1000
 				if bitrateOut == 0 || bitrateOut > capKbps {
 					bitrateOut = capKbps
@@ -36,13 +68,17 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 	job := &transcoding.TranscodeJob{
 		ID:            id.New("tj-"),
 		MediaItemID:   shared.MediaItemID(req.MediaItemId),
+		InputPath:     item.FilePath,
 		OutputCodec:   req.VideoCodec,
 		AudioCodec:    req.AudioCodec,
 		HWAccelType:   hwAccelTypeFromProto[req.HwAccel],
 		BitrateOut:    bitrateOut,
 		ResolutionOut: fmt.Sprintf("%dx%d", req.Width, req.Height),
 	}
-	if err := h.svc.StartTranscode(stream.Context(), job); err != nil {
+	if err := h.svc.StartTranscode(ctx, job); err != nil {
+		if errors.Is(err, apptranscoding.ErrMaxConcurrent) {
+			return h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.transcode.max_concurrent_reached")
+		}
 		return internalError("start transcode", err)
 	}
 	return stream.Send(&eveyv1.TranscodeProgress{
