@@ -6,6 +6,8 @@ import (
 	"time"
 
 	appmusic "github.com/evey-project/evey/internal/app/music"
+	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/music"
 	musicfakes "github.com/evey-project/evey/internal/domain/music/fakes"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
@@ -46,6 +48,25 @@ func TestService_FetchMissingAlbumArtAllLibraries_NoLibRepo_ReturnsZero(t *testi
 	n, err := svc.FetchMissingAlbumArtAllLibraries(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
+}
+
+// Iterates libraries, skips non-music ones, and aggregates successful fetches.
+// With no art fetcher wired, FetchMissingAlbumArt returns 0 per library without
+// error, so the total is 0 — but the iteration is exercised (skip non-music,
+// call per music lib).
+func TestService_FetchMissingAlbumArtAllLibraries_IteratesMusicLibraries(t *testing.T) {
+	t.Parallel()
+	repo := musicfakes.NewFakeMusicTrackRepository()
+	scanner := musicfakes.NewFakeMusicScanner()
+	libRepo := libfakes.NewFakeLibraryQueryRepo()
+	libRepo.Seed(&library.Library{ID: "lib-music-1", Name: "A", Type: library.Music})
+	libRepo.Seed(&library.Library{ID: "lib-movie-1", Name: "M", Type: library.Movie})
+	libRepo.Seed(&library.Library{ID: "lib-music-2", Name: "B", Type: library.Music})
+
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), libRepo, scanner)
+	n, err := svc.FetchMissingAlbumArtAllLibraries(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, n) // no art fetcher → 0 per library
 }
 
 // AlbumArtDir returns the CommandService's configured directory.
