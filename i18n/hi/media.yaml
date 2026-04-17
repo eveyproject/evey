@@ -255,6 +255,11 @@ music:
   year: Year
   shuffle: Shuffle
   resetFilters: Reset filters
+  addToPlaylist: प्लेलिस्ट में जोड़ें
+  newPlaylist: "नई प्लेलिस्ट…"
+  playlistCreated: प्लेलिस्ट बनाई गई
+  addedToPlaylist: प्लेलिस्ट में जोड़ा गया
+  createPlaylistPrompt: प्लेलिस्ट का नाम
 photos:
   title: फ़ोटो
   albums: एल्बम
@@ -282,6 +287,19 @@ syncplay:
   watchTogetherRoom: साथ में देखें कमरा
   watchingWith: "{{names}} के साथ देख रहे हैं"
   watchingWithMore: "{{names}} +{{count}} और के साथ देख रहे हैं"
+  title: साथ में सुनें
+  create: कमरा बनाएं
+  createRoom: बनाएं
+  join: कमरे में शामिल हों
+  joinRoom: शामिल हों
+  codeLabel: कोड
+  members: सदस्य
+  sharedTrack: साझा ट्रैक
+  followingHost: "आप होस्ट के साथ सिंक हैं।"
+  noTracks: कोई ट्रैक नहीं मिला
+  notMusicRoom: "यह कमरा संगीत कमरा नहीं है।"
+  orPlaylist: "या प्लेलिस्ट चुनें"
+  queue: "कतार"
 playlist:
   name: नाम
   description: विवरण

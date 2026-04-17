@@ -255,6 +255,11 @@ music:
   year: Year
   shuffle: Shuffle
   resetFilters: Reset filters
+  addToPlaylist: Añadir a la lista
+  newPlaylist: "Nueva lista…"
+  playlistCreated: Lista creada
+  addedToPlaylist: Añadido a la lista
+  createPlaylistPrompt: Nombre de la lista
 photos:
   title: Fotos
   albums: Álbumes
@@ -282,6 +287,19 @@ syncplay:
   watchTogetherRoom: Sala Ver juntos
   watchingWith: "Viendo con: {{names}}"
   watchingWithMore: "Viendo con: {{names}} +{{count}} más"
+  title: Escuchar juntos
+  create: Crear una sala
+  createRoom: Crear
+  join: Unirse a una sala
+  joinRoom: Unirse
+  codeLabel: Código
+  members: miembros
+  sharedTrack: Pista compartida
+  followingHost: "Estás sincronizado con el anfitrión."
+  noTracks: No se encontraron pistas
+  notMusicRoom: "Esta sala no es una sala de música."
+  orPlaylist: "O elige una lista"
+  queue: "Cola"
 playlist:
   name: Nombre
   description: Descripción

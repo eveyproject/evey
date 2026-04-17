@@ -117,8 +117,29 @@ settings:
   playback:
     bitrateTitle: Maximale Streaming-Bitrate
     bitrateDesc: Maximale Bitrate beim Streaming begrenzen. Niedrigere Werte verbrauchen weniger Bandbreite.
+    cellularBitrateTitle: Maximale Mobilfunk-Bitrate
+    cellularBitrateDesc: Niedrigere Obergrenze bei Nutzung mobiler Daten.
     subtitleLanguage: Standard-Untertitelsprache
     audioLanguage: Standard-Audiosprache
+    preferredVideoCodec: Bevorzugter Video-Codec
+    preferredAudioCodec: Bevorzugter Audio-Codec
+    maxAudioChannels: Maximale Audio-Kanäle
+    codecAuto: Auto
+    channelsStereo: Stereo (2.0)
+    channels51: Surround (5.1)
+    channels71: Surround (7.1)
+    subtitleBurnIn: Untertitel einbrennen
+    subtitleBurnInDesc: Untertitel bei Bedarf direkt in den Videostream einbrennen.
+    subtitleBurnAuto: Auto
+    subtitleBurnAlways: Immer einbrennen
+    subtitleBurnNever: Nie einbrennen
+    transcodeTitle: Transkodierung
+    allowDirectPlay: Direktwiedergabe erlauben
+    allowDirectPlayDesc: Originaldatei abspielen, wenn das Gerät sie unterstützt.
+    allowDirectStream: Direkt-Stream erlauben
+    allowDirectStreamDesc: Container ohne Neukodierung remuxen, wenn möglich.
+    allowTranscoding: Transkodierung erlauben
+    allowTranscodingDesc: Auf Transkodierung zurückfallen, wenn Direktwiedergabe/-Stream nicht verfügbar ist.
   quickConnect:
     title: Schnellverbindung
     description: Geben Sie den Code ein, der auf dem Gerät angezeigt wird, das Sie anmelden möchten.
@@ -179,6 +200,18 @@ apiKeys:
   namePlaceholder: "Meine Integration"
   nameRequired: Name ist erforderlich
   key: Schlüssel
+  scopes: Berechtigungen
+  scopesAll: Alle (Legacy)
+  scopesHint: "Leer lassen für vollen Zugriff (Legacy). Bestimmte Berechtigungen auswählen, um einzuschränken."
+  scopeLabels:
+    "media:read": Medien-Metadaten lesen
+    "media:write": Medien ändern und Scans auslösen
+    "admin:read": Admin-Aktivität und Statistiken lesen
+    "admin:write": Admin-Einstellungen ändern
+    "users:read": Benutzer lesen
+    "users:write": Benutzer ändern
+    "playback:read": Wiedergabestatus und Verlauf lesen
+    "playback:write": Wiedergabe und Fortschritt steuern
   lastUsed: Zuletzt verwendet
   created: Erstellt
   keyCreatedTitle: API-Schlüssel erstellt
