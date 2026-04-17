@@ -80,13 +80,27 @@ func newTestEnricher(primary *fakeProvider, supplementary []*fakeProvider, colle
 
 // --- pickBestMatch tests (existing) ---
 
-func TestPickBestMatch_TitleSimilarity(t *testing.T) {
+func TestPickBestMatch_TrustsTMDBOrderWhenBothCoherent(t *testing.T) {
+	// TMDB ranks the most relevant result first; we trust that order rather
+	// than re-ranking with our own heuristic. Both candidates share words
+	// with the query here, so we return the first one verbatim.
 	results := []domain.MetadataResult{
 		{Title: "The Rookie : Le Flic de Los Angeles", OriginalTitle: "The Rookie"},
 		{Title: "Le flic de Shanghai", OriginalTitle: "Martial Law"},
 	}
 	best := pickBestMatch(results, "Le flic de shanghai", nil)
-	assert.Equal(t, "Le flic de Shanghai", best.Title)
+	assert.Equal(t, "The Rookie : Le Flic de Los Angeles", best.Title)
+}
+
+func TestPickBestMatch_SkipsIncoherentCandidates(t *testing.T) {
+	// First TMDB result shares no word with the query — skip it and take
+	// the next coherent one.
+	results := []domain.MetadataResult{
+		{Title: "Completely Unrelated"},
+		{Title: "Breaking Bad"},
+	}
+	best := pickBestMatch(results, "Breaking Bad", nil)
+	assert.Equal(t, "Breaking Bad", best.Title)
 }
 
 func TestPickBestMatch_ExactTitle(t *testing.T) {
@@ -109,10 +123,11 @@ func TestPickBestMatch_YearBonus(t *testing.T) {
 	assert.Equal(t, &y2005, best.Year)
 }
 
-func TestPickBestMatch_RebootPenalty(t *testing.T) {
+func TestPickBestMatch_ExactYearWinsOverOrder(t *testing.T) {
+	// When year is given and a candidate matches exactly, it wins even if it
+	// comes later in TMDB's order.
 	y1990 := 1990
 	y2017 := 2017
-	y2025 := 2025
 	results := []domain.MetadataResult{
 		{Title: "Robin Hood", Year: &y1990},
 		{Title: "Robin Hood", Year: &y2017},
@@ -120,23 +135,9 @@ func TestPickBestMatch_RebootPenalty(t *testing.T) {
 	best := pickBestMatch(results, "Robin Hood", &y2017)
 	assert.Equal(t, &y2017, best.Year)
 
-	best = pickBestMatch(results, "Robin Hood", &y2025)
-	assert.Equal(t, &y2017, best.Year)
-
+	// No year hint → trust TMDB order.
 	best = pickBestMatch(results, "Robin Hood", nil)
-	assert.Equal(t, "Robin Hood", best.Title)
-}
-
-func TestPickBestMatch_CloseYearBonus(t *testing.T) {
-	y2024 := 2024
-	y2025 := 2025
-	y2010 := 2010
-	results := []domain.MetadataResult{
-		{Title: "Show", Year: &y2010},
-		{Title: "Show", Year: &y2024},
-	}
-	best := pickBestMatch(results, "Show", &y2025)
-	assert.Equal(t, &y2024, best.Year)
+	assert.Equal(t, &y1990, best.Year)
 }
 
 func TestPickBestMatch_OriginalTitleUsed(t *testing.T) {
@@ -154,23 +155,6 @@ func TestPickBestMatch_SingleResult(t *testing.T) {
 	assert.Equal(t, "Only One", best.Title)
 }
 
-func TestPickBestMatch_PopularityTiebreaker(t *testing.T) {
-	results := []domain.MetadataResult{
-		{Title: "Same Title", Popularity: 10},
-		{Title: "Same Title", Popularity: 50},
-	}
-	best := pickBestMatch(results, "Same Title", nil)
-	assert.InDelta(t, 50.0, best.Popularity, 0.001)
-}
-
-func TestTitleSimilarity(t *testing.T) {
-	assert.InDelta(t, 1.0, titleSimilarity("breaking bad", "Breaking Bad"), 0.01)
-	assert.Greater(t,
-		titleSimilarity("le flic de shanghai", "Le flic de Shanghai"),
-		titleSimilarity("le flic de shanghai", "The Rookie : Le Flic de Los Angeles"),
-	)
-	assert.InDelta(t, 0.0, titleSimilarity("test", ""), 0.001)
-}
 
 // --- roleType ---
 

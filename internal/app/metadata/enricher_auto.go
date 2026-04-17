@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"runtime/debug"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -219,62 +218,57 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 		return e.fetchBestCandidate(ctx, provider, results, title, year, mediaType)
 	}
 
-	// For series: fetch details for top candidates and validate with combined
-	// title similarity + episode count matching
-	ranked := rankByTitle(results, title, year)
+	// For series: iterate TMDB results in their order, fetch detail for the
+	// top N, return the first one whose S01 episode count matches the disk.
+	// TMDB ranks by popularity+relevance so the first coherent candidate that
+	// validates is almost always correct.
+	qw := wordSet(title)
 	maxCandidates := 5
-	if len(ranked) < maxCandidates {
-		maxCandidates = len(ranked)
-	}
-
-	type validatedMatch struct {
-		result     *domainmetadata.MetadataResult
-		titleScore float64
-	}
-	var validated []validatedMatch
-
-	for _, candidate := range ranked[:maxCandidates] {
+	checked := 0
+	var firstValidated *domainmetadata.MetadataResult
+	for _, candidate := range results {
+		if checked >= maxCandidates {
+			break
+		}
+		if !sharesAnyWord(qw, candidate.Title) && !sharesAnyWord(qw, candidate.OriginalTitle) {
+			continue
+		}
 		providerID := candidate.ProviderIDs[provider.Name()]
 		if providerID == "" {
 			continue
 		}
+		checked++
 		full, fetchErr := provider.GetByProviderID(ctx, providerID, mediaType)
 		if fetchErr != nil || full == nil {
 			continue
 		}
-		if tmdbS01, ok := full.SeasonEpisodeCounts[1]; ok {
-			if episodeCountMatches(diskS01Episodes, tmdbS01) {
-				s1 := titleSimilarity(title, full.Title)
-				s2 := titleSimilarity(title, full.OriginalTitle)
-				best := s1
-				if s2 > best {
-					best = s2
-				}
-				validated = append(validated, validatedMatch{result: full, titleScore: best})
+		tmdbS01, ok := full.SeasonEpisodeCounts[1]
+		if !ok {
+			continue
+		}
+		if episodeCountMatches(diskS01Episodes, tmdbS01) {
+			if log != nil {
+				log.Debug("series match validated by S01 episode count + coherent title",
+					slog.String("title", full.Title),
+					slog.Int("disk_episodes", diskS01Episodes))
 			}
+			return full
+		}
+		if firstValidated == nil {
+			firstValidated = full
 		}
 	}
 
-	if len(validated) > 0 {
-		// Pick the validated match with the highest title similarity
-		best := validated[0]
-		for _, v := range validated[1:] {
-			if v.titleScore > best.titleScore {
-				best = v
-			}
-		}
+	// No candidate matched the disk episode count — fall back to the first
+	// coherent candidate we fetched (if any), else simple pickBestMatch.
+	if firstValidated != nil {
 		if log != nil {
-			log.Debug("series match validated by S01 episode count + title score",
-				slog.String("title", best.result.Title),
-				slog.Float64("title_score", best.titleScore),
-				slog.Int("disk_episodes", diskS01Episodes))
+			log.Debug("no series match validated by episode count, using first coherent TMDB result", slog.String("title", firstValidated.Title))
 		}
-		return best.result
+		return firstValidated
 	}
-
-	// Fallback: return the best title match even without episode validation
 	if log != nil {
-		log.Debug("no series match validated by episode count, using best title match", slog.String("title", title))
+		log.Debug("no coherent candidate found, falling back to simple pickBestMatch", slog.String("title", title))
 	}
 	return e.fetchBestCandidate(ctx, provider, results, title, year, mediaType)
 }
@@ -314,44 +308,6 @@ func episodeCountMatches(disk, tmdb int) bool {
 		tolerance = 1
 	}
 	return float64(diff) <= tolerance
-}
-
-// rankByTitle sorts results by title similarity (best first).
-func rankByTitle(results []domainmetadata.MetadataResult, query string, year *int) []domainmetadata.MetadataResult {
-	type scored struct {
-		result domainmetadata.MetadataResult
-		score  float64
-	}
-	var items []scored
-	for _, r := range results {
-		s1 := titleSimilarity(query, r.Title)
-		s2 := titleSimilarity(query, r.OriginalTitle)
-		score := s1
-		if s2 > score {
-			score = s2
-		}
-		if year != nil && r.Year != nil && *r.Year == *year {
-			score += 0.3
-		}
-		items = append(items, scored{result: r, score: score})
-	}
-	slices.SortFunc(items, func(a, b scored) int {
-		if a.score != b.score {
-			if a.score > b.score {
-				return -1
-			}
-			return 1
-		}
-		if a.result.Popularity > b.result.Popularity {
-			return -1
-		}
-		return 1
-	})
-	out := make([]domainmetadata.MetadataResult, len(items))
-	for i, it := range items {
-		out[i] = it.result
-	}
-	return out
 }
 
 // searchAndFetch searches a provider and fetches full details for the best match (legacy, used by supplementary).
@@ -517,76 +473,54 @@ func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 	wg.Wait()
 }
 
-// pickBestMatch selects the result whose title best matches the query.
-// Uses word overlap (Dice coefficient) on both Title and OriginalTitle.
-// Year matching: exact match gets +0.3 bonus, close match (±2y) gets +0.1,
-// large gap (>5y) gets -0.15 penalty to avoid reboots/remakes confusion.
+// pickBestMatch trusts TMDB's own popularity+relevance ranking and returns
+// the first result that shares at least one word with the query (coherence
+// filter). If none do, it falls back to the top TMDB result rather than
+// second-guessing TMDB with a local heuristic. When year is provided and a
+// shared-word candidate matches it exactly, that candidate wins — remakes/
+// reboots with the same title stay disambiguated.
 func pickBestMatch(results []domainmetadata.MetadataResult, query string, year *int) domainmetadata.MetadataResult {
 	if len(results) == 1 {
 		return results[0]
 	}
-
-	bestIdx := 0
-	bestScore := -1.0
-
+	qw := wordSet(query)
+	firstCoherentIdx := -1
 	for i, r := range results {
-		s1 := titleSimilarity(query, r.Title)
-		s2 := titleSimilarity(query, r.OriginalTitle)
-		score := s1
-		if s2 > score {
-			score = s2
+		if !sharesAnyWord(qw, r.Title) && !sharesAnyWord(qw, r.OriginalTitle) {
+			continue
 		}
-		if year != nil && r.Year != nil {
-			diff := *r.Year - *year
-			if diff < 0 {
-				diff = -diff
-			}
-			switch {
-			case diff == 0:
-				score += 0.3
-			case diff <= 2:
-				score += 0.1
-			default:
-				// Proportional penalty: farther years get more penalty
-				penalty := 0.03 * float64(diff)
-				if penalty > 0.4 {
-					penalty = 0.4
-				}
-				score -= penalty
-			}
+		if firstCoherentIdx < 0 {
+			firstCoherentIdx = i
 		}
-		if score > bestScore || (score == bestScore && r.Popularity > results[bestIdx].Popularity) {
-			bestScore = score
-			bestIdx = i
+		if year != nil && r.Year != nil && *r.Year == *year {
+			return r
 		}
 	}
-
-	return results[bestIdx]
+	if firstCoherentIdx >= 0 {
+		return results[firstCoherentIdx]
+	}
+	return results[0]
 }
 
-// titleSimilarity returns a 0..1 score using Dice coefficient on word sets.
-func titleSimilarity(query, candidate string) float64 {
-	if candidate == "" {
-		return 0
+func sharesAnyWord(qw map[string]bool, candidate string) bool {
+	if candidate == "" || len(qw) == 0 {
+		return false
 	}
-	qw := wordSet(query)
-	cw := wordSet(candidate)
-	if len(qw) == 0 || len(cw) == 0 {
-		return 0
-	}
-	intersection := 0
-	for w := range qw {
-		if cw[w] {
-			intersection++
+	for w := range wordSet(candidate) {
+		if qw[w] {
+			return true
 		}
 	}
-	return 2.0 * float64(intersection) / float64(len(qw)+len(cw))
+	return false
 }
 
 func wordSet(s string) map[string]bool {
 	m := make(map[string]bool)
 	for w := range strings.FieldsSeq(strings.ToLower(s)) {
-		m[w] = true
+		t := strings.Trim(w, ".,:;!?'\"()[]{}«»—–-")
+		if t != "" {
+			m[t] = true
+		}
 	}
 	return m
 }
