@@ -1,5 +1,5 @@
 import { renderWithQueryClient } from "@/test/test-utils";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { AdminNav } from "./AdminNav";
 
