@@ -27,6 +27,10 @@ type Config struct {
 	VAPID VAPIDConfig
 }
 
+type MetadataConfig struct {
+	Language string // ISO 639-1, default "en"
+}
+
 type VAPIDConfig struct {
 	PublicKey  string // VAPID_PUBLIC_KEY
 	PrivateKey string // VAPID_PRIVATE_KEY
@@ -53,10 +57,6 @@ type RemoteAccessConfig struct {
 	ExternalURL          string
 	LANNetworks          []string
 	MaxRemoteBitrateKbps int
-}
-
-type MetadataConfig struct {
-	Language string // ISO 639-1, default "en"
 }
 
 type LogConfig struct {
@@ -232,9 +232,7 @@ func Load() (*Config, error) {
 			SkipForwardSeconds:  envInt("EVEY_PLAYBACK_SKIP_FORWARD", 10),
 			SkipBackwardSeconds: envInt("EVEY_PLAYBACK_SKIP_BACKWARD", 10),
 		},
-		Metadata: MetadataConfig{
-			Language: envStr("EVEY_METADATA_LANGUAGE", "en"),
-		},
+		Metadata: MetadataConfig{Language: "en"},
 		Backup: BackupConfig{
 			Dir:           envStr("EVEY_BACKUP_DIR", "/data/backups"),
 			IntervalHours: envInt("EVEY_BACKUP_INTERVAL_HOURS", 0),

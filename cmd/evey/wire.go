@@ -133,9 +133,6 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	bus := eventbus.New()
 	hasher := auth.BcryptHasher{}
 
-	if langEntry, err2 := r.ServerCfg.Get(ctx, "metadata.language"); err2 == nil && langEntry.Value != "" {
-		cfg.Metadata.Language = langEntry.Value
-	}
 	metadataHTTP := &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
@@ -149,7 +146,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	serverCfgForLang := r.ServerCfg
 	defaultLang := cfg.Metadata.Language
 	// Resolution order: metadata.language override → server.language (hydrates
-	// both UI and metadata by default) → env-level default → hardcoded "en".
+	// everything when set via /setup or admin) → hardcoded default ("en").
 	tmdbProvider := metadataadapter.NewTMDBProviderWithGetter(tmdbKey, func() string {
 		bg := context.Background()
 		if entry, err2 := serverCfgForLang.Get(bg, "metadata.language"); err2 == nil && entry.Value != "" {
@@ -258,17 +255,14 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		7*24*time.Hour, r.QuickConnect,
 	)
 	userAuthSvc.InitSetupState(ctx)
-	// server.language (admin-editable) drives the default UI locale for new
-	// profiles. Fallback chain: server.language → env default → "en".
+	// server.language (admin-editable, set via /setup) drives the default UI
+	// locale for new profiles. Fallback: server.language → cfg default ("en").
 	serverLocaleFn := func() string {
 		bg := context.Background()
 		if entry, err2 := r.ServerCfg.Get(bg, "server.language"); err2 == nil && entry.Value != "" {
 			return entry.Value
 		}
-		if cfg.Metadata.Language != "" {
-			return cfg.Metadata.Language
-		}
-		return "en"
+		return cfg.Metadata.Language
 	}
 	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db), appuser.WithDefaultLocale(serverLocaleFn))
 	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile), appuser.WithLibraryAccess(r.LibraryAccess), appuser.WithAccessDefaultLocale(serverLocaleFn))
