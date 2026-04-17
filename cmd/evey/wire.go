@@ -297,6 +297,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		collectionSvc,
 		appmetadata.EnricherWithTranslations(r.MediaItemTranslation, r.PersonTranslation, eveyi18n.SupportedLocales()),
 		appmetadata.EnricherWithPersonFetcher(infra.personFetcher),
+		appmetadata.EnricherWithOverrides(r.MetadataOverride),
 	)
 	metadataCmdSvc := appmetadata.NewCommandService(r.MetadataOverride, r.Artwork, infra.artworkDL, bus, metaProviders,
 		appmetadata.WithEnricher(enricher, r.MediaItem),

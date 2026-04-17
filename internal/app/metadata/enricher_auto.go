@@ -31,8 +31,19 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		return
 	}
 
-	if item.Overview != "" && len(item.CertificationsByCountry) > 0 {
+	if item.Overview != "" {
 		return
+	}
+
+	// Respect admin intent: if any field has been manually overridden, don't
+	// auto-refresh. Admins force a refresh via the explicit RefreshMetadata RPC.
+	if e.overrides != nil {
+		if overrides, err := e.overrides.GetByMediaItem(ctx, string(item.ID)); err == nil && len(overrides) > 0 {
+			if log != nil {
+				log.Debug("skip auto-enrich: item has admin overrides", slog.String("id", string(item.ID)), slog.Int("overrides", len(overrides)))
+			}
+			return
+		}
 	}
 
 	mediaType := "movie"
@@ -467,10 +478,24 @@ func (e *Enricher) episodeProviders() []episodeProvider {
 // AutoEnrichAll enriches all items concurrently (max 3 at a time)
 // with rate limiting to avoid 429s from external APIs.
 func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaItem, log *slog.Logger) {
+	// Batch-load admin overrides once to avoid N queries in the hot loop.
+	overridden := map[string]bool{}
+	if e.overrides != nil && len(items) > 0 {
+		ids := make([]string, 0, len(items))
+		for _, it := range items {
+			ids = append(ids, string(it.ID))
+		}
+		if m, err := e.overrides.ListOverriddenMediaItemIDs(ctx, ids); err == nil {
+			overridden = m
+		}
+	}
 	sem := make(chan struct{}, 3)
 	var wg sync.WaitGroup
 	for _, item := range items {
-		if item.Overview != "" && len(item.Trailers) > 0 && len(item.CertificationsByCountry) > 0 {
+		if overridden[string(item.ID)] {
+			continue
+		}
+		if item.Overview != "" && len(item.Trailers) > 0 {
 			continue
 		}
 		if err := e.apiLimiter.Wait(ctx); err != nil {

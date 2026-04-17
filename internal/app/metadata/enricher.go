@@ -36,12 +36,19 @@ type Enricher struct {
 	personTranslations   domainlib.PersonTranslationRepository
 	translationLocales   []string
 	personFetcher        personDetailFetcher
+	overrides            domainmetadata.MetadataOverrideRepository
 }
 
 type EnricherOption func(*Enricher)
 
 func EnricherWithPersonFetcher(f personDetailFetcher) EnricherOption {
 	return func(e *Enricher) { e.personFetcher = f }
+}
+
+// EnricherWithOverrides wires in the admin metadata override repo so that
+// auto-enrichment skips items whose admin has manually edited any field.
+func EnricherWithOverrides(r domainmetadata.MetadataOverrideRepository) EnricherOption {
+	return func(e *Enricher) { e.overrides = r }
 }
 
 func EnricherWithTranslations(
