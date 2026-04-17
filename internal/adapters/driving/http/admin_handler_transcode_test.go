@@ -124,7 +124,7 @@ func TestAdminTranscode_UpdateProfile_NonAdmin_403(t *testing.T) {
 func TestAdminTranscode_UpdateProfile_Admin_OK(t *testing.T) {
 	f := newAdminTranscodeMux(t)
 	// seed an existing profile
-	_ = f.profiles.Create(nil, &transcoding.TranscodeProfile{ID: "tp-1", Name: "old", VideoCodec: "h264", Container: "mp4"})
+	_ = f.profiles.Create(context.Background(), &transcoding.TranscodeProfile{ID: "tp-1", Name: "old", VideoCodec: "h264", Container: "mp4"})
 	body := `{"name":"new","videoCodec":"h264","audioCodec":"aac","container":"mp4"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/transcoding/profiles/tp-1", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+f.adminTok)
@@ -137,7 +137,7 @@ func TestAdminTranscode_UpdateProfile_Admin_OK(t *testing.T) {
 
 func TestAdminTranscode_DeleteProfile_Admin_204(t *testing.T) {
 	f := newAdminTranscodeMux(t)
-	_ = f.profiles.Create(nil, &transcoding.TranscodeProfile{ID: "tp-2", Name: "n", VideoCodec: "h264", Container: "mp4"})
+	_ = f.profiles.Create(context.Background(), &transcoding.TranscodeProfile{ID: "tp-2", Name: "n", VideoCodec: "h264", Container: "mp4"})
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/transcoding/profiles/tp-2", nil)
 	req.Header.Set("Authorization", "Bearer "+f.adminTok)
 	w := httptest.NewRecorder()

@@ -187,17 +187,15 @@ func TestInstallPlugin_DBFails_CleansInstallDir(t *testing.T) {
 
 // L209/214: success path publishes PluginInstalled event.
 func TestInstallPlugin_PublishesInstalledEvent(t *testing.T) {
-	svc, _, _, parser, _, _ := newTestInstallerService()
 	bus := sharedfakes.NewFakeEventBus()
 	pluginRepo := plgfakes.NewFakePluginRepository()
 	runner := plgfakes.NewFakePluginRunner()
 	parser2 := plgfakes.NewFakeManifestParser()
 	installer := plgfakes.NewFakePluginInstaller()
-	svc = appplugin.NewInstallerService(pluginRepo, runner, parser2, bus,
+	svc := appplugin.NewInstallerService(pluginRepo, runner, parser2, bus,
 		appplugin.InstallerWithInstaller(installer),
 		appplugin.InstallerWithPluginDir(t.TempDir()),
 	)
-	_ = parser
 	parser2.Result = goManifest("evt")
 
 	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "x"))
