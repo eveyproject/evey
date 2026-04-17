@@ -90,6 +90,14 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
 	}
 
+	// Atomically claim one invite use-slot BEFORE creating the user. The repo's
+	// IncrementUsedCount rejects the claim if the invite has been exhausted
+	// since our IsUsable() check above, closing a TOCTOU window where N
+	// concurrent registrations on a MaxUses=1 token all succeeded.
+	if err := s.invites.IncrementUsedCount(ctx, invite.ID); err != nil {
+		return nil, ErrInviteInvalid
+	}
+
 	u, err := user.NewUser(username, email, hash)
 	if err != nil {
 		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
@@ -97,9 +105,6 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 	u.IsAdmin = invite.IsAdmin
 	if err := s.users.Create(ctx, u); err != nil {
 		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
-	}
-	if err := s.invites.IncrementUsedCount(ctx, invite.ID); err != nil {
-		slog.Warn("increment invite used count failed", slog.String("inviteID", invite.ID), slog.Any("err", err))
 	}
 	if s.libraryAccess != nil && !u.IsAdmin {
 		for _, libID := range invite.LibraryIDs {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 )
 
@@ -74,9 +75,14 @@ func (r *FakeInviteLinkRepository) IncrementUsedCount(_ context.Context, id stri
 	if r.Err != nil {
 		return r.Err
 	}
-	if l, ok := r.items[id]; ok {
-		l.UsedCount++
+	l, ok := r.items[id]
+	if !ok {
+		return shared.ErrNotFound
 	}
+	if l.MaxUses > 0 && l.UsedCount >= l.MaxUses {
+		return shared.ErrNotFound
+	}
+	l.UsedCount++
 	return nil
 }
 

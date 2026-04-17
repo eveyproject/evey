@@ -3,7 +3,9 @@ package user
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -214,6 +216,47 @@ func TestRegisterWithInvite_MaxUsesBoundary(t *testing.T) {
 			t.Fatal("expected user")
 		}
 	})
+}
+
+// Concurrent TOCTOU: N goroutines race to register on a single-use invite.
+// Exactly one must succeed; the rest must fail with ErrInviteInvalid.
+func TestRegisterWithInvite_TOCTOU_SingleUse(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "race-tok", MaxUses: 1})
+
+	const N = 20
+	var wg sync.WaitGroup
+	wg.Add(N)
+	results := make(chan error, N)
+	for i := 0; i < N; i++ {
+		go func(i int) {
+			defer wg.Done()
+			name := fmt.Sprintf("user-%d", i)
+			email := fmt.Sprintf("u%d@example.com", i)
+			_, err := d.svc.RegisterWithInvite(ctx, "race-tok", name, "longpassword", email)
+			results <- err
+		}(i)
+	}
+	wg.Wait()
+	close(results)
+
+	ok, rejected := 0, 0
+	for err := range results {
+		if err == nil {
+			ok++
+		} else if errors.Is(err, ErrInviteInvalid) {
+			rejected++
+		} else {
+			t.Errorf("unexpected error: %v", err)
+		}
+	}
+	if ok != 1 {
+		t.Errorf("expected exactly 1 successful registration, got %d", ok)
+	}
+	if rejected != N-1 {
+		t.Errorf("expected %d rejections with ErrInviteInvalid, got %d", N-1, rejected)
+	}
 }
 
 func TestRegisterWithInvite_PasswordBoundary(t *testing.T) {
@@ -575,10 +618,10 @@ func (r *inviteRepoIncrementFail) IncrementUsedCount(ctx context.Context, id str
 	return r.incErr
 }
 
-func TestRegisterWithInvite_IncrementUsedCountError_EmitsWarning(t *testing.T) {
-	read, restore := captureSlog(t)
-	defer restore()
-
+// When the atomic claim fails (DB error or no-longer-usable), registration
+// must fail closed — creating a user without successfully claiming a slot
+// would reopen the TOCTOU window fixed in the same change.
+func TestRegisterWithInvite_IncrementUsedCountError_FailsClosed(t *testing.T) {
 	base := ufakes.NewFakeInviteLinkRepository()
 	_ = base.Create(context.Background(), &user.InviteLink{ID: "inv1", Token: "tok"})
 	invites := &inviteRepoIncrementFail{FakeInviteLinkRepository: base, incErr: errors.New("increment fail")}
@@ -591,14 +634,11 @@ func TestRegisterWithInvite_IncrementUsedCountError_EmitsWarning(t *testing.T) {
 	svc := NewAccessService(users, apiKeys, invites, qc, hasher, events)
 
 	u, err := svc.RegisterWithInvite(context.Background(), "tok", "bob", "longpassword", "b@b.com")
-	if err != nil {
-		t.Fatalf("increment error should be non-fatal, got %v", err)
+	if err == nil {
+		t.Fatalf("expected error when IncrementUsedCount fails; got user=%v", u)
 	}
-	if u == nil {
-		t.Fatal("expected user")
-	}
-	if !strings.Contains(read(), "increment invite used count failed") {
-		t.Fatalf("expected warn on increment fail, got: %q", read())
+	if u != nil {
+		t.Fatal("expected nil user when claim fails")
 	}
 }
 
