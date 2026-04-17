@@ -17,6 +17,7 @@ func TestMusicEventNames(t *testing.T) {
 		{music.TrackDeleted{}, "music.track.deleted"},
 		{music.TrackAdded{}, "music.track.added"},
 		{music.TrackRemoved{}, "music.track.removed"},
+		{music.AlbumCreated{}, "music.album.created"},
 	}
 
 	for _, c := range cases {
