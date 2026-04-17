@@ -5,9 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
-	"time"
 
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -224,92 +222,3 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 	})))
 }
 
-func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler, tokenGen *auth.JWTGenerator) {
-	admin := httpAdminMiddleware(tokenGen)
-
-	mux.HandleFunc("GET /api/v1/libraries/{id}/schedule", admin(func(w http.ResponseWriter, r *http.Request) {
-		sched, err := scheduler.GetSchedule(r.Context(), r.PathValue("id"))
-		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			if _, wErr := w.Write([]byte(`{"schedule":null}`)); wErr != nil {
-				slog.Warn("write failed", slog.Any("err", wErr))
-			}
-			return
-		}
-		type resp struct {
-			LibraryID string  `json:"libraryId"`
-			Cron      string  `json:"cron"`
-			Enabled   bool    `json:"enabled"`
-			LastRunAt *string `json:"lastRunAt"`
-			NextRunAt *string `json:"nextRunAt"`
-		}
-		out := resp{
-			LibraryID: string(sched.LibraryID),
-			Cron:      sched.CronExpression,
-			Enabled:   sched.Enabled,
-		}
-		if sched.LastRunAt != nil {
-			s := sched.LastRunAt.UTC().Format(time.RFC3339)
-			out.LastRunAt = &s
-		}
-		if sched.NextRunAt != nil {
-			s := sched.NextRunAt.UTC().Format(time.RFC3339)
-			out.NextRunAt = &s
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]any{"schedule": out}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
-		}
-	}))
-
-	mux.HandleFunc("PUT /api/v1/libraries/{id}/schedule", admin(func(w http.ResponseWriter, r *http.Request) {
-		var body struct {
-			Cron    string `json:"cron"`
-			Enabled *bool  `json:"enabled"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
-			return
-		}
-		if body.Cron == "" {
-			http.Error(w, `{"message":"cron expression required"}`, http.StatusBadRequest)
-			return
-		}
-		enabled := true
-		if body.Enabled != nil {
-			enabled = *body.Enabled
-		}
-		sched, err := scheduler.SetSchedule(r.Context(), r.PathValue("id"), body.Cron, enabled)
-		if err != nil {
-			if strings.HasPrefix(err.Error(), "invalid cron") {
-				http.Error(w, `{"message":"invalid cron expression"}`, http.StatusBadRequest)
-			} else {
-				slog.Error("set schedule failed", slog.Any("err", err))
-				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
-			}
-			return
-		}
-		type resp struct {
-			LibraryID string  `json:"libraryId"`
-			Cron      string  `json:"cron"`
-			Enabled   bool    `json:"enabled"`
-			NextRunAt *string `json:"nextRunAt"`
-		}
-		out := resp{LibraryID: string(sched.LibraryID), Cron: sched.CronExpression, Enabled: sched.Enabled}
-		if sched.NextRunAt != nil {
-			s := sched.NextRunAt.UTC().Format(time.RFC3339)
-			out.NextRunAt = &s
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]any{"schedule": out}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
-		}
-	}))
-
-	mux.HandleFunc("DELETE /api/v1/libraries/{id}/schedule", admin(func(w http.ResponseWriter, r *http.Request) {
-		if err := scheduler.DeleteSchedule(r.Context(), r.PathValue("id")); err != nil {
-			slog.Warn("delete schedule", slog.Any("err", err))
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
-}
