@@ -144,6 +144,48 @@ func TestInviteLinkRepo_IncrementUsedCount_Unlimited(t *testing.T) {
 	assert.Equal(t, 1001, got.UsedCount)
 }
 
+// DecrementUsedCount rolls back a claim (used by rollback-on-create-failure
+// path). Guarded against going below 0.
+func TestInviteLinkRepo_DecrementUsedCount(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	repo := postgres.NewInviteLinkRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("inv-u-dec")
+	require.NoError(t, userRepo.Create(ctx, u))
+
+	link := &user.InviteLink{
+		ID:        "inv-dec",
+		CreatedBy: shared.UserID(u.ID),
+		Token:     "tok-dec",
+		MaxUses:   5,
+		UsedCount: 3,
+	}
+	require.NoError(t, repo.Create(ctx, link))
+
+	require.NoError(t, repo.DecrementUsedCount(ctx, link.ID))
+	got, err := repo.GetByToken(ctx, "tok-dec")
+	require.NoError(t, err)
+	assert.Equal(t, 2, got.UsedCount)
+
+	// Floor at 0 — decrement below 0 is a no-op.
+	link2 := &user.InviteLink{
+		ID:        "inv-dec-0",
+		CreatedBy: shared.UserID(u.ID),
+		Token:     "tok-dec-0",
+		MaxUses:   1,
+		UsedCount: 0,
+	}
+	require.NoError(t, repo.Create(ctx, link2))
+	require.NoError(t, repo.DecrementUsedCount(ctx, link2.ID)) // no error, no-op
+	got2, err := repo.GetByToken(ctx, "tok-dec-0")
+	require.NoError(t, err)
+	assert.Equal(t, 0, got2.UsedCount, "must not go negative")
+}
+
 func TestInviteLinkRepo_Delete(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
