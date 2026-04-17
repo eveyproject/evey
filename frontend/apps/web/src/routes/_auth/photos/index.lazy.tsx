@@ -255,10 +255,11 @@ function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
     const el = parentRef.current;
     if (!el) return;
     setScrollEl(findScrollParent(el));
-    const ro = new ResizeObserver((entries) => {
+    const onResize: ResizeObserverCallback = (entries) => {
       const w = entries[0]?.contentRect.width;
       if (w) setContainerWidth(w);
-    });
+    };
+    const ro = new ResizeObserver(onResize);
     ro.observe(el);
     setContainerWidth(el.clientWidth);
     return () => ro.disconnect();
