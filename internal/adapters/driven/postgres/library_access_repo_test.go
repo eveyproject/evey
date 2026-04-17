@@ -32,6 +32,47 @@ func TestLibraryAccessRepo_Grant_GetByUserID(t *testing.T) {
 	assert.Contains(t, ids, lib.ID)
 }
 
+func TestLibraryAccessRepo_GrantMany(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewLibraryAccessRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("la-gm-u")
+	require.NoError(t, userRepo.Create(ctx, u))
+	lib1 := newTestLibrary("la-gm-1")
+	lib2 := newTestLibrary("la-gm-2")
+	lib3 := newTestLibrary("la-gm-3")
+	require.NoError(t, libRepo.Create(ctx, lib1))
+	require.NoError(t, libRepo.Create(ctx, lib2))
+	require.NoError(t, libRepo.Create(ctx, lib3))
+
+	// Empty slice = no-op.
+	require.NoError(t, repo.GrantMany(ctx, shared.UserID(u.ID), nil))
+	ids, err := repo.GetByUserID(ctx, shared.UserID(u.ID))
+	require.NoError(t, err)
+	assert.Empty(t, ids)
+
+	// Batch grant 3.
+	require.NoError(t, repo.GrantMany(ctx, shared.UserID(u.ID), []shared.LibraryID{
+		shared.LibraryID(lib1.ID), shared.LibraryID(lib2.ID), shared.LibraryID(lib3.ID),
+	}))
+	ids, err = repo.GetByUserID(ctx, shared.UserID(u.ID))
+	require.NoError(t, err)
+	assert.Len(t, ids, 3)
+
+	// Idempotent: re-grant same subset.
+	require.NoError(t, repo.GrantMany(ctx, shared.UserID(u.ID), []shared.LibraryID{
+		shared.LibraryID(lib1.ID), shared.LibraryID(lib2.ID),
+	}))
+	ids, err = repo.GetByUserID(ctx, shared.UserID(u.ID))
+	require.NoError(t, err)
+	assert.Len(t, ids, 3, "ON CONFLICT DO NOTHING — count unchanged")
+}
+
 func TestLibraryAccessRepo_HasAccess(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
