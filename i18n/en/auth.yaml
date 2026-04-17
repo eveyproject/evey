@@ -171,6 +171,9 @@ settings:
     enableDesc: Filter content by rating
     maxRating: Max content rating
     saveRating: Save rating
+    maxAge: "Max age"
+    saveAge: "Save age"
+    noRestriction: "No restriction"
     noProfile: No profile found.
     updated: Parental controls updated
     failedToUpdate: Failed to update

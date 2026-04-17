@@ -34,7 +34,7 @@ type User struct {
 }
 
 type ParentalSettings struct {
-	MaxRating   string
+	MaxAge      *int // nil = no age filter. 0 means "only content rated for all ages".
 	BlockedTags []string
 	PINHash     string
 	Enabled     bool

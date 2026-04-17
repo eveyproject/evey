@@ -5,20 +5,15 @@ import { useTranslation } from "react-i18next";
 import {
   useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
-  useUserServiceUpdateProfile,
+  useParentalServiceGetParentalSettings,
+  parentalServiceUpdateParentalSettings,
+  getParentalServiceGetParentalSettingsQueryKey,
   type V1Profile,
 } from "@evey/api";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
-const RATING_OPTIONS = [
-  { value: "", label: "No restriction" },
-  { value: "G", label: "G" },
-  { value: "PG", label: "PG" },
-  { value: "PG-13", label: "PG-13" },
-  { value: "R", label: "R" },
-  { value: "NC-17", label: "NC-17" },
-];
+const AGE_OPTIONS = ["", "0", "6", "7", "10", "12", "13", "14", "15", "16", "17", "18"];
 
 export default function ParentalSettingsScreen() {
   const theme = useTheme();
@@ -32,48 +27,41 @@ export default function ParentalSettingsScreen() {
 
   const profiles = profilesResp?.profiles;
   const defaultProfile: V1Profile | undefined = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
+  const profileId = defaultProfile?.id ?? "";
 
-  const enabled = defaultProfile?.preferences?.parental_enabled === "true";
-  const [maxRating, setMaxRating] = useState(defaultProfile?.maxRating ?? "");
+  const { data: parental } = useParentalServiceGetParentalSettings(profileId, { query: { enabled: !!profileId } } as never);
+
+  const enabled = parental?.enabled ?? false;
+  const [maxAge, setMaxAge] = useState<string>("");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
 
   useEffect(() => {
-    setMaxRating(defaultProfile?.maxRating ?? "");
-  }, [defaultProfile]);
+    setMaxAge(parental?.maxAge != null ? String(parental.maxAge) : "");
+  }, [parental?.maxAge]);
 
-  const updateProfile = useUserServiceUpdateProfile({
-    mutation: {
-      onSuccess: () => {
-        if (user?.id) {
-          void qc.invalidateQueries({ queryKey: [`/api/v1/users/${user.id}/profiles`] });
-        }
-      },
-      onError: (err: Error) => Alert.alert(t("common.error", "Error"), err.message),
+  const updateParental = useMutation({
+    mutationFn: (body: { enabled?: boolean; maxAge?: number; unsetMaxAge?: boolean; newPin?: string }) =>
+      parentalServiceUpdateParentalSettings(profileId, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: getParentalServiceGetParentalSettingsQueryKey(profileId) });
     },
+    onError: (err: Error) => Alert.alert(t("common.error", "Error"), err.message),
   });
 
   function handleToggle() {
-    if (!defaultProfile?.id) return;
-    updateProfile.mutate({
-      id: defaultProfile.id,
-      data: {
-        preferences: {
-          ...defaultProfile?.preferences,
-          parental_enabled: enabled ? "false" : "true",
-        },
-        maxRating: enabled ? undefined : (maxRating || undefined),
-      },
-    });
+    if (!profileId) return;
+    updateParental.mutate({ enabled: !enabled });
   }
 
-  function handleSaveRating(rating: string) {
-    if (!defaultProfile?.id) return;
-    setMaxRating(rating);
-    updateProfile.mutate({
-      id: defaultProfile.id,
-      data: { maxRating: rating || undefined },
-    });
+  function handleSaveAge(age: string) {
+    if (!profileId) return;
+    setMaxAge(age);
+    if (age === "") {
+      updateParental.mutate({ unsetMaxAge: true });
+    } else {
+      updateParental.mutate({ maxAge: parseInt(age, 10) });
+    }
   }
 
   function handleSavePin() {
@@ -85,16 +73,8 @@ export default function ParentalSettingsScreen() {
       Alert.alert(t("auth.settings.parental.pin.mismatch", "PINs do not match"));
       return;
     }
-    if (!defaultProfile?.id) return;
-    updateProfile.mutate({
-      id: defaultProfile.id,
-      data: {
-        preferences: {
-          ...defaultProfile?.preferences,
-          parental_pin: pin,
-        },
-      },
-    });
+    if (!profileId) return;
+    updateParental.mutate({ newPin: pin });
     setPin("");
     setConfirmPin("");
     Alert.alert(t("auth.settings.parental.pin.saved", "PIN saved"));
@@ -129,18 +109,20 @@ export default function ParentalSettingsScreen() {
         </View>
       </View>
 
-      {/* Max rating */}
-      <Text style={s.sectionTitle}>{t("auth.settings.parental.maxRating", "Max Rating")}</Text>
+      {/* Max age */}
+      <Text style={s.sectionTitle}>{t("auth.settings.parental.maxAge", "Max Age")}</Text>
       <View style={s.section}>
-        {RATING_OPTIONS.map((opt) => (
+        {AGE_OPTIONS.map((age) => (
           <Pressable
-            key={opt.value}
+            key={age || "none"}
             style={s.row}
-            onPress={() => handleSaveRating(opt.value)}
+            onPress={() => handleSaveAge(age)}
             disabled={!enabled}
           >
-            <Text style={[s.label, !enabled && { opacity: 0.4 }]}>{opt.label}</Text>
-            {maxRating === opt.value && (
+            <Text style={[s.label, !enabled && { opacity: 0.4 }]}>
+              {age === "" ? t("auth.settings.parental.noRestriction", "No restriction") : `${age}+`}
+            </Text>
+            {maxAge === age && (
               <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>
                 {"\u2713"}
               </Text>
@@ -196,7 +178,7 @@ export default function ParentalSettingsScreen() {
           />
           <Pressable
             onPress={handleSavePin}
-            disabled={!enabled || pin.length < 4 || updateProfile.isPending}
+            disabled={!enabled || pin.length < 4 || updateParental.isPending}
             style={[
               s.saveBtn,
               {
@@ -205,7 +187,7 @@ export default function ParentalSettingsScreen() {
               },
             ]}
           >
-            {updateProfile.isPending ? (
+            {updateParental.isPending ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <Text style={{ color: "#fff", fontWeight: "600" }}>

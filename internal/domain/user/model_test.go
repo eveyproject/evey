@@ -7,6 +7,8 @@ import (
 	"github.com/evey-project/evey/internal/domain/user"
 )
 
+func intPtr(n int) *int { return &n }
+
 func TestQuickConnectStatusConstants(t *testing.T) {
 	t.Parallel()
 
@@ -149,7 +151,7 @@ func TestProfile_ParentalSettings(t *testing.T) {
 			UserID: "u1",
 			Name:   "Kid",
 			Parental: &user.ParentalSettings{
-				MaxRating:   "PG",
+				MaxAge:      intPtr(10),
 				BlockedTags: []string{"violence", "adult"},
 				PINHash:     "hashed-pin",
 				Enabled:     true,
@@ -158,8 +160,8 @@ func TestProfile_ParentalSettings(t *testing.T) {
 		if !p.Parental.Enabled {
 			t.Error("expected parental controls to be enabled")
 		}
-		if p.Parental.MaxRating != "PG" {
-			t.Errorf("MaxRating = %q, want %q", p.Parental.MaxRating, "PG")
+		if p.Parental.MaxAge == nil || *p.Parental.MaxAge != 10 {
+			t.Errorf("MaxAge = %v, want 10", p.Parental.MaxAge)
 		}
 		if len(p.Parental.BlockedTags) != 2 {
 			t.Errorf("BlockedTags len = %d, want 2", len(p.Parental.BlockedTags))
@@ -173,8 +175,8 @@ func TestProfile_ParentalSettings(t *testing.T) {
 			UserID: "u1",
 			Name:   "Teen",
 			Parental: &user.ParentalSettings{
-				MaxRating: "R",
-				Enabled:   false,
+				MaxAge:  intPtr(17),
+				Enabled: false,
 			},
 		}
 		if p.Parental.Enabled {

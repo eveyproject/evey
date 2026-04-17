@@ -486,7 +486,7 @@ func TestListMediaItems_ParentalFilter_ExcludesRatedR(t *testing.T) {
 	mediaQueryRepo.Seed(&library.MediaItem{ID: "nc17-movie", Title: "NC-17 Movie", OfficialRating: "NC-17"})
 
 	items, err := querySvc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{
-		AllowedRatings: ratings.AllowedRatingsFor("PG"),
+		AllowedRatings: ratings.AllowedRatingsForAge(10),
 	})
 	require.NoError(t, err)
 
@@ -529,7 +529,7 @@ func TestListMediaItems_ParentalFilter_UnratedItemVisible(t *testing.T) {
 	mediaQueryRepo.Seed(&library.MediaItem{ID: "r-movie", Title: "R Movie", OfficialRating: "R"})
 
 	items, err := querySvc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{
-		AllowedRatings: ratings.AllowedRatingsFor("PG"),
+		AllowedRatings: ratings.AllowedRatingsForAge(10),
 	})
 	require.NoError(t, err)
 

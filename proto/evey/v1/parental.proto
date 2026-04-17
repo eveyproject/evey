@@ -34,7 +34,7 @@ message GetParentalSettingsRequest {
 
 message GetParentalSettingsResponse {
   bool enabled = 1;
-  string max_rating = 2;
+  optional int32 max_age = 2;
   repeated string blocked_tags = 3;
   bool has_pin = 4;
 }
@@ -42,7 +42,8 @@ message GetParentalSettingsResponse {
 message UpdateParentalSettingsRequest {
   string profile_id = 1;
   optional bool enabled = 2;
-  optional string max_rating = 3;
+  optional int32 max_age = 3;
+  bool unset_max_age = 7;
   repeated string blocked_tags = 4;
   optional string current_pin = 5;
   optional string new_pin = 6;

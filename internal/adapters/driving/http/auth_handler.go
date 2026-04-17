@@ -154,14 +154,14 @@ func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type resp struct {
-		MaxRating   string   `json:"maxRating"`
+		MaxAge      *int     `json:"maxAge"`
 		BlockedTags []string `json:"blockedTags"`
 		HasPIN      bool     `json:"hasPin"`
 		Enabled     bool     `json:"enabled"`
 	}
 	out := resp{BlockedTags: []string{}}
 	if profile.Parental != nil {
-		out.MaxRating = profile.Parental.MaxRating
+		out.MaxAge = profile.Parental.MaxAge
 		if profile.Parental.BlockedTags != nil {
 			out.BlockedTags = profile.Parental.BlockedTags
 		}
@@ -182,7 +182,8 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var body struct {
-		MaxRating   *string  `json:"maxRating"`
+		MaxAge      *int     `json:"maxAge"`
+		UnsetMaxAge bool     `json:"unsetMaxAge"`
 		BlockedTags []string `json:"blockedTags"`
 		PIN         *string  `json:"pin"`
 		CurrentPIN  string   `json:"currentPin"`
@@ -213,8 +214,10 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	if profile.Parental == nil {
 		profile.Parental = &domainuser.ParentalSettings{}
 	}
-	if body.MaxRating != nil {
-		profile.Parental.MaxRating = *body.MaxRating
+	if body.UnsetMaxAge {
+		profile.Parental.MaxAge = nil
+	} else if body.MaxAge != nil {
+		profile.Parental.MaxAge = body.MaxAge
 	}
 	if body.BlockedTags != nil {
 		profile.Parental.BlockedTags = body.BlockedTags

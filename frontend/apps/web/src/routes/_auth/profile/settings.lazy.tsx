@@ -2,9 +2,11 @@ import { Palette, Bell, Shield, Smartphone, QrCode, Pencil, X } from "lucide-rea
 import type React from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
-import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles } from "@evey/api";
+import { useParentalServiceGetParentalSettings, parentalServiceUpdateParentalSettings, getParentalServiceGetParentalSettingsQueryKey } from "@evey/api";
 import { getUserServiceGetCurrentUserQueryKey, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { eveyFetchRaw } from "@evey/api";
+import { useMutation } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
@@ -233,13 +235,19 @@ function SettingsPage() {
   );
 }
 
-const RATING_OPTIONS = [
-  { value: "", label: "No restriction" },
-  { value: "G", label: "G — General Audiences" },
-  { value: "PG", label: "PG — Parental Guidance" },
-  { value: "PG-13", label: "PG-13 — Parents Strongly Cautioned" },
-  { value: "R", label: "R — Restricted" },
-  { value: "NC-17", label: "NC-17 — Adults Only" },
+const AGE_OPTIONS = [
+  { value: "", label: "" }, // resolved at render-time via t()
+  { value: "0", label: "0+" },
+  { value: "6", label: "6+" },
+  { value: "7", label: "7+" },
+  { value: "10", label: "10+" },
+  { value: "12", label: "12+" },
+  { value: "13", label: "13+" },
+  { value: "14", label: "14+" },
+  { value: "15", label: "15+" },
+  { value: "16", label: "16+" },
+  { value: "17", label: "17+" },
+  { value: "18", label: "18+" },
 ];
 
 function PinInput({
@@ -279,57 +287,50 @@ function ParentalSection() {
 
   const profiles = profilesResp?.profiles;
   const defaultProfile = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
+  const profileId = defaultProfile?.id ?? "";
 
-  const enabled = defaultProfile?.preferences?.parental_enabled === "true";
-  const [maxRating, setMaxRating] = useState(defaultProfile?.maxRating ?? "");
+  const { data: parental } = useParentalServiceGetParentalSettings(profileId, { query: { enabled: !!profileId } } as never);
+
+  const enabled = parental?.enabled ?? false;
+  const [maxAge, setMaxAge] = useState<string>("");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [pinError, setPinError] = useState("");
   const pendingOpRef = useRef<"pin" | "other">("other");
 
   useEffect(() => {
-    setMaxRating(defaultProfile?.maxRating ?? "");
-  }, [defaultProfile]);
+    setMaxAge(parental?.maxAge != null ? String(parental.maxAge) : "");
+  }, [parental?.maxAge]);
 
-  const updateProfile = useUserServiceUpdateProfile({
-    mutation: {
-      onSuccess: () => {
-        if (user?.id) {
-          void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
-        }
-        if (pendingOpRef.current === "pin") {
-          toast.success(t("auth.settings.parental.pin.saved"));
-          setPin("");
-          setConfirmPin("");
-        } else {
-          toast.success(t("auth.settings.parental.updated"));
-        }
-        pendingOpRef.current = "other";
-      },
-      onError: (err: Error) => toast.error(err.message || t("auth.settings.parental.failedToUpdate")),
+  const updateParental = useMutation({
+    mutationFn: (body: { enabled?: boolean; maxAge?: number; unsetMaxAge?: boolean; newPin?: string; currentPin?: string }) =>
+      parentalServiceUpdateParentalSettings(profileId, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: getParentalServiceGetParentalSettingsQueryKey(profileId) });
+      if (pendingOpRef.current === "pin") {
+        toast.success(t("auth.settings.parental.pin.saved"));
+        setPin("");
+        setConfirmPin("");
+      } else {
+        toast.success(t("auth.settings.parental.updated"));
+      }
+      pendingOpRef.current = "other";
     },
+    onError: (err: Error) => toast.error(err.message || t("auth.settings.parental.failedToUpdate")),
   });
 
   function handleToggleEnabled() {
-    if (!defaultProfile?.id) return;
-    updateProfile.mutate({
-      id: defaultProfile.id,
-      data: {
-        preferences: {
-          ...defaultProfile.preferences,
-          parental_enabled: enabled ? "false" : "true",
-        },
-        maxRating: enabled ? undefined : (maxRating || undefined),
-      },
-    });
+    if (!profileId) return;
+    updateParental.mutate({ enabled: !enabled });
   }
 
-  function handleSaveRating() {
-    if (!defaultProfile?.id) return;
-    updateProfile.mutate({
-      id: defaultProfile.id,
-      data: { maxRating: maxRating || undefined },
-    });
+  function handleSaveAge() {
+    if (!profileId) return;
+    if (maxAge === "") {
+      updateParental.mutate({ unsetMaxAge: true });
+    } else {
+      updateParental.mutate({ maxAge: parseInt(maxAge, 10) });
+    }
   }
 
   function handleSavePin() {
@@ -342,17 +343,9 @@ function ParentalSection() {
       setPinError(t("auth.settings.parental.pin.mismatch"));
       return;
     }
-    if (!defaultProfile?.id) return;
+    if (!profileId) return;
     pendingOpRef.current = "pin";
-    updateProfile.mutate({
-      id: defaultProfile.id,
-      data: {
-        preferences: {
-          ...defaultProfile.preferences,
-          parental_pin: pin,
-        },
-      },
-    });
+    updateParental.mutate({ newPin: pin });
   }
 
   if (!defaultProfile) {
@@ -360,6 +353,13 @@ function ParentalSection() {
       <p className="text-sm text-[var(--text-muted)]">{t("auth.settings.parental.noProfile")}</p>
     );
   }
+
+  const ageOptions = AGE_OPTIONS.map((o) => ({
+    value: o.value,
+    label: o.value === "" ? t("auth.settings.parental.noRestriction") : o.label,
+  }));
+
+  const currentServerAge = parental?.maxAge != null ? String(parental.maxAge) : "";
 
   return (
     <div className="flex flex-col gap-6">
@@ -380,7 +380,7 @@ function ParentalSection() {
           role="switch"
           aria-checked={enabled}
           onClick={handleToggleEnabled}
-          disabled={updateProfile.isPending}
+          disabled={updateParental.isPending}
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors-fast focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 disabled:opacity-50 ${
             enabled ? "bg-[var(--accent)]" : "bg-[var(--border)]"
           }`}
@@ -395,20 +395,20 @@ function ParentalSection() {
 
       <div className="flex flex-col gap-3">
         <Select
-          label={t("auth.settings.parental.maxRating")}
-          options={RATING_OPTIONS}
-          value={maxRating}
-          onChange={setMaxRating}
+          label={t("auth.settings.parental.maxAge")}
+          options={ageOptions}
+          value={maxAge}
+          onChange={setMaxAge}
           disabled={!enabled}
         />
         <div>
           <Button
             variant="primary"
-            loading={updateProfile.isPending}
-            disabled={!enabled || maxRating === (defaultProfile.maxRating ?? "")}
-            onClick={handleSaveRating}
+            loading={updateParental.isPending}
+            disabled={!enabled || maxAge === currentServerAge}
+            onClick={handleSaveAge}
           >
-            {t("auth.settings.parental.saveRating")}
+            {t("auth.settings.parental.saveAge")}
           </Button>
         </div>
       </div>
@@ -424,7 +424,7 @@ function ParentalSection() {
         <div>
           <Button
             variant="primary"
-            loading={updateProfile.isPending}
+            loading={updateParental.isPending}
             disabled={!enabled || pin.length < 4}
             onClick={handleSavePin}
           >

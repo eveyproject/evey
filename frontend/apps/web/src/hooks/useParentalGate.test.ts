@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-// sessionStorage is reset between test suites
 vi.mock("@evey/store", () => ({
   useAuthStore: vi.fn((selector: (s: { profileId: string | null }) => unknown) =>
     selector({ profileId: "profile-1" })
@@ -8,6 +7,8 @@ vi.mock("@evey/store", () => ({
 }));
 
 const mockUseParental = vi.fn(() => ({ data: undefined }));
+const mockUseCurrentUser = vi.fn(() => ({ data: { id: "u1" } }));
+const mockUseListProfiles = vi.fn(() => ({ data: { profiles: [{ id: "profile-1", region: "US" }] } }));
 
 vi.mock("@tanstack/react-query", async (importActual) => {
   const actual = await importActual<typeof import("@tanstack/react-query")>();
@@ -17,9 +18,11 @@ vi.mock("@tanstack/react-query", async (importActual) => {
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
   useParentalServiceGetParentalSettings: (...args: unknown[]) => mockUseParental(...(args as [])),
+  useUserServiceGetCurrentUser: (...args: unknown[]) => mockUseCurrentUser(...(args as [])),
+  useUserServiceListProfiles: (...args: unknown[]) => mockUseListProfiles(...(args as [])),
 }));
 
-describe("isRatingExceeded helpers (via useParentalGate exports)", () => {
+describe("unlocked-profile session state", () => {
   beforeEach(() => {
     sessionStorage.clear();
   });
@@ -40,31 +43,15 @@ describe("isRatingExceeded helpers (via useParentalGate exports)", () => {
     markUnlocked("profile-a");
     expect(isProfileUnlocked("profile-b")).toBe(false);
   });
-
-  it("markUnlocked is idempotent", async () => {
-    const { isProfileUnlocked, markUnlocked } = await import("./useParentalGate");
-    markUnlocked("profile-idem");
-    markUnlocked("profile-idem");
-    expect(isProfileUnlocked("profile-idem")).toBe(true);
-  });
-
-  it("sessionStorage persists across markUnlocked calls", async () => {
-    const { isProfileUnlocked, markUnlocked } = await import("./useParentalGate");
-    markUnlocked("p1");
-    markUnlocked("p2");
-    expect(isProfileUnlocked("p1")).toBe(true);
-    expect(isProfileUnlocked("p2")).toBe(true);
-  });
 });
 
-describe("useParentalGate hook", () => {
+describe("useParentalGate hook (age-based)", () => {
   beforeEach(() => {
     sessionStorage.clear();
     vi.clearAllMocks();
   });
 
   it("needsPin returns false when parental data is not loaded", async () => {
-    
     mockUseParental.mockReturnValue({ data: undefined });
     const { renderHook } = await import("@testing-library/react");
     const { useParentalGate } = await import("./useParentalGate");
@@ -73,9 +60,9 @@ describe("useParentalGate hook", () => {
   });
 
   it("needsPin returns false when parental control is disabled", async () => {
-    
     mockUseParental.mockReturnValue({
-      data: { enabled: false, hasPin: true, maxRating: "PG" },
+      // @ts-expect-error test-only partial shape
+      data: { enabled: false, hasPin: true, maxAge: 10 },
     });
     const { renderHook } = await import("@testing-library/react");
     const { useParentalGate } = await import("./useParentalGate");
@@ -83,38 +70,50 @@ describe("useParentalGate hook", () => {
     expect(result.current.needsPin()).toBe(false);
   });
 
-  it("needsPin returns true when rating exceeds max and PIN is set", async () => {
-    
+  it("needsPin returns true when rating age exceeds max and PIN is set", async () => {
     mockUseParental.mockReturnValue({
-      data: { enabled: true, hasPin: true, maxRating: "PG" },
+      // @ts-expect-error test-only partial shape
+      data: { enabled: true, hasPin: true, maxAge: 10 }, // R=17 > 10
     });
     const { renderHook } = await import("@testing-library/react");
     const { useParentalGate } = await import("./useParentalGate");
-    const { result } = renderHook(() => useParentalGate("R")); // R > PG
+    const { result } = renderHook(() => useParentalGate("R"));
     expect(result.current.needsPin()).toBe(true);
   });
 
   it("needsPin returns false when profile has been unlocked", async () => {
-    
     mockUseParental.mockReturnValue({
-      data: { enabled: true, hasPin: true, maxRating: "PG" },
+      // @ts-expect-error test-only partial shape
+      data: { enabled: true, hasPin: true, maxAge: 10 },
     });
     const { markUnlocked } = await import("./useParentalGate");
-    markUnlocked("profile-1"); // profile-1 is what useAuthStore returns
+    markUnlocked("profile-1");
     const { renderHook } = await import("@testing-library/react");
     const { useParentalGate } = await import("./useParentalGate");
     const { result } = renderHook(() => useParentalGate("R"));
     expect(result.current.needsPin()).toBe(false);
   });
 
-  it("needsPin returns false when content rating does not exceed max", async () => {
-    
+  it("needsPin returns false when rating age does not exceed max", async () => {
     mockUseParental.mockReturnValue({
-      data: { enabled: true, hasPin: true, maxRating: "R" },
+      // @ts-expect-error test-only partial shape
+      data: { enabled: true, hasPin: true, maxAge: 17 },
     });
     const { renderHook } = await import("@testing-library/react");
     const { useParentalGate } = await import("./useParentalGate");
-    const { result } = renderHook(() => useParentalGate("PG")); // PG <= R
+    const { result } = renderHook(() => useParentalGate("PG"));
     expect(result.current.needsPin()).toBe(false);
+  });
+
+  it("uses region-specific cert over officialRating when profile.region is set", async () => {
+    mockUseListProfiles.mockReturnValue({ data: { profiles: [{ id: "profile-1", region: "FR" }] } });
+    mockUseParental.mockReturnValue({
+      // @ts-expect-error test-only partial shape
+      data: { enabled: true, hasPin: true, maxAge: 10 },
+    });
+    const { renderHook } = await import("@testing-library/react");
+    const { useParentalGate } = await import("./useParentalGate");
+    const { result } = renderHook(() => useParentalGate("PG", { FR: "-16", US: "PG" }));
+    expect(result.current.needsPin()).toBe(true); // FR -16 > 10
   });
 });

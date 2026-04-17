@@ -23,6 +23,7 @@ import (
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/id"
 	"github.com/evey-project/evey/internal/pkg/ratings"
+	"github.com/evey-project/evey/internal/pkg/region"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -524,8 +525,17 @@ func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, me
 	if err != nil {
 		return false, ""
 	}
-	if ps.MaxRating != "" && !ratings.IsAllowed(item.OfficialRating, ps.MaxRating) {
-		return true, "content rating exceeds profile limit"
+	if ps.MaxAge != nil {
+		reg := region.Resolve(profile.Region, "", profile.Locale)
+		rating := item.OfficialRating
+		if reg != "" && item.CertificationsByCountry != nil {
+			if r, ok := item.CertificationsByCountry[reg]; ok && r != "" {
+				rating = r
+			}
+		}
+		if !ratings.IsAllowedByAge(reg, rating, *ps.MaxAge) {
+			return true, "content rating exceeds profile age limit"
+		}
 	}
 	if ratings.HasBlockedTag(item.Tags, ps.BlockedTags) {
 		return true, "content contains blocked tags"

@@ -20,6 +20,7 @@ import (
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/id"
 	"github.com/evey-project/evey/internal/pkg/ratings"
+	"github.com/evey-project/evey/internal/pkg/region"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -357,7 +358,7 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 		if allowedIDs != nil && !slices.Contains(allowedIDs, string(hit.LibraryID)) {
 			continue
 		}
-		if pf.maxRating != "" && !ratings.IsAllowed(hit.OfficialRating, pf.maxRating) {
+		if pf.maxAge >= 0 && !ratings.IsAllowedByAge(pf.region, hit.OfficialRating, pf.maxAge) {
 			continue
 		}
 		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(hit.Tags, pf.blockedTags) {
@@ -415,38 +416,54 @@ func (h *libraryHandler) GetPerson(ctx context.Context, req *eveyv1.GetPersonReq
 }
 
 type parentalFilter struct {
-	allowedRatings []string // for SQL filter (list endpoint)
-	maxRating      string   // for in-memory filter (search endpoint)
+	allowedRatings []string // SQL pre-filter: all ratings (across countries) allowed under maxAge
+	maxAge         int      // -1 = no age filter
+	region         string   // profile's resolved region for per-country cert lookup
 	blockedTags    []string
+	locale         string   // profile locale, used to resolve region when not set
 }
 
 func (h *libraryHandler) resolveParentalFilter(ctx context.Context) parentalFilter {
 	if h.userQuery == nil {
-		return parentalFilter{}
+		return parentalFilter{maxAge: -1}
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.ProfileID == "" {
-		return parentalFilter{}
+		return parentalFilter{maxAge: -1}
 	}
 	profile, err := h.userQuery.GetProfileByID(ctx, claims.ProfileID)
 	if err != nil || profile.Parental == nil || !profile.Parental.Enabled {
-		return parentalFilter{}
+		return parentalFilter{maxAge: -1}
 	}
 	ps := profile.Parental
+	age := -1
+	if ps.MaxAge != nil {
+		age = *ps.MaxAge
+	}
 	return parentalFilter{
-		allowedRatings: ratings.AllowedRatingsFor(ps.MaxRating),
-		maxRating:      ps.MaxRating,
+		allowedRatings: ratings.AllowedRatingsForAge(age),
+		maxAge:         age,
+		region:         region.Resolve(profile.Region, "", profile.Locale),
+		locale:         profile.Locale,
 		blockedTags:    ps.BlockedTags,
 	}
 }
 
 func (h *libraryHandler) isBlockedByParental(ctx context.Context, item *library.MediaItem) (bool, error) {
 	pf := h.resolveParentalFilter(ctx)
-	if pf.maxRating == "" && len(pf.blockedTags) == 0 {
+	if pf.maxAge < 0 && len(pf.blockedTags) == 0 {
 		return false, nil
 	}
-	if pf.maxRating != "" && !ratings.IsAllowed(item.OfficialRating, pf.maxRating) {
-		return true, nil
+	if pf.maxAge >= 0 {
+		rating := item.OfficialRating
+		if pf.region != "" && item.CertificationsByCountry != nil {
+			if r, ok := item.CertificationsByCountry[pf.region]; ok && r != "" {
+				rating = r
+			}
+		}
+		if !ratings.IsAllowedByAge(pf.region, rating, pf.maxAge) {
+			return true, nil
+		}
 	}
 	if ratings.HasBlockedTag(item.Tags, pf.blockedTags) {
 		return true, nil

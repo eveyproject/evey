@@ -171,6 +171,9 @@ settings:
     enableDesc: Inhalte nach Altersfreigabe filtern
     maxRating: Maximale Altersfreigabe
     saveRating: Freigabe speichern
+    maxAge: "Höchstalter"
+    saveAge: "Alter speichern"
+    noRestriction: "Keine Einschränkung"
     noProfile: Kein Profil gefunden.
     updated: Kindersicherung aktualisiert
     failedToUpdate: Aktualisierung fehlgeschlagen

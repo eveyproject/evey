@@ -2,84 +2,88 @@ package ratings
 
 import "testing"
 
-func TestIsAllowed(t *testing.T) {
+func TestMinAgeFor(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		content, max string
-		want         bool
+		country, rating string
+		want            int
 	}{
-		{"", "PG-13", true},
-		{"R", "", true},
-		{"", "", true},
-		{"G", "PG-13", true},
-		{"PG", "PG-13", true},
-		{"PG-13", "PG-13", true},
-		{"R", "PG-13", false},
-		{"NC-17", "PG-13", false},
-		{"NC-17", "R", false},
-		{"R", "R", true},
-		{"G", "R", true},
-		// TV ratings
-		{"TV-Y", "TV-14", true},
-		{"TV-G", "TV-14", true},
-		{"TV-PG", "TV-14", true},
-		{"TV-14", "TV-14", true},
-		{"TV-MA", "TV-14", false},
-		// cross-system
-		{"TV-MA", "PG-13", false},
-		{"TV-MA", "R", true},
-		{"R", "TV-14", false},
-		{"PG", "TV-PG", true},
-		// unknown ratings pass through
-		{"UNKNOWN", "PG-13", true},
-		{"R", "UNKNOWN", true},
-		// case insensitive
-		{"r", "pg-13", false},
-		{"pg", "PG-13", true},
-		{"tv-ma", "R", true},
+		// France CSA
+		{"FR", "-12", 12},
+		{"FR", "12", 12},
+		{"FR", "-16", 16},
+		{"FR", "TP", 0},
+		{"fr", "-10", 10}, // case-insensitive country
+		// USA MPAA
+		{"US", "G", 0},
+		{"US", "PG", 10},
+		{"US", "PG-13", 13},
+		{"US", "R", 17},
+		{"US", "NC-17", 17},
+		{"US", "TV-MA", 17},
+		{"US", "TV-Y7", 7},
+		// UK BBFC
+		{"GB", "U", 0},
+		{"GB", "12A", 12},
+		{"GB", "15", 15},
+		{"GB", "R18", 18},
+		// Germany FSK
+		{"DE", "0", 0},
+		{"DE", "12", 12},
+		{"DE", "18", 18},
+		// Australia ACB
+		{"AU", "MA 15+", 15},
+		{"AU", "R18+", 18},
+		// Netherlands Kijkwijzer
+		{"NL", "AL", 0},
+		{"NL", "16", 16},
+		// Brazil ClassInd
+		{"BR", "LIVRE", 0},
+		{"BR", "14", 14},
+		// Russia age-labelled
+		{"RU", "18+", 18},
+		// Fallback: unknown country, but US rating still works
+		{"SN", "PG-13", 13},
+		// Truly unknown → -1
+		{"FR", "XYZ", -1},
+		{"ZZ", "FOO", -1},
+		{"", "PG", -1},
+		{"US", "", -1},
 	}
 	for _, tt := range tests {
-		got := IsAllowed(tt.content, tt.max)
+		got := MinAgeFor(tt.country, tt.rating)
 		if got != tt.want {
-			t.Errorf("IsAllowed(%q, %q) = %v, want %v", tt.content, tt.max, got, tt.want)
+			t.Errorf("MinAgeFor(%q, %q) = %d, want %d", tt.country, tt.rating, got, tt.want)
 		}
 	}
 }
 
-func TestAllowedRatingsFor(t *testing.T) {
+func TestIsAllowedByAge(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		max         string
-		mustInclude []string
-		mustExclude []string
+		country, rating string
+		maxAge          int
+		want            bool
 	}{
-		{"PG", []string{"G", "PG", "TV-G", "TV-PG", "TV-Y"}, []string{"PG-13", "R", "NC-17", "TV-14", "TV-MA"}},
-		{"PG-13", []string{"G", "PG", "PG-13", "TV-14"}, []string{"R", "NC-17", "TV-MA"}},
-		{"R", []string{"G", "PG", "PG-13", "R", "TV-MA"}, []string{"NC-17"}},
-		{"", nil, nil},
-		{"UNKNOWN", nil, nil},
+		// FR CSA
+		{"FR", "-12", 12, true},
+		{"FR", "-16", 12, false},
+		{"FR", "-12", 18, true},
+		{"FR", "TP", 0, true},
+		// US MPAA
+		{"US", "PG-13", 13, true},
+		{"US", "R", 13, false},
+		{"US", "R", 17, true},
+		// Unknown rating: permissive (don't block on missing data)
+		{"FR", "UNKNOWN", 10, true},
+		{"ZZ", "XYZ", 10, true},
+		// maxAge < 0 disables filter
+		{"US", "R", -1, true},
 	}
 	for _, tt := range tests {
-		got := AllowedRatingsFor(tt.max)
-		if tt.mustInclude == nil {
-			if got != nil {
-				t.Errorf("AllowedRatingsFor(%q) = %v, want nil", tt.max, got)
-			}
-			continue
-		}
-		gotSet := make(map[string]bool, len(got))
-		for _, r := range got {
-			gotSet[r] = true
-		}
-		for _, r := range tt.mustInclude {
-			if !gotSet[r] {
-				t.Errorf("AllowedRatingsFor(%q) missing %q, got %v", tt.max, r, got)
-			}
-		}
-		for _, r := range tt.mustExclude {
-			if gotSet[r] {
-				t.Errorf("AllowedRatingsFor(%q) should not contain %q, got %v", tt.max, r, got)
-			}
+		got := IsAllowedByAge(tt.country, tt.rating, tt.maxAge)
+		if got != tt.want {
+			t.Errorf("IsAllowedByAge(%q, %q, %d) = %v, want %v", tt.country, tt.rating, tt.maxAge, got, tt.want)
 		}
 	}
 }

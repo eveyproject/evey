@@ -246,7 +246,7 @@ func TestPlaybackHandler_StartStream_ParentalBlocked(t *testing.T) {
 		UserID: "user-1",
 		Name:   "Kid",
 		Parental: &user.ParentalSettings{
-			MaxRating: "PG",
+			MaxAge:  intPtr(10),
 			Enabled:   true,
 		},
 	})
@@ -276,7 +276,7 @@ func TestPlaybackHandler_StartStream_ParentalAllowed(t *testing.T) {
 		UserID: "user-1",
 		Name:   "Kid",
 		Parental: &user.ParentalSettings{
-			MaxRating: "PG-13",
+			MaxAge:  intPtr(13),
 			Enabled:   true,
 		},
 	})
@@ -305,7 +305,7 @@ func TestPlaybackHandler_StartStream_ParentalDisabled(t *testing.T) {
 		UserID: "user-1",
 		Name:   "Default",
 		Parental: &user.ParentalSettings{
-			MaxRating: "PG",
+			MaxAge:  intPtr(10),
 			Enabled:   false,
 		},
 	})
