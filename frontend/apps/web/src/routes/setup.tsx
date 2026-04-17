@@ -7,6 +7,7 @@ import { useAuthStore, useLocaleStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
 import { ISO_REGIONS } from "@/features/user/regionList";
+import { defaultRegionForLocale } from "@/features/user/regionDefaults";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -76,7 +77,14 @@ function SetupPage() {
     const code = (i18n.language || "en").split("-")[0];
     return supportedLanguages.some((l) => l.code === code) ? code : "en";
   });
-  const [serverRegion, setServerRegion] = useState<string>("");
+  // Admin can still pick any region; this only pre-fills to the natural
+  // default for the initial language. Once the user overrides, we keep their
+  // choice even if they change the language afterwards (tracked via userPicked).
+  const [serverRegion, setServerRegion] = useState<string>(() => {
+    const code = (i18n.language || "en").split("-")[0];
+    return defaultRegionForLocale(code);
+  });
+  const [regionUserPicked, setRegionUserPicked] = useState(false);
   const [adminForm, setAdminForm] = useState<AdminForm>({ username: "", password: "", confirmPassword: "" });
   const [adminErrors, setAdminErrors] = useState<AdminErrors>({});
   const [libraryForm, setLibraryForm] = useState<LibraryForm>({ name: "", type: "LIBRARY_TYPE_MOVIES", paths: [""] });
@@ -101,10 +109,20 @@ function SetupPage() {
   }, [serverLang]);
 
   // Apply language immediately so the rest of the wizard is already localized.
+  // If the admin hasn't explicitly picked a region, suggest the natural default
+  // for the new language (FR for fr, DE for de, etc.).
   const handlePickLanguage = (code: string) => {
     setServerLang(code);
     setLocaleStore(code);
     void i18n.changeLanguage(code);
+    if (!regionUserPicked) {
+      setServerRegion(defaultRegionForLocale(code));
+    }
+  };
+
+  const handlePickRegion = (code: string) => {
+    setServerRegion(code);
+    setRegionUserPicked(true);
   };
 
   useEffect(() => {
@@ -248,7 +266,7 @@ function SetupPage() {
             <Select
               label={t("common.region.title")}
               value={serverRegion}
-              onChange={setServerRegion}
+              onChange={handlePickRegion}
               options={[{ value: "", label: t("common.region.auto") }, ...regionOptions]}
             />
             <Button className="w-full mt-2" onClick={() => setStep(1)}>

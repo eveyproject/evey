@@ -8,7 +8,7 @@ import "strings"
 // DefaultForLocale maps each supported UI locale to its canonical region.
 // Callers fall back to this when neither profile nor server region is set.
 var DefaultForLocale = map[string]string{
-	"en": "US",
+	"en": "GB",
 	"fr": "FR",
 	"de": "DE",
 	"es": "ES",
@@ -38,5 +38,5 @@ func Resolve(profileRegion *string, serverRegion, locale string) string {
 			return r
 		}
 	}
-	return "US"
+	return "GB"
 }

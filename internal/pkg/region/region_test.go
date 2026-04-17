@@ -33,12 +33,15 @@ func TestResolve_LocaleDefaultWhenBareLang(t *testing.T) {
 	}
 }
 
-func TestResolve_USFallback(t *testing.T) {
-	if got := Resolve(nil, "", ""); got != "US" {
-		t.Fatalf("want US, got %s", got)
+func TestResolve_GBFallback(t *testing.T) {
+	if got := Resolve(nil, "", ""); got != "GB" {
+		t.Fatalf("want GB, got %s", got)
 	}
-	if got := Resolve(nil, "", "xx"); got != "US" {
-		t.Fatalf("unknown locale: want US, got %s", got)
+	if got := Resolve(nil, "", "xx"); got != "GB" {
+		t.Fatalf("unknown locale: want GB, got %s", got)
+	}
+	if got := Resolve(nil, "", "en"); got != "GB" {
+		t.Fatalf("en: want GB, got %s", got)
 	}
 }
 

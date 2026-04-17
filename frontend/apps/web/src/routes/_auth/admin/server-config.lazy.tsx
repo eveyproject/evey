@@ -21,6 +21,7 @@ import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Card } from "@/components/ui/Card";
 import { ISO_REGIONS } from "@/features/user/regionList";
+import { defaultRegionForLocale } from "@/features/user/regionDefaults";
 
 const SMTP_KEYS = ["smtp.host", "smtp.port", "smtp.username", "smtp.password", "smtp.from", "smtp.tls"] as const;
 type SmtpKey = (typeof SMTP_KEYS)[number];
@@ -210,7 +211,10 @@ function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined })
           label={t("admin.serverConfig.serverRegion")}
           value={serverRegion}
           onChange={handleServerRegion}
-          options={[{ label: t("admin.serverConfig.envDefault"), value: "" }, ...regionOptions]}
+          options={[
+            { label: `${t("admin.serverConfig.envDefault")} (${defaultRegionForLocale(serverLang)})`, value: "" },
+            ...regionOptions,
+          ]}
         />
         <Select
           id="metadata-lang"
