@@ -92,6 +92,8 @@ func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID shar
 	if limit <= 0 {
 		limit = 50
 	}
+	// Escape LIKE meta-characters in the search term; treat empty as "no filter".
+	escaped := likeEscape(search)
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
@@ -100,9 +102,13 @@ func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID shar
 		       COUNT(*) OVER() AS total
 		FROM music_tracks
 		WHERE library_id=$1
-		  AND ($2 = '' OR (title ILIKE '%' || $2 || '%' OR artist ILIKE '%' || $2 || '%' OR album ILIKE '%' || $2 || '%'))
+		  AND ($2 = '' OR (
+		        title ILIKE '%' || $2 || '%' ESCAPE '\' OR
+		        artist ILIKE '%' || $2 || '%' ESCAPE '\' OR
+		        album ILIKE '%' || $2 || '%' ESCAPE '\'
+		      ))
 		ORDER BY album_artist, album, disk_number, track_number
-		LIMIT $3 OFFSET $4`, libraryID, search, limit, offset)
+		LIMIT $3 OFFSET $4`, libraryID, escaped, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
