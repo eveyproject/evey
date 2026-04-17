@@ -41,7 +41,7 @@ func (r *MediaItemQueryRepoAdapter) GetByIDs(ctx context.Context, ids []shared.M
 		strIDs[i] = string(id)
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
+		`SELECT id, library_id, parent_id, type, title, scan_title, sort_title, original_title, overview, tagline,
 		 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating,
 		 official_rating, certifications_by_country, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at
 		 FROM media_items WHERE id = ANY($1) ORDER BY sort_title`, pq.Array(strIDs))

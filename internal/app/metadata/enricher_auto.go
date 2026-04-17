@@ -56,13 +56,21 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		diskS01Episodes = e.countDiskEpisodesForSeason(ctx, string(item.ID), 1)
 	}
 
+	// ScanTitle is the stable filesystem-derived title; Title may have been
+	// overwritten by a past (possibly wrong) TMDB match. Always search against
+	// the scan title so a bad match can be corrected on re-enrichment.
+	searchTitle := item.ScanTitle
+	if searchTitle == "" {
+		searchTitle = item.Title
+	}
+
 	// 1. Try primary provider
-	primary := e.searchAndFetchBest(ctx, e.primary, item.Title, item.Year, mediaType, diskS01Episodes, log)
+	primary := e.searchAndFetchBest(ctx, e.primary, searchTitle, item.Year, mediaType, diskS01Episodes, log)
 
 	// 2. If primary failed, try supplementary as fallback
 	if primary == nil {
 		for _, sp := range e.supplementary {
-			primary = e.searchAndFetchBest(ctx, sp, item.Title, item.Year, mediaType, diskS01Episodes, log)
+			primary = e.searchAndFetchBest(ctx, sp, searchTitle, item.Year, mediaType, diskS01Episodes, log)
 			if primary != nil {
 				break
 			}

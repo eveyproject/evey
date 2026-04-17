@@ -405,6 +405,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			FileSize:        f.Size,
 			FileFingerprint: f.Fingerprint,
 			Title:           f.Title,
+			ScanTitle:       f.Title,
 			Type:            f.Type,
 			Year:            f.Year,
 			IndexNumber:     f.Episode,

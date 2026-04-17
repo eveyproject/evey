@@ -68,6 +68,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 				LibraryID:       shared.LibraryID(libraryID),
 				Type:            library.Series,
 				Title:           showTitle,
+				ScanTitle:       showTitle,
 				FileFingerprint: fp,
 				AddedAt:         time.Now(),
 				UpdatedAt:       time.Now(),

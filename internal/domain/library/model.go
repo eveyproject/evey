@@ -65,6 +65,11 @@ type MediaItem struct {
 	ParentID        string
 	Type            MediaItemType
 	Title           string
+	// ScanTitle is the title extracted from the filesystem at scan time — the
+	// stable source of truth for metadata lookups. Set once at creation and
+	// never overwritten by enrichment, so a wrong TMDB match doesn't
+	// self-reinforce on re-enrichment.
+	ScanTitle       string
 	SortTitle       string
 	OriginalTitle   string
 	Overview        string
