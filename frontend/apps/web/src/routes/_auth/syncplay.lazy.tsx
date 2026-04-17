@@ -55,7 +55,6 @@ function useTracksList(libraryId: string | undefined, search: string) {
 
 function SyncPlayPage() {
   const { t } = useTranslation();
-  const accessToken = useAuthStore((s) => s.accessToken);
   const libraryId = useMusicLibraryId();
   const [search, setSearch] = useState("");
   const { data: tracks } = useTracksList(libraryId, search);
@@ -112,9 +111,20 @@ function SyncPlayPage() {
   }, [state.queue, state.trackIndex, tracks, currentTrack?.id]);
 
   const inRoom = !!state.roomId;
-  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
-  const streamUrl = currentTrack ? `/api/v1/music/tracks/${currentTrack.id}/stream${tokenParam}` : "";
-  const artUrl = currentTrack ? `/api/v1/music/tracks/${currentTrack.id}/art${tokenParam}` : "";
+  // Pin token at track-change time: subscribing would rebuild streamUrl on
+  // every refresh cycle and abort the in-flight audio stream.
+  const streamUrl = useMemo(() => {
+    if (!currentTrack) return "";
+    const tok = useAuthStore.getState().accessToken;
+    const tp = tok ? `?token=${encodeURIComponent(tok)}` : "";
+    return `/api/v1/music/tracks/${currentTrack.id}/stream${tp}`;
+  }, [currentTrack?.id]);
+  const artUrl = useMemo(() => {
+    if (!currentTrack) return "";
+    const tok = useAuthStore.getState().accessToken;
+    const tp = tok ? `?token=${encodeURIComponent(tok)}` : "";
+    return `/api/v1/music/tracks/${currentTrack.id}/art${tp}`;
+  }, [currentTrack?.id]);
 
   async function handleCreate() {
     if (!selectedTrackId && !selectedPlaylistId) return;
