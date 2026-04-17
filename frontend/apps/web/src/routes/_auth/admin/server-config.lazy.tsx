@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Card } from "@/components/ui/Card";
+import { ISO_REGIONS } from "@/features/user/regionList";
 
 const SMTP_KEYS = ["smtp.host", "smtp.port", "smtp.username", "smtp.password", "smtp.from", "smtp.tls"] as const;
 type SmtpKey = (typeof SMTP_KEYS)[number];
@@ -143,22 +144,16 @@ const SERVER_REGION_KEY = "server.region";
 const METADATA_LANG_KEY = "metadata.language";
 
 function regionOptionsForLocale(locale: string): { value: string; label: string }[] {
-  try {
-    const sv = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
-    const dynamic: string[] = typeof sv === "function" ? sv("region") : [];
-    const codes = dynamic.length > 0 ? dynamic : [
-      "FR","BE","CH","CA","LU","US","GB","IE","DE","AT","ES","IT","NL","PT",
-      "AU","NZ","JP","KR","IN","CN","HK","TW","SG","BR","MX","AR","RU","PL",
-      "SE","NO","DK","FI","GR","HU","CZ","RO","ZA","SN","MA","TN","DZ","CI",
-    ];
-    const names = new Intl.DisplayNames([locale || "en"], { type: "region" });
-    return codes
-      .filter((c) => /^[A-Z]{2}$/.test(c))
-      .map((c) => ({ value: c, label: names.of(c) ?? c }))
-      .sort((a, b) => a.label.localeCompare(b.label, locale || "en"));
-  } catch {
-    return [];
-  }
+  const sv = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
+  let codes: string[] = [];
+  try { codes = typeof sv === "function" ? sv("region") : []; } catch { codes = []; }
+  if (codes.length === 0) codes = Array.from(ISO_REGIONS);
+  let names: Intl.DisplayNames | null = null;
+  try { names = new Intl.DisplayNames([locale || "en"], { type: "region" }); } catch { names = null; }
+  return codes
+    .filter((c) => /^[A-Z]{2}$/.test(c))
+    .map((c) => ({ value: c, label: names?.of(c) ?? c }))
+    .sort((a, b) => a.label.localeCompare(b.label, locale || "en"));
 }
 
 function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
