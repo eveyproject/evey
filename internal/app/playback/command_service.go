@@ -63,7 +63,7 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 		if err != nil {
 			return fmt.Errorf("count active: %w", err)
 		}
-		if count >= *u.MaxStreams {
+		if u.StreamQuotaExceeded(count) {
 			return ErrMaxStreams
 		}
 	}

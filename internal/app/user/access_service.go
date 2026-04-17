@@ -101,6 +101,13 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 	if err := s.invites.IncrementUsedCount(ctx, invite.ID); err != nil {
 		slog.Warn("increment invite used count failed", slog.String("inviteID", invite.ID), slog.Any("err", err))
 	}
+	if s.libraryAccess != nil && !u.IsAdmin {
+		for _, libID := range invite.LibraryIDs {
+			if grantErr := s.libraryAccess.Grant(ctx, u.ID, libID); grantErr != nil {
+				slog.Warn("invite: grant library access", slog.String("userID", string(u.ID)), slog.String("libraryID", string(libID)), slog.Any("err", grantErr))
+			}
+		}
+	}
 	evtInviteCreated := user.UserCreated{UserID: u.ID, Username: u.Username, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtInviteCreated); err != nil {
 		slog.Warn("publish event", slog.String("event", evtInviteCreated.EventName()), slog.Any("err", err))
@@ -190,6 +197,9 @@ func (s *AccessService) GetLibraryAccessByUserID(ctx context.Context, userID str
 	ids, err := s.libraryAccess.GetByUserID(ctx, shared.UserID(userID))
 	if err != nil {
 		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, nil
 	}
 	out := make([]string, len(ids))
 	for i, id := range ids {

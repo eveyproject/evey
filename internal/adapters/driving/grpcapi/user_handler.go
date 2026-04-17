@@ -348,12 +348,18 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 	if !claims.IsAdmin {
 		return nil, status.Error(codes.PermissionDenied, "admin required")
 	}
+	libIDs := make([]shared.LibraryID, len(req.LibraryIds))
+	for i, raw := range req.LibraryIds {
+		libIDs[i] = shared.LibraryID(raw)
+	}
 	link := &user.InviteLink{
-		ID:        id.New("inv-"),
-		CreatedBy: shared.UserID(claims.UserID),
-		Token:     secureToken("inv-tok-", 16),
-		MaxUses:   int(req.MaxUses),
-		ExpiresAt: fromTimestamppbPtr(req.ExpiresAt),
+		ID:         id.New("inv-"),
+		CreatedBy:  shared.UserID(claims.UserID),
+		Token:      secureToken("inv-tok-", 16),
+		MaxUses:    int(req.MaxUses),
+		IsAdmin:    req.IsAdmin,
+		LibraryIDs: libIDs,
+		ExpiresAt:  fromTimestamppbPtr(req.ExpiresAt),
 	}
 	if err := h.access.CreateInviteLink(ctx, link); err != nil {
 		slog.Error("create invite link", slog.Any("err", err))

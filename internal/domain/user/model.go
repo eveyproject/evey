@@ -79,15 +79,16 @@ type APIKeyModel struct {
 }
 
 type InviteLink struct {
-	ID        string
-	CreatedBy shared.UserID
-	Token     string
-	Label     *string
-	MaxUses   int
-	UsedCount int
-	IsAdmin   bool
-	ExpiresAt *time.Time
-	CreatedAt time.Time
+	ID         string
+	CreatedBy  shared.UserID
+	Token      string
+	Label      *string
+	MaxUses    int
+	UsedCount  int
+	IsAdmin    bool
+	LibraryIDs []shared.LibraryID
+	ExpiresAt  *time.Time
+	CreatedAt  time.Time
 }
 
 type QuickConnectRequest struct {
@@ -186,6 +187,13 @@ func (u *User) IsOIDCUser() bool {
 
 func (u *User) HasStreamsLimit() bool {
 	return u.MaxStreams != nil && *u.MaxStreams > 0
+}
+
+// StreamQuotaExceeded reports whether starting another stream would exceed the
+// user's concurrent-stream quota. Users without a configured limit are never
+// over quota.
+func (u *User) StreamQuotaExceeded(activeCount int) bool {
+	return u.HasStreamsLimit() && activeCount >= *u.MaxStreams
 }
 
 func (u *User) CanLogin() bool {

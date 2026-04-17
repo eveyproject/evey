@@ -351,6 +351,25 @@ func TestUser_HasStreamsLimit(t *testing.T) {
 	}
 }
 
+func TestUser_StreamQuotaExceeded(t *testing.T) {
+	t.Parallel()
+	u := &user.User{}
+	if u.StreamQuotaExceeded(100) {
+		t.Error("no configured limit should never exceed")
+	}
+	n := 3
+	u.MaxStreams = &n
+	if u.StreamQuotaExceeded(2) {
+		t.Error("2 active < 3 max = not exceeded")
+	}
+	if !u.StreamQuotaExceeded(3) {
+		t.Error("3 active == 3 max = exceeded (boundary)")
+	}
+	if !u.StreamQuotaExceeded(10) {
+		t.Error("10 active > 3 max = exceeded")
+	}
+}
+
 func TestRefreshToken_IsValid(t *testing.T) {
 	t.Parallel()
 	valid := &user.RefreshToken{ExpiresAt: time.Now().Add(time.Hour), Used: false}

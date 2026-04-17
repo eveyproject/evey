@@ -211,6 +211,8 @@ message InviteLink {
   int32 times_used = 5;
   google.protobuf.Timestamp expires_at = 6;
   google.protobuf.Timestamp created_at = 7;
+  repeated string library_ids = 8;
+  bool is_admin = 9;
 }
 
 message QuickConnectResponse {
@@ -314,6 +316,8 @@ message ListProfilesResponse {
 message CreateInviteLinkRequest {
   int32 max_uses = 1;
   google.protobuf.Timestamp expires_at = 2;
+  repeated string library_ids = 3;
+  bool is_admin = 4;
 }
 
 message ListInviteLinksRequest {}

@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useUserServiceCreateInviteLink } from "@evey/api";
+import {
+  useUserServiceCreateInviteLink,
+  useLibraryServiceListLibraries,
+} from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
@@ -8,8 +11,16 @@ export function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
   const { t } = useTranslation();
   const [maxUses, setMaxUses] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [libraryIds, setLibraryIds] = useState<string[]>([]);
 
+  const { data: librariesData } = useLibraryServiceListLibraries();
+  const libraries = librariesData?.libraries ?? [];
   const createInvite = useUserServiceCreateInviteLink({ mutation: { onSuccess } });
+
+  function toggleLibrary(id: string) {
+    setLibraryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -17,6 +28,8 @@ export function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
       data: {
         maxUses: maxUses ? parseInt(maxUses) : undefined,
         expiresAt: expiresAt || undefined,
+        isAdmin,
+        libraryIds: isAdmin ? [] : libraryIds,
       },
     });
   }
@@ -36,6 +49,43 @@ export function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
         value={expiresAt}
         onChange={(e) => setExpiresAt(e.target.value)}
       />
+      <label className="flex items-center gap-2 text-sm text-[var(--text)] cursor-pointer">
+        <input
+          type="checkbox"
+          checked={isAdmin}
+          onChange={(e) => setIsAdmin(e.target.checked)}
+        />
+        {t("admin.users.inviteIsAdmin")}
+      </label>
+      {!isAdmin && libraries.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-[var(--text)]">
+            {t("admin.users.inviteLibraries")}
+          </span>
+          <p className="text-xs text-[var(--text-muted)]">
+            {t("admin.users.inviteLibrariesHelp")}
+          </p>
+          <div className="flex flex-col gap-1 max-h-48 overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--border)] p-2 bg-[var(--surface)]">
+            {libraries.map((lib) => {
+              const id = lib.id ?? "";
+              const checked = libraryIds.includes(id);
+              return (
+                <label
+                  key={id}
+                  className="flex items-center gap-2 text-sm text-[var(--text)] cursor-pointer px-2 py-1 rounded hover:bg-[var(--surface-raised)]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleLibrary(id)}
+                  />
+                  <span className="truncate">{lib.name ?? id}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div className="flex justify-end pt-2">
         <Button type="submit" loading={createInvite.isPending}>
           {t("admin.users.createInviteLink")}

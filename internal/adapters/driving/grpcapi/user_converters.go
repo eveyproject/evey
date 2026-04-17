@@ -56,14 +56,20 @@ func profileToProto(p *user.Profile) *eveyv1.Profile {
 }
 
 func inviteLinkToProto(l *user.InviteLink) *eveyv1.InviteLink {
+	libs := make([]string, len(l.LibraryIDs))
+	for i, id := range l.LibraryIDs {
+		libs[i] = string(id)
+	}
 	return &eveyv1.InviteLink{
-		Id:        l.ID,
-		Code:      l.Token,
-		CreatedBy: string(l.CreatedBy),
-		MaxUses:   int32(l.MaxUses),
-		TimesUsed: int32(l.UsedCount),
-		ExpiresAt: toTimestamppbPtr(l.ExpiresAt),
-		CreatedAt: toTimestamppb(l.CreatedAt),
+		Id:         l.ID,
+		Code:       l.Token,
+		CreatedBy:  string(l.CreatedBy),
+		MaxUses:    int32(l.MaxUses),
+		TimesUsed:  int32(l.UsedCount),
+		ExpiresAt:  toTimestamppbPtr(l.ExpiresAt),
+		CreatedAt:  toTimestamppb(l.CreatedAt),
+		LibraryIds: libs,
+		IsAdmin:    l.IsAdmin,
 	}
 }
 
