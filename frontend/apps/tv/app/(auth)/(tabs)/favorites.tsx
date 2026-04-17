@@ -3,7 +3,6 @@ import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator } from "
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useFavoritesList, type FavoriteItem } from "../../../src/hooks/useFavorite";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 
@@ -26,7 +25,6 @@ export default function FavoritesScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
-  const serverUrl = useServerUrl();
   const { data: favorites, isLoading, isError, refetch } = useFavoritesList(200);
 
   const renderItem = useCallback(

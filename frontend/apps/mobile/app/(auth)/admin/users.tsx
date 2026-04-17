@@ -142,7 +142,7 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const [showCreate, setShowCreate] = useState(false);
   const [maxUses, setMaxUses] = useState("");
 
-  const { data, isLoading, refetch } = useUserServiceListInviteLinks();
+  const { data, isLoading } = useUserServiceListInviteLinks();
   const invites = data?.inviteLinks ?? [];
 
   const createInvite = useUserServiceCreateInviteLink({

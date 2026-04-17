@@ -12,7 +12,6 @@ import { scanLocalNetwork } from "./network-scan";
 
 describe("scanLocalNetwork", () => {
   it("calls onFound for hosts that respond ok", async () => {
-    let callCount = 0;
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {
       // Only respond ok for a specific host/port
       if (url === "http://192.168.1.1:9091/healthz") {

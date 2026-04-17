@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator, StyleSheet } from "react-native";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";

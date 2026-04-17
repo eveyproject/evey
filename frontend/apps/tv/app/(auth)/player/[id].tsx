@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { View, Text, Pressable, ActivityIndicator, Dimensions, StyleSheet, Platform } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, Dimensions, StyleSheet } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useLibraryServiceGetMediaItem } from "@evey/api";

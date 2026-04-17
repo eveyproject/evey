@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { View, Text, TextInput, Pressable, FlatList, StyleSheet, Dimensions } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,8 +10,6 @@ import { useTheme } from "../providers/ThemeProvider";
 import { useDebounce } from "../hooks/useDebounce";
 import { useAuthHeaders } from "../hooks/useAuthenticatedImage";
 import { useServerUrl } from "../hooks/useServerUrl";
-
-const SCREEN_WIDTH = Dimensions.get("window").width;
 
 export function HeaderSearch() {
   const theme = useTheme();

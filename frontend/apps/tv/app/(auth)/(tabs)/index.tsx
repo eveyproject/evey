@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { View, Text, ScrollView, FlatList, ActivityIndicator, StyleSheet, Dimensions } from "react-native";
+import { View, Text, ScrollView, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import {

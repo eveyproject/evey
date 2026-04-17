@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, ScrollView } from "react-native";
+import { Text, TextInput, Pressable, ActivityIndicator, Alert, ScrollView } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceRegisterWithInvite } from "@evey/api";

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Switch, StyleSheet } from "react-native";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, eveyFetch } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
@@ -32,7 +32,6 @@ export default function ParentalSettingsScreen() {
   const [maxRating, setMaxRating] = useState((defaultProfile as any)?.maxRating ?? "");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
-  const [saving] = useState(false);
 
   useEffect(() => {
     setMaxRating((defaultProfile as any)?.maxRating ?? "");

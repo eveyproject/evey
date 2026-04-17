@@ -1,4 +1,4 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { Text, Pressable, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { BottomSheet } from "./BottomSheet";
 import { useTheme } from "../providers/ThemeProvider";
