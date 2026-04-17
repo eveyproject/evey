@@ -9,13 +9,17 @@ import {
   usePlaylistServiceListPlaylists,
   usePlaylistServiceCreatePlaylist,
   usePlaylistServiceAddPlaylistItem,
+  usePlaylistServiceGetPlaylistItems,
+  usePlaylistServiceRemovePlaylistItem,
+  usePlaylistServiceDeletePlaylist,
   getPlaylistServiceListPlaylistsQueryKey,
+  getPlaylistServiceGetPlaylistItemsQueryKey,
   V1PlaylistType,
 } from "@evey/api";
 import { useAuthStore, useMusicPlayerStore, toast } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Music, X, Plus } from "lucide-react";
+import { Music, X, Plus, Trash2, ArrowLeft, Play, Download } from "lucide-react";
 
 export const Route = createLazyFileRoute("/_auth/music/")({
   component: MusicPage,
@@ -179,8 +183,28 @@ function useMusicArtists(libraryID: string | undefined) {
   );
 }
 
-type Tab = "albums" | "tracks" | "artists";
+type Tab = "albums" | "tracks" | "artists" | "playlists";
 
+
+function DownloadTrackButton({ trackID }: { trackID: string }) {
+  const { t } = useTranslation();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  function download() {
+    const url = `/api/v1/music/tracks/${encodeURIComponent(trackID)}/download${accessToken ? `?token=${encodeURIComponent(accessToken)}` : ""}`;
+    window.location.href = url;
+  }
+  return (
+    <button
+      type="button"
+      onClick={download}
+      aria-label={t("media.music.downloadTrack")}
+      title={t("media.music.downloadTrack")}
+      className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--accent)] p-1 rounded mr-1"
+    >
+      <Download size={18} />
+    </button>
+  );
+}
 
 function AddToPlaylistButton({ trackID }: { trackID: string }) {
   const { t } = useTranslation();
@@ -293,13 +317,14 @@ function AddToPlaylistButton({ trackID }: { trackID: string }) {
 
 function MusicPage() {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<Tab>("albums");
-  const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
+  const urlSearch = Route.useSearch();
+  const [tab, setTab] = useState<Tab>(urlSearch.tab ?? "albums");
+  const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(urlSearch.libraryId);
   const playing = useMusicPlayerStore((s) => s.playing);
   const playInStore = useMusicPlayerStore((s) => s.play);
   const [searchInput, setSearchInput] = useState("");
-  const [albumFilter, setAlbumFilter] = useState<string | null>(null);
-  const [artistFilter, setArtistFilter] = useState<string | null>(null);
+  const [albumFilter, setAlbumFilter] = useState<string | null>(urlSearch.album ?? null);
+  const [artistFilter, setArtistFilter] = useState<string | null>(urlSearch.artist ?? null);
   const [genreFilter, setGenreFilter] = useState<string>("");
   const [yearFilter, setYearFilter] = useState<number>(0);
   const [artistSelectFilter, setArtistSelectFilter] = useState<string>("");
@@ -362,7 +387,7 @@ function MusicPage() {
       </div>
 
       <div className="flex gap-2 mb-6">
-        {(["albums", "tracks", "artists"] as Tab[]).map((tabKey) => (
+        {(["albums", "tracks", "artists", "playlists"] as Tab[]).map((tabKey) => (
           <button key={tabKey} className={tabClass(tab === tabKey)} onClick={() => setTab(tabKey)}>
             {t(`media.music.${tabKey}`)}
           </button>
@@ -393,6 +418,7 @@ function MusicPage() {
         <AlbumsTab
           albums={albums ?? []}
           loading={albumsLoading}
+          libraryID={activeLibraryID}
           onAlbumClick={(a) => { setAlbumFilter(a.Title); setArtistFilter(null); setTab("tracks"); }}
         />
       )}
@@ -403,8 +429,167 @@ function MusicPage() {
           onArtistClick={(a) => { setArtistFilter(a.Name); setAlbumFilter(null); setTab("tracks"); }}
         />
       )}
+      {tab === "playlists" && (
+        <PlaylistsTab allTracks={tracks ?? []} onPlay={(tr, all) => handlePlay(tr, all)} />
+      )}
 
       {/* NowPlayingBar is now rendered globally via AuthLayout's GlobalAudioPlayer */}
+    </div>
+  );
+}
+
+function PlaylistsTab({
+  allTracks,
+  onPlay,
+}: {
+  allTracks: Track[];
+  onPlay: (tr: Track, all: Track[]) => void;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState<string | null>(null);
+  const { data: playlistsData, isLoading: listLoading } = usePlaylistServiceListPlaylists();
+  const { data: itemsData, isLoading: itemsLoading } = usePlaylistServiceGetPlaylistItems(
+    selected ?? "",
+    undefined,
+    { query: { enabled: !!selected, staleTime: 15_000 } },
+  );
+  const removeItem = usePlaylistServiceRemovePlaylistItem();
+  const deletePlaylist = usePlaylistServiceDeletePlaylist();
+
+  const playlists = (playlistsData?.playlists ?? []).filter(
+    (p) => p.type !== V1PlaylistType.PLAYLIST_TYPE_SMART,
+  );
+  const selectedPlaylist = playlists.find((p) => p.id === selected);
+
+  const tracksByID = useMemo(() => {
+    const m = new Map<string, Track>();
+    allTracks.forEach((tr) => m.set(tr.ID, tr));
+    return m;
+  }, [allTracks]);
+
+  const playlistTracks: Track[] = (itemsData?.items ?? [])
+    .map((it) => tracksByID.get(it.mediaItemId ?? ""))
+    .filter((x): x is Track => !!x);
+
+  async function handleRemove(trackID: string) {
+    if (!selected) return;
+    try {
+      await removeItem.mutateAsync({ id: selected, mediaItemId: trackID });
+      await queryClient.invalidateQueries({
+        queryKey: getPlaylistServiceGetPlaylistItemsQueryKey(selected),
+      });
+    } catch (err) {
+      console.warn("remove playlist item failed", err);
+    }
+  }
+
+  async function handleDeletePlaylist(pid: string) {
+    try {
+      await deletePlaylist.mutateAsync({ id: pid });
+      await queryClient.invalidateQueries({ queryKey: getPlaylistServiceListPlaylistsQueryKey() });
+      setSelected(null);
+    } catch (err) {
+      console.warn("delete playlist failed", err);
+    }
+  }
+
+  if (selected) {
+    return (
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            type="button"
+            onClick={() => setSelected(null)}
+            className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--accent)] p-1 rounded"
+            aria-label={t("common.back")}
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <h2 className="text-lg font-semibold text-[var(--text)]">{selectedPlaylist?.name ?? ""}</h2>
+          {playlistTracks.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onPlay(playlistTracks[0], playlistTracks)}
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[var(--radius-sm)] bg-[var(--accent)] text-[var(--filter-active-text)] border-none cursor-pointer"
+            >
+              <Play size={14} />
+              {t("media.music.shuffle")}
+            </button>
+          )}
+        </div>
+        {itemsLoading ? (
+          <p className="text-[var(--text-muted)] text-sm">{t("media.music.loading")}</p>
+        ) : playlistTracks.length === 0 ? (
+          <p className="text-[var(--text-muted)] text-sm">{t("media.music.emptyPlaylist")}</p>
+        ) : (
+          <div className="space-y-1">
+            {playlistTracks.map((tr, i) => (
+              <div
+                key={`${tr.ID}-${i}`}
+                className="flex items-center gap-3 p-2 rounded-[var(--radius-sm)] hover:bg-[var(--surface)]"
+              >
+                <button
+                  type="button"
+                  onClick={() => onPlay(tr, playlistTracks)}
+                  className="flex items-center gap-3 flex-1 min-w-0 bg-transparent border-none cursor-pointer text-left p-0"
+                >
+                  <TrackArt trackID={tr.ID} coverArtURL={tr.CoverArtURL} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[var(--text)] truncate">{tr.Title}</p>
+                    <p className="text-xs text-[var(--text-muted)] truncate">{tr.Artist}</p>
+                  </div>
+                  <span className="text-xs text-[var(--text-muted)]">{formatDuration(tr.Duration)}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemove(tr.ID)}
+                  aria-label={t("common.delete")}
+                  className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--danger)] p-1 rounded"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (listLoading) {
+    return <p className="text-[var(--text-muted)] text-sm">{t("media.music.loading")}</p>;
+  }
+  if (playlists.length === 0) {
+    return <p className="text-[var(--text-muted)] text-sm">{t("media.music.noPlaylists")}</p>;
+  }
+  return (
+    <div className="space-y-2">
+      {playlists.map((p) => (
+        <div
+          key={p.id}
+          className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] bg-[var(--surface-raised)] hover:bg-[var(--surface)]"
+        >
+          <button
+            type="button"
+            onClick={() => p.id && setSelected(p.id)}
+            className="flex-1 text-left bg-transparent border-none cursor-pointer p-0"
+          >
+            <p className="font-medium text-[var(--text)]">{p.name || "—"}</p>
+            {p.description && (
+              <p className="text-xs text-[var(--text-muted)] truncate">{p.description}</p>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => p.id && handleDeletePlaylist(p.id)}
+            aria-label={t("common.delete")}
+            className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--danger)] p-1 rounded"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -586,7 +771,8 @@ function TracksTab({
                 <td className="px-3 py-2 text-[var(--text-muted)] text-right">
                   {track.Duration > 0 ? formatDuration(track.Duration) : "—"}
                 </td>
-                <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                <td className="px-3 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <DownloadTrackButton trackID={track.ID} />
                   <AddToPlaylistButton trackID={track.ID} />
                 </td>
               </tr>
@@ -619,12 +805,18 @@ function TracksTab({
   );
 }
 
-function AlbumsTab({ albums, loading, onAlbumClick }: { albums: Album[]; loading: boolean; onAlbumClick: (a: Album) => void }) {
+function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album[]; loading: boolean; libraryID: string | undefined; onAlbumClick: (a: Album) => void }) {
   const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   if (loading) return <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>;
   if (!albums.length) return <p className="text-[var(--text-muted)]">{t("media.music.noAlbums")}</p>;
+
+  function downloadAlbum(a: Album) {
+    if (!libraryID) return;
+    const url = `/api/v1/music/albums/download?album=${encodeURIComponent(a.Title)}&libraryId=${encodeURIComponent(libraryID)}${accessToken ? `&token=${encodeURIComponent(accessToken)}` : ""}`;
+    window.location.href = url;
+  }
 
   return (
     <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(160px,1fr))]">
@@ -635,7 +827,7 @@ function AlbumsTab({ albums, loading, onAlbumClick }: { albums: Album[]; loading
           role="button"
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onAlbumClick(a); } }}
-          className="rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)] cursor-pointer hover:border-[var(--accent)] transition-colors-fast"
+          className="relative rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)] cursor-pointer hover:border-[var(--accent)] transition-colors-fast group"
         >
           <div
             className="w-full flex items-center justify-center bg-[var(--surface)] bg-cover bg-center aspect-square"
@@ -647,6 +839,15 @@ function AlbumsTab({ albums, loading, onAlbumClick }: { albums: Album[]; loading
               <Music size={32} className="opacity-30 text-[var(--text-muted)]" />
             )}
           </div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); downloadAlbum(a); }}
+            aria-label={t("media.music.downloadAlbum")}
+            title={t("media.music.downloadAlbum")}
+            className="absolute top-2 right-2 p-1.5 rounded-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity-fast"
+          >
+            <Download size={14} />
+          </button>
           <div className="p-2">
             <p className="font-medium text-sm truncate text-[var(--text)]">{a.Title || "—"}</p>
             <p className="text-xs truncate text-[var(--text-muted)]">{a.Artist || "—"}</p>

@@ -225,7 +225,12 @@ const MusicLibrarySlider = memo(function MusicLibrarySlider({ libraryId, name }:
   return (
     <MediaSlider title={name} seeAllHref="/music" isLoading={isLoading}>
       {albums.map((a) => (
-        <Link key={a.id} to="/music" className="block w-[160px] flex-shrink-0">
+        <Link
+          key={a.id}
+          to="/music"
+          search={{ tab: "tracks", album: a.title ?? "", libraryId }}
+          className="block w-[160px] flex-shrink-0"
+        >
           <div
             className="aspect-square rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] bg-cover bg-center"
             style={{ backgroundImage: a.coverArtUrl ? `url(${a.coverArtUrl}${tokenParam})` : undefined }}
