@@ -759,7 +759,16 @@ function TracksTab({
               <tr
                 key={track.ID}
                 onClick={() => onPlay(track, tracks)}
-                className={`cursor-pointer border-b border-[var(--border)] hover:bg-[var(--surface-raised)] ${isActive ? "bg-[var(--surface-raised)]" : ""}`}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onPlay(track, tracks);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`${track.Title || t("media.music.trackCount", { count: 1 })}${track.Artist ? " — " + track.Artist : ""}`}
+                className={`cursor-pointer border-b border-[var(--border)] hover:bg-[var(--surface-raised)] focus:outline focus:outline-2 focus:outline-[var(--accent)] ${isActive ? "bg-[var(--surface-raised)]" : ""}`}
               >
                 <td className="px-3 py-2 text-[var(--text-muted)]">{page * TRACKS_PAGE_SIZE + i + 1}</td>
                 <td className="px-1 py-2">
