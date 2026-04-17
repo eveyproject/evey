@@ -57,9 +57,9 @@ export function MediaDetailHero({
           {certInfo && (
             <span
               className="text-xs font-bold px-2 py-0.5 border text-[var(--overlay-text-bright)] border-[var(--overlay-dot-inactive)] rounded-[var(--radius-sm)]"
-              title={`${t(`certBody.${certInfo.country}`, { defaultValue: certInfo.country })} ${certInfo.rating}`}
+              title={`${t(`media.certBody.${certInfo.country}`, { defaultValue: certInfo.country })} ${certInfo.rating}`}
             >
-              {t(`certBody.${certInfo.country}`, { defaultValue: certInfo.country })} {certInfo.rating}
+              {t(`media.certBody.${certInfo.country}`, { defaultValue: certInfo.country })} {certInfo.rating}
             </span>
           )}
           {duration && (

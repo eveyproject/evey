@@ -622,7 +622,7 @@ export default function MediaDetailScreen() {
               {(() => {
                 const info = certInfoForLocale(media.certificationsByCountry, i18n.language, media.officialRating, profileRegion);
                 if (!info) return null;
-                const body = t(`certBody.${info.country}`, { defaultValue: info.country });
+                const body = t(`media.certBody.${info.country}`, { defaultValue: info.country });
                 return (
                   <View style={{
                     borderWidth: 1,
