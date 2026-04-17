@@ -234,10 +234,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	libCmdSvc.WithSubtitleScanner(infra.subScanner)
 	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)
 	mediaItemCache.Register(bus)
+	cachingPersonRepo := applibrary.NewCachingPersonRepo(r.Person, infra.personFetcher, infra.personFetcher, r.PersonTranslation, eveyi18n.SupportedLocales())
 	libQuerySvc := applibrary.NewQueryService(r.Library, mediaItemCache, r.MediaStream, infra.searchAdapter,
-		applibrary.WithPeople(r.Person),
-		applibrary.WithPersonFetcher(infra.personFetcher),
-		applibrary.WithTranslations(r.MediaItemTranslation, r.PersonTranslation, infra.personFetcher, eveyi18n.SupportedLocales()),
+		applibrary.WithPeople(cachingPersonRepo),
+		applibrary.WithTranslations(r.MediaItemTranslation, r.PersonTranslation),
 		applibrary.WithChapters(r.Chapter),
 		applibrary.WithTrickplay(r.Trickplay),
 	)

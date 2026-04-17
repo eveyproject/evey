@@ -122,6 +122,9 @@ func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.Metadata
 	item.Year = result.Year
 	item.CommunityRating = result.CommunityRating
 	item.OfficialRating = result.OfficialRating
+	if len(result.CertificationsByCountry) > 0 {
+		item.CertificationsByCountry = maps.Clone(result.CertificationsByCountry)
+	}
 	item.Trailers = make([]domainlib.Trailer, 0, len(result.Trailers))
 	for _, t := range result.Trailers {
 		item.Trailers = append(item.Trailers, domainlib.Trailer{

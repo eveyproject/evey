@@ -3,7 +3,6 @@ package library
 import (
 	"context"
 	"errors"
-	"log/slog"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -13,10 +12,6 @@ type QueryServiceOption func(*QueryService)
 
 func WithPeople(people library.PersonRepository) QueryServiceOption {
 	return func(s *QueryService) { s.people = people }
-}
-
-func WithPersonFetcher(fetcher library.PersonDetailsFetcher) QueryServiceOption {
-	return func(s *QueryService) { s.personFetcher = fetcher }
 }
 
 func WithChapters(chapters library.ChapterRepository) QueryServiceOption {
@@ -30,30 +25,23 @@ func WithTrickplay(trickplay library.TrickplayRepository) QueryServiceOption {
 func WithTranslations(
 	mediaTranslations library.MediaItemTranslationRepository,
 	personTranslations library.PersonTranslationRepository,
-	personTransFetcher library.PersonTranslationFetcher,
-	locales []string,
 ) QueryServiceOption {
 	return func(s *QueryService) {
 		s.mediaTranslations = mediaTranslations
 		s.personTranslations = personTranslations
-		s.personTransFetcher = personTransFetcher
-		s.translationLocales = locales
 	}
 }
 
 type QueryService struct {
-	libraries            library.LibraryQueryRepo
-	mediaItems           library.MediaItemQueryRepo
-	streams              library.MediaStreamRepository
-	search               library.SearchIndex
-	people               library.PersonRepository
-	personFetcher        library.PersonDetailsFetcher
-	mediaTranslations    library.MediaItemTranslationRepository
-	personTranslations   library.PersonTranslationRepository
-	personTransFetcher   library.PersonTranslationFetcher
-	translationLocales   []string
-	chapters             library.ChapterRepository
-	trickplay            library.TrickplayRepository
+	libraries          library.LibraryQueryRepo
+	mediaItems         library.MediaItemQueryRepo
+	streams            library.MediaStreamRepository
+	search             library.SearchIndex
+	people             library.PersonRepository
+	mediaTranslations  library.MediaItemTranslationRepository
+	personTranslations library.PersonTranslationRepository
+	chapters           library.ChapterRepository
+	trickplay          library.TrickplayRepository
 }
 
 func NewQueryService(
@@ -93,40 +81,7 @@ func (s *QueryService) GetPerson(ctx context.Context, id string) (*library.Perso
 	if s.people == nil {
 		return nil, nil
 	}
-	person, err := s.people.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	// Lazy-fetch bio from TMDB if empty
-	if person.Biography == "" && s.personFetcher != nil {
-		details, fetchErr := s.personFetcher.GetPersonDetails(ctx, person.Name)
-		if fetchErr == nil && details != nil && details.Biography != "" {
-			person.Biography = details.Biography
-			person.Birthday = details.Birthday
-			person.Deathday = details.Deathday
-			person.PlaceOfBirth = details.PlaceOfBirth
-			person.KnownFor = details.KnownFor
-			if details.ThumbURL != "" && person.ThumbPath == nil {
-				person.ThumbPath = &details.ThumbURL
-			}
-			if updateErr := s.people.Update(ctx, person); updateErr != nil {
-				slog.Warn("cache person bio failed", slog.String("personID", person.ID), slog.Any("err", updateErr))
-			}
-			// Fetch and store person translations
-			if s.personTransFetcher != nil && s.personTranslations != nil && len(s.translationLocales) > 0 {
-				if bios, bioErr := s.personTransFetcher.FetchPersonTranslations(ctx, person.Name, s.translationLocales); bioErr == nil {
-					for locale, bio := range bios {
-						if uErr := s.personTranslations.Upsert(ctx, &library.PersonTranslation{
-						PersonID: person.ID, Locale: locale, Biography: bio,
-					}); uErr != nil {
-						slog.Warn("upsert person translation failed", slog.String("personID", person.ID), slog.String("locale", locale), slog.Any("err", uErr))
-					}
-					}
-				}
-			}
-		}
-	}
-	return person, nil
+	return s.people.GetByID(ctx, id)
 }
 
 func (s *QueryService) GetLibrary(ctx context.Context, id string) (*library.Library, error) {
