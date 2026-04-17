@@ -45,7 +45,6 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 		if h.userAccess == nil {
 			return nil
 		}
-		// TODO: wire proper LibraryAccessChecker for music tracks
 		ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(t.LibraryID))
 		if !ok {
 			return status.Error(codes.NotFound, "media not found")
