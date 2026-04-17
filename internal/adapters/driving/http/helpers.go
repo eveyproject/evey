@@ -80,9 +80,15 @@ func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
 	// Token-authenticated requests (e.g. Chromecast fetching HLS) are allowed
 	// from any origin — the token itself is the authorization proof.
 	rawTok := RawTokenFromContext(r.Context())
-	if rawTok != "" || strings.TrimRight(origin, "/") == allowed {
+	originMatches := strings.TrimRight(origin, "/") == allowed
+	if rawTok != "" || originMatches {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		// Credentials (cookies) only when the origin is our own configured
+		// frontend — token-auth requests carry their own bearer and must NOT
+		// piggy-back on cookie-based session auth across arbitrary origins.
+		if originMatches {
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
 	}
 }
 
