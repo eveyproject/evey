@@ -153,6 +153,9 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.CollectionService/AddCollectionItem",
 		// PhotoService
 		"/evey.v1.PhotoService/DeletePhoto",
+		// MusicService (destructive / admin-only)
+		"/evey.v1.MusicService/DeleteTrack",
+		"/evey.v1.MusicService/ScanMusicDirectory",
 	}
 
 	require.Len(t, cfg.MethodRoles, len(expectedAdmin), "MethodRoles count mismatch — was a mapping added or removed?")

@@ -184,17 +184,17 @@ func (h *musicHandler) DeleteTrack(ctx context.Context, req *eveyv1.DeleteTrackR
 	if err != nil {
 		return nil, fmt.Errorf("musicHandler.DeleteTrack: %w", err)
 	}
+	// Destructive op: admin-only. A non-admin with library read-access must
+	// not be able to delete tracks from the server.
+	if !claims.IsAdmin {
+		return nil, status.Error(codes.PermissionDenied, "admin only")
+	}
 	track, err := h.svc.GetTrack(ctx, req.Id)
 	if err != nil {
 		return nil, internalError("get track", err)
 	}
 	if track == nil {
 		return nil, status.Error(codes.NotFound, "track not found")
-	}
-	if !claims.IsAdmin {
-		if accessErr := h.checkLibraryAccess(ctx, string(track.LibraryID)); accessErr != nil {
-			return nil, accessErr
-		}
 	}
 	if err := h.svc.DeleteTrack(ctx, req.Id); err != nil {
 		return nil, internalError("delete track", err)

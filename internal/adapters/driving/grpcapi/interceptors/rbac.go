@@ -71,6 +71,8 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.LibraryService/UpdateLibrary":                         RoleAdmin,
 			"/evey.v1.LibraryService/DeleteLibrary":                         RoleAdmin,
 			"/evey.v1.LibraryService/ScanLibrary":                           RoleAdmin,
+			"/evey.v1.MusicService/DeleteTrack":                             RoleAdmin,
+			"/evey.v1.MusicService/ScanMusicDirectory":                      RoleAdmin,
 			"/evey.v1.FeedService/GetAdminFeedConfigs":                      RoleAdmin,
 			"/evey.v1.FeedService/UpdateAdminFeedConfig":                    RoleAdmin,
 			"/evey.v1.FeedService/BatchUpdateAdminFeedConfigs":              RoleAdmin,
