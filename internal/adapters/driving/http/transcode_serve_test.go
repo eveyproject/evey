@@ -458,10 +458,6 @@ func TestHLSSegmentHandler_NoSession_ServesM4SFromDisk(t *testing.T) {
 // This drives serveMaster, GetOrCreate, and parseClientCapabilities.
 // ============================================================
 
-type fakeAudioNorm struct{ on bool }
-
-func (f *fakeAudioNorm) get(_ context.Context) bool { return f.on }
-
 type fakeBitrateGetter struct {
 	limit int
 	err   error

@@ -50,11 +50,6 @@ func (r *syncRecorder) getHeader(k string) string {
 	defer r.mu.Unlock()
 	return r.h.Get(k)
 }
-func (r *syncRecorder) status() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.code
-}
 
 func TestQuickConnectSSE_MissingCode(t *testing.T) {
 	hub := quickconnecthub.New()
