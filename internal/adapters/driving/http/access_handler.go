@@ -7,9 +7,6 @@ import (
 	"net/url"
 	"sync"
 
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/network"
@@ -20,76 +17,6 @@ const remoteAccessConfigKey = "remote_access"
 
 // RemoteAccessConfigKey is the server config key for remote access settings.
 const RemoteAccessConfigKey = remoteAccessConfigKey
-
-func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.LibraryAccessRepository, libQuery *applibrary.QueryService, tokenGen *auth.JWTGenerator, writeRL *ratelimit.Limiter) {
-	admin := httpAdminMiddleware(tokenGen)
-
-	mux.HandleFunc("GET /api/v1/admin/users/{userId}/library-access", admin(func(w http.ResponseWriter, r *http.Request) {
-		userID := shared.UserID(r.PathValue("userId"))
-		ids, err := accessRepo.GetByUserID(r.Context(), userID)
-		if err != nil {
-			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
-			return
-		}
-		libs, libErr := libQuery.ListLibraries(r.Context())
-		if libErr != nil {
-			slog.Warn("list libraries for access", slog.Any("err", libErr))
-		}
-		type libInfo struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		}
-		allLibs := make([]libInfo, 0, len(libs))
-		for _, l := range libs {
-			allLibs = append(allLibs, libInfo{ID: string(l.ID), Name: l.Name})
-		}
-		if ids == nil {
-			ids = []shared.LibraryID{}
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]any{
-			"libraryIds": ids,
-			"libraries":  allLibs,
-		}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
-		}
-	}))
-
-	mux.HandleFunc("PUT /api/v1/admin/users/{userId}/library-access", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
-		userID := shared.UserID(r.PathValue("userId"))
-		var body struct {
-			LibraryIDs []string `json:"libraryIds"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
-			return
-		}
-		existing, _ := accessRepo.GetByUserID(r.Context(), userID) //nolint:errcheck
-		for _, id := range existing {
-			if rErr := accessRepo.Revoke(r.Context(), userID, id); rErr != nil {
-				slog.Warn("revoke library access", slog.Any("err", rErr))
-			}
-		}
-		for _, id := range body.LibraryIDs {
-			if err := accessRepo.Grant(r.Context(), userID, shared.LibraryID(id)); err != nil {
-				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
-				return
-			}
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})))
-
-	mux.HandleFunc("DELETE /api/v1/admin/users/{userId}/library-access", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
-		userID := shared.UserID(r.PathValue("userId"))
-		existing, _ := accessRepo.GetByUserID(r.Context(), userID) //nolint:errcheck
-		for _, id := range existing {
-			if rErr := accessRepo.Revoke(r.Context(), userID, id); rErr != nil {
-				slog.Warn("revoke library access", slog.Any("err", rErr))
-			}
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})))
-}
 
 func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator, store remoteAccessPersister, writeRL *ratelimit.Limiter) {
 	var mu sync.RWMutex
