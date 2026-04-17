@@ -39,9 +39,9 @@ export default function AdminServerConfigScreen() {
   const [baseUrl, setBaseUrl] = useState("");
 
   useEffect(() => {
-    if (config) {
-      setServerName((config as any).serverName ?? "");
-      setBaseUrl((config as any).baseUrl ?? "");
+    if (config?.values) {
+      setServerName(config.values["server_name"] ?? "");
+      setBaseUrl(config.values["base_url"] ?? "");
     }
   }, [config]);
 
@@ -57,7 +57,7 @@ export default function AdminServerConfigScreen() {
 
   const handleSaveBasic = useCallback(async () => {
     try {
-      await updateConfig.mutateAsync({ data: { serverName: serverName.trim(), baseUrl: baseUrl.trim() } as any });
+      await updateConfig.mutateAsync({ data: { values: { server_name: serverName.trim(), base_url: baseUrl.trim() } } });
     } catch (err) { console.warn("caught", err); }
   }, [serverName, baseUrl, updateConfig]);
 
