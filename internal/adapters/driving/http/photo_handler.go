@@ -13,7 +13,6 @@ import (
 
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	domainphoto "github.com/evey-project/evey/internal/domain/photo"
-	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/exifstrip"
 )
@@ -43,7 +42,7 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, shared.LibraryID(p.LibraryID), h.libChecker) {
+	if !checkLibraryAccess(r.Context(), w, claims, p.LibraryID, h.libChecker) {
 		return
 	}
 	if dlErr := http.NewResponseController(w).SetWriteDeadline(time.Time{}); dlErr != nil {
