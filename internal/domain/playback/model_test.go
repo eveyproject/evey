@@ -41,6 +41,55 @@ func TestPlaySession_IsActive(t *testing.T) {
 	}
 }
 
+func TestPlaySession_Validate(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		session playback.PlaySession
+		wantErr string
+	}{
+		{
+			name:    "missing profile id",
+			session: playback.PlaySession{MediaItemID: "m-1"},
+			wantErr: "profile ID is required",
+		},
+		{
+			name:    "missing media item id",
+			session: playback.PlaySession{ProfileID: "p-1"},
+			wantErr: "media item ID is required",
+		},
+		{
+			name:    "valid session",
+			session: playback.PlaySession{ProfileID: "p-1", MediaItemID: "m-1"},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.session.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("Validate() = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !contains(err.Error(), tt.wantErr) {
+				t.Errorf("Validate() = %v, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func contains(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
+
 func TestActiveSessionInfo_ProgressPercent(t *testing.T) {
 	t.Parallel()
 
