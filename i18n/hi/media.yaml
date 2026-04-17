@@ -236,6 +236,11 @@ music:
   tracks: ट्रैक
   albums: एल्बम
   artists: कलाकार
+  playlists: प्लेलिस्ट
+  noPlaylists: कोई प्लेलिस्ट नहीं।
+  emptyPlaylist: यह प्लेलिस्ट खाली है।
+  downloadTrack: ट्रैक डाउनलोड करें
+  downloadAlbum: एल्बम डाउनलोड करें
   searchPlaceholder: "ट्रैक, कलाकार, एल्बम खोजें\u2026"
   loading: "लोड हो रहा है\u2026"
   noTracks: कोई ट्रैक नहीं मिला।
@@ -253,8 +258,10 @@ music:
   albumCount_plural: "{{count}} एल्बम"
   genre: Genre
   year: Year
-  shuffle: Shuffle
-  resetFilters: Reset filters
+  shuffle: शफ़ल
+  mute: म्यूट करें
+  unmute: अनम्यूट करें
+  resetFilters: फ़िल्टर रीसेट करें
   addToPlaylist: प्लेलिस्ट में जोड़ें
   newPlaylist: "नई प्लेलिस्ट…"
   playlistCreated: प्लेलिस्ट बनाई गई

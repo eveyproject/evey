@@ -236,6 +236,11 @@ music:
   tracks: Pistas
   albums: Álbumes
   artists: Artistas
+  playlists: Listas de reproducción
+  noPlaylists: Sin listas de reproducción.
+  emptyPlaylist: Esta lista está vacía.
+  downloadTrack: Descargar pista
+  downloadAlbum: Descargar álbum
   searchPlaceholder: "Buscar pistas, artistas, álbumes\u2026"
   loading: "Cargando\u2026"
   noTracks: No se encontraron pistas.
@@ -253,8 +258,10 @@ music:
   albumCount_plural: "{{count}} álbumes"
   genre: Genre
   year: Year
-  shuffle: Shuffle
-  resetFilters: Reset filters
+  shuffle: Aleatorio
+  mute: Silenciar
+  unmute: Activar sonido
+  resetFilters: Restablecer filtros
   addToPlaylist: Añadir a la lista
   newPlaylist: "Nueva lista…"
   playlistCreated: Lista creada

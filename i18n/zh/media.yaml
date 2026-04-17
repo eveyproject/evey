@@ -236,6 +236,11 @@ music:
   tracks: 曲目
   albums: 专辑
   artists: 艺术家
+  playlists: 播放列表
+  noPlaylists: 暂无播放列表。
+  emptyPlaylist: 此播放列表为空。
+  downloadTrack: 下载曲目
+  downloadAlbum: 下载专辑
   searchPlaceholder: "搜索曲目、艺术家、专辑\u2026"
   loading: "加载中\u2026"
   noTracks: 未找到曲目。
@@ -253,8 +258,10 @@ music:
   albumCount_plural: "{{count}} 张专辑"
   genre: Genre
   year: Year
-  shuffle: Shuffle
-  resetFilters: Reset filters
+  shuffle: 随机播放
+  mute: 静音
+  unmute: 取消静音
+  resetFilters: 重置筛选
   addToPlaylist: 添加到播放列表
   newPlaylist: "新建播放列表…"
   playlistCreated: 播放列表已创建

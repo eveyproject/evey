@@ -236,6 +236,11 @@ music:
   tracks: Titel
   albums: Alben
   artists: Künstler
+  playlists: Wiedergabelisten
+  noPlaylists: Keine Wiedergabelisten.
+  emptyPlaylist: Diese Wiedergabeliste ist leer.
+  downloadTrack: Titel herunterladen
+  downloadAlbum: Album herunterladen
   searchPlaceholder: "Titel, Künstler, Alben suchen…"
   loading: "Laden…"
   noTracks: Keine Titel gefunden.
@@ -253,8 +258,10 @@ music:
   albumCount_plural: "{{count}} Alben"
   genre: Genre
   year: Year
-  shuffle: Shuffle
-  resetFilters: Reset filters
+  shuffle: Zufall
+  mute: Stummschalten
+  unmute: Ton wiederherstellen
+  resetFilters: Filter zurücksetzen
   addToPlaylist: Zur Playlist hinzufügen
   newPlaylist: "Neue Playlist…"
   playlistCreated: Playlist erstellt
