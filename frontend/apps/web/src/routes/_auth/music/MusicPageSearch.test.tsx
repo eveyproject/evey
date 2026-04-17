@@ -55,9 +55,13 @@ const mockMusicStore = {
   close: vi.fn(),
 };
 
+const authStoreMock = Object.assign(
+  (s: (state: { isAdmin: boolean; accessToken: string | null }) => unknown) => mockUseAuthStore(s),
+  { getState: () => ({ isAdmin: false, accessToken: null as string | null }) },
+);
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
-  useAuthStore: (s: (state: { isAdmin: boolean }) => unknown) => mockUseAuthStore(s),
+  useAuthStore: authStoreMock,
   useMusicPlayerStore: <T,>(selector?: (s: typeof mockMusicStore) => T): T | typeof mockMusicStore =>
     selector ? selector(mockMusicStore) : mockMusicStore,
 }));

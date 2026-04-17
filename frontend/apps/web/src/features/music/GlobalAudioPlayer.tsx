@@ -12,8 +12,13 @@ function formatDuration(seconds: number): string {
 
 function MiniTrackArt({ trackID, coverArtURL }: { trackID: string; coverArtURL?: string }) {
   const [error, setError] = useState(false);
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+  // Pin token at trackID-change time: subscribing to accessToken would
+  // re-fetch the cover art on every 15-min token refresh.
+  const src = useMemo(() => {
+    const tok = useAuthStore.getState().accessToken;
+    const tp = tok ? `?token=${encodeURIComponent(tok)}` : "";
+    return `/api/v1/music/tracks/${trackID}/art${tp}`;
+  }, [trackID]);
   const size = 48;
   if (error || !coverArtURL) {
     return (
@@ -27,7 +32,7 @@ function MiniTrackArt({ trackID, coverArtURL }: { trackID: string; coverArtURL?:
   }
   return (
     <img
-      src={`/api/v1/music/tracks/${trackID}/art${tokenParam}`}
+      src={src}
       alt=""
       aria-hidden="true"
       width={size}

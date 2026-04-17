@@ -22,11 +22,15 @@ vi.mock("@evey/api", () => ({
   musicServiceDeleteTrack: vi.fn(),
 }));
 
-vi.mock("@evey/store", () => ({
-  useAuthStore: (selector?: (s: Record<string, unknown>) => unknown) => {
-    const state = { isAdmin: false };
+const nowPlayingAuthStoreMock = Object.assign(
+  (selector?: (s: Record<string, unknown>) => unknown) => {
+    const state = { isAdmin: false, accessToken: null };
     return selector ? selector(state) : state;
   },
+  { getState: () => ({ isAdmin: false, accessToken: null as string | null }) },
+);
+vi.mock("@evey/store", () => ({
+  useAuthStore: nowPlayingAuthStoreMock,
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

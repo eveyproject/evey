@@ -73,8 +73,13 @@ function formatDuration(seconds: number): string {
 
 function TrackArt({ trackID, coverArtURL, size = 36 }: { trackID: string; coverArtURL?: string; size?: number }) {
   const [error, setError] = useState(false);
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+  // Pin token at trackID-change time: subscribing would reload the <img>
+  // on every token refresh (15 min), cache-invalidating every visible cover.
+  const src = useMemo(() => {
+    const tok = useAuthStore.getState().accessToken;
+    const tp = tok ? `?token=${encodeURIComponent(tok)}` : "";
+    return `/api/v1/music/tracks/${trackID}/art${tp}`;
+  }, [trackID]);
   if (error || !coverArtURL) {
     return (
       <div
@@ -91,7 +96,7 @@ function TrackArt({ trackID, coverArtURL, size = 36 }: { trackID: string; coverA
   }
   return (
     <img
-      src={`/api/v1/music/tracks/${trackID}/art${tokenParam}`}
+      src={src}
       alt=""
       aria-hidden="true"
       width={size}
