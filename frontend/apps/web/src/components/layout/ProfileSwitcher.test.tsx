@@ -114,12 +114,12 @@ describe("ProfileSwitcher", () => {
     expect(mockSetTokens).not.toHaveBeenCalled();
   });
 
-  it("manage profiles button navigates to /profile/settings", async () => {
+  it("manage profiles button navigates to /profile/manage", async () => {
     const user = userEvent.setup();
     renderSwitcher();
     await user.click(screen.getByTestId("profile-switcher-btn"));
     await user.click(screen.getByTestId("profile-manage-btn"));
-    expect(mockNavigate).toHaveBeenCalledWith({ to: "/profile/settings" });
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/profile/manage" });
   });
 
   it("falls back to isDefault when activeProfileId has no match", () => {

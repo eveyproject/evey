@@ -150,7 +150,7 @@ function ProfileSelectPage() {
       <Button
         variant="ghost"
         className="mt-10"
-        onClick={() => void navigate({ to: "/profile/settings" })}
+        onClick={() => void navigate({ to: "/profile/manage" })}
         data-testid="profile-select-manage"
       >
         {t("auth.profile.select.manage", "Manage Profiles")}

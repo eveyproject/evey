@@ -93,7 +93,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
 
   const handleManage = useCallback(() => {
     setOpen(false);
-    void navigate({ to: "/profile/settings" });
+    void navigate({ to: "/profile/manage" });
   }, [navigate]);
 
   if (!active) return null;

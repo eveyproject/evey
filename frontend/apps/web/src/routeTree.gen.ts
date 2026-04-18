@@ -34,6 +34,7 @@ import { Route as AuthAdminIndexRouteImport } from './routes/_auth/admin/index'
 import { Route as AuthProfileStatsRouteImport } from './routes/_auth/profile/stats'
 import { Route as AuthProfileSettingsRouteImport } from './routes/_auth/profile/settings'
 import { Route as AuthProfileNotificationsRouteImport } from './routes/_auth/profile/notifications'
+import { Route as AuthProfileManageRouteImport } from './routes/_auth/profile/manage'
 import { Route as AuthProfileHistoryRouteImport } from './routes/_auth/profile/history'
 import { Route as AuthPlaylistsPlaylistIdRouteImport } from './routes/_auth/playlists/$playlistId'
 import { Route as AuthPlayerMediaIdRouteImport } from './routes/_auth/player/$mediaId'
@@ -210,6 +211,13 @@ const AuthProfileNotificationsRoute =
   } as any).lazy(() =>
     import('./routes/_auth/profile/notifications.lazy').then((d) => d.Route),
   )
+const AuthProfileManageRoute = AuthProfileManageRouteImport.update({
+  id: '/profile/manage',
+  path: '/profile/manage',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/profile/manage.lazy').then((d) => d.Route),
+)
 const AuthProfileHistoryRoute = AuthProfileHistoryRouteImport.update({
   id: '/profile/history',
   path: '/profile/history',
@@ -407,6 +415,7 @@ export interface FileRoutesByFullPath {
   '/player/$mediaId': typeof AuthPlayerMediaIdRoute
   '/playlists/$playlistId': typeof AuthPlaylistsPlaylistIdRoute
   '/profile/history': typeof AuthProfileHistoryRoute
+  '/profile/manage': typeof AuthProfileManageRoute
   '/profile/notifications': typeof AuthProfileNotificationsRoute
   '/profile/settings': typeof AuthProfileSettingsRoute
   '/profile/stats': typeof AuthProfileStatsRoute
@@ -454,6 +463,7 @@ export interface FileRoutesByTo {
   '/player/$mediaId': typeof AuthPlayerMediaIdRoute
   '/playlists/$playlistId': typeof AuthPlaylistsPlaylistIdRoute
   '/profile/history': typeof AuthProfileHistoryRoute
+  '/profile/manage': typeof AuthProfileManageRoute
   '/profile/notifications': typeof AuthProfileNotificationsRoute
   '/profile/settings': typeof AuthProfileSettingsRoute
   '/profile/stats': typeof AuthProfileStatsRoute
@@ -504,6 +514,7 @@ export interface FileRoutesById {
   '/_auth/player/$mediaId': typeof AuthPlayerMediaIdRoute
   '/_auth/playlists/$playlistId': typeof AuthPlaylistsPlaylistIdRoute
   '/_auth/profile/history': typeof AuthProfileHistoryRoute
+  '/_auth/profile/manage': typeof AuthProfileManageRoute
   '/_auth/profile/notifications': typeof AuthProfileNotificationsRoute
   '/_auth/profile/settings': typeof AuthProfileSettingsRoute
   '/_auth/profile/stats': typeof AuthProfileStatsRoute
@@ -554,6 +565,7 @@ export interface FileRouteTypes {
     | '/player/$mediaId'
     | '/playlists/$playlistId'
     | '/profile/history'
+    | '/profile/manage'
     | '/profile/notifications'
     | '/profile/settings'
     | '/profile/stats'
@@ -601,6 +613,7 @@ export interface FileRouteTypes {
     | '/player/$mediaId'
     | '/playlists/$playlistId'
     | '/profile/history'
+    | '/profile/manage'
     | '/profile/notifications'
     | '/profile/settings'
     | '/profile/stats'
@@ -650,6 +663,7 @@ export interface FileRouteTypes {
     | '/_auth/player/$mediaId'
     | '/_auth/playlists/$playlistId'
     | '/_auth/profile/history'
+    | '/_auth/profile/manage'
     | '/_auth/profile/notifications'
     | '/_auth/profile/settings'
     | '/_auth/profile/stats'
@@ -850,6 +864,13 @@ declare module '@tanstack/react-router' {
       path: '/profile/notifications'
       fullPath: '/profile/notifications'
       preLoaderRoute: typeof AuthProfileNotificationsRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/profile/manage': {
+      id: '/_auth/profile/manage'
+      path: '/profile/manage'
+      fullPath: '/profile/manage'
+      preLoaderRoute: typeof AuthProfileManageRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/profile/history': {
@@ -1063,6 +1084,7 @@ interface AuthRouteChildren {
   AuthPlayerMediaIdRoute: typeof AuthPlayerMediaIdRoute
   AuthPlaylistsPlaylistIdRoute: typeof AuthPlaylistsPlaylistIdRoute
   AuthProfileHistoryRoute: typeof AuthProfileHistoryRoute
+  AuthProfileManageRoute: typeof AuthProfileManageRoute
   AuthProfileNotificationsRoute: typeof AuthProfileNotificationsRoute
   AuthProfileSettingsRoute: typeof AuthProfileSettingsRoute
   AuthProfileStatsRoute: typeof AuthProfileStatsRoute
@@ -1089,6 +1111,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthPlayerMediaIdRoute: AuthPlayerMediaIdRoute,
   AuthPlaylistsPlaylistIdRoute: AuthPlaylistsPlaylistIdRoute,
   AuthProfileHistoryRoute: AuthProfileHistoryRoute,
+  AuthProfileManageRoute: AuthProfileManageRoute,
   AuthProfileNotificationsRoute: AuthProfileNotificationsRoute,
   AuthProfileSettingsRoute: AuthProfileSettingsRoute,
   AuthProfileStatsRoute: AuthProfileStatsRoute,
