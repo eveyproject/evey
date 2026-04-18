@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type PluginRuntimeRepository struct {
@@ -69,8 +70,14 @@ func (r *PluginRuntimeRepository) List(ctx context.Context) ([]*plugin.PluginRun
 func (r *PluginRuntimeRepository) Delete(ctx context.Context, id string) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM plugin_runtimes WHERE id = $1`, id)
-	return err
+	res, err := r.db.ExecContext(ctx, `DELETE FROM plugin_runtimes WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
 }
 
 func (r *PluginRuntimeRepository) scanRuntimeRows(rows *sql.Rows) ([]*plugin.PluginRuntime, error) {

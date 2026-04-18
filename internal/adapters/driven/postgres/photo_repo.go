@@ -71,8 +71,14 @@ func (r *PhotoRepository) GetByID(ctx context.Context, id string) (*photo.Photo,
 func (r *PhotoRepository) Delete(ctx context.Context, id string) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM photos WHERE id = $1`, id)
-	return err
+	res, err := r.db.ExecContext(ctx, `DELETE FROM photos WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
 }
 
 func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]photo.Photo, int, error) {

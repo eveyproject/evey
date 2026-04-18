@@ -76,6 +76,15 @@ func TestPhotoRepo_Delete(t *testing.T) {
 	assert.Nil(t, got)
 }
 
+func TestPhotoRepo_Delete_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPhotoRepository(db)
+	err := repo.Delete(context.Background(), "photo-missing")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
 func TestPhotoRepo_ListByLibrary(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

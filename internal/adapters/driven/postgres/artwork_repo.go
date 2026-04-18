@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/lib/pq"
 )
 
@@ -101,22 +102,40 @@ func (r *ArtworkRepository) GetByPerson(ctx context.Context, personID string) ([
 func (r *ArtworkRepository) UpdateSortOrder(ctx context.Context, id string, sortOrder int) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `UPDATE artwork SET sort_order = $1 WHERE id = $2`, sortOrder, id)
-	return err
+	res, err := r.db.ExecContext(ctx, `UPDATE artwork SET sort_order = $1 WHERE id = $2`, sortOrder, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
 }
 
 func (r *ArtworkRepository) UpdateWebPPath(ctx context.Context, id string, webpPath string) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `UPDATE artwork SET webp_path = $1 WHERE id = $2`, webpPath, id)
-	return err
+	res, err := r.db.ExecContext(ctx, `UPDATE artwork SET webp_path = $1 WHERE id = $2`, webpPath, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
 }
 
 func (r *ArtworkRepository) Delete(ctx context.Context, id string) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM artwork WHERE id = $1`, id)
-	return err
+	res, err := r.db.ExecContext(ctx, `DELETE FROM artwork WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
 }
 
 func (r *ArtworkRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID string) error {

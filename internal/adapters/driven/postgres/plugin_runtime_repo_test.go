@@ -8,6 +8,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -80,4 +81,13 @@ func TestPluginRuntimeRepo_Delete(t *testing.T) {
 
 	_, err := repo.GetByLanguageAndVersion(ctx, "rust", "1.75")
 	assert.Error(t, err)
+}
+
+func TestPluginRuntimeRepo_Delete_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPluginRuntimeRepository(db)
+	err := repo.Delete(context.Background(), "prt-missing")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }

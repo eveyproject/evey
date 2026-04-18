@@ -214,6 +214,25 @@ func TestSmartPlaylistQuerier_QueryByRules_GenreFilter(t *testing.T) {
 	assert.Equal(t, action.ID, items[0].ID)
 }
 
+func TestPlaylistRepo_Delete_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPlaylistRepository(db)
+	err := repo.Delete(context.Background(), "playlist-missing")
+	require.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+func TestPlaylistRepo_Update_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPlaylistRepository(db)
+	pl := newTestPlaylist("playlist-missing", "u")
+	err := repo.Update(context.Background(), pl)
+	require.ErrorIs(t, err, shared.ErrNotFound)
+}
+
 func TestPlaylistRepo_Delete(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

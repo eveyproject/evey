@@ -138,6 +138,33 @@ func TestArtworkRepo_Delete(t *testing.T) {
 	assert.Empty(t, got)
 }
 
+func TestArtworkRepo_Delete_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewArtworkRepository(db)
+	err := repo.Delete(context.Background(), "art-missing")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+func TestArtworkRepo_UpdateSortOrder_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewArtworkRepository(db)
+	err := repo.UpdateSortOrder(context.Background(), "art-missing", 1)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+func TestArtworkRepo_UpdateWebPPath_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewArtworkRepository(db)
+	err := repo.UpdateWebPPath(context.Background(), "art-missing", "/tmp/x.webp")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
 func TestArtworkRepo_DeleteByMediaItemID(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

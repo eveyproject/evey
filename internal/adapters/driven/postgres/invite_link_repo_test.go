@@ -204,3 +204,12 @@ func TestInviteLinkRepo_Delete(t *testing.T) {
 	_, err := repo.GetByToken(ctx, "tok-del")
 	assert.Error(t, err)
 }
+
+func TestInviteLinkRepo_Delete_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewInviteLinkRepository(db)
+	err := repo.Delete(context.Background(), "invite-missing")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}

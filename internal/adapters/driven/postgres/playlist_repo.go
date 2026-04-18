@@ -98,12 +98,15 @@ func (r *PlaylistRepository) Update(ctx context.Context, pl *playlist.Playlist) 
 	if err != nil {
 		return fmt.Errorf("PlaylistRepo.Update marshal rules: %w", err)
 	}
-	_, err = r.db.ExecContext(ctx,
+	res, err := r.db.ExecContext(ctx,
 		`UPDATE playlists SET name=$1, description=$2, rules=$3, sort_by=$4, sort_order=$5, updated_at=$6 WHERE id=$7`,
 		pl.Name, pl.Description, rulesJSON, pl.SortBy, pl.SortOrder, pl.UpdatedAt, pl.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("PlaylistRepo.Update: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
 	}
 	return nil
 }
@@ -111,9 +114,12 @@ func (r *PlaylistRepository) Update(ctx context.Context, pl *playlist.Playlist) 
 func (r *PlaylistRepository) Delete(ctx context.Context, id string) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM playlists WHERE id = $1`, id)
+	res, err := r.db.ExecContext(ctx, `DELETE FROM playlists WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("PlaylistRepo.Delete: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
 	}
 	return nil
 }

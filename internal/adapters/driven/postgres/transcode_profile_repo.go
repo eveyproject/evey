@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
@@ -61,19 +62,31 @@ func (r *TranscodeProfileRepository) Create(ctx context.Context, profile *transc
 func (r *TranscodeProfileRepository) Update(ctx context.Context, profile *transcoding.TranscodeProfile) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	res, err := r.db.ExecContext(ctx,
 		`UPDATE transcode_profiles SET name=$2, video_codec=$3, audio_codec=$4, container=$5, max_width=$6, max_height=$7, video_bitrate=$8, audio_bitrate=$9, preset=$10 WHERE id=$1`,
 		profile.ID, profile.Name, profile.VideoCodec, profile.AudioCodec, profile.Container,
 		profile.MaxWidth, profile.MaxHeight, profile.VideoBitrate, profile.AudioBitrate, profile.Preset,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
 }
 
 func (r *TranscodeProfileRepository) Delete(ctx context.Context, id string) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM transcode_profiles WHERE id = $1`, id)
-	return err
+	res, err := r.db.ExecContext(ctx, `DELETE FROM transcode_profiles WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
 }
 
 func (r *TranscodeProfileRepository) scanProfile(row *sql.Row) (*transcoding.TranscodeProfile, error) {

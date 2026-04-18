@@ -140,3 +140,21 @@ func TestAPIKeyRepo_GetByKeyHash_NotFound(t *testing.T) {
 	_, err := keyRepo.GetByKeyHash(ctx, "nonexistent-hash")
 	assert.ErrorIs(t, err, sql.ErrNoRows)
 }
+
+func TestAPIKeyRepo_Delete_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	keyRepo := postgres.NewAPIKeyRepository(db)
+	err := keyRepo.Delete(context.Background(), "missing")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+func TestAPIKeyRepo_UpdateLastUsed_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	keyRepo := postgres.NewAPIKeyRepository(db)
+	err := keyRepo.UpdateLastUsed(context.Background(), "missing", time.Now())
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}

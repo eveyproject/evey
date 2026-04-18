@@ -81,16 +81,28 @@ func (r *APIKeyRepository) ListByUserID(ctx context.Context, userID shared.UserI
 func (r *APIKeyRepository) Delete(ctx context.Context, id string) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM api_keys WHERE id = $1`, id)
-	return err
+	res, err := r.db.ExecContext(ctx, `DELETE FROM api_keys WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
 }
 
 func (r *APIKeyRepository) UpdateLastUsed(ctx context.Context, id string, t time.Time) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	res, err := r.db.ExecContext(ctx,
 		`UPDATE api_keys SET last_used_at = $1 WHERE id = $2`, t, id)
-	return err
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
 }
 
 var _ user.APIKeyRepository = (*APIKeyRepository)(nil)

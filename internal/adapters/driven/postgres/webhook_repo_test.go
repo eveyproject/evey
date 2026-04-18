@@ -7,6 +7,7 @@ import (
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/webhook"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,6 +55,26 @@ func TestWebhookRepo_CRUD(t *testing.T) {
 	require.NoError(t, repo.Delete(ctx, cfg.ID))
 	list, _ = repo.List(ctx)
 	assert.Empty(t, list)
+}
+
+func TestWebhookRepo_Delete_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewWebhookRepository(db)
+	err := repo.Delete(context.Background(), "wh-missing")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+func TestWebhookRepo_Update_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewWebhookRepository(db)
+	err := repo.Update(context.Background(), &webhook.Config{
+		ID: "wh-missing", Name: "x", URL: "http://x", Enabled: true,
+	})
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestWebhookDeliveryRepo(t *testing.T) {

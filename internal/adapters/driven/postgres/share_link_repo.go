@@ -90,9 +90,12 @@ func (r *ShareLinkRepo) IncrementViewCount(ctx context.Context, token string) er
 func (r *ShareLinkRepo) Delete(ctx context.Context, id string) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM share_links WHERE id = $1`, id)
+	res, err := r.db.ExecContext(ctx, `DELETE FROM share_links WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete share link: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
 	}
 	return nil
 }

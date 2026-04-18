@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/webhook"
 	"github.com/lib/pq"
 )
@@ -90,18 +91,30 @@ func (r *WebhookRepository) Update(ctx context.Context, cfg *webhook.Config) err
 	if events == nil {
 		events = []string{}
 	}
-	_, err = r.db.ExecContext(ctx,
+	res, err := r.db.ExecContext(ctx,
 		`UPDATE webhook_configs SET name=$1, url=$2, events=$3, secret=$4, headers=$5, enabled=$6 WHERE id=$7`,
 		cfg.Name, cfg.URL, pq.Array(events), cfg.Secret, headersJSON, cfg.Enabled, cfg.ID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
 }
 
 func (r *WebhookRepository) Delete(ctx context.Context, id string) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM webhook_configs WHERE id = $1`, id)
-	return err
+	res, err := r.db.ExecContext(ctx, `DELETE FROM webhook_configs WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
 }
 
 type WebhookDeliveryRepository struct {

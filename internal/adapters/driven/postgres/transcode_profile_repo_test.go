@@ -6,6 +6,7 @@ import (
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,4 +88,23 @@ func TestTranscodeProfileRepo_Delete(t *testing.T) {
 
 	_, err := repo.GetByID(ctx, "tp4")
 	assert.Error(t, err)
+}
+
+func TestTranscodeProfileRepo_Delete_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewTranscodeProfileRepository(db)
+	err := repo.Delete(context.Background(), "tp-missing")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+func TestTranscodeProfileRepo_Update_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewTranscodeProfileRepository(db)
+	p := &transcoding.TranscodeProfile{ID: "tp-missing", Name: "X", VideoCodec: "h264", Container: "mp4"}
+	err := repo.Update(context.Background(), p)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }

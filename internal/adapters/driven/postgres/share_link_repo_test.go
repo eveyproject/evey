@@ -177,6 +177,15 @@ func TestShareLinkRepo_Delete(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestShareLinkRepo_Delete_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewShareLinkRepo(db)
+	err := repo.Delete(context.Background(), "sl-missing")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
 func TestShareLinkRepo_DeleteExpired(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

@@ -8,6 +8,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -113,4 +114,23 @@ func TestPluginRepo_Delete(t *testing.T) {
 
 	_, err := repo.GetByID(ctx, p.ID)
 	assert.Error(t, err)
+}
+
+func TestPluginRepo_Delete_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPluginRepository(db)
+	err := repo.Delete(context.Background(), "plugin-missing")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+func TestPluginRepo_Update_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPluginRepository(db)
+	p := newTestPlugin("plugin-missing")
+	err := repo.Update(context.Background(), p)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
