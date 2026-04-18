@@ -576,111 +576,87 @@ func (r *MediaItemRepository) listContainerInfoBatch(ctx context.Context, librar
 	return result, nil
 }
 
-func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, error) {
-	item := &library.MediaItem{}
+// rowScanner abstracts sql.Row.Scan and sql.Rows.Scan so scanMediaItem
+// and the iterator case share the same column-mapping logic.
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+// scanMediaItemFields fills item from a scanner. Returns sql.ErrNoRows
+// verbatim when the source is sql.Row and no row was returned — callers
+// typically translate to shared.ErrNotFound.
+func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 	var parentID, filePath, fingerprint, scanTitle *string
 	var providerJSON, certificationsJSON, genresJSON, studiosJSON, tagsJSON, trailersJSON, ratingsJSON []byte
 
-	err := row.Scan(
+	if err := src.Scan(
 		&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &scanTitle, &item.SortTitle, &item.OriginalTitle,
 		&item.Overview, &item.Tagline, &filePath, &item.FileSize, &fingerprint, &item.ModTime, &item.DurationMs, &item.Bitrate,
 		&item.ContainerFormat, &item.IndexNumber, &item.CommunityRating, &item.OfficialRating, &certificationsJSON,
 		&item.PremiereDate, &item.Year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON, &trailersJSON, &ratingsJSON,
 		&item.AddedAt, &item.UpdatedAt,
-	)
+	); err != nil {
+		return err
+	}
+	if parentID != nil {
+		item.ParentID = *parentID
+	}
+	if filePath != nil {
+		item.FilePath = *filePath
+	}
+	if fingerprint != nil {
+		item.FileFingerprint = *fingerprint
+	}
+	if scanTitle != nil {
+		item.ScanTitle = *scanTitle
+	}
+	// Required fields: corrupt JSON is a DB integrity error, not a soft
+	// warning. provider_ids is the join key to TMDB/IMDB; genres drives
+	// filtering. Returning an error here stops the request instead of
+	// silently serving an item with empty slices.
+	if err := json.Unmarshal(providerJSON, &item.ProviderIDs); err != nil {
+		return fmt.Errorf("unmarshal provider_ids: %w", err)
+	}
+	if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
+		return fmt.Errorf("unmarshal genres: %w", err)
+	}
+	// Optional fields: warn-only so one bad row doesn't break a whole list.
+	if len(certificationsJSON) > 0 {
+		if err := json.Unmarshal(certificationsJSON, &item.CertificationsByCountry); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "certifications_by_country"), slog.Any("err", err))
+		}
+	}
+	if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(trailersJSON, &item.Trailers); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "trailers"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(ratingsJSON, &item.Ratings); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "ratings"), slog.Any("err", err))
+	}
+	return nil
+}
+
+func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, error) {
+	item := &library.MediaItem{}
+	err := scanMediaItemFields(row, item)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, shared.ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("MediaItemRepo.scanMediaItem: %w", err)
 	}
-	if parentID != nil {
-		item.ParentID = *parentID
-	}
-	if filePath != nil {
-		item.FilePath = *filePath
-	}
-	if fingerprint != nil {
-		item.FileFingerprint = *fingerprint
-	}
-	if scanTitle != nil {
-		item.ScanTitle = *scanTitle
-	}
-	if err := json.Unmarshal(providerJSON, &item.ProviderIDs); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "provider_ids"), slog.Any("err", err))
-	}
-	if len(certificationsJSON) > 0 {
-		if err := json.Unmarshal(certificationsJSON, &item.CertificationsByCountry); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "certifications_by_country"), slog.Any("err", err))
-		}
-	}
-	if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "genres"), slog.Any("err", err))
-	}
-	if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
-	}
-	if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
-	}
-	if err := json.Unmarshal(trailersJSON, &item.Trailers); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "trailers"), slog.Any("err", err))
-	}
-	if err := json.Unmarshal(ratingsJSON, &item.Ratings); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "ratings"), slog.Any("err", err))
-	}
 	return item, nil
 }
 
 func (r *MediaItemRepository) scanMediaItemFromRows(rows *sql.Rows) (*library.MediaItem, error) {
 	item := &library.MediaItem{}
-	var parentID, filePath, fingerprint, scanTitle *string
-	var providerJSON, certificationsJSON, genresJSON, studiosJSON, tagsJSON, trailersJSON, ratingsJSON []byte
-
-	err := rows.Scan(
-		&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &scanTitle, &item.SortTitle, &item.OriginalTitle,
-		&item.Overview, &item.Tagline, &filePath, &item.FileSize, &fingerprint, &item.ModTime, &item.DurationMs, &item.Bitrate,
-		&item.ContainerFormat, &item.IndexNumber, &item.CommunityRating, &item.OfficialRating, &certificationsJSON,
-		&item.PremiereDate, &item.Year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON, &trailersJSON, &ratingsJSON,
-		&item.AddedAt, &item.UpdatedAt,
-	)
-	if err != nil {
+	if err := scanMediaItemFields(rows, item); err != nil {
 		return nil, fmt.Errorf("MediaItemRepo.scanMediaItemFromRows: %w", err)
-	}
-	if parentID != nil {
-		item.ParentID = *parentID
-	}
-	if filePath != nil {
-		item.FilePath = *filePath
-	}
-	if fingerprint != nil {
-		item.FileFingerprint = *fingerprint
-	}
-	if scanTitle != nil {
-		item.ScanTitle = *scanTitle
-	}
-	if err := json.Unmarshal(providerJSON, &item.ProviderIDs); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "provider_ids"), slog.Any("err", err))
-	}
-	if len(certificationsJSON) > 0 {
-		if err := json.Unmarshal(certificationsJSON, &item.CertificationsByCountry); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "certifications_by_country"), slog.Any("err", err))
-		}
-	}
-	if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "genres"), slog.Any("err", err))
-	}
-	if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
-	}
-	if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
-	}
-	if err := json.Unmarshal(trailersJSON, &item.Trailers); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "trailers"), slog.Any("err", err))
-	}
-	if err := json.Unmarshal(ratingsJSON, &item.Ratings); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "ratings"), slog.Any("err", err))
 	}
 	return item, nil
 }
