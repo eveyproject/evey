@@ -10,10 +10,21 @@ import (
 type LibraryRepository interface {
 	Create(ctx context.Context, lib *Library) error
 	GetByID(ctx context.Context, id shared.LibraryID) (*Library, error)
-	List(ctx context.Context) ([]*Library, error)
+	List(ctx context.Context, filter ListLibrariesFilter) ([]*Library, error)
 	Update(ctx context.Context, lib *Library) error
 	Delete(ctx context.Context, id shared.LibraryID) error
 }
+
+// ListLibrariesFilter paginates LibraryRepository.List with offset semantics.
+// Zero values mean "no pagination" — all rows returned, ordered by name.
+// Limit is capped at MaxListLibrariesLimit (500); higher values are clamped.
+type ListLibrariesFilter struct {
+	Limit  int
+	Offset int
+}
+
+// MaxListLibrariesLimit caps the page size for LibraryRepository.List.
+const MaxListLibrariesLimit = 500
 
 type ListMediaItemsFilter struct {
 	LibraryID      *shared.LibraryID

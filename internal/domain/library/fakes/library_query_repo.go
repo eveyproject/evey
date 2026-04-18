@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -34,7 +35,7 @@ func (r *FakeLibraryQueryRepo) GetByID(_ context.Context, id shared.LibraryID) (
 	return lib, nil
 }
 
-func (r *FakeLibraryQueryRepo) List(_ context.Context) ([]*library.Library, error) {
+func (r *FakeLibraryQueryRepo) List(_ context.Context, filter library.ListLibrariesFilter) ([]*library.Library, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -47,7 +48,8 @@ func (r *FakeLibraryQueryRepo) List(_ context.Context) ([]*library.Library, erro
 	for _, lib := range r.items {
 		result = append(result, lib)
 	}
-	return result, nil
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return applyLibrariesFilter(result, filter), nil
 }
 
 // Seed adds a library for testing (write-side helper, not part of the interface).

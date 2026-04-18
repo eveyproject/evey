@@ -7,7 +7,7 @@ import (
 )
 
 type LibraryQueryRepo interface {
-	List(ctx context.Context) ([]*Library, error)
+	List(ctx context.Context, filter ListLibrariesFilter) ([]*Library, error)
 	GetByID(ctx context.Context, id shared.LibraryID) (*Library, error)
 }
 

@@ -120,7 +120,7 @@ type fakeLibQueryRepo struct {
 	err  error
 }
 
-func (f *fakeLibQueryRepo) List(_ context.Context) ([]*domainlibrary.Library, error) {
+func (f *fakeLibQueryRepo) List(_ context.Context, _ domainlibrary.ListLibrariesFilter) ([]*domainlibrary.Library, error) {
 	return f.libs, f.err
 }
 func (f *fakeLibQueryRepo) GetByID(_ context.Context, _ shared.LibraryID) (*domainlibrary.Library, error) {

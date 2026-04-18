@@ -125,7 +125,7 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				libs, err := libQueries.List(ctx)
+				libs, err := libQueries.List(ctx, library.ListLibrariesFilter{})
 				if err != nil {
 					slog.Warn("periodic scan: list libraries", slog.Any("err", err))
 					continue

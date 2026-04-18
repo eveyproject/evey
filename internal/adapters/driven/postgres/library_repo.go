@@ -54,12 +54,28 @@ func (r *LibraryRepository) GetByID(ctx context.Context, id shared.LibraryID) (*
 	return lib, nil
 }
 
-func (r *LibraryRepository) List(ctx context.Context) ([]*library.Library, error) {
+func (r *LibraryRepository) List(ctx context.Context, filter library.ListLibrariesFilter) ([]*library.Library, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at
-		 FROM libraries ORDER BY name LIMIT 1000`)
+	const baseQuery = `SELECT id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at
+		 FROM libraries ORDER BY name`
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if filter.Limit <= 0 {
+		rows, err = r.db.QueryContext(ctx, baseQuery)
+	} else {
+		limit := filter.Limit
+		if limit > library.MaxListLibrariesLimit {
+			limit = library.MaxListLibrariesLimit
+		}
+		offset := filter.Offset
+		if offset < 0 {
+			offset = 0
+		}
+		rows, err = r.db.QueryContext(ctx, baseQuery+` LIMIT $1 OFFSET $2`, limit, offset)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("LibraryRepo.List: %w", err)
 	}
@@ -90,7 +106,7 @@ func (r *LibraryRepository) Update(ctx context.Context, lib *library.Library) er
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Update marshal paths: %w", err)
 	}
-	res, err := r.db.ExecContext(ctx,
+	_, err = r.db.ExecContext(ctx,
 		`UPDATE libraries SET name=$1, type=$2, paths=$3, scan_interval_minutes=$4, enabled=$5, last_scanned_at=$6, updated_at=$7
 		 WHERE id=$8`,
 		lib.Name, lib.Type, pathsJSON, lib.ScanIntervalMinutes, lib.Enabled, lib.LastScannedAt, lib.UpdatedAt, lib.ID,
@@ -98,21 +114,15 @@ func (r *LibraryRepository) Update(ctx context.Context, lib *library.Library) er
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Update: %w", err)
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return shared.ErrNotFound
-	}
 	return nil
 }
 
 func (r *LibraryRepository) Delete(ctx context.Context, id shared.LibraryID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM libraries WHERE id = $1`, string(id))
+	_, err := r.db.ExecContext(ctx, `DELETE FROM libraries WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Delete: %w", err)
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return shared.ErrNotFound
 	}
 	return nil
 }

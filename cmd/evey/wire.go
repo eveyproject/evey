@@ -386,7 +386,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	cachedAnalyzer := appfeed.NewCachedAnalyzer(r.WatchHistoryAnalyzer, 5*time.Minute, appfeed.CacheWithEventBus(bus))
 	feedQuerySvc := appfeed.NewQueryService(r.FeedConfigQuery, r.FeedQuerier, cachedAnalyzer)
 
-	if libs, libErr := r.Library.List(ctx); libErr == nil {
+	if libs, libErr := r.Library.List(ctx, library.ListLibrariesFilter{}); libErr == nil {
 		for _, lib := range libs {
 			if err := feedCmdSvc.EnsureLibraryFeedConfig(ctx, lib.ID, lib.Name); err != nil {
 				slog.Warn("ensure library feed config", slog.String("library", string(lib.ID)), slog.Any("err", err))

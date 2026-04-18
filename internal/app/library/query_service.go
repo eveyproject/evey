@@ -89,7 +89,7 @@ func (s *QueryService) GetLibrary(ctx context.Context, id string) (*library.Libr
 }
 
 func (s *QueryService) ListLibraries(ctx context.Context) ([]*library.Library, error) {
-	return s.libraries.List(ctx)
+	return s.libraries.List(ctx, library.ListLibrariesFilter{})
 }
 
 func (s *QueryService) GetMediaItem(ctx context.Context, id string) (*library.MediaItem, error) {

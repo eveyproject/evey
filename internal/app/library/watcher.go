@@ -65,7 +65,7 @@ func (ws *WatcherService) Start(ctx context.Context) error {
 	ctx, ws.cancel = context.WithCancel(ctx)
 	ws.ctx = ctx
 
-	libs, err := ws.libraries.List(ctx)
+	libs, err := ws.libraries.List(ctx, library.ListLibrariesFilter{})
 	if err != nil {
 		return fmt.Errorf("WatcherService.Start: %w", err)
 	}

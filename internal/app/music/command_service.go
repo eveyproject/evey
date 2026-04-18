@@ -239,7 +239,7 @@ func (s *CommandService) FetchMissingAlbumArtAllLibraries(ctx context.Context) (
 	if s.libRepo == nil {
 		return 0, nil
 	}
-	libs, err := s.libRepo.List(ctx)
+	libs, err := s.libRepo.List(ctx, library.ListLibrariesFilter{})
 	if err != nil {
 		return 0, fmt.Errorf("list libraries: %w", err)
 	}

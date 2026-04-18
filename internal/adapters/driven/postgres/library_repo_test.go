@@ -53,9 +53,61 @@ func TestLibraryRepo_List(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, newTestLibrary("lib2")))
 	require.NoError(t, repo.Create(ctx, newTestLibrary("lib3")))
 
-	list, err := repo.List(ctx)
+	list, err := repo.List(ctx, library.ListLibrariesFilter{})
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(list), 2)
+}
+
+func TestLibraryRepo_List_Pagination(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewLibraryRepository(db)
+	ctx := context.Background()
+
+	// seed 5 libs with deterministic names for ORDER BY name
+	for _, id := range []string{"page-a", "page-b", "page-c", "page-d", "page-e"} {
+		require.NoError(t, repo.Create(ctx, newTestLibrary(id)))
+	}
+
+	// limit=2, offset=0
+	page1, err := repo.List(ctx, library.ListLibrariesFilter{Limit: 2, Offset: 0})
+	require.NoError(t, err)
+	require.Len(t, page1, 2)
+
+	// limit=2, offset=2
+	page2, err := repo.List(ctx, library.ListLibrariesFilter{Limit: 2, Offset: 2})
+	require.NoError(t, err)
+	require.Len(t, page2, 2)
+
+	// pages are disjoint
+	seen := map[shared.LibraryID]bool{}
+	for _, l := range page1 {
+		seen[l.ID] = true
+	}
+	for _, l := range page2 {
+		assert.False(t, seen[l.ID], "page2 should not contain page1 ids")
+	}
+
+	// limit=0 → all (no LIMIT clause)
+	all, err := repo.List(ctx, library.ListLibrariesFilter{})
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(all), 5)
+}
+
+func TestLibraryRepo_List_LimitClampedToMax(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewLibraryRepository(db)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Create(ctx, newTestLibrary("clamp-1")))
+
+	// requesting beyond max is accepted silently (clamped); no error
+	list, err := repo.List(ctx, library.ListLibrariesFilter{Limit: 10_000})
+	require.NoError(t, err)
+	assert.NotEmpty(t, list)
 }
 
 func TestLibraryRepo_Update(t *testing.T) {

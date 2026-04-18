@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -49,7 +50,7 @@ func (r *FakeLibraryRepository) GetByID(_ context.Context, id shared.LibraryID) 
 	return lib, nil
 }
 
-func (r *FakeLibraryRepository) List(_ context.Context) ([]*library.Library, error) {
+func (r *FakeLibraryRepository) List(_ context.Context, filter library.ListLibrariesFilter) ([]*library.Library, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -62,7 +63,30 @@ func (r *FakeLibraryRepository) List(_ context.Context) ([]*library.Library, err
 	for _, lib := range r.items {
 		result = append(result, lib)
 	}
-	return result, nil
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return applyLibrariesFilter(result, filter), nil
+}
+
+func applyLibrariesFilter(libs []*library.Library, filter library.ListLibrariesFilter) []*library.Library {
+	if filter.Limit <= 0 {
+		return libs
+	}
+	limit := filter.Limit
+	if limit > library.MaxListLibrariesLimit {
+		limit = library.MaxListLibrariesLimit
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= len(libs) {
+		return []*library.Library{}
+	}
+	end := offset + limit
+	if end > len(libs) {
+		end = len(libs)
+	}
+	return libs[offset:end]
 }
 
 func (r *FakeLibraryRepository) Update(_ context.Context, lib *library.Library) error {
