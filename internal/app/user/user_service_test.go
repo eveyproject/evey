@@ -609,6 +609,78 @@ func TestCreateProfile_RepoError(t *testing.T) {
 	}
 }
 
+func TestCreateProfile_MaxProfilesReached(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	max := 1
+	_ = d.users.Create(ctx, &user.User{ID: "u1", Username: "bob", MaxProfiles: &max})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Main"})
+
+	err := d.svc.CreateProfile(ctx, &user.Profile{ID: "p2", UserID: "u1", Name: "Second"})
+	if !errors.Is(err, ErrMaxProfilesReached) {
+		t.Fatalf("got %v, want ErrMaxProfilesReached", err)
+	}
+}
+
+func TestCreateProfile_KidsRequiresPIN(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	_ = d.users.Create(ctx, &user.User{ID: "u1", Username: "bob"})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Kids", IsKids: true})
+
+	// Non-kids profile without PIN should be rejected when a kids profile exists.
+	err := d.svc.CreateProfile(ctx, &user.Profile{ID: "p2", UserID: "u1", Name: "Adult"})
+	if !errors.Is(err, ErrKidsRequiresPIN) {
+		t.Fatalf("got %v, want ErrKidsRequiresPIN", err)
+	}
+
+	// With a PIN set, it succeeds.
+	ok := &user.Profile{ID: "p3", UserID: "u1", Name: "Adult", Parental: &user.ParentalSettings{PINHash: "hashed"}}
+	if err := d.svc.CreateProfile(ctx, ok); err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+}
+
+func TestUpdateProfile_KidsRequiresPIN(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	_ = d.users.Create(ctx, &user.User{ID: "u1", Username: "bob"})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Adult", Parental: &user.ParentalSettings{PINHash: "h"}})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p2", UserID: "u1", Name: "Kids", IsKids: true})
+
+	// Clearing the PIN on the adult while a kids sibling exists must fail.
+	err := d.svc.UpdateProfile(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Adult"})
+	if !errors.Is(err, ErrKidsRequiresPIN) {
+		t.Fatalf("got %v, want ErrKidsRequiresPIN", err)
+	}
+}
+
+func TestDeleteProfile_CannotDeleteDefault(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Main", IsDefault: true})
+
+	err := d.svc.DeleteProfile(ctx, "p1")
+	if !errors.Is(err, ErrCannotDeleteDefault) {
+		t.Fatalf("got %v, want ErrCannotDeleteDefault", err)
+	}
+}
+
+func TestHashPIN_Invalid(t *testing.T) {
+	d := newUserTestDeps()
+	for _, bad := range []string{"1", "123", "12345", "abcd", "12 4"} {
+		if _, err := d.svc.HashPIN(bad); !errors.Is(err, ErrInvalidPINFormat) {
+			t.Fatalf("HashPIN(%q) = %v, want ErrInvalidPINFormat", bad, err)
+		}
+	}
+	if _, err := d.svc.HashPIN(""); err != nil {
+		t.Fatalf("HashPIN(\"\") should be allowed (clear), got %v", err)
+	}
+	if _, err := d.svc.HashPIN("1234"); err != nil {
+		t.Fatalf("HashPIN(\"1234\"): %v", err)
+	}
+}
+
 func TestCreateProfile_EventPublishError_NonFatal(t *testing.T) {
 	d := newUserTestDeps()
 	d.events.PublishErr = errors.New("bus down")
