@@ -316,15 +316,22 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 	if err != nil {
 		return nil, fmt.Errorf("userHandler.UpdateProfile: %w", err)
 	}
-	if !claims.IsAdmin {
-		existing, gerr := h.query.GetProfileByID(ctx, req.Id)
-		if gerr != nil || existing == nil || string(existing.UserID) != claims.UserID {
+	// Always load the existing profile — we patch non-nil fields into it so
+	// unset columns (audio/subtitle langs, parental MaxAge/BlockedTags/Enabled,
+	// is_default, …) survive. This also populates UserID for the invariant
+	// check in UpdateProfile.
+	p, gerr := h.query.GetProfileByID(ctx, req.Id)
+	if gerr != nil || p == nil {
+		if !claims.IsAdmin {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
 		}
+		return nil, status.Errorf(codes.NotFound, "profile not found")
 	}
-	p := &user.Profile{
-		ID:          shared.ProfileID(req.Id),
-		Preferences: req.Preferences,
+	if !claims.IsAdmin && string(p.UserID) != claims.UserID {
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
+	}
+	if req.Preferences != nil {
+		p.Preferences = req.Preferences
 	}
 	if req.Name != nil {
 		p.Name = *req.Name
@@ -349,7 +356,7 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 			p.Region = &r
 		}
 	}
-	if v, ok := req.Preferences["max_bitrate_kbps"]; ok {
+	if v, ok := p.Preferences["max_bitrate_kbps"]; ok {
 		delete(p.Preferences, "max_bitrate_kbps")
 		if v == "" || v == "0" {
 			p.MaxBitrateKbps = nil
