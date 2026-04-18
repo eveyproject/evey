@@ -181,6 +181,49 @@ git fsck && git fetch origin
 
 If the files on disk in a worktree are intact but the commit is toast, `cp` them into the main repo and re-commit there.
 
+## Kill a compromised session / device
+
+Symptom: admin sees an unexpected device in **Now Playing** (admin panel), or a user reports an unknown device in their session list.
+
+1. Identify the `session_id`:
+   ```sh
+   docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" -c "
+     SELECT id, user_id, profile_id, device, ip_address, started_at
+     FROM play_sessions
+     WHERE ended_at IS NULL
+     ORDER BY started_at DESC LIMIT 20;"
+   ```
+2. Kill from admin UI: **Admin → Activity → Now Playing → ⋯ → Kill session**, or via gRPC `AdminSessionService/KillSession` with the `session_id`. The session is terminated 5s later so the player can receive the stop command.
+3. If the session is unresponsive, force-delete the HLS session:
+   ```sh
+   docker exec evey-server rm -rf /data/transcoding/<session_id>/
+   ```
+4. If the refresh token should also be revoked (suspected password compromise):
+   ```sh
+   docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" -c "
+     DELETE FROM refresh_tokens WHERE user_id = '<user_id>';"
+   ```
+   All devices for that user will need to log in again. For full lockdown, reset the password via `evey admin reset-password --user <username>`.
+
+## Unblock a stuck library scan
+
+Symptom: a library scan shows "in progress" for hours but no file progress in logs.
+
+1. Check the `scan_service.scanning` map indirectly — if the process is hung, CPU is idle and recent logs show no `scan_service`:
+   ```sh
+   docker compose logs --tail=500 evey-server | grep scan_service
+   ```
+2. A scan lock is **in-memory** (no DB row), so a server restart clears it:
+   ```sh
+   docker compose restart evey-server
+   ```
+3. If a specific file is causing repeated panics (see stack traces), quarantine it by moving it out of the library path, then re-scan.
+4. If inotify watches are exhausted (kernel limit), bump:
+   ```sh
+   echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
+   sudo sysctl -p
+   ```
+
 ## General diagnostic cheatsheet
 
 ```sh
