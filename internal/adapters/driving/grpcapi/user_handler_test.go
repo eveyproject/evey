@@ -538,6 +538,71 @@ func TestUpdateProfile_Success(t *testing.T) {
 	}
 }
 
+func TestUpdateProfile_PreservesUnreferencedFields(t *testing.T) {
+	env := setupUserHandler()
+	ctx := context.Background()
+	maxAge := 12
+	// Seed a profile with every optional field populated.
+	existing := &user.Profile{
+		ID: "prf-1", UserID: "usr-1", Name: "Main", IsDefault: true, IsKids: false,
+		AudioLanguages:    []string{"en", "fr"},
+		SubtitleLanguages: []string{"en"},
+		Parental: &user.ParentalSettings{
+			MaxAge:      &maxAge,
+			BlockedTags: []string{"violence"},
+			PINHash:     "hashed-pin",
+			Enabled:     true,
+		},
+	}
+	bitrate := 8000
+	existing.MaxBitrateKbps = &bitrate
+	_ = env.profileRepo.Create(ctx, existing)
+
+	// Edit only the name.
+	reqCtx := userCtx("usr-1", "prf-1")
+	newName := "Renamed"
+	_, err := env.handler.UpdateProfile(reqCtx, &eveyv1.UpdateProfileRequest{
+		Id:   "prf-1",
+		Name: &newName,
+	})
+	if err != nil {
+		t.Fatalf("UpdateProfile: %v", err)
+	}
+
+	// Re-read and assert every other field is intact.
+	got, err := env.profileRepo.GetByID(ctx, "prf-1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.Name != "Renamed" {
+		t.Fatalf("name = %q, want Renamed", got.Name)
+	}
+	if !got.IsDefault {
+		t.Fatal("is_default was wiped")
+	}
+	if len(got.AudioLanguages) != 2 {
+		t.Fatalf("audio_languages wiped: %v", got.AudioLanguages)
+	}
+	if len(got.SubtitleLanguages) != 1 {
+		t.Fatalf("subtitle_languages wiped: %v", got.SubtitleLanguages)
+	}
+	if got.Parental == nil || got.Parental.PINHash != "hashed-pin" {
+		t.Fatal("parental.PINHash wiped")
+	}
+	if got.Parental.MaxAge == nil || *got.Parental.MaxAge != 12 {
+		t.Fatal("parental.MaxAge wiped")
+	}
+	if !got.Parental.Enabled {
+		t.Fatal("parental.Enabled wiped")
+	}
+	if len(got.Parental.BlockedTags) != 1 {
+		t.Fatalf("parental.BlockedTags wiped: %v", got.Parental.BlockedTags)
+	}
+	if got.MaxBitrateKbps == nil || *got.MaxBitrateKbps != 8000 {
+		t.Fatal("max_bitrate_kbps wiped")
+	}
+}
+
 func TestUpdateProfile_OtherProfileDenied(t *testing.T) {
 	env := setupUserHandler()
 	ctx := userCtx("usr-1", "prf-1")
