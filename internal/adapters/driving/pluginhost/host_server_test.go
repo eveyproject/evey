@@ -108,10 +108,13 @@ func newTestHostServer() *HostServer {
 	media := &fakeMediaQuerier{items: map[string]*library.MediaItem{
 		"m1": {
 			ID: "m1", LibraryID: "lib1", Title: "Test Movie", Type: "movie",
-			Year: &year, ProviderIDs: map[string]string{"tmdb": "123"},
+			Catalog: &library.MediaCatalog{
+				Year:        &year,
+				ProviderIDs: map[string]string{"tmdb": "123"},
+				Genres:      []string{"Action"},
+			},
 			ParentID: "p1", Overview: "desc",
-			File:   &library.MediaFile{Path: "/movies/test.mkv"},
-			Genres: []string{"Action"},
+			File: &library.MediaFile{Path: "/movies/test.mkv"},
 		},
 	}}
 	plugins := &fakeConfigStore{plugins: map[string]*plugindomain.Plugin{

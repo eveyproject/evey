@@ -297,7 +297,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	}
 
 	for _, item := range items {
-		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(item.Tags, pf.blockedTags) {
+		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(itemTags(item), pf.blockedTags) {
 			continue
 		}
 		pb := mediaItemToProto(item)
@@ -470,10 +470,17 @@ func (h *libraryHandler) isBlockedByParental(ctx context.Context, item *library.
 			return true, nil
 		}
 	}
-	if ratings.HasBlockedTag(item.Tags, pf.blockedTags) {
+	if ratings.HasBlockedTag(itemTags(item), pf.blockedTags) {
 		return true, nil
 	}
 	return false, nil
+}
+
+func itemTags(item *library.MediaItem) []string {
+	if item == nil || item.Catalog == nil {
+		return nil
+	}
+	return item.Catalog.Tags
 }
 
 func (h *libraryHandler) filterLibrariesByAccess(ctx context.Context, libs []*library.Library) ([]*library.Library, error) {
@@ -678,7 +685,10 @@ func applyOverridesToItem(item *library.MediaItem, overrides []*domainmetadata.M
 		case "year":
 			var y int
 			if _, err := fmt.Sscanf(v, "%d", &y); err == nil {
-				item.Year = &y
+				if item.Catalog == nil {
+					item.Catalog = &library.MediaCatalog{}
+				}
+				item.Catalog.Year = &y
 			}
 		case "genres":
 			parts := strings.Split(v, ",")
@@ -688,7 +698,10 @@ func applyOverridesToItem(item *library.MediaItem, overrides []*domainmetadata.M
 					genres = append(genres, g)
 				}
 			}
-			item.Genres = genres
+			if item.Catalog == nil {
+				item.Catalog = &library.MediaCatalog{}
+			}
+			item.Catalog.Genres = genres
 		case "community_rating":
 			var r float64
 			if _, err := fmt.Sscanf(v, "%f", &r); err == nil {

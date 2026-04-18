@@ -339,10 +339,10 @@ func TestPlaybackHandler_StartStream_ParentalBlockedTag(t *testing.T) {
 		},
 	})
 	mediaQuery.Seed(&library.MediaItem{
-		ID:    "mi-v",
-		Title: "Violent Movie",
-		Type:  "movie",
-		Tags:  []string{"Violence", "Action"},
+		ID:      "mi-v",
+		Title:   "Violent Movie",
+		Type:    "movie",
+		Catalog: &library.MediaCatalog{Tags: []string{"Violence", "Action"}},
 	})
 
 	ctx := pbAdminCtx()

@@ -103,10 +103,11 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 				continue
 			}
 		}
-		if filter.YearFrom != 0 && (item.Year == nil || *item.Year < filter.YearFrom) {
+		yr := catalogYear(item)
+		if filter.YearFrom != 0 && (yr == nil || *yr < filter.YearFrom) {
 			continue
 		}
-		if filter.YearTo != 0 && (item.Year == nil || *item.Year > filter.YearTo) {
+		if filter.YearTo != 0 && (yr == nil || *yr > filter.YearTo) {
 			continue
 		}
 		if filter.MinRating != 0 {
@@ -166,10 +167,11 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 				continue
 			}
 		}
-		if filter.YearFrom != 0 && (item.Year == nil || *item.Year < filter.YearFrom) {
+		yr := catalogYear(item)
+		if filter.YearFrom != 0 && (yr == nil || *yr < filter.YearFrom) {
 			continue
 		}
-		if filter.YearTo != 0 && (item.Year == nil || *item.Year > filter.YearTo) {
+		if filter.YearTo != 0 && (yr == nil || *yr > filter.YearTo) {
 			continue
 		}
 		if filter.MinRating != 0 {
@@ -258,6 +260,13 @@ func classificationCommunityRating(m *library.MediaItem) *float64 {
 		return nil
 	}
 	return m.Classification.CommunityRating
+}
+
+func catalogYear(m *library.MediaItem) *int {
+	if m == nil || m.Catalog == nil {
+		return nil
+	}
+	return m.Catalog.Year
 }
 
 // Seed adds items for testing.

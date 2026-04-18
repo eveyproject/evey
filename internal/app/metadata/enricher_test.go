@@ -170,11 +170,11 @@ func TestRoleType(t *testing.T) {
 // --- mergeProviderIDs ---
 
 func TestMergeProviderIDs(t *testing.T) {
-	item := &domainlib.MediaItem{ProviderIDs: map[string]string{"tmdb": "123"}}
+	item := &domainlib.MediaItem{Catalog: &domainlib.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "123"}}}
 	changed := mergeProviderIDs(item, map[string]string{"imdb": "tt123", "tmdb": "999"})
 	assert.True(t, changed)
-	assert.Equal(t, "tt123", item.ProviderIDs["imdb"])
-	assert.Equal(t, "123", item.ProviderIDs["tmdb"]) // not overwritten
+	assert.Equal(t, "tt123", item.Catalog.ProviderIDs["imdb"])
+	assert.Equal(t, "123", item.Catalog.ProviderIDs["tmdb"]) // not overwritten
 
 	changed = mergeProviderIDs(item, map[string]string{"tmdb": "999"})
 	assert.False(t, changed)
@@ -184,7 +184,8 @@ func TestMergeProviderIDs_NilMap(t *testing.T) {
 	item := &domainlib.MediaItem{}
 	changed := mergeProviderIDs(item, map[string]string{"imdb": "tt1"})
 	assert.True(t, changed)
-	assert.Equal(t, "tt1", item.ProviderIDs["imdb"])
+	require.NotNil(t, item.Catalog)
+	assert.Equal(t, "tt1", item.Catalog.ProviderIDs["imdb"])
 }
 
 // --- mergeRatings ---
@@ -274,14 +275,15 @@ func TestApplyBasicFields(t *testing.T) {
 	assert.Equal(t, "Test Original", item.OriginalTitle)
 	assert.Equal(t, "A great movie", item.Overview)
 	assert.Equal(t, "Be great", item.Tagline)
-	assert.Equal(t, []string{"Drama"}, item.Genres)
-	assert.Equal(t, []string{"Studio A"}, item.Studios)
-	assert.Equal(t, &premiere, item.PremiereDate)
-	assert.Equal(t, &y, item.Year)
+	require.NotNil(t, item.Catalog)
+	assert.Equal(t, []string{"Drama"}, item.Catalog.Genres)
+	assert.Equal(t, []string{"Studio A"}, item.Catalog.Studios)
+	assert.Equal(t, &premiere, item.Catalog.PremiereDate)
+	assert.Equal(t, &y, item.Catalog.Year)
 	require.NotNil(t, item.Classification)
 	assert.Equal(t, &rating, item.Classification.CommunityRating)
 	assert.Equal(t, "PG-13", item.Classification.OfficialRating)
-	assert.Equal(t, "123", item.ProviderIDs["tmdb"])
+	assert.Equal(t, "123", item.Catalog.ProviderIDs["tmdb"])
 	assert.InDelta(t, 8.5, item.Classification.ProviderRatings["tmdb"], 0.01)
 	require.Len(t, item.Trailers, 1)
 	assert.Equal(t, "YouTube", item.Trailers[0].Site)
@@ -290,7 +292,7 @@ func TestApplyBasicFields(t *testing.T) {
 
 func TestApplyBasicFields_MergesProviderIDs(t *testing.T) {
 	item := &domainlib.MediaItem{
-		ProviderIDs:    map[string]string{"imdb": "tt1"},
+		Catalog:        &domainlib.MediaCatalog{ProviderIDs: map[string]string{"imdb": "tt1"}},
 		Classification: &domainlib.MediaClassification{ProviderRatings: map[string]float64{"imdb": 7.0}},
 	}
 	result := &domain.MetadataResult{
@@ -298,8 +300,9 @@ func TestApplyBasicFields_MergesProviderIDs(t *testing.T) {
 		Ratings:     map[string]float64{"tmdb": 8.0},
 	}
 	applyBasicFields(item, result)
-	assert.Equal(t, "tt1", item.ProviderIDs["imdb"])
-	assert.Equal(t, "123", item.ProviderIDs["tmdb"])
+	require.NotNil(t, item.Catalog)
+	assert.Equal(t, "tt1", item.Catalog.ProviderIDs["imdb"])
+	assert.Equal(t, "123", item.Catalog.ProviderIDs["tmdb"])
 	require.NotNil(t, item.Classification)
 	assert.InDelta(t, 7.0, item.Classification.ProviderRatings["imdb"], 0.01)
 	assert.InDelta(t, 8.0, item.Classification.ProviderRatings["tmdb"], 0.01)
@@ -676,7 +679,7 @@ func TestSupplementItem_MergesExtraData(t *testing.T) {
 
 	item := &domainlib.MediaItem{
 		ID:             "item-1",
-		ProviderIDs:    map[string]string{"tmdb": "100"},
+		Catalog:        &domainlib.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "100"}},
 		Classification: &domainlib.MediaClassification{ProviderRatings: map[string]float64{"tmdb": 7.0}},
 	}
 	miRepo.Create(context.Background(), item)
@@ -684,7 +687,8 @@ func TestSupplementItem_MergesExtraData(t *testing.T) {
 	primaryResult := &domain.MetadataResult{ProviderIDs: map[string]string{"imdb": "tt1"}}
 	e.supplementItem(context.Background(), item, primaryResult, "movie", slog.Default())
 
-	assert.Equal(t, "tt1", item.ProviderIDs["imdb"])
+	require.NotNil(t, item.Catalog)
+	assert.Equal(t, "tt1", item.Catalog.ProviderIDs["imdb"])
 	require.NotNil(t, item.Classification)
 	assert.InDelta(t, 8.5, item.Classification.ProviderRatings["imdb"], 0.01)
 }
@@ -699,7 +703,7 @@ func TestSupplementItem_SkipsSameProvider(t *testing.T) {
 
 	item := &domainlib.MediaItem{
 		ID:             "item-1",
-		ProviderIDs:    map[string]string{"tmdb": "100"},
+		Catalog:        &domainlib.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "100"}},
 		Classification: &domainlib.MediaClassification{ProviderRatings: map[string]float64{}},
 	}
 	miRepo.Create(context.Background(), item)
@@ -724,11 +728,11 @@ func TestAutoEnrichSeason(t *testing.T) {
 	e, _, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
 
 	series := &domainlib.MediaItem{
-		ID:          "series-1",
-		Title:       "Show",
-		Overview:    "Series overview",
-		Type:        domainlib.Series,
-		ProviderIDs: map[string]string{"tmdb": "500"},
+		ID:       "series-1",
+		Title:    "Show",
+		Overview: "Series overview",
+		Type:     domainlib.Series,
+		Catalog:  &domainlib.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "500"}},
 	}
 	miRepo.Create(context.Background(), series)
 
@@ -769,11 +773,11 @@ func TestAutoEnrichEpisode(t *testing.T) {
 	e, _, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
 
 	series := &domainlib.MediaItem{
-		ID:          "series-1",
-		Title:       "Show",
-		Overview:    "Series overview",
-		Type:        domainlib.Series,
-		ProviderIDs: map[string]string{"tmdb": "500"},
+		ID:       "series-1",
+		Title:    "Show",
+		Overview: "Series overview",
+		Type:     domainlib.Series,
+		Catalog:  &domainlib.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "500"}},
 	}
 	miRepo.Create(context.Background(), series)
 

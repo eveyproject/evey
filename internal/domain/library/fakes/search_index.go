@@ -73,10 +73,12 @@ func (s *FakeSearchIndex) Search(_ context.Context, query string, _ map[string]s
 				ID:        string(item.ID),
 				LibraryID: item.LibraryID,
 				Title:     item.Title,
-				Year:      item.Year,
 				Type:      string(item.Type),
-				Genres:    item.Genres,
-				Tags:      item.Tags,
+			}
+			if item.Catalog != nil {
+				hit.Year = item.Catalog.Year
+				hit.Genres = item.Catalog.Genres
+				hit.Tags = item.Catalog.Tags
 			}
 			if item.Classification != nil {
 				hit.OfficialRating = item.Classification.OfficialRating

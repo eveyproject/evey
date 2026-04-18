@@ -136,11 +136,13 @@ func TestToDocument(t *testing.T) {
 		Title:         "Test Movie",
 		OriginalTitle: "Test Original",
 		Overview:      "A test movie",
-		Genres:        []string{"Action", "Comedy"},
-		Studios:       []string{"Studio A"},
-		Tags:          []string{"tag1"},
-		Year:          &year,
-		AddedAt:       now,
+		Catalog: &library.MediaCatalog{
+			Genres:  []string{"Action", "Comedy"},
+			Studios: []string{"Studio A"},
+			Tags:    []string{"tag1"},
+			Year:    &year,
+		},
+		AddedAt: now,
 	}
 
 	doc := ToDocument(item, []string{"Brad Pitt", "Edward Norton"})

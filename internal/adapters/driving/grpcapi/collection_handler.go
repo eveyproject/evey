@@ -184,10 +184,12 @@ func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.
 			Title:    it.Title,
 			Type:     string(it.Type),
 			Overview: it.Overview,
-			Genres:   it.Genres,
 		}
-		if it.Year != nil {
-			ci.Year = int32(*it.Year)
+		if it.Catalog != nil {
+			ci.Genres = it.Catalog.Genres
+			if it.Catalog.Year != nil {
+				ci.Year = int32(*it.Catalog.Year)
+			}
 		}
 		if it.Classification != nil && it.Classification.CommunityRating != nil {
 			ci.CommunityRating = *it.Classification.CommunityRating

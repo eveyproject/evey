@@ -33,12 +33,12 @@ func TestWatchHistoryAnalyzer_GetFavoriteGenres(t *testing.T) {
 
 	// item1: Action genre — watched 3 times
 	item1 := newTestMediaItem("whami1a", lib.ID)
-	item1.Genres = []string{"Action"}
+	item1.Catalog.Genres = []string{"Action"}
 	require.NoError(t, itemRepo.Create(ctx, item1))
 
 	// item2: Drama genre — watched 1 time
 	item2 := newTestMediaItem("whami1b", lib.ID)
-	item2.Genres = []string{"Drama"}
+	item2.Catalog.Genres = []string{"Drama"}
 	require.NoError(t, itemRepo.Create(ctx, item2))
 
 	base := time.Now().UTC().Truncate(time.Millisecond)
@@ -229,7 +229,7 @@ func TestWatchHistoryAnalyzer_CalculateRelevanceScore(t *testing.T) {
 
 	// item with Action + Sci-Fi genres, watched 3 times → both become favorites (minCount=3)
 	item := newTestMediaItem("whami5", lib.ID)
-	item.Genres = []string{"Action", "Sci-Fi"}
+	item.Catalog.Genres = []string{"Action", "Sci-Fi"}
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	base := time.Now().UTC().Truncate(time.Millisecond)

@@ -90,17 +90,20 @@ type mediaDocument struct {
 }
 
 func ToDocument(item *library.MediaItem, castNames []string) mediaDocument {
-	return mediaDocument{
+	doc := mediaDocument{
 		ID:            string(item.ID),
 		Title:         item.Title,
 		OriginalTitle: item.OriginalTitle,
-		Genres:        item.Genres,
 		Cast:          castNames,
-		Year:          item.Year,
 		Type:          string(item.Type),
 		LibraryID:     string(item.LibraryID),
 		AddedAt:       item.AddedAt.Unix(),
 	}
+	if item.Catalog != nil {
+		doc.Genres = item.Catalog.Genres
+		doc.Year = item.Catalog.Year
+	}
+	return doc
 }
 
 var allowedFilterKeys = map[string]bool{

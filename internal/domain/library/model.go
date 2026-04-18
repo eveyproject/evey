@@ -87,15 +87,27 @@ type MediaItem struct {
 	// and the admin hasn't set a manual rating.
 	Classification *MediaClassification
 
+	// Catalog carries editorial/discovery metadata (release date, year,
+	// per-provider IDs, taxonomy: genres/studios/tags). nil for items
+	// the scan created but enrichment never touched.
+	Catalog *MediaCatalog
+
+	Trailers  []Trailer
+	AddedAt   time.Time
+	UpdatedAt time.Time
+}
+
+// MediaCatalog carries discovery metadata sourced from providers: the
+// release/premiere date and year, the per-provider ID map (tmdb,imdb,...)
+// used to look the item back up, and the taxonomy (genres, studios,
+// tags) used by filters and recommendations.
+type MediaCatalog struct {
 	PremiereDate *time.Time
 	Year         *int
 	ProviderIDs  map[string]string
 	Genres       []string
 	Studios      []string
 	Tags         []string
-	Trailers     []Trailer
-	AddedAt      time.Time
-	UpdatedAt    time.Time
 }
 
 // MediaClassification holds rating-style data: the audience score

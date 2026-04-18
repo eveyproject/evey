@@ -73,13 +73,18 @@ func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 		OriginalTitle: item.OriginalTitle,
 		Overview:      item.Overview,
 		Tagline:       item.Tagline,
-		ProviderIds:   item.ProviderIDs,
-		Genres:        item.Genres,
-		Studios:       item.Studios,
-		Tags:          item.Tags,
 		CreatedAt:     toTimestamppb(item.AddedAt),
 		UpdatedAt:     toTimestamppb(item.UpdatedAt),
-		PremiereDate:  toTimestamppbPtr(item.PremiereDate),
+	}
+	if item.Catalog != nil {
+		pb.ProviderIds = item.Catalog.ProviderIDs
+		pb.Genres = item.Catalog.Genres
+		pb.Studios = item.Catalog.Studios
+		pb.Tags = item.Catalog.Tags
+		pb.PremiereDate = toTimestamppbPtr(item.Catalog.PremiereDate)
+		if item.Catalog.Year != nil {
+			pb.Year = int32(*item.Catalog.Year)
+		}
 	}
 	if item.File != nil {
 		pb.FilePath = item.File.Path
@@ -100,9 +105,6 @@ func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 	}
 	if item.IndexNumber != nil {
 		pb.IndexNumber = int32(*item.IndexNumber)
-	}
-	if item.Year != nil {
-		pb.Year = int32(*item.Year)
 	}
 	for _, t := range item.Trailers {
 		pb.Trailers = append(pb.Trailers, trailerToProto(t))

@@ -195,9 +195,10 @@ func upsertMediaFile(ctx context.Context, tx *sql.Tx, item *library.MediaItem) e
 // when every catalog field is zero/empty (the row would only carry
 // defaults and a stale FK).
 func upsertMediaCatalog(ctx context.Context, tx *sql.Tx, item *library.MediaItem) error {
-	hasData := item.PremiereDate != nil || item.Year != nil ||
-		len(item.ProviderIDs) > 0 || len(item.Genres) > 0 ||
-		len(item.Studios) > 0 || len(item.Tags) > 0
+	c := item.Catalog
+	hasData := c != nil && (c.PremiereDate != nil || c.Year != nil ||
+		len(c.ProviderIDs) > 0 || len(c.Genres) > 0 ||
+		len(c.Studios) > 0 || len(c.Tags) > 0)
 	if !hasData {
 		_, err := tx.ExecContext(ctx, `DELETE FROM media_catalog WHERE media_item_id = $1`, string(item.ID))
 		if err != nil {
@@ -205,19 +206,19 @@ func upsertMediaCatalog(ctx context.Context, tx *sql.Tx, item *library.MediaItem
 		}
 		return nil
 	}
-	providerJSON, err := json.Marshal(orEmptyMap(item.ProviderIDs))
+	providerJSON, err := json.Marshal(orEmptyMap(c.ProviderIDs))
 	if err != nil {
 		return fmt.Errorf("marshal provider_ids: %w", err)
 	}
-	genresJSON, err := json.Marshal(orEmptySlice(item.Genres))
+	genresJSON, err := json.Marshal(orEmptySlice(c.Genres))
 	if err != nil {
 		return fmt.Errorf("marshal genres: %w", err)
 	}
-	studiosJSON, err := json.Marshal(orEmptySlice(item.Studios))
+	studiosJSON, err := json.Marshal(orEmptySlice(c.Studios))
 	if err != nil {
 		return fmt.Errorf("marshal studios: %w", err)
 	}
-	tagsJSON, err := json.Marshal(orEmptySlice(item.Tags))
+	tagsJSON, err := json.Marshal(orEmptySlice(c.Tags))
 	if err != nil {
 		return fmt.Errorf("marshal tags: %w", err)
 	}
@@ -231,7 +232,7 @@ func upsertMediaCatalog(ctx context.Context, tx *sql.Tx, item *library.MediaItem
 		   genres = EXCLUDED.genres,
 		   studios = EXCLUDED.studios,
 		   tags = EXCLUDED.tags`,
-		string(item.ID), item.PremiereDate, item.Year, providerJSON, genresJSON, studiosJSON, tagsJSON,
+		string(item.ID), c.PremiereDate, c.Year, providerJSON, genresJSON, studiosJSON, tagsJSON,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert media_catalog: %w", err)
@@ -808,36 +809,41 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		item.File = f
 	}
 
-	// Catalog fields.
-	if premiereDate.Valid {
-		t := premiereDate.Time
-		item.PremiereDate = &t
-	}
-	if year.Valid {
-		y := int(year.Int64)
-		item.Year = &y
-	}
-	// Required: provider_ids and genres drive joins/filters; corrupt JSON
-	// here is a real DB integrity error, not a soft warning.
-	if len(providerJSON) > 0 {
-		if err := json.Unmarshal(providerJSON, &item.ProviderIDs); err != nil {
-			return fmt.Errorf("unmarshal provider_ids: %w", err)
+	// Catalog sub-aggregate. Allocated only when the LEFT JOIN found a
+	// media_catalog row OR any of the JSONB arrays came back non-empty.
+	if premiereDate.Valid || year.Valid || len(providerJSON) > 0 || len(genresJSON) > 0 || len(studiosJSON) > 0 || len(tagsJSON) > 0 {
+		cat := &library.MediaCatalog{}
+		if premiereDate.Valid {
+			t := premiereDate.Time
+			cat.PremiereDate = &t
 		}
-	}
-	if len(genresJSON) > 0 {
-		if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
-			return fmt.Errorf("unmarshal genres: %w", err)
+		if year.Valid {
+			y := int(year.Int64)
+			cat.Year = &y
 		}
-	}
-	if len(studiosJSON) > 0 {
-		if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
+		// Required: provider_ids and genres drive joins/filters; corrupt JSON
+		// here is a real DB integrity error, not a soft warning.
+		if len(providerJSON) > 0 {
+			if err := json.Unmarshal(providerJSON, &cat.ProviderIDs); err != nil {
+				return fmt.Errorf("unmarshal provider_ids: %w", err)
+			}
 		}
-	}
-	if len(tagsJSON) > 0 {
-		if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
+		if len(genresJSON) > 0 {
+			if err := json.Unmarshal(genresJSON, &cat.Genres); err != nil {
+				return fmt.Errorf("unmarshal genres: %w", err)
+			}
 		}
+		if len(studiosJSON) > 0 {
+			if err := json.Unmarshal(studiosJSON, &cat.Studios); err != nil {
+				slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
+			}
+		}
+		if len(tagsJSON) > 0 {
+			if err := json.Unmarshal(tagsJSON, &cat.Tags); err != nil {
+				slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
+			}
+		}
+		item.Catalog = cat
 	}
 
 	// Classification sub-aggregate. Allocated only when at least one

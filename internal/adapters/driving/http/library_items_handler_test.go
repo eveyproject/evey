@@ -13,8 +13,8 @@ func ptr[T any](v T) *T { return &v }
 
 func TestLibraryItemsFilter_YearFrom(t *testing.T) {
 	repo := libfakes.NewFakeMediaItemQueryRepo()
-	repo.Seed(&domainlibrary.MediaItem{ID: "old", LibraryID: "lib-1", Type: "movie", Title: "Old Film", Year: ptr(1990)})
-	repo.Seed(&domainlibrary.MediaItem{ID: "new", LibraryID: "lib-1", Type: "movie", Title: "New Film", Year: ptr(2020)})
+	repo.Seed(&domainlibrary.MediaItem{ID: "old", LibraryID: "lib-1", Type: "movie", Title: "Old Film", Catalog: &domainlibrary.MediaCatalog{Year: ptr(1990)}})
+	repo.Seed(&domainlibrary.MediaItem{ID: "new", LibraryID: "lib-1", Type: "movie", Title: "New Film", Catalog: &domainlibrary.MediaCatalog{Year: ptr(2020)}})
 
 	filter := domainlibrary.ListMediaItemsFilter{
 		LibraryID: ptr(shared.LibraryID("lib-1")),
@@ -31,8 +31,8 @@ func TestLibraryItemsFilter_YearFrom(t *testing.T) {
 
 func TestLibraryItemsFilter_YearTo(t *testing.T) {
 	repo := libfakes.NewFakeMediaItemQueryRepo()
-	repo.Seed(&domainlibrary.MediaItem{ID: "old", LibraryID: "lib-1", Type: "movie", Title: "Old Film", Year: ptr(1990)})
-	repo.Seed(&domainlibrary.MediaItem{ID: "new", LibraryID: "lib-1", Type: "movie", Title: "New Film", Year: ptr(2020)})
+	repo.Seed(&domainlibrary.MediaItem{ID: "old", LibraryID: "lib-1", Type: "movie", Title: "Old Film", Catalog: &domainlibrary.MediaCatalog{Year: ptr(1990)}})
+	repo.Seed(&domainlibrary.MediaItem{ID: "new", LibraryID: "lib-1", Type: "movie", Title: "New Film", Catalog: &domainlibrary.MediaCatalog{Year: ptr(2020)}})
 
 	filter := domainlibrary.ListMediaItemsFilter{
 		LibraryID: ptr(shared.LibraryID("lib-1")),
@@ -67,9 +67,9 @@ func TestLibraryItemsFilter_MinRating(t *testing.T) {
 
 func TestLibraryItemsFilter_YearRange(t *testing.T) {
 	repo := libfakes.NewFakeMediaItemQueryRepo()
-	repo.Seed(&domainlibrary.MediaItem{ID: "early", LibraryID: "lib-1", Type: "movie", Title: "Early", Year: ptr(1980)})
-	repo.Seed(&domainlibrary.MediaItem{ID: "mid", LibraryID: "lib-1", Type: "movie", Title: "Mid", Year: ptr(2005)})
-	repo.Seed(&domainlibrary.MediaItem{ID: "late", LibraryID: "lib-1", Type: "movie", Title: "Late", Year: ptr(2023)})
+	repo.Seed(&domainlibrary.MediaItem{ID: "early", LibraryID: "lib-1", Type: "movie", Title: "Early", Catalog: &domainlibrary.MediaCatalog{Year: ptr(1980)}})
+	repo.Seed(&domainlibrary.MediaItem{ID: "mid", LibraryID: "lib-1", Type: "movie", Title: "Mid", Catalog: &domainlibrary.MediaCatalog{Year: ptr(2005)}})
+	repo.Seed(&domainlibrary.MediaItem{ID: "late", LibraryID: "lib-1", Type: "movie", Title: "Late", Catalog: &domainlibrary.MediaCatalog{Year: ptr(2023)}})
 
 	filter := domainlibrary.ListMediaItemsFilter{
 		LibraryID: ptr(shared.LibraryID("lib-1")),
@@ -87,8 +87,8 @@ func TestLibraryItemsFilter_YearRange(t *testing.T) {
 
 func TestLibraryItemsFilter_Count_WithFilters(t *testing.T) {
 	repo := libfakes.NewFakeMediaItemQueryRepo()
-	repo.Seed(&domainlibrary.MediaItem{ID: "a", LibraryID: "lib-1", Type: "movie", Title: "A", Year: ptr(2020), Classification: &domainlibrary.MediaClassification{CommunityRating: ptr(9.0)}})
-	repo.Seed(&domainlibrary.MediaItem{ID: "b", LibraryID: "lib-1", Type: "movie", Title: "B", Year: ptr(2010), Classification: &domainlibrary.MediaClassification{CommunityRating: ptr(6.0)}})
+	repo.Seed(&domainlibrary.MediaItem{ID: "a", LibraryID: "lib-1", Type: "movie", Title: "A", Catalog: &domainlibrary.MediaCatalog{Year: ptr(2020)}, Classification: &domainlibrary.MediaClassification{CommunityRating: ptr(9.0)}})
+	repo.Seed(&domainlibrary.MediaItem{ID: "b", LibraryID: "lib-1", Type: "movie", Title: "B", Catalog: &domainlibrary.MediaCatalog{Year: ptr(2010)}, Classification: &domainlibrary.MediaClassification{CommunityRating: ptr(6.0)}})
 
 	filter := domainlibrary.ListMediaItemsFilter{
 		LibraryID: ptr(shared.LibraryID("lib-1")),

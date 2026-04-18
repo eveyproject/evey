@@ -529,8 +529,7 @@ func TestQueryService_SearchMedia_HitContent(t *testing.T) {
 	year := 2005
 	f.search.IndexMediaItem(context.Background(), &library.MediaItem{
 		ID: "m1", Title: "Batman Begins", Type: "movie",
-		Year:           &year,
-		Genres:         []string{"action"},
+		Catalog:        &library.MediaCatalog{Year: &year, Genres: []string{"action"}},
 		Classification: &library.MediaClassification{OfficialRating: "PG-13"},
 	}, nil)
 
@@ -600,9 +599,9 @@ func TestQueryService_GetMediaItem_Found(t *testing.T) {
 	rating := 8.5
 	f.media.Seed(&library.MediaItem{
 		ID: "m1", Title: "Inception", Type: "movie",
-		LibraryID: "lib-1", Year: &year,
+		LibraryID:      "lib-1",
+		Catalog:        &library.MediaCatalog{Year: &year, Genres: []string{"sci-fi", "thriller"}},
 		Classification: &library.MediaClassification{CommunityRating: &rating},
-		Genres:         []string{"sci-fi", "thriller"},
 	})
 
 	item, err := f.svc.GetMediaItem(context.Background(), "m1")
@@ -611,9 +610,10 @@ func TestQueryService_GetMediaItem_Found(t *testing.T) {
 	assert.Equal(t, "Inception", item.Title)
 	assert.Equal(t, library.MediaItemType("movie"), item.Type)
 	assert.Equal(t, shared.LibraryID("lib-1"), item.LibraryID)
-	assert.Equal(t, 2020, *item.Year)
+	require.NotNil(t, item.Catalog)
+	assert.Equal(t, 2020, *item.Catalog.Year)
 	assert.InEpsilon(t, 8.5, *item.Classification.CommunityRating, 1e-9)
-	assert.Equal(t, []string{"sci-fi", "thriller"}, item.Genres)
+	assert.Equal(t, []string{"sci-fi", "thriller"}, item.Catalog.Genres)
 }
 
 func TestQueryService_GetMediaItem_NotFound(t *testing.T) {
@@ -723,9 +723,9 @@ func TestQueryService_ListMediaItems_FilterByYearRange(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
 	y2000, y2010, y2020 := 2000, 2010, 2020
-	f.media.Seed(&library.MediaItem{ID: "m1", Title: "Old Film", Year: &y2000})
-	f.media.Seed(&library.MediaItem{ID: "m2", Title: "Mid Film", Year: &y2010})
-	f.media.Seed(&library.MediaItem{ID: "m3", Title: "New Film", Year: &y2020})
+	f.media.Seed(&library.MediaItem{ID: "m1", Title: "Old Film", Catalog: &library.MediaCatalog{Year: &y2000}})
+	f.media.Seed(&library.MediaItem{ID: "m2", Title: "Mid Film", Catalog: &library.MediaCatalog{Year: &y2010}})
+	f.media.Seed(&library.MediaItem{ID: "m3", Title: "New Film", Catalog: &library.MediaCatalog{Year: &y2020}})
 
 	items, err := f.svc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{YearFrom: 2005, YearTo: 2015})
 	require.NoError(t, err)

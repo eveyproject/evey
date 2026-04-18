@@ -157,8 +157,8 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 		if m := mediaByID[string(it.MediaItemID)]; m != nil {
 			pi.Title = m.Title
 			pi.Type = string(m.Type)
-			if m.Year != nil {
-				pi.Year = int32(*m.Year)
+			if m.Catalog != nil && m.Catalog.Year != nil {
+				pi.Year = int32(*m.Catalog.Year)
 			}
 		}
 		resp.Items = append(resp.Items, pi)
@@ -171,8 +171,8 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 			Title:       item.Title,
 			Type:        string(item.Type),
 		}
-		if item.Year != nil {
-			pi.Year = int32(*item.Year)
+		if item.Catalog != nil && item.Catalog.Year != nil {
+			pi.Year = int32(*item.Catalog.Year)
 		}
 		resp.Items = append(resp.Items, pi)
 	}

@@ -108,12 +108,14 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 	e.indexSearch(ctx, item, result.People)
 	e.linkCollection(ctx, string(item.ID), result.Collection)
 	// Fetch translations for all supported locales
-	if tmdbID := item.ProviderIDs["tmdb"]; tmdbID != "" {
-		mediaType := "movie"
-		if item.Type == "series" || item.Type == "season" || item.Type == "episode" {
-			mediaType = "tv"
+	if item.Catalog != nil {
+		if tmdbID := item.Catalog.ProviderIDs["tmdb"]; tmdbID != "" {
+			mediaType := "movie"
+			if item.Type == "series" || item.Type == "season" || item.Type == "episode" {
+				mediaType = "tv"
+			}
+			e.enrichTranslations(ctx, item, tmdbID, mediaType)
 		}
-		e.enrichTranslations(ctx, item, tmdbID, mediaType)
 	}
 	return nil
 }
@@ -123,10 +125,18 @@ func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.Metadata
 	item.OriginalTitle = result.OriginalTitle
 	item.Overview = result.Overview
 	item.Tagline = result.Tagline
-	item.Genres = result.Genres
-	item.Studios = result.Studios
-	item.PremiereDate = result.PremiereDate
-	item.Year = result.Year
+
+	if item.Catalog == nil {
+		item.Catalog = &domainlib.MediaCatalog{}
+	}
+	item.Catalog.Genres = result.Genres
+	item.Catalog.Studios = result.Studios
+	item.Catalog.PremiereDate = result.PremiereDate
+	item.Catalog.Year = result.Year
+	if item.Catalog.ProviderIDs == nil {
+		item.Catalog.ProviderIDs = make(map[string]string)
+	}
+	maps.Copy(item.Catalog.ProviderIDs, result.ProviderIDs)
 
 	if item.Classification == nil {
 		item.Classification = &domainlib.MediaClassification{}
@@ -154,11 +164,6 @@ func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.Metadata
 		})
 	}
 	item.UpdatedAt = time.Now()
-
-	if item.ProviderIDs == nil {
-		item.ProviderIDs = make(map[string]string)
-	}
-	maps.Copy(item.ProviderIDs, result.ProviderIDs)
 }
 
 func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwork []domainmetadata.ArtworkResult) error {

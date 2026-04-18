@@ -89,8 +89,8 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 			}
 			fp.Title = it.Title
 			fp.Type = string(it.Type)
-			if it.Year != nil {
-				fp.Year = int32(*it.Year)
+			if it.Catalog != nil && it.Catalog.Year != nil {
+				fp.Year = int32(*it.Catalog.Year)
 			}
 			if it.Classification != nil && it.Classification.CommunityRating != nil {
 				fp.CommunityRating = *it.Classification.CommunityRating

@@ -415,16 +415,18 @@ func mediaItemToProto(item *library.MediaItem) *pluginv1.MediaItem {
 		Type:      string(item.Type),
 		Title:     item.Title,
 		Overview:  item.Overview,
-		Genres:    item.Genres,
 	}
 	if item.File != nil {
 		pb.FilePath = item.File.Path
 	}
-	if item.Year != nil {
-		pb.Year = int32(*item.Year)
-	}
-	if item.ProviderIDs != nil {
-		pb.ProviderIds = item.ProviderIDs
+	if item.Catalog != nil {
+		pb.Genres = item.Catalog.Genres
+		if item.Catalog.Year != nil {
+			pb.Year = int32(*item.Catalog.Year)
+		}
+		if item.Catalog.ProviderIDs != nil {
+			pb.ProviderIds = item.Catalog.ProviderIDs
+		}
 	}
 	return pb
 }

@@ -118,17 +118,16 @@ func TestMediaItemToProto(t *testing.T) {
 	year := 2024
 	premiere := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	item := &library.MediaItem{
-		ID:              "m-1",
-		LibraryID:       "lib-1",
-		Type:            "movie",
-		Title:           "Test Movie",
-		IndexNumber:     &idx,
+		ID:             "m-1",
+		LibraryID:      "lib-1",
+		Type:           "movie",
+		Title:          "Test Movie",
+		IndexNumber:    &idx,
 		Classification: &library.MediaClassification{CommunityRating: &rating, ProviderRatings: map[string]float64{"imdb": 7.5}},
-		Year:            &year,
-		PremiereDate:    &premiere,
-		Trailers:        []library.Trailer{{Site: "YouTube", Key: "k1"}},
-		AddedAt:         time.Now(),
-		UpdatedAt:       time.Now(),
+		Catalog:        &library.MediaCatalog{Year: &year, PremiereDate: &premiere},
+		Trailers:       []library.Trailer{{Site: "YouTube", Key: "k1"}},
+		AddedAt:        time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 
 	pb := mediaItemToProto(item)

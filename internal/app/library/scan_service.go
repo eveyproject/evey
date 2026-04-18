@@ -21,6 +21,13 @@ import (
 // to a user-friendly 409/FailedPrecondition response.
 var ErrScanInProgress = errors.New("scan already in progress")
 
+func catalogGenres(item *library.MediaItem) []string {
+	if item == nil || item.Catalog == nil {
+		return nil
+	}
+	return item.Catalog.Genres
+}
+
 type TypedDirectoryScanner interface {
 	ScanDirectory(ctx context.Context, libraryID, dir string) (int, error)
 }
@@ -407,7 +414,6 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			Title:       f.Title,
 			ScanTitle:   f.Title,
 			Type:        f.Type,
-			Year:        f.Year,
 			IndexNumber: f.Episode,
 			AddedAt:     time.Now(),
 			UpdatedAt:   time.Now(),
@@ -416,6 +422,9 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 				Size:        f.Size,
 				Fingerprint: f.Fingerprint,
 			},
+		}
+		if f.Year != nil {
+			item.Catalog = &library.MediaCatalog{Year: f.Year}
 		}
 		if err = s.mediaItems.Create(ctx, item); err != nil {
 			return 0, 0, fmt.Errorf("create media item: %w", err)
@@ -444,7 +453,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			Title:       item.Title,
 			SeriesTitle: showTitle,
 			Type:        string(item.Type),
-			Genres:      item.Genres,
+			Genres:      catalogGenres(item),
 			OccurredAt:  time.Now(),
 		}
 		if err := s.events.Publish(ctx, evtAdded); err != nil {
@@ -497,7 +506,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			Title:       existing.Title,
 			SeriesTitle: showTitle,
 			Type:        string(existing.Type),
-			Genres:      existing.Genres,
+			Genres:      catalogGenres(existing),
 			OccurredAt:  time.Now(),
 		}
 		if err := s.events.Publish(ctx, evtReAdded); err != nil {

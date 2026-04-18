@@ -635,8 +635,9 @@ func TestUpsertMediaFile_NewItem_WithYear(t *testing.T) {
 
 	items := h.mediaItems.All()
 	require.Len(t, items, 1)
-	require.NotNil(t, items[0].Year)
-	assert.Equal(t, 2024, *items[0].Year)
+	require.NotNil(t, items[0].Catalog)
+	require.NotNil(t, items[0].Catalog.Year)
+	assert.Equal(t, 2024, *items[0].Catalog.Year)
 }
 
 func TestUpsertMediaFile_UnchangedSizeEmptyFingerprint_CountsAsUnchanged(t *testing.T) {

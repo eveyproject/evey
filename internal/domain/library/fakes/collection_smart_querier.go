@@ -46,7 +46,10 @@ func matchesCollectionRules(item *library.MediaItem, rules []library.CollectionR
 func matchCollectionRule(item *library.MediaItem, rule library.CollectionRule) bool {
 	switch rule.Field {
 	case "genre":
-		for _, g := range item.Genres {
+		if item.Catalog == nil {
+			return false
+		}
+		for _, g := range item.Catalog.Genres {
 			if strings.EqualFold(g, rule.Value) {
 				return true
 			}

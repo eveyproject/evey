@@ -546,7 +546,7 @@ func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, me
 			return true, "content rating exceeds profile age limit"
 		}
 	}
-	if ratings.HasBlockedTag(item.Tags, ps.BlockedTags) {
+	if ratings.HasBlockedTag(itemTags(item), ps.BlockedTags) {
 		return true, "content contains blocked tags"
 	}
 	return false, ""

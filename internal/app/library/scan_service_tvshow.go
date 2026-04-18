@@ -92,7 +92,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 					LibraryID:   shared.LibraryID(libraryID),
 					Title:       seriesItem.Title,
 					Type:        string(seriesItem.Type),
-					Genres:      seriesItem.Genres,
+					Genres:      catalogGenres(seriesItem),
 					OccurredAt:  time.Now(),
 				}
 				if err := s.events.Publish(ctx, evtSeriesAdded); err != nil {

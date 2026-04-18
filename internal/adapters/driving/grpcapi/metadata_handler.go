@@ -72,7 +72,10 @@ func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, st
 		if err != nil {
 			return internalError("get item", err)
 		}
-		tmdbID := item.ProviderIDs["tmdb"]
+		var tmdbID string
+		if item.Catalog != nil {
+			tmdbID = item.Catalog.ProviderIDs["tmdb"]
+		}
 		mediaType := "movie"
 		if item.Type == "series" || item.Type == "season" || item.Type == "episode" {
 			mediaType = "tv"

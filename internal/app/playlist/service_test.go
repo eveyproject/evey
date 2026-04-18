@@ -122,9 +122,9 @@ func TestCannotAddItemsToSmartPlaylist(t *testing.T) {
 func TestSmartPlaylistGetItems(t *testing.T) {
 	svc, _, _, querier := newTestService()
 	querier.Items = []*library.MediaItem{
-		{ID: "m-1", Title: "Action Movie", Genres: []string{"Action"}},
-		{ID: "m-2", Title: "Drama Movie", Genres: []string{"Drama"}},
-		{ID: "m-3", Title: "Action Drama", Genres: []string{"Action", "Drama"}},
+		{ID: "m-1", Title: "Action Movie", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
+		{ID: "m-2", Title: "Drama Movie", Catalog: &library.MediaCatalog{Genres: []string{"Drama"}}},
+		{ID: "m-3", Title: "Action Drama", Catalog: &library.MediaCatalog{Genres: []string{"Action", "Drama"}}},
 	}
 
 	pl := &playlist.Playlist{

@@ -293,13 +293,12 @@ func TestApplyOverridesToItem(t *testing.T) {
 	year := 2010
 	rating := 7.5
 	item := &library.MediaItem{
-		ID:              "mi-1",
-		Title:           "Original Title",
-		OriginalTitle:   "Titre Original",
-		Overview:        "Old overview",
-		Year:            &year,
+		ID:             "mi-1",
+		Title:          "Original Title",
+		OriginalTitle:  "Titre Original",
+		Overview:       "Old overview",
+		Catalog:        &library.MediaCatalog{Year: &year, Genres: []string{"Drama"}},
 		Classification: &library.MediaClassification{CommunityRating: &rating},
-		Genres:          []string{"Drama"},
 	}
 
 	overrides := []*domainmetadata.MetadataOverride{
@@ -316,10 +315,11 @@ func TestApplyOverridesToItem(t *testing.T) {
 	assert.Equal(t, "New Title", item.Title)
 	assert.Equal(t, "Nouveau Titre", item.OriginalTitle)
 	assert.Equal(t, "New overview", item.Overview)
-	assert.Equal(t, 2024, *item.Year)
+	require.NotNil(t, item.Catalog)
+	assert.Equal(t, 2024, *item.Catalog.Year)
 	require.NotNil(t, item.Classification)
 	assert.InDelta(t, 9.1, *item.Classification.CommunityRating, 0.01)
-	assert.Equal(t, []string{"Action", "Sci-Fi"}, item.Genres)
+	assert.Equal(t, []string{"Action", "Sci-Fi"}, item.Catalog.Genres)
 }
 
 func TestApplyOverridesToItem_EmptyValueSkipped(t *testing.T) {

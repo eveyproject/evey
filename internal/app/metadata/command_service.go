@@ -96,7 +96,10 @@ func (s *CommandService) RefreshAllTranslations(ctx context.Context, onProgress 
 	total := len(items)
 	for i, itemPtr := range items {
 		item := itemPtr
-		tmdbID, ok := item.ProviderIDs["tmdb"]
+		if item.Catalog == nil {
+			continue
+		}
+		tmdbID, ok := item.Catalog.ProviderIDs["tmdb"]
 		if !ok || tmdbID == "" {
 			continue
 		}
@@ -325,13 +328,9 @@ func (s *CommandService) resetSingleItem(ctx context.Context, item *library.Medi
 	item.Overview = ""
 	item.Tagline = ""
 	item.OriginalTitle = ""
-	item.ProviderIDs = nil
-	item.Genres = nil
-	item.Studios = nil
+	item.Catalog = nil
 	item.Classification = nil
 	item.Trailers = nil
-	item.Year = nil
-	item.PremiereDate = nil
 	item.UpdatedAt = time.Now()
 
 	if err := s.mediaItems.Update(ctx, item); err != nil {

@@ -177,9 +177,9 @@ func TestSmartPlaylistQuerier_QueryByRules_NullParentID(t *testing.T) {
 
 	// media items have NULL parent_id — must not cause scan errors
 	mi1 := newTestMediaItem("sqmi1", lib.ID)
-	mi1.Genres = []string{"Action"}
+	mi1.Catalog.Genres = []string{"Action"}
 	mi2 := newTestMediaItem("sqmi2", lib.ID)
-	mi2.Genres = []string{"Drama"}
+	mi2.Catalog.Genres = []string{"Drama"}
 	require.NoError(t, itemRepo.Create(ctx, mi1))
 	require.NoError(t, itemRepo.Create(ctx, mi2))
 
@@ -201,9 +201,9 @@ func TestSmartPlaylistQuerier_QueryByRules_GenreFilter(t *testing.T) {
 	require.NoError(t, libRepo.Create(ctx, lib))
 
 	action := newTestMediaItem("sqmi3", lib.ID)
-	action.Genres = []string{"Action"}
+	action.Catalog.Genres = []string{"Action"}
 	drama := newTestMediaItem("sqmi4", lib.ID)
-	drama.Genres = []string{"Drama"}
+	drama.Catalog.Genres = []string{"Drama"}
 	require.NoError(t, itemRepo.Create(ctx, action))
 	require.NoError(t, itemRepo.Create(ctx, drama))
 

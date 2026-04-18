@@ -288,7 +288,7 @@ func TestGetItems_SmartCollection_DefaultSortBy(t *testing.T) {
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	ctx := context.Background()
 
-	smartQ.Items = []*library.MediaItem{{ID: "m1", Title: "A", Genres: []string{"Action"}}}
+	smartQ.Items = []*library.MediaItem{{ID: "m1", Title: "A", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}}}
 	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
 
 	col, err := svc.Upsert(ctx, 90, "Smart", "", "", "")
@@ -309,7 +309,7 @@ func TestGetItems_SmartCollection_CustomSortBy(t *testing.T) {
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 	ctx := context.Background()
 
-	smartQ.Items = []*library.MediaItem{{ID: "m1", Title: "A", Genres: []string{"Action"}}}
+	smartQ.Items = []*library.MediaItem{{ID: "m1", Title: "A", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}}}
 	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
 
 	col, err := svc.Upsert(ctx, 91, "Smart", "", "", "")
@@ -331,8 +331,8 @@ func TestGetItems_SmartCollection_OffsetEqualsTotal_ReturnsEmpty(t *testing.T) {
 	ctx := context.Background()
 
 	smartQ.Items = []*library.MediaItem{
-		{ID: "m1", Title: "A", Genres: []string{"Action"}},
-		{ID: "m2", Title: "B", Genres: []string{"Action"}},
+		{ID: "m1", Title: "A", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
+		{ID: "m2", Title: "B", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
 	}
 	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
 
@@ -356,9 +356,9 @@ func TestGetItems_SmartCollection_OffsetLessThanTotal(t *testing.T) {
 	ctx := context.Background()
 
 	smartQ.Items = []*library.MediaItem{
-		{ID: "m1", Title: "A", Genres: []string{"Action"}},
-		{ID: "m2", Title: "B", Genres: []string{"Action"}},
-		{ID: "m3", Title: "C", Genres: []string{"Action"}},
+		{ID: "m1", Title: "A", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
+		{ID: "m2", Title: "B", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
+		{ID: "m3", Title: "C", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
 	}
 	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
 
@@ -382,9 +382,9 @@ func TestGetItems_SmartCollection_LimitTruncatesResults(t *testing.T) {
 	ctx := context.Background()
 
 	smartQ.Items = []*library.MediaItem{
-		{ID: "m1", Title: "A", Genres: []string{"Action"}},
-		{ID: "m2", Title: "B", Genres: []string{"Action"}},
-		{ID: "m3", Title: "C", Genres: []string{"Action"}},
+		{ID: "m1", Title: "A", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
+		{ID: "m2", Title: "B", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
+		{ID: "m3", Title: "C", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
 	}
 	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
 
@@ -502,8 +502,8 @@ func TestGetItems_SmartCollection_LimitEqualLen_NoTruncation(t *testing.T) {
 	ctx := context.Background()
 
 	smartQ.Items = []*library.MediaItem{
-		{ID: "m1", Title: "A", Genres: []string{"Action"}},
-		{ID: "m2", Title: "B", Genres: []string{"Action"}},
+		{ID: "m1", Title: "A", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
+		{ID: "m2", Title: "B", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
 	}
 	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
 
@@ -694,11 +694,11 @@ func TestGetItems_SmartCollection_RulesEvaluated(t *testing.T) {
 	smartQ := libfakes.NewFakeCollectionSmartQuerier()
 
 	ctx := context.Background()
-	mediaRepo.Create(ctx, &library.MediaItem{ID: "m1", Title: "Action Film", Genres: []string{"Action"}})
-	mediaRepo.Create(ctx, &library.MediaItem{ID: "m2", Title: "Drama Film", Genres: []string{"Drama"}})
+	mediaRepo.Create(ctx, &library.MediaItem{ID: "m1", Title: "Action Film", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}})
+	mediaRepo.Create(ctx, &library.MediaItem{ID: "m2", Title: "Drama Film", Catalog: &library.MediaCatalog{Genres: []string{"Drama"}}})
 	smartQ.Items = []*library.MediaItem{
-		{ID: "m1", Title: "Action Film", Genres: []string{"Action"}},
-		{ID: "m2", Title: "Drama Film", Genres: []string{"Drama"}},
+		{ID: "m1", Title: "Action Film", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
+		{ID: "m2", Title: "Drama Film", Catalog: &library.MediaCatalog{Genres: []string{"Drama"}}},
 	}
 
 	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)

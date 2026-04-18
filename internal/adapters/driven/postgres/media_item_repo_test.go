@@ -15,17 +15,19 @@ import (
 
 func newTestMediaItem(id string, libraryID shared.LibraryID) *library.MediaItem {
 	return &library.MediaItem{
-		ID:          shared.MediaItemID(id),
-		LibraryID:   libraryID,
-		Type:        library.MovieItem,
-		Title:       "Movie " + id,
-		SortTitle:   "movie " + id,
-		ProviderIDs: map[string]string{"tmdb": "123"},
-		Genres:      []string{"Action"},
-		Studios:     []string{"Studio A"},
-		Tags:        []string{},
-		AddedAt:     time.Now().UTC().Truncate(time.Millisecond),
-		UpdatedAt:   time.Now().UTC().Truncate(time.Millisecond),
+		ID:        shared.MediaItemID(id),
+		LibraryID: libraryID,
+		Type:      library.MovieItem,
+		Title:     "Movie " + id,
+		SortTitle: "movie " + id,
+		Catalog: &library.MediaCatalog{
+			ProviderIDs: map[string]string{"tmdb": "123"},
+			Genres:      []string{"Action"},
+			Studios:     []string{"Studio A"},
+			Tags:        []string{},
+		},
+		AddedAt:   time.Now().UTC().Truncate(time.Millisecond),
+		UpdatedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
 }
 
@@ -47,7 +49,9 @@ func TestMediaItemRepo_Create_GetByID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, item.Title, got.Title)
 	assert.Equal(t, item.LibraryID, got.LibraryID)
-	assert.Equal(t, item.Genres, got.Genres)
+	require.NotNil(t, got.Catalog)
+	require.NotNil(t, item.Catalog)
+	assert.Equal(t, item.Catalog.Genres, got.Catalog.Genres)
 }
 
 func TestMediaItemRepo_GetByFilePath(t *testing.T) {
@@ -105,14 +109,18 @@ func TestMediaItemRepo_Update(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	item.Title = "Updated Movie"
-	item.Genres = []string{"Drama"}
+	if item.Catalog == nil {
+		item.Catalog = &library.MediaCatalog{}
+	}
+	item.Catalog.Genres = []string{"Drama"}
 	item.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond)
 	require.NoError(t, itemRepo.Update(ctx, item))
 
 	got, err := itemRepo.GetByID(ctx, item.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Movie", got.Title)
-	assert.Equal(t, []string{"Drama"}, got.Genres)
+	require.NotNil(t, got.Catalog)
+	assert.Equal(t, []string{"Drama"}, got.Catalog.Genres)
 }
 
 func TestMediaItemRepo_Delete(t *testing.T) {

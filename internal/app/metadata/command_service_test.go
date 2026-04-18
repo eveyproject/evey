@@ -82,9 +82,9 @@ func TestRefreshAllTranslations_SkipsItemsWithoutTMDB(t *testing.T) {
 	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
-	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "m1", Type: library.MovieItem, ProviderIDs: map[string]string{"tmdb": "42"}}))
-	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "m2", Type: library.MovieItem, ProviderIDs: map[string]string{"imdb": "tt1"}}))
-	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "m3", Type: library.MovieItem, ProviderIDs: map[string]string{"tmdb": ""}}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "m1", Type: library.MovieItem, Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "42"}}}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "m2", Type: library.MovieItem, Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"imdb": "tt1"}}}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "m3", Type: library.MovieItem, Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": ""}}}))
 
 	var progressCalls int
 	err := cmdSvc.RefreshAllTranslations(ctx, func(done, total int) {
@@ -108,9 +108,9 @@ func TestRefreshAllTranslations_TVMediaType(t *testing.T) {
 	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
-	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "s1", Type: library.Series, ProviderIDs: map[string]string{"tmdb": "100"}}))
-	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "se1", Type: library.Season, ProviderIDs: map[string]string{"tmdb": "101"}}))
-	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "e1", Type: library.Episode, ProviderIDs: map[string]string{"tmdb": "102"}}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "s1", Type: library.Series, Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "100"}}}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "se1", Type: library.Season, Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "101"}}}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "e1", Type: library.Episode, Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "102"}}}))
 
 	err := cmdSvc.RefreshAllTranslations(ctx, nil)
 	require.NoError(t, err)
@@ -195,8 +195,7 @@ func TestResetItemMetadata_MovieClearsFields(t *testing.T) {
 		Overview:       "some overview",
 		Tagline:        "tag",
 		OriginalTitle:  "orig",
-		ProviderIDs:    map[string]string{"tmdb": "27205"},
-		Year:           &year,
+		Catalog:        &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "27205"}, Year: &year},
 		Classification: &library.MediaClassification{OfficialRating: "PG-13"},
 	}
 	require.NoError(t, mediaRepo.Create(ctx, item))
@@ -214,8 +213,7 @@ func TestResetItemMetadata_MovieClearsFields(t *testing.T) {
 	assert.Empty(t, reset.Overview)
 	assert.Empty(t, reset.Tagline)
 	assert.Empty(t, reset.OriginalTitle)
-	assert.Nil(t, reset.ProviderIDs)
-	assert.Nil(t, reset.Year)
+	assert.Nil(t, reset.Catalog)
 	assert.Nil(t, reset.Classification)
 
 	// overrides removed
@@ -279,9 +277,9 @@ func TestResetItemMetadata_SeriesCascadesToChildren(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "s1", Type: library.Series, Title: "Old Series",
-		File:        &library.MediaFile{Path: "/media/Breaking Bad"},
-		Overview:    "o",
-		ProviderIDs: map[string]string{"tmdb": "1"},
+		File:     &library.MediaFile{Path: "/media/Breaking Bad"},
+		Overview: "o",
+		Catalog:  &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "1"}},
 	}))
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "se1", Type: library.Season, ParentID: "s1", Title: "Season 1",
@@ -299,7 +297,7 @@ func TestResetItemMetadata_SeriesCascadesToChildren(t *testing.T) {
 
 	series, _ := mediaRepo.GetByID(ctx, shared.MediaItemID("s1"))
 	assert.Empty(t, series.Overview)
-	assert.Nil(t, series.ProviderIDs)
+	assert.Nil(t, series.Catalog)
 
 	season, _ := mediaRepo.GetByID(ctx, shared.MediaItemID("se1"))
 	assert.Empty(t, season.Overview)

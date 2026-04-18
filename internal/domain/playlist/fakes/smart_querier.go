@@ -57,7 +57,10 @@ func matchesRules(item *library.MediaItem, rules []playlist.Rule) bool {
 func matchRule(item *library.MediaItem, rule playlist.Rule) bool {
 	switch rule.Field {
 	case "genre":
-		for _, g := range item.Genres {
+		if item.Catalog == nil {
+			return false
+		}
+		for _, g := range item.Catalog.Genres {
 			if strings.EqualFold(g, rule.Value) {
 				return true
 			}
@@ -66,10 +69,10 @@ func matchRule(item *library.MediaItem, rule playlist.Rule) bool {
 	case "type":
 		return string(item.Type) == rule.Value
 	case "year":
-		if item.Year == nil {
+		if item.Catalog == nil || item.Catalog.Year == nil {
 			return false
 		}
-		return strings.Contains(rule.Value, string(rune('0'+*item.Year%10)))
+		return strings.Contains(rule.Value, string(rune('0'+*item.Catalog.Year%10)))
 	default:
 		return true
 	}

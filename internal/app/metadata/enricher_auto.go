@@ -64,13 +64,18 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		searchTitle = item.Title
 	}
 
+	var year *int
+	if item.Catalog != nil {
+		year = item.Catalog.Year
+	}
+
 	// 1. Try primary provider
-	primary := e.searchAndFetchBest(ctx, e.primary, searchTitle, item.Year, mediaType, diskS01Episodes, log)
+	primary := e.searchAndFetchBest(ctx, e.primary, searchTitle, year, mediaType, diskS01Episodes, log)
 
 	// 2. If primary failed, try supplementary as fallback
 	if primary == nil {
 		for _, sp := range e.supplementary {
-			primary = e.searchAndFetchBest(ctx, sp, searchTitle, item.Year, mediaType, diskS01Episodes, log)
+			primary = e.searchAndFetchBest(ctx, sp, searchTitle, year, mediaType, diskS01Episodes, log)
 			if primary != nil {
 				break
 			}
@@ -152,11 +157,14 @@ func lookupSupplement(ctx context.Context, sp domainmetadata.MetadataProvider, i
 func mergeProviderIDs(item *domainlib.MediaItem, src map[string]string) bool {
 	changed := false
 	for k, v := range src {
-		if _, exists := item.ProviderIDs[k]; !exists {
-			if item.ProviderIDs == nil {
-				item.ProviderIDs = make(map[string]string)
+		if item.Catalog == nil {
+			item.Catalog = &domainlib.MediaCatalog{}
+		}
+		if _, exists := item.Catalog.ProviderIDs[k]; !exists {
+			if item.Catalog.ProviderIDs == nil {
+				item.Catalog.ProviderIDs = make(map[string]string)
 			}
-			item.ProviderIDs[k] = v
+			item.Catalog.ProviderIDs[k] = v
 			changed = true
 		}
 	}
@@ -353,7 +361,10 @@ func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaIt
 		if !ok {
 			continue
 		}
-		seriesID := series.ProviderIDs[p.Name()]
+		if series.Catalog == nil {
+			continue
+		}
+		seriesID := series.Catalog.ProviderIDs[p.Name()]
 		if seriesID == "" {
 			continue
 		}
@@ -391,7 +402,13 @@ func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaI
 	// Try each episode-capable provider
 	providers := e.episodeProviders()
 	for _, ep := range providers {
-		seriesID := series.ProviderIDs[ep.provider.Name()]
+		seriesProviders := func() map[string]string {
+			if series.Catalog == nil {
+				return nil
+			}
+			return series.Catalog.ProviderIDs
+		}
+		seriesID := seriesProviders()[ep.provider.Name()]
 		if seriesID == "" {
 			// For primary, try enriching the series first
 			if ep.provider.Name() == e.primary.Name() && series.Overview == "" {
@@ -400,7 +417,7 @@ func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaI
 				if err != nil {
 					continue
 				}
-				seriesID = series.ProviderIDs[ep.provider.Name()]
+				seriesID = seriesProviders()[ep.provider.Name()]
 			}
 			if seriesID == "" {
 				continue
