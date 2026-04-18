@@ -113,7 +113,33 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 	if err != nil {
 		return fmt.Errorf("MediaItemRepo.Create: %w", err)
 	}
+	r.bumpSeriesLatestChildAddedAt(ctx, item)
 	return nil
+}
+
+// bumpSeriesLatestChildAddedAt keeps media_items.latest_child_added_at in
+// sync on the grandparent series when an episode is created or touched.
+// Best-effort — failure is logged but not propagated (the column is a
+// denormalized sort cache, missing it at most degrades the "Recently
+// added" ordering until the next full scan).
+func (r *MediaItemRepository) bumpSeriesLatestChildAddedAt(ctx context.Context, item *library.MediaItem) {
+	if item == nil || item.Type != library.Episode || item.ParentID == "" {
+		return
+	}
+	when := item.AddedAt
+	if item.UpdatedAt.After(when) {
+		when = item.UpdatedAt
+	}
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE media_items
+		SET latest_child_added_at = $1
+		WHERE type = 'series'
+		  AND id = (SELECT parent_id FROM media_items WHERE id = $2 AND type = 'season')
+		  AND (latest_child_added_at IS NULL OR latest_child_added_at < $1)
+	`, when, item.ParentID)
+	if err != nil {
+		slog.Warn("bump series latest_child_added_at", slog.String("episode_id", string(item.ID)), slog.Any("err", err))
+	}
 }
 
 func (r *MediaItemRepository) GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
@@ -261,17 +287,11 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	if f.AfterID != "" {
 		query += " ORDER BY media_items.id ASC"
 	} else if sortField == "added_at" {
-		// LATERAL join: only compute max episode added_at per series row, not globally
-		query = fmt.Sprintf(`SELECT %s FROM media_items
-		 LEFT JOIN LATERAL (
-			SELECT MAX(ep.added_at) AS max_added
-			FROM media_items ep
-			WHERE ep.parent_id IN (
-				SELECT s.id FROM media_items s WHERE s.parent_id = media_items.id AND s.type = 'season'
-			) AND ep.type = 'episode'
-		 ) ep_latest ON media_items.type = 'series'`, mediaItemColumnsPrefixed) + where
+		// Use the denormalized latest_child_added_at column on series rows
+		// so "Recently added" sorts by latest episode without a LATERAL
+		// join (cf backlog #4, maintained by bumpSeriesLatestChildAddedAt).
 		query += fmt.Sprintf(` ORDER BY CASE WHEN media_items.type = 'series'
-		 THEN COALESCE(ep_latest.max_added, media_items.added_at)
+		 THEN COALESCE(media_items.latest_child_added_at, media_items.added_at)
 		 ELSE media_items.added_at END %s`, sortOrder)
 	} else {
 		query += fmt.Sprintf(" ORDER BY %s %s", sortField, sortOrder)
@@ -384,6 +404,7 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	if n, _ := res.RowsAffected(); n == 0 {
 		return shared.ErrNotFound
 	}
+	r.bumpSeriesLatestChildAddedAt(ctx, item)
 	return nil
 }
 
