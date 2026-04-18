@@ -12,6 +12,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/backup"
 	libevent "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 )
@@ -25,13 +26,14 @@ type batchEntry struct {
 }
 
 type CommandService struct {
-	repo     notification.Repository
-	settings notification.SettingsRepository
-	analyzer notification.WatchHistoryAnalyzer
-	profiles ProfileLister
-	events   shared.EventBus
-	push     notification.PushSender
-	subs     notification.PushSubscriptionRepository
+	repo        notification.Repository
+	settings    notification.SettingsRepository
+	analyzer    notification.WatchHistoryAnalyzer
+	profiles    ProfileLister
+	adminLister AdminProfileLister // optional: nil falls back to profiles.GetAll
+	events      shared.EventBus
+	push        notification.PushSender
+	subs        notification.PushSubscriptionRepository
 
 	mu          sync.Mutex
 	dedupe      map[string]time.Time
@@ -58,6 +60,13 @@ func WithPush(push notification.PushSender, subs notification.PushSubscriptionRe
 
 func WithBatchDelay(d time.Duration) Option {
 	return func(s *CommandService) { s.batchDelay = d }
+}
+
+// WithAdminLister lets wire inject a lookup that returns only admin-user
+// profiles. Used to route security-critical notifications (plugin errors)
+// so the admin gets paged instead of every user on the server.
+func WithAdminLister(a AdminProfileLister) Option {
+	return func(s *CommandService) { s.adminLister = a }
 }
 
 func NewCommandService(
@@ -88,6 +97,7 @@ func NewCommandService(
 func (s *CommandService) Register() {
 	s.events.Subscribe("media.item.added", s.handleMediaItemAdded)
 	s.events.Subscribe("backup.failed", s.handleBackupFailed)
+	s.events.Subscribe("plugin.error", s.handlePluginError)
 }
 
 func (s *CommandService) Start(ctx context.Context) {
@@ -493,6 +503,54 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 		}
 		s.persistAndDispatch(ctx, n, n.Title)
 	}
+}
+
+func (s *CommandService) handlePluginError(parentCtx context.Context, ev shared.Event) {
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	defer cancel()
+	e, ok := ev.(plugin.PluginError)
+	if !ok {
+		return
+	}
+
+	profiles, err := s.listAdminTargetProfiles(ctx)
+	if err != nil {
+		slog.Warn("notification: list admin profiles for plugin.error", slog.Any("err", err))
+		return
+	}
+
+	title := "Plugin error"
+	if e.PluginID != "" {
+		title = "Plugin error: " + e.PluginID
+	}
+	msg := e.ErrorMessage
+	if msg == "" {
+		msg = "plugin reported an error"
+	}
+	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
+	for _, p := range profiles {
+		n := &notification.Notification{
+			ID:        uuid.New().String(),
+			ProfileID: p.ID,
+			Type:      notification.TypePluginError,
+			Title:     title,
+			Message:   msg,
+			Level:     notification.LevelAll,
+			CreatedAt: time.Now(),
+			ExpiresAt: &expires,
+		}
+		s.persistAndDispatch(ctx, n, n.Title)
+	}
+}
+
+// listAdminTargetProfiles prefers the optional AdminProfileLister so
+// plugin errors page only admin users. Falls back to all profiles when
+// no admin lookup is wired (keeps dev/test setups working).
+func (s *CommandService) listAdminTargetProfiles(ctx context.Context) ([]*user.Profile, error) {
+	if s.adminLister != nil {
+		return s.adminLister.ListAdminProfiles(ctx)
+	}
+	return s.profiles.GetAll(ctx)
 }
 
 func (s *CommandService) MarkRead(ctx context.Context, id, profileID string) error {

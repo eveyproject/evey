@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 const (
@@ -42,6 +43,12 @@ type processEntry struct {
 // OnIPCResult is called after IPC Initialize completes (success or failure).
 type OnIPCResult func(pluginID string, err error)
 
+// EventBus is the minimal slice the runner needs — matches shared.EventBus
+// Publish signature (event must satisfy shared.Event, i.e. have EventName()).
+type EventBus interface {
+	Publish(ctx context.Context, event shared.Event) error
+}
+
 type Runner struct {
 	mu                  sync.RWMutex
 	processes           map[string]*processEntry
@@ -51,6 +58,7 @@ type Runner struct {
 	sandboxOnce         sync.Once
 	onIPCResult         OnIPCResult
 	allowMissingSandbox bool
+	eventBus            EventBus
 }
 
 // ErrSandboxUnavailable is returned by Start when a plugin without the
@@ -87,6 +95,28 @@ func (r *Runner) WithIPCCallback(cb OnIPCResult) *Runner {
 func (r *Runner) WithAllowMissingSandbox(allow bool) *Runner {
 	r.allowMissingSandbox = allow
 	return r
+}
+
+// WithEventBus lets the runner emit plugin.error events on sandbox refusal
+// and process crash so the notification service can page the admin.
+func (r *Runner) WithEventBus(bus EventBus) *Runner {
+	r.eventBus = bus
+	return r
+}
+
+// publishPluginError emits the domain plugin.error event so subscribers
+// (notification service) can react. Best-effort; logs and moves on.
+func (r *Runner) publishPluginError(ctx context.Context, pluginID, msg string) {
+	if r.eventBus == nil {
+		return
+	}
+	if err := r.eventBus.Publish(ctx, plugin.PluginError{
+		PluginID:     pluginID,
+		ErrorMessage: msg,
+		OccurredAt:   time.Now(),
+	}); err != nil {
+		slog.Warn("publish plugin.error failed", slog.String("plugin", pluginID), slog.Any("err", err))
+	}
 }
 
 var knownInterpreters = map[string]bool{
@@ -226,6 +256,7 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 				slog.Error("refusing to start plugin without sandbox",
 					slog.String("plugin_id", p.ID),
 					slog.String("sandbox_lib", sandboxLibPath))
+				r.publishPluginError(parentCtx, p.ID, "sandbox library unavailable; plugin refused start")
 				return fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
 			}
 			slog.Warn("starting plugin without sandbox (dev override)",
@@ -303,6 +334,7 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		}
 		if err != nil {
 			slog.Warn("plugin process crashed", slog.String("plugin", p.ID), slog.Any("err", err))
+			r.publishPluginError(parentCtx, p.ID, "process crashed: "+err.Error())
 		} else {
 			slog.Info("plugin process exited", slog.String("plugin", p.ID))
 		}

@@ -16,6 +16,13 @@ type ProfileLister interface {
 	GetAll(ctx context.Context) ([]*user.Profile, error)
 }
 
+// AdminProfileLister narrows the profile list to profiles that belong to
+// admin users. Used for security-critical notifications (plugin errors,
+// etc.) that shouldn't spam non-admin users.
+type AdminProfileLister interface {
+	ListAdminProfiles(ctx context.Context) ([]*user.Profile, error)
+}
+
 func typeAndTitle(mediaType, title, seriesTitle string) (notification.Type, string, string) {
 	label := title
 	if seriesTitle != "" && (mediaType == "episode" || mediaType == "season") {

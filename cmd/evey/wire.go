@@ -175,7 +175,8 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	// that can't be sandboxed fails closed.
 	pluginRunner := pluginrunner.NewRunner().
 		WithLogger(pluginLogger).
-		WithAllowMissingSandbox(cfg.Log.DevMode)
+		WithAllowMissingSandbox(cfg.Log.DevMode).
+		WithEventBus(bus)
 	manifestParser := pluginrunner.NewManifestParser()
 	pluginInstaller := pluginrunner.NewZipInstaller()
 	pluginAnalyzer := pluginrunner.NewStaticAnalyzer()
@@ -359,6 +360,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		notifOpts = append(notifOpts, appnotification.WithPush(wpSender, r.PushSubscription))
 		rootLog.Info("Web Push (VAPID) notifications enabled")
 	}
+	notifOpts = append(notifOpts, appnotification.WithAdminLister(r.Profile))
 	notifCmdSvc := appnotification.NewCommandService(r.Notification, r.NotificationSettings, r.WatchHistoryAnalyzer, r.Profile, bus, notifOpts...)
 	notifCmdSvc.Register()
 	notifQuerySvc := appnotification.NewQueryService(r.Notification, r.NotificationSettings, appnotification.WithPushSubs(r.PushSubscription))

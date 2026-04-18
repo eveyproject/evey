@@ -216,4 +216,35 @@ func parentalFromColumns(maxAge *int, blockedTags []string, pinHash string, enab
 	}
 }
 
+// ListAdminProfiles returns profiles whose user has is_admin=TRUE.
+// Used by notification service to route security alerts.
+func (r *ProfileRepository) ListAdminProfiles(ctx context.Context) ([]*user.Profile, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT p.id, p.user_id, p.name, p.avatar_path, p.preferences, p.max_rating, p.is_default, p.is_kids,
+		 p.audio_languages, p.subtitle_languages, p.max_bitrate_kbps, p.parental_max_age, p.parental_blocked_tags,
+		 p.parental_pin_hash, p.parental_enabled, p.locale, p.region, p.created_at
+		 FROM profiles p
+		 INNER JOIN users u ON u.id = p.user_id
+		 WHERE u.is_admin = TRUE
+		 ORDER BY p.user_id, p.is_default DESC, p.name LIMIT 1000`)
+	if err != nil {
+		return nil, fmt.Errorf("ProfileRepo.ListAdminProfiles: %w", err)
+	}
+	defer rows.Close()
+	var result []*user.Profile
+	for rows.Next() {
+		p, err := scanProfile(rows)
+		if err != nil {
+			return nil, fmt.Errorf("ProfileRepo.ListAdminProfiles scan: %w", err)
+		}
+		result = append(result, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("ProfileRepo.ListAdminProfiles rows: %w", err)
+	}
+	return result, nil
+}
+
 var _ user.ProfileRepository = (*ProfileRepository)(nil)

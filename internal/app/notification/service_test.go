@@ -9,6 +9,7 @@ import (
 
 	appnotification "github.com/evey-project/evey/internal/app/notification"
 	"github.com/evey-project/evey/internal/domain/backup"
+	"github.com/evey-project/evey/internal/domain/plugin"
 	libevent "github.com/evey-project/evey/internal/domain/library"
 	notifdom "github.com/evey-project/evey/internal/domain/notification"
 	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
@@ -483,6 +484,76 @@ func TestNotificationService_WithPush_PushSendError_DoesNotBlockNotification(t *
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	assert.Len(t, notifs, 1, "notification should be created even if push fails")
+}
+
+func TestNotificationService_PluginError_NotifiesAllProfilesWhenNoAdminLister(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	bus.Publish(ctx, plugin.PluginError{
+		PluginID:     "themer",
+		ErrorMessage: "sandbox unavailable",
+		OccurredAt:   time.Now(),
+	})
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1)
+	assert.Equal(t, notifdom.TypePluginError, notifs[0].Type)
+	assert.Contains(t, notifs[0].Title, "themer")
+	assert.Equal(t, "sandbox unavailable", notifs[0].Message)
+}
+
+type fakeAdminLister struct {
+	profiles []*user.Profile
+}
+
+func (f *fakeAdminLister) ListAdminProfiles(_ context.Context) ([]*user.Profile, error) {
+	return f.profiles, nil
+}
+
+func TestNotificationService_PluginError_RoutesAdminOnlyWithAdminLister(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	adminProfile := &user.Profile{ID: "p-admin", UserID: "u-admin", Name: "Root"}
+	userProfile := &user.Profile{ID: "p-user", UserID: "u-user", Name: "Bob"}
+	_ = profileRepo.Create(ctx, adminProfile)
+	_ = profileRepo.Create(ctx, userProfile)
+
+	admin := &fakeAdminLister{profiles: []*user.Profile{adminProfile}}
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus,
+		appnotification.WithAdminLister(admin))
+	svc.Register()
+
+	bus.Publish(ctx, plugin.PluginError{
+		PluginID:     "themer",
+		ErrorMessage: "crashed",
+		OccurredAt:   time.Now(),
+	})
+
+	adminNotifs, err := repo.ListByProfile(ctx, "p-admin", false, 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, adminNotifs, 1, "admin profile should receive plugin.error")
+
+	userNotifs, err := repo.ListByProfile(ctx, "p-user", false, 0, 0)
+	require.NoError(t, err)
+	assert.Empty(t, userNotifs, "non-admin profile must NOT receive plugin.error")
 }
 
 func TestNotificationService_BackupFailed_NotifiesAllProfiles(t *testing.T) {
