@@ -53,6 +53,10 @@ plugin:
     stopped: "रुका हुआ"
     installed: "स्थापित"
     unknown: "अज्ञात"
+  analysisReport:
+    title: "सुरक्षा नोटिस"
+    issues: "समस्याएँ"
+    urls: "बाहरी URL"
 
 plugins:
   title: "प्लगइन"

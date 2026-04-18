@@ -53,6 +53,10 @@ plugin:
     stopped: Detenido
     installed: Instalado
     unknown: Desconocido
+  analysisReport:
+    title: "Aviso de seguridad"
+    issues: "Problemas"
+    urls: "URL externas"
 
 plugins:
   title: "Plugins"

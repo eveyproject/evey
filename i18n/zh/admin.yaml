@@ -53,6 +53,10 @@ plugin:
     stopped: "已停止"
     installed: "已安装"
     unknown: "未知"
+  analysisReport:
+    title: "安全提示"
+    issues: "问题"
+    urls: "外部 URL"
 
 plugins:
   title: "插件"

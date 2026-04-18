@@ -296,6 +296,12 @@ interface PluginCardProps {
 export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginCardProps) {
   const { t } = useTranslation();
   const [showConfig, setShowConfig] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const analysisReport = plugin.analysisReport;
+  const hasWarnings =
+    analysisReport != null &&
+    ((analysisReport.issues?.length ?? 0) > 0 ||
+      (analysisReport.urls?.length ?? 0) > 0);
 
   const stateKey = STATE_LABEL_KEYS[plugin.state ?? ""] ?? "admin.plugin.state.unknown";
 
@@ -365,6 +371,55 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
         </Link>
         <Button variant="danger" onClick={onUninstall}>{t("admin.plugin.uninstall")}</Button>
       </div>
+
+      {hasWarnings && (
+        <div className="border-t pt-3 mt-1 border-[var(--border)]">
+          <button
+            type="button"
+            onClick={() => setShowReport((v) => !v)}
+            className="text-xs font-semibold text-[var(--color-warning,var(--text))] flex items-center gap-2 cursor-pointer"
+            data-testid="plugin-analysis-toggle"
+          >
+            {t("admin.plugin.analysisReport.title", "Security notice")}
+            <Badge variant="warning">
+              {(analysisReport?.issues?.length ?? 0) + (analysisReport?.urls?.length ?? 0)}
+            </Badge>
+          </button>
+          {showReport && (
+            <div className="flex flex-col gap-2 mt-2 text-xs text-[var(--text-muted)]">
+              {analysisReport?.issues && analysisReport.issues.length > 0 && (
+                <div>
+                  <p className="font-semibold text-[var(--text)]">
+                    {t("admin.plugin.analysisReport.issues", "Issues")}
+                  </p>
+                  <ul className="list-disc pl-5 mt-1">
+                    {analysisReport.issues.map((iss, i) => (
+                      <li key={`iss-${i}`}>{iss}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {analysisReport?.urls && analysisReport.urls.length > 0 && (
+                <div>
+                  <p className="font-semibold text-[var(--text)]">
+                    {t("admin.plugin.analysisReport.urls", "External URLs")}
+                  </p>
+                  <ul className="list-disc pl-5 mt-1">
+                    {analysisReport.urls.map((u, i) => (
+                      <li key={`url-${i}`} className="break-all">
+                        <span className="font-mono">{u.url}</span>
+                        {u.file && (
+                          <span className="text-[var(--text-muted)]"> — {u.file}:{u.line ?? 0}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {showConfig && plugin.id && (
         <div

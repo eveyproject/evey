@@ -54,6 +54,10 @@ plugin:
     stopped: Stopped
     installed: Installed
     unknown: Unknown
+  analysisReport:
+    title: Security notice
+    issues: Issues
+    urls: External URLs
 
 plugins:
   title: Plugins
