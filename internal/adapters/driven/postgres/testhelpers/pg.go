@@ -63,7 +63,7 @@ func StartShared() func() {
 	if err != nil {
 		panic(fmt.Sprintf("ping db after retries: %v", err))
 	}
-	if err := postgres.RunMigrations(db); err != nil {
+	if err := postgres.RunMigrations(db, postgres.BackupOpts{}); err != nil {
 		panic(fmt.Sprintf("run migrations: %v", err))
 	}
 
@@ -163,7 +163,7 @@ func startDedicated(t *testing.T) (*sql.DB, func()) {
 	if err := db.Ping(); err != nil {
 		t.Fatalf("ping db: %v", err)
 	}
-	if err := postgres.RunMigrations(db); err != nil {
+	if err := postgres.RunMigrations(db, postgres.BackupOpts{}); err != nil {
 		t.Fatalf("run migrations: %v", err)
 	}
 
