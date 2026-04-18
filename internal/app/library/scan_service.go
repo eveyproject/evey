@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -296,7 +298,7 @@ func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toP
 	const workerTimeout = 30 * time.Second
 
 	var addedAtomic, updatedAtomic atomic.Int64
-	sem := make(chan struct{}, runtime.NumCPU())
+	sem := make(chan struct{}, scanWorkerCount())
 	var wg sync.WaitGroup
 	for _, w := range toProcess {
 		wg.Add(1)
@@ -542,5 +544,16 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 		slog.Warn("replace media streams failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
 	}
 	return result.DurationMs
+}
+
+// scanWorkerCount returns the scan goroutine pool size.
+// Override via EVEY_LIBRARY_SCAN_WORKERS (int > 0). Defaults to runtime.NumCPU().
+func scanWorkerCount() int {
+	if v := os.Getenv("EVEY_LIBRARY_SCAN_WORKERS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return runtime.NumCPU()
 }
 
