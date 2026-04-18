@@ -254,11 +254,20 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")
 	libScheduler := applibrary.NewScheduler(r.ScanSchedule, libCmdSvc, schedulerLog)
 
+	// SMTP status is known here (before userAuthSvc is built) so password
+	// reset is wired through constructor options, not post-hoc. The actual
+	// email Register() calls happen further down after the services exist.
+	smtpConfigured := cfg.SMTP.Host != ""
+	userAuthOpts := []appuser.CommandServiceOption{
+		appuser.WithPasswordReset(r.PasswordResetToken, r.ServerCfg, smtpConfigured),
+		appuser.WithUnitOfWork(postgres.NewTxUnit(db)),
+	}
 	userAuthSvc := appuser.NewCommandService(
 		r.User, r.Profile, r.RefreshToken,
 		r.Role, r.UserRole,
 		infra.hasher, infra.tokenGen, bus,
 		7*24*time.Hour, r.QuickConnect,
+		userAuthOpts...,
 	)
 	userAuthSvc.InitSetupState(ctx)
 	// server.language (admin-editable, set via /setup) drives the default UI
@@ -365,15 +374,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	notifCmdSvc.Register()
 	notifQuerySvc := appnotification.NewQueryService(r.Notification, r.NotificationSettings, appnotification.WithPushSubs(r.PushSubscription))
 
-	smtpConfigured := cfg.SMTP.Host != ""
 	if smtpConfigured {
 		smtpSender := email.NewSMTPSender(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From, cfg.SMTP.TLS)
 		email.NewNotificationEmailer(smtpSender, r.Profile, r.User).Register(bus)
 		email.NewPasswordResetEmailer(smtpSender, cfg.EffectiveBaseURL).Register(bus)
 		rootLog.Info("SMTP email notifications enabled", slog.String("host", cfg.SMTP.Host))
 	}
-	appuser.WithPasswordReset(r.PasswordResetToken, r.ServerCfg, smtpConfigured)(userAuthSvc)
-	appuser.WithUnitOfWork(postgres.NewTxUnit(db))(userAuthSvc)
+	// userAuthSvc already wired with password reset + UoW options above.
 
 	feedCmdSvc := appfeed.NewCommandService(r.FeedConfigCmd, r.FeedConfigQuery, appfeed.CommandWithEventBus(bus))
 	cachedAnalyzer := appfeed.NewCachedAnalyzer(r.WatchHistoryAnalyzer, 5*time.Minute, appfeed.CacheWithEventBus(bus))
@@ -516,51 +523,56 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 
 	if rs, ok := infra.searchAdapter.(*search.ResilientSearch); ok {
 		if sa, isMeili := rs.Primary().(*meili.SearchAdapter); isMeili {
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("panic recovered in meilisearch startup index", "error", r, "stack", debug.Stack())
-				}
-			}()
-			indexCtx, indexCancel := context.WithTimeout(ctx, 5*time.Minute)
-			defer indexCancel()
-			dbCount, err := infra.repos.MediaItem.Count(indexCtx, library.ListMediaItemsFilter{})
-			if err != nil {
-				slog.Warn("startup index: count db items", slog.Any("err", err))
-				return
-			}
-			meiliCount, err := sa.DocumentCount(indexCtx)
-			if err == nil && meiliCount == int64(dbCount) {
-				slog.Info("startup index: already up to date", slog.Int("items", dbCount))
-				return
-			}
-			const pageSize = 500
-			indexed := 0
-			offset := 0
-			for {
-				if indexCtx.Err() != nil {
-					slog.Warn("startup index: cancelled", slog.Int("indexed", indexed))
-					return
-				}
-				items, err := infra.repos.MediaItem.List(indexCtx, library.ListMediaItemsFilter{Limit: pageSize, Offset: offset})
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("panic recovered in meilisearch startup index", "error", r, "stack", debug.Stack())
+					}
+				}()
+				indexCtx, indexCancel := context.WithTimeout(ctx, 5*time.Minute)
+				defer indexCancel()
+				dbCount, err := infra.repos.MediaItem.Count(indexCtx, library.ListMediaItemsFilter{})
 				if err != nil {
-					slog.Warn("startup index: list items", slog.Any("err", err))
+					slog.Warn("startup index: count db items", slog.Any("err", err))
 					return
 				}
-				if len(items) == 0 {
-					break
+				meiliCount, err := sa.DocumentCount(indexCtx)
+				if err == nil && meiliCount == int64(dbCount) {
+					slog.Info("startup index: already up to date", slog.Int("items", dbCount))
+					return
 				}
-				if err := infra.searchAdapter.IndexMediaItemsBatch(indexCtx, items); err != nil {
-					slog.Warn("startup index batch", slog.Int("offset", offset), slog.Any("err", err))
+				// Keyset pagination via AfterID — avoids O(n²) OFFSET scans
+				// on large libs (cf backlog #5).
+				const pageSize = 500
+				indexed := 0
+				afterID := ""
+				for {
+					if indexCtx.Err() != nil {
+						slog.Warn("startup index: cancelled", slog.Int("indexed", indexed))
+						return
+					}
+					items, err := infra.repos.MediaItem.List(indexCtx, library.ListMediaItemsFilter{
+						Limit:   pageSize,
+						AfterID: afterID,
+					})
+					if err != nil {
+						slog.Warn("startup index: list items", slog.Any("err", err))
+						return
+					}
+					if len(items) == 0 {
+						break
+					}
+					if err := infra.searchAdapter.IndexMediaItemsBatch(indexCtx, items); err != nil {
+						slog.Warn("startup index batch", slog.Int("indexed", indexed), slog.Any("err", err))
+					}
+					indexed += len(items)
+					afterID = string(items[len(items)-1].ID)
+					if len(items) < pageSize {
+						break
+					}
 				}
-				indexed += len(items)
-				offset += len(items)
-				if len(items) < pageSize {
-					break
-				}
-			}
-			slog.Info("startup index complete", slog.Int("indexed", indexed))
-		}()
+				slog.Info("startup index complete", slog.Int("indexed", indexed))
+			}()
 		}
 	}
 }

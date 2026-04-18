@@ -216,7 +216,11 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 		args = append(args, *f.PersonID)
 		argIdx++
 	}
-	_ = argIdx
+	if f.AfterID != "" {
+		conditions = append(conditions, fmt.Sprintf("media_items.id > $%d", argIdx))
+		args = append(args, f.AfterID)
+		argIdx++ //nolint:ineffassign // kept so new conditions below stay placeholder-correct
+	}
 	where := ""
 	if len(conditions) > 0 {
 		where = " WHERE " + strings.Join(conditions, " AND ")
@@ -252,7 +256,11 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	if strings.EqualFold(f.SortOrder, "desc") {
 		sortOrder = "DESC"
 	}
-	if sortField == "added_at" {
+	// Keyset pagination forces an ID-based order so the WHERE id > $N
+	// cursor is monotonic. Incompatible with added_at / sort_title orders.
+	if f.AfterID != "" {
+		query += " ORDER BY media_items.id ASC"
+	} else if sortField == "added_at" {
 		// LATERAL join: only compute max episode added_at per series row, not globally
 		query = fmt.Sprintf(`SELECT %s FROM media_items
 		 LEFT JOIN LATERAL (

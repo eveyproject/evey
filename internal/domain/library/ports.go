@@ -29,6 +29,11 @@ type ListMediaItemsFilter struct {
 	SortOrder      string
 	Limit          int
 	Offset         int
+	// AfterID enables keyset pagination: when set, forces ORDER BY id ASC
+	// and restricts to rows with id > AfterID. Prefer this over Offset for
+	// full-table iteration (Meili reindex) — O(log N) per page vs O(n²)
+	// cumulative with offset.
+	AfterID        string
 	AllowedRatings []string // parental control: if set, only items with official_rating in this list (or empty rating) are returned
 	PersonID       *string  // filter to items featuring this person
 }
