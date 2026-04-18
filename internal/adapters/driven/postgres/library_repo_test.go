@@ -147,3 +147,26 @@ func TestLibraryRepo_Delete(t *testing.T) {
 	_, err := repo.GetByID(ctx, shared.LibraryID(lib.ID))
 	assert.Error(t, err)
 }
+
+func TestLibraryRepo_Update_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewLibraryRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("ghost")
+	err := repo.Update(ctx, lib)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+func TestLibraryRepo_Delete_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewLibraryRepository(db)
+	ctx := context.Background()
+
+	err := repo.Delete(ctx, shared.LibraryID("nonexistent"))
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
