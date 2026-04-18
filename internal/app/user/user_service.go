@@ -279,7 +279,6 @@ func (s *UserService) UpdateProfile(ctx context.Context, p *user.Profile) error 
 	return nil
 }
 
-// checkProfileInvariants enforces:
 //  1. User.MaxProfiles cap (create only, skipped for updates)
 //  2. Kids invariant: when any kids profile exists on this user, every
 //     non-kids profile must have a PIN set.
@@ -300,20 +299,26 @@ func (s *UserService) checkProfileInvariants(ctx context.Context, p *user.Profil
 	if !isUpdate && maxProfiles != nil && *maxProfiles > 0 && len(existing) >= *maxProfiles {
 		return ErrMaxProfilesReached
 	}
-	hasKids := false
+	hasKidsSibling := false
+	var pinlessNonKidsSibling *user.Profile
 	for _, other := range existing {
 		if string(other.ID) == string(p.ID) {
 			continue // ignore self when updating
 		}
 		if other.IsKids {
-			hasKids = true
-			break
+			hasKidsSibling = true
+		} else if !other.HasPIN() {
+			pinlessNonKidsSibling = other
 		}
 	}
-	if p.IsKids {
-		hasKids = true
+	// Invariant 1: the profile being created/updated, if non-kids, must have
+	// a PIN when any kids sibling exists.
+	if (hasKidsSibling || p.IsKids) && !p.IsKids && !p.HasPIN() {
+		return ErrKidsRequiresPIN
 	}
-	if hasKids && !p.IsKids && !p.HasPIN() {
+	// Invariant 2: we cannot create or flip-to-kids a profile while a sibling
+	// non-kids profile still lacks a PIN — otherwise we'd break the symmetry.
+	if p.IsKids && pinlessNonKidsSibling != nil {
 		return ErrKidsRequiresPIN
 	}
 	return nil

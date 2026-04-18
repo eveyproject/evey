@@ -641,6 +641,26 @@ func TestCreateProfile_KidsRequiresPIN(t *testing.T) {
 	}
 }
 
+func TestCreateProfile_KidsBlockedWhenSiblingHasNoPIN(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	_ = d.users.Create(ctx, &user.User{ID: "u1", Username: "bob"})
+	// Existing adult profile has NO PIN.
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Adult"})
+
+	// Creating a kids profile must fail because the existing adult is PIN-less.
+	err := d.svc.CreateProfile(ctx, &user.Profile{ID: "p2", UserID: "u1", Name: "Kids", IsKids: true})
+	if !errors.Is(err, ErrKidsRequiresPIN) {
+		t.Fatalf("got %v, want ErrKidsRequiresPIN", err)
+	}
+
+	// Once the adult has a PIN, kids creation succeeds.
+	_ = d.profiles.Update(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Adult", Parental: &user.ParentalSettings{PINHash: "h"}})
+	if err := d.svc.CreateProfile(ctx, &user.Profile{ID: "p2", UserID: "u1", Name: "Kids", IsKids: true}); err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+}
+
 func TestUpdateProfile_KidsRequiresPIN(t *testing.T) {
 	d := newUserTestDeps()
 	ctx := context.Background()
