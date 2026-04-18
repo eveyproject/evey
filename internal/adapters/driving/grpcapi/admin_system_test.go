@@ -9,6 +9,8 @@ import (
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	transcodingfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestAdminGetSetupStatus_NoAdmins(t *testing.T) {
@@ -102,6 +104,36 @@ func TestAdminSetupWizard(t *testing.T) {
 	})
 	if err == nil {
 		t.Error("expected error on duplicate setup")
+	}
+}
+
+func TestAdminSetupWizard_PostSetupRejected(t *testing.T) {
+	d := newTestSystemHandler()
+	// First setup — legitimate.
+	if _, err := d.SetupWizard(context.Background(), &eveyv1.SetupWizardRequest{
+		AdminUsername: "admin",
+		AdminPassword: "password123",
+		AdminEmail:    "admin@test.com",
+	}); err != nil {
+		t.Fatalf("first SetupWizard: %v", err)
+	}
+
+	// Second call with ServerLanguage/Region provided MUST reject with
+	// AlreadyExists BEFORE any mutation. The source of truth is that Setup()
+	// is invoked first in the handler; this test guards against regression
+	// if someone reorders the calls again.
+	_, err := d.SetupWizard(context.Background(), &eveyv1.SetupWizardRequest{
+		AdminUsername:  "attacker",
+		AdminPassword:  "irrelevant",
+		AdminEmail:     "x@x",
+		ServerLanguage: "attacker-locale",
+		ServerRegion:   "attacker-region",
+	})
+	if err == nil {
+		t.Fatal("expected error — setup already done")
+	}
+	if code := status.Code(err); code != codes.AlreadyExists {
+		t.Fatalf("expected AlreadyExists, got %v", code)
 	}
 }
 

@@ -88,8 +88,20 @@ func (d *adminSystemHandler) UpdateServerConfig(_ context.Context, req *eveyv1.U
 }
 
 func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupWizardRequest) (*eveyv1.SetupWizardResponse, error) {
-	// Persist language/region FIRST so the admin profile created just below
-	// inherits them via the server-wide defaults.
+	// IMPORTANT: create the admin FIRST — if setup is already done Setup()
+	// returns ErrSetupDone and we must not have mutated server.language/region
+	// in the meantime. This endpoint is public (pre-setup) so any side-effect
+	// before the Setup check is an unauthenticated write on a running server.
+	u, err := d.userCmd.Setup(ctx, req.AdminUsername, req.AdminPassword, req.AdminEmail)
+	if err != nil {
+		if errors.Is(err, appuser.ErrSetupDone) {
+			return nil, d.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.admin.setup_already_completed")
+		}
+		return nil, internalError("setup", err)
+	}
+	// Persist language/region AFTER Setup() confirmed this is a fresh install.
+	// The admin profile's defaults are resolved at login-time, not here, so
+	// ordering no longer matters for inheritance.
 	if d.serverCfgSvc != nil {
 		if req.ServerLanguage != "" {
 			if err := d.serverCfgSvc.Set(ctx, "server.language", req.ServerLanguage); err != nil {
@@ -101,13 +113,6 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 				slog.Warn("setup: persist server.region", slog.Any("err", err))
 			}
 		}
-	}
-	u, err := d.userCmd.Setup(ctx, req.AdminUsername, req.AdminPassword, req.AdminEmail)
-	if err != nil {
-		if errors.Is(err, appuser.ErrSetupDone) {
-			return nil, d.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.admin.setup_already_completed")
-		}
-		return nil, internalError("setup", err)
 	}
 	access, refresh, err := d.userCmd.Login(ctx, req.AdminUsername, req.AdminPassword)
 	if err != nil {
