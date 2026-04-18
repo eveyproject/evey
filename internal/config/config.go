@@ -98,10 +98,43 @@ type DBConfig struct {
 }
 
 func (c DBConfig) DSN() string {
+	// libpq keyword/value format — values containing spaces, quotes or
+	// backslashes are wrapped in single quotes with ' and \ escaped.
+	// Without this, a password like `p@ss 'foo` silently breaks the DSN.
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode,
+		escapeDSNValue(c.Host),
+		c.Port,
+		escapeDSNValue(c.User),
+		escapeDSNValue(c.Password),
+		escapeDSNValue(c.DBName),
+		escapeDSNValue(c.SSLMode),
 	)
+}
+
+func escapeDSNValue(v string) string {
+	needsQuote := v == ""
+	for _, r := range v {
+		if r == ' ' || r == '\'' || r == '\\' {
+			needsQuote = true
+			break
+		}
+	}
+	if !needsQuote {
+		return v
+	}
+	buf := make([]byte, 0, len(v)+2)
+	buf = append(buf, '\'')
+	for _, r := range v {
+		switch r {
+		case '\'', '\\':
+			buf = append(buf, '\\', byte(r))
+		default:
+			buf = append(buf, string(r)...)
+		}
+	}
+	buf = append(buf, '\'')
+	return string(buf)
 }
 
 type MeilisearchConfig struct {
@@ -163,16 +196,55 @@ func (c *Config) EffectiveHWAccelEnabled() bool      { return c.Transcoding.HWAc
 
 // WarnValidate validates config, returning an error for critical security issues
 // and logging warnings for non-critical ones.
+// In DevMode the hard errors are downgraded to warnings so dev iteration stays smooth.
 func (c *Config) WarnValidate() error {
+	dev := c.Log.DevMode
+	var errs []string
+
+	hardFail := func(msg string) {
+		if dev {
+			slog.Warn("config hardening", slog.String("issue", msg), slog.Bool("dev_mode", true))
+			return
+		}
+		errs = append(errs, msg)
+	}
+
+	if c.DB.Password == "evey" {
+		hardFail("EVEY_DB_PASSWORD is the default 'evey' — set a strong database password")
+	}
+
+	if c.DB.SSLMode == "prefer" && !isLoopbackHost(c.DB.Host) {
+		slog.Warn("EVEY_DB_SSLMODE=prefer against a non-loopback host — use 'require' or 'verify-full' in production",
+			slog.String("host", c.DB.Host))
+	}
+
 	k := c.Meilisearch.APIKey
-	if k == "" || k == "changeme" || k == "change-me-generate-a-random-secret" || len(k) < 16 {
-		slog.Warn("meilisearch API key is weak or default — set MEILI_MASTER_KEY to a strong secret (>= 16 chars)")
+	if k == "" || k == "changeme" || k == "change-me-generate-a-random-secret" {
+		hardFail("MEILI_MASTER_KEY is empty or default — set a strong secret (>= 16 chars)")
+	} else if len(k) < 16 {
+		slog.Warn("meilisearch API key is shorter than 16 chars — use a longer secret")
+	}
+
+	if (c.VAPID.PublicKey == "") != (c.VAPID.PrivateKey == "") {
+		slog.Warn("VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must both be set or both empty — web push will be disabled")
 	}
 
 	if c.OIDC.Enabled && c.OIDC.Issuer != "" && c.OIDC.ClientSecret == "" {
 		slog.Warn("OIDC enabled but client secret is empty — set EVEY_OIDC_CLIENT_SECRET")
 	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("config validation failed: %s", strings.Join(errs, "; "))
+	}
 	return nil
+}
+
+func isLoopbackHost(host string) bool {
+	switch host {
+	case "localhost", "127.0.0.1", "::1", "":
+		return true
+	}
+	return false
 }
 
 func Load() (*Config, error) {

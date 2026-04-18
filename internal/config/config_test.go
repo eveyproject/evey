@@ -151,6 +151,37 @@ func TestDBConfig_DSN(t *testing.T) {
 	assert.Equal(t, expected, db.DSN())
 }
 
+func TestDBConfig_DSN_SpecialChars(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		password string
+		want     string
+	}{
+		{"space in password", "has space", "password='has space'"},
+		{"quote in password", "quote'here", "password='quote\\'here'"},
+		{"backslash in password", `back\slash`, `password='back\\slash'`},
+		{"empty password", "", "password=''"},
+		{"plain password", "simple", "password=simple"},
+		{"at symbol ok", "p@ss", "password=p@ss"},
+		{"slash ok", "p/ss", "password=p/ss"},
+		{"colon ok", "p:ss", "password=p:ss"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := DBConfig{
+				Host:     "h",
+				Port:     1,
+				User:     "u",
+				Password: tt.password,
+				DBName:   "d",
+				SSLMode:  "disable",
+			}
+			assert.Contains(t, db.DSN(), tt.want)
+		})
+	}
+}
+
 func TestEnvStrSlice(t *testing.T) {
 	t.Setenv("EVEY_TRUSTED_PROXIES", "10.0.0.1, 10.0.0.2 , 10.0.0.3")
 
@@ -173,4 +204,43 @@ func TestEnvStrSlice_OIDCDomains(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"example.com", "test.org"}, cfg.OIDC.AllowedEmailDomains)
+}
+
+func TestWarnValidate_ProdDefaultDBPasswordRejected(t *testing.T) {
+	cfg := &Config{
+		DB:          DBConfig{Password: "evey", SSLMode: "disable", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "strong-key-abcdefghij"},
+	}
+	err := cfg.WarnValidate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EVEY_DB_PASSWORD")
+}
+
+func TestWarnValidate_DevModeDowngradesToWarnings(t *testing.T) {
+	cfg := &Config{
+		Log:         LogConfig{DevMode: true},
+		DB:          DBConfig{Password: "evey", SSLMode: "disable", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "changeme"},
+	}
+	err := cfg.WarnValidate()
+	require.NoError(t, err, "dev mode must log warnings, not return errors")
+}
+
+func TestWarnValidate_DefaultMeiliKeyRejected(t *testing.T) {
+	cfg := &Config{
+		DB:          DBConfig{Password: "strong", SSLMode: "disable", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "changeme"},
+	}
+	err := cfg.WarnValidate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "MEILI_MASTER_KEY")
+}
+
+func TestWarnValidate_StrongConfigPasses(t *testing.T) {
+	cfg := &Config{
+		DB:          DBConfig{Password: "a-long-random-password-xyz", SSLMode: "require", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+	}
+	err := cfg.WarnValidate()
+	require.NoError(t, err)
 }
