@@ -254,6 +254,14 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	}
 	if req.Pagination != nil {
 		filter.Limit, filter.Offset = clampPagination(req.Pagination.PageSize, req.Pagination.Page, 50)
+		if req.Pagination.Cursor != "" {
+			cursor, err := shared.DecodeCursor(req.Pagination.Cursor)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid cursor: %v", err)
+			}
+			filter.Cursor = cursor
+			filter.Offset = 0
+		}
 	}
 	pf := h.resolveParentalFilter(ctx)
 	filter.AllowedRatings = pf.allowedRatings
@@ -264,6 +272,9 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	}
 	items, err := h.query.ListMediaItems(ctx, filter)
 	if err != nil {
+		if errors.Is(err, shared.ErrCursorMismatch) {
+			return nil, status.Error(codes.InvalidArgument, "cursor was generated for a different sort field")
+		}
 		return nil, internalError("list media items", err)
 	}
 	resp := &eveyv1.ListMediaItemsResponse{
@@ -271,6 +282,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 			TotalItems: int32(total),
 			Page:       req.Pagination.GetPage(),
 			PageSize:   req.Pagination.GetPageSize(),
+			NextCursor: nextMediaItemsCursor(items, filter),
 		},
 	}
 	ids := make([]string, 0, len(items))
@@ -481,6 +493,61 @@ func itemTags(item *library.MediaItem) []string {
 		return nil
 	}
 	return item.Catalog.Tags
+}
+
+// nextMediaItemsCursor encodes a keyset cursor pointing past the last
+// returned item. Empty when the page is short (final page) or when the
+// caller did not request cursor pagination.
+func nextMediaItemsCursor(items []*library.MediaItem, filter library.ListMediaItemsFilter) string {
+	if len(items) == 0 {
+		return ""
+	}
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	if len(items) < limit {
+		return ""
+	}
+	last := items[len(items)-1]
+	sortKey := filter.SortField
+	if sortKey == "" {
+		sortKey = "title"
+	}
+	return shared.EncodeCursor(shared.Cursor{
+		SortField: sortKey,
+		SortValue: mediaItemSortValue(last, sortKey),
+		LastID:    string(last.ID),
+	})
+}
+
+func mediaItemSortValue(m *library.MediaItem, sortKey string) string {
+	switch sortKey {
+	case "title", "sort_title":
+		if m.SortTitle != "" {
+			return m.SortTitle
+		}
+		return m.Title
+	case "added_at", "date_added":
+		return m.AddedAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
+	case "year":
+		if m.Catalog != nil && m.Catalog.Year != nil {
+			return fmt.Sprintf("%010d", *m.Catalog.Year)
+		}
+		return ""
+	case "premiere_date":
+		if m.Catalog != nil && m.Catalog.PremiereDate != nil {
+			return m.Catalog.PremiereDate.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
+		}
+		return ""
+	case "community_rating":
+		if m.Classification != nil && m.Classification.CommunityRating != nil {
+			return fmt.Sprintf("%020.6f", *m.Classification.CommunityRating)
+		}
+		return ""
+	default:
+		return string(m.ID)
+	}
 }
 
 func (h *libraryHandler) filterLibrariesByAccess(ctx context.Context, libs []*library.Library) ([]*library.Library, error) {

@@ -103,3 +103,55 @@ func TestLibraryItemsFilter_Count_WithFilters(t *testing.T) {
 		t.Errorf("expected count 1, got %d", count)
 	}
 }
+
+func TestLibraryItemsFilter_Cursor_TitlePagination(t *testing.T) {
+	repo := libfakes.NewFakeMediaItemQueryRepo()
+	for _, id := range []string{"a", "b", "c", "d", "e"} {
+		repo.Seed(&domainlibrary.MediaItem{
+			ID: shared.MediaItemID(id), LibraryID: "lib-1", Type: "movie", Title: "Movie " + id, SortTitle: "Movie " + id,
+		})
+	}
+	first := domainlibrary.ListMediaItemsFilter{
+		LibraryID: ptr(shared.LibraryID("lib-1")),
+		SortField: "title",
+		Limit:     2,
+	}
+	page1, err := repo.List(context.Background(), first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page1) != 2 || string(page1[0].ID) != "a" || string(page1[1].ID) != "b" {
+		t.Fatalf("page 1 ids = %+v, want [a b]", ids(page1))
+	}
+
+	second := first
+	second.Cursor = shared.Cursor{SortField: "title", SortValue: page1[1].SortTitle, LastID: string(page1[1].ID)}
+	page2, err := repo.List(context.Background(), second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page2) != 2 || string(page2[0].ID) != "c" || string(page2[1].ID) != "d" {
+		t.Fatalf("page 2 ids = %+v, want [c d]", ids(page2))
+	}
+}
+
+func TestLibraryItemsFilter_Cursor_SortMismatchRejected(t *testing.T) {
+	repo := libfakes.NewFakeMediaItemQueryRepo()
+	repo.Seed(&domainlibrary.MediaItem{ID: "a", LibraryID: "lib-1", Type: "movie", Title: "A"})
+	filter := domainlibrary.ListMediaItemsFilter{
+		LibraryID: ptr(shared.LibraryID("lib-1")),
+		SortField: "title",
+		Cursor:    shared.Cursor{SortField: "year", SortValue: "2020", LastID: "x"},
+	}
+	if _, err := repo.List(context.Background(), filter); err == nil {
+		t.Fatal("expected ErrCursorMismatch")
+	}
+}
+
+func ids(items []*domainlibrary.MediaItem) []string {
+	out := make([]string, len(items))
+	for i, it := range items {
+		out[i] = string(it.ID)
+	}
+	return out
+}

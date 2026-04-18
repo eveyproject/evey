@@ -44,7 +44,12 @@ type ListMediaItemsFilter struct {
 	// and restricts to rows with id > AfterID. Prefer this over Offset for
 	// full-table iteration (Meili reindex) — O(log N) per page vs O(n²)
 	// cumulative with offset.
-	AfterID        string
+	AfterID string
+	// Cursor enables sort-aware keyset pagination: WHERE (sort_value, id) >
+	// (cursor.value, cursor.id) on the SortField. Mutually exclusive with
+	// Offset (cursor wins). The cursor's SortField must match the request's
+	// SortField — repos return shared.ErrCursorMismatch otherwise.
+	Cursor         shared.Cursor
 	AllowedRatings []string // parental control: if set, only items with official_rating in this list (or empty rating) are returned
 	PersonID       *string  // filter to items featuring this person
 }

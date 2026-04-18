@@ -454,6 +454,26 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 	return where, args
 }
 
+// resolveSortKey returns the canonical key (matches SortColumnMap input
+// names) and the SQL column for a given filter. Falls back to title.
+func resolveSortKey(f library.ListMediaItemsFilter) (key, col string) {
+	if f.SortField != "" {
+		if c, ok := SortColumnMap[f.SortField]; ok {
+			return f.SortField, c
+		}
+	}
+	return "title", "mi.sort_title"
+}
+
+// whereAnd appends a predicate to an existing WHERE clause, or starts
+// a new one if where is empty.
+func whereAnd(where, predicate string) string {
+	if where == "" {
+		return " WHERE " + predicate
+	}
+	return where + " AND " + predicate
+}
+
 func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItemsFilter) (int, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
@@ -470,25 +490,40 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	where, args := r.buildWhereClause(f)
-	query := fmt.Sprintf("SELECT %s %s%s", mediaItemColumns, mediaItemFromJoins, where)
 
-	sortField := "mi.sort_title"
-	if f.SortField != "" {
-		if col, ok := SortColumnMap[f.SortField]; ok {
-			sortField = col
-		}
-	}
+	sortKey, sortField := resolveSortKey(f)
 	sortOrder := "ASC"
 	if strings.EqualFold(f.SortOrder, "desc") {
 		sortOrder = "DESC"
 	}
-	if f.AfterID != "" {
+
+	// Cursor takes precedence over Offset. Reject cursors generated for a
+	// different sort key — re-using them would produce undefined ordering.
+	if f.Cursor.LastID != "" {
+		if f.Cursor.SortField != sortKey {
+			return nil, shared.ErrCursorMismatch
+		}
+		cmp := ">"
+		if sortOrder == "DESC" {
+			cmp = "<"
+		}
+		nextIdx := len(args) + 1
+		where = whereAnd(where, fmt.Sprintf("(%s, mi.id) %s ($%d, $%d)", sortField, cmp, nextIdx, nextIdx+1))
+		args = append(args, f.Cursor.SortValue, f.Cursor.LastID)
+	}
+
+	query := fmt.Sprintf("SELECT %s %s%s", mediaItemColumns, mediaItemFromJoins, where)
+
+	switch {
+	case f.Cursor.LastID != "":
+		query += fmt.Sprintf(" ORDER BY %s %s, mi.id %s", sortField, sortOrder, sortOrder)
+	case f.AfterID != "":
 		query += " ORDER BY mi.id ASC"
-	} else if sortField == "added_at" || sortField == "mi.added_at" {
+	case sortField == "added_at" || sortField == "mi.added_at":
 		query += fmt.Sprintf(` ORDER BY CASE WHEN mi.type = 'series'
 			 THEN COALESCE(mi.latest_child_added_at, mi.added_at)
 			 ELSE mi.added_at END %s`, sortOrder)
-	} else {
+	default:
 		query += fmt.Sprintf(" ORDER BY %s %s", sortField, sortOrder)
 	}
 
@@ -497,7 +532,7 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 		limit = DefaultListLimit
 	}
 	query += fmt.Sprintf(" LIMIT %d", limit)
-	if f.Offset > 0 {
+	if f.Cursor.LastID == "" && f.Offset > 0 {
 		query += fmt.Sprintf(" OFFSET %d", f.Offset)
 	}
 

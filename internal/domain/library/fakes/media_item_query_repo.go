@@ -2,8 +2,11 @@ package fakes
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -118,10 +121,23 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 		}
 		result = append(result, item)
 	}
-	if filter.Offset > 0 && filter.Offset < len(result) {
-		result = result[filter.Offset:]
-	} else if filter.Offset >= len(result) {
-		return nil, nil
+	sortKey := filter.SortField
+	if sortKey == "" {
+		sortKey = "title"
+	}
+	desc := strings.EqualFold(filter.SortOrder, "desc")
+	sortMediaItems(result, sortKey, desc)
+	if filter.Cursor.LastID != "" {
+		if filter.Cursor.SortField != sortKey {
+			return nil, shared.ErrCursorMismatch
+		}
+		result = applyCursor(result, sortKey, filter.Cursor, desc)
+	} else {
+		if filter.Offset > 0 && filter.Offset < len(result) {
+			result = result[filter.Offset:]
+		} else if filter.Offset >= len(result) {
+			return nil, nil
+		}
 	}
 	if filter.Limit > 0 && filter.Limit < len(result) {
 		result = result[:filter.Limit]
@@ -267,6 +283,76 @@ func catalogYear(m *library.MediaItem) *int {
 		return nil
 	}
 	return m.Catalog.Year
+}
+
+// itemSortValue returns the comparable string form of a media item's
+// value for the given sort key. Mirrors what the postgres repo would
+// place into a cursor's SortValue (always a string round-trip).
+func itemSortValue(m *library.MediaItem, sortKey string) string {
+	switch sortKey {
+	case "title", "sort_title":
+		if m.SortTitle != "" {
+			return m.SortTitle
+		}
+		return m.Title
+	case "added_at", "date_added":
+		return m.AddedAt.UTC().Format(time.RFC3339Nano)
+	case "year":
+		if m.Catalog != nil && m.Catalog.Year != nil {
+			return fmt.Sprintf("%010d", *m.Catalog.Year)
+		}
+		return ""
+	case "premiere_date":
+		if m.Catalog != nil && m.Catalog.PremiereDate != nil {
+			return m.Catalog.PremiereDate.UTC().Format(time.RFC3339Nano)
+		}
+		return ""
+	case "community_rating":
+		if m.Classification != nil && m.Classification.CommunityRating != nil {
+			return fmt.Sprintf("%020.6f", *m.Classification.CommunityRating)
+		}
+		return ""
+	default:
+		return string(m.ID)
+	}
+}
+
+func sortMediaItems(items []*library.MediaItem, sortKey string, desc bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		vi, vj := itemSortValue(items[i], sortKey), itemSortValue(items[j], sortKey)
+		if vi == vj {
+			if desc {
+				return string(items[i].ID) > string(items[j].ID)
+			}
+			return string(items[i].ID) < string(items[j].ID)
+		}
+		if desc {
+			return vi > vj
+		}
+		return vi < vj
+	})
+}
+
+func applyCursor(items []*library.MediaItem, sortKey string, c shared.Cursor, desc bool) []*library.MediaItem {
+	for i, it := range items {
+		v := itemSortValue(it, sortKey)
+		var passed bool
+		if v == c.SortValue {
+			if desc {
+				passed = string(it.ID) < c.LastID
+			} else {
+				passed = string(it.ID) > c.LastID
+			}
+		} else if desc {
+			passed = v < c.SortValue
+		} else {
+			passed = v > c.SortValue
+		}
+		if passed {
+			return items[i:]
+		}
+	}
+	return nil
 }
 
 // Seed adds items for testing.

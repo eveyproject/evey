@@ -294,6 +294,10 @@ message Collection {
 message PaginationRequest {
   int32 page = 1;
   int32 page_size = 2;
+  // Opaque keyset cursor returned by a previous PaginationResponse. When
+  // set, server uses keyset pagination instead of offset and ignores
+  // `page` — guarantees no skips/duplicates under concurrent writes.
+  string cursor = 3;
 }
 
 message PaginationResponse {
@@ -301,6 +305,9 @@ message PaginationResponse {
   int32 page_size = 2;
   int32 total_items = 3;
   int32 total_pages = 4;
+  // Opaque cursor for the next page. Empty when no more pages or when
+  // the server fell back to offset pagination.
+  string next_cursor = 5;
 }
 
 enum SortOrder {
