@@ -262,6 +262,32 @@ Communication uses `postMessage` via the bridge API.
 
 Plugins that declare the `subprocess` permission skip the seccomp BPF filter (`LD_PRELOAD` is not set). This is an escape hatch for plugins that need to spawn child processes (e.g., calling FFmpeg). Use with caution -- only install trusted plugins with this permission.
 
+### Known limits of the sandbox
+
+The sandbox is defense-in-depth, not a hard security boundary. Each layer is bypassable on its own; the combination raises the cost of a malicious plugin but does not eliminate it. Admins installing third-party plugins **must review the code manually** before approval.
+
+- **Static analyzer (regex-based)** -- pattern matching on source text. Bypassable by obfuscation: string concatenation (`"o"+"s"+".system"`), `getattr(__builtins__, "e"+"xec")`, base64/hex-encoded payloads decoded at runtime, unicode homoglyphs, bytecode loaded via `marshal`/`dis`, or code fetched from the network after install (when `network` permission is granted).
+- **Seccomp BPF filter** -- blocklist, not allowlist. It blocks `execve`/`execveat` only. Other syscalls (including `ptrace`, `clone`, raw socket ops, filesystem writes in the plugin dir) pass through. It does **not** contain a compromised process that stays within allowed syscalls.
+- **`LD_PRELOAD` injection** -- only effective against dynamically-linked interpreters (Python, Node). A statically-linked Go or Rust binary, or any process ignoring `LD_PRELOAD` (via `musl` static build, or re-exec without the env var), is **not** subject to the seccomp filter even without the `subprocess` permission.
+- **UID drop (`evey-plugin`, UID 1001)** -- effective against host-FS writes outside the plugin dir, but the plugin user still has read access to anything world-readable in the container, and can interact freely with anything the `evey-plugin` UID owns.
+- **Process group / `Pdeathsig`** -- cleanup, not confinement. It prevents zombie processes, not exfiltration or resource abuse during the plugin's lifetime.
+- **Permission checker (gRPC interceptor)** -- only gates HostService RPCs. A plugin granted `network` can contact any external host; there is no egress filter. A plugin without `network` can still read anything the host provides via RPC (respecting declared permissions).
+- **No network sandbox** -- there is no per-plugin firewall or DNS filter. `network` is a single boolean.
+- **No resource limits** -- CPU, RAM, disk, file-descriptor quotas are **not** enforced per plugin. A buggy or malicious plugin can exhaust host resources.
+- **CSS sanitizer** -- conservative, but browsers evolve. New CSS features and URL schemes may slip through until the sanitizer is updated.
+- **iframe sandbox (`allow-scripts`)** -- same-origin is disabled, but the iframe shares the browser process with the host page on some engines; speculative-execution side channels are not mitigated.
+
+### Recommended review checklist for third-party plugins
+
+Before installing a plugin you did not write:
+
+1. Verify the SHA256 hash against the source you trust.
+2. Read `plugin.yaml` -- check `permissions` and `capabilities` match the described function. A theme plugin does not need `network` or `subprocess`.
+3. Read the source. Look for: dynamic `import`/`eval`, string-concatenated syscalls, base64 blobs, runtime downloads, unusual `Initialize` behavior.
+4. Prefer plugins that vendor their dependencies (no `pip install`/`npm install` at runtime).
+5. Reject any plugin requesting `subprocess` unless you audited the spawned commands.
+6. Run the plugin in a staging install first, watch logs and outbound connections.
+
 ## Host API Reference
 
 Plugins call HostService RPCs via gRPC over Unix socket (`EVEY_HOST_SOCK`). The plugin must send its ID in the `x-plugin-id` metadata header.

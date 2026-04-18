@@ -65,7 +65,7 @@ Android and Android TV apps connect to your server URL. Use **Quick Connect** to
 - [SSO/OIDC](docs/oidc.md) — Keycloak, Authentik, Google, anything OIDC-compliant
 - [Email notifications](docs/notifications.md) + password recovery
 - [Automatic backups](docs/backups.md)
-- [Plugins & themes](docs/plugins.md) — sandboxed with seccomp
+- [Plugins & themes](docs/plugins.md) — multi-layer isolation (static analysis, UID drop, seccomp syscall filter, optional LD_PRELOAD)
 - Multi-profile with parental controls
 - SyncPlay — watch together in sync
 - Webhooks for external integrations
@@ -73,7 +73,7 @@ Android and Android TV apps connect to your server URL. Use **Quick Connect** to
 
 ## Plugins & Themes
 
-You can extend Evey with plugins: themes, metadata providers, UI widgets. They run sandboxed.
+You can extend Evey with plugins: themes, metadata providers, UI widgets. They run with multi-layer isolation (static analysis at install, UID drop, seccomp syscall filter, optional `LD_PRELOAD` guard). Each layer has known limits — **always review third-party plugins before installing them**. See [docs/plugins.md](docs/plugins.md#security-model) for the full model and caveats.
 
 Quick CSS theme:
 ```yaml
