@@ -49,11 +49,11 @@ func newShareTestEnv() *shareTestEnv {
 	)
 
 	mediaItemRepo.Seed(&library.MediaItem{
-		ID:         "media-1",
-		LibraryID:  "lib-1",
-		Title:      "Test Movie",
-		Type:       "movie",
-		DurationMs: 7200000,
+		ID:        "media-1",
+		LibraryID: "lib-1",
+		Title:     "Test Movie",
+		Type:      "movie",
+		File:      &library.MediaFile{DurationMs: 7200000},
 	})
 
 	h := &shareHandler{

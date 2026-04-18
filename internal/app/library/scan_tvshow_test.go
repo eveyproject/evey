@@ -50,7 +50,8 @@ func TestScanTVShow_SingleEpisode_CreatesHierarchy(t *testing.T) {
 	require.Len(t, episodes, 1)
 	assert.Equal(t, "S01E01", episodes[0].Title)
 	assert.Equal(t, string(seasons[0].ID), episodes[0].ParentID)
-	assert.Equal(t, "/tv/MyShow/S01/e01.mkv", episodes[0].FilePath)
+	require.NotNil(t, episodes[0].File)
+	assert.Equal(t, "/tv/MyShow/S01/e01.mkv", episodes[0].File.Path)
 
 	// series + season + episode = 3 added
 	assert.Equal(t, 3, added)
@@ -302,11 +303,13 @@ func TestScanTVShow_SeriesFingerprint(t *testing.T) {
 
 	series := itemsByType(mediaRepo, "series")
 	require.Len(t, series, 1)
-	assert.Equal(t, "series:lib-tv:Show", series[0].FileFingerprint)
+	require.NotNil(t, series[0].File)
+	assert.Equal(t, "series:lib-tv:Show", series[0].File.Fingerprint)
 
 	seasons := itemsByType(mediaRepo, "season")
 	require.Len(t, seasons, 1)
-	assert.Equal(t, "season:lib-tv:Show:1", seasons[0].FileFingerprint)
+	require.NotNil(t, seasons[0].File)
+	assert.Equal(t, "season:lib-tv:Show:1", seasons[0].File.Fingerprint)
 }
 
 func TestScanTVShow_DuplicateSeriesNotCreated(t *testing.T) {

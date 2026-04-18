@@ -65,7 +65,7 @@ func TestTranscodeHandler_MediaNotFound_404(t *testing.T) {
 func TestTranscodeHandler_IDOR_Forbidden(t *testing.T) {
 	h := newTranscodeServe(
 		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "restricted", FilePath: "/a"}},
+		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "restricted", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		denyAll(),
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)

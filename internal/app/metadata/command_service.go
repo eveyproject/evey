@@ -259,7 +259,13 @@ func (s *CommandService) deriveTitleFromChildren(ctx context.Context, seriesID s
 		return ""
 	}
 	// Extract the series directory name: /media2/It welcome to derry/S01/file.mkv → "It welcome to derry"
-	fp := episodes[0].FilePath
+	fp := ""
+	if episodes[0].File != nil {
+		fp = episodes[0].File.Path
+	}
+	if fp == "" {
+		return ""
+	}
 	dir := filepath.Dir(fp)     // /media2/It welcome to derry/S01
 	dir = filepath.Dir(dir)     // /media2/It welcome to derry
 	return filepath.Base(dir)   // It welcome to derry
@@ -304,8 +310,12 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 // resetSingleItem clears enriched metadata fields, artwork, overrides, and cast for one item.
 func (s *CommandService) resetSingleItem(ctx context.Context, item *library.MediaItem) {
 	// Derive title from file path or directory name
-	if item.FilePath != "" {
-		item.Title = deriveTitle(item.FilePath, string(item.Type))
+	filePath := ""
+	if item.File != nil {
+		filePath = item.File.Path
+	}
+	if filePath != "" {
+		item.Title = deriveTitle(filePath, string(item.Type))
 	} else if item.Type == library.Series {
 		if dirName := s.deriveTitleFromChildren(ctx, string(item.ID)); dirName != "" {
 			item.Title = dirName

@@ -224,10 +224,10 @@ func TestPlaybackHandler_GetStreamInfo(t *testing.T) {
 	ctx := pbAdminCtx()
 
 	mediaQuery.Seed(&library.MediaItem{
-		ID:              "mi-1",
-		Title:           "Test Movie",
-		Type:            "movie",
-		ContainerFormat: "mp4",
+		ID:    "mi-1",
+		Title: "Test Movie",
+		Type:  "movie",
+		File:  &library.MediaFile{ContainerFormat: "mp4"},
 	})
 
 	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-1"})
@@ -364,10 +364,10 @@ func TestGetStreamInfo_AudioCodecsWired(t *testing.T) {
 	ctx := pbAdminCtx()
 
 	mediaQuery.Seed(&library.MediaItem{
-		ID:              "mi-audio",
-		Title:           "DTS Movie",
-		Type:            "movie",
-		ContainerFormat: "mp4",
+		ID:    "mi-audio",
+		Title: "DTS Movie",
+		Type:  "movie",
+		File:  &library.MediaFile{ContainerFormat: "mp4"},
 	})
 	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
 		{MediaItemID: "mi-audio", StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
@@ -391,10 +391,10 @@ func TestGetStreamInfo_AudioCodecsDirectPlay(t *testing.T) {
 	ctx := pbAdminCtx()
 
 	mediaQuery.Seed(&library.MediaItem{
-		ID:              "mi-dp",
-		Title:           "AAC Movie",
-		Type:            "movie",
-		ContainerFormat: "mp4",
+		ID:    "mi-dp",
+		Title: "AAC Movie",
+		Type:  "movie",
+		File:  &library.MediaFile{ContainerFormat: "mp4"},
 	})
 	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
 		{MediaItemID: "mi-dp", StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
@@ -502,10 +502,10 @@ func TestGetStreamInfo_DecisionFieldsPopulated(t *testing.T) {
 	ctx := pbAdminCtx()
 
 	mediaQuery.Seed(&library.MediaItem{
-		ID:              "mi-hevc",
-		Title:           "HEVC Movie",
-		Type:            "movie",
-		ContainerFormat: "matroska",
+		ID:    "mi-hevc",
+		Title: "HEVC Movie",
+		Type:  "movie",
+		File:  &library.MediaFile{ContainerFormat: "matroska"},
 	})
 	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
 		{MediaItemID: "mi-hevc", StreamType: "video", Codec: "hevc", Width: intPtr(3840), Height: intPtr(2160), Bitrate: int64Ptr(20000000), IsDefault: true},

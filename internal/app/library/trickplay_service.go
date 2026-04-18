@@ -105,7 +105,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 	if err != nil {
 		return fmt.Errorf("get media item: %w", err)
 	}
-	if item.FilePath == "" {
+	if item.File == nil || item.File.Path == "" {
 		return errors.New("media item has no file path")
 	}
 
@@ -118,7 +118,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 
 	adaptive := s.isAdaptiveCPU(ctx)
 	workers := cpuutil.TrickplayWorkers(adaptive)
-	result, err := s.trickplayGen.Generate(ctx, item.FilePath, outputDir, interval, width, tileWidth, tileHeight, workers)
+	result, err := s.trickplayGen.Generate(ctx, item.File.Path, outputDir, interval, width, tileWidth, tileHeight, workers)
 	if err != nil {
 		return fmt.Errorf("generate trickplay: %w", err)
 	}

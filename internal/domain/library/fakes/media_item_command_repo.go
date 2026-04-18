@@ -76,7 +76,7 @@ func (r *FakeMediaItemCommandRepo) GetByFilePath(_ context.Context, path string)
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, item := range r.items {
-		if item.FilePath == path {
+		if item.File != nil && item.File.Path == path {
 			return item, nil
 		}
 	}
@@ -90,7 +90,7 @@ func (r *FakeMediaItemCommandRepo) GetByFileFingerprint(_ context.Context, finge
 		return nil, r.GetByFileFingerprintErr
 	}
 	for _, item := range r.items {
-		if item.FileFingerprint == fingerprint {
+		if item.File != nil && item.File.Fingerprint == fingerprint {
 			return item, nil
 		}
 	}
@@ -128,8 +128,8 @@ func (r *FakeMediaItemCommandRepo) ListFilePaths(_ context.Context, libraryID sh
 	defer r.mu.RUnlock()
 	result := make(map[string]string)
 	for _, item := range r.items {
-		if item.LibraryID == libraryID && item.FilePath != "" {
-			result[string(item.ID)] = item.FilePath
+		if item.LibraryID == libraryID && item.File != nil && item.File.Path != "" {
+			result[string(item.ID)] = item.File.Path
 		}
 	}
 	return result, nil
@@ -156,13 +156,14 @@ func (r *FakeMediaItemCommandRepo) ListScanSummaries(_ context.Context, libraryI
 	var result []library.MediaItemScanRow
 	for _, item := range r.items {
 		if item.LibraryID == libraryID {
-			result = append(result, library.MediaItemScanRow{
-				ID:              string(item.ID),
-				FilePath:        item.FilePath,
-				FileFingerprint: item.FileFingerprint,
-				FileSize:        item.FileSize,
-				ModTime:         item.ModTime,
-			})
+			row := library.MediaItemScanRow{ID: string(item.ID)}
+			if item.File != nil {
+				row.FilePath = item.File.Path
+				row.FileFingerprint = item.File.Fingerprint
+				row.FileSize = item.File.Size
+				row.ModTime = item.File.ModTime
+			}
+			result = append(result, row)
 		}
 	}
 	return result, nil

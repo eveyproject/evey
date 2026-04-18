@@ -155,20 +155,21 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 }
 
 // upsertMediaFile writes (or deletes) the 1:1 media_files row driven by
-// item.FilePath. An empty path means the item owns no on-disk artefact
-// (series root, season, album); we DELETE so a subsequent JOIN cleanly
-// returns NULL for every file column.
+// item.File. nil File (or empty Path) means the item owns no on-disk
+// artefact (series root, season, album); we DELETE so a subsequent JOIN
+// cleanly returns NULL for every file column.
 func upsertMediaFile(ctx context.Context, tx *sql.Tx, item *library.MediaItem) error {
-	if item.FilePath == "" {
+	if item.File == nil || item.File.Path == "" {
 		_, err := tx.ExecContext(ctx, `DELETE FROM media_files WHERE media_item_id = $1`, string(item.ID))
 		if err != nil {
 			return fmt.Errorf("delete media_files: %w", err)
 		}
 		return nil
 	}
+	f := item.File
 	var fingerprint *string
-	if item.FileFingerprint != "" {
-		fingerprint = &item.FileFingerprint
+	if f.Fingerprint != "" {
+		fingerprint = &f.Fingerprint
 	}
 	_, err := tx.ExecContext(ctx,
 		`INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format)
@@ -181,8 +182,8 @@ func upsertMediaFile(ctx context.Context, tx *sql.Tx, item *library.MediaItem) e
 		   duration_ms = EXCLUDED.duration_ms,
 		   bitrate = EXCLUDED.bitrate,
 		   container_format = EXCLUDED.container_format`,
-		string(item.ID), item.FilePath, item.FileSize, fingerprint,
-		item.ModTime, item.DurationMs, item.Bitrate, item.ContainerFormat,
+		string(item.ID), f.Path, f.Size, fingerprint,
+		f.ModTime, f.DurationMs, f.Bitrate, f.ContainerFormat,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert media_files: %w", err)
@@ -780,27 +781,30 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		item.ScanTitle = *scanTitle
 	}
 
-	// File fields — empty strings / zeros when no media_files row.
+	// File sub-aggregate. Allocated only when the LEFT JOIN found a
+	// media_files row (filePath non-nil). Container types (series/season/
+	// album) leave item.File == nil.
 	if filePath != nil {
-		item.FilePath = *filePath
-	}
-	if fileSize != nil {
-		item.FileSize = *fileSize
-	}
-	if fingerprint != nil {
-		item.FileFingerprint = *fingerprint
-	}
-	if modTimeRaw.Valid {
-		item.ModTime = modTimeRaw.Time
-	}
-	if durationMs != nil {
-		item.DurationMs = *durationMs
-	}
-	if bitrate != nil {
-		item.Bitrate = *bitrate
-	}
-	if containerFormat != nil {
-		item.ContainerFormat = *containerFormat
+		f := &library.MediaFile{Path: *filePath}
+		if fileSize != nil {
+			f.Size = *fileSize
+		}
+		if fingerprint != nil {
+			f.Fingerprint = *fingerprint
+		}
+		if modTimeRaw.Valid {
+			f.ModTime = modTimeRaw.Time
+		}
+		if durationMs != nil {
+			f.DurationMs = *durationMs
+		}
+		if bitrate != nil {
+			f.Bitrate = *bitrate
+		}
+		if containerFormat != nil {
+			f.ContainerFormat = *containerFormat
+		}
+		item.File = f
 	}
 
 	// Catalog fields.

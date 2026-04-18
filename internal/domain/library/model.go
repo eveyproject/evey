@@ -60,43 +60,56 @@ type Library struct {
 }
 
 type MediaItem struct {
-	ID              shared.MediaItemID
-	LibraryID       shared.LibraryID
-	ParentID        string
-	Type            MediaItemType
-	Title           string
-	// ScanTitle is the title extracted from the filesystem at scan time — the
-	// stable source of truth for metadata lookups. Set once at creation and
-	// never overwritten by enrichment, so a wrong TMDB match doesn't
-	// self-reinforce on re-enrichment.
-	ScanTitle       string
-	SortTitle       string
-	OriginalTitle   string
-	Overview        string
-	Tagline         string
-	FilePath        string
-	FileSize        int64
-	FileFingerprint string
-	ModTime         time.Time
-	DurationMs      int64
-	Bitrate         int64
-	ContainerFormat string
-	IndexNumber     *int
+	ID        shared.MediaItemID
+	LibraryID shared.LibraryID
+	ParentID  string
+	Type      MediaItemType
+	Title     string
+	// ScanTitle is the title extracted from the filesystem at scan time —
+	// the stable source of truth for metadata lookups. Set once at
+	// creation and never overwritten by enrichment, so a wrong TMDB match
+	// doesn't self-reinforce on re-enrichment.
+	ScanTitle     string
+	SortTitle     string
+	OriginalTitle string
+	Overview      string
+	Tagline       string
+	IndexNumber   *int
+
+	// File carries the on-disk artefact (path, size, container, fingerprint,
+	// runtime). nil for container types (series, season, album) that own
+	// no file. Populated by the postgres repo via LEFT JOIN on media_files.
+	File *MediaFile
+
 	CommunityRating *float64
 	OfficialRating  string
 	// CertificationsByCountry holds per-country content ratings (e.g. {"US":"PG-13","FR":"-12"}).
 	// OfficialRating mirrors the US entry when available for parental-gate backcompat.
 	CertificationsByCountry map[string]string
 	PremiereDate            *time.Time
-	Year            *int
-	ProviderIDs     map[string]string
-	Ratings         map[string]float64
-	Genres          []string
-	Studios         []string
-	Tags            []string
-	Trailers        []Trailer
-	AddedAt         time.Time
-	UpdatedAt       time.Time
+	Year                    *int
+	ProviderIDs             map[string]string
+	Ratings                 map[string]float64
+	Genres                  []string
+	Studios                 []string
+	Tags                    []string
+	Trailers                []Trailer
+	AddedAt                 time.Time
+	UpdatedAt               time.Time
+}
+
+// MediaFile carries everything the scan and the player need to know
+// about the on-disk artefact backing a MediaItem. Modelled as a
+// sub-aggregate so non-file callers (catalog metadata, ratings) don't
+// have to thread file fields they never touch.
+type MediaFile struct {
+	Path            string
+	Size            int64
+	Fingerprint     string
+	ModTime         time.Time
+	DurationMs      int64
+	Bitrate         int64
+	ContainerFormat string
 }
 
 type Trailer struct {
@@ -139,7 +152,7 @@ func (m *MediaItem) Validate() error {
 }
 
 func (m *MediaItem) HasFile() bool {
-	return m.FilePath != ""
+	return m.File != nil && m.File.Path != ""
 }
 
 func (m *MediaItem) IsPlayable() bool {

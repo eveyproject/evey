@@ -188,16 +188,16 @@ func TestResetItemMetadata_MovieClearsFields(t *testing.T) {
 	ctx := context.Background()
 	year := 2023
 	item := &library.MediaItem{
-		ID:              "m1",
-		Type:            library.MovieItem,
-		Title:           "Old Title",
-		FilePath:        "/media/Inception (2010).mkv",
-		Overview:        "some overview",
-		Tagline:         "tag",
-		OriginalTitle:   "orig",
-		ProviderIDs:     map[string]string{"tmdb": "27205"},
-		Year:            &year,
-		OfficialRating:  "PG-13",
+		ID:             "m1",
+		Type:           library.MovieItem,
+		Title:          "Old Title",
+		File:           &library.MediaFile{Path: "/media/Inception (2010).mkv"},
+		Overview:       "some overview",
+		Tagline:        "tag",
+		OriginalTitle:  "orig",
+		ProviderIDs:    map[string]string{"tmdb": "27205"},
+		Year:           &year,
+		OfficialRating: "PG-13",
 	}
 	require.NoError(t, mediaRepo.Create(ctx, item))
 	require.NoError(t, overrideRepo.Set(ctx, &metadata.MetadataOverride{
@@ -253,7 +253,7 @@ func TestResetItemMetadata_Series_TitleFromChildren(t *testing.T) {
 	// Episode with FilePath → extract directory name = top-level dir above season dir
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "ep-1", Type: library.Episode, ParentID: "se-1",
-		FilePath: "/media/Wednesday Addams/S01/E01.mkv",
+		File: &library.MediaFile{Path: "/media/Wednesday Addams/S01/E01.mkv"},
 	}))
 
 	err := cmdSvc.ResetItemMetadata(ctx, "s-1")
@@ -279,15 +279,19 @@ func TestResetItemMetadata_SeriesCascadesToChildren(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "s1", Type: library.Series, Title: "Old Series",
-		FilePath: "/media/Breaking Bad", Overview: "o", ProviderIDs: map[string]string{"tmdb": "1"},
+		File:        &library.MediaFile{Path: "/media/Breaking Bad"},
+		Overview:    "o",
+		ProviderIDs: map[string]string{"tmdb": "1"},
 	}))
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "se1", Type: library.Season, ParentID: "s1", Title: "Season 1",
-		FilePath: "/media/Breaking Bad/S01", Overview: "s-overview",
+		File:     &library.MediaFile{Path: "/media/Breaking Bad/S01"},
+		Overview: "s-overview",
 	}))
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "e1", Type: library.Episode, ParentID: "se1", Title: "Ep",
-		FilePath: "/media/Breaking Bad/S01/ep.mkv", Overview: "e-overview",
+		File:     &library.MediaFile{Path: "/media/Breaking Bad/S01/ep.mkv"},
+		Overview: "e-overview",
 	}))
 
 	err := cmdSvc.ResetItemMetadata(ctx, "s1")

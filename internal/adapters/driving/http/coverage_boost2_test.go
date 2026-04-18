@@ -63,7 +63,7 @@ func newSubtitleTestMux(t *testing.T) (*http.ServeMux, string) {
 	}}
 	svc := appsubtitle.NewService(repo, provider, subMediaGetter)
 
-	httpMediaGetter := &fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/tmp/movie.mkv"}}
+	httpMediaGetter := &fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/tmp/movie.mkv"}}}
 
 	mux := http.NewServeMux()
 	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, allowAll())
@@ -1328,7 +1328,7 @@ func TestTranscodeHandler_NotFound_404(t *testing.T) {
 func TestTranscodeHandler_IDOR_403(t *testing.T) {
 	h := transcodeHandler(transcodeServe{
 		tokens: &fakeTokenVerifier{claims: testClaims(false)},
-		libSvc: &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", FilePath: "/a"}},
+		libSvc: &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		baseURL: "http://localhost",
 		libraryAccess: denyAll(),
 	})
@@ -1366,7 +1366,7 @@ func TestTranscodeHandler_MaxStreams_429(t *testing.T) {
 	throttle.Acquire("u1", 0) // occupy one slot
 	h := transcodeHandler(transcodeServe{
 		tokens: &fakeTokenVerifier{claims: testClaims(false)},
-		libSvc: &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/a"}},
+		libSvc: &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		baseURL: "http://localhost",
 		libraryAccess: allowAll(), throttle: throttle, userMaxStreams: fakeMaxStreams,
 	})
@@ -1443,7 +1443,7 @@ func TestHLSMasterHandler_NotFound_404(t *testing.T) {
 
 func TestHLSMasterHandler_IDOR_403(t *testing.T) {
 	h := hlsMasterHandler(hlsMasterServe{
-		libSvc: &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", FilePath: "/a"}},
+		libSvc: &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		libraryAccess: denyAll(),
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
@@ -1661,7 +1661,7 @@ func TestSubtitleFileHandler_NotFound_404(t *testing.T) {
 func TestSubtitleFileHandler_IDOR_403(t *testing.T) {
 	h := subtitleHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted", FilePath: "/a"}},
+		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		"http://localhost",
 		denyAll(),
 	)

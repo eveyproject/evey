@@ -50,8 +50,12 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 
 		// Compute real frame count from video duration (not ImageCount * tiles which overestimates)
 		totalFrames := manifest.ImageCount * tilesPerImage
-		if item.DurationMs > 0 && manifest.Interval > 0 {
-			realFrames := int(item.DurationMs/1000) / manifest.Interval
+		var durationMs int64
+		if item.File != nil {
+			durationMs = item.File.DurationMs
+		}
+		if durationMs > 0 && manifest.Interval > 0 {
+			realFrames := int(durationMs/1000) / manifest.Interval
 			if realFrames < totalFrames {
 				totalFrames = realFrames
 			}

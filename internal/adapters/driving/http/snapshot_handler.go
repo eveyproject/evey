@@ -20,6 +20,10 @@ func snapshotHandler(tokenGen TokenVerifier, frameExt FrameExtractor, libraryAcc
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
+		if item.File == nil || item.File.Path == "" {
+			http.Error(w, `{"message":"no file"}`, http.StatusNotFound)
+			return
+		}
 
 		posMs, _ := strconv.ParseInt(r.URL.Query().Get("position_ms"), 10, 64)
 		posSec := float64(posMs) / 1000.0
@@ -30,7 +34,7 @@ func snapshotHandler(tokenGen TokenVerifier, frameExt FrameExtractor, libraryAcc
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
 
-		data, err := frameExt.ExtractFrame(ctx, item.FilePath, posSec, 640)
+		data, err := frameExt.ExtractFrame(ctx, item.File.Path, posSec, 640)
 		if err != nil {
 			http.Error(w, `{"message":"frame extraction failed"}`, http.StatusInternalServerError)
 			return

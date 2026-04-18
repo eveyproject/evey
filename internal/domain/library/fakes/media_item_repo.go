@@ -108,7 +108,7 @@ func (r *FakeMediaItemRepository) GetByFilePath(_ context.Context, path string) 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, item := range r.items {
-		if item.FilePath == path {
+		if item.File != nil && item.File.Path == path {
 			return item, nil
 		}
 	}
@@ -122,7 +122,7 @@ func (r *FakeMediaItemRepository) GetByFileFingerprint(_ context.Context, finger
 		return nil, r.GetByFileFingerprintErr
 	}
 	for _, item := range r.items {
-		if item.FileFingerprint == fingerprint {
+		if item.File != nil && item.File.Fingerprint == fingerprint {
 			return item, nil
 		}
 	}
@@ -175,8 +175,8 @@ func (r *FakeMediaItemRepository) SeriesAggregate(_ context.Context, seriesID sh
 			continue
 		}
 		agg.EpisodeCount++
-		if item.DurationMs > 0 {
-			agg.TotalDurationMs += item.DurationMs
+		if item.File != nil && item.File.DurationMs > 0 {
+			agg.TotalDurationMs += item.File.DurationMs
 		}
 		if item.ParentID != "" {
 			seasonIDs[item.ParentID] = true

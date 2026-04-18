@@ -23,7 +23,7 @@ func (f *fakeLibQuerySvc) GetMediaItem(_ context.Context, id string) (*domainlib
 
 func TestLibraryMediaGetter_GetMediaItem_Success(t *testing.T) {
 	q := &fakeLibQuerySvc{items: map[string]*domainlibrary.MediaItem{
-		"mi-1": {ID: shared.MediaItemID("mi-1"), FilePath: "/media/movie.mkv", Title: "Movie"},
+		"mi-1": {ID: shared.MediaItemID("mi-1"), File: &domainlibrary.MediaFile{Path: "/media/movie.mkv"}, Title: "Movie"},
 	}}
 	g := NewLibraryMediaGetter(q)
 

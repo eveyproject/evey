@@ -73,9 +73,13 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
 	}
+	containerFormat := ""
+	if item.File != nil {
+		containerFormat = item.File.ContainerFormat
+	}
 	resp := &eveyv1.StreamInfo{
 		MediaItemId: req.MediaItemId,
-		Container:   item.ContainerFormat,
+		Container:   containerFormat,
 	}
 	streams, err := h.librarySvc.GetMediaStreams(ctx, req.MediaItemId)
 	if err != nil {
@@ -125,7 +129,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		}
 	}
 
-	decision := apptranscoding.MakePlaybackDecisionWithPrefs(streams, item.ContainerFormat, client, maxBitrateKbps, prefs)
+	decision := apptranscoding.MakePlaybackDecisionWithPrefs(streams, containerFormat, client, maxBitrateKbps, prefs)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
 		return nil, status.Errorf(codes.FailedPrecondition, "transcoding disabled by user preferences")
 	}

@@ -62,7 +62,7 @@ func TestMediaItemRepo_GetByFilePath(t *testing.T) {
 	require.NoError(t, libRepo.Create(ctx, lib))
 
 	item := newTestMediaItem("mi2", lib.ID)
-	item.FilePath = "/media/movie.mkv"
+	item.File = &library.MediaFile{Path: "/media/movie.mkv"}
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	got, err := itemRepo.GetByFilePath(ctx, "/media/movie.mkv")
@@ -146,8 +146,7 @@ func TestMediaItemRepo_GetByFileFingerprint(t *testing.T) {
 	require.NoError(t, libRepo.Create(ctx, lib))
 
 	item := newTestMediaItem("mi6", lib.ID)
-	item.FilePath = "/media/fp.mkv"
-	item.FileFingerprint = "fp-unique-123"
+	item.File = &library.MediaFile{Path: "/media/fp.mkv", Fingerprint: "fp-unique-123"}
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	got, err := itemRepo.GetByFileFingerprint(ctx, "fp-unique-123")
@@ -215,7 +214,7 @@ func TestMediaItemRepo_ListFilePaths(t *testing.T) {
 	require.NoError(t, libRepo.Create(ctx, lib))
 
 	item := newTestMediaItem("mi9", lib.ID)
-	item.FilePath = "/media/test.mkv"
+	item.File = &library.MediaFile{Path: "/media/test.mkv"}
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	paths, err := itemRepo.ListFilePaths(ctx, lib.ID)
@@ -254,8 +253,7 @@ func TestMediaItemRepo_ListScanSummaries(t *testing.T) {
 	require.NoError(t, libRepo.Create(ctx, lib))
 
 	item := newTestMediaItem("mi11", lib.ID)
-	item.FilePath = "/media/scan.mkv"
-	item.FileFingerprint = "scan-fp"
+	item.File = &library.MediaFile{Path: "/media/scan.mkv", Fingerprint: "scan-fp"}
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	summaries, err := itemRepo.ListScanSummaries(ctx, lib.ID)

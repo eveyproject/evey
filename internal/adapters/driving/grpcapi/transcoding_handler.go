@@ -37,7 +37,7 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 		return status.Error(codes.FailedPrecondition, "library service not configured")
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, req.MediaItemId)
-	if err != nil || item == nil {
+	if err != nil || item == nil || item.File == nil || item.File.Path == "" {
 		return status.Error(codes.NotFound, "media item not found")
 	}
 	// IDOR: restrict to libraries the caller has access to.
@@ -68,7 +68,7 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 	job := &transcoding.TranscodeJob{
 		ID:            id.New("tj-"),
 		MediaItemID:   shared.MediaItemID(req.MediaItemId),
-		InputPath:     item.FilePath,
+		InputPath:     item.File.Path,
 		OutputCodec:   req.VideoCodec,
 		AudioCodec:    req.AudioCodec,
 		HWAccelType:   hwAccelTypeFromProto[req.HwAccel],

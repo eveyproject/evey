@@ -64,29 +64,31 @@ var mediaItemTypeFromProto = map[eveyv1.MediaItemType]string{
 
 func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 	pb := &eveyv1.MediaItem{
-		Id:              string(item.ID),
-		LibraryId:       string(item.LibraryID),
-		ParentId:        item.ParentID,
-		Type:            mediaItemTypeToProto[string(item.Type)],
-		Title:           item.Title,
-		SortTitle:       item.SortTitle,
-		OriginalTitle:   item.OriginalTitle,
-		Overview:        item.Overview,
-		Tagline:         item.Tagline,
-		FilePath:        item.FilePath,
-		FileSize:        item.FileSize,
-		ContainerFormat: item.ContainerFormat,
-		DurationMs:      item.DurationMs,
-		Bitrate:         item.Bitrate,
+		Id:                      string(item.ID),
+		LibraryId:               string(item.LibraryID),
+		ParentId:                item.ParentID,
+		Type:                    mediaItemTypeToProto[string(item.Type)],
+		Title:                   item.Title,
+		SortTitle:               item.SortTitle,
+		OriginalTitle:           item.OriginalTitle,
+		Overview:                item.Overview,
+		Tagline:                 item.Tagline,
 		OfficialRating:          item.OfficialRating,
 		CertificationsByCountry: item.CertificationsByCountry,
 		ProviderIds:             item.ProviderIDs,
-		Genres:          item.Genres,
-		Studios:         item.Studios,
-		Tags:            item.Tags,
-		CreatedAt:       toTimestamppb(item.AddedAt),
-		UpdatedAt:       toTimestamppb(item.UpdatedAt),
-		PremiereDate:    toTimestamppbPtr(item.PremiereDate),
+		Genres:                  item.Genres,
+		Studios:                 item.Studios,
+		Tags:                    item.Tags,
+		CreatedAt:               toTimestamppb(item.AddedAt),
+		UpdatedAt:               toTimestamppb(item.UpdatedAt),
+		PremiereDate:            toTimestamppbPtr(item.PremiereDate),
+	}
+	if item.File != nil {
+		pb.FilePath = item.File.Path
+		pb.FileSize = item.File.Size
+		pb.ContainerFormat = item.File.ContainerFormat
+		pb.DurationMs = item.File.DurationMs
+		pb.Bitrate = item.File.Bitrate
 	}
 	if item.IndexNumber != nil {
 		pb.IndexNumber = int32(*item.IndexNumber)

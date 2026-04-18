@@ -163,7 +163,7 @@ func TestMediaItem_HasFile(t *testing.T) {
 	if noFile.HasFile() {
 		t.Error("empty FilePath = no file")
 	}
-	withFile := &library.MediaItem{FilePath: "/data/movie.mkv"}
+	withFile := &library.MediaItem{File: &library.MediaFile{Path: "/data/movie.mkv"}}
 	if !withFile.HasFile() {
 		t.Error("non-empty FilePath = has file")
 	}
@@ -187,7 +187,10 @@ func TestMediaItem_IsPlayable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			m := &library.MediaItem{Type: library.MediaItemType(tt.typ), FilePath: tt.filePath}
+			m := &library.MediaItem{Type: library.MediaItemType(tt.typ)}
+			if tt.filePath != "" {
+				m.File = &library.MediaFile{Path: tt.filePath}
+			}
 			if got := m.IsPlayable(); got != tt.want {
 				t.Errorf("IsPlayable() = %v, want %v", got, tt.want)
 			}

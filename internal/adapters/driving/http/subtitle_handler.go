@@ -41,13 +41,14 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 		}
 		trackIndex, _ := strconv.Atoi(trackStr)
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
-		if err != nil || item.FilePath == "" {
+		if err != nil || item.File == nil || item.File.Path == "" {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
+		filePath := item.File.Path
 
 		if streams, serr := libSvc.GetMediaStreams(r.Context(), mediaID); serr == nil {
 			subIdx := 0
@@ -56,7 +57,7 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 					continue
 				}
 				if subIdx == trackIndex && s.IsExternal && s.ExternalPath != nil {
-					serveExternalSubtitle(w, r, *s.ExternalPath, filepath.Dir(item.FilePath), baseURL)
+					serveExternalSubtitle(w, r, *s.ExternalPath, filepath.Dir(filePath), baseURL)
 					return
 				}
 				subIdx++
@@ -66,7 +67,7 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "ffmpeg",
-			"-i", item.FilePath,
+			"-i", filePath,
 			"-map", fmt.Sprintf("0:s:%d", trackIndex),
 			"-f", "webvtt",
 			"-",

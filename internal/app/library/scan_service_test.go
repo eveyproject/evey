@@ -66,11 +66,12 @@ func TestScanLibrary_NewFile_CreatesMediaItem(t *testing.T) {
 	items := mediaRepo.All()
 	require.Len(t, items, 1)
 	assert.Equal(t, "Test Movie", items[0].Title)
-	assert.Equal(t, "/movies/test.mkv", items[0].FilePath)
+	require.NotNil(t, items[0].File)
+	assert.Equal(t, "/movies/test.mkv", items[0].File.Path)
 	assert.Equal(t, shared.LibraryID("lib-1"), items[0].LibraryID)
 	assert.Equal(t, library.MediaItemType("movie"), items[0].Type)
-	assert.Equal(t, int64(1024), items[0].FileSize)
-	assert.Equal(t, "fp-1", items[0].FileFingerprint)
+	assert.Equal(t, int64(1024), items[0].File.Size)
+	assert.Equal(t, "fp-1", items[0].File.Fingerprint)
 
 	var addedEvts int
 	for _, e := range bus.PublishedEvents() {

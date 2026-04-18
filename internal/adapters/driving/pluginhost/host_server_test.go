@@ -109,7 +109,8 @@ func newTestHostServer() *HostServer {
 		"m1": {
 			ID: "m1", LibraryID: "lib1", Title: "Test Movie", Type: "movie",
 			Year: &year, ProviderIDs: map[string]string{"tmdb": "123"},
-			ParentID: "p1", Overview: "desc", FilePath: "/movies/test.mkv",
+			ParentID: "p1", Overview: "desc",
+			File:   &library.MediaFile{Path: "/movies/test.mkv"},
 			Genres: []string{"Action"},
 		},
 	}}

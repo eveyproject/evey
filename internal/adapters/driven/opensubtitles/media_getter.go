@@ -25,9 +25,12 @@ func (g *LibraryMediaGetter) GetMediaItem(ctx context.Context, id string) (*subt
 	if err != nil {
 		return nil, err
 	}
-	return &subtitle.MediaItemInfo{
-		ID:       string(item.ID),
-		FilePath: item.FilePath,
-		Title:    item.Title,
-	}, nil
+	info := &subtitle.MediaItemInfo{
+		ID:    string(item.ID),
+		Title: item.Title,
+	}
+	if item.File != nil {
+		info.FilePath = item.File.Path
+	}
+	return info, nil
 }

@@ -315,7 +315,8 @@ func TestScanService_ProberError_DurationStaysZero(t *testing.T) {
 	require.NoError(t, err)
 	items := h.media.All()
 	require.Len(t, items, 1)
-	assert.Equal(t, int64(0), items[0].DurationMs)
+	require.NotNil(t, items[0].File)
+	assert.Equal(t, int64(0), items[0].File.DurationMs)
 }
 
 // --- ProbeAndStoreStreams short-circuit when prober is nil ---

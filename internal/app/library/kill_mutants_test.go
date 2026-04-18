@@ -49,7 +49,7 @@ func TestScanService_KillMutant_TVShowUpdateFingerprintErrorLogged(t *testing.T)
 	// Pre-seed series with stale fingerprint so title-match path runs Update.
 	require.NoError(t, h.media.Create(context.Background(), &library.MediaItem{
 		ID: "series-1", LibraryID: "lib-tv", Type: library.Series, Title: "Show",
-		FileFingerprint: "stale",
+		File: &library.MediaFile{Fingerprint: "stale"},
 	}))
 	s, e := 1, 1
 	h.scanner.Results["/tv"] = []library.ScannedFile{
@@ -128,8 +128,8 @@ func TestScanService_KillMutant_UnchangedSamePathNewParentUpdates(t *testing.T) 
 	// Pre-seed an episode whose FilePath already matches (same path) but with bogus parent.
 	require.NoError(t, h.media.Create(context.Background(), &library.MediaItem{
 		ID: "ep1", LibraryID: "lib-tv", ParentID: "wrong-parent",
-		FilePath: "/tv/show/s01e01.mkv", FileSize: 100, FileFingerprint: "ep-fp",
-		Type: library.Episode, Title: "S01E01",
+		File:  &library.MediaFile{Path: "/tv/show/s01e01.mkv", Size: 100, Fingerprint: "ep-fp"},
+		Type:  library.Episode, Title: "S01E01",
 	}))
 	s1, e1 := 1, 1
 	h.scanner.Results["/tv"] = []library.ScannedFile{
@@ -299,7 +299,7 @@ func TestTrickplayService_KillMutant_AdaptiveCPUConfigFalseDisablesAdaptive(t *t
 	gen := libfakes.NewFakeTrickplayGenerator()
 	media := libfakes.NewFakeMediaItemCommandRepo()
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m1", FilePath: "/x.mkv",
+		ID: "m1", File: &library.MediaFile{Path: "/x.mkv"},
 	}))
 	bus := sharedfakes.NewFakeEventBus()
 	svc := applib.NewTrickplayService(repo, gen, "/tmp/tp", media, bus, cfg)
@@ -320,7 +320,7 @@ func TestTrickplayService_KillMutant_AdaptiveCPUConfigDefaultTrue(t *testing.T) 
 	gen := libfakes.NewFakeTrickplayGenerator()
 	media := libfakes.NewFakeMediaItemCommandRepo()
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m2", FilePath: "/y.mkv",
+		ID: "m2", File: &library.MediaFile{Path: "/y.mkv"},
 	}))
 	bus := sharedfakes.NewFakeEventBus()
 	svc := applib.NewTrickplayService(repo, gen, "/tmp/tp", media, bus, cfg)

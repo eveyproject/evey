@@ -453,7 +453,7 @@ func TestHLSMasterHandler_HappyPath_TokenInjection(t *testing.T) {
 
 	w1, h1 := 1920, 1080
 	libSvc := &fakeMediaStreamsGetter{
-		item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/tmp/movie.mkv", ContainerFormat: "matroska"},
+		item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/tmp/movie.mkv", ContainerFormat: "matroska"}},
 		streams: []*domainlibrary.MediaStream{
 			{StreamType: "video", Codec: "h264", Width: &w1, Height: &h1, IsDefault: true},
 			{StreamType: "audio", Codec: "aac", IsDefault: true},
@@ -492,7 +492,7 @@ func TestHLSMasterHandler_BitrateFiltering(t *testing.T) {
 
 	w1, h1 := 1920, 1080
 	libSvc := &fakeMediaStreamsGetter{
-		item: &domainlibrary.MediaItem{ID: "m2", LibraryID: "lib1", FilePath: "/tmp/m.mkv", ContainerFormat: "matroska"},
+		item: &domainlibrary.MediaItem{ID: "m2", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/tmp/m.mkv", ContainerFormat: "matroska"}},
 		streams: []*domainlibrary.MediaStream{
 			{StreamType: "video", Codec: "h264", Width: &w1, Height: &h1, IsDefault: true},
 			{StreamType: "audio", Codec: "aac", IsDefault: true},

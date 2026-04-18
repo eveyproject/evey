@@ -169,10 +169,10 @@ func TestTrickplay_GenerateAllMissingTrickplays_GeneratesForMissingItems(t *test
 	gen := &countingGen{}
 	media := libfakes.NewFakeMediaItemCommandRepo()
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m1", FilePath: "/movies/a.mkv", Title: "A",
+		ID: "m1", File: &library.MediaFile{Path: "/movies/a.mkv"}, Title: "A",
 	}))
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m2", FilePath: "/movies/b.mkv", Title: "B",
+		ID: "m2", File: &library.MediaFile{Path: "/movies/b.mkv"}, Title: "B",
 	}))
 	bus := sharedfakes.NewFakeEventBus()
 	// Use a shutdown ctx so the inner throttle (10s sleep) is cut on cancel.
@@ -207,10 +207,10 @@ func TestTrickplay_GenerateAllMissingTrickplays_ContinuesAfterItemError(t *testi
 	}
 	media := libfakes.NewFakeMediaItemCommandRepo()
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m1", FilePath: "/movies/a.mkv", Title: "A",
+		ID: "m1", File: &library.MediaFile{Path: "/movies/a.mkv"}, Title: "A",
 	}))
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m2", FilePath: "/movies/b.mkv", Title: "B",
+		ID: "m2", File: &library.MediaFile{Path: "/movies/b.mkv"}, Title: "B",
 	}))
 	bus := sharedfakes.NewFakeEventBus()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -267,7 +267,7 @@ func TestTrickplay_StartTrickplayWorker_ConsumesAddedMovieEvent(t *testing.T) {
 	gen := &countingGen{}
 	media := libfakes.NewFakeMediaItemCommandRepo()
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m1", FilePath: "/movies/a.mkv", Title: "A",
+		ID: "m1", File: &library.MediaFile{Path: "/movies/a.mkv"}, Title: "A",
 	}))
 	bus := sharedfakes.NewFakeEventBus()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -318,7 +318,7 @@ func TestTrickplay_StartTrickplayWorker_SkipsWhenManifestExists(t *testing.T) {
 	gen := &countingGen{}
 	media := libfakes.NewFakeMediaItemCommandRepo()
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m1", FilePath: "/movies/a.mkv", Title: "A",
+		ID: "m1", File: &library.MediaFile{Path: "/movies/a.mkv"}, Title: "A",
 	}))
 	bus := sharedfakes.NewFakeEventBus()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -341,7 +341,7 @@ func TestTrickplay_StartTrickplayWorker_DisabledByConfigSkips(t *testing.T) {
 	gen := &countingGen{}
 	media := libfakes.NewFakeMediaItemCommandRepo()
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m1", FilePath: "/movies/a.mkv",
+		ID: "m1", File: &library.MediaFile{Path: "/movies/a.mkv"},
 	}))
 	bus := sharedfakes.NewFakeEventBus()
 	cfg := sharedfakes.NewFakeServerConfigRepository()

@@ -171,7 +171,8 @@ func TestDeleteMediaItem_RemovesItem(t *testing.T) {
 	t.Parallel()
 	svc, _, _, mediaRepo, _, _ := newCmdSvc()
 	mediaRepo.Create(context.Background(), &library.MediaItem{
-		ID: "item-to-delete", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
+		ID: "item-to-delete", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/film.mkv"},
 	})
 
 	err := svc.DeleteMediaItem(context.Background(), "item-to-delete")
@@ -262,7 +263,8 @@ func TestScanLibrary_ReturnsExactAddedUpdatedCounts(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "existing-1", LibraryID: "lib-1", FilePath: "/movies/old.mkv", FileSize: 100,
+		ID: "existing-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/old.mkv", Size: 100},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -303,7 +305,8 @@ func TestScanLibrary_ScanCompletedEvent_HasCorrectCounts(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "orphan-1", LibraryID: "lib-1", FilePath: "/movies/gone.mkv",
+		ID: "orphan-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/gone.mkv"},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -346,9 +349,10 @@ func TestUpsertMediaFile_NewItem_ByFingerprint_FallbackToPath(t *testing.T) {
 	items := h.mediaItems.All()
 	require.Len(t, items, 1)
 	assert.Equal(t, "Film", items[0].Title)
-	assert.Equal(t, "fp-123", items[0].FileFingerprint)
-	assert.Equal(t, int64(1000), items[0].FileSize)
-	assert.Equal(t, "/movies/film.mkv", items[0].FilePath)
+	require.NotNil(t, items[0].File)
+	assert.Equal(t, "fp-123", items[0].File.Fingerprint)
+	assert.Equal(t, int64(1000), items[0].File.Size)
+	assert.Equal(t, "/movies/film.mkv", items[0].File.Path)
 	assert.Equal(t, shared.LibraryID("lib-1"), items[0].LibraryID)
 }
 
@@ -360,8 +364,8 @@ func TestUpsertMediaFile_ExistingByFingerprint_Unchanged_NoPathChange(t *testing
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
-		FileSize: 1000, FileFingerprint: "fp-123",
+		ID: "item-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "fp-123"},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -382,8 +386,8 @@ func TestUpsertMediaFile_ExistingByFingerprint_Unchanged_PathMoved(t *testing.T)
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/old-name.mkv",
-		FileSize: 1000, FileFingerprint: "fp-123",
+		ID: "item-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/old-name.mkv", Size: 1000, Fingerprint: "fp-123"},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -396,7 +400,8 @@ func TestUpsertMediaFile_ExistingByFingerprint_Unchanged_PathMoved(t *testing.T)
 	assert.Equal(t, 1, updated)
 
 	item, _ := h.mediaItems.GetByID(context.Background(), "item-1")
-	assert.Equal(t, "/movies/new-name.mkv", item.FilePath, "path should be updated")
+	require.NotNil(t, item.File)
+	assert.Equal(t, "/movies/new-name.mkv", item.File.Path, "path should be updated")
 }
 
 func TestUpsertMediaFile_ExistingByPath_NoFingerprint(t *testing.T) {
@@ -407,8 +412,8 @@ func TestUpsertMediaFile_ExistingByPath_NoFingerprint(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
-		FileSize: 1000,
+		ID: "item-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 1000},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -429,8 +434,9 @@ func TestUpsertMediaFile_ExistingChanged_UpdatesFields(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
-		FileSize: 500, FileFingerprint: "old-fp", Overview: "Has overview",
+		ID: "item-1", LibraryID: "lib-1",
+		File:     &library.MediaFile{Path: "/movies/film.mkv", Size: 500, Fingerprint: "old-fp"},
+		Overview: "Has overview",
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -443,8 +449,9 @@ func TestUpsertMediaFile_ExistingChanged_UpdatesFields(t *testing.T) {
 	assert.Equal(t, 1, updated)
 
 	item, _ := h.mediaItems.GetByID(context.Background(), "item-1")
-	assert.Equal(t, int64(1500), item.FileSize)
-	assert.Equal(t, "new-fp", item.FileFingerprint)
+	require.NotNil(t, item.File)
+	assert.Equal(t, int64(1500), item.File.Size)
+	assert.Equal(t, "new-fp", item.File.Fingerprint)
 }
 
 func TestUpsertMediaFile_Changed_NoOverview_ReEmitsEvent(t *testing.T) {
@@ -455,8 +462,9 @@ func TestUpsertMediaFile_Changed_NoOverview_ReEmitsEvent(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
-		FileSize: 500, Overview: "",
+		ID: "item-1", LibraryID: "lib-1",
+		File:     &library.MediaFile{Path: "/movies/film.mkv", Size: 500},
+		Overview: "",
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -483,8 +491,9 @@ func TestUpsertMediaFile_Changed_WithOverview_NoReEmit(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
-		FileSize: 500, Overview: "Already enriched",
+		ID: "item-1", LibraryID: "lib-1",
+		File:     &library.MediaFile{Path: "/movies/film.mkv", Size: 500},
+		Overview: "Already enriched",
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -570,8 +579,8 @@ func TestUpsertMediaFile_FingerprintNotFound_FallsBackToPath(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
-		FileSize: 1000, FileFingerprint: "old-fp",
+		ID: "item-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "old-fp"},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -605,7 +614,8 @@ func TestUpsertMediaFile_NewItem_WithDuration(t *testing.T) {
 
 	items := h.mediaItems.All()
 	require.Len(t, items, 1)
-	assert.Equal(t, int64(120000), items[0].DurationMs)
+	require.NotNil(t, items[0].File)
+	assert.Equal(t, int64(120000), items[0].File.DurationMs)
 }
 
 func TestUpsertMediaFile_NewItem_WithYear(t *testing.T) {
@@ -637,8 +647,8 @@ func TestUpsertMediaFile_UnchangedSizeEmptyFingerprint_CountsAsUnchanged(t *test
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
-		FileSize: 1000, FileFingerprint: "existing-fp",
+		ID: "item-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "existing-fp"},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -659,8 +669,8 @@ func TestUpsertMediaFile_Changed_DifferentFingerprint(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
-		FileSize: 1000, FileFingerprint: "fp-old",
+		ID: "item-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "fp-old"},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -673,7 +683,8 @@ func TestUpsertMediaFile_Changed_DifferentFingerprint(t *testing.T) {
 	assert.Equal(t, 1, updated)
 
 	item, _ := h.mediaItems.GetByID(context.Background(), "item-1")
-	assert.Equal(t, "fp-new", item.FileFingerprint)
+	require.NotNil(t, item.File)
+	assert.Equal(t, "fp-new", item.File.Fingerprint)
 }
 
 // --- extractAndStoreChapters ---
@@ -1054,7 +1065,7 @@ func TestScanTVShow_EpisodeTitleFormat(t *testing.T) {
 	items := h.mediaItems.All()
 	var episodeTitle string
 	for _, item := range items {
-		if item.FilePath == "/tv/show/s02e03.mkv" {
+		if item.File != nil && item.File.Path == "/tv/show/s02e03.mkv" {
 			episodeTitle = item.Title
 		}
 	}
@@ -1104,7 +1115,7 @@ func TestScanTVShow_NoEpisodeNumber_KeepsOriginalTitle(t *testing.T) {
 	items := h.mediaItems.All()
 	var episodeTitle string
 	for _, item := range items {
-		if item.FilePath == "/tv/show/bonus.mkv" {
+		if item.File != nil && item.File.Path == "/tv/show/bonus.mkv" {
 			episodeTitle = item.Title
 		}
 	}
@@ -1183,7 +1194,8 @@ func TestScanTVShow_GetOrCreateItem_FindsByFingerprint(t *testing.T) {
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "existing-series", LibraryID: "lib-tv", Type: "series",
-		Title: "My Show", FileFingerprint: "series:lib-tv:My Show",
+		Title: "My Show",
+		File:  &library.MediaFile{Fingerprint: "series:lib-tv:My Show"},
 	})
 
 	s1, e1 := 1, 1
@@ -1214,7 +1226,7 @@ func TestGenerateTrickplay_GenError_Propagates(t *testing.T) {
 	)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "m1", FilePath: "/movies/film.mkv",
+		ID: "m1", File: &library.MediaFile{Path: "/movies/film.mkv"},
 	})
 
 	err := h.svc.GenerateTrickplay(context.Background(), "m1")
@@ -1237,7 +1249,7 @@ func TestGenerateTrickplay_StoreError_Propagates(t *testing.T) {
 	)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "m1", FilePath: "/movies/film.mkv",
+		ID: "m1", File: &library.MediaFile{Path: "/movies/film.mkv"},
 	})
 
 	err := h.svc.GenerateTrickplay(context.Background(), "m1")
@@ -1274,7 +1286,8 @@ func TestRemoveOrphans_PublishesMediaItemRemoved(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "orphan-1", LibraryID: "lib-1", FilePath: "/movies/gone.mkv",
+		ID: "orphan-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/gone.mkv"},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{}
@@ -1301,7 +1314,9 @@ func TestRemoveOrphans_AlsoRemovesFromSearchIndex(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "orphan-1", LibraryID: "lib-1", FilePath: "/movies/gone.mkv", Title: "Gone Film",
+		ID: "orphan-1", LibraryID: "lib-1",
+		File:  &library.MediaFile{Path: "/movies/gone.mkv"},
+		Title: "Gone Film",
 	})
 	h.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orphan-1", Title: "Gone Film"}, nil)
 
@@ -1495,7 +1510,7 @@ func TestScanLibrary_OrphanRemovedFromSearchIndex(t *testing.T) {
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:        "orphan-1",
 		LibraryID: "lib-orphan",
-		FilePath:  "/movies/deleted.mkv",
+		File:      &library.MediaFile{Path: "/movies/deleted.mkv"},
 		Title:     "Deleted Film",
 	})
 	search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orphan-1", Title: "Deleted Film"}, nil)
@@ -1557,8 +1572,8 @@ func TestUpsertMediaFile_Changed_WithDuration_UpdatesDuration(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
-		FileSize: 500, DurationMs: 1000,
+		ID: "item-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 500, DurationMs: 1000},
 	})
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
@@ -1574,7 +1589,8 @@ func TestUpsertMediaFile_Changed_WithDuration_UpdatesDuration(t *testing.T) {
 	require.NoError(t, err)
 
 	item, _ := h.mediaItems.GetByID(context.Background(), "item-1")
-	assert.Equal(t, int64(9999), item.DurationMs)
+	require.NotNil(t, item.File)
+	assert.Equal(t, int64(9999), item.File.DurationMs)
 }
 
 func TestUpsertMediaFile_Changed_ZeroDuration_KeepsOldDuration(t *testing.T) {
@@ -1585,8 +1601,8 @@ func TestUpsertMediaFile_Changed_ZeroDuration_KeepsOldDuration(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
-		FileSize: 500, DurationMs: 5000,
+		ID: "item-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 500, DurationMs: 5000},
 	})
 
 	// Prober returns 0 duration
@@ -1598,7 +1614,8 @@ func TestUpsertMediaFile_Changed_ZeroDuration_KeepsOldDuration(t *testing.T) {
 	require.NoError(t, err)
 
 	item, _ := h.mediaItems.GetByID(context.Background(), "item-1")
-	assert.Equal(t, int64(5000), item.DurationMs, "should keep old duration when prober returns 0")
+	require.NotNil(t, item.File)
+	assert.Equal(t, int64(5000), item.File.DurationMs, "should keep old duration when prober returns 0")
 }
 
 func TestUpsertMediaFile_NewItem_ParentID_Propagated(t *testing.T) {
@@ -1623,7 +1640,7 @@ func TestUpsertMediaFile_NewItem_ParentID_Propagated(t *testing.T) {
 		if item.Type == "season" {
 			seasonID = string(item.ID)
 		}
-		if item.FilePath == "/tv/show/s01e01.mkv" {
+		if item.File != nil && item.File.Path == "/tv/show/s01e01.mkv" {
 			episode = item
 		}
 	}
@@ -1639,8 +1656,9 @@ func TestUpsertMediaFile_ExistingChanged_UpdatesParentID(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
-		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
-		FileSize: 500, ParentID: "old-parent",
+		ID: "item-1", LibraryID: "lib-1",
+		File:     &library.MediaFile{Path: "/movies/film.mkv", Size: 500},
+		ParentID: "old-parent",
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{

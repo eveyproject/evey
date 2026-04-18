@@ -135,11 +135,15 @@ func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.Valida
 		return nil, status.Error(codes.NotFound, "media not found")
 	}
 
+	var durationMs int64
+	if item.File != nil {
+		durationMs = item.File.DurationMs
+	}
 	return &eveyv1.ValidateShareLinkResponse{
 		MediaId:    string(item.ID),
 		Title:      item.Title,
 		MediaType:  string(item.Type),
-		DurationMs: int64(item.DurationMs),
+		DurationMs: durationMs,
 		StreamUrl:  "/api/v1/media/" + string(item.ID) + "/stream",
 	}, nil
 }

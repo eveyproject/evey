@@ -166,7 +166,7 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	claims := HTTPClaimsFromContext(r.Context())
 
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
-	if err != nil || item.FilePath == "" {
+	if err != nil || item.File == nil || item.File.Path == "" {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
@@ -189,7 +189,11 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	prefs := loadProfilePrefs(r.Context(), h.profilePrefs, claims.ProfileID)
-	decision := apptranscoding.MakePlaybackDecisionWithPrefs(streams, item.ContainerFormat, client, userMaxBitrate, prefs)
+	containerFormat := ""
+	if item.File != nil {
+		containerFormat = item.File.ContainerFormat
+	}
+	decision := apptranscoding.MakePlaybackDecisionWithPrefs(streams, containerFormat, client, userMaxBitrate, prefs)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
 		http.Error(w, `{"message":"transcoding disabled by user preferences"}`, http.StatusUnprocessableEntity)
 		return
@@ -264,7 +268,7 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
-	if err != nil || item.FilePath == "" {
+	if err != nil || item.File == nil || item.File.Path == "" {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
@@ -295,7 +299,11 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	// Compute playback decision to determine video/audio copy vs transcode
 	client := parseClientCapabilities(r, hdrSupported)
 	prefs := loadProfilePrefs(r.Context(), h.profilePrefs, claims.ProfileID)
-	decision := apptranscoding.MakePlaybackDecisionWithPrefs(mediaStreams, item.ContainerFormat, client, 0, prefs)
+	containerFormat := ""
+	if item.File != nil {
+		containerFormat = item.File.ContainerFormat
+	}
+	decision := apptranscoding.MakePlaybackDecisionWithPrefs(mediaStreams, containerFormat, client, 0, prefs)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
 		http.Error(w, `{"message":"transcoding disabled by user preferences"}`, http.StatusUnprocessableEntity)
 		return
@@ -321,9 +329,9 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 	var session *apptranscoding.HLSSession
 	if startSec > 0 {
-		session, err = h.hlsManager.RestartFromPosition(userID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, startSec, videoDecision, audioDecision, overrides)
+		session, err = h.hlsManager.RestartFromPosition(userID, mediaID, item.File.Path, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, startSec, videoDecision, audioDecision, overrides)
 	} else {
-		session, err = h.hlsManager.GetOrCreate(userID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, 0, videoDecision, audioDecision, overrides)
+		session, err = h.hlsManager.GetOrCreate(userID, mediaID, item.File.Path, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, 0, videoDecision, audioDecision, overrides)
 	}
 	if err != nil {
 		slog.Error("hls: get or create session", slog.Any("err", err))
@@ -525,7 +533,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
-	if err != nil || item.FilePath == "" {
+	if err != nil || item.File == nil || item.File.Path == "" {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
@@ -554,7 +562,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	args := h.buildFFmpegArgs(item.FilePath, params, analysis)
+	args := h.buildFFmpegArgs(item.File.Path, params, analysis)
 	slog.Debug("transcode: ffmpeg", slog.String("media_id", mediaID), slog.String("args", strings.Join(args, " ")))
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	stdout, err := cmd.StdoutPipe()

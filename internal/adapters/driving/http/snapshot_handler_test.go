@@ -43,7 +43,7 @@ func TestSnapshot_Success(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		fe,
 		allowAll(),
-		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/x/video.mkv"}},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x/video.mkv"}}},
 		"http://localhost",
 	)
 
@@ -78,7 +78,7 @@ func TestSnapshot_NegativePositionClampedToZero(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		fe,
 		allowAll(),
-		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/x.mkv"}},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x.mkv"}}},
 		"http://localhost",
 	)
 	req := newSnapshotReq(t, "m1", "position_ms=-5000")
@@ -117,7 +117,7 @@ func TestSnapshot_LibraryAccessDenied(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeFrameExt{data: []byte("x")},
 		denyAll(),
-		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-private", FilePath: "/x.mkv"}},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-private", File: &domainlibrary.MediaFile{Path: "/x.mkv"}}},
 		"http://localhost",
 	)
 	req := newSnapshotReq(t, "m1", "")
@@ -136,7 +136,7 @@ func TestSnapshot_ExtractError(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeFrameExt{err: errors.New("ffmpeg boom")},
 		allowAll(),
-		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/x.mkv"}},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x.mkv"}}},
 		"http://localhost",
 	)
 	req := newSnapshotReq(t, "m1", "position_ms=0")

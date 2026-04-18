@@ -136,8 +136,12 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
 		return
 	}
+	if item.File == nil || item.File.Path == "" {
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
 	setCORSHeaders(w, r, h.baseURL)
-	http.ServeFile(w, r, item.FilePath)
+	http.ServeFile(w, r, item.File.Path)
 }
 
 func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
@@ -153,7 +157,7 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL strin
 		}
 
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
-		if err != nil || item.FilePath == "" {
+		if err != nil || item.File == nil || item.File.Path == "" {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
@@ -165,15 +169,19 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL strin
 }
 
 func serveDownload(w http.ResponseWriter, r *http.Request, item *library.MediaItem, baseURL string) {
-	fi, err := os.Stat(item.FilePath)
+	if item.File == nil {
+		http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
+		return
+	}
+	fi, err := os.Stat(item.File.Path)
 	if err != nil {
 		http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
 		return
 	}
-	filename := sanitizeFilename(filepath.Base(item.FilePath))
+	filename := sanitizeFilename(filepath.Base(item.File.Path))
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
 	setCORSHeaders(w, r, baseURL)
-	http.ServeFile(w, r, item.FilePath)
+	http.ServeFile(w, r, item.File.Path)
 }

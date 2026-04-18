@@ -166,7 +166,7 @@ func TestMediaStream_IDOR_403(t *testing.T) {
 func TestMediaStream_TokenFromQueryParam(t *testing.T) {
 	h := mediaHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/nonexistent"}},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/nonexistent"}}},
 		nil, "http://localhost",
 		allowAll(),
 	)
@@ -434,7 +434,7 @@ func TestPlaybackInfo_NotFound_404(t *testing.T) {
 func TestPlaybackInfo_IDOR_403(t *testing.T) {
 	h := playbackInfoHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", FilePath: "/a"}},
+		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		denyAll(),
 		nil,
 	)
@@ -454,7 +454,7 @@ func TestPlaybackInfo_OK(t *testing.T) {
 	h := playbackInfoHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{
-			item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/a.mkv", ContainerFormat: "matroska"},
+			item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/a.mkv", ContainerFormat: "matroska"}},
 			streams: []*domainlibrary.MediaStream{
 				{StreamType: "video", Codec: "h264", Width: &w1, Height: &h1},
 				{StreamType: "audio", Codec: "aac", IsDefault: true},
@@ -477,7 +477,7 @@ func TestPlaybackInfo_StreamsError_500(t *testing.T) {
 	h := playbackInfoHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{
-			item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/a.mkv"},
+			item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/a.mkv"}},
 			sErr: errTest,
 		},
 		allowAll(),
@@ -634,7 +634,7 @@ func TestDownloadHandler_InvalidToken_401(t *testing.T) {
 func TestDownloadHandler_StreamTokenContext(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/nonexistent"}},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/nonexistent"}}},
 		"http://localhost",
 		allowAll(),
 	)
@@ -655,7 +655,7 @@ func TestDownloadHandler_StreamTokenContext(t *testing.T) {
 func TestDownloadHandler_EmptyFilePath_404(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: ""}},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		"http://localhost",
 		allowAll(),
 	)
@@ -1414,7 +1414,7 @@ func TestSubtitleHandler_NotFound_404(t *testing.T) {
 func TestSubtitleHandler_IDOR_403(t *testing.T) {
 	h := subtitleHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "restricted", FilePath: "/a"}},
+		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "restricted", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		"http://localhost",
 		denyAll(),
 	)

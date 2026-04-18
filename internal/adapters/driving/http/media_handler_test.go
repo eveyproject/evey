@@ -49,7 +49,7 @@ func testClaims(admin bool) *domainuser.Claims {
 }
 
 func testMediaItem(libraryID string) *domainlibrary.MediaItem {
-	return &domainlibrary.MediaItem{ID: "m1", LibraryID: shared.LibraryID(libraryID), FilePath: "/tmp/fake.mkv"}
+	return &domainlibrary.MediaItem{ID: "m1", LibraryID: shared.LibraryID(libraryID), File: &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"}}
 }
 
 // --- tests: downloadHandler ---
@@ -93,7 +93,7 @@ func TestDownloadHandler_IDOR_Forbidden(t *testing.T) {
 func TestDownloadHandler_Allowed_FileNotFound(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/nonexistent_file_xyz.mkv"}},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/nonexistent_file_xyz.mkv"}}},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
 	)
