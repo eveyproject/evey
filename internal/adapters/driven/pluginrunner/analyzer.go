@@ -171,8 +171,13 @@ func (a *StaticAnalyzer) Analyze(dir string) (*plugin.AnalysisReport, error) {
 		Safe:      raw.Safe,
 		FileCount: raw.TotalFilesScanned,
 	}
+	seenCat := map[string]bool{}
 	for _, f := range raw.Findings {
 		report.Issues = append(report.Issues, fmt.Sprintf("[%s] %s:%d — %s (%s)", severityLabel(f.Severity), f.File, f.Line, f.Description, f.Pattern))
+		if f.Category != "" && !seenCat[f.Category] {
+			seenCat[f.Category] = true
+			report.Categories = append(report.Categories, f.Category)
+		}
 	}
 	for _, u := range raw.URLs {
 		report.URLs = append(report.URLs, plugin.ExtractedURL{

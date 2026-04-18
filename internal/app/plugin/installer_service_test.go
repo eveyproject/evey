@@ -562,3 +562,50 @@ func TestInstallPlugin_ConcurrentSameName(t *testing.T) {
 	assert.Equal(t, 1, successes, "exactly one install should succeed")
 	assert.Equal(t, 1, failures, "exactly one install should fail")
 }
+
+// --- native-binary opt-in gate ---
+
+func TestInstallPlugin_BlocksCompiledBinaryWithoutPermission(t *testing.T) {
+	svc, _, _, parser, _, analyzer := newTestInstallerService()
+	parser.Result =goManifest("native-without-perm")
+	analyzer.Report = &plugindomain.AnalysisReport{
+		Safe:       true,
+		Categories: []string{"compiled_binary"},
+	}
+
+	zip := tmpZip(t, "fake-binary-zip")
+	_, err := svc.InstallPlugin(context.Background(), zip)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "native-binary")
+}
+
+func TestInstallPlugin_BlocksEmbeddedArchiveWithoutPermission(t *testing.T) {
+	svc, _, _, parser, _, analyzer := newTestInstallerService()
+	parser.Result =goManifest("archive-without-perm")
+	analyzer.Report = &plugindomain.AnalysisReport{
+		Safe:       true,
+		Categories: []string{"embedded_archive"},
+	}
+
+	zip := tmpZip(t, "fake-archive-zip")
+	_, err := svc.InstallPlugin(context.Background(), zip)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "native-binary")
+}
+
+func TestInstallPlugin_AllowsCompiledBinaryWithPermission(t *testing.T) {
+	svc, _, _, parser, _, analyzer := newTestInstallerService()
+	manifest := goManifest("native-with-perm")
+	manifest.Permissions = []string{"native-binary"}
+	parser.Result =manifest
+	analyzer.Report = &plugindomain.AnalysisReport{
+		Safe:       true,
+		Categories: []string{"compiled_binary"},
+	}
+
+	zip := tmpZip(t, "fake-binary-zip-allowed")
+	p, err := svc.InstallPlugin(context.Background(), zip)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	assert.Contains(t, p.Permissions, "native-binary")
+}

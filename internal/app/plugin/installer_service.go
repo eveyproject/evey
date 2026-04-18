@@ -20,6 +20,13 @@ import (
 	"github.com/evey-project/evey/internal/pkg/id"
 )
 
+// nativeBinaryPerm is the manifest permission a plugin must declare to
+// be allowed to ship compiled binaries or embedded archives. Without it
+// the installer rejects any plugin that the static analyzer flagged
+// with `compiled_binary` or `embedded_archive` categories — opaque blobs
+// the regex scanner cannot inspect.
+const nativeBinaryPerm = "native-binary"
+
 type InstallerService struct {
 	plugins      plugin.PluginRepository
 	runner       plugin.PluginRunner
@@ -188,6 +195,18 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 				s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
 			}
 			return nil, fmt.Errorf("plugin blocked: critical security issues found: %v", report.Issues)
+		}
+		// Native binaries and archives bypass the static analyzer (they
+		// are opaque blobs). Block installation by default — the manifest
+		// must explicitly request the `native-binary` permission so the
+		// admin sees and accepts the elevated risk at preview time.
+		if !slices.Contains(p.Permissions, nativeBinaryPerm) {
+			if report.HasCategory("compiled_binary") || report.HasCategory("embedded_archive") {
+				if s.fs != nil {
+					s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
+				}
+				return nil, fmt.Errorf("plugin blocked: bundles compiled binaries or archives — declare permission %q in manifest to opt in", nativeBinaryPerm)
+			}
 		}
 		// Persist non-blocking warnings so the admin can audit them
 		// post-install (compiled binaries, symlinks, base64 blobs,

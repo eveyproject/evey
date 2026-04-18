@@ -91,10 +91,24 @@ type PluginManifest struct {
 }
 
 type AnalysisReport struct {
-	Safe      bool
-	Issues    []string
-	URLs      []ExtractedURL
-	FileCount int
+	Safe       bool
+	Issues     []string
+	Categories []string // unique finding categories — used by the installer to gate native-binary opt-in
+	URLs       []ExtractedURL
+	FileCount  int
+}
+
+// HasCategory returns true if the report contains at least one finding
+// whose category matches the argument. Used by the installer to decide
+// whether a plugin needs an explicit opt-in permission for compiled
+// binaries or embedded archives.
+func (r *AnalysisReport) HasCategory(cat string) bool {
+	for _, c := range r.Categories {
+		if c == cat {
+			return true
+		}
+	}
+	return false
 }
 
 type ExtractedURL struct {
