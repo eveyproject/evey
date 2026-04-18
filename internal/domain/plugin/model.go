@@ -65,7 +65,8 @@ func (m *PluginManifest) Validate() error {
 	if m.Version == "" {
 		return errors.New("manifest requires a version")
 	}
-	if m.Entrypoint == "" {
+	// CSS-only themes have no executable entrypoint.
+	if m.Language != "css" && m.Entrypoint == "" {
 		return errors.New("manifest requires an entrypoint")
 	}
 	return nil

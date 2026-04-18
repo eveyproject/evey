@@ -109,6 +109,9 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 	if err != nil {
 		return nil, fmt.Errorf("parse manifest: %w", err)
 	}
+	if err := manifest.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid manifest: %w", err)
+	}
 
 	existing, getErr := s.plugins.GetByName(ctx, manifest.Name)
 	if getErr == nil && existing != nil {
@@ -252,6 +255,9 @@ func (s *InstallerService) PreviewPlugin(_ context.Context, zipPath string) (*Pl
 	manifest, err := s.parser.Parse(zipPath)
 	if err != nil {
 		return nil, fmt.Errorf("parse manifest: %w", err)
+	}
+	if err := manifest.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid manifest: %w", err)
 	}
 	sourceHash, hashErr := hashFile(zipPath)
 	if hashErr != nil {
