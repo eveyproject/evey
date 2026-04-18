@@ -2,12 +2,21 @@ package webhooksender
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/ssrf"
 )
+
+// newTestSender returns a sender whose client is a plain http.Client, bypassing
+// the SSRF dialer so tests can hit httptest servers bound to 127.0.0.1.
+func newTestSender(timeout time.Duration) *HTTPSender {
+	return &HTTPSender{client: &http.Client{Timeout: timeout}}
+}
 
 func TestSend_Success(t *testing.T) {
 	var gotBody []byte
@@ -20,7 +29,7 @@ func TestSend_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	sender := New()
+	sender := newTestSender(10 * time.Second)
 	body := []byte(`{"event":"test"}`)
 	headers := map[string]string{"X-Signature": "abc123"}
 
@@ -48,7 +57,7 @@ func TestSend_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	sender := New()
+	sender := newTestSender(10 * time.Second)
 	status, err := sender.Send(context.Background(), srv.URL, nil, []byte(`{}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -65,7 +74,7 @@ func TestSend_Timeout(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	sender := &HTTPSender{client: &http.Client{Timeout: 50 * time.Millisecond}}
+	sender := newTestSender(50 * time.Millisecond)
 	_, err := sender.Send(context.Background(), srv.URL, nil, []byte(`{}`))
 	if err == nil {
 		t.Fatal("expected timeout error, got nil")
@@ -79,7 +88,7 @@ func TestSend_ContextCanceled(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	sender := New()
+	sender := newTestSender(10 * time.Second)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -90,9 +99,27 @@ func TestSend_ContextCanceled(t *testing.T) {
 }
 
 func TestSend_InvalidURL(t *testing.T) {
-	sender := New()
+	sender := newTestSender(10 * time.Second)
 	_, err := sender.Send(context.Background(), "://bad-url", nil, []byte(`{}`))
 	if err == nil {
 		t.Fatal("expected error for invalid URL, got nil")
+	}
+}
+
+// TestSend_SSRFBlocksLoopback verifies the default sender (New) refuses
+// to connect to a 127.0.0.1 httptest server, proving the safe dialer is wired.
+func TestSend_SSRFBlocksLoopback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	sender := New()
+	_, err := sender.Send(context.Background(), srv.URL, nil, []byte(`{}`))
+	if err == nil {
+		t.Fatal("expected SSRF block error, got nil")
+	}
+	if !errors.Is(err, ssrf.ErrBlockedPrivateIP) {
+		t.Fatalf("expected ErrBlockedPrivateIP in chain, got %v", err)
 	}
 }

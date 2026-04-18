@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/webhook"
+	"github.com/evey-project/evey/internal/pkg/ssrf"
 )
 
 var _ webhook.Sender = (*HTTPSender)(nil)
@@ -19,7 +20,7 @@ type HTTPSender struct {
 
 func New() *HTTPSender {
 	return &HTTPSender{
-		client: &http.Client{Timeout: 10 * time.Second},
+		client: ssrf.SafeHTTPClient(10 * time.Second),
 	}
 }
 

@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/ssrf"
 )
 
 type ArtworkHTTPDownloader struct {
@@ -17,7 +19,7 @@ type ArtworkHTTPDownloader struct {
 
 func NewArtworkHTTPDownloader(httpClient *http.Client) *ArtworkHTTPDownloader {
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 60 * time.Second}
+		httpClient = ssrf.SafeHTTPClient(60 * time.Second)
 	}
 	return &ArtworkHTTPDownloader{httpClient: httpClient}
 }
