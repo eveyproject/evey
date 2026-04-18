@@ -30,7 +30,7 @@ function OIDCCallbackPage() {
       try {
         const { accessToken } = await eveyFetch<{ accessToken: string }>({ url: "/api/v1/auth/oidc/session", method: "GET" });
         setTokens(accessToken);
-        void navigate({ to: "/home" });
+        void navigate({ to: "/profile-select" });
       } catch {
         void navigate({ to: "/login" });
       }

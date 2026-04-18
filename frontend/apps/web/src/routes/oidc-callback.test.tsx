@@ -53,14 +53,14 @@ describe("OIDCCallbackPage", () => {
     expect(mockEveyFetch).not.toHaveBeenCalled();
   });
 
-  it("fetches session and navigates to /home on success", async () => {
+  it("fetches session and navigates to /profile-select on success", async () => {
     mockEveyFetch.mockResolvedValue({ accessToken: "tok-123" });
     const Page = await getOIDCCallbackPage();
     render(React.createElement(Page));
     await waitFor(() => {
       expect(mockSetTokens).toHaveBeenCalledWith("tok-123");
     });
-    expect(mockNavigate).toHaveBeenCalledWith({ to: "/home" });
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/profile-select" });
   });
 
   it("navigates to /login on fetch failure", async () => {
