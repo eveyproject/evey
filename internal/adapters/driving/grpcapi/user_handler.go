@@ -313,8 +313,11 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 	if err != nil {
 		return nil, fmt.Errorf("userHandler.UpdateProfile: %w", err)
 	}
-	if !claims.IsAdmin && req.Id != claims.ProfileID {
-		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
+	if !claims.IsAdmin {
+		existing, gerr := h.query.GetProfileByID(ctx, req.Id)
+		if gerr != nil || existing == nil || string(existing.UserID) != claims.UserID {
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
+		}
 	}
 	p := &user.Profile{
 		ID:          shared.ProfileID(req.Id),
@@ -379,8 +382,11 @@ func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfi
 	if err != nil {
 		return nil, fmt.Errorf("userHandler.DeleteProfile: %w", err)
 	}
-	if !claims.IsAdmin && req.Id != claims.ProfileID {
-		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_delete_profile_other")
+	if !claims.IsAdmin {
+		existing, gerr := h.query.GetProfileByID(ctx, req.Id)
+		if gerr != nil || existing == nil || string(existing.UserID) != claims.UserID {
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_delete_profile_other")
+		}
 	}
 	if err := h.userSvc.DeleteProfile(ctx, req.Id); err != nil {
 		if errors.Is(err, appuser.ErrCannotDeleteDefault) {
