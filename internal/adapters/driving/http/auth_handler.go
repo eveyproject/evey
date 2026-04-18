@@ -144,13 +144,13 @@ type parentalHandler struct {
 func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
 	claims := HTTPClaimsFromContext(r.Context())
 	profileID := r.PathValue("id")
-	if profileID != claims.ProfileID && !claims.IsAdmin {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
 	profile, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
 	if err != nil {
 		http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
+		return
+	}
+	if !claims.IsAdmin && string(profile.UserID) != claims.UserID {
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 	type resp struct {
@@ -177,10 +177,6 @@ func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
 func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request) {
 	claims := HTTPClaimsFromContext(r.Context())
 	profileID := r.PathValue("id")
-	if profileID != claims.ProfileID && !claims.IsAdmin {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
 	var body struct {
 		MaxAge      *int     `json:"maxAge"`
 		UnsetMaxAge bool     `json:"unsetMaxAge"`
@@ -197,6 +193,17 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
 		return
+	}
+	if !claims.IsAdmin && string(profile.UserID) != claims.UserID {
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+
+	if body.PIN != nil && *body.PIN != "" {
+		if !isFourDigit(*body.PIN) {
+			http.Error(w, `{"message":"PIN must be 4 digits"}`, http.StatusBadRequest)
+			return
+		}
 	}
 
 	if profile.Parental != nil && profile.Parental.PINHash != "" {
@@ -224,6 +231,20 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	}
 	if body.PIN != nil {
 		if *body.PIN == "" {
+			// Clearing PIN is only allowed if this profile is kids OR no sibling is kids.
+			if !profile.IsKids {
+				siblings, sErr := h.profileRepo.GetByUserID(r.Context(), profile.UserID)
+				if sErr != nil {
+					http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+					return
+				}
+				for _, s := range siblings {
+					if s != nil && s.ID != profile.ID && s.IsKids {
+						http.Error(w, `{"message":"non-kids profile must have a PIN when a kids profile exists"}`, http.StatusConflict)
+						return
+					}
+				}
+			}
 			profile.Parental.PINHash = ""
 		} else {
 			hash, err := h.hasher.Hash(*body.PIN)
@@ -248,13 +269,21 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+func isFourDigit(s string) bool {
+	if len(s) != 4 {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 	claims := HTTPClaimsFromContext(r.Context())
 	profileID := r.PathValue("id")
-	if !h.pinRL.Allow(profileID) {
-		http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
-		return
-	}
 	var body struct {
 		PIN string `json:"pin"`
 	}
@@ -269,6 +298,12 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 	}
 	if !claims.IsAdmin && string(profile.UserID) != claims.UserID {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+	// Rate-limit only authorized callers — prevents cross-user DoS of the
+	// per-profile bucket.
+	if !h.pinRL.Allow(profileID) {
+		http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
 		return
 	}
 	if profile.Parental == nil || profile.Parental.PINHash == "" {
