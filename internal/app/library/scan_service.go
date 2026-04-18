@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 // ErrScanInProgress is returned by ScanLibrary when a scan is already running
@@ -183,7 +184,9 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 	added += tvAdded
 	updated += tvUpdated
 
+	metrics.ScanQueueDepth.WithLabelValues(libraryID).Set(float64(len(toProcess)))
 	a, u := s.processNewItems(ctx, libraryID, toProcess)
+	metrics.ScanQueueDepth.WithLabelValues(libraryID).Set(0)
 	added += a
 	updated += u
 
