@@ -122,7 +122,7 @@ profile:
     name: "Nom"
     nameRequired: "Le nom est requis"
     isKids: "Profil enfant"
-    isKidsHelp: "Les profils enfant ne voient que du contenu adapté à leur âge."
+    isKidsHelp: "Marque ce profil comme enfant (active le code PIN lors du changement). Les limites d'âge sont configurées dans les contrôles parentaux."
     pin: "Code PIN (4 chiffres)"
     pinRequired: "Un code PIN est requis car un profil enfant existe."
     pinKeep: "Laisser vide pour conserver le PIN actuel."

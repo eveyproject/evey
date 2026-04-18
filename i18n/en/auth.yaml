@@ -122,7 +122,7 @@ profile:
     name: Name
     nameRequired: Name is required
     isKids: Kids profile
-    isKidsHelp: "Kids profiles only see age-appropriate content."
+    isKidsHelp: "Marks this profile as a kids profile (enables PIN gate on switch). Age restrictions are configured per profile under parental controls."
     pin: PIN (4 digits)
     pinRequired: "A PIN is required because a kids profile exists."
     pinKeep: Leave blank to keep current PIN.

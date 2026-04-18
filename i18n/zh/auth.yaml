@@ -121,7 +121,7 @@ profile:
     name: "名称"
     nameRequired: "名称为必填项"
     isKids: "儿童个人资料"
-    isKidsHelp: "儿童个人资料仅显示适龄内容。"
+    isKidsHelp: "将此个人资料标记为儿童（切换时启用 PIN 码）。年龄限制在家长控制中配置。"
     pin: "PIN 码（4 位数字）"
     pinRequired: "由于存在儿童个人资料，需要设置 PIN 码。"
     pinKeep: "留空以保留当前 PIN 码。"
