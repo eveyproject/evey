@@ -9,6 +9,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/eventbus"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -142,9 +143,32 @@ func TestAllRetriesExhausted(t *testing.T) {
 	assert.Equal(t, int32(3), calls.Load(), "handler called MaxRetries times")
 }
 
-func TestContextCancellationStopsRetry(t *testing.T) {
+func TestPublisherCtxCancelDoesNotAbortWorker(t *testing.T) {
 	t.Parallel()
 	bus := eventbus.New()
+	defer bus.Stop()
+
+	called := make(chan struct{}, 1)
+	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
+		called <- struct{}{}
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = bus.Publish(ctx, testEvent{msg: "decoupled"})
+	// Cancel publisher ctx immediately; worker should still deliver the event
+	// because it owns the lifecycle once the job is enqueued.
+	cancel()
+
+	select {
+	case <-called:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("handler was not invoked after publisher ctx cancel")
+	}
+}
+
+func TestBusStopCancelsWorkerRetries(t *testing.T) {
+	t.Parallel()
+	bus := eventbus.NewWithPoolSize(1)
 	var calls atomic.Int32
 
 	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
@@ -152,16 +176,14 @@ func TestContextCancellationStopsRetry(t *testing.T) {
 		panic("always fails")
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	_ = bus.Publish(ctx, testEvent{msg: "cancel"})
-
-	// Cancel after first retry backoff starts
+	_ = bus.Publish(context.Background(), testEvent{msg: "busstop"})
+	// Let the first call happen then stop the bus during first backoff (100ms).
 	time.Sleep(30 * time.Millisecond)
-	cancel()
-	time.Sleep(150 * time.Millisecond)
+	bus.Stop()
+	time.Sleep(200 * time.Millisecond)
 
 	got := calls.Load()
-	assert.Less(t, got, int32(5), "should stop before all 5 retries; got %d", got)
+	assert.LessOrEqual(t, got, int32(2), "bus stop should abort retry loop; got %d", got)
 }
 
 func TestSuccessfulDeliveryNoRetry(t *testing.T) {
@@ -249,4 +271,93 @@ func TestWorkerPoolStop(t *testing.T) {
 	bus.Stop()
 
 	assert.GreaterOrEqual(t, calls.Load(), int32(0))
+}
+
+type droppedEvent struct{}
+
+func (droppedEvent) EventName() string { return "test.dropped" }
+
+func TestMetricDropsOnQueueFull(t *testing.T) {
+	t.Parallel()
+	bus := eventbus.NewWithPoolSize(1, eventbus.WithQueueSize(4))
+	defer bus.Stop()
+
+	droppedBefore := gatherCounter(t, "eventbus_events_dropped_total", "event_name", "test.dropped")
+
+	blocker := make(chan struct{})
+	bus.Subscribe("test.dropped", func(_ context.Context, _ shared.Event) {
+		<-blocker
+	})
+
+	for range 200 {
+		_ = bus.Publish(context.Background(), droppedEvent{})
+	}
+	close(blocker)
+	time.Sleep(100 * time.Millisecond)
+
+	droppedAfter := gatherCounter(t, "eventbus_events_dropped_total", "event_name", "test.dropped")
+	assert.Greater(t, droppedAfter-droppedBefore, float64(0),
+		"eventbus_events_dropped_total should increase when queue is saturated")
+}
+
+type depthEvent struct{}
+
+func (depthEvent) EventName() string { return "test.depth" }
+
+func TestMetricQueueDepthObserved(t *testing.T) {
+	// Not parallel: the depth gauge is global so concurrent buses would
+	// interfere with the reading.
+	bus := eventbus.NewWithPoolSize(1, eventbus.WithQueueSize(32))
+	defer bus.Stop()
+
+	blocker := make(chan struct{})
+	defer close(blocker)
+	bus.Subscribe("test.depth", func(_ context.Context, _ shared.Event) {
+		<-blocker
+	})
+
+	var maxDepth float64
+	for range 5 {
+		_ = bus.Publish(context.Background(), depthEvent{})
+		if d := gatherGauge(t, "eventbus_queue_depth"); d > maxDepth {
+			maxDepth = d
+		}
+	}
+
+	assert.GreaterOrEqual(t, maxDepth, float64(1),
+		"eventbus_queue_depth should reflect buffered events before workers drain")
+}
+
+func gatherCounter(t *testing.T, name, labelName, labelValue string) float64 {
+	t.Helper()
+	mfs, err := prometheus.DefaultGatherer.Gather()
+	assert.NoError(t, err)
+	for _, mf := range mfs {
+		if mf.GetName() != name {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == labelName && l.GetValue() == labelValue {
+					return m.GetCounter().GetValue()
+				}
+			}
+		}
+	}
+	return 0
+}
+
+func gatherGauge(t *testing.T, name string) float64 {
+	t.Helper()
+	mfs, err := prometheus.DefaultGatherer.Gather()
+	assert.NoError(t, err)
+	for _, mf := range mfs {
+		if mf.GetName() != name {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			return m.GetGauge().GetValue()
+		}
+	}
+	return 0
 }

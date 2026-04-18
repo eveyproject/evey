@@ -27,8 +27,12 @@ var DefaultRetryConfig = RetryConfig{
 	Backoffs:   []time.Duration{100 * time.Millisecond, 500 * time.Millisecond, 2 * time.Second},
 }
 
+// dispatchJob holds the data needed by a worker to deliver an event to one
+// subscriber. It intentionally does NOT carry the publisher's ctx: once the
+// event is accepted into the queue the worker owns its lifecycle and uses the
+// bus-scoped ctx for retries so that a cancelling publisher cannot cause a
+// pending event to be dropped mid-retry.
 type dispatchJob struct {
-	ctx   context.Context
 	sub   subscription
 	event shared.Event
 }
@@ -40,6 +44,8 @@ type InMemoryEventBus struct {
 	retry  RetryConfig
 	queue  chan dispatchJob
 	wg     sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 type Option func(*options)
@@ -68,10 +74,13 @@ func NewWithPoolSize(workers int, opts ...Option) *InMemoryEventBus {
 	for _, fn := range opts {
 		fn(&o)
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	b := &InMemoryEventBus{
-		subs:  make(map[string][]subscription),
-		retry: DefaultRetryConfig,
-		queue: make(chan dispatchJob, o.queueSize),
+		subs:   make(map[string][]subscription),
+		retry:  DefaultRetryConfig,
+		queue:  make(chan dispatchJob, o.queueSize),
+		ctx:    ctx,
+		cancel: cancel,
 	}
 	for range workers {
 		b.wg.Add(1)
@@ -83,15 +92,17 @@ func NewWithPoolSize(workers int, opts ...Option) *InMemoryEventBus {
 func (b *InMemoryEventBus) worker() {
 	defer b.wg.Done()
 	for job := range b.queue {
-		b.dispatch(job.ctx, job.sub, job.event)
+		queueDepthGauge.Set(float64(len(b.queue)))
+		b.dispatch(b.ctx, job.sub, job.event)
 	}
 }
 
 func (b *InMemoryEventBus) Stop() {
+	b.cancel()
 	close(b.queue)
 	b.wg.Wait()
+	queueDepthGauge.Set(0)
 }
-
 
 func (b *InMemoryEventBus) dispatch(ctx context.Context, sub subscription, event shared.Event) {
 	for attempt := range b.retry.MaxRetries {
@@ -114,6 +125,7 @@ func (b *InMemoryEventBus) dispatch(ctx context.Context, sub subscription, event
 				slog.String("event", event.EventName()),
 				slog.String("sub", sub.id),
 				slog.Any("ctx_err", ctx.Err()))
+			eventsDroppedTotal.WithLabelValues(event.EventName()).Inc()
 			return
 		case <-time.After(backoff):
 		}
@@ -123,6 +135,7 @@ func (b *InMemoryEventBus) dispatch(ctx context.Context, sub subscription, event
 		slog.String("event", event.EventName()),
 		slog.String("sub", sub.id),
 		slog.Int("retries", b.retry.MaxRetries))
+	eventsDroppedTotal.WithLabelValues(event.EventName()).Inc()
 }
 
 func (b *InMemoryEventBus) backoffDuration(attempt int) time.Duration {
@@ -140,6 +153,11 @@ func callHandler(ctx context.Context, handler func(context.Context, shared.Event
 	return nil
 }
 
+// Publish enqueues the event for asynchronous delivery to every matching
+// subscriber. The supplied ctx bounds ONLY the synchronous enqueue step
+// (respecting caller deadlines while pushing into the queue). Once the event
+// is accepted the worker takes ownership and uses the bus-scoped ctx, so a
+// cancelling publisher cannot abort in-flight retries.
 func (b *InMemoryEventBus) Publish(ctx context.Context, event shared.Event) error {
 	b.mu.RLock()
 	specific := append([]subscription{}, b.subs[event.EventName()]...)
@@ -157,11 +175,30 @@ func (b *InMemoryEventBus) Publish(ctx context.Context, event shared.Event) erro
 
 func (b *InMemoryEventBus) enqueue(ctx context.Context, s subscription, event shared.Event) {
 	select {
-	case b.queue <- dispatchJob{ctx: ctx, sub: s, event: event}:
+	case <-b.ctx.Done():
+		slog.Warn("eventbus: bus stopped, dropping event",
+			slog.String("event", event.EventName()),
+			slog.String("sub", s.id))
+		eventsDroppedTotal.WithLabelValues(event.EventName()).Inc()
+		return
+	case <-ctx.Done():
+		slog.Warn("eventbus: publisher ctx cancelled before enqueue, dropping event",
+			slog.String("event", event.EventName()),
+			slog.String("sub", s.id),
+			slog.Any("ctx_err", ctx.Err()))
+		eventsDroppedTotal.WithLabelValues(event.EventName()).Inc()
+		return
+	default:
+	}
+
+	select {
+	case b.queue <- dispatchJob{sub: s, event: event}:
+		queueDepthGauge.Set(float64(len(b.queue)))
 	default:
 		slog.Warn("eventbus: queue full, dropping event",
 			slog.String("event", event.EventName()),
 			slog.String("sub", s.id))
+		eventsDroppedTotal.WithLabelValues(event.EventName()).Inc()
 	}
 }
 
