@@ -65,7 +65,7 @@ function LoginPage() {
       onSuccess: (data) => {
         if (data.accessToken) {
           setTokens(data.accessToken);
-          void navigate({ to: "/home" });
+          void navigate({ to: "/profile-select" });
         }
       },
     },

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ProfileSelectRouteImport } from './routes/profile-select'
 import { Route as OidcCallbackRouteImport } from './routes/oidc-callback'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -71,6 +72,13 @@ const RegisterRoute = RegisterRouteImport.update({
   path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProfileSelectRoute = ProfileSelectRouteImport.update({
+  id: '/profile-select',
+  path: '/profile-select',
+  getParentRoute: () => rootRouteImport,
+} as any).lazy(() =>
+  import('./routes/profile-select.lazy').then((d) => d.Route),
+)
 const OidcCallbackRoute = OidcCallbackRouteImport.update({
   id: '/oidc-callback',
   path: '/oidc-callback',
@@ -368,6 +376,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/oidc-callback': typeof OidcCallbackRoute
+  '/profile-select': typeof ProfileSelectRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/setup': typeof SetupRoute
@@ -415,6 +424,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/oidc-callback': typeof OidcCallbackRoute
+  '/profile-select': typeof ProfileSelectRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/setup': typeof SetupRoute
@@ -463,6 +473,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/oidc-callback': typeof OidcCallbackRoute
+  '/profile-select': typeof ProfileSelectRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/setup': typeof SetupRoute
@@ -512,6 +523,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/oidc-callback'
+    | '/profile-select'
     | '/register'
     | '/reset-password'
     | '/setup'
@@ -559,6 +571,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/oidc-callback'
+    | '/profile-select'
     | '/register'
     | '/reset-password'
     | '/setup'
@@ -606,6 +619,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/oidc-callback'
+    | '/profile-select'
     | '/register'
     | '/reset-password'
     | '/setup'
@@ -655,6 +669,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   OidcCallbackRoute: typeof OidcCallbackRoute
+  ProfileSelectRoute: typeof ProfileSelectRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SetupRoute: typeof SetupRoute
@@ -681,6 +696,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile-select': {
+      id: '/profile-select'
+      path: '/profile-select'
+      fullPath: '/profile-select'
+      preLoaderRoute: typeof ProfileSelectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oidc-callback': {
@@ -1087,6 +1109,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   OidcCallbackRoute: OidcCallbackRoute,
+  ProfileSelectRoute: ProfileSelectRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SetupRoute: SetupRoute,

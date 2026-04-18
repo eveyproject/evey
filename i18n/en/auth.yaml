@@ -96,6 +96,36 @@ profile:
   changeAvatar: Change avatar
   avatarUpdated: Avatar updated
   avatarFailed: Failed to update avatar
+  created: Profile created
+  updated: Profile updated
+  deleted: Profile deleted
+  editProfile: Edit Profile
+  select:
+    title: Who's watching?
+    description: Select a profile to continue.
+    kidsBadge: Kids
+    manage: Manage Profiles
+    pinPromptTitle: Enter PIN
+    pinPromptBody: "Enter the PIN for \"{{name}}\" to continue."
+    pinInvalid: PIN must be 4 digits
+    pinWrong: Incorrect PIN
+  manage:
+    title: Manage Profiles
+    description: "Add, edit, or remove profiles. The default profile cannot be deleted."
+    createProfile: Create Profile
+    deleteConfirm: "Delete profile \"{{name}}\"? This cannot be undone."
+    defaultProfileBadge: Default
+    kidsBadge: Kids
+    cannotDeleteDefault: Default profile cannot be deleted.
+  fields:
+    name: Name
+    isKids: Kids profile
+    isKidsHelp: "Kids profiles only see age-appropriate content."
+    pin: PIN (4 digits)
+    pinRequired: "A PIN is required because a kids profile exists."
+    pinKeep: Leave blank to keep current PIN.
+    locale: Language
+    region: Region
   nav:
     settings: Settings
     settingsDesc: "Theme, notifications, password"
