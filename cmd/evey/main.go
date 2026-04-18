@@ -74,29 +74,11 @@ func run() error {
 	}
 
 	// load server settings overrides from DB
-	if v, err2 := deps.cfgStore.Get(ctx, "server.name"); err2 == nil && v != "" {
-		cfg.Server.Name = v
-	}
-	if v, err2 := deps.cfgStore.Get(ctx, "transcoding.max_concurrent"); err2 == nil && v != "" {
-		if n, err3 := strconv.Atoi(v); err3 == nil {
-			cfg.Transcoding.MaxConcurrent = n
-		}
-	}
-	if v, err2 := deps.cfgStore.Get(ctx, "transcoding.hw_accel_enabled"); err2 == nil && v != "" {
-		if b, err3 := strconv.ParseBool(v); err3 == nil {
-			cfg.Transcoding.HWAccelEnabled = b
-		}
-	}
-	if v, err2 := deps.cfgStore.Get(ctx, "ratelimit.login_max"); err2 == nil && v != "" {
-		if n, err3 := strconv.Atoi(v); err3 == nil {
-			cfg.Server.LoginRateLimitMax = n
-		}
-	}
-	if v, err2 := deps.cfgStore.Get(ctx, "ratelimit.global_max"); err2 == nil && v != "" {
-		if n, err3 := strconv.Atoi(v); err3 == nil {
-			cfg.Server.GlobalRateLimitMax = n
-		}
-	}
+	loadOverride(ctx, deps.cfgStore, "server.name", parseStr, &cfg.Server.Name)
+	loadOverride(ctx, deps.cfgStore, "transcoding.max_concurrent", parseInt, &cfg.Transcoding.MaxConcurrent)
+	loadOverride(ctx, deps.cfgStore, "transcoding.hw_accel_enabled", parseBool, &cfg.Transcoding.HWAccelEnabled)
+	loadOverride(ctx, deps.cfgStore, "ratelimit.login_max", parseInt, &cfg.Server.LoginRateLimitMax)
+	loadOverride(ctx, deps.cfgStore, "ratelimit.global_max", parseInt, &cfg.Server.GlobalRateLimitMax)
 
 	startMetricsCollector(ctx, db, deps.media.hlsManager, deps.repos.mediaItemRepo)
 
@@ -180,4 +162,34 @@ func run() error {
 	}
 	rootLog.Info("shutdown complete")
 	return nil
+}
+
+// serverConfigGetter is the minimal contract loadOverride needs from cfgStore.
+type serverConfigGetter interface {
+	Get(ctx context.Context, key string) (string, error)
+}
+
+// loadOverride reads key from store, parses it, and writes to *target.
+// Missing / empty / parse-error keys leave target untouched.
+func loadOverride[T any](ctx context.Context, store serverConfigGetter, key string,
+	parser func(string) (T, bool), target *T) {
+	v, err := store.Get(ctx, key)
+	if err != nil || v == "" {
+		return
+	}
+	if parsed, ok := parser(v); ok {
+		*target = parsed
+	}
+}
+
+func parseStr(s string) (string, bool) { return s, true }
+
+func parseInt(s string) (int, bool) {
+	n, err := strconv.Atoi(s)
+	return n, err == nil
+}
+
+func parseBool(s string) (bool, bool) {
+	b, err := strconv.ParseBool(s)
+	return b, err == nil
 }
