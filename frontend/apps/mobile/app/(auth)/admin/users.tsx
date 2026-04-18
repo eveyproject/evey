@@ -424,7 +424,7 @@ export default function AdminUsersScreen() {
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <Stack.Screen options={{
         headerShown: true,
-        title: t("admin.users") || "Users",
+        title: t("admin.nav.users"),
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
         headerRight: () => (

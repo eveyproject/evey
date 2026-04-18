@@ -247,7 +247,7 @@ export default function AdminLibrariesScreen() {
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <Stack.Screen options={{
         headerShown: true,
-        title: t("admin.libraries") || "Libraries",
+        title: t("admin.nav.libraries"),
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
         headerRight: () => (
