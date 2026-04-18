@@ -226,6 +226,47 @@ func TestUpdateUser_OtherUserDenied(t *testing.T) {
 	assertCode(t, err, codes.PermissionDenied)
 }
 
+func TestUpdateUser_NonAdminCannotSetCaps(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
+
+	ctx := userCtx("usr-1", "prf-1")
+	big := int32(9999)
+	cases := []struct {
+		name string
+		req  *eveyv1.UpdateUserRequest
+	}{
+		{"max_streams", &eveyv1.UpdateUserRequest{Id: "usr-1", MaxStreams: &big}},
+		{"max_profiles", &eveyv1.UpdateUserRequest{Id: "usr-1", MaxProfiles: &big}},
+		{"max_devices_per_profile", &eveyv1.UpdateUserRequest{Id: "usr-1", MaxDevicesPerProfile: &big}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := env.handler.UpdateUser(ctx, tc.req)
+			assertCode(t, err, codes.PermissionDenied)
+		})
+	}
+}
+
+func TestUpdateUser_AdminCanSetCaps(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-admin", Username: "root", Email: "r@b.com", IsAdmin: true}, "pass12345678")
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
+
+	admCtx := adminCtx()
+	maxP := int32(5)
+	resp, err := env.handler.UpdateUser(admCtx, &eveyv1.UpdateUserRequest{
+		Id:          "usr-1",
+		MaxProfiles: &maxP,
+	})
+	if err != nil {
+		t.Fatalf("admin UpdateUser: %v", err)
+	}
+	if resp.MaxProfiles == nil || *resp.MaxProfiles != 5 {
+		t.Fatalf("MaxProfiles = %v, want 5", resp.MaxProfiles)
+	}
+}
+
 // --- ListUsers test ---
 
 func TestListUsers_Success(t *testing.T) {
