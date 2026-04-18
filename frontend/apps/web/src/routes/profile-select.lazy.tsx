@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -43,6 +43,7 @@ function ProfileSelectPage() {
 
   const hasKidsProfile = profiles.some((p) => p.isKids === true);
   const loading = userLoading || profilesLoading;
+  const autoRedirectedRef = useRef(false);
 
   const currentProfile = profiles.find((p) => p.id === activeProfileId);
   const currentIsKids = currentProfile?.isKids === true;
@@ -75,12 +76,14 @@ function ProfileSelectPage() {
   }, [busy, currentIsKids, switchProfile, navigate]);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || autoRedirectedRef.current) return;
     if (profiles.length === 0) {
+      autoRedirectedRef.current = true;
       void navigate({ to: "/home" });
       return;
     }
     if (!hasKidsProfile) {
+      autoRedirectedRef.current = true;
       let targetId: string | null = null;
       try { targetId = localStorage.getItem(LAST_PROFILE_KEY); } catch { /* ignore */ }
       const target = profiles.find((p) => p.id === targetId) ?? profiles.find((p) => p.isDefault) ?? profiles[0];

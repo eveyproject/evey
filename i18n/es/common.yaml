@@ -159,6 +159,10 @@ nav:
   adminNav: "Navegación de administración"
   userMenu: "Menú de usuario"
   homeFeeds: "Feeds de inicio"
+  profileSwitcher: "Cambiar de perfil"
+  manageProfiles: "Gestionar perfiles"
+you: "Tú"
+confirm: "Confirmar"
 shortcuts:
   title: Atajos de teclado
   focusSearch: Enfocar búsqueda

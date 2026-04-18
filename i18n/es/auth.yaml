@@ -100,6 +100,7 @@ profile:
   updated: "Perfil actualizado"
   deleted: "Perfil eliminado"
   editProfile: "Editar perfil"
+  switchFailed: "No se pudo cambiar de perfil"
   select:
     title: "¿Quién está viendo?"
     description: "Selecciona un perfil para continuar."
@@ -119,6 +120,7 @@ profile:
     cannotDeleteDefault: "El perfil predeterminado no se puede eliminar."
   fields:
     name: "Nombre"
+    nameRequired: "El nombre es obligatorio"
     isKids: "Perfil infantil"
     isKidsHelp: "Los perfiles infantiles solo ven contenido apropiado para su edad."
     pin: "PIN (4 dígitos)"

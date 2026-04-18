@@ -99,6 +99,7 @@ profile:
   updated: "已更新个人资料"
   deleted: "已删除个人资料"
   editProfile: "编辑个人资料"
+  switchFailed: "无法切换个人资料"
   select:
     title: "谁在观看？"
     description: "选择一个个人资料以继续。"
@@ -118,6 +119,7 @@ profile:
     cannotDeleteDefault: "无法删除默认个人资料。"
   fields:
     name: "名称"
+    nameRequired: "名称为必填项"
     isKids: "儿童个人资料"
     isKidsHelp: "儿童个人资料仅显示适龄内容。"
     pin: "PIN 码（4 位数字）"

@@ -99,6 +99,7 @@ profile:
   updated: "प्रोफ़ाइल अपडेट की गई"
   deleted: "प्रोफ़ाइल हटाई गई"
   editProfile: "प्रोफ़ाइल संपादित करें"
+  switchFailed: "प्रोफ़ाइल नहीं बदली जा सकी"
   select:
     title: "कौन देख रहा है?"
     description: "जारी रखने के लिए एक प्रोफ़ाइल चुनें।"
@@ -118,6 +119,7 @@ profile:
     cannotDeleteDefault: "डिफ़ॉल्ट प्रोफ़ाइल को हटाया नहीं जा सकता।"
   fields:
     name: "नाम"
+    nameRequired: "नाम आवश्यक है"
     isKids: "बच्चों की प्रोफ़ाइल"
     isKidsHelp: "बच्चों की प्रोफ़ाइल केवल आयु-उपयुक्त सामग्री देखती हैं।"
     pin: "PIN (4 अंक)"

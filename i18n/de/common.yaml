@@ -175,6 +175,10 @@ nav:
   adminNav: Admin-Navigation
   userMenu: Benutzermenü
   homeFeeds: Startseiten-Feeds
+  profileSwitcher: Profil wechseln
+  manageProfiles: Profile verwalten
+you: Du
+confirm: Bestätigen
 shortcuts:
   title: Tastenkürzel
   focusSearch: Suche fokussieren

@@ -159,6 +159,10 @@ nav:
   adminNav: "एडमिन नेविगेशन"
   userMenu: "उपयोगकर्ता मेनू"
   homeFeeds: "होम फ़ीड्स"
+  profileSwitcher: "प्रोफ़ाइल बदलें"
+  manageProfiles: "प्रोफ़ाइल प्रबंधित करें"
+you: "आप"
+confirm: "पुष्टि करें"
 shortcuts:
   title: "कीबोर्ड शॉर्टकट"
   focusSearch: "खोज पर फ़ोकस करें"

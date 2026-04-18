@@ -103,7 +103,7 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: C
     e.preventDefault();
     setError(null);
     if (!name.trim()) {
-      setError(t("auth.profile.fields.name", "Name"));
+      setError(t("auth.profile.fields.nameRequired", "Name is required"));
       return;
     }
     if (pinRequired && pin.length !== 4) {

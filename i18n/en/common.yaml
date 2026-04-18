@@ -175,6 +175,10 @@ nav:
   adminNav: Admin navigation
   userMenu: User menu
   homeFeeds: Home Feeds
+  profileSwitcher: Switch profile
+  manageProfiles: Manage Profiles
+you: You
+confirm: Confirm
 shortcuts:
   title: Keyboard Shortcuts
   focusSearch: Focus search

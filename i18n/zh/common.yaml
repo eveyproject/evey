@@ -159,6 +159,10 @@ nav:
   adminNav: "管理导航"
   userMenu: "用户菜单"
   homeFeeds: "首页信息流"
+  profileSwitcher: "切换个人资料"
+  manageProfiles: "管理个人资料"
+you: "你"
+confirm: "确认"
 shortcuts:
   title: "键盘快捷键"
   focusSearch: "聚焦搜索"

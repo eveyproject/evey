@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
 import { userServiceRefreshToken } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { Users, Check } from "lucide-react";
@@ -81,10 +81,11 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
       setOpen(false);
     } catch (err) {
       console.warn("profile switch failed", err);
+      toast.error(err instanceof Error ? err.message : t("auth.profile.switchFailed", "Could not switch profile"));
     } finally {
       setSwitching(null);
     }
-  }, [qc]);
+  }, [qc, t]);
 
   const handleSwitch = useCallback(async (target: V1Profile) => {
     if (!target.id || switching) return;

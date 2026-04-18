@@ -100,6 +100,7 @@ profile:
   updated: Profile updated
   deleted: Profile deleted
   editProfile: Edit Profile
+  switchFailed: Could not switch profile
   select:
     title: Who's watching?
     description: Select a profile to continue.
@@ -119,6 +120,7 @@ profile:
     cannotDeleteDefault: Default profile cannot be deleted.
   fields:
     name: Name
+    nameRequired: Name is required
     isKids: Kids profile
     isKidsHelp: "Kids profiles only see age-appropriate content."
     pin: PIN (4 digits)

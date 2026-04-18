@@ -103,11 +103,11 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
     e.preventDefault();
     setError(null);
     if (!name.trim()) {
-      setError(t("auth.profile.fields.name", "Name"));
+      setError(t("auth.profile.fields.nameRequired", "Name is required"));
       return;
     }
     if (pin && pin.length !== 4) {
-      setError(t("auth.profile.fields.pin", "PIN (4 digits)"));
+      setError(t("auth.profile.select.pinInvalid", "PIN must be 4 digits"));
       return;
     }
     if (!profile.id) return;
