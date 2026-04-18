@@ -11,6 +11,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// methodPermissions enumerates every HostService RPC the runtime
+// accepts. Adding a new RPC to plugin.proto WITHOUT adding it here is a
+// build-time omission the interceptor catches at runtime: unknown
+// methods are denied (fail-closed). nil values mean "no permission
+// required" — still authenticated, but any installed plugin can call.
 var methodPermissions = map[string][]string{
 	"/plugin.v1.HostService/GetMediaItem":       {"api.library", "media.read"},
 	"/plugin.v1.HostService/ListMediaItems":     {"api.library", "media.read"},
@@ -32,11 +37,17 @@ var methodPermissions = map[string][]string{
 // after pluginhost's per-plugin SO_PEERCRED auth interceptor — that one
 // injects the authenticated plugin ID into the context. Reading from the
 // wire (e.g. an x-plugin-id header) would be trivially spoofable.
+//
+// Fail-closed on unknown methods: if a new RPC ships in plugin.proto
+// without an entry in methodPermissions, every call to it is denied
+// rather than passed through unauthenticated.
 func PluginPermissionInterceptor(checker *appplugin.PermissionChecker) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		requiredPerms, known := methodPermissions[info.FullMethod]
 		if !known {
-			return handler(ctx, req)
+			slog.Warn("plugin RPC denied: unknown method (missing methodPermissions entry)",
+				slog.String("method", info.FullMethod))
+			return nil, status.Errorf(codes.PermissionDenied, "method %s not permitted for plugins", info.FullMethod)
 		}
 		if requiredPerms == nil {
 			return handler(ctx, req)

@@ -108,23 +108,31 @@ func TestPluginInterceptor_MissingPluginID(t *testing.T) {
 	assert.Equal(t, codes.Unauthenticated, st.Code())
 }
 
-func TestPluginInterceptor_UnknownMethod_PassesThrough(t *testing.T) {
+// TestPluginInterceptor_UnknownMethod_Denied locks the fail-closed
+// behavior in: any RPC missing from methodPermissions is denied. Adding
+// a new HostService RPC without registering it must NOT silently bypass
+// the permission gate.
+func TestPluginInterceptor_UnknownMethod_Denied(t *testing.T) {
 	repo := plgfakes.NewFakePluginRepository()
 	checker := appplugin.NewPermissionChecker(repo)
 
 	interceptor := grpcapi.PluginPermissionInterceptor(checker)
 
-	ctx := context.Background()
+	ctx := pluginhost.CtxWithPluginID(context.Background(), "plg-1")
 	called := false
 	handler := func(_ context.Context, _ any) (any, error) {
 		called = true
 		return "ok", nil
 	}
 
-	info := &grpclib.UnaryServerInfo{FullMethod: "/some.other.Service/Method"}
+	info := &grpclib.UnaryServerInfo{FullMethod: "/plugin.v1.HostService/NotARealMethod"}
 	_, err := interceptor(ctx, nil, info, handler)
-	require.NoError(t, err)
-	assert.True(t, called)
+	require.Error(t, err)
+	assert.False(t, called, "handler must not run for unknown method")
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.PermissionDenied, st.Code())
 }
 
 func TestPluginInterceptor_UpdateMetadata_RequiresPermission(t *testing.T) {
