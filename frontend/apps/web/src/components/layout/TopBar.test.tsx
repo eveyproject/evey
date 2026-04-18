@@ -17,20 +17,22 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign(
     (selector?: (s: Record<string, unknown>) => unknown) => {
-      const state = { isAdmin: false, logout: vi.fn() };
+      const state = { isAdmin: false, profileId: null, logout: vi.fn(), setProfile: vi.fn(), setTokens: vi.fn() };
       return selector ? selector(state) : state;
     },
-    { getState: () => ({ isAdmin: false, logout: vi.fn() }) },
+    { getState: () => ({ isAdmin: false, profileId: null, logout: vi.fn(), setProfile: vi.fn(), setTokens: vi.fn() }) },
   ),
 }));
 
+let mockProfiles: Array<{ id: string; userId: string; name: string; isDefault: boolean }> = [];
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn().mockResolvedValue(undefined),
   userServiceLogout: vi.fn().mockResolvedValue(undefined),
+  userServiceRefreshToken: vi.fn().mockResolvedValue({ accessToken: "t" }),
   useUserServiceGetCurrentUser: () => ({
-    data: { username: "gravity" },
+    data: { id: "u1", username: "gravity" },
   }),
-  useUserServiceListProfiles: () => ({ data: { profiles: [] } }),
+  useUserServiceListProfiles: () => ({ data: { profiles: mockProfiles } }),
   useNotificationServiceGetUnreadCount: () => ({ data: { count: 3 } }),
   useNotificationServiceListNotifications: () => ({
     data: { notifications: [] },
@@ -58,6 +60,7 @@ function renderTopBar() {
 describe("TopBar", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
+    mockProfiles = [];
   });
 
   it("renders the search input", () => {
@@ -120,5 +123,20 @@ describe("TopBar", () => {
     renderTopBar();
     await user.click(screen.getByRole("button", { name: "User menu" }));
     expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+  });
+
+  it("hides profile switcher when only 1 profile exists", () => {
+    mockProfiles = [{ id: "p1", userId: "u1", name: "Alice", isDefault: true }];
+    renderTopBar();
+    expect(screen.queryByTestId("profile-switcher-btn")).not.toBeInTheDocument();
+  });
+
+  it("shows profile switcher when >= 2 profiles exist", () => {
+    mockProfiles = [
+      { id: "p1", userId: "u1", name: "Alice", isDefault: true },
+      { id: "p2", userId: "u1", name: "Bob", isDefault: false },
+    ];
+    renderTopBar();
+    expect(screen.getByTestId("profile-switcher-btn")).toBeInTheDocument();
   });
 });

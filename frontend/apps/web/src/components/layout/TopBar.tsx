@@ -10,6 +10,7 @@ import { Search, Settings, Clock, LayoutList, LogOut, QrCode, BarChart3 } from "
 import { NotificationBell } from "@/features/user/NotificationBell";
 import { SearchDropdown } from "@/features/search/SearchDropdown";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
+import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
 
 function UserMenu({ userInitial, avatarUrl }: { userInitial: string; avatarUrl: string | null }) {
   const { t } = useTranslation();
@@ -136,11 +137,16 @@ export function TopBar() {
 
   const { data: currentUser } = useUserServiceGetCurrentUser();
   const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } });
-  const defaultProfile = profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0];
+  const profiles = profilesResp?.profiles ?? [];
+  const activeProfileId = useAuthStore((s) => s.profileId);
+  const activeProfile = profiles.find((p) => p.id === activeProfileId)
+    ?? profiles.find((p) => p.isDefault)
+    ?? profiles[0];
   const userInitial = currentUser?.username?.charAt(0).toUpperCase() ?? "U";
-  const userAvatarUrl = defaultProfile?.avatarPath && defaultProfile?.id
-    ? `/api/v1/profiles/${defaultProfile.id}/avatar`
+  const userAvatarUrl = activeProfile?.avatarPath && activeProfile?.id
+    ? `/api/v1/profiles/${activeProfile.id}/avatar`
     : null;
+  const hasMultipleProfiles = profiles.length >= 2;
   const { recents, push: pushRecent, remove: removeRecent, clear: clearRecents } = useRecentSearches();
 
   const isOnSearch = location.pathname === "/search";
@@ -242,6 +248,9 @@ export function TopBar() {
       </div>
       <div className="flex items-center gap-3">
         <NotificationBell />
+        {hasMultipleProfiles && (
+          <ProfileSwitcher profiles={profiles} activeProfileId={activeProfileId} />
+        )}
         <UserMenu userInitial={userInitial} avatarUrl={userAvatarUrl} />
       </div>
     </header>
