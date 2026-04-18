@@ -194,7 +194,7 @@ func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, erro
 }
 
 func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
-	if err := os.MkdirAll(sockDir, 0o755); err != nil {
+	if err := os.MkdirAll(sockDir, 0o700); err != nil {
 		return fmt.Errorf("create sock dir: %w", err)
 	}
 
