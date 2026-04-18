@@ -334,7 +334,10 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		}
 		if err != nil {
 			slog.Warn("plugin process crashed", slog.String("plugin", p.ID), slog.Any("err", err))
-			r.publishPluginError(parentCtx, p.ID, "process crashed: "+err.Error())
+			// Use a detached context: the crash can happen long after parentCtx
+			// has been cancelled (request scope ended). A cancelled ctx would
+			// drop the admin notification silently.
+			r.publishPluginError(context.Background(), p.ID, "process crashed: "+err.Error())
 		} else {
 			slog.Info("plugin process exited", slog.String("plugin", p.ID))
 		}

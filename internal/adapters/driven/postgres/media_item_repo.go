@@ -411,6 +411,11 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 func (r *MediaItemRepository) Delete(ctx context.Context, id shared.MediaItemID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// Capture the parent season/series so we can recompute
+	// latest_child_added_at if this item was an episode. Missing row → let the
+	// DELETE below hit ErrNotFound as usual.
+	var itemType, parentID string
+	_ = r.db.QueryRowContext(ctx, `SELECT type, COALESCE(parent_id, '') FROM media_items WHERE id = $1`, string(id)).Scan(&itemType, &parentID)
 	res, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("MediaItemRepo.Delete: %w", err)
@@ -418,7 +423,32 @@ func (r *MediaItemRepository) Delete(ctx context.Context, id shared.MediaItemID)
 	if n, _ := res.RowsAffected(); n == 0 {
 		return shared.ErrNotFound
 	}
+	if itemType == string(library.Episode) && parentID != "" {
+		r.recomputeSeriesLatestChildAddedAtFromSeason(ctx, parentID)
+	}
 	return nil
+}
+
+// recomputeSeriesLatestChildAddedAtFromSeason recomputes the series' cached
+// latest_child_added_at by taking MAX(added_at) across surviving episodes
+// under the same series. Called on episode delete so the sort doesn't keep a
+// stale cache when the latest episode is removed. Best-effort: warns on
+// failure but never propagates (delete path must not be rolled back).
+func (r *MediaItemRepository) recomputeSeriesLatestChildAddedAtFromSeason(ctx context.Context, seasonID string) {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE media_items s
+		SET latest_child_added_at = (
+			SELECT MAX(ep.added_at) FROM media_items ep
+			WHERE ep.type = 'episode' AND ep.parent_id IN (
+				SELECT id FROM media_items WHERE parent_id = s.id AND type = 'season'
+			)
+		)
+		WHERE s.id = (SELECT parent_id FROM media_items WHERE id = $1 AND type = 'season')
+		  AND s.type = 'series'
+	`, seasonID)
+	if err != nil {
+		slog.Warn("recompute series latest_child_added_at", slog.String("season_id", seasonID), slog.Any("err", err))
+	}
 }
 
 func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) error {

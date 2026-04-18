@@ -174,19 +174,25 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 	if s.analyzer != nil && p.InstallDir != "" {
 		report, analyzeErr := s.analyzer.Analyze(p.InstallDir)
 		if analyzeErr != nil {
-			slog.Warn("plugin static analysis failed", slog.String("pluginID", p.ID), slog.Any("err", analyzeErr))
-		} else {
-			if !report.Safe {
-				if p.InstallDir != "" && s.fs != nil {
-					s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
-				}
-				return nil, fmt.Errorf("plugin blocked: critical security issues found: %v", report.Issues)
+			// Fail-closed: without a clean analysis we cannot grant install —
+			// a third-party plugin could ship obfuscated malware that the
+			// regex analyzer choked on and we'd otherwise install it blind.
+			slog.Error("plugin static analysis failed", slog.String("pluginID", p.ID), slog.Any("err", analyzeErr))
+			if s.fs != nil {
+				s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
 			}
-			// Persist non-blocking warnings so the admin can audit them
-			// post-install (compiled binaries, symlinks, base64 blobs,
-			// suspicious URLs). UI exposes these on plugin detail.
-			p.AnalysisReport = report
+			return nil, fmt.Errorf("plugin blocked: static analysis failed: %w", analyzeErr)
 		}
+		if !report.Safe {
+			if s.fs != nil {
+				s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
+			}
+			return nil, fmt.Errorf("plugin blocked: critical security issues found: %v", report.Issues)
+		}
+		// Persist non-blocking warnings so the admin can audit them
+		// post-install (compiled binaries, symlinks, base64 blobs,
+		// suspicious URLs). UI exposes these on plugin detail.
+		p.AnalysisReport = report
 	}
 
 	if err := s.plugins.Create(ctx, p); err != nil {
