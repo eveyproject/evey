@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/subtitle"
+	"github.com/evey-project/evey/internal/pkg/ssrf"
 )
 
 const (
@@ -39,7 +40,7 @@ func New(apiKey, username, password string, httpClient ...*http.Client) *Client 
 	if len(httpClient) > 0 && httpClient[0] != nil {
 		c = httpClient[0]
 	} else {
-		c = &http.Client{Timeout: requestTimeout}
+		c = ssrf.SafeHTTPClient(requestTimeout)
 	}
 	return &Client{
 		apiKey:     apiKey,

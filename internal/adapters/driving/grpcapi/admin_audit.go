@@ -109,6 +109,12 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 	hlsMgr := d.hlsManager
 	cmdSvc := d.playbackCmd
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in deferred kill-session goroutine",
+					slog.Any("err", r), slog.String("session_id", sessionID))
+			}
+		}()
 		time.Sleep(5 * time.Second)
 		if err := cmdSvc.StopStream(context.Background(), sessionID); err != nil {
 			slog.Warn("stop stream failed", slog.String("session_id", sessionID), slog.Any("err", err))

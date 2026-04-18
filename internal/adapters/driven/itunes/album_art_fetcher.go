@@ -12,6 +12,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/ssrf"
 )
 
 const (
@@ -25,7 +27,7 @@ type AlbumArtFetcher struct {
 
 func NewAlbumArtFetcher(client *http.Client) *AlbumArtFetcher {
 	if client == nil {
-		client = &http.Client{Timeout: defaultTimeout}
+		client = ssrf.SafeHTTPClient(defaultTimeout)
 	}
 	return &AlbumArtFetcher{httpClient: client}
 }

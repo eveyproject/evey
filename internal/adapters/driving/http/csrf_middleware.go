@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"log/slog"
 	"net/http"
@@ -49,7 +50,7 @@ func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 				http.Error(w, `{"message":"csrf token missing"}`, http.StatusForbidden)
 				return
 			}
-			if header != cookie.Value {
+			if subtle.ConstantTimeCompare([]byte(header), []byte(cookie.Value)) != 1 {
 				slog.Warn("csrf token mismatch", slog.String("path", r.URL.Path))
 				http.Error(w, `{"message":"csrf token invalid"}`, http.StatusForbidden)
 				return
