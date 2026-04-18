@@ -31,10 +31,17 @@ func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 		case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
 			header := r.Header.Get(csrfHeaderName)
 
-			// No CSRF header = non-browser client (mobile/API) → skip CSRF
-			// RN fetch may forward cookies automatically but never sets X-CSRF-Token
-			if header == "" {
+			// Browser session is identified by the refresh-token cookie. If present,
+			// CSRF enforcement is mandatory; if absent, the caller is Bearer-only
+			// (mobile/API) and immune to CSRF.
+			if _, err := r.Cookie(refreshCookieName); err != nil {
 				break
+			}
+
+			if header == "" {
+				slog.Warn("csrf header missing on session request", slog.String("path", r.URL.Path))
+				http.Error(w, `{"message":"csrf token missing"}`, http.StatusForbidden)
+				return
 			}
 
 			cookie, err := r.Cookie(csrfCookieName)

@@ -101,6 +101,7 @@ func TestCSRFMiddleware_POST_MismatchHeader_Forbidden(t *testing.T) {
 	})
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "rt-xyz"})
 	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: "abc123"})
 	req.Header.Set(csrfHeaderName, "wrong-value")
 	w := httptest.NewRecorder()
@@ -108,6 +109,39 @@ func TestCSRFMiddleware_POST_MismatchHeader_Forbidden(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestCSRFMiddleware_POST_SessionNoHeader_Forbidden(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("next should not be called — session request without CSRF header must fail-closed")
+	})
+	h := csrfMiddleware(false, next)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/something", nil)
+	req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "rt-xyz"})
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: "abc123"})
+	// no X-CSRF-Token header
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 (session cookie + no header = fail-closed), got %d", w.Code)
+	}
+}
+
+func TestCSRFMiddleware_POST_SessionMissingCsrfCookie_Forbidden(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("next should not be called")
+	})
+	h := csrfMiddleware(false, next)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/something", nil)
+	req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "rt-xyz"})
+	req.Header.Set(csrfHeaderName, "some-header")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 (session + header but no _csrf cookie), got %d", w.Code)
 	}
 }
 
@@ -214,6 +248,7 @@ func TestCSRFMiddleware_POST_EmptyCookieValue_WithHeader_Forbidden(t *testing.T)
 	})
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "rt-xyz"})
 	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: ""})
 	req.Header.Set(csrfHeaderName, "some-token")
 	w := httptest.NewRecorder()
