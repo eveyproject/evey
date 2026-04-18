@@ -170,7 +170,12 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		pluginRetention = 30
 	}
 	pluginLogger := pluginrunner.NewPluginLogger(pluginLogDir, pluginRetention)
-	pluginRunner := pluginrunner.NewRunner().WithLogger(pluginLogger)
+	// Dev mode can run without /app/libevey-sandbox.so (e.g. on a developer
+	// laptop). Production is strict: a plugin without the 'subprocess' perm
+	// that can't be sandboxed fails closed.
+	pluginRunner := pluginrunner.NewRunner().
+		WithLogger(pluginLogger).
+		WithAllowMissingSandbox(cfg.Log.DevMode)
 	manifestParser := pluginrunner.NewManifestParser()
 	pluginInstaller := pluginrunner.NewZipInstaller()
 	pluginAnalyzer := pluginrunner.NewStaticAnalyzer()

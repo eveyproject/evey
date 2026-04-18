@@ -45,7 +45,7 @@ func TestRunnerStartStop(t *testing.T) {
 	dir := filepath.Dir(bin)
 	ctx := context.Background()
 
-	r := NewRunner(dir)
+	r := NewRunner(dir).WithAllowMissingSandbox(true)
 
 	p := &plugin.Plugin{
 		ID:   "plg-test-1",
@@ -90,7 +90,7 @@ func TestRunnerStartCreatesSocketDir(t *testing.T) {
 	bin := buildTestBinary(t)
 	dir := filepath.Dir(bin)
 	ctx := context.Background()
-	r := NewRunner(dir)
+	r := NewRunner(dir).WithAllowMissingSandbox(true)
 
 	p := &plugin.Plugin{
 		ID:   "plg-sockdir-test",
@@ -203,7 +203,7 @@ func TestRunnerSendEvent_NoIPC(t *testing.T) {
 	bin := buildTestBinary(t)
 	dir := filepath.Dir(bin)
 	ctx := context.Background()
-	r := NewRunner(dir)
+	r := NewRunner(dir).WithAllowMissingSandbox(true)
 
 	p := &plugin.Plugin{ID: "plg-no-ipc", Name: bin}
 	err := r.Start(ctx, p)
@@ -230,4 +230,44 @@ func TestRunnerRejectsPathTraversal(t *testing.T) {
 	err := r.Start(ctx, p)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must not contain '..'")
+}
+
+// TestRunnerRefusesUnsandboxedStart pins the fail-closed behaviour: when
+// the plugin has no 'subprocess' permission and the sandbox lib can't be
+// located/compiled, Start must refuse (ErrSandboxUnavailable) rather than
+// silently run the plugin unsandboxed.
+func TestRunnerRefusesUnsandboxedStart(t *testing.T) {
+	bin := buildTestBinary(t)
+	dir := filepath.Dir(bin)
+	ctx := context.Background()
+
+	// Default Runner = strict. sandbox.so isn't present in test env and
+	// /app/sandbox/sandbox.c doesn't exist either, so ensureSandboxLib
+	// returns "" → Start must fail-closed.
+	r := NewRunner(dir)
+	p := &plugin.Plugin{ID: "plg-nosandbox", Name: bin /* no subprocess perm */}
+
+	err := r.Start(ctx, p)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrSandboxUnavailable)
+}
+
+// TestRunnerAllowsSubprocessPermWithoutSandbox documents that plugins
+// explicitly granted the subprocess permission bypass the sandbox check
+// (they need it to spawn helper processes).
+func TestRunnerAllowsSubprocessPermWithoutSandbox(t *testing.T) {
+	bin := buildTestBinary(t)
+	dir := filepath.Dir(bin)
+	ctx := context.Background()
+
+	r := NewRunner(dir)
+	p := &plugin.Plugin{
+		ID:          "plg-subproc",
+		Name:        bin,
+		Permissions: []string{"subprocess"},
+	}
+
+	err := r.Start(ctx, p)
+	require.NoError(t, err)
+	_ = r.Stop(ctx, p.ID)
 }

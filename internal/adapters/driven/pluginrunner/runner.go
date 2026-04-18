@@ -43,14 +43,23 @@ type processEntry struct {
 type OnIPCResult func(pluginID string, err error)
 
 type Runner struct {
-	mu          sync.RWMutex
-	processes   map[string]*processEntry
-	pluginDirs  []string
-	logger      *PluginLogger
-	sandboxLib  string
-	sandboxOnce sync.Once
-	onIPCResult OnIPCResult
+	mu                  sync.RWMutex
+	processes           map[string]*processEntry
+	pluginDirs          []string
+	logger              *PluginLogger
+	sandboxLib          string
+	sandboxOnce         sync.Once
+	onIPCResult         OnIPCResult
+	allowMissingSandbox bool
 }
+
+// ErrSandboxUnavailable is returned by Start when a plugin without the
+// 'subprocess' permission is about to run but the LD_PRELOAD sandbox
+// library cannot be located or compiled — the previous behaviour
+// silently started the plugin without sandbox. Fail-closed is the
+// expected behaviour when third-party plugins are allowed; tests and
+// dev environments can opt out via WithAllowMissingSandbox.
+var ErrSandboxUnavailable = errors.New("plugin sandbox library unavailable")
 
 func NewRunner(pluginDirs ...string) *Runner {
 	dirs := pluginDirs
@@ -70,6 +79,13 @@ func (r *Runner) WithLogger(l *PluginLogger) *Runner {
 
 func (r *Runner) WithIPCCallback(cb OnIPCResult) *Runner {
 	r.onIPCResult = cb
+	return r
+}
+
+// WithAllowMissingSandbox lets tests and dev environments skip the
+// strict "sandbox-or-refuse" check. Production MUST leave this false.
+func (r *Runner) WithAllowMissingSandbox(allow bool) *Runner {
+	r.allowMissingSandbox = allow
 	return r
 }
 
@@ -199,9 +215,22 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		"EVEY_PLUGIN_SOCK=" + sock,
 		"EVEY_HOST_SOCK=" + hostSock,
 	}
-	// Apply seccomp sandbox unless plugin has subprocess permission
+	// Apply seccomp sandbox unless plugin has subprocess permission.
+	// Fail-closed: if the sandbox lib is missing, refuse to start rather
+	// than silently running the plugin unsandboxed. Tests / dev can opt
+	// out via WithAllowMissingSandbox(true).
 	if !slices.Contains(p.Permissions, subprocessPerm) {
-		if libPath := r.ensureSandboxLib(); libPath != "" {
+		libPath := r.ensureSandboxLib()
+		if libPath == "" {
+			if !r.allowMissingSandbox {
+				slog.Error("refusing to start plugin without sandbox",
+					slog.String("plugin_id", p.ID),
+					slog.String("sandbox_lib", sandboxLibPath))
+				return fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
+			}
+			slog.Warn("starting plugin without sandbox (dev override)",
+				slog.String("plugin_id", p.ID))
+		} else {
 			cmd.Env = append(cmd.Env, "LD_PRELOAD="+libPath)
 		}
 	}
