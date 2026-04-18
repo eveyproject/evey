@@ -52,6 +52,22 @@ var (
 		Name: "evey_media_items_total",
 		Help: "Total number of media items by type.",
 	}, []string{"type"})
+
+	// AuthLatency tracks login/refresh/register latency. Separated from the
+	// generic HTTP histogram so the auth SLO (p99 < 500ms) can be alerted on
+	// without noise from slow transcoding or scan endpoints.
+	AuthLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "evey_auth_latency_seconds",
+		Help:    "Auth operation latency in seconds.",
+		Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5},
+	}, []string{"operation", "result"})
+
+	// ScanQueueDepth reports the number of files waiting to be scanned
+	// (post-diff, pre-process). Actionable for alerting "scan backlog growing".
+	ScanQueueDepth = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "evey_scan_queue_depth",
+		Help: "Number of files enqueued for library scan processing.",
+	}, []string{"library_id"})
 )
 
 func init() {
@@ -60,6 +76,7 @@ func init() {
 		HTTPRequestsTotal, HTTPRequestDuration,
 		DBConnectionsOpen, DBConnectionsIdle, DBConnectionsInUse,
 		MediaItemsTotal,
+		AuthLatency, ScanQueueDepth,
 	)
 }
 

@@ -24,6 +24,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/id"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -77,12 +78,15 @@ func (h *userHandler) refreshTTLOverride(ctx context.Context) []time.Duration {
 }
 
 func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eveyv1.AuthResponse, error) {
+	start := time.Now()
 	access, refresh, err := h.auth.Login(ctx, req.Username, req.Password, h.refreshTTLOverride(ctx)...)
 	if err != nil {
+		metrics.AuthLatency.WithLabelValues("login", "failure").Observe(time.Since(start).Seconds())
 		slog.Warn("login failed", slog.String("username", req.Username), slog.Any("err", err))
 		h.audit(ctx, "", "login", "user", nil, map[string]any{"username": req.Username, "status": "failed"})
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}
+	metrics.AuthLatency.WithLabelValues("login", "success").Observe(time.Since(start).Seconds())
 	u, userErr := h.query.GetUserByUsername(ctx, req.Username)
 	if userErr != nil {
 		slog.Warn("get user by username after login", slog.Any("err", userErr))
@@ -100,10 +104,13 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 }
 
 func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshTokenRequest) (*eveyv1.AuthResponse, error) {
+	start := time.Now()
 	access, newRefresh, err := h.auth.RefreshToken(ctx, req.RefreshToken, req.ProfileId, h.refreshTTLOverride(ctx)...)
 	if err != nil {
+		metrics.AuthLatency.WithLabelValues("refresh", "failure").Observe(time.Since(start).Seconds())
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}
+	metrics.AuthLatency.WithLabelValues("refresh", "success").Observe(time.Since(start).Seconds())
 	return &eveyv1.AuthResponse{AccessToken: access, RefreshToken: newRefresh}, nil
 }
 
