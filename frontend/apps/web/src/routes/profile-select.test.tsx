@@ -121,7 +121,7 @@ describe("ProfileSelect", () => {
     mockVerifyPin.mockResolvedValue({ valid: true });
     await renderPage()();
     await userEvent.click(screen.getByTestId("profile-select-p1"));
-    const input = await screen.findByTestId("profile-select-pin-input");
+    const input = await screen.findByTestId("profile-pin-prompt-input");
     await userEvent.type(input, "1234");
     await userEvent.click(screen.getByRole("button", { name: /confirm/i }));
     await waitFor(() => {
@@ -139,11 +139,11 @@ describe("ProfileSelect", () => {
     mockVerifyPin.mockResolvedValue({ valid: false });
     await renderPage()();
     await userEvent.click(screen.getByTestId("profile-select-p1"));
-    const input = await screen.findByTestId("profile-select-pin-input");
+    const input = await screen.findByTestId("profile-pin-prompt-input");
     await userEvent.type(input, "0000");
     await userEvent.click(screen.getByRole("button", { name: /confirm/i }));
     await waitFor(() => {
-      expect(screen.getByTestId("profile-select-pin-error")).toBeInTheDocument();
+      expect(screen.getByTestId("profile-pin-prompt-error")).toBeInTheDocument();
       expect(mockSetProfile).not.toHaveBeenCalled();
     });
   });

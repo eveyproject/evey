@@ -6,14 +6,12 @@ import {
   useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
   userServiceRefreshToken,
-  parentalServiceVerifyPin,
 } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Modal } from "@/components/ui/Modal";
+import { PinPromptDialog } from "@/features/profile/PinPromptDialog";
 
 const LAST_PROFILE_KEY = "evey:last_profile_id";
 
@@ -169,78 +167,5 @@ function ProfileSelectPage() {
         />
       )}
     </div>
-  );
-}
-
-function PinPromptDialog({
-  target,
-  onCancel,
-  onVerified,
-}: {
-  target: V1Profile;
-  onCancel: () => void;
-  onVerified: (target: V1Profile) => void | Promise<void>;
-}) {
-  const { t } = useTranslation();
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!target.id) return;
-    if (!/^\d{4}$/.test(pin)) {
-      setError(t("auth.profile.select.pinInvalid", "PIN must be 4 digits"));
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const resp = await parentalServiceVerifyPin(target.id, { pin });
-      if (!resp.valid) {
-        setError(t("auth.profile.select.pinWrong", "Incorrect PIN"));
-        return;
-      }
-      await onVerified(target);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("auth.profile.select.pinWrong", "Incorrect PIN"));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal
-      open
-      onClose={onCancel}
-      title={t("auth.profile.select.pinPromptTitle", "Enter PIN")}
-    >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <p className="text-sm text-[var(--text-muted)]">
-          {t("auth.profile.select.pinPromptBody", "Enter the PIN for \"{{name}}\" to continue.", { name: target.name ?? "" })}
-        </p>
-        <Input
-          type="password"
-          inputMode="numeric"
-          pattern="\d{4}"
-          maxLength={4}
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-          autoFocus
-          aria-label={t("auth.profile.fields.pin", "PIN (4 digits)")}
-          data-testid="profile-select-pin-input"
-        />
-        {error && (
-          <p className="text-sm text-[var(--color-danger)]" data-testid="profile-select-pin-error">{error}</p>
-        )}
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" type="button" onClick={onCancel}>
-            {t("common.cancel")}
-          </Button>
-          <Button type="submit" loading={submitting} disabled={pin.length !== 4}>
-            {t("common.confirm", "Confirm")}
-          </Button>
-        </div>
-      </form>
-    </Modal>
   );
 }

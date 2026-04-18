@@ -6,6 +6,7 @@ import { useAuthStore } from "@evey/store";
 import { userServiceRefreshToken } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { Users, Check } from "lucide-react";
+import { PinPromptDialog } from "@/features/profile/PinPromptDialog";
 
 function profileAvatarUrl(p: V1Profile): string | null {
   return p.avatarPath && p.id ? `/api/v1/profiles/${p.id}/avatar` : null;
@@ -42,6 +43,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
+  const [pinTarget, setPinTarget] = useState<V1Profile | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,16 +68,10 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
 
   const others = profiles.filter((p) => p.id && p.id !== active?.id);
 
-  const handleSwitch = useCallback(async (target: V1Profile) => {
-    if (!target.id || switching) return;
+  const doSwitch = useCallback(async (target: V1Profile) => {
+    if (!target.id) return;
     setSwitching(target.id);
     try {
-      // Per ticket v1 scope: skip PIN prompt, just warn
-      const targetIsKids = (target as V1Profile & { isKids?: boolean }).isKids === true;
-      const currentIsKids = (active as V1Profile & { isKids?: boolean } | undefined)?.isKids === true;
-      if (currentIsKids && !targetIsKids) {
-        console.warn("kids-to-non-kids switch would require PIN here");
-      }
       useAuthStore.getState().setProfile(target.id);
       try {
         localStorage.setItem("evey:last_profile_id", target.id);
@@ -89,7 +85,18 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
     } finally {
       setSwitching(null);
     }
-  }, [active, qc, switching]);
+  }, [qc]);
+
+  const handleSwitch = useCallback(async (target: V1Profile) => {
+    if (!target.id || switching) return;
+    const targetIsKids = target.isKids === true;
+    const currentIsKids = active?.isKids === true;
+    if (currentIsKids && !targetIsKids) {
+      setPinTarget(target);
+      return;
+    }
+    await doSwitch(target);
+  }, [active, doSwitch, switching]);
 
   const handleManage = useCallback(() => {
     setOpen(false);
@@ -166,6 +173,16 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
             {t("common.nav.manageProfiles", "Manage Profiles")}
           </button>
         </div>
+      )}
+      {pinTarget && (
+        <PinPromptDialog
+          target={pinTarget}
+          onCancel={() => setPinTarget(null)}
+          onVerified={async (target) => {
+            setPinTarget(null);
+            await doSwitch(target);
+          }}
+        />
       )}
     </div>
   );
