@@ -506,6 +506,20 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 }
 
 func (s *CommandService) handlePluginError(parentCtx context.Context, ev shared.Event) {
+	// Recover locally so a deterministic panic on a single event does not
+	// trigger the bus retry loop and burn queue slots at full speed.
+	defer func() {
+		if rv := recover(); rv != nil {
+			var pluginID string
+			if e, ok := ev.(plugin.PluginError); ok {
+				pluginID = e.PluginID
+			}
+			slog.Error("handlePluginError panic recovered",
+				slog.Any("panic", rv),
+				slog.String("plugin_id", pluginID))
+		}
+	}()
+
 	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
 	defer cancel()
 	e, ok := ev.(plugin.PluginError)
