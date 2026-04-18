@@ -432,3 +432,60 @@ func TestMiddleware_NoExemptPrefixes(t *testing.T) {
 	handler.ServeHTTP(rr, httptest.NewRequest("GET", "/any", nil))
 	assert.Equal(t, 429, rr.Code)
 }
+
+func TestSetTrustedProxies_DisablesXFFOnUntrustedPeer(t *testing.T) {
+	// Snapshot state so the test doesn't leak into sibling tests.
+	orig := trustedProxyNets
+	t.Cleanup(func() {
+		trustedProxyMu.Lock()
+		trustedProxyNets = orig
+		trustedProxyMu.Unlock()
+	})
+
+	SetTrustedProxies([]string{"203.0.113.0/24"}) // only this range is trusted
+
+	// Peer is loopback (NOT in trusted list anymore) -> XFF should be ignored.
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "127.0.0.1:1234"
+	req.Header.Set("X-Forwarded-For", "1.2.3.4")
+
+	got := clientIP(req)
+	if got != "127.0.0.1" {
+		t.Fatalf("untrusted peer should ignore XFF: got %s want 127.0.0.1", got)
+	}
+}
+
+func TestSetTrustedProxies_AcceptsXFFFromTrustedPeer(t *testing.T) {
+	orig := trustedProxyNets
+	t.Cleanup(func() {
+		trustedProxyMu.Lock()
+		trustedProxyNets = orig
+		trustedProxyMu.Unlock()
+	})
+
+	SetTrustedProxies([]string{"203.0.113.0/24"})
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "203.0.113.7:1234"
+	req.Header.Set("X-Forwarded-For", "1.2.3.4")
+
+	got := clientIP(req)
+	if got != "1.2.3.4" {
+		t.Fatalf("trusted peer should pass through XFF: got %s want 1.2.3.4", got)
+	}
+}
+
+func TestSetTrustedProxies_InvalidCIDRSkipped(t *testing.T) {
+	orig := trustedProxyNets
+	t.Cleanup(func() {
+		trustedProxyMu.Lock()
+		trustedProxyNets = orig
+		trustedProxyMu.Unlock()
+	})
+
+	SetTrustedProxies([]string{"not-a-cidr", "10.0.0.0/8"})
+
+	if n := len(trustedProxyNets); n != 1 {
+		t.Fatalf("invalid CIDR should be skipped: got %d trusted nets, want 1", n)
+	}
+}

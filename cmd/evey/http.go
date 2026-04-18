@@ -23,6 +23,8 @@ import (
 func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, startTime time.Time, logDir string, ctx context.Context, qcHub *quickconnecthub.Hub) (http.Handler, error) {
 	mux := http.NewServeMux()
 
+	ratelimit.SetTrustedProxies(cfg.Server.TrustedProxies)
+
 	loginRL := ratelimit.New(cfg.Server.LoginRateLimitMax)
 	globalRL := ratelimit.New(cfg.Server.GlobalRateLimitMax)
 	adminHeavyRL := ratelimit.NewWithBurst(10, 10.0)

@@ -102,8 +102,22 @@ func (l *Limiter) cleanup() {
 	}
 }
 
-var trustedProxyNets = func() []*net.IPNet {
-	cidrs := []string{"127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"}
+var (
+	trustedProxyMu   sync.RWMutex
+	trustedProxyNets = parseTrustedCIDRs([]string{"127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"})
+)
+
+// SetTrustedProxies overrides the package-level trusted proxy list (CIDRs).
+// Invalid entries are skipped and logged. Passing nil/empty resets to an empty
+// set, which makes clientIP() ignore X-Forwarded-For entirely.
+func SetTrustedProxies(cidrs []string) {
+	nets := parseTrustedCIDRs(cidrs)
+	trustedProxyMu.Lock()
+	trustedProxyNets = nets
+	trustedProxyMu.Unlock()
+}
+
+func parseTrustedCIDRs(cidrs []string) []*net.IPNet {
 	nets := make([]*net.IPNet, 0, len(cidrs))
 	for _, c := range cidrs {
 		_, n, err := net.ParseCIDR(c)
@@ -114,9 +128,11 @@ var trustedProxyNets = func() []*net.IPNet {
 		nets = append(nets, n)
 	}
 	return nets
-}()
+}
 
 func isTrustedProxy(ip net.IP) bool {
+	trustedProxyMu.RLock()
+	defer trustedProxyMu.RUnlock()
 	for _, n := range trustedProxyNets {
 		if n.Contains(ip) {
 			return true
