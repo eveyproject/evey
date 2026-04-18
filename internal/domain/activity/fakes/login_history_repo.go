@@ -2,7 +2,9 @@ package fakes
 
 import (
 	"context"
+	"sort"
 	"sync"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -52,6 +54,53 @@ func (r *FakeLoginHistoryRepository) GetByUserID(_ context.Context, userID share
 		result = result[offset:]
 	} else if offset >= len(result) {
 		return nil, nil
+	}
+	if limit > 0 && limit < len(result) {
+		result = result[:limit]
+	}
+	return result, nil
+}
+
+func (r *FakeLoginHistoryRepository) ListByUserIDCursor(_ context.Context, userID shared.UserID, successOnly bool, from, to *time.Time, cursor *activity.LoginHistoryCursor, limit int) ([]*activity.LoginEntry, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*activity.LoginEntry
+	for _, e := range r.items {
+		if e.UserID != userID {
+			continue
+		}
+		if successOnly && !e.Success {
+			continue
+		}
+		if from != nil && e.CreatedAt.Before(*from) {
+			continue
+		}
+		if to != nil && e.CreatedAt.After(*to) {
+			continue
+		}
+		result = append(result, e)
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		if result[i].CreatedAt.Equal(result[j].CreatedAt) {
+			return result[i].ID > result[j].ID
+		}
+		return result[i].CreatedAt.After(result[j].CreatedAt)
+	})
+	if cursor != nil {
+		for i, e := range result {
+			after := e.CreatedAt.Before(cursor.StartedAt) ||
+				(e.CreatedAt.Equal(cursor.StartedAt) && e.ID < cursor.EntryID)
+			if after {
+				result = result[i:]
+				break
+			}
+			if i == len(result)-1 {
+				result = nil
+			}
+		}
 	}
 	if limit > 0 && limit < len(result) {
 		result = result[:limit]

@@ -293,16 +293,29 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 		limit = maxPageSize
 	}
 	offset := 0
+	var cursor *playback.WatchHistoryCursor
 	if req.Pagination != nil {
 		limit, offset = clampPagination(req.Pagination.PageSize, req.Pagination.Page, limit)
+		if req.Pagination.Cursor != "" {
+			c, err := decodeTimeCursor(req.Pagination.Cursor)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid cursor: %v", err)
+			}
+			cursor = &playback.WatchHistoryCursor{LastPlayedAt: c.t, MediaItemID: c.id}
+		}
 	}
-	items, err := h.query.GetWatchHistory(ctx, profileID, limit, offset)
+	var items []*playback.WatchProgress
+	if cursor != nil {
+		items, err = h.query.GetWatchHistoryCursor(ctx, profileID, cursor, limit)
+	} else {
+		items, err = h.query.GetWatchHistory(ctx, profileID, limit, offset)
+	}
 	if err != nil {
 		slog.Error("get watch history", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
-	resp := &eveyv1.GetWatchHistoryResponse{}
+	resp := &eveyv1.GetWatchHistoryResponse{Pagination: &eveyv1.PaginationResponse{}}
 	if allowedIDs != nil {
 		ids := make([]string, len(items))
 		for i, wp := range items {
@@ -327,6 +340,10 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 		for _, wp := range items {
 			resp.Items = append(resp.Items, watchProgressToProto(wp))
 		}
+	}
+	if len(items) > 0 && len(items) >= limit {
+		last := items[len(items)-1]
+		resp.Pagination.NextCursor = encodeTimeCursor(last.LastPlayedAt, string(last.MediaItemID))
 	}
 	return resp, nil
 }

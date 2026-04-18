@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/playback"
@@ -72,6 +73,41 @@ func (r *FakeWatchProgressRepository) GetByProfile(_ context.Context, profileID 
 		result = result[offset:]
 	} else if offset >= len(result) {
 		return nil, nil
+	}
+	if limit > 0 && limit < len(result) {
+		result = result[:limit]
+	}
+	return result, nil
+}
+
+func (r *FakeWatchProgressRepository) GetByProfileCursor(_ context.Context, profileID string, cursor *playback.WatchHistoryCursor, limit int) ([]*playback.WatchProgress, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*playback.WatchProgress
+	for _, wp := range r.items {
+		if string(wp.ProfileID) == profileID {
+			result = append(result, wp)
+		}
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		if result[i].LastPlayedAt.Equal(result[j].LastPlayedAt) {
+			return string(result[i].MediaItemID) > string(result[j].MediaItemID)
+		}
+		return result[i].LastPlayedAt.After(result[j].LastPlayedAt)
+	})
+	if cursor != nil {
+		trimmed := result[:0]
+		for _, wp := range result {
+			after := wp.LastPlayedAt.Before(cursor.LastPlayedAt) ||
+				(wp.LastPlayedAt.Equal(cursor.LastPlayedAt) && string(wp.MediaItemID) < cursor.MediaItemID)
+			if after {
+				trimmed = append(trimmed, wp)
+			}
+		}
+		result = trimmed
 	}
 	if limit > 0 && limit < len(result) {
 		result = result[:limit]

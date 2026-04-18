@@ -55,8 +55,13 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 		args = append(args, *filter.To)
 		i++
 	}
+	if filter.Cursor != nil {
+		query += fmt.Sprintf(" AND (ps.started_at, ps.id) < ($%d, $%d)", i, i+1)
+		args = append(args, filter.Cursor.StartedAt, filter.Cursor.SessionID)
+		i += 2
+	}
 
-	query += " ORDER BY ps.started_at DESC"
+	query += " ORDER BY ps.started_at DESC, ps.id DESC"
 
 	limit := filter.Limit
 	if limit <= 0 || limit > 500 {
@@ -65,7 +70,7 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 	query += fmt.Sprintf(" LIMIT $%d", i)
 	args = append(args, limit)
 	i++
-	if filter.Offset > 0 {
+	if filter.Cursor == nil && filter.Offset > 0 {
 		query += fmt.Sprintf(" OFFSET $%d", i)
 		args = append(args, filter.Offset)
 	}

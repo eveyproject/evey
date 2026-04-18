@@ -44,14 +44,26 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 	}
 	if req.Pagination != nil {
 		filter.Limit, filter.Offset = clampPagination(req.Pagination.PageSize, req.Pagination.Page, 50)
+		if req.Pagination.Cursor != "" {
+			c, err := decodeTimeCursor(req.Pagination.Cursor)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid cursor: %v", err)
+			}
+			filter.Cursor = &activity.PlayHistoryCursor{StartedAt: c.t, SessionID: c.id}
+			filter.Offset = 0
+		}
 	}
 	entries, err := h.svc.GetPlayHistory(ctx, filter)
 	if err != nil {
 		return nil, internalError("get play history", err)
 	}
-	resp := &eveyv1.GetPlayHistoryResponse{}
+	resp := &eveyv1.GetPlayHistoryResponse{Pagination: &eveyv1.PaginationResponse{}}
 	for _, e := range entries {
 		resp.Entries = append(resp.Entries, playHistoryEntryToProto(e))
+	}
+	if len(entries) > 0 && filter.Limit > 0 && len(entries) >= filter.Limit {
+		last := entries[len(entries)-1]
+		resp.Pagination.NextCursor = encodeTimeCursor(last.StartedAt, last.ID)
 	}
 	return resp, nil
 }
@@ -137,16 +149,34 @@ func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLo
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.activity.cannot_access_other_history")
 	}
 	limit, offset := 50, 0
+	var cursor *activity.LoginHistoryCursor
 	if req.Pagination != nil {
 		limit, offset = clampPagination(req.Pagination.PageSize, req.Pagination.Page, 50)
+		if req.Pagination.Cursor != "" {
+			c, err := decodeTimeCursor(req.Pagination.Cursor)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid cursor: %v", err)
+			}
+			cursor = &activity.LoginHistoryCursor{StartedAt: c.t, EntryID: c.id}
+		}
 	}
-	entries, err := h.svc.GetLoginHistory(ctx, userID, limit, offset)
+	var entries []*activity.LoginEntry
+	if cursor != nil || req.SuccessOnly || req.From != nil || req.To != nil {
+		entries, err = h.svc.GetLoginHistoryCursor(ctx, userID, req.SuccessOnly,
+			fromTimestamppbPtr(req.From), fromTimestamppbPtr(req.To), cursor, limit)
+	} else {
+		entries, err = h.svc.GetLoginHistory(ctx, userID, limit, offset)
+	}
 	if err != nil {
 		return nil, internalError("get login history", err)
 	}
-	resp := &eveyv1.GetLoginHistoryResponse{}
+	resp := &eveyv1.GetLoginHistoryResponse{Pagination: &eveyv1.PaginationResponse{}}
 	for _, e := range entries {
 		resp.Entries = append(resp.Entries, loginEntryToProto(e))
+	}
+	if len(entries) > 0 && len(entries) >= limit {
+		last := entries[len(entries)-1]
+		resp.Pagination.NextCursor = encodeTimeCursor(last.CreatedAt, last.ID)
 	}
 	return resp, nil
 }

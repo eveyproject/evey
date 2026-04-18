@@ -32,6 +32,8 @@ func TestActivityHandler_GetPlayHistory_Success(t *testing.T) {
 	h, _, _, playHistory, _ := newActivityHandler()
 
 	now := time.Now()
+	// ph1 is newer than ph2 so it sorts first under the DESC timestamp
+	// order the cursor pagination uses.
 	playHistory.Add(
 		&activity.PlayHistoryEntry{
 			ID: "ph1", ProfileID: "profile-1", MediaItemID: "m1",
@@ -41,7 +43,7 @@ func TestActivityHandler_GetPlayHistory_Success(t *testing.T) {
 		&activity.PlayHistoryEntry{
 			ID: "ph2", ProfileID: "profile-1", MediaItemID: "m2",
 			MediaTitle: "Movie 2", MediaType: "movie", DurationMs: 90000,
-			PositionMs: 90000, Completed: true, StartedAt: now,
+			PositionMs: 90000, Completed: true, StartedAt: now.Add(-time.Minute),
 		},
 	)
 

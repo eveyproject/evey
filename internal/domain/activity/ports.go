@@ -7,9 +7,20 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
+// LoginHistoryCursor keysets by (started_at, id) DESC. Empty = first
+// page; non-empty resumes strictly after the referenced entry.
+type LoginHistoryCursor struct {
+	StartedAt time.Time
+	EntryID   string
+}
+
 type LoginHistoryRepository interface {
 	Create(ctx context.Context, entry *LoginEntry) error
 	GetByUserID(ctx context.Context, userID shared.UserID, limit, offset int) ([]*LoginEntry, error)
+	// ListByUserIDCursor returns up to `limit` entries strictly older than
+	// the cursor, ordered by started_at DESC. Empty cursor returns the
+	// most recent page.
+	ListByUserIDCursor(ctx context.Context, userID shared.UserID, successOnly bool, from, to *time.Time, cursor *LoginHistoryCursor, limit int) ([]*LoginEntry, error)
 }
 
 type ServerMetricRepository interface {
@@ -37,6 +48,13 @@ type PlaySessionStatsReader interface {
 	GetMostPopular(ctx context.Context, limit int) ([]MediaPlayCount, error)
 }
 
+// PlayHistoryCursor keysets by (started_at, id) DESC. Same shape as
+// LoginHistoryCursor — history feeds are always time-ordered.
+type PlayHistoryCursor struct {
+	StartedAt time.Time
+	SessionID string
+}
+
 type PlayHistoryFilter struct {
 	ProfileID   shared.ProfileID
 	MediaItemID shared.MediaItemID
@@ -44,6 +62,9 @@ type PlayHistoryFilter struct {
 	To          *time.Time
 	Limit       int
 	Offset      int
+	// Cursor, when non-nil, overrides Offset: returns entries strictly
+	// older than the cursor's (started_at, id) in DESC order.
+	Cursor *PlayHistoryCursor
 }
 
 type PlayHistoryRepository interface {

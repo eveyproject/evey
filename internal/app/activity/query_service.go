@@ -48,6 +48,10 @@ func (s *QueryService) GetLoginHistory(ctx context.Context, userID string, limit
 	return s.loginHistory.GetByUserID(ctx, shared.UserID(userID), limit, offset)
 }
 
+func (s *QueryService) GetLoginHistoryCursor(ctx context.Context, userID string, successOnly bool, from, to *time.Time, cursor *activity.LoginHistoryCursor, limit int) ([]*activity.LoginEntry, error) {
+	return s.loginHistory.ListByUserIDCursor(ctx, shared.UserID(userID), successOnly, from, to, cursor, limit)
+}
+
 func (s *QueryService) GetServerMetrics(ctx context.Context, from, to time.Time) ([]*activity.ServerMetric, error) {
 	return s.metrics.GetByTimeRange(ctx, from, to)
 }

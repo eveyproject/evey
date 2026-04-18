@@ -34,6 +34,10 @@ func (s *QueryService) GetWatchHistory(ctx context.Context, profileID string, li
 	return s.progress.GetByProfile(ctx, profileID, limit, offset)
 }
 
+func (s *QueryService) GetWatchHistoryCursor(ctx context.Context, profileID string, cursor *playback.WatchHistoryCursor, limit int) ([]*playback.WatchProgress, error) {
+	return s.progress.GetByProfileCursor(ctx, profileID, cursor, limit)
+}
+
 func (s *QueryService) GetResumeItems(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
 	return s.progress.GetResumeItems(ctx, profileID, limit)
 }

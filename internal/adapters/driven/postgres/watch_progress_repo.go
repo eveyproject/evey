@@ -68,6 +68,32 @@ func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID st
 	return r.scanWatchProgressRows(rows)
 }
 
+func (r *WatchProgressRepository) GetByProfileCursor(ctx context.Context, profileID string, cursor *playback.WatchHistoryCursor, limit int) ([]*playback.WatchProgress, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if limit <= 0 || limit > 500 {
+		limit = 500
+	}
+	query := `SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
+		 FROM watch_progress WHERE profile_id = $1`
+	args := []any{profileID}
+	i := 2
+	if cursor != nil {
+		query += fmt.Sprintf(" AND (last_played_at, media_item_id) < ($%d, $%d)", i, i+1)
+		args = append(args, cursor.LastPlayedAt, cursor.MediaItemID)
+		i += 2
+	}
+	query += fmt.Sprintf(" ORDER BY last_played_at DESC, media_item_id DESC LIMIT $%d", i)
+	args = append(args, limit)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("WatchProgressRepo.GetByProfileCursor: %w", err)
+	}
+	defer rows.Close()
+	return r.scanWatchProgressRows(rows)
+}
+
 func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()

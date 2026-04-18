@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/activity"
@@ -40,9 +41,31 @@ func (r *FakePlayHistoryRepository) List(_ context.Context, filter activity.Play
 		if filter.MediaItemID != "" && e.MediaItemID != filter.MediaItemID {
 			continue
 		}
+		if filter.From != nil && e.StartedAt.Before(*filter.From) {
+			continue
+		}
+		if filter.To != nil && e.StartedAt.After(*filter.To) {
+			continue
+		}
 		result = append(result, e)
 	}
-	if filter.Offset > 0 && filter.Offset < len(result) {
+	sort.SliceStable(result, func(i, j int) bool {
+		if result[i].StartedAt.Equal(result[j].StartedAt) {
+			return result[i].ID > result[j].ID
+		}
+		return result[i].StartedAt.After(result[j].StartedAt)
+	})
+	if filter.Cursor != nil {
+		trimmed := result[:0]
+		for _, e := range result {
+			after := e.StartedAt.Before(filter.Cursor.StartedAt) ||
+				(e.StartedAt.Equal(filter.Cursor.StartedAt) && e.ID < filter.Cursor.SessionID)
+			if after {
+				trimmed = append(trimmed, e)
+			}
+		}
+		result = trimmed
+	} else if filter.Offset > 0 && filter.Offset < len(result) {
 		result = result[filter.Offset:]
 	}
 	if filter.Limit > 0 && filter.Limit < len(result) {
