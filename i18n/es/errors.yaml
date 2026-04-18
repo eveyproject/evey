@@ -73,6 +73,7 @@ playback_settings:
 user:
   cannot_update_other: "No se puede actualizar a otro usuario"
   cannot_escalate_admin: "No se puede escalar a administrador"
+  cannot_change_caps: "Solo un administrador puede cambiar los límites de la cuenta"
   cannot_create_profile_other: "No se puede crear perfil para otro usuario"
   cannot_update_profile_other: "No se puede actualizar el perfil de otro usuario"
   cannot_delete_profile_other: "No se puede eliminar el perfil de otro usuario"

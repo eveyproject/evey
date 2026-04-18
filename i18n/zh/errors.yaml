@@ -73,6 +73,7 @@ playback_settings:
 user:
   cannot_update_other: "无法更新其他用户"
   cannot_escalate_admin: "无法提升为管理员"
+  cannot_change_caps: "只有管理员可以更改账户限制"
   cannot_create_profile_other: "无法为其他用户创建档案"
   cannot_update_profile_other: "无法更新其他用户的档案"
   cannot_delete_profile_other: "无法删除其他用户的档案"

@@ -73,6 +73,7 @@ playback_settings:
 user:
   cannot_update_other: "Cannot update another user"
   cannot_escalate_admin: "Cannot escalate to admin"
+  cannot_change_caps: "Only an administrator can change account limits"
   cannot_create_profile_other: "Cannot create profile for another user"
   cannot_update_profile_other: "Cannot update another user's profile"
   cannot_delete_profile_other: "Cannot delete another user's profile"

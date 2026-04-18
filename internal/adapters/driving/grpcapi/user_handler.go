@@ -170,6 +170,9 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		if req.IsAdmin != nil && *req.IsAdmin {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_escalate_admin")
 		}
+		if req.MaxStreams != nil || req.MaxProfiles != nil || req.MaxDevicesPerProfile != nil {
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_change_caps")
+		}
 	}
 	u, err := h.query.GetUserByID(ctx, req.Id)
 	if err != nil {

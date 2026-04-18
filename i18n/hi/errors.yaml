@@ -73,6 +73,7 @@ playback_settings:
 user:
   cannot_update_other: "अन्य उपयोगकर्ता को अपडेट नहीं किया जा सकता"
   cannot_escalate_admin: "एडमिन में एस्केलेट नहीं किया जा सकता"
+  cannot_change_caps: "केवल एक एडमिन ही खाता सीमाएँ बदल सकता है"
   cannot_create_profile_other: "अन्य उपयोगकर्ता के लिए प्रोफ़ाइल नहीं बनाई जा सकती"
   cannot_update_profile_other: "अन्य उपयोगकर्ता की प्रोफ़ाइल अपडेट नहीं की जा सकती"
   cannot_delete_profile_other: "अन्य उपयोगकर्ता की प्रोफ़ाइल मिटाई नहीं जा सकती"
