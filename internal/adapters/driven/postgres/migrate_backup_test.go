@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -56,7 +57,10 @@ func TestRunMigrations_WritesBackup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	port := mapped.Int()
+	port, err := strconv.Atoi(mapped.Port())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	dsn := fmt.Sprintf("host=%s port=%d user=evey_test password=evey_test dbname=evey_test sslmode=disable", host, port)
 	db, err := sql.Open("postgres", dsn)
