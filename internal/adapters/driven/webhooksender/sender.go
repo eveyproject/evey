@@ -24,6 +24,15 @@ func New() *HTTPSender {
 	}
 }
 
+// NewWithClient injects a custom http.Client — intended for tests that
+// need to hit loopback (httptest.Server) without the SSRF guard firing.
+func NewWithClient(c *http.Client) *HTTPSender {
+	if c == nil {
+		c = ssrf.SafeHTTPClient(10 * time.Second)
+	}
+	return &HTTPSender{client: c}
+}
+
 func (s *HTTPSender) Send(ctx context.Context, url string, headers map[string]string, body []byte) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {

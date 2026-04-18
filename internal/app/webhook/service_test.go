@@ -752,7 +752,9 @@ func TestHandleAny_RealSenderIntegration(t *testing.T) {
 	deliveries := &fakeDeliveryRepo{}
 	bus := sharedfakes.NewFakeEventBus()
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc := webhook.NewService(repo, deliveries, webhooksender.New(), log, bus)
+	// Inject a plain client — httptest.Server binds 127.0.0.1 which the
+	// default SSRF-protected client (webhooksender.New) would reject.
+	svc := webhook.NewService(repo, deliveries, webhooksender.NewWithClient(&http.Client{Timeout: 5 * time.Second}), log, bus)
 	svc.SetURLValidator(func(string) error { return nil })
 
 	cfg := &webhookdomain.Config{
