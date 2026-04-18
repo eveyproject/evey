@@ -73,7 +73,7 @@ export function QuickConnect() {
           if (data.event === "authorized" && data.accessToken) {
             setTokens(data.accessToken);
             es?.close();
-            void navigate({ to: "/home" });
+            void navigate({ to: "/profile-select" });
           } else if (data.event === "expired" || data.event === "error") {
             es?.close();
           }
