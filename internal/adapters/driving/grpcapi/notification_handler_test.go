@@ -192,3 +192,22 @@ func TestNotificationHandler_UpdateGlobalNotificationSettings_Success(t *testing
 	assert.Equal(t, eveyv1.NotificationLevel_NOTIFICATION_LEVEL_HIGHLY_RELEVANT, resp.MovieLevel)
 	assert.Equal(t, eveyv1.NotificationLevel_NOTIFICATION_LEVEL_DISABLED, resp.SeriesLevel)
 }
+
+// IDOR regression guard — non-admin must not list or mutate another profile's notifications.
+func TestNotificationHandler_ListNotifications_IDORAnotherProfile(t *testing.T) {
+	h, _, _ := newNotificationHandler()
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	_, err := h.ListNotifications(ctx, &eveyv1.ListNotificationsRequest{ProfileId: "profile-stranger"})
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestNotificationHandler_GetUnreadCount_IDORAnotherProfile(t *testing.T) {
+	h, _, _ := newNotificationHandler()
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	_, err := h.GetUnreadCount(ctx, &eveyv1.GetUnreadCountRequest{ProfileId: "profile-stranger"})
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}

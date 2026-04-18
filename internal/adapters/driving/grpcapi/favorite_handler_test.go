@@ -139,3 +139,49 @@ func TestFavoriteHandler_IsFavorite_Unauthenticated(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
+
+// IDOR regression guard — non-admin must not operate on another profile.
+func TestFavoriteHandler_ListFavorites_IDORAnotherProfile(t *testing.T) {
+	h, _ := newTestFavoriteHandler()
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	_, err := h.ListFavorites(ctx, &eveyv1.ListFavoritesRequest{ProfileId: "profile-stranger"})
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestFavoriteHandler_AddFavorite_IDORAnotherProfile(t *testing.T) {
+	h, _ := newTestFavoriteHandler()
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	_, err := h.AddFavorite(ctx, &eveyv1.AddFavoriteRequest{MediaItemId: "m1", ProfileId: "profile-stranger"})
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestFavoriteHandler_RemoveFavorite_IDORAnotherProfile(t *testing.T) {
+	h, _ := newTestFavoriteHandler()
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	_, err := h.RemoveFavorite(ctx, &eveyv1.RemoveFavoriteRequest{MediaItemId: "m1", ProfileId: "profile-stranger"})
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestFavoriteHandler_AdminCanOperateOnAnotherProfile(t *testing.T) {
+	h, _ := newTestFavoriteHandler()
+	ctx := ctxWithClaims("admin-1", "profile-admin", true)
+
+	resp, err := h.AddFavorite(ctx, &eveyv1.AddFavoriteRequest{MediaItemId: "m1", ProfileId: "profile-target"})
+	require.NoError(t, err)
+	assert.True(t, resp.IsFavorite)
+}
+
+func TestFavoriteHandler_IsFavorite_IDORAnotherProfile(t *testing.T) {
+	h, _ := newTestFavoriteHandler()
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	_, err := h.IsFavorite(ctx, &eveyv1.IsFavoriteRequest{MediaItemId: "m1", ProfileId: "profile-stranger"})
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
