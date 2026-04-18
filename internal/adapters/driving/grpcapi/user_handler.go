@@ -143,10 +143,16 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 	}
 	u.IsAdmin = req.IsAdmin
 	if req.MaxProfiles != nil {
+		if *req.MaxProfiles < 0 {
+			return nil, status.Error(codes.InvalidArgument, "max_profiles must be >= 0")
+		}
 		mp := int(*req.MaxProfiles)
 		u.MaxProfiles = &mp
 	}
 	if req.MaxDevicesPerProfile != nil {
+		if *req.MaxDevicesPerProfile < 0 {
+			return nil, status.Error(codes.InvalidArgument, "max_devices_per_profile must be >= 0")
+		}
 		md := int(*req.MaxDevicesPerProfile)
 		u.MaxDevicesPerProfile = &md
 	}
@@ -173,6 +179,15 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		if req.MaxStreams != nil || req.MaxProfiles != nil || req.MaxDevicesPerProfile != nil {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_change_caps")
 		}
+	}
+	if req.MaxStreams != nil && *req.MaxStreams < 0 {
+		return nil, status.Error(codes.InvalidArgument, "max_streams must be >= 0")
+	}
+	if req.MaxProfiles != nil && *req.MaxProfiles < 0 {
+		return nil, status.Error(codes.InvalidArgument, "max_profiles must be >= 0")
+	}
+	if req.MaxDevicesPerProfile != nil && *req.MaxDevicesPerProfile < 0 {
+		return nil, status.Error(codes.InvalidArgument, "max_devices_per_profile must be >= 0")
 	}
 	u, err := h.query.GetUserByID(ctx, req.Id)
 	if err != nil {
