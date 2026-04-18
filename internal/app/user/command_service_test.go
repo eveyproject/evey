@@ -420,7 +420,7 @@ func TestRefreshToken_Happy(t *testing.T) {
 	}
 	_ = d.refreshTkns.Create(ctx, rt)
 
-	access, newRefresh, err := d.svc.RefreshToken(ctx, rawToken)
+	access, newRefresh, err := d.svc.RefreshToken(ctx, rawToken, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -431,7 +431,7 @@ func TestRefreshToken_Happy(t *testing.T) {
 
 func TestRefreshToken_NotFound(t *testing.T) {
 	d := newAuthTestDeps()
-	_, _, err := d.svc.RefreshToken(context.Background(), "bogus")
+	_, _, err := d.svc.RefreshToken(context.Background(), "bogus", "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -454,7 +454,7 @@ func TestRefreshToken_AlreadyUsed(t *testing.T) {
 	}
 	_ = d.refreshTkns.Create(ctx, rt)
 
-	_, _, err := d.svc.RefreshToken(ctx, rawToken)
+	_, _, err := d.svc.RefreshToken(ctx, rawToken, "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials for used token, got %v", err)
 	}
@@ -482,7 +482,7 @@ func TestRefreshToken_Reuse_PurgesAllUserTokens(t *testing.T) {
 		ExpiresAt: time.Now().Add(24 * time.Hour), Used: false,
 	})
 
-	_, _, err := d.svc.RefreshToken(ctx, reusedToken)
+	_, _, err := d.svc.RefreshToken(ctx, reusedToken, "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -509,7 +509,7 @@ func TestRefreshToken_Expired(t *testing.T) {
 	}
 	_ = d.refreshTkns.Create(ctx, rt)
 
-	_, _, err := d.svc.RefreshToken(ctx, rawToken)
+	_, _, err := d.svc.RefreshToken(ctx, rawToken, "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials for expired token, got %v", err)
 	}
@@ -530,7 +530,7 @@ func TestRefreshToken_UserNotFound(t *testing.T) {
 	}
 	_ = d.refreshTkns.Create(ctx, rt)
 
-	_, _, err := d.svc.RefreshToken(ctx, rawToken)
+	_, _, err := d.svc.RefreshToken(ctx, rawToken, "")
 	if err == nil {
 		t.Fatal("expected error for missing user")
 	}
@@ -549,7 +549,7 @@ func TestRefreshToken_AccessTokenGenError(t *testing.T) {
 	})
 	d.tokens.Err = errors.New("gen fail")
 
-	_, _, err := d.svc.RefreshToken(ctx, rawToken)
+	_, _, err := d.svc.RefreshToken(ctx, rawToken, "")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -569,7 +569,7 @@ func TestRefreshToken_RefreshTokenGenError(t *testing.T) {
 
 	d.refreshTkns.Err = errors.New("store fail")
 
-	_, _, err := d.svc.RefreshToken(ctx, rawToken)
+	_, _, err := d.svc.RefreshToken(ctx, rawToken, "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials when repo fails, got %v", err)
 	}
@@ -587,7 +587,7 @@ func TestRefreshToken_NewRefreshTokenStoreError(t *testing.T) {
 		ID: "rt1", UserID: "u1", TokenHash: hash, ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	access, newRefresh, err := d.svc.RefreshToken(ctx, rawToken)
+	access, newRefresh, err := d.svc.RefreshToken(ctx, rawToken, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -618,7 +618,7 @@ func TestRefreshToken_WithProfileAndRoles(t *testing.T) {
 		ID: "rt1", UserID: "u1", TokenHash: hash, ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	access, _, err := d.svc.RefreshToken(ctx, rawToken)
+	access, _, err := d.svc.RefreshToken(ctx, rawToken, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -647,7 +647,7 @@ func TestRefreshToken_FallbackFirstProfile(t *testing.T) {
 		ID: "rt1", UserID: "u1", TokenHash: hash, ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	access, _, err := d.svc.RefreshToken(ctx, rawToken)
+	access, _, err := d.svc.RefreshToken(ctx, rawToken, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -875,7 +875,7 @@ func TestRefreshToken_NewRefreshGenError(t *testing.T) {
 
 	// First call succeeds to mark used, then fail on new refresh gen
 	tokenGen.fail = true
-	_, _, err := svc.RefreshToken(ctx, rawToken)
+	_, _, err := svc.RefreshToken(ctx, rawToken, "")
 	if err == nil {
 		t.Fatal("expected error when new refresh token gen fails")
 	}
@@ -932,7 +932,7 @@ func TestRefreshToken_NewRTStoreError(t *testing.T) {
 		ID: "rt1", UserID: "u1", TokenHash: hash, ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	_, _, err := svc.RefreshToken(ctx, rawToken)
+	_, _, err := svc.RefreshToken(ctx, rawToken, "")
 	if err == nil {
 		t.Fatal("expected error when new RT store fails")
 	}
@@ -1358,7 +1358,7 @@ func TestRefreshToken_WithLongTTL(t *testing.T) {
 	}
 
 	longTTL := 180 * 24 * time.Hour
-	newAccess, newRefresh, err := d.svc.RefreshToken(ctx, refresh, longTTL)
+	newAccess, newRefresh, err := d.svc.RefreshToken(ctx, refresh, "", longTTL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1401,7 +1401,7 @@ func TestRefreshToken_TOCTOU_ConcurrentReplayRejected(t *testing.T) {
 	for i := range goroutines {
 		go func(i int) {
 			defer wg.Done()
-			_, _, results[i] = d.svc.RefreshToken(ctx, refresh)
+			_, _, results[i] = d.svc.RefreshToken(ctx, refresh, "")
 		}(i)
 	}
 	wg.Wait()
@@ -1431,7 +1431,7 @@ func TestRefreshToken_DisabledUserRejected(t *testing.T) {
 	u.Enabled = false
 	_ = d.users.Update(ctx, u)
 
-	_, _, err = d.svc.RefreshToken(ctx, refresh)
+	_, _, err = d.svc.RefreshToken(ctx, refresh, "")
 	if !errors.Is(err, ErrUserDisabled) {
 		t.Fatalf("expected ErrUserDisabled for disabled user, got %v", err)
 	}

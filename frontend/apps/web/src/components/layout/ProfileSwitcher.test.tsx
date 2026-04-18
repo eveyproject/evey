@@ -90,13 +90,13 @@ describe("ProfileSwitcher", () => {
     expect(screen.queryByTestId("profile-switcher-menu")).not.toBeInTheDocument();
   });
 
-  it("switches profile: store + localStorage + refreshToken + setTokens + invalidate", async () => {
+  it("switches profile: refreshToken with profileId + setTokens + localStorage + invalidate", async () => {
     const user = userEvent.setup();
     renderSwitcher();
     await user.click(screen.getByTestId("profile-switcher-btn"));
     await user.click(screen.getByTestId("profile-switch-p2"));
     await waitFor(() => expect(mockRefreshToken).toHaveBeenCalledTimes(1));
-    expect(mockSetProfile).toHaveBeenCalledWith("p2");
+    expect(mockRefreshToken).toHaveBeenCalledWith({ profileId: "p2" });
     expect(localStorage.getItem("evey:last_profile_id")).toBe("p2");
     expect(mockSetTokens).toHaveBeenCalledWith("new-token");
     expect(mockInvalidateQueries).toHaveBeenCalledTimes(1);
@@ -110,7 +110,6 @@ describe("ProfileSwitcher", () => {
     await user.click(screen.getByTestId("profile-switcher-btn"));
     await user.click(screen.getByTestId("profile-switch-p2"));
     await waitFor(() => expect(mockRefreshToken).toHaveBeenCalled());
-    expect(mockSetProfile).toHaveBeenCalledWith("p2");
     expect(mockSetTokens).not.toHaveBeenCalled();
   });
 

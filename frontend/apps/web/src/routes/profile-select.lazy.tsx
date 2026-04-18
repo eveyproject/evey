@@ -50,10 +50,9 @@ function ProfileSelectPage() {
   const switchProfile = useCallback(async (target: V1Profile): Promise<boolean> => {
     if (!target.id) return false;
     try {
-      useAuthStore.getState().setProfile(target.id);
-      try { localStorage.setItem(LAST_PROFILE_KEY, target.id); } catch { /* ignore */ }
-      const resp = await userServiceRefreshToken({});
+      const resp = await userServiceRefreshToken({ profileId: target.id });
       if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
+      try { localStorage.setItem(LAST_PROFILE_KEY, target.id); } catch { /* ignore */ }
       await qc.invalidateQueries();
       return true;
     } catch {

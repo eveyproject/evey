@@ -100,7 +100,7 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 }
 
 func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshTokenRequest) (*eveyv1.AuthResponse, error) {
-	access, newRefresh, err := h.auth.RefreshToken(ctx, req.RefreshToken, h.refreshTTLOverride(ctx)...)
+	access, newRefresh, err := h.auth.RefreshToken(ctx, req.RefreshToken, req.ProfileId, h.refreshTTLOverride(ctx)...)
 	if err != nil {
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}

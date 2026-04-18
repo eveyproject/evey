@@ -106,8 +106,7 @@ describe("ProfileSelect", () => {
     await renderPage()();
     await userEvent.click(screen.getByTestId("profile-select-p2"));
     await waitFor(() => {
-      expect(mockSetProfile).toHaveBeenCalledWith("p2");
-      expect(mockRefreshToken).toHaveBeenCalled();
+      expect(mockRefreshToken).toHaveBeenCalledWith({ profileId: "p2" });
       expect(mockNavigate).toHaveBeenCalledWith({ to: "/home" });
     });
   });
@@ -126,7 +125,7 @@ describe("ProfileSelect", () => {
     await userEvent.click(screen.getByRole("button", { name: /confirm/i }));
     await waitFor(() => {
       expect(mockVerifyPin).toHaveBeenCalledWith("p1", { pin: "1234" });
-      expect(mockSetProfile).toHaveBeenCalledWith("p1");
+      expect(mockRefreshToken).toHaveBeenCalledWith({ profileId: "p1" });
     });
   });
 
@@ -144,7 +143,7 @@ describe("ProfileSelect", () => {
     await userEvent.click(screen.getByRole("button", { name: /confirm/i }));
     await waitFor(() => {
       expect(screen.getByTestId("profile-pin-prompt-error")).toBeInTheDocument();
-      expect(mockSetProfile).not.toHaveBeenCalled();
+      expect(mockRefreshToken).not.toHaveBeenCalled();
     });
   });
 });

@@ -245,6 +245,10 @@ message LoginRequest {
 
 message RefreshTokenRequest {
   string refresh_token = 1;
+  // Optional profile id to activate on the new access token.
+  // Must belong to the same user or the refresh is rejected; absent falls
+  // back to the user's default profile.
+  string profile_id = 2;
 }
 
 message LogoutRequest {

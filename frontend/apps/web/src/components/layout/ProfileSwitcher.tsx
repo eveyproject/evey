@@ -72,12 +72,11 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
     if (!target.id) return;
     setSwitching(target.id);
     try {
-      useAuthStore.getState().setProfile(target.id);
+      const resp = await userServiceRefreshToken({ profileId: target.id });
+      if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
       try {
         localStorage.setItem("evey:last_profile_id", target.id);
       } catch { /* ignore storage errors */ }
-      const resp = await userServiceRefreshToken({});
-      if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
       await qc.invalidateQueries();
       setOpen(false);
     } catch (err) {

@@ -294,7 +294,10 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 	return accessToken, refreshToken, nil
 }
 
-func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOverride ...time.Duration) (string, string, error) {
+// RefreshToken rotates the refresh token, returning a new access+refresh pair.
+// requestedProfileID (optional) activates a specific profile on the new access
+// token; must belong to the refreshing user or the refresh is rejected.
+func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfileID string, ttlOverride ...time.Duration) (string, string, error) {
 	h := sha256.Sum256([]byte(token))
 	hash := hex.EncodeToString(h[:])
 
@@ -356,22 +359,39 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 		perms = append(perms, r.Permissions...)
 	}
 
-	var defaultProfileID string
-	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
+	profs, pErr := s.profiles.GetByUserID(ctx, u.ID)
+	if pErr != nil {
+		slog.Warn("get profiles by user failed", slog.String("userID", string(u.ID)), slog.Any("err", pErr))
+	}
+
+	var activeProfileID string
+	if requestedProfileID != "" {
 		for _, p := range profs {
-			if p.IsDefault {
-				defaultProfileID = string(p.ID)
+			if string(p.ID) == requestedProfileID {
+				activeProfileID = requestedProfileID
 				break
 			}
 		}
-		if defaultProfileID == "" && len(profs) > 0 {
-			defaultProfileID = string(profs[0].ID)
+		if activeProfileID == "" {
+			// Caller asked for a profile that doesn't belong to them — reject.
+			return "", "", ErrInvalidCredentials
+		}
+	}
+	if activeProfileID == "" {
+		for _, p := range profs {
+			if p.IsDefault {
+				activeProfileID = string(p.ID)
+				break
+			}
+		}
+		if activeProfileID == "" && len(profs) > 0 {
+			activeProfileID = string(profs[0].ID)
 		}
 	}
 
 	var refreshLocale string
-	if defaultProfileID != "" {
-		if prof, pErr := s.profiles.GetByID(ctx, shared.ProfileID(defaultProfileID)); pErr == nil && prof != nil {
+	if activeProfileID != "" {
+		if prof, pErr := s.profiles.GetByID(ctx, shared.ProfileID(activeProfileID)); pErr == nil && prof != nil {
 			refreshLocale = prof.Locale
 		}
 	}
@@ -379,7 +399,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 		UserID:      string(u.ID),
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
-		ProfileID:   defaultProfileID,
+		ProfileID:   activeProfileID,
 		Locale:      refreshLocale,
 		Permissions: perms,
 	})

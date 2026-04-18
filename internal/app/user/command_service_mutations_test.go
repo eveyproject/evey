@@ -161,7 +161,7 @@ func TestRefreshToken_ClaimsIncludeLocaleAndPerms(t *testing.T) {
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
-	access, _, err := d.svc.RefreshToken(ctx, raw)
+	access, _, err := d.svc.RefreshToken(ctx, raw, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestRefreshToken_ExpiredAndDeleteByIDFailsLogsWarning(t *testing.T) {
 		ExpiresAt: time.Now().Add(-time.Hour),
 	})
 
-	_, _, err := svc.RefreshToken(ctx, raw)
+	_, _, err := svc.RefreshToken(ctx, raw, "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -236,7 +236,7 @@ func TestRefreshToken_MarkUsedError(t *testing.T) {
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
-	_, _, err := svc.RefreshToken(ctx, raw)
+	_, _, err := svc.RefreshToken(ctx, raw, "")
 	if err == nil {
 		t.Fatal("expected error")
 	}
