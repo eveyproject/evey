@@ -36,7 +36,7 @@ func newTokenHandler(t *testing.T, p *plugindomain.Plugin) (*adminPluginHandler,
 		}
 	}
 	tokenSvc := appplugin.NewTokenService(repo, &stubIssuer{})
-	return &adminPluginHandler{tokenSvc: tokenSvc}, repo
+	return &adminPluginHandler{tokenSvc: tokenSvc, enabled: true}, repo
 }
 
 func ctxWithUser(userID string) context.Context {
@@ -108,7 +108,7 @@ func TestIssuePluginToken_IssuerError(t *testing.T) {
 		t.Fatal(err)
 	}
 	tokenSvc := appplugin.NewTokenService(repo, &stubIssuer{failWith: errors.New("signer down")})
-	h := &adminPluginHandler{tokenSvc: tokenSvc}
+	h := &adminPluginHandler{tokenSvc: tokenSvc, enabled: true}
 	_, err := h.IssuePluginToken(ctxWithUser("u"), &eveyv1.IssuePluginTokenRequest{PluginId: "plg1"})
 	if code := status.Code(err); code != codes.Internal {
 		t.Fatalf("code = %v, want Internal", code)

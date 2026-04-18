@@ -135,6 +135,7 @@ func (s *GRPCServer) RegisterServices() {
 		pluginQuery:     d.PluginQuery,
 		tokenSvc:        d.PluginToken,
 		logDir:          d.LogDir,
+		enabled:         d.Cfg != nil && d.Cfg.Server.PluginsEnabled,
 	})
 	eveyv1.RegisterAdminTaskServiceServer(s.server, &adminTaskHandler{
 		scheduler:  d.Scheduler,

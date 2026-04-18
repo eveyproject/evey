@@ -111,15 +111,19 @@ func run() error {
 	deps.backupSvc.StartScheduler(ctx, cfg.Backup.IntervalHours, cfg.Backup.RetentionDays)
 	go deps.library.scheduler.Run(ctx)
 
-	// Plugin host gRPC server (unix socket)
-	if err := deps.engagement.pluginHostServer.Start(); err != nil {
-		rootLog.Warn("plugin host server start failed", slog.Any("err", err))
+	// Plugin subsystem is gated by EVEY_PLUGINS_ENABLED. When false the
+	// host socket and auto-start are skipped — a plugin enabled in DB
+	// from a previous run will stay dormant until the flag is flipped.
+	if cfg.Server.PluginsEnabled {
+		if err := deps.engagement.pluginHostServer.Start(); err != nil {
+			rootLog.Warn("plugin host server start failed", slog.Any("err", err))
+		} else {
+			rootLog.Info("plugin host gRPC server started")
+		}
+		go deps.engagement.pluginRuntimeSvc.AutoStartPlugins(ctx)
 	} else {
-		rootLog.Info("plugin host gRPC server started")
+		rootLog.Info("plugin subsystem disabled (set EVEY_PLUGINS_ENABLED=true to activate)")
 	}
-
-	// Auto-start previously running plugins
-	go deps.engagement.pluginRuntimeSvc.AutoStartPlugins(ctx)
 
 	errCh := make(chan error, 2)
 	go func() {

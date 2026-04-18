@@ -60,6 +60,7 @@ func newTestPluginHandler() *adminPluginHandler {
 		pluginInstaller: appplugin.NewInstallerService(pluginRepo, pluginRunner, pluginParser, events),
 		pluginRuntime:   appplugin.NewRuntimeService(pluginRepo, pluginRuntimeRepo, pluginRunner, pluginParser, events),
 		pluginQuery:     appplugin.NewQueryService(pluginRepo, pluginRuntimeRepo),
+		enabled:         true,
 	}
 }
 

@@ -25,9 +25,29 @@ type adminPluginHandler struct {
 	pluginQuery     *appplugin.QueryService
 	tokenSvc        *appplugin.TokenService
 	logDir          string
+	// enabled mirrors cfg.Server.PluginsEnabled. When false, every
+	// install/enable/disable/token/runtime mutation returns
+	// FailedPrecondition. Listing/reading is left open so the admin UI
+	// can surface "plugins disabled" instead of breaking the page.
+	enabled bool
+}
+
+// requireEnabled gates state-changing or executing plugin operations.
+// Read-only methods (List*, Get*) intentionally bypass this so the
+// admin UI can render a consistent "plugins disabled" state without
+// 500-ing.
+func (d *adminPluginHandler) requireEnabled() error {
+	if !d.enabled {
+		return status.Error(codes.FailedPrecondition,
+			"plugin system is disabled (set EVEY_PLUGINS_ENABLED=true to enable)")
+	}
+	return nil
 }
 
 func (d *adminPluginHandler) IssuePluginToken(ctx context.Context, req *eveyv1.IssuePluginTokenRequest) (*eveyv1.IssuePluginTokenResponse, error) {
+	if err := d.requireEnabled(); err != nil {
+		return nil, err
+	}
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, err
@@ -69,6 +89,9 @@ func (d *adminPluginHandler) ListPluginRuntimes(ctx context.Context, _ *eveyv1.L
 }
 
 func (d *adminPluginHandler) AddPluginRuntime(ctx context.Context, req *eveyv1.AddPluginRuntimeRequest) (*eveyv1.PluginRuntime, error) {
+	if err := d.requireEnabled(); err != nil {
+		return nil, err
+	}
 	rt := &plugin.PluginRuntime{
 		ID:       req.Name,
 		Language: req.Language,
@@ -81,6 +104,9 @@ func (d *adminPluginHandler) AddPluginRuntime(ctx context.Context, req *eveyv1.A
 }
 
 func (d *adminPluginHandler) RemovePluginRuntime(ctx context.Context, req *eveyv1.RemovePluginRuntimeRequest) (*eveyv1.RemovePluginRuntimeResponse, error) {
+	if err := d.requireEnabled(); err != nil {
+		return nil, err
+	}
 	if err := d.pluginRuntime.RemoveRuntime(ctx, req.Id); err != nil {
 		return nil, internalError("remove runtime", err)
 	}
@@ -88,6 +114,9 @@ func (d *adminPluginHandler) RemovePluginRuntime(ctx context.Context, req *eveyv
 }
 
 func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.InstallPluginRequest) (*eveyv1.Plugin, error) {
+	if err := d.requireEnabled(); err != nil {
+		return nil, err
+	}
 	p, err := d.pluginInstaller.InstallPlugin(ctx, req.Source)
 	if err != nil {
 		return nil, internalError("install plugin", err)
@@ -96,6 +125,9 @@ func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.Inst
 }
 
 func (d *adminPluginHandler) UninstallPlugin(ctx context.Context, req *eveyv1.UninstallPluginRequest) (*eveyv1.UninstallPluginResponse, error) {
+	if err := d.requireEnabled(); err != nil {
+		return nil, err
+	}
 	if err := d.pluginInstaller.UninstallPlugin(ctx, req.Id); err != nil {
 		return nil, internalError("uninstall plugin", err)
 	}
@@ -103,6 +135,9 @@ func (d *adminPluginHandler) UninstallPlugin(ctx context.Context, req *eveyv1.Un
 }
 
 func (d *adminPluginHandler) EnablePlugin(ctx context.Context, req *eveyv1.EnablePluginRequest) (*eveyv1.Plugin, error) {
+	if err := d.requireEnabled(); err != nil {
+		return nil, err
+	}
 	if err := d.pluginRuntime.EnablePlugin(ctx, req.Id); err != nil {
 		switch {
 		case errors.Is(err, appplugin.ErrPluginNotFound):
@@ -117,6 +152,9 @@ func (d *adminPluginHandler) EnablePlugin(ctx context.Context, req *eveyv1.Enabl
 }
 
 func (d *adminPluginHandler) DisablePlugin(ctx context.Context, req *eveyv1.DisablePluginRequest) (*eveyv1.Plugin, error) {
+	if err := d.requireEnabled(); err != nil {
+		return nil, err
+	}
 	if err := d.pluginRuntime.DisablePlugin(ctx, req.Id); err != nil {
 		switch {
 		case errors.Is(err, appplugin.ErrPluginNotFound):
@@ -165,6 +203,9 @@ func (d *adminPluginHandler) GetPluginConfig(ctx context.Context, req *eveyv1.Ge
 }
 
 func (d *adminPluginHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1.UpdatePluginConfigRequest) (*eveyv1.PluginConfig, error) {
+	if err := d.requireEnabled(); err != nil {
+		return nil, err
+	}
 	result, err := d.pluginQuery.GetPluginConfig(ctx, req.PluginId)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "get plugin: %v", err)
