@@ -15,19 +15,19 @@ home:
   customize: Customize
   customizeFeed: Customize Feed
   emptyLibrary: Your library is empty
-  emptyLibraryDesc: "Go to Admin \u2192 Libraries to add a media folder."
+  emptyLibraryDesc: "Go to Admin → Libraries to add a media folder."
   goToLibraries: Go to Libraries
   library: Library
 favorites:
   title: Favorites
   empty: No favorites yet
-  searchPlaceholder: "Search\u2026"
+  searchPlaceholder: "Search…"
   all: All
   movies: Movies
   series: Series
   recentlyAdded: Recently Added
-  titleAZ: "Title A\u2013Z"
-  titleZA: "Title Z\u2013A"
+  titleAZ: "Title A–Z"
+  titleZA: "Title Z–A"
   yearNewest: Year (newest)
   rating: Rating
   yourRating: "Your rating"
@@ -39,6 +39,11 @@ favorites:
   itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
   markedWatched: "{{count}} item(s) marked as watched"
   markedUnwatched: "{{count}} item(s) marked as unwatched"
+  filterByType: Filter by type
+  sortBy: Sort by
+  toggleFavorite: Toggle favorite
+  toggled: Favorites updated
+  yearOldest: Year (oldest)
 collections:
   title: Collections
   newSmartCollection: New smart collection
@@ -48,7 +53,7 @@ collections:
   noCollectionsDesc: Collections are automatically populated from TMDB sagas.
   deleteConfirm: Delete this collection?
   deleteSmartConfirm: Delete this smart collection?
-  browseResults: "Browse results \u2192"
+  browseResults: "Browse results →"
   smart: Smart
   noItems: No items
   noItemsDesc: This collection has no media items yet.
@@ -61,7 +66,7 @@ collections:
   noCollectionsAvailable: No collections available.
   itemsAdded: "{{count}} item(s) added to \"{{name}}\""
   addFailed: Failed to add to collection
-  adding: "Adding\u2026"
+  adding: "Adding…"
   editSmartCollection: Edit smart collection
   nameRequired: Name is required
   noRulesYet: No rules yet. Add at least one rule to filter items.
@@ -74,6 +79,8 @@ collections:
   updated: Collection updated
   updateFailed: Failed to update collection
   deleted: Collection deleted
+  editCollection: Edit collection
+  newCollection: New collection
 library:
   title: Library
   libraries: Libraries
@@ -138,6 +145,11 @@ library:
   audioLanguage: Audio Language
   subtitleLanguage: Subtitle Language
   noFilterOptions: No filter options available for this library yet.
+  addToCollection: Add to collection
+  markUnwatched: Mark unwatched
+  markWatched: Mark watched
+  markedUnwatched: Marked unwatched
+  markedWatched: Marked watched
 person:
   filmography: Filmography
   notFound: Person not found.
@@ -218,6 +230,7 @@ detail:
   downloadStarted: Download started
   downloadComplete: Download complete
   downloadFailed: Download failed
+  communityRating: 'Community: {{average}}/5 ({{count}} ratings)'
 certBody:
   FR: CSA
   US: MPAA
@@ -269,8 +282,8 @@ music:
   emptyPlaylist: This playlist is empty.
   downloadTrack: Download track
   downloadAlbum: Download album
-  searchPlaceholder: "Search tracks, artists, albums\u2026"
-  loading: "Loading\u2026"
+  searchPlaceholder: "Search tracks, artists, albums…"
+  loading: "Loading…"
   noTracks: No tracks found.
   noTracksSearch: No tracks match your search.
   noAlbums: No albums found.
@@ -291,7 +304,7 @@ music:
   unmute: Unmute
   resetFilters: Reset filters
   addToPlaylist: Add to playlist
-  newPlaylist: "New playlist\u2026"
+  newPlaylist: "New playlist…"
   playlistCreated: Playlist created
   addedToPlaylist: Added to playlist
   createPlaylistPrompt: Playlist name
@@ -335,6 +348,7 @@ syncplay:
   notMusicRoom: "This room isn't a music room."
   orPlaylist: "Or pick a playlist"
   queue: "Queue"
+  joinByCode: Join with code
 playlist:
   name: Name
   description: Description
@@ -377,6 +391,16 @@ playlist:
   updated: Playlist updated
   updateFailed: Failed to update playlist
   reorderFailed: Failed to reorder
+  confirmDelete: Delete playlist '{{name}}'?
+  confirmRemoveItem: Remove from playlist?
+  create: Create playlist
+  deleteError: Failed to delete playlist
+  descriptionPlaceholder: Description (optional)
+  namePlaceholder: Playlist name
+  removeRule: Remove rule
+  smartRules: Smart rules
+  typeManual: Manual
+  typeSmart: Smart
 search:
   searching: "Searching..."
   noResults: No results
@@ -384,15 +408,15 @@ search:
   recentSearches: Recent searches
   clearAll: Clear all
   searchFailed: Search failed
-  placeholder: "Search movies, series\u2026"
+  placeholder: "Search movies, series…"
   all: All
   movies: Movies
   series: Series
-  noResultsFor: "No results for \u201c{{query}}\u201d"
+  noResultsFor: "No results for “{{query}}”"
   noResultsDesc: Try a different search term, check the spelling, or change the filter.
   resultCount: "{{count}} result"
   resultCount_plural: "{{count}} results"
-  resultFor: "for \u201c{{query}}\u201d"
+  resultFor: "for “{{query}}”"
   searchLibrary: Search your media library
   searchLibraryDesc: Type at least 2 characters to search across all your movies, series, and more.
   clearSearch: Clear search
@@ -406,7 +430,7 @@ search:
   toYear: To
   sortBy: Sort by
   relevance: Relevance
-  titleAZ: "Title A\u2013Z"
+  titleAZ: "Title A–Z"
   yearNewest: Year (newest)
   dateAdded: Date added
 streams:
@@ -420,3 +444,6 @@ rating:
   dislike: Dislike
   removeLike: Remove like
   removeDislike: Remove dislike
+playlists:
+  notFound: Playlist not found
+resume: Resume

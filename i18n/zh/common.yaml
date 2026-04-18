@@ -124,6 +124,8 @@ notifications:
   newSeries: "新剧：{{name}}"
   newAlbum: "新专辑：{{name}}"
   backupFailed: "计划备份失败"
+  clearConfirm: 删除所有通知？
+  clearTitle: 清除通知
 watchHistory:
   title: "观看历史"
 userStats:
@@ -144,7 +146,7 @@ nav:
   favorites: "收藏"
   search: "搜索"
   music: "音乐"
-  syncplay: "Listen Together"
+  syncplay: "一起听"
   admin: "管理"
   backToApp: "返回应用"
   profile: "个人资料"
@@ -162,7 +164,6 @@ nav:
   profileSwitcher: "切换个人资料"
   manageProfiles: "管理个人资料"
 you: "你"
-confirm: "确认"
 shortcuts:
   title: "键盘快捷键"
   focusSearch: "聚焦搜索"
@@ -208,3 +209,16 @@ serverVersion: 服务器版本
 retry: 重试
 itemCount_one: "{{count}} 项"
 itemCount_other: "{{count}} 项"
+added: 已添加
+change: 更改
+clearAll: 全部清除
+description: 描述
+export: 导出 JSON
+never: 从不
+pause: 暂停
+play: 播放
+selected: 已选中
+selectedCount: 已选 {{count}} 项
+somethingWentWrong: 出了点问题
+tryAgain: 重试
+unknownError: 未知错误

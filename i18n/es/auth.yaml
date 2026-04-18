@@ -28,7 +28,7 @@ setup:
     shows: Series
     music: Música
     photos: Fotos
-signingIn: "Iniciando sesión\u2026"
+signingIn: "Iniciando sesión…"
 login:
   signIn: "Iniciar sesión"
   signInToAccount: "Inicia sesión en tu cuenta"
@@ -199,6 +199,7 @@ settings:
     passwordFailed: "Error al actualizar la contraseña"
     passwordMismatch: "Las contraseñas no coinciden"
     passwordMin: "La contraseña debe tener al menos 8 caracteres"
+    profileUpdated: Perfil actualizado
   parental:
     title: "Control parental"
     description: "Restringir contenido por clasificación para este perfil."
@@ -261,6 +262,7 @@ apiKeys:
   revokeConfirm: "¿Revocar esta clave API? Dejará de funcionar inmediatamente."
   keyRevoked: "Clave API revocada"
   revokeError: "Error al revocar la clave API"
+  revoke: Revocar
 devices:
   title: "Dispositivos"
   description: "Administra los dispositivos de notificaciones push."
@@ -303,3 +305,5 @@ watchHistory:
   clearTitle: "Borrar historial de reproducción"
   clearConfirm: "Esto eliminará permanentemente todo tu historial de reproducción. Esta acción no se puede deshacer."
   clearAll: "Borrar todo"
+  title: Historial de visualización
+  openMedia: Abrir detalles del medio

@@ -124,6 +124,8 @@ notifications:
   newSeries: "नई सीरीज़: {{name}}"
   newAlbum: "नया एल्बम: {{name}}"
   backupFailed: "निर्धारित बैकअप विफल"
+  clearConfirm: सभी सूचनाएं हटाएं?
+  clearTitle: सूचनाएं साफ़ करें
 watchHistory:
   title: "देखने का इतिहास"
 userStats:
@@ -144,7 +146,7 @@ nav:
   favorites: "पसंदीदा"
   search: "खोजें"
   music: "संगीत"
-  syncplay: "Listen Together"
+  syncplay: "साथ सुनें"
   admin: "एडमिन"
   backToApp: "ऐप पर वापस"
   profile: "प्रोफ़ाइल"
@@ -162,7 +164,6 @@ nav:
   profileSwitcher: "प्रोफ़ाइल बदलें"
   manageProfiles: "प्रोफ़ाइल प्रबंधित करें"
 you: "आप"
-confirm: "पुष्टि करें"
 shortcuts:
   title: "कीबोर्ड शॉर्टकट"
   focusSearch: "खोज पर फ़ोकस करें"
@@ -208,3 +209,16 @@ serverVersion: सर्वर संस्करण
 retry: पुनः प्रयास करें
 itemCount_one: "{{count}} आइटम"
 itemCount_other: "{{count}} आइटम"
+added: जोड़ा गया
+change: बदलें
+clearAll: सब साफ़ करें
+description: विवरण
+export: JSON निर्यात
+never: कभी नहीं
+pause: रोकें
+play: चलाएं
+selected: चयनित
+selectedCount: '{{count}} चयनित'
+somethingWentWrong: कुछ गलत हो गया
+tryAgain: पुनः प्रयास करें
+unknownError: अज्ञात त्रुटि

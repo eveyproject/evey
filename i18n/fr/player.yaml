@@ -68,7 +68,7 @@ nextEpisodeOverlay:
 skipIntro: "Passer l'intro"
 download: "Télécharger"
 watchTogether: "Regarder ensemble"
-buffering: "Mise en mémoire tampon\u2026"
+buffering: "Mise en mémoire tampon…"
 playbackFailed: "Échec de la lecture"
 unableToPlayAnyQuality: "Impossible de lire à quelque qualité que ce soit"
 failedToStart: "Échec du lancement de la lecture"
@@ -93,3 +93,24 @@ shortcuts:
   increaseSpeed: "Augmenter la vitesse"
   pip: "Image dans l'image"
   showShortcuts: "Afficher les raccourcis"
+nowPlaying: Lecture en cours
+stop: Arrêter la lecture
+streamInfo:
+  title: Infos du flux
+  playback: Lecture
+  method: Méthode
+  container: Conteneur
+  totalBitrate: Débit total
+  video: Vidéo
+  codec: Codec
+  resolution: Résolution
+  bitrate: Débit
+  framerate: Fréquence d'images
+  profile: Profil
+  pixelFormat: Format pixel
+  decision: Décision
+  audio: Audio
+  channels: Canaux
+  language: Langue
+  sampleRate: Fréquence d'échantillonnage
+  transcodeReasons: Raisons du transcodage

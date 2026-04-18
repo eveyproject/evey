@@ -6,6 +6,7 @@ setup:
   languageHint: "这将成为新配置文件和元数据查询的默认语言。可在管理面板中更改。"
   stepOf: "第 {{current}} 步，共 {{total}} 步 - {{name}}"
   steps:
+    language: "语言"
     welcome: "欢迎"
     admin: "管理员账户"
     library: "第一个媒体库"
@@ -27,7 +28,7 @@ setup:
     shows: "电视剧"
     music: "音乐"
     photos: "照片"
-signingIn: "登录中\u2026"
+signingIn: "登录中…"
 login:
   signIn: "登录"
   signInToAccount: "登录到您的账户"
@@ -198,6 +199,7 @@ settings:
     passwordFailed: "更新密码失败"
     passwordMismatch: "密码不匹配"
     passwordMin: "密码至少需要 8 个字符"
+    profileUpdated: 个人资料已更新
   parental:
     title: "家长控制"
     description: "根据分级限制此资料的内容。"
@@ -260,6 +262,7 @@ apiKeys:
   revokeConfirm: "撤销此 API 密钥？它将立即停止工作。"
   keyRevoked: "API 密钥已撤销"
   revokeError: "撤销 API 密钥失败"
+  revoke: 撤销
 devices:
   title: "设备"
   description: "管理推送通知设备。"
@@ -302,3 +305,5 @@ watchHistory:
   clearTitle: "清除观看历史"
   clearConfirm: "这将永久删除您的所有观看历史。此操作无法撤销。"
   clearAll: "全部清除"
+  title: 观看历史
+  openMedia: 打开媒体详情

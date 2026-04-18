@@ -18,6 +18,12 @@ settings:
   serverVersion: सर्वर संस्करण
   switchProfile: "प्रोफ़ाइल बदलें"
   biometricLogin: "बायोमेट्रिक लॉगिन"
+  themeLightBlue: हल्का नीला
 auth:
   biometricPrompt: "Evey अनलॉक करें"
   unlockBiometric: "बायोमेट्रिक से अनलॉक करें"
+  enableBiometric: बायोमेट्रिक लॉगिन सक्षम करें?
+  enableBiometricDesc: अगली बार ऐप अनलॉक करने के लिए बायोमेट्रिक्स का उपयोग करें।
+  haveInvite: निमंत्रण है? साइन अप करें
+profileSelect:
+  title: कौन देख रहा है?

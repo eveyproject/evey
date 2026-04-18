@@ -18,6 +18,12 @@ settings:
   serverVersion: Serverversion
   switchProfile: Profil wechseln
   biometricLogin: "Biometrische Anmeldung"
+  themeLightBlue: Hellblau
 auth:
   biometricPrompt: "Evey entsperren"
   unlockBiometric: "Mit Biometrie entsperren"
+  enableBiometric: Biometrische Anmeldung aktivieren?
+  enableBiometricDesc: Nutze Biometrie, um die App beim nächsten Mal zu entsperren.
+  haveInvite: Einladung erhalten? Registrieren
+profileSelect:
+  title: Wer schaut?

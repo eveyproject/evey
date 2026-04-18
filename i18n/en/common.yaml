@@ -106,6 +106,8 @@ notifications:
   newSeries: "New Series: {{name}}"
   newAlbum: "New Album: {{name}}"
   backupFailed: "Scheduled Backup Failed"
+  clearConfirm: Delete all notifications?
+  clearTitle: Clear notifications
 noNotifications: No notifications
 aria:
   closeMenu: Close menu
@@ -178,7 +180,6 @@ nav:
   profileSwitcher: Switch profile
   manageProfiles: Manage Profiles
 you: You
-confirm: Confirm
 shortcuts:
   title: Keyboard Shortcuts
   focusSearch: Focus search
@@ -208,3 +209,16 @@ feeds:
     recommended: Recommended
     most_popular: Most Popular
     collections: Collections
+added: Added
+change: Change
+clearAll: Clear all
+description: Description
+export: Export JSON
+never: Never
+pause: Pause
+play: Play
+selected: selected
+selectedCount: '{{count}} selected'
+somethingWentWrong: Something went wrong
+tryAgain: Try again
+unknownError: Unknown error

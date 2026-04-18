@@ -18,6 +18,12 @@ settings:
   serverVersion: Server version
   switchProfile: Switch Profile
   biometricLogin: Biometric login
+  themeLightBlue: Light Blue
 auth:
   biometricPrompt: Unlock Evey
   unlockBiometric: Unlock with biometrics
+  enableBiometric: Enable biometric login?
+  enableBiometricDesc: Use biometrics to unlock the app next time.
+  haveInvite: Have an invite? Sign up
+profileSelect:
+  title: Who's watching?

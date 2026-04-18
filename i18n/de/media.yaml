@@ -39,6 +39,11 @@ favorites:
   itemsAddedToPlaylist: "{{count}} Element(e) zu \"{{name}}\" hinzugefügt"
   markedWatched: "{{count}} Element(e) als gesehen markiert"
   markedUnwatched: "{{count}} Element(e) als ungesehen markiert"
+  filterByType: Nach Typ filtern
+  sortBy: Sortieren nach
+  toggleFavorite: Favorit umschalten
+  toggled: Favoriten aktualisiert
+  yearOldest: Jahr (älteste)
 collections:
   title: Sammlungen
   newSmartCollection: Neue Smart-Sammlung
@@ -74,6 +79,8 @@ collections:
   updated: Sammlung aktualisiert
   updateFailed: Sammlung konnte nicht aktualisiert werden
   deleted: Sammlung gelöscht
+  editCollection: Sammlung bearbeiten
+  newCollection: Neue Sammlung
 library:
   title: Bibliothek
   libraries: Bibliotheken
@@ -138,6 +145,11 @@ library:
   audioLanguage: Audiosprache
   subtitleLanguage: Untertitelsprache
   noFilterOptions: Für diese Bibliothek sind noch keine Filteroptionen verfügbar.
+  addToCollection: Zu Sammlung hinzufügen
+  markUnwatched: Als ungesehen markieren
+  markWatched: Als gesehen markieren
+  markedUnwatched: Als ungesehen markiert
+  markedWatched: Als gesehen markiert
 person:
   filmography: Filmografie
   notFound: Person nicht gefunden.
@@ -218,6 +230,7 @@ detail:
   downloadStarted: Download gestartet
   downloadComplete: Download abgeschlossen
   downloadFailed: Download fehlgeschlagen
+  communityRating: 'Community: {{average}}/5 ({{count}} Bewertungen)'
 certBody:
   FR: CSA
   US: MPAA
@@ -335,6 +348,7 @@ syncplay:
   notMusicRoom: "Dieser Raum ist kein Musikraum."
   orPlaylist: "Oder eine Playlist auswählen"
   queue: "Warteschlange"
+  joinByCode: Mit Code beitreten
 playlist:
   name: Name
   description: Beschreibung
@@ -377,6 +391,16 @@ playlist:
   updated: Playlist aktualisiert
   updateFailed: Playlist konnte nicht aktualisiert werden
   reorderFailed: Neuordnung fehlgeschlagen
+  confirmDelete: Playlist „{{name}}“ löschen?
+  confirmRemoveItem: Aus Playlist entfernen?
+  create: Playlist erstellen
+  deleteError: Playlist konnte nicht gelöscht werden
+  descriptionPlaceholder: Beschreibung (optional)
+  namePlaceholder: Playlist-Name
+  removeRule: Regel entfernen
+  smartRules: Smart-Regeln
+  typeManual: Manuell
+  typeSmart: Smart
 search:
   searching: "Suche..."
   noResults: Keine Ergebnisse
@@ -420,3 +444,6 @@ rating:
   dislike: Gefällt mir nicht
   removeLike: Gefällt mir entfernen
   removeDislike: Gefällt mir nicht entfernen
+playlists:
+  notFound: Playlist nicht gefunden
+resume: Fortsetzen

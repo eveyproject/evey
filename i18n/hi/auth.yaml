@@ -6,6 +6,7 @@ setup:
   languageHint: "यह नए प्रोफ़ाइलों और मेटाडेटा के लिए डिफ़ॉल्ट भाषा होगी। बाद में व्यवस्थापक पैनल से बदल सकते हैं।"
   stepOf: "चरण {{current}} / {{total}} - {{name}}"
   steps:
+    language: "भाषा"
     welcome: "स्वागत"
     admin: "एडमिन खाता"
     library: "पहली लाइब्रेरी"
@@ -27,7 +28,7 @@ setup:
     shows: "शो"
     music: "संगीत"
     photos: "फ़ोटो"
-signingIn: "साइन इन हो रहा है\u2026"
+signingIn: "साइन इन हो रहा है…"
 login:
   signIn: "साइन इन"
   signInToAccount: "अपने खाते में साइन इन करें"
@@ -198,6 +199,7 @@ settings:
     passwordFailed: "पासवर्ड अपडेट करने में विफल"
     passwordMismatch: "पासवर्ड मेल नहीं खाते"
     passwordMin: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
+    profileUpdated: प्रोफ़ाइल अपडेट हुई
   parental:
     title: "अभिभावक नियंत्रण"
     description: "इस प्रोफ़ाइल के लिए रेटिंग द्वारा सामग्री प्रतिबंधित करें।"
@@ -260,6 +262,7 @@ apiKeys:
   revokeConfirm: "यह API कुंजी रद्द करें? यह तुरंत काम करना बंद कर देगी।"
   keyRevoked: "API कुंजी रद्द हो गई"
   revokeError: "API कुंजी रद्द करने में विफल"
+  revoke: रद्द करें
 devices:
   title: "उपकरण"
   description: "पुश सूचना उपकरण प्रबंधित करें।"
@@ -302,3 +305,5 @@ watchHistory:
   clearTitle: "देखने का इतिहास साफ़ करें"
   clearConfirm: "यह आपका पूरा देखने का इतिहास स्थायी रूप से मिटा देगा। यह क्रिया पूर्ववत नहीं की जा सकती।"
   clearAll: "सब साफ़ करें"
+  title: देखने का इतिहास
+  openMedia: मीडिया विवरण खोलें

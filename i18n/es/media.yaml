@@ -15,19 +15,19 @@ home:
   customize: Personalizar
   customizeFeed: Personalizar portada
   emptyLibrary: Tu biblioteca está vacía
-  emptyLibraryDesc: "Ve a Administración \u2192 Bibliotecas para añadir una carpeta multimedia."
+  emptyLibraryDesc: "Ve a Administración → Bibliotecas para añadir una carpeta multimedia."
   goToLibraries: Ir a Bibliotecas
   library: Biblioteca
 favorites:
   title: Favoritos
   empty: "Aún no hay favoritos"
-  searchPlaceholder: "Buscar\u2026"
+  searchPlaceholder: "Buscar…"
   all: Todo
   movies: Películas
   series: Series
   recentlyAdded: Añadido recientemente
-  titleAZ: "Título A\u2013Z"
-  titleZA: "Título Z\u2013A"
+  titleAZ: "Título A–Z"
+  titleZA: "Título Z–A"
   yearNewest: Año (más reciente)
   rating: Calificación
   yourRating: "Tu valoración"
@@ -39,6 +39,11 @@ favorites:
   itemsAddedToPlaylist: "{{count}} elemento(s) añadido(s) a \"{{name}}\""
   markedWatched: "{{count}} elemento(s) marcado(s) como visto(s)"
   markedUnwatched: "{{count}} elemento(s) marcado(s) como no visto(s)"
+  filterByType: Filtrar por tipo
+  sortBy: Ordenar por
+  toggleFavorite: Alternar favorito
+  toggled: Favoritos actualizados
+  yearOldest: Año (más antiguos)
 collections:
   title: Colecciones
   newSmartCollection: Nueva colección inteligente
@@ -48,7 +53,7 @@ collections:
   noCollectionsDesc: Las colecciones se generan automáticamente desde las sagas de TMDB.
   deleteConfirm: ¿Eliminar esta colección?
   deleteSmartConfirm: ¿Eliminar esta colección inteligente?
-  browseResults: "Ver resultados \u2192"
+  browseResults: "Ver resultados →"
   smart: Inteligente
   noItems: Sin elementos
   noItemsDesc: Esta colección aún no tiene elementos multimedia.
@@ -61,7 +66,7 @@ collections:
   noCollectionsAvailable: No hay colecciones disponibles.
   itemsAdded: "{{count}} elemento(s) añadido(s) a \"{{name}}\""
   addFailed: Error al añadir a la colección
-  adding: "Añadiendo\u2026"
+  adding: "Añadiendo…"
   editSmartCollection: Editar colección inteligente
   nameRequired: El nombre es obligatorio
   noRulesYet: Sin reglas aún. Añade al menos una regla para filtrar elementos.
@@ -74,6 +79,8 @@ collections:
   updated: Colección actualizada
   updateFailed: Error al actualizar la colección
   deleted: Colección eliminada
+  editCollection: Editar colección
+  newCollection: Nueva colección
 library:
   title: Biblioteca
   libraries: Bibliotecas
@@ -138,6 +145,11 @@ library:
   audioLanguage: Idioma de audio
   subtitleLanguage: Idioma de subtítulos
   noFilterOptions: No hay opciones de filtro disponibles para esta biblioteca.
+  addToCollection: Añadir a colección
+  markUnwatched: Marcar como no visto
+  markWatched: Marcar como visto
+  markedUnwatched: Marcado como no visto
+  markedWatched: Marcado como visto
 person:
   filmography: Filmografía
   notFound: Persona no encontrada.
@@ -218,6 +230,7 @@ detail:
   downloadStarted: Descarga iniciada
   downloadComplete: Descarga completada
   downloadFailed: Error en la descarga
+  communityRating: 'Comunidad: {{average}}/5 ({{count}} valoraciones)'
 certBody:
   FR: CSA
   US: MPAA
@@ -269,8 +282,8 @@ music:
   emptyPlaylist: Esta lista está vacía.
   downloadTrack: Descargar pista
   downloadAlbum: Descargar álbum
-  searchPlaceholder: "Buscar pistas, artistas, álbumes\u2026"
-  loading: "Cargando\u2026"
+  searchPlaceholder: "Buscar pistas, artistas, álbumes…"
+  loading: "Cargando…"
   noTracks: No se encontraron pistas.
   noTracksSearch: Ninguna pista coincide con tu búsqueda.
   noAlbums: No se encontraron álbumes.
@@ -335,6 +348,7 @@ syncplay:
   notMusicRoom: "Esta sala no es una sala de música."
   orPlaylist: "O elige una lista"
   queue: "Cola"
+  joinByCode: Unirse con código
 playlist:
   name: Nombre
   description: Descripción
@@ -377,6 +391,16 @@ playlist:
   updated: Lista de reproducción actualizada
   updateFailed: Error al actualizar la lista de reproducción
   reorderFailed: Error al reordenar
+  confirmDelete: ¿Eliminar la playlist «{{name}}»?
+  confirmRemoveItem: ¿Quitar de la playlist?
+  create: Crear playlist
+  deleteError: Error al eliminar la playlist
+  descriptionPlaceholder: Descripción (opcional)
+  namePlaceholder: Nombre de la playlist
+  removeRule: Quitar regla
+  smartRules: Reglas inteligentes
+  typeManual: Manual
+  typeSmart: Inteligente
 search:
   searching: "Buscando..."
   noResults: Sin resultados
@@ -384,15 +408,15 @@ search:
   recentSearches: Búsquedas recientes
   clearAll: Borrar todo
   searchFailed: Error en la búsqueda
-  placeholder: "Buscar películas, series\u2026"
+  placeholder: "Buscar películas, series…"
   all: Todo
   movies: Películas
   series: Series
-  noResultsFor: "Sin resultados para \u201c{{query}}\u201d"
+  noResultsFor: "Sin resultados para “{{query}}”"
   noResultsDesc: Prueba con otro término, verifica la ortografía o cambia el filtro.
   resultCount: "{{count}} resultado"
   resultCount_plural: "{{count}} resultados"
-  resultFor: "para \u201c{{query}}\u201d"
+  resultFor: "para “{{query}}”"
   searchLibrary: Busca en tu biblioteca multimedia
   searchLibraryDesc: Escribe al menos 2 caracteres para buscar en tus películas, series y más.
   clearSearch: Borrar búsqueda
@@ -406,7 +430,7 @@ search:
   toYear: Hasta
   sortBy: Ordenar por
   relevance: Relevancia
-  titleAZ: "Título A\u2013Z"
+  titleAZ: "Título A–Z"
   yearNewest: Año (más reciente)
   dateAdded: Fecha de adición
 streams:
@@ -420,3 +444,6 @@ rating:
   dislike: No me gusta
   removeLike: Quitar me gusta
   removeDislike: Quitar no me gusta
+playlists:
+  notFound: Playlist no encontrada
+resume: Reanudar

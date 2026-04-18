@@ -106,6 +106,8 @@ notifications:
   newSeries: "Neue Serie: {{name}}"
   newAlbum: "Neues Album: {{name}}"
   backupFailed: "Geplante Sicherung fehlgeschlagen"
+  clearConfirm: Alle Benachrichtigungen löschen?
+  clearTitle: Benachrichtigungen löschen
 noNotifications: Keine Benachrichtigungen
 aria:
   closeMenu: Menü schließen
@@ -160,7 +162,7 @@ nav:
   favorites: Favoriten
   search: Suche
   music: Musik
-  syncplay: "Listen Together"
+  syncplay: "Gemeinsam hören"
   admin: Verwaltung
   backToApp: Zurück zur App
   profile: Profil
@@ -178,7 +180,6 @@ nav:
   profileSwitcher: Profil wechseln
   manageProfiles: Profile verwalten
 you: Du
-confirm: Bestätigen
 shortcuts:
   title: Tastenkürzel
   focusSearch: Suche fokussieren
@@ -208,3 +209,16 @@ feeds:
     recommended: Empfohlen
     most_popular: Am beliebtesten
     collections: Sammlungen
+added: Hinzugefügt
+change: Ändern
+clearAll: Alles löschen
+description: Beschreibung
+export: JSON exportieren
+never: Nie
+pause: Pause
+play: Wiedergabe
+selected: ausgewählt
+selectedCount: '{{count}} ausgewählt'
+somethingWentWrong: Etwas ist schiefgelaufen
+tryAgain: Erneut versuchen
+unknownError: Unbekannter Fehler

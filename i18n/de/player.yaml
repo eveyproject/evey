@@ -93,3 +93,24 @@ shortcuts:
   increaseSpeed: Geschwindigkeit erhöhen
   pip: Bild-in-Bild
   showShortcuts: Tastenkürzel anzeigen
+nowPlaying: Wird wiedergegeben
+stop: Wiedergabe stoppen
+streamInfo:
+  title: Stream-Info
+  playback: Wiedergabe
+  method: Methode
+  container: Container
+  totalBitrate: Gesamt-Bitrate
+  video: Video
+  codec: Codec
+  resolution: Auflösung
+  bitrate: Bitrate
+  framerate: Bildrate
+  profile: Profil
+  pixelFormat: Pixelformat
+  decision: Entscheidung
+  audio: Audio
+  channels: Kanäle
+  language: Sprache
+  sampleRate: Abtastrate
+  transcodeReasons: Transcodierungsgründe

@@ -18,6 +18,12 @@ settings:
   serverVersion: Version du serveur
   switchProfile: Changer de profil
   biometricLogin: Connexion biometrique
+  themeLightBlue: Bleu clair
 auth:
   biometricPrompt: Deverrouiller Evey
   unlockBiometric: Deverrouiller avec la biometrie
+  enableBiometric: Activer la connexion biométrique ?
+  enableBiometricDesc: Utilisez la biométrie pour déverrouiller l'app la prochaine fois.
+  haveInvite: Vous avez une invitation ? Inscrivez-vous
+profileSelect:
+  title: Qui regarde ?

@@ -124,6 +124,8 @@ notifications:
   newSeries: "Nouvelle série : {{name}}"
   newAlbum: "Nouvel album : {{name}}"
   backupFailed: "Échec de la sauvegarde planifiée"
+  clearConfirm: Supprimer toutes les notifications ?
+  clearTitle: Effacer les notifications
 watchHistory:
   title: "Historique de lecture"
 userStats:
@@ -162,7 +164,6 @@ nav:
   profileSwitcher: "Changer de profil"
   manageProfiles: "Gérer les profils"
 you: "Vous"
-confirm: "Confirmer"
 shortcuts:
   title: Raccourcis clavier
   focusSearch: Rechercher
@@ -208,3 +209,16 @@ serverVersion: Version du serveur
 retry: Réessayer
 itemCount_one: "{{count}} élément"
 itemCount_other: "{{count}} éléments"
+added: Ajouté
+change: Modifier
+clearAll: Tout effacer
+description: Description
+export: Exporter JSON
+never: Jamais
+pause: Pause
+play: Lecture
+selected: sélectionné
+selectedCount: '{{count}} sélectionné(s)'
+somethingWentWrong: Une erreur est survenue
+tryAgain: Réessayer
+unknownError: Erreur inconnue

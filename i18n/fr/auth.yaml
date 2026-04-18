@@ -28,7 +28,7 @@ setup:
     shows: Séries
     music: Musique
     photos: Photos
-signingIn: "Connexion en cours\u2026"
+signingIn: "Connexion en cours…"
 login:
   signIn: "Se connecter"
   signInToAccount: "Connectez-vous à votre compte"
@@ -199,6 +199,7 @@ settings:
     passwordFailed: "Échec de la mise à jour du mot de passe"
     passwordMismatch: "Les mots de passe ne correspondent pas"
     passwordMin: "Le mot de passe doit contenir au moins 8 caractères"
+    profileUpdated: Profil mis à jour
   parental:
     title: "Contrôle parental"
     description: "Restreindre le contenu par classification pour ce profil."
@@ -261,6 +262,7 @@ apiKeys:
   revokeConfirm: "Révoquer cette clé API ? Elle cessera de fonctionner immédiatement."
   keyRevoked: "Clé API révoquée"
   revokeError: "Échec de la révocation de la clé API"
+  revoke: Révoquer
 devices:
   title: "Appareils"
   description: "Gérer les appareils de notifications push."
@@ -303,3 +305,5 @@ watchHistory:
   clearTitle: "Effacer l'historique de lecture"
   clearConfirm: "Cela supprimera définitivement tout votre historique de lecture. Cette action est irréversible."
   clearAll: "Tout effacer"
+  title: Historique de visionnage
+  openMedia: Ouvrir les détails du média

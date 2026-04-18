@@ -124,6 +124,8 @@ notifications:
   newSeries: "Nueva serie: {{name}}"
   newAlbum: "Nuevo álbum: {{name}}"
   backupFailed: "Fallo en la copia de seguridad programada"
+  clearConfirm: ¿Eliminar todas las notificaciones?
+  clearTitle: Borrar notificaciones
 watchHistory:
   title: "Historial de reproducción"
 userStats:
@@ -144,7 +146,7 @@ nav:
   favorites: "Favoritos"
   search: "Buscar"
   music: "Música"
-  syncplay: "Listen Together"
+  syncplay: "Escuchar juntos"
   admin: "Administración"
   backToApp: "Volver a la aplicación"
   profile: "Perfil"
@@ -162,7 +164,6 @@ nav:
   profileSwitcher: "Cambiar de perfil"
   manageProfiles: "Gestionar perfiles"
 you: "Tú"
-confirm: "Confirmar"
 shortcuts:
   title: Atajos de teclado
   focusSearch: Enfocar búsqueda
@@ -208,3 +209,16 @@ serverVersion: Versión del servidor
 retry: Reintentar
 itemCount_one: "{{count}} elemento"
 itemCount_other: "{{count}} elementos"
+added: Añadido
+change: Cambiar
+clearAll: Borrar todo
+description: Descripción
+export: Exportar JSON
+never: Nunca
+pause: Pausa
+play: Reproducir
+selected: seleccionado
+selectedCount: '{{count}} seleccionado(s)'
+somethingWentWrong: Algo salió mal
+tryAgain: Intentar de nuevo
+unknownError: Error desconocido

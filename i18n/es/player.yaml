@@ -68,7 +68,7 @@ nextEpisodeOverlay:
 skipIntro: "Saltar intro"
 download: "Descargar"
 watchTogether: "Ver juntos"
-buffering: "Cargando\u2026"
+buffering: "Cargando…"
 playbackFailed: "Error de reproducción"
 unableToPlayAnyQuality: "No se puede reproducir a ningún nivel de calidad"
 failedToStart: "Error al iniciar la reproducción"
@@ -93,3 +93,24 @@ shortcuts:
   increaseSpeed: "Aumentar velocidad"
   pip: "Imagen en imagen"
   showShortcuts: "Mostrar atajos"
+nowPlaying: Reproduciendo
+stop: Detener reproducción
+streamInfo:
+  title: Información del flujo
+  playback: Reproducción
+  method: Método
+  container: Contenedor
+  totalBitrate: Bitrate total
+  video: Vídeo
+  codec: Códec
+  resolution: Resolución
+  bitrate: Bitrate
+  framerate: Tasa de fotogramas
+  profile: Perfil
+  pixelFormat: Formato de píxel
+  decision: Decisión
+  audio: Audio
+  channels: Canales
+  language: Idioma
+  sampleRate: Frecuencia de muestreo
+  transcodeReasons: Razones de transcodificación

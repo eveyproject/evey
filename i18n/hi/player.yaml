@@ -93,3 +93,24 @@ shortcuts:
   increaseSpeed: "गति बढ़ाएं"
   pip: "पिक्चर-इन-पिक्चर"
   showShortcuts: "शॉर्टकट दिखाएं"
+nowPlaying: अभी चल रहा है
+stop: प्लेबैक रोकें
+streamInfo:
+  title: स्ट्रीम जानकारी
+  playback: प्लेबैक
+  method: विधि
+  container: कंटेनर
+  totalBitrate: कुल बिटरेट
+  video: वीडियो
+  codec: कोडेक
+  resolution: रिज़ॉल्यूशन
+  bitrate: बिटरेट
+  framerate: फ़्रेम दर
+  profile: प्रोफ़ाइल
+  pixelFormat: पिक्सेल फ़ॉर्मेट
+  decision: निर्णय
+  audio: ऑडियो
+  channels: चैनल
+  language: भाषा
+  sampleRate: नमूना दर
+  transcodeReasons: ट्रांसकोड कारण

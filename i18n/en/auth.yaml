@@ -28,7 +28,7 @@ setup:
     shows: Shows
     music: Music
     photos: Photos
-signingIn: "Signing in\u2026"
+signingIn: "Signing in…"
 login:
   signIn: Sign in
   signInToAccount: Sign in to your account
@@ -199,6 +199,7 @@ settings:
     passwordFailed: Failed to update password
     passwordMismatch: Passwords do not match
     passwordMin: Password must be at least 8 characters
+    profileUpdated: Profile updated
   parental:
     title: Parental Controls
     description: Restrict content by rating for this profile.
@@ -261,6 +262,7 @@ apiKeys:
   revokeConfirm: Revoke this API key? It will stop working immediately.
   keyRevoked: API key revoked
   revokeError: Failed to revoke API key
+  revoke: Revoke
 devices:
   title: Devices
   description: Manage push notification devices.
@@ -303,3 +305,5 @@ watchHistory:
   clearTitle: Clear Watch History
   clearConfirm: This will permanently delete all your watch history. This action cannot be undone.
   clearAll: Clear all
+  title: Watch history
+  openMedia: Open media details

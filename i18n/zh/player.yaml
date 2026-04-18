@@ -93,3 +93,24 @@ shortcuts:
   increaseSpeed: "加快速度"
   pip: "画中画"
   showShortcuts: "显示快捷键"
+nowPlaying: 正在播放
+stop: 停止播放
+streamInfo:
+  title: 流信息
+  playback: 播放
+  method: 方法
+  container: 容器
+  totalBitrate: 总比特率
+  video: 视频
+  codec: 编解码器
+  resolution: 分辨率
+  bitrate: 比特率
+  framerate: 帧率
+  profile: 配置文件
+  pixelFormat: 像素格式
+  decision: 决策
+  audio: 音频
+  channels: 声道
+  language: 语言
+  sampleRate: 采样率
+  transcodeReasons: 转码原因

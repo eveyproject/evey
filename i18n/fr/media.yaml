@@ -15,19 +15,19 @@ home:
   customize: Personnaliser
   customizeFeed: Personnaliser le flux
   emptyLibrary: Votre bibliothèque est vide
-  emptyLibraryDesc: "Allez dans Administration \u2192 Bibliothèques pour ajouter un dossier multimédia."
+  emptyLibraryDesc: "Allez dans Administration → Bibliothèques pour ajouter un dossier multimédia."
   goToLibraries: Aller aux bibliothèques
   library: Bibliothèque
 favorites:
   title: Favoris
   empty: "Pas encore de favoris"
-  searchPlaceholder: "Rechercher\u2026"
+  searchPlaceholder: "Rechercher…"
   all: Tout
   movies: Films
   series: Séries
   recentlyAdded: Ajoutés récemment
-  titleAZ: "Titre A\u2013Z"
-  titleZA: "Titre Z\u2013A"
+  titleAZ: "Titre A–Z"
+  titleZA: "Titre Z–A"
   yearNewest: Année (plus récent)
   rating: Note
   yourRating: "Votre note"
@@ -39,6 +39,11 @@ favorites:
   itemsAddedToPlaylist: "{{count}} élément(s) ajouté(s) à \"{{name}}\""
   markedWatched: "{{count}} élément(s) marqué(s) comme vu(s)"
   markedUnwatched: "{{count}} élément(s) marqué(s) comme non vu(s)"
+  filterByType: Filtrer par type
+  sortBy: Trier par
+  toggleFavorite: Basculer favori
+  toggled: Favoris mis à jour
+  yearOldest: Année (anciennes)
 collections:
   title: Collections
   newSmartCollection: Nouvelle collection intelligente
@@ -48,7 +53,7 @@ collections:
   noCollectionsDesc: Les collections sont automatiquement générées à partir des sagas TMDB.
   deleteConfirm: Supprimer cette collection ?
   deleteSmartConfirm: Supprimer cette collection intelligente ?
-  browseResults: "Parcourir les résultats \u2192"
+  browseResults: "Parcourir les résultats →"
   smart: Intelligent
   noItems: Aucun élément
   noItemsDesc: "Cette collection n'a pas encore d'éléments multimédias."
@@ -61,7 +66,7 @@ collections:
   noCollectionsAvailable: Aucune collection disponible.
   itemsAdded: "{{count}} élément(s) ajouté(s) à \"{{name}}\""
   addFailed: "Échec de l'ajout à la collection"
-  adding: "Ajout en cours\u2026"
+  adding: "Ajout en cours…"
   editSmartCollection: Modifier la collection intelligente
   nameRequired: Le nom est obligatoire
   noRulesYet: Pas encore de règles. Ajoutez au moins une règle pour filtrer les éléments.
@@ -74,6 +79,8 @@ collections:
   updated: Collection mise à jour
   updateFailed: Échec de la mise à jour de la collection
   deleted: Collection supprimée
+  editCollection: Modifier la collection
+  newCollection: Nouvelle collection
 library:
   title: Bibliothèque
   libraries: Bibliothèques
@@ -138,6 +145,11 @@ library:
   audioLanguage: Langue audio
   subtitleLanguage: Langue des sous-titres
   noFilterOptions: Aucune option de filtre disponible pour cette bibliothèque.
+  addToCollection: Ajouter à la collection
+  markUnwatched: Marquer non vu
+  markWatched: Marquer vu
+  markedUnwatched: Marqué non vu
+  markedWatched: Marqué vu
 person:
   filmography: Filmographie
   notFound: Personne introuvable.
@@ -218,6 +230,7 @@ detail:
   downloadStarted: Téléchargement lancé
   downloadComplete: Téléchargement terminé
   downloadFailed: Échec du téléchargement
+  communityRating: 'Communauté : {{average}}/5 ({{count}} avis)'
 certBody:
   FR: CSA
   US: MPAA
@@ -269,8 +282,8 @@ music:
   emptyPlaylist: Cette playlist est vide.
   downloadTrack: Télécharger la piste
   downloadAlbum: Télécharger l'album
-  searchPlaceholder: "Rechercher pistes, artistes, albums\u2026"
-  loading: "Chargement\u2026"
+  searchPlaceholder: "Rechercher pistes, artistes, albums…"
+  loading: "Chargement…"
   noTracks: Aucune piste trouvée.
   noTracksSearch: Aucune piste ne correspond à votre recherche.
   noAlbums: Aucun album trouvé.
@@ -291,7 +304,7 @@ music:
   unmute: Rétablir le son
   resetFilters: Réinitialiser les filtres
   addToPlaylist: Ajouter à la playlist
-  newPlaylist: "Nouvelle playlist\u2026"
+  newPlaylist: "Nouvelle playlist…"
   playlistCreated: Playlist créée
   addedToPlaylist: Ajouté à la playlist
   createPlaylistPrompt: Nom de la playlist
@@ -335,6 +348,7 @@ syncplay:
   notMusicRoom: "Cette salle n'est pas une salle musicale."
   orPlaylist: "Ou choisir une playlist"
   queue: "File d'attente"
+  joinByCode: Rejoindre avec un code
 playlist:
   name: Nom
   description: Description
@@ -377,6 +391,16 @@ playlist:
   updated: Liste de lecture mise à jour
   updateFailed: Échec de la mise à jour de la liste de lecture
   reorderFailed: Échec du réordonnancement
+  confirmDelete: Supprimer la playlist « {{name}} » ?
+  confirmRemoveItem: Retirer de la playlist ?
+  create: Créer une playlist
+  deleteError: Échec de suppression de la playlist
+  descriptionPlaceholder: Description (facultatif)
+  namePlaceholder: Nom de la playlist
+  removeRule: Supprimer la règle
+  smartRules: Règles intelligentes
+  typeManual: Manuelle
+  typeSmart: Intelligente
 search:
   searching: "Recherche..."
   noResults: Aucun résultat
@@ -384,15 +408,15 @@ search:
   recentSearches: Recherches récentes
   clearAll: Tout effacer
   searchFailed: Échec de la recherche
-  placeholder: "Rechercher films, séries\u2026"
+  placeholder: "Rechercher films, séries…"
   all: Tout
   movies: Films
   series: Séries
-  noResultsFor: "Aucun résultat pour \u201c{{query}}\u201d"
+  noResultsFor: "Aucun résultat pour “{{query}}”"
   noResultsDesc: "Essayez un autre terme, vérifiez l'orthographe ou changez le filtre."
   resultCount: "{{count}} résultat"
   resultCount_plural: "{{count}} résultats"
-  resultFor: "pour \u201c{{query}}\u201d"
+  resultFor: "pour “{{query}}”"
   searchLibrary: Rechercher dans votre médiathèque
   searchLibraryDesc: "Saisissez au moins 2 caractères pour rechercher parmi vos films, séries et plus."
   clearSearch: Effacer la recherche
@@ -406,7 +430,7 @@ search:
   toYear: À
   sortBy: Trier par
   relevance: Pertinence
-  titleAZ: "Titre A\u2013Z"
+  titleAZ: "Titre A–Z"
   yearNewest: Année (plus récent)
   dateAdded: "Date d'ajout"
 streams:
@@ -420,3 +444,6 @@ rating:
   dislike: "Je n'aime pas"
   removeLike: "Retirer j'aime"
   removeDislike: "Retirer je n'aime pas"
+playlists:
+  notFound: Playlist introuvable
+resume: Reprendre
