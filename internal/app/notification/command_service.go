@@ -555,6 +555,9 @@ func (s *CommandService) handlePluginError(parentCtx context.Context, ev shared.
 		}
 		s.persistAndDispatch(ctx, n, n.Title)
 	}
+	slog.Info("plugin error notified",
+		slog.String("plugin_id", e.PluginID),
+		slog.Int("admins", len(profiles)))
 }
 
 // listAdminTargetProfiles prefers the optional AdminProfileLister so
