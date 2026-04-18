@@ -295,6 +295,11 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 					slog.String("plugin_id", p.ID),
 					slog.String("sandbox_lib", sandboxLibPath))
 				r.publishPluginError(parentCtx, p.ID, "sandbox library unavailable; plugin refused start")
+				cancel()
+				if r.hostRegistry != nil {
+					r.hostRegistry.UnregisterPlugin(p.ID)
+				}
+				os.RemoveAll(pluginSockDir)
 				return fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
 			}
 			slog.Warn("starting plugin without sandbox (dev override)",
