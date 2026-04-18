@@ -569,17 +569,8 @@ func (r *Runner) ensureSandboxLib() string {
 			r.sandboxLib = sandboxLibPath
 			return
 		}
-		srcPath := filepath.Join("/app", "sandbox", "sandbox.c")
-		if _, err := os.Stat(srcPath); err != nil {
-			return
-		}
-		cmd := exec.Command("gcc", "-shared", "-fPIC", "-nostartfiles", "-o", sandboxLibPath, srcPath)
-		if err := cmd.Run(); err != nil {
-			slog.Warn("compile sandbox lib failed", slog.Any("err", err))
-			return
-		}
-		slog.Info("compiled sandbox lib", slog.String("path", sandboxLibPath))
-		r.sandboxLib = sandboxLibPath
+		slog.Error("sandbox lib missing — build-time artifact required",
+			slog.String("path", sandboxLibPath))
 	})
 	return r.sandboxLib
 }
