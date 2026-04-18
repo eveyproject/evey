@@ -94,7 +94,11 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 			continue
 		}
 		if allowedSet != nil {
-			rating := strings.ToUpper(strings.TrimSpace(item.OfficialRating))
+			official := ""
+			if item.Classification != nil {
+				official = item.Classification.OfficialRating
+			}
+			rating := strings.ToUpper(strings.TrimSpace(official))
 			if rating != "" && !allowedSet[rating] {
 				continue
 			}
@@ -105,8 +109,11 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 		if filter.YearTo != 0 && (item.Year == nil || *item.Year > filter.YearTo) {
 			continue
 		}
-		if filter.MinRating != 0 && (item.CommunityRating == nil || *item.CommunityRating < filter.MinRating) {
-			continue
+		if filter.MinRating != 0 {
+			cr := classificationCommunityRating(item)
+			if cr == nil || *cr < filter.MinRating {
+				continue
+			}
 		}
 		result = append(result, item)
 	}
@@ -150,7 +157,11 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 			continue
 		}
 		if allowedSet != nil {
-			rating := strings.ToUpper(strings.TrimSpace(item.OfficialRating))
+			official := ""
+			if item.Classification != nil {
+				official = item.Classification.OfficialRating
+			}
+			rating := strings.ToUpper(strings.TrimSpace(official))
 			if rating != "" && !allowedSet[rating] {
 				continue
 			}
@@ -161,8 +172,11 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 		if filter.YearTo != 0 && (item.Year == nil || *item.Year > filter.YearTo) {
 			continue
 		}
-		if filter.MinRating != 0 && (item.CommunityRating == nil || *item.CommunityRating < filter.MinRating) {
-			continue
+		if filter.MinRating != 0 {
+			cr := classificationCommunityRating(item)
+			if cr == nil || *cr < filter.MinRating {
+				continue
+			}
 		}
 		count++
 	}
@@ -237,6 +251,13 @@ func (r *FakeMediaItemQueryRepo) SeriesAggregate(_ context.Context, seriesID sha
 	}
 	agg.SeasonCount = len(seasons)
 	return agg, nil
+}
+
+func classificationCommunityRating(m *library.MediaItem) *float64 {
+	if m == nil || m.Classification == nil {
+		return nil
+	}
+	return m.Classification.CommunityRating
 }
 
 // Seed adds items for testing.

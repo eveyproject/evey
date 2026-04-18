@@ -480,10 +480,10 @@ func TestListMediaItems_ParentalFilter_ExcludesRatedR(t *testing.T) {
 	t.Parallel()
 	querySvc, mediaQueryRepo, _ := newQuerySvc()
 
-	mediaQueryRepo.Seed(&library.MediaItem{ID: "g-movie", Title: "G Movie", OfficialRating: "G"})
-	mediaQueryRepo.Seed(&library.MediaItem{ID: "pg-movie", Title: "PG Movie", OfficialRating: "PG"})
-	mediaQueryRepo.Seed(&library.MediaItem{ID: "r-movie", Title: "R Movie", OfficialRating: "R"})
-	mediaQueryRepo.Seed(&library.MediaItem{ID: "nc17-movie", Title: "NC-17 Movie", OfficialRating: "NC-17"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "g-movie", Title: "G Movie", Classification: &library.MediaClassification{OfficialRating: "G"}})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "pg-movie", Title: "PG Movie", Classification: &library.MediaClassification{OfficialRating: "PG"}})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "r-movie", Title: "R Movie", Classification: &library.MediaClassification{OfficialRating: "R"}})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "nc17-movie", Title: "NC-17 Movie", Classification: &library.MediaClassification{OfficialRating: "NC-17"}})
 
 	items, err := querySvc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{
 		AllowedRatings: ratings.AllowedRatingsForAge(10),
@@ -504,9 +504,9 @@ func TestListMediaItems_ParentalFilter_NoRating(t *testing.T) {
 	t.Parallel()
 	querySvc, mediaQueryRepo, _ := newQuerySvc()
 
-	mediaQueryRepo.Seed(&library.MediaItem{ID: "g-movie", Title: "G Movie", OfficialRating: "G"})
-	mediaQueryRepo.Seed(&library.MediaItem{ID: "r-movie", Title: "R Movie", OfficialRating: "R"})
-	mediaQueryRepo.Seed(&library.MediaItem{ID: "unrated", Title: "Unrated Movie", OfficialRating: ""})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "g-movie", Title: "G Movie", Classification: &library.MediaClassification{OfficialRating: "G"}})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "r-movie", Title: "R Movie", Classification: &library.MediaClassification{OfficialRating: "R"}})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "unrated", Title: "Unrated Movie"})
 
 	// no AllowedRatings = no parental filter
 	items, err := querySvc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{})
@@ -525,8 +525,8 @@ func TestListMediaItems_ParentalFilter_UnratedItemVisible(t *testing.T) {
 	t.Parallel()
 	querySvc, mediaQueryRepo, _ := newQuerySvc()
 
-	mediaQueryRepo.Seed(&library.MediaItem{ID: "unrated", Title: "Unrated Movie", OfficialRating: ""})
-	mediaQueryRepo.Seed(&library.MediaItem{ID: "r-movie", Title: "R Movie", OfficialRating: "R"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "unrated", Title: "Unrated Movie"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "r-movie", Title: "R Movie", Classification: &library.MediaClassification{OfficialRating: "R"}})
 
 	items, err := querySvc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{
 		AllowedRatings: ratings.AllowedRatingsForAge(10),

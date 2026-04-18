@@ -127,11 +127,20 @@ func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.Metadata
 	item.Studios = result.Studios
 	item.PremiereDate = result.PremiereDate
 	item.Year = result.Year
-	item.CommunityRating = result.CommunityRating
-	item.OfficialRating = result.OfficialRating
-	if len(result.CertificationsByCountry) > 0 {
-		item.CertificationsByCountry = maps.Clone(result.CertificationsByCountry)
+
+	if item.Classification == nil {
+		item.Classification = &domainlib.MediaClassification{}
 	}
+	item.Classification.CommunityRating = result.CommunityRating
+	item.Classification.OfficialRating = result.OfficialRating
+	if len(result.CertificationsByCountry) > 0 {
+		item.Classification.CertificationsByCountry = maps.Clone(result.CertificationsByCountry)
+	}
+	if item.Classification.ProviderRatings == nil {
+		item.Classification.ProviderRatings = make(map[string]float64)
+	}
+	maps.Copy(item.Classification.ProviderRatings, result.Ratings)
+
 	item.Trailers = make([]domainlib.Trailer, 0, len(result.Trailers))
 	for _, t := range result.Trailers {
 		item.Trailers = append(item.Trailers, domainlib.Trailer{
@@ -150,11 +159,6 @@ func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.Metadata
 		item.ProviderIDs = make(map[string]string)
 	}
 	maps.Copy(item.ProviderIDs, result.ProviderIDs)
-
-	if item.Ratings == nil {
-		item.Ratings = make(map[string]float64)
-	}
-	maps.Copy(item.Ratings, result.Ratings)
 }
 
 func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwork []domainmetadata.ArtworkResult) error {

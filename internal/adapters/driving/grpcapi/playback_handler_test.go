@@ -254,7 +254,7 @@ func TestPlaybackHandler_StartStream_ParentalBlocked(t *testing.T) {
 		ID:             "mi-r",
 		Title:          "R-Rated Movie",
 		Type:           "movie",
-		OfficialRating: "R",
+		Classification: &library.MediaClassification{OfficialRating: "R"},
 	})
 
 	ctx := pbAdminCtx()
@@ -284,7 +284,7 @@ func TestPlaybackHandler_StartStream_ParentalAllowed(t *testing.T) {
 		ID:             "mi-pg",
 		Title:          "PG Movie",
 		Type:           "movie",
-		OfficialRating: "PG",
+		Classification: &library.MediaClassification{OfficialRating: "PG"},
 	})
 
 	ctx := pbAdminCtx()
@@ -313,7 +313,7 @@ func TestPlaybackHandler_StartStream_ParentalDisabled(t *testing.T) {
 		ID:             "mi-r2",
 		Title:          "R-Rated Movie 2",
 		Type:           "movie",
-		OfficialRating: "R",
+		Classification: &library.MediaClassification{OfficialRating: "R"},
 	})
 
 	ctx := pbAdminCtx()

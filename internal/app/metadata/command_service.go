@@ -326,11 +326,9 @@ func (s *CommandService) resetSingleItem(ctx context.Context, item *library.Medi
 	item.Tagline = ""
 	item.OriginalTitle = ""
 	item.ProviderIDs = nil
-	item.Ratings = nil
 	item.Genres = nil
 	item.Studios = nil
-	item.CommunityRating = nil
-	item.OfficialRating = ""
+	item.Classification = nil
 	item.Trailers = nil
 	item.Year = nil
 	item.PremiereDate = nil

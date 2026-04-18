@@ -298,7 +298,7 @@ func TestApplyOverridesToItem(t *testing.T) {
 		OriginalTitle:   "Titre Original",
 		Overview:        "Old overview",
 		Year:            &year,
-		CommunityRating: &rating,
+		Classification: &library.MediaClassification{CommunityRating: &rating},
 		Genres:          []string{"Drama"},
 	}
 
@@ -317,7 +317,8 @@ func TestApplyOverridesToItem(t *testing.T) {
 	assert.Equal(t, "Nouveau Titre", item.OriginalTitle)
 	assert.Equal(t, "New overview", item.Overview)
 	assert.Equal(t, 2024, *item.Year)
-	assert.InDelta(t, 9.1, *item.CommunityRating, 0.01)
+	require.NotNil(t, item.Classification)
+	assert.InDelta(t, 9.1, *item.Classification.CommunityRating, 0.01)
 	assert.Equal(t, []string{"Action", "Sci-Fi"}, item.Genres)
 }
 

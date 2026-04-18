@@ -164,13 +164,19 @@ func mergeProviderIDs(item *domainlib.MediaItem, src map[string]string) bool {
 }
 
 func mergeRatings(item *domainlib.MediaItem, src map[string]float64) bool {
+	if len(src) == 0 {
+		return false
+	}
+	if item.Classification == nil {
+		item.Classification = &domainlib.MediaClassification{}
+	}
+	if item.Classification.ProviderRatings == nil {
+		item.Classification.ProviderRatings = make(map[string]float64)
+	}
 	changed := false
 	for k, v := range src {
-		if _, exists := item.Ratings[k]; !exists {
-			if item.Ratings == nil {
-				item.Ratings = make(map[string]float64)
-			}
-			item.Ratings[k] = v
+		if _, exists := item.Classification.ProviderRatings[k]; !exists {
+			item.Classification.ProviderRatings[k] = v
 			changed = true
 		}
 	}

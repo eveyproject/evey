@@ -123,11 +123,10 @@ func TestMediaItemToProto(t *testing.T) {
 		Type:            "movie",
 		Title:           "Test Movie",
 		IndexNumber:     &idx,
-		CommunityRating: &rating,
+		Classification: &library.MediaClassification{CommunityRating: &rating, ProviderRatings: map[string]float64{"imdb": 7.5}},
 		Year:            &year,
 		PremiereDate:    &premiere,
 		Trailers:        []library.Trailer{{Site: "YouTube", Key: "k1"}},
-		Ratings:         map[string]float64{"imdb": 7.5},
 		AddedAt:         time.Now(),
 		UpdatedAt:       time.Now(),
 	}

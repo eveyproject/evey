@@ -69,16 +69,19 @@ func (s *FakeSearchIndex) Search(_ context.Context, query string, _ map[string]s
 	q := strings.ToLower(query)
 	for _, item := range s.items {
 		if strings.Contains(strings.ToLower(item.Title), q) {
-			hits = append(hits, library.SearchHit{
-				ID:             string(item.ID),
-				LibraryID:      item.LibraryID,
-				Title:          item.Title,
-				Year:           item.Year,
-				Type:           string(item.Type),
-				Genres:         item.Genres,
-				Tags:           item.Tags,
-				OfficialRating: item.OfficialRating,
-			})
+			hit := library.SearchHit{
+				ID:        string(item.ID),
+				LibraryID: item.LibraryID,
+				Title:     item.Title,
+				Year:      item.Year,
+				Type:      string(item.Type),
+				Genres:    item.Genres,
+				Tags:      item.Tags,
+			}
+			if item.Classification != nil {
+				hit.OfficialRating = item.Classification.OfficialRating
+			}
+			hits = append(hits, hit)
 		}
 	}
 	if limit > 0 && int64(len(hits)) > limit {

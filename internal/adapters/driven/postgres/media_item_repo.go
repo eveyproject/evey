@@ -240,8 +240,9 @@ func upsertMediaCatalog(ctx context.Context, tx *sql.Tx, item *library.MediaItem
 }
 
 func upsertMediaClassification(ctx context.Context, tx *sql.Tx, item *library.MediaItem) error {
-	hasData := item.CommunityRating != nil || item.OfficialRating != "" ||
-		len(item.CertificationsByCountry) > 0 || len(item.Ratings) > 0
+	c := item.Classification
+	hasData := c != nil && (c.CommunityRating != nil || c.OfficialRating != "" ||
+		len(c.CertificationsByCountry) > 0 || len(c.ProviderRatings) > 0)
 	if !hasData {
 		_, err := tx.ExecContext(ctx, `DELETE FROM media_classifications WHERE media_item_id = $1`, string(item.ID))
 		if err != nil {
@@ -249,11 +250,11 @@ func upsertMediaClassification(ctx context.Context, tx *sql.Tx, item *library.Me
 		}
 		return nil
 	}
-	certJSON, err := json.Marshal(orEmptyMap(item.CertificationsByCountry))
+	certJSON, err := json.Marshal(orEmptyMap(c.CertificationsByCountry))
 	if err != nil {
 		return fmt.Errorf("marshal certifications: %w", err)
 	}
-	ratingsJSON, err := json.Marshal(orEmptyFloatMap(item.Ratings))
+	ratingsJSON, err := json.Marshal(orEmptyFloatMap(c.ProviderRatings))
 	if err != nil {
 		return fmt.Errorf("marshal provider_ratings: %w", err)
 	}
@@ -265,7 +266,7 @@ func upsertMediaClassification(ctx context.Context, tx *sql.Tx, item *library.Me
 		   official_rating = EXCLUDED.official_rating,
 		   certifications_by_country = EXCLUDED.certifications_by_country,
 		   provider_ratings = EXCLUDED.provider_ratings`,
-		string(item.ID), item.CommunityRating, item.OfficialRating, certJSON, ratingsJSON,
+		string(item.ID), c.CommunityRating, c.OfficialRating, certJSON, ratingsJSON,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert media_classifications: %w", err)
@@ -839,23 +840,28 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		}
 	}
 
-	// Classification fields.
-	if communityRating.Valid {
-		v := communityRating.Float64
-		item.CommunityRating = &v
-	}
-	if officialRating.Valid {
-		item.OfficialRating = officialRating.String
-	}
-	if len(certJSON) > 0 {
-		if err := json.Unmarshal(certJSON, &item.CertificationsByCountry); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "certifications_by_country"), slog.Any("err", err))
+	// Classification sub-aggregate. Allocated only when at least one
+	// rating-related column came back non-NULL.
+	if communityRating.Valid || officialRating.Valid || len(certJSON) > 2 || len(providerRatingsJSON) > 2 {
+		cl := &library.MediaClassification{}
+		if communityRating.Valid {
+			v := communityRating.Float64
+			cl.CommunityRating = &v
 		}
-	}
-	if len(providerRatingsJSON) > 0 {
-		if err := json.Unmarshal(providerRatingsJSON, &item.Ratings); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "provider_ratings"), slog.Any("err", err))
+		if officialRating.Valid {
+			cl.OfficialRating = officialRating.String
 		}
+		if len(certJSON) > 0 {
+			if err := json.Unmarshal(certJSON, &cl.CertificationsByCountry); err != nil {
+				slog.Warn("json unmarshal", slog.String("field", "certifications_by_country"), slog.Any("err", err))
+			}
+		}
+		if len(providerRatingsJSON) > 0 {
+			if err := json.Unmarshal(providerRatingsJSON, &cl.ProviderRatings); err != nil {
+				slog.Warn("json unmarshal", slog.String("field", "provider_ratings"), slog.Any("err", err))
+			}
+		}
+		item.Classification = cl
 	}
 
 	// Trailers (1:N → JSONB array via subquery → flat slice).

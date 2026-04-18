@@ -455,9 +455,14 @@ func (h *libraryHandler) isBlockedByParental(ctx context.Context, item *library.
 		return false, nil
 	}
 	if pf.maxAge >= 0 {
-		rating := item.OfficialRating
-		if pf.region != "" && item.CertificationsByCountry != nil {
-			if r, ok := item.CertificationsByCountry[pf.region]; ok && r != "" {
+		rating := ""
+		var certByCountry map[string]string
+		if item.Classification != nil {
+			rating = item.Classification.OfficialRating
+			certByCountry = item.Classification.CertificationsByCountry
+		}
+		if pf.region != "" && certByCountry != nil {
+			if r, ok := certByCountry[pf.region]; ok && r != "" {
 				rating = r
 			}
 		}
@@ -687,7 +692,10 @@ func applyOverridesToItem(item *library.MediaItem, overrides []*domainmetadata.M
 		case "community_rating":
 			var r float64
 			if _, err := fmt.Sscanf(v, "%f", &r); err == nil {
-				item.CommunityRating = &r
+				if item.Classification == nil {
+					item.Classification = &library.MediaClassification{}
+				}
+				item.Classification.CommunityRating = &r
 			}
 		}
 	}

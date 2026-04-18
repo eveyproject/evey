@@ -92,8 +92,8 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 			if it.Year != nil {
 				fp.Year = int32(*it.Year)
 			}
-			if it.CommunityRating != nil {
-				fp.CommunityRating = *it.CommunityRating
+			if it.Classification != nil && it.Classification.CommunityRating != nil {
+				fp.CommunityRating = *it.Classification.CommunityRating
 			}
 		}
 		resp.Items = append(resp.Items, fp)

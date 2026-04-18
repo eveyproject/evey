@@ -62,7 +62,7 @@ func TestSQLSearchFallback_Search_Integration(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	year := 1999
 	items := []*library.MediaItem{
-		{ID: "s1", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "Fight Club", OriginalTitle: "Fight Club", Year: &year, Genres: []string{"Drama"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}, AddedAt: now, UpdatedAt: now, OfficialRating: "R"},
+		{ID: "s1", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "Fight Club", OriginalTitle: "Fight Club", Year: &year, Genres: []string{"Drama"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}, AddedAt: now, UpdatedAt: now, Classification: &library.MediaClassification{OfficialRating: "R"}},
 		{ID: "s2", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "The Matrix", OriginalTitle: "The Matrix", Year: &year, Genres: []string{"Sci-Fi"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}, AddedAt: now, UpdatedAt: now},
 		{ID: "s3", LibraryID: shared.LibraryID(lib.ID), Type: "movie", Title: "Interstellar", OriginalTitle: "Interstellar", Genres: []string{"Sci-Fi"}, ProviderIDs: map[string]string{}, Studios: []string{}, Tags: []string{}, AddedAt: now, UpdatedAt: now},
 	}

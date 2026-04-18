@@ -529,7 +529,9 @@ func TestQueryService_SearchMedia_HitContent(t *testing.T) {
 	year := 2005
 	f.search.IndexMediaItem(context.Background(), &library.MediaItem{
 		ID: "m1", Title: "Batman Begins", Type: "movie",
-		Year: &year, Genres: []string{"action"}, OfficialRating: "PG-13",
+		Year:           &year,
+		Genres:         []string{"action"},
+		Classification: &library.MediaClassification{OfficialRating: "PG-13"},
 	}, nil)
 
 	hits, total, err := f.svc.SearchMedia(context.Background(), "batman", nil, nil, 10)
@@ -598,8 +600,9 @@ func TestQueryService_GetMediaItem_Found(t *testing.T) {
 	rating := 8.5
 	f.media.Seed(&library.MediaItem{
 		ID: "m1", Title: "Inception", Type: "movie",
-		LibraryID: "lib-1", Year: &year, CommunityRating: &rating,
-		Genres: []string{"sci-fi", "thriller"},
+		LibraryID: "lib-1", Year: &year,
+		Classification: &library.MediaClassification{CommunityRating: &rating},
+		Genres:         []string{"sci-fi", "thriller"},
 	})
 
 	item, err := f.svc.GetMediaItem(context.Background(), "m1")
@@ -609,7 +612,7 @@ func TestQueryService_GetMediaItem_Found(t *testing.T) {
 	assert.Equal(t, library.MediaItemType("movie"), item.Type)
 	assert.Equal(t, shared.LibraryID("lib-1"), item.LibraryID)
 	assert.Equal(t, 2020, *item.Year)
-	assert.InEpsilon(t, 8.5, *item.CommunityRating, 1e-9)
+	assert.InEpsilon(t, 8.5, *item.Classification.CommunityRating, 1e-9)
 	assert.Equal(t, []string{"sci-fi", "thriller"}, item.Genres)
 }
 
@@ -734,8 +737,8 @@ func TestQueryService_ListMediaItems_FilterByMinRating(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
 	low, high := 3.0, 8.5
-	f.media.Seed(&library.MediaItem{ID: "m1", Title: "Low Rated", CommunityRating: &low})
-	f.media.Seed(&library.MediaItem{ID: "m2", Title: "High Rated", CommunityRating: &high})
+	f.media.Seed(&library.MediaItem{ID: "m1", Title: "Low Rated", Classification: &library.MediaClassification{CommunityRating: &low}})
+	f.media.Seed(&library.MediaItem{ID: "m2", Title: "High Rated", Classification: &library.MediaClassification{CommunityRating: &high}})
 
 	items, err := f.svc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{MinRating: 7.0})
 	require.NoError(t, err)

@@ -197,7 +197,7 @@ func TestResetItemMetadata_MovieClearsFields(t *testing.T) {
 		OriginalTitle:  "orig",
 		ProviderIDs:    map[string]string{"tmdb": "27205"},
 		Year:           &year,
-		OfficialRating: "PG-13",
+		Classification: &library.MediaClassification{OfficialRating: "PG-13"},
 	}
 	require.NoError(t, mediaRepo.Create(ctx, item))
 	require.NoError(t, overrideRepo.Set(ctx, &metadata.MetadataOverride{
@@ -216,7 +216,7 @@ func TestResetItemMetadata_MovieClearsFields(t *testing.T) {
 	assert.Empty(t, reset.OriginalTitle)
 	assert.Nil(t, reset.ProviderIDs)
 	assert.Nil(t, reset.Year)
-	assert.Empty(t, reset.OfficialRating)
+	assert.Nil(t, reset.Classification)
 
 	// overrides removed
 	ovs, _ := overrideRepo.GetByMediaItem(ctx, "m1")

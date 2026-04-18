@@ -210,8 +210,8 @@ func TestMediaItem_NilableFields(t *testing.T) {
 	if item.IndexNumber != nil {
 		t.Error("IndexNumber should be nil by default")
 	}
-	if item.CommunityRating != nil {
-		t.Error("CommunityRating should be nil by default")
+	if item.Classification != nil {
+		t.Error("Classification should be nil by default")
 	}
 	if item.PremiereDate != nil {
 		t.Error("PremiereDate should be nil by default")

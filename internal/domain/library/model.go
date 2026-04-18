@@ -81,21 +81,33 @@ type MediaItem struct {
 	// no file. Populated by the postgres repo via LEFT JOIN on media_files.
 	File *MediaFile
 
-	CommunityRating *float64
-	OfficialRating  string
-	// CertificationsByCountry holds per-country content ratings (e.g. {"US":"PG-13","FR":"-12"}).
-	// OfficialRating mirrors the US entry when available for parental-gate backcompat.
+	// Classification carries audience/editorial rating data (community
+	// score, official certification, per-country certifications, per-
+	// provider critic scores). nil when no provider has scored the item
+	// and the admin hasn't set a manual rating.
+	Classification *MediaClassification
+
+	PremiereDate *time.Time
+	Year         *int
+	ProviderIDs  map[string]string
+	Genres       []string
+	Studios      []string
+	Tags         []string
+	Trailers     []Trailer
+	AddedAt      time.Time
+	UpdatedAt    time.Time
+}
+
+// MediaClassification holds rating-style data: the audience score
+// (community), the editorial certification (official + per-country) and
+// the per-provider critic scores. Distinct from per-user ratings, which
+// live in the media_ratings table.
+type MediaClassification struct {
+	CommunityRating         *float64
+	OfficialRating          string
 	CertificationsByCountry map[string]string
-	PremiereDate            *time.Time
-	Year                    *int
-	ProviderIDs             map[string]string
-	Ratings                 map[string]float64
-	Genres                  []string
-	Studios                 []string
-	Tags                    []string
-	Trailers                []Trailer
-	AddedAt                 time.Time
-	UpdatedAt               time.Time
+	// ProviderRatings keyed by provider name (tmdb, imdb, rotten, ...) → score on each provider's own scale.
+	ProviderRatings map[string]float64
 }
 
 // MediaFile carries everything the scan and the player need to know

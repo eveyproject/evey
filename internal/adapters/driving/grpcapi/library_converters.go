@@ -64,24 +64,22 @@ var mediaItemTypeFromProto = map[eveyv1.MediaItemType]string{
 
 func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 	pb := &eveyv1.MediaItem{
-		Id:                      string(item.ID),
-		LibraryId:               string(item.LibraryID),
-		ParentId:                item.ParentID,
-		Type:                    mediaItemTypeToProto[string(item.Type)],
-		Title:                   item.Title,
-		SortTitle:               item.SortTitle,
-		OriginalTitle:           item.OriginalTitle,
-		Overview:                item.Overview,
-		Tagline:                 item.Tagline,
-		OfficialRating:          item.OfficialRating,
-		CertificationsByCountry: item.CertificationsByCountry,
-		ProviderIds:             item.ProviderIDs,
-		Genres:                  item.Genres,
-		Studios:                 item.Studios,
-		Tags:                    item.Tags,
-		CreatedAt:               toTimestamppb(item.AddedAt),
-		UpdatedAt:               toTimestamppb(item.UpdatedAt),
-		PremiereDate:            toTimestamppbPtr(item.PremiereDate),
+		Id:            string(item.ID),
+		LibraryId:     string(item.LibraryID),
+		ParentId:      item.ParentID,
+		Type:          mediaItemTypeToProto[string(item.Type)],
+		Title:         item.Title,
+		SortTitle:     item.SortTitle,
+		OriginalTitle: item.OriginalTitle,
+		Overview:      item.Overview,
+		Tagline:       item.Tagline,
+		ProviderIds:   item.ProviderIDs,
+		Genres:        item.Genres,
+		Studios:       item.Studios,
+		Tags:          item.Tags,
+		CreatedAt:     toTimestamppb(item.AddedAt),
+		UpdatedAt:     toTimestamppb(item.UpdatedAt),
+		PremiereDate:  toTimestamppbPtr(item.PremiereDate),
 	}
 	if item.File != nil {
 		pb.FilePath = item.File.Path
@@ -90,20 +88,24 @@ func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 		pb.DurationMs = item.File.DurationMs
 		pb.Bitrate = item.File.Bitrate
 	}
+	if item.Classification != nil {
+		pb.OfficialRating = item.Classification.OfficialRating
+		pb.CertificationsByCountry = item.Classification.CertificationsByCountry
+		if item.Classification.CommunityRating != nil {
+			pb.CommunityRating = *item.Classification.CommunityRating
+		}
+		for source, value := range item.Classification.ProviderRatings {
+			pb.Ratings = append(pb.Ratings, ratingToProto(source, value))
+		}
+	}
 	if item.IndexNumber != nil {
 		pb.IndexNumber = int32(*item.IndexNumber)
-	}
-	if item.CommunityRating != nil {
-		pb.CommunityRating = *item.CommunityRating
 	}
 	if item.Year != nil {
 		pb.Year = int32(*item.Year)
 	}
 	for _, t := range item.Trailers {
 		pb.Trailers = append(pb.Trailers, trailerToProto(t))
-	}
-	for source, value := range item.Ratings {
-		pb.Ratings = append(pb.Ratings, ratingToProto(source, value))
 	}
 	return pb
 }

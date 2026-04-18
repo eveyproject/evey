@@ -531,9 +531,14 @@ func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, me
 	}
 	if ps.MaxAge != nil {
 		reg := region.Resolve(profile.Region, "", profile.Locale)
-		rating := item.OfficialRating
-		if reg != "" && item.CertificationsByCountry != nil {
-			if r, ok := item.CertificationsByCountry[reg]; ok && r != "" {
+		rating := ""
+		var certByCountry map[string]string
+		if item.Classification != nil {
+			rating = item.Classification.OfficialRating
+			certByCountry = item.Classification.CertificationsByCountry
+		}
+		if reg != "" && certByCountry != nil {
+			if r, ok := certByCountry[reg]; ok && r != "" {
 				rating = r
 			}
 		}

@@ -189,15 +189,15 @@ func TestMediaItemRepo_List_AllowedRatings(t *testing.T) {
 	require.NoError(t, libRepo.Create(ctx, lib))
 
 	pg := newTestMediaItem("cq-mi-pg", lib.ID)
-	pg.OfficialRating = "PG"
+	pg.Classification = &library.MediaClassification{OfficialRating: "PG"}
 	require.NoError(t, itemRepo.Create(ctx, pg))
 
 	r := newTestMediaItem("cq-mi-r", lib.ID)
-	r.OfficialRating = "R"
+	r.Classification = &library.MediaClassification{OfficialRating: "R"}
 	require.NoError(t, itemRepo.Create(ctx, r))
 
 	noRating := newTestMediaItem("cq-mi-norating", lib.ID)
-	noRating.OfficialRating = ""
+	noRating.Classification = nil
 	require.NoError(t, itemRepo.Create(ctx, noRating))
 
 	libID := lib.ID

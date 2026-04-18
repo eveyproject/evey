@@ -156,12 +156,12 @@ func TestMeta_KillMutant_SkipItemWithOverviewAndTrailers(t *testing.T) {
 	e, miRepo := newTestEnricherMulti(primary, nil)
 
 	already := &domainlib.MediaItem{
-		ID:                      "m1",
-		Title:                   "X",
-		Type:                    "movie",
-		Overview:                "already enriched",
-		Trailers:                []domainlib.Trailer{{Key: "abc"}},
-		CertificationsByCountry: map[string]string{"US": "PG-13"},
+		ID:             "m1",
+		Title:          "X",
+		Type:           "movie",
+		Overview:       "already enriched",
+		Trailers:       []domainlib.Trailer{{Key: "abc"}},
+		Classification: &domainlib.MediaClassification{CertificationsByCountry: map[string]string{"US": "PG-13"}},
 	}
 	miRepo.Create(context.Background(), already)
 

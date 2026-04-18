@@ -189,8 +189,8 @@ func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.
 		if it.Year != nil {
 			ci.Year = int32(*it.Year)
 		}
-		if it.CommunityRating != nil {
-			ci.CommunityRating = *it.CommunityRating
+		if it.Classification != nil && it.Classification.CommunityRating != nil {
+			ci.CommunityRating = *it.Classification.CommunityRating
 		}
 		enriched = append(enriched, ci)
 	}
