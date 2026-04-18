@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	pluginv1 "github.com/evey-project/evey/gen/plugin/v1"
 	"github.com/evey-project/evey/internal/domain/library"
@@ -15,11 +16,22 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
-const hostSockPath = "/tmp/evey/plugins/evey-host.sock"
+const (
+	pluginSockBaseDir = "/tmp/evey/plugins"
+	pluginUID         = 1001
+	pluginGID         = 1001
+)
+
+// PluginHostSockPath returns the per-plugin host socket path. Deterministic
+// from pluginID so the runner can set EVEY_HOST_SOCK before the plugin
+// process starts.
+func PluginHostSockPath(pluginID string) string {
+	return filepath.Join(pluginSockBaseDir, pluginID, "host.sock")
+}
 
 type MediaItemQuerier interface {
 	GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error)
@@ -32,6 +44,10 @@ type PluginConfigStore interface {
 	Update(ctx context.Context, p *plugindomain.Plugin) error
 }
 
+// HostServer holds the shared dependencies for HostService RPCs and a
+// registry of per-plugin gRPC listeners. Each registered plugin gets its
+// own Unix socket, gRPC server, and authentication interceptor that pins
+// the connection to the expected process PID via SO_PEERCRED.
 type HostServer struct {
 	pluginv1.UnimplementedHostServiceServer
 	mediaItems      MediaItemQuerier
@@ -39,7 +55,17 @@ type HostServer struct {
 	events          shared.EventBus
 	logger          plugindomain.PluginLogger
 	permInterceptor grpc.UnaryServerInterceptor
-	grpcSrv         *grpc.Server
+
+	mu       sync.RWMutex
+	registry map[string]*pluginEntry
+}
+
+type pluginEntry struct {
+	pluginID    string
+	expectedPID int32
+	sockPath    string
+	grpcSrv     *grpc.Server
+	listener    net.Listener
 }
 
 func NewHostServer(
@@ -55,81 +81,207 @@ func NewHostServer(
 		events:          events,
 		logger:          logger,
 		permInterceptor: permInterceptor,
+		registry:        make(map[string]*pluginEntry),
 	}
 }
 
+// Start prepares the per-plugin socket base directory and removes any
+// stale socket left behind by a crashed previous run. No long-running
+// listener is created here — listeners are spun up by RegisterPlugin.
 func (h *HostServer) Start() error {
-	sockDir := filepath.Dir(hostSockPath)
-	if err := os.MkdirAll(sockDir, 0o755); err != nil {
-		return fmt.Errorf("create host sock dir: %w", err)
+	if err := os.MkdirAll(pluginSockBaseDir, 0o755); err != nil {
+		return fmt.Errorf("create sock base dir: %w", err)
 	}
-	if err := os.Remove(hostSockPath); err != nil && !os.IsNotExist(err) {
-		slog.Warn("remove old host sock", slog.Any("err", err))
+	// Sweep legacy single host sock from before per-plugin sockets shipped.
+	_ = os.Remove(filepath.Join(pluginSockBaseDir, "evey-host.sock"))
+	return nil
+}
+
+// Stop tears down every per-plugin listener.
+func (h *HostServer) Stop() {
+	h.mu.Lock()
+	ids := make([]string, 0, len(h.registry))
+	for id := range h.registry {
+		ids = append(ids, id)
+	}
+	h.mu.Unlock()
+	for _, id := range ids {
+		h.UnregisterPlugin(id)
+	}
+}
+
+// RegisterPlugin creates the plugin-scoped Unix socket and starts a gRPC
+// server bound to it. The returned path is what should be set on the
+// plugin's EVEY_HOST_SOCK env var. Authentication is not yet armed — the
+// runner MUST call SetExpectedPID after cmd.Start to bind the listener
+// to the actual plugin PID. Until then any RPC is rejected.
+func (h *HostServer) RegisterPlugin(pluginID string) (string, error) {
+	if pluginID == "" {
+		return "", fmt.Errorf("RegisterPlugin: pluginID required")
 	}
 
-	lis, err := net.Listen("unix", hostSockPath)
-	if err != nil {
-		return fmt.Errorf("listen host sock: %w", err)
+	sockPath := PluginHostSockPath(pluginID)
+	sockDir := filepath.Dir(sockPath)
+
+	h.mu.Lock()
+	if _, exists := h.registry[pluginID]; exists {
+		h.mu.Unlock()
+		return "", fmt.Errorf("plugin %s already registered", pluginID)
 	}
-	// Allow plugin processes (evey-plugin user) to connect
-	if chErr := os.Chmod(hostSockPath, 0o777); chErr != nil {
+	h.mu.Unlock()
+
+	if err := os.MkdirAll(sockDir, 0o700); err != nil {
+		return "", fmt.Errorf("create sock dir: %w", err)
+	}
+	if os.Getuid() == 0 {
+		_ = os.Chown(sockDir, pluginUID, pluginGID)
+	}
+	if err := os.Remove(sockPath); err != nil && !os.IsNotExist(err) {
+		slog.Warn("remove old host sock", slog.String("plugin", pluginID), slog.Any("err", err))
+	}
+
+	lis, err := net.Listen("unix", sockPath)
+	if err != nil {
+		return "", fmt.Errorf("listen host sock: %w", err)
+	}
+	if chErr := os.Chmod(sockPath, 0o660); chErr != nil {
 		slog.Warn("chmod host sock", slog.Any("err", chErr))
 	}
-
-	if h.permInterceptor != nil {
-		h.grpcSrv = grpc.NewServer(grpc.ChainUnaryInterceptor(h.pluginIDInterceptor(), h.permInterceptor))
-	} else {
-		h.grpcSrv = grpc.NewServer(grpc.UnaryInterceptor(h.pluginIDInterceptor()))
+	if os.Getuid() == 0 {
+		if chErr := os.Chown(sockPath, pluginUID, pluginGID); chErr != nil {
+			slog.Warn("chown host sock", slog.Any("err", chErr))
+		}
 	}
-	pluginv1.RegisterHostServiceServer(h.grpcSrv, h)
 
-	slog.Info("host gRPC server started", slog.String("sock", hostSockPath))
+	entry := &pluginEntry{
+		pluginID: pluginID,
+		sockPath: sockPath,
+		listener: lis,
+	}
+
+	interceptors := []grpc.UnaryServerInterceptor{h.makePluginAuthInterceptor(entry)}
+	if h.permInterceptor != nil {
+		interceptors = append(interceptors, h.permInterceptor)
+	}
+
+	srv := grpc.NewServer(
+		grpc.Creds(NewPeerCredsTransport()),
+		grpc.ChainUnaryInterceptor(interceptors...),
+	)
+	pluginv1.RegisterHostServiceServer(srv, h)
+	entry.grpcSrv = srv
+
+	h.mu.Lock()
+	h.registry[pluginID] = entry
+	h.mu.Unlock()
 
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("recovered panic in host gRPC serve", "panic", r)
+				slog.Error("panic in host gRPC serve",
+					slog.String("plugin", pluginID), slog.Any("recover", r))
 			}
 		}()
-		if err := h.grpcSrv.Serve(lis); err != nil {
-			slog.Error("host gRPC serve", slog.Any("err", err))
+		if err := srv.Serve(lis); err != nil {
+			slog.Warn("host gRPC serve ended",
+				slog.String("plugin", pluginID), slog.Any("err", err))
 		}
 	}()
-	return nil
+
+	return sockPath, nil
 }
 
-func (h *HostServer) Stop() {
-	if h.grpcSrv != nil {
-		h.grpcSrv.GracefulStop()
-	}
-	if err := os.Remove(hostSockPath); err != nil {
-		slog.Warn("remove host sock", slog.Any("err", err))
+// SetExpectedPID arms the per-plugin auth interceptor with the OS PID of
+// the just-started plugin process. Until this is set the interceptor
+// rejects every RPC so a malicious peer that wins the race against
+// cmd.Start cannot impersonate the plugin.
+func (h *HostServer) SetExpectedPID(pluginID string, pid int32) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if entry, ok := h.registry[pluginID]; ok {
+		entry.expectedPID = pid
 	}
 }
 
-func (h *HostServer) pluginIDInterceptor() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		md, ok := metadata.FromIncomingContext(ctx)
+// UnregisterPlugin tears down the listener, the gRPC server and removes
+// the socket file for a single plugin.
+func (h *HostServer) UnregisterPlugin(pluginID string) {
+	h.mu.Lock()
+	entry, ok := h.registry[pluginID]
+	if !ok {
+		h.mu.Unlock()
+		return
+	}
+	delete(h.registry, pluginID)
+	h.mu.Unlock()
+
+	if entry.grpcSrv != nil {
+		entry.grpcSrv.GracefulStop()
+	}
+	if err := os.Remove(entry.sockPath); err != nil && !os.IsNotExist(err) {
+		slog.Warn("remove host sock on unregister",
+			slog.String("plugin", pluginID), slog.Any("err", err))
+	}
+}
+
+// makePluginAuthInterceptor returns an interceptor that verifies every
+// incoming RPC came from the process whose PID matches the registered
+// plugin. The pluginID is captured by the closure (never trusted from
+// the wire), and the PID comes from the kernel via SO_PEERCRED.
+func (h *HostServer) makePluginAuthInterceptor(entry *pluginEntry) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		p, ok := peer.FromContext(ctx)
+		if !ok || p.AuthInfo == nil {
+			return nil, status.Error(codes.Unauthenticated, "no peer credentials")
+		}
+		creds, ok := p.AuthInfo.(PeerCredsAuthInfo)
 		if !ok {
-			return nil, status.Error(codes.Unauthenticated, "missing metadata")
+			return nil, status.Error(codes.Unauthenticated, "missing SO_PEERCRED auth info")
 		}
-		ids := md.Get("x-plugin-id")
-		if len(ids) == 0 || ids[0] == "" {
-			return nil, status.Error(codes.Unauthenticated, "missing x-plugin-id")
+
+		h.mu.RLock()
+		expected := entry.expectedPID
+		h.mu.RUnlock()
+
+		if expected == 0 {
+			return nil, status.Error(codes.Unauthenticated, "plugin PID not bound yet")
 		}
-		ctx = context.WithValue(ctx, pluginIDKey{}, ids[0])
+		if creds.PID != expected {
+			slog.Warn("plugin auth: PID mismatch — possible spoofing attempt",
+				slog.String("plugin", entry.pluginID),
+				slog.Int("expected_pid", int(expected)),
+				slog.Int("actual_pid", int(creds.PID)),
+				slog.Int("actual_uid", int(creds.UID)))
+			return nil, status.Error(codes.Unauthenticated, "PID mismatch")
+		}
+
+		ctx = context.WithValue(ctx, pluginIDKey{}, entry.pluginID)
 		return handler(ctx, req)
 	}
 }
 
 type pluginIDKey struct{}
 
-func pluginIDFromCtx(ctx context.Context) string {
+// PluginIDFromCtx returns the plugin ID injected by the auth interceptor
+// after a successful SO_PEERCRED check. Returns empty string if the
+// caller is not an authenticated plugin.
+func PluginIDFromCtx(ctx context.Context) string {
 	if v, ok := ctx.Value(pluginIDKey{}).(string); ok {
 		return v
 	}
 	return ""
 }
+
+// CtxWithPluginID stamps an authenticated plugin ID into the context.
+// Exported so downstream interceptor tests can simulate the effect of
+// the per-plugin auth layer without booting a real Unix listener.
+func CtxWithPluginID(ctx context.Context, pluginID string) context.Context {
+	return context.WithValue(ctx, pluginIDKey{}, pluginID)
+}
+
+// pluginIDFromCtx is kept as a package-internal helper for tests inside
+// this package; external callers should use PluginIDFromCtx.
+func pluginIDFromCtx(ctx context.Context) string { return PluginIDFromCtx(ctx) }
 
 func (h *HostServer) GetMediaItem(ctx context.Context, req *pluginv1.GetMediaItemRequest) (*pluginv1.MediaItem, error) {
 	if req.Id == "" {

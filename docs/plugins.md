@@ -290,7 +290,7 @@ Before installing a plugin you did not write:
 
 ## Host API Reference
 
-Plugins call HostService RPCs via gRPC over Unix socket (`EVEY_HOST_SOCK`). The plugin must send its ID in the `x-plugin-id` metadata header.
+Plugins call HostService RPCs via gRPC over Unix socket (`EVEY_HOST_SOCK`). The host authenticates the caller via `SO_PEERCRED` on the Unix socket — the kernel-supplied PID is matched against the PID the runner spawned for that plugin. Each plugin gets its own dedicated host socket (`/tmp/evey/plugins/<id>/host.sock`); a plugin trying to connect to another plugin's socket is rejected with `Unauthenticated: PID mismatch`. No `x-plugin-id` header is required or honored.
 
 ### Media RPCs
 
@@ -452,8 +452,7 @@ sock = os.environ["EVEY_HOST_SOCK"]
 channel = grpc.insecure_channel(f"unix://{sock}")
 host = rpc.HostServiceStub(channel)
 
-metadata = [("x-plugin-id", os.environ["EVEY_PLUGIN_ID"])]
-resp = host.GetMediaItem(pb.GetMediaItemRequest(id="mid-123"), metadata=metadata)
+resp = host.GetMediaItem(pb.GetMediaItemRequest(id="mid-123"))
 print(resp.title)
 ```
 
@@ -467,10 +466,8 @@ const proto = grpc.loadPackageDefinition(pkgDef).plugin.v1;
 
 const sock = process.env.EVEY_HOST_SOCK;
 const client = new proto.HostService(`unix://${sock}`, grpc.credentials.createInsecure());
-const metadata = new grpc.Metadata();
-metadata.set("x-plugin-id", process.env.EVEY_PLUGIN_ID);
 
-client.GetMediaItem({ id: "mid-123" }, metadata, (err, resp) => {
+client.GetMediaItem({ id: "mid-123" }, (err, resp) => {
   console.log(resp.title);
 });
 ```

@@ -31,11 +31,7 @@ const hostClient = new proto.HostService(
 );
 
 function hostLog(level, message, fields = {}) {
-  hostClient.Log(
-    { level, message, fields },
-    { metadata: new grpc.Metadata().set("x-plugin-id", PLUGIN_ID) },
-    () => {}
-  );
+  hostClient.Log({ level, message, fields }, () => {});
 }
 
 // Plugin server implementation

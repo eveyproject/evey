@@ -42,13 +42,6 @@ function makeHostClient() {
   );
 }
 
-/** gRPC metadata that identifies this plugin to the host. */
-function hostMetadata() {
-  const meta = new grpc.Metadata();
-  meta.set('x-plugin-id', PLUGIN_ID);
-  return meta;
-}
-
 // --- PluginService handlers ---
 
 function initialize(call, callback) {
@@ -98,7 +91,6 @@ async function fetchRecentItems() {
     const client = makeHostClient();
     client.listMediaItems(
       { limit: 5, offset: 0, library_id: '', type: '', parent_id: '' },
-      hostMetadata(),
       (err, response) => {
         client.close();
         if (err) {

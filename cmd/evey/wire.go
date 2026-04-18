@@ -356,6 +356,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	permInterceptor := grpcapi.PluginPermissionInterceptor(permChecker)
 	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, infra.pluginLogger, permInterceptor)
+	infra.pluginRunner.WithHostRegistry(pluginHostSrv)
 	infra.pluginLogger.StartCleanup(ctx, &pluginIDLister{repo: r.Plugin})
 
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")

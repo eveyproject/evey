@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi"
+	"github.com/evey-project/evey/internal/adapters/driving/pluginhost"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	plgfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	grpclib "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -22,8 +22,7 @@ func TestPluginInterceptor_AllowedRPC(t *testing.T) {
 
 	interceptor := grpcapi.PluginPermissionInterceptor(checker)
 
-	ctx := metadata.NewIncomingContext(context.Background(),
-		metadata.Pairs("x-plugin-id", "plg-1"))
+	ctx := pluginhost.CtxWithPluginID(context.Background(), "plg-1")
 
 	called := false
 	handler := func(_ context.Context, _ any) (any, error) {
@@ -45,8 +44,7 @@ func TestPluginInterceptor_DeniedRPC(t *testing.T) {
 
 	interceptor := grpcapi.PluginPermissionInterceptor(checker)
 
-	ctx := metadata.NewIncomingContext(context.Background(),
-		metadata.Pairs("x-plugin-id", "plg-1"))
+	ctx := pluginhost.CtxWithPluginID(context.Background(), "plg-1")
 
 	called := false
 	handler := func(_ context.Context, _ any) (any, error) {
@@ -71,8 +69,7 @@ func TestPluginInterceptor_AlwaysAllowedRPC(t *testing.T) {
 
 	interceptor := grpcapi.PluginPermissionInterceptor(checker)
 
-	ctx := metadata.NewIncomingContext(context.Background(),
-		metadata.Pairs("x-plugin-id", "plg-1"))
+	ctx := pluginhost.CtxWithPluginID(context.Background(), "plg-1")
 
 	for _, method := range []string{
 		"/plugin.v1.HostService/EmitEvent",
@@ -108,7 +105,7 @@ func TestPluginInterceptor_MissingPluginID(t *testing.T) {
 
 	st, ok := status.FromError(err)
 	require.True(t, ok)
-	assert.Equal(t, codes.InvalidArgument, st.Code())
+	assert.Equal(t, codes.Unauthenticated, st.Code())
 }
 
 func TestPluginInterceptor_UnknownMethod_PassesThrough(t *testing.T) {
@@ -137,8 +134,7 @@ func TestPluginInterceptor_UpdateMetadata_RequiresPermission(t *testing.T) {
 
 	interceptor := grpcapi.PluginPermissionInterceptor(checker)
 
-	ctx := metadata.NewIncomingContext(context.Background(),
-		metadata.Pairs("x-plugin-id", "plg-w"))
+	ctx := pluginhost.CtxWithPluginID(context.Background(), "plg-w")
 
 	called := false
 	handler := func(_ context.Context, _ any) (any, error) {
@@ -159,8 +155,7 @@ func TestPluginInterceptor_GetUserPreferences_RequiresApiUser(t *testing.T) {
 
 	interceptor := grpcapi.PluginPermissionInterceptor(checker)
 
-	ctx := metadata.NewIncomingContext(context.Background(),
-		metadata.Pairs("x-plugin-id", "plg-no"))
+	ctx := pluginhost.CtxWithPluginID(context.Background(), "plg-no")
 
 	handler := func(_ context.Context, _ any) (any, error) { return "ok", nil }
 

@@ -49,6 +49,18 @@ type EventBus interface {
 	Publish(ctx context.Context, event shared.Event) error
 }
 
+// HostRegistry is the slice the runner needs to bind a plugin to its
+// dedicated host gRPC socket. Implemented by pluginhost.HostServer. The
+// runner registers the plugin to obtain a per-plugin socket path BEFORE
+// cmd.Start (so EVEY_HOST_SOCK is available in the process env), then
+// arms PID-based authentication via SetExpectedPID once the OS PID is
+// known. Unregister tears the socket and gRPC server down on Stop.
+type HostRegistry interface {
+	RegisterPlugin(pluginID string) (sockPath string, err error)
+	SetExpectedPID(pluginID string, pid int32)
+	UnregisterPlugin(pluginID string)
+}
+
 type Runner struct {
 	mu                  sync.RWMutex
 	processes           map[string]*processEntry
@@ -59,6 +71,7 @@ type Runner struct {
 	onIPCResult         OnIPCResult
 	allowMissingSandbox bool
 	eventBus            EventBus
+	hostRegistry        HostRegistry
 }
 
 // ErrSandboxUnavailable is returned by Start when a plugin without the
@@ -101,6 +114,16 @@ func (r *Runner) WithAllowMissingSandbox(allow bool) *Runner {
 // and process crash so the notification service can page the admin.
 func (r *Runner) WithEventBus(bus EventBus) *Runner {
 	r.eventBus = bus
+	return r
+}
+
+// WithHostRegistry wires the per-plugin host socket factory. When set,
+// the runner provisions a dedicated host gRPC socket for each plugin and
+// pins authentication to the plugin process PID. When nil (tests), the
+// plugin starts without a host socket bound to it — the EVEY_HOST_SOCK
+// env var is left unset.
+func (r *Runner) WithHostRegistry(reg HostRegistry) *Runner {
+	r.hostRegistry = reg
 	return r
 }
 
@@ -236,7 +259,22 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	if p.InstallDir != "" {
 		cmd.Dir = p.InstallDir
 	}
-	hostSock := filepath.Join(sockDir, "evey-host.sock")
+
+	// Provision the per-plugin host socket BEFORE cmd.Start so the env
+	// var the plugin reads at boot points to the right place. The auth
+	// interceptor stays "PID not bound" until SetExpectedPID is called
+	// after Start — early peers are rejected.
+	var hostSock string
+	if r.hostRegistry != nil {
+		path, regErr := r.hostRegistry.RegisterPlugin(p.ID)
+		if regErr != nil {
+			cancel()
+			os.RemoveAll(pluginSockDir)
+			return fmt.Errorf("register plugin host socket: %w", regErr)
+		}
+		hostSock = path
+	}
+
 	cmd.Env = []string{
 		"PATH=/usr/local/bin:/usr/bin:/bin",
 		"HOME=/tmp",
@@ -287,7 +325,17 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	if err := cmd.Start(); err != nil {
 		cancel()
 		os.RemoveAll(pluginSockDir)
+		if r.hostRegistry != nil {
+			r.hostRegistry.UnregisterPlugin(p.ID)
+		}
 		return fmt.Errorf("start plugin %s: %w", p.ID, err)
+	}
+
+	// Arm PID-based authentication on the host socket. From this point
+	// on, only RPCs originating from cmd.Process.Pid will be accepted —
+	// SO_PEERCRED is filled in by the kernel and cannot be spoofed.
+	if r.hostRegistry != nil {
+		r.hostRegistry.SetExpectedPID(p.ID, int32(cmd.Process.Pid))
 	}
 
 	if r.logger != nil {
@@ -331,6 +379,9 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		cancel()
 		if err2 := os.Remove(sock); err2 != nil {
 			slog.Warn("remove plugin sock on crash", slog.Any("err", err2))
+		}
+		if r.hostRegistry != nil {
+			r.hostRegistry.UnregisterPlugin(p.ID)
 		}
 		if err != nil {
 			slog.Warn("plugin process crashed", slog.String("plugin", p.ID), slog.Any("err", err))
@@ -433,6 +484,10 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 	// Remove entire socket subdirectory
 	if err := os.RemoveAll(filepath.Dir(entry.sockPath)); err != nil {
 		slog.Warn("remove plugin sock dir", slog.Any("err", err))
+	}
+
+	if r.hostRegistry != nil {
+		r.hostRegistry.UnregisterPlugin(pluginID)
 	}
 
 	if r.logger != nil {

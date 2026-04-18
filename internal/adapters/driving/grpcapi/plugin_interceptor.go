@@ -4,14 +4,12 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/evey-project/evey/internal/adapters/driving/pluginhost"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
-
-const pluginIDHeader = "x-plugin-id"
 
 var methodPermissions = map[string][]string{
 	"/plugin.v1.HostService/GetMediaItem":       {"api.library", "media.read"},
@@ -19,7 +17,7 @@ var methodPermissions = map[string][]string{
 	"/plugin.v1.HostService/UpdateMetadata":     {"api.metadata", "media.write"},
 	"/plugin.v1.HostService/GetUserPreferences": {"api.user"},
 	"/plugin.v1.HostService/SearchMedia":        {"api.library", "media.read"},
-	"/plugin.v1.HostService/GetMediaStreams":     {"api.library", "media.read"},
+	"/plugin.v1.HostService/GetMediaStreams":    {"api.library", "media.read"},
 	"/plugin.v1.HostService/GetChapters":        {"api.library", "media.read"},
 	"/plugin.v1.HostService/GetSubtitles":       {"api.library", "media.read"},
 	"/plugin.v1.HostService/SendNotification":   {"notification.sender"},
@@ -30,7 +28,10 @@ var methodPermissions = map[string][]string{
 }
 
 // PluginPermissionInterceptor returns a gRPC UnaryServerInterceptor that
-// enforces plugin permissions on HostService RPCs.
+// enforces plugin permissions on HostService RPCs. It MUST be chained
+// after pluginhost's per-plugin SO_PEERCRED auth interceptor — that one
+// injects the authenticated plugin ID into the context. Reading from the
+// wire (e.g. an x-plugin-id header) would be trivially spoofable.
 func PluginPermissionInterceptor(checker *appplugin.PermissionChecker) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		requiredPerms, known := methodPermissions[info.FullMethod]
@@ -41,9 +42,9 @@ func PluginPermissionInterceptor(checker *appplugin.PermissionChecker) grpc.Unar
 			return handler(ctx, req)
 		}
 
-		pluginID, err := extractPluginID(ctx)
-		if err != nil {
-			return nil, err
+		pluginID := pluginhost.PluginIDFromCtx(ctx)
+		if pluginID == "" {
+			return nil, status.Error(codes.Unauthenticated, "plugin not authenticated")
 		}
 
 		if checkErr := checker.CheckAnyPermission(pluginID, requiredPerms...); checkErr != nil {
@@ -56,32 +57,4 @@ func PluginPermissionInterceptor(checker *appplugin.PermissionChecker) grpc.Unar
 
 		return handler(ctx, req)
 	}
-}
-
-func extractPluginID(ctx context.Context) (string, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return "", status.Error(codes.InvalidArgument, "missing metadata")
-	}
-	vals := md.Get(pluginIDHeader)
-	if len(vals) == 0 || vals[0] == "" {
-		return "", status.Error(codes.InvalidArgument, "missing x-plugin-id header")
-	}
-	id := vals[0]
-	if len(id) > 50 || !isValidPluginID(id) {
-		return "", status.Error(codes.InvalidArgument, "invalid plugin ID format")
-	}
-	return id, nil
-}
-
-func isValidPluginID(id string) bool {
-	if len(id) < 4 {
-		return false
-	}
-	for _, c := range id {
-		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' {
-			return false
-		}
-	}
-	return true
 }

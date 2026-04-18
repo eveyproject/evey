@@ -30,14 +30,14 @@ class PluginServicer(rpc.PluginServiceServicer):
         self.host.Log(pb.LogRequest(
             level=pb.LOG_LEVEL_INFO,
             message=f"plugin initialized (host {request.host_version})",
-        ), metadata=[("x-plugin-id", PLUGIN_ID)])
+        ))
         return pb.InitResponse(success=True)
 
     def Shutdown(self, request, context):
         self.host.Log(pb.LogRequest(
             level=pb.LOG_LEVEL_INFO,
             message=f"shutting down: {request.reason}",
-        ), metadata=[("x-plugin-id", PLUGIN_ID)])
+        ))
         return pb.ShutdownResponse()
 
     def OnEvent(self, request, context):
@@ -45,7 +45,7 @@ class PluginServicer(rpc.PluginServiceServicer):
             level=pb.LOG_LEVEL_INFO,
             message=f"event received: {request.event_type}",
             fields={"source": request.source},
-        ), metadata=[("x-plugin-id", PLUGIN_ID)])
+        ))
         return pb.EventResponse(handled=True)
 
     def HealthCheck(self, request, context):

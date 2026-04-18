@@ -11,9 +11,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -128,75 +126,15 @@ func ctxWithPluginID(pluginID string) context.Context {
 	return context.WithValue(context.Background(), pluginIDKey{}, pluginID)
 }
 
-// --- pluginIDInterceptor ---
-
-func TestPluginIDInterceptor_Valid(t *testing.T) {
-	h := newTestHostServer()
-	interceptor := h.pluginIDInterceptor()
-
-	md := metadata.Pairs("x-plugin-id", "plg-1")
-	ctx := metadata.NewIncomingContext(context.Background(), md)
-
-	var capturedCtx context.Context
-	handler := func(ctx context.Context, req any) (any, error) {
-		capturedCtx = ctx
-		return "ok", nil
-	}
-
-	resp, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{}, handler)
-	require.NoError(t, err)
-	assert.Equal(t, "ok", resp)
-	assert.Equal(t, "plg-1", pluginIDFromCtx(capturedCtx))
-}
-
-func TestPluginIDInterceptor_MissingMetadata(t *testing.T) {
-	h := newTestHostServer()
-	interceptor := h.pluginIDInterceptor()
-
-	handler := func(ctx context.Context, req any) (any, error) { return nil, nil }
-	_, err := interceptor(context.Background(), nil, &grpc.UnaryServerInfo{}, handler)
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	assert.Equal(t, codes.Unauthenticated, st.Code())
-	assert.Contains(t, st.Message(), "missing metadata")
-}
-
-func TestPluginIDInterceptor_EmptyPluginID(t *testing.T) {
-	h := newTestHostServer()
-	interceptor := h.pluginIDInterceptor()
-
-	md := metadata.Pairs("x-plugin-id", "")
-	ctx := metadata.NewIncomingContext(context.Background(), md)
-
-	handler := func(ctx context.Context, req any) (any, error) { return nil, nil }
-	_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{}, handler)
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	assert.Equal(t, codes.Unauthenticated, st.Code())
-	assert.Contains(t, st.Message(), "missing x-plugin-id")
-}
-
-func TestPluginIDInterceptor_NoPluginIDHeader(t *testing.T) {
-	h := newTestHostServer()
-	interceptor := h.pluginIDInterceptor()
-
-	md := metadata.Pairs("x-other", "val")
-	ctx := metadata.NewIncomingContext(context.Background(), md)
-
-	handler := func(ctx context.Context, req any) (any, error) { return nil, nil }
-	_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{}, handler)
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	assert.Equal(t, codes.Unauthenticated, st.Code())
-}
-
-// --- pluginIDFromCtx ---
+// --- PluginIDFromCtx ---
 
 func TestPluginIDFromCtx_Empty(t *testing.T) {
-	assert.Empty(t, pluginIDFromCtx(context.Background()))
+	assert.Empty(t, PluginIDFromCtx(context.Background()))
+}
+
+func TestPluginIDFromCtx_Set(t *testing.T) {
+	ctx := ctxWithPluginID("plg-x")
+	assert.Equal(t, "plg-x", PluginIDFromCtx(ctx))
 }
 
 // --- GetMediaItem ---
@@ -533,4 +471,10 @@ func TestMediaItemToProto_NoYear(t *testing.T) {
 func TestPluginEmittedEvent_EventName(t *testing.T) {
 	e := pluginEmittedEvent{pluginID: "p1", eventType: "scan.complete"}
 	assert.Equal(t, "plugin.event.scan.complete", e.EventName())
+}
+
+// --- PluginHostSockPath ---
+
+func TestPluginHostSockPath(t *testing.T) {
+	assert.Equal(t, "/tmp/evey/plugins/plg-foo/host.sock", PluginHostSockPath("plg-foo"))
 }
