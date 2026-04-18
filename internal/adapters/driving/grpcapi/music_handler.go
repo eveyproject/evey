@@ -59,9 +59,10 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 	if err != nil {
 		return nil, internalError("list tracks", err)
 	}
+	claims, _ := requireClaims(ctx)
 	resp := &eveyv1.ListTracksResponse{Total: int32(total)}
 	for _, t := range tracks {
-		resp.Tracks = append(resp.Tracks, trackToProto(t))
+		resp.Tracks = append(resp.Tracks, trackToProto(t, claims != nil && claims.IsAdmin))
 	}
 	return resp, nil
 }
@@ -131,9 +132,10 @@ func (h *musicHandler) SearchMusic(ctx context.Context, req *eveyv1.SearchMusicR
 	if err != nil {
 		return nil, internalError("search music", err)
 	}
+	claims, _ := requireClaims(ctx)
 	resp := &eveyv1.SearchMusicResponse{}
 	for _, t := range tracks {
-		resp.Tracks = append(resp.Tracks, trackToProto(t))
+		resp.Tracks = append(resp.Tracks, trackToProto(t, claims != nil && claims.IsAdmin))
 	}
 	return resp, nil
 }

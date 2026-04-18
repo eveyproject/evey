@@ -34,7 +34,7 @@ func TestTrackToProto_FullFields(t *testing.T) {
 		CreatedAt:   created,
 		UpdatedAt:   updated,
 	}
-	pb := trackToProto(tr)
+	pb := trackToProto(tr, true)
 	assert.Equal(t, "tr-1", pb.Id)
 	assert.Equal(t, "lib-1", pb.LibraryId)
 	assert.Equal(t, "Song", pb.Title)
@@ -45,6 +45,7 @@ func TestTrackToProto_FullFields(t *testing.T) {
 	assert.Equal(t, int32(3), pb.TrackNumber)
 	assert.Equal(t, int32(1), pb.DiskNumber)
 	assert.Equal(t, 240.5, pb.Duration)
+	assert.Equal(t, "/music/song.mp3", pb.FilePath)
 	assert.Equal(t, int64(5_000_000), pb.FileSize)
 	assert.Equal(t, int32(320), pb.Bitrate)
 	assert.Equal(t, int32(44100), pb.SampleRate)
@@ -58,7 +59,7 @@ func TestTrackToProto_FullFields(t *testing.T) {
 func TestTrackToProto_EmptyFields(t *testing.T) {
 	t.Parallel()
 	tr := music.Track{ID: "tr-empty"}
-	pb := trackToProto(tr)
+	pb := trackToProto(tr, true)
 	assert.Equal(t, "tr-empty", pb.Id)
 	assert.Equal(t, int32(0), pb.Year)
 	assert.Equal(t, int32(0), pb.TrackNumber)
@@ -66,4 +67,13 @@ func TestTrackToProto_EmptyFields(t *testing.T) {
 	// Zero time → nil timestamp
 	assert.Nil(t, pb.CreatedAt)
 	assert.Nil(t, pb.UpdatedAt)
+}
+
+func TestTrackToProto_RedactsFilePathForNonAdmin(t *testing.T) {
+	t.Parallel()
+	tr := music.Track{ID: "tr-2", FilePath: "/music/secret.mp3"}
+	nonAdmin := trackToProto(tr, false)
+	assert.Equal(t, "", nonAdmin.FilePath, "non-admin must not see file_path")
+	admin := trackToProto(tr, true)
+	assert.Equal(t, "/music/secret.mp3", admin.FilePath)
 }

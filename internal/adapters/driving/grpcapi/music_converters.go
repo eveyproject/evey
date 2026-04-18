@@ -5,8 +5,11 @@ import (
 	"github.com/evey-project/evey/internal/domain/music"
 )
 
-func trackToProto(t music.Track) *eveyv1.Track {
-	return &eveyv1.Track{
+// trackToProto converts a Track to proto. When includeFilePath is false,
+// `file_path` is omitted — non-admin callers have no business seeing the
+// server's absolute on-disk paths.
+func trackToProto(t music.Track, includeFilePath bool) *eveyv1.Track {
+	pb := &eveyv1.Track{
 		Id:          t.ID,
 		LibraryId:   string(t.LibraryID),
 		Title:       t.Title,
@@ -17,7 +20,6 @@ func trackToProto(t music.Track) *eveyv1.Track {
 		TrackNumber: int32(t.TrackNumber),
 		DiskNumber:  int32(t.DiskNumber),
 		Duration:    t.Duration,
-		FilePath:    t.FilePath,
 		FileSize:    t.FileSize,
 		MimeType:    t.MimeType,
 		Bitrate:     int32(t.Bitrate),
@@ -28,4 +30,8 @@ func trackToProto(t music.Track) *eveyv1.Track {
 		CreatedAt:   toTimestamppb(t.CreatedAt),
 		UpdatedAt:   toTimestamppb(t.UpdatedAt),
 	}
+	if includeFilePath {
+		pb.FilePath = t.FilePath
+	}
+	return pb
 }
