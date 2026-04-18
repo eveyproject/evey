@@ -90,7 +90,7 @@ func (r *LibraryRepository) Update(ctx context.Context, lib *library.Library) er
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Update marshal paths: %w", err)
 	}
-	_, err = r.db.ExecContext(ctx,
+	res, err := r.db.ExecContext(ctx,
 		`UPDATE libraries SET name=$1, type=$2, paths=$3, scan_interval_minutes=$4, enabled=$5, last_scanned_at=$6, updated_at=$7
 		 WHERE id=$8`,
 		lib.Name, lib.Type, pathsJSON, lib.ScanIntervalMinutes, lib.Enabled, lib.LastScannedAt, lib.UpdatedAt, lib.ID,
@@ -98,15 +98,21 @@ func (r *LibraryRepository) Update(ctx context.Context, lib *library.Library) er
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Update: %w", err)
 	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
 	return nil
 }
 
 func (r *LibraryRepository) Delete(ctx context.Context, id shared.LibraryID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM libraries WHERE id = $1`, string(id))
+	res, err := r.db.ExecContext(ctx, `DELETE FROM libraries WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Delete: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
 	}
 	return nil
 }

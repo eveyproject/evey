@@ -125,7 +125,7 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 	if locale == "" {
 		locale = "en"
 	}
-	_, err = r.db.ExecContext(ctx,
+	res, err := r.db.ExecContext(ctx,
 		`UPDATE profiles SET name=$1, avatar_path=$2, preferences=$3, max_rating=$4, is_default=$5, is_kids=$6, audio_languages=$7, subtitle_languages=$8, max_bitrate_kbps=$9, parental_max_age=$10, parental_blocked_tags=$11, parental_pin_hash=$12, parental_enabled=$13, locale=$14, region=$15 WHERE id=$16`,
 		p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault, p.IsKids,
 		pq.Array(audioLangs), pq.Array(subLangs), p.MaxBitrateKbps,
@@ -134,6 +134,9 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 	)
 	if err != nil {
 		return fmt.Errorf("update profile: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
 	}
 	return nil
 }
@@ -166,9 +169,12 @@ func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error)
 func (r *ProfileRepository) Delete(ctx context.Context, id shared.ProfileID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM profiles WHERE id = $1`, string(id))
+	res, err := r.db.ExecContext(ctx, `DELETE FROM profiles WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("delete profile: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
 	}
 	return nil
 }

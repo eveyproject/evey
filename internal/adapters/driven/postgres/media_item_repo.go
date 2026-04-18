@@ -359,7 +359,7 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 		fingerprint = &item.FileFingerprint
 	}
 
-	_, err = r.db.ExecContext(ctx,
+	res, err := r.db.ExecContext(ctx,
 		`UPDATE media_items SET library_id=$1, parent_id=$2, type=$3, title=$4, sort_title=$5, original_title=$6,
 		 overview=$7, tagline=$8, file_path=$9, file_size=$10, file_fingerprint=$11, mod_time=$12, duration_ms=$13, bitrate=$14, container_format=$15,
 		 index_number=$16, community_rating=$17, official_rating=$18, certifications_by_country=$19, premiere_date=$20, year=$21,
@@ -373,15 +373,21 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	if err != nil {
 		return fmt.Errorf("MediaItemRepo.Update: %w", err)
 	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
 	return nil
 }
 
 func (r *MediaItemRepository) Delete(ctx context.Context, id shared.MediaItemID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = $1`, string(id))
+	res, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("MediaItemRepo.Delete: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
 	}
 	return nil
 }

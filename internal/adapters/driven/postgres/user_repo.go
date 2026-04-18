@@ -95,7 +95,7 @@ func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	res, err := r.db.ExecContext(ctx,
 		`UPDATE users SET username=$1, email=$2, password_hash=$3, is_admin=$4, enabled=$5,
 		 oidc_subject=$6, oidc_issuer=$7, max_streams=$8, max_profiles=$9, max_devices_per_profile=$10,
 		 max_bitrate_kbps=$11, push_consent=$12, updated_at=$13 WHERE id=$14`,
@@ -106,15 +106,21 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 	if err != nil {
 		return fmt.Errorf("update user: %w", err)
 	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
 	return nil
 }
 
 func (r *UserRepository) Delete(ctx context.Context, id shared.UserID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, string(id))
+	res, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("delete user: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
 	}
 	return nil
 }
