@@ -125,6 +125,28 @@ func TestNewFromDir_InvalidDir(t *testing.T) {
 	assert.ErrorContains(t, err, "read dir")
 }
 
+// Regression for the silent-skip bug: an overnight audit added a
+// duplicate top-level `confirm:` key to common.yaml across all 6
+// locales. yaml.v3 rejected the file but the loader only logged a
+// warn, so every common.* string disappeared from the live API and
+// users saw raw key strings in the UI. NewFromDir must now refuse
+// to boot on any malformed file so the regression cannot reach prod.
+func TestNewFromDir_FailsOnDuplicateKey(t *testing.T) {
+	dir := t.TempDir()
+	enDir := filepath.Join(dir, "en")
+	require.NoError(t, os.Mkdir(enDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(enDir, "common.yaml"), []byte(`
+confirm: First
+other: Other
+confirm: Second
+`), 0o644))
+
+	_, err := NewFromDir(dir)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "invalid YAML")
+	assert.ErrorContains(t, err, "common.yaml")
+}
+
 func TestAllMessages(t *testing.T) {
 	tr, err := NewFromDir(setupTestDir(t))
 	require.NoError(t, err)

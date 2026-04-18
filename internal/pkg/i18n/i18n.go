@@ -3,7 +3,6 @@ package i18n
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -72,8 +71,12 @@ func NewFromDir(dir string) (*Translator, error) {
 			}
 			var raw map[string]any
 			if err := yaml.Unmarshal(data, &raw); err != nil {
-				slog.Warn("i18n: skipping invalid file", slog.String("file", locale+"/"+f.Name()), slog.Any("err", err))
-				continue
+				// Fail-loud: a silently-skipped file (e.g. duplicate map key)
+				// drops the entire namespace from every locale, which surfaces
+				// to users as raw key strings on every screen using it. The
+				// previous warn-and-continue path hid a real production
+				// regression for hours — refuse to boot instead.
+				return nil, fmt.Errorf("i18n: invalid YAML %s/%s: %w", locale, f.Name(), err)
 			}
 			if t.messages[locale] == nil {
 				t.messages[locale] = make(map[string]string)
