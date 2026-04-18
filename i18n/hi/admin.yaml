@@ -159,6 +159,10 @@ users:
   editUser: "उपयोगकर्ता संपादित करें"
   failedCreateInvite: "आमंत्रण लिंक बनाने में विफल"
   leaveBlank: "वर्तमान बनाए रखने के लिए खाली छोड़ें"
+  maxProfiles: "अधिकतम प्रोफ़ाइल"
+  maxProfilesHelp: "इस उपयोगकर्ता द्वारा बनाए जा सकने वाले प्रोफ़ाइल की अधिकतम संख्या। 0 = असीमित।"
+  maxDevicesPerProfile: "प्रति प्रोफ़ाइल अधिकतम डिवाइस"
+  maxDevicesPerProfileHelp: "प्रति प्रोफ़ाइल पंजीकृत डिवाइस की अधिकतम संख्या। 0 = असीमित।"
 
 libraries:
   title: "लाइब्रेरी"

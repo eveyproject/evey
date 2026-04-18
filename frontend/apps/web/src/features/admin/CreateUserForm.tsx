@@ -17,6 +17,8 @@ export function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [maxProfiles, setMaxProfiles] = useState<string>("0");
+  const [maxDevicesPerProfile, setMaxDevicesPerProfile] = useState<string>("0");
   const [selectedLibs, setSelectedLibs] = useState<Set<string>>(new Set());
 
   const { data: libData } = useLibraryServiceListLibraries();
@@ -53,7 +55,18 @@ export function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    createUser.mutate({ data: { username, email, password, isAdmin } });
+    const parsedMaxProfiles = Number.isFinite(Number(maxProfiles)) ? Math.max(0, Math.trunc(Number(maxProfiles))) : 0;
+    const parsedMaxDevices = Number.isFinite(Number(maxDevicesPerProfile)) ? Math.max(0, Math.trunc(Number(maxDevicesPerProfile))) : 0;
+    createUser.mutate({
+      data: {
+        username,
+        email,
+        password,
+        isAdmin,
+        maxProfiles: parsedMaxProfiles,
+        maxDevicesPerProfile: parsedMaxDevices,
+      },
+    });
   }
 
   return (
@@ -82,6 +95,26 @@ export function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
         checked={isAdmin}
         onChange={setIsAdmin}
       />
+      <div className="flex flex-col gap-1">
+        <Input
+          label={t("admin.users.maxProfiles")}
+          type="number"
+          min="0"
+          value={maxProfiles}
+          onChange={(e) => setMaxProfiles(e.target.value)}
+        />
+        <p className="text-xs text-[var(--text-muted)]">{t("admin.users.maxProfilesHelp")}</p>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Input
+          label={t("admin.users.maxDevicesPerProfile")}
+          type="number"
+          min="0"
+          value={maxDevicesPerProfile}
+          onChange={(e) => setMaxDevicesPerProfile(e.target.value)}
+        />
+        <p className="text-xs text-[var(--text-muted)]">{t("admin.users.maxDevicesPerProfileHelp")}</p>
+      </div>
       {!isAdmin && libraries.length > 0 && (
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium text-[var(--text)]">

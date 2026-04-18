@@ -72,7 +72,7 @@ describe("CreateUserForm", () => {
     await userEvent.type(screen.getByLabelText("Password"), "secret");
     await userEvent.click(screen.getByRole("button", { name: "Create User" }));
     expect(createUserMutate).toHaveBeenCalledWith({
-      data: { username: "alice", email: "", password: "secret", isAdmin: false },
+      data: { username: "alice", email: "", password: "secret", isAdmin: false, maxProfiles: 0, maxDevicesPerProfile: 0 },
     });
   });
 

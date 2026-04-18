@@ -25,6 +25,8 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
   const [email, setEmail] = useState(user.email ?? "");
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(user.isAdmin ?? false);
+  const [maxProfiles, setMaxProfiles] = useState<string>(String(user.maxProfiles ?? 0));
+  const [maxDevicesPerProfile, setMaxDevicesPerProfile] = useState<string>(String(user.maxDevicesPerProfile ?? 0));
   const [selectedLibs, setSelectedLibs] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
@@ -41,6 +43,8 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
       setEmail(user.email ?? "");
       setPassword("");
       setIsAdmin(user.isAdmin ?? false);
+      setMaxProfiles(String(user.maxProfiles ?? 0));
+      setMaxDevicesPerProfile(String(user.maxDevicesPerProfile ?? 0));
     }
   }, [open, user]);
 
@@ -77,6 +81,10 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
       if (email.trim() !== (user.email ?? "")) data.email = email.trim();
       if (password) data.password = password;
       if (isAdmin !== user.isAdmin) data.isAdmin = isAdmin;
+      const parsedMaxProfiles = Number.isFinite(Number(maxProfiles)) ? Math.max(0, Math.trunc(Number(maxProfiles))) : 0;
+      const parsedMaxDevices = Number.isFinite(Number(maxDevicesPerProfile)) ? Math.max(0, Math.trunc(Number(maxDevicesPerProfile))) : 0;
+      if (parsedMaxProfiles !== (user.maxProfiles ?? 0)) data.maxProfiles = parsedMaxProfiles;
+      if (parsedMaxDevices !== (user.maxDevicesPerProfile ?? 0)) data.maxDevicesPerProfile = parsedMaxDevices;
 
       if (Object.keys(data).length > 0) {
         await updateUser.mutateAsync({ id: user.id, data });
@@ -112,6 +120,26 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
         <Input label={t("admin.users.email")} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <Input label={t("admin.users.newPassword") || "New password"} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("admin.users.leaveBlank") || "Leave blank to keep current"} />
         <Checkbox label={t("admin.users.admin")} checked={isAdmin} onChange={setIsAdmin} />
+        <div className="flex flex-col gap-1">
+          <Input
+            label={t("admin.users.maxProfiles")}
+            type="number"
+            min="0"
+            value={maxProfiles}
+            onChange={(e) => setMaxProfiles(e.target.value)}
+          />
+          <p className="text-xs text-[var(--text-muted)]">{t("admin.users.maxProfilesHelp")}</p>
+        </div>
+        <div className="flex flex-col gap-1">
+          <Input
+            label={t("admin.users.maxDevicesPerProfile")}
+            type="number"
+            min="0"
+            value={maxDevicesPerProfile}
+            onChange={(e) => setMaxDevicesPerProfile(e.target.value)}
+          />
+          <p className="text-xs text-[var(--text-muted)]">{t("admin.users.maxDevicesPerProfileHelp")}</p>
+        </div>
         {!isAdmin && (
           accessLoading ? (
             <div className="flex justify-center py-4">

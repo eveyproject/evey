@@ -160,6 +160,10 @@ users:
   editUser: Edit User
   failedCreateInvite: Failed to create invite link
   leaveBlank: "Leave blank to keep current"
+  maxProfiles: Max profiles
+  maxProfilesHelp: "Maximum profiles this user can create. 0 = unlimited."
+  maxDevicesPerProfile: Max devices per profile
+  maxDevicesPerProfileHelp: "Maximum devices a profile can register. 0 = unlimited."
 
 libraries:
   title: Libraries

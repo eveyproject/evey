@@ -160,6 +160,10 @@ users:
   editUser: Benutzer bearbeiten
   failedCreateInvite: Einladungslink konnte nicht erstellt werden
   leaveBlank: "Leer lassen zum Beibehalten"
+  maxProfiles: Max. Profile
+  maxProfilesHelp: "Maximale Anzahl Profile, die dieser Benutzer anlegen kann. 0 = unbegrenzt."
+  maxDevicesPerProfile: Max. Geräte pro Profil
+  maxDevicesPerProfileHelp: "Maximale Anzahl Geräte pro Profil. 0 = unbegrenzt."
 
 libraries:
   title: Bibliotheken

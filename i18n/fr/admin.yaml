@@ -159,6 +159,10 @@ users:
   editUser: "Modifier l'utilisateur"
   failedCreateInvite: "Échec de la création du lien d'invitation"
   leaveBlank: "Laisser vide pour conserver"
+  maxProfiles: "Profils max"
+  maxProfilesHelp: "Nombre maximum de profils créés par cet utilisateur. 0 = illimité."
+  maxDevicesPerProfile: "Appareils max par profil"
+  maxDevicesPerProfileHelp: "Nombre maximum d'appareils enregistrés par profil. 0 = illimité."
 
 libraries:
   title: "Bibliothèques"

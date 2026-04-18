@@ -159,6 +159,10 @@ users:
   editUser: "编辑用户"
   failedCreateInvite: "创建邀请链接失败"
   leaveBlank: "留空以保持当前值"
+  maxProfiles: "最大配置文件数"
+  maxProfilesHelp: "此用户可创建的最大配置文件数。0 = 无限制。"
+  maxDevicesPerProfile: "每个配置文件的最大设备数"
+  maxDevicesPerProfileHelp: "每个配置文件可注册的最大设备数。0 = 无限制。"
 
 libraries:
   title: "媒体库"
