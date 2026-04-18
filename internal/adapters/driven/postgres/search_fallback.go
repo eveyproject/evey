@@ -40,16 +40,16 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 
 	pattern := "%" + likeEscape(q) + "%"
 	args := []any{pattern, pattern}
-	where := "(title ILIKE $1 ESCAPE '\\' OR COALESCE(original_title,'') ILIKE $2 ESCAPE '\\')"
+	where := "(mi.title ILIKE $1 ESCAPE '\\' OR COALESCE(mi.original_title,'') ILIKE $2 ESCAPE '\\')"
 	argN := 3
 
 	if typ, ok := filters["type"]; ok && typ != "" {
-		where += fmt.Sprintf(" AND type = $%d", argN)
+		where += fmt.Sprintf(" AND mi.type = $%d", argN)
 		args = append(args, typ)
 		argN++
 	}
 	if libID, ok := filters["library_id"]; ok && libID != "" {
-		where += fmt.Sprintf(" AND library_id = $%d", argN)
+		where += fmt.Sprintf(" AND mi.library_id = $%d", argN)
 		args = append(args, libID)
 	}
 
@@ -57,20 +57,24 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 		limit = 20
 	}
 
+	const fromJoins = `FROM media_items mi
+	 LEFT JOIN media_catalog mc ON mc.media_item_id = mi.id
+	 LEFT JOIN media_classifications mcl ON mcl.media_item_id = mi.id`
+
 	var total int64
-	countSQL := "SELECT COUNT(*) FROM media_items WHERE " + where
+	countSQL := "SELECT COUNT(*) " + fromJoins + " WHERE " + where
 	if err := s.db.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("search count: %w", err)
 	}
 
-	orderClause := "title"
+	orderClause := "mi.title"
 	if len(sort) > 0 {
 		orderClause = buildSortClause(sort)
 	}
 
 	dataSQL := fmt.Sprintf(
-		"SELECT id, library_id, title, year, type, genres, official_rating FROM media_items WHERE %s ORDER BY %s LIMIT %d",
-		where, orderClause, limit,
+		"SELECT mi.id, mi.library_id, mi.title, mc.year, mi.type, mc.genres, mcl.official_rating %s WHERE %s ORDER BY %s LIMIT %d",
+		fromJoins, where, orderClause, limit,
 	)
 	rows, err := s.db.QueryContext(ctx, dataSQL, args...)
 	if err != nil {
@@ -83,12 +87,16 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 		var h library.SearchHit
 		var genresJSON []byte
 		var year sql.NullInt32
-		if err := rows.Scan(&h.ID, &h.LibraryID, &h.Title, &year, &h.Type, &genresJSON, &h.OfficialRating); err != nil {
+		var officialRating sql.NullString
+		if err := rows.Scan(&h.ID, &h.LibraryID, &h.Title, &year, &h.Type, &genresJSON, &officialRating); err != nil {
 			return nil, 0, fmt.Errorf("search scan: %w", err)
 		}
 		if year.Valid {
 			y := int(year.Int32)
 			h.Year = &y
+		}
+		if officialRating.Valid {
+			h.OfficialRating = officialRating.String
 		}
 		h.Genres = parseJSONStringArray(genresJSON)
 		hits = append(hits, h)

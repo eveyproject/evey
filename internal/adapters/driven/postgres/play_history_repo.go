@@ -22,12 +22,13 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 	query := `
 		SELECT ps.id, ps.profile_id, ps.media_item_id,
 		       mi.title, mi.type,
-		       COALESCE(mi.duration_ms, 0), COALESCE(ps.position_ms, 0),
+		       COALESCE(mf.duration_ms, 0), COALESCE(ps.position_ms, 0),
 		       COALESCE(wp.completed, false),
 		       ps.device_name, ps.device_type, ps.play_method,
 		       ps.started_at, ps.ended_at
 		FROM play_sessions ps
 		INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 		LEFT JOIN watch_progress wp ON wp.profile_id = ps.profile_id AND wp.media_item_id = ps.media_item_id
 		WHERE 1=1`
 

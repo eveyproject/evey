@@ -46,8 +46,8 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 		       COALESCE(SUM(ps.duration_ms), 0) AS total_ms,
 		       COUNT(*) AS play_count
 		FROM play_sessions ps
-		INNER JOIN media_items mi ON mi.id = ps.media_item_id,
-		jsonb_array_elements_text(mi.genres) AS g(genre)
+		INNER JOIN media_catalog mc ON mc.media_item_id = ps.media_item_id,
+		jsonb_array_elements_text(mc.genres) AS g(genre)
 		WHERE ps.profile_id = $1
 		GROUP BY g.genre
 		ORDER BY total_ms DESC

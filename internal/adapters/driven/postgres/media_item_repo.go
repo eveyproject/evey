@@ -14,17 +14,31 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
-const mediaItemColumns = `id, library_id, parent_id, type, title, scan_title, sort_title, original_title, overview, tagline,
-	 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating,
-	 official_rating, certifications_by_country, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at`
+// DefaultListLimit caps every paginated List query at 500 rows so a buggy
+// or malicious caller cannot drag the whole library across the wire in a
+// single request. Callers asking for 0 (or > 500) get clamped down.
+const DefaultListLimit = 500
 
-const mediaItemColumnsPrefixed = `media_items.id, media_items.library_id, media_items.parent_id, media_items.type,
-	 media_items.title, media_items.scan_title, media_items.sort_title, media_items.original_title, media_items.overview, media_items.tagline,
-	 media_items.file_path, media_items.file_size, media_items.file_fingerprint, media_items.mod_time,
-	 media_items.duration_ms, media_items.bitrate, media_items.container_format, media_items.index_number,
-	 media_items.community_rating, media_items.official_rating, media_items.certifications_by_country, media_items.premiere_date, media_items.year,
-	 media_items.provider_ids, media_items.genres, media_items.studios, media_items.tags, media_items.trailers,
-	 media_items.ratings, media_items.added_at, media_items.updated_at`
+// mediaItemColumns is the set of columns SELECTed for a full MediaItem
+// view: 12 root columns from media_items + the LEFT-JOIN'd sub-aggregate
+// columns from media_files / media_catalog / media_classifications, plus
+// a jsonb_agg subquery for the (1:N) trailers. The order matches what
+// scanMediaItemFields expects.
+const mediaItemColumns = `mi.id, mi.library_id, mi.parent_id, mi.type, mi.title, mi.scan_title,
+	 mi.sort_title, mi.original_title, mi.overview, mi.tagline, mi.index_number,
+	 mi.added_at, mi.updated_at,
+	 mf.file_path, mf.file_size, mf.file_fingerprint, mf.mod_time, mf.duration_ms, mf.bitrate, mf.container_format,
+	 mc.premiere_date, mc.year, mc.provider_ids, mc.genres, mc.studios, mc.tags,
+	 mcl.community_rating, mcl.official_rating, mcl.certifications_by_country, mcl.provider_ratings,
+	 COALESCE((SELECT jsonb_agg(jsonb_build_object('Site', mt.site, 'Key', mt.key,
+	     'Language', mt.language, 'Official', mt.official, 'Type', mt.type,
+	     'UseSubtitles', mt.use_subtitles, 'SubtitleLanguage', mt.subtitle_language) ORDER BY mt.position)
+	     FROM media_trailers mt WHERE mt.media_item_id = mi.id), '[]'::jsonb) AS trailers`
+
+const mediaItemFromJoins = `FROM media_items mi
+	 LEFT JOIN media_files mf ON mf.media_item_id = mi.id
+	 LEFT JOIN media_catalog mc ON mc.media_item_id = mi.id
+	 LEFT JOIN media_classifications mcl ON mcl.media_item_id = mi.id`
 
 type MediaItemRepository struct {
 	db *sql.DB
@@ -34,82 +48,58 @@ func NewMediaItemRepository(db *sql.DB) *MediaItemRepository {
 	return &MediaItemRepository{db: db}
 }
 
+// withMediaItemTx runs f inside a single transaction so that a partial
+// sub-aggregate write never leaves an item half-persisted.
+func (r *MediaItemRepository) withMediaItemTx(ctx context.Context, f func(*sql.Tx) error) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := f(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaItem) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	providerJSON, err := json.Marshal(item.ProviderIDs)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Create marshal provider_ids: %w", err)
-	}
-	genres := item.Genres
-	if genres == nil {
-		genres = []string{}
-	}
-	genresJSON, err := json.Marshal(genres)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Create marshal genres: %w", err)
-	}
-	studiosJSON, err := json.Marshal(item.Studios)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Create marshal studios: %w", err)
-	}
-	tagsJSON, err := json.Marshal(item.Tags)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Create marshal tags: %w", err)
-	}
-	trailers := item.Trailers
-	if trailers == nil {
-		trailers = []library.Trailer{}
-	}
-	trailersJSON, err := json.Marshal(trailers)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Create marshal trailers: %w", err)
-	}
-	ratings := item.Ratings
-	if ratings == nil {
-		ratings = map[string]float64{}
-	}
-	ratingsJSON, err := json.Marshal(ratings)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Create marshal ratings: %w", err)
-	}
-	certifications := item.CertificationsByCountry
-	if certifications == nil {
-		certifications = map[string]string{}
-	}
-	certificationsJSON, err := json.Marshal(certifications)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Create marshal certifications: %w", err)
-	}
-
-	var parentID *string
-	if item.ParentID != "" {
-		parentID = &item.ParentID
-	}
-	var filePath *string
-	if item.FilePath != "" {
-		filePath = &item.FilePath
-	}
-	var fingerprint *string
-	if item.FileFingerprint != "" {
-		fingerprint = &item.FileFingerprint
-	}
 
 	scanTitle := item.ScanTitle
 	if scanTitle == "" {
 		scanTitle = item.Title
 	}
-	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO media_items (id, library_id, parent_id, type, title, scan_title, sort_title, original_title, overview, tagline,
-		 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating, official_rating,
-		 certifications_by_country, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
-		item.ID, item.LibraryID, parentID, item.Type, item.Title, scanTitle, item.SortTitle, item.OriginalTitle,
-		item.Overview, item.Tagline, filePath, item.FileSize, fingerprint, item.ModTime, item.DurationMs, item.Bitrate,
-		item.ContainerFormat, item.IndexNumber, item.CommunityRating, item.OfficialRating,
-		certificationsJSON, item.PremiereDate, item.Year, providerJSON, genresJSON, studiosJSON, tagsJSON, trailersJSON, ratingsJSON,
-		item.AddedAt, item.UpdatedAt,
-	)
+	var parentID *string
+	if item.ParentID != "" {
+		parentID = &item.ParentID
+	}
+
+	err := r.withMediaItemTx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO media_items (id, library_id, parent_id, type, title, scan_title, sort_title, original_title,
+			 overview, tagline, index_number, added_at, updated_at)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+			item.ID, item.LibraryID, parentID, item.Type, item.Title, scanTitle,
+			item.SortTitle, item.OriginalTitle, item.Overview, item.Tagline,
+			item.IndexNumber, item.AddedAt, item.UpdatedAt,
+		); err != nil {
+			return fmt.Errorf("insert media_items: %w", err)
+		}
+		if err := upsertMediaFile(ctx, tx, item); err != nil {
+			return err
+		}
+		if err := upsertMediaCatalog(ctx, tx, item); err != nil {
+			return err
+		}
+		if err := upsertMediaClassification(ctx, tx, item); err != nil {
+			return err
+		}
+		if err := replaceMediaTrailers(ctx, tx, string(item.ID), item.Trailers); err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("MediaItemRepo.Create: %w", err)
 	}
@@ -117,11 +107,217 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 	return nil
 }
 
+func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaItem) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	var parentID *string
+	if item.ParentID != "" {
+		parentID = &item.ParentID
+	}
+
+	err := r.withMediaItemTx(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx,
+			`UPDATE media_items SET library_id=$1, parent_id=$2, type=$3, title=$4, sort_title=$5,
+			 original_title=$6, overview=$7, tagline=$8, index_number=$9, updated_at=$10
+			 WHERE id=$11`,
+			item.LibraryID, parentID, item.Type, item.Title, item.SortTitle, item.OriginalTitle,
+			item.Overview, item.Tagline, item.IndexNumber, item.UpdatedAt, item.ID,
+		)
+		if err != nil {
+			return fmt.Errorf("update media_items: %w", err)
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return shared.ErrNotFound
+		}
+		if err := upsertMediaFile(ctx, tx, item); err != nil {
+			return err
+		}
+		if err := upsertMediaCatalog(ctx, tx, item); err != nil {
+			return err
+		}
+		if err := upsertMediaClassification(ctx, tx, item); err != nil {
+			return err
+		}
+		if err := replaceMediaTrailers(ctx, tx, string(item.ID), item.Trailers); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, shared.ErrNotFound) {
+			return err
+		}
+		return fmt.Errorf("MediaItemRepo.Update: %w", err)
+	}
+	r.bumpSeriesLatestChildAddedAt(ctx, item)
+	return nil
+}
+
+// upsertMediaFile writes (or deletes) the 1:1 media_files row driven by
+// item.FilePath. An empty path means the item owns no on-disk artefact
+// (series root, season, album); we DELETE so a subsequent JOIN cleanly
+// returns NULL for every file column.
+func upsertMediaFile(ctx context.Context, tx *sql.Tx, item *library.MediaItem) error {
+	if item.FilePath == "" {
+		_, err := tx.ExecContext(ctx, `DELETE FROM media_files WHERE media_item_id = $1`, string(item.ID))
+		if err != nil {
+			return fmt.Errorf("delete media_files: %w", err)
+		}
+		return nil
+	}
+	var fingerprint *string
+	if item.FileFingerprint != "" {
+		fingerprint = &item.FileFingerprint
+	}
+	_, err := tx.ExecContext(ctx,
+		`INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		 ON CONFLICT (media_item_id) DO UPDATE SET
+		   file_path = EXCLUDED.file_path,
+		   file_size = EXCLUDED.file_size,
+		   file_fingerprint = EXCLUDED.file_fingerprint,
+		   mod_time = EXCLUDED.mod_time,
+		   duration_ms = EXCLUDED.duration_ms,
+		   bitrate = EXCLUDED.bitrate,
+		   container_format = EXCLUDED.container_format`,
+		string(item.ID), item.FilePath, item.FileSize, fingerprint,
+		item.ModTime, item.DurationMs, item.Bitrate, item.ContainerFormat,
+	)
+	if err != nil {
+		return fmt.Errorf("upsert media_files: %w", err)
+	}
+	return nil
+}
+
+// upsertMediaCatalog mirrors upsertMediaFile for the catalog row. Absent
+// when every catalog field is zero/empty (the row would only carry
+// defaults and a stale FK).
+func upsertMediaCatalog(ctx context.Context, tx *sql.Tx, item *library.MediaItem) error {
+	hasData := item.PremiereDate != nil || item.Year != nil ||
+		len(item.ProviderIDs) > 0 || len(item.Genres) > 0 ||
+		len(item.Studios) > 0 || len(item.Tags) > 0
+	if !hasData {
+		_, err := tx.ExecContext(ctx, `DELETE FROM media_catalog WHERE media_item_id = $1`, string(item.ID))
+		if err != nil {
+			return fmt.Errorf("delete media_catalog: %w", err)
+		}
+		return nil
+	}
+	providerJSON, err := json.Marshal(orEmptyMap(item.ProviderIDs))
+	if err != nil {
+		return fmt.Errorf("marshal provider_ids: %w", err)
+	}
+	genresJSON, err := json.Marshal(orEmptySlice(item.Genres))
+	if err != nil {
+		return fmt.Errorf("marshal genres: %w", err)
+	}
+	studiosJSON, err := json.Marshal(orEmptySlice(item.Studios))
+	if err != nil {
+		return fmt.Errorf("marshal studios: %w", err)
+	}
+	tagsJSON, err := json.Marshal(orEmptySlice(item.Tags))
+	if err != nil {
+		return fmt.Errorf("marshal tags: %w", err)
+	}
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO media_catalog (media_item_id, premiere_date, year, provider_ids, genres, studios, tags)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7)
+		 ON CONFLICT (media_item_id) DO UPDATE SET
+		   premiere_date = EXCLUDED.premiere_date,
+		   year = EXCLUDED.year,
+		   provider_ids = EXCLUDED.provider_ids,
+		   genres = EXCLUDED.genres,
+		   studios = EXCLUDED.studios,
+		   tags = EXCLUDED.tags`,
+		string(item.ID), item.PremiereDate, item.Year, providerJSON, genresJSON, studiosJSON, tagsJSON,
+	)
+	if err != nil {
+		return fmt.Errorf("upsert media_catalog: %w", err)
+	}
+	return nil
+}
+
+func upsertMediaClassification(ctx context.Context, tx *sql.Tx, item *library.MediaItem) error {
+	hasData := item.CommunityRating != nil || item.OfficialRating != "" ||
+		len(item.CertificationsByCountry) > 0 || len(item.Ratings) > 0
+	if !hasData {
+		_, err := tx.ExecContext(ctx, `DELETE FROM media_classifications WHERE media_item_id = $1`, string(item.ID))
+		if err != nil {
+			return fmt.Errorf("delete media_classifications: %w", err)
+		}
+		return nil
+	}
+	certJSON, err := json.Marshal(orEmptyMap(item.CertificationsByCountry))
+	if err != nil {
+		return fmt.Errorf("marshal certifications: %w", err)
+	}
+	ratingsJSON, err := json.Marshal(orEmptyFloatMap(item.Ratings))
+	if err != nil {
+		return fmt.Errorf("marshal provider_ratings: %w", err)
+	}
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO media_classifications (media_item_id, community_rating, official_rating, certifications_by_country, provider_ratings)
+		 VALUES ($1,$2,$3,$4,$5)
+		 ON CONFLICT (media_item_id) DO UPDATE SET
+		   community_rating = EXCLUDED.community_rating,
+		   official_rating = EXCLUDED.official_rating,
+		   certifications_by_country = EXCLUDED.certifications_by_country,
+		   provider_ratings = EXCLUDED.provider_ratings`,
+		string(item.ID), item.CommunityRating, item.OfficialRating, certJSON, ratingsJSON,
+	)
+	if err != nil {
+		return fmt.Errorf("upsert media_classifications: %w", err)
+	}
+	return nil
+}
+
+// replaceMediaTrailers deletes-then-reinserts so the in-memory slice is
+// the source of truth, matching how the previous JSONB array column
+// behaved. Cheap because trailers per item is typically <10.
+func replaceMediaTrailers(ctx context.Context, tx *sql.Tx, mediaItemID string, trailers []library.Trailer) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM media_trailers WHERE media_item_id = $1`, mediaItemID); err != nil {
+		return fmt.Errorf("delete media_trailers: %w", err)
+	}
+	for i, t := range trailers {
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO media_trailers (id, media_item_id, position, site, key, language, official, type, use_subtitles, subtitle_language)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			fmt.Sprintf("tlr-%s-%d", mediaItemID, i),
+			mediaItemID, i, t.Site, t.Key, t.Language, t.Official, t.Type,
+			t.UseSubtitles, t.SubtitleLanguage,
+		)
+		if err != nil {
+			return fmt.Errorf("insert media_trailers: %w", err)
+		}
+	}
+	return nil
+}
+
+func orEmptyMap[V any](m map[string]V) map[string]V {
+	if m == nil {
+		return map[string]V{}
+	}
+	return m
+}
+
+func orEmptySlice[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
+}
+
+func orEmptyFloatMap(m map[string]float64) map[string]float64 {
+	if m == nil {
+		return map[string]float64{}
+	}
+	return m
+}
+
 // bumpSeriesLatestChildAddedAt keeps media_items.latest_child_added_at in
 // sync on the grandparent series when an episode is created or touched.
-// Best-effort — failure is logged but not propagated (the column is a
-// denormalized sort cache, missing it at most degrades the "Recently
-// added" ordering until the next full scan).
+// Best-effort — failure is logged but not propagated.
 func (r *MediaItemRepository) bumpSeriesLatestChildAddedAt(ctx context.Context, item *library.MediaItem) {
 	if item == nil || item.Type != library.Episode || item.ParentID == "" {
 		return
@@ -146,28 +342,29 @@ func (r *MediaItemRepository) GetByID(ctx context.Context, id shared.MediaItemID
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
-		fmt.Sprintf("SELECT %s FROM media_items WHERE id = $1", mediaItemColumns), string(id)))
+		fmt.Sprintf("SELECT %s %s WHERE mi.id = $1", mediaItemColumns, mediaItemFromJoins), string(id)))
 }
 
 func (r *MediaItemRepository) GetByFilePath(ctx context.Context, path string) (*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
-		fmt.Sprintf("SELECT %s FROM media_items WHERE file_path = $1", mediaItemColumns), path))
+		fmt.Sprintf("SELECT %s %s WHERE mf.file_path = $1", mediaItemColumns, mediaItemFromJoins), path))
 }
 
 func (r *MediaItemRepository) GetByFileFingerprint(ctx context.Context, fingerprint string) (*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
-		fmt.Sprintf("SELECT %s FROM media_items WHERE file_fingerprint = $1", mediaItemColumns), fingerprint))
+		fmt.Sprintf("SELECT %s %s WHERE mf.file_fingerprint = $1", mediaItemColumns, mediaItemFromJoins), fingerprint))
 }
 
 func (r *MediaItemRepository) GetByLibraryTypeTitle(ctx context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
-		fmt.Sprintf("SELECT %s FROM media_items WHERE library_id = $1 AND type = $2 AND title = $3 AND ($4 = '' OR parent_id = $4) LIMIT 1", mediaItemColumns), string(libraryID), itemType, title, parentID))
+		fmt.Sprintf("SELECT %s %s WHERE mi.library_id = $1 AND mi.type = $2 AND mi.title = $3 AND ($4 = '' OR mi.parent_id = $4) LIMIT 1", mediaItemColumns, mediaItemFromJoins),
+		string(libraryID), itemType, title, parentID))
 }
 
 func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (string, []any) {
@@ -175,7 +372,7 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 	var args []any
 	argIdx := 1
 	if f.LibraryID != nil {
-		conditions = append(conditions, fmt.Sprintf("library_id = $%d", argIdx))
+		conditions = append(conditions, fmt.Sprintf("mi.library_id = $%d", argIdx))
 		args = append(args, *f.LibraryID)
 		argIdx++
 	}
@@ -186,40 +383,40 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 			args = append(args, id)
 			argIdx++
 		}
-		conditions = append(conditions, "library_id IN ("+strings.Join(placeholders, ",")+")")
+		conditions = append(conditions, "mi.library_id IN ("+strings.Join(placeholders, ",")+")")
 	}
 	if f.Type != nil {
-		conditions = append(conditions, fmt.Sprintf("type = $%d", argIdx))
+		conditions = append(conditions, fmt.Sprintf("mi.type = $%d", argIdx))
 		args = append(args, *f.Type)
 		argIdx++
 	}
 	if f.ParentID != nil {
-		conditions = append(conditions, fmt.Sprintf("parent_id = $%d", argIdx))
+		conditions = append(conditions, fmt.Sprintf("mi.parent_id = $%d", argIdx))
 		args = append(args, *f.ParentID)
 		argIdx++
 	}
 	if f.Year != nil {
-		conditions = append(conditions, fmt.Sprintf("year = $%d", argIdx))
+		conditions = append(conditions, fmt.Sprintf("mc.year = $%d", argIdx))
 		args = append(args, *f.Year)
 		argIdx++
 	}
 	if f.YearFrom != 0 {
-		conditions = append(conditions, fmt.Sprintf("year >= $%d", argIdx))
+		conditions = append(conditions, fmt.Sprintf("mc.year >= $%d", argIdx))
 		args = append(args, f.YearFrom)
 		argIdx++
 	}
 	if f.YearTo != 0 {
-		conditions = append(conditions, fmt.Sprintf("year <= $%d", argIdx))
+		conditions = append(conditions, fmt.Sprintf("mc.year <= $%d", argIdx))
 		args = append(args, f.YearTo)
 		argIdx++
 	}
 	if f.MinRating != 0 {
-		conditions = append(conditions, fmt.Sprintf("community_rating >= $%d", argIdx))
+		conditions = append(conditions, fmt.Sprintf("mcl.community_rating >= $%d", argIdx))
 		args = append(args, f.MinRating)
 		argIdx++
 	}
 	for _, g := range f.Genres {
-		conditions = append(conditions, fmt.Sprintf("genres @> $%d::jsonb", argIdx))
+		conditions = append(conditions, fmt.Sprintf("mc.genres @> $%d::jsonb", argIdx))
 		gJSON, err := json.Marshal([]string{g})
 		if err != nil {
 			slog.Warn("marshal genre filter", slog.Any("err", err))
@@ -235,17 +432,17 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 			args = append(args, r)
 			argIdx++
 		}
-		conditions = append(conditions, "(official_rating = '' OR official_rating IS NULL OR official_rating = ANY(ARRAY["+strings.Join(placeholders, ",")+"]))")
+		conditions = append(conditions, "(mcl.official_rating IS NULL OR mcl.official_rating = '' OR mcl.official_rating = ANY(ARRAY["+strings.Join(placeholders, ",")+"]))")
 	}
 	if f.PersonID != nil {
-		conditions = append(conditions, fmt.Sprintf("media_items.id IN (SELECT media_item_id FROM media_people WHERE person_id = $%d)", argIdx))
+		conditions = append(conditions, fmt.Sprintf("mi.id IN (SELECT media_item_id FROM media_people WHERE person_id = $%d)", argIdx))
 		args = append(args, *f.PersonID)
 		argIdx++
 	}
 	if f.AfterID != "" {
-		conditions = append(conditions, fmt.Sprintf("media_items.id > $%d", argIdx))
+		conditions = append(conditions, fmt.Sprintf("mi.id > $%d", argIdx))
 		args = append(args, f.AfterID)
-		argIdx++ //nolint:ineffassign // kept so new conditions below stay placeholder-correct
+		argIdx++ //nolint:ineffassign
 	}
 	where := ""
 	if len(conditions) > 0 {
@@ -259,7 +456,7 @@ func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItem
 	defer cancel()
 	where, args := r.buildWhereClause(f)
 	var count int
-	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM media_items"+where, args...).Scan(&count)
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) `+mediaItemFromJoins+where, args...).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("MediaItemRepo.Count: %w", err)
 	}
@@ -270,9 +467,9 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	where, args := r.buildWhereClause(f)
-	query := fmt.Sprintf("SELECT %s FROM media_items", mediaItemColumns) + where
+	query := fmt.Sprintf("SELECT %s %s%s", mediaItemColumns, mediaItemFromJoins, where)
 
-	sortField := "sort_title"
+	sortField := "mi.sort_title"
 	if f.SortField != "" {
 		if col, ok := SortColumnMap[f.SortField]; ok {
 			sortField = col
@@ -282,24 +479,19 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	if strings.EqualFold(f.SortOrder, "desc") {
 		sortOrder = "DESC"
 	}
-	// Keyset pagination forces an ID-based order so the WHERE id > $N
-	// cursor is monotonic. Incompatible with added_at / sort_title orders.
 	if f.AfterID != "" {
-		query += " ORDER BY media_items.id ASC"
-	} else if sortField == "added_at" {
-		// Use the denormalized latest_child_added_at column on series rows
-		// so "Recently added" sorts by latest episode without a LATERAL
-		// join (cf backlog #4, maintained by bumpSeriesLatestChildAddedAt).
-		query += fmt.Sprintf(` ORDER BY CASE WHEN media_items.type = 'series'
-		 THEN COALESCE(media_items.latest_child_added_at, media_items.added_at)
-		 ELSE media_items.added_at END %s`, sortOrder)
+		query += " ORDER BY mi.id ASC"
+	} else if sortField == "added_at" || sortField == "mi.added_at" {
+		query += fmt.Sprintf(` ORDER BY CASE WHEN mi.type = 'series'
+			 THEN COALESCE(mi.latest_child_added_at, mi.added_at)
+			 ELSE mi.added_at END %s`, sortOrder)
 	} else {
 		query += fmt.Sprintf(" ORDER BY %s %s", sortField, sortOrder)
 	}
 
 	limit := f.Limit
-	if limit <= 0 || limit > 500 {
-		limit = 500
+	if limit <= 0 || limit > DefaultListLimit {
+		limit = DefaultListLimit
 	}
 	query += fmt.Sprintf(" LIMIT %d", limit)
 	if f.Offset > 0 {
@@ -326,94 +518,9 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	return result, nil
 }
 
-func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaItem) error {
-	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
-	defer cancel()
-	providerJSON, err := json.Marshal(item.ProviderIDs)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Update marshal provider_ids: %w", err)
-	}
-	genres := item.Genres
-	if genres == nil {
-		genres = []string{}
-	}
-	genresJSON, err := json.Marshal(genres)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Update marshal genres: %w", err)
-	}
-	studiosJSON, err := json.Marshal(item.Studios)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Update marshal studios: %w", err)
-	}
-	tagsJSON, err := json.Marshal(item.Tags)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Update marshal tags: %w", err)
-	}
-	trailers := item.Trailers
-	if trailers == nil {
-		trailers = []library.Trailer{}
-	}
-	trailersJSON, err := json.Marshal(trailers)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Update marshal trailers: %w", err)
-	}
-	ratings := item.Ratings
-	if ratings == nil {
-		ratings = map[string]float64{}
-	}
-	ratingsJSON, err := json.Marshal(ratings)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Update marshal ratings: %w", err)
-	}
-	certifications := item.CertificationsByCountry
-	if certifications == nil {
-		certifications = map[string]string{}
-	}
-	certificationsJSON, err := json.Marshal(certifications)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Update marshal certifications: %w", err)
-	}
-
-	var parentID *string
-	if item.ParentID != "" {
-		parentID = &item.ParentID
-	}
-	var filePath *string
-	if item.FilePath != "" {
-		filePath = &item.FilePath
-	}
-	var fingerprint *string
-	if item.FileFingerprint != "" {
-		fingerprint = &item.FileFingerprint
-	}
-
-	res, err := r.db.ExecContext(ctx,
-		`UPDATE media_items SET library_id=$1, parent_id=$2, type=$3, title=$4, sort_title=$5, original_title=$6,
-		 overview=$7, tagline=$8, file_path=$9, file_size=$10, file_fingerprint=$11, mod_time=$12, duration_ms=$13, bitrate=$14, container_format=$15,
-		 index_number=$16, community_rating=$17, official_rating=$18, certifications_by_country=$19, premiere_date=$20, year=$21,
-		 provider_ids=$22, genres=$23, studios=$24, tags=$25, trailers=$26, ratings=$27, updated_at=$28 WHERE id=$29`,
-		item.LibraryID, parentID, item.Type, item.Title, item.SortTitle, item.OriginalTitle,
-		item.Overview, item.Tagline, filePath, item.FileSize, fingerprint, item.ModTime, item.DurationMs, item.Bitrate,
-		item.ContainerFormat, item.IndexNumber, item.CommunityRating, item.OfficialRating,
-		certificationsJSON, item.PremiereDate, item.Year, providerJSON, genresJSON, studiosJSON, tagsJSON, trailersJSON, ratingsJSON,
-		item.UpdatedAt, item.ID,
-	)
-	if err != nil {
-		return fmt.Errorf("MediaItemRepo.Update: %w", err)
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return shared.ErrNotFound
-	}
-	r.bumpSeriesLatestChildAddedAt(ctx, item)
-	return nil
-}
-
 func (r *MediaItemRepository) Delete(ctx context.Context, id shared.MediaItemID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	// Capture the parent season/series so we can recompute
-	// latest_child_added_at if this item was an episode. Missing row → let the
-	// DELETE below hit ErrNotFound as usual.
 	var itemType, parentID string
 	_ = r.db.QueryRowContext(ctx, `SELECT type, COALESCE(parent_id, '') FROM media_items WHERE id = $1`, string(id)).Scan(&itemType, &parentID)
 	res, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = $1`, string(id))
@@ -429,11 +536,6 @@ func (r *MediaItemRepository) Delete(ctx context.Context, id shared.MediaItemID)
 	return nil
 }
 
-// recomputeSeriesLatestChildAddedAtFromSeason recomputes the series' cached
-// latest_child_added_at by taking MAX(added_at) across surviving episodes
-// under the same series. Called on episode delete so the sort doesn't keep a
-// stale cache when the latest episode is removed. Best-effort: warns on
-// failure but never propagates (delete path must not be rolled back).
 func (r *MediaItemRepository) recomputeSeriesLatestChildAddedAtFromSeason(ctx context.Context, seasonID string) {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE media_items s
@@ -468,7 +570,10 @@ func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID share
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, file_path FROM media_items WHERE library_id = $1 AND file_path IS NOT NULL AND file_path <> ''`,
+		`SELECT mi.id, mf.file_path
+		 FROM media_items mi
+		 INNER JOIN media_files mf ON mf.media_item_id = mi.id
+		 WHERE mi.library_id = $1 AND mf.file_path <> ''`,
 		libraryID,
 	)
 	if err != nil {
@@ -495,7 +600,8 @@ func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID sha
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
-		fmt.Sprintf("SELECT %s FROM media_items WHERE library_id = $1 ORDER BY added_at DESC LIMIT $2", mediaItemColumns), libraryID, listByLibraryIDMaxRows)
+		fmt.Sprintf("SELECT %s %s WHERE mi.library_id = $1 ORDER BY mi.added_at DESC LIMIT $2", mediaItemColumns, mediaItemFromJoins),
+		libraryID, listByLibraryIDMaxRows)
 	if err != nil {
 		return nil, fmt.Errorf("MediaItemRepo.ListByLibraryID: %w", err)
 	}
@@ -534,8 +640,14 @@ func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID s
 
 func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]library.MediaItemScanRow, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, file_path, file_fingerprint, file_size, mod_time
-		 FROM media_items WHERE library_id = $1 ORDER BY id LIMIT $2 OFFSET $3`,
+		`SELECT mi.id,
+		        COALESCE(mf.file_path, ''),
+		        COALESCE(mf.file_fingerprint, ''),
+		        COALESCE(mf.file_size, 0),
+		        COALESCE(mf.mod_time, '1970-01-01 00:00:00+00'::timestamptz)
+		 FROM media_items mi
+		 LEFT JOIN media_files mf ON mf.media_item_id = mi.id
+		 WHERE mi.library_id = $1 ORDER BY mi.id LIMIT $2 OFFSET $3`,
 		libraryID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("MediaItemRepo.listScanSummariesBatch: %w", err)
@@ -544,15 +656,8 @@ func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, librar
 	var result []library.MediaItemScanRow
 	for rows.Next() {
 		var row library.MediaItemScanRow
-		var filePath, fingerprint *string
-		if err := rows.Scan(&row.ID, &filePath, &fingerprint, &row.FileSize, &row.ModTime); err != nil {
+		if err := rows.Scan(&row.ID, &row.FilePath, &row.FileFingerprint, &row.FileSize, &row.ModTime); err != nil {
 			return nil, fmt.Errorf("MediaItemRepo.listScanSummariesBatch scan: %w", err)
-		}
-		if filePath != nil {
-			row.FilePath = *filePath
-		}
-		if fingerprint != nil {
-			row.FileFingerprint = *fingerprint
 		}
 		result = append(result, row)
 	}
@@ -562,29 +667,27 @@ func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, librar
 	return result, nil
 }
 
-// SeriesAggregate walks the parent_id tree rooted at seriesID via a recursive
-// CTE and sums the runtime of every episode it finds. season_count counts the
-// distinct season parents actually contributing episodes (so missing seasons
-// that exist only as empty folders don't inflate the number).
+// SeriesAggregate walks the parent_id tree rooted at seriesID via a
+// recursive CTE and sums the runtime of every episode it finds. Joined
+// with media_files since duration_ms now lives there.
 func (r *MediaItemRepository) SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var agg library.SeriesAggregate
 	err := r.db.QueryRowContext(ctx, `
 		WITH RECURSIVE descendants AS (
-		  SELECT id, parent_id, type, duration_ms
-		  FROM media_items
-		  WHERE id = $1
+		  SELECT id, parent_id, type FROM media_items WHERE id = $1
 		  UNION ALL
-		  SELECT m.id, m.parent_id, m.type, m.duration_ms
-		  FROM media_items m
+		  SELECT m.id, m.parent_id, m.type FROM media_items m
 		  INNER JOIN descendants d ON m.parent_id = d.id
 		)
 		SELECT
-		  COALESCE(SUM(duration_ms) FILTER (WHERE type = 'episode' AND duration_ms > 0), 0) AS total_ms,
-		  COUNT(*) FILTER (WHERE type = 'episode')                                         AS episode_count,
-		  COUNT(DISTINCT parent_id) FILTER (WHERE type = 'episode')                        AS season_count
-		FROM descendants`, string(seriesID)).Scan(&agg.TotalDurationMs, &agg.EpisodeCount, &agg.SeasonCount)
+		  COALESCE(SUM(COALESCE(mf.duration_ms, 0)) FILTER (WHERE d.type = 'episode' AND mf.duration_ms > 0), 0) AS total_ms,
+		  COUNT(*) FILTER (WHERE d.type = 'episode') AS episode_count,
+		  COUNT(DISTINCT d.parent_id) FILTER (WHERE d.type = 'episode') AS season_count
+		FROM descendants d
+		LEFT JOIN media_files mf ON mf.media_item_id = d.id`,
+		string(seriesID)).Scan(&agg.TotalDurationMs, &agg.EpisodeCount, &agg.SeasonCount)
 	if err != nil {
 		return library.SeriesAggregate{}, fmt.Errorf("MediaItemRepo.SeriesAggregate: %w", err)
 	}
@@ -635,68 +738,129 @@ func (r *MediaItemRepository) listContainerInfoBatch(ctx context.Context, librar
 	return result, nil
 }
 
-// rowScanner abstracts sql.Row.Scan and sql.Rows.Scan so scanMediaItem
-// and the iterator case share the same column-mapping logic.
+// rowScanner abstracts sql.Row.Scan and sql.Rows.Scan so the row variant
+// and the iterator variant can share the same column-mapping logic.
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-// scanMediaItemFields fills item from a scanner. Returns sql.ErrNoRows
-// verbatim when the source is sql.Row and no row was returned — callers
-// typically translate to shared.ErrNotFound.
+// scanMediaItemFields populates a flat MediaItem from the column set
+// produced by mediaItemColumns + mediaItemFromJoins. Sub-aggregate
+// columns come back NULL when the LEFT JOIN found no matching row, so
+// every read is guarded with a sql.Null* helper or a *string pointer.
 func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
-	var parentID, filePath, fingerprint, scanTitle *string
-	var providerJSON, certificationsJSON, genresJSON, studiosJSON, tagsJSON, trailersJSON, ratingsJSON []byte
+	var (
+		parentID, scanTitle                              *string
+		filePath, fingerprint, containerFormat           *string
+		fileSize, durationMs, bitrate                    *int64
+		modTimeRaw                                       sql.NullTime
+		premiereDate                                     sql.NullTime
+		year                                             sql.NullInt64
+		providerJSON, genresJSON, studiosJSON, tagsJSON  []byte
+		communityRating                                  sql.NullFloat64
+		officialRating                                   sql.NullString
+		certJSON, providerRatingsJSON, trailersJSON      []byte
+	)
 
 	if err := src.Scan(
-		&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &scanTitle, &item.SortTitle, &item.OriginalTitle,
-		&item.Overview, &item.Tagline, &filePath, &item.FileSize, &fingerprint, &item.ModTime, &item.DurationMs, &item.Bitrate,
-		&item.ContainerFormat, &item.IndexNumber, &item.CommunityRating, &item.OfficialRating, &certificationsJSON,
-		&item.PremiereDate, &item.Year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON, &trailersJSON, &ratingsJSON,
+		&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &scanTitle,
+		&item.SortTitle, &item.OriginalTitle, &item.Overview, &item.Tagline, &item.IndexNumber,
 		&item.AddedAt, &item.UpdatedAt,
+		&filePath, &fileSize, &fingerprint, &modTimeRaw, &durationMs, &bitrate, &containerFormat,
+		&premiereDate, &year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
+		&communityRating, &officialRating, &certJSON, &providerRatingsJSON,
+		&trailersJSON,
 	); err != nil {
 		return err
 	}
 	if parentID != nil {
 		item.ParentID = *parentID
 	}
+	if scanTitle != nil {
+		item.ScanTitle = *scanTitle
+	}
+
+	// File fields — empty strings / zeros when no media_files row.
 	if filePath != nil {
 		item.FilePath = *filePath
+	}
+	if fileSize != nil {
+		item.FileSize = *fileSize
 	}
 	if fingerprint != nil {
 		item.FileFingerprint = *fingerprint
 	}
-	if scanTitle != nil {
-		item.ScanTitle = *scanTitle
+	if modTimeRaw.Valid {
+		item.ModTime = modTimeRaw.Time
 	}
-	// Required fields: corrupt JSON is a DB integrity error, not a soft
-	// warning. provider_ids is the join key to TMDB/IMDB; genres drives
-	// filtering. Returning an error here stops the request instead of
-	// silently serving an item with empty slices.
-	if err := json.Unmarshal(providerJSON, &item.ProviderIDs); err != nil {
-		return fmt.Errorf("unmarshal provider_ids: %w", err)
+	if durationMs != nil {
+		item.DurationMs = *durationMs
 	}
-	if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
-		return fmt.Errorf("unmarshal genres: %w", err)
+	if bitrate != nil {
+		item.Bitrate = *bitrate
 	}
-	// Optional fields: warn-only so one bad row doesn't break a whole list.
-	if len(certificationsJSON) > 0 {
-		if err := json.Unmarshal(certificationsJSON, &item.CertificationsByCountry); err != nil {
+	if containerFormat != nil {
+		item.ContainerFormat = *containerFormat
+	}
+
+	// Catalog fields.
+	if premiereDate.Valid {
+		t := premiereDate.Time
+		item.PremiereDate = &t
+	}
+	if year.Valid {
+		y := int(year.Int64)
+		item.Year = &y
+	}
+	// Required: provider_ids and genres drive joins/filters; corrupt JSON
+	// here is a real DB integrity error, not a soft warning.
+	if len(providerJSON) > 0 {
+		if err := json.Unmarshal(providerJSON, &item.ProviderIDs); err != nil {
+			return fmt.Errorf("unmarshal provider_ids: %w", err)
+		}
+	}
+	if len(genresJSON) > 0 {
+		if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
+			return fmt.Errorf("unmarshal genres: %w", err)
+		}
+	}
+	if len(studiosJSON) > 0 {
+		if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
+		}
+	}
+	if len(tagsJSON) > 0 {
+		if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
+		}
+	}
+
+	// Classification fields.
+	if communityRating.Valid {
+		v := communityRating.Float64
+		item.CommunityRating = &v
+	}
+	if officialRating.Valid {
+		item.OfficialRating = officialRating.String
+	}
+	if len(certJSON) > 0 {
+		if err := json.Unmarshal(certJSON, &item.CertificationsByCountry); err != nil {
 			slog.Warn("json unmarshal", slog.String("field", "certifications_by_country"), slog.Any("err", err))
 		}
 	}
-	if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
+	if len(providerRatingsJSON) > 0 {
+		if err := json.Unmarshal(providerRatingsJSON, &item.Ratings); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "provider_ratings"), slog.Any("err", err))
+		}
 	}
-	if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
+
+	// Trailers (1:N → JSONB array via subquery → flat slice).
+	if len(trailersJSON) > 0 {
+		if err := json.Unmarshal(trailersJSON, &item.Trailers); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "trailers"), slog.Any("err", err))
+		}
 	}
-	if err := json.Unmarshal(trailersJSON, &item.Trailers); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "trailers"), slog.Any("err", err))
-	}
-	if err := json.Unmarshal(ratingsJSON, &item.Ratings); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "ratings"), slog.Any("err", err))
-	}
+
 	return nil
 }
 

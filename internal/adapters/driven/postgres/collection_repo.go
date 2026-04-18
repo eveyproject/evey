@@ -201,15 +201,12 @@ func (r *CollectionRepository) LinkItem(ctx context.Context, collectionID, media
 func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string, limit, offset int) ([]*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	query := `SELECT m.id, m.library_id, m.parent_id, m.type, m.title, m.sort_title, m.original_title,
-		 m.overview, m.tagline, m.file_path, m.file_size, m.file_fingerprint, m.duration_ms, m.bitrate,
-		 m.container_format, m.index_number, m.community_rating, m.official_rating,
-		 m.premiere_date, m.year, m.provider_ids, m.genres, m.studios, m.tags, m.added_at, m.updated_at
-		 FROM media_items m JOIN collection_items ci ON m.id = ci.media_item_id
-		 WHERE ci.collection_id = $1 ORDER BY m.premiere_date ASC`
-	if limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", limit)
+	if limit <= 0 || limit > DefaultListLimit {
+		limit = DefaultListLimit
 	}
+	query := fmt.Sprintf(
+		"SELECT %s %s INNER JOIN collection_items ci ON ci.media_item_id = mi.id WHERE ci.collection_id = $1 ORDER BY mc.premiere_date ASC NULLS LAST LIMIT %d",
+		mediaItemColumns, mediaItemFromJoins, limit)
 	if offset > 0 {
 		query += fmt.Sprintf(" OFFSET %d", offset)
 	}
@@ -236,37 +233,8 @@ func (r *CollectionRepository) queryMediaItems(ctx context.Context, query string
 	var result []*library.MediaItem
 	for rows.Next() {
 		item := &library.MediaItem{}
-		var parentID, filePath, fingerprint *string
-		var providerJSON, genresJSON, studiosJSON, tagsJSON []byte
-		if err := rows.Scan(
-			&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &item.SortTitle, &item.OriginalTitle,
-			&item.Overview, &item.Tagline, &filePath, &item.FileSize, &fingerprint, &item.DurationMs, &item.Bitrate,
-			&item.ContainerFormat, &item.IndexNumber, &item.CommunityRating, &item.OfficialRating,
-			&item.PremiereDate, &item.Year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
-			&item.AddedAt, &item.UpdatedAt,
-		); err != nil {
+		if err := scanMediaItemFields(rows, item); err != nil {
 			return nil, err
-		}
-		if parentID != nil {
-			item.ParentID = *parentID
-		}
-		if filePath != nil {
-			item.FilePath = *filePath
-		}
-		if fingerprint != nil {
-			item.FileFingerprint = *fingerprint
-		}
-		if err := json.Unmarshal(providerJSON, &item.ProviderIDs); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "provider_ids"), slog.Any("err", err))
-		}
-		if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "genres"), slog.Any("err", err))
-		}
-		if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
-		}
-		if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
 		}
 		result = append(result, item)
 	}
@@ -285,10 +253,7 @@ func NewCollectionSmartQuerier(db *sql.DB) *CollectionSmartQuerier {
 func (q *CollectionSmartQuerier) QueryByRules(ctx context.Context, rules []library.CollectionRule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	query := `SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
-		file_path, file_size, file_fingerprint, duration_ms, bitrate, container_format, index_number, community_rating,
-		official_rating, premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at
-		FROM media_items`
+	query := fmt.Sprintf("SELECT %s %s", mediaItemColumns, mediaItemFromJoins)
 
 	var conditions []string
 	var args []any
@@ -306,15 +271,17 @@ func (q *CollectionSmartQuerier) QueryByRules(ctx context.Context, rules []libra
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
 
+	// sortBy values map to columns in the joined schema. Year + rating
+	// live in their sub-tables now.
 	validSort := map[string]string{
-		"title":    "sort_title",
-		"year":     "year",
-		"added_at": "added_at",
-		"rating":   "community_rating",
+		"title":    "mi.sort_title",
+		"year":     "mc.year",
+		"added_at": "mi.added_at",
+		"rating":   "mcl.community_rating",
 	}
 	col, ok := validSort[sortBy]
 	if !ok {
-		col = "added_at"
+		col = "mi.added_at"
 	}
 	dir := "ASC"
 	if strings.EqualFold(sortOrder, "desc") {
@@ -322,8 +289,8 @@ func (q *CollectionSmartQuerier) QueryByRules(ctx context.Context, rules []libra
 	}
 	query += fmt.Sprintf(" ORDER BY %s %s NULLS LAST", col, dir)
 
-	if limit <= 0 {
-		limit = 500
+	if limit <= 0 || limit > DefaultListLimit {
+		limit = DefaultListLimit
 	}
 	query += fmt.Sprintf(" LIMIT %d", limit)
 
@@ -343,42 +310,34 @@ func buildCollectionRuleCondition(rule library.CollectionRule, argIdx *int) (str
 			slog.Warn("marshal genre rule", slog.Any("err", err))
 			return "", nil
 		}
-		cond := fmt.Sprintf("genres @> $%d::jsonb", *argIdx)
+		cond := fmt.Sprintf("mc.genres @> $%d::jsonb", *argIdx)
 		*argIdx++
 		return cond, []any{string(val)}
 	case "type":
-		cond := fmt.Sprintf("type = $%d", *argIdx)
+		cond := fmt.Sprintf("mi.type = $%d", *argIdx)
 		*argIdx++
 		return cond, []any{rule.Value}
 	case "year":
+		op := "="
 		switch rule.Operator {
 		case "gt":
-			cond := fmt.Sprintf("year > $%d", *argIdx)
-			*argIdx++
-			return cond, []any{rule.Value}
+			op = ">"
 		case "lt":
-			cond := fmt.Sprintf("year < $%d", *argIdx)
-			*argIdx++
-			return cond, []any{rule.Value}
+			op = "<"
 		case "gte":
-			cond := fmt.Sprintf("year >= $%d", *argIdx)
-			*argIdx++
-			return cond, []any{rule.Value}
+			op = ">="
 		case "lte":
-			cond := fmt.Sprintf("year <= $%d", *argIdx)
-			*argIdx++
-			return cond, []any{rule.Value}
-		default:
-			cond := fmt.Sprintf("year = $%d", *argIdx)
-			*argIdx++
-			return cond, []any{rule.Value}
+			op = "<="
 		}
+		cond := fmt.Sprintf("mc.year %s $%d", op, *argIdx)
+		*argIdx++
+		return cond, []any{rule.Value}
 	case "library_id":
-		cond := fmt.Sprintf("library_id = $%d", *argIdx)
+		cond := fmt.Sprintf("mi.library_id = $%d", *argIdx)
 		*argIdx++
 		return cond, []any{rule.Value}
 	case "rating_gte":
-		cond := fmt.Sprintf("community_rating >= $%d::double precision", *argIdx)
+		cond := fmt.Sprintf("mcl.community_rating >= $%d::double precision", *argIdx)
 		*argIdx++
 		return cond, []any{rule.Value}
 	default:
@@ -390,37 +349,8 @@ func (q *CollectionSmartQuerier) scanItems(rows *sql.Rows) ([]*library.MediaItem
 	var result []*library.MediaItem
 	for rows.Next() {
 		item := &library.MediaItem{}
-		var parentID, filePath, fingerprint *string
-		var providerJSON, genresJSON, studiosJSON, tagsJSON []byte
-		if err := rows.Scan(
-			&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &item.SortTitle, &item.OriginalTitle,
-			&item.Overview, &item.Tagline, &filePath, &item.FileSize, &fingerprint, &item.DurationMs, &item.Bitrate,
-			&item.ContainerFormat, &item.IndexNumber, &item.CommunityRating, &item.OfficialRating,
-			&item.PremiereDate, &item.Year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
-			&item.AddedAt, &item.UpdatedAt,
-		); err != nil {
+		if err := scanMediaItemFields(rows, item); err != nil {
 			return nil, err
-		}
-		if parentID != nil {
-			item.ParentID = *parentID
-		}
-		if filePath != nil {
-			item.FilePath = *filePath
-		}
-		if fingerprint != nil {
-			item.FileFingerprint = *fingerprint
-		}
-		if err := json.Unmarshal(providerJSON, &item.ProviderIDs); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "provider_ids"), slog.Any("err", err))
-		}
-		if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "genres"), slog.Any("err", err))
-		}
-		if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
-		}
-		if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
 		}
 		result = append(result, item)
 	}

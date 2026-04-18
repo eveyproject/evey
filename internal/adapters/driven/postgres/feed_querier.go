@@ -236,7 +236,7 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 	args := []any{profileID}
 	for i, g := range genres {
 		args = append(args, g)
-		scoreParts[i] = fmt.Sprintf("CASE WHEN jsonb_typeof(mi.genres) = 'array' AND mi.genres ? $%d THEN 1 ELSE 0 END", i+2)
+		scoreParts[i] = fmt.Sprintf("CASE WHEN jsonb_typeof(mc.genres) = 'array' AND mc.genres ? $%d THEN 1 ELSE 0 END", i+2)
 	}
 	scoreExpr := strings.Join(scoreParts, " + ")
 	args = append(args, limit)
@@ -248,6 +248,8 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 	q2 := fmt.Sprintf(`
 		SELECT mi.id, COALESCE(mi.parent_id,''), mi.title, mi.type, 0, '', (%s) AS score
 		FROM media_items mi
+		LEFT JOIN media_catalog mc ON mc.media_item_id = mi.id
+		LEFT JOIN media_classifications mcl ON mcl.media_item_id = mi.id
 		WHERE mi.type IN ('movie', 'series')
 		  AND NOT EXISTS (SELECT 1 FROM watch_progress wp WHERE wp.media_item_id = mi.id AND wp.profile_id = $1)
 		  AND NOT EXISTS (
@@ -258,7 +260,7 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 		    WHERE wp_ep.profile_id = $1 AND se.parent_id = mi.id
 		  )
 		  AND (%s) >= 1
-		ORDER BY score DESC, mi.community_rating DESC NULLS LAST
+		ORDER BY score DESC, mcl.community_rating DESC NULLS LAST
 		LIMIT $%d
 	`, scoreExpr, scoreExpr, limitIdx)
 
@@ -277,7 +279,7 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 	rows, err := q.db.QueryContext(ctx, `
 		WITH target AS (
 			SELECT CASE WHEN jsonb_typeof(genres) = 'array' THEN genres ELSE '[]'::jsonb END AS genres
-			FROM media_items WHERE id = $1
+			FROM media_catalog WHERE media_item_id = $1
 		),
 		target_genres AS (
 			SELECT g.value AS genre FROM target, jsonb_array_elements_text(target.genres) AS g(value)
@@ -285,17 +287,19 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 		SELECT mi.id, COALESCE(mi.parent_id,''), mi.title, mi.type, 0, '',
 		       gs.score
 		FROM media_items mi
+		LEFT JOIN media_catalog mc ON mc.media_item_id = mi.id
+		LEFT JOIN media_classifications mcl ON mcl.media_item_id = mi.id
 		INNER JOIN LATERAL (
 			SELECT COUNT(*)::int AS score
 			FROM jsonb_array_elements_text(
-				CASE WHEN jsonb_typeof(mi.genres) = 'array' THEN mi.genres ELSE '[]'::jsonb END
+				CASE WHEN jsonb_typeof(mc.genres) = 'array' THEN mc.genres ELSE '[]'::jsonb END
 			) AS g(value)
 			WHERE g.value IN (SELECT genre FROM target_genres)
 		) gs ON gs.score >= 1
 		WHERE mi.id != $1
 		  AND mi.type IN ('movie', 'series')
 		  AND NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $2 AND wp2.completed = TRUE)
-		ORDER BY gs.score DESC, mi.community_rating DESC NULLS LAST
+		ORDER BY gs.score DESC, mcl.community_rating DESC NULLS LAST
 		LIMIT $3
 	`, mediaItemID, profileID, limit)
 	if err != nil {

@@ -32,9 +32,9 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID 
 		)
 		SELECT genre, COUNT(*) AS cnt
 		FROM recent_sessions rs
-		INNER JOIN media_items mi ON mi.id = rs.media_item_id
+		INNER JOIN media_catalog mc ON mc.media_item_id = rs.media_item_id
 		CROSS JOIN jsonb_array_elements_text(
-			CASE WHEN jsonb_typeof(mi.genres) = 'array' THEN mi.genres ELSE '[]'::jsonb END
+			CASE WHEN jsonb_typeof(mc.genres) = 'array' THEN mc.genres ELSE '[]'::jsonb END
 		) AS genre
 		GROUP BY genre
 		HAVING COUNT(*) >= $2
@@ -76,9 +76,9 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profi
 	query := fmt.Sprintf(`
 		SELECT ps.profile_id, genre, COUNT(*) AS cnt
 		FROM play_sessions ps
-		INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		INNER JOIN media_catalog mc ON mc.media_item_id = ps.media_item_id
 		CROSS JOIN jsonb_array_elements_text(
-			CASE WHEN jsonb_typeof(mi.genres) = 'array' THEN mi.genres ELSE '[]'::jsonb END
+			CASE WHEN jsonb_typeof(mc.genres) = 'array' THEN mc.genres ELSE '[]'::jsonb END
 		) AS genre
 		WHERE ps.profile_id IN (%s)
 		GROUP BY ps.profile_id, genre

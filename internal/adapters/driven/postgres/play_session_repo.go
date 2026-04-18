@@ -76,7 +76,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT ps.id, ps.profile_id, p.name, ps.media_item_id, mi.title, mi.type,
-		        COALESCE(mi.duration_ms, 0), COALESCE(ps.position_ms, 0),
+		        COALESCE(mf.duration_ms, 0), COALESCE(ps.position_ms, 0),
 		        ps.started_at, ps.device_name, ps.device_type, ps.client_ip,
 		        ps.play_method, ps.video_codec, ps.audio_codec, ps.resolution, ps.bandwidth_bps,
 		        COALESCE(series.title, ''), COALESCE(season.index_number, 0), COALESCE(mi.index_number, 0),
@@ -84,6 +84,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		 FROM play_sessions ps
 		 INNER JOIN profiles p ON p.id = ps.profile_id
 		 INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		 LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 		 LEFT JOIN media_items season ON mi.parent_id = season.id AND mi.type = 'episode'
 		 LEFT JOIN media_items series ON season.parent_id = series.id AND season.type = 'season'
 		 WHERE ps.ended_at IS NULL

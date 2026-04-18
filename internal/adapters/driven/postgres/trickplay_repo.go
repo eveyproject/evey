@@ -62,8 +62,9 @@ func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]st
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id FROM media_items mi
-		 WHERE mi.file_path != ''
+		`SELECT mi.id FROM media_items mi
+		 INNER JOIN media_files mf ON mf.media_item_id = mi.id
+		 WHERE mf.file_path != ''
 		   AND mi.type IN ('movie', 'episode')
 		   AND NOT EXISTS (SELECT 1 FROM trickplay_manifests tm WHERE tm.media_item_id = mi.id)
 		 ORDER BY mi.added_at DESC

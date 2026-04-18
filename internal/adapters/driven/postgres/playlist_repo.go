@@ -241,10 +241,7 @@ func NewSmartPlaylistQuerier(db *sql.DB) *SmartPlaylistQuerier {
 func (q *SmartPlaylistQuerier) QueryByRules(ctx context.Context, rules []playlist.Rule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	query := `SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
-		file_path, file_size, duration_ms, bitrate, container_format, index_number, community_rating,
-		official_rating, premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at
-		FROM media_items`
+	query := fmt.Sprintf("SELECT %s %s", mediaItemColumns, mediaItemFromJoins)
 
 	var conditions []string
 	var args []any
@@ -263,14 +260,14 @@ func (q *SmartPlaylistQuerier) QueryByRules(ctx context.Context, rules []playlis
 	}
 
 	validSort := map[string]string{
-		"title":    "sort_title",
-		"year":     "year",
-		"added_at": "added_at",
-		"rating":   "community_rating",
+		"title":    "mi.sort_title",
+		"year":     "mc.year",
+		"added_at": "mi.added_at",
+		"rating":   "mcl.community_rating",
 	}
 	col, ok := validSort[sortBy]
 	if !ok {
-		col = "added_at"
+		col = "mi.added_at"
 	}
 	dir := "ASC"
 	if strings.EqualFold(sortOrder, "desc") {
@@ -278,8 +275,8 @@ func (q *SmartPlaylistQuerier) QueryByRules(ctx context.Context, rules []playlis
 	}
 	query += fmt.Sprintf(" ORDER BY %s %s NULLS LAST", col, dir)
 
-	if limit <= 0 {
-		limit = 500
+	if limit <= 0 || limit > DefaultListLimit {
+		limit = DefaultListLimit
 	}
 	query += fmt.Sprintf(" LIMIT %d", limit)
 
@@ -300,42 +297,34 @@ func buildRuleCondition(rule playlist.Rule, argIdx *int) (string, []any) {
 			slog.Warn("marshal genre rule", slog.Any("err", err))
 			return "", nil
 		}
-		cond := fmt.Sprintf("genres @> $%d::jsonb", *argIdx)
+		cond := fmt.Sprintf("mc.genres @> $%d::jsonb", *argIdx)
 		*argIdx++
 		return cond, []any{string(val)}
 	case "type":
-		cond := fmt.Sprintf("type = $%d", *argIdx)
+		cond := fmt.Sprintf("mi.type = $%d", *argIdx)
 		*argIdx++
 		return cond, []any{rule.Value}
 	case "year":
+		op := "="
 		switch rule.Operator {
 		case "gt":
-			cond := fmt.Sprintf("year > $%d", *argIdx)
-			*argIdx++
-			return cond, []any{rule.Value}
+			op = ">"
 		case "lt":
-			cond := fmt.Sprintf("year < $%d", *argIdx)
-			*argIdx++
-			return cond, []any{rule.Value}
+			op = "<"
 		case "gte":
-			cond := fmt.Sprintf("year >= $%d", *argIdx)
-			*argIdx++
-			return cond, []any{rule.Value}
+			op = ">="
 		case "lte":
-			cond := fmt.Sprintf("year <= $%d", *argIdx)
-			*argIdx++
-			return cond, []any{rule.Value}
-		default:
-			cond := fmt.Sprintf("year = $%d", *argIdx)
-			*argIdx++
-			return cond, []any{rule.Value}
+			op = "<="
 		}
+		cond := fmt.Sprintf("mc.year %s $%d", op, *argIdx)
+		*argIdx++
+		return cond, []any{rule.Value}
 	case "library_id":
-		cond := fmt.Sprintf("library_id = $%d", *argIdx)
+		cond := fmt.Sprintf("mi.library_id = $%d", *argIdx)
 		*argIdx++
 		return cond, []any{rule.Value}
 	case "rating_gte":
-		cond := fmt.Sprintf("community_rating >= $%d::double precision", *argIdx)
+		cond := fmt.Sprintf("mcl.community_rating >= $%d::double precision", *argIdx)
 		*argIdx++
 		return cond, []any{rule.Value}
 	default:
@@ -347,37 +336,8 @@ func scanMediaItems(rows *sql.Rows) ([]*library.MediaItem, error) {
 	var result []*library.MediaItem
 	for rows.Next() {
 		item := &library.MediaItem{}
-		var providerIDsJSON, genresJSON, studiosJSON, tagsJSON []byte
-		var filePath sql.NullString
-		var parentID sql.NullString
-		err := rows.Scan(
-			&item.ID, &item.LibraryID, &parentID, &item.Type,
-			&item.Title, &item.SortTitle, &item.OriginalTitle, &item.Overview, &item.Tagline,
-			&filePath, &item.FileSize, &item.DurationMs, &item.Bitrate, &item.ContainerFormat,
-			&item.IndexNumber, &item.CommunityRating, &item.OfficialRating,
-			&item.PremiereDate, &item.Year, &providerIDsJSON, &genresJSON, &studiosJSON, &tagsJSON,
-			&item.AddedAt, &item.UpdatedAt,
-		)
-		if err != nil {
+		if err := scanMediaItemFields(rows, item); err != nil {
 			return nil, fmt.Errorf("scanMediaItems: %w", err)
-		}
-		if parentID.Valid {
-			item.ParentID = parentID.String
-		}
-		if filePath.Valid {
-			item.FilePath = filePath.String
-		}
-		if err := json.Unmarshal(providerIDsJSON, &item.ProviderIDs); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "provider_ids"), slog.Any("err", err))
-		}
-		if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "genres"), slog.Any("err", err))
-		}
-		if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
-		}
-		if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
 		}
 		result = append(result, item)
 	}
