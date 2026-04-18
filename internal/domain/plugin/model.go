@@ -42,6 +42,10 @@ type Plugin struct {
 	ErrorMessage string
 	InstalledAt  time.Time
 	UpdatedAt    time.Time
+	// AnalysisReport captures the static-analysis output from the install step
+	// so the admin can audit non-critical warnings (compiled binaries, symlinks,
+	// base64 blobs, suspicious URLs) after the plugin is live. Nil on legacy rows.
+	AnalysisReport *AnalysisReport
 }
 
 func (p *Plugin) Validate() error {

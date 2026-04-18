@@ -123,6 +123,22 @@ message Plugin {
   repeated string permissions = 11;
   repeated string capabilities = 12;
   string source_hash = 13;
+  PluginAnalysisReport analysis_report = 14;
+}
+
+// PluginAnalysisReport exposes the static-analysis warnings recorded at
+// install time so the admin can audit them post-install.
+message PluginAnalysisReport {
+  bool safe = 1;
+  repeated string issues = 2;
+  repeated PluginExtractedURL urls = 3;
+  int32 file_count = 4;
+}
+
+message PluginExtractedURL {
+  string url = 1;
+  string file = 2;
+  int32 line = 3;
 }
 
 enum PluginState {

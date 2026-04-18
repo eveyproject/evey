@@ -14,7 +14,7 @@ var pluginStateToProto = map[string]eveyv1.PluginState{
 }
 
 func pluginToProto(p *plugin.Plugin) *eveyv1.Plugin {
-	return &eveyv1.Plugin{
+	pb := &eveyv1.Plugin{
 		Id:           p.ID,
 		Name:         p.Name,
 		Description:  p.Description,
@@ -28,6 +28,22 @@ func pluginToProto(p *plugin.Plugin) *eveyv1.Plugin {
 		Capabilities: p.Capabilities,
 		SourceHash:   p.SourceHash,
 	}
+	if p.AnalysisReport != nil {
+		rep := &eveyv1.PluginAnalysisReport{
+			Safe:      p.AnalysisReport.Safe,
+			Issues:    p.AnalysisReport.Issues,
+			FileCount: int32(p.AnalysisReport.FileCount),
+		}
+		for _, u := range p.AnalysisReport.URLs {
+			rep.Urls = append(rep.Urls, &eveyv1.PluginExtractedURL{
+				Url:  u.URL,
+				File: u.File,
+				Line: int32(u.Line),
+			})
+		}
+		pb.AnalysisReport = rep
+	}
+	return pb
 }
 
 func pluginRuntimeToProto(rt *plugin.PluginRuntime) *eveyv1.PluginRuntime {

@@ -175,11 +175,17 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 		report, analyzeErr := s.analyzer.Analyze(p.InstallDir)
 		if analyzeErr != nil {
 			slog.Warn("plugin static analysis failed", slog.String("pluginID", p.ID), slog.Any("err", analyzeErr))
-		} else if !report.Safe {
-			if p.InstallDir != "" && s.fs != nil {
-				s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
+		} else {
+			if !report.Safe {
+				if p.InstallDir != "" && s.fs != nil {
+					s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
+				}
+				return nil, fmt.Errorf("plugin blocked: critical security issues found: %v", report.Issues)
 			}
-			return nil, fmt.Errorf("plugin blocked: critical security issues found: %v", report.Issues)
+			// Persist non-blocking warnings so the admin can audit them
+			// post-install (compiled binaries, symlinks, base64 blobs,
+			// suspicious URLs). UI exposes these on plugin detail.
+			p.AnalysisReport = report
 		}
 	}
 
