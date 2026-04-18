@@ -134,6 +134,25 @@ func TestValidateAccessToken_MalformedToken(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestValidateAccessToken_RS512Rejected(t *testing.T) {
+	t.Parallel()
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	gen := auth.NewJWTGenerator(key, 15*time.Minute)
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS512, jwt.MapClaims{
+		"sub":      "u1",
+		"username": "bob",
+		"is_admin": false,
+		"iat":      time.Now().Unix(),
+		"exp":      time.Now().Add(time.Hour).Unix(),
+	})
+	tokenStr, err := token.SignedString(key)
+	require.NoError(t, err)
+
+	_, err = gen.ValidateAccessToken(tokenStr)
+	require.Error(t, err, "RS512 must be rejected — only RS256 is allowed")
+}
+
 func TestValidateAccessToken_MissingRequiredClaims(t *testing.T) {
 	t.Parallel()
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)

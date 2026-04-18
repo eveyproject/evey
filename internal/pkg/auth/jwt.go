@@ -57,7 +57,7 @@ func (g *JWTGenerator) ValidateAccessToken(tokenStr string) (*user.Claims, error
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
 		return g.publicKey, nil
-	})
+	}, jwt.WithValidMethods([]string{"RS256"}))
 	if err != nil {
 		return nil, err
 	}

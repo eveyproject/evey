@@ -1,7 +1,7 @@
 package httpapi
 
 import (
-	"fmt"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -98,7 +98,7 @@ func avatarUploadHandler(
 			}
 		}
 
-		filename := fmt.Sprintf("%s%s", profileID, ext)
+		filename := filepath.Base(profileID) + ext
 		dest := filepath.Join(avatarDir, filename)
 
 		out, err := os.Create(dest)
@@ -124,7 +124,9 @@ func avatarUploadHandler(
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"avatarPath":"%s"}`, avatarPath)
+		if err := json.NewEncoder(w).Encode(map[string]string{"avatarPath": avatarPath}); err != nil {
+			slog.Error("encode avatar response", slog.Any("err", err))
+		}
 	}
 }
 
