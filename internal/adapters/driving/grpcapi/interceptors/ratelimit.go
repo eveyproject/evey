@@ -18,8 +18,12 @@ type MethodLimiter struct {
 	RetryAfterSecs  int
 }
 
-// DefaultPublicMethodLimiters returns per-method limiters for public (unauthenticated)
-// endpoints that are prone to brute-force or abuse. Each limiter is per-IP.
+// DefaultPublicMethodLimiters returns per-method limiters for endpoints
+// prone to brute-force or abuse. Most entries are public (no auth needed
+// to hit), but a few require auth — we still rate-limit them because an
+// already-authenticated attacker can grind brute-force targets too
+// (QuickConnect code guessing, invite redemption, etc.). Each limiter
+// is per-IP.
 func DefaultPublicMethodLimiters() map[string]*MethodLimiter {
 	return map[string]*MethodLimiter{
 		"/evey.v1.UserService/Login":                 {Limiter: ratelimit.NewWithBurst(5, 5), RetryAfterSecs: 12},
@@ -29,6 +33,13 @@ func DefaultPublicMethodLimiters() map[string]*MethodLimiter {
 		"/evey.v1.UserService/RegisterWithInvite":    {Limiter: ratelimit.NewWithBurst(10, 10), RetryAfterSecs: 6},
 		"/evey.v1.UserService/InitiateQuickConnect":  {Limiter: ratelimit.NewWithBurst(10, 10), RetryAfterSecs: 6},
 		"/evey.v1.UserService/CheckQuickConnect":     {Limiter: ratelimit.NewWithBurst(30, 30), RetryAfterSecs: 2},
+		// Authenticated but a brute-force target: the QC short code is a
+		// 6-char hex derivation (2²⁴ ≈ 16M). An authenticated attacker
+		// binding a victim's pending code to their own user_id turns
+		// the victim's next CheckQuickConnect poll into token issuance
+		// against the ATTACKER'S account (device hijack). Budget tight
+		// enough that grinding 16M codes is infeasible: 5/min per IP.
+		"/evey.v1.UserService/AuthorizeQuickConnect": {Limiter: ratelimit.NewWithBurst(5, 5), RetryAfterSecs: 12},
 	}
 }
 
