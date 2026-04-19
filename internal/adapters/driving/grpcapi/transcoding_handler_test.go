@@ -5,10 +5,17 @@ import (
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	tcfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func newTestTranscodingHandler() (*transcodingHandler, *tcfakes.FakeTranscoder, *tcfakes.FakeTranscodeJobRepository, *tcfakes.FakeTranscodeProfileRepository) {
@@ -19,6 +26,47 @@ func newTestTranscodingHandler() (*transcodingHandler, *tcfakes.FakeTranscoder, 
 	events := sharedfakes.NewFakeEventBus()
 	svc := apptranscoding.NewService(transcoder, hwDetector, jobRepo, profileRepo, events, 5)
 	return &transcodingHandler{svc: svc}, transcoder, jobRepo, profileRepo
+}
+
+// newTranscodingHandlerWithAccess wires libQuery + userAccess so the
+// defense-in-depth IDOR check (checkJobAccess) actually runs.
+func newTranscodingHandlerWithAccess() (
+	h *transcodingHandler,
+	transcoder *tcfakes.FakeTranscoder,
+	jobRepo *tcfakes.FakeTranscodeJobRepository,
+	mediaItemRepo *libfakes.FakeMediaItemQueryRepo,
+	libAccessRepo *userfakes.FakeLibraryAccessRepository,
+) {
+	transcoder = tcfakes.NewFakeTranscoder()
+	hwDetector := tcfakes.NewFakeHWDetector()
+	jobRepo = tcfakes.NewFakeTranscodeJobRepository()
+	profileRepo := tcfakes.NewFakeTranscodeProfileRepository()
+	events := sharedfakes.NewFakeEventBus()
+	svc := apptranscoding.NewService(transcoder, hwDetector, jobRepo, profileRepo, events, 5)
+
+	mediaItemRepo = libfakes.NewFakeMediaItemQueryRepo()
+	libQueryRepo := libfakes.NewFakeLibraryQueryRepo()
+	streamRepo := libfakes.NewFakeMediaStreamRepository()
+	searchIdx := libfakes.NewFakeSearchIndex()
+	libQuery := applibrary.NewQueryService(libQueryRepo, mediaItemRepo, streamRepo, searchIdx)
+
+	libAccessRepo = userfakes.NewFakeLibraryAccessRepository()
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(),
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(),
+		events,
+		appuser.WithLibraryAccess(libAccessRepo),
+	)
+
+	h = &transcodingHandler{
+		svc:        svc,
+		libQuery:   libQuery,
+		userAccess: userAccess,
+	}
+	return
 }
 
 func TestTranscodingGetTranscodeStatus(t *testing.T) {
@@ -114,5 +162,109 @@ func TestTranscodingListProfiles(t *testing.T) {
 	}
 	if resp.Profiles[0].VideoCodec != "h264" {
 		t.Errorf("expected codec 'h264', got %q", resp.Profiles[0].VideoCodec)
+	}
+}
+
+// --- IDOR defense-in-depth on Stop/GetStatus ---
+
+func seedIDORTestFixture(t *testing.T) (
+	h *transcodingHandler,
+	transcoder *tcfakes.FakeTranscoder,
+	jobRepo *tcfakes.FakeTranscodeJobRepository,
+) {
+	t.Helper()
+	handler, trans, jRepo, miRepo, laRepo := newTranscodingHandlerWithAccess()
+	miRepo.Seed(&library.MediaItem{
+		ID:        "media-1",
+		LibraryID: "lib-restricted",
+		Title:     "Hidden Movie",
+		Type:      "movie",
+	})
+	ctx := context.Background()
+	_ = jRepo.Create(ctx, &transcoding.TranscodeJob{
+		ID:          "tj-hidden",
+		MediaItemID: "media-1",
+		Status:      transcoding.Running,
+		OutputCodec: "h264",
+	})
+	// owner-user has the grant; attacker-user does not.
+	_ = laRepo.Grant(ctx, "owner-user", "lib-restricted")
+	_ = laRepo.Grant(ctx, "attacker-user", "lib-other")
+	trans.SetProgress("tj-hidden", &transcoding.TranscodeProgress{JobID: "tj-hidden", Percent: 10})
+	return handler, trans, jRepo
+}
+
+func TestGetTranscodeStatus_IDOR_NoAccess_ReturnsNotFound(t *testing.T) {
+	h, _, _ := seedIDORTestFixture(t)
+	ctx := ctxWithClaims("attacker-user", "prof-1", false)
+
+	_, err := h.GetTranscodeStatus(ctx, &eveyv1.GetTranscodeStatusRequest{JobId: "tj-hidden"})
+	if err == nil {
+		t.Fatal("expected NotFound for attacker without library access")
+	}
+	if status.Code(err) != codes.NotFound {
+		t.Errorf("code = %v, want NotFound (leaking job existence)", status.Code(err))
+	}
+}
+
+func TestGetTranscodeStatus_IDOR_Owner_Succeeds(t *testing.T) {
+	h, _, _ := seedIDORTestFixture(t)
+	ctx := ctxWithClaims("owner-user", "prof-1", false)
+
+	resp, err := h.GetTranscodeStatus(ctx, &eveyv1.GetTranscodeStatusRequest{JobId: "tj-hidden"})
+	if err != nil {
+		t.Fatalf("owner should have access: %v", err)
+	}
+	if resp.Id != "tj-hidden" {
+		t.Errorf("id = %q, want tj-hidden", resp.Id)
+	}
+}
+
+func TestGetTranscodeStatus_IDOR_Admin_Bypasses(t *testing.T) {
+	h, _, _ := seedIDORTestFixture(t)
+	ctx := ctxWithClaims("admin-user", "prof-1", true)
+
+	resp, err := h.GetTranscodeStatus(ctx, &eveyv1.GetTranscodeStatusRequest{JobId: "tj-hidden"})
+	if err != nil {
+		t.Fatalf("admin should bypass check: %v", err)
+	}
+	if resp.Id != "tj-hidden" {
+		t.Errorf("id = %q, want tj-hidden", resp.Id)
+	}
+}
+
+func TestStopTranscode_IDOR_NoAccess_ReturnsNotFound(t *testing.T) {
+	h, _, _ := seedIDORTestFixture(t)
+	ctx := ctxWithClaims("attacker-user", "prof-1", false)
+
+	_, err := h.StopTranscode(ctx, &eveyv1.StopTranscodeRequest{JobId: "tj-hidden"})
+	if err == nil {
+		t.Fatal("expected NotFound for attacker without library access")
+	}
+	if status.Code(err) != codes.NotFound {
+		t.Errorf("code = %v, want NotFound", status.Code(err))
+	}
+}
+
+func TestStopTranscode_IDOR_UnknownJob_ReturnsNotFound(t *testing.T) {
+	h, _, _ := seedIDORTestFixture(t)
+	ctx := ctxWithClaims("owner-user", "prof-1", false)
+
+	_, err := h.StopTranscode(ctx, &eveyv1.StopTranscodeRequest{JobId: "tj-does-not-exist"})
+	if err == nil {
+		t.Fatal("expected NotFound for unknown job")
+	}
+	if status.Code(err) != codes.NotFound {
+		t.Errorf("code = %v, want NotFound", status.Code(err))
+	}
+}
+
+func TestCheckJobAccess_EmptyJobID_InvalidArgument(t *testing.T) {
+	h, _, _ := seedIDORTestFixture(t)
+	ctx := ctxWithClaims("owner-user", "prof-1", false)
+
+	err := h.checkJobAccess(ctx, "")
+	if status.Code(err) != codes.InvalidArgument {
+		t.Errorf("code = %v, want InvalidArgument", status.Code(err))
 	}
 }

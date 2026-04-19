@@ -89,6 +89,9 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 }
 
 func (h *transcodingHandler) StopTranscode(ctx context.Context, req *eveyv1.StopTranscodeRequest) (*eveyv1.StopTranscodeResponse, error) {
+	if err := h.checkJobAccess(ctx, req.JobId); err != nil {
+		return nil, err
+	}
 	if err := h.svc.StopTranscode(ctx, req.JobId); err != nil {
 		return nil, internalError("stop transcode", err)
 	}
@@ -96,6 +99,9 @@ func (h *transcodingHandler) StopTranscode(ctx context.Context, req *eveyv1.Stop
 }
 
 func (h *transcodingHandler) GetTranscodeStatus(ctx context.Context, req *eveyv1.GetTranscodeStatusRequest) (*eveyv1.TranscodeJob, error) {
+	if err := h.checkJobAccess(ctx, req.JobId); err != nil {
+		return nil, err
+	}
 	progress, err := h.svc.GetProgress(ctx, req.JobId)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "job not found: %v", err)
@@ -106,6 +112,40 @@ func (h *transcodingHandler) GetTranscodeStatus(ctx context.Context, req *eveyv1
 		Fps:             progress.FPS,
 		Speed:           progress.Speed,
 	}, nil
+}
+
+// checkJobAccess is defense-in-depth for StopTranscode + GetTranscodeStatus.
+// jobID is 192-bit entropy so not practically enumerable, but an attacker who
+// captures one (logs, shared screen) shouldn't be able to control a job
+// tied to a library they don't own. Mirrors StartTranscode's library check.
+// Returns NotFound on any miss to avoid leaking job-existence.
+func (h *transcodingHandler) checkJobAccess(ctx context.Context, jobID string) error {
+	if jobID == "" {
+		return status.Error(codes.InvalidArgument, "job_id required")
+	}
+	if h.userAccess == nil || h.libQuery == nil {
+		return nil
+	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+	if claims.IsAdmin {
+		return nil
+	}
+	job, err := h.svc.GetJob(ctx, jobID)
+	if err != nil || job == nil {
+		return status.Error(codes.NotFound, "job not found")
+	}
+	item, err := h.libQuery.GetMediaItem(ctx, string(job.MediaItemID))
+	if err != nil || item == nil {
+		return status.Error(codes.NotFound, "job not found")
+	}
+	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
+	if accessErr != nil || !ok {
+		return status.Error(codes.NotFound, "job not found")
+	}
+	return nil
 }
 
 func (h *transcodingHandler) ListActiveTranscodes(ctx context.Context, _ *eveyv1.ListActiveTranscodesRequest) (*eveyv1.ListActiveTranscodesResponse, error) {

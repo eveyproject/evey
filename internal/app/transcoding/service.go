@@ -149,6 +149,13 @@ func (s *Service) GetProgress(ctx context.Context, jobID string) (*transcoding.T
 	return s.transcoder.Progress(ctx, jobID)
 }
 
+// GetJob returns the persisted job row. Used by gRPC handlers that
+// need the MediaItemID for ownership/library-access checks before
+// touching jobID-addressable operations (Stop, GetStatus).
+func (s *Service) GetJob(ctx context.Context, jobID string) (*transcoding.TranscodeJob, error) {
+	return s.jobs.GetByID(ctx, jobID)
+}
+
 func (s *Service) ListActiveTranscodes(ctx context.Context) ([]*transcoding.TranscodeJob, error) {
 	return s.jobs.ListActive(ctx)
 }
