@@ -9,6 +9,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 var ErrMaxConcurrent = errors.New("max concurrent transcodes reached")
@@ -92,6 +93,7 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 		if pubErr := s.events.Publish(ctx, evtFailed); pubErr != nil {
 			slog.Warn("publish event", slog.String("event", evtFailed.EventName()), slog.Any("err", pubErr))
 		}
+		s.refreshActiveGauge(ctx)
 		return fmt.Errorf("start transcode: %w", err)
 	}
 
@@ -99,7 +101,26 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 	if err := s.events.Publish(ctx, evtStarted); err != nil {
 		slog.Warn("publish event", slog.String("event", evtStarted.EventName()), slog.Any("err", err))
 	}
+	s.refreshActiveGauge(ctx)
 	return nil
+}
+
+// refreshActiveGauge recounts Running jobs and sets the Prom gauge.
+// Called at every lifecycle hook we control (start/fail/stop) because
+// natural completion isn't signaled back to this service — without
+// this recount the gauge would drift upward monotonically.
+func (s *Service) refreshActiveGauge(ctx context.Context) {
+	active, err := s.jobs.ListActive(ctx)
+	if err != nil {
+		return
+	}
+	running := 0
+	for _, j := range active {
+		if j.Status == transcoding.Running {
+			running++
+		}
+	}
+	metrics.TranscodesActive.Set(float64(running))
 }
 
 func (s *Service) StopTranscode(ctx context.Context, jobID string) error {
@@ -120,6 +141,7 @@ func (s *Service) StopTranscode(ctx context.Context, jobID string) error {
 	if err := s.events.Publish(ctx, evtCancelled); err != nil {
 		slog.Warn("publish event", slog.String("event", evtCancelled.EventName()), slog.Any("err", err))
 	}
+	s.refreshActiveGauge(ctx)
 	return nil
 }
 
