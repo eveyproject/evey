@@ -194,64 +194,14 @@ func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, erro
 }
 
 func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
-	if err := os.MkdirAll(sockDir, 0o700); err != nil {
-		return fmt.Errorf("create sock dir: %w", err)
+	pluginSockDir, sock, err := r.setupSocketDir(p.ID)
+	if err != nil {
+		return err
 	}
 
-	// Per-plugin socket subdirectory — isolates sockets between plugins
-	pluginSockDir := filepath.Join(sockDir, p.ID)
-	if err := os.MkdirAll(pluginSockDir, 0o700); err != nil {
-		return fmt.Errorf("create plugin sock dir: %w", err)
-	}
-	if os.Getuid() == 0 {
-		if err := os.Chown(pluginSockDir, pluginUID, pluginGID); err != nil {
-			return fmt.Errorf("chown plugin sock dir: %w", err)
-		}
-	}
-
-	sock := filepath.Join(pluginSockDir, "plugin.sock")
-	if err := os.Remove(sock); err != nil && !os.IsNotExist(err) {
-		slog.Warn("remove old plugin sock", slog.Any("err", err))
-	}
-
-	entrypoint := p.Entrypoint
-	if entrypoint == "" {
-		entrypoint = p.Name
-	}
-
-	parts := strings.Fields(entrypoint)
-	if len(parts) == 0 {
-		return fmt.Errorf("plugin %s: empty entrypoint", p.ID)
-	}
-
-	// Verify interpreter is installed before attempting to start
-	if isInterpreter(parts[0]) {
-		if _, lookErr := exec.LookPath(parts[0]); lookErr != nil {
-			return fmt.Errorf("plugin %s: runtime %q not installed", p.ID, parts[0])
-		}
-	}
-
-	var cmdName string
-	var cmdArgs []string
-	if isInterpreter(parts[0]) {
-		cmdName = parts[0]
-		if len(parts) > 1 {
-			scriptPath := parts[1]
-			if !filepath.IsAbs(scriptPath) && p.InstallDir != "" {
-				scriptPath = filepath.Join(p.InstallDir, scriptPath)
-			}
-			if _, err := os.Stat(scriptPath); err != nil {
-				return fmt.Errorf("plugin %s: script not found: %w", p.ID, err)
-			}
-			cmdArgs = append([]string{scriptPath}, parts[2:]...)
-		}
-	} else {
-		resolved, resolveErr := r.validateEntrypoint(parts[0], p.InstallDir)
-		if resolveErr != nil {
-			return fmt.Errorf("plugin %s: %w", p.ID, resolveErr)
-		}
-		cmdName = resolved
-		cmdArgs = parts[1:]
+	cmdName, cmdArgs, err := r.resolveCommand(p)
+	if err != nil {
+		return err
 	}
 
 	ctx, cancel := context.WithTimeout(parentCtx, pluginExecTimeout)
@@ -260,53 +210,16 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		cmd.Dir = p.InstallDir
 	}
 
-	// Provision the per-plugin host socket BEFORE cmd.Start so the env
-	// var the plugin reads at boot points to the right place. The auth
-	// interceptor stays "PID not bound" until SetExpectedPID is called
-	// after Start — early peers are rejected.
-	var hostSock string
-	if r.hostRegistry != nil {
-		path, regErr := r.hostRegistry.RegisterPlugin(p.ID)
-		if regErr != nil {
-			cancel()
-			os.RemoveAll(pluginSockDir)
-			return fmt.Errorf("register plugin host socket: %w", regErr)
-		}
-		hostSock = path
+	hostSock, err := r.registerHostSock(p.ID)
+	if err != nil {
+		r.rollbackStart(cancel, pluginSockDir, p.ID, false)
+		return err
 	}
 
-	cmd.Env = []string{
-		"PATH=/usr/local/bin:/usr/bin:/bin",
-		"HOME=/tmp",
-		"NODE_PATH=/usr/local/lib/node_modules",
-		"EVEY_PLUGIN_ID=" + p.ID,
-		"EVEY_PLUGIN_SOCK=" + sock,
-		"EVEY_HOST_SOCK=" + hostSock,
-	}
-	// Apply seccomp sandbox unless plugin has subprocess permission.
-	// Fail-closed: if the sandbox lib is missing, refuse to start rather
-	// than silently running the plugin unsandboxed. Tests / dev can opt
-	// out via WithAllowMissingSandbox(true).
-	if !slices.Contains(p.Permissions, subprocessPerm) {
-		libPath := r.ensureSandboxLib()
-		if libPath == "" {
-			if !r.allowMissingSandbox {
-				slog.Error("refusing to start plugin without sandbox",
-					slog.String("plugin_id", p.ID),
-					slog.String("sandbox_lib", sandboxLibPath))
-				r.publishPluginError(parentCtx, p.ID, "sandbox library unavailable; plugin refused start")
-				cancel()
-				if r.hostRegistry != nil {
-					r.hostRegistry.UnregisterPlugin(p.ID)
-				}
-				os.RemoveAll(pluginSockDir)
-				return fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
-			}
-			slog.Warn("starting plugin without sandbox (dev override)",
-				slog.String("plugin_id", p.ID))
-		} else {
-			cmd.Env = append(cmd.Env, "LD_PRELOAD="+libPath)
-		}
+	cmd.Env = buildPluginEnv(p.ID, sock, hostSock)
+	if err := r.applySandbox(parentCtx, p, cmd); err != nil {
+		r.rollbackStart(cancel, pluginSockDir, p.ID, true)
+		return err
 	}
 
 	if r.logger != nil {
@@ -316,23 +229,10 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
-
-	sysProcAttr := &syscall.SysProcAttr{
-		Setpgid:   true,
-		Pdeathsig: syscall.SIGTERM,
-	}
-	// Drop privileges: run plugins as evey-plugin (UID 1001) when server is root
-	if os.Getuid() == 0 {
-		sysProcAttr.Credential = &syscall.Credential{Uid: pluginUID, Gid: pluginGID}
-	}
-	cmd.SysProcAttr = sysProcAttr
+	cmd.SysProcAttr = pluginSysProcAttr()
 
 	if err := cmd.Start(); err != nil {
-		cancel()
-		os.RemoveAll(pluginSockDir)
-		if r.hostRegistry != nil {
-			r.hostRegistry.UnregisterPlugin(p.ID)
-		}
+		r.rollbackStart(cancel, pluginSockDir, p.ID, true)
 		return fmt.Errorf("start plugin %s: %w", p.ID, err)
 	}
 
@@ -342,7 +242,6 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	if r.hostRegistry != nil {
 		r.hostRegistry.SetExpectedPID(p.ID, int32(cmd.Process.Pid))
 	}
-
 	if r.logger != nil {
 		r.logger.WriteLog(p.ID, fmt.Sprintf("[INFO] plugin process started pid=%d", cmd.Process.Pid))
 	}
@@ -354,52 +253,186 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		pluginID: p.ID,
 		done:     make(chan struct{}),
 	}
-
-	// Try to connect IPC client (non-blocking — plugin may not create socket immediately)
 	go r.connectIPC(ctx, entry, p)
 
 	r.mu.Lock()
 	r.processes[p.ID] = entry
 	r.mu.Unlock()
 
-	go func() {
-		defer close(entry.done)
-		defer func() {
-			if rv := recover(); rv != nil {
-				slog.Error("panic in plugin runner", slog.Any("recover", rv), slog.String("plugin", p.ID))
+	go r.trackLifecycle(entry, cancel, sock, p)
+	return nil
+}
+
+// setupSocketDir provisions the per-plugin socket subdirectory and returns
+// the dir + target sock path. Also clears a stale sock file left behind
+// from a prior unclean exit.
+func (r *Runner) setupSocketDir(pluginID string) (string, string, error) {
+	if err := os.MkdirAll(sockDir, 0o700); err != nil {
+		return "", "", fmt.Errorf("create sock dir: %w", err)
+	}
+	pluginSockDir := filepath.Join(sockDir, pluginID)
+	if err := os.MkdirAll(pluginSockDir, 0o700); err != nil {
+		return "", "", fmt.Errorf("create plugin sock dir: %w", err)
+	}
+	if os.Getuid() == 0 {
+		if err := os.Chown(pluginSockDir, pluginUID, pluginGID); err != nil {
+			return "", "", fmt.Errorf("chown plugin sock dir: %w", err)
+		}
+	}
+	sock := filepath.Join(pluginSockDir, "plugin.sock")
+	if err := os.Remove(sock); err != nil && !os.IsNotExist(err) {
+		slog.Warn("remove old plugin sock", slog.Any("err", err))
+	}
+	return pluginSockDir, sock, nil
+}
+
+// resolveCommand parses p.Entrypoint (falling back to p.Name) and returns
+// the fully resolved command name and args. Interpreters (python, node…)
+// are looked up in PATH; binaries are path-confined to r.pluginDirs.
+func (r *Runner) resolveCommand(p *plugin.Plugin) (string, []string, error) {
+	entrypoint := p.Entrypoint
+	if entrypoint == "" {
+		entrypoint = p.Name
+	}
+	parts := strings.Fields(entrypoint)
+	if len(parts) == 0 {
+		return "", nil, fmt.Errorf("plugin %s: empty entrypoint", p.ID)
+	}
+
+	if isInterpreter(parts[0]) {
+		if _, lookErr := exec.LookPath(parts[0]); lookErr != nil {
+			return "", nil, fmt.Errorf("plugin %s: runtime %q not installed", p.ID, parts[0])
+		}
+		var cmdArgs []string
+		if len(parts) > 1 {
+			scriptPath := parts[1]
+			if !filepath.IsAbs(scriptPath) && p.InstallDir != "" {
+				scriptPath = filepath.Join(p.InstallDir, scriptPath)
 			}
-		}()
-		err := cmd.Wait()
-		r.mu.Lock()
-		_, stillTracked := r.processes[p.ID]
-		if stillTracked {
-			delete(r.processes, p.ID)
+			if _, err := os.Stat(scriptPath); err != nil {
+				return "", nil, fmt.Errorf("plugin %s: script not found: %w", p.ID, err)
+			}
+			cmdArgs = append([]string{scriptPath}, parts[2:]...)
 		}
-		r.mu.Unlock()
+		return parts[0], cmdArgs, nil
+	}
 
-		if !stillTracked {
-			return // Stop() already handled cleanup
-		}
+	resolved, resolveErr := r.validateEntrypoint(parts[0], p.InstallDir)
+	if resolveErr != nil {
+		return "", nil, fmt.Errorf("plugin %s: %w", p.ID, resolveErr)
+	}
+	return resolved, parts[1:], nil
+}
 
-		cancel()
-		if err2 := os.Remove(sock); err2 != nil {
-			slog.Warn("remove plugin sock on crash", slog.Any("err", err2))
-		}
-		if r.hostRegistry != nil {
-			r.hostRegistry.UnregisterPlugin(p.ID)
-		}
-		if err != nil {
-			slog.Warn("plugin process crashed", slog.String("plugin", p.ID), slog.Any("err", err))
-			// Use a detached context: the crash can happen long after parentCtx
-			// has been cancelled (request scope ended). A cancelled ctx would
-			// drop the admin notification silently.
-			r.publishPluginError(context.Background(), p.ID, "process crashed: "+err.Error())
-		} else {
-			slog.Info("plugin process exited", slog.String("plugin", p.ID))
+// registerHostSock provisions the per-plugin host gRPC socket before the
+// process starts so EVEY_HOST_SOCK is populated. Returns the empty string
+// when no HostRegistry is wired (tests).
+func (r *Runner) registerHostSock(pluginID string) (string, error) {
+	if r.hostRegistry == nil {
+		return "", nil
+	}
+	path, regErr := r.hostRegistry.RegisterPlugin(pluginID)
+	if regErr != nil {
+		return "", fmt.Errorf("register plugin host socket: %w", regErr)
+	}
+	return path, nil
+}
+
+// rollbackStart undoes partial Start side-effects on failure paths: cancels
+// the ctx, removes the socket dir, and (when the host socket was already
+// registered) unregisters it. Keep the three ops in lock-step — drifting
+// leaks a socket dir or a dangling gRPC host entry.
+func (r *Runner) rollbackStart(cancel context.CancelFunc, pluginSockDir, pluginID string, hostRegistered bool) {
+	cancel()
+	if err := os.RemoveAll(pluginSockDir); err != nil {
+		slog.Warn("rollback remove plugin sock dir", slog.Any("err", err))
+	}
+	if hostRegistered && r.hostRegistry != nil {
+		r.hostRegistry.UnregisterPlugin(pluginID)
+	}
+}
+
+func buildPluginEnv(pluginID, sock, hostSock string) []string {
+	return []string{
+		"PATH=/usr/local/bin:/usr/bin:/bin",
+		"HOME=/tmp",
+		"NODE_PATH=/usr/local/lib/node_modules",
+		"EVEY_PLUGIN_ID=" + pluginID,
+		"EVEY_PLUGIN_SOCK=" + sock,
+		"EVEY_HOST_SOCK=" + hostSock,
+	}
+}
+
+// applySandbox appends LD_PRELOAD=<sandbox.so> to cmd.Env unless the plugin
+// has the subprocess permission. Fail-closed: a plugin without subprocess
+// AND without a sandbox lib is refused, with a plugin.error published so
+// an admin gets paged. Dev/tests can opt out via WithAllowMissingSandbox.
+func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) error {
+	if slices.Contains(p.Permissions, subprocessPerm) {
+		return nil
+	}
+	libPath := r.ensureSandboxLib()
+	if libPath != "" {
+		cmd.Env = append(cmd.Env, "LD_PRELOAD="+libPath)
+		return nil
+	}
+	if !r.allowMissingSandbox {
+		slog.Error("refusing to start plugin without sandbox",
+			slog.String("plugin_id", p.ID),
+			slog.String("sandbox_lib", sandboxLibPath))
+		r.publishPluginError(parentCtx, p.ID, "sandbox library unavailable; plugin refused start")
+		return fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
+	}
+	slog.Warn("starting plugin without sandbox (dev override)",
+		slog.String("plugin_id", p.ID))
+	return nil
+}
+
+func pluginSysProcAttr() *syscall.SysProcAttr {
+	a := &syscall.SysProcAttr{
+		Setpgid:   true,
+		Pdeathsig: syscall.SIGTERM,
+	}
+	if os.Getuid() == 0 {
+		a.Credential = &syscall.Credential{Uid: pluginUID, Gid: pluginGID}
+	}
+	return a
+}
+
+// trackLifecycle runs cmd.Wait in a goroutine and cleans up once the
+// process exits. Uses a detached context for publishPluginError because
+// the parent request scope may already be cancelled when the crash fires.
+func (r *Runner) trackLifecycle(entry *processEntry, cancel context.CancelFunc, sock string, p *plugin.Plugin) {
+	defer close(entry.done)
+	defer func() {
+		if rv := recover(); rv != nil {
+			slog.Error("panic in plugin runner", slog.Any("recover", rv), slog.String("plugin", p.ID))
 		}
 	}()
+	err := entry.cmd.Wait()
+	r.mu.Lock()
+	_, stillTracked := r.processes[p.ID]
+	if stillTracked {
+		delete(r.processes, p.ID)
+	}
+	r.mu.Unlock()
+	if !stillTracked {
+		return // Stop() already handled cleanup
+	}
 
-	return nil
+	cancel()
+	if err2 := os.Remove(sock); err2 != nil {
+		slog.Warn("remove plugin sock on crash", slog.Any("err", err2))
+	}
+	if r.hostRegistry != nil {
+		r.hostRegistry.UnregisterPlugin(p.ID)
+	}
+	if err != nil {
+		slog.Warn("plugin process crashed", slog.String("plugin", p.ID), slog.Any("err", err))
+		r.publishPluginError(context.Background(), p.ID, "process crashed: "+err.Error())
+	} else {
+		slog.Info("plugin process exited", slog.String("plugin", p.ID))
+	}
 }
 
 func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *plugin.Plugin) {
