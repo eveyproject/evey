@@ -38,7 +38,7 @@ func TestStartPlugin_AlreadyRunning(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-1", Name: "running", Status: string(plugindomain.Running), Enabled: true,
+		ID: "plg-1", Name: "running", Status: plugindomain.Running, Enabled: true,
 	}))
 
 	err := svc.StartPlugin(ctx, "plg-1")
@@ -49,7 +49,7 @@ func TestStartPlugin_CSSTheme_NoRunner(t *testing.T) {
 	svc, pluginRepo, runner, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-css", Name: "theme", Language: "css", Status: string(plugindomain.Stopped), Enabled: true,
+		ID: "plg-css", Name: "theme", Language: "css", Status: plugindomain.Stopped, Enabled: true,
 	}))
 
 	err := svc.StartPlugin(ctx, "plg-css")
@@ -59,14 +59,14 @@ func TestStartPlugin_CSSTheme_NoRunner(t *testing.T) {
 	assert.False(t, healthy, "CSS plugin should not call runner")
 
 	p, _ := pluginRepo.GetByID(ctx, "plg-css")
-	assert.Equal(t, string(plugindomain.Running), p.Status)
+	assert.Equal(t, plugindomain.Running, p.Status)
 }
 
 func TestStartPlugin_Failure_SetsErrorStatus(t *testing.T) {
 	svc, pluginRepo, runner, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-fail", Name: "failing", Language: "go", Status: string(plugindomain.Stopped), Enabled: true,
+		ID: "plg-fail", Name: "failing", Language: "go", Status: plugindomain.Stopped, Enabled: true,
 		InstallDir: "/tmp/test-plugins/plg-fail",
 	}))
 	runner.Err = errors.New("start failed")
@@ -75,7 +75,7 @@ func TestStartPlugin_Failure_SetsErrorStatus(t *testing.T) {
 	require.Error(t, err)
 
 	p, _ := pluginRepo.GetByID(ctx, "plg-fail")
-	assert.Equal(t, string(plugindomain.Error), p.Status)
+	assert.Equal(t, plugindomain.Error, p.Status)
 	assert.Equal(t, "start failed", p.ErrorMessage)
 }
 
@@ -86,7 +86,7 @@ func TestStartPlugin_LoadsPermissions(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-perm", Name: "perm-start", Language: "go", Status: string(plugindomain.Stopped),
+		ID: "plg-perm", Name: "perm-start", Language: "go", Status: plugindomain.Stopped,
 		Enabled: true, Permissions: []string{"api.library"},
 		InstallDir: "/tmp/test-plugins/plg-perm",
 	}))
@@ -108,7 +108,7 @@ func TestStopPlugin_NotRunning(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-stopped", Name: "stopped", Status: string(plugindomain.Stopped), Enabled: true,
+		ID: "plg-stopped", Name: "stopped", Status: plugindomain.Stopped, Enabled: true,
 	}))
 
 	err := svc.StopPlugin(ctx, "plg-stopped")
@@ -122,7 +122,7 @@ func TestStopPlugin_InvalidatesPermissions(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-inv", Name: "inv-stop", Language: "go", Status: string(plugindomain.Running),
+		ID: "plg-inv", Name: "inv-stop", Language: "go", Status: plugindomain.Running,
 		Enabled: true, Permissions: []string{"api.library"},
 	}))
 	pc.LoadPermissions("plg-inv", []string{"api.library"})
@@ -140,7 +140,7 @@ func TestStartPlugin_EmptyInstallDir_Rebuilt(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-nodir", Name: "no-dir", Language: "go",
-		Status: string(plugindomain.Stopped), Enabled: true,
+		Status: plugindomain.Stopped, Enabled: true,
 		InstallDir: "",
 	}))
 
@@ -169,7 +169,7 @@ func TestEnablePlugin(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-en", Name: "disabled-one", Enabled: false, Status: string(plugindomain.Stopped),
+		ID: "plg-en", Name: "disabled-one", Enabled: false, Status: plugindomain.Stopped,
 	}))
 
 	err := svc.EnablePlugin(ctx, "plg-en")
@@ -183,7 +183,7 @@ func TestDisablePlugin_StopsRunningPlugin(t *testing.T) {
 	svc, pluginRepo, runner, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-dis", Name: "running-dis", Language: "go", Status: string(plugindomain.Running), Enabled: true,
+		ID: "plg-dis", Name: "running-dis", Language: "go", Status: plugindomain.Running, Enabled: true,
 	}))
 	_ = runner.Start(ctx, &plugindomain.Plugin{ID: "plg-dis"})
 
@@ -192,7 +192,7 @@ func TestDisablePlugin_StopsRunningPlugin(t *testing.T) {
 
 	p, _ := pluginRepo.GetByID(ctx, "plg-dis")
 	assert.False(t, p.Enabled)
-	assert.Equal(t, string(plugindomain.Stopped), p.Status)
+	assert.Equal(t, plugindomain.Stopped, p.Status)
 
 	healthy, _ := runner.Health(ctx, "plg-dis")
 	assert.False(t, healthy)
@@ -202,7 +202,7 @@ func TestDisablePlugin_AlreadyStopped(t *testing.T) {
 	svc, pluginRepo, runner, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-ds", Name: "already-stopped", Status: string(plugindomain.Stopped), Enabled: true,
+		ID: "plg-ds", Name: "already-stopped", Status: plugindomain.Stopped, Enabled: true,
 	}))
 
 	err := svc.DisablePlugin(ctx, "plg-ds")
@@ -228,15 +228,15 @@ func TestAutoStartPlugins(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-running", Name: "running-plugin",
-		Status: string(plugindomain.Running), Enabled: true,
+		Status: plugindomain.Running, Enabled: true,
 	}))
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-stopped", Name: "stopped-plugin",
-		Status: string(plugindomain.Stopped), Enabled: true,
+		Status: plugindomain.Stopped, Enabled: true,
 	}))
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-disabled", Name: "disabled-plugin",
-		Status: string(plugindomain.Running), Enabled: false,
+		Status: plugindomain.Running, Enabled: false,
 	}))
 
 	svc.AutoStartPlugins(ctx)
@@ -261,7 +261,7 @@ func TestAutoStartPlugins_SkipsDisabled(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-dis-auto", Name: "disabled-auto", Language: "go",
-		Status: string(plugindomain.Running), Enabled: false,
+		Status: plugindomain.Running, Enabled: false,
 	}))
 
 	svc.AutoStartPlugins(ctx)
@@ -280,7 +280,7 @@ func TestAutoStartPlugins_SkipsCSS(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-css-auto", Name: "css-theme", Language: "css",
-		Status: string(plugindomain.Running), Enabled: true,
+		Status: plugindomain.Running, Enabled: true,
 	}))
 
 	svc.AutoStartPlugins(ctx)
@@ -306,7 +306,7 @@ func TestAutoStartPlugins_RebuildsMissingFields(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-rebuild", Name: "rebuild", Language: "go",
-		Status: string(plugindomain.Running), Enabled: true,
+		Status: plugindomain.Running, Enabled: true,
 		InstallDir: "", Entrypoint: "",
 	}))
 
@@ -330,7 +330,7 @@ func TestAutoStartPlugins_StartFails_SetsErrorStatus(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-as-fail", Name: "auto-fail", Language: "go",
-		Status: string(plugindomain.Running), Enabled: true,
+		Status: plugindomain.Running, Enabled: true,
 		InstallDir: "/tmp/test-plugins/plg-as-fail",
 	}))
 	runner.Err = errors.New("runner down")
@@ -339,7 +339,7 @@ func TestAutoStartPlugins_StartFails_SetsErrorStatus(t *testing.T) {
 
 	p, err := pluginRepo.GetByID(ctx, "plg-as-fail")
 	require.NoError(t, err)
-	assert.Equal(t, string(plugindomain.Error), p.Status)
+	assert.Equal(t, plugindomain.Error, p.Status)
 	assert.Equal(t, "runner down", p.ErrorMessage)
 }
 
@@ -353,7 +353,7 @@ func TestAutoStartPlugins_InitializingStatus(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-init", Name: "init-plugin", Language: "go",
-		Status: string(plugindomain.Initializing), Enabled: true,
+		Status: plugindomain.Initializing, Enabled: true,
 		InstallDir: "/tmp/test-plugins/plg-init",
 	}))
 
@@ -376,7 +376,7 @@ func TestAutoStartPlugins_LoadsPermissions(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-apl", Name: "auto-perm", Language: "go",
-		Status: string(plugindomain.Running), Enabled: true,
+		Status: plugindomain.Running, Enabled: true,
 		Permissions: []string{"api.library"},
 		InstallDir:  "/tmp/test-plugins/plg-apl",
 	}))
@@ -392,14 +392,14 @@ func TestHandleIPCResult_Success(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-ipc", Name: "ipc-ok", Status: string(plugindomain.Initializing),
+		ID: "plg-ipc", Name: "ipc-ok", Status: plugindomain.Initializing,
 	}))
 
 	svc.HandleIPCResult("plg-ipc", nil)
 
 	p, err := pluginRepo.GetByID(ctx, "plg-ipc")
 	require.NoError(t, err)
-	assert.Equal(t, "running", p.Status)
+	assert.Equal(t, plugindomain.Running, p.Status)
 	assert.Empty(t, p.ErrorMessage)
 }
 
@@ -407,14 +407,14 @@ func TestHandleIPCResult_Error(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-ipc-err", Name: "ipc-fail", Status: string(plugindomain.Initializing),
+		ID: "plg-ipc-err", Name: "ipc-fail", Status: plugindomain.Initializing,
 	}))
 
 	svc.HandleIPCResult("plg-ipc-err", errors.New("ipc timeout"))
 
 	p, err := pluginRepo.GetByID(ctx, "plg-ipc-err")
 	require.NoError(t, err)
-	assert.Equal(t, "error", p.Status)
+	assert.Equal(t, plugindomain.Error, p.Status)
 	assert.Equal(t, "ipc timeout", p.ErrorMessage)
 }
 

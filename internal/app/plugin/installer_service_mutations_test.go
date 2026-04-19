@@ -224,7 +224,7 @@ func TestUninstallPlugin_StopFails_StillUninstalls(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-stoperr", Name: "stop-err", Language: "go",
-		Status: string(plugindomain.Running), Enabled: true,
+		Status: plugindomain.Running, Enabled: true,
 	}))
 	runner.StopErr = errors.New("kill -9 failed")
 
@@ -250,7 +250,7 @@ func TestUninstallPlugin_RemoveAllError_Tolerated(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-rmerr", Name: "rm-err", Language: "go",
-		Status: string(plugindomain.Stopped), Enabled: true,
+		Status: plugindomain.Stopped, Enabled: true,
 		InstallDir: "/tmp/test-plugins-mut/plg-rmerr",
 	}))
 
@@ -273,7 +273,7 @@ func TestUninstallPlugin_EmptyInstallDir_NoRemoveAll(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-empty", Name: "empty-dir", Language: "go",
-		Status: string(plugindomain.Stopped), Enabled: true,
+		Status: plugindomain.Stopped, Enabled: true,
 		InstallDir: "",
 	}))
 
@@ -351,7 +351,7 @@ func TestUninstallPlugin_PublishesUninstalledEvent(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-evt", Name: "evt-uni", Language: "go",
-		Status: string(plugindomain.Stopped), Enabled: true,
+		Status: plugindomain.Stopped, Enabled: true,
 	}))
 
 	require.NoError(t, svc.UninstallPlugin(ctx, "plg-evt"))

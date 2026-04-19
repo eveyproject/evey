@@ -63,11 +63,11 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrPluginNotFound
 	}
-	if p.Status == string(plugin.Running) {
+	if p.Status == plugin.Running {
 		return ErrAlreadyRunning
 	}
 	if isStaticPlugin(p) {
-		p.Status = string(plugin.Running)
+		p.Status = plugin.Running
 		p.ErrorMessage = ""
 		return s.plugins.Update(ctx, p)
 	}
@@ -75,7 +75,7 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 		p.InstallDir = filepath.Join(s.pluginDir, p.ID)
 	}
 	if err := s.runner.Start(ctx, p); err != nil {
-		p.Status = string(plugin.Error)
+		p.Status = plugin.Error
 		p.ErrorMessage = err.Error()
 		if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
 			slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
@@ -85,7 +85,7 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 	if s.permChecker != nil {
 		s.permChecker.LoadPermissions(p.ID, p.Permissions)
 	}
-	p.Status = string(plugin.Running)
+	p.Status = plugin.Running
 	p.ErrorMessage = ""
 	if err := s.plugins.Update(ctx, p); err != nil {
 		slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
@@ -102,7 +102,7 @@ func (s *RuntimeService) StopPlugin(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrPluginNotFound
 	}
-	if p.Status != string(plugin.Running) {
+	if p.Status != plugin.Running {
 		return ErrNotRunning
 	}
 	if err := s.runner.Stop(ctx, id); err != nil {
@@ -111,7 +111,7 @@ func (s *RuntimeService) StopPlugin(ctx context.Context, id string) error {
 	if s.permChecker != nil {
 		s.permChecker.InvalidatePermissions(p.ID)
 	}
-	p.Status = string(plugin.Stopped)
+	p.Status = plugin.Stopped
 	if err := s.plugins.Update(ctx, p); err != nil {
 		slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
 	}
@@ -137,11 +137,11 @@ func (s *RuntimeService) DisablePlugin(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrPluginNotFound
 	}
-	if p.Status == string(plugin.Running) {
+	if p.Status == plugin.Running {
 		if err := s.runner.Stop(ctx, id); err != nil {
 			slog.Warn("stop plugin runner failed", slog.String("pluginID", id), slog.Any("err", err))
 		}
-		p.Status = string(plugin.Stopped)
+		p.Status = plugin.Stopped
 	}
 	p.Enabled = false
 	p.UpdatedAt = time.Now()
@@ -156,7 +156,7 @@ func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 		return
 	}
 	for _, p := range all {
-		if !p.Enabled || (p.Status != string(plugin.Running) && p.Status != string(plugin.Initializing)) {
+		if !p.Enabled || (p.Status != plugin.Running && p.Status != plugin.Initializing) {
 			continue
 		}
 		if isStaticPlugin(p) {
@@ -181,7 +181,7 @@ func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 		slog.Info("auto-starting plugin", slog.String("pluginID", p.ID), slog.String("name", p.Name))
 		if startErr := s.runner.Start(ctx, p); startErr != nil {
 			slog.Warn("auto-start plugin failed", slog.String("pluginID", p.ID), slog.Any("err", startErr))
-			p.Status = string(plugin.Error)
+			p.Status = plugin.Error
 			p.ErrorMessage = startErr.Error()
 			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
 				slog.Warn("update plugin status", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
@@ -215,10 +215,10 @@ func (s *RuntimeService) HandleIPCResult(pluginID string, ipcErr error) {
 		return
 	}
 	if ipcErr != nil {
-		p.Status = "error"
+		p.Status = plugin.Error
 		p.ErrorMessage = ipcErr.Error()
 	} else {
-		p.Status = "running"
+		p.Status = plugin.Running
 		p.ErrorMessage = ""
 	}
 	if upErr := s.plugins.Update(ctx, p); upErr != nil {

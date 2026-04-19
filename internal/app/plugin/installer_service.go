@@ -145,7 +145,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 		Config:       make(map[string]any),
 		SourceHash:   sourceHash,
 		Enabled:      true,
-		Status:       string(plugin.Stopped),
+		Status:       plugin.Stopped,
 		InstalledAt:  time.Now(),
 		UpdatedAt:    time.Now(),
 	}
@@ -226,7 +226,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 
 	if !isStaticPlugin(p) {
 		if err := s.runner.Start(ctx, p); err != nil {
-			p.Status = string(plugin.Error)
+			p.Status = plugin.Error
 			p.ErrorMessage = err.Error()
 			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
 				slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
@@ -236,9 +236,9 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 		if s.permChecker != nil {
 			s.permChecker.LoadPermissions(p.ID, p.Permissions)
 		}
-		p.Status = string(plugin.Initializing)
+		p.Status = plugin.Initializing
 	} else {
-		p.Status = string(plugin.Running)
+		p.Status = plugin.Running
 	}
 	if err := s.plugins.Update(ctx, p); err != nil {
 		slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
@@ -298,7 +298,7 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 	if err != nil {
 		return ErrPluginNotFound
 	}
-	if p.Status == string(plugin.Running) {
+	if p.Status == plugin.Running {
 		if err := s.runner.Stop(ctx, id); err != nil {
 			slog.Warn("stop plugin runner failed", slog.String("pluginID", id), slog.Any("err", err))
 		}

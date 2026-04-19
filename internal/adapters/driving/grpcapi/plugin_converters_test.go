@@ -11,17 +11,16 @@ import (
 
 func TestPluginStateEnumMapping(t *testing.T) {
 	t.Parallel()
-	cases := map[string]eveyv1.PluginState{
-		"stopped":   eveyv1.PluginState_PLUGIN_STATE_STOPPED,
-		"running":   eveyv1.PluginState_PLUGIN_STATE_RUNNING,
-		"error":     eveyv1.PluginState_PLUGIN_STATE_ERROR,
-		"installed": eveyv1.PluginState_PLUGIN_STATE_INSTALLED,
+	cases := map[plugin.PluginStatus]eveyv1.PluginState{
+		plugin.Stopped:   eveyv1.PluginState_PLUGIN_STATE_STOPPED,
+		plugin.Running:   eveyv1.PluginState_PLUGIN_STATE_RUNNING,
+		plugin.Error:     eveyv1.PluginState_PLUGIN_STATE_ERROR,
+		plugin.Installed: eveyv1.PluginState_PLUGIN_STATE_INSTALLED,
 	}
 	for k, v := range cases {
 		assert.Equal(t, v, pluginStateToProto[k], "state %q", k)
 	}
-	// initializing maps to numeric value 5
-	assert.Equal(t, eveyv1.PluginState(5), pluginStateToProto["initializing"])
+	assert.Equal(t, eveyv1.PluginState(5), pluginStateToProto[plugin.Initializing])
 }
 
 func TestPluginToProto_FullFields(t *testing.T) {
@@ -35,7 +34,7 @@ func TestPluginToProto_FullFields(t *testing.T) {
 		Author:       "me",
 		Language:     "go",
 		Enabled:      true,
-		Status:       "running",
+		Status:       plugin.Running,
 		InstalledAt:  installed,
 		Permissions:  []string{"net"},
 		Capabilities: []string{"scan"},

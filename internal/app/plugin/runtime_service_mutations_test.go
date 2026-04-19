@@ -19,7 +19,7 @@ func TestStartPlugin_RunnerFails_PersistsErrorStatus(t *testing.T) {
 	svc, pluginRepo, runner, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-rf", Name: "rf", Language: "go", Status: string(plugindomain.Stopped), Enabled: true,
+		ID: "plg-rf", Name: "rf", Language: "go", Status: plugindomain.Stopped, Enabled: true,
 		InstallDir: "/tmp/test-plugins/plg-rf",
 	}))
 	runner.Err = errors.New("boom")
@@ -28,7 +28,7 @@ func TestStartPlugin_RunnerFails_PersistsErrorStatus(t *testing.T) {
 	require.Error(t, err)
 
 	p, _ := pluginRepo.GetByID(ctx, "plg-rf")
-	assert.Equal(t, string(plugindomain.Error), p.Status)
+	assert.Equal(t, plugindomain.Error, p.Status)
 	assert.Equal(t, "boom", p.ErrorMessage)
 }
 
@@ -45,7 +45,7 @@ func TestStartPlugin_Success_PublishesStartedEvent(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-evt-start", Name: "evt-start", Language: "go",
-		Status: string(plugindomain.Stopped), Enabled: true,
+		Status: plugindomain.Stopped, Enabled: true,
 		InstallDir: "/tmp/test-plugins/plg-evt-start",
 	}))
 
@@ -69,14 +69,14 @@ func TestStopPlugin_Success_PersistsAndPublishes(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-stop", Name: "stop-ok", Language: "go",
-		Status: string(plugindomain.Running), Enabled: true,
+		Status: plugindomain.Running, Enabled: true,
 	}))
 	_ = runner.Start(ctx, &plugindomain.Plugin{ID: "plg-stop"})
 
 	require.NoError(t, svc.StopPlugin(ctx, "plg-stop"))
 
 	p, _ := pluginRepo.GetByID(ctx, "plg-stop")
-	assert.Equal(t, string(plugindomain.Stopped), p.Status)
+	assert.Equal(t, plugindomain.Stopped, p.Status)
 
 	events := bus.PublishedEvents()
 	require.Len(t, events, 1)
@@ -91,7 +91,7 @@ func TestDisablePlugin_StopFails_StillDisables(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-dis-err", Name: "dis-err", Language: "go",
-		Status: string(plugindomain.Running), Enabled: true,
+		Status: plugindomain.Running, Enabled: true,
 	}))
 	_ = runner.Start(ctx, &plugindomain.Plugin{ID: "plg-dis-err"})
 	runner.StopErr = errors.New("stop failed")
@@ -100,7 +100,7 @@ func TestDisablePlugin_StopFails_StillDisables(t *testing.T) {
 
 	p, _ := pluginRepo.GetByID(ctx, "plg-dis-err")
 	assert.False(t, p.Enabled)
-	assert.Equal(t, string(plugindomain.Stopped), p.Status, "status set to Stopped even if Stop returned error")
+	assert.Equal(t, plugindomain.Stopped, p.Status, "status set to Stopped even if Stop returned error")
 }
 
 // L177: AutoStart rebuilt → Update persists rebuilt fields (covered) — verify warn-tolerated when Update fails.
@@ -118,7 +118,7 @@ func TestAutoStartPlugins_ParseDirError_NoEntrypointRebuild(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-pde", Name: "parse-err", Language: "go",
-		Status: string(plugindomain.Running), Enabled: true,
+		Status: plugindomain.Running, Enabled: true,
 		InstallDir: "", Entrypoint: "",
 	}))
 
@@ -142,7 +142,7 @@ func TestAutoStartPlugins_StartFails_PersistsError(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-asfail", Name: "as-fail", Language: "go",
-		Status: string(plugindomain.Running), Enabled: true,
+		Status: plugindomain.Running, Enabled: true,
 		InstallDir: "/tmp/test-plugins/plg-asfail",
 	}))
 	runner.Err = errors.New("crash")
@@ -150,7 +150,7 @@ func TestAutoStartPlugins_StartFails_PersistsError(t *testing.T) {
 	svc.AutoStartPlugins(ctx)
 
 	p, _ := pluginRepo.GetByID(ctx, "plg-asfail")
-	assert.Equal(t, string(plugindomain.Error), p.Status)
+	assert.Equal(t, plugindomain.Error, p.Status)
 	assert.Equal(t, "crash", p.ErrorMessage)
 }
 
@@ -159,7 +159,7 @@ func TestHandleIPCResult_CompletesWithoutShutdownCtx(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-ipc-bg", Name: "ipc-bg", Status: string(plugindomain.Initializing),
+		ID: "plg-ipc-bg", Name: "ipc-bg", Status: plugindomain.Initializing,
 	}))
 
 	start := time.Now()
@@ -168,7 +168,7 @@ func TestHandleIPCResult_CompletesWithoutShutdownCtx(t *testing.T) {
 	assert.Less(t, elapsed, 5*time.Second, "should not wait near 10s timeout on success")
 
 	p, _ := pluginRepo.GetByID(ctx, "plg-ipc-bg")
-	assert.Equal(t, "running", p.Status)
+	assert.Equal(t, plugindomain.Running, p.Status)
 }
 
 // L224: HandleIPCResult Update warn tolerated — verify even when Update fails, no panic.
@@ -176,7 +176,7 @@ func TestHandleIPCResult_UpdateError_NoPanic(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-ipc-ue", Name: "ipc-ue", Status: string(plugindomain.Initializing),
+		ID: "plg-ipc-ue", Name: "ipc-ue", Status: plugindomain.Initializing,
 	}))
 	// Cause Update to fail by setting Err *after* Get succeeds — but Get also fails then.
 	// Instead verify status was set in-memory by Get path before failure.
@@ -184,7 +184,7 @@ func TestHandleIPCResult_UpdateError_NoPanic(t *testing.T) {
 	// We can validate the success path Update happens (covered) and the warn path via partial mock.
 	svc.HandleIPCResult("plg-ipc-ue", nil)
 	p, _ := pluginRepo.GetByID(ctx, "plg-ipc-ue")
-	assert.Equal(t, "running", p.Status)
+	assert.Equal(t, plugindomain.Running, p.Status)
 }
 
 // L80/115 warn paths: trigger Update failure on persisted-state update by using a
@@ -195,7 +195,7 @@ func TestStartPlugin_RunnerErrorReturned(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-re", Name: "re", Language: "go",
-		Status: string(plugindomain.Stopped), Enabled: true,
+		Status: plugindomain.Stopped, Enabled: true,
 	}))
 	runner.Err = errors.New("specific runner err")
 
@@ -214,7 +214,7 @@ func TestStartPlugin_EventOccurredAtSet(t *testing.T) {
 
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-time", Name: "t", Language: "go", Status: string(plugindomain.Stopped), Enabled: true,
+		ID: "plg-time", Name: "t", Language: "go", Status: plugindomain.Stopped, Enabled: true,
 	}))
 
 	before := time.Now()

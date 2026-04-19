@@ -27,7 +27,7 @@ func TestGetPluginConfig(t *testing.T) {
 		ID: "plg-cfg", Name: "config-plugin",
 		Config:       map[string]any{"theme": "dark", "limit": 10},
 		ConfigSchema: map[string]any{"theme": map[string]any{"type": "select", "options": []string{"light", "dark"}}},
-		Status:       string(plugindomain.Stopped),
+		Status:       plugindomain.Stopped,
 	}))
 
 	result, err := svc.GetPluginConfig(ctx, "plg-cfg")
@@ -50,7 +50,7 @@ func TestUpdatePluginConfig(t *testing.T) {
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-ucfg", Name: "cfg-update",
 		Config: map[string]any{"old": "value"},
-		Status: string(plugindomain.Stopped),
+		Status: plugindomain.Stopped,
 	}))
 
 	newCfg := map[string]any{"new": "value", "count": 42}

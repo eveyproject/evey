@@ -85,7 +85,7 @@ func TestInstallPlugin(t *testing.T) {
 	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
 	assert.Equal(t, "test-plugin", p.Name)
-	assert.Equal(t, string(plugindomain.Initializing), p.Status)
+	assert.Equal(t, plugindomain.Initializing, p.Status)
 	assert.Equal(t, "./plugin", p.Entrypoint)
 }
 
@@ -155,7 +155,7 @@ func TestInstallPlugin_StartFails_ReturnsPluginWithError(t *testing.T) {
 
 	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
-	assert.Equal(t, string(plugindomain.Error), p.Status)
+	assert.Equal(t, plugindomain.Error, p.Status)
 	assert.Equal(t, "runner crashed", p.ErrorMessage)
 }
 
@@ -176,7 +176,7 @@ func TestInstallPlugin_CSSTheme_StatusRunning(t *testing.T) {
 
 	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
-	assert.Equal(t, string(plugindomain.Running), p.Status)
+	assert.Equal(t, plugindomain.Running, p.Status)
 }
 
 func TestInstallPlugin_SetsInitializingStatus(t *testing.T) {
@@ -185,7 +185,7 @@ func TestInstallPlugin_SetsInitializingStatus(t *testing.T) {
 
 	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
-	assert.Equal(t, string(plugindomain.Initializing), p.Status)
+	assert.Equal(t, plugindomain.Initializing, p.Status)
 }
 
 func TestInstallPlugin_LoadsPermissions(t *testing.T) {
@@ -386,7 +386,7 @@ func TestUninstallPlugin_StopsRunning(t *testing.T) {
 	svc, pluginRepo, runner, _, _, _ := newTestInstallerService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-run", Name: "running-uni", Language: "go", Status: string(plugindomain.Running), Enabled: true,
+		ID: "plg-run", Name: "running-uni", Language: "go", Status: plugindomain.Running, Enabled: true,
 	}))
 	_ = runner.Start(ctx, &plugindomain.Plugin{ID: "plg-run"})
 
@@ -404,7 +404,7 @@ func TestUninstallPlugin_InvalidatesPermissions(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-uinv", Name: "uni-perm", Language: "go", Status: string(plugindomain.Stopped),
+		ID: "plg-uinv", Name: "uni-perm", Language: "go", Status: plugindomain.Stopped,
 		Enabled: true, Permissions: []string{"api.library"},
 	}))
 	pc.LoadPermissions("plg-uinv", []string{"api.library"})
@@ -420,7 +420,7 @@ func TestUninstallPlugin_RemovesDir(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-rmdir", Name: "dir-plugin", Language: "go",
-		Status: string(plugindomain.Stopped), Enabled: true,
+		Status: plugindomain.Stopped, Enabled: true,
 		InstallDir: "/tmp/test-plugins/plg-rmdir",
 	}))
 
@@ -436,7 +436,7 @@ func TestUninstallPlugin_StoppedNoDir(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-nodir", Name: "no-dir", Language: "go",
-		Status: string(plugindomain.Stopped), Enabled: true,
+		Status: plugindomain.Stopped, Enabled: true,
 		InstallDir: "",
 	}))
 
@@ -461,7 +461,7 @@ func TestUninstallPlugin_DeleteFails(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-delfail", Name: "del-fail", Language: "go",
-		Status: string(plugindomain.Stopped), Enabled: true,
+		Status: plugindomain.Stopped, Enabled: true,
 	}))
 	pluginRepo.Err = errors.New("db error")
 

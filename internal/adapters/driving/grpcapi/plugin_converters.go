@@ -5,12 +5,12 @@ import (
 	"github.com/evey-project/evey/internal/domain/plugin"
 )
 
-var pluginStateToProto = map[string]eveyv1.PluginState{
-	"stopped":      eveyv1.PluginState_PLUGIN_STATE_STOPPED,
-	"initializing": eveyv1.PluginState(5),
-	"running":      eveyv1.PluginState_PLUGIN_STATE_RUNNING,
-	"error":        eveyv1.PluginState_PLUGIN_STATE_ERROR,
-	"installed":    eveyv1.PluginState_PLUGIN_STATE_INSTALLED,
+var pluginStateToProto = map[plugin.PluginStatus]eveyv1.PluginState{
+	plugin.Stopped:      eveyv1.PluginState_PLUGIN_STATE_STOPPED,
+	plugin.Initializing: eveyv1.PluginState(5),
+	plugin.Running:      eveyv1.PluginState_PLUGIN_STATE_RUNNING,
+	plugin.Error:        eveyv1.PluginState_PLUGIN_STATE_ERROR,
+	plugin.Installed:    eveyv1.PluginState_PLUGIN_STATE_INSTALLED,
 }
 
 func pluginToProto(p *plugin.Plugin) *eveyv1.Plugin {

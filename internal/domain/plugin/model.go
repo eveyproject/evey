@@ -12,6 +12,7 @@ const (
 	Initializing PluginStatus = "initializing"
 	Running      PluginStatus = "running"
 	Error        PluginStatus = "error"
+	Installed    PluginStatus = "installed"
 )
 
 type RuntimeStatus string
@@ -38,7 +39,7 @@ type Plugin struct {
 	Config       map[string]any
 	SourceHash   string
 	Enabled      bool
-	Status       string
+	Status       PluginStatus
 	ErrorMessage string
 	InstalledAt  time.Time
 	UpdatedAt    time.Time

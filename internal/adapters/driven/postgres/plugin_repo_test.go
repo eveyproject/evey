@@ -26,7 +26,7 @@ func newTestPlugin(id string) *plugin.Plugin {
 		ConfigSchema: map[string]any{},
 		Config:       map[string]any{},
 		Enabled:      true,
-		Status:       string(plugin.Stopped),
+		Status:       plugin.Stopped,
 		ErrorMessage: "",
 		InstalledAt:  time.Now().UTC().Truncate(time.Millisecond),
 		UpdatedAt:    time.Now().UTC().Truncate(time.Millisecond),
@@ -91,14 +91,14 @@ func TestPluginRepo_Update(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, p))
 
 	p.Version = "2.0.0"
-	p.Status = string(plugin.Running)
+	p.Status = plugin.Running
 	p.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond)
 	require.NoError(t, repo.Update(ctx, p))
 
 	got, err := repo.GetByID(ctx, p.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "2.0.0", got.Version)
-	assert.Equal(t, string(plugin.Running), got.Status)
+	assert.Equal(t, plugin.Running, got.Status)
 }
 
 func TestPluginRepo_Delete(t *testing.T) {
