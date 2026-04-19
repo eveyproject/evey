@@ -19,9 +19,6 @@ func NewFakePlaySessionRepository() *FakePlaySessionRepository {
 }
 
 func (r *FakePlaySessionRepository) Create(_ context.Context, session *playback.PlaySession) error {
-	if r.Err != nil {
-		return r.Err
-	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.Err != nil {
@@ -32,9 +29,6 @@ func (r *FakePlaySessionRepository) Create(_ context.Context, session *playback.
 }
 
 func (r *FakePlaySessionRepository) Update(_ context.Context, session *playback.PlaySession) error {
-	if r.Err != nil {
-		return r.Err
-	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.Err != nil {
@@ -48,9 +42,6 @@ func (r *FakePlaySessionRepository) Update(_ context.Context, session *playback.
 }
 
 func (r *FakePlaySessionRepository) GetByID(_ context.Context, id string) (*playback.PlaySession, error) {
-	if r.Err != nil {
-		return nil, r.Err
-	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.Err != nil {
@@ -64,9 +55,6 @@ func (r *FakePlaySessionRepository) GetByID(_ context.Context, id string) (*play
 }
 
 func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*playback.ActiveSessionInfo, error) {
-	if r.Err != nil {
-		return nil, r.Err
-	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.Err != nil {
@@ -106,9 +94,6 @@ func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*pl
 }
 
 func (r *FakePlaySessionRepository) GetActiveByProfile(_ context.Context, profileID string) ([]*playback.PlaySession, error) {
-	if r.Err != nil {
-		return nil, r.Err
-	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.Err != nil {
@@ -124,9 +109,6 @@ func (r *FakePlaySessionRepository) GetActiveByProfile(_ context.Context, profil
 }
 
 func (r *FakePlaySessionRepository) GetHistory(_ context.Context, filter playback.PlaySessionFilter) ([]*playback.PlaySession, error) {
-	if r.Err != nil {
-		return nil, r.Err
-	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.Err != nil {
@@ -157,9 +139,6 @@ func (r *FakePlaySessionRepository) GetHistory(_ context.Context, filter playbac
 }
 
 func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time.Duration) (int, error) {
-	if r.Err != nil {
-		return 0, r.Err
-	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.Err != nil {
@@ -197,10 +176,13 @@ func (r *FakePlaySessionRepository) AcquireUserStreamLock(_ context.Context, _ s
 	return r.Err
 }
 
-func (r *FakePlaySessionRepository) CountActiveByUser(_ context.Context, userID string) (int, error) {
-	if r.Err != nil {
-		return 0, r.Err
-	}
+// CountActiveByUser counts every open session. The fake cannot filter by
+// user because PlaySession only carries a ProfileID and the profile-to-user
+// mapping lives in a separate repo. The real postgres implementation joins
+// on profiles.user_id — tests exercising multi-user quota isolation must
+// wire their own wrapper or use integration tests. Matches single-user
+// tests correctly (profileIDs all belong to the same user).
+func (r *FakePlaySessionRepository) CountActiveByUser(_ context.Context, _ string) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if r.Err != nil {

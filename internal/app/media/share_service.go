@@ -21,25 +21,39 @@ var (
 
 type ShareService struct {
 	repo shared.ShareLinkRepository
+	now  func() time.Time
 }
 
-func NewShareService(repo shared.ShareLinkRepository) *ShareService {
-	return &ShareService{repo: repo}
+type ShareOption func(*ShareService)
+
+// WithClock overrides the time source; tests use it to get deterministic
+// ExpiresAt / CreatedAt values.
+func WithClock(now func() time.Time) ShareOption {
+	return func(s *ShareService) { s.now = now }
+}
+
+func NewShareService(repo shared.ShareLinkRepository, opts ...ShareOption) *ShareService {
+	s := &ShareService{repo: repo, now: time.Now}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *ShareService) Create(ctx context.Context, mediaItemID, createdBy string, duration time.Duration, maxViews *int) (*shared.ShareLink, error) {
 	if duration <= 0 || duration > 72*time.Hour {
 		return nil, ErrShareDurationRange
 	}
+	now := s.now()
 	link := &shared.ShareLink{
 		ID:          uuid.New().String(),
 		Token:       uuid.New().String(),
 		MediaItemID: shared.MediaItemID(mediaItemID),
 		CreatedBy:   shared.UserID(createdBy),
-		ExpiresAt:   time.Now().Add(duration),
+		ExpiresAt:   now.Add(duration),
 		MaxViews:    maxViews,
 		ViewCount:   0,
-		CreatedAt:   time.Now(),
+		CreatedAt:   now,
 	}
 	if err := s.repo.Create(ctx, link); err != nil {
 		return nil, err
@@ -65,7 +79,21 @@ func (s *ShareService) Validate(ctx context.Context, token string) (*shared.Shar
 	if err := s.repo.IncrementViewCount(ctx, token); err != nil {
 		return nil, err
 	}
-	return link, nil
+	// Re-check after the increment: two concurrent callers could both pass
+	// the IsViewLimitReached() check above on the same pre-increment row,
+	// then both increment and both get served — silently exceeding maxViews
+	// by one. Refetch and reject the loser.
+	updated, err := s.repo.GetByToken(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("share link not found after increment: %w", err)
+	}
+	if updated.IsExpired() {
+		return nil, ErrShareExpired
+	}
+	if updated.MaxViews != nil && updated.ViewCount > *updated.MaxViews {
+		return nil, ErrShareViewLimit
+	}
+	return updated, nil
 }
 
 func (s *ShareService) List(ctx context.Context, userID string) ([]*shared.ShareLink, error) {

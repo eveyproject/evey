@@ -118,15 +118,32 @@ func TestSafeHTTPClient_AllowsPublic(t *testing.T) {
 	resp.Body.Close()
 }
 
-func TestNewSafeDialer_BlocksLoopbackLiteral(t *testing.T) {
+func TestNewSafeDialer_BlocksReservedLiterals(t *testing.T) {
 	d := NewSafeDialer()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	_, err := d.DialContext(ctx, "tcp", "127.0.0.1:1")
-	if err == nil {
-		t.Fatal("expected error dialing loopback literal")
+	cases := []struct {
+		name string
+		addr string
+	}{
+		{"loopback", "127.0.0.1:1"},
+		{"private-10-8", "10.0.0.1:1"},
+		{"private-172-16-12", "172.16.0.1:1"},
+		{"private-192-168-16", "192.168.0.1:1"},
+		{"link-local-169-254-16", "169.254.1.1:1"},
+		{"cgnat-100-64", "100.64.0.1:1"},
+		{"ipv6-loopback", "[::1]:1"},
+		{"ipv6-ula", "[fc00::1]:1"},
 	}
-	if !errors.Is(err, ErrBlockedPrivateIP) {
-		t.Fatalf("expected ErrBlockedPrivateIP in chain, got %v", err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			_, err := d.DialContext(ctx, "tcp", tc.addr)
+			if err == nil {
+				t.Fatalf("expected error dialing blocked literal %s", tc.addr)
+			}
+			if !errors.Is(err, ErrBlockedPrivateIP) {
+				t.Fatalf("expected ErrBlockedPrivateIP in chain for %s, got %v", tc.addr, err)
+			}
+		})
 	}
 }

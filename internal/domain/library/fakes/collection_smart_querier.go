@@ -17,7 +17,7 @@ func NewFakeCollectionSmartQuerier() *FakeCollectionSmartQuerier {
 	return &FakeCollectionSmartQuerier{}
 }
 
-func (q *FakeCollectionSmartQuerier) QueryByRules(_ context.Context, rules []library.CollectionRule, sortBy, _ string, limit int) ([]*library.MediaItem, error) {
+func (q *FakeCollectionSmartQuerier) QueryByRules(_ context.Context, rules []library.CollectionRule, sortBy, _sortOrder string, limit int) ([]*library.MediaItem, error) {
 	q.LastSortBy = sortBy
 	if q.Err != nil {
 		return nil, q.Err
@@ -58,6 +58,9 @@ func matchCollectionRule(item *library.MediaItem, rule library.CollectionRule) b
 	case "type":
 		return string(item.Type) == rule.Value
 	default:
-		return true
+		// Unknown field: deny. Returning true here silently matched every
+		// item against unsupported rule fields, which in tests hid real
+		// typos (e.g. "genres" instead of "genre") behind passing queries.
+		return false
 	}
 }

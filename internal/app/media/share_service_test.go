@@ -147,6 +147,47 @@ func TestShareService_Validate_ViewLimit(t *testing.T) {
 	assert.Contains(t, err.Error(), "view limit")
 }
 
+// Simulates two concurrent callers that both pass the pre-increment
+// limit check, both succeed the increment, then the re-check must
+// reject the loser so ViewCount never effectively exceeds MaxViews
+// from the client's perspective.
+func TestShareService_Validate_RaceAfterIncrement_RejectsLoser(t *testing.T) {
+	repo := &fakeShareLinkRepo{}
+	svc := media.NewShareService(repo)
+	ctx := context.Background()
+
+	maxViews := 2
+	link, err := svc.Create(ctx, "media-1", "admin-1", 24*time.Hour, &maxViews)
+	require.NoError(t, err)
+
+	// First two validates succeed (1 of 2, 2 of 2).
+	_, err = svc.Validate(ctx, link.Token)
+	require.NoError(t, err)
+	_, err = svc.Validate(ctx, link.Token)
+	require.NoError(t, err)
+
+	// Simulate the race: raw-increment the repo past the limit (as if
+	// a concurrent caller won the increment race). The next Validate
+	// re-checks post-increment and must surface ErrShareViewLimit.
+	require.NoError(t, repo.IncrementViewCount(ctx, link.Token))
+
+	_, err = svc.Validate(ctx, link.Token)
+	require.ErrorIs(t, err, media.ErrShareViewLimit)
+}
+
+// Deterministic timestamp via injected clock — proves the share's
+// ExpiresAt = now()+duration, not "close to now+duration".
+func TestShareService_Create_UsesInjectedClock(t *testing.T) {
+	repo := &fakeShareLinkRepo{}
+	fixed := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
+	svc := media.NewShareService(repo, media.WithClock(func() time.Time { return fixed }))
+
+	link, err := svc.Create(context.Background(), "media-1", "admin-1", 24*time.Hour, nil)
+	require.NoError(t, err)
+	assert.Equal(t, fixed, link.CreatedAt)
+	assert.Equal(t, fixed.Add(24*time.Hour), link.ExpiresAt)
+}
+
 func TestShareService_Revoke(t *testing.T) {
 	repo := &fakeShareLinkRepo{}
 	svc := media.NewShareService(repo)

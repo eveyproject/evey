@@ -124,7 +124,7 @@ type PluginRuntime struct {
 	ID       string
 	Language string
 	Version  string
-	Status   string
+	Status   RuntimeStatus
 	Notes    string
 	TestedAt time.Time
 }
