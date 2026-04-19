@@ -269,7 +269,7 @@ func Load() (*Config, error) {
 			DBName:       envStr("EVEY_DB_NAME", "evey"),
 			SSLMode:      envStr("EVEY_DB_SSLMODE", "prefer"),
 			MaxOpenConns: envInt("EVEY_DB_MAX_OPEN_CONNS", 50),
-			MaxIdleConns: envInt("EVEY_DB_MAX_IDLE_CONNS", 10),
+			MaxIdleConns: envInt("EVEY_DB_MAX_IDLE_CONNS", 20),
 		},
 		Meilisearch: MeilisearchConfig{
 			URL:    envStr("EVEY_MEILI_URL", "http://localhost:7700"),
