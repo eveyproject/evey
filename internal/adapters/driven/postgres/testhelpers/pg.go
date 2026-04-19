@@ -28,7 +28,14 @@ func StartShared() func() {
 			"POSTGRES_PASSWORD": "evey_test",
 			"POSTGRES_DB":       "evey_test",
 		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(60 * time.Second),
+		// Port-listen alone races the postgres init (server briefly
+		// listens while bootstrapping initdb, then restarts). The
+		// ready log appears twice — initdb + final boot — so
+		// WithOccurrence(2) is the standard pg wait.
+		WaitingFor: wait.ForAll(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+			wait.ForListeningPort("5432/tcp"),
+		).WithStartupTimeoutDefault(90 * time.Second),
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -141,7 +148,10 @@ func startDedicated(t *testing.T) (*sql.DB, func()) {
 			"POSTGRES_PASSWORD": "evey_test",
 			"POSTGRES_DB":       "evey_test",
 		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(60 * time.Second),
+		WaitingFor: wait.ForAll(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+			wait.ForListeningPort("5432/tcp"),
+		).WithStartupTimeoutDefault(90 * time.Second),
 	}
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -160,8 +170,18 @@ func startDedicated(t *testing.T) (*sql.DB, func()) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.Ping(); err != nil {
-		t.Fatalf("ping db: %v", err)
+	// Same retry loop as StartShared — the ready-log wait above mostly
+	// covers the init race, but the kernel sometimes still hands us a
+	// half-closed socket on the first Ping under load.
+	var pingErr error
+	for range 30 {
+		if pingErr = db.Ping(); pingErr == nil {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if pingErr != nil {
+		t.Fatalf("ping db after retries: %v", pingErr)
 	}
 	if err := postgres.RunMigrations(db, postgres.BackupOpts{}); err != nil {
 		t.Fatalf("run migrations: %v", err)

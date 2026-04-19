@@ -38,7 +38,16 @@ func TestRunMigrations_WritesBackup(t *testing.T) {
 			"POSTGRES_PASSWORD": "evey_test",
 			"POSTGRES_DB":       "evey_test",
 		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(60 * time.Second),
+		// Port-listen wait races the postgres init: during first-boot
+		// initdb, the server opens the listen socket briefly while still
+		// bootstrapping, and Ping lands on the "connection reset by
+		// peer" that we just hit in CI. The ready-log appears twice
+		// (init + final restart), so WithOccurrence(2) is the standard
+		// belt-and-braces pattern for testcontainers + pg.
+		WaitingFor: wait.ForAll(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+			wait.ForListeningPort("5432/tcp"),
+		).WithStartupTimeoutDefault(90 * time.Second),
 	}
 	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -68,8 +77,18 @@ func TestRunMigrations_WritesBackup(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if err := db.Ping(); err != nil {
-		t.Fatal(err)
+	// Ping retry loop to survive the final "connection reset by peer"
+	// race when the postgres container flips its listen socket during
+	// init — same pattern as testhelpers.StartShared.
+	var pingErr error
+	for range 30 {
+		if pingErr = db.Ping(); pingErr == nil {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if pingErr != nil {
+		t.Fatalf("ping db after retries: %v", pingErr)
 	}
 
 	backupDir := t.TempDir()
