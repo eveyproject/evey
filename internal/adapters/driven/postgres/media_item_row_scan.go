@@ -53,92 +53,13 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		item.ScanTitle = *scanTitle
 	}
 
-	// File sub-aggregate. Allocated only when the LEFT JOIN found a
-	// media_files row (filePath non-nil). Container types (series/season/
-	// album) leave item.File == nil.
-	if filePath != nil {
-		f := &library.MediaFile{Path: *filePath}
-		if fileSize != nil {
-			f.Size = *fileSize
-		}
-		if fingerprint != nil {
-			f.Fingerprint = *fingerprint
-		}
-		if modTimeRaw.Valid {
-			f.ModTime = modTimeRaw.Time
-		}
-		if durationMs != nil {
-			f.DurationMs = *durationMs
-		}
-		if bitrate != nil {
-			f.Bitrate = *bitrate
-		}
-		if containerFormat != nil {
-			f.ContainerFormat = *containerFormat
-		}
-		item.File = f
+	item.File = buildMediaFile(filePath, fileSize, fingerprint, modTimeRaw, durationMs, bitrate, containerFormat)
+	cat, err := buildMediaCatalog(premiereDate, year, providerJSON, genresJSON, studiosJSON, tagsJSON)
+	if err != nil {
+		return err
 	}
-
-	// Catalog sub-aggregate. Allocated only when the LEFT JOIN found a
-	// media_catalog row OR any of the JSONB arrays came back non-empty.
-	if premiereDate.Valid || year.Valid || len(providerJSON) > 0 || len(genresJSON) > 0 || len(studiosJSON) > 0 || len(tagsJSON) > 0 {
-		cat := &library.MediaCatalog{}
-		if premiereDate.Valid {
-			t := premiereDate.Time
-			cat.PremiereDate = &t
-		}
-		if year.Valid {
-			y := int(year.Int64)
-			cat.Year = &y
-		}
-		// Required: provider_ids and genres drive joins/filters; corrupt JSON
-		// here is a real DB integrity error, not a soft warning.
-		if len(providerJSON) > 0 {
-			if err := json.Unmarshal(providerJSON, &cat.ProviderIDs); err != nil {
-				return fmt.Errorf("unmarshal provider_ids: %w", err)
-			}
-		}
-		if len(genresJSON) > 0 {
-			if err := json.Unmarshal(genresJSON, &cat.Genres); err != nil {
-				return fmt.Errorf("unmarshal genres: %w", err)
-			}
-		}
-		if len(studiosJSON) > 0 {
-			if err := json.Unmarshal(studiosJSON, &cat.Studios); err != nil {
-				slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
-			}
-		}
-		if len(tagsJSON) > 0 {
-			if err := json.Unmarshal(tagsJSON, &cat.Tags); err != nil {
-				slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
-			}
-		}
-		item.Catalog = cat
-	}
-
-	// Classification sub-aggregate. Allocated only when at least one
-	// rating-related column came back non-NULL.
-	if communityRating.Valid || officialRating.Valid || len(certJSON) > 2 || len(providerRatingsJSON) > 2 {
-		cl := &library.MediaClassification{}
-		if communityRating.Valid {
-			v := communityRating.Float64
-			cl.CommunityRating = &v
-		}
-		if officialRating.Valid {
-			cl.OfficialRating = officialRating.String
-		}
-		if len(certJSON) > 0 {
-			if err := json.Unmarshal(certJSON, &cl.CertificationsByCountry); err != nil {
-				slog.Warn("json unmarshal", slog.String("field", "certifications_by_country"), slog.Any("err", err))
-			}
-		}
-		if len(providerRatingsJSON) > 0 {
-			if err := json.Unmarshal(providerRatingsJSON, &cl.ProviderRatings); err != nil {
-				slog.Warn("json unmarshal", slog.String("field", "provider_ratings"), slog.Any("err", err))
-			}
-		}
-		item.Classification = cl
-	}
+	item.Catalog = cat
+	item.Classification = buildMediaClassification(communityRating, officialRating, certJSON, providerRatingsJSON)
 
 	// Trailers (1:N → JSONB array via subquery → flat slice).
 	if len(trailersJSON) > 0 {
@@ -148,6 +69,102 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 	}
 
 	return nil
+}
+
+// buildMediaFile returns the File sub-aggregate when the LEFT JOIN found
+// a media_files row (filePath non-nil), else nil. Container types
+// (series/season/album) leave item.File == nil.
+func buildMediaFile(filePath *string, fileSize *int64, fingerprint *string, modTime sql.NullTime, durationMs, bitrate *int64, containerFormat *string) *library.MediaFile {
+	if filePath == nil {
+		return nil
+	}
+	f := &library.MediaFile{Path: *filePath}
+	if fileSize != nil {
+		f.Size = *fileSize
+	}
+	if fingerprint != nil {
+		f.Fingerprint = *fingerprint
+	}
+	if modTime.Valid {
+		f.ModTime = modTime.Time
+	}
+	if durationMs != nil {
+		f.DurationMs = *durationMs
+	}
+	if bitrate != nil {
+		f.Bitrate = *bitrate
+	}
+	if containerFormat != nil {
+		f.ContainerFormat = *containerFormat
+	}
+	return f
+}
+
+// buildMediaCatalog returns the Catalog sub-aggregate when the LEFT JOIN
+// found a media_catalog row OR any of the JSONB arrays came back
+// non-empty, else nil. provider_ids + genres are treated as required
+// (corrupt JSON fails the read instead of warning-and-dropping).
+func buildMediaCatalog(premiereDate sql.NullTime, year sql.NullInt64, providerJSON, genresJSON, studiosJSON, tagsJSON []byte) (*library.MediaCatalog, error) {
+	if !premiereDate.Valid && !year.Valid && len(providerJSON) == 0 && len(genresJSON) == 0 && len(studiosJSON) == 0 && len(tagsJSON) == 0 {
+		return nil, nil
+	}
+	cat := &library.MediaCatalog{}
+	if premiereDate.Valid {
+		t := premiereDate.Time
+		cat.PremiereDate = &t
+	}
+	if year.Valid {
+		y := int(year.Int64)
+		cat.Year = &y
+	}
+	if len(providerJSON) > 0 {
+		if err := json.Unmarshal(providerJSON, &cat.ProviderIDs); err != nil {
+			return nil, fmt.Errorf("unmarshal provider_ids: %w", err)
+		}
+	}
+	if len(genresJSON) > 0 {
+		if err := json.Unmarshal(genresJSON, &cat.Genres); err != nil {
+			return nil, fmt.Errorf("unmarshal genres: %w", err)
+		}
+	}
+	if len(studiosJSON) > 0 {
+		if err := json.Unmarshal(studiosJSON, &cat.Studios); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
+		}
+	}
+	if len(tagsJSON) > 0 {
+		if err := json.Unmarshal(tagsJSON, &cat.Tags); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
+		}
+	}
+	return cat, nil
+}
+
+// buildMediaClassification returns the Classification sub-aggregate when
+// any rating-related column came back non-NULL, else nil.
+func buildMediaClassification(communityRating sql.NullFloat64, officialRating sql.NullString, certJSON, providerRatingsJSON []byte) *library.MediaClassification {
+	if !communityRating.Valid && !officialRating.Valid && len(certJSON) <= 2 && len(providerRatingsJSON) <= 2 {
+		return nil
+	}
+	cl := &library.MediaClassification{}
+	if communityRating.Valid {
+		v := communityRating.Float64
+		cl.CommunityRating = &v
+	}
+	if officialRating.Valid {
+		cl.OfficialRating = officialRating.String
+	}
+	if len(certJSON) > 0 {
+		if err := json.Unmarshal(certJSON, &cl.CertificationsByCountry); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "certifications_by_country"), slog.Any("err", err))
+		}
+	}
+	if len(providerRatingsJSON) > 0 {
+		if err := json.Unmarshal(providerRatingsJSON, &cl.ProviderRatings); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "provider_ratings"), slog.Any("err", err))
+		}
+	}
+	return cl
 }
 
 func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, error) {
