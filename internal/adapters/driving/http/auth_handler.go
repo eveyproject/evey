@@ -137,6 +137,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 
 type parentalHandler struct {
 	profileRepo domainuser.ProfileRepository
+	userRepo    domainuser.UserRepository
 	hasher      domainuser.PasswordHasher
 	pinRL       *ratelimit.Limiter
 }
@@ -178,12 +179,13 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	claims := HTTPClaimsFromContext(r.Context())
 	profileID := r.PathValue("id")
 	var body struct {
-		MaxAge      *int     `json:"maxAge"`
-		UnsetMaxAge bool     `json:"unsetMaxAge"`
-		BlockedTags []string `json:"blockedTags"`
-		PIN         *string  `json:"pin"`
-		CurrentPIN  string   `json:"currentPin"`
-		Enabled     *bool    `json:"enabled"`
+		MaxAge          *int     `json:"maxAge"`
+		UnsetMaxAge     bool     `json:"unsetMaxAge"`
+		BlockedTags     []string `json:"blockedTags"`
+		PIN             *string  `json:"pin"`
+		CurrentPIN      string   `json:"currentPin"`
+		CurrentPassword string   `json:"currentPassword"`
+		Enabled         *bool    `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
@@ -206,7 +208,12 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	if profile.Parental != nil && profile.Parental.PINHash != "" {
+	noExistingPIN := profile.Parental == nil || profile.Parental.PINHash == ""
+	settingNewPIN := body.PIN != nil && *body.PIN != ""
+
+	switch {
+	case !noExistingPIN:
+		// Rotating / clearing an existing PIN requires the current PIN.
 		if !h.pinRL.Allow(profileID) {
 			http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
 			return
@@ -214,6 +221,24 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		valid, err := h.hasher.Verify(body.CurrentPIN, profile.Parental.PINHash)
 		if err != nil || !valid {
 			http.Error(w, `{"message":"invalid current PIN"}`, http.StatusForbidden)
+			return
+		}
+	case settingNewPIN && h.userRepo != nil:
+		// First-time PIN set: require the account password. Without this a
+		// stolen JWT could silently lock the owner out by enabling parental
+		// + setting a PIN the attacker picks.
+		if !h.pinRL.Allow(profileID) {
+			http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
+			return
+		}
+		u, uerr := h.userRepo.GetByID(r.Context(), profile.UserID)
+		if uerr != nil || u == nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		valid, verr := h.hasher.Verify(body.CurrentPassword, u.PasswordHash)
+		if verr != nil || !valid {
+			http.Error(w, `{"message":"invalid password"}`, http.StatusForbidden)
 			return
 		}
 	}
@@ -327,12 +352,14 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 func registerParentalRoutes(
 	mux *http.ServeMux,
 	profileRepo domainuser.ProfileRepository,
+	userRepo domainuser.UserRepository,
 	hasher domainuser.PasswordHasher,
 	tokenGen *auth.JWTGenerator,
 ) {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &parentalHandler{
 		profileRepo: profileRepo,
+		userRepo:    userRepo,
 		hasher:      hasher,
 		pinRL:       ratelimit.NewWithBurst(3, 0.6),
 	}

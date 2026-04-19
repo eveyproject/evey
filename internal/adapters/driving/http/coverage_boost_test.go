@@ -945,8 +945,11 @@ func newParentalMux(t *testing.T) (*http.ServeMux, *auth.JWTGenerator) {
 		Name:   "Admin Profile",
 	})
 	hasher := userfakes.NewFakePasswordHasher()
+	userRepo := userfakes.NewFakeUserRepository()
+	_ = userRepo.Create(context.Background(), &domainuser.User{ID: "user-1", Username: "u1", PasswordHash: "hashed:secret"})
+	_ = userRepo.Create(context.Background(), &domainuser.User{ID: "admin-1", Username: "a1", IsAdmin: true, PasswordHash: "hashed:secret"})
 	mux := http.NewServeMux()
-	registerParentalRoutes(mux, profileRepo, hasher, gen)
+	registerParentalRoutes(mux, profileRepo, userRepo, hasher, gen)
 	return mux, gen
 }
 
@@ -1577,13 +1580,43 @@ func TestParentalUpdateSettings_SetPIN_OK(t *testing.T) {
 	mux, gen := newParentalMux(t)
 	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1", IsAdmin: false})
 
-	body := `{"pin":"1234"}`
+	body := `{"pin":"1234","currentPassword":"secret"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/prof-1/parental", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+// Regression: first-time PIN set without the account password must fail —
+// otherwise a stolen JWT could lock the real owner out of their profile.
+func TestParentalUpdateSettings_SetPIN_NoPassword_Forbidden(t *testing.T) {
+	mux, gen := newParentalMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1", IsAdmin: false})
+
+	body := `{"pin":"1234"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/prof-1/parental", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestParentalUpdateSettings_SetPIN_WrongPassword_Forbidden(t *testing.T) {
+	mux, gen := newParentalMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1", IsAdmin: false})
+
+	body := `{"pin":"1234","currentPassword":"wrong"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/prof-1/parental", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
 	}
 }
 
