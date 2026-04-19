@@ -223,7 +223,11 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) 
 	return scanFeedItems(rows)
 }
 
-// Recommended returns unwatched items matching the given genres, scored by match count.
+// Recommended returns items matching the given genres, scored by match count.
+// Watched items are kept in the list — the user complained that marking an
+// item "watched" made it vanish from the home page, so we let the MediaCard
+// watched-badge carry the UX and trust the user to decide whether they want
+// to re-watch.
 func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres []string, limit int) ([]*feed.FeedItem, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
@@ -242,25 +246,32 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 	args = append(args, limit)
 	limitIdx := len(args)
 
-	// Exclude items that the user has watched, finished, OR is currently
-	// watching (any watch_progress row): for movies this is the row on mi
-	// itself; for series this is any episode whose chain leads back to mi.
+	// Rank unwatched items ahead of completed ones so freshly-marked-watched
+	// titles drop to the bottom instead of disappearing. For series, "completed"
+	// means every episode has wp.completed=TRUE; for movies it's the item's
+	// own wp row being completed.
 	q2 := fmt.Sprintf(`
 		SELECT mi.id, COALESCE(mi.parent_id,''), mi.title, mi.type, 0, '', (%s) AS score
 		FROM media_items mi
 		LEFT JOIN media_catalog mc ON mc.media_item_id = mi.id
 		LEFT JOIN media_classifications mcl ON mcl.media_item_id = mi.id
+		LEFT JOIN LATERAL (
+			SELECT CASE
+				WHEN mi.type = 'movie' THEN
+					COALESCE((SELECT completed FROM watch_progress wp WHERE wp.media_item_id = mi.id AND wp.profile_id = $1 LIMIT 1), FALSE)
+				WHEN mi.type = 'series' THEN
+					COALESCE((
+						SELECT bool_and(wp.completed)
+						FROM media_items se
+						JOIN media_items ep ON ep.parent_id = se.id
+						JOIN watch_progress wp ON wp.media_item_id = ep.id AND wp.profile_id = $1
+						WHERE se.parent_id = mi.id AND ep.type = 'episode'
+					), FALSE)
+				ELSE FALSE END AS completed
+		) w ON TRUE
 		WHERE mi.type IN ('movie', 'series')
-		  AND NOT EXISTS (SELECT 1 FROM watch_progress wp WHERE wp.media_item_id = mi.id AND wp.profile_id = $1)
-		  AND NOT EXISTS (
-		    SELECT 1
-		    FROM watch_progress wp_ep
-		    JOIN media_items ep ON ep.id = wp_ep.media_item_id
-		    JOIN media_items se ON se.id = ep.parent_id
-		    WHERE wp_ep.profile_id = $1 AND se.parent_id = mi.id
-		  )
 		  AND (%s) >= 1
-		ORDER BY score DESC, mcl.community_rating DESC NULLS LAST
+		ORDER BY w.completed ASC, score DESC, mcl.community_rating DESC NULLS LAST
 		LIMIT $%d
 	`, scoreExpr, scoreExpr, limitIdx)
 
