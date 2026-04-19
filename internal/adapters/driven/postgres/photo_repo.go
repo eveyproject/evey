@@ -159,15 +159,20 @@ func (r *PhotoRepository) Search(ctx context.Context, libraryID shared.LibraryID
 	return scanPhotos(rows)
 }
 
+// ListAllByLibrary returns every photo in a library, used by the scanner
+// to build dedup indexes (byPath / byHash). No LIMIT: the scanner needs
+// the full set to detect moves + in-place updates; an arbitrary cap
+// would make libs > cap look like "N new files every tick" and spin
+// upsert. Memory is bounded by row count × row size — a lib with 100k
+// photos holds ~50–100MB here, acceptable compared to the churn cost.
+// Not to be used for UI pagination (see ListByLibrary for that).
 func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]photo.Photo, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at
-		FROM photos WHERE library_id = $1
-		ORDER BY taken_at DESC NULLS LAST, created_at DESC
-		LIMIT 10000`, libraryID,
+		FROM photos WHERE library_id = $1`, libraryID,
 	)
 	if err != nil {
 		return nil, err

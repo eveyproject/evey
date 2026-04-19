@@ -261,6 +261,11 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID shared.
 	return artists, rows.Err()
 }
 
+// ListAllByLibrary returns every track in a library, used by the scanner
+// to build dedup indexes. No LIMIT for the same reason as PhotoRepo
+// (see that method): an arbitrary cap makes libs > cap churn upsert
+// every scan tick because the rest look "missing from byPath".
+// Not for UI pagination (see ListByAlbum / search endpoints).
 func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]music.Track, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
@@ -269,9 +274,7 @@ func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID s
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 		       genre, cover_art_url, created_at, updated_at
-		FROM music_tracks WHERE library_id=$1
-		ORDER BY album_artist, album, disk_number, track_number
-		LIMIT 10000`, libraryID)
+		FROM music_tracks WHERE library_id=$1`, libraryID)
 	if err != nil {
 		return nil, err
 	}
