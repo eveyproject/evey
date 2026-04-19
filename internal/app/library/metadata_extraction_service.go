@@ -98,9 +98,3 @@ func (s *MetadataExtractionService) discoverExternalSubtitles(existing []*librar
 	return streams
 }
 
-func (s *MetadataExtractionService) GetChapters(ctx context.Context, mediaItemID string) ([]*library.Chapter, error) {
-	if s.chapters == nil {
-		return nil, nil
-	}
-	return s.chapters.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
-}
