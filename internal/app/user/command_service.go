@@ -660,7 +660,7 @@ func (l *loginAttemptLimiter) record(username string) {
 	if !ok {
 		e = &attemptEntry{}
 		l.attempts[username] = e
-	} else if !e.lockedAt.IsZero() && now.Sub(e.lockedAt) > l.window {
+	} else if now.Sub(e.lastSeen) > l.window {
 		e = &attemptEntry{}
 		l.attempts[username] = e
 	}
@@ -708,12 +708,13 @@ func (l *loginAttemptLimiter) isLocked(username string) bool {
 	if !ok {
 		return false
 	}
-	if e.count >= l.maxFails && time.Since(e.lockedAt) < l.window {
+	if e.lockedAt.IsZero() {
+		return false
+	}
+	if time.Since(e.lockedAt) < l.window {
 		return true
 	}
-	if time.Since(e.lockedAt) >= l.window {
-		delete(l.attempts, username)
-	}
+	delete(l.attempts, username)
 	return false
 }
 

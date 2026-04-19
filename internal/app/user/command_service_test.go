@@ -992,17 +992,12 @@ func TestStartCleanup_StopsOnCancel(t *testing.T) {
 }
 
 // --- Login lockout ---
-// Note: loginAttemptLimiter's record() resets entry when lockedAt is zero
-// because time.Since(time.Time{}) > window. So lockout only works when
-// the user was previously locked (lockedAt set). Tests below use a custom
-// limiter with maxFails=1 to hit the lock path in one call.
 
 func TestLogin_LockedAfterMaxFails(t *testing.T) {
 	d := newAuthTestDeps()
 	ctx := context.Background()
 	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
 
-	// Replace limiter with maxFails=1 so a single wrong attempt locks
 	d.svc.loginAttempts = newLoginAttemptLimiter(1, 15*time.Minute)
 
 	_, _, err := d.svc.Login(ctx, "alice", "wrong")
@@ -1021,16 +1016,36 @@ func TestLogin_NotLockedBeforeMaxFails(t *testing.T) {
 	ctx := context.Background()
 	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
 
-	// maxFails=2: first fail doesn't lock (count=1 < 2)
 	d.svc.loginAttempts = newLoginAttemptLimiter(2, 15*time.Minute)
 
 	d.svc.Login(ctx, "alice", "wrong")
 
-	// Since record resets the entry (lockedAt zero → time.Since > window),
-	// the next call won't be locked
 	_, _, err := d.svc.Login(ctx, "alice", "correct")
 	if err != nil {
 		t.Fatalf("should succeed before lockout threshold: %v", err)
+	}
+}
+
+// Regression: isLocked used to delete non-locked entries because
+// time.Since(zeroTime) > window was always true, so count never reached
+// maxFails and lockout never triggered in production (maxFails=5).
+func TestLogin_LocksAtProdThreshold(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
+
+	d.svc.loginAttempts = newLoginAttemptLimiter(5, 15*time.Minute)
+
+	for i := 0; i < 5; i++ {
+		_, _, err := d.svc.Login(ctx, "alice", "wrong")
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Fatalf("attempt %d: expected ErrInvalidCredentials, got %v", i+1, err)
+		}
+	}
+
+	_, _, err := d.svc.Login(ctx, "alice", "correct")
+	if !errors.Is(err, ErrAccountLocked) {
+		t.Fatalf("expected ErrAccountLocked after 5 failed attempts, got %v", err)
 	}
 }
 
