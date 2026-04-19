@@ -15,4 +15,7 @@ type SessionCommandRepo interface {
 	CloseStale(ctx context.Context, olderThan time.Duration) (int, error)
 	SetRemoteCommand(ctx context.Context, sessionID, command string) error
 	ConsumeRemoteCommand(ctx context.Context, sessionID string) (string, error)
+	// AcquireUserStreamLock takes a tx-scoped advisory lock keyed by userID
+	// so the quota check+Create pair is serialized. No-op without an ambient tx.
+	AcquireUserStreamLock(ctx context.Context, userID string) error
 }

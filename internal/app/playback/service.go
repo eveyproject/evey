@@ -29,8 +29,9 @@ func NewService(
 	users user.UserRepository,
 	profiles user.ProfileRepository,
 	events shared.EventBus,
+	opts ...CommandServiceOption,
 ) *Service {
-	cmd := NewCommandService(progressCmd, sessionCmd, sessionQuery, users, profiles, events)
+	cmd := NewCommandService(progressCmd, sessionCmd, sessionQuery, users, profiles, events, opts...)
 	q := NewQueryService(progressQuery, sessionQuery)
 	return &Service{cmd: cmd, query: q}
 }

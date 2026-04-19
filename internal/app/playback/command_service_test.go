@@ -406,7 +406,7 @@ func TestStartStream_CountActiveError(t *testing.T) {
 	sr.Err = errors.New("db error")
 	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "count active")
+	assert.Contains(t, err.Error(), "db error")
 }
 
 func TestStartCleanup_RunsInitialCleanup(t *testing.T) {

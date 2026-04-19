@@ -191,6 +191,12 @@ func (r *FakePlaySessionRepository) ConsumeRemoteCommand(_ context.Context, _ st
 	return "", r.Err
 }
 
+// AcquireUserStreamLock is a no-op in the fake; the test mutex in items
+// already serializes operations for the FakePlaySessionRepository.
+func (r *FakePlaySessionRepository) AcquireUserStreamLock(_ context.Context, _ string) error {
+	return r.Err
+}
+
 func (r *FakePlaySessionRepository) CountActiveByUser(_ context.Context, userID string) (int, error) {
 	if r.Err != nil {
 		return 0, r.Err

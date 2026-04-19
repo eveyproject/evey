@@ -304,7 +304,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		rootLog.Info("OIDC SSO enabled", slog.String("issuer", cfg.OIDC.Issuer))
 	}
 
-	playbackSvc := appplayback.NewService(r.WatchProgress, r.WatchProgress, r.PlaySession, r.PlaySession, r.User, r.Profile, bus)
+	playbackSvc := appplayback.NewService(
+		r.WatchProgress, r.WatchProgress, r.PlaySession, r.PlaySession, r.User, r.Profile, bus,
+		appplayback.WithUnitOfWork(postgres.NewTxUnit(db)),
+	)
 
 	transcodingSvc := apptranscoding.NewService(
 		infra.transcoder, infra.hwDetector, r.TranscodeJob, r.TranscodeProfile,

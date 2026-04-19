@@ -19,6 +19,16 @@ type CommandService struct {
 	users          user.UserRepository
 	profiles       user.ProfileRepository
 	events         shared.EventBus
+	uow            shared.TransactionalUnit
+}
+
+type CommandServiceOption func(*CommandService)
+
+// WithUnitOfWork wires a transactional unit so StartStream can serialize
+// the quota-check + session-create via a Postgres advisory lock,
+// preventing the TOCTOU race where N concurrent requests bypass MaxStreams.
+func WithUnitOfWork(uow shared.TransactionalUnit) CommandServiceOption {
+	return func(s *CommandService) { s.uow = uow }
 }
 
 func NewCommandService(
@@ -28,8 +38,9 @@ func NewCommandService(
 	users user.UserRepository,
 	profiles user.ProfileRepository,
 	events shared.EventBus,
+	opts ...CommandServiceOption,
 ) *CommandService {
-	return &CommandService{
+	s := &CommandService{
 		progress:       progress,
 		sessions:       sessions,
 		sessionQueries: sessionQueries,
@@ -37,6 +48,10 @@ func NewCommandService(
 		profiles:       profiles,
 		events:         events,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *CommandService) validateProfile(ctx context.Context, profileID shared.ProfileID) error {
@@ -58,20 +73,37 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 		return fmt.Errorf("get user: %w", err)
 	}
 
-	if u.HasStreamsLimit() {
-		count, err := s.sessionQueries.CountActiveByUser(ctx, userID)
-		if err != nil {
-			return fmt.Errorf("count active: %w", err)
+	session.StartedAt = time.Now()
+
+	claim := func(ctx context.Context) error {
+		if u.HasStreamsLimit() {
+			if err := s.sessions.AcquireUserStreamLock(ctx, userID); err != nil {
+				return fmt.Errorf("acquire stream lock: %w", err)
+			}
+			count, err := s.sessionQueries.CountActiveByUser(ctx, userID)
+			if err != nil {
+				return fmt.Errorf("count active: %w", err)
+			}
+			if u.StreamQuotaExceeded(count) {
+				return ErrMaxStreams
+			}
 		}
-		if u.StreamQuotaExceeded(count) {
-			return ErrMaxStreams
+		if err := s.sessions.Create(ctx, session); err != nil {
+			return fmt.Errorf("create session: %w", err)
+		}
+		return nil
+	}
+
+	if s.uow != nil {
+		if err := s.uow.Do(ctx, claim); err != nil {
+			return err
+		}
+	} else {
+		if err := claim(ctx); err != nil {
+			return err
 		}
 	}
 
-	session.StartedAt = time.Now()
-	if err := s.sessions.Create(ctx, session); err != nil {
-		return fmt.Errorf("create session: %w", err)
-	}
 	evtStarted := playback.PlaybackStarted{
 		SessionID:   session.ID,
 		ProfileID:   session.ProfileID,

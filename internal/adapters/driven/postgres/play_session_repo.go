@@ -22,7 +22,7 @@ func NewPlaySessionRepository(db *sql.DB) *PlaySessionRepository {
 func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySession) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO play_sessions (id, profile_id, media_item_id, device_name, device_type, client_ip,
 		 play_method, video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
@@ -32,6 +32,21 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 	)
 	if err != nil {
 		return fmt.Errorf("PlaySessionRepo.Create: %w", err)
+	}
+	return nil
+}
+
+// AcquireUserStreamLock takes a tx-scoped Postgres advisory lock keyed by
+// hashtext(userID). Serializes the MaxStreams quota check+Create pair so
+// concurrent StartStream calls can't race past the cap. Outside a tx the
+// lock is released at statement end — so caller MUST run inside TxUnit.
+func (r *PlaySessionRepository) AcquireUserStreamLock(ctx context.Context, userID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`SELECT pg_advisory_xact_lock(hashtext($1))`, userID,
+	); err != nil {
+		return fmt.Errorf("PlaySessionRepo.AcquireUserStreamLock: %w", err)
 	}
 	return nil
 }
@@ -228,7 +243,7 @@ func (r *PlaySessionRepository) CountActiveByUser(ctx context.Context, userID st
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM play_sessions ps
 		 INNER JOIN profiles p ON p.id = ps.profile_id
 		 WHERE p.user_id = $1 AND ps.ended_at IS NULL`, userID,
