@@ -91,12 +91,11 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 		return nil, fmt.Errorf("Service.CreateBackup: %w", err)
 	}
 
-	m := &backup.BackupManifest{
-		ID:         id.New("bk-"),
-		CreatedAt:  time.Now().UTC(),
-		Version:    s.version,
-		Tables:     BackupTables,
-		DumpSHA256: hex.EncodeToString(h.Sum(nil)),
+	m, err := backup.NewBackupManifest(id.New("bk-"), s.version, BackupTables,
+		backup.WithBackupSHA256(hex.EncodeToString(h.Sum(nil))),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("Service.CreateBackup: %w", err)
 	}
 
 	if err := s.store.Create(ctx, m, tmp); err != nil {

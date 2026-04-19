@@ -39,10 +39,11 @@ func TestBackupManifest_Validate(t *testing.T) {
 		m       backup.BackupManifest
 		wantErr bool
 	}{
-		{"valid", backup.BackupManifest{Version: "1.0", Tables: []string{"users"}}, false},
-		{"missing version", backup.BackupManifest{Tables: []string{"users"}}, true},
-		{"no tables", backup.BackupManifest{Version: "1.0"}, true},
-		{"empty tables", backup.BackupManifest{Version: "1.0", Tables: []string{}}, true},
+		{"valid", backup.BackupManifest{ID: "bk-1", Version: "1.0", Tables: []string{"users"}}, false},
+		{"missing id", backup.BackupManifest{Version: "1.0", Tables: []string{"users"}}, true},
+		{"missing version", backup.BackupManifest{ID: "bk-1", Tables: []string{"users"}}, true},
+		{"no tables", backup.BackupManifest{ID: "bk-1", Version: "1.0"}, true},
+		{"empty tables", backup.BackupManifest{ID: "bk-1", Version: "1.0", Tables: []string{}}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -53,6 +54,43 @@ func TestBackupManifest_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewBackupManifest(t *testing.T) {
+	t.Parallel()
+
+	t.Run("happy path stamps CreatedAt + clones tables", func(t *testing.T) {
+		t.Parallel()
+		tables := []string{"users", "media"}
+		m, err := backup.NewBackupManifest("bk-1", "1.0", tables,
+			backup.WithBackupSize(4096),
+			backup.WithBackupSHA256("abc"),
+		)
+		if err != nil {
+			t.Fatalf("unexpected: %v", err)
+		}
+		if m.CreatedAt.IsZero() || m.Size != 4096 || m.DumpSHA256 != "abc" {
+			t.Errorf("fields not wired: %+v", m)
+		}
+		tables[0] = "mutated"
+		if m.Tables[0] != "users" {
+			t.Error("Tables was not cloned")
+		}
+	})
+
+	t.Run("missing id rejected", func(t *testing.T) {
+		t.Parallel()
+		if _, err := backup.NewBackupManifest("", "1.0", []string{"t"}); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("empty tables rejected", func(t *testing.T) {
+		t.Parallel()
+		if _, err := backup.NewBackupManifest("bk-1", "1.0", nil); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
 }
 
 func TestBackupEventNames(t *testing.T) {

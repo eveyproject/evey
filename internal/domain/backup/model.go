@@ -2,6 +2,7 @@ package backup
 
 import (
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -15,6 +16,9 @@ type BackupManifest struct {
 }
 
 func (m *BackupManifest) Validate() error {
+	if m.ID == "" {
+		return errors.New("backup manifest requires an ID")
+	}
 	if m.Version == "" {
 		return errors.New("backup manifest requires a version")
 	}
@@ -22,4 +26,33 @@ func (m *BackupManifest) Validate() error {
 		return errors.New("backup manifest requires at least one table")
 	}
 	return nil
+}
+
+type BackupManifestOption func(*BackupManifest)
+
+func WithBackupSize(size int64) BackupManifestOption {
+	return func(m *BackupManifest) { m.Size = size }
+}
+
+func WithBackupSHA256(sha string) BackupManifestOption {
+	return func(m *BackupManifest) { m.DumpSHA256 = sha }
+}
+
+// NewBackupManifest is the canonical constructor. Stamps CreatedAt
+// (UTC) and validates. Required fields (id, version, tables) are
+// surfaced as params so construction never succeeds with them missing.
+func NewBackupManifest(id, version string, tables []string, opts ...BackupManifestOption) (*BackupManifest, error) {
+	m := &BackupManifest{
+		ID:        id,
+		Version:   version,
+		Tables:    slices.Clone(tables),
+		CreatedAt: time.Now().UTC(),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	if err := m.Validate(); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
