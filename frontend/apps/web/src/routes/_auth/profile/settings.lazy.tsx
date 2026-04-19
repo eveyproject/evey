@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
+import { Modal } from "@/components/ui/Modal";
 import { ThemeSettings } from "@/features/user/ThemeSettings";
 import { LanguageSettings } from "@/features/user/LanguageSettings";
 import { RegionSettings } from "@/features/user/RegionSettings";
@@ -300,6 +301,14 @@ function ParentalSection() {
   const pendingOpRef = useRef<"pin" | "other">("other");
   const hasPin = parental?.hasPin ?? false;
 
+  // PIN-gated disable flow. Once a PIN is set the switch can't be flipped off
+  // without the PIN: otherwise a kid could bypass the lock by hitting the
+  // toggle. We open a modal, collect the current PIN, and send it as
+  // currentPin alongside enabled=false.
+  const [disableOpen, setDisableOpen] = useState(false);
+  const [disablePin, setDisablePin] = useState("");
+  const [disableError, setDisableError] = useState("");
+
   useEffect(() => {
     setMaxAge(parental?.maxAge != null ? String(parental.maxAge) : "");
   }, [parental?.maxAge]);
@@ -324,7 +333,37 @@ function ParentalSection() {
 
   function handleToggleEnabled() {
     if (!profileId) return;
+    // Disabling when a PIN is set requires the PIN — open the confirm modal.
+    if (enabled && hasPin) {
+      setDisablePin("");
+      setDisableError("");
+      setDisableOpen(true);
+      return;
+    }
     updateParental.mutate({ enabled: !enabled });
+  }
+
+  function handleConfirmDisable() {
+    setDisableError("");
+    if (disablePin.length !== 4) {
+      setDisableError(t("auth.settings.parental.pin.mustBe4"));
+      return;
+    }
+    pendingOpRef.current = "other";
+    updateParental.mutate(
+      { enabled: false, currentPin: disablePin },
+      {
+        onSuccess: () => {
+          setDisableOpen(false);
+          setDisablePin("");
+          setDisableError("");
+          void qc.invalidateQueries({ queryKey: getParentalServiceGetParentalSettingsQueryKey(profileId) });
+        },
+        onError: (err: Error) => {
+          setDisableError(err.message || t("auth.settings.parental.pin.wrongPin", "Incorrect PIN"));
+        },
+      },
+    );
   }
 
   function handleSaveAge() {
@@ -423,6 +462,41 @@ function ParentalSection() {
           </Button>
         </div>
       </div>
+
+      {disableOpen && (
+        <Modal
+          open
+          onClose={() => setDisableOpen(false)}
+          title={t("auth.settings.parental.disableTitle", "Disable parental controls")}
+        >
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-[var(--text-muted)]">
+              {t("auth.settings.parental.disableBody", "Enter the current PIN to disable parental controls.")}
+            </p>
+            <PinInput
+              label={t("auth.settings.parental.pin.currentPin", "Current PIN")}
+              value={disablePin}
+              onChange={setDisablePin}
+            />
+            {disableError && (
+              <p className="text-xs" style={{ color: "var(--color-danger)" }}>{disableError}</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setDisableOpen(false)} disabled={updateParental.isPending}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                loading={updateParental.isPending}
+                disabled={disablePin.length !== 4}
+                onClick={handleConfirmDisable}
+              >
+                {t("common.confirm", "Confirm")}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       <div className="border-t border-[var(--border)] pt-4 flex flex-col gap-3">
         <div>

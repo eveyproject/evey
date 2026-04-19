@@ -139,8 +139,8 @@ func TestUser_MaxStreams(t *testing.T) {
 		t.Error("default MaxStreams should be nil (unlimited)")
 	}
 
-	n := 2
-	limited := &user.User{ID: "u2", MaxStreams: &n}
+	maxStreams := 2
+	limited := &user.User{ID: "u2", MaxStreams: &maxStreams}
 	if *limited.MaxStreams != 2 {
 		t.Errorf("MaxStreams = %d, want 2", *limited.MaxStreams)
 	}
