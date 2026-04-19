@@ -2,7 +2,6 @@ package favorite
 
 import (
 	"context"
-	"time"
 
 	"github.com/evey-project/evey/internal/domain/favorite"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -26,11 +25,9 @@ func (s *Service) Toggle(ctx context.Context, profileID, mediaItemID string) (bo
 	if isFav {
 		return false, s.repo.Remove(ctx, profileID, mediaItemID)
 	}
-	fav := &favorite.Favorite{
-		ID:          id.New("fav-"),
-		ProfileID:   shared.ProfileID(profileID),
-		MediaItemID: shared.MediaItemID(mediaItemID),
-		CreatedAt:   time.Now(),
+	fav, err := favorite.NewFavorite(id.New("fav-"), shared.ProfileID(profileID), shared.MediaItemID(mediaItemID))
+	if err != nil {
+		return false, err
 	}
 	return true, s.repo.Add(ctx, fav)
 }
