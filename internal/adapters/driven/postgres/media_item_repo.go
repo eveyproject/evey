@@ -562,9 +562,26 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 func (r *MediaItemRepository) Delete(ctx context.Context, id shared.MediaItemID) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// SELECT type+parent_id then DELETE then (maybe) recompute the series
+	// latest_child_added_at — all three need to observe the same DB state,
+	// so bind them to an ambient Tx when one exists (or fall back to the
+	// shared conn). The prior non-tx flow ignored the SELECT Scan error
+	// (masking transient read failures) and the recompute error, so a
+	// failed recompute would silently leave the series' sort key stale.
+	exec := txFromCtx(ctx, r.db)
+
 	var itemType, parentID string
-	_ = r.db.QueryRowContext(ctx, `SELECT type, COALESCE(parent_id, '') FROM media_items WHERE id = $1`, string(id)).Scan(&itemType, &parentID)
-	res, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = $1`, string(id))
+	switch err := exec.QueryRowContext(ctx,
+		`SELECT type, COALESCE(parent_id, '') FROM media_items WHERE id = $1`,
+		string(id),
+	).Scan(&itemType, &parentID); {
+	case errors.Is(err, sql.ErrNoRows):
+		return shared.ErrNotFound
+	case err != nil:
+		return fmt.Errorf("MediaItemRepo.Delete: read type: %w", err)
+	}
+
+	res, err := exec.ExecContext(ctx, `DELETE FROM media_items WHERE id = $1`, string(id))
 	if err != nil {
 		return fmt.Errorf("MediaItemRepo.Delete: %w", err)
 	}
@@ -572,13 +589,15 @@ func (r *MediaItemRepository) Delete(ctx context.Context, id shared.MediaItemID)
 		return shared.ErrNotFound
 	}
 	if itemType == string(library.Episode) && parentID != "" {
-		r.recomputeSeriesLatestChildAddedAtFromSeason(ctx, parentID)
+		if rcErr := r.recomputeSeriesLatestChildAddedAtFromSeason(ctx, parentID); rcErr != nil {
+			return fmt.Errorf("MediaItemRepo.Delete: %w", rcErr)
+		}
 	}
 	return nil
 }
 
-func (r *MediaItemRepository) recomputeSeriesLatestChildAddedAtFromSeason(ctx context.Context, seasonID string) {
-	_, err := r.db.ExecContext(ctx, `
+func (r *MediaItemRepository) recomputeSeriesLatestChildAddedAtFromSeason(ctx context.Context, seasonID string) error {
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
 		UPDATE media_items s
 		SET latest_child_added_at = (
 			SELECT MAX(ep.added_at) FROM media_items ep
@@ -591,7 +610,9 @@ func (r *MediaItemRepository) recomputeSeriesLatestChildAddedAtFromSeason(ctx co
 	`, seasonID)
 	if err != nil {
 		slog.Warn("recompute series latest_child_added_at", slog.String("season_id", seasonID), slog.Any("err", err))
+		return fmt.Errorf("recompute series latest_child_added_at: %w", err)
 	}
+	return nil
 }
 
 func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) error {
