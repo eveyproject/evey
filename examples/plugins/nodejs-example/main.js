@@ -8,7 +8,6 @@ const grpc = require("@grpc/grpc-js");
 const protoLoader = require("@grpc/proto-loader");
 const path = require("path");
 
-const PLUGIN_ID = process.env.EVEY_PLUGIN_ID || "unknown";
 const PLUGIN_SOCK = process.env.EVEY_PLUGIN_SOCK || "/tmp/evey/plugins/nodejs-hello.sock";
 const HOST_SOCK = process.env.EVEY_HOST_SOCK || "/tmp/evey/plugins/evey-host.sock";
 

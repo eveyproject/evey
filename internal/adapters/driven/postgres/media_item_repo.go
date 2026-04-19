@@ -445,7 +445,10 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 	if f.AfterID != "" {
 		conditions = append(conditions, fmt.Sprintf("mi.id > $%d", argIdx))
 		args = append(args, f.AfterID)
-		argIdx++ //nolint:ineffassign
+		// argIdx intentionally not bumped: AfterID is the last placeholder
+		// the filter produces. Keep this branch last so later additions
+		// get a free slot — if you add a new condition below, re-add the
+		// increment here.
 	}
 	where := ""
 	if len(conditions) > 0 {

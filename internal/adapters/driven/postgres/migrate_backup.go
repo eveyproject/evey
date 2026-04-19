@@ -39,7 +39,7 @@ const backupFilePrefix = "pre-migration-"
 // pg_dump must be on PATH — fail-closed if missing rather than silently
 // migrating without a safety net. The Dockerfile installs
 // postgresql-client.
-func dumpDatabase(opts BackupOpts, fromVersion uint) (string, error) {
+func dumpDatabase(opts BackupOpts, fromVersion uint) (dest string, err error) {
 	pgDump, err := exec.LookPath("pg_dump")
 	if err != nil {
 		return "", fmt.Errorf("pg_dump not found in PATH (install postgresql-client): %w", err)
@@ -49,7 +49,7 @@ func dumpDatabase(opts BackupOpts, fromVersion uint) (string, error) {
 	}
 	timestamp := time.Now().UTC().Format("20060102T150405Z")
 	name := fmt.Sprintf("%s%d-%s.sql.gz", backupFilePrefix, fromVersion, timestamp)
-	dest := filepath.Join(opts.Dir, name)
+	dest = filepath.Join(opts.Dir, name)
 
 	cmd := exec.Command(pgDump,
 		"--host", opts.Host,
@@ -74,26 +74,37 @@ func dumpDatabase(opts BackupOpts, fromVersion uint) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("create dump file: %w", err)
 	}
-	defer out.Close() //nolint:errcheck
+	// A deferred Close that ignores its error can silently lose data on
+	// O_WRONLY handles — a failed fsync/flush at close time means the
+	// on-disk dump is truncated but the caller sees "success". Surface
+	// the Close error when no other error has superseded it, and remove
+	// the (likely corrupt) partial file.
+	defer func() {
+		if cerr := out.Close(); cerr != nil && err == nil {
+			_ = os.Remove(dest)
+			err = fmt.Errorf("close dump file: %w", cerr)
+			dest = ""
+		}
+	}()
 
-	if err := cmd.Start(); err != nil {
-		os.Remove(dest)
+	if err = cmd.Start(); err != nil {
+		_ = os.Remove(dest)
 		return "", fmt.Errorf("start pg_dump: %w", err)
 	}
 
 	gz := gzip.NewWriter(out)
-	if _, err := io.Copy(gz, stdout); err != nil {
+	if _, err = io.Copy(gz, stdout); err != nil {
 		_ = cmd.Wait()
-		os.Remove(dest)
+		_ = os.Remove(dest)
 		return "", fmt.Errorf("gzip pg_dump output: %w", err)
 	}
-	if err := gz.Close(); err != nil {
+	if err = gz.Close(); err != nil {
 		_ = cmd.Wait()
-		os.Remove(dest)
+		_ = os.Remove(dest)
 		return "", fmt.Errorf("close gzip: %w", err)
 	}
-	if err := cmd.Wait(); err != nil {
-		os.Remove(dest)
+	if err = cmd.Wait(); err != nil {
+		_ = os.Remove(dest)
 		return "", fmt.Errorf("pg_dump exit: %w (stderr: %s)", err, stderr.String())
 	}
 	return dest, nil
