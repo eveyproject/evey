@@ -12,6 +12,7 @@ continue: Continue
 loading: Loading...
 error: Error
 unknown: Unknown
+settings: Settings
 select: Select
 selectAll: Select all
 deselectAll: Deselect all
@@ -21,12 +22,14 @@ or: or
 previous: Previous
 next: Next
 edit: Edit
+all: All
 add: Add
 remove: Remove
 name: Name
-'no': 'No'
+"no": "No"
 status: Status
 actions: Actions
+apply: Apply
 clear: Clear
 close: Close
 confirm: Confirm
@@ -37,11 +40,11 @@ revoke: Revoke
 refresh: Refresh
 done: Done
 copied: "Copied!"
-seeAll: See all →
+seeAll: "See all →"
 scrollLeft: Scroll left
 scrollRight: Scroll right
 appearance: Appearance
-appearanceDesc: Choose your color theme and language.
+appearanceDesc: "Choose your color theme and language."
 language: Language
 languageDesc: Choose your preferred language
 region:
@@ -52,15 +55,31 @@ newKey: New Key
 copyKey: Copy Key
 unableToLoadNotifications: Unable to load notifications
 viewAllNotifications: View all notifications
+"yes": "Yes"
 markAllRead: Mark all read
-filtered: (filtered)
+item_one: "{{count}} item"
+item_other: "{{count}} items"
+filtered: "(filtered)"
 noItemsMatch: No items match the current filter.
+showLess: Show less
+readMore: Read more
+noPoster: No poster
 noItems: No items
+noCollections: No collections
+playlists: Playlists
+noPlaylists: No playlists
 addToPlaylist: Add to Playlist
 noManualPlaylists: No manual playlists available
+collections: Collections
+loadError: Failed to load
+activity: Activity
+serverVersion: Server Version
+retry: Retry
+itemCount_one: "{{count}} item"
+itemCount_other: "{{count}} items"
 errorBoundary:
   title: Something went wrong
-  description: "An unexpected error occurred. Please try reloading the page. If the problem persists, go back to the home page."
+  description: An unexpected error occurred. Please try reloading the page. If the problem persists, go back to the home page.
   tryAgain: Try Again
   goHome: Go Home
 routeError:
@@ -86,13 +105,18 @@ notifications:
   newSeason: "New Season: {{name}}"
   newSeries: "New Series: {{name}}"
   newAlbum: "New Album: {{name}}"
-  backupFailed: Scheduled Backup Failed
+  backupFailed: "Scheduled Backup Failed"
+  clearConfirm: Delete all notifications?
+  clearTitle: Clear notifications
 noNotifications: No notifications
 aria:
   closeMenu: Close menu
   openMenu: Open menu
+  bottomNav: Bottom navigation
+  options: Options
   play: Play
   pause: Pause
+  loading: Loading
   breadcrumb: Breadcrumb
   pagination: Pagination
   previousPage: Previous page
@@ -100,7 +124,18 @@ aria:
   reloadPage: Reload the page
   goToHome: Go to home page
   dismiss: Dismiss
+  removeRule: Remove rule
+  clearSelection: Clear selection
   close: Close
+  deletePhoto: Delete photo
+  deleteCollection: Delete collection
+  editFilter: Edit filter
+  deleteFilter: Delete filter
+  closePlayer: Close player
+  subtitleFontSize: Subtitle font size
+  bgOpacity: Background opacity
+  operator: Operator
+  value: Value
   retryPage: Retry loading page
   goToHomePage: Go to home page
   skipToContent: Skip to content
@@ -125,6 +160,7 @@ nav:
   libraries: Libraries
   photos: Photos
   favorites: Favorites
+  search: Search
   music: Music
   syncplay: Listen Together
   admin: Admin
@@ -154,12 +190,13 @@ shortcuts:
 parental:
   restrictedContent: Restricted Content
   pinRequired: This content requires parental PIN verification.
-  pinLabel: PIN (4 digits)
+  pinLabel: "PIN (4 digits)"
   pinIncorrect: Incorrect PIN
   validate: Validate
 feeds:
   title: Homepage Sections
   section: Section
+  order: Order
   maxItems: Max Items
   saved: Feed config saved
   customize: Customize
@@ -168,14 +205,20 @@ feeds:
   labels:
     resume_playback: Resume Playback
     next_up: Up Next
+    next_episode: Next Episode
     recommended: Recommended
     most_popular: Most Popular
     collections: Collections
 added: Added
+change: Change
+clearAll: Clear all
+description: Description
 export: Export JSON
+never: Never
 pause: Pause
 play: Play
 selected: selected
+selectedCount: '{{count}} selected'
 somethingWentWrong: Something went wrong
 tryAgain: Try again
 unknownError: Unknown error

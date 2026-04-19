@@ -1,58 +1,118 @@
 auth:
-  unauthenticated: Non authentifié
+  unauthenticated: "Non authentifié"
+  unauthorized: "Non autorisé"
+  forbidden: "Interdit"
   invalid_credentials: "Nom d'utilisateur ou mot de passe invalide"
-  invalid_token: Jeton invalide ou expiré
-  password_too_short: Le mot de passe doit contenir au moins 8 caractères
+  invalid_body: "Corps de requête invalide"
+  invalid_token: "Jeton invalide ou expiré"
+  missing_token: "Jeton manquant"
+  no_session: "Aucune session active"
+  too_many_requests: "Trop de requêtes"
+  too_many_attempts: "Trop de tentatives"
+  passwords_do_not_match: "Les mots de passe ne correspondent pas"
+  password_too_short: "Le mot de passe doit contenir au moins 8 caractères"
+  username_too_short: "Le nom d'utilisateur doit contenir au moins 3 caractères"
+  explicit_consent_required: "Consentement explicite requis pour les notifications push"
   missing_authorization: "En-tête d'autorisation manquant"
-  missing_metadata: Métadonnées de requête manquantes
-  admin_access_required: Accès administrateur requis
-  insufficient_permissions: Permissions insuffisantes
-  internal_method: Cette méthode est réservée à un usage interne
-  missing_key: Clé API manquante
-  profile_not_found: Profil introuvable
+  missing_metadata: "Métadonnées de requête manquantes"
+  admin_access_required: "Accès administrateur requis"
+  insufficient_permissions: "Permissions insuffisantes"
+  internal_method: "Cette méthode est réservée à un usage interne"
+  missing_key: "Clé API manquante"
+  invalid_current_pin: "PIN actuel invalide"
+  profile_not_found: "Profil introuvable"
+
 general:
-  not_found: Introuvable
+  not_found: "Introuvable"
+  conflict: "Conflit"
+  invalid_input: "Entrée invalide"
+  rate_limited: "Limite de requêtes atteinte"
+  not_configured: "Non configuré"
+  internal_error: "Erreur interne"
+  encode_error: "Erreur d'encodage"
+  bad_request: "Requête invalide"
+  remote_access_disabled: "Accès distant désactivé"
+  path_traversal_detected: "Traversée de chemin détectée"
+
 playlist:
   not_owner: "Vous n'êtes pas le propriétaire de la liste de lecture"
   cannot_add_smart: "Impossible d'ajouter manuellement des éléments à une liste intelligente"
   cannot_remove_smart: "Impossible de supprimer des éléments d'une liste intelligente"
   limit_reached: "Limite d'éléments de la liste atteinte"
+
 playback:
-  parental_blocked: Contenu bloqué par le contrôle parental
+  parental_blocked: "Contenu bloqué par le contrôle parental"
   cannot_stop_other_session: "Impossible d'arrêter la session d'un autre utilisateur"
   cannot_report_other_session: "Impossible de signaler la progression de la session d'un autre utilisateur"
-  session_not_found: Session introuvable
-  max_streams_reached: Vous avez atteint la limite de lectures simultanées
+  session_not_found: "Session introuvable"
+  max_streams_reached: "Vous avez atteint la limite de lectures simultanées"
+
 activity:
   cannot_access_other_history: "Impossible d'accéder à l'historique de connexion d'un autre utilisateur"
+
 library:
-  parental_restricted: Contenu restreint par le contrôle parental
-  name_required: Le nom de la bibliothèque est obligatoire
-  scan_in_progress: Un scan est déjà en cours pour cette bibliothèque
+  parental_restricted: "Contenu restreint par le contrôle parental"
+  name_required: "Le nom de la bibliothèque est obligatoire"
+  scan_in_progress: "Un scan est déjà en cours pour cette bibliothèque"
+
 admin:
-  setup_already_completed: La configuration est déjà terminée
-  scheduler_not_available: Planificateur non disponible
-  scanner_not_available: Scanner non disponible
-  service_not_configured: Service non configuré
-  heavy_op_running: Une opération lourde est déjà en cours
-  scheduled_task_not_found: Tâche planifiée introuvable
+  setup_already_completed: "La configuration est déjà terminée"
+  scheduler_not_available: "Planificateur non disponible"
+  scanner_not_available: "Scanner non disponible"
+  service_not_configured: "Service non configuré"
+  heavy_op_running: "Une opération lourde est déjà en cours"
+  scheduled_task_not_found: "Tâche planifiée introuvable"
+
 config:
-  key_required: La clé est obligatoire
-  key_not_found: Clé de configuration introuvable
+  key_required: "La clé est obligatoire"
+  key_not_found: "Clé de configuration introuvable"
+
 playback_settings:
-  skip_forward_positive: skip_forward_seconds doit être positif
+  skip_forward_positive: "skip_forward_seconds doit être positif"
+
 user:
-  cannot_update_other: Impossible de mettre à jour un autre utilisateur
+  cannot_update_other: "Impossible de mettre à jour un autre utilisateur"
   cannot_escalate_admin: "Impossible d'escalader en administrateur"
-  cannot_change_caps: Seul un administrateur peut modifier les limites du compte
-  cannot_create_profile_other: Impossible de créer un profil pour un autre utilisateur
+  cannot_change_caps: "Seul un administrateur peut modifier les limites du compte"
+  cannot_create_profile_other: "Impossible de créer un profil pour un autre utilisateur"
   cannot_update_profile_other: "Impossible de mettre à jour le profil d'un autre utilisateur"
   cannot_delete_profile_other: "Impossible de supprimer le profil d'un autre utilisateur"
   cannot_revoke_invite_other: "Impossible de révoquer le lien d'invitation d'un autre utilisateur"
   cannot_revoke_apikey_other: "Impossible de révoquer la clé API d'un autre utilisateur"
   invalid_invite_data: "Données d'invitation ou d'inscription invalides"
-  invalid_expired_code: Code invalide ou expiré
+  invalid_expired_code: "Code invalide ou expiré"
+
 media:
-  not_found: Média introuvable
+  not_found: "Média introuvable"
+  file_not_found: "Fichier introuvable"
+  invalid_path: "Chemin invalide"
+  image_not_found: "Image introuvable"
+
 transcode:
+  busy: "Transcodage occupé"
+  failed: "Transcodage échoué"
+  no_active_session: "Aucune session de transcodage active"
+  session_not_ready: "Session non prête"
+  segment_not_found: "Segment introuvable"
   max_concurrent_reached: "Le serveur est occupé par d'autres transcodages. Réessaye dans un instant."
+
+subtitle:
+  not_found: "Sous-titre introuvable"
+  search_failed: "Recherche de sous-titres échouée"
+  download_failed: "Téléchargement de sous-titres échoué"
+  file_id_required: "L'ID du fichier est obligatoire"
+
+plugin:
+  blocked_by_security: "Plugin bloqué par l'analyse de sécurité"
+  manifest_invalid: "Manifeste de plugin invalide"
+  not_found: "Plugin introuvable"
+  config_save_failed: "Échec de sauvegarde de la configuration du plugin"
+
+notification:
+  invalid_movie_level: "Niveau de notification de films invalide"
+  invalid_series_level: "Niveau de notification de séries invalide"
+  invalid_music_level: "Niveau de notification de musique invalide"
+
+backup:
+  failed: "Sauvegarde échouée"
+  restore_failed: "Restauration échouée"

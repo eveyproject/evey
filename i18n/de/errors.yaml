@@ -1,58 +1,118 @@
 auth:
-  unauthenticated: Nicht authentifiziert
-  invalid_credentials: Ungültiger Benutzername oder Passwort
-  invalid_token: Ungültiges oder abgelaufenes Token
-  password_too_short: Passwort muss mindestens 8 Zeichen lang sein
-  missing_authorization: Autorisierungs-Header fehlt
-  missing_metadata: Anfrage-Metadaten fehlen
-  admin_access_required: Administratorzugriff erforderlich
-  insufficient_permissions: Unzureichende Berechtigungen
-  internal_method: Diese Methode ist nur für internen Gebrauch
-  missing_key: API-Schlüssel fehlt
-  profile_not_found: Profil nicht gefunden
+  unauthenticated: "Nicht authentifiziert"
+  unauthorized: "Nicht autorisiert"
+  forbidden: "Verboten"
+  invalid_credentials: "Ungültiger Benutzername oder Passwort"
+  invalid_body: "Ungültiger Anfragekörper"
+  invalid_token: "Ungültiges oder abgelaufenes Token"
+  missing_token: "Token fehlt"
+  no_session: "Keine aktive Sitzung"
+  too_many_requests: "Zu viele Anfragen"
+  too_many_attempts: "Zu viele Versuche"
+  passwords_do_not_match: "Passwörter stimmen nicht überein"
+  password_too_short: "Passwort muss mindestens 8 Zeichen lang sein"
+  username_too_short: "Benutzername muss mindestens 3 Zeichen lang sein"
+  explicit_consent_required: "Ausdrückliche Zustimmung für Push-Benachrichtigungen erforderlich"
+  missing_authorization: "Autorisierungs-Header fehlt"
+  missing_metadata: "Anfrage-Metadaten fehlen"
+  admin_access_required: "Administratorzugriff erforderlich"
+  insufficient_permissions: "Unzureichende Berechtigungen"
+  internal_method: "Diese Methode ist nur für internen Gebrauch"
+  missing_key: "API-Schlüssel fehlt"
+  invalid_current_pin: "Ungültige aktuelle PIN"
+  profile_not_found: "Profil nicht gefunden"
+
 general:
-  not_found: Nicht gefunden
+  not_found: "Nicht gefunden"
+  conflict: "Konflikt"
+  invalid_input: "Ungültige Eingabe"
+  rate_limited: "Rate begrenzt"
+  not_configured: "Nicht konfiguriert"
+  internal_error: "Interner Fehler"
+  encode_error: "Kodierungsfehler"
+  bad_request: "Ungültige Anfrage"
+  remote_access_disabled: "Fernzugriff deaktiviert"
+  path_traversal_detected: "Pfadtraversierung erkannt"
+
 playlist:
-  not_owner: Sie sind nicht der Playlist-Besitzer
-  cannot_add_smart: Elemente können nicht manuell zu einer Smart-Playlist hinzugefügt werden
-  cannot_remove_smart: Elemente können nicht aus einer Smart-Playlist entfernt werden
-  limit_reached: Playlist-Elementlimit erreicht
+  not_owner: "Sie sind nicht der Playlist-Besitzer"
+  cannot_add_smart: "Elemente können nicht manuell zu einer Smart-Playlist hinzugefügt werden"
+  cannot_remove_smart: "Elemente können nicht aus einer Smart-Playlist entfernt werden"
+  limit_reached: "Playlist-Elementlimit erreicht"
+
 playback:
-  parental_blocked: Inhalt durch Kindersicherung blockiert
-  cannot_stop_other_session: Sitzung eines anderen Benutzers kann nicht beendet werden
-  cannot_report_other_session: Fortschritt für die Sitzung eines anderen Benutzers kann nicht gemeldet werden
-  session_not_found: Sitzung nicht gefunden
-  max_streams_reached: Maximale Anzahl gleichzeitiger Wiedergaben erreicht
+  parental_blocked: "Inhalt durch Kindersicherung blockiert"
+  cannot_stop_other_session: "Sitzung eines anderen Benutzers kann nicht beendet werden"
+  cannot_report_other_session: "Fortschritt für die Sitzung eines anderen Benutzers kann nicht gemeldet werden"
+  session_not_found: "Sitzung nicht gefunden"
+  max_streams_reached: "Maximale Anzahl gleichzeitiger Wiedergaben erreicht"
+
 activity:
-  cannot_access_other_history: Anmeldeverlauf eines anderen Benutzers kann nicht aufgerufen werden
+  cannot_access_other_history: "Anmeldeverlauf eines anderen Benutzers kann nicht aufgerufen werden"
+
 library:
-  parental_restricted: Inhalt durch Kindersicherung eingeschränkt
-  name_required: Bibliotheksname ist erforderlich
-  scan_in_progress: Für diese Bibliothek läuft bereits ein Scan
+  parental_restricted: "Inhalt durch Kindersicherung eingeschränkt"
+  name_required: "Bibliotheksname ist erforderlich"
+  scan_in_progress: "Für diese Bibliothek läuft bereits ein Scan"
+
 admin:
-  setup_already_completed: Einrichtung bereits abgeschlossen
-  scheduler_not_available: Planer nicht verfügbar
-  scanner_not_available: Scanner nicht verfügbar
-  service_not_configured: Dienst nicht konfiguriert
-  heavy_op_running: Eine aufwendige Operation läuft bereits
-  scheduled_task_not_found: Geplante Aufgabe nicht gefunden
+  setup_already_completed: "Einrichtung bereits abgeschlossen"
+  scheduler_not_available: "Planer nicht verfügbar"
+  scanner_not_available: "Scanner nicht verfügbar"
+  service_not_configured: "Dienst nicht konfiguriert"
+  heavy_op_running: "Eine aufwendige Operation läuft bereits"
+  scheduled_task_not_found: "Geplante Aufgabe nicht gefunden"
+
 config:
-  key_required: Schlüssel ist erforderlich
-  key_not_found: Konfigurationsschlüssel nicht gefunden
+  key_required: "Schlüssel ist erforderlich"
+  key_not_found: "Konfigurationsschlüssel nicht gefunden"
+
 playback_settings:
-  skip_forward_positive: skip_forward_seconds muss positiv sein
+  skip_forward_positive: "skip_forward_seconds muss positiv sein"
+
 user:
-  cannot_update_other: Anderen Benutzer kann nicht aktualisiert werden
-  cannot_escalate_admin: Zum Administrator eskalieren nicht möglich
-  cannot_change_caps: Nur ein Administrator kann die Kontolimits ändern
-  cannot_create_profile_other: Profil für anderen Benutzer kann nicht erstellt werden
-  cannot_update_profile_other: Profil eines anderen Benutzers kann nicht aktualisiert werden
-  cannot_delete_profile_other: Profil eines anderen Benutzers kann nicht gelöscht werden
-  cannot_revoke_invite_other: Einladungslink eines anderen Benutzers kann nicht widerrufen werden
-  cannot_revoke_apikey_other: API-Schlüssel eines anderen Benutzers kann nicht widerrufen werden
-  invalid_invite_data: Ungültige Einladungs- oder Registrierungsdaten
-  invalid_expired_code: Ungültiger oder abgelaufener Code
+  cannot_update_other: "Anderen Benutzer kann nicht aktualisiert werden"
+  cannot_escalate_admin: "Zum Administrator eskalieren nicht möglich"
+  cannot_change_caps: "Nur ein Administrator kann die Kontolimits ändern"
+  cannot_create_profile_other: "Profil für anderen Benutzer kann nicht erstellt werden"
+  cannot_update_profile_other: "Profil eines anderen Benutzers kann nicht aktualisiert werden"
+  cannot_delete_profile_other: "Profil eines anderen Benutzers kann nicht gelöscht werden"
+  cannot_revoke_invite_other: "Einladungslink eines anderen Benutzers kann nicht widerrufen werden"
+  cannot_revoke_apikey_other: "API-Schlüssel eines anderen Benutzers kann nicht widerrufen werden"
+  invalid_invite_data: "Ungültige Einladungs- oder Registrierungsdaten"
+  invalid_expired_code: "Ungültiger oder abgelaufener Code"
+
 media:
-  not_found: Medium nicht gefunden
+  not_found: "Medium nicht gefunden"
+  file_not_found: "Datei nicht gefunden"
+  invalid_path: "Ungültiger Pfad"
+  image_not_found: "Bild nicht gefunden"
+
 transcode:
-  max_concurrent_reached: Der Server transkodiert gerade andere Streams. Bitte versuche es gleich erneut.
+  busy: "Transkodierung beschäftigt"
+  failed: "Transkodierung fehlgeschlagen"
+  no_active_session: "Keine aktive Transkodierungssitzung"
+  session_not_ready: "Sitzung nicht bereit"
+  segment_not_found: "Segment nicht gefunden"
+  max_concurrent_reached: "Der Server transkodiert gerade andere Streams. Bitte versuche es gleich erneut."
+
+subtitle:
+  not_found: "Untertitel nicht gefunden"
+  search_failed: "Untertitelsuche fehlgeschlagen"
+  download_failed: "Untertitel-Download fehlgeschlagen"
+  file_id_required: "Datei-ID ist erforderlich"
+
+plugin:
+  blocked_by_security: "Plugin durch Sicherheitsanalyse blockiert"
+  manifest_invalid: "Ungültiges Plugin-Manifest"
+  not_found: "Plugin nicht gefunden"
+  config_save_failed: "Plugin-Konfiguration konnte nicht gespeichert werden"
+
+notification:
+  invalid_movie_level: "Ungültige Film-Benachrichtigungsstufe"
+  invalid_series_level: "Ungültige Serien-Benachrichtigungsstufe"
+  invalid_music_level: "Ungültige Musik-Benachrichtigungsstufe"
+
+backup:
+  failed: "Sicherung fehlgeschlagen"
+  restore_failed: "Wiederherstellung fehlgeschlagen"

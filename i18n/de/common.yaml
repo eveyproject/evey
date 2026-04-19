@@ -9,9 +9,10 @@ enabled: Aktiviert
 disabled: Deaktiviert
 skip: Überspringen
 continue: Weiter
-loading: Laden…
+loading: "Laden…"
 error: Fehler
 unknown: Unbekannt
+settings: Einstellungen
 select: Auswählen
 selectAll: Alle auswählen
 deselectAll: Alle abwählen
@@ -21,15 +22,17 @@ or: oder
 previous: Zurück
 next: Weiter
 edit: Bearbeiten
+all: Alle
 add: Hinzufügen
 remove: Entfernen
 name: Name
-'no': Nein
+"no": "Nein"
 status: Status
 actions: Aktionen
+apply: Anwenden
 clear: Leeren
-close: Schließen
-confirm: Bestätigen
+close: "Schließen"
+confirm: "Bestätigen"
 test: Testen
 download: Herunterladen
 restore: Wiederherstellen
@@ -37,11 +40,11 @@ revoke: Widerrufen
 refresh: Aktualisieren
 done: Fertig
 copied: "Kopiert!"
-seeAll: Alle anzeigen →
+seeAll: "Alle anzeigen →"
 scrollLeft: Nach links scrollen
 scrollRight: Nach rechts scrollen
 appearance: Darstellung
-appearanceDesc: Wählen Sie Ihr Farbdesign und Ihre Sprache.
+appearanceDesc: "Wählen Sie Ihr Farbdesign und Ihre Sprache."
 language: Sprache
 languageDesc: Wählen Sie Ihre bevorzugte Sprache
 region:
@@ -52,15 +55,31 @@ newKey: Neuer Schlüssel
 copyKey: Schlüssel kopieren
 unableToLoadNotifications: Benachrichtigungen konnten nicht geladen werden
 viewAllNotifications: Alle Benachrichtigungen anzeigen
+"yes": "Ja"
 markAllRead: Alle als gelesen markieren
-filtered: (gefiltert)
+item_one: "{{count}} Element"
+item_other: "{{count}} Elemente"
+filtered: "(gefiltert)"
 noItemsMatch: Keine Elemente entsprechen dem aktuellen Filter.
+showLess: Weniger anzeigen
+readMore: Mehr lesen
+noPoster: Kein Poster
 noItems: Keine Elemente
+noCollections: Keine Sammlungen
+playlists: Playlists
+noPlaylists: Keine Playlists
 addToPlaylist: Zur Playlist hinzufügen
 noManualPlaylists: Keine manuellen Playlists verfügbar
+collections: Sammlungen
+loadError: Laden fehlgeschlagen
+activity: Aktivität
+serverVersion: Serverversion
+retry: Erneut versuchen
+itemCount_one: "{{count}} Element"
+itemCount_other: "{{count}} Elemente"
 errorBoundary:
   title: Etwas ist schiefgelaufen
-  description: "Ein unerwarteter Fehler ist aufgetreten. Bitte laden Sie die Seite neu. Wenn das Problem weiterhin besteht, kehren Sie zur Startseite zurück."
+  description: Ein unerwarteter Fehler ist aufgetreten. Bitte laden Sie die Seite neu. Wenn das Problem weiterhin besteht, kehren Sie zur Startseite zurück.
   tryAgain: Erneut versuchen
   goHome: Zur Startseite
 routeError:
@@ -76,7 +95,7 @@ notifications:
   deleteAllTitle: Alle Benachrichtigungen löschen
   deleteAllConfirm: Dies löscht alle Ihre Benachrichtigungen dauerhaft. Diese Aktion kann nicht rückgängig gemacht werden.
   noNotifications: Keine Benachrichtigungen
-  allCaughtUp: Sie sind auf dem neuesten Stand.
+  allCaughtUp: "Sie sind auf dem neuesten Stand."
   justNow: Gerade eben
   minutesAgo: "vor {{count}}min"
   hoursAgo: "vor {{count}}h"
@@ -86,13 +105,18 @@ notifications:
   newSeason: "Neue Staffel: {{name}}"
   newSeries: "Neue Serie: {{name}}"
   newAlbum: "Neues Album: {{name}}"
-  backupFailed: Geplante Sicherung fehlgeschlagen
+  backupFailed: "Geplante Sicherung fehlgeschlagen"
+  clearConfirm: Alle Benachrichtigungen löschen?
+  clearTitle: Benachrichtigungen löschen
 noNotifications: Keine Benachrichtigungen
 aria:
   closeMenu: Menü schließen
   openMenu: Menü öffnen
+  bottomNav: Untere Navigation
+  options: Optionen
   play: Abspielen
   pause: Pause
+  loading: Laden
   breadcrumb: Brotkrümel-Navigation
   pagination: Seitennummerierung
   previousPage: Vorherige Seite
@@ -100,7 +124,18 @@ aria:
   reloadPage: Seite neu laden
   goToHome: Zur Startseite
   dismiss: Verwerfen
+  removeRule: Regel entfernen
+  clearSelection: Auswahl aufheben
   close: Schließen
+  deletePhoto: Foto löschen
+  deleteCollection: Sammlung löschen
+  editFilter: Filter bearbeiten
+  deleteFilter: Filter löschen
+  closePlayer: Player schließen
+  subtitleFontSize: Untertitel-Schriftgröße
+  bgOpacity: Hintergrund-Deckkraft
+  operator: Operator
+  value: Wert
   retryPage: Seite erneut laden
   goToHomePage: Zur Startseite gehen
   skipToContent: Zum Inhalt springen
@@ -125,8 +160,9 @@ nav:
   libraries: Bibliotheken
   photos: Fotos
   favorites: Favoriten
+  search: Suche
   music: Musik
-  syncplay: Gemeinsam hören
+  syncplay: "Gemeinsam hören"
   admin: Verwaltung
   backToApp: Zurück zur App
   profile: Profil
@@ -150,16 +186,17 @@ shortcuts:
   closeModal: Modal schließen / Eingabe verlassen
   goHome: Zur Startseite
   toggleHelp: Hilfe ein-/ausblenden
-  disabledHint: "Tastenkürzel sind deaktiviert, während Sie in einem Eingabefeld tippen."
+  disabledHint: Tastenkürzel sind deaktiviert, während Sie in einem Eingabefeld tippen.
 parental:
   restrictedContent: Eingeschränkter Inhalt
   pinRequired: Dieser Inhalt erfordert eine PIN-Überprüfung.
-  pinLabel: PIN (4 Ziffern)
+  pinLabel: "PIN (4 Ziffern)"
   pinIncorrect: Falsche PIN
   validate: Bestätigen
 feeds:
   title: Startseiten-Bereiche
   section: Bereich
+  order: Reihenfolge
   maxItems: Max. Elemente
   saved: Feed-Konfiguration gespeichert
   customize: Anpassen
@@ -168,14 +205,20 @@ feeds:
   labels:
     resume_playback: Wiedergabe fortsetzen
     next_up: Als Nächstes
+    next_episode: Nächste Folge
     recommended: Empfohlen
     most_popular: Am beliebtesten
     collections: Sammlungen
 added: Hinzugefügt
+change: Ändern
+clearAll: Alles löschen
+description: Beschreibung
 export: JSON exportieren
+never: Nie
 pause: Pause
 play: Wiedergabe
 selected: ausgewählt
+selectedCount: '{{count}} ausgewählt'
 somethingWentWrong: Etwas ist schiefgelaufen
 tryAgain: Erneut versuchen
 unknownError: Unbekannter Fehler
