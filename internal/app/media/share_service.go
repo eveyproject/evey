@@ -10,6 +10,15 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
+// Sentinel errors exposed for handlers to map with errors.Is instead of
+// string-matching on the message. Adding a new failure mode here stays
+// a one-liner at the handler site.
+var (
+	ErrShareExpired       = errors.New("share link expired")
+	ErrShareViewLimit     = errors.New("share link view limit reached")
+	ErrShareDurationRange = errors.New("share link duration must be between 0 and 72 hours")
+)
+
 type ShareService struct {
 	repo shared.ShareLinkRepository
 }
@@ -20,7 +29,7 @@ func NewShareService(repo shared.ShareLinkRepository) *ShareService {
 
 func (s *ShareService) Create(ctx context.Context, mediaItemID, createdBy string, duration time.Duration, maxViews *int) (*shared.ShareLink, error) {
 	if duration <= 0 || duration > 72*time.Hour {
-		return nil, errors.New("share link duration must be between 0 and 72 hours")
+		return nil, ErrShareDurationRange
 	}
 	link := &shared.ShareLink{
 		ID:          uuid.New().String(),
@@ -48,10 +57,10 @@ func (s *ShareService) Validate(ctx context.Context, token string) (*shared.Shar
 		return nil, fmt.Errorf("share link not found: %w", err)
 	}
 	if link.IsExpired() {
-		return nil, errors.New("share link expired")
+		return nil, ErrShareExpired
 	}
 	if link.IsViewLimitReached() {
-		return nil, errors.New("share link view limit reached")
+		return nil, ErrShareViewLimit
 	}
 	if err := s.repo.IncrementViewCount(ctx, token); err != nil {
 		return nil, err

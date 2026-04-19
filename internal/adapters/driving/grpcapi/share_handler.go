@@ -2,7 +2,7 @@ package grpcapi
 
 import (
 	"context"
-	"strings"
+	"errors"
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -124,7 +124,7 @@ func (h *shareHandler) RevokeShareLink(ctx context.Context, req *eveyv1.RevokeSh
 func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.ValidateShareLinkRequest) (*eveyv1.ValidateShareLinkResponse, error) {
 	link, err := h.svc.Validate(ctx, req.Token)
 	if err != nil {
-		if strings.Contains(err.Error(), "expired") || strings.Contains(err.Error(), "view limit") {
+		if errors.Is(err, appmedia.ErrShareExpired) || errors.Is(err, appmedia.ErrShareViewLimit) {
 			return nil, status.Error(codes.Unavailable, "link expired or view limit reached")
 		}
 		return nil, status.Error(codes.NotFound, "share link not found")
