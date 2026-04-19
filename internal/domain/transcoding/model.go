@@ -59,6 +59,9 @@ type TranscodeJob struct {
 }
 
 func (j *TranscodeJob) Validate() error {
+	if j.ID == "" {
+		return errors.New("transcode job ID is required")
+	}
 	if j.MediaItemID == "" {
 		return errors.New("transcode job media item ID is required")
 	}
@@ -68,11 +71,61 @@ func (j *TranscodeJob) Validate() error {
 	if j.OutputCodec == "" {
 		return errors.New("transcode job output codec is required")
 	}
+	if j.Status != "" && !j.Status.IsValid() {
+		return errors.New("transcode job: invalid status")
+	}
 	return nil
 }
 
 func (j *TranscodeJob) IsTerminal() bool {
 	return j.Status == Completed || j.Status == Failed || j.Status == Cancelled
+}
+
+type TranscodeJobOption func(*TranscodeJob)
+
+func WithJobAudioCodec(codec string) TranscodeJobOption {
+	return func(j *TranscodeJob) { j.AudioCodec = codec }
+}
+
+func WithJobHWAccel(accel string) TranscodeJobOption {
+	return func(j *TranscodeJob) { j.HWAccelType = accel }
+}
+
+func WithJobBitrate(in, out int64) TranscodeJobOption {
+	return func(j *TranscodeJob) { j.BitrateIn, j.BitrateOut = in, out }
+}
+
+func WithJobResolution(in, out string) TranscodeJobOption {
+	return func(j *TranscodeJob) { j.ResolutionIn, j.ResolutionOut = in, out }
+}
+
+func WithJobInputCodec(codec string) TranscodeJobOption {
+	return func(j *TranscodeJob) { j.InputCodec = codec }
+}
+
+func WithJobPreset(preset string) TranscodeJobOption {
+	return func(j *TranscodeJob) { j.Preset = preset }
+}
+
+// NewTranscodeJob is the canonical constructor. Validates. Required
+// identity fields (id, mediaItem, inputPath, outputCodec) are surfaced
+// as params so construction never succeeds with them missing. Status
+// defaults to Queued; StartedAt is stamped when the worker picks it up.
+func NewTranscodeJob(id string, mediaItemID shared.MediaItemID, inputPath, outputCodec string, opts ...TranscodeJobOption) (*TranscodeJob, error) {
+	j := &TranscodeJob{
+		ID:          id,
+		MediaItemID: mediaItemID,
+		InputPath:   inputPath,
+		OutputCodec: outputCodec,
+		Status:      Queued,
+	}
+	for _, opt := range opts {
+		opt(j)
+	}
+	if err := j.Validate(); err != nil {
+		return nil, err
+	}
+	return j, nil
 }
 
 type TranscodeProfile struct {

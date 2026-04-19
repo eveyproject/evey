@@ -131,23 +131,33 @@ func TestTranscodeJob_Validate(t *testing.T) {
 	}{
 		{
 			name:    "valid",
-			job:     transcoding.TranscodeJob{MediaItemID: "m1", InputPath: "/a.mkv", OutputCodec: "h264"},
+			job:     transcoding.TranscodeJob{ID: "tj-1", MediaItemID: "m1", InputPath: "/a.mkv", OutputCodec: "h264"},
 			wantErr: "",
 		},
 		{
+			name:    "missing ID",
+			job:     transcoding.TranscodeJob{MediaItemID: "m1", InputPath: "/a.mkv", OutputCodec: "h264"},
+			wantErr: "transcode job ID is required",
+		},
+		{
 			name:    "missing media item ID",
-			job:     transcoding.TranscodeJob{InputPath: "/a.mkv", OutputCodec: "h264"},
+			job:     transcoding.TranscodeJob{ID: "tj-1", InputPath: "/a.mkv", OutputCodec: "h264"},
 			wantErr: "transcode job media item ID is required",
 		},
 		{
 			name:    "missing input path",
-			job:     transcoding.TranscodeJob{MediaItemID: "m1", OutputCodec: "h264"},
+			job:     transcoding.TranscodeJob{ID: "tj-1", MediaItemID: "m1", OutputCodec: "h264"},
 			wantErr: "transcode job input path is required",
 		},
 		{
 			name:    "missing output codec",
-			job:     transcoding.TranscodeJob{MediaItemID: "m1", InputPath: "/a.mkv"},
+			job:     transcoding.TranscodeJob{ID: "tj-1", MediaItemID: "m1", InputPath: "/a.mkv"},
 			wantErr: "transcode job output codec is required",
+		},
+		{
+			name:    "invalid status",
+			job:     transcoding.TranscodeJob{ID: "tj-1", MediaItemID: "m1", InputPath: "/a.mkv", OutputCodec: "h264", Status: "bogus"},
+			wantErr: "transcode job: invalid status",
 		},
 	}
 
@@ -219,6 +229,42 @@ func TestTranscodeProfile_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewTranscodeJob(t *testing.T) {
+	t.Parallel()
+
+	t.Run("happy path defaults status to Queued", func(t *testing.T) {
+		t.Parallel()
+		j, err := transcoding.NewTranscodeJob("tj-1", "m1", "/a.mkv", "h264",
+			transcoding.WithJobAudioCodec("aac"),
+			transcoding.WithJobHWAccel("vaapi"),
+			transcoding.WithJobBitrate(1_000_000, 2_000_000),
+			transcoding.WithJobResolution("1920x1080", "1280x720"),
+		)
+		if err != nil {
+			t.Fatalf("unexpected: %v", err)
+		}
+		if j.Status != transcoding.Queued || j.AudioCodec != "aac" || j.HWAccelType != "vaapi" ||
+			j.BitrateIn != 1_000_000 || j.BitrateOut != 2_000_000 ||
+			j.ResolutionIn != "1920x1080" || j.ResolutionOut != "1280x720" {
+			t.Errorf("fields not wired: %+v", j)
+		}
+	})
+
+	t.Run("missing id rejected", func(t *testing.T) {
+		t.Parallel()
+		if _, err := transcoding.NewTranscodeJob("", "m1", "/a.mkv", "h264"); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("missing output codec rejected", func(t *testing.T) {
+		t.Parallel()
+		if _, err := transcoding.NewTranscodeJob("tj-1", "m1", "/a.mkv", ""); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
 }
 
 func TestDefaultHLSProfiles(t *testing.T) {

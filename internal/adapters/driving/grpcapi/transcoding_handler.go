@@ -65,15 +65,14 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 			}
 		}
 	}
-	job := &transcoding.TranscodeJob{
-		ID:            id.New("tj-"),
-		MediaItemID:   shared.MediaItemID(req.MediaItemId),
-		InputPath:     item.File.Path,
-		OutputCodec:   req.VideoCodec,
-		AudioCodec:    req.AudioCodec,
-		HWAccelType:   hwAccelTypeFromProto[req.HwAccel],
-		BitrateOut:    bitrateOut,
-		ResolutionOut: fmt.Sprintf("%dx%d", req.Width, req.Height),
+	job, err := transcoding.NewTranscodeJob(id.New("tj-"), shared.MediaItemID(req.MediaItemId), item.File.Path, req.VideoCodec,
+		transcoding.WithJobAudioCodec(req.AudioCodec),
+		transcoding.WithJobHWAccel(hwAccelTypeFromProto[req.HwAccel]),
+		transcoding.WithJobBitrate(0, bitrateOut),
+		transcoding.WithJobResolution("", fmt.Sprintf("%dx%d", req.Width, req.Height)),
+	)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.svc.StartTranscode(ctx, job); err != nil {
 		if errors.Is(err, apptranscoding.ErrMaxConcurrent) {
