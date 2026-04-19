@@ -406,6 +406,29 @@ func (s *ScanService) removeOrphanedItems(ctx context.Context, libraryID string,
 
 
 func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, seriesTitle ...string) (added, updated int, err error) {
+	showTitle := ""
+	if len(seriesTitle) > 0 {
+		showTitle = seriesTitle[0]
+	}
+	existing, err := s.findExistingMediaFile(ctx, f)
+	if err != nil {
+		return 0, 0, err
+	}
+	if existing == nil {
+		if err := s.createMediaFile(ctx, libraryID, parentID, f, showTitle); err != nil {
+			return 0, 0, err
+		}
+		return 1, 0, nil
+	}
+	s.updateMediaFile(ctx, existing, parentID, f, showTitle)
+	return 0, 1, nil
+}
+
+// findExistingMediaFile locates the media item that already owns the
+// scanned file. Prefers fingerprint match (stable across path moves),
+// falls back to file path. Returns (nil, nil) when no match exists —
+// caller creates a fresh item in that case.
+func (s *ScanService) findExistingMediaFile(ctx context.Context, f library.ScannedFile) (*library.MediaItem, error) {
 	var existing *library.MediaItem
 	var getErr error
 	if f.Fingerprint != "" {
@@ -416,64 +439,76 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 	} else {
 		existing, getErr = s.mediaItems.GetByFilePath(ctx, f.Path)
 	}
-	if getErr != nil && !errors.Is(getErr, shared.ErrNotFound) {
-		return 0, 0, fmt.Errorf("check media item %s: %w", f.Path, getErr)
-	}
 	if errors.Is(getErr, shared.ErrNotFound) {
-		item := &library.MediaItem{
-			ID:          shared.MediaItemID(uuid.New().String()),
-			LibraryID:   shared.LibraryID(libraryID),
-			ParentID:    parentID,
-			Title:       f.Title,
-			ScanTitle:   f.Title,
-			Type:        f.Type,
-			IndexNumber: f.Episode,
-			AddedAt:     time.Now(),
-			UpdatedAt:   time.Now(),
-			File: &library.MediaFile{
-				Path:        f.Path,
-				Size:        f.Size,
-				Fingerprint: f.Fingerprint,
-			},
-		}
-		if f.Year != nil {
-			item.Catalog = &library.MediaCatalog{Year: f.Year}
-		}
-		if err = s.mediaItems.Create(ctx, item); err != nil {
-			return 0, 0, fmt.Errorf("create media item: %w", err)
-		}
-		if dur := s.ProbeAndStoreStreams(ctx, string(item.ID), f.Path); dur > 0 {
-			item.File.DurationMs = dur
-			if err := s.mediaItems.Update(ctx, item); err != nil {
-				slog.Warn("update media item duration failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
-			}
-		}
-		if s.metadata != nil {
-			s.metadata.extractAndStoreChapters(ctx, string(item.ID), f.Path)
-		}
-		if s.search != nil {
-			if err := s.search.IndexMediaItem(ctx, item, nil); err != nil {
-				slog.Warn("index media item failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
-			}
-		}
-		showTitle := ""
-		if len(seriesTitle) > 0 {
-			showTitle = seriesTitle[0]
-		}
-		evtAdded := library.MediaItemAdded{
-			MediaItemID: item.ID,
-			LibraryID:   shared.LibraryID(libraryID),
-			Title:       item.Title,
-			SeriesTitle: showTitle,
-			Type:        string(item.Type),
-			Genres:      catalogGenres(item),
-			OccurredAt:  time.Now(),
-		}
-		if err := s.events.Publish(ctx, evtAdded); err != nil {
-			slog.Warn("publish event", slog.String("event", evtAdded.EventName()), slog.Any("err", err))
-		}
-		return 1, 0, nil
+		return nil, nil
 	}
+	if getErr != nil {
+		return nil, fmt.Errorf("check media item %s: %w", f.Path, getErr)
+	}
+	return existing, nil
+}
+
+// createMediaFile materializes a new MediaItem + child enrichment
+// (probe streams, chapters, meili index) and publishes MediaItemAdded.
+// Called only when findExistingMediaFile returned nil.
+func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, showTitle string) error {
+	item := &library.MediaItem{
+		ID:          shared.MediaItemID(uuid.New().String()),
+		LibraryID:   shared.LibraryID(libraryID),
+		ParentID:    parentID,
+		Title:       f.Title,
+		ScanTitle:   f.Title,
+		Type:        f.Type,
+		IndexNumber: f.Episode,
+		AddedAt:     time.Now(),
+		UpdatedAt:   time.Now(),
+		File: &library.MediaFile{
+			Path:        f.Path,
+			Size:        f.Size,
+			Fingerprint: f.Fingerprint,
+		},
+	}
+	if f.Year != nil {
+		item.Catalog = &library.MediaCatalog{Year: f.Year}
+	}
+	if err := s.mediaItems.Create(ctx, item); err != nil {
+		return fmt.Errorf("create media item: %w", err)
+	}
+	if dur := s.ProbeAndStoreStreams(ctx, string(item.ID), f.Path); dur > 0 {
+		item.File.DurationMs = dur
+		if err := s.mediaItems.Update(ctx, item); err != nil {
+			slog.Warn("update media item duration failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+		}
+	}
+	if s.metadata != nil {
+		s.metadata.extractAndStoreChapters(ctx, string(item.ID), f.Path)
+	}
+	if s.search != nil {
+		if err := s.search.IndexMediaItem(ctx, item, nil); err != nil {
+			slog.Warn("index media item failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+		}
+	}
+	evtAdded := library.MediaItemAdded{
+		MediaItemID: item.ID,
+		LibraryID:   shared.LibraryID(libraryID),
+		Title:       item.Title,
+		SeriesTitle: showTitle,
+		Type:        string(item.Type),
+		Genres:      catalogGenres(item),
+		OccurredAt:  time.Now(),
+	}
+	if err := s.events.Publish(ctx, evtAdded); err != nil {
+		slog.Warn("publish event", slog.String("event", evtAdded.EventName()), slog.Any("err", err))
+	}
+	return nil
+}
+
+// updateMediaFile reconciles an existing MediaItem against the freshly
+// scanned file. Handles two paths: the fast "file moved / reparented
+// but content unchanged" loop, and the full "content replaced" rescan
+// that re-probes streams + chapters and re-publishes MediaItemAdded so
+// translation/artwork jobs re-enrich the item.
+func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.MediaItem, parentID string, f library.ScannedFile, showTitle string) {
 	if existing.File == nil {
 		existing.File = &library.MediaFile{}
 	}
@@ -487,7 +522,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 				slog.Warn("update media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 			}
 		}
-		return 0, 1, nil
+		return
 	}
 	existing.ParentID = parentID
 	existing.File.Path = f.Path
@@ -509,10 +544,6 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 		}
 	}
 	if existing.Overview == "" {
-		showTitle := ""
-		if len(seriesTitle) > 0 {
-			showTitle = seriesTitle[0]
-		}
 		evtReAdded := library.MediaItemAdded{
 			MediaItemID: existing.ID,
 			LibraryID:   existing.LibraryID,
@@ -526,7 +557,6 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			slog.Warn("publish event", slog.String("event", evtReAdded.EventName()), slog.Any("err", err))
 		}
 	}
-	return 0, 1, nil
 }
 
 func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) int64 {
