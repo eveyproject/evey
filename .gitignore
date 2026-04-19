@@ -85,6 +85,7 @@ test-results/
 # Expo
 frontend/apps/mobile/.expo/
 
-# Dev scripts (local only)
+# Dev scripts (local only) — except anything referenced from Makefile.
 scripts/
+!scripts/build-test-plugins.sh
 text
