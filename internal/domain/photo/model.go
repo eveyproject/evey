@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/id"
 )
 
 type Photo struct {
@@ -25,6 +26,47 @@ type Photo struct {
 	Album       string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+// NewPhoto is the canonical constructor: mints the ID, stamps
+// CreatedAt/UpdatedAt, copies the struct-args fields, and calls
+// Validate before returning. Callers should prefer this over
+// building a `Photo{...}` literal so invariants are enforced
+// at construction rather than discovered at Upsert time.
+func NewPhoto(libraryID shared.LibraryID, filePath string, size int64, modTime time.Time, opts ...Option) (*Photo, error) {
+	now := time.Now()
+	p := &Photo{
+		ID:        id.New("photo-"),
+		LibraryID: libraryID,
+		FilePath:  filePath,
+		FileSize:  size,
+		ModTime:   modTime,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	for _, opt := range opts {
+		opt(p)
+	}
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// Option customises a Photo at construction. Non-required fields
+// use options to keep the NewPhoto signature small as metadata
+// (dimensions, EXIF, geoloc, …) evolves.
+type Option func(*Photo)
+
+func WithTitle(title string) Option            { return func(p *Photo) { p.Title = title } }
+func WithHash(hash string) Option              { return func(p *Photo) { p.FileHash = hash } }
+func WithMimeType(mime string) Option          { return func(p *Photo) { p.MimeType = mime } }
+func WithDimensions(w, h int) Option           { return func(p *Photo) { p.Width, p.Height = w, h } }
+func WithTakenAt(t *time.Time) Option          { return func(p *Photo) { p.TakenAt = t } }
+func WithCameraModel(model string) Option      { return func(p *Photo) { p.CameraModel = model } }
+func WithAlbum(album string) Option            { return func(p *Photo) { p.Album = album } }
+func WithGeo(lat, lng *float64) Option {
+	return func(p *Photo) { p.Latitude, p.Longitude = lat, lng }
 }
 
 func (p *Photo) Validate() error {

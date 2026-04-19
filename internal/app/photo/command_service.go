@@ -14,7 +14,6 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/photo"
 	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/id"
 )
 
 type CommandService struct {
@@ -129,26 +128,22 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 
 			width, height := s.scanner.ImageDimensions(j.path)
 
-			now := time.Now()
-			p := photo.Photo{
-				ID:          id.New("photo-"),
-				LibraryID:   shared.LibraryID(libraryID),
-				Title:       title,
-				FilePath:    j.path,
-				FileSize:    j.size,
-				FileHash:    j.hash,
-				ModTime:     j.modTime,
-				MimeType:    j.mime,
-				Width:       width,
-				Height:      height,
-				Album:       album,
-				TakenAt:     takenAt,
-				CameraModel: cameraModel,
-				CreatedAt:   now,
-				UpdatedAt:   now,
+			p, err := photo.NewPhoto(
+				shared.LibraryID(libraryID), j.path, j.size, j.modTime,
+				photo.WithTitle(title),
+				photo.WithHash(j.hash),
+				photo.WithMimeType(j.mime),
+				photo.WithDimensions(width, height),
+				photo.WithAlbum(album),
+				photo.WithTakenAt(takenAt),
+				photo.WithCameraModel(cameraModel),
+			)
+			if err != nil {
+				slog.Warn("photo scan: NewPhoto failed", slog.String("path", j.path), slog.Any("err", err))
+				return
 			}
 
-			if upsertErr := s.repo.Upsert(ctx, p); upsertErr != nil {
+			if upsertErr := s.repo.Upsert(ctx, *p); upsertErr != nil {
 				slog.Warn("photo upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
 				return
 			}
