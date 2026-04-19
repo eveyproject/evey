@@ -167,14 +167,14 @@ func sign(secret string, body []byte) string {
 }
 
 func (s *Service) Create(ctx context.Context, cfg *webhook.Config) error {
+	cfg.ID = uuid.New().String()
+	cfg.CreatedAt = time.Now()
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("invalid webhook: %w", err)
 	}
 	if err := s.validateURL(cfg.URL); err != nil {
 		return fmt.Errorf("invalid webhook URL: %w", err)
 	}
-	cfg.ID = uuid.New().String()
-	cfg.CreatedAt = time.Now()
 	return s.repo.Create(ctx, cfg)
 }
 
