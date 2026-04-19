@@ -17,9 +17,13 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 		return 0, 0, fmt.Errorf("preload containers: %w", err)
 	}
 	byFingerprint := make(map[string]*library.MediaItem, len(existing))
+	// Dedup by scan_title (stable FS-derived) instead of Title. Title gets
+	// overwritten by metadata enrichment after creation, so a subsequent
+	// scan that looks up by the original filesystem title would never find
+	// the already-enriched row and would create a duplicate every pass.
 	type titleKey struct {
-		typ            library.MediaItemType
-		title, parentID string
+		typ                 library.MediaItemType
+		scanTitle, parentID string
 	}
 	byTitleKey := make(map[titleKey]*library.MediaItem, len(existing))
 	itemFP := func(m *library.MediaItem) string {
@@ -28,11 +32,17 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 		}
 		return m.File.Fingerprint
 	}
+	scanKey := func(m *library.MediaItem) string {
+		if m.ScanTitle != "" {
+			return m.ScanTitle
+		}
+		return m.Title
+	}
 	for _, item := range existing {
 		if fp := itemFP(item); fp != "" {
 			byFingerprint[fp] = item
 		}
-		byTitleKey[titleKey{item.Type, item.Title, item.ParentID}] = item
+		byTitleKey[titleKey{item.Type, scanKey(item), item.ParentID}] = item
 	}
 
 	lookupOrCreate := func(item *library.MediaItem) (*library.MediaItem, bool, error) {
@@ -40,7 +50,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 		if ex, ok := byFingerprint[fp]; ok {
 			return ex, false, nil
 		}
-		if ex, ok := byTitleKey[titleKey{item.Type, item.Title, item.ParentID}]; ok {
+		if ex, ok := byTitleKey[titleKey{item.Type, scanKey(item), item.ParentID}]; ok {
 			if itemFP(ex) != fp {
 				if ex.File == nil {
 					ex.File = &library.MediaFile{}
@@ -56,7 +66,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			return nil, false, createErr
 		}
 		byFingerprint[fp] = item
-		byTitleKey[titleKey{item.Type, item.Title, item.ParentID}] = item
+		byTitleKey[titleKey{item.Type, scanKey(item), item.ParentID}] = item
 		return item, true, nil
 	}
 
@@ -109,12 +119,19 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 		if !ok {
 			fp := fmt.Sprintf("season:%s:%s:%d", libraryID, showTitle, seasonNum)
 			n := seasonNum
+			// ScanTitle stays "Season N" (the FS-derived label). Display
+			// title gets localized/enriched later; the dedup key in
+			// lookupOrCreate uses ScanTitle so a re-scan never creates a
+			// new row just because enrichment renamed "Season 1" →
+			// "Saison 1".
+			scanSeasonTitle := fmt.Sprintf("Season %d", seasonNum)
 			seasonItem, created, createErr := lookupOrCreate(&library.MediaItem{
 				ID:          shared.MediaItemID(uuid.New().String()),
 				LibraryID:   shared.LibraryID(libraryID),
 				ParentID:    seriesID,
 				Type:        library.Season,
-				Title:       fmt.Sprintf("Season %d", seasonNum),
+				Title:       scanSeasonTitle,
+				ScanTitle:   scanSeasonTitle,
 				File:        &library.MediaFile{Fingerprint: fp},
 				IndexNumber: &n,
 				AddedAt:     time.Now(),
