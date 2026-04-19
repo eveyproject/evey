@@ -3,6 +3,7 @@ package metadata
 import (
 	"context"
 	"log/slog"
+	"math"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -242,12 +243,17 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 
 	// For series: iterate TMDB results in their order, fetch detail for the
 	// top N, return the first one whose S01 episode count matches the disk.
-	// TMDB ranks by popularity+relevance so the first coherent candidate that
-	// validates is almost always correct.
+	// If none match, pick the candidate that scores best on a
+	// recency+popularity+episode-proximity tiebreaker instead of blindly
+	// taking the first fetched. TMDB's popularity sort puts iconic older
+	// titles (e.g. "It" 1990 miniseries) ahead of recent remakes; the
+	// tiebreaker rescues cases like "It: Welcome to Derry" (2025) that
+	// don't match episode counts exactly but are clearly the user's intent.
 	qw := wordSet(title)
 	maxCandidates := 5
 	checked := 0
-	var firstValidated *domainmetadata.MetadataResult
+	var bestFallback *domainmetadata.MetadataResult
+	var bestFallbackScore float64
 	for _, candidate := range results {
 		if checked >= maxCandidates {
 			break
@@ -276,23 +282,44 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 			}
 			return full
 		}
-		if firstValidated == nil {
-			firstValidated = full
+		score := seriesFallbackScore(diskS01Episodes, tmdbS01, full.Year, full.Popularity)
+		if bestFallback == nil || score > bestFallbackScore {
+			bestFallback = full
+			bestFallbackScore = score
 		}
 	}
 
-	// No candidate matched the disk episode count — fall back to the first
-	// coherent candidate we fetched (if any), else simple pickBestMatch.
-	if firstValidated != nil {
+	// No candidate matched the disk episode count — use the best fallback
+	// (closest episode count + most recent + most popular), else simple
+	// pickBestMatch.
+	if bestFallback != nil {
 		if log != nil {
-			log.Debug("no series match validated by episode count, using first coherent TMDB result", slog.String("title", firstValidated.Title))
+			log.Debug("no series match validated by episode count, using best fallback",
+				slog.String("title", bestFallback.Title),
+				slog.Float64("score", bestFallbackScore))
 		}
-		return firstValidated
+		return bestFallback
 	}
 	if log != nil {
 		log.Debug("no coherent candidate found, falling back to simple pickBestMatch", slog.String("title", title))
 	}
 	return e.fetchBestCandidate(ctx, provider, results, title, year, mediaType)
+}
+
+// seriesFallbackScore ranks TV series candidates when no episode count matches
+// exactly. Higher is better. Gives heavy weight to episode-count proximity,
+// boosts recent titles (post-2015), and uses TMDB popularity as a tiebreaker.
+// Designed to rescue cases like "It" → 2025 "Welcome to Derry" where the
+// 1990 miniseries outranks the remake by raw popularity.
+func seriesFallbackScore(diskEp, tmdbEp int, year *int, popularity float64) float64 {
+	diff := math.Abs(float64(diskEp - tmdbEp))
+	epScore := 100.0 / (1.0 + diff)
+	yearScore := 0.0
+	if year != nil && *year >= 2015 {
+		yearScore = float64(*year-2015) * 2.0
+	}
+	popScore := math.Min(popularity, 50.0)
+	return epScore + yearScore + popScore
 }
 
 // fetchBestCandidate picks the best title match and fetches full details.
