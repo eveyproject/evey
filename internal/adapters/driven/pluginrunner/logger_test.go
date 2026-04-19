@@ -88,10 +88,11 @@ func TestExtractDateFromFilename(t *testing.T) {
 		{"invalid.log", ""},
 	}
 	for _, tt := range tests {
-		d := extractDateFromFilename(tt.name)
+		d, ok := extractDateFromFilename(tt.name)
 		if tt.want == "" {
-			assert.True(t, d.IsZero(), "expected zero time for %s", tt.name)
+			assert.False(t, ok, "expected ok=false for %s", tt.name)
 		} else {
+			assert.True(t, ok, "expected ok=true for %s", tt.name)
 			assert.Equal(t, tt.want, d.Format("2006-01-02"))
 		}
 	}

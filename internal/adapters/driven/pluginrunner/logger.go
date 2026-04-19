@@ -207,8 +207,8 @@ func (l *PluginLogger) cleanOldLogs() {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".log") {
 			continue
 		}
-		date := extractDateFromFilename(e.Name())
-		if date.IsZero() {
+		date, ok := extractDateFromFilename(e.Name())
+		if !ok {
 			continue
 		}
 		if date.Before(cutoff) {
@@ -220,8 +220,12 @@ func (l *PluginLogger) cleanOldLogs() {
 	}
 }
 
-// extractDateFromFilename parses YYYY-MM-DD from "{pluginID}-YYYY-MM-DD.log" or "{pluginID}-YYYY-MM-DD-HH.log".
-func extractDateFromFilename(name string) time.Time {
+// extractDateFromFilename parses YYYY-MM-DD from
+// "{pluginID}-YYYY-MM-DD.log" or "{pluginID}-YYYY-MM-DD-HH.log".
+// The second return is false when no parseable date is found — explicit
+// signal rather than overloading time.Time{} as "absent", which confuses
+// IsZero() vs "the unix epoch midpoint" for future edge cases.
+func extractDateFromFilename(name string) (time.Time, bool) {
 	name = strings.TrimSuffix(name, ".log")
 	// Find the date part — last occurrence of YYYY-MM-DD pattern
 	parts := strings.Split(name, "-")
@@ -230,11 +234,11 @@ func extractDateFromFilename(name string) time.Time {
 		if len(parts[i]) == 4 {
 			dateStr := parts[i] + "-" + parts[i+1] + "-" + parts[i+2]
 			if t, err := time.Parse("2006-01-02", dateStr); err == nil {
-				return t
+				return t, true
 			}
 		}
 	}
-	return time.Time{}
+	return time.Time{}, false
 }
 
 func (l *PluginLogger) cleanOrphanLogs(ctx context.Context, lister PluginLister) {

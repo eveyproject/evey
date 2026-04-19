@@ -20,11 +20,16 @@ func toTimestamppbPtr(t *time.Time) *timestamppb.Timestamp {
 	return timestamppb.New(*t)
 }
 
-func fromTimestamppb(t *timestamppb.Timestamp) time.Time {
+// fromTimestamppb returns (decoded-time, true) when t is set, or
+// (zero, false) when the proto field was nil. Callers distinguishing
+// "absent" from "explicit zero time" should switch on the boolean
+// instead of IsZero(), which aliases an unset proto field with the
+// Unix epoch minus N years and quietly breaks future edge cases.
+func fromTimestamppb(t *timestamppb.Timestamp) (time.Time, bool) {
 	if t == nil {
-		return time.Time{}
+		return time.Time{}, false
 	}
-	return t.AsTime()
+	return t.AsTime(), true
 }
 
 func fromTimestamppbPtr(t *timestamppb.Timestamp) *time.Time {

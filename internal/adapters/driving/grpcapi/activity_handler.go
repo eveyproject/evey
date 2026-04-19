@@ -182,12 +182,12 @@ func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLo
 }
 
 func (h *activityHandler) ListServerMetrics(ctx context.Context, req *eveyv1.ListServerMetricsRequest) (*eveyv1.ListServerMetricsResponse, error) {
-	from := fromTimestamppb(req.From)
-	to := fromTimestamppb(req.To)
-	if to.IsZero() {
+	from, fromOK := fromTimestamppb(req.From)
+	to, toOK := fromTimestamppb(req.To)
+	if !toOK {
 		to = time.Now()
 	}
-	if from.IsZero() {
+	if !fromOK {
 		from = to.Add(-24 * time.Hour)
 	}
 	metrics, err := h.svc.GetServerMetrics(ctx, from, to)

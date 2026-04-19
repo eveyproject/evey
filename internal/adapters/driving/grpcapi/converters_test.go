@@ -42,12 +42,15 @@ func TestToTimestamppbPtr(t *testing.T) {
 
 func TestFromTimestamppb(t *testing.T) {
 	t.Parallel()
-	if got := fromTimestamppb(nil); !got.IsZero() {
-		t.Error("nil should return zero time")
+	if got, ok := fromTimestamppb(nil); ok || !got.IsZero() {
+		t.Errorf("nil should return (zero, false); got (%v, %v)", got, ok)
 	}
 	now := time.Now()
 	pb := timestamppb.New(now)
-	got := fromTimestamppb(pb)
+	got, ok := fromTimestamppb(pb)
+	if !ok {
+		t.Error("non-nil should return ok=true")
+	}
 	if got.Unix() != now.Unix() {
 		t.Errorf("expected %v, got %v", now, got)
 	}
