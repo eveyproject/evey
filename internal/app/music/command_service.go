@@ -104,16 +104,37 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 	return fetched, nil
 }
 
+type trackJob struct {
+	path     string
+	size     int64
+	modTime  time.Time
+	mimeType string
+	hash     string
+}
+
 func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir string) (int, error) {
 	if s.libRepo != nil {
 		if _, err := s.libRepo.GetByID(ctx, shared.LibraryID(libraryID)); err != nil {
 			return 0, fmt.Errorf("library %s not found: %w", libraryID, err)
 		}
 	}
+	byPath, byHash, err := s.loadExistingTracks(ctx, libraryID)
+	if err != nil {
+		return 0, err
+	}
+	jobs, walkErr := s.buildTrackJobs(ctx, dir, byPath, byHash)
+	total := s.processTrackJobs(ctx, libraryID, jobs)
+	s.kickAlbumArtFetch(libraryID)
+	return total, walkErr
+}
 
+// loadExistingTracks preloads every track for the library keyed by file
+// path and (when present) content hash. The hash map drives the
+// "moved file, same content" fast path.
+func (s *CommandService) loadExistingTracks(ctx context.Context, libraryID string) (map[string]*music.Track, map[string]*music.Track, error) {
 	existing, err := s.tracks.ListAllByLibrary(ctx, shared.LibraryID(libraryID))
 	if err != nil {
-		return 0, fmt.Errorf("list existing tracks: %w", err)
+		return nil, nil, fmt.Errorf("list existing tracks: %w", err)
 	}
 	byPath := make(map[string]*music.Track, len(existing))
 	byHash := make(map[string]*music.Track, len(existing))
@@ -124,16 +145,14 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 			byHash[t.FileHash] = t
 		}
 	}
+	return byPath, byHash, nil
+}
 
-	type trackJob struct {
-		path     string
-		size     int64
-		modTime  time.Time
-		mimeType string
-		hash     string
-	}
-	var toProcess []trackJob
-
+// buildTrackJobs walks the library directory and returns the slice of
+// tracks needing a full parse. Unchanged (path+size+mtime) are skipped;
+// moved (known hash) are updated in-place and skipped.
+func (s *CommandService) buildTrackJobs(ctx context.Context, dir string, byPath, byHash map[string]*music.Track) ([]trackJob, error) {
+	var jobs []trackJob
 	walkErr := s.scanner.WalkAudioFiles(ctx, dir, func(f music.ScannedAudioFile) error {
 		path := f.Path
 		// Fast dedup: same path+size+modtime = unchanged. Truncate to
@@ -145,12 +164,10 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 				return nil
 			}
 		}
-
 		hash, hashErr := s.scanner.ComputeHash(path)
 		if hashErr != nil {
 			slog.Warn("music scan: hash failed", slog.String("path", path), slog.Any("err", hashErr))
 		}
-
 		if byPath[path] == nil && hash != "" {
 			if moved := byHash[hash]; moved != nil {
 				if updateErr := s.tracks.UpdateFilePath(ctx, moved.ID, path, f.ModTime); updateErr != nil {
@@ -159,15 +176,21 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 				return nil
 			}
 		}
-
-		toProcess = append(toProcess, trackJob{path: path, size: f.Size, modTime: f.ModTime, mimeType: f.MimeType, hash: hash})
+		jobs = append(jobs, trackJob{path: path, size: f.Size, modTime: f.ModTime, mimeType: f.MimeType, hash: hash})
 		return nil
 	})
+	return jobs, walkErr
+}
 
+// processTrackJobs fans track jobs out across NumCPU workers. Each
+// worker parses tags (with fallback), upserts, and publishes Track/
+// Album events. Panic recovery per-goroutine keeps one bad file from
+// killing the rest.
+func (s *CommandService) processTrackJobs(ctx context.Context, libraryID string, jobs []trackJob) int {
 	var total atomic.Int64
 	sem := make(chan struct{}, runtime.NumCPU())
 	var wg sync.WaitGroup
-	for _, j := range toProcess {
+	for _, j := range jobs {
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(j trackJob) {
@@ -181,60 +204,75 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 			if ctx.Err() != nil {
 				return
 			}
-
-			t, parseErr := s.parseTrackWithTimeout(ctx, j.path, libraryID, j.mimeType, j.size)
-			if parseErr != nil {
-				slog.Warn("music scan: parse failed", slog.String("path", j.path), slog.Any("err", parseErr))
-				t, parseErr = music.NewTrack(uuid.New().String(), shared.LibraryID(libraryID), filepath.Base(j.path), j.path,
-					music.WithTrackFile(j.size, j.mimeType),
-				)
-				if parseErr != nil {
-					slog.Warn("music scan: fallback track build failed", slog.String("path", j.path), slog.Any("err", parseErr))
-					return
-				}
+			if s.processOneTrack(ctx, libraryID, j) {
+				total.Add(1)
 			}
-			t.FileHash = j.hash
-			t.ModTime = j.modTime
-
-			if upsertErr := s.tracks.Upsert(ctx, *t); upsertErr != nil {
-				slog.Warn("music scan: upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
-				return
-			}
-			if pubErr := s.bus.Publish(ctx, music.TrackScanned{LibraryID: shared.LibraryID(libraryID), TrackID: t.ID, Title: t.Title, Path: j.path, OccurredAt: time.Now()}); pubErr != nil {
-				slog.Warn("music scan: event publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
-			}
-			if pubErr := s.bus.Publish(ctx, music.TrackAdded{LibraryID: shared.LibraryID(libraryID), TrackID: t.ID, Title: t.Title, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
-				slog.Warn("music scan: TrackAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
-			}
-			if t.Album != "" {
-				if pubErr := s.bus.Publish(ctx, music.AlbumCreated{LibraryID: shared.LibraryID(libraryID), AlbumName: t.Album, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
-					slog.Warn("music scan: AlbumCreated publish failed", slog.String("album", t.Album), slog.Any("err", pubErr))
-				}
-			}
-			total.Add(1)
 		}(j)
 	}
 	wg.Wait()
-	if s.albumArtFetcher != nil && s.albumArtDir != "" {
-		go func() {
-			defer func() {
-				if rec := recover(); rec != nil {
-					slog.Error("music: fetch missing album art panic", slog.Any("recover", rec))
-				}
-			}()
-			bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-			defer cancel()
-			n, err := s.FetchMissingAlbumArt(bgCtx, libraryID)
-			if err != nil {
-				slog.Warn("music: fetch missing album art failed", slog.Any("err", err))
-				return
-			}
-			if n > 0 {
-				slog.Info("music: fetched missing album arts", slog.Int("count", n), slog.String("library", libraryID))
+	return int(total.Load())
+}
+
+// processOneTrack parses, upserts, and publishes events for a single
+// track job. Falls back to a minimal Track when full tag parsing fails
+// so the file still gets indexed.
+func (s *CommandService) processOneTrack(ctx context.Context, libraryID string, j trackJob) bool {
+	t, parseErr := s.parseTrackWithTimeout(ctx, j.path, libraryID, j.mimeType, j.size)
+	if parseErr != nil {
+		slog.Warn("music scan: parse failed", slog.String("path", j.path), slog.Any("err", parseErr))
+		t, parseErr = music.NewTrack(uuid.New().String(), shared.LibraryID(libraryID), filepath.Base(j.path), j.path,
+			music.WithTrackFile(j.size, j.mimeType),
+		)
+		if parseErr != nil {
+			slog.Warn("music scan: fallback track build failed", slog.String("path", j.path), slog.Any("err", parseErr))
+			return false
+		}
+	}
+	t.FileHash = j.hash
+	t.ModTime = j.modTime
+
+	if upsertErr := s.tracks.Upsert(ctx, *t); upsertErr != nil {
+		slog.Warn("music scan: upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
+		return false
+	}
+	if pubErr := s.bus.Publish(ctx, music.TrackScanned{LibraryID: shared.LibraryID(libraryID), TrackID: t.ID, Title: t.Title, Path: j.path, OccurredAt: time.Now()}); pubErr != nil {
+		slog.Warn("music scan: event publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
+	}
+	if pubErr := s.bus.Publish(ctx, music.TrackAdded{LibraryID: shared.LibraryID(libraryID), TrackID: t.ID, Title: t.Title, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
+		slog.Warn("music scan: TrackAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
+	}
+	if t.Album != "" {
+		if pubErr := s.bus.Publish(ctx, music.AlbumCreated{LibraryID: shared.LibraryID(libraryID), AlbumName: t.Album, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
+			slog.Warn("music scan: AlbumCreated publish failed", slog.String("album", t.Album), slog.Any("err", pubErr))
+		}
+	}
+	return true
+}
+
+// kickAlbumArtFetch starts a background goroutine to fetch any missing
+// album art for the library. No-op when the fetcher or storage dir
+// aren't wired.
+func (s *CommandService) kickAlbumArtFetch(libraryID string) {
+	if s.albumArtFetcher == nil || s.albumArtDir == "" {
+		return
+	}
+	go func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				slog.Error("music: fetch missing album art panic", slog.Any("recover", rec))
 			}
 		}()
-	}
-	return int(total.Load()), walkErr
+		bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		n, err := s.FetchMissingAlbumArt(bgCtx, libraryID)
+		if err != nil {
+			slog.Warn("music: fetch missing album art failed", slog.Any("err", err))
+			return
+		}
+		if n > 0 {
+			slog.Info("music: fetched missing album arts", slog.Int("count", n), slog.String("library", libraryID))
+		}
+	}()
 }
 
 // FetchMissingAlbumArtAllLibraries iterates music libraries and fetches missing art.
