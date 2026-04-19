@@ -39,7 +39,15 @@ func TestMigrate_UpDownUp_Roundtrip(t *testing.T) {
 			"POSTGRES_PASSWORD": "evey_test",
 			"POSTGRES_DB":       "evey_test",
 		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(60 * time.Second),
+		// During initdb, the listen socket briefly opens while postgres
+		// is still bootstrapping — Ping lands on "connection reset by
+		// peer". The ready-log appears twice (init + final restart),
+		// so ForAll(ForLog occurrence=2, ForListeningPort) is the correct
+		// wait combo used by every other test in this package.
+		WaitingFor: wait.ForAll(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+			wait.ForListeningPort("5432/tcp"),
+		).WithStartupTimeoutDefault(90 * time.Second),
 	}
 	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
