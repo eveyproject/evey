@@ -374,6 +374,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		rootLog.Info("Web Push (VAPID) notifications enabled")
 	}
 	notifOpts = append(notifOpts, appnotification.WithAdminLister(r.Profile))
+	if infra.translator != nil {
+		notifOpts = append(notifOpts, appnotification.WithTranslator(infra.translator))
+	}
 	notifCmdSvc := appnotification.NewCommandService(r.Notification, r.NotificationSettings, r.WatchHistoryAnalyzer, r.Profile, bus, notifOpts...)
 	notifCmdSvc.Register()
 	notifQuerySvc := appnotification.NewQueryService(r.Notification, r.NotificationSettings, appnotification.WithPushSubs(r.PushSubscription))

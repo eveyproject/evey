@@ -1,1 +1,29 @@
-{}
+push:
+  new_movie:
+    title: "New Movie: {label}"
+  new_episode:
+    title: "New Episode: {label}"
+  new_season:
+    title: "New Season: {label}"
+  new_series:
+    title: "New Series: {label}"
+  new_album:
+    title: "New Album: {label}"
+  series_with_seasons_and_episodes:
+    title: "New Series: {series} ({seasons} seasons, {episodes} episodes)"
+  series_with_seasons:
+    title: "New Series: {series} ({seasons} seasons)"
+  series_with_episodes:
+    title: "New Series: {series} ({episodes} episodes)"
+  season_with_episodes:
+    title: "New Season: {series} — {season} ({episodes} episodes)"
+  episodes_batched:
+    title: "New Episodes: {series} ({count} episodes)"
+  album_with_tracks:
+    title: "New Album: {album} ({tracks} tracks)"
+  backup_failed:
+    title: "Scheduled Backup Failed"
+  plugin_error:
+    title: "Plugin error"
+  plugin_error_id:
+    title: "Plugin error: {plugin}"

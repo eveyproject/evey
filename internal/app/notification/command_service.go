@@ -15,6 +15,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 )
 
 type batchEntry struct {
@@ -34,6 +35,7 @@ type CommandService struct {
 	events      shared.EventBus
 	push        notification.PushSender
 	subs        notification.PushSubscriptionRepository
+	translator  *eveyi18n.Translator
 
 	mu          sync.Mutex
 	dedupe      map[string]time.Time
@@ -67,6 +69,12 @@ func WithBatchDelay(d time.Duration) Option {
 // so the admin gets paged instead of every user on the server.
 func WithAdminLister(a AdminProfileLister) Option {
 	return func(s *CommandService) { s.adminLister = a }
+}
+
+// WithTranslator enables locale-aware push notification titles. When nil, push
+// titles fall back to the hardcoded EN strings.
+func WithTranslator(t *eveyi18n.Translator) Option {
+	return func(s *CommandService) { s.translator = t }
 }
 
 func NewCommandService(
@@ -191,7 +199,7 @@ func (s *CommandService) handleMediaItemAdded(_ context.Context, ev shared.Event
 	}
 	s.mu.Unlock()
 
-	s.emitNotifications(e.Type, e.Title, e.SeriesTitle, string(e.MediaItemID), e.Genres, "")
+	s.emitNotifications(e.Type, e.Title, e.SeriesTitle, string(e.MediaItemID), e.Genres, nil)
 }
 
 func isBatchable(e libevent.MediaItemAdded) bool {
@@ -280,12 +288,12 @@ func (s *CommandService) flushBatch(key string) {
 	// Full series (series event present)
 	if batch.seriesEvent != nil {
 		if batch.seriesEvent.Type == "album" {
-			title, pushTitle := batchedAlbumTitle(batch.seriesEvent.Title, episodeCount)
-			s.emitNotifications("album", title, "", string(batch.seriesEvent.MediaItemID), batch.seriesEvent.Genres, pushTitle)
+			title, push := batchedAlbumTitle(batch.seriesEvent.Title, episodeCount)
+			s.emitNotifications("album", title, "", string(batch.seriesEvent.MediaItemID), batch.seriesEvent.Genres, &push)
 			return
 		}
-		title, pushTitle := batchedSeriesTitle(batch.seriesEvent.Title, seasonCount, episodeCount)
-		s.emitNotifications("series", title, "", string(batch.seriesEvent.MediaItemID), batch.seriesEvent.Genres, pushTitle)
+		title, push := batchedSeriesTitle(batch.seriesEvent.Title, seasonCount, episodeCount)
+		s.emitNotifications("series", title, "", string(batch.seriesEvent.MediaItemID), batch.seriesEvent.Genres, &push)
 		return
 	}
 
@@ -296,15 +304,15 @@ func (s *CommandService) flushBatch(key string) {
 		if seriesTitle == "" {
 			seriesTitle = season.Title
 		}
-		title, pushTitle := batchedSeasonTitle(seriesTitle, season.Title, episodeCount)
-		s.emitNotifications("season", title, "", string(season.MediaItemID), season.Genres, pushTitle)
+		title, push := batchedSeasonTitle(seriesTitle, season.Title, episodeCount)
+		s.emitNotifications("season", title, "", string(season.MediaItemID), season.Genres, &push)
 		return
 	}
 
 	// Season(s) alone — emit each one
 	if seasonCount > 0 {
 		for _, season := range batch.seasons {
-			s.emitNotifications(season.Type, season.Title, season.SeriesTitle, string(season.MediaItemID), season.Genres, "")
+			s.emitNotifications(season.Type, season.Title, season.SeriesTitle, string(season.MediaItemID), season.Genres, nil)
 		}
 		return
 	}
@@ -312,18 +320,18 @@ func (s *CommandService) flushBatch(key string) {
 	// Just episodes
 	if episodeCount == 1 {
 		ep := batch.episodes[0]
-		s.emitNotifications(ep.Type, ep.Title, ep.SeriesTitle, string(ep.MediaItemID), ep.Genres, "")
+		s.emitNotifications(ep.Type, ep.Title, ep.SeriesTitle, string(ep.MediaItemID), ep.Genres, nil)
 		return
 	}
 
 	if episodeCount > 1 {
 		first := batch.episodes[0]
-		title, pushTitle := batchedEpisodesTitle(first.SeriesTitle, episodeCount)
-		s.emitNotifications("episode", title, "", string(first.MediaItemID), first.Genres, pushTitle)
+		title, push := batchedEpisodesTitle(first.SeriesTitle, episodeCount)
+		s.emitNotifications("episode", title, "", string(first.MediaItemID), first.Genres, &push)
 	}
 }
 
-func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaItemID string, genres []string, pushTitleOverride string) {
+func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaItemID string, genres []string, pushOverride *pushSpec) {
 	parent := s.shutdownCtx
 	if parent == nil {
 		slog.Warn("notification: emitNotifications called before Start(); using background context")
@@ -332,12 +340,12 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 
-	notifType, notifTitle, pushTitle := typeAndTitle(mediaType, title, seriesTitle)
+	notifType, notifTitle, push := typeAndTitle(mediaType, title, seriesTitle)
 	if notifType == "" {
 		return
 	}
-	if pushTitleOverride != "" {
-		pushTitle = pushTitleOverride
+	if pushOverride != nil {
+		push = *pushOverride
 	}
 
 	profiles, err := s.profiles.GetAll(ctx)
@@ -382,7 +390,7 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 			slog.Warn("notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
 			continue
 		}
-		s.persistAndDispatch(ctx, n, pushTitle)
+		s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, p.Locale))
 	}
 }
 
@@ -488,6 +496,7 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
 	title := "Scheduled Backup Failed"
+	push := pushSpec{key: "notifications.push.backup_failed.title", fallback: title}
 	for _, p := range profiles {
 		n, err := notification.NewNotification(uuid.New().String(), p.ID, notification.TypeBackupFailed, title,
 			notification.WithNotificationMessage(e.Error),
@@ -498,7 +507,7 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 			slog.Warn("notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
 			continue
 		}
-		s.persistAndDispatch(ctx, n, n.Title)
+		s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, p.Locale))
 	}
 }
 
@@ -531,8 +540,14 @@ func (s *CommandService) handlePluginError(parentCtx context.Context, ev shared.
 	}
 
 	title := "Plugin error"
+	push := pushSpec{key: "notifications.push.plugin_error.title", fallback: title}
 	if e.PluginID != "" {
 		title = "Plugin error: " + e.PluginID
+		push = pushSpec{
+			key:      "notifications.push.plugin_error_id.title",
+			params:   map[string]string{"plugin": e.PluginID},
+			fallback: title,
+		}
 	}
 	msg := e.ErrorMessage
 	if msg == "" {
@@ -549,7 +564,7 @@ func (s *CommandService) handlePluginError(parentCtx context.Context, ev shared.
 			slog.Warn("notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
 			continue
 		}
-		s.persistAndDispatch(ctx, n, n.Title)
+		s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, p.Locale))
 	}
 	slog.Info("plugin error notified",
 		slog.String("plugin_id", e.PluginID),

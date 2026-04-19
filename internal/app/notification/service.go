@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/domain/notification"
 	"github.com/evey-project/evey/internal/domain/user"
 )
@@ -23,59 +24,140 @@ type AdminProfileLister interface {
 	ListAdminProfiles(ctx context.Context) ([]*user.Profile, error)
 }
 
-func typeAndTitle(mediaType, title, seriesTitle string) (notification.Type, string, string) {
+// pushSpec describes the push-notification payload in a locale-agnostic way:
+// the i18n key and the params to interpolate. fallback is the EN string used
+// when no translator is wired (keeps tests backward-compatible).
+type pushSpec struct {
+	key      string
+	params   map[string]string
+	fallback string
+}
+
+func (p pushSpec) resolveTitle(t *eveyi18n.Translator, locale string) string {
+	if p.key == "" {
+		return p.fallback
+	}
+	if t == nil {
+		return p.fallback
+	}
+	msg := t.T(locale, p.key, p.params)
+	if msg == p.key {
+		return p.fallback
+	}
+	return msg
+}
+
+func typeAndTitle(mediaType, title, seriesTitle string) (notification.Type, string, pushSpec) {
 	label := title
 	if seriesTitle != "" && (mediaType == "episode" || mediaType == "season") {
 		label = seriesTitle + " — " + title
 	}
 	switch mediaType {
 	case "movie":
-		return notification.TypeNewMovie, "new_movie:" + label, "New Movie: " + label
+		return notification.TypeNewMovie, "new_movie:" + label, pushSpec{
+			key:      "notifications.push.new_movie.title",
+			params:   map[string]string{"label": label},
+			fallback: "New Movie: " + label,
+		}
 	case "episode":
-		return notification.TypeNewEpisode, "new_episode:" + label, "New Episode: " + label
+		return notification.TypeNewEpisode, "new_episode:" + label, pushSpec{
+			key:      "notifications.push.new_episode.title",
+			params:   map[string]string{"label": label},
+			fallback: "New Episode: " + label,
+		}
 	case "season":
-		return notification.TypeNewSeason, "new_season:" + label, "New Season: " + label
+		return notification.TypeNewSeason, "new_season:" + label, pushSpec{
+			key:      "notifications.push.new_season.title",
+			params:   map[string]string{"label": label},
+			fallback: "New Season: " + label,
+		}
 	case "series":
-		return notification.TypeNewSeries, "new_series:" + label, "New Series: " + label
+		return notification.TypeNewSeries, "new_series:" + label, pushSpec{
+			key:      "notifications.push.new_series.title",
+			params:   map[string]string{"label": label},
+			fallback: "New Series: " + label,
+		}
 	case "album":
-		return notification.TypeNewAlbum, "new_album:" + label, "New Album: " + label
+		return notification.TypeNewAlbum, "new_album:" + label, pushSpec{
+			key:      "notifications.push.new_album.title",
+			params:   map[string]string{"label": label},
+			fallback: "New Album: " + label,
+		}
 	}
-	return "", "", ""
+	return "", "", pushSpec{}
 }
 
 func levelForType(cfg *notification.Settings, t notification.Type) notification.Level {
 	return cfg.LevelForType(t)
 }
 
-// batchedSeriesTitle returns the display label (without type prefix) and push title.
-func batchedSeriesTitle(seriesTitle string, seasonCount, episodeCount int) (label, pushTitle string) {
+// batchedSeriesTitle returns the display label (without type prefix) and push spec.
+func batchedSeriesTitle(seriesTitle string, seasonCount, episodeCount int) (label string, push pushSpec) {
+	params := map[string]string{
+		"series":   seriesTitle,
+		"seasons":  fmt.Sprintf("%d", seasonCount),
+		"episodes": fmt.Sprintf("%d", episodeCount),
+	}
 	switch {
 	case seasonCount > 0 && episodeCount > 0:
 		label = fmt.Sprintf("%s (%d seasons, %d episodes)", seriesTitle, seasonCount, episodeCount)
+		push = pushSpec{key: "notifications.push.series_with_seasons_and_episodes.title", params: params, fallback: "New Series: " + label}
 	case seasonCount > 0:
 		label = fmt.Sprintf("%s (%d seasons)", seriesTitle, seasonCount)
+		push = pushSpec{key: "notifications.push.series_with_seasons.title", params: params, fallback: "New Series: " + label}
 	case episodeCount > 0:
 		label = fmt.Sprintf("%s (%d episodes)", seriesTitle, episodeCount)
+		push = pushSpec{key: "notifications.push.series_with_episodes.title", params: params, fallback: "New Series: " + label}
 	default:
 		label = seriesTitle
+		push = pushSpec{key: "notifications.push.new_series.title", params: map[string]string{"label": label}, fallback: "New Series: " + label}
 	}
-	return label, "New Series: " + label
+	return label, push
 }
 
-func batchedSeasonTitle(seriesTitle, seasonTitle string, episodeCount int) (label, pushTitle string) {
+func batchedSeasonTitle(seriesTitle, seasonTitle string, episodeCount int) (label string, push pushSpec) {
 	label = fmt.Sprintf("%s — %s (%d episodes)", seriesTitle, seasonTitle, episodeCount)
-	return label, "New Season: " + label
+	push = pushSpec{
+		key: "notifications.push.season_with_episodes.title",
+		params: map[string]string{
+			"series":   seriesTitle,
+			"season":   seasonTitle,
+			"episodes": fmt.Sprintf("%d", episodeCount),
+		},
+		fallback: "New Season: " + label,
+	}
+	return label, push
 }
 
-func batchedEpisodesTitle(seriesTitle string, count int) (label, pushTitle string) {
+func batchedEpisodesTitle(seriesTitle string, count int) (label string, push pushSpec) {
 	label = fmt.Sprintf("%s (%d episodes)", seriesTitle, count)
-	return label, "New Episodes: " + label
+	push = pushSpec{
+		key: "notifications.push.episodes_batched.title",
+		params: map[string]string{
+			"series": seriesTitle,
+			"count":  fmt.Sprintf("%d", count),
+		},
+		fallback: "New Episodes: " + label,
+	}
+	return label, push
 }
 
-func batchedAlbumTitle(albumTitle string, trackCount int) (label, pushTitle string) {
+func batchedAlbumTitle(albumTitle string, trackCount int) (label string, push pushSpec) {
 	if trackCount > 0 {
 		label = fmt.Sprintf("%s (%d tracks)", albumTitle, trackCount)
-		return label, "New Album: " + label
+		push = pushSpec{
+			key: "notifications.push.album_with_tracks.title",
+			params: map[string]string{
+				"album":  albumTitle,
+				"tracks": fmt.Sprintf("%d", trackCount),
+			},
+			fallback: "New Album: " + label,
+		}
+		return label, push
 	}
-	return albumTitle, "New Album: " + albumTitle
+	return albumTitle, pushSpec{
+		key:      "notifications.push.new_album.title",
+		params:   map[string]string{"label": albumTitle},
+		fallback: "New Album: " + albumTitle,
+	}
 }
