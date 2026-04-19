@@ -1,4 +1,4 @@
-.PHONY: proto-gen plugin-sdk build test lint clean \
+.PHONY: proto-gen plugin-sdk plugin-zips build test lint clean \
 	migrate-up migrate-down setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile
@@ -34,6 +34,9 @@ plugin-sdk:
 	mkdir -p sdk/dart
 	cp proto/plugin/v1/plugin_api.proto sdk/dart/
 	@echo "Done — sdk/ updated"
+
+plugin-zips:
+	@./scripts/build-test-plugins.sh
 
 build:
 	go build -o bin/$(BINARY) ./cmd/evey

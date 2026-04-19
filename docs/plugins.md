@@ -115,11 +115,17 @@ ui_widgets:
 
 ### Supported Languages
 
-- **Python** (`python3`) -- pre-generated gRPC stubs provided via SDK
-- **Node.js** (`node`) -- proto file loaded at runtime via `@grpc/proto-loader`
-- **Go** (`go`) -- compiled binary, no interpreter needed
-- **Rust** (`rust`) -- compiled binary
-- **CSS** (`css`) -- static theme, no subprocess (runs as `ui.theme` capability)
+The `language:` field is informational — the runner doesn't validate it.
+What matters is the `entrypoint:` command actually runs. Examples under
+`examples/plugins/` cover: `python`, `nodejs`, `bash`, `sh`, `lua`,
+`perl`, `php`, `ruby`, `css`. Compiled languages (Go, Rust, etc.) work
+too but require the `native-binary` permission (see below).
+
+- **Python** (`python`) — pre-generated gRPC stubs provided via SDK
+- **Node.js** (`nodejs`) — proto file loaded at runtime via `@grpc/proto-loader`
+- **Shell / interpreter languages** (`bash`, `sh`, `lua`, `perl`, `php`, `ruby`) — provided for experimentation, must invoke the interpreter in `entrypoint:`
+- **CSS** (`css`) — static theme, no subprocess (runs as `ui.theme` capability)
+- **Compiled binaries** (Go / Rust / anything with native code) — require the `native-binary` permission because the static analyzer can't inspect them
 
 ### Config Schema Types
 
@@ -344,11 +350,31 @@ These are implemented by the plugin and called by the host:
 
 ## Installation
 
+### Enabling the plugin subsystem
+
+The plugin system is **off by default** in 1.x. Set
+`EVEY_PLUGINS_ENABLED=true` to activate. Until then, all
+`AdminPluginService` RPCs return `FailedPrecondition` and the runner is
+not constructed — there's no ambient attack surface if you don't use
+plugins. Flip it on only on hosts where you intend to install plugins.
+
 ### Upload via admin UI
 
 `POST /api/v1/admin/plugins/upload` (admin-only, multipart form, field `plugin`).
 
 Max upload size: 100 MB.
+
+### ZIP extraction limits
+
+The installer rejects archives that try to exhaust resources:
+
+| Limit | Value | Rationale |
+|---|---|---|
+| File count | 5 000 entries | Blocks "many small files" DoS |
+| Total uncompressed size | 500 MB | Blocks disk-fill |
+| Per-file compression ratio | 100× | Blocks zip bombs |
+| File mode | masked to `0o755` | Strips `setuid` / `setgid` / sticky bits on extracted files |
+| Symlinks | extracted, but analyzer flags them | Handled in the static analysis report |
 
 ### Supported format
 
@@ -505,6 +531,28 @@ window.evey.onInit(({ context, locale, theme }) => {
 
 `metadata.provider`, `media.read`, `media.write`, `webhook.receiver`, `notification.sender`, `ui.extension`, `ui.theme`
 
+### Examples
+
+Working plugins covering every capability live under
+`examples/plugins/`. Pre-built uploadable ZIPs are in `tests/plugins/`
+— zip names mirror the example directory name
+(`examples/plugins/<foo>/` → `tests/plugins/<foo>.zip`). Rebuild the
+zips after editing an example with:
+
+```bash
+make plugin-zips
+```
+
+The script is at `scripts/build-test-plugins.sh`. Security-test and
+malicious-theme ZIPs under `tests/plugins/` have no example source;
+they're hand-built fixtures kept for negative testing.
+
 ### Known Permissions
 
-`network`, `filesystem`, `media.read`, `media.write`, `api.library`, `api.user`, `api.metadata`, `notification.sender`, `subprocess`
+`network`, `filesystem`, `media.read`, `media.write`, `api.library`, `api.user`, `api.metadata`, `notification.sender`, `subprocess`, `native-binary`
+
+The `native-binary` permission is required when the ZIP contains any
+compiled executable, shared library, or embedded archive — anything the
+static analyzer can't inspect. Without it, install is blocked with
+`plugin blocked: bundles compiled binaries or archives`. This is an
+explicit opt-in so the admin sees the elevated risk at preview time.
