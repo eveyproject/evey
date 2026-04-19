@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/subtitle"
@@ -44,14 +43,12 @@ func (s *Service) Download(ctx context.Context, mediaItemID string, fileID int, 
 	if format == "" {
 		format = "srt"
 	}
-	sub := &subtitle.SubtitleDownload{
-		ID:           id.New("sub-"),
-		MediaItemID:  shared.MediaItemID(mediaItemID),
-		Language:     language,
-		Format:       format,
-		FilePath:     filePath,
-		Source:       "opensubtitles",
-		DownloadedAt: time.Now(),
+	sub, err := subtitle.NewSubtitleDownload(id.New("sub-"), shared.MediaItemID(mediaItemID), language, filePath,
+		subtitle.WithSubtitleFormat(format),
+		subtitle.WithSubtitleSource("opensubtitles"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("build subtitle: %w", err)
 	}
 	if err := s.repo.Save(ctx, sub); err != nil {
 		return nil, fmt.Errorf("save subtitle: %w", err)
