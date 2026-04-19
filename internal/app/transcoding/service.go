@@ -89,6 +89,7 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 		if updateErr := s.jobs.Update(ctx, job); updateErr != nil {
 			slog.Warn("update transcode job failed", slog.String("jobID", job.ID), slog.Any("err", updateErr))
 		}
+		metrics.TranscodeDuration.WithLabelValues("failed").Observe(time.Since(job.StartedAt).Seconds())
 		evtFailed := transcoding.TranscodeFailed{JobID: job.ID, MediaItemID: job.MediaItemID, ErrorMessage: err.Error(), OccurredAt: time.Now()}
 		if pubErr := s.events.Publish(ctx, evtFailed); pubErr != nil {
 			slog.Warn("publish event", slog.String("event", evtFailed.EventName()), slog.Any("err", pubErr))
@@ -136,6 +137,9 @@ func (s *Service) StopTranscode(ctx context.Context, jobID string) error {
 	job.EndedAt = &now
 	if err := s.jobs.Update(ctx, job); err != nil {
 		slog.Warn("update transcode job failed", slog.String("jobID", jobID), slog.Any("err", err))
+	}
+	if !job.StartedAt.IsZero() {
+		metrics.TranscodeDuration.WithLabelValues("cancelled").Observe(now.Sub(job.StartedAt).Seconds())
 	}
 	evtCancelled := transcoding.TranscodeCancelled{JobID: jobID, MediaItemID: job.MediaItemID, OccurredAt: now}
 	if err := s.events.Publish(ctx, evtCancelled); err != nil {

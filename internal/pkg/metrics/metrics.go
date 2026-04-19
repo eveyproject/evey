@@ -76,6 +76,16 @@ var (
 		Name: "evey_transcode_queue_depth",
 		Help: "Number of HLS session requests waiting for a concurrency slot.",
 	})
+
+	// TranscodeDuration tracks how long a transcode job ran before its
+	// terminal transition (failed / cancelled). Default prom buckets top
+	// out at 10s which is useless for transcodes that routinely take
+	// minutes to hours. Custom buckets span seconds to two hours.
+	TranscodeDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "evey_transcode_duration_seconds",
+		Help:    "Transcode job duration in seconds, by terminal status.",
+		Buckets: []float64{1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600, 7200},
+	}, []string{"status"})
 )
 
 func init() {
@@ -85,6 +95,7 @@ func init() {
 		DBConnectionsOpen, DBConnectionsIdle, DBConnectionsInUse,
 		MediaItemsTotal,
 		AuthLatency, ScanQueueDepth, TranscodeQueueDepth,
+		TranscodeDuration,
 	)
 }
 
