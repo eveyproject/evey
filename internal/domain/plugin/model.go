@@ -50,13 +50,65 @@ type Plugin struct {
 }
 
 func (p *Plugin) Validate() error {
+	if p.ID == "" {
+		return errors.New("plugin requires an ID")
+	}
 	if p.Name == "" {
 		return errors.New("plugin requires a name")
 	}
 	if p.Version == "" {
 		return errors.New("plugin requires a version")
 	}
+	if p.Status != "" && !p.Status.IsValid() {
+		return errors.New("plugin: invalid status")
+	}
 	return nil
+}
+
+// NewPluginFromManifest builds a freshly-installed Plugin record from
+// a validated manifest. The installer mints the ID + sourceHash (those
+// can't be derived from the manifest alone) and stamps timestamps.
+// Status defaults to Stopped; Enabled to true. Use this over &Plugin{...}
+// literals so Validate() is enforced before hitting the repo.
+func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Plugin, error) {
+	if manifest == nil {
+		return nil, errors.New("plugin manifest required")
+	}
+	if err := manifest.Validate(); err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	p := &Plugin{
+		ID:           id,
+		Name:         manifest.Name,
+		Version:      manifest.Version,
+		Description:  manifest.Description,
+		Author:       manifest.Author,
+		Language:     manifest.Language,
+		Entrypoint:   manifest.Entrypoint,
+		Capabilities: manifest.Capabilities,
+		Permissions:  manifest.Permissions,
+		ConfigSchema: manifest.ConfigSchema,
+		UIWidgets:    manifest.UIWidgets,
+		Config:       make(map[string]any),
+		SourceHash:   sourceHash,
+		Enabled:      true,
+		Status:       Stopped,
+		InstalledAt:  now,
+		UpdatedAt:    now,
+	}
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+func (s PluginStatus) IsValid() bool {
+	switch s {
+	case Stopped, Initializing, Running, Error, Installed:
+		return true
+	}
+	return false
 }
 
 func (m *PluginManifest) Validate() error {

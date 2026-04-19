@@ -131,23 +131,9 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 		return nil, fmt.Errorf("hash plugin file: %w", hashErr)
 	}
 
-	p := &plugin.Plugin{
-		ID:           id.New("plg-"),
-		Name:         manifest.Name,
-		Version:      manifest.Version,
-		Description:  manifest.Description,
-		Author:       manifest.Author,
-		Language:     manifest.Language,
-		Entrypoint:   manifest.Entrypoint,
-		Capabilities: manifest.Capabilities,
-		Permissions:  manifest.Permissions,
-		ConfigSchema: manifest.ConfigSchema,
-		Config:       make(map[string]any),
-		SourceHash:   sourceHash,
-		Enabled:      true,
-		Status:       plugin.Stopped,
-		InstalledAt:  time.Now(),
-		UpdatedAt:    time.Now(),
+	p, err := plugin.NewPluginFromManifest(id.New("plg-"), sourceHash, manifest)
+	if err != nil {
+		return nil, fmt.Errorf("build plugin: %w", err)
 	}
 
 	if s.installer != nil {
