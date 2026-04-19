@@ -68,6 +68,14 @@ var (
 		Name: "evey_scan_queue_depth",
 		Help: "Number of files enqueued for library scan processing.",
 	}, []string{"library_id"})
+
+	// TranscodeQueueDepth counts GetOrCreate callers blocked waiting for
+	// a semaphore slot (all maxConcurrent slots taken). > 0 for any extended
+	// period = the server is under-provisioned on HLS concurrency.
+	TranscodeQueueDepth = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "evey_transcode_queue_depth",
+		Help: "Number of HLS session requests waiting for a concurrency slot.",
+	})
 )
 
 func init() {
@@ -76,7 +84,7 @@ func init() {
 		HTTPRequestsTotal, HTTPRequestDuration,
 		DBConnectionsOpen, DBConnectionsIdle, DBConnectionsInUse,
 		MediaItemsTotal,
-		AuthLatency, ScanQueueDepth,
+		AuthLatency, ScanQueueDepth, TranscodeQueueDepth,
 	)
 }
 

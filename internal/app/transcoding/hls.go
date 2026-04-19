@@ -14,6 +14,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 func IsImageSubtitle(codec string) bool {
@@ -167,14 +168,18 @@ func (m *HLSManager) acquireSemaphore() error {
 	}
 	select {
 	case m.sem <- struct{}{}:
+		metrics.HLSSessionsGauge.Set(float64(len(m.sem)))
 		return nil
 	default:
 	}
 	slog.Info("hls: session queued, waiting for slot", slog.Int("max", m.maxConcurrent))
+	metrics.TranscodeQueueDepth.Inc()
+	defer metrics.TranscodeQueueDepth.Dec()
 	timer := time.NewTimer(m.queueTimeout)
 	defer timer.Stop()
 	select {
 	case m.sem <- struct{}{}:
+		metrics.HLSSessionsGauge.Set(float64(len(m.sem)))
 		return nil
 	case <-timer.C:
 		return errors.New("too many concurrent sessions, try again")
@@ -189,6 +194,7 @@ func (m *HLSManager) releaseSemaphore() {
 	}
 	select {
 	case <-m.sem:
+		metrics.HLSSessionsGauge.Set(float64(len(m.sem)))
 	default:
 	}
 }
