@@ -141,7 +141,7 @@ export function MetadataEditPanel({
   const { t } = useTranslation();
   const origImdbId = item.providerIds?.imdb ?? "";
   const origTmdbId = item.providerIds?.tmdb ?? "";
-  const [form, setForm] = useState<EditForm>({
+  const initialForm: EditForm = {
     title: item.title ?? "",
     originalTitle: item.originalTitle ?? "",
     year: item.year ? String(item.year) : "",
@@ -150,10 +150,15 @@ export function MetadataEditPanel({
     communityRating: item.communityRating ? String(item.communityRating) : "",
     imdbId: origImdbId,
     tmdbId: origTmdbId,
-  });
+  };
+  const [form, setForm] = useState<EditForm>(initialForm);
   const [saving, setSaving] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState<"idle" | "running" | "done" | "error">("idle");
-  const [resetting, setResetting] = useState(false);
+  const canSave =
+    form.title.trim() !== "" ||
+    form.originalTitle.trim() !== "" ||
+    form.imdbId.trim() !== "" ||
+    form.tmdbId.trim() !== "";
   const setOverride = useMetadataServiceSetMetadataOverride();
   const removeOverride = useMetadataServiceRemoveMetadataOverride();
   const refresh = useMetadataServiceRefreshMetadata();
@@ -193,13 +198,15 @@ export function MetadataEditPanel({
         toast.success(t("media.detail.reEnrichedWithNewId"));
       }
 
-      const fields: Array<[string, string]> = FIELD_MAP.map(({ overrideKey, formKey }) => [overrideKey, form[formKey].trim()]);
-      const hasOverrides = fields.some(([, v]) => v !== "");
-      if (hasOverrides) {
-        for (const [fieldName, customValue] of fields) {
-          if (customValue) {
-            await setOverride.mutateAsync({ data: { mediaItemId: item.id, fieldName, customValue } });
-          }
+      // Only save overrides for fields the user explicitly edited in the form.
+      // Pre-filled fields equal to initialForm are NOT user intent; saving them
+      // would shadow a fresh enrichment (e.g. after IMDB/TMDB ID change).
+      const dirtyFields = FIELD_MAP
+        .map(({ overrideKey, formKey }) => ({ overrideKey, formKey, value: form[formKey].trim() }))
+        .filter(({ formKey, value }) => value !== "" && value !== initialForm[formKey].trim());
+      if (dirtyFields.length > 0) {
+        for (const { overrideKey, value } of dirtyFields) {
+          await setOverride.mutateAsync({ data: { mediaItemId: item.id, fieldName: overrideKey, customValue: value } });
         }
         queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
         queryClient.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
@@ -241,24 +248,20 @@ export function MetadataEditPanel({
     }
   }
 
-  async function handleResetMetadata() {
-    if (!item.id) return;
-    setResetting(true);
-    try {
-      await eveyFetch<void>({
-        url: `/api/v1/admin/media/${item.id}/reset-metadata`,
-        method: "POST",
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
-      queryClient.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
-      toast.success(t("media.detail.metadataReset"));
-      onSave();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`${t("media.detail.resetMetadataFailed")}: ${msg}`);
-    } finally {
-      setResetting(false);
-    }
+  // Front-only: nothing persists until user hits Save. Lets the user start
+  // from a blank slate and chain (reset → IMDB/TMDB ID → Save) or (reset →
+  // manual fields → Save) without closing the modal.
+  function handleResetMetadata() {
+    setForm({
+      title: "",
+      originalTitle: "",
+      year: "",
+      overview: "",
+      genres: "",
+      communityRating: "",
+      imdbId: "",
+      tmdbId: "",
+    });
   }
 
   function set(field: keyof EditForm) {
@@ -339,11 +342,11 @@ export function MetadataEditPanel({
       )}
       {item.id && <ArtworkPicker mediaItemId={item.id} />}
       <div className="flex gap-2 flex-wrap pt-1">
-        <Button type="submit" loading={saving}>{t("common.save")}</Button>
+        <Button type="submit" loading={saving} disabled={!canSave}>{t("common.save")}</Button>
         <Button type="button" variant="secondary" loading={refreshStatus === "running"} onClick={handleRefresh}>
           {refreshStatus === "done" ? t("common.done") : refreshStatus === "error" ? t("common.error") : t("media.detail.refreshMetadata")}
         </Button>
-        <Button type="button" variant="danger" loading={resetting} onClick={handleResetMetadata}>
+        <Button type="button" variant="danger" onClick={handleResetMetadata}>
           {t("media.detail.resetMetadata")}
         </Button>
         <Button type="button" variant="secondary" onClick={onCancel}>{t("common.cancel")}</Button>
