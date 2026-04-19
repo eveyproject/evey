@@ -65,21 +65,21 @@ func NewQueryService(
 
 func (s *QueryService) GetMediaItemTranslation(ctx context.Context, mediaItemID, locale string) (*library.MediaItemTranslation, error) {
 	if s.mediaTranslations == nil {
-		return nil, nil
+		return nil, shared.ErrNotConfigured
 	}
 	return s.mediaTranslations.GetByMediaItemAndLocale(ctx, mediaItemID, locale)
 }
 
 func (s *QueryService) GetPersonTranslation(ctx context.Context, personID, locale string) (*library.PersonTranslation, error) {
 	if s.personTranslations == nil {
-		return nil, nil
+		return nil, shared.ErrNotConfigured
 	}
 	return s.personTranslations.GetByPersonAndLocale(ctx, personID, locale)
 }
 
 func (s *QueryService) GetPerson(ctx context.Context, id string) (*library.Person, error) {
 	if s.people == nil {
-		return nil, nil
+		return nil, shared.ErrNotConfigured
 	}
 	return s.people.GetByID(ctx, id)
 }

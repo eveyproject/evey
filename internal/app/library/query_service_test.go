@@ -182,7 +182,8 @@ func TestQueryService_GetMediaItemTranslation_NilRepo(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
 	result, err := f.svc.GetMediaItemTranslation(context.Background(), "m1", "fr")
-	require.NoError(t, err)
+	// No translations repo wired -> ErrNotConfigured, not silent (nil, nil).
+	require.ErrorIs(t, err, shared.ErrNotConfigured)
 	assert.Nil(t, result)
 }
 
@@ -229,7 +230,7 @@ func TestQueryService_GetPersonTranslation_NilRepo(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
 	result, err := f.svc.GetPersonTranslation(context.Background(), "p1", "fr")
-	require.NoError(t, err)
+	require.ErrorIs(t, err, shared.ErrNotConfigured)
 	assert.Nil(t, result)
 }
 
@@ -260,7 +261,7 @@ func TestQueryService_GetPerson_NilPeopleRepo(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
 	result, err := f.svc.GetPerson(context.Background(), "p1")
-	require.NoError(t, err)
+	require.ErrorIs(t, err, shared.ErrNotConfigured)
 	assert.Nil(t, result)
 }
 
