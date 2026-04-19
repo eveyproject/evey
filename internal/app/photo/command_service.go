@@ -61,15 +61,20 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 	var toProcess []photoJob
 
 	walkErr := s.scanner.WalkImageFiles(ctx, dir, func(f photo.ScannedImageFile) error {
+		// Fast dedup path: same file_path, size, and mod_time means unchanged.
+		// Truncate to microseconds — Postgres stores timestamps at µs precision
+		// while the filesystem exposes ns, so a raw .Equal() flags EVERY file
+		// as changed on every scan, spinning upsert and saturating the DB pool.
+		if ex := byPath[f.Path]; ex != nil {
+			if ex.FileSize == f.Size &&
+				ex.ModTime.Truncate(time.Microsecond).Equal(f.ModTime.Truncate(time.Microsecond)) {
+				return nil
+			}
+		}
+
 		hash, hashErr := s.scanner.ComputeHash(f.Path)
 		if hashErr != nil {
 			slog.Warn("photo hash error", slog.String("path", f.Path), slog.Any("err", hashErr))
-		}
-
-		if ex := byPath[f.Path]; ex != nil {
-			if ex.FileSize == f.Size && ex.ModTime.Equal(f.ModTime) && ex.FileHash == hash {
-				return nil
-			}
 		}
 
 		if byPath[f.Path] == nil && hash != "" {

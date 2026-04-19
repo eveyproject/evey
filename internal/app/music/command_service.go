@@ -136,15 +136,19 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 
 	walkErr := s.scanner.WalkAudioFiles(ctx, dir, func(f music.ScannedAudioFile) error {
 		path := f.Path
+		// Fast dedup: same path+size+modtime = unchanged. Truncate to
+		// microseconds — Postgres timestamp precision is µs vs ns from the
+		// filesystem; raw .Equal() falsely flags every file each scan.
+		if ex := byPath[path]; ex != nil {
+			if ex.FileSize == f.Size &&
+				ex.ModTime.Truncate(time.Microsecond).Equal(f.ModTime.Truncate(time.Microsecond)) {
+				return nil
+			}
+		}
+
 		hash, hashErr := s.scanner.ComputeHash(path)
 		if hashErr != nil {
 			slog.Warn("music scan: hash failed", slog.String("path", path), slog.Any("err", hashErr))
-		}
-
-		if ex := byPath[path]; ex != nil {
-			if ex.FileSize == f.Size && ex.ModTime.Equal(f.ModTime) && ex.FileHash == hash {
-				return nil
-			}
 		}
 
 		if byPath[path] == nil && hash != "" {

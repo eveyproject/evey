@@ -656,10 +656,12 @@ func TestUpsertMediaFile_UnchangedSizeEmptyFingerprint_CountsAsUnchanged(t *test
 		{Path: "/movies/film.mkv", Size: 1000, Fingerprint: ""},
 	}
 
+	// Size+mtime match + new fingerprint empty (transient read failure) =
+	// fully skipped by detectChanges — no reprocess, counter stays 0.
 	added, updated, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 	assert.Equal(t, 0, added)
-	assert.Equal(t, 1, updated)
+	assert.Equal(t, 0, updated)
 }
 
 func TestUpsertMediaFile_Changed_DifferentFingerprint(t *testing.T) {

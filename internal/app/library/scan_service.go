@@ -266,8 +266,16 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 func (s *ScanService) detectChanges(ctx context.Context, files []library.ScannedFile, idx *scanIndex) (toProcess []scanWork, moved int) {
 	for _, f := range files {
 		if ex := idx.byPath[f.Path]; ex != nil {
-			if ex.FileSize == f.Size && ex.ModTime.Equal(f.ModTime) && ex.FileFingerprint == f.Fingerprint {
-				continue
+			// Size+mtime match = unchanged. Truncate to microseconds since
+			// Postgres drops sub-µs precision; raw .Equal() otherwise flags
+			// every file each scan, spinning upsert and saturating the pool.
+			// Only reprocess when BOTH fingerprints are present and differ —
+			// that's a real content change signal.
+			if ex.FileSize == f.Size &&
+				ex.ModTime.Truncate(time.Microsecond).Equal(f.ModTime.Truncate(time.Microsecond)) {
+				if ex.FileFingerprint == "" || f.Fingerprint == "" || ex.FileFingerprint == f.Fingerprint {
+					continue
+				}
 			}
 		}
 
