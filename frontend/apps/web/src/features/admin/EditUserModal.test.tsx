@@ -11,10 +11,14 @@ const getAccessMock = vi.fn();
 
 vi.mock("@evey/api", () => ({
   useUserServiceUpdateUser: (_opts: unknown) => ({ mutateAsync: updateMutateAsync, isPending: false }),
+  useUserServiceListProfiles: (_id: string, _opts: unknown) => ({ data: { profiles: [] }, isLoading: false }),
+  useUserServiceCreateProfile: () => ({ mutate: vi.fn(), isPending: false }),
+  useUserServiceDeleteProfile: () => ({ mutate: vi.fn(), isPending: false }),
   useLibraryAccessServiceGetUserLibraryAccess: (_id: string, _opts: unknown) => getAccessMock(),
   useLibraryAccessServiceSetUserLibraryAccess: () => ({ mutateAsync: setAccessMutateAsync, isPending: false }),
   useLibraryAccessServiceRevokeAllUserLibraryAccess: () => ({ mutateAsync: revokeAccessMutateAsync, isPending: false }),
   getLibraryAccessServiceGetUserLibraryAccessQueryKey: (id: string) => ["library-access", id],
+  getUserServiceListProfilesQueryKey: (id: string) => ["profiles", id],
 }));
 
 vi.mock("@evey/store", () => ({

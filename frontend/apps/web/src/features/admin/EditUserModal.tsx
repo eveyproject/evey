@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUserServiceUpdateUser,
+  useUserServiceListProfiles,
   useLibraryAccessServiceGetUserLibraryAccess,
   useLibraryAccessServiceRevokeAllUserLibraryAccess,
   useLibraryAccessServiceSetUserLibraryAccess,
@@ -16,6 +17,8 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
+import { ProfileManagerList } from "@/features/profile/ProfileManagerList";
+import { CreateProfileDialog } from "@/features/profile/CreateProfileDialog";
 import { USERS_QUERY_KEY } from "./users-constants";
 
 export function EditUserModal({ user, open, onClose }: { user: V1User; open: boolean; onClose: () => void }) {
@@ -29,11 +32,18 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
   const [maxDevicesPerProfile, setMaxDevicesPerProfile] = useState<string>(String(user.maxDevicesPerProfile ?? 0));
   const [selectedLibs, setSelectedLibs] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  const [creatingProfile, setCreatingProfile] = useState(false);
 
   const { data: accessData, isLoading: accessLoading } = useLibraryAccessServiceGetUserLibraryAccess(
     user.id ?? "",
     { query: { enabled: open && !isAdmin && !!user.id } },
   );
+
+  const { data: profilesData, isLoading: profilesLoading } = useUserServiceListProfiles(
+    user.id ?? "",
+    { query: { enabled: open && !!user.id } },
+  );
+  const profiles = profilesData?.profiles ?? [];
 
   const libraries = accessData?.libraries ?? [];
 
@@ -177,11 +187,45 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
             </div>
           ) : null
         )}
+        <div className="flex flex-col gap-2 border-t border-[var(--border)] pt-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-[var(--text)]">
+              {t("admin.users.profilesTitle", "Profiles")}
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={!user.id}
+              onClick={() => setCreatingProfile(true)}
+            >
+              {t("auth.profile.manage.newProfile", "New profile")}
+            </Button>
+          </div>
+          {profilesLoading ? (
+            <div className="flex justify-center py-2">
+              <Spinner size="sm" />
+            </div>
+          ) : profiles.length === 0 ? (
+            <p className="text-xs text-[var(--text-muted)]">
+              {t("admin.users.noProfiles", "This user has no profiles yet.")}
+            </p>
+          ) : (
+            <ProfileManagerList userId={user.id ?? ""} profiles={profiles} />
+          )}
+        </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
           <Button type="submit" loading={saving}>{t("common.save")}</Button>
         </div>
       </form>
+      {user.id && (
+        <CreateProfileDialog
+          open={creatingProfile}
+          userId={user.id}
+          hasKidsProfile={profiles.some((p) => p.isKids === true)}
+          onClose={() => setCreatingProfile(false)}
+        />
+      )}
     </Modal>
   );
 }

@@ -168,6 +168,8 @@ users:
   maxProfilesHelp: "Maximum profiles this user can create. 0 = unlimited."
   maxDevicesPerProfile: Max devices per profile
   maxDevicesPerProfileHelp: "Maximum devices a profile can register. 0 = unlimited."
+  profilesTitle: Profiles
+  noProfiles: This user has no profiles yet.
 
 libraries:
   title: Libraries

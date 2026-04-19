@@ -168,6 +168,8 @@ users:
   maxProfilesHelp: "Maximale Anzahl Profile, die dieser Benutzer anlegen kann. 0 = unbegrenzt."
   maxDevicesPerProfile: Max. Geräte pro Profil
   maxDevicesPerProfileHelp: "Maximale Anzahl Geräte pro Profil. 0 = unbegrenzt."
+  profilesTitle: "Profile"
+  noProfiles: "Dieser Benutzer hat noch keine Profile."
 
 libraries:
   title: Bibliotheken

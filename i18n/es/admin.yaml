@@ -167,6 +167,8 @@ users:
   maxProfilesHelp: "Número máximo de perfiles que este usuario puede crear. 0 = ilimitado."
   maxDevicesPerProfile: "Dispositivos máx por perfil"
   maxDevicesPerProfileHelp: "Número máximo de dispositivos que un perfil puede registrar. 0 = ilimitado."
+  profilesTitle: "Perfiles"
+  noProfiles: "Este usuario aún no tiene perfiles."
 
 libraries:
   title: "Bibliotecas"
