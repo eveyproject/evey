@@ -78,11 +78,11 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 		)
 		SELECT id, parent_id, title, type, position_ms, added_at, season_number, episode_number
 		FROM (
-			SELECT * FROM in_progress_movies
+			SELECT id, parent_id, title, type, position_ms, added_at, last_played_at, season_number, episode_number FROM in_progress_movies
 			UNION ALL
-			SELECT * FROM in_progress_eps
+			SELECT id, parent_id, title, type, position_ms, added_at, last_played_at, season_number, episode_number FROM in_progress_eps
 			UNION ALL
-			SELECT * FROM next_unwatched
+			SELECT id, parent_id, title, type, position_ms, added_at, last_played_at, season_number, episode_number FROM next_unwatched
 		) combined
 		ORDER BY last_played_at DESC
 		LIMIT $2
