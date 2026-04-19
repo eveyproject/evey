@@ -4,25 +4,19 @@ nav:
   nowPlaying: En cours de lecture
   remoteAccess: Accès distant
   serverConfig: Configuration du serveur
-  serverSettings: Paramètres du serveur
   systemHealth: Santé du système
   media: Médias
   libraries: Bibliothèques
-  metadata: Métadonnées
   transcoding: Transcodage
-  transcodeCache: Cache de transcodage
-  transcodingProfiles: Profils de transcodage
   usersAccess: Utilisateurs et accès
   users: Utilisateurs
   integrations: Intégrations
   plugins: Plugins
   webhooks: Webhooks
-  apiKeys: "Clés API"
+  apiKeys: Clés API
   monitoring: Surveillance
   analytics: Analytique
   activity: Activité
-  auditLog: "Journal d'audit"
-  liveLogs: Logs en direct
   maintenance: Maintenance
   backupRestore: Sauvegarde BDD et restauration
 plugin:
@@ -35,119 +29,110 @@ plugin:
   configuration: Configuration
   noConfig: Aucune clé de config définie.
   configSaved: Config enregistrée
-  configSaveFailed: "Échec de la sauvegarde de la config"
+  configSaveFailed: Échec de la sauvegarde de la config
   subprocess: Sous-processus
   sandboxed: Isolé
-  hash: "Empreinte"
-  hashCopied: "Empreinte copiée"
-  verified: "Vérifié"
-  updateAvailable: "Mise à jour disponible"
-  versionHigher: "La version {{new}} remplace {{current}}"
-  versionRejected: "La version {{new}} n'est pas supérieure à {{current}}"
+  hash: Empreinte
+  hashCopied: Empreinte copiée
   sandboxedWidget: Widget isolé
-  widgetLoadError: "Échec du chargement du widget"
+  widgetLoadError: Échec du chargement du widget
   state:
     running: "En cours d'exécution"
-    starting: "Démarrage…"
+    starting: Démarrage…
     error: Erreur
     stopped: Arrêté
     installed: Installé
     unknown: Inconnu
   analysisReport:
-    title: "Avis de sécurité"
-    issues: "Problèmes"
-    urls: "URL externes"
-
+    title: Avis de sécurité
+    issues: Problèmes
+    urls: URL externes
 plugins:
-  title: "Plugins"
-  installPlugin: "Installer un Plugin"
-  uploadFile: "Téléverser un fichier"
-  fromUrl: "Depuis une URL"
-  chooseFile: "Choisir un fichier..."
-  previewInstall: "Aperçu et installation"
-  pluginFileZip: "Fichier plugin (.zip)"
-  sourceUrl: "URL source"
-  nameOptional: "Nom (optionnel)"
+  title: Plugins
+  installPlugin: Installer un Plugin
+  uploadFile: Téléverser un fichier
+  fromUrl: Depuis une URL
+  chooseFile: Choisir un fichier...
+  previewInstall: Aperçu et installation
+  pluginFileZip: Fichier plugin (.zip)
+  sourceUrl: URL source
+  nameOptional: Nom (optionnel)
   urlSkipPreview: "Note : Les installations par URL ignorent l'étape d'aperçu."
-  permissions: "Permissions"
-  capabilities: "Capacités"
-  staticAnalysis: "Analyse statique"
-  installAnyway: "Installer quand même"
-  install: "Installer"
-  subprocessRequired: "Permission de sous-processus requise"
+  permissions: Permissions
+  capabilities: Capacités
+  staticAnalysis: Analyse statique
+  installAnyway: Installer quand même
+  install: Installer
+  subprocessRequired: Permission de sous-processus requise
   subprocessWarning: "Ce plugin peut exécuter des commandes système, contournant le sandbox seccomp. Installez-le uniquement si vous faites confiance à l'auteur."
-  noPlugins: "Aucun plugin installé."
-  pluginEnabled: "Plugin activé"
-  pluginDisabled: "Plugin désactivé"
-  pluginInstalled: "Plugin installé"
-  pluginUninstalled: "Plugin désinstallé"
+  noPlugins: Aucun plugin installé.
+  pluginEnabled: Plugin activé
+  pluginDisabled: Plugin désactivé
+  pluginInstalled: Plugin installé
+  pluginUninstalled: Plugin désinstallé
   failedEnable: "Échec de l'activation du plugin"
-  failedDisable: "Échec de la désactivation du plugin"
-  failedUninstall: "Échec de la désinstallation du plugin"
-  uninstallTitle: "Désinstaller le Plugin"
+  failedDisable: Échec de la désactivation du plugin
+  failedUninstall: Échec de la désinstallation du plugin
+  uninstallTitle: Désinstaller le Plugin
   uninstallConfirm: "Désinstaller le plugin \"{{name}}\" ? Cette action est irréversible."
   selectFileFirst: "Sélectionnez d'abord un fichier plugin"
-  fileMissing: "Fichier manquant - sélectionnez à nouveau"
+  fileMissing: Fichier manquant - sélectionnez à nouveau
   blockedByAnalysis: "Plugin bloqué par l'analyse de sécurité"
   previewFailed: "Échec de l'aperçu"
   installFailed: "Échec de l'installation"
   availableRuntimes: "Environnements d'exécution disponibles"
-  noRuntimes: "Aucun environnement d'exécution de plugin détecté"
-
 dashboard:
-  title: "Tableau de bord"
-  systemInfo: "Informations système"
-  version: "Version"
-  os: "SE"
-  arch: "Architecture"
-  goVersion: "Version de Go"
-  ffmpeg: "FFmpeg"
-  uptime: "Disponibilité"
+  title: Tableau de bord
+  systemInfo: Informations système
+  version: Version
+  os: SE
+  arch: Architecture
+  goVersion: Version de Go
+  ffmpeg: FFmpeg
+  uptime: Disponibilité
   autoRefresh: "Mis à jour {{time}} · actualisation automatique toutes les {{interval}}"
-
 users:
-  title: "Utilisateurs"
-  createUser: "Créer un utilisateur"
+  title: Utilisateurs
+  createUser: Créer un utilisateur
   username: "Nom d'utilisateur"
-  email: "E-mail"
-  password: "Mot de passe"
-  newPassword: "Nouveau mot de passe"
-  admin: "Administrateur"
-  role: "Rôle"
-  user: "Utilisateur"
-  userCreated: "Utilisateur créé"
+  email: E-mail
+  password: Mot de passe
+  newPassword: Nouveau mot de passe
+  admin: Administrateur
+  role: Rôle
+  user: Utilisateur
+  userCreated: Utilisateur créé
   userDeleted: "Utilisateur \"{{name}}\" supprimé"
-  userDisabled: "Utilisateur désactivé"
-  userEnabled: "Utilisateur activé"
+  userDisabled: Utilisateur désactivé
+  userEnabled: Utilisateur activé
   failedDeleteUser: "Échec de la suppression de l'utilisateur"
-  failedCreateUser: "Échec de la création de l'utilisateur"
   failedUpdateUser: "Échec de la mise à jour de l'utilisateur"
-  userUpdated: "Utilisateur mis à jour"
+  userUpdated: Utilisateur mis à jour
   deleteUserTitle: "Supprimer l'utilisateur"
   deleteUserConfirm: "Supprimer l'utilisateur \"{{name}}\" ? Cette action est irréversible."
-  libraryAccess: "Accès aux bibliothèques"
+  libraryAccess: Accès aux bibliothèques
   libraryAccessTitle: "Accès aux bibliothèques - {{name}}"
-  unrestricted: "Non restreint"
-  unrestrictedDesc: "Cet utilisateur peut accéder à toutes les bibliothèques (non restreint)."
+  unrestricted: Non restreint
+  unrestrictedDesc: Cet utilisateur peut accéder à toutes les bibliothèques (non restreint).
   restrictedDesc: "Cet utilisateur ne peut accéder qu'à {{count}} {{libraryWord}} sélectionnée(s)."
-  libraryAccessUpdated: "Accès aux bibliothèques mis à jour"
+  libraryAccessUpdated: Accès aux bibliothèques mis à jour
   failedLibraryAccess: "Échec de la mise à jour de l'accès aux bibliothèques"
-  clearAllUnrestricted: "Tout effacer (non restreint)"
-  bitrate: "Débit"
+  clearAllUnrestricted: Tout effacer (non restreint)
+  bitrate: Débit
   maxBitrateTitle: "Débit maximal - {{name}}"
-  maxBitrateDesc: "Limiter le débit de streaming maximal pour cet utilisateur. 0 = illimité."
-  maxBitrate: "Débit maximal"
-  bitrateUpdated: "Limite de débit mise à jour"
-  failedBitrate: "Échec de la mise à jour de la limite de débit"
+  maxBitrateDesc: Limiter le débit de streaming maximal pour cet utilisateur. 0 = illimité.
+  maxBitrate: Débit maximal
+  bitrateUpdated: Limite de débit mise à jour
+  failedBitrate: Échec de la mise à jour de la limite de débit
   inviteLinks: "Liens d'invitation"
   createInviteLink: "Créer un lien d'invitation"
-  code: "Code"
-  uses: "Utilisations"
-  expires: "Expire"
-  never: "Jamais"
-  copyLink: "Copier le lien"
-  linkCopied: "Lien copié dans le presse-papiers"
-  revoke: "Révoquer"
+  code: Code
+  uses: Utilisations
+  expires: Expire
+  never: Jamais
+  copyLink: Copier le lien
+  linkCopied: Lien copié dans le presse-papiers
+  revoke: Révoquer
   revokeInviteTitle: "Révoquer l'invitation"
   revokeInviteConfirm: "Révoquer ce lien d'invitation ? Il ne sera plus utilisable."
   inviteRevoked: "Lien d'invitation révoqué"
@@ -155,381 +140,343 @@ users:
   inviteCreated: "Lien d'invitation créé"
   maxUsesLabel: "Nombre max d'utilisations (vide = illimité)"
   expiresAtLabel: "Date d'expiration (optionnel)"
-  inviteIsAdmin: "Créer un administrateur"
-  inviteLibraries: "Bibliothèques accessibles"
-  inviteLibrariesHelp: "Aucune sélection = toutes les bibliothèques visibles."
-  noUsers: "Aucun utilisateur trouvé"
+  inviteIsAdmin: Créer un administrateur
+  inviteLibraries: Bibliothèques accessibles
+  inviteLibrariesHelp: Aucune sélection = toutes les bibliothèques visibles.
+  noUsers: Aucun utilisateur trouvé
   noInvites: "Aucun lien d'invitation"
   editUser: "Modifier l'utilisateur"
-  failedCreateInvite: "Échec de la création du lien d'invitation"
-  leaveBlank: "Laisser vide pour conserver"
-  maxProfiles: "Profils max"
-  maxProfilesHelp: "Nombre maximum de profils créés par cet utilisateur. 0 = illimité."
-  maxDevicesPerProfile: "Appareils max par profil"
+  leaveBlank: Laisser vide pour conserver
+  maxProfiles: Profils max
+  maxProfilesHelp: Nombre maximum de profils créés par cet utilisateur. 0 = illimité.
+  maxDevicesPerProfile: Appareils max par profil
   maxDevicesPerProfileHelp: "Nombre maximum d'appareils enregistrés par profil. 0 = illimité."
-  profilesTitle: "Profils"
+  profilesTitle: Profils
   noProfiles: "Cet utilisateur n'a pas encore de profil."
-
 libraries:
-  title: "Bibliothèques"
-  addLibrary: "Ajouter une bibliothèque"
-  createLibrary: "Créer une bibliothèque"
-  libraryCreated: "Bibliothèque créée"
+  title: Bibliothèques
+  addLibrary: Ajouter une bibliothèque
+  createLibrary: Créer une bibliothèque
+  libraryCreated: Bibliothèque créée
   libraryUpdated: "Bibliothèque \"{{name}}\" mise à jour"
   libraryDeleted: "Bibliothèque \"{{name}}\" supprimée"
-  editLibrary: "Modifier la bibliothèque"
-  failedUpdate: "Échec de la mise à jour de la bibliothèque"
-  failedDelete: "Échec de la suppression de la bibliothèque"
-  scanStarted: "Scan lancé"
-  failedScan: "Échec du lancement du scan"
-  deleteTitle: "Supprimer la bibliothèque"
+  editLibrary: Modifier la bibliothèque
+  failedDelete: Échec de la suppression de la bibliothèque
+  scanStarted: Scan lancé
+  failedScan: Échec du lancement du scan
+  deleteTitle: Supprimer la bibliothèque
   deleteConfirm: "Supprimer la bibliothèque \"{{name}}\" ? Cette action est irréversible."
-  noLibraries: "Aucune bibliothèque. Ajoutez-en une pour commencer."
+  noLibraries: Aucune bibliothèque. Ajoutez-en une pour commencer.
   tableHeaders:
-    name: "Nom"
-    type: "Type"
-    paths: "Chemins"
-    items: "Éléments"
-    lastScanned: "Dernier scan"
-    nextScan: "Prochain scan"
-    actions: "Actions"
+    name: Nom
+    type: Type
+    paths: Chemins
+    items: Éléments
+    lastScanned: Dernier scan
+    nextScan: Prochain scan
+    actions: Actions
   types:
-    movies: "Films"
-    shows: "Séries"
-    music: "Musique"
-    photos: "Photos"
-    books: "Livres"
-    library: "Bibliothèque"
-  scan: "Scanner"
-  scanAgain: "Scanner à nouveau"
-  scanning: "Scan en cours..."
-  schedule: "Planifier"
+    movies: Films
+    shows: Séries
+    music: Musique
+    photos: Photos
+    books: Livres
+    library: Bibliothèque
+  scan: Scanner
+  scanAgain: Scanner à nouveau
+  scanning: Scan en cours...
+  schedule: Planifier
   scanScheduleTitle: "Planification de scan - {{name}}"
-  scanFrequency: "Fréquence de scan"
+  scanFrequency: Fréquence de scan
   selectFrequency: "-- sélectionner la fréquence --"
-  cronExpression: "Expression cron"
-  scheduleSaved: "Planification enregistrée"
+  cronExpression: Expression cron
+  scheduleSaved: Planification enregistrée
   failedSchedule: "Échec de l'enregistrement de la planification"
-  scheduleRemoved: "Planification supprimée"
-  failedRemoveSchedule: "Échec de la suppression de la planification"
+  scheduleRemoved: Planification supprimée
+  failedRemoveSchedule: Échec de la suppression de la planification
   lastRun: "Dernière exécution : {{date}}"
   nextRun: "Prochaine exécution : {{date}}"
   presets:
-    every6h: "Toutes les 6 heures"
-    every12h: "Toutes les 12 heures"
-    daily3am: "Quotidien (3h du matin)"
-    weekly3am: "Hebdomadaire (dimanche 3h du matin)"
-    customCron: "Cron personnalisé..."
+    every6h: Toutes les 6 heures
+    every12h: Toutes les 12 heures
+    daily3am: Quotidien (3h du matin)
+    weekly3am: Hebdomadaire (dimanche 3h du matin)
+    customCron: Cron personnalisé...
   items: "{{count}} éléments"
-  "off": "Désactivé"
-  paths: "Chemins"
+  'off': Désactivé
+  paths: Chemins
   pathsHint: "(entrez le chemin complet dans le conteneur, ex. /media/movies)"
-  selectDirectory: "— sélectionner un répertoire —"
-  enterCustomPath: "Entrer un chemin personnalisé..."
-  addPath: "+ Ajouter un chemin"
-  tvShows: "Séries TV"
-  lastScan: "Dernier scan"
-  namePlaceholder: "Nom de la bibliothèque"
-  pathRequired: "Au moins un chemin est requis"
-  realtimeMonitoring: "Surveillance en temps réel"
-  scanFailed: "Échec du scan"
-  scanOnStartup: "Scanner au démarrage"
-
+  selectDirectory: — sélectionner un répertoire —
+  enterCustomPath: Entrer un chemin personnalisé...
+  addPath: + Ajouter un chemin
+  tvShows: Séries TV
+  pathRequired: Au moins un chemin est requis
 sessions:
-  title: "En cours de lecture"
-  failedLoad: "Échec du chargement des sessions"
-  failedLoadDesc: "Impossible de récupérer les sessions actives. Vérifiez votre connexion et réessayez."
-  noSessions: "Aucune session active"
+  title: En cours de lecture
+  failedLoad: Échec du chargement des sessions
+  failedLoadDesc: Impossible de récupérer les sessions actives. Vérifiez votre connexion et réessayez.
+  noSessions: Aucune session active
   noSessionsDesc: "Lorsque les utilisateurs commenceront à diffuser, leurs sessions apparaîtront ici."
   activeCount: "{{count}} sessions actives"
-  activeCount_one: "{{count}} session active"
-  activeCount_other: "{{count}} sessions actives"
-  stopSession: "Arrêter la session"
-  stop: "Arrêter"
-  sessionStopped: "Session arrêtée"
+  stopSession: Arrêter la session
+  stop: Arrêter
+  sessionStopped: Session arrêtée
   failedStop: "Échec de l'arrêt de la session"
-  elapsed: "écoulé"
+  elapsed: écoulé
   video: "Vidéo : {{codec}}"
   audio: "Audio : {{codec}}"
-  directPlay: "Lecture directe"
-  directStream: "Stream direct"
-  transcode: "Transcodage"
+  directPlay: Lecture directe
+  directStream: Stream direct
+  transcode: Transcodage
   refreshStatus: "Mis à jour {{time}} - actualisation automatique toutes les {{seconds}}s"
-  sendMessage: "Envoyer un message"
-  messageSent: "Message envoyé"
-  messagePlaceholder: "Tapez un message..."
-
+  sendMessage: Envoyer un message
+  messageSent: Message envoyé
+  messagePlaceholder: Tapez un message...
 backup:
-  title: "Sauvegarde et restauration"
-  createBackup: "Créer une sauvegarde"
-  restoreFromFile: "Restaurer depuis un fichier"
-  backupCreated: "Sauvegarde créée"
-  failedCreate: "Échec de la création de la sauvegarde"
-  backupDeleted: "Sauvegarde supprimée"
-  failedDeleteBackup: "Échec de la suppression de la sauvegarde"
-  noBackups: "Aucune sauvegarde"
+  title: Sauvegarde et restauration
+  createBackup: Créer une sauvegarde
+  restoreFromFile: Restaurer depuis un fichier
+  backupCreated: Sauvegarde créée
+  failedCreate: Échec de la création de la sauvegarde
+  backupDeleted: Sauvegarde supprimée
+  failedDeleteBackup: Échec de la suppression de la sauvegarde
+  noBackups: Aucune sauvegarde
   noBackupsDesc: "Créez une sauvegarde pour sauvegarder l'état de la base de données."
   tableHeaders:
-    id: "ID"
-    date: "Date"
-    version: "Version"
-    size: "Taille"
-    status: "Statut"
-    actions: "Actions"
-  ready: "Prêt"
-  restoreBackupTitle: "Restaurer la sauvegarde"
+    id: ID
+    date: Date
+    version: Version
+    size: Taille
+    status: Statut
+    actions: Actions
+  ready: Prêt
+  restoreBackupTitle: Restaurer la sauvegarde
   restoreConfirm: "Restaurer la sauvegarde du {{date}} ? Cela écrasera les données actuelles et ne peut pas être annulé."
-  restoreCompleted: "Restauration terminée"
-  restoreFailed: "Échec de la restauration"
-  deleteBackupTitle: "Supprimer la sauvegarde"
+  restoreCompleted: Restauration terminée
+  restoreFailed: Échec de la restauration
+  deleteBackupTitle: Supprimer la sauvegarde
   deleteConfirm: "Supprimer la sauvegarde du {{date}} ? Cette action est irréversible."
-  restoreFromFileTitle: "Restaurer depuis un fichier"
-  restoreFromFileDesc: "Téléversez un fichier .tar.gz de sauvegarde pour restaurer. Cela écrasera les données existantes."
+  restoreFromFileTitle: Restaurer depuis un fichier
+  restoreFromFileDesc: Téléversez un fichier .tar.gz de sauvegarde pour restaurer. Cela écrasera les données existantes.
   selectFileFirst: "Sélectionnez d'abord un fichier de sauvegarde"
-
 webhooks:
   title: Webhooks
-  createWebhook: "Créer un Webhook"
-  editWebhook: "Modifier le Webhook"
-  webhookCreated: "Webhook créé"
-  webhookUpdated: "Webhook mis à jour"
-  webhookDeleted: "Webhook supprimé"
-  failedCreate: "Échec de la création du Webhook"
-  failedDelete: "Échec de la suppression du Webhook"
-  failedUpdate: "Échec de la mise à jour du Webhook"
-  testPingSent: "Ping de test envoyé"
-  testPingFailed: "Échec du ping de test"
-  deleteTitle: "Supprimer le Webhook"
+  createWebhook: Créer un Webhook
+  editWebhook: Modifier le Webhook
+  webhookCreated: Webhook créé
+  webhookUpdated: Webhook mis à jour
+  webhookDeleted: Webhook supprimé
+  failedDelete: Échec de la suppression du Webhook
+  failedUpdate: Échec de la mise à jour du Webhook
+  testPingSent: Ping de test envoyé
+  testPingFailed: Échec du ping de test
+  deleteTitle: Supprimer le Webhook
   deleteConfirm: "Supprimer <strong>{{name}}</strong> ? Cette action est irréversible."
-  noWebhooks: "Aucun Webhook configuré."
+  noWebhooks: Aucun Webhook configuré.
   tableHeaders:
-    nameUrl: "Nom / URL"
-    events: "Événements"
-    status: "Statut"
-    created: "Créé"
-    actions: "Actions"
+    nameUrl: Nom / URL
+    events: Événements
+    status: Statut
+    created: Créé
+    actions: Actions
   form:
-    name: "Nom"
-    url: "URL"
+    name: Nom
+    url: URL
     secret: "Secret (optionnel, pour signature HMAC)"
-    events: "Événements"
-    allEvents: "Tous les événements"
-    enabled: "Activé"
-    createWebhook: "Créer un Webhook"
-
+    events: Événements
+    allEvents: Tous les événements
+    enabled: Activé
+    createWebhook: Créer un Webhook
 analytics:
-  title: "Analytique"
+  title: Analytique
   failedLoad: "Échec du chargement de l'analytique"
   playsToday: "Lectures aujourd'hui"
-  playsThisWeek: "Lectures cette semaine"
+  playsThisWeek: Lectures cette semaine
   activeUsersToday: "Utilisateurs actifs aujourd'hui"
-  topMedia: "Top 10 médias - 30 derniers jours"
-  recentActivity: "Activité récente"
-  noPlays: "Aucune lecture au cours des 30 derniers jours"
-  noActivity: "Aucune activité récente"
+  topMedia: Top 10 médias - 30 derniers jours
+  recentActivity: Activité récente
+  noPlays: Aucune lecture au cours des 30 derniers jours
+  noActivity: Aucune activité récente
   tableHeaders:
-    title: "Titre"
-    plays: "Lectures"
-    totalWatchTime: "Temps de visionnage total"
-    user: "Utilisateur"
-    media: "Média"
-    when: "Quand"
-
+    title: Titre
+    plays: Lectures
+    totalWatchTime: Temps de visionnage total
+    user: Utilisateur
+    media: Média
+    when: Quand
 activity:
-  title: "Activité"
+  title: Activité
   tabs:
-    playHistory: "Historique de lecture"
-    loginHistory: "Historique de connexion"
-    serverStats: "Statistiques du serveur"
+    playHistory: Historique de lecture
+    serverStats: Statistiques du serveur
   playHeaders:
-    title: "Titre"
-    device: "Appareil"
-    duration: "Durée"
-    progress: "Progression"
-    started: "Début"
-  loginHeaders:
-    user: "Utilisateur"
-    ip: "IP"
-    status: "Statut"
-    userAgent: "User Agent"
-    timestamp: "Horodatage"
-  noPlayHistory: "Aucun historique de lecture"
-  noLoginHistory: "Aucun historique de connexion"
-  ok: "OK"
-  failed: "Échoué"
+    title: Titre
+    device: Appareil
+    duration: Durée
+    progress: Progression
+    started: Début
+  noPlayHistory: Aucun historique de lecture
   totalEntries: "{{count}} entrées au total"
   stats:
-    totalPlays: "Total de lectures"
+    totalPlays: Total de lectures
     totalUsers: "Total d'utilisateurs"
-    totalMedia: "Total de médias"
-    bandwidth: "Bande passante"
-  popularMedia: "Médias populaires"
-  mostActiveUsers: "Utilisateurs les plus actifs"
+    totalMedia: Total de médias
+    bandwidth: Bande passante
+  popularMedia: Médias populaires
+  mostActiveUsers: Utilisateurs les plus actifs
   plays: "{{count}} lectures"
-
 audit:
   title: "Journal d'audit"
-  action: "Action"
-  resourceType: "Type de ressource"
   tableHeaders:
-    time: "Heure"
-    user: "Utilisateur"
-    action: "Action"
-    resource: "Ressource"
-    details: "Détails"
-    ip: "IP"
-  noEntries: "Aucune entrée trouvée"
+    time: Heure
+    user: Utilisateur
+    action: Action
+    resource: Ressource
+    details: Détails
+    ip: IP
+  noEntries: Aucune entrée trouvée
   entries: "{{count}} entrées"
-
 serverConfig:
-  title: "Configuration du serveur"
-  subtitle: "Entrées de configuration clé-valeur stockées dans la base de données."
-  languageRegion: "Langue et région"
+  title: Configuration du serveur
+  subtitle: Entrées de configuration clé-valeur stockées dans la base de données.
+  languageRegion: Langue et région
   languageRegionDesc: "Réglages linguistiques et régionaux du serveur. Impacte la langue UI par défaut, la région de classification par défaut et la langue des métadonnées."
-  serverLanguage: "Langue du serveur"
-  serverRegion: "Région du serveur"
-  metadataLanguage: "Langue des métadonnées"
+  serverLanguage: Langue du serveur
+  serverRegion: Région du serveur
+  metadataLanguage: Langue des métadonnées
   envDefault: "— valeur par défaut de l'environnement —"
-  languageUpdated: "Langue mise à jour"
-  configUpdated: "Configuration mise à jour"
-  failedUpdate: "Échec de la mise à jour de la configuration"
-  configDeleted: "Entrée de configuration supprimée"
+  languageUpdated: Langue mise à jour
+  configUpdated: Configuration mise à jour
+  failedUpdate: Échec de la mise à jour de la configuration
+  configDeleted: Entrée de configuration supprimée
   failedDeleteEntry: "Échec de la suppression de l'entrée"
-  emailSmtp: "E-mail / SMTP"
+  emailSmtp: E-mail / SMTP
   emailSmtpDesc: "Configurer l'envoi d'e-mails pour les notifications et invitations."
-  smtpHost: "Hôte SMTP"
-  port: "Port"
+  smtpHost: Hôte SMTP
+  port: Port
   smtpUsername: "Nom d'utilisateur"
-  smtpPassword: "Mot de passe"
+  smtpPassword: Mot de passe
   fromAddress: "Adresse d'expédition"
-  tlsMode: "Mode TLS"
-  saveSmtp: "Enregistrer les paramètres SMTP"
-  smtpSaved: "Paramètres SMTP enregistrés"
+  tlsMode: Mode TLS
+  saveSmtp: Enregistrer les paramètres SMTP
+  smtpSaved: Paramètres SMTP enregistrés
   failedSmtp: "Échec de l'enregistrement de {{key}}"
-  trickplayTitle: "Miniatures Trickplay"
-  trickplayDesc: "Générer automatiquement les miniatures de prévisualisation pour les films et épisodes."
-  trickplayEnabled: "Activer les miniatures trickplay"
-  trickplayAdaptiveCpu: "CPU adaptatif"
+  trickplayTitle: Miniatures Trickplay
+  trickplayDesc: Générer automatiquement les miniatures de prévisualisation pour les films et épisodes.
+  trickplayEnabled: Activer les miniatures trickplay
+  trickplayAdaptiveCpu: CPU adaptatif
   trickplayAdaptiveCpuDesc: "Mode doux (~25% CPU). Désactiver pour une génération plus rapide (~50% CPU)."
   tableHeaders:
-    key: "Clé"
-    value: "Valeur"
-    updated: "Mis à jour"
-    actions: "Actions"
-  noEntries: "Aucune entrée de configuration"
-  noEntriesDesc: "Ajoutez des entrées clé-valeur ci-dessous."
-  show: "Afficher"
-  hide: "Masquer"
+    key: Clé
+    value: Valeur
+    updated: Mis à jour
+    actions: Actions
+  noEntries: Aucune entrée de configuration
+  noEntriesDesc: Ajoutez des entrées clé-valeur ci-dessous.
+  show: Afficher
+  hide: Masquer
   apiKeys:
-    title: "Clés API"
+    title: Clés API
     description: "Configurer les clés API pour les fournisseurs de métadonnées. Les clés définies ici remplacent les variables d'environnement."
-    tmdb: "Clé API TMDB"
-    tmdbLink: "Obtenir une clé gratuite sur themoviedb.org"
-    omdb: "Clé API OMDB"
-    omdbLink: "Obtenir une clé gratuite sur omdbapi.com"
-    opensubtitles: "Clé API OpenSubtitles"
-    opensubtitlesLink: "Obtenir une clé sur opensubtitles.com"
-    resetToDefault: "Réinitialiser par défaut"
-    saved: "Clé API enregistrée"
-    usingDefault: "Utilise la clé par défaut"
-    usingCustom: "Utilise une clé personnalisée"
-
+    tmdb: Clé API TMDB
+    tmdbLink: Obtenir une clé gratuite sur themoviedb.org
+    omdb: Clé API OMDB
+    omdbLink: Obtenir une clé gratuite sur omdbapi.com
+    opensubtitles: Clé API OpenSubtitles
+    opensubtitlesLink: Obtenir une clé sur opensubtitles.com
+    resetToDefault: Réinitialiser par défaut
+    saved: Clé API enregistrée
+    usingDefault: Utilise la clé par défaut
+    usingCustom: Utilise une clé personnalisée
 remoteAccess:
-  title: "Accès distant"
+  title: Accès distant
   enableRemoteAccess: "Activer l'accès distant"
-  externalUrl: "URL externe"
+  externalUrl: URL externe
   lanNetworks: "Réseaux LAN (CIDR, séparés par des virgules)"
   maxRemoteBitrate: "Débit distant maximal (Kbps, 0 = illimité)"
   saved: "Paramètres d'accès distant enregistrés"
-  networkInterfaces: "Interfaces réseau du serveur"
-  interface: "Interface"
-  address: "Adresse"
-  usingDefault: "Valeur par défaut utilisée"
-
+  networkInterfaces: Interfaces réseau du serveur
+  interface: Interface
+  address: Adresse
+  usingDefault: Valeur par défaut utilisée
 systemHealth:
-  title: "Santé du système"
+  title: Santé du système
   autoRefresh: "Mis à jour {{time}} · actualisation automatique toutes les 5s"
-  cpuUsage: "Utilisation CPU"
-  memoryUsage: "Utilisation mémoire"
-  storage: "Stockage"
-  activitySection: "Activité"
-  server: "Serveur"
-  serverInfo: "Informations serveur"
+  cpuUsage: Utilisation CPU
+  memoryUsage: Utilisation mémoire
+  storage: Stockage
+  activitySection: Activité
+  server: Serveur
+  serverInfo: Informations serveur
   used: "Utilisé : {{size}}"
   free: "Libre : {{size}}"
   total: "Total : {{size}}"
-  activeStreams: "Flux actifs"
-  activeTranscodes: "Transcodages actifs"
-  totalMedia: "Total de médias"
+  activeStreams: Flux actifs
+  activeTranscodes: Transcodages actifs
+  totalMedia: Total de médias
   totalUsers: "Total d'utilisateurs"
-  hwAcceleration: "Accélération matérielle"
-  serverId: "ID du serveur"
-
+  hwAcceleration: Accélération matérielle
+  serverId: ID du serveur
 transcodeCache:
-  title: "Cache de transcodage"
-  clearAll: "Tout vider"
-  totalSize: "Taille totale"
-  files: "Fichiers"
-  cacheEmpty: "Le cache est vide"
-  cacheCleared: "Cache vidé"
-  failedClear: "Échec du vidage du cache"
+  title: Cache de transcodage
+  clearAll: Tout vider
+  totalSize: Taille totale
+  files: Fichiers
+  cacheEmpty: Le cache est vide
+  cacheCleared: Cache vidé
+  failedClear: Échec du vidage du cache
   deleted: "{{name}} supprimé"
-  failedDeleteFile: "Échec de la suppression du fichier"
-  clearConfirmTitle: "Vider le cache de transcodage"
+  failedDeleteFile: Échec de la suppression du fichier
+  clearConfirmTitle: Vider le cache de transcodage
   clearConfirm: "Supprimer les {{count}} fichiers en cache ({{size}}) ? Cette action est irréversible."
   tableHeaders:
-    file: "Fichier"
-    size: "Taille"
-    modified: "Modifié"
+    file: Fichier
+    size: Taille
+    modified: Modifié
   hwAccelType: "Type d'accélération matérielle"
-  hwDecodeCodecs: "Codecs de décodage matériel"
-  hwDevices: "Périphériques matériels"
-  maxConcurrent: "Maximum simultané"
-  settingsSaved: "Paramètres enregistrés"
-  throttle: "Limitation"
-  transcodingSettings: "Paramètres de transcodage"
-
+  hwDecodeCodecs: Codecs de décodage matériel
+  maxConcurrent: Maximum simultané
+  settingsSaved: Paramètres enregistrés
+  throttle: Limitation
+  transcodingSettings: Paramètres de transcodage
 dashboardStats:
-  movies: "Films"
-  series: "Séries"
-  users: "Utilisateurs"
-  activeStreams: "Flux actifs"
-  cpu: "CPU"
-  memory: "Mémoire"
-  transcodes: "Transcodages"
-  totalMedia: "Total de médias"
-  storage: "Stockage"
-  quickActions: "Actions rapides"
-  scanAllLibraries: "Scanner toutes les bibliothèques"
-  manageLibraries: "Gérer les bibliothèques"
-  manageUsers: "Gérer les utilisateurs"
-  recentActivity: "Activité récente"
-  viewAll: "Tout voir"
-  popularMedia: "Médias populaires"
+  movies: Films
+  series: Séries
+  users: Utilisateurs
+  activeStreams: Flux actifs
+  cpu: CPU
+  memory: Mémoire
+  transcodes: Transcodages
+  totalMedia: Total de médias
+  storage: Stockage
+  quickActions: Actions rapides
+  scanAllLibraries: Scanner toutes les bibliothèques
+  manageLibraries: Gérer les bibliothèques
+  manageUsers: Gérer les utilisateurs
+  recentActivity: Activité récente
+  viewAll: Tout voir
+  popularMedia: Médias populaires
   viewers: "{{count}} spectateurs"
-  scanStarted: "Scan lancé"
-  scanFailed: "Échec du scan"
-  allScansTriggered: "Tous les scans de bibliothèques lancés"
-  nowPlaying: "En cours de lecture"
-  noActivePlayback: "Aucune lecture en cours"
-  playActivity: "Activité de lecture (14 jours)"
-  plays: "Lectures"
-  watchTime: "Temps de visionnage"
-  contentBreakdown: "Répartition du contenu"
-  activeUsers: "Utilisateurs actifs"
-  playMethodBreakdown: "Méthode de lecture (30 jours)"
-  peakHours: "Heures de pointe (30 jours)"
-  used: "Utilisé"
-  free: "Libre"
-  loginFailed: "Echec de connexion"
-
+  scanStarted: Scan lancé
+  scanFailed: Échec du scan
+  allScansTriggered: Tous les scans de bibliothèques lancés
+  nowPlaying: En cours de lecture
+  noActivePlayback: Aucune lecture en cours
+  playActivity: Activité de lecture (14 jours)
+  plays: Lectures
+  watchTime: Temps de visionnage
+  activeUsers: Utilisateurs actifs
+  peakHours: Heures de pointe (30 jours)
+  used: Utilisé
+  free: Libre
+  loginFailed: Echec de connexion
 serverSettings:
-  title: "Paramètres du serveur"
-  serverName: "Nom du serveur"
-  maxConcurrentTranscodes: "Transcodages simultanés max."
-  hwAccelEnabled: "Accélération matérielle"
-  loginRateLimit: "Limite connexion (req/min)"
-  globalRateLimit: "Limite globale (req/min)"
-  saved: "Paramètres enregistrés"
+  title: Paramètres du serveur
+  serverName: Nom du serveur
+  maxConcurrentTranscodes: Transcodages simultanés max.
+  hwAccelEnabled: Accélération matérielle
+  loginRateLimit: Limite connexion (req/min)
+  globalRateLimit: Limite globale (req/min)
+  saved: Paramètres enregistrés
   usingDefault: "Valeur par défaut :"
-  reset: "Réinitialiser"
+  reset: Réinitialiser

@@ -1,118 +1,58 @@
 auth:
-  unauthenticated: "未认证"
-  unauthorized: "未授权"
-  forbidden: "禁止访问"
-  invalid_credentials: "用户名或密码无效"
-  invalid_body: "请求体无效"
-  invalid_token: "令牌无效或已过期"
-  missing_token: "缺少令牌"
-  no_session: "没有活跃会话"
-  too_many_requests: "请求过于频繁"
-  too_many_attempts: "尝试次数过多"
-  passwords_do_not_match: "密码不一致"
-  password_too_short: "密码至少需要8个字符"
-  username_too_short: "用户名至少需要3个字符"
-  explicit_consent_required: "推送通知需要明确授权"
-  missing_authorization: "缺少授权头"
-  missing_metadata: "缺少请求元数据"
-  admin_access_required: "需要管理员权限"
-  insufficient_permissions: "权限不足"
-  internal_method: "此方法仅供内部使用"
-  missing_key: "缺少API密钥"
-  invalid_current_pin: "当前PIN码无效"
-  profile_not_found: "未找到档案"
-
+  unauthenticated: 未认证
+  invalid_credentials: 用户名或密码无效
+  invalid_token: 令牌无效或已过期
+  password_too_short: 密码至少需要8个字符
+  missing_authorization: 缺少授权头
+  missing_metadata: 缺少请求元数据
+  admin_access_required: 需要管理员权限
+  insufficient_permissions: 权限不足
+  internal_method: 此方法仅供内部使用
+  missing_key: 缺少API密钥
+  profile_not_found: 未找到档案
 general:
-  not_found: "未找到"
-  conflict: "冲突"
-  invalid_input: "输入无效"
-  rate_limited: "请求被限流"
-  not_configured: "未配置"
-  internal_error: "内部错误"
-  encode_error: "编码错误"
-  bad_request: "请求无效"
-  remote_access_disabled: "远程访问已禁用"
-  path_traversal_detected: "检测到路径遍历"
-
+  not_found: 未找到
 playlist:
-  not_owner: "您不是播放列表的所有者"
-  cannot_add_smart: "无法手动向智能播放列表添加项目"
-  cannot_remove_smart: "无法从智能播放列表中移除项目"
-  limit_reached: "播放列表项目数量已达上限"
-
+  not_owner: 您不是播放列表的所有者
+  cannot_add_smart: 无法手动向智能播放列表添加项目
+  cannot_remove_smart: 无法从智能播放列表中移除项目
+  limit_reached: 播放列表项目数量已达上限
 playback:
-  parental_blocked: "内容被家长控制拦截"
-  cannot_stop_other_session: "无法停止其他用户的会话"
-  cannot_report_other_session: "无法为其他用户的会话报告进度"
-  session_not_found: "会话未找到"
-  max_streams_reached: "您已达到并发播放数上限"
-
+  parental_blocked: 内容被家长控制拦截
+  cannot_stop_other_session: 无法停止其他用户的会话
+  cannot_report_other_session: 无法为其他用户的会话报告进度
+  session_not_found: 会话未找到
+  max_streams_reached: 您已达到并发播放数上限
 activity:
-  cannot_access_other_history: "无法访问其他用户的登录历史"
-
+  cannot_access_other_history: 无法访问其他用户的登录历史
 library:
-  parental_restricted: "内容被家长控制限制"
-  name_required: "媒体库名称为必填项"
-  scan_in_progress: "此媒体库已有扫描任务正在进行"
-
+  parental_restricted: 内容被家长控制限制
+  name_required: 媒体库名称为必填项
+  scan_in_progress: 此媒体库已有扫描任务正在进行
 admin:
-  setup_already_completed: "设置已完成"
-  scheduler_not_available: "调度器不可用"
-  scanner_not_available: "扫描器不可用"
-  service_not_configured: "服务未配置"
-  heavy_op_running: "已有繁重操作正在运行"
-  scheduled_task_not_found: "未找到计划任务"
-
+  setup_already_completed: 设置已完成
+  scheduler_not_available: 调度器不可用
+  scanner_not_available: 扫描器不可用
+  service_not_configured: 服务未配置
+  heavy_op_running: 已有繁重操作正在运行
+  scheduled_task_not_found: 未找到计划任务
 config:
-  key_required: "键为必填项"
-  key_not_found: "未找到配置键"
-
+  key_required: 键为必填项
+  key_not_found: 未找到配置键
 playback_settings:
-  skip_forward_positive: "skip_forward_seconds 必须为正数"
-
+  skip_forward_positive: skip_forward_seconds 必须为正数
 user:
-  cannot_update_other: "无法更新其他用户"
-  cannot_escalate_admin: "无法提升为管理员"
-  cannot_change_caps: "只有管理员可以更改账户限制"
-  cannot_create_profile_other: "无法为其他用户创建档案"
-  cannot_update_profile_other: "无法更新其他用户的档案"
-  cannot_delete_profile_other: "无法删除其他用户的档案"
-  cannot_revoke_invite_other: "无法撤销其他用户的邀请链接"
-  cannot_revoke_apikey_other: "无法撤销其他用户的 API 密钥"
-  invalid_invite_data: "无效的邀请或注册数据"
-  invalid_expired_code: "无效或已过期的代码"
-
+  cannot_update_other: 无法更新其他用户
+  cannot_escalate_admin: 无法提升为管理员
+  cannot_change_caps: 只有管理员可以更改账户限制
+  cannot_create_profile_other: 无法为其他用户创建档案
+  cannot_update_profile_other: 无法更新其他用户的档案
+  cannot_delete_profile_other: 无法删除其他用户的档案
+  cannot_revoke_invite_other: 无法撤销其他用户的邀请链接
+  cannot_revoke_apikey_other: 无法撤销其他用户的 API 密钥
+  invalid_invite_data: 无效的邀请或注册数据
+  invalid_expired_code: 无效或已过期的代码
 media:
-  not_found: "媒体未找到"
-  file_not_found: "文件未找到"
-  invalid_path: "路径无效"
-  image_not_found: "图片未找到"
-
+  not_found: 媒体未找到
 transcode:
-  busy: "转码繁忙"
-  failed: "转码失败"
-  no_active_session: "没有活跃的转码会话"
-  session_not_ready: "会话未就绪"
-  segment_not_found: "片段未找到"
-  max_concurrent_reached: "服务器正忙于转码其他流，请稍后重试"
-
-subtitle:
-  not_found: "字幕未找到"
-  search_failed: "字幕搜索失败"
-  download_failed: "字幕下载失败"
-  file_id_required: "文件ID为必填项"
-
-plugin:
-  blocked_by_security: "插件被安全分析拦截"
-  manifest_invalid: "插件清单无效"
-  not_found: "插件未找到"
-  config_save_failed: "插件配置保存失败"
-
-notification:
-  invalid_movie_level: "电影通知级别无效"
-  invalid_series_level: "剧集通知级别无效"
-  invalid_music_level: "音乐通知级别无效"
-
-backup:
-  failed: "备份失败"
-  restore_failed: "恢复失败"
+  max_concurrent_reached: 服务器正忙于转码其他流，请稍后重试

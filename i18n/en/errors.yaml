@@ -1,118 +1,58 @@
 auth:
-  unauthenticated: "Unauthenticated"
-  unauthorized: "Unauthorized"
-  forbidden: "Forbidden"
-  invalid_credentials: "Invalid username or password"
-  invalid_body: "Invalid request body"
-  invalid_token: "Invalid or expired token"
-  missing_token: "Missing token"
-  no_session: "No active session"
-  too_many_requests: "Too many requests"
-  too_many_attempts: "Too many attempts"
-  passwords_do_not_match: "Passwords do not match"
-  password_too_short: "Password must be at least 8 characters"
-  username_too_short: "Username must be at least 3 characters"
-  explicit_consent_required: "Explicit consent required for push notifications"
-  missing_authorization: "Missing authorization header"
-  missing_metadata: "Missing request metadata"
-  admin_access_required: "Admin access required"
-  insufficient_permissions: "Insufficient permissions"
-  internal_method: "This method is for internal use only"
-  missing_key: "API key is missing"
-  invalid_current_pin: "Invalid current PIN"
-  profile_not_found: "Profile not found"
-
+  unauthenticated: Unauthenticated
+  invalid_credentials: Invalid username or password
+  invalid_token: Invalid or expired token
+  password_too_short: Password must be at least 8 characters
+  missing_authorization: Missing authorization header
+  missing_metadata: Missing request metadata
+  admin_access_required: Admin access required
+  insufficient_permissions: Insufficient permissions
+  internal_method: This method is for internal use only
+  missing_key: API key is missing
+  profile_not_found: Profile not found
 general:
-  not_found: "Not found"
-  conflict: "Conflict"
-  invalid_input: "Invalid input"
-  rate_limited: "Rate limited"
-  not_configured: "Not configured"
-  internal_error: "Internal error"
-  encode_error: "Encode error"
-  bad_request: "Bad request"
-  remote_access_disabled: "Remote access disabled"
-  path_traversal_detected: "Path traversal detected"
-
+  not_found: Not found
 playlist:
-  not_owner: "You are not the playlist owner"
-  cannot_add_smart: "Cannot manually add items to a smart playlist"
-  cannot_remove_smart: "Cannot remove items from a smart playlist"
-  limit_reached: "Playlist item limit reached"
-
+  not_owner: You are not the playlist owner
+  cannot_add_smart: Cannot manually add items to a smart playlist
+  cannot_remove_smart: Cannot remove items from a smart playlist
+  limit_reached: Playlist item limit reached
 playback:
-  parental_blocked: "Content blocked by parental controls"
+  parental_blocked: Content blocked by parental controls
   cannot_stop_other_session: "Cannot stop another user's session"
   cannot_report_other_session: "Cannot report progress for another user's session"
-  session_not_found: "Session not found"
+  session_not_found: Session not found
   max_streams_reached: "You've reached the maximum number of concurrent streams"
-
 activity:
   cannot_access_other_history: "Cannot access another user's login history"
-
 library:
-  parental_restricted: "Content restricted by parental controls"
-  name_required: "Library name is required"
-  scan_in_progress: "A scan is already running for this library"
-
+  parental_restricted: Content restricted by parental controls
+  name_required: Library name is required
+  scan_in_progress: A scan is already running for this library
 admin:
-  setup_already_completed: "Setup already completed"
-  scheduler_not_available: "Scheduler not available"
-  scanner_not_available: "Scanner not available"
-  service_not_configured: "Service not configured"
-  heavy_op_running: "A heavy operation is already running"
-  scheduled_task_not_found: "Scheduled task not found"
-
+  setup_already_completed: Setup already completed
+  scheduler_not_available: Scheduler not available
+  scanner_not_available: Scanner not available
+  service_not_configured: Service not configured
+  heavy_op_running: A heavy operation is already running
+  scheduled_task_not_found: Scheduled task not found
 config:
-  key_required: "Key is required"
-  key_not_found: "Configuration key not found"
-
+  key_required: Key is required
+  key_not_found: Configuration key not found
 playback_settings:
-  skip_forward_positive: "skip_forward_seconds must be positive"
-
+  skip_forward_positive: skip_forward_seconds must be positive
 user:
-  cannot_update_other: "Cannot update another user"
-  cannot_escalate_admin: "Cannot escalate to admin"
-  cannot_change_caps: "Only an administrator can change account limits"
-  cannot_create_profile_other: "Cannot create profile for another user"
+  cannot_update_other: Cannot update another user
+  cannot_escalate_admin: Cannot escalate to admin
+  cannot_change_caps: Only an administrator can change account limits
+  cannot_create_profile_other: Cannot create profile for another user
   cannot_update_profile_other: "Cannot update another user's profile"
   cannot_delete_profile_other: "Cannot delete another user's profile"
   cannot_revoke_invite_other: "Cannot revoke another user's invite link"
   cannot_revoke_apikey_other: "Cannot revoke another user's API key"
-  invalid_invite_data: "Invalid invite or registration data"
-  invalid_expired_code: "Invalid or expired code"
-
+  invalid_invite_data: Invalid invite or registration data
+  invalid_expired_code: Invalid or expired code
 media:
-  not_found: "Media not found"
-  file_not_found: "File not found"
-  invalid_path: "Invalid path"
-  image_not_found: "Image not found"
-
+  not_found: Media not found
 transcode:
-  busy: "Transcode busy"
-  failed: "Transcode failed"
-  no_active_session: "No active transcode session"
-  session_not_ready: "Session not ready"
-  segment_not_found: "Segment not found"
-  max_concurrent_reached: "The server is busy transcoding other streams. Please try again in a moment."
-
-subtitle:
-  not_found: "Subtitle not found"
-  search_failed: "Subtitle search failed"
-  download_failed: "Subtitle download failed"
-  file_id_required: "File ID is required"
-
-plugin:
-  blocked_by_security: "Plugin blocked by security analysis"
-  manifest_invalid: "Invalid plugin manifest"
-  not_found: "Plugin not found"
-  config_save_failed: "Failed to save plugin config"
-
-notification:
-  invalid_movie_level: "Invalid movie notification level"
-  invalid_series_level: "Invalid series notification level"
-  invalid_music_level: "Invalid music notification level"
-
-backup:
-  failed: "Backup failed"
-  restore_failed: "Restore failed"
+  max_concurrent_reached: The server is busy transcoding other streams. Please try again in a moment.

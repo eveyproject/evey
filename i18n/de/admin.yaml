@@ -1,18 +1,14 @@
 nav:
-  dashboardSystem: Dashboard & System
+  dashboardSystem: "Dashboard & System"
   dashboard: Dashboard
   nowPlaying: Aktuelle Wiedergabe
   remoteAccess: Fernzugriff
   serverConfig: Serverkonfiguration
-  serverSettings: Servereinstellungen
   systemHealth: Systemzustand
   media: Medien
   libraries: Bibliotheken
-  metadata: Metadaten
   transcoding: Transkodierung
-  transcodeCache: Transkodierungs-Cache
-  transcodingProfiles: Transkodierungsprofile
-  usersAccess: Benutzer & Zugriff
+  usersAccess: "Benutzer & Zugriff"
   users: Benutzer
   integrations: Integrationen
   plugins: Plugins
@@ -21,11 +17,8 @@ nav:
   monitoring: Überwachung
   analytics: Analysen
   activity: Aktivität
-  auditLog: Audit-Protokoll
-  liveLogs: Live-Protokolle
   maintenance: Wartung
-  backupRestore: Sicherung & Wiederherstellung
-
+  backupRestore: "Sicherung & Wiederherstellung"
 plugin:
   enabled: Aktiviert
   disabled: Deaktiviert
@@ -39,17 +32,13 @@ plugin:
   configSaveFailed: Speichern der Konfiguration fehlgeschlagen
   subprocess: Unterprozess
   sandboxed: Sandboxed
-  hash: "Hash"
-  hashCopied: "Hash kopiert"
-  verified: "Verifiziert"
-  updateAvailable: "Update verfügbar"
-  versionHigher: "Version {{new}} ersetzt {{current}}"
-  versionRejected: "Version {{new}} ist nicht höher als {{current}}"
+  hash: Hash
+  hashCopied: Hash kopiert
   sandboxedWidget: Sandboxed-Widget
   widgetLoadError: Widget konnte nicht geladen werden
   state:
     running: Läuft
-    starting: "Startet..."
+    starting: Startet...
     error: Fehler
     stopped: Gestoppt
     installed: Installiert
@@ -58,14 +47,13 @@ plugin:
     title: Sicherheitshinweis
     issues: Probleme
     urls: Externe URLs
-
 plugins:
   title: Plugins
   installPlugin: Plugin installieren
   uploadFile: Datei hochladen
   fromUrl: Von URL
-  chooseFile: "Datei auswählen..."
-  previewInstall: Vorschau & Installieren
+  chooseFile: Datei auswählen...
+  previewInstall: "Vorschau & Installieren"
   pluginFileZip: Plugin-Datei (.zip)
   sourceUrl: Quell-URL
   nameOptional: Name (optional)
@@ -76,7 +64,7 @@ plugins:
   installAnyway: Trotzdem installieren
   install: Installieren
   subprocessRequired: Unterprozess-Berechtigung erforderlich
-  subprocessWarning: Dieses Plugin kann Systembefehle ausführen und die seccomp-Sandbox umgehen. Nur installieren, wenn Sie dem Autor vertrauen.
+  subprocessWarning: "Dieses Plugin kann Systembefehle ausführen und die seccomp-Sandbox umgehen. Nur installieren, wenn Sie dem Autor vertrauen."
   noPlugins: Keine Plugins installiert.
   pluginEnabled: Plugin aktiviert
   pluginDisabled: Plugin deaktiviert
@@ -88,13 +76,11 @@ plugins:
   uninstallTitle: Plugin deinstallieren
   uninstallConfirm: "Plugin \"{{name}}\" deinstallieren? Dies kann nicht rückgängig gemacht werden."
   selectFileFirst: Bitte zuerst eine Plugin-Datei auswählen
-  fileMissing: "Datei fehlt - bitte erneut auswählen"
+  fileMissing: Datei fehlt - bitte erneut auswählen
   blockedByAnalysis: Plugin durch Sicherheitsanalyse blockiert
   previewFailed: Vorschau fehlgeschlagen
   installFailed: Installation fehlgeschlagen
   availableRuntimes: Verfügbare Laufzeiten
-  noRuntimes: Keine Plugin-Laufzeiten erkannt
-
 dashboard:
   title: Dashboard
   systemInfo: Systeminformationen
@@ -105,14 +91,13 @@ dashboard:
   ffmpeg: FFmpeg
   uptime: Betriebszeit
   autoRefresh: "Aktualisiert {{time}} · automatische Aktualisierung alle {{interval}}"
-
 users:
   title: Benutzer
   createUser: Benutzer erstellen
   username: Benutzername
   email: E-Mail
   password: Passwort
-  newPassword: "Neues Passwort"
+  newPassword: Neues Passwort
   admin: Administrator
   role: Rolle
   user: Benutzer
@@ -121,7 +106,6 @@ users:
   userDisabled: Benutzer deaktiviert
   userEnabled: Benutzer aktiviert
   failedDeleteUser: Benutzer konnte nicht gelöscht werden
-  failedCreateUser: Benutzer konnte nicht erstellt werden
   failedUpdateUser: Benutzer konnte nicht aktualisiert werden
   userUpdated: Benutzer aktualisiert
   deleteUserTitle: Benutzer löschen
@@ -136,7 +120,7 @@ users:
   clearAllUnrestricted: Alle entfernen (uneingeschränkt)
   bitrate: Bitrate
   maxBitrateTitle: "Maximale Bitrate - {{name}}"
-  maxBitrateDesc: "Maximale Streaming-Bitrate für diesen Benutzer begrenzen. 0 = unbegrenzt."
+  maxBitrateDesc: Maximale Streaming-Bitrate für diesen Benutzer begrenzen. 0 = unbegrenzt.
   maxBitrate: Maximale Bitrate
   bitrateUpdated: Bitrate-Limit aktualisiert
   failedBitrate: Bitrate-Limit konnte nicht aktualisiert werden
@@ -162,15 +146,13 @@ users:
   noUsers: Keine Benutzer gefunden
   noInvites: Keine Einladungslinks
   editUser: Benutzer bearbeiten
-  failedCreateInvite: Einladungslink konnte nicht erstellt werden
-  leaveBlank: "Leer lassen zum Beibehalten"
+  leaveBlank: Leer lassen zum Beibehalten
   maxProfiles: Max. Profile
   maxProfilesHelp: "Maximale Anzahl Profile, die dieser Benutzer anlegen kann. 0 = unbegrenzt."
   maxDevicesPerProfile: Max. Geräte pro Profil
-  maxDevicesPerProfileHelp: "Maximale Anzahl Geräte pro Profil. 0 = unbegrenzt."
-  profilesTitle: "Profile"
-  noProfiles: "Dieser Benutzer hat noch keine Profile."
-
+  maxDevicesPerProfileHelp: Maximale Anzahl Geräte pro Profil. 0 = unbegrenzt.
+  profilesTitle: Profile
+  noProfiles: Dieser Benutzer hat noch keine Profile.
 libraries:
   title: Bibliotheken
   addLibrary: Bibliothek hinzufügen
@@ -179,13 +161,12 @@ libraries:
   libraryUpdated: "Bibliothek \"{{name}}\" aktualisiert"
   libraryDeleted: "Bibliothek \"{{name}}\" gelöscht"
   editLibrary: Bibliothek bearbeiten
-  failedUpdate: Bibliothek konnte nicht aktualisiert werden
   failedDelete: Bibliothek konnte nicht gelöscht werden
   scanStarted: Scan gestartet
   failedScan: Scan konnte nicht gestartet werden
   deleteTitle: Bibliothek löschen
   deleteConfirm: "Bibliothek \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
-  noLibraries: Keine Bibliotheken. Fügen Sie eine hinzu, um zu beginnen.
+  noLibraries: "Keine Bibliotheken. Fügen Sie eine hinzu, um zu beginnen."
   tableHeaders:
     name: Name
     type: Typ
@@ -203,7 +184,7 @@ libraries:
     library: Bibliothek
   scan: Scannen
   scanAgain: Erneut scannen
-  scanning: "Wird gescannt..."
+  scanning: Wird gescannt...
   schedule: Zeitplan
   scanScheduleTitle: "Scan-Zeitplan - {{name}}"
   scanFrequency: Scan-Häufigkeit
@@ -220,36 +201,28 @@ libraries:
     every12h: Alle 12 Stunden
     daily3am: Täglich (3 Uhr)
     weekly3am: Wöchentlich (Sonntag 3 Uhr)
-    customCron: "Benutzerdefinierter Cron..."
+    customCron: Benutzerdefinierter Cron...
   items: "{{count}} Elemente"
-  "off": Aus
+  'off': Aus
   paths: Pfade
   pathsHint: "(vollständigen Pfad im Container eingeben, z.B. /media/movies)"
-  selectDirectory: "— Verzeichnis auswählen —"
-  enterCustomPath: "Benutzerdefinierten Pfad eingeben..."
-  addPath: "+ Pfad hinzufügen"
+  selectDirectory: — Verzeichnis auswählen —
+  enterCustomPath: Benutzerdefinierten Pfad eingeben...
+  addPath: + Pfad hinzufügen
   tvShows: TV-Serien
-  lastScan: "Letzter Scan"
-  namePlaceholder: "Bibliotheksname"
-  pathRequired: "Mindestens ein Pfad ist erforderlich"
-  realtimeMonitoring: "Echtzeit-Überwachung"
-  scanFailed: "Scan fehlgeschlagen"
-  scanOnStartup: "Beim Start scannen"
-
+  pathRequired: Mindestens ein Pfad ist erforderlich
 sessions:
   title: Aktuelle Wiedergabe
   failedLoad: Sitzungen konnten nicht geladen werden
   failedLoadDesc: Aktive Sitzungen konnten nicht abgerufen werden. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.
   noSessions: Keine aktiven Sitzungen
-  noSessionsDesc: Wenn Benutzer mit dem Streaming beginnen, werden ihre Sitzungen hier angezeigt.
+  noSessionsDesc: "Wenn Benutzer mit dem Streaming beginnen, werden ihre Sitzungen hier angezeigt."
   activeCount: "{{count}} aktive Sitzungen"
-  activeCount_one: "{{count}} aktive Sitzung"
-  activeCount_other: "{{count}} aktive Sitzungen"
   stopSession: Sitzung beenden
   stop: Stoppen
   sessionStopped: Sitzung beendet
   failedStop: Sitzung konnte nicht beendet werden
-  elapsed: "vergangen"
+  elapsed: vergangen
   video: "Video: {{codec}}"
   audio: "Audio: {{codec}}"
   directPlay: Direktwiedergabe
@@ -259,9 +232,8 @@ sessions:
   sendMessage: Nachricht senden
   messageSent: Nachricht gesendet
   messagePlaceholder: Nachricht eingeben...
-
 backup:
-  title: Sicherung & Wiederherstellung
+  title: "Sicherung & Wiederherstellung"
   createBackup: Sicherung erstellen
   restoreFromFile: Aus Datei wiederherstellen
   backupCreated: Sicherung erstellt
@@ -269,7 +241,7 @@ backup:
   backupDeleted: Sicherung gelöscht
   failedDeleteBackup: Sicherung konnte nicht gelöscht werden
   noBackups: Keine Sicherungen
-  noBackupsDesc: Erstellen Sie eine Sicherung, um den Datenbankzustand zu speichern.
+  noBackupsDesc: "Erstellen Sie eine Sicherung, um den Datenbankzustand zu speichern."
   tableHeaders:
     id: ID
     date: Datum
@@ -287,7 +259,6 @@ backup:
   restoreFromFileTitle: Aus Datei wiederherstellen
   restoreFromFileDesc: Laden Sie eine .tar.gz-Sicherungsdatei hoch. Dies überschreibt vorhandene Daten.
   selectFileFirst: Bitte zuerst eine Sicherungsdatei auswählen
-
 webhooks:
   title: Webhooks
   createWebhook: Webhook erstellen
@@ -295,7 +266,6 @@ webhooks:
   webhookCreated: Webhook erstellt
   webhookUpdated: Webhook aktualisiert
   webhookDeleted: Webhook gelöscht
-  failedCreate: Webhook konnte nicht erstellt werden
   failedDelete: Webhook konnte nicht gelöscht werden
   failedUpdate: Webhook konnte nicht aktualisiert werden
   testPingSent: Test-Ping gesendet
@@ -312,12 +282,11 @@ webhooks:
   form:
     name: Name
     url: URL
-    secret: Secret (optional, für HMAC-Signierung)
+    secret: "Secret (optional, für HMAC-Signierung)"
     events: Ereignisse
     allEvents: Alle Ereignisse
     enabled: Aktiviert
     createWebhook: Webhook erstellen
-
 analytics:
   title: Analysen
   failedLoad: Analysen konnten nicht geladen werden
@@ -335,12 +304,10 @@ analytics:
     user: Benutzer
     media: Medium
     when: Wann
-
 activity:
   title: Aktivität
   tabs:
     playHistory: Wiedergabeverlauf
-    loginHistory: Anmeldeverlauf
     serverStats: Serverstatistiken
   playHeaders:
     title: Titel
@@ -348,16 +315,7 @@ activity:
     duration: Dauer
     progress: Fortschritt
     started: Gestartet
-  loginHeaders:
-    user: Benutzer
-    ip: IP
-    status: Status
-    userAgent: User Agent
-    timestamp: Zeitstempel
   noPlayHistory: Kein Wiedergabeverlauf
-  noLoginHistory: Kein Anmeldeverlauf
-  ok: OK
-  failed: Fehlgeschlagen
   totalEntries: "{{count}} Einträge insgesamt"
   stats:
     totalPlays: Gesamtwiedergaben
@@ -367,11 +325,8 @@ activity:
   popularMedia: Beliebte Medien
   mostActiveUsers: Aktivste Benutzer
   plays: "{{count}} Wiedergaben"
-
 audit:
   title: Audit-Protokoll
-  action: Aktion
-  resourceType: Ressourcentyp
   tableHeaders:
     time: Zeit
     user: Benutzer
@@ -381,16 +336,15 @@ audit:
     ip: IP
   noEntries: Keine Einträge gefunden
   entries: "{{count}} Einträge"
-
 serverConfig:
   title: Serverkonfiguration
   subtitle: Schlüssel-Wert-Konfigurationseinträge in der Datenbank gespeichert.
-  languageRegion: Sprache & Region
+  languageRegion: "Sprache & Region"
   languageRegionDesc: "Server-Sprach- und Regionseinstellungen. Beeinflusst Standard-UI-Sprache, Standard-Klassifizierungsregion und Metadaten-Sprache."
-  serverLanguage: "Serversprache"
-  serverRegion: "Serverregion"
+  serverLanguage: Serversprache
+  serverRegion: Serverregion
   metadataLanguage: Metadatensprache
-  envDefault: "— Umgebungsstandard —"
+  envDefault: — Umgebungsstandard —
   languageUpdated: "Sprache aktualisiert - Server neu starten, um auf Metadaten anzuwenden"
   configUpdated: Konfiguration aktualisiert
   failedUpdate: Konfiguration konnte nicht aktualisiert werden
@@ -410,7 +364,7 @@ serverConfig:
   trickplayTitle: Trickplay-Vorschaubilder
   trickplayDesc: Automatisch Zeitleisten-Vorschaubilder für Filme und Episoden generieren.
   trickplayEnabled: Trickplay-Vorschaubilder aktivieren
-  trickplayAdaptiveCpu: "Adaptive CPU"
+  trickplayAdaptiveCpu: Adaptive CPU
   trickplayAdaptiveCpuDesc: "Schonender Modus (~25% CPU). Deaktivieren für schnellere Generierung (~50% CPU)."
   tableHeaders:
     key: Schlüssel
@@ -434,19 +388,17 @@ serverConfig:
     saved: API-Schlüssel gespeichert
     usingDefault: Verwendet Standardschlüssel
     usingCustom: Verwendet benutzerdefinierten Schlüssel
-
 remoteAccess:
   title: Fernzugriff
   enableRemoteAccess: Fernzugriff aktivieren
   externalUrl: Externe URL
-  lanNetworks: LAN-Netzwerke (CIDR, kommagetrennt)
-  maxRemoteBitrate: Max. Remote-Bitrate (Kbps, 0 = unbegrenzt)
+  lanNetworks: "LAN-Netzwerke (CIDR, kommagetrennt)"
+  maxRemoteBitrate: "Max. Remote-Bitrate (Kbps, 0 = unbegrenzt)"
   saved: Fernzugriff-Einstellungen gespeichert
   networkInterfaces: Server-Netzwerkschnittstellen
   interface: Schnittstelle
   address: Adresse
-  usingDefault: "Standardwert wird verwendet"
-
+  usingDefault: Standardwert wird verwendet
 systemHealth:
   title: Systemzustand
   autoRefresh: "Aktualisiert {{time}} · automatische Aktualisierung alle 5s"
@@ -465,7 +417,6 @@ systemHealth:
   totalUsers: Benutzer gesamt
   hwAcceleration: HW-Beschleunigung
   serverId: Server-ID
-
 transcodeCache:
   title: Transkodierungs-Cache
   clearAll: Alle leeren
@@ -482,14 +433,12 @@ transcodeCache:
     file: Datei
     size: Größe
     modified: Geändert
-  hwAccelType: "HW-Beschleunigungstyp"
-  hwDecodeCodecs: "HW-Decodierungs-Codecs"
-  hwDevices: "HW-Geräte"
-  maxConcurrent: "Max. gleichzeitig"
-  settingsSaved: "Einstellungen gespeichert"
-  throttle: "Drosselung"
-  transcodingSettings: "Transkodierungs-Einstellungen"
-
+  hwAccelType: HW-Beschleunigungstyp
+  hwDecodeCodecs: HW-Decodierungs-Codecs
+  maxConcurrent: Max. gleichzeitig
+  settingsSaved: Einstellungen gespeichert
+  throttle: Drosselung
+  transcodingSettings: Transkodierungs-Einstellungen
 dashboardStats:
   movies: Filme
   series: Serien
@@ -516,14 +465,11 @@ dashboardStats:
   playActivity: Wiedergabeaktivität (14 Tage)
   plays: Wiedergaben
   watchTime: Wiedergabezeit
-  contentBreakdown: Inhaltsverteilung
   activeUsers: Aktive Benutzer
-  playMethodBreakdown: Wiedergabemethode (30 Tage)
   peakHours: Spitzenzeiten (30 Tage)
   used: Belegt
   free: Frei
   loginFailed: Anmeldung fehlgeschlagen
-
 serverSettings:
   title: Servereinstellungen
   serverName: Servername

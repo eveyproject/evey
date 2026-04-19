@@ -1,118 +1,58 @@
 auth:
-  unauthenticated: "No autenticado"
-  unauthorized: "No autorizado"
-  forbidden: "Prohibido"
-  invalid_credentials: "Nombre de usuario o contraseña inválidos"
-  invalid_body: "Cuerpo de solicitud inválido"
-  invalid_token: "Token inválido o expirado"
-  missing_token: "Token faltante"
-  no_session: "No hay sesión activa"
-  too_many_requests: "Demasiadas solicitudes"
-  too_many_attempts: "Demasiados intentos"
-  passwords_do_not_match: "Las contraseñas no coinciden"
-  password_too_short: "La contraseña debe tener al menos 8 caracteres"
-  username_too_short: "El nombre de usuario debe tener al menos 3 caracteres"
-  explicit_consent_required: "Se requiere consentimiento explícito para notificaciones push"
-  missing_authorization: "Falta el encabezado de autorización"
-  missing_metadata: "Faltan metadatos de solicitud"
-  admin_access_required: "Se requiere acceso de administrador"
-  insufficient_permissions: "Permisos insuficientes"
-  internal_method: "Este método es solo para uso interno"
-  missing_key: "Falta la clave API"
-  invalid_current_pin: "PIN actual inválido"
-  profile_not_found: "Perfil no encontrado"
-
+  unauthenticated: No autenticado
+  invalid_credentials: Nombre de usuario o contraseña inválidos
+  invalid_token: Token inválido o expirado
+  password_too_short: La contraseña debe tener al menos 8 caracteres
+  missing_authorization: Falta el encabezado de autorización
+  missing_metadata: Faltan metadatos de solicitud
+  admin_access_required: Se requiere acceso de administrador
+  insufficient_permissions: Permisos insuficientes
+  internal_method: Este método es solo para uso interno
+  missing_key: Falta la clave API
+  profile_not_found: Perfil no encontrado
 general:
-  not_found: "No encontrado"
-  conflict: "Conflicto"
-  invalid_input: "Entrada inválida"
-  rate_limited: "Límite de solicitudes alcanzado"
-  not_configured: "No configurado"
-  internal_error: "Error interno"
-  encode_error: "Error de codificación"
-  bad_request: "Solicitud inválida"
-  remote_access_disabled: "Acceso remoto deshabilitado"
-  path_traversal_detected: "Se detectó recorrido de ruta"
-
+  not_found: No encontrado
 playlist:
-  not_owner: "No eres el propietario de la lista de reproducción"
-  cannot_add_smart: "No se pueden agregar elementos manualmente a una lista inteligente"
-  cannot_remove_smart: "No se pueden eliminar elementos de una lista inteligente"
-  limit_reached: "Límite de elementos de la lista alcanzado"
-
+  not_owner: No eres el propietario de la lista de reproducción
+  cannot_add_smart: No se pueden agregar elementos manualmente a una lista inteligente
+  cannot_remove_smart: No se pueden eliminar elementos de una lista inteligente
+  limit_reached: Límite de elementos de la lista alcanzado
 playback:
-  parental_blocked: "Contenido bloqueado por control parental"
-  cannot_stop_other_session: "No se puede detener la sesión de otro usuario"
-  cannot_report_other_session: "No se puede reportar progreso de la sesión de otro usuario"
-  session_not_found: "Sesión no encontrada"
-  max_streams_reached: "Has alcanzado el número máximo de reproducciones simultáneas"
-
+  parental_blocked: Contenido bloqueado por control parental
+  cannot_stop_other_session: No se puede detener la sesión de otro usuario
+  cannot_report_other_session: No se puede reportar progreso de la sesión de otro usuario
+  session_not_found: Sesión no encontrada
+  max_streams_reached: Has alcanzado el número máximo de reproducciones simultáneas
 activity:
-  cannot_access_other_history: "No se puede acceder al historial de inicio de sesión de otro usuario"
-
+  cannot_access_other_history: No se puede acceder al historial de inicio de sesión de otro usuario
 library:
-  parental_restricted: "Contenido restringido por control parental"
-  name_required: "El nombre de la biblioteca es obligatorio"
-  scan_in_progress: "Ya hay un escaneo en curso para esta biblioteca"
-
+  parental_restricted: Contenido restringido por control parental
+  name_required: El nombre de la biblioteca es obligatorio
+  scan_in_progress: Ya hay un escaneo en curso para esta biblioteca
 admin:
-  setup_already_completed: "La configuración ya fue completada"
-  scheduler_not_available: "Programador no disponible"
-  scanner_not_available: "Escáner no disponible"
-  service_not_configured: "Servicio no configurado"
-  heavy_op_running: "Ya hay una operación pesada en ejecución"
-  scheduled_task_not_found: "Tarea programada no encontrada"
-
+  setup_already_completed: La configuración ya fue completada
+  scheduler_not_available: Programador no disponible
+  scanner_not_available: Escáner no disponible
+  service_not_configured: Servicio no configurado
+  heavy_op_running: Ya hay una operación pesada en ejecución
+  scheduled_task_not_found: Tarea programada no encontrada
 config:
-  key_required: "La clave es obligatoria"
-  key_not_found: "Clave de configuración no encontrada"
-
+  key_required: La clave es obligatoria
+  key_not_found: Clave de configuración no encontrada
 playback_settings:
-  skip_forward_positive: "skip_forward_seconds debe ser positivo"
-
+  skip_forward_positive: skip_forward_seconds debe ser positivo
 user:
-  cannot_update_other: "No se puede actualizar a otro usuario"
-  cannot_escalate_admin: "No se puede escalar a administrador"
-  cannot_change_caps: "Solo un administrador puede cambiar los límites de la cuenta"
-  cannot_create_profile_other: "No se puede crear perfil para otro usuario"
-  cannot_update_profile_other: "No se puede actualizar el perfil de otro usuario"
-  cannot_delete_profile_other: "No se puede eliminar el perfil de otro usuario"
-  cannot_revoke_invite_other: "No se puede revocar el enlace de invitación de otro usuario"
-  cannot_revoke_apikey_other: "No se puede revocar la clave API de otro usuario"
-  invalid_invite_data: "Datos de invitación o registro inválidos"
-  invalid_expired_code: "Código inválido o expirado"
-
+  cannot_update_other: No se puede actualizar a otro usuario
+  cannot_escalate_admin: No se puede escalar a administrador
+  cannot_change_caps: Solo un administrador puede cambiar los límites de la cuenta
+  cannot_create_profile_other: No se puede crear perfil para otro usuario
+  cannot_update_profile_other: No se puede actualizar el perfil de otro usuario
+  cannot_delete_profile_other: No se puede eliminar el perfil de otro usuario
+  cannot_revoke_invite_other: No se puede revocar el enlace de invitación de otro usuario
+  cannot_revoke_apikey_other: No se puede revocar la clave API de otro usuario
+  invalid_invite_data: Datos de invitación o registro inválidos
+  invalid_expired_code: Código inválido o expirado
 media:
-  not_found: "Medio no encontrado"
-  file_not_found: "Archivo no encontrado"
-  invalid_path: "Ruta inválida"
-  image_not_found: "Imagen no encontrada"
-
+  not_found: Medio no encontrado
 transcode:
-  busy: "Transcodificación ocupada"
-  failed: "Transcodificación fallida"
-  no_active_session: "No hay sesión de transcodificación activa"
-  session_not_ready: "La sesión no está lista"
-  segment_not_found: "Segmento no encontrado"
-  max_concurrent_reached: "El servidor está ocupado transcodificando otros flujos. Inténtalo de nuevo en un momento."
-
-subtitle:
-  not_found: "Subtítulo no encontrado"
-  search_failed: "Búsqueda de subtítulos fallida"
-  download_failed: "Descarga de subtítulos fallida"
-  file_id_required: "El ID de archivo es obligatorio"
-
-plugin:
-  blocked_by_security: "Plugin bloqueado por el análisis de seguridad"
-  manifest_invalid: "Manifiesto de plugin inválido"
-  not_found: "Plugin no encontrado"
-  config_save_failed: "Error al guardar la configuración del plugin"
-
-notification:
-  invalid_movie_level: "Nivel de notificación de películas inválido"
-  invalid_series_level: "Nivel de notificación de series inválido"
-  invalid_music_level: "Nivel de notificación de música inválido"
-
-backup:
-  failed: "Respaldo fallido"
-  restore_failed: "Restauración fallida"
+  max_concurrent_reached: El servidor está ocupado transcodificando otros flujos. Inténtalo de nuevo en un momento.

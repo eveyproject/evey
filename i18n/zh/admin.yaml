@@ -1,535 +1,482 @@
 nav:
-  dashboardSystem: "仪表盘与系统"
-  dashboard: "仪表盘"
-  nowPlaying: "正在播放"
-  remoteAccess: "远程访问"
-  serverConfig: "服务器配置"
-  serverSettings: "服务器设置"
-  systemHealth: "系统健康"
-  media: "媒体"
-  libraries: "媒体库"
-  metadata: "元数据"
-  transcoding: "转码"
-  transcodeCache: "转码缓存"
-  transcodingProfiles: "转码配置"
-  usersAccess: "用户与访问"
-  users: "用户"
-  integrations: "集成"
-  plugins: "插件"
+  dashboardSystem: 仪表盘与系统
+  dashboard: 仪表盘
+  nowPlaying: 正在播放
+  remoteAccess: 远程访问
+  serverConfig: 服务器配置
+  systemHealth: 系统健康
+  media: 媒体
+  libraries: 媒体库
+  transcoding: 转码
+  usersAccess: 用户与访问
+  users: 用户
+  integrations: 集成
+  plugins: 插件
   webhooks: Webhooks
-  apiKeys: "API 密钥"
-  monitoring: "监控"
-  analytics: "分析"
-  activity: "活动"
-  auditLog: "审计日志"
-  liveLogs: "实时日志"
-  maintenance: "维护"
-  backupRestore: "备份与恢复"
+  apiKeys: API 密钥
+  monitoring: 监控
+  analytics: 分析
+  activity: 活动
+  maintenance: 维护
+  backupRestore: 备份与恢复
 plugin:
-  enabled: "已启用"
-  disabled: "已禁用"
-  config: "配置"
-  hideConfig: "隐藏配置"
-  logs: "日志"
-  uninstall: "卸载"
-  configuration: "配置"
-  noConfig: "未定义配置项。"
-  configSaved: "配置已保存"
-  configSaveFailed: "保存配置失败"
-  subprocess: "子进程"
-  sandboxed: "沙箱"
-  hash: "哈希值"
-  hashCopied: "哈希值已复制"
-  verified: "已验证"
-  updateAvailable: "有可用更新"
-  versionHigher: "版本 {{new}} 替换 {{current}}"
-  versionRejected: "版本 {{new}} 不高于 {{current}}"
-  sandboxedWidget: "沙箱小部件"
-  widgetLoadError: "小部件加载失败"
+  enabled: 已启用
+  disabled: 已禁用
+  config: 配置
+  hideConfig: 隐藏配置
+  logs: 日志
+  uninstall: 卸载
+  configuration: 配置
+  noConfig: 未定义配置项。
+  configSaved: 配置已保存
+  configSaveFailed: 保存配置失败
+  subprocess: 子进程
+  sandboxed: 沙箱
+  hash: 哈希值
+  hashCopied: 哈希值已复制
+  sandboxedWidget: 沙箱小部件
+  widgetLoadError: 小部件加载失败
   state:
-    running: "运行中"
-    starting: "启动中…"
-    error: "错误"
-    stopped: "已停止"
-    installed: "已安装"
-    unknown: "未知"
+    running: 运行中
+    starting: 启动中…
+    error: 错误
+    stopped: 已停止
+    installed: 已安装
+    unknown: 未知
   analysisReport:
-    title: "安全提示"
-    issues: "问题"
-    urls: "外部 URL"
-
+    title: 安全提示
+    issues: 问题
+    urls: 外部 URL
 plugins:
-  title: "插件"
-  installPlugin: "安装插件"
-  uploadFile: "上传文件"
-  fromUrl: "从 URL 安装"
-  chooseFile: "选择文件..."
-  previewInstall: "预览并安装"
-  pluginFileZip: "插件文件 (.zip)"
-  sourceUrl: "来源 URL"
-  nameOptional: "名称（可选）"
-  urlSkipPreview: "注意：URL 安装将跳过预览步骤。"
-  permissions: "权限"
-  capabilities: "功能"
-  staticAnalysis: "静态分析"
-  installAnyway: "仍然安装"
-  install: "安装"
-  subprocessRequired: "需要子进程权限"
-  subprocessWarning: "此插件可以执行系统命令，绕过 seccomp 沙箱。请仅在信任作者时安装。"
-  noPlugins: "未安装任何插件。"
-  pluginEnabled: "插件已启用"
-  pluginDisabled: "插件已禁用"
-  pluginInstalled: "插件已安装"
-  pluginUninstalled: "插件已卸载"
-  failedEnable: "启用插件失败"
-  failedDisable: "禁用插件失败"
-  failedUninstall: "卸载插件失败"
-  uninstallTitle: "卸载插件"
+  title: 插件
+  installPlugin: 安装插件
+  uploadFile: 上传文件
+  fromUrl: 从 URL 安装
+  chooseFile: 选择文件...
+  previewInstall: 预览并安装
+  pluginFileZip: 插件文件 (.zip)
+  sourceUrl: 来源 URL
+  nameOptional: 名称（可选）
+  urlSkipPreview: 注意：URL 安装将跳过预览步骤。
+  permissions: 权限
+  capabilities: 功能
+  staticAnalysis: 静态分析
+  installAnyway: 仍然安装
+  install: 安装
+  subprocessRequired: 需要子进程权限
+  subprocessWarning: 此插件可以执行系统命令，绕过 seccomp 沙箱。请仅在信任作者时安装。
+  noPlugins: 未安装任何插件。
+  pluginEnabled: 插件已启用
+  pluginDisabled: 插件已禁用
+  pluginInstalled: 插件已安装
+  pluginUninstalled: 插件已卸载
+  failedEnable: 启用插件失败
+  failedDisable: 禁用插件失败
+  failedUninstall: 卸载插件失败
+  uninstallTitle: 卸载插件
   uninstallConfirm: "确定卸载插件「{{name}}」？此操作无法撤销。"
-  selectFileFirst: "请先选择插件文件"
-  fileMissing: "文件丢失——请重新选择"
-  blockedByAnalysis: "插件被安全分析拦截"
-  previewFailed: "预览失败"
-  installFailed: "安装失败"
-  availableRuntimes: "可用运行时"
-  noRuntimes: "未检测到插件运行时"
-
+  selectFileFirst: 请先选择插件文件
+  fileMissing: 文件丢失——请重新选择
+  blockedByAnalysis: 插件被安全分析拦截
+  previewFailed: 预览失败
+  installFailed: 安装失败
+  availableRuntimes: 可用运行时
 dashboard:
-  title: "仪表盘"
-  systemInfo: "系统信息"
-  version: "版本"
-  os: "操作系统"
-  arch: "架构"
-  goVersion: "Go 版本"
-  ffmpeg: "FFmpeg"
-  uptime: "运行时间"
+  title: 仪表盘
+  systemInfo: 系统信息
+  version: 版本
+  os: 操作系统
+  arch: 架构
+  goVersion: Go 版本
+  ffmpeg: FFmpeg
+  uptime: 运行时间
   autoRefresh: "更新于 {{time}} · 每 {{interval}} 自动刷新"
-
 users:
-  title: "用户"
-  createUser: "创建用户"
-  username: "用户名"
-  email: "邮箱"
-  password: "密码"
-  newPassword: "新密码"
-  admin: "管理员"
-  role: "角色"
-  user: "用户"
-  userCreated: "用户已创建"
+  title: 用户
+  createUser: 创建用户
+  username: 用户名
+  email: 邮箱
+  password: 密码
+  newPassword: 新密码
+  admin: 管理员
+  role: 角色
+  user: 用户
+  userCreated: 用户已创建
   userDeleted: "用户「{{name}}」已删除"
-  userDisabled: "用户已禁用"
-  userEnabled: "用户已启用"
-  failedDeleteUser: "删除用户失败"
-  failedCreateUser: "创建用户失败"
-  failedUpdateUser: "更新用户失败"
-  userUpdated: "用户已更新"
-  deleteUserTitle: "删除用户"
+  userDisabled: 用户已禁用
+  userEnabled: 用户已启用
+  failedDeleteUser: 删除用户失败
+  failedUpdateUser: 更新用户失败
+  userUpdated: 用户已更新
+  deleteUserTitle: 删除用户
   deleteUserConfirm: "确定删除用户「{{name}}」？此操作无法撤销。"
-  libraryAccess: "媒体库访问"
+  libraryAccess: 媒体库访问
   libraryAccessTitle: "媒体库访问 - {{name}}"
-  unrestricted: "无限制"
-  unrestrictedDesc: "此用户可以访问所有媒体库（无限制）。"
+  unrestricted: 无限制
+  unrestrictedDesc: 此用户可以访问所有媒体库（无限制）。
   restrictedDesc: "此用户只能访问 {{count}} 个选定的{{libraryWord}}。"
-  libraryAccessUpdated: "媒体库访问已更新"
-  failedLibraryAccess: "更新媒体库访问失败"
-  clearAllUnrestricted: "清除全部（无限制）"
-  bitrate: "码率"
+  libraryAccessUpdated: 媒体库访问已更新
+  failedLibraryAccess: 更新媒体库访问失败
+  clearAllUnrestricted: 清除全部（无限制）
+  bitrate: 码率
   maxBitrateTitle: "最大码率 - {{name}}"
-  maxBitrateDesc: "限制此用户的最大流媒体码率。0 = 无限制。"
-  maxBitrate: "最大码率"
-  bitrateUpdated: "码率限制已更新"
-  failedBitrate: "更新码率限制失败"
-  inviteLinks: "邀请链接"
-  createInviteLink: "创建邀请链接"
-  code: "代码"
-  uses: "使用次数"
-  expires: "过期时间"
-  never: "永不"
-  copyLink: "复制链接"
-  linkCopied: "链接已复制到剪贴板"
-  revoke: "撤销"
-  revokeInviteTitle: "撤销邀请"
-  revokeInviteConfirm: "确定撤销此邀请链接？链接将不再可用。"
-  inviteRevoked: "邀请链接已撤销"
-  failedRevoke: "撤销邀请失败"
-  inviteCreated: "邀请链接已创建"
-  maxUsesLabel: "最大使用次数（留空 = 无限制）"
-  expiresAtLabel: "过期时间（可选）"
-  inviteIsAdmin: "创建为管理员"
-  inviteLibraries: "可访问的媒体库"
-  inviteLibrariesHelp: "留空则授予所有媒体库的访问权限。"
-  noUsers: "未找到用户"
-  noInvites: "没有邀请链接"
-  editUser: "编辑用户"
-  failedCreateInvite: "创建邀请链接失败"
-  leaveBlank: "留空以保持当前值"
-  maxProfiles: "最大配置文件数"
-  maxProfilesHelp: "此用户可创建的最大配置文件数。0 = 无限制。"
-  maxDevicesPerProfile: "每个配置文件的最大设备数"
-  maxDevicesPerProfileHelp: "每个配置文件可注册的最大设备数。0 = 无限制。"
-  profilesTitle: "个人资料"
-  noProfiles: "此用户尚无个人资料。"
-
+  maxBitrateDesc: 限制此用户的最大流媒体码率。0 = 无限制。
+  maxBitrate: 最大码率
+  bitrateUpdated: 码率限制已更新
+  failedBitrate: 更新码率限制失败
+  inviteLinks: 邀请链接
+  createInviteLink: 创建邀请链接
+  code: 代码
+  uses: 使用次数
+  expires: 过期时间
+  never: 永不
+  copyLink: 复制链接
+  linkCopied: 链接已复制到剪贴板
+  revoke: 撤销
+  revokeInviteTitle: 撤销邀请
+  revokeInviteConfirm: 确定撤销此邀请链接？链接将不再可用。
+  inviteRevoked: 邀请链接已撤销
+  failedRevoke: 撤销邀请失败
+  inviteCreated: 邀请链接已创建
+  maxUsesLabel: 最大使用次数（留空 = 无限制）
+  expiresAtLabel: 过期时间（可选）
+  inviteIsAdmin: 创建为管理员
+  inviteLibraries: 可访问的媒体库
+  inviteLibrariesHelp: 留空则授予所有媒体库的访问权限。
+  noUsers: 未找到用户
+  noInvites: 没有邀请链接
+  editUser: 编辑用户
+  leaveBlank: 留空以保持当前值
+  maxProfiles: 最大配置文件数
+  maxProfilesHelp: 此用户可创建的最大配置文件数。0 = 无限制。
+  maxDevicesPerProfile: 每个配置文件的最大设备数
+  maxDevicesPerProfileHelp: 每个配置文件可注册的最大设备数。0 = 无限制。
+  profilesTitle: 个人资料
+  noProfiles: 此用户尚无个人资料。
 libraries:
-  title: "媒体库"
-  addLibrary: "添加媒体库"
-  createLibrary: "创建媒体库"
-  libraryCreated: "媒体库已创建"
+  title: 媒体库
+  addLibrary: 添加媒体库
+  createLibrary: 创建媒体库
+  libraryCreated: 媒体库已创建
   libraryUpdated: "媒体库「{{name}}」已更新"
   libraryDeleted: "媒体库「{{name}}」已删除"
-  editLibrary: "编辑媒体库"
-  failedUpdate: "更新媒体库失败"
-  failedDelete: "删除媒体库失败"
-  scanStarted: "扫描已开始"
-  failedScan: "启动扫描失败"
-  deleteTitle: "删除媒体库"
+  editLibrary: 编辑媒体库
+  failedDelete: 删除媒体库失败
+  scanStarted: 扫描已开始
+  failedScan: 启动扫描失败
+  deleteTitle: 删除媒体库
   deleteConfirm: "确定删除媒体库「{{name}}」？此操作无法撤销。"
-  noLibraries: "没有媒体库。添加一个以开始使用。"
+  noLibraries: 没有媒体库。添加一个以开始使用。
   tableHeaders:
-    name: "名称"
-    type: "类型"
-    paths: "路径"
-    items: "项目数"
-    lastScanned: "上次扫描"
-    nextScan: "下次扫描"
-    actions: "操作"
+    name: 名称
+    type: 类型
+    paths: 路径
+    items: 项目数
+    lastScanned: 上次扫描
+    nextScan: 下次扫描
+    actions: 操作
   types:
-    movies: "电影"
-    shows: "电视剧"
-    music: "音乐"
-    photos: "照片"
-    books: "书籍"
-    library: "媒体库"
-  scan: "扫描"
-  scanAgain: "重新扫描"
-  scanning: "扫描中..."
-  schedule: "计划"
+    movies: 电影
+    shows: 电视剧
+    music: 音乐
+    photos: 照片
+    books: 书籍
+    library: 媒体库
+  scan: 扫描
+  scanAgain: 重新扫描
+  scanning: 扫描中...
+  schedule: 计划
   scanScheduleTitle: "扫描计划 - {{name}}"
-  scanFrequency: "扫描频率"
+  scanFrequency: 扫描频率
   selectFrequency: "-- 选择频率 --"
-  cronExpression: "Cron 表达式"
-  scheduleSaved: "计划已保存"
-  failedSchedule: "保存计划失败"
-  scheduleRemoved: "计划已移除"
-  failedRemoveSchedule: "移除计划失败"
+  cronExpression: Cron 表达式
+  scheduleSaved: 计划已保存
+  failedSchedule: 保存计划失败
+  scheduleRemoved: 计划已移除
+  failedRemoveSchedule: 移除计划失败
   lastRun: "上次运行：{{date}}"
   nextRun: "下次运行：{{date}}"
   presets:
-    every6h: "每 6 小时"
-    every12h: "每 12 小时"
-    daily3am: "每天（凌晨 3 点）"
-    weekly3am: "每周（周日凌晨 3 点）"
-    customCron: "自定义 cron..."
+    every6h: 每 6 小时
+    every12h: 每 12 小时
+    daily3am: 每天（凌晨 3 点）
+    weekly3am: 每周（周日凌晨 3 点）
+    customCron: 自定义 cron...
   items: "{{count}} 项"
-  "off": "关闭"
-  paths: "路径"
-  pathsHint: "（输入容器内完整路径，如 /media/movies）"
-  selectDirectory: "— 选择目录 —"
-  enterCustomPath: "输入自定义路径..."
-  addPath: "+ 添加路径"
-  tvShows: "电视剧"
-  lastScan: "上次扫描"
-  namePlaceholder: "媒体库名称"
-  pathRequired: "至少需要一个路径"
-  realtimeMonitoring: "实时监控"
-  scanFailed: "扫描失败"
-  scanOnStartup: "启动时扫描"
-
+  'off': 关闭
+  paths: 路径
+  pathsHint: （输入容器内完整路径，如 /media/movies）
+  selectDirectory: — 选择目录 —
+  enterCustomPath: 输入自定义路径...
+  addPath: + 添加路径
+  tvShows: 电视剧
+  pathRequired: 至少需要一个路径
 sessions:
-  title: "正在播放"
-  failedLoad: "加载会话失败"
-  failedLoadDesc: "无法获取活跃会话。请检查连接后重试。"
-  noSessions: "没有活跃会话"
-  noSessionsDesc: "当用户开始播放时，会话将显示在此处。"
+  title: 正在播放
+  failedLoad: 加载会话失败
+  failedLoadDesc: 无法获取活跃会话。请检查连接后重试。
+  noSessions: 没有活跃会话
+  noSessionsDesc: 当用户开始播放时，会话将显示在此处。
   activeCount: "{{count}} 个活跃会话"
-  activeCount_one: "{{count}} 个活跃会话"
-  activeCount_other: "{{count}} 个活跃会话"
-  stopSession: "停止会话"
-  stop: "停止"
-  sessionStopped: "会话已停止"
-  failedStop: "停止会话失败"
-  elapsed: "已播放"
+  stopSession: 停止会话
+  stop: 停止
+  sessionStopped: 会话已停止
+  failedStop: 停止会话失败
+  elapsed: 已播放
   video: "视频：{{codec}}"
   audio: "音频：{{codec}}"
-  directPlay: "直接播放"
-  directStream: "直接串流"
-  transcode: "转码"
+  directPlay: 直接播放
+  directStream: 直接串流
+  transcode: 转码
   refreshStatus: "更新于 {{time}} - 每 {{seconds}} 秒自动刷新"
-  sendMessage: "发送消息"
-  messageSent: "消息已发送"
-  messagePlaceholder: "输入消息..."
-
+  sendMessage: 发送消息
+  messageSent: 消息已发送
+  messagePlaceholder: 输入消息...
 backup:
-  title: "备份与恢复"
-  createBackup: "创建备份"
-  restoreFromFile: "从文件恢复"
-  backupCreated: "备份已创建"
-  failedCreate: "创建备份失败"
-  backupDeleted: "备份已删除"
-  failedDeleteBackup: "删除备份失败"
-  noBackups: "没有备份"
-  noBackupsDesc: "创建备份以保存数据库状态。"
+  title: 备份与恢复
+  createBackup: 创建备份
+  restoreFromFile: 从文件恢复
+  backupCreated: 备份已创建
+  failedCreate: 创建备份失败
+  backupDeleted: 备份已删除
+  failedDeleteBackup: 删除备份失败
+  noBackups: 没有备份
+  noBackupsDesc: 创建备份以保存数据库状态。
   tableHeaders:
-    id: "ID"
-    date: "日期"
-    version: "版本"
-    size: "大小"
-    status: "状态"
-    actions: "操作"
-  ready: "就绪"
-  restoreBackupTitle: "恢复备份"
+    id: ID
+    date: 日期
+    version: 版本
+    size: 大小
+    status: 状态
+    actions: 操作
+  ready: 就绪
+  restoreBackupTitle: 恢复备份
   restoreConfirm: "确定从 {{date}} 恢复备份？这将覆盖当前数据且无法撤销。"
-  restoreCompleted: "恢复完成"
-  restoreFailed: "恢复失败"
-  deleteBackupTitle: "删除备份"
+  restoreCompleted: 恢复完成
+  restoreFailed: 恢复失败
+  deleteBackupTitle: 删除备份
   deleteConfirm: "确定删除 {{date}} 的备份？此操作无法撤销。"
-  restoreFromFileTitle: "从文件恢复"
-  restoreFromFileDesc: "上传备份 .tar.gz 文件进行恢复。这将覆盖现有数据。"
-  selectFileFirst: "请先选择备份文件"
-
+  restoreFromFileTitle: 从文件恢复
+  restoreFromFileDesc: 上传备份 .tar.gz 文件进行恢复。这将覆盖现有数据。
+  selectFileFirst: 请先选择备份文件
 webhooks:
   title: Webhooks
-  createWebhook: "创建 Webhook"
-  editWebhook: "编辑 Webhook"
-  webhookCreated: "Webhook 已创建"
-  webhookUpdated: "Webhook 已更新"
-  webhookDeleted: "Webhook 已删除"
-  failedCreate: "创建 Webhook 失败"
-  failedDelete: "删除 Webhook 失败"
-  failedUpdate: "更新 Webhook 失败"
-  testPingSent: "测试 ping 已发送"
-  testPingFailed: "测试 ping 失败"
-  deleteTitle: "删除 Webhook"
+  createWebhook: 创建 Webhook
+  editWebhook: 编辑 Webhook
+  webhookCreated: Webhook 已创建
+  webhookUpdated: Webhook 已更新
+  webhookDeleted: Webhook 已删除
+  failedDelete: 删除 Webhook 失败
+  failedUpdate: 更新 Webhook 失败
+  testPingSent: 测试 ping 已发送
+  testPingFailed: 测试 ping 失败
+  deleteTitle: 删除 Webhook
   deleteConfirm: "确定删除 <strong>{{name}}</strong>？此操作无法撤销。"
-  noWebhooks: "未配置 Webhook。"
+  noWebhooks: 未配置 Webhook。
   tableHeaders:
-    nameUrl: "名称 / URL"
-    events: "事件"
-    status: "状态"
-    created: "创建时间"
-    actions: "操作"
+    nameUrl: 名称 / URL
+    events: 事件
+    status: 状态
+    created: 创建时间
+    actions: 操作
   form:
-    name: "名称"
-    url: "URL"
-    secret: "密钥（可选，用于 HMAC 签名）"
-    events: "事件"
-    allEvents: "所有事件"
-    enabled: "启用"
-    createWebhook: "创建 Webhook"
-
+    name: 名称
+    url: URL
+    secret: 密钥（可选，用于 HMAC 签名）
+    events: 事件
+    allEvents: 所有事件
+    enabled: 启用
+    createWebhook: 创建 Webhook
 analytics:
-  title: "分析"
-  failedLoad: "加载分析数据失败"
-  playsToday: "今日播放"
-  playsThisWeek: "本周播放"
-  activeUsersToday: "今日活跃用户"
-  topMedia: "热门 10 - 近 30 天"
-  recentActivity: "最近活动"
-  noPlays: "近 30 天没有播放记录"
-  noActivity: "没有最近活动"
+  title: 分析
+  failedLoad: 加载分析数据失败
+  playsToday: 今日播放
+  playsThisWeek: 本周播放
+  activeUsersToday: 今日活跃用户
+  topMedia: 热门 10 - 近 30 天
+  recentActivity: 最近活动
+  noPlays: 近 30 天没有播放记录
+  noActivity: 没有最近活动
   tableHeaders:
-    title: "标题"
-    plays: "播放次数"
-    totalWatchTime: "总观看时长"
-    user: "用户"
-    media: "媒体"
-    when: "时间"
-
+    title: 标题
+    plays: 播放次数
+    totalWatchTime: 总观看时长
+    user: 用户
+    media: 媒体
+    when: 时间
 activity:
-  title: "活动"
+  title: 活动
   tabs:
-    playHistory: "播放历史"
-    loginHistory: "登录历史"
-    serverStats: "服务器统计"
+    playHistory: 播放历史
+    serverStats: 服务器统计
   playHeaders:
-    title: "标题"
-    device: "设备"
-    duration: "时长"
-    progress: "进度"
-    started: "开始时间"
-  loginHeaders:
-    user: "用户"
-    ip: "IP"
-    status: "状态"
-    userAgent: "User Agent"
-    timestamp: "时间戳"
-  noPlayHistory: "没有播放历史"
-  noLoginHistory: "没有登录历史"
-  ok: "成功"
-  failed: "失败"
+    title: 标题
+    device: 设备
+    duration: 时长
+    progress: 进度
+    started: 开始时间
+  noPlayHistory: 没有播放历史
   totalEntries: "共 {{count}} 条记录"
   stats:
-    totalPlays: "总播放次数"
-    totalUsers: "总用户数"
-    totalMedia: "总媒体数"
-    bandwidth: "带宽"
-  popularMedia: "热门媒体"
-  mostActiveUsers: "最活跃用户"
+    totalPlays: 总播放次数
+    totalUsers: 总用户数
+    totalMedia: 总媒体数
+    bandwidth: 带宽
+  popularMedia: 热门媒体
+  mostActiveUsers: 最活跃用户
   plays: "{{count}} 次播放"
-
 audit:
-  title: "审计日志"
-  action: "操作"
-  resourceType: "资源类型"
+  title: 审计日志
   tableHeaders:
-    time: "时间"
-    user: "用户"
-    action: "操作"
-    resource: "资源"
-    details: "详情"
-    ip: "IP"
-  noEntries: "未找到记录"
+    time: 时间
+    user: 用户
+    action: 操作
+    resource: 资源
+    details: 详情
+    ip: IP
+  noEntries: 未找到记录
   entries: "{{count}} 条记录"
-
 serverConfig:
-  title: "服务器配置"
-  subtitle: "存储在数据库中的键值配置项。"
-  languageRegion: "语言和地区"
-  languageRegionDesc: "服务器语言和区域设置。影响默认UI语言、分级区域和元数据语言。"
-  serverLanguage: "服务器语言"
-  serverRegion: "服务器区域"
-  metadataLanguage: "元数据语言"
-  envDefault: "— 环境默认 —"
-  languageUpdated: "语言已更新 - 重启服务器以应用到元数据获取"
-  configUpdated: "配置已更新"
-  failedUpdate: "更新配置失败"
-  configDeleted: "配置条目已删除"
-  failedDeleteEntry: "删除配置条目失败"
-  emailSmtp: "邮件 / SMTP"
-  emailSmtpDesc: "配置用于通知和邀请的外发邮件。"
-  smtpHost: "SMTP 主机"
-  port: "端口"
-  smtpUsername: "用户名"
-  smtpPassword: "密码"
-  fromAddress: "发件地址"
-  tlsMode: "TLS 模式"
-  saveSmtp: "保存 SMTP 设置"
-  smtpSaved: "SMTP 设置已保存"
+  title: 服务器配置
+  subtitle: 存储在数据库中的键值配置项。
+  languageRegion: 语言和地区
+  languageRegionDesc: 服务器语言和区域设置。影响默认UI语言、分级区域和元数据语言。
+  serverLanguage: 服务器语言
+  serverRegion: 服务器区域
+  metadataLanguage: 元数据语言
+  envDefault: — 环境默认 —
+  languageUpdated: 语言已更新 - 重启服务器以应用到元数据获取
+  configUpdated: 配置已更新
+  failedUpdate: 更新配置失败
+  configDeleted: 配置条目已删除
+  failedDeleteEntry: 删除配置条目失败
+  emailSmtp: 邮件 / SMTP
+  emailSmtpDesc: 配置用于通知和邀请的外发邮件。
+  smtpHost: SMTP 主机
+  port: 端口
+  smtpUsername: 用户名
+  smtpPassword: 密码
+  fromAddress: 发件地址
+  tlsMode: TLS 模式
+  saveSmtp: 保存 SMTP 设置
+  smtpSaved: SMTP 设置已保存
   failedSmtp: "保存 {{key}} 失败"
-  trickplayTitle: "Trickplay 缩略图"
-  trickplayDesc: "为电影和剧集自动生成时间轴预览缩略图。"
-  trickplayEnabled: "启用 Trickplay 缩略图"
-  trickplayAdaptiveCpu: "自适应 CPU"
+  trickplayTitle: Trickplay 缩略图
+  trickplayDesc: 为电影和剧集自动生成时间轴预览缩略图。
+  trickplayEnabled: 启用 Trickplay 缩略图
+  trickplayAdaptiveCpu: 自适应 CPU
   trickplayAdaptiveCpuDesc: "轻量模式 (~25% CPU)。禁用后使用更快的生成速度 (~50% CPU)。"
   tableHeaders:
-    key: "键"
-    value: "值"
-    updated: "更新时间"
-    actions: "操作"
-  noEntries: "没有配置条目"
-  noEntriesDesc: "在下方添加键值条目。"
-  show: "显示"
-  hide: "隐藏"
+    key: 键
+    value: 值
+    updated: 更新时间
+    actions: 操作
+  noEntries: 没有配置条目
+  noEntriesDesc: 在下方添加键值条目。
+  show: 显示
+  hide: 隐藏
   apiKeys:
-    title: "API 密钥"
-    description: "配置元数据提供商的 API 密钥。此处设置的密钥会覆盖环境变量。"
-    tmdb: "TMDB API 密钥"
-    tmdbLink: "在 themoviedb.org 获取免费密钥"
-    omdb: "OMDB API 密钥"
-    omdbLink: "在 omdbapi.com 获取免费密钥"
-    opensubtitles: "OpenSubtitles API 密钥"
-    opensubtitlesLink: "在 opensubtitles.com 获取密钥"
-    resetToDefault: "重置为默认值"
-    saved: "API 密钥已保存"
-    usingDefault: "使用默认密钥"
-    usingCustom: "使用自定义密钥"
-
+    title: API 密钥
+    description: 配置元数据提供商的 API 密钥。此处设置的密钥会覆盖环境变量。
+    tmdb: TMDB API 密钥
+    tmdbLink: 在 themoviedb.org 获取免费密钥
+    omdb: OMDB API 密钥
+    omdbLink: 在 omdbapi.com 获取免费密钥
+    opensubtitles: OpenSubtitles API 密钥
+    opensubtitlesLink: 在 opensubtitles.com 获取密钥
+    resetToDefault: 重置为默认值
+    saved: API 密钥已保存
+    usingDefault: 使用默认密钥
+    usingCustom: 使用自定义密钥
 remoteAccess:
-  title: "远程访问"
-  enableRemoteAccess: "启用远程访问"
-  externalUrl: "外部 URL"
-  lanNetworks: "LAN 网络（CIDR，逗号分隔）"
-  maxRemoteBitrate: "最大远程码率（Kbps，0 = 无限制）"
-  saved: "远程访问设置已保存"
-  networkInterfaces: "服务器网络接口"
-  interface: "接口"
-  address: "地址"
-  usingDefault: "使用默认值"
-
+  title: 远程访问
+  enableRemoteAccess: 启用远程访问
+  externalUrl: 外部 URL
+  lanNetworks: LAN 网络（CIDR，逗号分隔）
+  maxRemoteBitrate: 最大远程码率（Kbps，0 = 无限制）
+  saved: 远程访问设置已保存
+  networkInterfaces: 服务器网络接口
+  interface: 接口
+  address: 地址
+  usingDefault: 使用默认值
 systemHealth:
-  title: "系统健康"
+  title: 系统健康
   autoRefresh: "更新于 {{time}} · 每 5 秒自动刷新"
-  cpuUsage: "CPU 使用率"
-  memoryUsage: "内存使用率"
-  storage: "存储"
-  activitySection: "活动"
-  server: "服务器"
-  serverInfo: "服务器信息"
+  cpuUsage: CPU 使用率
+  memoryUsage: 内存使用率
+  storage: 存储
+  activitySection: 活动
+  server: 服务器
+  serverInfo: 服务器信息
   used: "已用：{{size}}"
   free: "可用：{{size}}"
   total: "总计：{{size}}"
-  activeStreams: "活跃流"
-  activeTranscodes: "活跃转码"
-  totalMedia: "总媒体数"
-  totalUsers: "总用户数"
-  hwAcceleration: "硬件加速"
-  serverId: "服务器 ID"
-
+  activeStreams: 活跃流
+  activeTranscodes: 活跃转码
+  totalMedia: 总媒体数
+  totalUsers: 总用户数
+  hwAcceleration: 硬件加速
+  serverId: 服务器 ID
 transcodeCache:
-  title: "转码缓存"
-  clearAll: "清除全部"
-  totalSize: "总大小"
-  files: "文件"
-  cacheEmpty: "缓存为空"
-  cacheCleared: "缓存已清除"
-  failedClear: "清除缓存失败"
+  title: 转码缓存
+  clearAll: 清除全部
+  totalSize: 总大小
+  files: 文件
+  cacheEmpty: 缓存为空
+  cacheCleared: 缓存已清除
+  failedClear: 清除缓存失败
   deleted: "已删除 {{name}}"
-  failedDeleteFile: "删除文件失败"
-  clearConfirmTitle: "清除转码缓存"
+  failedDeleteFile: 删除文件失败
+  clearConfirmTitle: 清除转码缓存
   clearConfirm: "确定删除所有 {{count}} 个缓存文件（{{size}}）？此操作无法撤销。"
   tableHeaders:
-    file: "文件"
-    size: "大小"
-    modified: "修改时间"
-  hwAccelType: "硬件加速类型"
-  hwDecodeCodecs: "硬件解码编解码器"
-  hwDevices: "硬件设备"
-  maxConcurrent: "最大并发"
-  settingsSaved: "设置已保存"
-  throttle: "限速"
-  transcodingSettings: "转码设置"
-
+    file: 文件
+    size: 大小
+    modified: 修改时间
+  hwAccelType: 硬件加速类型
+  hwDecodeCodecs: 硬件解码编解码器
+  maxConcurrent: 最大并发
+  settingsSaved: 设置已保存
+  throttle: 限速
+  transcodingSettings: 转码设置
 dashboardStats:
-  movies: "电影"
-  series: "剧集"
-  users: "用户"
-  activeStreams: "活跃流"
-  cpu: "CPU"
-  memory: "内存"
-  transcodes: "转码"
-  totalMedia: "总媒体数"
-  storage: "存储"
-  quickActions: "快捷操作"
-  scanAllLibraries: "扫描所有媒体库"
-  manageLibraries: "管理媒体库"
-  manageUsers: "管理用户"
-  recentActivity: "最近活动"
-  viewAll: "查看全部"
-  popularMedia: "热门媒体"
+  movies: 电影
+  series: 剧集
+  users: 用户
+  activeStreams: 活跃流
+  cpu: CPU
+  memory: 内存
+  transcodes: 转码
+  totalMedia: 总媒体数
+  storage: 存储
+  quickActions: 快捷操作
+  scanAllLibraries: 扫描所有媒体库
+  manageLibraries: 管理媒体库
+  manageUsers: 管理用户
+  recentActivity: 最近活动
+  viewAll: 查看全部
+  popularMedia: 热门媒体
   viewers: "{{count}} 位观众"
-  scanStarted: "扫描已开始"
-  scanFailed: "扫描失败"
-  allScansTriggered: "所有媒体库扫描已触发"
-  nowPlaying: "正在播放"
-  noActivePlayback: "无活跃播放"
-  playActivity: "播放活动 (14天)"
-  plays: "播放次数"
-  watchTime: "观看时长"
-  contentBreakdown: "内容分布"
-  activeUsers: "活跃用户"
-  playMethodBreakdown: "播放方式 (30天)"
-  peakHours: "高峰时段 (30天)"
-  used: "已用"
-  free: "可用"
-  loginFailed: "登录失败"
-
+  scanStarted: 扫描已开始
+  scanFailed: 扫描失败
+  allScansTriggered: 所有媒体库扫描已触发
+  nowPlaying: 正在播放
+  noActivePlayback: 无活跃播放
+  playActivity: 播放活动 (14天)
+  plays: 播放次数
+  watchTime: 观看时长
+  activeUsers: 活跃用户
+  peakHours: 高峰时段 (30天)
+  used: 已用
+  free: 可用
+  loginFailed: 登录失败
 serverSettings:
-  title: "服务器设置"
-  serverName: "服务器名称"
-  maxConcurrentTranscodes: "最大并发转码数"
-  hwAccelEnabled: "硬件加速"
-  loginRateLimit: "登录速率限制（请求/分钟）"
-  globalRateLimit: "全局速率限制（请求/分钟）"
-  saved: "设置已保存"
-  usingDefault: "默认值："
-  reset: "重置为默认值"
+  title: 服务器设置
+  serverName: 服务器名称
+  maxConcurrentTranscodes: 最大并发转码数
+  hwAccelEnabled: 硬件加速
+  loginRateLimit: 登录速率限制（请求/分钟）
+  globalRateLimit: 全局速率限制（请求/分钟）
+  saved: 设置已保存
+  usingDefault: 默认值：
+  reset: 重置为默认值

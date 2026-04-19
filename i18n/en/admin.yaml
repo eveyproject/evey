@@ -1,18 +1,14 @@
 nav:
-  dashboardSystem: Dashboard & System
+  dashboardSystem: "Dashboard & System"
   dashboard: Dashboard
   nowPlaying: Now Playing
   remoteAccess: Remote Access
   serverConfig: Server Config
-  serverSettings: Server Settings
   systemHealth: System Health
   media: Media
   libraries: Libraries
-  metadata: Metadata
   transcoding: Transcoding
-  transcodeCache: Transcode Cache
-  transcodingProfiles: Transcoding Profiles
-  usersAccess: Users & Access
+  usersAccess: "Users & Access"
   users: Users
   integrations: Integrations
   plugins: Plugins
@@ -21,11 +17,8 @@ nav:
   monitoring: Monitoring
   analytics: Analytics
   activity: Activity
-  auditLog: Audit Log
-  liveLogs: Live Logs
   maintenance: Maintenance
   backupRestore: Database Backup
-
 plugin:
   enabled: Enabled
   disabled: Disabled
@@ -39,17 +32,13 @@ plugin:
   configSaveFailed: Failed to save config
   subprocess: Subprocess
   sandboxed: Sandboxed
-  hash: "Hash"
-  hashCopied: "Hash copied"
-  verified: "Verified"
-  updateAvailable: "Update available"
-  versionHigher: "Version {{new}} replaces {{current}}"
-  versionRejected: "Version {{new}} is not higher than {{current}}"
+  hash: Hash
+  hashCopied: Hash copied
   sandboxedWidget: Sandboxed widget
   widgetLoadError: Widget failed to load
   state:
     running: Running
-    starting: "Starting..."
+    starting: Starting...
     error: Error
     stopped: Stopped
     installed: Installed
@@ -58,14 +47,13 @@ plugin:
     title: Security notice
     issues: Issues
     urls: External URLs
-
 plugins:
   title: Plugins
   installPlugin: Install Plugin
   uploadFile: Upload File
   fromUrl: From URL
-  chooseFile: "Choose file..."
-  previewInstall: Preview & Install
+  chooseFile: Choose file...
+  previewInstall: "Preview & Install"
   pluginFileZip: Plugin file (.zip)
   sourceUrl: Source URL
   nameOptional: Name (optional)
@@ -76,7 +64,7 @@ plugins:
   installAnyway: Install Anyway
   install: Install
   subprocessRequired: Subprocess Permission Required
-  subprocessWarning: This plugin can execute system commands, bypassing the seccomp sandbox. Only install if you trust the author.
+  subprocessWarning: "This plugin can execute system commands, bypassing the seccomp sandbox. Only install if you trust the author."
   noPlugins: No plugins installed.
   pluginEnabled: Plugin enabled
   pluginDisabled: Plugin disabled
@@ -88,13 +76,11 @@ plugins:
   uninstallTitle: Uninstall Plugin
   uninstallConfirm: "Uninstall plugin \"{{name}}\"? This cannot be undone."
   selectFileFirst: Select a plugin file first
-  fileMissing: "File missing - select again"
+  fileMissing: File missing - select again
   blockedByAnalysis: Plugin blocked by security analysis
   previewFailed: Preview failed
   installFailed: Install failed
   availableRuntimes: Available Runtimes
-  noRuntimes: No plugin runtimes detected
-
 dashboard:
   title: Dashboard
   systemInfo: System Info
@@ -105,14 +91,13 @@ dashboard:
   ffmpeg: FFmpeg
   uptime: Uptime
   autoRefresh: "Updated {{time}} · auto-refreshes every {{interval}}"
-
 users:
   title: Users
   createUser: Create User
   username: Username
   email: Email
   password: Password
-  newPassword: "New password"
+  newPassword: New password
   admin: Admin
   role: Role
   user: User
@@ -121,7 +106,6 @@ users:
   userDisabled: User disabled
   userEnabled: User enabled
   failedDeleteUser: Failed to delete user
-  failedCreateUser: Failed to create user
   failedUpdateUser: Failed to update user
   userUpdated: User updated
   deleteUserTitle: Delete User
@@ -136,7 +120,7 @@ users:
   clearAllUnrestricted: Clear all (unrestricted)
   bitrate: Bitrate
   maxBitrateTitle: "Max Bitrate - {{name}}"
-  maxBitrateDesc: "Limit the maximum streaming bitrate for this user. 0 = unlimited."
+  maxBitrateDesc: Limit the maximum streaming bitrate for this user. 0 = unlimited.
   maxBitrate: Max Bitrate
   bitrateUpdated: Bitrate limit updated
   failedBitrate: Failed to update bitrate limit
@@ -158,19 +142,17 @@ users:
   expiresAtLabel: Expires at (optional)
   inviteIsAdmin: Create as administrator
   inviteLibraries: Accessible libraries
-  inviteLibrariesHelp: "Leave empty to grant access to all libraries."
+  inviteLibrariesHelp: Leave empty to grant access to all libraries.
   noUsers: No users found
   noInvites: No invite links
   editUser: Edit User
-  failedCreateInvite: Failed to create invite link
-  leaveBlank: "Leave blank to keep current"
+  leaveBlank: Leave blank to keep current
   maxProfiles: Max profiles
-  maxProfilesHelp: "Maximum profiles this user can create. 0 = unlimited."
+  maxProfilesHelp: Maximum profiles this user can create. 0 = unlimited.
   maxDevicesPerProfile: Max devices per profile
-  maxDevicesPerProfileHelp: "Maximum devices a profile can register. 0 = unlimited."
+  maxDevicesPerProfileHelp: Maximum devices a profile can register. 0 = unlimited.
   profilesTitle: Profiles
   noProfiles: This user has no profiles yet.
-
 libraries:
   title: Libraries
   addLibrary: Add Library
@@ -179,7 +161,6 @@ libraries:
   libraryUpdated: "Library \"{{name}}\" updated"
   libraryDeleted: "Library \"{{name}}\" deleted"
   editLibrary: Edit Library
-  failedUpdate: Failed to update library
   failedDelete: Failed to delete library
   scanStarted: Scan started
   failedScan: Failed to start scan
@@ -203,7 +184,7 @@ libraries:
     library: Library
   scan: Scan
   scanAgain: Scan again
-  scanning: "Scanning..."
+  scanning: Scanning...
   schedule: Schedule
   scanScheduleTitle: "Scan Schedule - {{name}}"
   scanFrequency: Scan frequency
@@ -220,36 +201,28 @@ libraries:
     every12h: Every 12 hours
     daily3am: Daily (3 AM)
     weekly3am: Weekly (Sunday 3 AM)
-    customCron: "Custom cron..."
+    customCron: Custom cron...
   items: "{{count}} items"
-  "off": "Off"
+  'off': 'Off'
   paths: Paths
   pathsHint: "(enter the full path inside the container, e.g. /media/movies)"
-  selectDirectory: "— select a directory —"
-  enterCustomPath: "Enter custom path..."
-  addPath: "+ Add Path"
+  selectDirectory: — select a directory —
+  enterCustomPath: Enter custom path...
+  addPath: + Add Path
   tvShows: TV Shows
-  lastScan: "Last scan"
-  namePlaceholder: "Library name"
-  pathRequired: "At least one path is required"
-  realtimeMonitoring: "Realtime monitoring"
-  scanFailed: "Scan failed"
-  scanOnStartup: "Scan on startup"
-
+  pathRequired: At least one path is required
 sessions:
   title: Now Playing
   failedLoad: Failed to load sessions
   failedLoadDesc: Could not fetch active sessions. Check your connection and try again.
   noSessions: No active sessions
-  noSessionsDesc: When users start streaming, their sessions will appear here.
+  noSessionsDesc: "When users start streaming, their sessions will appear here."
   activeCount: "{{count}} active sessions"
-  activeCount_one: "{{count}} active session"
-  activeCount_other: "{{count}} active sessions"
   stopSession: Stop session
   stop: Stop
   sessionStopped: Session stopped
   failedStop: Failed to stop session
-  elapsed: "elapsed"
+  elapsed: elapsed
   video: "Video: {{codec}}"
   audio: "Audio: {{codec}}"
   directPlay: Direct Play
@@ -259,9 +232,8 @@ sessions:
   sendMessage: Send message
   messageSent: Message sent
   messagePlaceholder: Type a message...
-
 backup:
-  title: Database Backup & Restore
+  title: "Database Backup & Restore"
   createBackup: Create Backup
   restoreFromFile: Restore from File
   backupCreated: Backup created
@@ -287,7 +259,6 @@ backup:
   restoreFromFileTitle: Restore from File
   restoreFromFileDesc: Upload a backup .tar.gz file to restore. This will overwrite existing data.
   selectFileFirst: Select a backup file first
-
 webhooks:
   title: Webhooks
   createWebhook: Create Webhook
@@ -295,7 +266,6 @@ webhooks:
   webhookCreated: Webhook created
   webhookUpdated: Webhook updated
   webhookDeleted: Webhook deleted
-  failedCreate: Failed to create webhook
   failedDelete: Failed to delete webhook
   failedUpdate: Failed to update webhook
   testPingSent: Test ping sent
@@ -312,12 +282,11 @@ webhooks:
   form:
     name: Name
     url: URL
-    secret: Secret (optional, for HMAC signing)
+    secret: "Secret (optional, for HMAC signing)"
     events: Events
     allEvents: All events
     enabled: Enabled
     createWebhook: Create Webhook
-
 analytics:
   title: Analytics
   failedLoad: Failed to load analytics
@@ -335,12 +304,10 @@ analytics:
     user: User
     media: Media
     when: When
-
 activity:
   title: Activity
   tabs:
     playHistory: Play History
-    loginHistory: Login History
     serverStats: Server Stats
   playHeaders:
     title: Title
@@ -348,16 +315,7 @@ activity:
     duration: Duration
     progress: Progress
     started: Started
-  loginHeaders:
-    user: User
-    ip: IP
-    status: Status
-    userAgent: User Agent
-    timestamp: Timestamp
   noPlayHistory: No play history
-  noLoginHistory: No login history
-  ok: OK
-  failed: Failed
   totalEntries: "{{count}} total entries"
   stats:
     totalPlays: Total Plays
@@ -367,11 +325,8 @@ activity:
   popularMedia: Popular Media
   mostActiveUsers: Most Active Users
   plays: "{{count}} plays"
-
 audit:
   title: Audit Log
-  action: Action
-  resourceType: Resource Type
   tableHeaders:
     time: Time
     user: User
@@ -381,17 +336,16 @@ audit:
     ip: IP
   noEntries: No entries found
   entries: "{{count}} entries"
-
 serverConfig:
   title: Server Config
   subtitle: Key-value configuration entries persisted in the database.
-  languageRegion: Language & Region
+  languageRegion: "Language & Region"
   languageRegionDesc: "Server language and region settings. Affects default UI language, default classification region and metadata language."
-  serverLanguage: "Server language"
-  serverRegion: "Server region"
+  serverLanguage: Server language
+  serverRegion: Server region
   metadataLanguage: Metadata language
-  envDefault: "— env default —"
-  languageUpdated: "Language updated"
+  envDefault: — env default —
+  languageUpdated: Language updated
   configUpdated: Config updated
   failedUpdate: Failed to update config
   configDeleted: Config entry deleted
@@ -410,7 +364,7 @@ serverConfig:
   trickplayTitle: Trickplay Thumbnails
   trickplayDesc: Auto-generate timeline preview thumbnails for movies and episodes.
   trickplayEnabled: Enable trickplay thumbnails
-  trickplayAdaptiveCpu: "Adaptive CPU"
+  trickplayAdaptiveCpu: Adaptive CPU
   trickplayAdaptiveCpuDesc: "Gentle mode (~25% CPU). Disable for faster generation (~50% CPU)."
   tableHeaders:
     key: Key
@@ -434,19 +388,17 @@ serverConfig:
     saved: API key saved
     usingDefault: Using default key
     usingCustom: Using custom key
-
 remoteAccess:
   title: Remote Access
   enableRemoteAccess: Enable Remote Access
   externalUrl: External URL
-  lanNetworks: LAN Networks (CIDR, comma-separated)
-  maxRemoteBitrate: Max Remote Bitrate (Kbps, 0 = unlimited)
+  lanNetworks: "LAN Networks (CIDR, comma-separated)"
+  maxRemoteBitrate: "Max Remote Bitrate (Kbps, 0 = unlimited)"
   saved: Remote access settings saved
   networkInterfaces: Server Network Interfaces
   interface: Interface
   address: Address
-  usingDefault: "Using default value"
-
+  usingDefault: Using default value
 systemHealth:
   title: System Health
   autoRefresh: "Updated {{time}} · auto-refreshes every 5s"
@@ -465,7 +417,6 @@ systemHealth:
   totalUsers: Total Users
   hwAcceleration: HW Acceleration
   serverId: Server ID
-
 transcodeCache:
   title: Transcode Cache
   clearAll: Clear All
@@ -482,14 +433,12 @@ transcodeCache:
     file: File
     size: Size
     modified: Modified
-  hwAccelType: "HW Accel Type"
-  hwDecodeCodecs: "HW Decode Codecs"
-  hwDevices: "HW Devices"
-  maxConcurrent: "Max Concurrent"
-  settingsSaved: "Settings saved"
-  throttle: "Throttle"
-  transcodingSettings: "Transcoding Settings"
-
+  hwAccelType: HW Accel Type
+  hwDecodeCodecs: HW Decode Codecs
+  maxConcurrent: Max Concurrent
+  settingsSaved: Settings saved
+  throttle: Throttle
+  transcodingSettings: Transcoding Settings
 dashboardStats:
   movies: Movies
   series: Series
@@ -516,14 +465,11 @@ dashboardStats:
   playActivity: Play Activity (14 days)
   plays: Plays
   watchTime: Watch Time
-  contentBreakdown: Content Breakdown
   activeUsers: Active Users
-  playMethodBreakdown: Play Method (30 days)
   peakHours: Peak Hours (30 days)
   used: Used
   free: Free
   loginFailed: Login failed
-
 serverSettings:
   title: Server Settings
   serverName: Server Name
