@@ -491,9 +491,10 @@ func TestProfile_Validate(t *testing.T) {
 		profile user.Profile
 		wantErr string
 	}{
-		{"valid", user.Profile{UserID: "u1", Name: "Main"}, ""},
-		{"no user ID", user.Profile{UserID: "", Name: "Main"}, "profile user ID is required"},
-		{"no name", user.Profile{UserID: "u1", Name: ""}, "profile name is required"},
+		{"valid", user.Profile{ID: "p1", UserID: "u1", Name: "Main"}, ""},
+		{"no ID", user.Profile{UserID: "u1", Name: "Main"}, "profile ID is required"},
+		{"no user ID", user.Profile{ID: "p1", UserID: "", Name: "Main"}, "profile user ID is required"},
+		{"no name", user.Profile{ID: "p1", UserID: "u1", Name: ""}, "profile name is required"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -570,6 +571,49 @@ func TestAPIKeyModel_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewProfile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("happy path with options", func(t *testing.T) {
+		t.Parallel()
+		prefs := map[string]string{"theme": "dark"}
+		p, err := user.NewProfile("prf-1", "u1", "Alice",
+			user.WithProfilePreferences(prefs),
+			user.WithProfileIsKids(false),
+			user.WithProfileLocale("fr"),
+			user.WithProfileMaxBitrate(8000),
+		)
+		if err != nil {
+			t.Fatalf("unexpected: %v", err)
+		}
+		if p.ID != "prf-1" || p.UserID != "u1" || p.Name != "Alice" {
+			t.Errorf("core fields wrong: %+v", p)
+		}
+		if p.Preferences["theme"] != "dark" || p.Locale != "fr" {
+			t.Errorf("options not applied: %+v", p)
+		}
+		if p.MaxBitrateKbps == nil || *p.MaxBitrateKbps != 8000 {
+			t.Errorf("max bitrate option not applied")
+		}
+		if p.CreatedAt.IsZero() {
+			t.Error("CreatedAt not stamped")
+		}
+	})
+
+	t.Run("missing fields", func(t *testing.T) {
+		t.Parallel()
+		if _, err := user.NewProfile("", "u1", "A"); err == nil {
+			t.Fatal("expected error on empty ID")
+		}
+		if _, err := user.NewProfile("p1", "", "A"); err == nil {
+			t.Fatal("expected error on empty userID")
+		}
+		if _, err := user.NewProfile("p1", "u1", ""); err == nil {
+			t.Fatal("expected error on empty name")
+		}
+	})
 }
 
 func TestNewInviteLink(t *testing.T) {

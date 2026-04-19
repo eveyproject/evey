@@ -171,6 +171,9 @@ func NewUser(username, email, passwordHash string) (*User, error) {
 }
 
 func (p *Profile) Validate() error {
+	if p.ID == "" {
+		return errors.New("profile ID is required")
+	}
 	if p.UserID == "" {
 		return errors.New("profile user ID is required")
 	}
@@ -178,6 +181,59 @@ func (p *Profile) Validate() error {
 		return errors.New("profile name is required")
 	}
 	return nil
+}
+
+type ProfileOption func(*Profile)
+
+func WithProfileAvatar(path string) ProfileOption {
+	return func(p *Profile) { p.AvatarPath = &path }
+}
+
+func WithProfilePreferences(prefs map[string]string) ProfileOption {
+	return func(p *Profile) { p.Preferences = prefs }
+}
+
+func WithProfileMaxRating(r string) ProfileOption {
+	return func(p *Profile) { p.MaxRating = &r }
+}
+
+func WithProfileIsKids(kids bool) ProfileOption {
+	return func(p *Profile) { p.IsKids = kids }
+}
+
+func WithProfileLocale(locale string) ProfileOption {
+	return func(p *Profile) { p.Locale = locale }
+}
+
+func WithProfileRegion(region string) ProfileOption {
+	return func(p *Profile) { p.Region = &region }
+}
+
+func WithProfileMaxBitrate(kbps int) ProfileOption {
+	return func(p *Profile) { p.MaxBitrateKbps = &kbps }
+}
+
+func WithProfileParental(settings *ParentalSettings) ProfileOption {
+	return func(p *Profile) { p.Parental = settings }
+}
+
+// NewProfile is the canonical constructor. ID is minted upstream
+// (the gRPC handler owns the "prf-" prefix). Stamps CreatedAt and
+// validates.
+func NewProfile(id shared.ProfileID, userID shared.UserID, name string, opts ...ProfileOption) (*Profile, error) {
+	p := &Profile{
+		ID:        id,
+		UserID:    userID,
+		Name:      name,
+		CreatedAt: time.Now(),
+	}
+	for _, opt := range opts {
+		opt(p)
+	}
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func (inv *InviteLink) Validate() error {

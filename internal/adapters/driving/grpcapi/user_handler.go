@@ -293,35 +293,40 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	if !claims.IsAdmin && req.UserId != claims.UserID {
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_create_profile_other")
 	}
-	p := &user.Profile{
-		ID:          shared.ProfileID(id.New("prf-")),
-		UserID:      shared.UserID(req.UserId),
-		Name:        req.Name,
-		Preferences: req.Preferences,
-		IsKids:      req.IsKids,
+	opts := []user.ProfileOption{
+		user.WithProfilePreferences(req.Preferences),
+		user.WithProfileIsKids(req.IsKids),
 	}
 	if req.AvatarPath != "" {
 		if strings.Contains(req.AvatarPath, "..") || !strings.HasPrefix(req.AvatarPath, "avatars/") {
 			return nil, status.Error(codes.InvalidArgument, "invalid avatar path")
 		}
-		p.AvatarPath = &req.AvatarPath
+		opts = append(opts, user.WithProfileAvatar(req.AvatarPath))
 	}
 	if req.MaxRating != "" {
-		p.MaxRating = &req.MaxRating
+		opts = append(opts, user.WithProfileMaxRating(req.MaxRating))
 	}
 	if req.Locale != nil {
-		p.Locale = *req.Locale
+		opts = append(opts, user.WithProfileLocale(*req.Locale))
 	}
 	if req.Region != nil && *req.Region != "" {
-		r := strings.ToUpper(*req.Region)
-		p.Region = &r
+		opts = append(opts, user.WithProfileRegion(strings.ToUpper(*req.Region)))
 	}
 	if req.Pin != nil && *req.Pin != "" {
 		hash, hErr := h.userSvc.HashPIN(*req.Pin)
 		if hErr != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "%v", hErr)
 		}
-		p.Parental = &user.ParentalSettings{PINHash: hash}
+		opts = append(opts, user.WithProfileParental(&user.ParentalSettings{PINHash: hash}))
+	}
+	p, err := user.NewProfile(
+		shared.ProfileID(id.New("prf-")),
+		shared.UserID(req.UserId),
+		req.Name,
+		opts...,
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.userSvc.CreateProfile(ctx, p); err != nil {
 		if errors.Is(err, appuser.ErrMaxProfilesReached) || errors.Is(err, appuser.ErrKidsRequiresPIN) {
