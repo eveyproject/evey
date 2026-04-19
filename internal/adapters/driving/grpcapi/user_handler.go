@@ -463,14 +463,17 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 	for i, raw := range req.LibraryIds {
 		libIDs[i] = shared.LibraryID(raw)
 	}
-	link := &user.InviteLink{
-		ID:         id.New("inv-"),
-		CreatedBy:  shared.UserID(claims.UserID),
-		Token:      secureToken("inv-tok-", 16),
-		MaxUses:    int(req.MaxUses),
-		IsAdmin:    req.IsAdmin,
-		LibraryIDs: libIDs,
-		ExpiresAt:  fromTimestamppbPtr(req.ExpiresAt),
+	link, err := user.NewInviteLink(
+		id.New("inv-"),
+		shared.UserID(claims.UserID),
+		secureToken("inv-tok-", 16),
+		user.WithInviteMaxUses(int(req.MaxUses)),
+		user.WithInviteAdmin(req.IsAdmin),
+		user.WithInviteLibraries(libIDs),
+		user.WithInviteExpiresAt(fromTimestamppbPtr(req.ExpiresAt)),
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.access.CreateInviteLink(ctx, link); err != nil {
 		slog.Error("create invite link", slog.Any("err", err))

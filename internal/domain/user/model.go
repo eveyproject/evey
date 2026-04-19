@@ -181,6 +181,9 @@ func (p *Profile) Validate() error {
 }
 
 func (inv *InviteLink) Validate() error {
+	if inv.ID == "" {
+		return errors.New("invite link ID is required")
+	}
 	if inv.CreatedBy == "" {
 		return errors.New("invite link created_by is required")
 	}
@@ -191,6 +194,47 @@ func (inv *InviteLink) Validate() error {
 		return errors.New("invite link max uses must not be negative")
 	}
 	return nil
+}
+
+type InviteLinkOption func(*InviteLink)
+
+func WithInviteLabel(label string) InviteLinkOption {
+	return func(l *InviteLink) { l.Label = &label }
+}
+
+func WithInviteMaxUses(n int) InviteLinkOption {
+	return func(l *InviteLink) { l.MaxUses = n }
+}
+
+func WithInviteAdmin(isAdmin bool) InviteLinkOption {
+	return func(l *InviteLink) { l.IsAdmin = isAdmin }
+}
+
+func WithInviteLibraries(ids []shared.LibraryID) InviteLinkOption {
+	return func(l *InviteLink) { l.LibraryIDs = ids }
+}
+
+func WithInviteExpiresAt(t *time.Time) InviteLinkOption {
+	return func(l *InviteLink) { l.ExpiresAt = t }
+}
+
+// NewInviteLink is the canonical constructor. Identity (ID, token)
+// is minted by the caller since token entropy + format are adapter
+// concerns. Stamps CreatedAt and validates before return.
+func NewInviteLink(id string, createdBy shared.UserID, token string, opts ...InviteLinkOption) (*InviteLink, error) {
+	l := &InviteLink{
+		ID:        id,
+		CreatedBy: createdBy,
+		Token:     token,
+		CreatedAt: time.Now(),
+	}
+	for _, opt := range opts {
+		opt(l)
+	}
+	if err := l.Validate(); err != nil {
+		return nil, err
+	}
+	return l, nil
 }
 
 func (k *APIKeyModel) Validate() error {

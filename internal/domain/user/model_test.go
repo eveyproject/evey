@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 )
 
@@ -518,10 +519,11 @@ func TestInviteLink_Validate(t *testing.T) {
 		link    user.InviteLink
 		wantErr string
 	}{
-		{"valid", user.InviteLink{CreatedBy: "u1", Token: "tok", MaxUses: 5}, ""},
-		{"no created_by", user.InviteLink{CreatedBy: "", Token: "tok"}, "invite link created_by is required"},
-		{"no token", user.InviteLink{CreatedBy: "u1", Token: ""}, "invite link token is required"},
-		{"negative max uses", user.InviteLink{CreatedBy: "u1", Token: "tok", MaxUses: -1}, "invite link max uses must not be negative"},
+		{"valid", user.InviteLink{ID: "inv-1", CreatedBy: "u1", Token: "tok", MaxUses: 5}, ""},
+		{"no ID", user.InviteLink{CreatedBy: "u1", Token: "tok"}, "invite link ID is required"},
+		{"no created_by", user.InviteLink{ID: "inv-1", CreatedBy: "", Token: "tok"}, "invite link created_by is required"},
+		{"no token", user.InviteLink{ID: "inv-1", CreatedBy: "u1", Token: ""}, "invite link token is required"},
+		{"negative max uses", user.InviteLink{ID: "inv-1", CreatedBy: "u1", Token: "tok", MaxUses: -1}, "invite link max uses must not be negative"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -568,6 +570,55 @@ func TestAPIKeyModel_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewInviteLink(t *testing.T) {
+	t.Parallel()
+
+	t.Run("happy path", func(t *testing.T) {
+		t.Parallel()
+		expires := time.Now().Add(24 * time.Hour)
+		l, err := user.NewInviteLink("inv-1", "admin-1", "tok-xyz",
+			user.WithInviteLabel("beta"),
+			user.WithInviteMaxUses(5),
+			user.WithInviteAdmin(true),
+			user.WithInviteLibraries([]shared.LibraryID{"lib-1", "lib-2"}),
+			user.WithInviteExpiresAt(&expires),
+		)
+		if err != nil {
+			t.Fatalf("unexpected: %v", err)
+		}
+		if l.ID != "inv-1" || l.CreatedBy != "admin-1" || l.Token != "tok-xyz" {
+			t.Errorf("core fields wrong: %+v", l)
+		}
+		if l.Label == nil || *l.Label != "beta" {
+			t.Errorf("label option not applied")
+		}
+		if l.MaxUses != 5 || !l.IsAdmin || len(l.LibraryIDs) != 2 {
+			t.Errorf("options not applied: %+v", l)
+		}
+		if l.CreatedAt.IsZero() {
+			t.Error("CreatedAt not stamped")
+		}
+	})
+
+	t.Run("negative max uses rejected", func(t *testing.T) {
+		t.Parallel()
+		_, err := user.NewInviteLink("inv-1", "admin-1", "tok",
+			user.WithInviteMaxUses(-5),
+		)
+		if err == nil {
+			t.Fatal("expected error on negative max uses")
+		}
+	})
+
+	t.Run("missing ID", func(t *testing.T) {
+		t.Parallel()
+		_, err := user.NewInviteLink("", "admin-1", "tok")
+		if err == nil {
+			t.Fatal("expected error on empty ID")
+		}
+	})
 }
 
 func TestNewAPIKey(t *testing.T) {
