@@ -194,6 +194,30 @@ func TestUnregisterWebPush_EmptyEndpoint(t *testing.T) {
 	}
 }
 
+// IDOR regression: UnregisterWebPush shares DeletePushByEndpoint with
+// DeleteWebPushSubscription; make sure a cross-user endpoint call on it
+// stays a no-op too. Relies on the repo's `WHERE user_id AND endpoint`
+// filter — if someone rewrites it to endpoint-only, this catches it.
+func TestUnregisterWebPush_OwnershipScopedByUserID(t *testing.T) {
+	t.Parallel()
+	subs := notiffakes.NewFakePushSubscriptionRepository()
+	_ = subs.Upsert(context.Background(), "owner", "pOwner", "https://shared-unreg", "p", "a")
+	h := newTestPushHandler(subs)
+
+	ctx := ctxWithClaims("attacker", "pAtt", false)
+	resp, err := h.UnregisterWebPush(ctx, &eveyv1.UnregisterWebPushRequest{Endpoint: "https://shared-unreg"})
+	if err != nil {
+		t.Fatalf("UnregisterWebPush: %v", err)
+	}
+	if !resp.Ok {
+		t.Error("expected Ok=true (no-op for non-owner)")
+	}
+	list, _ := subs.ListByUser(context.Background(), "owner")
+	if len(list) != 1 {
+		t.Errorf("owner's subscription wrongly unregistered by another user: %+v", list)
+	}
+}
+
 func TestDeleteWebPushSubscription_OwnershipScopedByUserID(t *testing.T) {
 	t.Parallel()
 	subs := notiffakes.NewFakePushSubscriptionRepository()

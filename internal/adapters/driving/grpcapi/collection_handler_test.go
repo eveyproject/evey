@@ -180,6 +180,34 @@ func TestCollectionGetCollection_IDOR_AllowsAuthorizedLibrary(t *testing.T) {
 	}
 }
 
+// IDOR regression: GetCollectionItems must NOT leak items from libraries
+// the caller can't see, even when the collection itself is visible.
+// A collection mixing lib-1 + lib-2 items, viewed by someone with only
+// lib-2 access, should only return lib-2 items (and total adjusted).
+func TestCollectionGetCollectionItems_IDOR_FiltersByLibraryAccess(t *testing.T) {
+	h, cmdRepo, mediaRepo, libAccessRepo := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-mix", "Mixed")
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m-priv", LibraryID: "lib-1", Title: "Private", Type: "movie"})
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m-pub", LibraryID: "lib-2", Title: "Public", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-mix", "m-priv", 0)
+	cmdRepo.LinkItem(context.Background(), "col-mix", "m-pub", 1)
+	libAccessRepo.Grant(context.Background(), "user-1", "lib-2")
+
+	resp, err := h.GetCollectionItems(nonAdminCtx("user-1"), &eveyv1.GetCollectionItemsRequest{Id: "col-mix", Limit: 100})
+	if err != nil {
+		t.Fatalf("GetCollectionItems: %v", err)
+	}
+	if len(resp.MediaItemIds) != 1 || resp.MediaItemIds[0] != "m-pub" {
+		t.Errorf("expected only m-pub, got %v", resp.MediaItemIds)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].Id != "m-pub" {
+		t.Errorf("expected only m-pub in Items, got %+v", resp.Items)
+	}
+	if resp.Total != 1 {
+		t.Errorf("Total should reflect filtered count, got %d", resp.Total)
+	}
+}
+
 func TestCollectionCreateCollection_EmptyName_400(t *testing.T) {
 	h, _ := newTestCollectionHandler()
 	_, err := h.CreateCollection(context.Background(), &eveyv1.CreateCollectionRequest{Name: ""})
