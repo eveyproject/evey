@@ -84,6 +84,62 @@ type Library struct {
 	UpdatedAt           time.Time
 }
 
+// LibraryOption customises a Library at construction. Timestamps + ID
+// are owned by NewLibrary; options cover the non-required fields.
+type LibraryOption func(*Library)
+
+func WithLibraryPaths(paths []string) LibraryOption {
+	return func(l *Library) { l.Paths = paths }
+}
+
+func WithLibraryScanInterval(minutes int) LibraryOption {
+	return func(l *Library) { l.ScanIntervalMinutes = minutes }
+}
+
+func WithLibraryScanOnStartup(b bool) LibraryOption {
+	return func(l *Library) { l.ScanOnStartup = b }
+}
+
+func WithLibraryRealtimeMonitoring(b bool) LibraryOption {
+	return func(l *Library) { l.RealtimeMonitoring = b }
+}
+
+// NewLibrary is the canonical constructor: stamps CreatedAt/UpdatedAt,
+// enables the library by default, applies options, then validates.
+// Callers should prefer this over &Library{...} literals so invariants
+// are enforced at construction rather than discovered at Create time.
+func NewLibrary(id shared.LibraryID, name string, libType LibraryType, opts ...LibraryOption) (*Library, error) {
+	now := time.Now()
+	l := &Library{
+		ID:        id,
+		Name:      name,
+		Type:      libType,
+		Enabled:   true,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	for _, opt := range opts {
+		opt(l)
+	}
+	if err := l.Validate(); err != nil {
+		return nil, err
+	}
+	return l, nil
+}
+
+func (l *Library) Validate() error {
+	if l.ID == "" {
+		return errors.New("library requires an ID")
+	}
+	if l.Name == "" {
+		return errors.New("library requires a name")
+	}
+	if !l.Type.IsValid() {
+		return fmt.Errorf("library: invalid type %q", l.Type)
+	}
+	return nil
+}
+
 type MediaItem struct {
 	ID        shared.MediaItemID
 	LibraryID shared.LibraryID

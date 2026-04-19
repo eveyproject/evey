@@ -37,15 +37,17 @@ type libraryHandler struct {
 }
 
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
-	lib := &library.Library{
-		ID:                  shared.LibraryID(id.New("lib-")),
-		Name:                req.Name,
-		Type:                library.LibraryType(libraryTypeFromProto[req.Type]),
-		Paths:               req.Paths,
-		Enabled:             true,
-		ScanOnStartup:       req.ScanOnStartup,
-		RealtimeMonitoring:  req.RealtimeMonitoring,
-		ScanIntervalMinutes: 360,
+	lib, err := library.NewLibrary(
+		shared.LibraryID(id.New("lib-")),
+		req.Name,
+		library.LibraryType(libraryTypeFromProto[req.Type]),
+		library.WithLibraryPaths(req.Paths),
+		library.WithLibraryScanInterval(360),
+		library.WithLibraryScanOnStartup(req.ScanOnStartup),
+		library.WithLibraryRealtimeMonitoring(req.RealtimeMonitoring),
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.cmd.CreateLibrary(ctx, lib); err != nil {
 		return nil, internalError("create library", err)

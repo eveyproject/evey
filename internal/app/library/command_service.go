@@ -196,6 +196,9 @@ func (s *CommandService) StartBackgroundGeneration(ctx context.Context) {
 // --- Direct methods (library CRUD) ---
 
 func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library) error {
+	if err := lib.Validate(); err != nil {
+		return fmt.Errorf("create library: %w", err)
+	}
 	now := time.Now()
 	lib.CreatedAt = now
 	lib.UpdatedAt = now

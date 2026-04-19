@@ -367,6 +367,79 @@ func TestMediaItem_Validate(t *testing.T) {
 	}
 }
 
+func TestNewLibrary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("happy path", func(t *testing.T) {
+		t.Parallel()
+		l, err := library.NewLibrary("lib-1", "Movies", library.Movie,
+			library.WithLibraryPaths([]string{"/media/movies"}),
+			library.WithLibraryScanInterval(60),
+			library.WithLibraryScanOnStartup(true),
+			library.WithLibraryRealtimeMonitoring(true),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if l.ID != "lib-1" || l.Name != "Movies" || l.Type != library.Movie {
+			t.Errorf("core fields wrong: %+v", l)
+		}
+		if !l.Enabled {
+			t.Error("should default to Enabled=true")
+		}
+		if l.ScanIntervalMinutes != 60 || !l.ScanOnStartup || !l.RealtimeMonitoring {
+			t.Errorf("options not applied: %+v", l)
+		}
+		if l.CreatedAt.IsZero() || l.UpdatedAt.IsZero() {
+			t.Error("timestamps not stamped")
+		}
+	})
+
+	t.Run("missing ID", func(t *testing.T) {
+		t.Parallel()
+		_, err := library.NewLibrary("", "Movies", library.Movie)
+		if err == nil {
+			t.Fatal("expected error on empty ID")
+		}
+	})
+
+	t.Run("missing name", func(t *testing.T) {
+		t.Parallel()
+		_, err := library.NewLibrary("lib-1", "", library.Movie)
+		if err == nil {
+			t.Fatal("expected error on empty name")
+		}
+	})
+
+	t.Run("invalid type", func(t *testing.T) {
+		t.Parallel()
+		_, err := library.NewLibrary("lib-1", "Movies", "banana")
+		if err == nil {
+			t.Fatal("expected error on invalid type")
+		}
+	})
+}
+
+func TestLibrary_Validate(t *testing.T) {
+	t.Parallel()
+	valid := &library.Library{ID: "lib-1", Name: "Movies", Type: library.Movie}
+	if err := valid.Validate(); err != nil {
+		t.Errorf("valid library rejected: %v", err)
+	}
+
+	cases := []*library.Library{
+		{Name: "Movies", Type: library.Movie},
+		{ID: "lib-1", Type: library.Movie},
+		{ID: "lib-1", Name: "Movies"},
+		{ID: "lib-1", Name: "Movies", Type: "banana"},
+	}
+	for i, c := range cases {
+		if err := c.Validate(); err == nil {
+			t.Errorf("case %d should fail: %+v", i, c)
+		}
+	}
+}
+
 func TestLibraryType_IsValid(t *testing.T) {
 	t.Parallel()
 	cases := map[library.LibraryType]bool{
