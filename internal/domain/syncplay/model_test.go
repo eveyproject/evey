@@ -24,16 +24,27 @@ func TestGenerateCode(t *testing.T) {
 
 func TestGenerateCode_Unique(t *testing.T) {
 	t.Parallel()
-	seen := make(map[string]bool)
-	for range 100 {
+	// Code space is 90000 (10000..99999). Birthday paradox at N=100
+	// gives ~5% collision rate, so asserting zero collisions is a
+	// flake. Instead assert near-full uniqueness — catches a stuck
+	// RNG that returns the same value repeatedly without making the
+	// test fail on a legitimate statistical collision.
+	seen := make(map[string]int)
+	const iters = 100
+	for range iters {
 		code, err := syncplay.GenerateCode()
 		if err != nil {
 			t.Fatalf("GenerateCode() error: %v", err)
 		}
-		if seen[code] {
-			t.Fatalf("duplicate code %q in 100 iterations", code)
+		seen[code]++
+	}
+	if len(seen) < iters-3 {
+		t.Fatalf("only %d unique codes in %d iterations — RNG is stuck", len(seen), iters)
+	}
+	for code, count := range seen {
+		if count > 2 {
+			t.Fatalf("code %q appeared %d times — RNG is stuck", code, count)
 		}
-		seen[code] = true
 	}
 }
 
