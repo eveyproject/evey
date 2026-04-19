@@ -33,7 +33,7 @@ func TestPluginRuntimeRepo_Create_GetByLanguageAndVersion(t *testing.T) {
 	got, err := repo.GetByLanguageAndVersion(ctx, "python", "3.11")
 	require.NoError(t, err)
 	assert.Equal(t, "prt1", got.ID)
-	assert.Equal(t, "supported", got.Status)
+	assert.Equal(t, plugin.RuntimeStatus("supported"), got.Status)
 }
 
 func TestPluginRuntimeRepo_ListByLanguage(t *testing.T) {
