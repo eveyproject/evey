@@ -178,11 +178,16 @@ func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
 func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request) {
 	claims := HTTPClaimsFromContext(r.Context())
 	profileID := r.PathValue("id")
+	// Accept both `pin` (legacy, kept for existing tests) and `newPin`
+	// (the field name the proto/orval-generated client actually sends).
+	// The handler is not wired through the gRPC gateway, so without this
+	// accommodation the frontend call to save a PIN was a silent no-op.
 	var body struct {
 		MaxAge          *int     `json:"maxAge"`
 		UnsetMaxAge     bool     `json:"unsetMaxAge"`
 		BlockedTags     []string `json:"blockedTags"`
 		PIN             *string  `json:"pin"`
+		NewPIN          *string  `json:"newPin"`
 		CurrentPIN      string   `json:"currentPin"`
 		CurrentPassword string   `json:"currentPassword"`
 		Enabled         *bool    `json:"enabled"`
@@ -190,6 +195,10 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 		return
+	}
+	// Unify the two field names — prefer `pin` when both are sent.
+	if body.PIN == nil {
+		body.PIN = body.NewPIN
 	}
 	profile, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
 	if err != nil {

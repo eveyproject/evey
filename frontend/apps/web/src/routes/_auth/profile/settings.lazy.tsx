@@ -296,14 +296,16 @@ function ParentalSection() {
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [pinError, setPinError] = useState("");
+  const [password, setPassword] = useState("");
   const pendingOpRef = useRef<"pin" | "other">("other");
+  const hasPin = parental?.hasPin ?? false;
 
   useEffect(() => {
     setMaxAge(parental?.maxAge != null ? String(parental.maxAge) : "");
   }, [parental?.maxAge]);
 
   const updateParental = useMutation({
-    mutationFn: (body: { enabled?: boolean; maxAge?: number; unsetMaxAge?: boolean; newPin?: string; currentPin?: string }) =>
+    mutationFn: (body: { enabled?: boolean; maxAge?: number; unsetMaxAge?: boolean; newPin?: string; currentPin?: string; currentPassword?: string }) =>
       parentalServiceUpdateParentalSettings(profileId, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: getParentalServiceGetParentalSettingsQueryKey(profileId) });
@@ -311,6 +313,7 @@ function ParentalSection() {
         toast.success(t("auth.settings.parental.pin.saved"));
         setPin("");
         setConfirmPin("");
+        setPassword("");
       } else {
         toast.success(t("auth.settings.parental.updated"));
       }
@@ -343,9 +346,17 @@ function ParentalSection() {
       setPinError(t("auth.settings.parental.pin.mismatch"));
       return;
     }
+    // First-time set requires the account password; rotation uses no
+    // extra field here (existing PIN is implied via sep. flow).
+    if (!hasPin && password === "") {
+      setPinError(t("auth.settings.parental.pin.passwordRequired"));
+      return;
+    }
     if (!profileId) return;
     pendingOpRef.current = "pin";
-    updateParental.mutate({ newPin: pin });
+    const body: { newPin: string; currentPassword?: string } = { newPin: pin };
+    if (!hasPin) body.currentPassword = password;
+    updateParental.mutate(body);
   }
 
   if (!defaultProfile) {
@@ -420,12 +431,21 @@ function ParentalSection() {
         </div>
         <PinInput label={t("auth.settings.parental.pin.newPin")} value={pin} onChange={setPin} />
         <PinInput label={t("auth.settings.parental.pin.confirmPin")} value={confirmPin} onChange={setConfirmPin} />
+        {!hasPin && (
+          <Input
+            type="password"
+            label={t("auth.settings.parental.pin.passwordReauth")}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+        )}
         {pinError && <p className="text-xs" style={{ color: "var(--color-danger)" }}>{pinError}</p>}
         <div>
           <Button
             variant="primary"
             loading={updateParental.isPending}
-            disabled={!enabled || pin.length < 4}
+            disabled={!enabled || pin.length < 4 || (!hasPin && password === "")}
             onClick={handleSavePin}
           >
             {t("auth.settings.parental.pin.savePin")}

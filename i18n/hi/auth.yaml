@@ -222,6 +222,8 @@ settings:
       saved: "PIN सहेजा गया"
       mustBe4: "PIN 4 अंकों का होना चाहिए"
       mismatch: "PIN मेल नहीं खाते"
+      passwordReauth: "खाता पासवर्ड"
+      passwordRequired: "पहली बार PIN सेट करने के लिए पासवर्ड आवश्यक है"
     ratings:
       none: "कोई प्रतिबंध नहीं"
       g: "G - सामान्य दर्शक"

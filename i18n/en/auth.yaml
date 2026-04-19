@@ -222,6 +222,8 @@ settings:
       saved: "PIN saved"
       mustBe4: PIN must be 4 digits
       mismatch: PINs do not match
+      passwordReauth: Account password
+      passwordRequired: Password required to set a PIN for the first time
     ratings:
       none: No restriction
       g: "G - General Audiences"

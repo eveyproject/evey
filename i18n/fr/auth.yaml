@@ -222,6 +222,8 @@ settings:
       saved: "PIN enregistré"
       mustBe4: "Le PIN doit contenir 4 chiffres"
       mismatch: "Les PIN ne correspondent pas"
+      passwordReauth: "Mot de passe du compte"
+      passwordRequired: "Mot de passe requis pour définir un PIN la première fois"
     ratings:
       none: "Aucune restriction"
       g: "G - Tous publics"

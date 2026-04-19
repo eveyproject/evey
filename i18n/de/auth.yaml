@@ -222,6 +222,8 @@ settings:
       saved: "PIN gespeichert"
       mustBe4: PIN muss 4 Ziffern haben
       mismatch: PINs stimmen nicht überein
+      passwordReauth: "Kontopasswort"
+      passwordRequired: "Passwort erforderlich, um erstmals eine PIN festzulegen"
     ratings:
       none: Keine Einschränkung
       g: "G - Alle Altersgruppen"

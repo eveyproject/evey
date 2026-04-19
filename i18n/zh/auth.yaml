@@ -222,6 +222,8 @@ settings:
       saved: "PIN 已保存"
       mustBe4: "PIN 必须为 4 位数字"
       mismatch: "PIN 不匹配"
+      passwordReauth: "账户密码"
+      passwordRequired: "首次设置 PIN 需要密码"
     ratings:
       none: "无限制"
       g: "G - 普通观众"
