@@ -194,6 +194,9 @@ func (inv *InviteLink) Validate() error {
 }
 
 func (k *APIKeyModel) Validate() error {
+	if k.ID == "" {
+		return errors.New("API key ID is required")
+	}
 	if k.UserID == "" {
 		return errors.New("API key user ID is required")
 	}
@@ -204,6 +207,38 @@ func (k *APIKeyModel) Validate() error {
 		return errors.New("API key hash is required")
 	}
 	return nil
+}
+
+// APIKeyOption customises an APIKeyModel at construction.
+type APIKeyOption func(*APIKeyModel)
+
+func WithAPIKeyPermissions(perms []string) APIKeyOption {
+	return func(k *APIKeyModel) { k.Permissions = perms }
+}
+
+func WithAPIKeyExpiresAt(t *time.Time) APIKeyOption {
+	return func(k *APIKeyModel) { k.ExpiresAt = t }
+}
+
+// NewAPIKey is the canonical constructor. Callers mint the id
+// (`ak-*`) and hash the raw key outside the domain (hashing depends
+// on the crypto policy owned by the handler). Stamps CreatedAt and
+// validates before return.
+func NewAPIKey(id string, userID shared.UserID, name, keyHash string, opts ...APIKeyOption) (*APIKeyModel, error) {
+	k := &APIKeyModel{
+		ID:        id,
+		UserID:    userID,
+		Name:      name,
+		KeyHash:   keyHash,
+		CreatedAt: time.Now(),
+	}
+	for _, opt := range opts {
+		opt(k)
+	}
+	if err := k.Validate(); err != nil {
+		return nil, err
+	}
+	return k, nil
 }
 
 func (u *User) IsOIDCUser() bool {

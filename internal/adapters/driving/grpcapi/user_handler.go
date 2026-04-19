@@ -616,12 +616,15 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 	hash := sha256.Sum256([]byte(rawKey))
 	keyHash := hex.EncodeToString(hash[:])
 
-	key := &user.APIKeyModel{
-		ID:          id.New("ak-"),
-		UserID:      shared.UserID(claims.UserID),
-		Name:        req.Name,
-		KeyHash:     keyHash,
-		Permissions: req.Scopes,
+	key, err := user.NewAPIKey(
+		id.New("ak-"),
+		shared.UserID(claims.UserID),
+		req.Name,
+		keyHash,
+		user.WithAPIKeyPermissions(req.Scopes),
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.access.CreateAPIKey(ctx, key); err != nil {
 		slog.Error("create api key", slog.Any("err", err))

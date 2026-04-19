@@ -547,10 +547,11 @@ func TestAPIKeyModel_Validate(t *testing.T) {
 		key     user.APIKeyModel
 		wantErr string
 	}{
-		{"valid", user.APIKeyModel{UserID: "u1", Name: "CI", KeyHash: "h"}, ""},
-		{"no user ID", user.APIKeyModel{UserID: "", Name: "CI", KeyHash: "h"}, "API key user ID is required"},
-		{"no name", user.APIKeyModel{UserID: "u1", Name: "", KeyHash: "h"}, "API key name is required"},
-		{"no hash", user.APIKeyModel{UserID: "u1", Name: "CI", KeyHash: ""}, "API key hash is required"},
+		{"valid", user.APIKeyModel{ID: "ak-1", UserID: "u1", Name: "CI", KeyHash: "h"}, ""},
+		{"no ID", user.APIKeyModel{UserID: "u1", Name: "CI", KeyHash: "h"}, "API key ID is required"},
+		{"no user ID", user.APIKeyModel{ID: "ak-1", UserID: "", Name: "CI", KeyHash: "h"}, "API key user ID is required"},
+		{"no name", user.APIKeyModel{ID: "ak-1", UserID: "u1", Name: "", KeyHash: "h"}, "API key name is required"},
+		{"no hash", user.APIKeyModel{ID: "ak-1", UserID: "u1", Name: "CI", KeyHash: ""}, "API key hash is required"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -567,6 +568,37 @@ func TestAPIKeyModel_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewAPIKey(t *testing.T) {
+	t.Parallel()
+
+	t.Run("happy path", func(t *testing.T) {
+		t.Parallel()
+		k, err := user.NewAPIKey("ak-1", "u1", "CI", "hash",
+			user.WithAPIKeyPermissions([]string{"read:library"}),
+		)
+		if err != nil {
+			t.Fatalf("unexpected: %v", err)
+		}
+		if k.ID != "ak-1" || k.UserID != "u1" || k.KeyHash != "hash" {
+			t.Errorf("core fields wrong: %+v", k)
+		}
+		if len(k.Permissions) != 1 || k.Permissions[0] != "read:library" {
+			t.Errorf("permissions option not applied")
+		}
+		if k.CreatedAt.IsZero() {
+			t.Error("CreatedAt not stamped")
+		}
+	})
+
+	t.Run("missing hash", func(t *testing.T) {
+		t.Parallel()
+		_, err := user.NewAPIKey("ak-1", "u1", "CI", "")
+		if err == nil {
+			t.Fatal("expected error on empty hash")
+		}
+	})
 }
 
 func TestInviteLink_IsUsable_Expired(t *testing.T) {
