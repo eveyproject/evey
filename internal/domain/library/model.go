@@ -70,6 +70,14 @@ const (
 	Producer PersonRole = "producer"
 )
 
+func (r PersonRole) IsValid() bool {
+	switch r {
+	case Actor, Director, Writer, Producer:
+		return true
+	}
+	return false
+}
+
 type Library struct {
 	ID                  shared.LibraryID
 	Name                string

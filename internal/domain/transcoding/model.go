@@ -16,6 +16,14 @@ const (
 	None  HWAccelType = "none"
 )
 
+func (h HWAccelType) IsValid() bool {
+	switch h {
+	case VAAPI, NVENC, QSV, None:
+		return true
+	}
+	return false
+}
+
 // DefaultAudioCodec is AAC — the only universally supported audio codec for HLS/web playback
 const DefaultAudioCodec = "aac"
 
@@ -73,6 +81,9 @@ func (j *TranscodeJob) Validate() error {
 	}
 	if j.Status != "" && !j.Status.IsValid() {
 		return errors.New("transcode job: invalid status")
+	}
+	if j.HWAccelType != "" && !HWAccelType(j.HWAccelType).IsValid() {
+		return errors.New("transcode job: invalid hw accel type")
 	}
 	return nil
 }
