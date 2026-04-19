@@ -84,13 +84,16 @@ func TestAccessService_GetLibraryAccessByUserID(t *testing.T) {
 	assert.ElementsMatch(t, []string{"lib-1", "lib-2"}, ids)
 }
 
-// GetLibraryAccessByUserID returns nil for a user with no grants.
-func TestAccessService_GetLibraryAccessByUserID_NoGrants_ReturnsNil(t *testing.T) {
+// GetLibraryAccessByUserID returns a non-nil empty slice when a user has
+// zero grants. Handlers rely on the nil-vs-empty distinction: nil means
+// "admin / unrestricted" and MUST NOT be confused with "zero grants".
+func TestAccessService_GetLibraryAccessByUserID_NoGrants_ReturnsEmpty(t *testing.T) {
 	t.Parallel()
 	svc, _ := newAccessSvcWithLibraryAccess()
 	ids, err := svc.GetLibraryAccessByUserID(context.Background(), "nobody")
 	require.NoError(t, err)
-	assert.Nil(t, ids)
+	require.NotNil(t, ids, "nil would promote a zero-grants user to unrestricted access in filter callers")
+	assert.Empty(t, ids)
 }
 
 // Repo error on GetByUserID propagates.

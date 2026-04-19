@@ -217,13 +217,17 @@ func (s *AccessService) HasLibraryAccess(ctx context.Context, userID, libraryID 
 	return s.libraryAccess.HasAccess(ctx, shared.UserID(userID), shared.LibraryID(libraryID))
 }
 
+// GetLibraryAccessByUserID returns the list of library IDs the user may
+// see. Empty slice (non-nil) means "user has zero granted libraries" —
+// callers rely on the nil-vs-empty distinction to short-circuit admin /
+// unrestricted paths (nil = unrestricted, empty = access to nothing).
+// Returning nil here silently promoted users with zero grants to
+// admin-level visibility across every gRPC handler that filters via
+// this method (feed, playback, collection, favorite, notification, …).
 func (s *AccessService) GetLibraryAccessByUserID(ctx context.Context, userID string) ([]string, error) {
 	ids, err := s.libraryAccess.GetByUserID(ctx, shared.UserID(userID))
 	if err != nil {
 		return nil, err
-	}
-	if len(ids) == 0 {
-		return nil, nil
 	}
 	out := make([]string, len(ids))
 	for i, id := range ids {
