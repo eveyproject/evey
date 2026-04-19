@@ -162,6 +162,19 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 	}
 	result.ProviderIDs["imdb"] = imdbID
 
+	// Cross-ref IMDB → TMDB so locale translations hit the right record.
+	// Without this, the old item.Catalog.ProviderIDs["tmdb"] sticks and
+	// FR/ES/… get translated titles+overviews from the PREVIOUS movie.
+	// Drop the stale TMDB ID if no mapping exists so translations skip
+	// rather than poisoning the item.
+	if _, hasTmdb := result.ProviderIDs["tmdb"]; !hasTmdb {
+		if newTmdbID, ok := s.lookupTMDBByIMDB(ctx, imdbID); ok {
+			result.ProviderIDs["tmdb"] = newTmdbID
+		} else if item.Catalog != nil {
+			delete(item.Catalog.ProviderIDs, "tmdb")
+		}
+	}
+
 	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
 		return fmt.Errorf("enrich item: %w", err)
 	}
@@ -170,6 +183,27 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 		slog.Warn("publish event", slog.String("event", evtImdb.EventName()), slog.Any("err", err))
 	}
 	return nil
+}
+
+// lookupTMDBByIMDB asks any provider that implements ExternalIDLookup to
+// map an IMDB ID to its TMDB counterpart. Only TMDB reliably answers this
+// today; others return no-op. Used on IMDB-based refresh so translations
+// follow the new item rather than the stale TMDB ID.
+func (s *CommandService) lookupTMDBByIMDB(ctx context.Context, imdbID string) (string, bool) {
+	for _, p := range s.providers {
+		lookup, ok := p.(metadata.ExternalIDLookup)
+		if !ok {
+			continue
+		}
+		res, err := lookup.LookupByExternalID(ctx, "imdb", imdbID)
+		if err != nil || res == nil {
+			continue
+		}
+		if id := res.ProviderIDs["tmdb"]; id != "" {
+			return id, true
+		}
+	}
+	return "", false
 }
 
 // fetchFromProviders tries providers in order. If preferProvider is set,

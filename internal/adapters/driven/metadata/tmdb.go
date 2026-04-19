@@ -260,6 +260,49 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 	return &result, nil
 }
 
+// LookupByExternalID resolves a TMDB record from an external provider ID
+// (IMDB, TVDB, …) via TMDB's /find endpoint. Returns nil when the mapping
+// yields no hit. Only imdb is wired for now — that's the path used by the
+// admin "change IMDB ID" flow, which otherwise leaves the stale TMDB ID
+// on the item and fetches translations for the wrong title.
+func (p *TMDBProvider) LookupByExternalID(ctx context.Context, providerName, externalID string) (*domain.MetadataResult, error) {
+	if providerName != "imdb" || externalID == "" {
+		return nil, nil
+	}
+	params := url.Values{
+		"external_source": {"imdb_id"},
+		"language":        {p.language()},
+	}
+	u := fmt.Sprintf("%s/find/%s?%s", p.baseURL, externalID, params.Encode())
+	body, err := p.doRequestWithRetry(ctx, u)
+	if err != nil {
+		return nil, fmt.Errorf("tmdb find: %w", err)
+	}
+	var findResp struct {
+		MovieResults []struct {
+			ID int `json:"id"`
+		} `json:"movie_results"`
+		TVResults []struct {
+			ID int `json:"id"`
+		} `json:"tv_results"`
+	}
+	if err := json.Unmarshal(body, &findResp); err != nil {
+		return nil, fmt.Errorf("tmdb find unmarshal: %w", err)
+	}
+	var tmdbID string
+	switch {
+	case len(findResp.MovieResults) > 0:
+		tmdbID = strconv.Itoa(findResp.MovieResults[0].ID)
+	case len(findResp.TVResults) > 0:
+		tmdbID = strconv.Itoa(findResp.TVResults[0].ID)
+	default:
+		return nil, nil
+	}
+	return &domain.MetadataResult{
+		ProviderIDs: map[string]string{"tmdb": tmdbID, "imdb": externalID},
+	}, nil
+}
+
 // FetchTranslations fetches title/overview/tagline in each locale, skipping the provider's default language.
 func (p *TMDBProvider) FetchTranslations(ctx context.Context, providerID string, mediaType string, locales []string) (map[string]domain.MetadataResult, error) {
 	results := make(map[string]domain.MetadataResult)

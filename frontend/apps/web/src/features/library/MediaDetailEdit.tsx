@@ -303,7 +303,7 @@ export function MetadataEditPanel({
         ) : formKey === "genres" ? (
           <Input label={label} value={form[formKey]} onChange={set(formKey)} placeholder="Action, Drama" />
         ) : formKey === "title" ? (
-          <Input label={label} value={form[formKey]} onChange={set(formKey)} required />
+          <Input label={label} value={form[formKey]} onChange={set(formKey)} />
         ) : (
           <Input label={label} value={form[formKey]} onChange={set(formKey)} placeholder={label} />
         )}
