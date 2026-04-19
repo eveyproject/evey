@@ -149,8 +149,42 @@ func NewHLSManager(shutdownCtx context.Context, cacheDir string, maxConcurrent i
 		stopCleanup:   make(chan struct{}),
 		process:       process,
 	}
+	sweepOrphanCacheDirs(cacheDir)
 	go m.cleanupLoop()
 	return m
+}
+
+// sweepOrphanCacheDirs removes every subdirectory of cacheDir at startup.
+// No live sessions exist yet, so anything on disk is an orphan from a
+// previous run (crash, kill -9, OOM). Without this sweep, orphan dirs
+// accumulate forever and the 100GB+ transcode cache that shows up in prod
+// is mostly dead HLS segments nobody will ever stream again.
+func sweepOrphanCacheDirs(cacheDir string) {
+	if cacheDir == "" {
+		return
+	}
+	entries, err := os.ReadDir(cacheDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			slog.Warn("hls: sweep orphan dirs: read cacheDir", slog.String("dir", cacheDir), slog.Any("err", err))
+		}
+		return
+	}
+	removed := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		path := filepath.Join(cacheDir, e.Name())
+		if rmErr := os.RemoveAll(path); rmErr != nil {
+			slog.Warn("hls: sweep orphan dir failed", slog.String("dir", path), slog.Any("err", rmErr))
+			continue
+		}
+		removed++
+	}
+	if removed > 0 {
+		slog.Info("hls: orphan cache dirs swept at startup", slog.Int("count", removed), slog.String("base", cacheDir))
+	}
 }
 
 func (m *HLSManager) SetMaxConcurrent(n int) {

@@ -73,6 +73,36 @@ func TestNewHLSManager(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// Simulates server crashing mid-session: orphan dirs stay on disk until
+// next startup, where NewHLSManager must remove them so they don't
+// accumulate into 100GB+ of dead segments.
+func TestNewHLSManager_SweepsOrphanDirs(t *testing.T) {
+	dir := t.TempDir()
+	orphan1 := filepath.Join(dir, "media-abc")
+	orphan2 := filepath.Join(dir, "media-def")
+	require.NoError(t, os.MkdirAll(orphan1, 0o755))
+	require.NoError(t, os.MkdirAll(orphan2, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(orphan1, "master.m3u8"), []byte("x"), 0o644))
+
+	fake := &fakes.HLSProcess{}
+	m := apptranscode.NewHLSManager(context.Background(), dir, 1, fake)
+	t.Cleanup(func() { m.CleanupAll() })
+
+	_, err := os.Stat(orphan1)
+	assert.True(t, os.IsNotExist(err), "orphan1 should have been swept")
+	_, err = os.Stat(orphan2)
+	assert.True(t, os.IsNotExist(err), "orphan2 should have been swept")
+}
+
+// Missing cacheDir is tolerated — first-boot scenario.
+func TestNewHLSManager_MissingCacheDir_NoPanic(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "does-not-exist")
+	fake := &fakes.HLSProcess{}
+	m := apptranscode.NewHLSManager(context.Background(), dir, 1, fake)
+	t.Cleanup(func() { m.CleanupAll() })
+	assert.NotNil(t, m)
+}
+
 func TestGetOrCreate_MaxConcurrent_QueueTimeout(t *testing.T) {
 	m, _ := newTestManager(t, 1)
 	m.SetQueueTimeout(50 * time.Millisecond)
