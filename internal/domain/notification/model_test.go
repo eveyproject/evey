@@ -270,6 +270,100 @@ func TestSettings_Validate(t *testing.T) {
 	}
 }
 
+func TestLevel_IsValid(t *testing.T) {
+	t.Parallel()
+	cases := map[notification.Level]bool{
+		notification.LevelDisabled:       true,
+		notification.LevelAll:            true,
+		notification.LevelRelevant:       true,
+		notification.LevelHighlyRelevant: true,
+		notification.Level(""):           false,
+		"garbage":                        false,
+	}
+	for l, want := range cases {
+		if got := l.IsValid(); got != want {
+			t.Errorf("%q.IsValid() = %v, want %v", l, got, want)
+		}
+	}
+}
+
+func TestNotification_Validate(t *testing.T) {
+	t.Parallel()
+
+	valid := notification.Notification{
+		ID:        "n1",
+		ProfileID: "p1",
+		Type:      notification.TypeNewMovie,
+		Title:     "New",
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(n *notification.Notification)
+		want   string
+	}{
+		{"valid", func(*notification.Notification) {}, ""},
+		{"missing ID", func(n *notification.Notification) { n.ID = "" }, "notification ID is required"},
+		{"missing profile", func(n *notification.Notification) { n.ProfileID = "" }, "notification profile ID is required"},
+		{"bad type", func(n *notification.Notification) { n.Type = "bogus" }, "notification: invalid type"},
+		{"empty type", func(n *notification.Notification) { n.Type = "" }, "notification: invalid type"},
+		{"empty title", func(n *notification.Notification) { n.Title = "" }, "notification title is required"},
+		{"bad level", func(n *notification.Notification) { n.Level = "bogus" }, "notification: invalid level"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			n := valid
+			tt.mutate(&n)
+			err := n.Validate()
+			if tt.want == "" {
+				if err != nil {
+					t.Fatalf("unexpected: %v", err)
+				}
+				return
+			}
+			if err == nil || err.Error() != tt.want {
+				t.Errorf("err = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestNewNotification(t *testing.T) {
+	t.Parallel()
+
+	t.Run("happy path stamps CreatedAt", func(t *testing.T) {
+		t.Parallel()
+		expires := time.Now().Add(time.Hour)
+		n, err := notification.NewNotification("n1", "p1", notification.TypeNewMovie, "New",
+			notification.WithNotificationMessage("msg"),
+			notification.WithNotificationMediaItem("mi1"),
+			notification.WithNotificationLevel(notification.LevelRelevant),
+			notification.WithNotificationExpiresAt(&expires),
+		)
+		if err != nil {
+			t.Fatalf("unexpected: %v", err)
+		}
+		if n.CreatedAt.IsZero() || n.Message != "msg" || n.MediaItemID != "mi1" || n.Level != notification.LevelRelevant || n.ExpiresAt == nil {
+			t.Errorf("fields not wired: %+v", n)
+		}
+	})
+
+	t.Run("missing id rejected", func(t *testing.T) {
+		t.Parallel()
+		if _, err := notification.NewNotification("", "p1", notification.TypeNewMovie, "t"); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("invalid type rejected", func(t *testing.T) {
+		t.Parallel()
+		if _, err := notification.NewNotification("n1", "p1", "bogus", "t"); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
 func TestSettings_Defaults(t *testing.T) {
 	t.Parallel()
 

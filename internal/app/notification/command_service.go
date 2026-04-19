@@ -373,16 +373,14 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 		if !shouldNotify(lvl, genres, favoritesByProfile[string(p.ID)]) {
 			continue
 		}
-		n := &notification.Notification{
-			ID:          uuid.New().String(),
-			ProfileID:   p.ID,
-			Type:        notifType,
-			Title:       notifTitle,
-			Message:     "",
-			MediaItemID: shared.MediaItemID(mediaItemID),
-			Level:       lvl,
-			CreatedAt:   time.Now(),
-			ExpiresAt:   &expires,
+		n, err := notification.NewNotification(uuid.New().String(), p.ID, notifType, notifTitle,
+			notification.WithNotificationMediaItem(shared.MediaItemID(mediaItemID)),
+			notification.WithNotificationLevel(lvl),
+			notification.WithNotificationExpiresAt(&expires),
+		)
+		if err != nil {
+			slog.Warn("notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
+			continue
 		}
 		s.persistAndDispatch(ctx, n, pushTitle)
 	}
@@ -491,15 +489,14 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
 	title := "Scheduled Backup Failed"
 	for _, p := range profiles {
-		n := &notification.Notification{
-			ID:        uuid.New().String(),
-			ProfileID: p.ID,
-			Type:      notification.TypeBackupFailed,
-			Title:     title,
-			Message:   e.Error,
-			Level:     notification.LevelAll,
-			CreatedAt: time.Now(),
-			ExpiresAt: &expires,
+		n, err := notification.NewNotification(uuid.New().String(), p.ID, notification.TypeBackupFailed, title,
+			notification.WithNotificationMessage(e.Error),
+			notification.WithNotificationLevel(notification.LevelAll),
+			notification.WithNotificationExpiresAt(&expires),
+		)
+		if err != nil {
+			slog.Warn("notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
+			continue
 		}
 		s.persistAndDispatch(ctx, n, n.Title)
 	}
@@ -543,15 +540,14 @@ func (s *CommandService) handlePluginError(parentCtx context.Context, ev shared.
 	}
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
 	for _, p := range profiles {
-		n := &notification.Notification{
-			ID:        uuid.New().String(),
-			ProfileID: p.ID,
-			Type:      notification.TypePluginError,
-			Title:     title,
-			Message:   msg,
-			Level:     notification.LevelAll,
-			CreatedAt: time.Now(),
-			ExpiresAt: &expires,
+		n, err := notification.NewNotification(uuid.New().String(), p.ID, notification.TypePluginError, title,
+			notification.WithNotificationMessage(msg),
+			notification.WithNotificationLevel(notification.LevelAll),
+			notification.WithNotificationExpiresAt(&expires),
+		)
+		if err != nil {
+			slog.Warn("notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
+			continue
 		}
 		s.persistAndDispatch(ctx, n, n.Title)
 	}

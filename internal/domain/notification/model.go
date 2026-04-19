@@ -50,6 +50,14 @@ const (
 	LevelHighlyRelevant Level = "highly_relevant"
 )
 
+func (l Level) IsValid() bool {
+	switch l {
+	case LevelDisabled, LevelAll, LevelRelevant, LevelHighlyRelevant:
+		return true
+	}
+	return false
+}
+
 type Notification struct {
 	ID          string
 	ProfileID   shared.ProfileID
@@ -62,6 +70,25 @@ type Notification struct {
 	ExpiresAt   *time.Time
 	DeliveredAt *time.Time
 	ReadAt      *time.Time
+}
+
+func (n *Notification) Validate() error {
+	if n.ID == "" {
+		return errors.New("notification ID is required")
+	}
+	if n.ProfileID == "" {
+		return errors.New("notification profile ID is required")
+	}
+	if !n.Type.IsValid() {
+		return errors.New("notification: invalid type")
+	}
+	if n.Title == "" {
+		return errors.New("notification title is required")
+	}
+	if n.Level != "" && !n.Level.IsValid() {
+		return errors.New("notification: invalid level")
+	}
+	return nil
 }
 
 type Settings struct {
@@ -113,4 +140,43 @@ func (s *Settings) LevelForType(t Type) Level {
 		return s.MusicLevel
 	}
 	return LevelAll
+}
+
+type NotificationOption func(*Notification)
+
+func WithNotificationMessage(msg string) NotificationOption {
+	return func(n *Notification) { n.Message = msg }
+}
+
+func WithNotificationMediaItem(id shared.MediaItemID) NotificationOption {
+	return func(n *Notification) { n.MediaItemID = id }
+}
+
+func WithNotificationLevel(l Level) NotificationOption {
+	return func(n *Notification) { n.Level = l }
+}
+
+func WithNotificationExpiresAt(t *time.Time) NotificationOption {
+	return func(n *Notification) { n.ExpiresAt = t }
+}
+
+// NewNotification is the canonical constructor. Stamps CreatedAt and
+// validates. Required identity/intent fields (id, profile, type, title)
+// are surfaced as params so construction never succeeds with them
+// missing.
+func NewNotification(id string, profileID shared.ProfileID, notifType Type, title string, opts ...NotificationOption) (*Notification, error) {
+	n := &Notification{
+		ID:        id,
+		ProfileID: profileID,
+		Type:      notifType,
+		Title:     title,
+		CreatedAt: time.Now(),
+	}
+	for _, opt := range opts {
+		opt(n)
+	}
+	if err := n.Validate(); err != nil {
+		return nil, err
+	}
+	return n, nil
 }
