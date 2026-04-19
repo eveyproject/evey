@@ -354,6 +354,7 @@ func TestMediaItem_Validate(t *testing.T) {
 		{"missing library", library.MediaItem{Type: "movie", Title: "Test"}, true},
 		{"missing type", library.MediaItem{LibraryID: "lib1", Title: "Test"}, true},
 		{"missing title", library.MediaItem{LibraryID: "lib1", Type: "movie"}, true},
+		{"invalid type", library.MediaItem{LibraryID: "lib1", Type: "banana", Title: "Test"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -363,6 +364,59 @@ func TestMediaItem_Validate(t *testing.T) {
 				t.Errorf("Validate() err = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestLibraryType_IsValid(t *testing.T) {
+	t.Parallel()
+	cases := map[library.LibraryType]bool{
+		library.Movie:           true,
+		library.TVShow:          true,
+		library.Music:           true,
+		library.Photo:           true,
+		library.LibraryType(""): false,
+		"garbage":               false,
+	}
+	for typ, want := range cases {
+		if typ.IsValid() != want {
+			t.Errorf("%q.IsValid() = %v, want %v", typ, !want, want)
+		}
+	}
+}
+
+func TestMediaItemType_IsValid(t *testing.T) {
+	t.Parallel()
+	cases := map[library.MediaItemType]bool{
+		library.MovieItem:         true,
+		library.Series:            true,
+		library.Season:            true,
+		library.Episode:           true,
+		library.Track:             true,
+		library.Album:             true,
+		library.PhotoItem:         true,
+		library.MediaItemType(""): false,
+		"garbage":                 false,
+	}
+	for typ, want := range cases {
+		if typ.IsValid() != want {
+			t.Errorf("%q.IsValid() = %v, want %v", typ, !want, want)
+		}
+	}
+}
+
+func TestStreamType_IsValid(t *testing.T) {
+	t.Parallel()
+	cases := map[library.StreamType]bool{
+		library.Video:          true,
+		library.Audio:          true,
+		library.Subtitle:       true,
+		library.StreamType(""): false,
+		"garbage":              false,
+	}
+	for typ, want := range cases {
+		if typ.IsValid() != want {
+			t.Errorf("%q.IsValid() = %v, want %v", typ, !want, want)
+		}
 	}
 }
 

@@ -2,6 +2,7 @@ package library
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -16,6 +17,14 @@ const (
 	Photo  LibraryType = "photo"
 )
 
+func (t LibraryType) IsValid() bool {
+	switch t {
+	case Movie, TVShow, Music, Photo:
+		return true
+	}
+	return false
+}
+
 type MediaItemType string
 
 const (
@@ -28,6 +37,14 @@ const (
 	PhotoItem MediaItemType = "photo"
 )
 
+func (t MediaItemType) IsValid() bool {
+	switch t {
+	case MovieItem, Series, Season, Episode, Track, Album, PhotoItem:
+		return true
+	}
+	return false
+}
+
 type StreamType string
 
 const (
@@ -35,6 +52,14 @@ const (
 	Audio    StreamType = "audio"
 	Subtitle StreamType = "subtitle"
 )
+
+func (t StreamType) IsValid() bool {
+	switch t {
+	case Video, Audio, Subtitle:
+		return true
+	}
+	return false
+}
 
 type PersonRole string
 
@@ -168,6 +193,9 @@ func (m *MediaItem) Validate() error {
 	}
 	if m.Type == "" {
 		return errors.New("media item requires a type")
+	}
+	if !m.Type.IsValid() {
+		return fmt.Errorf("media item: invalid type %q", m.Type)
 	}
 	if m.Title == "" {
 		return errors.New("media item requires a title")
