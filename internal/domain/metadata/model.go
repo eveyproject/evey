@@ -99,6 +99,9 @@ type ArtworkRecord struct {
 }
 
 func (o *MetadataOverride) Validate() error {
+	if o.ID == "" {
+		return errors.New("metadata override requires an ID")
+	}
 	if o.MediaItemID == "" {
 		return errors.New("metadata override requires a media item ID")
 	}
@@ -109,6 +112,9 @@ func (o *MetadataOverride) Validate() error {
 }
 
 func (a *ArtworkRecord) Validate() error {
+	if a.ID == "" {
+		return errors.New("artwork record requires an ID")
+	}
 	if a.MediaItemID == "" {
 		return errors.New("artwork record requires a media item ID")
 	}
@@ -119,6 +125,85 @@ func (a *ArtworkRecord) Validate() error {
 		return errors.New("artwork record requires a provider")
 	}
 	return nil
+}
+
+type MetadataOverrideOption func(*MetadataOverride)
+
+func WithOverrideValue(v any) MetadataOverrideOption {
+	return func(o *MetadataOverride) { o.CustomValue = v }
+}
+
+func WithOverrideEditor(userID shared.UserID) MetadataOverrideOption {
+	return func(o *MetadataOverride) { o.EditedBy = userID }
+}
+
+// NewMetadataOverride is the canonical constructor. Stamps CreatedAt
+// and validates. Required identity fields (id, mediaItem, fieldName)
+// are surfaced as params so construction never succeeds with them
+// missing.
+func NewMetadataOverride(id string, mediaItemID shared.MediaItemID, fieldName string, opts ...MetadataOverrideOption) (*MetadataOverride, error) {
+	o := &MetadataOverride{
+		ID:          id,
+		MediaItemID: mediaItemID,
+		FieldName:   fieldName,
+		CreatedAt:   time.Now(),
+	}
+	for _, opt := range opts {
+		opt(o)
+	}
+	if err := o.Validate(); err != nil {
+		return nil, err
+	}
+	return o, nil
+}
+
+type ArtworkRecordOption func(*ArtworkRecord)
+
+func WithArtworkPerson(personID string) ArtworkRecordOption {
+	return func(a *ArtworkRecord) { a.PersonID = &personID }
+}
+
+func WithArtworkSource(url string) ArtworkRecordOption {
+	return func(a *ArtworkRecord) { a.SourceURL = &url }
+}
+
+func WithArtworkLocal(path string) ArtworkRecordOption {
+	return func(a *ArtworkRecord) { a.LocalPath = &path }
+}
+
+func WithArtworkWebP(path string) ArtworkRecordOption {
+	return func(a *ArtworkRecord) { a.WebPPath = &path }
+}
+
+func WithArtworkDimensions(width, height int) ArtworkRecordOption {
+	return func(a *ArtworkRecord) { a.Width, a.Height = &width, &height }
+}
+
+func WithArtworkLanguage(lang string) ArtworkRecordOption {
+	return func(a *ArtworkRecord) { a.Language = &lang }
+}
+
+func WithArtworkSortOrder(order int) ArtworkRecordOption {
+	return func(a *ArtworkRecord) { a.SortOrder = order }
+}
+
+// NewArtworkRecord is the canonical constructor. Validates. Required
+// identity fields (id, mediaItem, type, provider) are surfaced as
+// params so construction never succeeds with them missing.
+func NewArtworkRecord(id string, mediaItemID shared.MediaItemID, artType, provider string, opts ...ArtworkRecordOption) (*ArtworkRecord, error) {
+	a := &ArtworkRecord{
+		ID:          id,
+		MediaItemID: mediaItemID,
+		Type:        artType,
+		Provider:    provider,
+	}
+	for _, opt := range opts {
+		opt(a)
+	}
+	if err := a.Validate(); err != nil {
+		return nil, err
+	}
+	return a, nil
 }
 
 type MetadataProviderConfig struct {

@@ -239,9 +239,10 @@ func TestMetadataOverride_Validate(t *testing.T) {
 		o       metadata.MetadataOverride
 		wantErr bool
 	}{
-		{"valid", metadata.MetadataOverride{MediaItemID: "m1", FieldName: "title"}, false},
-		{"missing media item", metadata.MetadataOverride{FieldName: "title"}, true},
-		{"missing field name", metadata.MetadataOverride{MediaItemID: "m1"}, true},
+		{"valid", metadata.MetadataOverride{ID: "mo-1", MediaItemID: "m1", FieldName: "title"}, false},
+		{"missing id", metadata.MetadataOverride{MediaItemID: "m1", FieldName: "title"}, true},
+		{"missing media item", metadata.MetadataOverride{ID: "mo-1", FieldName: "title"}, true},
+		{"missing field name", metadata.MetadataOverride{ID: "mo-1", MediaItemID: "m1"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -262,10 +263,11 @@ func TestArtworkRecord_Validate(t *testing.T) {
 		a       metadata.ArtworkRecord
 		wantErr bool
 	}{
-		{"valid", metadata.ArtworkRecord{MediaItemID: "m1", Type: "poster", Provider: "tmdb"}, false},
-		{"missing media item", metadata.ArtworkRecord{Type: "poster", Provider: "tmdb"}, true},
-		{"missing type", metadata.ArtworkRecord{MediaItemID: "m1", Provider: "tmdb"}, true},
-		{"missing provider", metadata.ArtworkRecord{MediaItemID: "m1", Type: "poster"}, true},
+		{"valid", metadata.ArtworkRecord{ID: "art-1", MediaItemID: "m1", Type: "poster", Provider: "tmdb"}, false},
+		{"missing id", metadata.ArtworkRecord{MediaItemID: "m1", Type: "poster", Provider: "tmdb"}, true},
+		{"missing media item", metadata.ArtworkRecord{ID: "art-1", Type: "poster", Provider: "tmdb"}, true},
+		{"missing type", metadata.ArtworkRecord{ID: "art-1", MediaItemID: "m1", Provider: "tmdb"}, true},
+		{"missing provider", metadata.ArtworkRecord{ID: "art-1", MediaItemID: "m1", Type: "poster"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -276,6 +278,69 @@ func TestArtworkRecord_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewMetadataOverride(t *testing.T) {
+	t.Parallel()
+
+	t.Run("happy path stamps CreatedAt", func(t *testing.T) {
+		t.Parallel()
+		o, err := metadata.NewMetadataOverride("mo-1", "m1", "title",
+			metadata.WithOverrideValue("A new title"),
+			metadata.WithOverrideEditor("user-1"),
+		)
+		if err != nil {
+			t.Fatalf("unexpected: %v", err)
+		}
+		if o.CreatedAt.IsZero() || o.CustomValue != "A new title" || o.EditedBy != "user-1" {
+			t.Errorf("fields not wired: %+v", o)
+		}
+	})
+
+	t.Run("missing id rejected", func(t *testing.T) {
+		t.Parallel()
+		if _, err := metadata.NewMetadataOverride("", "m1", "title"); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestNewArtworkRecord(t *testing.T) {
+	t.Parallel()
+
+	t.Run("happy path wires options", func(t *testing.T) {
+		t.Parallel()
+		a, err := metadata.NewArtworkRecord("art-1", "m1", metadata.ArtworkTypePoster, "tmdb",
+			metadata.WithArtworkSource("https://example.com/p.jpg"),
+			metadata.WithArtworkLanguage("en"),
+			metadata.WithArtworkDimensions(1000, 1500),
+			metadata.WithArtworkSortOrder(3),
+		)
+		if err != nil {
+			t.Fatalf("unexpected: %v", err)
+		}
+		if a.SourceURL == nil || *a.SourceURL != "https://example.com/p.jpg" ||
+			a.Language == nil || *a.Language != "en" ||
+			a.Width == nil || *a.Width != 1000 ||
+			a.Height == nil || *a.Height != 1500 ||
+			a.SortOrder != 3 {
+			t.Errorf("fields not wired: %+v", a)
+		}
+	})
+
+	t.Run("missing id rejected", func(t *testing.T) {
+		t.Parallel()
+		if _, err := metadata.NewArtworkRecord("", "m1", "poster", "tmdb"); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("missing provider rejected", func(t *testing.T) {
+		t.Parallel()
+		if _, err := metadata.NewArtworkRecord("art-1", "m1", "poster", ""); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
 }
 
 func TestArtworkRecord_OptionalFields(t *testing.T) {

@@ -111,11 +111,11 @@ func (h *metadataHandler) GetArtwork(ctx context.Context, req *eveyv1.GetArtwork
 }
 
 func (h *metadataHandler) SetMetadataOverride(ctx context.Context, req *eveyv1.SetMetadataOverrideRequest) (*eveyv1.MetadataOverride, error) {
-	override := &domainmetadata.MetadataOverride{
-		ID:          id.New("mo-"),
-		MediaItemID: shared.MediaItemID(req.MediaItemId),
-		FieldName:   req.FieldName,
-		CustomValue: req.CustomValue,
+	override, err := domainmetadata.NewMetadataOverride(id.New("mo-"), shared.MediaItemID(req.MediaItemId), req.FieldName,
+		domainmetadata.WithOverrideValue(req.CustomValue),
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.cmd.SetOverride(ctx, override); err != nil {
 		return nil, internalError("set override", err)

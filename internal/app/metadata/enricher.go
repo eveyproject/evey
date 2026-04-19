@@ -173,9 +173,14 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 	if len(artwork) == 0 {
 		return nil
 	}
-	records := make([]*domainmetadata.ArtworkRecord, len(artwork))
+	records := make([]*domainmetadata.ArtworkRecord, 0, len(artwork))
 	for i, art := range artwork {
-		records[i] = buildArtworkRecord(mediaItemID, i, art)
+		if rec := buildArtworkRecord(mediaItemID, i, art); rec != nil {
+			records = append(records, rec)
+		}
+	}
+	if len(records) == 0 {
+		return nil
 	}
 	if err := e.artwork.CreateBatch(ctx, records); err != nil {
 		return fmt.Errorf("create artwork batch: %w", err)
@@ -184,29 +189,23 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 }
 
 func buildArtworkRecord(mediaItemID string, sortOrder int, art domainmetadata.ArtworkResult) *domainmetadata.ArtworkRecord {
-	src := art.URL
-	lang := art.Language
-	w, h := art.Width, art.Height
 	provider := art.Provider
 	if provider == "" {
 		provider = "unknown"
 	}
-	rec := &domainmetadata.ArtworkRecord{
-		ID:          uuid.New().String(),
-		MediaItemID: shared.MediaItemID(mediaItemID),
-		Type:        art.Type,
-		Provider:    provider,
-		SourceURL:   &src,
-		SortOrder:   sortOrder,
+	opts := []domainmetadata.ArtworkRecordOption{
+		domainmetadata.WithArtworkSource(art.URL),
+		domainmetadata.WithArtworkSortOrder(sortOrder),
 	}
-	if lang != "" {
-		rec.Language = &lang
+	if art.Language != "" {
+		opts = append(opts, domainmetadata.WithArtworkLanguage(art.Language))
 	}
-	if w > 0 {
-		rec.Width = &w
+	if art.Width > 0 && art.Height > 0 {
+		opts = append(opts, domainmetadata.WithArtworkDimensions(art.Width, art.Height))
 	}
-	if h > 0 {
-		rec.Height = &h
+	rec, err := domainmetadata.NewArtworkRecord(uuid.New().String(), shared.MediaItemID(mediaItemID), art.Type, provider, opts...)
+	if err != nil {
+		return nil
 	}
 	return rec
 }
