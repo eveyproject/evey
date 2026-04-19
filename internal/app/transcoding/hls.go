@@ -211,6 +211,11 @@ func (m *HLSManager) countByUser(userID string) int {
 }
 
 func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool, startSec float64, videoDecision, audioDecision string, opts ...HLSOption) (*HLSSession, error) {
+	outputDir := filepath.Join(m.cacheDir, mediaItemID)
+
+	// Phase 1: check for matching session, or detach stale one. Lock is held
+	// only long enough to mutate the in-memory maps — stop()/RemoveAll run
+	// outside so a new-session start doesn't block every other caller.
 	m.mu.Lock()
 	if session, ok := m.sessions[mediaItemID]; ok {
 		if session.VideoDecision == videoDecision && session.AudioDecision == audioDecision {
@@ -218,10 +223,11 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 			m.mu.Unlock()
 			return session, nil
 		}
-		// Decision mismatch (different client capabilities) — evict stale session
-		m.evictSessionLocked(session)
+		old := session
+		m.detachSessionLocked(old)
 		m.mu.Unlock()
-		session.stop()
+		old.stop()
+		m.removeSessionDir(string(old.MediaItemID))
 	} else {
 		m.mu.Unlock()
 	}
@@ -230,35 +236,40 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 		return nil, err
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// Re-check: session may have been created while waiting
-	if session, ok := m.sessions[mediaItemID]; ok {
-		if session.VideoDecision == videoDecision && session.AudioDecision == audioDecision {
-			session.MarkAccess()
-			m.releaseSemaphore()
-			return session, nil
-		}
-		m.evictSessionLocked(session)
-		session.stop()
-	}
-
-	if maxUserStreams > 0 && m.countByUser(userID) >= maxUserStreams {
-		m.releaseSemaphore()
-		return nil, fmt.Errorf("max streams per user reached (%d)", maxUserStreams)
-	}
-
-	profiles := FilterProfiles(transcoding.DefaultHLSProfiles, sourceWidth, sourceHeight)
-	outputDir := filepath.Join(m.cacheDir, mediaItemID)
-
-	// Invalidate disk cache if decisions don't match
+	// Phase 2: disk cache invalidation — slow, so do it unlocked. Safe
+	// because no session owns outputDir yet at this point.
 	if !matchesCachedDecision(outputDir, videoDecision, audioDecision) {
 		if err := os.RemoveAll(outputDir); err != nil {
 			slog.Warn("remove stale transcode cache failed", slog.String("dir", outputDir), slog.Any("err", err))
 		}
 	}
 
+	// Phase 3: re-check + reserve the map slot (quick, under lock). Covers
+	// the race where another goroutine created a session for the same
+	// mediaItemID between Phase 1's unlock and now.
+	m.mu.Lock()
+	if session, ok := m.sessions[mediaItemID]; ok {
+		if session.VideoDecision == videoDecision && session.AudioDecision == audioDecision {
+			session.MarkAccess()
+			m.mu.Unlock()
+			m.releaseSemaphore()
+			return session, nil
+		}
+		old := session
+		m.detachSessionLocked(old)
+		m.mu.Unlock()
+		old.stop()
+		m.removeSessionDir(string(old.MediaItemID))
+		m.mu.Lock()
+	}
+
+	if maxUserStreams > 0 && m.countByUser(userID) >= maxUserStreams {
+		m.mu.Unlock()
+		m.releaseSemaphore()
+		return nil, fmt.Errorf("max streams per user reached (%d)", maxUserStreams)
+	}
+
+	profiles := FilterProfiles(transcoding.DefaultHLSProfiles, sourceWidth, sourceHeight)
 	now := time.Now()
 	session := &HLSSession{
 		ID:                 mediaItemID,
@@ -285,8 +296,15 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 	}
 	m.sessions[mediaItemID] = session
 	m.userSessions[userID]++
+	m.mu.Unlock()
 
+	// Phase 4: MkdirAll + start transcode — slow, unlocked. On failure,
+	// roll back the map reservation so the slot doesn't leak.
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		m.mu.Lock()
+		m.detachSessionLocked(session)
+		m.mu.Unlock()
+		m.releaseSemaphore()
 		return nil, fmt.Errorf("create output dir: %w", err)
 	}
 
@@ -301,13 +319,22 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 	return session, nil
 }
 
-func (m *HLSManager) evictSessionLocked(session *HLSSession) {
+// detachSessionLocked removes the session from in-memory maps only.
+// Stop() and RemoveAll are the caller's responsibility, performed
+// outside the lock so slow I/O doesn't serialise all new-session starts.
+func (m *HLSManager) detachSessionLocked(session *HLSSession) {
 	delete(m.sessions, string(session.MediaItemID))
 	m.userSessions[string(session.UserID)]--
 	if m.userSessions[string(session.UserID)] <= 0 {
 		delete(m.userSessions, string(session.UserID))
 	}
-	dir := filepath.Join(m.cacheDir, string(session.MediaItemID))
+}
+
+// removeSessionDir deletes the on-disk cache for a session. Safe to call
+// without the manager lock — there's no session in the map owning this
+// dir by the time we get here (detachSessionLocked ran first).
+func (m *HLSManager) removeSessionDir(mediaItemID string) {
+	dir := filepath.Join(m.cacheDir, mediaItemID)
 	if err := os.RemoveAll(dir); err != nil {
 		slog.Warn("evict session cache failed", slog.String("dir", dir), slog.Any("err", err))
 	}
