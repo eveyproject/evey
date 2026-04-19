@@ -57,7 +57,17 @@ func (h *adminHandler) audit(r *http.Request, action, resourceType string, resou
 func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL, writeRL *ratelimit.Limiter, serverCtx context.Context, actCmdSvc *appactivity.CommandService) {
 	admin := httpAdminMiddleware(tokenGen)
 	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL, serverCtx: serverCtx, activityCmdSvc: actCmdSvc}
-	mux.HandleFunc("/api/v1/admin/media/", admin(h.handleMedia))
+	// Explicit method+path routes (Go 1.22+ mux): without them, the default
+	// catch-all falls through to the gRPC gateway and every call 404s. A
+	// legacy prefix pattern doesn't help once a sibling {id}/xxx pattern is
+	// registered — the prefix loses the specificity race.
+	mux.HandleFunc("POST /api/v1/admin/media/{id}/refresh-metadata", admin(func(w http.ResponseWriter, r *http.Request) {
+		h.handleRefreshMetadata(w, r, r.PathValue("id"))
+	}))
+	mux.HandleFunc("POST /api/v1/admin/media/{id}/reset-metadata", admin(func(w http.ResponseWriter, r *http.Request) {
+		h.handleResetMetadata(w, r, r.PathValue("id"))
+	}))
+	mux.HandleFunc("GET /api/v1/admin/media/{id}/search-metadata", admin(h.handleSearchMetadata))
 	mux.HandleFunc("POST /api/v1/admin/metadata/refresh-all", ratelimit.MiddlewareFunc(writeRL, admin(h.handleRefreshAll)))
 }
 

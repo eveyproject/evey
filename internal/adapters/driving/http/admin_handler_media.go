@@ -4,31 +4,9 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
-
-func (h *adminHandler) handleMedia(w http.ResponseWriter, r *http.Request) {
-	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/admin/media/"), "/")
-	if len(parts) < 2 {
-		http.NotFound(w, r)
-		return
-	}
-	mediaItemID := parts[0]
-	action := parts[1]
-
-	switch {
-	case action == "refresh-metadata" && r.Method == http.MethodPost:
-		h.handleRefreshMetadata(w, r, mediaItemID)
-	case action == "reset-metadata" && r.Method == http.MethodPost:
-		h.handleResetMetadata(w, r, mediaItemID)
-	case action == "search-metadata" && r.Method == http.MethodGet:
-		h.handleSearchMetadata(w, r)
-	default:
-		http.NotFound(w, r)
-	}
-}
 
 func (h *adminHandler) handleRefreshMetadata(w http.ResponseWriter, r *http.Request, mediaItemID string) {
 	if !h.heavyRL.Allow(ratelimit.ClientIP(r)) {

@@ -313,6 +313,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.DataDir != "" {
 		registerAvatarRoutes(mux, s.ProfileRepo, s.TokenGen, s.DataDir)
 	}
+	if s.MetadataCmdSvc != nil && s.MetadataQuerySvc != nil {
+		registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL, s.ServerCtx, s.ActivityCmdSvc)
+	}
 	if s.MetadataCmdSvc != nil {
 		mux.HandleFunc("POST /api/v1/admin/translations/refresh-all", admin(func(w http.ResponseWriter, r *http.Request) {
 			go func() {

@@ -206,8 +206,9 @@ export function MetadataEditPanel({
         toast.success(t("media.detail.metadataSaved"));
       }
       onSave();
-    } catch {
-      toast.error(t("media.detail.failedToSave"));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`${t("media.detail.failedToSave")}: ${msg}`);
     } finally {
       setSaving(false);
     }
@@ -220,8 +221,9 @@ export function MetadataEditPanel({
       queryClient.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
       queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
       toast.success(t("media.detail.resetSuccess", { field: fieldName }));
-    } catch {
-      toast.error(t("media.detail.resetFailed"));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`${t("media.detail.resetFailed")}: ${msg}`);
     }
   }
 
@@ -232,9 +234,10 @@ export function MetadataEditPanel({
       await refresh.mutateAsync({ mediaItemId: item.id });
       setRefreshStatus("done");
       setTimeout(() => { setRefreshStatus("idle"); onSave(); }, 1500);
-    } catch {
+    } catch (err) {
       setRefreshStatus("error");
-      toast.error(t("media.detail.refreshFailed"));
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`${t("media.detail.refreshFailed")}: ${msg}`);
     }
   }
 
@@ -250,8 +253,9 @@ export function MetadataEditPanel({
       queryClient.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
       toast.success(t("media.detail.metadataReset"));
       onSave();
-    } catch {
-      toast.error(t("media.detail.resetMetadataFailed"));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`${t("media.detail.resetMetadataFailed")}: ${msg}`);
     } finally {
       setResetting(false);
     }

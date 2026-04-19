@@ -212,15 +212,15 @@ func TestAdminMedia_ResetMetadata_NoMediaRepo_500(t *testing.T) {
 	}
 }
 
-// Wrong-method branch in handleMedia switch: GET on refresh-metadata → 404.
-func TestAdminMedia_RefreshMetadata_WrongMethod_404(t *testing.T) {
+// Wrong-method on POST-only route: Go 1.22+ mux returns 405 Method Not Allowed.
+func TestAdminMedia_RefreshMetadata_WrongMethod_405(t *testing.T) {
 	mux, adminTok, _, _ := newAdminMediaMux(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/media/mi-1/refresh-metadata", nil)
 	req.Header.Set("Authorization", "Bearer "+adminTok)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404 for wrong method, got %d", w.Code)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405 for wrong method, got %d", w.Code)
 	}
 }
 
