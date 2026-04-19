@@ -17,6 +17,14 @@ const (
 	Expired    QuickConnectStatus = "expired"
 )
 
+func (s QuickConnectStatus) IsValid() bool {
+	switch s {
+	case Pending, Authorized, Expired:
+		return true
+	}
+	return false
+}
+
 type User struct {
 	ID               shared.UserID
 	Username         string

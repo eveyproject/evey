@@ -15,6 +15,14 @@ const (
 	Transcode    PlayMethod = "transcode"
 )
 
+func (m PlayMethod) IsValid() bool {
+	switch m {
+	case DirectPlay, DirectStream, Transcode:
+		return true
+	}
+	return false
+}
+
 type WatchProgress struct {
 	ID           string
 	ProfileID    shared.ProfileID

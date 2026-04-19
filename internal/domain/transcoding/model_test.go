@@ -51,6 +51,24 @@ func TestJobStatusConstants(t *testing.T) {
 	}
 }
 
+func TestJobStatus_IsValid(t *testing.T) {
+	t.Parallel()
+	cases := map[transcoding.JobStatus]bool{
+		transcoding.Queued:         true,
+		transcoding.Running:        true,
+		transcoding.Completed:      true,
+		transcoding.Failed:         true,
+		transcoding.Cancelled:      true,
+		transcoding.JobStatus(""):  false,
+		"garbage":                  false,
+	}
+	for s, want := range cases {
+		if s.IsValid() != want {
+			t.Errorf("%q.IsValid() = %v, want %v", s, !want, want)
+		}
+	}
+}
+
 func TestTranscodeJob_IsTerminal(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

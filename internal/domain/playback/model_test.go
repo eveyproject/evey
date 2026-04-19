@@ -7,6 +7,22 @@ import (
 	"github.com/evey-project/evey/internal/domain/playback"
 )
 
+func TestPlayMethod_IsValid(t *testing.T) {
+	t.Parallel()
+	cases := map[playback.PlayMethod]bool{
+		playback.DirectPlay:        true,
+		playback.DirectStream:      true,
+		playback.Transcode:         true,
+		playback.PlayMethod(""):    false,
+		"garbage":                  false,
+	}
+	for m, want := range cases {
+		if m.IsValid() != want {
+			t.Errorf("%q.IsValid() = %v, want %v", m, !want, want)
+		}
+	}
+}
+
 func TestWatchProgress_IsInProgress(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

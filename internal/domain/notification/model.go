@@ -32,6 +32,15 @@ const (
 	TypeCustom         Type = "custom"
 )
 
+func (t Type) IsValid() bool {
+	switch t {
+	case TypeNewMovie, TypeNewEpisode, TypeNewSeason, TypeNewSeries, TypeNewAlbum,
+		TypeLibraryScanned, TypeBackupFailed, TypePluginError, TypeCustom:
+		return true
+	}
+	return false
+}
+
 type Level string
 
 const (

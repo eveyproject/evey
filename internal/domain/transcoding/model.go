@@ -29,6 +29,14 @@ const (
 	Cancelled JobStatus = "cancelled"
 )
 
+func (s JobStatus) IsValid() bool {
+	switch s {
+	case Queued, Running, Completed, Failed, Cancelled:
+		return true
+	}
+	return false
+}
+
 type TranscodeJob struct {
 	ID            string
 	MediaItemID   shared.MediaItemID
