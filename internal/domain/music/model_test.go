@@ -16,17 +16,27 @@ func TestTrack_Validate(t *testing.T) {
 	}{
 		{
 			name:    "valid",
-			tr:      music.Track{Title: "Song", FilePath: "/music/song.flac"},
+			tr:      music.Track{ID: "tr-1", LibraryID: "lib-1", Title: "Song", FilePath: "/music/song.flac"},
 			wantErr: "",
 		},
 		{
+			name:    "missing ID",
+			tr:      music.Track{LibraryID: "lib-1", Title: "Song", FilePath: "/music/song.flac"},
+			wantErr: "track requires an ID",
+		},
+		{
+			name:    "missing library",
+			tr:      music.Track{ID: "tr-1", Title: "Song", FilePath: "/music/song.flac"},
+			wantErr: "track requires a library ID",
+		},
+		{
 			name:    "missing title",
-			tr:      music.Track{FilePath: "/music/song.flac"},
+			tr:      music.Track{ID: "tr-1", LibraryID: "lib-1", FilePath: "/music/song.flac"},
 			wantErr: "track requires a title",
 		},
 		{
 			name:    "missing file path",
-			tr:      music.Track{Title: "Song"},
+			tr:      music.Track{ID: "tr-1", LibraryID: "lib-1", Title: "Song"},
 			wantErr: "track requires a file path",
 		},
 	}
@@ -49,4 +59,44 @@ func TestTrack_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewTrack(t *testing.T) {
+	t.Parallel()
+
+	t.Run("happy path wires options", func(t *testing.T) {
+		t.Parallel()
+		tr, err := music.NewTrack("tr-1", "lib-1", "Song", "/m/s.mp3",
+			music.WithTrackArtist("Artist", "AlbumArtist"),
+			music.WithTrackAlbum("Album"),
+			music.WithTrackYear(2025),
+			music.WithTrackNumbers(3, 1),
+			music.WithTrackFile(1024, "audio/mpeg"),
+			music.WithTrackGenre("Rock"),
+			music.WithTrackCoverArt("/api/v1/music/tracks/tr-1/art"),
+		)
+		if err != nil {
+			t.Fatalf("unexpected: %v", err)
+		}
+		if tr.Album != "Album" || tr.Artist != "Artist" || tr.AlbumArtist != "AlbumArtist" ||
+			tr.Year != 2025 || tr.TrackNumber != 3 || tr.DiskNumber != 1 ||
+			tr.FileSize != 1024 || tr.MimeType != "audio/mpeg" ||
+			tr.Genre != "Rock" || tr.CoverArtURL == "" {
+			t.Errorf("fields not wired: %+v", tr)
+		}
+	})
+
+	t.Run("missing id rejected", func(t *testing.T) {
+		t.Parallel()
+		if _, err := music.NewTrack("", "lib-1", "t", "/p"); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("missing library rejected", func(t *testing.T) {
+		t.Parallel()
+		if _, err := music.NewTrack("tr-1", "", "t", "/p"); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
 }

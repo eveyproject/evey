@@ -185,13 +185,12 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 			t, parseErr := s.parseTrackWithTimeout(ctx, j.path, libraryID, j.mimeType, j.size)
 			if parseErr != nil {
 				slog.Warn("music scan: parse failed", slog.String("path", j.path), slog.Any("err", parseErr))
-				t = &music.Track{
-					ID:        uuid.New().String(),
-					LibraryID: shared.LibraryID(libraryID),
-					Title:     filepath.Base(j.path),
-					FilePath:  j.path,
-					FileSize:  j.size,
-					MimeType:  j.mimeType,
+				t, parseErr = music.NewTrack(uuid.New().String(), shared.LibraryID(libraryID), filepath.Base(j.path), j.path,
+					music.WithTrackFile(j.size, j.mimeType),
+				)
+				if parseErr != nil {
+					slog.Warn("music scan: fallback track build failed", slog.String("path", j.path), slog.Any("err", parseErr))
+					return
 				}
 			}
 			t.FileHash = j.hash
@@ -334,24 +333,25 @@ func (s *CommandService) parseTrack(path, libraryID, mimeType string, fileSize i
 		albumArtist = artist
 	}
 
-	t := &music.Track{
-		ID:          uuid.New().String(),
-		LibraryID:   shared.LibraryID(libraryID),
-		Title:       m.Title(),
-		Artist:      artist,
-		Album:       m.Album(),
-		AlbumArtist: albumArtist,
-		Year:        m.Year(),
-		TrackNumber: trackNum,
-		DiskNumber:  diskNum,
-		Duration:    0,
-		FilePath:    path,
-		FileSize:    fileSize,
-		MimeType:    mimeType,
-		Genre:       m.Genre(),
+	title := m.Title()
+	if title == "" {
+		title = filepath.Base(path)
+	}
+	trackID := uuid.New().String()
+	opts := []music.TrackOption{
+		music.WithTrackArtist(artist, albumArtist),
+		music.WithTrackAlbum(m.Album()),
+		music.WithTrackYear(m.Year()),
+		music.WithTrackNumbers(trackNum, diskNum),
+		music.WithTrackFile(fileSize, mimeType),
+		music.WithTrackGenre(m.Genre()),
 	}
 	if m.Picture() != nil {
-		t.CoverArtURL = fmt.Sprintf("/api/v1/music/tracks/%s/art", t.ID)
+		opts = append(opts, music.WithTrackCoverArt(fmt.Sprintf("/api/v1/music/tracks/%s/art", trackID)))
+	}
+	t, err := music.NewTrack(trackID, shared.LibraryID(libraryID), title, path, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("build track: %w", err)
 	}
 	if s.prober != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
