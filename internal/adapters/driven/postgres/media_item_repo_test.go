@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -140,6 +141,103 @@ func TestMediaItemRepo_Delete(t *testing.T) {
 
 	_, err := itemRepo.GetByID(ctx, item.ID)
 	assert.Error(t, err)
+}
+
+// Regression: Delete on an unknown id must return shared.ErrNotFound.
+// Pre-fix the Scan error was masked with `_ =` so a missing row slipped
+// into the DELETE path and only surfaced via RowsAffected==0 — same
+// outcome but any other Scan error (transient conn issue, etc.) was
+// also silently swallowed.
+func TestMediaItemRepo_Delete_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	itemRepo := postgres.NewMediaItemRepository(db)
+	err := itemRepo.Delete(context.Background(), shared.MediaItemID("never-existed"))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+// Regression: deleting an episode must recompute its series'
+// latest_child_added_at. Pre-fix the recompute error was logged and
+// swallowed; additionally the recompute ran non-tx so an ambient
+// tx couldn't see the post-delete state. Here we verify the end-to-end
+// effect: a series whose only episode is deleted ends up with a
+// latest_child_added_at lower than or equal to before, and deleting a
+// non-latest episode from a series with multiple episodes lowers the
+// series' latest_child_added_at to the remaining max.
+func TestMediaItemRepo_Delete_EpisodeRecomputesSeriesLatest(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mlib-delep")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	series := &library.MediaItem{ID: "s-del", LibraryID: lib.ID, Type: library.Series, Title: "S", AddedAt: time.Now().UTC().Add(-72 * time.Hour), UpdatedAt: time.Now().UTC()}
+	season := &library.MediaItem{ID: "se-del", LibraryID: lib.ID, ParentID: "s-del", Type: library.Season, Title: "S01", AddedAt: time.Now().UTC().Add(-72 * time.Hour), UpdatedAt: time.Now().UTC()}
+	epOld := &library.MediaItem{ID: "ep-old", LibraryID: lib.ID, ParentID: "se-del", Type: library.Episode, Title: "E01", AddedAt: time.Now().UTC().Add(-48 * time.Hour), UpdatedAt: time.Now().UTC()}
+	epNew := &library.MediaItem{ID: "ep-new", LibraryID: lib.ID, ParentID: "se-del", Type: library.Episode, Title: "E02", AddedAt: time.Now().UTC().Add(-1 * time.Hour), UpdatedAt: time.Now().UTC()}
+	require.NoError(t, itemRepo.Create(ctx, series))
+	require.NoError(t, itemRepo.Create(ctx, season))
+	require.NoError(t, itemRepo.Create(ctx, epOld))
+	require.NoError(t, itemRepo.Create(ctx, epNew))
+
+	// Sanity: series.latest_child_added_at should reflect the newest episode
+	// (bumpSeriesLatestChildAddedAt ran on epNew Create).
+	var beforeLatest time.Time
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT latest_child_added_at FROM media_items WHERE id=$1`, series.ID).Scan(&beforeLatest))
+	assert.True(t, beforeLatest.After(epOld.AddedAt.Add(1*time.Hour)),
+		"pre-delete latest_child_added_at should be close to epNew.AddedAt, got %v", beforeLatest)
+
+	// Delete the newest episode → recompute should drop latest_child_added_at
+	// back down to epOld's added_at.
+	require.NoError(t, itemRepo.Delete(ctx, epNew.ID))
+
+	var afterLatest time.Time
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT latest_child_added_at FROM media_items WHERE id=$1`, series.ID).Scan(&afterLatest))
+	assert.True(t, afterLatest.Before(beforeLatest),
+		"after deleting the newest episode, series.latest_child_added_at should move backward: before=%v after=%v", beforeLatest, afterLatest)
+	// And it should land at (or very near) epOld.AddedAt.
+	diff := afterLatest.Sub(epOld.AddedAt)
+	assert.True(t, diff > -time.Second && diff < time.Second,
+		"after = epOld.AddedAt ± 1s; got %v (diff %v)", afterLatest, diff)
+}
+
+// Regression: Delete binds to an ambient Tx via txFromCtx, so a rollback
+// at the TxUnit boundary must leave the row intact. Pre-fix, the three
+// queries (SELECT / DELETE / recompute) ran on r.db directly and the
+// DELETE would escape the rollback.
+func TestMediaItemRepo_Delete_TxUnitRollback(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	uow := postgres.NewTxUnit(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mlib-txdel")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("mi-txdel", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	sentinel := errors.New("caller wants to roll back")
+	err := uow.Do(ctx, func(txCtx context.Context) error {
+		if delErr := itemRepo.Delete(txCtx, item.ID); delErr != nil {
+			return delErr
+		}
+		return sentinel // force rollback
+	})
+	require.ErrorIs(t, err, sentinel)
+
+	// Row must still be there.
+	got, getErr := itemRepo.GetByID(ctx, item.ID)
+	require.NoError(t, getErr, "Delete should have been rolled back")
+	assert.Equal(t, item.ID, got.ID)
 }
 
 func TestMediaItemRepo_GetByFileFingerprint(t *testing.T) {
