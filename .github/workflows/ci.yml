@@ -57,7 +57,11 @@ jobs:
             -count=1 -timeout=120s -race
 
       - name: test (postgres — testcontainers)
-        run: go test ./internal/adapters/driven/postgres/... -count=1 -timeout=300s -race
+        # 297+ serialized tests through a shared container (no t.Parallel —
+        # truncateAll would race across tests). -race adds 2-3x overhead,
+        # and the migrate roundtrip test spins a dedicated container on top.
+        # 300s was just barely enough without -race; CI needs more headroom.
+        run: go test ./internal/adapters/driven/postgres/... -count=1 -timeout=600s -race
 
   frontend:
     name: Frontend — typecheck & build
