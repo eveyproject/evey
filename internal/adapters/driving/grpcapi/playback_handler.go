@@ -170,13 +170,15 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		}
 	}
 
-	session := &playback.PlaySession{
-		ID:          id.New("ps-"),
-		ProfileID:   shared.ProfileID(profileID),
-		MediaItemID: shared.MediaItemID(req.MediaItemId),
-		PlayMethod:  playMethodFromProto[req.PlayMethod],
-		DeviceName:  req.DeviceName,
-		DeviceType:  req.ClientName,
+	session, err := playback.NewPlaySession(
+		id.New("ps-"),
+		shared.ProfileID(profileID),
+		shared.MediaItemID(req.MediaItemId),
+		playback.WithPlaySessionMethod(playback.PlayMethod(playMethodFromProto[req.PlayMethod])),
+		playback.WithPlaySessionDevice(req.DeviceName, req.ClientName),
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.cmd.StartStream(ctx, session, claims.UserID); err != nil {
 		if errors.Is(err, appplayback.ErrProfileNotFound) {

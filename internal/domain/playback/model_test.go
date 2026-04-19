@@ -7,6 +7,44 @@ import (
 	"github.com/evey-project/evey/internal/domain/playback"
 )
 
+func TestNewPlaySession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("happy path", func(t *testing.T) {
+		t.Parallel()
+		s, err := playback.NewPlaySession("s-1", "p-1", "m-1",
+			playback.WithPlaySessionMethod(playback.DirectPlay),
+			playback.WithPlaySessionDevice("Chrome", "web"),
+			playback.WithPlaySessionBandwidth(5_000_000),
+		)
+		if err != nil {
+			t.Fatalf("unexpected: %v", err)
+		}
+		if s.ID != "s-1" || s.ProfileID != "p-1" || s.MediaItemID != "m-1" {
+			t.Errorf("core fields wrong: %+v", s)
+		}
+		if s.PlayMethod != string(playback.DirectPlay) || s.DeviceName != "Chrome" || s.DeviceType != "web" {
+			t.Errorf("options not applied: %+v", s)
+		}
+		if s.StartedAt.IsZero() {
+			t.Error("StartedAt not stamped")
+		}
+	})
+
+	t.Run("missing fields", func(t *testing.T) {
+		t.Parallel()
+		if _, err := playback.NewPlaySession("", "p-1", "m-1"); err == nil {
+			t.Fatal("expected error on empty ID")
+		}
+		if _, err := playback.NewPlaySession("s-1", "", "m-1"); err == nil {
+			t.Fatal("expected error on empty profileID")
+		}
+		if _, err := playback.NewPlaySession("s-1", "p-1", ""); err == nil {
+			t.Fatal("expected error on empty mediaItemID")
+		}
+	})
+}
+
 func TestPlayMethod_IsValid(t *testing.T) {
 	t.Parallel()
 	cases := map[playback.PlayMethod]bool{
@@ -65,18 +103,28 @@ func TestPlaySession_Validate(t *testing.T) {
 		wantErr string
 	}{
 		{
+			name:    "missing ID",
+			session: playback.PlaySession{ProfileID: "p-1", MediaItemID: "m-1"},
+			wantErr: "ID is required",
+		},
+		{
 			name:    "missing profile id",
-			session: playback.PlaySession{MediaItemID: "m-1"},
+			session: playback.PlaySession{ID: "s-1", MediaItemID: "m-1"},
 			wantErr: "profile ID is required",
 		},
 		{
 			name:    "missing media item id",
-			session: playback.PlaySession{ProfileID: "p-1"},
+			session: playback.PlaySession{ID: "s-1", ProfileID: "p-1"},
 			wantErr: "media item ID is required",
 		},
 		{
+			name:    "invalid play method",
+			session: playback.PlaySession{ID: "s-1", ProfileID: "p-1", MediaItemID: "m-1", PlayMethod: "bogus"},
+			wantErr: "invalid play method",
+		},
+		{
 			name:    "valid session",
-			session: playback.PlaySession{ProfileID: "p-1", MediaItemID: "m-1"},
+			session: playback.PlaySession{ID: "s-1", ProfileID: "p-1", MediaItemID: "m-1"},
 		},
 	}
 	for _, tt := range tests {
