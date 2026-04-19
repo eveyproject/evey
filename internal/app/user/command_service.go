@@ -298,48 +298,9 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 // requestedProfileID (optional) activates a specific profile on the new access
 // token; must belong to the refreshing user or the refresh is rejected.
 func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfileID string, ttlOverride ...time.Duration) (string, string, error) {
-	h := sha256.Sum256([]byte(token))
-	hash := hex.EncodeToString(h[:])
-
-	rt, err := s.refreshTkns.GetByTokenHash(ctx, hash)
+	rt, err := s.claimRefreshToken(ctx, token)
 	if err != nil {
-		slog.Info("refresh rejected: token not found", slog.String("tokenPrefix", safeTokenPrefix(token)))
-		return "", "", ErrInvalidCredentials
-	}
-
-	if rt.Used {
-		slog.Warn("refresh rejected: token reuse detected, purging all user tokens",
-			slog.String("userID", string(rt.UserID)),
-			slog.String("tokenID", rt.ID))
-		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
-			slog.Warn("delete refresh tokens by user failed", slog.String("userID", string(rt.UserID)), slog.Any("err", delErr))
-		}
-		return "", "", ErrInvalidCredentials
-	}
-
-	if rt.IsExpired() {
-		slog.Info("refresh rejected: token expired",
-			slog.String("userID", string(rt.UserID)),
-			slog.String("tokenID", rt.ID),
-			slog.Time("expiredAt", rt.ExpiresAt))
-		if delErr := s.refreshTkns.DeleteByID(ctx, rt.ID); delErr != nil {
-			slog.Warn("delete refresh token failed", slog.String("tokenID", rt.ID), slog.Any("err", delErr))
-		}
-		return "", "", ErrInvalidCredentials
-	}
-
-	claimed, markErr := s.refreshTkns.MarkUsedIfNotUsed(ctx, rt.ID)
-	if markErr != nil {
-		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", markErr)
-	}
-	if !claimed {
-		slog.Warn("refresh rejected: concurrent claim race, purging all user tokens",
-			slog.String("userID", string(rt.UserID)),
-			slog.String("tokenID", rt.ID))
-		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
-			slog.Warn("delete refresh tokens by user failed", slog.String("userID", string(rt.UserID)), slog.Any("err", delErr))
-		}
-		return "", "", ErrInvalidCredentials
+		return "", "", err
 	}
 
 	u, err := s.users.GetByID(ctx, rt.UserID)
@@ -350,57 +311,24 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 		return "", "", ErrUserDisabled
 	}
 
-	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
-	if err != nil {
-		slog.Warn("get roles by user failed", slog.String("userID", string(u.ID)), slog.Any("err", err))
-	}
-	var perms []string
-	for _, r := range roles {
-		perms = append(perms, r.Permissions...)
-	}
+	perms := s.collectPermissions(ctx, u.ID)
 
 	profs, pErr := s.profiles.GetByUserID(ctx, u.ID)
 	if pErr != nil {
 		slog.Warn("get profiles by user failed", slog.String("userID", string(u.ID)), slog.Any("err", pErr))
 	}
-
-	var activeProfileID string
-	if requestedProfileID != "" {
-		for _, p := range profs {
-			if string(p.ID) == requestedProfileID {
-				activeProfileID = requestedProfileID
-				break
-			}
-		}
-		if activeProfileID == "" {
-			// Caller asked for a profile that doesn't belong to them — reject.
-			return "", "", ErrInvalidCredentials
-		}
-	}
-	if activeProfileID == "" {
-		for _, p := range profs {
-			if p.IsDefault {
-				activeProfileID = string(p.ID)
-				break
-			}
-		}
-		if activeProfileID == "" && len(profs) > 0 {
-			activeProfileID = string(profs[0].ID)
-		}
+	activeProfileID, ok := resolveActiveProfileID(profs, requestedProfileID)
+	if !ok {
+		// Caller asked for a profile that doesn't belong to them — reject.
+		return "", "", ErrInvalidCredentials
 	}
 
-	var refreshLocale string
-	if activeProfileID != "" {
-		if prof, pErr := s.profiles.GetByID(ctx, shared.ProfileID(activeProfileID)); pErr == nil && prof != nil {
-			refreshLocale = prof.Locale
-		}
-	}
 	accessToken, err := s.tokens.GenerateAccessToken(user.Claims{
 		UserID:      string(u.ID),
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
 		ProfileID:   activeProfileID,
-		Locale:      refreshLocale,
+		Locale:      s.lookupProfileLocale(ctx, activeProfileID),
 		Permissions: perms,
 	})
 	if err != nil {
@@ -413,6 +341,109 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 	}
 
 	return accessToken, newRefresh, nil
+}
+
+// claimRefreshToken performs the full hash-lookup + reuse/expiry gating +
+// atomic claim (MarkUsedIfNotUsed). Any failure path returns
+// ErrInvalidCredentials; reuse and concurrent-claim races purge all tokens
+// for the owning user to limit blast radius.
+func (s *CommandService) claimRefreshToken(ctx context.Context, token string) (*user.RefreshToken, error) {
+	h := sha256.Sum256([]byte(token))
+	hash := hex.EncodeToString(h[:])
+
+	rt, err := s.refreshTkns.GetByTokenHash(ctx, hash)
+	if err != nil {
+		slog.Info("refresh rejected: token not found", slog.String("tokenPrefix", safeTokenPrefix(token)))
+		return nil, ErrInvalidCredentials
+	}
+
+	if rt.Used {
+		slog.Warn("refresh rejected: token reuse detected, purging all user tokens",
+			slog.String("userID", string(rt.UserID)),
+			slog.String("tokenID", rt.ID))
+		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
+			slog.Warn("delete refresh tokens by user failed", slog.String("userID", string(rt.UserID)), slog.Any("err", delErr))
+		}
+		return nil, ErrInvalidCredentials
+	}
+
+	if rt.IsExpired() {
+		slog.Info("refresh rejected: token expired",
+			slog.String("userID", string(rt.UserID)),
+			slog.String("tokenID", rt.ID),
+			slog.Time("expiredAt", rt.ExpiresAt))
+		if delErr := s.refreshTkns.DeleteByID(ctx, rt.ID); delErr != nil {
+			slog.Warn("delete refresh token failed", slog.String("tokenID", rt.ID), slog.Any("err", delErr))
+		}
+		return nil, ErrInvalidCredentials
+	}
+
+	claimed, markErr := s.refreshTkns.MarkUsedIfNotUsed(ctx, rt.ID)
+	if markErr != nil {
+		return nil, fmt.Errorf("CommandService.RefreshToken: %w", markErr)
+	}
+	if !claimed {
+		slog.Warn("refresh rejected: concurrent claim race, purging all user tokens",
+			slog.String("userID", string(rt.UserID)),
+			slog.String("tokenID", rt.ID))
+		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
+			slog.Warn("delete refresh tokens by user failed", slog.String("userID", string(rt.UserID)), slog.Any("err", delErr))
+		}
+		return nil, ErrInvalidCredentials
+	}
+	return rt, nil
+}
+
+// collectPermissions flattens all role permissions for the user. Errors
+// are logged and swallowed — the caller gets an access token with an
+// empty perm set rather than an outright 500.
+func (s *CommandService) collectPermissions(ctx context.Context, userID shared.UserID) []string {
+	roles, err := s.userRoles.GetRolesByUserID(ctx, userID)
+	if err != nil {
+		slog.Warn("get roles by user failed", slog.String("userID", string(userID)), slog.Any("err", err))
+		return nil
+	}
+	var perms []string
+	for _, r := range roles {
+		perms = append(perms, r.Permissions...)
+	}
+	return perms
+}
+
+// resolveActiveProfileID picks the profile ID to embed in the access token.
+// Returns ok=false only when the caller asked for a specific profile that
+// does not belong to them (authorization failure). When no profile matches
+// but the caller didn't request one, falls back to the default profile then
+// the first profile; ok remains true in that case.
+func resolveActiveProfileID(profs []*user.Profile, requestedProfileID string) (string, bool) {
+	if requestedProfileID != "" {
+		for _, p := range profs {
+			if string(p.ID) == requestedProfileID {
+				return requestedProfileID, true
+			}
+		}
+		return "", false
+	}
+	for _, p := range profs {
+		if p.IsDefault {
+			return string(p.ID), true
+		}
+	}
+	if len(profs) > 0 {
+		return string(profs[0].ID), true
+	}
+	return "", true
+}
+
+func (s *CommandService) lookupProfileLocale(ctx context.Context, profileID string) string {
+	if profileID == "" {
+		return ""
+	}
+	prof, err := s.profiles.GetByID(ctx, shared.ProfileID(profileID))
+	if err != nil || prof == nil {
+		return ""
+	}
+	return prof.Locale
 }
 
 func (s *CommandService) Logout(ctx context.Context, userID string) error {
