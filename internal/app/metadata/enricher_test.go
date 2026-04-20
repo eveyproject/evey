@@ -811,7 +811,7 @@ func TestAutoEnrichEpisode_NoParentOrIndex(t *testing.T) {
 	assert.Empty(t, ep.Overview)
 }
 
-// --- episodeProviders ---
+// --- EpisodeCapable ---
 
 func TestEpisodeProviders(t *testing.T) {
 	primary := &fakeProvider{name: "tmdb"}
@@ -819,7 +819,7 @@ func TestEpisodeProviders(t *testing.T) {
 	supp2 := &fakeProvider{name: "omdb"} // omdb doesn't implement EpisodeDetailProvider via fakeProvider but our fake does
 	e, _, _, _, _, _ := newTestEnricher(primary, []*fakeProvider{supp1, supp2}, nil)
 
-	eps := e.episodeProviders()
+	eps := e.chain.EpisodeCapable()
 	assert.Len(t, eps, 3) // all fakeProviders implement EpisodeDetailProvider
 }
 

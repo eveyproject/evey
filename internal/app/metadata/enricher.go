@@ -28,8 +28,7 @@ type Enricher struct {
 	mediaPersons         domainlib.MediaPersonRepository
 	mediaItems           domainlib.MediaItemRepository
 	search               domainlib.SearchIndex
-	primary              domainmetadata.MetadataProvider
-	supplementary        []domainmetadata.MetadataProvider
+	chain                *ProviderChain
 	collections          CollectionLinker
 	apiLimiter           *rate.Limiter
 	mediaTranslations    domainlib.MediaItemTranslationRepository
@@ -75,15 +74,14 @@ func NewEnricher(
 	opts ...EnricherOption,
 ) *Enricher {
 	e := &Enricher{
-		artwork:       artwork,
-		persons:       persons,
-		mediaPersons:  mediaPersons,
-		mediaItems:    mediaItems,
-		search:        search,
-		primary:       primary,
-		supplementary: supplementary,
-		collections:   collections,
-		apiLimiter:    rate.NewLimiter(rate.Every(250*time.Millisecond), 1),
+		artwork:      artwork,
+		persons:      persons,
+		mediaPersons: mediaPersons,
+		mediaItems:   mediaItems,
+		search:       search,
+		chain:        NewProviderChain(primary, supplementary...),
+		collections:  collections,
+		apiLimiter:   rate.NewLimiter(rate.Every(250*time.Millisecond), 1),
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -357,7 +355,7 @@ func (e *Enricher) refreshKnownPerson(ctx context.Context, p domainmetadata.Pers
 
 // fetchPersonBio fetches biography from the primary provider and updates the person record.
 func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person) {
-	tp, ok := e.primary.(domainmetadata.TranslationProvider)
+	tp, ok := e.chain.TranslationProvider()
 	if !ok {
 		return
 	}
@@ -372,7 +370,7 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 	}
 	// FetchPersonTranslations with empty locale returns nothing useful — use the person detail endpoint instead
 	// Fall back to fetching via the TMDB person detail
-	if fetcher, ok2 := e.primary.(personDetailFetcher); ok2 {
+	if fetcher, ok2 := capabilityFrom[personDetailFetcher](e.chain.Primary()); ok2 {
 		details, detErr := fetcher.GetPersonDetails(ctx, person.Name)
 		if detErr == nil && details != nil && details.Biography != "" {
 			person.Biography = details.Biography
@@ -439,7 +437,7 @@ func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.Media
 	if e.mediaTranslations == nil || len(e.translationLocales) == 0 {
 		return
 	}
-	tp, ok := e.primary.(domainmetadata.TranslationProvider)
+	tp, ok := e.chain.TranslationProvider()
 	if !ok {
 		return
 	}
@@ -470,7 +468,7 @@ func (e *Enricher) EnrichPersonTranslations(ctx context.Context, person *domainl
 	if e.personTranslations == nil || len(e.translationLocales) == 0 {
 		return
 	}
-	tp, ok := e.primary.(domainmetadata.TranslationProvider)
+	tp, ok := e.chain.TranslationProvider()
 	if !ok {
 		return
 	}

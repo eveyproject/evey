@@ -70,19 +70,11 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		year = item.Catalog.Year
 	}
 
-	// 1. Try primary provider
-	primary := e.searchAndFetchBest(ctx, e.primary, searchTitle, year, mediaType, diskS01Episodes, log)
-
-	// 2. If primary failed, try supplementary as fallback
-	if primary == nil {
-		for _, sp := range e.supplementary {
-			primary = e.searchAndFetchBest(ctx, sp, searchTitle, year, mediaType, diskS01Episodes, log)
-			if primary != nil {
-				break
-			}
-		}
-	}
-
+	// Walk the chain: first provider to return a match wins. Covers both
+	// the primary attempt and the supplementary fallback in one pass.
+	primary := e.chain.FirstNonNil(func(p domainmetadata.MetadataProvider) *domainmetadata.MetadataResult {
+		return e.searchAndFetchBest(ctx, p, searchTitle, year, mediaType, diskS01Episodes, log)
+	})
 	if primary == nil {
 		return
 	}
@@ -110,10 +102,14 @@ func (e *Enricher) supplementItem(ctx context.Context, item *domainlib.MediaItem
 		}
 	}()
 	imdbID := primary.ProviderIDs["imdb"]
+	primaryName := ""
+	if p := e.chain.Primary(); p != nil {
+		primaryName = p.Name()
+	}
 	changed := false
 
-	for _, sp := range e.supplementary {
-		if sp.Name() == e.primary.Name() {
+	for _, sp := range e.chain.Supplementary() {
+		if sp.Name() == primaryName {
 			continue
 		}
 		supplement := lookupSupplement(ctx, sp, imdbID, mediaType)
@@ -383,23 +379,19 @@ func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaIt
 	}
 
 	// Try each provider that supports season details
-	for _, p := range append([]domainmetadata.MetadataProvider{e.primary}, e.supplementary...) {
-		sp, ok := p.(domainmetadata.SeasonDetailProvider)
-		if !ok {
-			continue
-		}
+	for _, cap := range e.chain.SeasonCapable() {
 		if series.Catalog == nil {
 			continue
 		}
-		seriesID := series.Catalog.ProviderIDs[p.Name()]
+		seriesID := series.Catalog.ProviderIDs[cap.Provider.Name()]
 		if seriesID == "" {
 			continue
 		}
-		result, err := sp.GetSeasonDetails(ctx, seriesID, *item.IndexNumber)
+		result, err := cap.Detail.GetSeasonDetails(ctx, seriesID, *item.IndexNumber)
 		if err != nil {
 			if log != nil {
 				log.Debug("season lookup failed",
-					slog.String("provider", p.Name()),
+					slog.String("provider", cap.Provider.Name()),
 					slog.String("series_id", seriesID),
 					slog.Int("season", *item.IndexNumber),
 					slog.Any("err", err))
@@ -426,36 +418,39 @@ func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaI
 		return
 	}
 
+	primaryName := ""
+	if p := e.chain.Primary(); p != nil {
+		primaryName = p.Name()
+	}
 	// Try each episode-capable provider
-	providers := e.episodeProviders()
-	for _, ep := range providers {
+	for _, cap := range e.chain.EpisodeCapable() {
 		seriesProviders := func() map[string]string {
 			if series.Catalog == nil {
 				return nil
 			}
 			return series.Catalog.ProviderIDs
 		}
-		seriesID := seriesProviders()[ep.provider.Name()]
+		seriesID := seriesProviders()[cap.Provider.Name()]
 		if seriesID == "" {
 			// For primary, try enriching the series first
-			if ep.provider.Name() == e.primary.Name() && series.Overview == "" {
+			if cap.Provider.Name() == primaryName && series.Overview == "" {
 				e.AutoEnrichItem(ctx, series, log)
 				series, err = e.mediaItems.GetByID(ctx, shared.MediaItemID(season.ParentID))
 				if err != nil {
 					continue
 				}
-				seriesID = seriesProviders()[ep.provider.Name()]
+				seriesID = seriesProviders()[cap.Provider.Name()]
 			}
 			if seriesID == "" {
 				continue
 			}
 		}
 
-		result, err := ep.detail.GetEpisodeDetails(ctx, seriesID, *season.IndexNumber, *item.IndexNumber)
+		result, err := cap.Detail.GetEpisodeDetails(ctx, seriesID, *season.IndexNumber, *item.IndexNumber)
 		if err != nil {
 			if log != nil {
 				log.Debug("episode lookup failed",
-					slog.String("provider", ep.provider.Name()),
+					slog.String("provider", cap.Provider.Name()),
 					slog.String("series_id", seriesID),
 					slog.Int("season", *season.IndexNumber),
 					slog.Int("ep", *item.IndexNumber),
@@ -469,24 +464,6 @@ func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaI
 		}
 		return
 	}
-}
-
-type episodeProvider struct {
-	provider domainmetadata.MetadataProvider
-	detail   domainmetadata.EpisodeDetailProvider
-}
-
-func (e *Enricher) episodeProviders() []episodeProvider {
-	var result []episodeProvider
-	if ep, ok := e.primary.(domainmetadata.EpisodeDetailProvider); ok {
-		result = append(result, episodeProvider{provider: e.primary, detail: ep})
-	}
-	for _, sp := range e.supplementary {
-		if ep, ok := sp.(domainmetadata.EpisodeDetailProvider); ok {
-			result = append(result, episodeProvider{provider: sp, detail: ep})
-		}
-	}
-	return result
 }
 
 // AutoEnrichAll enriches all items concurrently (max 3 at a time)
