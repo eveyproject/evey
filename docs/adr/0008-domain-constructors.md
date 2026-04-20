@@ -1,0 +1,105 @@
+# ADR-0008: Domain aggregate constructor pattern (`NewX + Option + Validate`)
+
+- Status: Accepted
+- Date: 2026-04-20
+
+## Context
+
+Early in the project, domain aggregates (`Library`, `Plugin`, `Profile`, `PlaySession`, ...) were constructed by direct struct-literal initialisation:
+
+```go
+lib := &library.Library{ID: "...", Name: "...", Type: "..."}
+```
+
+Three problems surfaced:
+
+1. **Invalid state survives construction.** A handler that forgot the `ID` or `LibraryID` field persisted a row with an empty primary key, discovered hours later when a foreign-key insert failed with a cryptic error.
+2. **Validation logic drifts.** `Library.Validate()` existed but was only called at some boundaries — create/update handlers remembered it, scanner goroutines didn't. Each aggregate grew its own partial validation surface.
+3. **Default values are invisible.** Wiring `Enabled: true`, `CreatedAt: time.Now()`, `IsDefault` flags was copy-pasted across every caller, each copy prone to drift.
+
+We ran a 15-commit sweep on 2026-04-19 to migrate every aggregate to a consistent factory pattern; this ADR formalises the rules so future aggregates follow suit without another sweep.
+
+## Decision
+
+Every domain aggregate ships with exactly one canonical constructor:
+
+```go
+func NewX(id ID, required RequiredParam, opts ...XOption) (*X, error) {
+    x := &X{
+        ID:              id,
+        RequiredField:   required,
+        CreatedAt:       time.Now(),
+        Enabled:         true,   // sensible defaults
+    }
+    for _, opt := range opts {
+        opt(x)
+    }
+    if err := x.Validate(); err != nil {
+        return nil, err
+    }
+    return x, nil
+}
+```
+
+### Rule 1 — identity is positional, everything else is an Option
+
+Parameters the aggregate cannot exist without (ID, owner refs like `LibraryID`, `UserID`) are positional `NewX(id, ownerID, ...)`. Anything else — preferences, flags, optional timestamps, avatar paths, locales — is a `func(*X)` option:
+
+```go
+user.WithProfileLocale("fr")
+user.WithProfilePreferences(prefs)
+plugin.WithPluginPermissions([]string{"api.library"})
+```
+
+Options are discoverable in godoc (`grep "^func With"` lists them all) and IDE autocomplete surfaces them. A missing option is a meaningful default; a missing positional param is a compile error.
+
+### Rule 2 — `Validate()` is called at construction AND at boundary reads
+
+`NewX` calls `Validate()` before returning. Repositories loading rows from the DB *also* call `Validate()` defensively — a hand-written SQL `UPDATE` or a schema drift could still yield a struct that doesn't satisfy the invariants. Every persistence round-trip is assumed potentially lossy.
+
+### Rule 3 — required identity fields surface `InvalidArgument` at the gRPC boundary
+
+Every gRPC handler that constructs an aggregate does:
+
+```go
+p, err := user.NewProfile(id, userID, name, opts...)
+if err != nil {
+    return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+}
+```
+
+No domain errors leak as `Internal`. Invariant violations are always caller mistakes from the gRPC perspective; if they were server bugs, they would panic before reaching the handler.
+
+### Rule 4 — default values belong inside `NewX`, not at each callsite
+
+`NewPlaySession` stamps `StartedAt = time.Now()`; `NewTranscodeJob` defaults `Status = Queued`; `NewBackupManifest` clones the tables slice. No caller reproduces these defaults — one place, one source of truth.
+
+## Applied scope
+
+Migrated aggregates (complete as of 2026-04-19):
+
+- `library.Library`, `library.MediaItem` (with 4 sub-aggregate builders)
+- `user.User`, `user.Profile`, `user.APIKey`, `user.InviteLink`
+- `plugin.Plugin`, `metadata.MetadataOverride`, `metadata.ArtworkRecord`
+- `playback.PlaySession`, `favorite.Favorite`, `webhook.Config`
+- `notification.Notification`, `subtitle.SubtitleDownload`
+- `backup.BackupManifest`, `music.Track`, `transcoding.TranscodeJob`
+- `photo.Photo`
+
+Deferred (explicit exceptions):
+
+- `feed.AdminConfig` / `feed.ProfileConfig` — keyed by `(ProfileID, FeedType)` without a standalone identity, options pattern adds noise for zero benefit.
+- Nested sub-aggregates (`library.MediaFile`, `library.MediaCatalog`, ...) — constructed by their parent `NewMediaItem`, don't need their own factories.
+
+## Consequences
+
+- **Tests use the same path as production.** Fixtures go through `NewX` instead of struct literals, so invalid fixtures fail tests rather than producing invalid DB rows.
+- **gRPC converters stay simple.** Proto → domain conversion is now two steps: proto decode, then `NewX(...)`. The converter never touches defaults.
+- **Evolution cost is linear.** Adding a new required field means changing `NewX`'s signature — a compile error at every callsite, exactly what we want. Adding an optional field means one new `With*` function, zero callsite changes.
+- **`Validate()` duplication is accepted.** Each aggregate repeats its own "ID required" / "enum valid" checks. A generic validator would be over-engineering; the domain aggregate is the authority for its own invariants.
+
+## References
+
+- `internal/domain/*/model.go` — the 15+ `NewX` functions
+- Commits 2026-04-18/19 (the sweep): `feat(<aggregate>): NewX constructor + ID required in Validate`
+- [ADR-0001](0001-hexagonal-architecture.md) — why the domain layer owns these invariants
