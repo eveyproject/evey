@@ -1,3 +1,33 @@
+push:
+  new_movie:
+    title: "Neuer Film: {label}"
+  new_episode:
+    title: "Neue Folge: {label}"
+  new_season:
+    title: "Neue Staffel: {label}"
+  new_series:
+    title: "Neue Serie: {label}"
+  new_album:
+    title: "Neues Album: {label}"
+  series_with_seasons_and_episodes:
+    title: "Neue Serie: {series} ({seasons} Staffeln, {episodes} Folgen)"
+  series_with_seasons:
+    title: "Neue Serie: {series} ({seasons} Staffeln)"
+  series_with_episodes:
+    title: "Neue Serie: {series} ({episodes} Folgen)"
+  season_with_episodes:
+    title: "Neue Staffel: {series} — {season} ({episodes} Folgen)"
+  episodes_batched:
+    title: "Neue Folgen: {series} ({count} Folgen)"
+  album_with_tracks:
+    title: "Neues Album: {album} ({tracks} Titel)"
+  backup_failed:
+    title: "Geplantes Backup fehlgeschlagen"
+  plugin_error:
+    title: "Plugin-Fehler"
+  plugin_error_id:
+    title: "Plugin-Fehler: {plugin}"
+
 new_movie:
   title: "Neuer Film"
   message: "{title} wurde Ihrer Bibliothek hinzugefügt"

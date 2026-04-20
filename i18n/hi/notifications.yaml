@@ -1,3 +1,33 @@
+push:
+  new_movie:
+    title: "नई फ़िल्म: {label}"
+  new_episode:
+    title: "नया एपिसोड: {label}"
+  new_season:
+    title: "नया सीज़न: {label}"
+  new_series:
+    title: "नई सीरीज़: {label}"
+  new_album:
+    title: "नया एल्बम: {label}"
+  series_with_seasons_and_episodes:
+    title: "नई सीरीज़: {series} ({seasons} सीज़न, {episodes} एपिसोड)"
+  series_with_seasons:
+    title: "नई सीरीज़: {series} ({seasons} सीज़न)"
+  series_with_episodes:
+    title: "नई सीरीज़: {series} ({episodes} एपिसोड)"
+  season_with_episodes:
+    title: "नया सीज़न: {series} — {season} ({episodes} एपिसोड)"
+  episodes_batched:
+    title: "नए एपिसोड: {series} ({count} एपिसोड)"
+  album_with_tracks:
+    title: "नया एल्बम: {album} ({tracks} ट्रैक)"
+  backup_failed:
+    title: "निर्धारित बैकअप विफल"
+  plugin_error:
+    title: "प्लगइन त्रुटि"
+  plugin_error_id:
+    title: "प्लगइन त्रुटि: {plugin}"
+
 new_movie:
   title: "नई फ़िल्म"
   message: "{title} आपकी लाइब्रेरी में जोड़ी गई है"
