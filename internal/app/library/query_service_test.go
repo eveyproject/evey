@@ -38,6 +38,21 @@ func (r *fakeMediaItemTranslationRepo) Upsert(_ context.Context, t *library.Medi
 	return nil
 }
 
+func (r *fakeMediaItemTranslationRepo) UpsertBatch(_ context.Context, ts []*library.MediaItemTranslation) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, t := range ts {
+		if r.items[string(t.MediaItemID)] == nil {
+			r.items[string(t.MediaItemID)] = make(map[string]*library.MediaItemTranslation)
+		}
+		r.items[string(t.MediaItemID)][t.Locale] = t
+	}
+	return nil
+}
+
 func (r *fakeMediaItemTranslationRepo) GetByMediaItemAndLocale(_ context.Context, mediaItemID, locale string) (*library.MediaItemTranslation, error) {
 	if r.Err != nil {
 		return nil, r.Err
