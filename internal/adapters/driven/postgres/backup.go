@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"regexp"
@@ -74,6 +75,15 @@ func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.Re
 
 	pr, pw := io.Pipe()
 	go func() {
+		// Recover from any panic in io.Copy and surface it on the pipe so a
+		// reader blocked on pr.Read() wakes up with an error instead of
+		// deadlocking forever when the goroutine dies.
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in pg_dump copy goroutine", slog.Any("recover", r))
+				pw.CloseWithError(fmt.Errorf("pg_dump copy panic: %v", r))
+			}
+		}()
 		_, copyErr := io.Copy(pw, stdout)
 		waitErr := cmd.Wait()
 		switch {
