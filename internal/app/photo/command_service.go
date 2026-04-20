@@ -27,6 +27,17 @@ func NewCommandService(repo photo.Repository, bus shared.EventBus, libRepo libra
 	return &CommandService{repo: repo, bus: bus, libRepo: libRepo, scanner: scanner}
 }
 
+// sameMtime accepts ±1µs rounding drift between FS nanosecond mtimes and
+// Postgres TIMESTAMPTZ µs storage. See scan_service.go for the full rationale.
+func sameMtime(a, b time.Time) bool {
+	at := a.Truncate(time.Microsecond)
+	bt := b.Truncate(time.Microsecond)
+	if at.Equal(bt) {
+		return true
+	}
+	return at.Sub(bt) == time.Microsecond || bt.Sub(at) == time.Microsecond
+}
+
 type photoJob struct {
 	path    string
 	size    int64
@@ -87,8 +98,7 @@ func (s *CommandService) buildPhotoJobs(ctx context.Context, dir string, byPath,
 		// while the filesystem exposes ns, so a raw .Equal() flags EVERY file
 		// as changed on every scan, spinning upsert and saturating the DB pool.
 		if ex := byPath[f.Path]; ex != nil {
-			if ex.FileSize == f.Size &&
-				ex.ModTime.Truncate(time.Microsecond).Equal(f.ModTime.Truncate(time.Microsecond)) {
+			if ex.FileSize == f.Size && sameMtime(ex.ModTime, f.ModTime) {
 				return nil
 			}
 		}

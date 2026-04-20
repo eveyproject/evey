@@ -24,6 +24,27 @@ import (
 // to a user-friendly 409/FailedPrecondition response.
 var ErrScanInProgress = errors.New("scan already in progress")
 
+// sameMtime treats two filesystem timestamps as equal when they match
+// at Postgres-storage precision, accepting a ±1µs rounding drift. The
+// filesystem exposes 100ns-level mtimes (ext4, xfs, apfs) while
+// Postgres TIMESTAMPTZ rounds sub-µs to µs — and the direction (half-up
+// vs half-even) varies between values/drivers, so `.8474756` can land
+// on `.847475` or `.847476` depending on the path. Both Truncate and
+// Round can therefore miss pairs that differ by one µs after round-
+// trip, which flagged every file as "changed" each scan and pinned
+// CPU at 100%. Comparing truncated values with ±1µs slack absorbs it
+// without masking genuine file changes (which are always ≥1 second).
+func sameMtime(a, b time.Time) bool {
+	at := a.Truncate(time.Microsecond)
+	bt := b.Truncate(time.Microsecond)
+	if at.Equal(bt) {
+		return true
+	}
+	// Check 1µs window both directions without negating a potentially-saturated
+	// Duration (zero-vs-now.Sub overflows to MinInt64 which -x can't un-wrap).
+	return at.Sub(bt) == time.Microsecond || bt.Sub(at) == time.Microsecond
+}
+
 func catalogGenres(item *library.MediaItem) []string {
 	if item == nil || item.Catalog == nil {
 		return nil
@@ -266,13 +287,13 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 func (s *ScanService) detectChanges(ctx context.Context, files []library.ScannedFile, idx *scanIndex) (toProcess []scanWork, moved int) {
 	for _, f := range files {
 		if ex := idx.byPath[f.Path]; ex != nil {
-			// Size+mtime match = unchanged. Truncate to microseconds since
-			// Postgres drops sub-µs precision; raw .Equal() otherwise flags
-			// every file each scan, spinning upsert and saturating the pool.
-			// Only reprocess when BOTH fingerprints are present and differ —
-			// that's a real content change signal.
-			if ex.FileSize == f.Size &&
-				ex.ModTime.Truncate(time.Microsecond).Equal(f.ModTime.Truncate(time.Microsecond)) {
+			// Size+mtime match = unchanged. Postgres TIMESTAMPTZ stores
+			// microseconds with round-half-up on sub-µs, while Go's
+			// Truncate rounds down — so a straight Truncate+Equal flags
+			// every ext4 file (nanosecond mtime) as "changed" each scan,
+			// spinning upsert and pinning CPU at 100%. Use ±1µs tolerance
+			// to absorb the rounding delta between FS and DB.
+			if ex.FileSize == f.Size && sameMtime(ex.ModTime, f.ModTime) {
 				if ex.FileFingerprint == "" || f.Fingerprint == "" || ex.FileFingerprint == f.Fingerprint {
 					continue
 				}

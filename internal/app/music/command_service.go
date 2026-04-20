@@ -40,6 +40,17 @@ func NewCommandService(tracks music.TrackRepository, bus shared.EventBus, libRep
 	return &CommandService{tracks: tracks, bus: bus, libRepo: libRepo, scanner: scanner}
 }
 
+// sameMtime accepts ±1µs rounding drift between FS nanosecond mtimes and
+// Postgres TIMESTAMPTZ µs storage. See scan_service.go for the full rationale.
+func sameMtime(a, b time.Time) bool {
+	at := a.Truncate(time.Microsecond)
+	bt := b.Truncate(time.Microsecond)
+	if at.Equal(bt) {
+		return true
+	}
+	return at.Sub(bt) == time.Microsecond || bt.Sub(at) == time.Microsecond
+}
+
 func (s *CommandService) WithProber(p library.StreamProber) *CommandService {
 	s.prober = p
 	return s
@@ -159,8 +170,7 @@ func (s *CommandService) buildTrackJobs(ctx context.Context, dir string, byPath,
 		// microseconds — Postgres timestamp precision is µs vs ns from the
 		// filesystem; raw .Equal() falsely flags every file each scan.
 		if ex := byPath[path]; ex != nil {
-			if ex.FileSize == f.Size &&
-				ex.ModTime.Truncate(time.Microsecond).Equal(f.ModTime.Truncate(time.Microsecond)) {
+			if ex.FileSize == f.Size && sameMtime(ex.ModTime, f.ModTime) {
 				return nil
 			}
 		}
