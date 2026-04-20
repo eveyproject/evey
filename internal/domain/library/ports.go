@@ -7,12 +7,16 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
+// LibraryRepository has no more callers in the domain/app layers — the CQRS
+// split (LibraryCommandRepo + LibraryQueryRepo) now carries read vs write
+// responsibilities separately. The unified interface stays only because the
+// concrete postgres adapter and FakeLibraryRepository implement the union
+// set; remove if anyone else redeclares a similar god-interface.
+//
+// Deprecated: use LibraryCommandRepo for writes and LibraryQueryRepo for reads.
 type LibraryRepository interface {
-	Create(ctx context.Context, lib *Library) error
-	GetByID(ctx context.Context, id shared.LibraryID) (*Library, error)
-	List(ctx context.Context, filter ListLibrariesFilter) ([]*Library, error)
-	Update(ctx context.Context, lib *Library) error
-	Delete(ctx context.Context, id shared.LibraryID) error
+	LibraryCommandRepo
+	LibraryQueryRepo
 }
 
 // ListLibrariesFilter paginates LibraryRepository.List with offset semantics.
