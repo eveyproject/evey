@@ -6,17 +6,60 @@ import (
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/playlist"
-	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/playlist/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
-func newTestService() (*Service, *fakes.FakePlaylistRepository, *fakes.FakePlaylistItemRepository, *fakes.FakeSmartPlaylistQuerier) {
+type testEnv struct {
+	svc         *Service
+	plRepo      *fakes.FakePlaylistRepository
+	itemRepo    *fakes.FakePlaylistItemRepository
+	querier     *fakes.FakeSmartPlaylistQuerier
+	mediaReader *libfakes.FakeMediaItemQueryRepo
+}
+
+// seed populates both the smart querier (as a Candidate) and the media reader
+// (as the full MediaItem) so GetItems for a smart playlist returns items the
+// same way prod would: Spec filters → IDs → hydrate.
+func (e *testEnv) seed(items ...*library.MediaItem) {
+	for _, item := range items {
+		e.mediaReader.Seed(item)
+		e.querier.Candidates = append(e.querier.Candidates, toCandidate(item))
+	}
+}
+
+func toCandidate(item *library.MediaItem) playlist.Candidate {
+	c := playlist.Candidate{
+		ID:        item.ID,
+		Type:      string(item.Type),
+		SortTitle: item.SortTitle,
+		AddedAt:   item.AddedAt,
+	}
+	if item.Catalog != nil {
+		c.Genres = item.Catalog.Genres
+		c.Year = item.Catalog.Year
+	}
+	if item.Classification != nil {
+		c.CommunityRating = item.Classification.CommunityRating
+	}
+	c.LibraryID = string(item.LibraryID)
+	return c
+}
+
+func newTestEnv() *testEnv {
 	plRepo := fakes.NewFakePlaylistRepository()
 	itemRepo := fakes.NewFakePlaylistItemRepository()
 	querier := fakes.NewFakeSmartPlaylistQuerier()
-	svc := NewService(plRepo, itemRepo, querier)
-	return svc, plRepo, itemRepo, querier
+	mediaReader := libfakes.NewFakeMediaItemQueryRepo()
+	svc := NewService(plRepo, itemRepo, querier, mediaReader)
+	return &testEnv{svc: svc, plRepo: plRepo, itemRepo: itemRepo, querier: querier, mediaReader: mediaReader}
+}
+
+func newTestService() (*Service, *fakes.FakePlaylistRepository, *fakes.FakePlaylistItemRepository, *fakes.FakeSmartPlaylistQuerier) {
+	env := newTestEnv()
+	return env.svc, env.plRepo, env.itemRepo, env.querier
 }
 
 func TestCreatePlaylist(t *testing.T) {
@@ -120,12 +163,12 @@ func TestCannotAddItemsToSmartPlaylist(t *testing.T) {
 }
 
 func TestSmartPlaylistGetItems(t *testing.T) {
-	svc, _, _, querier := newTestService()
-	querier.Items = []*library.MediaItem{
-		{ID: "m-1", Title: "Action Movie", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
-		{ID: "m-2", Title: "Drama Movie", Catalog: &library.MediaCatalog{Genres: []string{"Drama"}}},
-		{ID: "m-3", Title: "Action Drama", Catalog: &library.MediaCatalog{Genres: []string{"Action", "Drama"}}},
-	}
+	env := newTestEnv()
+	env.seed(
+		&library.MediaItem{ID: "m-1", Title: "Action Movie", Catalog: &library.MediaCatalog{Genres: []string{"Action"}}},
+		&library.MediaItem{ID: "m-2", Title: "Drama Movie", Catalog: &library.MediaCatalog{Genres: []string{"Drama"}}},
+		&library.MediaItem{ID: "m-3", Title: "Action Drama", Catalog: &library.MediaCatalog{Genres: []string{"Action", "Drama"}}},
+	)
 
 	pl := &playlist.Playlist{
 		Name:   "Action",
@@ -133,9 +176,9 @@ func TestSmartPlaylistGetItems(t *testing.T) {
 		Type:   playlist.Smart,
 		Rules:  []playlist.Rule{{Field: "genre", Operator: "eq", Value: "Action"}},
 	}
-	svc.Create(context.Background(), pl)
+	env.svc.Create(context.Background(), pl)
 
-	mediaItems, _, err := svc.GetItems(context.Background(), pl.ID, "user-1")
+	mediaItems, _, err := env.svc.GetItems(context.Background(), pl.ID, "user-1")
 	if err != nil {
 		t.Fatalf("get items: %v", err)
 	}
@@ -601,13 +644,13 @@ func TestGetItems_ManualReturnsNilMediaItems(t *testing.T) {
 }
 
 func TestGetItems_SmartReturnsNilPlaylistItems(t *testing.T) {
-	svc, _, _, querier := newTestService()
+	env := newTestEnv()
 	ctx := context.Background()
-	querier.Items = []*library.MediaItem{{ID: "m1", Title: "A"}}
+	env.seed(&library.MediaItem{ID: "m1", Title: "A"})
 	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Smart}
-	svc.Create(ctx, pl)
+	env.svc.Create(ctx, pl)
 
-	mediaItems, plItems, err := svc.GetItems(ctx, pl.ID, "u1")
+	mediaItems, plItems, err := env.svc.GetItems(ctx, pl.ID, "u1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -646,14 +689,14 @@ func TestGetItems_SmartQuerierError(t *testing.T) {
 }
 
 func TestGetItems_SmartPlaylist_QuerierReturnsItems(t *testing.T) {
-	svc, _, _, querier := newTestService()
+	env := newTestEnv()
 	ctx := context.Background()
 
-	querier.Items = []*library.MediaItem{
-		{ID: "m1", Title: "Movie A", Type: "movie"},
-		{ID: "m2", Title: "Movie B", Type: "movie"},
-		{ID: "m3", Title: "Show C", Type: "show"},
-	}
+	env.seed(
+		&library.MediaItem{ID: "m1", Title: "Movie A", Type: "movie"},
+		&library.MediaItem{ID: "m2", Title: "Movie B", Type: "movie"},
+		&library.MediaItem{ID: "m3", Title: "Show C", Type: "show"},
+	)
 
 	pl := &playlist.Playlist{
 		Name:   "Movies Only",
@@ -661,9 +704,9 @@ func TestGetItems_SmartPlaylist_QuerierReturnsItems(t *testing.T) {
 		Type:   playlist.Smart,
 		Rules:  []playlist.Rule{{Field: "type", Operator: "eq", Value: "movie"}},
 	}
-	svc.Create(ctx, pl)
+	env.svc.Create(ctx, pl)
 
-	mediaItems, plItems, err := svc.GetItems(ctx, pl.ID, "u1")
+	mediaItems, plItems, err := env.svc.GetItems(ctx, pl.ID, "u1")
 	if err != nil {
 		t.Fatalf("GetItems: %v", err)
 	}

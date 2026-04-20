@@ -58,7 +58,7 @@ func newSyncplayTestEnv() *syncplayTestEnv {
 	playlistRepo := plfakes.NewFakePlaylistRepository()
 	playlistItems := plfakes.NewFakePlaylistItemRepository()
 	smart := plfakes.NewFakeSmartPlaylistQuerier()
-	playlistSvc := appplaylist.NewService(playlistRepo, playlistItems, smart)
+	playlistSvc := appplaylist.NewService(playlistRepo, playlistItems, smart, mediaItemRepo)
 
 	h := &syncplayHandler{
 		hub:         hub,

@@ -3,9 +3,13 @@ package playlist
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
+// SmartPlaylistQuerier resolves a smart playlist Spec to a sorted, limited
+// list of media item IDs. Item hydration is the app layer's responsibility,
+// which keeps this port free of library.MediaItem and makes the playlist
+// domain self-contained.
 type SmartPlaylistQuerier interface {
-	QueryByRules(ctx context.Context, rules []Rule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error)
+	Query(ctx context.Context, spec Spec, sortBy, sortOrder string, limit int) ([]shared.MediaItemID, error)
 }

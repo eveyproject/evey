@@ -5,75 +5,76 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/playlist"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type FakeSmartPlaylistQuerier struct {
-	Items []*library.MediaItem
-	Err   error
+	Candidates []playlist.Candidate
+	Err        error
 }
 
 func NewFakeSmartPlaylistQuerier() *FakeSmartPlaylistQuerier {
 	return &FakeSmartPlaylistQuerier{}
 }
 
-func (q *FakeSmartPlaylistQuerier) QueryByRules(_ context.Context, rules []playlist.Rule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error) {
+func (q *FakeSmartPlaylistQuerier) Query(_ context.Context, spec playlist.Spec, sortBy, sortOrder string, limit int) ([]shared.MediaItemID, error) {
 	if q.Err != nil {
 		return nil, q.Err
 	}
-	var result []*library.MediaItem
-	for _, item := range q.Items {
-		if matchesRules(item, rules) {
-			result = append(result, item)
+	matched := make([]playlist.Candidate, 0, len(q.Candidates))
+	for _, c := range q.Candidates {
+		if spec == nil || spec.IsSatisfiedBy(c) {
+			matched = append(matched, c)
 		}
 	}
-	sort.Slice(result, func(i, j int) bool {
+	sort.Slice(matched, func(i, j int) bool {
+		desc := strings.EqualFold(sortOrder, "desc")
 		switch sortBy {
 		case "title":
-			if sortOrder == "desc" {
-				return result[i].Title > result[j].Title
+			if desc {
+				return matched[i].SortTitle > matched[j].SortTitle
 			}
-			return result[i].Title < result[j].Title
+			return matched[i].SortTitle < matched[j].SortTitle
+		case "year":
+			yi, yj := valueOrZero(matched[i].Year), valueOrZero(matched[j].Year)
+			if desc {
+				return yi > yj
+			}
+			return yi < yj
+		case "rating":
+			ri, rj := valueOrZeroF(matched[i].CommunityRating), valueOrZeroF(matched[j].CommunityRating)
+			if desc {
+				return ri > rj
+			}
+			return ri < rj
 		default:
-			return result[i].AddedAt.Before(result[j].AddedAt)
+			if desc {
+				return matched[i].AddedAt.After(matched[j].AddedAt)
+			}
+			return matched[i].AddedAt.Before(matched[j].AddedAt)
 		}
 	})
-	if limit > 0 && len(result) > limit {
-		result = result[:limit]
+	if limit > 0 && len(matched) > limit {
+		matched = matched[:limit]
 	}
-	return result, nil
+	ids := make([]shared.MediaItemID, 0, len(matched))
+	for _, c := range matched {
+		ids = append(ids, c.ID)
+	}
+	return ids, nil
 }
 
-func matchesRules(item *library.MediaItem, rules []playlist.Rule) bool {
-	for _, rule := range rules {
-		if !matchRule(item, rule) {
-			return false
-		}
+func valueOrZero(p *int) int {
+	if p == nil {
+		return 0
 	}
-	return true
+	return *p
 }
 
-func matchRule(item *library.MediaItem, rule playlist.Rule) bool {
-	switch rule.Field {
-	case "genre":
-		if item.Catalog == nil {
-			return false
-		}
-		for _, g := range item.Catalog.Genres {
-			if strings.EqualFold(g, rule.Value) {
-				return true
-			}
-		}
-		return false
-	case "type":
-		return string(item.Type) == rule.Value
-	case "year":
-		if item.Catalog == nil || item.Catalog.Year == nil {
-			return false
-		}
-		return strings.Contains(rule.Value, string(rune('0'+*item.Catalog.Year%10)))
-	default:
-		return true
+func valueOrZeroF(p *float64) float64 {
+	if p == nil {
+		return 0
 	}
+	return *p
 }

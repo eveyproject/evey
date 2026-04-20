@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/playlist"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
@@ -238,25 +237,19 @@ func NewSmartPlaylistQuerier(db *sql.DB) *SmartPlaylistQuerier {
 	return &SmartPlaylistQuerier{db: db}
 }
 
-func (q *SmartPlaylistQuerier) QueryByRules(ctx context.Context, rules []playlist.Rule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error) {
+func (q *SmartPlaylistQuerier) Query(ctx context.Context, spec playlist.Spec, sortBy, sortOrder string, limit int) ([]shared.MediaItemID, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	query := fmt.Sprintf("SELECT %s %s", mediaItemColumns, mediaItemFromJoins)
+	query := "SELECT mi.id " + mediaItemFromJoins
 
-	var conditions []string
 	var args []any
-	argIdx := 1
-
-	for _, rule := range rules {
-		cond, ruleArgs := buildRuleCondition(rule, &argIdx)
-		if cond != "" {
-			conditions = append(conditions, cond)
-			args = append(args, ruleArgs...)
+	if sq, ok := spec.(playlist.SQLSpec); ok {
+		argIdx := 1
+		clause, specArgs := sq.ToSQL(&argIdx)
+		if clause != "" {
+			query += " WHERE " + clause
+			args = specArgs
 		}
-	}
-
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
 
 	validSort := map[string]string{
@@ -282,69 +275,22 @@ func (q *SmartPlaylistQuerier) QueryByRules(ctx context.Context, rules []playlis
 
 	rows, err := q.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("SmartPlaylistQuerier.QueryByRules: %w", err)
+		return nil, fmt.Errorf("SmartPlaylistQuerier.Query: %w", err)
 	}
 	defer rows.Close()
 
-	return scanMediaItems(rows)
-}
-
-func buildRuleCondition(rule playlist.Rule, argIdx *int) (string, []any) {
-	switch rule.Field {
-	case "genre":
-		val, err := json.Marshal([]string{rule.Value})
-		if err != nil {
-			slog.Warn("marshal genre rule", slog.Any("err", err))
-			return "", nil
-		}
-		cond := fmt.Sprintf("mc.genres @> $%d::jsonb", *argIdx)
-		*argIdx++
-		return cond, []any{string(val)}
-	case "type":
-		cond := fmt.Sprintf("mi.type = $%d", *argIdx)
-		*argIdx++
-		return cond, []any{rule.Value}
-	case "year":
-		op := "="
-		switch rule.Operator {
-		case "gt":
-			op = ">"
-		case "lt":
-			op = "<"
-		case "gte":
-			op = ">="
-		case "lte":
-			op = "<="
-		}
-		cond := fmt.Sprintf("mc.year %s $%d", op, *argIdx)
-		*argIdx++
-		return cond, []any{rule.Value}
-	case "library_id":
-		cond := fmt.Sprintf("mi.library_id = $%d", *argIdx)
-		*argIdx++
-		return cond, []any{rule.Value}
-	case "rating_gte":
-		cond := fmt.Sprintf("mcl.community_rating >= $%d::double precision", *argIdx)
-		*argIdx++
-		return cond, []any{rule.Value}
-	default:
-		return "", nil
-	}
-}
-
-func scanMediaItems(rows *sql.Rows) ([]*library.MediaItem, error) {
-	var result []*library.MediaItem
+	var ids []shared.MediaItemID
 	for rows.Next() {
-		item := &library.MediaItem{}
-		if err := scanMediaItemFields(rows, item); err != nil {
-			return nil, fmt.Errorf("scanMediaItems: %w", err)
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("SmartPlaylistQuerier.Query scan: %w", err)
 		}
-		result = append(result, item)
+		ids = append(ids, shared.MediaItemID(id))
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("scanMediaItems rows: %w", err)
+		return nil, fmt.Errorf("SmartPlaylistQuerier.Query rows: %w", err)
 	}
-	return result, nil
+	return ids, nil
 }
 
 // Ensure interface compliance

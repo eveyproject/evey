@@ -37,9 +37,10 @@ func NewService(
 	playlists playlist.PlaylistRepository,
 	items playlist.PlaylistItemRepository,
 	smartQuerier playlist.SmartPlaylistQuerier,
+	mediaReader MediaItemReader,
 ) *Service {
 	cmd := NewCommandService(playlists, items)
-	q := NewQueryService(playlists, items, smartQuerier)
+	q := NewQueryService(playlists, items, smartQuerier, mediaReader)
 	return &Service{cmd: cmd, query: q}
 }
 

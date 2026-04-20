@@ -6,6 +6,7 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	playlistfakes "github.com/evey-project/evey/internal/domain/playlist/fakes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -15,7 +16,8 @@ func newTestPlaylistHandler() *playlistHandler {
 	plRepo := playlistfakes.NewFakePlaylistRepository()
 	itemRepo := playlistfakes.NewFakePlaylistItemRepository()
 	smartQ := playlistfakes.NewFakeSmartPlaylistQuerier()
-	svc := appplaylist.NewService(plRepo, itemRepo, smartQ)
+	mediaReader := libfakes.NewFakeMediaItemQueryRepo()
+	svc := appplaylist.NewService(plRepo, itemRepo, smartQ, mediaReader)
 	return &playlistHandler{svc: svc}
 }
 

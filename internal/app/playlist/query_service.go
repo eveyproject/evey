@@ -2,23 +2,39 @@ package playlist
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/playlist"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
+
+// MediaItemReader hydrates a list of media item IDs into full MediaItem
+// aggregates. Narrow port by design — the playlist app layer only needs
+// batch reads, nothing else.
+type MediaItemReader interface {
+	GetByIDs(ctx context.Context, ids []shared.MediaItemID) ([]*library.MediaItem, error)
+}
 
 type QueryService struct {
 	playlists    playlist.PlaylistRepository
 	items        playlist.PlaylistItemRepository
 	smartQuerier playlist.SmartPlaylistQuerier
+	mediaReader  MediaItemReader
 }
 
 func NewQueryService(
 	playlists playlist.PlaylistRepository,
 	items playlist.PlaylistItemRepository,
 	smartQuerier playlist.SmartPlaylistQuerier,
+	mediaReader MediaItemReader,
 ) *QueryService {
-	return &QueryService{playlists: playlists, items: items, smartQuerier: smartQuerier}
+	return &QueryService{
+		playlists:    playlists,
+		items:        items,
+		smartQuerier: smartQuerier,
+		mediaReader:  mediaReader,
+	}
 }
 
 func (s *QueryService) GetByID(ctx context.Context, id, userID string) (*playlist.Playlist, error) {
@@ -45,13 +61,43 @@ func (s *QueryService) GetItems(ctx context.Context, playlistID, userID string) 
 		return nil, nil, ErrNotOwner
 	}
 	if pl.IsSmart() {
-		var items []*library.MediaItem
-		items, err = s.smartQuerier.QueryByRules(ctx, pl.Rules, pl.SortBy, pl.SortOrder, maxItems)
-		return items, nil, err
+		spec, err := playlist.CompileRules(pl.Rules)
+		if err != nil {
+			return nil, nil, fmt.Errorf("compile rules: %w", err)
+		}
+		ids, err := s.smartQuerier.Query(ctx, spec, pl.SortBy, pl.SortOrder, maxItems)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(ids) == 0 {
+			return nil, nil, nil
+		}
+		items, err := s.mediaReader.GetByIDs(ctx, ids)
+		if err != nil {
+			return nil, nil, fmt.Errorf("hydrate smart playlist: %w", err)
+		}
+		return preserveOrder(ids, items), nil, nil
 	}
 	plItems, err := s.items.GetByPlaylistID(ctx, playlistID)
 	if err != nil {
 		return nil, nil, err
 	}
 	return nil, plItems, nil
+}
+
+// preserveOrder reorders items to match ids. GetByIDs implementations may
+// reorder results (postgres does, the fake does not); smart playlists must
+// honor the query's sort order so reorder deterministically here.
+func preserveOrder(ids []shared.MediaItemID, items []*library.MediaItem) []*library.MediaItem {
+	idx := make(map[shared.MediaItemID]*library.MediaItem, len(items))
+	for _, it := range items {
+		idx[it.ID] = it
+	}
+	out := make([]*library.MediaItem, 0, len(ids))
+	for _, id := range ids {
+		if it, ok := idx[id]; ok {
+			out = append(out, it)
+		}
+	}
+	return out
 }
