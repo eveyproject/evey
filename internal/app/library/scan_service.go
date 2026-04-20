@@ -327,7 +327,10 @@ func (s *ScanService) detectChanges(ctx context.Context, files []library.Scanned
 }
 
 func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toProcess []scanWork) (added, updated int) {
-	const workerTimeout = 30 * time.Second
+	// 5min accommodates ffprobe + extractChapters + meili index on 4K 40GB+
+	// files; 30s was sufficient for 1080p but timed out on UHD content,
+	// starving the final Update of its budget.
+	const workerTimeout = 5 * time.Minute
 
 	var addedAtomic, updatedAtomic atomic.Int64
 	sem := make(chan struct{}, scanWorkerCount())
@@ -558,14 +561,25 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	existing.File.Fingerprint = f.Fingerprint
 	existing.File.ModTime = f.ModTime
 	existing.UpdatedAt = time.Now()
+	// Persist the new fingerprint + mtime BEFORE the heavy probe/chapters
+	// pipeline. Otherwise on a 4K 46GB file the probe + extractChapters can
+	// eat the whole workerCtx budget (30s) and the Update that follows
+	// fails with 'begin tx: context deadline exceeded' — the stale
+	// fingerprint then survives, the next scan re-flags the file as
+	// changed, and the loop pins CPU forever. Updating first means a
+	// timeout only loses the duration_ms refresh (recoverable next scan)
+	// instead of the change-detection cornerstone.
+	if err := s.mediaItems.Update(ctx, existing); err != nil {
+		slog.Warn("update media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+	}
 	if dur := s.ProbeAndStoreStreams(ctx, string(existing.ID), f.Path); dur > 0 {
 		existing.File.DurationMs = dur
+		if err := s.mediaItems.Update(ctx, existing); err != nil {
+			slog.Warn("update media item duration failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+		}
 	}
 	if s.metadata != nil {
 		s.metadata.extractAndStoreChapters(ctx, string(existing.ID), f.Path)
-	}
-	if err := s.mediaItems.Update(ctx, existing); err != nil {
-		slog.Warn("update media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 	}
 	if s.search != nil {
 		if err := s.search.IndexMediaItem(ctx, existing, nil); err != nil {
