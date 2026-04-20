@@ -21,7 +21,7 @@ type LibraryScanner interface {
 
 type WatcherService struct {
 	watcher   library.FileWatcher
-	libraries library.LibraryRepository
+	libraries library.LibraryQueryRepo
 	scanner   LibraryScanner
 	log       *slog.Logger
 	bus       shared.EventBus
@@ -41,7 +41,7 @@ func WatcherWithEventBus(bus shared.EventBus) WatcherOption {
 
 func NewWatcherService(
 	watcher library.FileWatcher,
-	libraries library.LibraryRepository,
+	libraries library.LibraryQueryRepo,
 	scanner LibraryScanner,
 	log *slog.Logger,
 	opts ...WatcherOption,
