@@ -9,13 +9,14 @@ const mockUpdateUser = vi.fn();
 const mockUpdateProfile = vi.fn();
 const mockUseMutation = vi.fn();
 const mockInvalidateQueries = vi.fn();
+const mockGetParentalSettings = vi.fn();
 
 vi.mock("@evey/api", () => ({
   useUserServiceGetCurrentUser: (...args: unknown[]) => mockGetCurrentUser(...args),
   useUserServiceListProfiles: (...args: unknown[]) => mockListProfiles(...args),
   useUserServiceUpdateUser: (...args: unknown[]) => mockUpdateUser(...args),
   useUserServiceUpdateProfile: (...args: unknown[]) => mockUpdateProfile(...args),
-  useParentalServiceGetParentalSettings: () => ({ data: { enabled: true, hasPin: false, maxAge: null } }),
+  useParentalServiceGetParentalSettings: (...args: unknown[]) => mockGetParentalSettings(...args),
   parentalServiceUpdateParentalSettings: vi.fn(() => Promise.resolve({})),
   getParentalServiceGetParentalSettingsQueryKey: () => ["/api/v1/parental"],
   getUserServiceGetCurrentUserQueryKey: () => ["/api/v1/users/me"],
@@ -93,6 +94,7 @@ describe("SettingsPage", () => {
     mockUpdateUser.mockReturnValue({ mutate: vi.fn(), isPending: false });
     mockUpdateProfile.mockReturnValue({ mutate: vi.fn(), isPending: false });
     mockUseMutation.mockReturnValue({ mutate: vi.fn(), isPending: false });
+    mockGetParentalSettings.mockReturnValue({ data: { enabled: true, hasPin: false, maxAge: null } });
   });
 
   it("renders Settings heading", async () => {
@@ -134,6 +136,10 @@ describe("SettingsPage", () => {
   it("Parental tab shows PIN error when PINs do not match", async () => {
     const profile = { ...mockProfile, preferences: { ...mockProfile.preferences, parental_enabled: "true" } };
     mockListProfiles.mockReturnValue({ data: { profiles: [profile] } });
+    // Pretend a PIN already exists so the Save PIN button isn't gated on the
+    // first-time-set `currentPassword` field — the test only cares about the
+    // client-side PIN/confirm mismatch path.
+    mockGetParentalSettings.mockReturnValue({ data: { enabled: true, hasPin: true, maxAge: null } });
     const SettingsPage = await getSettingsPage();
     render(React.createElement(SettingsPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /Parental/i }));
