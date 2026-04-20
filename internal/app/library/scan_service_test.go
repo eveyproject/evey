@@ -107,11 +107,14 @@ func TestScanLibrary_ExistingFile_NoDuplicate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, added1)
 
-	// second scan with same file
+	// second scan with same file → unchanged, skipped entirely (this is the
+	// contract that keeps the scanner from re-upserting every file on every
+	// tick and pinning CPU). Previous assertion of updated=1 was documenting
+	// the mtime-mismatch bug that caused 100% CPU.
 	added2, updated2, err := svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 	assert.Equal(t, 0, added2)
-	assert.Equal(t, 1, updated2) // detected as existing, counted as updated
+	assert.Equal(t, 0, updated2)
 
 	items := mediaRepo.All()
 	assert.Len(t, items, 1, "should not create duplicate")

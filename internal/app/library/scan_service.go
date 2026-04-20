@@ -487,6 +487,7 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 			Path:        f.Path,
 			Size:        f.Size,
 			Fingerprint: f.Fingerprint,
+			ModTime:     f.ModTime,
 		},
 	}
 	if f.Year != nil {
@@ -535,9 +536,15 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	}
 	unchanged := existing.File.Size == f.Size && (f.Fingerprint == "" || existing.File.Fingerprint == f.Fingerprint)
 	if unchanged {
-		if existing.File.Path != f.Path || existing.ParentID != parentID {
+		// Backfill ModTime when it was never persisted (older rows created
+		// before the scanner started setting File.ModTime). Without this,
+		// sameMtime would keep returning false each scan for those rows
+		// and we'd pointlessly re-enter updateMediaFile every tick.
+		mtimeStale := !sameMtime(existing.File.ModTime, f.ModTime)
+		if existing.File.Path != f.Path || existing.ParentID != parentID || mtimeStale {
 			existing.File.Path = f.Path
 			existing.ParentID = parentID
+			existing.File.ModTime = f.ModTime
 			existing.UpdatedAt = time.Now()
 			if err := s.mediaItems.Update(ctx, existing); err != nil {
 				slog.Warn("update media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
@@ -549,6 +556,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	existing.File.Path = f.Path
 	existing.File.Size = f.Size
 	existing.File.Fingerprint = f.Fingerprint
+	existing.File.ModTime = f.ModTime
 	existing.UpdatedAt = time.Now()
 	if dur := s.ProbeAndStoreStreams(ctx, string(existing.ID), f.Path); dur > 0 {
 		existing.File.DurationMs = dur
