@@ -24,6 +24,10 @@ func (r *trackingMediaTranslationRepo) Upsert(_ context.Context, t *domainlib.Me
 	r.upserts = append(r.upserts, t)
 	return nil
 }
+func (r *trackingMediaTranslationRepo) UpsertBatch(_ context.Context, ts []*domainlib.MediaItemTranslation) error {
+	r.upserts = append(r.upserts, ts...)
+	return nil
+}
 func (r *trackingMediaTranslationRepo) GetByMediaItemAndLocale(_ context.Context, _, _ string) (*domainlib.MediaItemTranslation, error) {
 	return nil, nil
 }

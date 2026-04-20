@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -26,6 +28,30 @@ func (r *MediaItemTranslationRepository) Upsert(ctx context.Context, t *library.
 		ON CONFLICT (media_item_id, locale)
 		DO UPDATE SET title = EXCLUDED.title, overview = EXCLUDED.overview, tagline = EXCLUDED.tagline
 	`, t.MediaItemID, t.Locale, t.Title, t.Overview, t.Tagline)
+	return err
+}
+
+// UpsertBatch inserts or updates a slice of translations in a single
+// multi-row statement. Enrichment typically hits 5-10 locales per item,
+// so batching collapses those N round-trips into one.
+func (r *MediaItemTranslationRepository) UpsertBatch(ctx context.Context, translations []*library.MediaItemTranslation) error {
+	if len(translations) == 0 {
+		return nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	valueClauses := make([]string, len(translations))
+	args := make([]any, 0, len(translations)*5)
+	for i, t := range translations {
+		base := i * 5
+		valueClauses[i] = fmt.Sprintf("($%d,$%d,$%d,$%d,$%d)", base+1, base+2, base+3, base+4, base+5)
+		args = append(args, t.MediaItemID, t.Locale, t.Title, t.Overview, t.Tagline)
+	}
+	q := `INSERT INTO media_item_translations (media_item_id, locale, title, overview, tagline) VALUES ` +
+		strings.Join(valueClauses, ",") +
+		` ON CONFLICT (media_item_id, locale) DO UPDATE SET title = EXCLUDED.title, overview = EXCLUDED.overview, tagline = EXCLUDED.tagline`
+	_, err := r.db.ExecContext(ctx, q, args...)
 	return err
 }
 

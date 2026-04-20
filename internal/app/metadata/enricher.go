@@ -396,16 +396,21 @@ func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.Media
 		slog.Warn("fetch translations", slog.String("item", string(item.ID)), slog.Any("err", err))
 		return
 	}
+	if len(results) == 0 {
+		return
+	}
+	batch := make([]*domainlib.MediaItemTranslation, 0, len(results))
 	for locale, result := range results {
-		if err := e.mediaTranslations.Upsert(ctx, &domainlib.MediaItemTranslation{
+		batch = append(batch, &domainlib.MediaItemTranslation{
 			MediaItemID: item.ID,
 			Locale:      locale,
 			Title:       result.Title,
 			Overview:    result.Overview,
 			Tagline:     result.Tagline,
-		}); err != nil {
-			slog.Warn("upsert media translation", slog.String("locale", locale), slog.Any("err", err))
-		}
+		})
+	}
+	if err := e.mediaTranslations.UpsertBatch(ctx, batch); err != nil {
+		slog.Warn("upsert media translations batch", slog.String("item", string(item.ID)), slog.Any("err", err))
 	}
 }
 

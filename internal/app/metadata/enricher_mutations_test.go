@@ -57,6 +57,10 @@ func (r *fakeMediaTranslationRepo) Upsert(_ context.Context, _ *domainlib.MediaI
 	r.upserts.Add(1)
 	return nil
 }
+func (r *fakeMediaTranslationRepo) UpsertBatch(_ context.Context, ts []*domainlib.MediaItemTranslation) error {
+	r.upserts.Add(int32(len(ts)))
+	return nil
+}
 func (r *fakeMediaTranslationRepo) GetByMediaItemAndLocale(_ context.Context, _, _ string) (*domainlib.MediaItemTranslation, error) {
 	return nil, nil
 }

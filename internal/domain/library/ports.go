@@ -243,6 +243,7 @@ type TrickplayGenerator interface {
 
 type MediaItemTranslationRepository interface {
 	Upsert(ctx context.Context, t *MediaItemTranslation) error
+	UpsertBatch(ctx context.Context, translations []*MediaItemTranslation) error
 	GetByMediaItemAndLocale(ctx context.Context, mediaItemID, locale string) (*MediaItemTranslation, error)
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*MediaItemTranslation, error)
 	DeleteByMediaItem(ctx context.Context, mediaItemID string) error
