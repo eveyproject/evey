@@ -116,7 +116,12 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 			}
 		}()
 		time.Sleep(5 * time.Second)
-		if err := cmdSvc.StopStream(context.Background(), sessionID); err != nil {
+		// Bound the StopStream call so a hung DB or downstream service can't
+		// leak this goroutine forever. context.Background() would inherit no
+		// deadline at all; 30s is plenty for the player-close handshake.
+		killCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := cmdSvc.StopStream(killCtx, sessionID); err != nil {
 			slog.Warn("stop stream failed", slog.String("session_id", sessionID), slog.Any("err", err))
 		}
 		if hlsMgr != nil {

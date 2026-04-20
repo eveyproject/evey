@@ -179,9 +179,13 @@ func (h *photoHandler) ScanPhotoDirectory(ctx context.Context, req *eveyv1.ScanP
 	if !allowed {
 		return nil, status.Error(codes.InvalidArgument, "directory not within library paths")
 	}
+	// Detach from the request context: photo scan walks the filesystem and
+	// must outlive the client's fire-and-forget RPC. When a serverCtx is
+	// wired it follows the process lifetime; otherwise fall back to a fresh
+	// context.Background() — NEVER the request ctx, which dies on return.
 	srvCtx := h.serverCtx
 	if srvCtx == nil {
-		srvCtx = ctx
+		srvCtx = context.Background()
 	}
 	go func() {
 		defer func() {
