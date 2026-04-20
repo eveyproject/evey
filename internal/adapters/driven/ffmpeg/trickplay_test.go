@@ -23,32 +23,25 @@ func makeFakeProbeScript(t *testing.T, duration float64) string {
 	return f.Name()
 }
 
-// makeFakeFfmpegScript creates a fake ffmpeg that:
-//   - In thumbnail mode (-ss flag present): creates the file passed after -y.
-//   - In tile mode (-f concat): creates trickplay_001.webp in the output dir.
+// makeFakeFfmpegScript creates a fake ffmpeg that emulates the
+// single-pass trickplay build: find the -y output pattern (containing
+// "%03d") and touch trickplay_001.webp in its parent directory so the
+// sprite-counting loop in Generate finds at least one file.
 func makeFakeFfmpegScript(t *testing.T) string {
 	t.Helper()
 	f, err := os.CreateTemp("", "fake-ffmpeg-trickplay-*.sh")
 	require.NoError(t, err)
 	_, err = f.WriteString(`#!/bin/sh
-# Detect thumbnail extraction vs tile step.
-is_thumb=0
+prev=""
 for arg; do
-  [ "$arg" = "-ss" ] && is_thumb=1
+  if [ "$prev" = "-y" ]; then
+    outdir=$(dirname "$arg")
+    mkdir -p "$outdir"
+    touch "$outdir/trickplay_001.webp"
+    exit 0
+  fi
+  prev="$arg"
 done
-if [ "$is_thumb" = "1" ]; then
-  # Find file after -y flag and create it.
-  prev=""
-  for arg; do
-    [ "$prev" = "-y" ] && touch "$arg" && break
-    prev="$arg"
-  done
-else
-  # Tile step: last arg is output pattern, create trickplay_001.webp.
-  for outpat; do true; done
-  outdir=$(dirname "$outpat")
-  touch "$outdir/trickplay_001.webp"
-fi
 exit 0
 `)
 	require.NoError(t, err)
