@@ -36,7 +36,7 @@ Admins skip Layer 2 by design: they're trusted to operate on any library.
 
 - **Adding an admin RPC is one line** in `rbac.go`. Forgetting it is loud: the method defaults to `RoleUser`, the `rbac_test.go` table-check fails when the method is missing from expectations.
 - **Adding a user RPC that touches a library/playlist/session requires a handler-level owner check.** No interceptor layer can do it for you.
-- **Audit tools shipping without RBAC awareness misfire.** We accept the cost: the rule for future audits is "before flagging IDOR on a mutation RPC, grep `rbac.go` — `RoleAdmin` = not exploitable". Documented in [docs/rbac.md](../rbac.md).
+- **Audit tools shipping without RBAC awareness misfire.** We accept the cost: the rule for future audits is "before flagging IDOR on a mutation RPC, grep `rbac.go` — `RoleAdmin` = not exploitable".
 - **Plugin tokens need a third lever** (scope filtering at mint time) because an authenticated plugin consumer can call `IssuePluginToken` (RoleUser by design) but must not receive admin scopes. See [ADR-0003](0003-plugin-scoped-tokens.md).
 - **Defense-in-depth is intentionally skipped on admin RPCs.** We do NOT add a redundant `checkLibraryAccess()` inside `DeleteLibrary` "just in case RBAC is bypassed". If the interceptor is bypassed, the whole server is compromised; a second check on one handler doesn't change that.
 
@@ -45,5 +45,4 @@ Admins skip Layer 2 by design: they're trusted to operate on any library.
 - `internal/adapters/driving/grpcapi/interceptors/rbac.go` — policy
 - `internal/adapters/driving/grpcapi/interceptors/auth.go` — enforcement (`enforceRBAC`)
 - `internal/adapters/driving/grpcapi/interceptors/rbac_test.go` — table-check forcing every known method to appear in expectations
-- [docs/rbac.md](../rbac.md) — operational reference: full buckets list, how to add a method, audit false-positive rule
 - [ADR-0003](0003-plugin-scoped-tokens.md) — why plugin tokens filter scopes at mint instead of trusting the RBAC layer
