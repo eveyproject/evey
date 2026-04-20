@@ -8,5 +8,6 @@ Structural decisions for Evey. New ADRs are numbered sequentially and never rewr
 | [0002](0002-transactional-unit-port.md) | Transactional unit port | 2026-04-13 | Accepted |
 | [0003](0003-plugin-scoped-tokens.md) | Plugin-scoped JWT tokens | 2026-02-20 | Accepted |
 | [0004](0004-proto-deprecation-strategy.md) | Proto deprecation strategy | 2026-04-16 | Accepted |
+| [0005](0005-two-layer-authorization.md) | Two-layer authorization (interceptor RBAC + handler resource check) | 2026-04-20 | Accepted |
 
 See also [docs/ARCHITECTURE.md](../ARCHITECTURE.md) for the high-level picture.
