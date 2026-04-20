@@ -112,6 +112,7 @@ interface LightboxProps {
 }
 
 function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
+  const { t } = useTranslation();
   const photo = photos[index];
   const accessToken = useAuthStore((s) => s.accessToken);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
@@ -134,7 +135,13 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
   if (!photo) return null;
 
   return (
-    <div className="fixed inset-0 z-overlay flex items-center justify-center bg-black/90" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-overlay flex items-center justify-center bg-black/90"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("media.photos.lightbox", "Photo viewer")}
+    >
       <div className="absolute top-4 right-4 flex items-center gap-3 z-raised">
         <button
           onClick={(e) => { e.stopPropagation(); setRotation((r) => (r + 270) % 360); }}
