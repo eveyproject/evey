@@ -1,0 +1,135 @@
+package metadata
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
+)
+
+func TestCachedProvider_SearchMemoizesSuccess(t *testing.T) {
+	inner := &decoratorFakeProvider{
+		name:         "tmdb",
+		searchResult: []domainmetadata.MetadataResult{{Title: "hit"}},
+	}
+	c := NewCachedProvider(inner, time.Minute)
+	y := 2020
+	for i := 0; i < 3; i++ {
+		got, err := c.Search(context.Background(), "dune", &y, "movie")
+		if err != nil || len(got) != 1 {
+			t.Fatalf("iter %d: err=%v got=%v", i, err, got)
+		}
+	}
+	if inner.searchCalls != 1 {
+		t.Fatalf("inner.searchCalls = %d, want 1 (cached)", inner.searchCalls)
+	}
+}
+
+func TestCachedProvider_SearchKeyDiscriminatesArgs(t *testing.T) {
+	inner := &decoratorFakeProvider{
+		name:         "tmdb",
+		searchResult: []domainmetadata.MetadataResult{{Title: "x"}},
+	}
+	c := NewCachedProvider(inner, time.Minute)
+	y1, y2 := 2020, 2021
+	_, _ = c.Search(context.Background(), "dune", &y1, "movie")
+	_, _ = c.Search(context.Background(), "dune", &y2, "movie")
+	_, _ = c.Search(context.Background(), "dune", nil, "movie")
+	_, _ = c.Search(context.Background(), "dune", &y1, "tv")
+	if inner.searchCalls != 4 {
+		t.Fatalf("inner.searchCalls = %d, want 4 (distinct keys)", inner.searchCalls)
+	}
+}
+
+func TestCachedProvider_DoesNotCacheErrors(t *testing.T) {
+	inner := &decoratorFakeProvider{
+		name:       "omdb",
+		searchErrs: []error{errors.New("boom"), errors.New("boom")},
+	}
+	c := NewCachedProvider(inner, time.Minute)
+	if _, err := c.Search(context.Background(), "q", nil, "movie"); err == nil {
+		t.Fatal("expected err")
+	}
+	if _, err := c.Search(context.Background(), "q", nil, "movie"); err == nil {
+		t.Fatal("expected err")
+	}
+	if inner.searchCalls != 2 {
+		t.Fatalf("inner.searchCalls = %d, want 2 (errors not cached)", inner.searchCalls)
+	}
+}
+
+func TestCachedProvider_Expiration(t *testing.T) {
+	inner := &decoratorFakeProvider{
+		name:         "tmdb",
+		searchResult: []domainmetadata.MetadataResult{{Title: "x"}},
+	}
+	c := NewCachedProvider(inner, 5*time.Millisecond)
+	_, _ = c.Search(context.Background(), "q", nil, "movie")
+	_, _ = c.Search(context.Background(), "q", nil, "movie")
+	if inner.searchCalls != 1 {
+		t.Fatalf("pre-expiry calls = %d, want 1", inner.searchCalls)
+	}
+	time.Sleep(10 * time.Millisecond)
+	_, _ = c.Search(context.Background(), "q", nil, "movie")
+	if inner.searchCalls != 2 {
+		t.Fatalf("post-expiry calls = %d, want 2", inner.searchCalls)
+	}
+}
+
+func TestCachedProvider_ZeroTTLDisablesCache(t *testing.T) {
+	inner := &decoratorFakeProvider{
+		name:         "tmdb",
+		searchResult: []domainmetadata.MetadataResult{{Title: "x"}},
+	}
+	c := NewCachedProvider(inner, 0)
+	for i := 0; i < 3; i++ {
+		_, _ = c.Search(context.Background(), "q", nil, "movie")
+	}
+	if inner.searchCalls != 3 {
+		t.Fatalf("calls = %d, want 3 (ttl=0 bypasses cache)", inner.searchCalls)
+	}
+}
+
+func TestCachedProvider_GetByProviderIDMemoizes(t *testing.T) {
+	result := &domainmetadata.MetadataResult{Title: "hit"}
+	inner := &decoratorFakeProvider{name: "tmdb", idResult: result}
+	c := NewCachedProvider(inner, time.Minute)
+	for i := 0; i < 3; i++ {
+		got, err := c.GetByProviderID(context.Background(), "42", "movie")
+		if err != nil || got != result {
+			t.Fatalf("iter %d: err=%v got=%v", i, err, got)
+		}
+	}
+	if inner.getByIDCalls != 1 {
+		t.Fatalf("calls = %d, want 1", inner.getByIDCalls)
+	}
+}
+
+func TestCachedProvider_Unwrap(t *testing.T) {
+	inner := &decoratorFakeProvider{name: "tmdb"}
+	c := NewCachedProvider(inner, time.Minute)
+	if c.Unwrap() != inner {
+		t.Fatal("Unwrap must return inner")
+	}
+	if c.Name() != "tmdb" {
+		t.Fatalf("name = %q", c.Name())
+	}
+}
+
+func TestCachedProvider_StackedWithRetry_UnwrapReachesBase(t *testing.T) {
+	inner := &decoratorFakeProvider{name: "tmdb"}
+	stacked := NewCachedProvider(NewRetryProvider(inner, 3, time.Microsecond), time.Minute)
+	cur := domainmetadata.MetadataProvider(stacked)
+	for {
+		u, ok := cur.(domainmetadata.ProviderUnwrapper)
+		if !ok {
+			break
+		}
+		cur = u.Unwrap()
+	}
+	if cur != inner {
+		t.Fatalf("unwrap chain did not reach inner: got %T", cur)
+	}
+}

@@ -8,6 +8,13 @@ type MetadataProvider interface {
 	GetByProviderID(ctx context.Context, providerID string, mediaType string) (*MetadataResult, error)
 }
 
+// ProviderUnwrapper is implemented by decorators (retry, cache, tracing)
+// so that capability discovery (EpisodeDetailProvider, TranslationProvider)
+// can reach the underlying provider through layers of wrappers.
+type ProviderUnwrapper interface {
+	Unwrap() MetadataProvider
+}
+
 type MetadataOverrideRepository interface {
 	Set(ctx context.Context, o *MetadataOverride) error
 	Get(ctx context.Context, id string) (*MetadataOverride, error)

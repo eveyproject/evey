@@ -318,12 +318,26 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	mkvSvc := appmkv.NewService(infra.mkvAdapter, infra.mkvAdapter)
 	collectionSvc := appcollection.NewService(r.Collection, r.Collection, postgres.NewCollectionSmartQuerier(db), r.MediaItem)
 
-	metaProviders := []metadata.MetadataProvider{infra.tmdbProvider, infra.omdbProvider, infra.tvmazeProvider, infra.imdbProvider}
+	// Wrap each provider with retry + TTL cache. Retry covers transient
+	// network/5xx failures; cache memoizes repeat search/get-by-id for
+	// scan/refresh cycles. Unwrap preserves capability discovery
+	// (EpisodeDetailProvider, TranslationProvider).
+	decorate := func(p metadata.MetadataProvider) metadata.MetadataProvider {
+		return appmetadata.NewCachedProvider(
+			appmetadata.NewRetryProvider(p, 3, 250*time.Millisecond),
+			10*time.Minute,
+		)
+	}
+	tmdbWrapped := decorate(infra.tmdbProvider)
+	omdbWrapped := decorate(infra.omdbProvider)
+	tvmazeWrapped := decorate(infra.tvmazeProvider)
+	imdbWrapped := decorate(infra.imdbProvider)
+	metaProviders := []metadata.MetadataProvider{tmdbWrapped, omdbWrapped, tvmazeWrapped, imdbWrapped}
 	metadataQuerySvc := appmetadata.NewQueryService(r.MetadataOverride, r.Artwork, metaProviders)
 	enricher := appmetadata.NewEnricher(
 		r.Artwork, r.Person, r.MediaPerson, r.MediaItem, infra.searchAdapter,
-		infra.tmdbProvider,
-		[]metadata.MetadataProvider{infra.omdbProvider, infra.tvmazeProvider, infra.imdbProvider},
+		tmdbWrapped,
+		[]metadata.MetadataProvider{omdbWrapped, tvmazeWrapped, imdbWrapped},
 		collectionSvc,
 		appmetadata.EnricherWithTranslations(r.MediaItemTranslation, r.PersonTranslation, eveyi18n.SupportedLocales()),
 		appmetadata.EnricherWithPersonFetcher(infra.personFetcher),
@@ -411,7 +425,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	musicSvc.CommandService().WithAlbumArtFetcher(itunesadapter.NewAlbumArtFetcher(infra.metadataHTTP), cfg.Transcoding.CacheDir)
 	libCmdSvc.WithMusicScanner(musicSvc)
 	libCmdSvc.WithPhotoScanner(photoSvc)
-	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist)
+	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist, r.MediaItemQuery)
 	playlistSvc.WithMusicTrackChecker(musicTrackCheckerAdapter{repo: r.MusicTrack})
 
 	var subtitleSvc *appsubtitle.Service
