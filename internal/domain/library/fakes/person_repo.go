@@ -73,6 +73,25 @@ func (r *FakePersonRepository) GetByName(_ context.Context, name string) (*libra
 	return nil, ErrNotFound
 }
 
+func (r *FakePersonRepository) GetByNamesBatch(_ context.Context, names []string) (map[string]*library.Person, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	want := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		want[n] = struct{}{}
+	}
+	out := make(map[string]*library.Person, len(names))
+	for _, p := range r.items {
+		if _, ok := want[p.Name]; ok {
+			out[p.Name] = p
+		}
+	}
+	return out, nil
+}
+
 func (r *FakePersonRepository) List(_ context.Context) ([]*library.Person, error) {
 	if r.Err != nil {
 		return nil, r.Err

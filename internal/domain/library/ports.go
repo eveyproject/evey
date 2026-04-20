@@ -95,6 +95,11 @@ type PersonRepository interface {
 	Update(ctx context.Context, person *Person) error
 	GetByID(ctx context.Context, id string) (*Person, error)
 	GetByName(ctx context.Context, name string) (*Person, error)
+	// GetByNamesBatch returns a name→Person map for the given set of
+	// names. Missing names are absent from the returned map (not nil
+	// entries). Drives the enricher preload that kills the N+1 on
+	// large casts.
+	GetByNamesBatch(ctx context.Context, names []string) (map[string]*Person, error)
 	List(ctx context.Context) ([]*Person, error)
 }
 

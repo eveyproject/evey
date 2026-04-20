@@ -214,16 +214,33 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 	if err := e.mediaPersons.DeleteByMediaItemID(ctx, shared.MediaItemID(mediaItemID)); err != nil {
 		return fmt.Errorf("delete old media_people: %w", err)
 	}
+	// Preload every candidate person in one query so the findOrCreate
+	// loop doesn't turn a 50-person cast into 50 GetByName round-trips.
+	uniqueNames := make([]string, 0, len(people))
 	seenPersons := make(map[string]bool)
-	batch := make([]*domainlib.MediaPerson, 0, len(people))
-	sortIdx := 0
 	for _, p := range people {
 		if seenPersons[p.Name] {
 			continue
 		}
 		seenPersons[p.Name] = true
+		uniqueNames = append(uniqueNames, p.Name)
+	}
+	known, err := e.persons.GetByNamesBatch(ctx, uniqueNames)
+	if err != nil {
+		slog.Warn("preload persons failed, falling back to per-row lookup", slog.Any("err", err))
+		known = map[string]*domainlib.Person{}
+	}
 
-		person, err := e.findOrCreatePerson(ctx, p)
+	batch := make([]*domainlib.MediaPerson, 0, len(people))
+	seen := make(map[string]bool, len(people))
+	sortIdx := 0
+	for _, p := range people {
+		if seen[p.Name] {
+			continue
+		}
+		seen[p.Name] = true
+
+		person, err := e.findOrCreatePerson(ctx, p, known[p.Name])
 		if err != nil {
 			return fmt.Errorf("Enricher.upsertPeople: %w", err)
 		}
@@ -248,7 +265,14 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 	return nil
 }
 
-func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.PersonResult) (*domainlib.Person, error) {
+// findOrCreatePerson takes the preloaded person (may be nil when absent
+// from DB) and either enriches the existing row with new provider IDs/
+// thumbnails, or creates a fresh row. Bio fetch is kicked off when the
+// row has a TMDB ID but no biography yet.
+func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.PersonResult, preloaded *domainlib.Person) (*domainlib.Person, error) {
+	if preloaded != nil {
+		return e.refreshKnownPerson(ctx, p, preloaded), nil
+	}
 	person, err := e.persons.GetByName(ctx, p.Name)
 	if err == nil {
 		// Update provider ID + thumb if missing
@@ -301,6 +325,34 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 		e.fetchPersonBio(ctx, person)
 	}
 	return person, nil
+}
+
+// refreshKnownPerson mirrors the "already exists" branch of findOrCreatePerson
+// for a person already loaded via GetByNamesBatch: fill missing provider IDs
+// and thumbnail if the TMDB payload has them, persist when anything changed,
+// and kick a bio fetch when the TMDB ID is known but biography is empty.
+func (e *Enricher) refreshKnownPerson(ctx context.Context, p domainmetadata.PersonResult, person *domainlib.Person) *domainlib.Person {
+	updated := false
+	if p.ProviderID != "" && person.ProviderIDs["tmdb"] == "" {
+		if person.ProviderIDs == nil {
+			person.ProviderIDs = map[string]string{}
+		}
+		person.ProviderIDs["tmdb"] = p.ProviderID
+		updated = true
+	}
+	if p.ThumbURL != "" && person.ThumbPath == nil {
+		person.ThumbPath = &p.ThumbURL
+		updated = true
+	}
+	if updated {
+		if err := e.persons.Update(ctx, person); err != nil {
+			slog.Warn("update person failed", slog.String("personID", person.ID), slog.Any("err", err))
+		}
+	}
+	if person.Biography == "" && person.ProviderIDs["tmdb"] != "" {
+		e.fetchPersonBio(ctx, person)
+	}
+	return person
 }
 
 // fetchPersonBio fetches biography from the primary provider and updates the person record.

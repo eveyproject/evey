@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/lib/pq"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
@@ -49,6 +50,37 @@ func (r *PersonRepository) GetByName(ctx context.Context, name string) (*library
 	return r.scanPerson(r.db.QueryRowContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people WHERE name = $1`, name))
+}
+
+// GetByNamesBatch returns a name→Person map for the given names. Missing
+// names are simply absent from the map. Single query with ANY($1) so a
+// cast of 50 names doesn't translate to 50 round-trips.
+func (r *PersonRepository) GetByNamesBatch(ctx context.Context, names []string) (map[string]*library.Person, error) {
+	out := make(map[string]*library.Person, len(names))
+	if len(names) == 0 {
+		return out, nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
+		 FROM people WHERE name = ANY($1)`, pq.Array(names))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		p := &library.Person{}
+		var providerJSON []byte
+		if err := rows.Scan(&p.ID, &p.Name, &providerJSON, &p.ThumbPath, &p.Biography, &p.Birthday, &p.Deathday, &p.PlaceOfBirth, &p.KnownFor); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(providerJSON, &p.ProviderIDs); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "provider_ids"), slog.Any("err", err))
+		}
+		out[p.Name] = p
+	}
+	return out, rows.Err()
 }
 
 func (r *PersonRepository) List(ctx context.Context) ([]*library.Person, error) {
