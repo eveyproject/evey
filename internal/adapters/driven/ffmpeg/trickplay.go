@@ -96,16 +96,25 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	}
 
 	outputPattern := filepath.Join(outputDir, "trickplay_%03d.webp")
-	// fps=1/interval downsamples to 1 frame per <interval> seconds of
-	// source. scale preserves aspect ratio. tile packs tileW*tileH
-	// frames per output sprite; ffmpeg writes sequential files
-	// trickplay_001.webp, _002.webp, ... until the stream ends.
+	// -skip_frame nokey instructs the decoder to drop non-keyframe packets
+	// so HEVC/H.264 4K decode only processes I-frames (typically every
+	// 2-5 seconds). Downstream the fps=1/interval filter culls further to
+	// exactly 1 frame per N source seconds. On a 1080p HEVC episode this
+	// turns ~9 min of full decode into ~30s of keyframe-only work —
+	// without this flag the single-pass version still pegged 1 core at
+	// 100% for minutes per item.
+	//
+	// -vsync vfr stops ffmpeg from trying to duplicate frames to match
+	// a constant framerate when the input stream has gaps (keyframe
+	// skipping creates gaps by design).
 	vf := fmt.Sprintf("fps=1/%d,scale=%d:-1,tile=%dx%d", interval, width, tileWidth, tileHeight)
 	cmd := exec.CommandContext(ctx, "nice", "-n", "19", g.binary,
 		"-nostdin",
 		"-threads", strconv.Itoa(threads),
+		"-skip_frame", "nokey",
 		"-i", filePath,
 		"-an",
+		"-vsync", "vfr",
 		"-vf", vf,
 		"-c:v", "libwebp",
 		"-quality", "75",
