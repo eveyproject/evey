@@ -69,7 +69,7 @@ var (
 		Help: "Number of files enqueued for library scan processing.",
 	}, []string{"library_id"})
 
-	// TranscodeQueueDepth counts GetOrCreate callers blocked waiting for
+	// TranscodeQueueDepth counts transcode requests blocked waiting for
 	// a semaphore slot (all maxConcurrent slots taken). > 0 for any extended
 	// period = the server is under-provisioned on HLS concurrency.
 	TranscodeQueueDepth = prometheus.NewGauge(prometheus.GaugeOpts{
@@ -78,9 +78,9 @@ var (
 	})
 
 	// TranscodeDuration tracks how long a transcode job ran before its
-	// terminal transition (failed / cancelled). Default prom buckets top
-	// out at 10s which is useless for transcodes that routinely take
-	// minutes to hours. Custom buckets span seconds to two hours.
+	// terminal transition (completed, failed, or cancelled). Default prom
+	// buckets top out at 10s which is useless for transcodes that routinely
+	// take minutes to hours. Custom buckets span seconds to two hours.
 	TranscodeDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "evey_transcode_duration_seconds",
 		Help:    "Transcode job duration in seconds, by terminal status.",
