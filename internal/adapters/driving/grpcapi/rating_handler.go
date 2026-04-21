@@ -30,12 +30,16 @@ func (h *ratingHandler) requireMediaAccess(ctx context.Context, mediaItemID stri
 	if claims == nil {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
-	if claims.IsAdmin || h.userAccess == nil {
-		return nil
-	}
+	// Existence check runs for every caller (admin included) so rating on a
+	// non-existent mediaItemID returns NotFound instead of falling through
+	// to Rate() where FK violation would surface as a misleading
+	// "rating must be between 1 and 10" InvalidArgument.
 	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "not found")
+	}
+	if claims.IsAdmin || h.userAccess == nil {
+		return nil
 	}
 	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
 	if accessErr != nil || !ok {
@@ -91,12 +95,15 @@ func (h *ratingHandler) PostStarRating(ctx context.Context, req *eveyv1.PostStar
 	if err != nil {
 		return nil, fmt.Errorf("ratingHandler.PostStarRating: %w", err)
 	}
+	if req.Value < 1 || req.Value > 10 {
+		return nil, status.Error(codes.InvalidArgument, "rating must be between 1 and 10")
+	}
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
 		return nil, fmt.Errorf("ratingHandler.PostStarRating: %w", accessErr)
 	}
 	if rateErr := h.starSvc.Rate(ctx, req.MediaItemId, claims.ProfileID, int(req.Value)); rateErr != nil {
 		slog.Error("star rating", slog.Any("err", rateErr))
-		return nil, status.Error(codes.InvalidArgument, "rating must be between 1 and 10")
+		return nil, status.Error(codes.Internal, "internal error")
 	}
 	return &eveyv1.PostStarRatingResponse{Value: req.Value}, nil
 }
