@@ -14,6 +14,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/photo"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/scanindex"
 )
 
 type CommandService struct {
@@ -25,17 +26,6 @@ type CommandService struct {
 
 func NewCommandService(repo photo.Repository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner photo.PhotoScanner) *CommandService {
 	return &CommandService{repo: repo, bus: bus, libRepo: libRepo, scanner: scanner}
-}
-
-// sameMtime accepts ±1µs rounding drift between FS nanosecond mtimes and
-// Postgres TIMESTAMPTZ µs storage. See scan_service.go for the full rationale.
-func sameMtime(a, b time.Time) bool {
-	at := a.Truncate(time.Microsecond)
-	bt := b.Truncate(time.Microsecond)
-	if at.Equal(bt) {
-		return true
-	}
-	return at.Sub(bt) == time.Microsecond || bt.Sub(at) == time.Microsecond
 }
 
 type photoJob struct {
@@ -55,52 +45,48 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 		}
 	}
 
-	byPath, byHash, err := s.loadExistingPhotos(ctx, libraryID)
+	idx, err := s.loadPhotoIndex(ctx, libraryID)
 	if err != nil {
 		return 0, err
 	}
 
-	jobs, walkErr := s.buildPhotoJobs(ctx, dir, byPath, byHash)
+	jobs, walkErr := s.buildPhotoJobs(ctx, dir, idx)
 	total := s.processPhotoJobs(ctx, libraryID, jobs)
 	return total, walkErr
 }
 
-// loadExistingPhotos preloads every photo row for the library keyed by
-// file path and (when available) content hash. The hash map drives the
-// "moved file, same content" fast path so a rename doesn't trigger a
-// full re-upsert.
-func (s *CommandService) loadExistingPhotos(ctx context.Context, libraryID string) (map[string]*photo.Photo, map[string]*photo.Photo, error) {
+// loadPhotoIndex preloads every photo row for the library into a
+// scanindex keyed by file path and (when available) content hash. The
+// hash lookup drives the "moved file, same content" fast path so a
+// rename doesn't trigger a full re-upsert.
+func (s *CommandService) loadPhotoIndex(ctx context.Context, libraryID string) (*scanindex.Index, error) {
 	existing, err := s.repo.ListAllByLibrary(ctx, shared.LibraryID(libraryID))
 	if err != nil {
-		return nil, nil, fmt.Errorf("list existing photos: %w", err)
+		return nil, fmt.Errorf("list existing photos: %w", err)
 	}
-	byPath := make(map[string]*photo.Photo, len(existing))
-	byHash := make(map[string]*photo.Photo, len(existing))
+	entries := make([]scanindex.Summary, len(existing))
 	for i := range existing {
 		p := &existing[i]
-		byPath[p.FilePath] = p
-		if p.FileHash != "" {
-			byHash[p.FileHash] = p
+		entries[i] = scanindex.Summary{
+			ID:      p.ID,
+			Path:    p.FilePath,
+			Size:    p.FileSize,
+			ModTime: p.ModTime,
+			Hash:    p.FileHash,
 		}
 	}
-	return byPath, byHash, nil
+	return scanindex.New(entries), nil
 }
 
 // buildPhotoJobs walks the library directory and returns the slice of
 // photos that need full processing. Unchanged files (same path+size+
 // mtime at µs precision) are skipped; moved files (known hash, new
 // path) are updated in-place and also skipped.
-func (s *CommandService) buildPhotoJobs(ctx context.Context, dir string, byPath, byHash map[string]*photo.Photo) ([]photoJob, error) {
+func (s *CommandService) buildPhotoJobs(ctx context.Context, dir string, idx *scanindex.Index) ([]photoJob, error) {
 	var jobs []photoJob
 	walkErr := s.scanner.WalkImageFiles(ctx, dir, func(f photo.ScannedImageFile) error {
-		// Fast dedup path: same file_path, size, and mod_time means unchanged.
-		// Truncate to microseconds — Postgres stores timestamps at µs precision
-		// while the filesystem exposes ns, so a raw .Equal() flags EVERY file
-		// as changed on every scan, spinning upsert and saturating the DB pool.
-		if ex := byPath[f.Path]; ex != nil {
-			if ex.FileSize == f.Size && sameMtime(ex.ModTime, f.ModTime) {
-				return nil
-			}
+		if _, unchanged := idx.Unchanged(f.Path, f.Size, f.ModTime); unchanged {
+			return nil
 		}
 
 		hash, hashErr := s.scanner.ComputeHash(f.Path)
@@ -108,13 +94,11 @@ func (s *CommandService) buildPhotoJobs(ctx context.Context, dir string, byPath,
 			slog.Warn("photo hash error", slog.String("path", f.Path), slog.Any("err", hashErr))
 		}
 
-		if byPath[f.Path] == nil && hash != "" {
-			if moved := byHash[hash]; moved != nil {
-				if updateErr := s.repo.UpdateFilePath(ctx, moved.ID, f.Path, f.ModTime); updateErr != nil {
-					slog.Warn("photo update path", slog.String("id", moved.ID), slog.Any("err", updateErr))
-				}
-				return nil
+		if movedID, isMove := idx.Moved(f.Path, hash); isMove {
+			if updateErr := s.repo.UpdateFilePath(ctx, movedID, f.Path, f.ModTime); updateErr != nil {
+				slog.Warn("photo update path", slog.String("id", movedID), slog.Any("err", updateErr))
 			}
+			return nil
 		}
 
 		jobs = append(jobs, photoJob{path: f.Path, size: f.Size, name: filepath.Base(f.Path), mime: f.MimeType, dir: dir, hash: hash, modTime: f.ModTime})

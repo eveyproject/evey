@@ -17,33 +17,13 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/evey-project/evey/internal/pkg/scanindex"
 )
 
 // ErrScanInProgress is returned by ScanLibrary when a scan is already running
 // for the given library. Callers (gRPC handler, HTTP handler) should map this
 // to a user-friendly 409/FailedPrecondition response.
 var ErrScanInProgress = errors.New("scan already in progress")
-
-// sameMtime treats two filesystem timestamps as equal when they match
-// at Postgres-storage precision, accepting a ±1µs rounding drift. The
-// filesystem exposes 100ns-level mtimes (ext4, xfs, apfs) while
-// Postgres TIMESTAMPTZ rounds sub-µs to µs — and the direction (half-up
-// vs half-even) varies between values/drivers, so `.8474756` can land
-// on `.847475` or `.847476` depending on the path. Both Truncate and
-// Round can therefore miss pairs that differ by one µs after round-
-// trip, which flagged every file as "changed" each scan and pinned
-// CPU at 100%. Comparing truncated values with ±1µs slack absorbs it
-// without masking genuine file changes (which are always ≥1 second).
-func sameMtime(a, b time.Time) bool {
-	at := a.Truncate(time.Microsecond)
-	bt := b.Truncate(time.Microsecond)
-	if at.Equal(bt) {
-		return true
-	}
-	// Check 1µs window both directions without negating a potentially-saturated
-	// Duration (zero-vs-now.Sub overflows to MinInt64 which -x can't un-wrap).
-	return at.Sub(bt) == time.Microsecond || bt.Sub(at) == time.Microsecond
-}
 
 func catalogGenres(item *library.MediaItem) []string {
 	if item == nil || item.Catalog == nil {
@@ -72,6 +52,7 @@ type ScanService struct {
 	metadata     *MetadataExtractionService
 	musicScanner TypedDirectoryScanner
 	photoScanner TypedDirectoryScanner
+	pruner       *OrphanPruner
 
 	scanMu   sync.Mutex
 	scanning map[string]bool
@@ -100,6 +81,7 @@ func NewScanService(
 		prober:       prober,
 		search:       search,
 		events:       events,
+		pruner:       NewOrphanPruner(mediaItems, search, events),
 		scanning:     make(map[string]bool),
 	}
 }
@@ -118,19 +100,6 @@ func (s *ScanService) WithMusicScanner(sc TypedDirectoryScanner) {
 
 func (s *ScanService) WithPhotoScanner(sc TypedDirectoryScanner) {
 	s.photoScanner = sc
-}
-
-type scanRef struct {
-	ID              string
-	FileSize        int64
-	ModTime         time.Time
-	FileFingerprint string
-	FilePath        string
-}
-
-type scanIndex struct {
-	byPath        map[string]*scanRef
-	byFingerprint map[string]*scanRef
 }
 
 type scanWork struct {
@@ -211,7 +180,10 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 	added += a
 	updated += u
 
-	removed := s.processDeletedItems(ctx, libraryID, seenPaths)
+	removed, pruneErr := s.pruner.Prune(ctx, libraryID, seenPaths)
+	if pruneErr != nil {
+		slog.Warn("orphan cleanup failed", slog.String("libraryID", libraryID), slog.Any("err", pruneErr))
+	}
 
 	s.finalizeScan(ctx, lib, libraryID, added, updated, removed)
 	return added, updated, nil
@@ -227,32 +199,25 @@ func (s *ScanService) publishScanStarted(ctx context.Context, libraryID string) 
 	}
 }
 
-func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*scanIndex, error) {
+func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*scanindex.Index, error) {
 	summaries, err := s.mediaItems.ListScanSummaries(ctx, shared.LibraryID(libraryID))
 	if err != nil {
 		return nil, fmt.Errorf("list existing items: %w", err)
 	}
-	idx := &scanIndex{
-		byPath:        make(map[string]*scanRef, len(summaries)),
-		byFingerprint: make(map[string]*scanRef, len(summaries)),
-	}
-	for i := range summaries {
-		ref := &scanRef{
-			ID:              summaries[i].ID,
-			FileSize:        summaries[i].FileSize,
-			ModTime:         summaries[i].ModTime,
-			FileFingerprint: summaries[i].FileFingerprint,
-			FilePath:        summaries[i].FilePath,
-		}
-		idx.byPath[ref.FilePath] = ref
-		if ref.FileFingerprint != "" {
-			idx.byFingerprint[ref.FileFingerprint] = ref
+	entries := make([]scanindex.Summary, len(summaries))
+	for i, row := range summaries {
+		entries[i] = scanindex.Summary{
+			ID:      row.ID,
+			Path:    row.FilePath,
+			Size:    row.FileSize,
+			ModTime: row.ModTime,
+			Hash:    row.FileFingerprint,
 		}
 	}
-	return idx, nil
+	return scanindex.New(entries), nil
 }
 
-func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library, idx *scanIndex) (seenPaths map[string]struct{}, toProcess []scanWork, added, updated int, err error) {
+func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library, idx *scanindex.Index) (seenPaths map[string]struct{}, toProcess []scanWork, added, updated int, err error) {
 	seenPaths = make(map[string]struct{})
 
 	for _, path := range lib.Paths {
@@ -284,41 +249,35 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 	return seenPaths, toProcess, added, updated, nil
 }
 
-func (s *ScanService) detectChanges(ctx context.Context, files []library.ScannedFile, idx *scanIndex) (toProcess []scanWork, moved int) {
+func (s *ScanService) detectChanges(ctx context.Context, files []library.ScannedFile, idx *scanindex.Index) (toProcess []scanWork, moved int) {
 	for _, f := range files {
-		if ex := idx.byPath[f.Path]; ex != nil {
-			// Size+mtime match = unchanged. Postgres TIMESTAMPTZ stores
-			// microseconds with round-half-up on sub-µs, while Go's
-			// Truncate rounds down — so a straight Truncate+Equal flags
-			// every ext4 file (nanosecond mtime) as "changed" each scan,
-			// spinning upsert and pinning CPU at 100%. Use ±1µs tolerance
-			// to absorb the rounding delta between FS and DB.
-			if ex.FileSize == f.Size && sameMtime(ex.ModTime, f.ModTime) {
-				if ex.FileFingerprint == "" || f.Fingerprint == "" || ex.FileFingerprint == f.Fingerprint {
-					continue
-				}
+		if _, unchanged := idx.Unchanged(f.Path, f.Size, f.ModTime); unchanged {
+			// Extra fingerprint gate when both sides have one: catches the
+			// rare inode/mtime coincidence where the OS reused both for
+			// different content.
+			exHash, _ := idx.ExistingHash(f.Path)
+			if exHash == "" || f.Fingerprint == "" || exHash == f.Fingerprint {
+				continue
 			}
 		}
 
-		if idx.byPath[f.Path] == nil && f.Fingerprint != "" {
-			if ref := idx.byFingerprint[f.Fingerprint]; ref != nil {
-				fullItem, getErr := s.mediaItems.GetByID(ctx, shared.MediaItemID(ref.ID))
-				if getErr != nil {
-					slog.Warn("get moved item", slog.String("id", ref.ID), slog.Any("err", getErr))
-				} else {
-					if fullItem.File == nil {
-						fullItem.File = &library.MediaFile{}
-					}
-					fullItem.File.Path = f.Path
-					fullItem.File.ModTime = f.ModTime
-					fullItem.UpdatedAt = time.Now()
-					if updateErr := s.mediaItems.Update(ctx, fullItem); updateErr != nil {
-						slog.Warn("update moved item path", slog.String("id", ref.ID), slog.Any("err", updateErr))
-					}
+		if movedID, isMove := idx.Moved(f.Path, f.Fingerprint); isMove {
+			fullItem, getErr := s.mediaItems.GetByID(ctx, shared.MediaItemID(movedID))
+			if getErr != nil {
+				slog.Warn("get moved item", slog.String("id", movedID), slog.Any("err", getErr))
+			} else {
+				if fullItem.File == nil {
+					fullItem.File = &library.MediaFile{}
 				}
-				moved++
-				continue
+				fullItem.File.Path = f.Path
+				fullItem.File.ModTime = f.ModTime
+				fullItem.UpdatedAt = time.Now()
+				if updateErr := s.mediaItems.Update(ctx, fullItem); updateErr != nil {
+					slog.Warn("update moved item path", slog.String("id", movedID), slog.Any("err", updateErr))
+				}
 			}
+			moved++
+			continue
 		}
 
 		toProcess = append(toProcess, scanWork{file: f})
@@ -361,14 +320,6 @@ func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toP
 	return int(addedAtomic.Load()), int(updatedAtomic.Load())
 }
 
-func (s *ScanService) processDeletedItems(ctx context.Context, libraryID string, seenPaths map[string]struct{}) int {
-	removed, removeErr := s.removeOrphanedItems(ctx, libraryID, seenPaths)
-	if removeErr != nil {
-		slog.Warn("orphan cleanup failed", slog.String("libraryID", libraryID), slog.Any("err", removeErr))
-	}
-	return removed
-}
-
 func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, libraryID string, added, updated, removed int) {
 	now := time.Now()
 	lib.LastScannedAt = &now
@@ -387,47 +338,6 @@ func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, li
 		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 }
-
-func (s *ScanService) removeOrphanedItems(ctx context.Context, libraryID string, seenPaths map[string]struct{}) (int, error) {
-	dbPaths, err := s.mediaItems.ListFilePaths(ctx, shared.LibraryID(libraryID))
-	if err != nil {
-		return 0, fmt.Errorf("list file paths: %w", err)
-	}
-	var orphanIDs []string
-	for id, path := range dbPaths {
-		if _, seen := seenPaths[path]; !seen {
-			orphanIDs = append(orphanIDs, id)
-		}
-	}
-	if len(orphanIDs) > 0 {
-		if delErr := s.mediaItems.DeleteByIDs(ctx, orphanIDs); delErr != nil {
-			slog.Warn("batch delete orphaned media items failed", slog.Any("err", delErr))
-		}
-		for _, id := range orphanIDs {
-			if s.search != nil {
-				if idxErr := s.search.RemoveMediaItem(ctx, id); idxErr != nil {
-					slog.Warn("remove orphan from search index failed", slog.String("id", id), slog.Any("err", idxErr))
-				}
-			}
-			evt := library.MediaItemRemoved{
-				MediaItemID: shared.MediaItemID(id),
-				LibraryID:   shared.LibraryID(libraryID),
-				OccurredAt:  time.Now(),
-			}
-			if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
-				slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
-			}
-		}
-	}
-
-	pruned, pruneErr := s.pruneEmptyContainers(ctx, libraryID)
-	if pruneErr != nil {
-		slog.Warn("prune empty containers failed", slog.Any("err", pruneErr))
-	}
-
-	return len(orphanIDs) + pruned, nil
-}
-
 
 func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, seriesTitle ...string) (added, updated int, err error) {
 	showTitle := ""
@@ -541,9 +451,9 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	if unchanged {
 		// Backfill ModTime when it was never persisted (older rows created
 		// before the scanner started setting File.ModTime). Without this,
-		// sameMtime would keep returning false each scan for those rows
+		// SameMtime would keep returning false each scan for those rows
 		// and we'd pointlessly re-enter updateMediaFile every tick.
-		mtimeStale := !sameMtime(existing.File.ModTime, f.ModTime)
+		mtimeStale := !scanindex.SameMtime(existing.File.ModTime, f.ModTime)
 		if existing.File.Path != f.Path || existing.ParentID != parentID || mtimeStale {
 			existing.File.Path = f.Path
 			existing.ParentID = parentID

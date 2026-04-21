@@ -19,6 +19,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/music"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/scanindex"
 )
 
 // AlbumArtFetcher fetches album artwork from an external source.
@@ -38,17 +39,6 @@ type CommandService struct {
 
 func NewCommandService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner music.MusicScanner) *CommandService {
 	return &CommandService{tracks: tracks, bus: bus, libRepo: libRepo, scanner: scanner}
-}
-
-// sameMtime accepts ±1µs rounding drift between FS nanosecond mtimes and
-// Postgres TIMESTAMPTZ µs storage. See scan_service.go for the full rationale.
-func sameMtime(a, b time.Time) bool {
-	at := a.Truncate(time.Microsecond)
-	bt := b.Truncate(time.Microsecond)
-	if at.Equal(bt) {
-		return true
-	}
-	return at.Sub(bt) == time.Microsecond || bt.Sub(at) == time.Microsecond
 }
 
 func (s *CommandService) WithProber(p library.StreamProber) *CommandService {
@@ -129,64 +119,58 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 			return 0, fmt.Errorf("library %s not found: %w", libraryID, err)
 		}
 	}
-	byPath, byHash, err := s.loadExistingTracks(ctx, libraryID)
+	idx, err := s.loadTrackIndex(ctx, libraryID)
 	if err != nil {
 		return 0, err
 	}
-	jobs, walkErr := s.buildTrackJobs(ctx, dir, byPath, byHash)
+	jobs, walkErr := s.buildTrackJobs(ctx, dir, idx)
 	total := s.processTrackJobs(ctx, libraryID, jobs)
 	s.kickAlbumArtFetch(libraryID)
 	return total, walkErr
 }
 
-// loadExistingTracks preloads every track for the library keyed by file
-// path and (when present) content hash. The hash map drives the
-// "moved file, same content" fast path.
-func (s *CommandService) loadExistingTracks(ctx context.Context, libraryID string) (map[string]*music.Track, map[string]*music.Track, error) {
+// loadTrackIndex preloads every track for the library into a scanindex
+// keyed by file path and (when present) content hash. The hash lookup
+// drives the "moved file, same content" fast path.
+func (s *CommandService) loadTrackIndex(ctx context.Context, libraryID string) (*scanindex.Index, error) {
 	existing, err := s.tracks.ListAllByLibrary(ctx, shared.LibraryID(libraryID))
 	if err != nil {
-		return nil, nil, fmt.Errorf("list existing tracks: %w", err)
+		return nil, fmt.Errorf("list existing tracks: %w", err)
 	}
-	byPath := make(map[string]*music.Track, len(existing))
-	byHash := make(map[string]*music.Track, len(existing))
+	entries := make([]scanindex.Summary, len(existing))
 	for i := range existing {
 		t := &existing[i]
-		byPath[t.FilePath] = t
-		if t.FileHash != "" {
-			byHash[t.FileHash] = t
+		entries[i] = scanindex.Summary{
+			ID:      t.ID,
+			Path:    t.FilePath,
+			Size:    t.FileSize,
+			ModTime: t.ModTime,
+			Hash:    t.FileHash,
 		}
 	}
-	return byPath, byHash, nil
+	return scanindex.New(entries), nil
 }
 
 // buildTrackJobs walks the library directory and returns the slice of
 // tracks needing a full parse. Unchanged (path+size+mtime) are skipped;
 // moved (known hash) are updated in-place and skipped.
-func (s *CommandService) buildTrackJobs(ctx context.Context, dir string, byPath, byHash map[string]*music.Track) ([]trackJob, error) {
+func (s *CommandService) buildTrackJobs(ctx context.Context, dir string, idx *scanindex.Index) ([]trackJob, error) {
 	var jobs []trackJob
 	walkErr := s.scanner.WalkAudioFiles(ctx, dir, func(f music.ScannedAudioFile) error {
-		path := f.Path
-		// Fast dedup: same path+size+modtime = unchanged. Truncate to
-		// microseconds — Postgres timestamp precision is µs vs ns from the
-		// filesystem; raw .Equal() falsely flags every file each scan.
-		if ex := byPath[path]; ex != nil {
-			if ex.FileSize == f.Size && sameMtime(ex.ModTime, f.ModTime) {
-				return nil
-			}
+		if _, unchanged := idx.Unchanged(f.Path, f.Size, f.ModTime); unchanged {
+			return nil
 		}
-		hash, hashErr := s.scanner.ComputeHash(path)
+		hash, hashErr := s.scanner.ComputeHash(f.Path)
 		if hashErr != nil {
-			slog.Warn("music scan: hash failed", slog.String("path", path), slog.Any("err", hashErr))
+			slog.Warn("music scan: hash failed", slog.String("path", f.Path), slog.Any("err", hashErr))
 		}
-		if byPath[path] == nil && hash != "" {
-			if moved := byHash[hash]; moved != nil {
-				if updateErr := s.tracks.UpdateFilePath(ctx, moved.ID, path, f.ModTime); updateErr != nil {
-					slog.Warn("music scan: update path", slog.String("id", moved.ID), slog.Any("err", updateErr))
-				}
-				return nil
+		if movedID, isMove := idx.Moved(f.Path, hash); isMove {
+			if updateErr := s.tracks.UpdateFilePath(ctx, movedID, f.Path, f.ModTime); updateErr != nil {
+				slog.Warn("music scan: update path", slog.String("id", movedID), slog.Any("err", updateErr))
 			}
+			return nil
 		}
-		jobs = append(jobs, trackJob{path: path, size: f.Size, modTime: f.ModTime, mimeType: f.MimeType, hash: hash})
+		jobs = append(jobs, trackJob{path: f.Path, size: f.Size, modTime: f.ModTime, mimeType: f.MimeType, hash: hash})
 		return nil
 	})
 	return jobs, walkErr
