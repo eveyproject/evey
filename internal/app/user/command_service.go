@@ -106,7 +106,32 @@ func (s *CommandService) InitSetupState(ctx context.Context) {
 	}
 }
 
-func (s *CommandService) Setup(ctx context.Context, username, password, email string) (*user.User, error) {
+// SetupOption configures optional inputs for the initial admin Setup.
+type SetupOption func(*setupOptions)
+
+type setupOptions struct {
+	locale string
+	region string
+}
+
+// WithSetupLocale seeds the admin default profile with the language the user
+// picked in the setup wizard, so the JWT locale claim and subsequent sessions
+// stay in that language instead of falling back to the DB column default.
+func WithSetupLocale(locale string) SetupOption {
+	return func(o *setupOptions) { o.locale = locale }
+}
+
+// WithSetupRegion seeds the admin default profile with an ISO-3166 region.
+// Empty string is ignored (region stays nil → server fallback at runtime).
+func WithSetupRegion(region string) SetupOption {
+	return func(o *setupOptions) { o.region = region }
+}
+
+func (s *CommandService) Setup(ctx context.Context, username, password, email string, opts ...SetupOption) (*user.User, error) {
+	var cfg setupOptions
+	for _, fn := range opts {
+		fn(&cfg)
+	}
 	s.setupMu.Lock()
 	defer s.setupMu.Unlock()
 	if s.setupDone {
@@ -150,6 +175,11 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 		UserID:    u.ID,
 		Name:      u.Username,
 		IsDefault: true,
+		Locale:    cfg.locale,
+	}
+	if cfg.region != "" {
+		r := cfg.region
+		p.Region = &r
 	}
 	if err := s.profiles.Create(ctx, p); err != nil {
 		return nil, fmt.Errorf("create default profile: %w", err)

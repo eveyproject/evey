@@ -139,6 +139,58 @@ func TestSetup_AlreadyDone(t *testing.T) {
 	}
 }
 
+func TestSetup_WithLocaleAndRegion_SeedsProfile(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+
+	u, err := d.svc.Setup(ctx, "admin", "longpassword", "a@a.com",
+		WithSetupLocale("fr"),
+		WithSetupRegion("FR"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	profs, err := d.profiles.GetByUserID(ctx, u.ID)
+	if err != nil || len(profs) != 1 {
+		t.Fatalf("expected 1 profile, got %d (err=%v)", len(profs), err)
+	}
+	p := profs[0]
+	if p.Locale != "fr" {
+		t.Errorf("Locale = %q, want %q", p.Locale, "fr")
+	}
+	if p.Region == nil || *p.Region != "FR" {
+		got := "<nil>"
+		if p.Region != nil {
+			got = *p.Region
+		}
+		t.Errorf("Region = %q, want %q", got, "FR")
+	}
+	if !p.IsDefault {
+		t.Error("profile should be default")
+	}
+}
+
+func TestSetup_WithoutOptions_LeavesProfileLocaleEmpty(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+
+	u, err := d.svc.Setup(ctx, "admin", "longpassword", "a@a.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profs, err := d.profiles.GetByUserID(ctx, u.ID)
+	if err != nil || len(profs) != 1 {
+		t.Fatalf("expected 1 profile, got %d (err=%v)", len(profs), err)
+	}
+	if profs[0].Locale != "" {
+		t.Errorf("Locale = %q, want empty (DB column default applies at persistence layer)", profs[0].Locale)
+	}
+	if profs[0].Region != nil {
+		t.Errorf("Region = %v, want nil", *profs[0].Region)
+	}
+}
+
 func TestSetup_ShortPassword(t *testing.T) {
 	d := newAuthTestDeps()
 	_, err := d.svc.Setup(context.Background(), "admin", "short", "a@a.com")

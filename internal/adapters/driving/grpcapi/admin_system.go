@@ -92,7 +92,15 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 	// returns ErrSetupDone and we must not have mutated server.language/region
 	// in the meantime. This endpoint is public (pre-setup) so any side-effect
 	// before the Setup check is an unauthenticated write on a running server.
-	u, err := d.userCmd.Setup(ctx, req.AdminUsername, req.AdminPassword, req.AdminEmail)
+	// The chosen language/region are passed through as setup options so the
+	// admin's default profile is created with the picked locale — otherwise
+	// the profile falls back to the DB column default ("en") and the JWT
+	// locale claim issued by the Login below would downgrade the UI back to
+	// English on the very next session.
+	u, err := d.userCmd.Setup(ctx, req.AdminUsername, req.AdminPassword, req.AdminEmail,
+		appuser.WithSetupLocale(req.ServerLanguage),
+		appuser.WithSetupRegion(req.ServerRegion),
+	)
 	if err != nil {
 		if errors.Is(err, appuser.ErrSetupDone) {
 			return nil, d.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.admin.setup_already_completed")
@@ -100,8 +108,7 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 		return nil, internalError("setup", err)
 	}
 	// Persist language/region AFTER Setup() confirmed this is a fresh install.
-	// The admin profile's defaults are resolved at login-time, not here, so
-	// ordering no longer matters for inheritance.
+	// server.language also drives metadata provider + future profile defaults.
 	if d.serverCfgSvc != nil {
 		if req.ServerLanguage != "" {
 			if err := d.serverCfgSvc.Set(ctx, "server.language", req.ServerLanguage); err != nil {
