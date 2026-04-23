@@ -70,7 +70,7 @@ setup:
 		|| echo "  ⚠ Lance en admin dans PowerShell Windows: Add-Content C:\Windows\System32\drivers\etc\hosts '127.0.0.1 evey.test'"
 
 	@echo ""
-	@echo "✓ Setup done → lance 'make dev'"
+	@echo "✓ Setup done → lance 'make dev' (la génération buf/orval tourne au boot des containers dev)"
 
 dev:
 	$(DC) down --remove-orphans 2>/dev/null; \

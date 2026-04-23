@@ -60,6 +60,7 @@ services:
       VITE_ALLOWED_HOSTS: evey.test
     volumes:
       - ./frontend:/app
+      - ./gen:/gen:ro
       - /app/node_modules
       - /app/apps/web/node_modules
     healthcheck:

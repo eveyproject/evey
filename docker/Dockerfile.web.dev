@@ -5,4 +5,4 @@ RUN npm install -g pnpm@10.33.0
 
 WORKDIR /app
 
-CMD ["sh", "-c", "pnpm install && pnpm --filter web dev"]
+CMD ["sh", "-c", "pnpm install && pnpm --filter @evey/api generate && pnpm --filter web dev"]

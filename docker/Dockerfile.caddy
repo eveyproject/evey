@@ -1,9 +1,29 @@
+# ── Stage 1: Generate protobuf (swagger for orval) ──
+FROM golang:1.26.2-alpine AS protogen
+
+RUN apk add --no-cache gcc musl-dev linux-headers
+WORKDIR /src
+RUN go install github.com/bufbuild/buf/cmd/buf@v1.47.2 \
+    && go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11 \
+    && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1 \
+    && go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.28.0 \
+    && go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v2.28.0
+COPY proto/ proto/
+COPY buf.gen.yaml buf.gen.local.yaml buf.yaml buf.lock ./
+RUN buf dep update && buf generate --template buf.gen.local.yaml
+
+# ── Stage 2: Build frontend ──
 FROM node:24-alpine AS frontend
 WORKDIR /app
-COPY frontend/ .
 ENV CI=true
-RUN npm install -g pnpm@10.33.0 && pnpm install && pnpm --filter web build
+COPY frontend/ .
+COPY --from=protogen /src/gen/evey/v1/ /gen/evey/v1/
+RUN npm install -g pnpm@10.33.0 \
+    && pnpm install \
+    && cd packages/api && npx orval --config orval.config.ts && cd ../.. \
+    && pnpm --filter web build
 
+# ── Stage 3: Caddy ──
 FROM caddy:2.9-alpine
 COPY --from=frontend /app/apps/web/dist /srv
 COPY docker/Caddyfile /etc/caddy/Caddyfile
