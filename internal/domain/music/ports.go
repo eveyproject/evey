@@ -16,19 +16,25 @@ type TrackRepository interface {
 	ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]Track, error)
 	ListByAlbum(ctx context.Context, album, artist string) ([]Track, error)
 	ListByLibraryAndAlbum(ctx context.Context, libraryID shared.LibraryID, album string) ([]Track, error)
+	ListByAlbumFolder(ctx context.Context, libraryID shared.LibraryID, albumFolder string) ([]Track, error)
 	ListByArtist(ctx context.Context, artist string, limit, offset int) ([]Track, int, error)
 	Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]Track, error)
 	GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]Album, error)
 	GetArtists(ctx context.Context, libraryID shared.LibraryID) ([]Artist, error)
 	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error
 	ListAlbumsMissingArt(ctx context.Context, libraryID shared.LibraryID) ([]AlbumKey, error)
-	SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, album, albumArtist, url string) error
+	SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, albumFolder, url string) error
 }
 
-// AlbumKey identifies a distinct (artist, album) pair within a library.
+// AlbumKey identifies a distinct album within a library. AlbumFolder is
+// the authoritative identity (a track's parent directory). Album and
+// Artist are display-only strings — the most frequent values across the
+// folder — and are used by external art fetchers that still key on
+// (artist, album) tuples.
 type AlbumKey struct {
-	Artist string
-	Album  string
+	AlbumFolder string
+	Artist      string
+	Album       string
 }
 
 // ScannedAudioFile represents a discovered audio file during directory walking.

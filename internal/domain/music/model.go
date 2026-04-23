@@ -28,6 +28,12 @@ type Track struct {
 	Channels    int
 	Genre       string
 	CoverArtURL string
+	// AlbumFolder is the directory containing the file; it is the
+	// authoritative album identity. ID3 tags remain the source of the
+	// display metadata but can be inconsistent across a folder
+	// (featurings, compilations) so grouping by folder avoids splitting
+	// a single on-disk album into multiple phantom rows.
+	AlbumFolder string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

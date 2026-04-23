@@ -2,14 +2,14 @@ package fakes
 
 import (
 	"context"
-	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/music"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/google/uuid"
 )
 
 type FakeMusicTrackRepository struct {
@@ -34,6 +34,12 @@ func (r *FakeMusicTrackRepository) Upsert(_ context.Context, t music.Track) erro
 	defer r.mu.Unlock()
 	if t.ID == "" {
 		t.ID = uuid.New().String()
+	}
+	// Mirror the postgres Upsert: derive album_folder from file_path when
+	// caller didn't set it. Keeps the fake behaviorally consistent so
+	// unit tests don't leak nil album_folder rows into the rest.
+	if t.AlbumFolder == "" && t.FilePath != "" {
+		t.AlbumFolder = filepath.Dir(t.FilePath)
 	}
 	// upsert by file_path
 	for id, existing := range r.tracks {
@@ -132,6 +138,21 @@ func (r *FakeMusicTrackRepository) ListByLibraryAndAlbum(_ context.Context, libr
 	return out, nil
 }
 
+func (r *FakeMusicTrackRepository) ListByAlbumFolder(_ context.Context, libraryID shared.LibraryID, albumFolder string) ([]music.Track, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []music.Track
+	for _, t := range r.tracks {
+		if t.LibraryID == libraryID && t.AlbumFolder == albumFolder {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
 func (r *FakeMusicTrackRepository) ListByArtist(_ context.Context, artist string, limit, offset int) ([]music.Track, int, error) {
 	if r.Err != nil {
 		return nil, 0, r.Err
@@ -186,36 +207,83 @@ func (r *FakeMusicTrackRepository) GetAlbums(_ context.Context, libraryID shared
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	type key struct{ album, artist string }
-	m := make(map[key]*music.Album)
+	// Group by album_folder (authoritative identity), then pick the
+	// most frequent display values among the folder's tracks.
+	type folderAgg struct {
+		folder   string
+		albumCnt map[string]int
+		artCnt   map[string]int
+		minYear  int
+		years    int
+		trackCnt int
+		duration float64
+		cover    string
+	}
+	m := make(map[string]*folderAgg)
 	for _, t := range r.tracks {
 		if t.LibraryID != libraryID {
 			continue
 		}
-		artist := t.AlbumArtist
-		if artist == "" {
-			artist = t.Artist
-		}
-		k := key{t.Album, artist}
-		a, ok := m[k]
+		agg, ok := m[t.AlbumFolder]
 		if !ok {
-			a = &music.Album{
-				ID:          fmt.Sprintf("%s|%s", t.Album, artist),
-				Title:       t.Album,
-				Artist:      artist,
-				Year:        t.Year,
-				CoverArtURL: t.CoverArtURL,
+			agg = &folderAgg{
+				folder:   t.AlbumFolder,
+				albumCnt: map[string]int{},
+				artCnt:   map[string]int{},
 			}
-			m[k] = a
+			m[t.AlbumFolder] = agg
 		}
-		a.TrackCount++
-		a.Duration += t.Duration
+		if t.Album != "" {
+			agg.albumCnt[t.Album]++
+		}
+		// Prefer album_artist; fall back to artist so compilations with
+		// empty album_artist still get a display string.
+		a := t.AlbumArtist
+		if a == "" {
+			a = t.Artist
+		}
+		if a != "" {
+			agg.artCnt[a]++
+		}
+		if t.Year > 0 && (agg.years == 0 || t.Year < agg.minYear) {
+			agg.minYear = t.Year
+		}
+		if t.Year > 0 {
+			agg.years++
+		}
+		agg.trackCnt++
+		agg.duration += t.Duration
+		if agg.cover == "" && t.CoverArtURL != "" {
+			agg.cover = t.CoverArtURL
+		}
 	}
 	out := make([]music.Album, 0, len(m))
-	for _, a := range m {
-		out = append(out, *a)
+	for _, agg := range m {
+		out = append(out, music.Album{
+			ID:          agg.folder,
+			Title:       modeString(agg.albumCnt),
+			Artist:      modeString(agg.artCnt),
+			Year:        agg.minYear,
+			CoverArtURL: agg.cover,
+			TrackCount:  agg.trackCnt,
+			Duration:    agg.duration,
+		})
 	}
 	return out, nil
+}
+
+// modeString returns the key with the highest count. Ties are broken
+// lexicographically (stable) so tests don't see order flakiness.
+func modeString(counts map[string]int) string {
+	best := ""
+	bestN := 0
+	for k, n := range counts {
+		if n > bestN || (n == bestN && k < best) {
+			best = k
+			bestN = n
+		}
+	}
+	return best
 }
 
 func (r *FakeMusicTrackRepository) GetArtists(_ context.Context, libraryID shared.LibraryID) ([]music.Artist, error) {
@@ -281,6 +349,7 @@ func (r *FakeMusicTrackRepository) UpdateFilePath(_ context.Context, id, newPath
 	if t, ok := r.tracks[id]; ok {
 		t.FilePath = newPath
 		t.ModTime = modTime
+		t.AlbumFolder = filepath.Dir(newPath)
 		r.tracks[id] = t
 	}
 	return nil
@@ -292,50 +361,67 @@ func (r *FakeMusicTrackRepository) ListAlbumsMissingArt(_ context.Context, libra
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	type key struct{ album, artist string }
-	hasArt := make(map[key]bool)
-	keys := make(map[key]struct{})
+	// One entry per folder; "missing art" means no track in the folder
+	// has a cover_art_url. Display album/artist are the folder's majority.
+	type folderAgg struct {
+		folder   string
+		albumCnt map[string]int
+		artCnt   map[string]int
+		hasArt   bool
+	}
+	m := make(map[string]*folderAgg)
 	for _, t := range r.tracks {
-		if t.LibraryID != libraryID || t.Album == "" {
+		if t.LibraryID != libraryID {
 			continue
 		}
-		artist := t.AlbumArtist
-		if artist == "" {
-			artist = t.Artist
+		agg, ok := m[t.AlbumFolder]
+		if !ok {
+			agg = &folderAgg{folder: t.AlbumFolder, albumCnt: map[string]int{}, artCnt: map[string]int{}}
+			m[t.AlbumFolder] = agg
 		}
-		if artist == "" {
-			continue
+		if t.Album != "" {
+			agg.albumCnt[t.Album]++
 		}
-		k := key{t.Album, artist}
-		keys[k] = struct{}{}
+		a := t.AlbumArtist
+		if a == "" {
+			a = t.Artist
+		}
+		if a != "" {
+			agg.artCnt[a]++
+		}
 		if t.CoverArtURL != "" {
-			hasArt[k] = true
+			agg.hasArt = true
 		}
 	}
 	var out []music.AlbumKey
-	for k := range keys {
-		if !hasArt[k] {
-			out = append(out, music.AlbumKey{Album: k.album, Artist: k.artist})
+	for _, agg := range m {
+		if agg.hasArt {
+			continue
 		}
+		album := modeString(agg.albumCnt)
+		artist := modeString(agg.artCnt)
+		// Same filter as the postgres repo: skip folders we cannot
+		// represent as (artist, album) for a downstream fetcher.
+		if album == "" || artist == "" {
+			continue
+		}
+		out = append(out, music.AlbumKey{
+			AlbumFolder: agg.folder,
+			Album:       album,
+			Artist:      artist,
+		})
 	}
 	return out, nil
 }
 
-func (r *FakeMusicTrackRepository) SetAlbumCoverArtURL(_ context.Context, libraryID shared.LibraryID, album, albumArtist, url string) error {
+func (r *FakeMusicTrackRepository) SetAlbumCoverArtURL(_ context.Context, libraryID shared.LibraryID, albumFolder, url string) error {
 	if r.Err != nil {
 		return r.Err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for id, t := range r.tracks {
-		if t.LibraryID != libraryID || t.Album != album {
-			continue
-		}
-		a := t.AlbumArtist
-		if a == "" {
-			a = t.Artist
-		}
-		if a != albumArtist {
+		if t.LibraryID != libraryID || t.AlbumFolder != albumFolder {
 			continue
 		}
 		t.CoverArtURL = url

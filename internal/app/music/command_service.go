@@ -79,7 +79,7 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 		if ctx.Err() != nil {
 			return fetched, ctx.Err()
 		}
-		if ak.Artist == "" || ak.Album == "" {
+		if ak.Artist == "" || ak.Album == "" || ak.AlbumFolder == "" {
 			continue
 		}
 		data, _, ferr := s.albumArtFetcher.Fetch(ctx, ak.Artist, ak.Album)
@@ -89,15 +89,18 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 			}
 			continue
 		}
-		hash := albumArtHash(ak.Artist, ak.Album)
+		// Hash on the folder: folder is the album identity, so two
+		// folders that happen to share (artist, album) tags still get
+		// distinct files on disk.
+		hash := albumArtHash(ak.AlbumFolder, "")
 		dst := filepath.Join(s.albumArtDir, hash+".jpg")
 		if werr := os.WriteFile(dst, data, 0o644); werr != nil {
 			slog.Warn("music: write album art", slog.String("path", dst), slog.Any("err", werr))
 			continue
 		}
 		url := "/api/v1/music/album-art/" + hash
-		if uerr := s.tracks.SetAlbumCoverArtURL(ctx, shared.LibraryID(libraryID), ak.Album, ak.Artist, url); uerr != nil {
-			slog.Warn("music: set cover url", slog.String("album", ak.Album), slog.Any("err", uerr))
+		if uerr := s.tracks.SetAlbumCoverArtURL(ctx, shared.LibraryID(libraryID), ak.AlbumFolder, url); uerr != nil {
+			slog.Warn("music: set cover url", slog.String("album_folder", ak.AlbumFolder), slog.Any("err", uerr))
 			continue
 		}
 		fetched++
@@ -224,6 +227,11 @@ func (s *CommandService) processOneTrack(ctx context.Context, libraryID string, 
 	}
 	t.FileHash = j.hash
 	t.ModTime = j.modTime
+	// Defensive: parseTrack already sets this, but the fallback path
+	// above constructs a Track without calling parseTrack.
+	if t.AlbumFolder == "" {
+		t.AlbumFolder = filepath.Dir(j.path)
+	}
 
 	if upsertErr := s.tracks.Upsert(ctx, *t); upsertErr != nil {
 		slog.Warn("music scan: upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
@@ -385,6 +393,8 @@ func (s *CommandService) parseTrack(path, libraryID, mimeType string, fileSize i
 	if err != nil {
 		return nil, fmt.Errorf("build track: %w", err)
 	}
+	// Album identity is the on-disk parent directory — see Track.AlbumFolder.
+	t.AlbumFolder = filepath.Dir(path)
 	if s.prober != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

@@ -3,13 +3,13 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/music"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/google/uuid"
 )
 
 type MusicTrackRepository struct {
@@ -26,15 +26,21 @@ func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error 
 	if t.ID == "" {
 		t.ID = uuid.New().String()
 	}
+	// Derive album identity from the parent directory if the caller did
+	// not set it. The repo is the last line of defense: we never want a
+	// row without an album_folder, because GetAlbums groups on it.
+	if t.AlbumFolder == "" && t.FilePath != "" {
+		t.AlbumFolder = filepath.Dir(t.FilePath)
+	}
 	hasCover := t.CoverArtURL != ""
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO music_tracks (
 			id, library_id, title, artist, album, album_artist,
 			year, track_number, disk_number, duration, file_path,
 			file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
-			genre, cover_art_url, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-			CASE WHEN $20::bool THEN '/api/v1/music/tracks/' || $1 || '/art' ELSE '' END,
+			genre, album_folder, cover_art_url, created_at, updated_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
+			CASE WHEN $21::bool THEN '/api/v1/music/tracks/' || $1 || '/art' ELSE '' END,
 			NOW(),NOW())
 		ON CONFLICT (file_path) DO UPDATE SET
 			library_id=EXCLUDED.library_id, title=EXCLUDED.title, artist=EXCLUDED.artist,
@@ -45,15 +51,16 @@ func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error 
 			mime_type=EXCLUDED.mime_type, bitrate=EXCLUDED.bitrate,
 			sample_rate=EXCLUDED.sample_rate, channels=EXCLUDED.channels,
 			genre=EXCLUDED.genre,
+			album_folder=EXCLUDED.album_folder,
 			cover_art_url=CASE
-				WHEN $20::bool THEN '/api/v1/music/tracks/' || music_tracks.id || '/art'
+				WHEN $21::bool THEN '/api/v1/music/tracks/' || music_tracks.id || '/art'
 				WHEN music_tracks.cover_art_url LIKE '/api/v1/music/album-art/%' THEN music_tracks.cover_art_url
 				ELSE '' END,
 			updated_at=NOW()`,
 		t.ID, t.LibraryID, t.Title, t.Artist, t.Album, t.AlbumArtist,
 		t.Year, t.TrackNumber, t.DiskNumber, t.Duration, t.FilePath,
 		t.FileSize, t.FileHash, t.ModTime, t.MimeType, t.Bitrate, t.SampleRate, t.Channels,
-		t.Genre, hasCover,
+		t.Genre, t.AlbumFolder, hasCover,
 	)
 	return err
 }
@@ -66,12 +73,12 @@ func (r *MusicTrackRepository) GetByID(ctx context.Context, id string) (*music.T
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
-		       genre, cover_art_url, created_at, updated_at
+		       genre, album_folder, cover_art_url, created_at, updated_at
 		FROM music_tracks WHERE id=$1`, id).Scan(
 		&t.ID, &t.LibraryID, &t.Title, &t.Artist, &t.Album, &t.AlbumArtist,
 		&t.Year, &t.TrackNumber, &t.DiskNumber, &t.Duration, &t.FilePath,
 		&t.FileSize, &t.FileHash, &t.ModTime, &t.MimeType, &t.Bitrate, &t.SampleRate, &t.Channels,
-		&t.Genre, &t.CoverArtURL, &t.CreatedAt, &t.UpdatedAt,
+		&t.Genre, &t.AlbumFolder, &t.CoverArtURL, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -98,7 +105,7 @@ func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID shar
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
-		       genre, cover_art_url, created_at, updated_at,
+		       genre, album_folder, cover_art_url, created_at, updated_at,
 		       COUNT(*) OVER() AS total
 		FROM music_tracks
 		WHERE library_id=$1
@@ -123,7 +130,7 @@ func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist st
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
-		       genre, cover_art_url, created_at, updated_at
+		       genre, album_folder, cover_art_url, created_at, updated_at
 		FROM music_tracks WHERE album=$1 AND album_artist=$2
 		ORDER BY disk_number, track_number
 		LIMIT 1000`, album, artist)
@@ -141,10 +148,32 @@ func (r *MusicTrackRepository) ListByLibraryAndAlbum(ctx context.Context, librar
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
-		       genre, cover_art_url, created_at, updated_at
+		       genre, album_folder, cover_art_url, created_at, updated_at
 		FROM music_tracks WHERE library_id=$1 AND album=$2
 		ORDER BY disk_number, track_number
 		LIMIT 1000`, libraryID, album)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanTracks(rows)
+}
+
+// ListByAlbumFolder returns tracks of a specific album identified by
+// its on-disk folder. This is the folder-based replacement for
+// ListByLibraryAndAlbum: it is robust to featurings / compilations that
+// carry inconsistent album_artist tags across tracks of the same folder.
+func (r *MusicTrackRepository) ListByAlbumFolder(ctx context.Context, libraryID shared.LibraryID, albumFolder string) ([]music.Track, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, library_id, title, artist, album, album_artist,
+		       year, track_number, disk_number, duration, file_path,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
+		       genre, album_folder, cover_art_url, created_at, updated_at
+		FROM music_tracks WHERE library_id=$1 AND album_folder=$2
+		ORDER BY disk_number, track_number
+		LIMIT 1000`, libraryID, albumFolder)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +191,7 @@ func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, 
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
-		       genre, cover_art_url, created_at, updated_at,
+		       genre, album_folder, cover_art_url, created_at, updated_at,
 		       COUNT(*) OVER() AS total
 		FROM music_tracks WHERE album_artist=$1 OR artist=$1
 		ORDER BY album, disk_number, track_number
@@ -192,7 +221,7 @@ func (r *MusicTrackRepository) Search(ctx context.Context, libraryID shared.Libr
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
-		       genre, cover_art_url, created_at, updated_at
+		       genre, album_folder, cover_art_url, created_at, updated_at
 		FROM music_tracks
 		WHERE library_id = $1 AND (title ILIKE $2 ESCAPE '\' OR artist ILIKE $2 ESCAPE '\' OR album ILIKE $2 ESCAPE '\')
 		ORDER BY title LIMIT $3`, string(libraryID), like, limit)
@@ -203,19 +232,31 @@ func (r *MusicTrackRepository) Search(ctx context.Context, libraryID shared.Libr
 	return scanTracks(rows)
 }
 
+// GetAlbums groups tracks by their parent folder (album_folder). Each
+// display field on the returned Album is the most frequent value among
+// the tracks of that folder — ID3 tags within a folder can disagree
+// (a featuring changes album_artist on one track, an Apple-Music-style
+// import writes "Apple Essentials" on the album tag, etc). The
+// folder wins as identity; the majority wins for display.
 func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]music.Album, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	// Group by album only: tracks with a "feat." in artist (and empty
-	// album_artist) must not spawn a phantom album for the same title.
-	// Prefer any non-empty album_artist as the display artist.
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT album,
-		       COALESCE(MIN(NULLIF(album_artist,'')), MIN(artist)),
-		       MIN(year), COUNT(*), SUM(duration), MIN(NULLIF(cover_art_url,''))
-		FROM music_tracks WHERE library_id=$1
-		GROUP BY album
-		ORDER BY album
+		SELECT album_folder,
+		       COALESCE(mode() WITHIN GROUP (ORDER BY NULLIF(album,'')), '') AS display_album,
+		       COALESCE(
+		           mode() WITHIN GROUP (ORDER BY NULLIF(album_artist,'')),
+		           mode() WITHIN GROUP (ORDER BY NULLIF(artist,'')),
+		           ''
+		       ) AS display_artist,
+		       MIN(year) AS year,
+		       COUNT(*)  AS track_count,
+		       SUM(duration) AS duration,
+		       MIN(NULLIF(cover_art_url,'')) AS cover_art_url
+		FROM music_tracks
+		WHERE library_id=$1
+		GROUP BY album_folder
+		ORDER BY display_album, album_folder
 		LIMIT 10000`, libraryID)
 	if err != nil {
 		return nil, err
@@ -224,12 +265,15 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.L
 	var albums []music.Album
 	for rows.Next() {
 		var a music.Album
+		var folder string
 		var cover sql.NullString
-		if err := rows.Scan(&a.Title, &a.Artist, &a.Year, &a.TrackCount, &a.Duration, &cover); err != nil {
+		if err := rows.Scan(&folder, &a.Title, &a.Artist, &a.Year, &a.TrackCount, &a.Duration, &cover); err != nil {
 			return nil, err
 		}
 		a.CoverArtURL = cover.String
-		a.ID = fmt.Sprintf("%s|%s", a.Title, a.Artist)
+		// Album identity is the folder path itself, not a (title, artist)
+		// tuple. The frontend treats this as an opaque string.
+		a.ID = folder
 		albums = append(albums, a)
 	}
 	return albums, rows.Err()
@@ -273,7 +317,7 @@ func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID s
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
-		       genre, cover_art_url, created_at, updated_at
+		       genre, album_folder, cover_art_url, created_at, updated_at
 		FROM music_tracks WHERE library_id=$1`, libraryID)
 	if err != nil {
 		return nil, err
@@ -282,15 +326,31 @@ func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID s
 	return scanTracks(rows)
 }
 
+// ListAlbumsMissingArt returns one AlbumKey per folder that has no
+// cover art on any of its tracks. The Album / Artist display strings
+// come from the folder's majority tags, so downstream fetchers (which
+// still key on human-readable artist+album) get the best-guess values.
 func (r *MusicTrackRepository) ListAlbumsMissingArt(ctx context.Context, libraryID shared.LibraryID) ([]music.AlbumKey, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT album, COALESCE(NULLIF(album_artist,''), artist) AS artist
+		SELECT album_folder,
+		       COALESCE(mode() WITHIN GROUP (ORDER BY NULLIF(album,'')), '') AS display_album,
+		       COALESCE(
+		           mode() WITHIN GROUP (ORDER BY NULLIF(album_artist,'')),
+		           mode() WITHIN GROUP (ORDER BY NULLIF(artist,'')),
+		           ''
+		       ) AS display_artist
 		FROM music_tracks
-		WHERE library_id=$1 AND album <> '' AND COALESCE(NULLIF(album_artist,''), artist) <> ''
-		GROUP BY album, COALESCE(NULLIF(album_artist,''), artist)
+		WHERE library_id=$1
+		GROUP BY album_folder
 		HAVING BOOL_AND(COALESCE(cover_art_url,'') = '')
+		   AND COALESCE(mode() WITHIN GROUP (ORDER BY NULLIF(album,'')), '') <> ''
+		   AND COALESCE(
+		           mode() WITHIN GROUP (ORDER BY NULLIF(album_artist,'')),
+		           mode() WITHIN GROUP (ORDER BY NULLIF(artist,'')),
+		           ''
+		       ) <> ''
 		LIMIT 5000`, libraryID)
 	if err != nil {
 		return nil, err
@@ -299,7 +359,7 @@ func (r *MusicTrackRepository) ListAlbumsMissingArt(ctx context.Context, library
 	var out []music.AlbumKey
 	for rows.Next() {
 		var k music.AlbumKey
-		if err := rows.Scan(&k.Album, &k.Artist); err != nil {
+		if err := rows.Scan(&k.AlbumFolder, &k.Album, &k.Artist); err != nil {
 			return nil, err
 		}
 		out = append(out, k)
@@ -307,23 +367,29 @@ func (r *MusicTrackRepository) ListAlbumsMissingArt(ctx context.Context, library
 	return out, rows.Err()
 }
 
-func (r *MusicTrackRepository) SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, album, albumArtist, url string) error {
+// SetAlbumCoverArtURL applies a cover art URL to every track sharing the
+// same album_folder. Using the folder as the key keeps the semantics
+// aligned with GetAlbums / ListAlbumsMissingArt and avoids mis-stamping
+// tracks when tag values disagree within the folder.
+func (r *MusicTrackRepository) SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, albumFolder, url string) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE music_tracks
-		SET cover_art_url=$4, updated_at=NOW()
-		WHERE library_id=$1 AND album=$2 AND COALESCE(NULLIF(album_artist,''), artist)=$3`,
-		libraryID, album, albumArtist, url)
+		SET cover_art_url=$3, updated_at=NOW()
+		WHERE library_id=$1 AND album_folder=$2`,
+		libraryID, albumFolder, url)
 	return err
 }
 
 func (r *MusicTrackRepository) UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// A moved file changes its parent folder; re-derive album_folder so
+	// the album grouping stays coherent without a full re-scan.
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE music_tracks SET file_path = $1, mod_time = $2, updated_at = NOW() WHERE id = $3`,
-		newPath, modTime, id)
+		`UPDATE music_tracks SET file_path = $1, mod_time = $2, album_folder = $4, updated_at = NOW() WHERE id = $3`,
+		newPath, modTime, id, filepath.Dir(newPath))
 	return err
 }
 
@@ -336,7 +402,7 @@ func scanTracksWithTotal(rows *sql.Rows) ([]music.Track, int, error) {
 			&t.ID, &t.LibraryID, &t.Title, &t.Artist, &t.Album, &t.AlbumArtist,
 			&t.Year, &t.TrackNumber, &t.DiskNumber, &t.Duration, &t.FilePath,
 			&t.FileSize, &t.FileHash, &t.ModTime, &t.MimeType, &t.Bitrate, &t.SampleRate, &t.Channels,
-			&t.Genre, &t.CoverArtURL, &t.CreatedAt, &t.UpdatedAt,
+			&t.Genre, &t.AlbumFolder, &t.CoverArtURL, &t.CreatedAt, &t.UpdatedAt,
 			&total,
 		); err != nil {
 			return nil, 0, err
@@ -354,7 +420,7 @@ func scanTracks(rows *sql.Rows) ([]music.Track, error) {
 			&t.ID, &t.LibraryID, &t.Title, &t.Artist, &t.Album, &t.AlbumArtist,
 			&t.Year, &t.TrackNumber, &t.DiskNumber, &t.Duration, &t.FilePath,
 			&t.FileSize, &t.FileHash, &t.ModTime, &t.MimeType, &t.Bitrate, &t.SampleRate, &t.Channels,
-			&t.Genre, &t.CoverArtURL, &t.CreatedAt, &t.UpdatedAt,
+			&t.Genre, &t.AlbumFolder, &t.CoverArtURL, &t.CreatedAt, &t.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
