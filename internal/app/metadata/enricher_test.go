@@ -80,16 +80,42 @@ func newTestEnricher(primary *fakeProvider, supplementary []*fakeProvider, colle
 
 // --- pickBestMatch tests (existing) ---
 
-func TestPickBestMatch_TrustsTMDBOrderWhenBothCoherent(t *testing.T) {
-	// TMDB ranks the most relevant result first; we trust that order rather
-	// than re-ranking with our own heuristic. Both candidates share words
-	// with the query here, so we return the first one verbatim.
+func TestPickBestMatch_ExactTitleBeatsTMDBOrder(t *testing.T) {
+	// When exactly one candidate's title equals the query (case-folded +
+	// diacritic-stripped), it wins even if TMDB's popularity ranking put
+	// another word-sharing candidate first. Fixes the real-world bug where
+	// "Le flic de shanghai" matched "The Rookie : Le Flic de Los Angeles"
+	// just because TMDB ranked The Rookie higher — the exact-title result
+	// was sitting right there in the list.
 	results := []domain.MetadataResult{
 		{Title: "The Rookie : Le Flic de Los Angeles", OriginalTitle: "The Rookie"},
 		{Title: "Le flic de Shanghai", OriginalTitle: "Martial Law"},
 	}
 	best := pickBestMatch(results, "Le flic de shanghai", nil)
-	assert.Equal(t, "The Rookie : Le Flic de Los Angeles", best.Title)
+	assert.Equal(t, "Le flic de Shanghai", best.Title)
+}
+
+func TestPickBestMatch_ExactTitleBeatsSubstringPopularity(t *testing.T) {
+	// "Billions" is outranked by "The Foods that Make Billions" by popularity
+	// on a generic query, and both share the word "billions". Exact-title
+	// shortcut rescues the right one.
+	results := []domain.MetadataResult{
+		{Title: "The Foods that Make Billions", OriginalTitle: "The Foods that Make Billions"},
+		{Title: "Billions", OriginalTitle: "Billions"},
+	}
+	best := pickBestMatch(results, "Billions", nil)
+	assert.Equal(t, "Billions", best.Title)
+}
+
+func TestPickBestMatch_ExactTitleDiacriticInsensitive(t *testing.T) {
+	// Query without diacritics ("pokemon"), TMDB title with ("Pokémon") →
+	// exact match via the fold table.
+	results := []domain.MetadataResult{
+		{Title: "Some Other Show"},
+		{Title: "Pokémon"},
+	}
+	best := pickBestMatch(results, "pokemon", nil)
+	assert.Equal(t, "Pokémon", best.Title)
 }
 
 func TestPickBestMatch_SkipsIncoherentCandidates(t *testing.T) {

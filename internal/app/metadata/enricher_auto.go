@@ -514,10 +514,41 @@ func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 // second-guessing TMDB with a local heuristic. When year is provided and a
 // shared-word candidate matches it exactly, that candidate wins — remakes/
 // reboots with the same title stay disambiguated.
+//
+// Exact-title shortcut (added because popularity alone mis-ranks generic
+// titles): if exactly one candidate has Title or OriginalTitle equal to
+// the query after normalisation (case-folded + diacritics stripped), it
+// wins before any other scoring. Fixes cases like "Billions" being
+// outranked by "The Foods that Make Billions" on word-share + popularity.
+// Multiple exact matches fall back to year tiebreaker / popularity order.
 func pickBestMatch(results []domainmetadata.MetadataResult, query string, year *int) domainmetadata.MetadataResult {
 	if len(results) == 1 {
 		return results[0]
 	}
+	qNorm := normalizeForMatch(query)
+	exactIdx := -1
+	exactCount := 0
+	for i, r := range results {
+		if qNorm == "" {
+			break
+		}
+		if normalizeForMatch(r.Title) == qNorm || normalizeForMatch(r.OriginalTitle) == qNorm {
+			if year != nil && r.Year != nil && *r.Year == *year {
+				return r
+			}
+			if exactIdx < 0 {
+				exactIdx = i
+			}
+			exactCount++
+		}
+	}
+	if exactCount == 1 {
+		return results[exactIdx]
+	}
+	if exactCount > 1 {
+		return results[exactIdx]
+	}
+
 	qw := wordSet(query)
 	firstCoherentIdx := -1
 	for i, r := range results {
@@ -535,6 +566,51 @@ func pickBestMatch(results []domainmetadata.MetadataResult, query string, year *
 		return results[firstCoherentIdx]
 	}
 	return results[0]
+}
+
+// normalizeForMatch lowercases, strips diacritics and collapses punctuation/
+// whitespace to enable fuzzy equality between e.g. "Robin Hood" and
+// "robin hood" or "Le Flic de Shanghaï" and "Le flic de shanghai".
+func normalizeForMatch(s string) string {
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	prevSpace := true
+	for _, r := range strings.ToLower(s) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			prevSpace = false
+		case r == ' ', r == '-', r == '_', r == '.', r == ':', r == ';',
+			r == ',', r == '\'', r == '"', r == '(', r == ')',
+			r == '[', r == ']', r == '{', r == '}':
+			if !prevSpace {
+				b.WriteRune(' ')
+				prevSpace = true
+			}
+		default:
+			// Fold common Latin diacritics to ASCII — keeps the equality
+			// robust across TMDB title variants (Shanghaï/Shanghai, Pokémon/
+			// Pokemon, etc.) without pulling in golang.org/x/text/unicode.
+			if folded, ok := diacriticFold[r]; ok {
+				b.WriteRune(folded)
+				prevSpace = false
+			}
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+var diacriticFold = map[rune]rune{
+	'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a', 'ā': 'a',
+	'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e', 'ē': 'e',
+	'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i', 'ī': 'i',
+	'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o', 'ō': 'o', 'ø': 'o',
+	'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u', 'ū': 'u',
+	'ý': 'y', 'ÿ': 'y',
+	'ñ': 'n', 'ç': 'c', 'ß': 's',
 }
 
 func sharesAnyWord(qw map[string]bool, candidate string) bool {
