@@ -355,9 +355,32 @@ function LibrariesPage() {
     toast.success(t("admin.libraries.libraryCreated"));
   }
 
+  const refreshAllMetadata = useMutation({
+    mutationFn: () => eveyFetch({ url: "/api/v1/admin/media/refresh-metadata", method: "POST", data: {} }),
+    onSuccess: () => toast.success(t("admin.libraries.refreshAllMetadataStarted")),
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   return (
     <div className="flex flex-col gap-6" data-testid="libraries-page">
-      <PageHeader title={t("admin.libraries.title")} actions={<Button onClick={() => setShowModal(true)} data-testid="add-library-btn">{t("admin.libraries.addLibrary")}</Button>} />
+      <PageHeader
+        title={t("admin.libraries.title")}
+        actions={
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => refreshAllMetadata.mutate()}
+              loading={refreshAllMetadata.isPending}
+              data-testid="refresh-all-metadata-btn"
+            >
+              {t("admin.libraries.refreshAllMetadata")}
+            </Button>
+            <Button onClick={() => setShowModal(true)} data-testid="add-library-btn">
+              {t("admin.libraries.addLibrary")}
+            </Button>
+          </div>
+        }
+      />
 
       {isLoading ? (
         <div className="flex justify-center py-16">

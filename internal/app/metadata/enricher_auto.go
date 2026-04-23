@@ -252,6 +252,34 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 		return e.fetchBestCandidate(ctx, provider, results, title, year, mediaType)
 	}
 
+	// Exact-title shortcut BEFORE the series-specific episode-count path.
+	// If the search query matches exactly one TMDB result (case-folded +
+	// diacritic-stripped), that's the intended series — skip the episode-
+	// count heuristic that can be fooled by a documentary with a longer
+	// title sharing a word. Fixes e.g. "Billions" (Showtime, 7 seasons)
+	// losing to "The Foods that Make Billions" (single doc, shares word).
+	qNorm := normalizeForMatch(title)
+	if qNorm != "" {
+		var exactCandidates []domainmetadata.MetadataResult
+		for _, r := range results {
+			if normalizeForMatch(r.Title) == qNorm || normalizeForMatch(r.OriginalTitle) == qNorm {
+				exactCandidates = append(exactCandidates, r)
+			}
+		}
+		if len(exactCandidates) == 1 {
+			providerID := exactCandidates[0].ProviderIDs[provider.Name()]
+			if providerID != "" {
+				if full, fetchErr := provider.GetByProviderID(ctx, providerID, mediaType); fetchErr == nil && full != nil {
+					if log != nil {
+						log.Debug("series match by exact title",
+							slog.String("title", full.Title))
+					}
+					return full
+				}
+			}
+		}
+	}
+
 	// For series: iterate TMDB results in their order, fetch detail for the
 	// top N, return the first one whose S01 episode count matches the disk.
 	// If none match, pick the candidate that scores best on a
