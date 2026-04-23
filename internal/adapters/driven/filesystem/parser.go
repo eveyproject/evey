@@ -8,46 +8,55 @@ import (
 	"strings"
 )
 
-// languageTags maps filename tokens to (ISO 639-1 code, original tag).
-// Based on the normalize_video project conventions.
-var languageTags = map[string]string{
+// strongLanguageTags maps unambiguous filename tokens to ISO 639-1 codes.
+// These always anchor the title end when they appear in a filename —
+// nobody writes a movie called "French" or "VOSTFR".
+var strongLanguageTags = map[string]string{
 	// French
 	"vf": "fr", "vff": "fr", "vfi": "fr", "vfq": "fr",
 	"french": "fr", "truefrench": "fr", "vostfr": "fr", "subfrench": "fr",
-	"fr": "fr", "fre": "fr", "fra": "fr",
+	"fre": "fr", "fra": "fr",
 	// English
 	"vo": "en", "voen": "en", "eng": "en", "english": "en",
-	"en": "en",
 	// German
 	"vostde": "de", "vode": "de", "german": "de", "deutsch": "de",
-	"de": "de", "deu": "de", "ger": "de",
+	"deu": "de", "ger": "de",
 	// Spanish
 	"vostes": "es", "voes": "es", "spanish": "es", "espanol": "es",
-	"es": "es", "spa": "es",
+	"spa": "es",
 	// Italian
 	"vostit": "it", "voit": "it", "italian": "it", "italiano": "it",
-	"it": "it", "ita": "it",
+	"ita": "it",
 	// Japanese
 	"vostjp": "ja", "vojp": "ja", "japanese": "ja", "jpn": "ja",
-	"ja": "ja",
 	// Portuguese
-	"vostpt": "pt", "vopt": "pt", "portuguese": "pt",
-	"pt": "pt", "por": "pt",
+	"vostpt": "pt", "vopt": "pt", "portuguese": "pt", "por": "pt",
 	// Russian
-	"vostru": "ru", "voru": "ru", "russian": "ru",
-	"ru": "ru", "rus": "ru",
+	"vostru": "ru", "voru": "ru", "russian": "ru", "rus": "ru",
 	// Chinese
-	"vostzh": "zh", "vozh": "zh", "chinese": "zh",
-	"zh": "zh", "chi": "zh",
+	"vostzh": "zh", "vozh": "zh", "chinese": "zh", "chi": "zh",
 	// Arabic
-	"vostar": "ar", "voar": "ar", "arabic": "ar",
-	"ar": "ar", "ara": "ar",
+	"vostar": "ar", "voar": "ar", "arabic": "ar", "ara": "ar",
 	// Hindi
-	"hindi": "hi", "hi": "hi", "hin": "hi",
+	"hindi": "hi", "hin": "hi",
 	// Korean
-	"korean": "ko", "ko": "ko", "kor": "ko",
+	"korean": "ko", "kor": "ko",
 	// Multi
 	"multi": "multi",
+}
+
+// weakLanguageTags are bare 2-letter ISO codes that also happen to be
+// common words in natural language ("it" = English pronoun + Italian ISO,
+// "de" = French preposition + German ISO, "fr" = rare but "en"/"es"/"ja"
+// exist as prepositions/interjections in various langs). They only count
+// as language tags when they appear AFTER a strong metadata marker
+// (S0xE0x / year / quality / strong language tag / codec) — otherwise a
+// title like "It welcome to derry S01E03" would truncate to "It" because
+// idx 0 gets flagged as Italian.
+var weakLanguageTags = map[string]string{
+	"fr": "fr", "en": "en", "de": "de", "es": "es",
+	"it": "it", "ja": "ja", "pt": "pt", "ru": "ru",
+	"zh": "zh", "ar": "ar", "hi": "hi", "ko": "ko",
 }
 
 // knownQualities for part-based detection (lowercase).
@@ -184,12 +193,20 @@ func tryExtractYear(info *ParsedInfo, raw string, idx int, firstMeta *int) bool 
 }
 
 func tryExtractLanguage(info *ParsedInfo, lower string, idx int, firstMeta *int) bool {
-	if iso, ok := languageTags[lower]; ok {
+	if iso, ok := strongLanguageTags[lower]; ok {
 		info.Language = iso
 		info.LanguageTag = lower
 		if idx < *firstMeta {
 			*firstMeta = idx
 		}
+		return true
+	}
+	// Weak 2-letter ISO codes require a strong marker to the left to rule
+	// out natural-language collisions. They never move firstMeta — only
+	// strong markers anchor the title/metadata boundary.
+	if iso, ok := weakLanguageTags[lower]; ok && *firstMeta < idx {
+		info.Language = iso
+		info.LanguageTag = lower
 		return true
 	}
 	return false

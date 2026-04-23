@@ -372,6 +372,44 @@ func TestParse_NormalizeVideoMovies(t *testing.T) {
 	}
 }
 
+// --- Regression: weak 2-letter ISO codes must not truncate title ---
+// (before the fix, "It welcome..." got truncated to "It" because "it" was
+// matched as Italian at idx 0; "Le flic de shanghai" became "Le flic"
+// because "de" was matched as German at idx 2.)
+
+func TestParse_TitleStartingWithLanguageLikeWord_It(t *testing.T) {
+	info := ParseFilename("It welcome to derry S01E03 - MULTI - 1080P.mkv")
+	assert.Equal(t, "series", info.Type)
+	assert.Equal(t, "It welcome to derry", info.Title)
+	assert.Equal(t, "S01E03", info.SE)
+	assert.Equal(t, "multi", info.Language)
+}
+
+func TestParse_TitleWithFrenchPrepositionDe(t *testing.T) {
+	info := ParseFilename("Le flic de shanghai S01E01.avi")
+	assert.Equal(t, "series", info.Type)
+	assert.Equal(t, "Le flic de shanghai", info.Title)
+	assert.Equal(t, "S01E01", info.SE)
+}
+
+func TestParse_WeakLanguageAfterStrongMarker_Still_Works(t *testing.T) {
+	// bare "FR" after year is still a language tag
+	info := ParseFilename("Movie.2020.FR.mkv")
+	assert.Equal(t, "movie", info.Type)
+	assert.Equal(t, "Movie", info.Title)
+	assert.Equal(t, "fr", info.Language)
+	assert.Equal(t, "fr", info.LanguageTag)
+}
+
+func TestParse_WeakLanguageBeforeStrongMarker_IgnoredAsTitle(t *testing.T) {
+	// "IT" without any strong marker before it stays in the title
+	info := ParseFilename("IT Crowd S01E01.mkv")
+	assert.Equal(t, "series", info.Type)
+	assert.Equal(t, "IT Crowd", info.Title)
+	assert.Equal(t, "S01E01", info.SE)
+	assert.Empty(t, info.Language) // "IT" was part of the title, not a lang tag
+}
+
 func TestParse_NormalizeVideoSeries(t *testing.T) {
 	tests := []struct {
 		filename string

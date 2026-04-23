@@ -69,7 +69,14 @@ func (s *SubtitleScanner) ScanForSubtitles(videoPath string) ([]library.External
 					continue
 				}
 				if sub.Language == "" {
-					if iso, ok := languageTags[p]; ok {
+					// Subtitle files use bare 2-letter ISO codes legitimately
+					// (movie.fr.srt, movie.en.srt), so we accept both strong
+					// and weak tags here — the filename.ext positional parsing
+					// rules out the title-truncation collision seen in video
+					// filenames.
+					if iso, ok := strongLanguageTags[p]; ok {
+						sub.Language = iso
+					} else if iso, ok := weakLanguageTags[p]; ok {
 						sub.Language = iso
 					} else if len(p) == 2 || len(p) == 3 {
 						sub.Language = p
