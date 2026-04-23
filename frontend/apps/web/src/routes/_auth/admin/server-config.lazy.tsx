@@ -22,6 +22,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Card } from "@/components/ui/Card";
 import { ISO_REGIONS } from "@/features/user/regionList";
 import { defaultRegionForLocale } from "@/features/user/regionDefaults";
+import { supportedLanguages } from "@/i18n";
 
 const SMTP_KEYS = ["smtp.host", "smtp.port", "smtp.username", "smtp.password", "smtp.from", "smtp.tls"] as const;
 type SmtpKey = (typeof SMTP_KEYS)[number];
@@ -128,17 +129,11 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
   );
 }
 
-const LOCALE_OPTIONS = [
-  { label: "English (US)", value: "en-US" },
-  { label: "Fran\u00E7ais (FR)", value: "fr-FR" },
-  { label: "Deutsch (DE)", value: "de-DE" },
-  { label: "Espa\u00F1ol (ES)", value: "es-ES" },
-  { label: "Italiano (IT)", value: "it-IT" },
-  { label: "Portugu\u00EAs (BR)", value: "pt-BR" },
-  { label: "\u65E5\u672C\u8A9E (JP)", value: "ja-JP" },
-  { label: "\uD55C\uAD6D\uC5B4 (KR)", value: "ko-KR" },
-  { label: "\u4E2D\u6587 (CN)", value: "zh-CN" },
-];
+// Kept in sync with backend i18n supported locales + frontend setup wizard.
+// Admin panel must use the same short codes ("fr", "en" ...) that the setup
+// wizard persists to server.language — otherwise the Select can't match the
+// stored value and shows the placeholder ("envDefault") on every render.
+const LOCALE_OPTIONS = supportedLanguages.map((l) => ({ value: l.code, label: l.label }));
 
 const SERVER_LANG_KEY = "server.language";
 const SERVER_REGION_KEY = "server.region";
