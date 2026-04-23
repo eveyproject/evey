@@ -16,7 +16,21 @@ import (
 
 // AutoEnrichItem searches providers and enriches a single item.
 // Primary provider first, then supplementary for extra IDs/ratings.
+// Skips items that already have an overview (considered enriched) — admin
+// triggers a forced re-search via ForceAutoEnrichItem instead.
 func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {
+	e.autoEnrichItem(ctx, item, log, false)
+}
+
+// ForceAutoEnrichItem bypasses the "already enriched" short-circuits so an
+// explicit admin refresh can correct a past bad TMDB match. Admin field
+// overrides are still respected — they represent manual intent the user
+// doesn't want overwritten by an automated search.
+func (e *Enricher) ForceAutoEnrichItem(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {
+	e.autoEnrichItem(ctx, item, log, true)
+}
+
+func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger, force bool) {
 	if item.Title == "" {
 		return
 	}
@@ -31,12 +45,13 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		return
 	}
 
-	if item.Overview != "" {
+	if !force && item.Overview != "" {
 		return
 	}
 
-	// Respect admin intent: if any field has been manually overridden, don't
-	// auto-refresh. Admins force a refresh via the explicit RefreshMetadata RPC.
+	// Respect admin intent: manual field edits win, even under force refresh.
+	// Force only bypasses the automatic "already has overview" skip, not the
+	// explicit admin override protection.
 	if e.overrides != nil {
 		if overrides, err := e.overrides.GetByMediaItem(ctx, string(item.ID)); err == nil && len(overrides) > 0 {
 			if log != nil {
@@ -467,8 +482,20 @@ func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaI
 }
 
 // AutoEnrichAll enriches all items concurrently (max 3 at a time)
-// with rate limiting to avoid 429s from external APIs.
+// with rate limiting to avoid 429s from external APIs. Items with an
+// existing overview + trailers are skipped so re-scans don't flood TMDB.
 func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaItem, log *slog.Logger) {
+	e.autoEnrichAll(ctx, items, log, false)
+}
+
+// ForceAutoEnrichAll bypasses the "already enriched" filter so an admin
+// refresh can correct bad past matches across the whole library. Admin
+// field overrides are still respected.
+func (e *Enricher) ForceAutoEnrichAll(ctx context.Context, items []*domainlib.MediaItem, log *slog.Logger) {
+	e.autoEnrichAll(ctx, items, log, true)
+}
+
+func (e *Enricher) autoEnrichAll(ctx context.Context, items []*domainlib.MediaItem, log *slog.Logger, force bool) {
 	// Batch-load admin overrides once to avoid N queries in the hot loop.
 	overridden := map[string]bool{}
 	if e.overrides != nil && len(items) > 0 {
@@ -486,7 +513,7 @@ func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 		if overridden[string(item.ID)] {
 			continue
 		}
-		if item.Overview != "" && len(item.Trailers) > 0 {
+		if !force && item.Overview != "" && len(item.Trailers) > 0 {
 			continue
 		}
 		if err := e.apiLimiter.Wait(ctx); err != nil {
@@ -502,7 +529,7 @@ func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 			}()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			e.AutoEnrichItem(ctx, it, log)
+			e.autoEnrichItem(ctx, it, log, force)
 		}(item)
 	}
 	wg.Wait()

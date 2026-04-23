@@ -420,16 +420,29 @@ type BulkItemEnricher interface {
 	AutoEnrichAll(ctx context.Context, items []*library.MediaItem, log *slog.Logger)
 }
 
+// ForceBulkItemEnricher is the admin-triggered refresh variant — it re-runs
+// the TMDB search even on items that already have an overview. Admin field
+// overrides are still respected. Wired by the RefreshAllMetadata RPC.
+type ForceBulkItemEnricher interface {
+	ForceAutoEnrichAll(ctx context.Context, items []*library.MediaItem, log *slog.Logger)
+}
+
 // SingleItemEnricher is an optional extension of ItemEnricher for per-item auto-enrichment.
 type SingleItemEnricher interface {
 	AutoEnrichItem(ctx context.Context, item *library.MediaItem, log *slog.Logger)
 }
 
-// AutoRefreshAllItems auto-searches and enriches all media items using the enricher.
-// Returns immediately if the enricher does not support bulk enrichment.
+// AutoRefreshAllItems auto-searches and enriches all media items using the
+// enricher. This is the admin-triggered "Refresh all metadata" entry point —
+// it bypasses the "already has overview" short-circuit so past bad TMDB
+// matches get a chance to be corrected. Items with admin field overrides
+// are still skipped (manual intent wins).
+// Falls back to non-force bulk if the enricher only implements the basic
+// BulkItemEnricher interface.
 func (s *CommandService) AutoRefreshAllItems(ctx context.Context) error {
-	be, ok := s.enricher.(BulkItemEnricher)
-	if !ok {
+	fbe, forceOK := s.enricher.(ForceBulkItemEnricher)
+	be, bulkOK := s.enricher.(BulkItemEnricher)
+	if !forceOK && !bulkOK {
 		return errors.New("enricher does not support bulk refresh")
 	}
 	const pageSize = 500
@@ -441,7 +454,11 @@ func (s *CommandService) AutoRefreshAllItems(ctx context.Context) error {
 		if len(items) == 0 {
 			break
 		}
-		be.AutoEnrichAll(ctx, items, slog.Default())
+		if forceOK {
+			fbe.ForceAutoEnrichAll(ctx, items, slog.Default())
+		} else {
+			be.AutoEnrichAll(ctx, items, slog.Default())
+		}
 		if len(items) < pageSize {
 			break
 		}
