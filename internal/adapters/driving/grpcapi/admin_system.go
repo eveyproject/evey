@@ -39,7 +39,16 @@ func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSe
 	if err != nil {
 		return nil, internalError("count admins", err)
 	}
-	return &eveyv1.SetupStatusResponse{SetupComplete: admins > 0}, nil
+	resp := &eveyv1.SetupStatusResponse{SetupComplete: admins > 0}
+	if d.serverCfgSvc != nil {
+		if e, err := d.serverCfgSvc.Get(ctx, "server.language"); err == nil {
+			resp.ServerLanguage = e.Value
+		}
+		if e, err := d.serverCfgSvc.Get(ctx, "server.region"); err == nil {
+			resp.ServerRegion = e.Value
+		}
+	}
+	return resp, nil
 }
 
 func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInfoRequest) (*eveyv1.SystemInfo, error) {
