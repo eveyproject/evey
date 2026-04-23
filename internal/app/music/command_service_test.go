@@ -84,7 +84,7 @@ func TestCommandService_FetchMissingAlbumArt_HappyPath(t *testing.T) {
 		Artist:      "ArtistA",
 		AlbumArtist: "ArtistA",
 		Album:       "AlbumX",
-		FilePath:    "/m/t1.mp3",
+		FilePath:    "/m/AlbumX/t1.mp3",
 	})
 
 	n, err := cmd.FetchMissingAlbumArt(context.Background(), libID)
@@ -95,7 +95,10 @@ func TestCommandService_FetchMissingAlbumArt_HappyPath(t *testing.T) {
 		t.Fatalf("want 1 fetched, got %d", n)
 	}
 
-	sum := sha256.Sum256([]byte("ArtistA" + "|" + "AlbumX"))
+	// Folder-identity: cover filename is hashed from the album folder path,
+	// not the (artist|album) tuple, so two folders with identical tags keep
+	// separate images.
+	sum := sha256.Sum256([]byte("/m/AlbumX" + "|"))
 	hash := hex.EncodeToString(sum[:])
 	dst := filepath.Join(cmd.AlbumArtDir(), hash+".jpg")
 	got, rerr := os.ReadFile(dst)
@@ -150,14 +153,15 @@ func TestCommandService_FetchMissingAlbumArt_OtherErrorContinues(t *testing.T) {
 	cmd.WithAlbumArtFetcher(fetcher, dir)
 
 	libID := "lib1"
-	// two albums missing art
+	// Two DIFFERENT folders so they count as two distinct albums under the
+	// folder-identity grouping. Same folder would merge into one album.
 	_ = repo.Upsert(context.Background(), music.Track{
 		ID: "t1", LibraryID: shared.LibraryID(libID),
-		Artist: "A1", AlbumArtist: "A1", Album: "Alb1", FilePath: "/m/1.mp3",
+		Artist: "A1", AlbumArtist: "A1", Album: "Alb1", FilePath: "/m/Alb1/1.mp3",
 	})
 	_ = repo.Upsert(context.Background(), music.Track{
 		ID: "t2", LibraryID: shared.LibraryID(libID),
-		Artist: "A2", AlbumArtist: "A2", Album: "Alb2", FilePath: "/m/2.mp3",
+		Artist: "A2", AlbumArtist: "A2", Album: "Alb2", FilePath: "/m/Alb2/2.mp3",
 	})
 
 	n, err := cmd.FetchMissingAlbumArt(context.Background(), libID)

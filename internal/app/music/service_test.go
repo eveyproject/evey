@@ -203,11 +203,15 @@ func TestGetAlbums_Empty(t *testing.T) {
 }
 
 func TestGetAlbums_GroupsByAlbum(t *testing.T) {
+	// Album identity is now the parent folder. Put the two "Album-A" tracks
+	// in one directory and the "Album-B" track in another so we get two
+	// distinct albums. Before folder-identity this test relied on distinct
+	// album tags in the same folder, which now merge (by design).
 	dir := "/fake/music"
 	scanner := musicScannerFromFiles(dir, []fakeAudioFile{
-		{relPath: "t1.mp3", data: []byte("ID3fake1")},
-		{relPath: "t2.mp3", data: []byte("ID3fake2")},
-		{relPath: "t3.mp3", data: []byte("ID3fake3")},
+		{relPath: "Album-A/t1.mp3", data: []byte("ID3fake1")},
+		{relPath: "Album-A/t2.mp3", data: []byte("ID3fake2")},
+		{relPath: "Album-B/t3.mp3", data: []byte("ID3fake3")},
 	})
 
 	repo := fakes.NewFakeMusicTrackRepository()
@@ -222,26 +226,15 @@ func TestGetAlbums_GroupsByAlbum(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// assign 2 tracks to album-A and 1 to album-B
-	idx := 0
-	for id, tr := range func() map[string]struct{} {
-		m := map[string]struct{}{}
-		for _, tr := range tracks {
-			m[tr.ID] = struct{}{}
+	// Overwrite tags so both Album-A tracks agree, Album-B stands alone.
+	// The grouping is by folder, tag value just drives display.
+	for i := range tracks {
+		if strings.Contains(tracks[i].FilePath, "Album-A") {
+			tracks[i].Album = "Album-A"
+		} else {
+			tracks[i].Album = "Album-B"
 		}
-		return m
-	}() {
-		_ = id
-		_ = idx
-		_ = tr
-		break
-	}
-	// upsert directly so we control albums
-	tracks[0].Album = "Album-A"
-	tracks[1].Album = "Album-A"
-	tracks[2].Album = "Album-B"
-	for _, tr := range tracks {
-		if upsertErr := repo.Upsert(ctx, tr); upsertErr != nil {
+		if upsertErr := repo.Upsert(ctx, tracks[i]); upsertErr != nil {
 			t.Fatal(upsertErr)
 		}
 	}
@@ -532,10 +525,12 @@ func TestGetAlbums_MultipleLibraries(t *testing.T) {
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	ctx := context.Background()
 
-	_ = repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-A", Title: "Track1", Album: "AlbumX", FilePath: "/a/t1.mp3"})
-	_ = repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-A", Title: "Track2", Album: "AlbumX", FilePath: "/a/t2.mp3"})
-	_ = repo.Upsert(ctx, music.Track{ID: "t3", LibraryID: "lib-B", Title: "Track3", Album: "AlbumY", FilePath: "/b/t3.mp3"})
-	_ = repo.Upsert(ctx, music.Track{ID: "t4", LibraryID: "lib-B", Title: "Track4", Album: "AlbumZ", FilePath: "/b/t4.mp3"})
+	_ = repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-A", Title: "Track1", Album: "AlbumX", FilePath: "/a/AlbumX/t1.mp3"})
+	_ = repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-A", Title: "Track2", Album: "AlbumX", FilePath: "/a/AlbumX/t2.mp3"})
+	// Distinct folders give distinct albums under folder-identity; two tracks
+	// with different album tags sharing a folder would merge (by design).
+	_ = repo.Upsert(ctx, music.Track{ID: "t3", LibraryID: "lib-B", Title: "Track3", Album: "AlbumY", FilePath: "/b/AlbumY/t3.mp3"})
+	_ = repo.Upsert(ctx, music.Track{ID: "t4", LibraryID: "lib-B", Title: "Track4", Album: "AlbumZ", FilePath: "/b/AlbumZ/t4.mp3"})
 
 	albumsA, err := svc.GetAlbums(ctx, "lib-A")
 	if err != nil {
