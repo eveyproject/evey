@@ -90,6 +90,8 @@ function QuickConnectPage() {
           </div>
           <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
             <Input
+              id="quick-connect-code"
+              data-testid="quick-connect-code-input"
               label={t("auth.settings.quickConnect.codeLabel")}
               type="text"
               value={code}
@@ -106,6 +108,7 @@ function QuickConnectPage() {
               loading={authorize.isPending}
               disabled={code.trim().length < 4}
               className="w-full"
+              data-testid="quick-connect-authorize-btn"
             >
               {t("auth.settings.quickConnect.authorize")}
             </Button>

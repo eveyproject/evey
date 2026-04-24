@@ -40,6 +40,8 @@ export function QuickConnectSettings() {
       </div>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <Input
+          id="quick-connect-settings-code"
+          data-testid="quick-connect-code-input"
           label={t("auth.settings.quickConnect.codeLabel")}
           type="text"
           value={code}
@@ -55,6 +57,7 @@ export function QuickConnectSettings() {
             variant="primary"
             loading={authorize.isPending}
             disabled={code.trim().length < 4}
+            data-testid="quick-connect-authorize-btn"
           >
             {t("auth.settings.quickConnect.authorize")}
           </Button>

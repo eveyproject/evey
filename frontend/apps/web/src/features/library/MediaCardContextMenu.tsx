@@ -65,6 +65,7 @@ export const CardContextMenu = memo(function CardContextMenu({
 
   const items = [
     {
+      key: "edit-metadata",
       label: t("media.contextMenu.editMetadata"),
       onClick: () => {
         navigate({ to: "/media/$mediaId", params: { mediaId }, search: { edit: true } as never });
@@ -72,6 +73,7 @@ export const CardContextMenu = memo(function CardContextMenu({
       },
     },
     {
+      key: "add-to-playlist",
       label: t("media.contextMenu.addToPlaylist"),
       onClick: () => {
         onClose();
@@ -79,6 +81,7 @@ export const CardContextMenu = memo(function CardContextMenu({
       },
     },
     {
+      key: "add-to-collection",
       label: t("media.contextMenu.addToCollection"),
       onClick: () => {
         onClose();
@@ -86,6 +89,7 @@ export const CardContextMenu = memo(function CardContextMenu({
       },
     },
     {
+      key: isFav ? "remove-from-favorites" : "add-to-favorites",
       label: isFav ? t("media.contextMenu.removeFromFavorites") : t("media.contextMenu.addToFavorites"),
       onClick: () => {
         toggleFav.mutate(!!isFav);
@@ -93,6 +97,7 @@ export const CardContextMenu = memo(function CardContextMenu({
       },
     },
     {
+      key: "download",
       label: t("media.contextMenu.download"),
       onClick: () => {
         const tk = useAuthStore.getState().accessToken;
@@ -101,6 +106,7 @@ export const CardContextMenu = memo(function CardContextMenu({
       },
     },
     {
+      key: "mark-watched",
       label: t("media.contextMenu.markWatched"),
       onClick: () => {
         if (!profileId) { toast.error(t("media.contextMenu.noProfileSelected")); onClose(); return; }
@@ -108,6 +114,7 @@ export const CardContextMenu = memo(function CardContextMenu({
       },
     },
     {
+      key: "mark-unwatched",
       label: t("media.contextMenu.markUnwatched"),
       onClick: () => {
         if (!profileId) { toast.error(t("media.contextMenu.noProfileSelected")); onClose(); return; }
@@ -173,12 +180,13 @@ export const CardContextMenu = memo(function CardContextMenu({
     >
       {items.map((it, i) => (
         <button
-          key={it.label}
+          key={it.key}
           ref={(el) => { itemRefs.current[i] = el; }}
           role="menuitem"
           tabIndex={i === focusedIndex ? 0 : -1}
           onClick={it.onClick}
           onFocus={() => setFocusedIndex(i)}
+          data-testid={`media-context-menu-${it.key}`}
           className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
         >
           {it.label}

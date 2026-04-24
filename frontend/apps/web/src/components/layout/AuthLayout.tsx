@@ -46,6 +46,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             aria-label={t("common.aria.closeMenu")}
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSidebarOpen(false); }}
+            data-testid="close-sidebar-overlay"
           />
           <div className="relative z-overlay h-full w-56">
             <Sidebar onNavigate={() => setSidebarOpen(false)} />
@@ -60,6 +61,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             className="md:hidden p-3 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast"
             onClick={() => setSidebarOpen(true)}
             aria-label={t("common.aria.openMenu")}
+            data-testid="open-sidebar-btn"
           >
             <Menu size={24} />
           </button>
