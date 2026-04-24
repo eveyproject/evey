@@ -11,8 +11,11 @@ import (
 	"strconv"
 	"strings"
 
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // filterMasterPlaylist removes #EXT-X-STREAM-INF variants exceeding maxBps (bps).
@@ -118,11 +121,15 @@ func mediaHandler(tokens TokenVerifier, libSvc MediaItemGetter, artworkRepo Artw
 }
 
 func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.media.HandleStream")
+	defer span.End()
+	r = r.WithContext(ctx)
 	mediaID := r.PathValue("id")
 	claims := HTTPClaimsFromContext(r.Context())
 
 	if st, ok := StreamTokenFromContext(r.Context()); ok {
 		if st.MediaItemID != shared.MediaItemID(mediaID) {
+			span.SetStatus(codes.Error, "stream token media mismatch")
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -130,13 +137,17 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "media item lookup failed")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
+		span.SetStatus(codes.Error, "library access denied")
 		return
 	}
 	if item.File == nil || item.File.Path == "" {
+		span.SetStatus(codes.Error, "media file missing")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
@@ -146,11 +157,15 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 
 func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.media.Download")
+		defer span.End()
+		r = r.WithContext(ctx)
 		mediaID := r.PathValue("id")
 		claims := HTTPClaimsFromContext(r.Context())
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
 			if st.MediaItemID != shared.MediaItemID(mediaID) {
+				span.SetStatus(codes.Error, "stream token media mismatch")
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
@@ -158,10 +173,15 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL strin
 
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 		if err != nil || item.File == nil || item.File.Path == "" {
+			if err != nil {
+				span.RecordError(err)
+			}
+			span.SetStatus(codes.Error, "media item lookup failed")
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+			span.SetStatus(codes.Error, "library access denied")
 			return
 		}
 		serveDownload(w, r, item, baseURL)
@@ -169,12 +189,18 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL strin
 }
 
 func serveDownload(w http.ResponseWriter, r *http.Request, item *library.MediaItem, baseURL string) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.media.ServeDownload")
+	defer span.End()
+	r = r.WithContext(ctx)
 	if item.File == nil {
+		span.SetStatus(codes.Error, "media file missing")
 		http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
 		return
 	}
 	fi, err := os.Stat(item.File.Path)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "stat failed")
 		http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
 		return
 	}
