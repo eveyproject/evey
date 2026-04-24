@@ -17,6 +17,49 @@ var bitmapSubCodecs = map[string]bool{
 	"xsub":              true,
 }
 
+// StreamSpec is the lean value object the playback-decision pipeline operates
+// on. It carries only the stream metadata the algorithm actually inspects
+// (codec, dimensions, channels, bitrate, HDR, default flag) and decouples
+// decision.go from the much larger library.MediaStream entity. The conversion
+// from library.MediaStream happens once at the entry point of
+// MakePlaybackDecisionWithPrefs via toStreamSpecs; every internal evaluator
+// then consumes StreamSpec.
+type StreamSpec struct {
+	Type      string // "video" | "audio" | "subtitle"
+	Codec     string
+	Width     *int
+	Height    *int
+	HDRType   *string
+	Channels  *int
+	Bitrate   *int64
+	IsDefault bool
+}
+
+// toStreamSpecs adapts the persistence-flavored library.MediaStream slice
+// into the lean StreamSpec slice the decision pipeline consumes. Keeping this
+// adapter at the package boundary lets the public API stay backward-compatible
+// (call sites still pass []*library.MediaStream) while the internal logic only
+// depends on the value object.
+func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
+	out := make([]StreamSpec, 0, len(streams))
+	for _, s := range streams {
+		if s == nil {
+			continue
+		}
+		out = append(out, StreamSpec{
+			Type:      s.StreamType,
+			Codec:     s.Codec,
+			Width:     s.Width,
+			Height:    s.Height,
+			HDRType:   s.HDRType,
+			Channels:  s.Channels,
+			Bitrate:   s.Bitrate,
+			IsDefault: s.IsDefault,
+		})
+	}
+	return out
+}
+
 // TranscodingPreferences are client-side playback prefs persisted in
 // profile.preferences (JSONB) and enforced by the server when computing
 // PlaybackDecision.
@@ -122,6 +165,12 @@ func MakePlaybackDecision(
 
 // MakePlaybackDecisionWithPrefs is the full entry point that also honors user prefs.
 // MakePlaybackDecision delegates here with default (permissive) prefs for backward compat.
+//
+// The public signature still accepts []*library.MediaStream so the cascade of
+// call sites (playback_handler.go and friends) stays untouched. Internally we
+// convert once to []StreamSpec via toStreamSpecs and every evaluator below
+// works on that lean VO — keeping the algorithm decoupled from the library
+// entity it used to depend on field-by-field.
 func MakePlaybackDecisionWithPrefs(
 	streams []*library.MediaStream,
 	containerFormat string,
@@ -137,16 +186,19 @@ func MakePlaybackDecisionWithPrefs(
 		TranscodeReasons: []string{},
 	}
 
+	specs := toStreamSpecs(streams)
+
 	// Apply cellular cap if the client signaled it: prefs.EffectiveMaxBitrateKbps
 	// returns the cellular value when NetworkType=="cellular" and a cap is set.
 	if cellCap := prefs.EffectiveMaxBitrateKbps(); cellCap > 0 && (maxBitrateKbps <= 0 || cellCap < maxBitrateKbps) {
 		maxBitrateKbps = cellCap
 	}
 	effectiveMaxBitrate := resolveMaxBitrate(client.MaxBitrate, maxBitrateKbps)
-	totalBitrate := sumBitrates(streams)
+	totalBitrate := sumBitrates(specs)
 
-	for _, s := range streams {
-		switch s.StreamType {
+	for i := range specs {
+		s := specs[i]
+		switch s.Type {
 		case "video":
 			evaluateVideo(d, s, client)
 		case "audio":
@@ -158,7 +210,7 @@ func MakePlaybackDecisionWithPrefs(
 
 	checkBitrate(d, totalBitrate, effectiveMaxBitrate)
 	checkContainer(d, containerFormat, client)
-	applyCodecPreferences(d, streams, prefs)
+	applyCodecPreferences(d, specs, prefs)
 	applyDirectPlayPrefs(d, prefs)
 	resolvePlayMethod(d, client, prefs)
 	applyDefaultBitrates(d)
@@ -173,7 +225,7 @@ func resolveMaxBitrate(clientMax int64, userCapKbps int) int64 {
 	return clientMax
 }
 
-func sumBitrates(streams []*library.MediaStream) int64 {
+func sumBitrates(streams []StreamSpec) int64 {
 	var total int64
 	for _, s := range streams {
 		if s.Bitrate != nil {
@@ -183,7 +235,7 @@ func sumBitrates(streams []*library.MediaStream) int64 {
 	return total
 }
 
-func evaluateVideo(d *transcoding.PlaybackDecision, s *library.MediaStream, client transcoding.ClientProfile) {
+func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile) {
 	if !contains(client.VideoCodecs, strings.ToLower(s.Codec)) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "video_codec_unsupported")
 		d.VideoDecision = "transcode"
@@ -213,7 +265,7 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s *library.MediaStream, clie
 	}
 }
 
-func evaluateAudio(d *transcoding.PlaybackDecision, s *library.MediaStream, client transcoding.ClientProfile, prefs TranscodingPreferences) {
+func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
 	if !s.IsDefault {
 		return
 	}
@@ -242,7 +294,7 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s *library.MediaStream, clie
 	}
 }
 
-func evaluateSubtitle(d *transcoding.PlaybackDecision, s *library.MediaStream, prefs TranscodingPreferences) {
+func evaluateSubtitle(d *transcoding.PlaybackDecision, s StreamSpec, prefs TranscodingPreferences) {
 	switch prefs.SubtitleBurnIn {
 	case "always":
 		d.SubtitleDecision = "burn"
@@ -288,7 +340,7 @@ func checkContainer(d *transcoding.PlaybackDecision, containerFormat string, cli
 // applyCodecPreferences overrides VideoCodec / AudioCodec with user-preferred codec
 // when source != preferred AND the client supports the preferred codec. Forces transcode
 // if the source is already copying but the user pref differs.
-func applyCodecPreferences(d *transcoding.PlaybackDecision, streams []*library.MediaStream, prefs TranscodingPreferences) {
+func applyCodecPreferences(d *transcoding.PlaybackDecision, streams []StreamSpec, prefs TranscodingPreferences) {
 	if prefs.PreferredVideoCodec != "" && prefs.PreferredVideoCodec != "auto" {
 		srcVideoCodec := findStreamCodec(streams, "video")
 		if srcVideoCodec != prefs.PreferredVideoCodec {
@@ -374,18 +426,18 @@ func applyDefaultBitrates(d *transcoding.PlaybackDecision) {
 	}
 }
 
-func findStreamCodec(streams []*library.MediaStream, streamType string) string {
+func findStreamCodec(streams []StreamSpec, streamType string) string {
 	for _, s := range streams {
-		if s.StreamType == streamType {
+		if s.Type == streamType {
 			return strings.ToLower(s.Codec)
 		}
 	}
 	return ""
 }
 
-func findDefaultAudioCodec(streams []*library.MediaStream) string {
+func findDefaultAudioCodec(streams []StreamSpec) string {
 	for _, s := range streams {
-		if s.StreamType == "audio" && s.IsDefault {
+		if s.Type == "audio" && s.IsDefault {
 			return strings.ToLower(s.Codec)
 		}
 	}
