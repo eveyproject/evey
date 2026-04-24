@@ -200,6 +200,7 @@ function SettingsPage() {
         {TABS.map((tb) => (
           <button
             key={tb.key}
+            data-testid={`profile-settings-tab-${tb.key}`}
             onClick={() => setTab(tb.key)}
             className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors-fast border-b-2 -mb-px ${
               tab === tb.key

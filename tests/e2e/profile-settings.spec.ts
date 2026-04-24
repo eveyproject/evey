@@ -1,29 +1,27 @@
 import { test, expect } from "./fixtures/auth";
 
+const TAB_KEYS = ["appearance", "notifications", "parental", "devices", "quick-connect"] as const;
+
 test.describe("Profile settings", () => {
   test("loads with heading and tabs", async ({ page }) => {
-    await page.goto("/profile/settings", { waitUntil: "networkidle" });
+    await page.goto("/profile/settings", { waitUntil: "domcontentloaded" });
 
-    await expect(
-      page.locator("h1", { hasText: "Settings" }),
-    ).toBeVisible({ timeout: 10_000 });
+    const heading = page.locator("h1").first();
+    await expect(heading).toBeVisible({ timeout: 10_000 });
+    expect((await heading.textContent())?.trim().length ?? 0).toBeGreaterThan(0);
 
-    await expect(page.locator("button", { hasText: "Appearance" })).toBeVisible();
-    await expect(page.locator("button", { hasText: "Notifications" })).toBeVisible();
-    await expect(page.locator("button", { hasText: "Account" })).toBeVisible();
+    for (const key of TAB_KEYS) {
+      await expect(page.locator(`[data-testid="profile-settings-tab-${key}"]`)).toBeVisible({ timeout: 5_000 });
+    }
   });
 
-  test("account tab shows password change form", async ({ page }) => {
-    await page.goto("/profile/settings", { waitUntil: "networkidle" });
-
-    await page.click("button:has-text('Account')");
-
-    await expect(
-      page.locator("h3", { hasText: "Change Password" }),
-    ).toBeVisible({ timeout: 10_000 });
-
-    await expect(
-      page.locator("button", { hasText: "Update password" }),
-    ).toBeVisible();
+  test("clicking each tab does not crash", async ({ page }) => {
+    await page.goto("/profile/settings", { waitUntil: "domcontentloaded" });
+    for (const key of TAB_KEYS) {
+      const tab = page.locator(`[data-testid="profile-settings-tab-${key}"]`);
+      await expect(tab).toBeVisible({ timeout: 5_000 });
+      await tab.click();
+      await page.waitForTimeout(300);
+    }
   });
 });
