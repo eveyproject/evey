@@ -135,6 +135,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
       <div
         ref={panelRef}
         className="w-80 h-full overflow-y-auto animate-fade-in bg-[var(--surface)] border-l border-[var(--border)]"
+        data-testid="customize-panel"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
           <h2 className="text-base font-semibold text-[var(--text)]">
@@ -189,6 +190,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
           <button
             onClick={resetAll}
             className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity-fast text-[var(--text-muted)]"
+            data-testid="customize-reset-btn"
           >
             <RotateCcw size={14} />
             {t("common.feeds.resetDefaults")}

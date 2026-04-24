@@ -430,6 +430,7 @@ function HomePage() {
             onClick={() => setCustomizeOpen(true)}
             className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-[var(--radius-sm)] transition-colors-fast hover:opacity-80 text-[var(--text-muted)]"
             aria-label={t("common.feeds.customize")}
+            data-testid="home-customize-btn"
           >
             <Settings2 size={14}  aria-hidden="true" />
             {t("common.feeds.customize")}
