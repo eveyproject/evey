@@ -175,7 +175,7 @@ func (l *PluginLogger) StartCleanup(ctx context.Context, lister PluginLister) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in plugin log cleanup", "error", r, "stack", debug.Stack())
+				slog.Error("panic recovered in plugin log cleanup", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		// Run once at startup

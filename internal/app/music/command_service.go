@@ -334,7 +334,7 @@ func (s *CommandService) parseTrackWithTimeout(ctx context.Context, path, librar
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in music parseTrack", "error", r, "stack", debug.Stack())
+				slog.Error("panic recovered in music parseTrack", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		t, err := s.parseTrack(path, libraryID, mimeType, fileSize)

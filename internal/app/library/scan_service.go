@@ -302,7 +302,7 @@ func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toP
 			defer func() { <-sem }()
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("panic recovered in scan worker", "error", r, "stack", debug.Stack())
+					slog.Error("panic recovered in scan worker", "error", r, "stack", string(debug.Stack()))
 				}
 			}()
 			workerCtx, cancel := context.WithTimeout(ctx, workerTimeout)

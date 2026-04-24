@@ -115,7 +115,7 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in periodic scan", "error", r, "stack", debug.Stack())
+				slog.Error("panic recovered in periodic scan", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		ticker := time.NewTicker(interval)

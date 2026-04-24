@@ -563,7 +563,7 @@ func (e *Enricher) autoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("panic recovered in metadata enricher", "error", r, "stack", debug.Stack())
+					slog.Error("panic recovered in metadata enricher", "error", r, "stack", string(debug.Stack()))
 				}
 			}()
 			sem <- struct{}{}

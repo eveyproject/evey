@@ -112,7 +112,7 @@ func (r *AnalyticsReader) safeRun(wg *sync.WaitGroup, label string, fn func() er
 	defer wg.Done()
 	defer func() {
 		if rec := recover(); rec != nil {
-			slog.Error("panic recovered in analytics "+label, "error", rec, "stack", debug.Stack())
+			slog.Error("panic recovered in analytics "+label, "error", rec, "stack", string(debug.Stack()))
 		}
 	}()
 	*errOut = fn()

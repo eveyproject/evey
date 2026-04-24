@@ -587,7 +587,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in transcode ffmpeg cancel", "error", r, "stack", debug.Stack())
+				slog.Error("panic recovered in transcode ffmpeg cancel", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		<-r.Context().Done()

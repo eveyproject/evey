@@ -83,7 +83,7 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("panic recovered in subtitle ffmpeg cancel", "error", r, "stack", debug.Stack())
+					slog.Error("panic recovered in subtitle ffmpeg cancel", "error", r, "stack", string(debug.Stack()))
 				}
 			}()
 			<-r.Context().Done()
@@ -121,7 +121,7 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in external subtitle ffmpeg cancel", "error", r, "stack", debug.Stack())
+				slog.Error("panic recovered in external subtitle ffmpeg cancel", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
 		<-r.Context().Done()

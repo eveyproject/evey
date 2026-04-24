@@ -547,7 +547,7 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
-						slog.Error("panic recovered in meilisearch startup index", "error", r, "stack", debug.Stack())
+						slog.Error("panic recovered in meilisearch startup index", "error", r, "stack", string(debug.Stack()))
 					}
 				}()
 				indexCtx, indexCancel := context.WithTimeout(ctx, 5*time.Minute)
