@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/codes"
+
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmusic "github.com/evey-project/evey/internal/app/music"
 	appphoto "github.com/evey-project/evey/internal/app/photo"
@@ -22,6 +24,7 @@ import (
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // libraryItemCounter implements LibraryItemCounter by dispatching to the right
@@ -67,25 +70,34 @@ func chaptersHandler(tokenGen TokenVerifier, libSvc ChaptersGetter, baseURL stri
 		EndTimeMs   int64  `json:"endTimeMs"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.transcode.Chapters")
+		defer span.End()
+		r = r.WithContext(ctx)
 		mediaID := r.PathValue("id")
 		claims := HTTPClaimsFromContext(r.Context())
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
 			if st.MediaItemID != shared.MediaItemID(mediaID) {
+				span.SetStatus(codes.Error, "stream token media mismatch")
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
 		}
 		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "media item not found")
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+			span.SetStatus(codes.Error, "library access denied")
 			return
 		}
 		chapters, err := libSvc.GetChapters(r.Context(), mediaID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "get chapters failed")
 			http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
 			return
 		}
@@ -113,8 +125,13 @@ type LibraryItemCounter interface {
 
 func libraryStatsHandler(tokenGen TokenVerifier, libSvc LibraryLister, counter LibraryItemCounter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.transcode.LibraryStats")
+		defer span.End()
+		r = r.WithContext(ctx)
 		libs, err := libSvc.ListLibraries(r.Context())
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "list libraries failed")
 			http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
 			return
 		}
@@ -162,20 +179,30 @@ func playbackInfoHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, libr
 }
 
 func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.transcode.PlaybackInfo")
+	defer span.End()
+	r = r.WithContext(ctx)
 	mediaID := r.PathValue("id")
 	claims := HTTPClaimsFromContext(r.Context())
 
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
 	if err != nil || item.File == nil || item.File.Path == "" {
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.SetStatus(codes.Error, "media item not found")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
+		span.SetStatus(codes.Error, "library access denied")
 		return
 	}
 
 	streams, err := h.libSvc.GetMediaStreams(r.Context(), mediaID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "get media streams failed")
 		http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
 		return
 	}
@@ -195,6 +222,7 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	decision := apptranscoding.MakePlaybackDecisionWithPrefs(streams, containerFormat, client, userMaxBitrate, prefs)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
+		span.SetStatus(codes.Error, "transcoding disallowed by prefs")
 		http.Error(w, `{"message":"transcoding disabled by user preferences"}`, http.StatusUnprocessableEntity)
 		return
 	}
@@ -256,12 +284,16 @@ func hlsMasterHandler(deps hlsMasterServe) http.HandlerFunc {
 }
 
 func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.transcode.HLSMaster")
+	defer span.End()
+	r = r.WithContext(ctx)
 	mediaID := r.PathValue("id")
 	claims := HTTPClaimsFromContext(r.Context())
 	userID := claims.UserID
 
 	if st, ok := StreamTokenFromContext(r.Context()); ok {
 		if st.MediaItemID != shared.MediaItemID(mediaID) {
+			span.SetStatus(codes.Error, "stream token media mismatch")
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -269,10 +301,15 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
 	if err != nil || item.File == nil || item.File.Path == "" {
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.SetStatus(codes.Error, "media item not found")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
+		span.SetStatus(codes.Error, "library access denied")
 		return
 	}
 
@@ -305,6 +342,7 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	decision := apptranscoding.MakePlaybackDecisionWithPrefs(mediaStreams, containerFormat, client, 0, prefs)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
+		span.SetStatus(codes.Error, "transcoding disallowed by prefs")
 		http.Error(w, `{"message":"transcoding disabled by user preferences"}`, http.StatusUnprocessableEntity)
 		return
 	}
@@ -334,11 +372,15 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		session, err = h.hlsManager.GetOrCreate(userID, mediaID, item.File.Path, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, 0, videoDecision, audioDecision, overrides)
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "hls session create failed")
 		slog.Error("hls: get or create session", slog.Any("err", err))
 		http.Error(w, `{"message":"transcode busy"}`, http.StatusServiceUnavailable)
 		return
 	}
 	if err := session.WaitReady(r.Context()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "hls session wait ready failed")
 		slog.Error("hls: wait ready", slog.Any("err", err))
 		http.Error(w, `{"message":"transcode failed"}`, http.StatusInternalServerError)
 		return
@@ -351,6 +393,9 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *hlsMasterServe) serveMaster(w http.ResponseWriter, r *http.Request, outputDir, userID string) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.transcode.HLSMaster.serve")
+	defer span.End()
+	r = r.WithContext(ctx)
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -358,6 +403,8 @@ func (h *hlsMasterServe) serveMaster(w http.ResponseWriter, r *http.Request, out
 	masterPath := filepath.Join(outputDir, "master.m3u8")
 	data, readErr := os.ReadFile(masterPath)
 	if readErr != nil {
+		span.RecordError(readErr)
+		span.SetStatus(codes.Error, "read master playlist failed")
 		slog.Error("hls: read master playlist", slog.Any("err", readErr))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
@@ -418,6 +465,9 @@ func injectTokenIntoPlaylist(content, token string) string {
 
 func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManager *apptranscoding.HLSManager, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.transcode.HLSSegment")
+		defer span.End()
+		r = r.WithContext(ctx)
 		mediaID := r.PathValue("id")
 		file := r.PathValue("file")
 		claims := HTTPClaimsFromContext(r.Context())
@@ -425,16 +475,20 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
 			if st.MediaItemID != shared.MediaItemID(mediaID) {
+				span.SetStatus(codes.Error, "stream token media mismatch")
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
 		} else {
 			item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "media item not found")
 				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 				return
 			}
 			if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+				span.SetStatus(codes.Error, "library access denied")
 				return
 			}
 		}
@@ -447,14 +501,18 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 		// caller's own decisions.
 		session, ok := hlsManager.GetSession(mediaID)
 		if !ok {
+			span.SetStatus(codes.Error, "session expired")
 			http.Error(w, `{"message":"session expired, refresh playlist"}`, http.StatusNotFound)
 			return
 		}
 		if sessionUserID != string(session.UserID) {
+			span.SetStatus(codes.Error, "session user mismatch")
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 		if waitErr := session.WaitReady(r.Context()); waitErr != nil {
+			span.RecordError(waitErr)
+			span.SetStatus(codes.Error, "session not ready")
 			http.Error(w, `{"message":"session not ready"}`, http.StatusServiceUnavailable)
 			return
 		}
@@ -462,10 +520,13 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 
 		filePath, err := safeJoin(outputDir, filepath.Base(file))
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "unsafe segment path")
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
 		if _, err := os.Stat(filePath); err != nil {
+			span.SetStatus(codes.Error, "segment file missing")
 			http.Error(w, `{"message":"segment not found"}`, http.StatusNotFound)
 			return
 		}
@@ -484,6 +545,8 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 			if tok := RawTokenFromContext(r.Context()); tok != "" {
 				data, readErr := os.ReadFile(filePath)
 				if readErr != nil {
+					span.RecordError(readErr)
+					span.SetStatus(codes.Error, "read sub-playlist failed")
 					http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 					return
 				}
@@ -522,22 +585,31 @@ func transcodeHandler(deps transcodeServe) http.HandlerFunc {
 }
 
 func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
+	tctx, span := tracing.StartSpan(r.Context(), "http.transcode.Stream")
+	defer span.End()
+	r = r.WithContext(tctx)
 	mediaID := r.PathValue("id")
 	claims := HTTPClaimsFromContext(r.Context())
 	userID := claims.UserID
 
 	if st, ok := StreamTokenFromContext(r.Context()); ok {
 		if st.MediaItemID != shared.MediaItemID(mediaID) {
+			span.SetStatus(codes.Error, "stream token media mismatch")
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 	}
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
 	if err != nil || item.File == nil || item.File.Path == "" {
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.SetStatus(codes.Error, "media item not found")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
+		span.SetStatus(codes.Error, "library access denied")
 		return
 	}
 	maxStreams := 0
@@ -547,6 +619,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !h.throttle.Acquire(userID, maxStreams) {
+		span.SetStatus(codes.Error, "max concurrent streams reached")
 		http.Error(w, `{"message":"max concurrent streams reached"}`, http.StatusTooManyRequests)
 		return
 	}
@@ -567,11 +640,15 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "ffmpeg stdout pipe failed")
 		slog.Error("ffmpeg stdout pipe", slog.Any("err", err))
 		http.Error(w, "transcode failed", http.StatusInternalServerError)
 		return
 	}
 	if err := cmd.Start(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "ffmpeg start failed")
 		slog.Error("ffmpeg start", slog.Any("err", err))
 		http.Error(w, "transcode failed", http.StatusInternalServerError)
 		return
