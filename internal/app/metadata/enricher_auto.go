@@ -80,8 +80,15 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		searchTitle = item.Title
 	}
 
+	// Year source: item.Catalog.Year is set by prior enrichments. On a
+	// forced refresh (admin "Refresh all metadata"), this year may be the
+	// one a WRONG previous match wrote — passing it back to TMDB filters
+	// the search down to just that wrong result and the exact-title
+	// shortcut below only sees 1 candidate (the wrong one) and picks it
+	// again. Drop year on force so the search returns the full candidate
+	// list and popularity / exact-title ranking can correct the mistake.
 	var year *int
-	if item.Catalog != nil {
+	if !force && item.Catalog != nil {
 		year = item.Catalog.Year
 	}
 
@@ -239,7 +246,10 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 	results, err := provider.Search(ctx, title, year, mediaType)
 	if err != nil {
 		if log != nil {
-			log.Debug("provider search failed", slog.String("provider", provider.Name()), slog.String("title", title), slog.Any("err", err))
+			log.Debug("provider search failed",
+				slog.String("provider", provider.Name()),
+				slog.String("title", title),
+				slog.Any("err", err))
 		}
 		return nil
 	}
@@ -272,7 +282,8 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 				if full, fetchErr := provider.GetByProviderID(ctx, providerID, mediaType); fetchErr == nil && full != nil {
 					if log != nil {
 						log.Debug("series match by exact title",
-							slog.String("title", full.Title))
+							slog.String("title", full.Title),
+							slog.String("query", title))
 					}
 					return full
 				}
