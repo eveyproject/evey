@@ -78,6 +78,7 @@ frontend/apps/web/tsconfig.tsbuildinfo
 # E2E test artifacts
 tests/e2e/.e2e-start-time
 tests/e2e/.token-cache.json
+tests/e2e/fixtures/.token-cache.json
 tests/e2e/test-results/
 tests/e2e/fixtures/media/
 test-results/
