@@ -157,7 +157,7 @@ func (s *CommandService) processOnePhoto(ctx context.Context, libraryID string, 
 	parentDir := filepath.Dir(j.path)
 	album := strings.TrimPrefix(parentDir, j.dir)
 	album = strings.TrimPrefix(album, string(filepath.Separator))
-	if album == "." || parentDir == j.dir {
+	if parentDir == j.dir {
 		album = ""
 	}
 
