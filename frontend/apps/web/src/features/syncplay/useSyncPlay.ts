@@ -279,7 +279,9 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
   useEffect(() => {
     if (!accessToken) return;
     try {
-      const payload = JSON.parse(atob(accessToken.split(".")[1])) as { sub?: string };
+      const tokenParts = accessToken.split(".");
+      if (tokenParts.length < 3 || !tokenParts[1]) return;
+      const payload = JSON.parse(atob(tokenParts[1])) as { sub?: string };
       myUserIdRef.current = payload.sub ?? null;
     } catch {
       // ignore

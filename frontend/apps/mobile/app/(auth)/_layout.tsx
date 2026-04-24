@@ -6,7 +6,9 @@ import { MiniPlayer } from "../../src/components/MiniPlayer";
 
 function isTokenExpired(token: string): boolean {
   try {
-    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    const tokenParts = token.split(".");
+    if (tokenParts.length < 3 || !tokenParts[1]) return true;
+    const payload = JSON.parse(atob(tokenParts[1].replace(/-/g, "+").replace(/_/g, "/")));
     return typeof payload.exp === "number" && payload.exp < Date.now() / 1000;
   } catch {
     return true;
