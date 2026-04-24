@@ -6,9 +6,11 @@ import (
 	"fmt"
 
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // MediaItemQueryRepoAdapter wraps the existing MediaItemRepository and adds
@@ -26,12 +28,22 @@ func NewMediaItemQueryRepoAdapter(db *sql.DB) *MediaItemQueryRepoAdapter {
 }
 
 func (r *MediaItemQueryRepoAdapter) GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.GetByID")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.items.GetByID(ctx, id)
+	item, err := r.items.GetByID(ctx, id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return item, nil
 }
 
 func (r *MediaItemQueryRepoAdapter) GetByIDs(ctx context.Context, ids []shared.MediaItemID) ([]*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.GetByIDs")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(ids) == 0 {
@@ -46,6 +58,8 @@ func (r *MediaItemQueryRepoAdapter) GetByIDs(ctx context.Context, ids []shared.M
 			mediaItemColumns, mediaItemFromJoins),
 		pq.Array(strIDs))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -53,27 +67,52 @@ func (r *MediaItemQueryRepoAdapter) GetByIDs(ctx context.Context, ids []shared.M
 	for rows.Next() {
 		item, err := r.items.scanMediaItemFromRows(rows)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result = append(result, item)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *MediaItemQueryRepoAdapter) List(ctx context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.List")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.items.List(ctx, filter)
+	items, err := r.items.List(ctx, filter)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return items, nil
 }
 
 func (r *MediaItemQueryRepoAdapter) Count(ctx context.Context, filter library.ListMediaItemsFilter) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.Count")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.items.Count(ctx, filter)
+	count, err := r.items.Count(ctx, filter)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return count, nil
 }
 
 // GetCastByMediaItem returns cast members with person info in a single JOIN query.
 func (r *MediaItemQueryRepoAdapter) GetCastByMediaItem(ctx context.Context, mediaItemID shared.MediaItemID) ([]library.CastMember, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.GetCastByMediaItem")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -83,6 +122,8 @@ func (r *MediaItemQueryRepoAdapter) GetCastByMediaItem(ctx context.Context, medi
 		 WHERE mp.media_item_id = $1
 		 ORDER BY mp.sort_order`, string(mediaItemID))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -91,15 +132,24 @@ func (r *MediaItemQueryRepoAdapter) GetCastByMediaItem(ctx context.Context, medi
 	for rows.Next() {
 		var cm library.CastMember
 		if err := rows.Scan(&cm.PersonID, &cm.PersonName, &cm.ThumbPath, &cm.RoleType, &cm.CharacterName, &cm.SortOrder); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result = append(result, cm)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 // GetCastForItems fetches cast for multiple media items in one query — eliminates N+1 in gallery listing.
 func (r *MediaItemQueryRepoAdapter) GetCastForItems(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]library.CastMember, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.GetCastForItems")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(mediaItemIDs) == 0 {
@@ -116,6 +166,8 @@ func (r *MediaItemQueryRepoAdapter) GetCastForItems(ctx context.Context, mediaIt
 		 WHERE mp.media_item_id = ANY($1)
 		 ORDER BY mp.media_item_id, mp.sort_order`, pq.Array(strIDs))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -125,15 +177,30 @@ func (r *MediaItemQueryRepoAdapter) GetCastForItems(ctx context.Context, mediaIt
 		var mediaItemID string
 		var cm library.CastMember
 		if err := rows.Scan(&mediaItemID, &cm.PersonID, &cm.PersonName, &cm.ThumbPath, &cm.RoleType, &cm.CharacterName, &cm.SortOrder); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result[shared.MediaItemID(mediaItemID)] = append(result[shared.MediaItemID(mediaItemID)], cm)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *MediaItemQueryRepoAdapter) SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
-	return r.items.SeriesAggregate(ctx, seriesID)
+	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.SeriesAggregate")
+	defer span.End()
+	agg, err := r.items.SeriesAggregate(ctx, seriesID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return library.SeriesAggregate{}, err
+	}
+	return agg, nil
 }
 
 var _ library.MediaItemQueryRepo = (*MediaItemQueryRepoAdapter)(nil)
