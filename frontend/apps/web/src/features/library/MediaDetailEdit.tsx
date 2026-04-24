@@ -303,7 +303,7 @@ export function MetadataEditPanel({
         ) : formKey === "genres" ? (
           <Input label={label} value={form[formKey]} onChange={set(formKey)} placeholder="Action, Drama" />
         ) : formKey === "title" ? (
-          <Input label={label} value={form[formKey]} onChange={set(formKey)} />
+          <Input id="media-edit-title" data-testid="media-edit-title-input" label={label} value={form[formKey]} onChange={set(formKey)} />
         ) : (
           <Input label={label} value={form[formKey]} onChange={set(formKey)} placeholder={label} />
         )}
@@ -342,14 +342,14 @@ export function MetadataEditPanel({
       )}
       {item.id && <ArtworkPicker mediaItemId={item.id} />}
       <div className="flex gap-2 flex-wrap pt-1">
-        <Button type="submit" loading={saving} disabled={!canSave}>{t("common.save")}</Button>
-        <Button type="button" variant="secondary" loading={refreshStatus === "running"} onClick={handleRefresh}>
+        <Button type="submit" loading={saving} disabled={!canSave} data-testid="media-edit-save-btn">{t("common.save")}</Button>
+        <Button type="button" variant="secondary" loading={refreshStatus === "running"} onClick={handleRefresh} data-testid="media-edit-refresh-btn">
           {refreshStatus === "done" ? t("common.done") : refreshStatus === "error" ? t("common.error") : t("media.detail.refreshMetadata")}
         </Button>
-        <Button type="button" variant="danger" onClick={handleResetMetadata}>
+        <Button type="button" variant="danger" onClick={handleResetMetadata} data-testid="media-edit-reset-btn">
           {t("media.detail.resetMetadata")}
         </Button>
-        <Button type="button" variant="secondary" onClick={onCancel}>{t("common.cancel")}</Button>
+        <Button type="button" variant="secondary" onClick={onCancel} data-testid="media-edit-cancel-btn">{t("common.cancel")}</Button>
       </div>
       {setOverride.isError && <p className="text-sm text-[var(--color-danger)]">{t("media.detail.failedToSaveDot")}</p>}
     </form>

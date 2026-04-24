@@ -113,6 +113,7 @@ export function MediaDetailHero({
               title={t("media.detail.editMetadata")}
               aria-label={t("media.detail.editMetadata")}
               className="flex-shrink-0 p-1.5 rounded-full transition-opacity-fast hover:opacity-80 bg-[var(--overlay-chip-bg)] text-[var(--overlay-text-muted)]"
+              data-testid="media-edit-toggle-btn"
             >
               <Pencil size={16}  aria-hidden="true" />
             </button>

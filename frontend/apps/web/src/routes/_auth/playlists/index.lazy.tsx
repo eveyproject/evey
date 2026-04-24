@@ -93,7 +93,7 @@ function PlaylistsIndex() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-[var(--text)]">{t("media.playlist.playlists")}</h1>
-        <Button onClick={() => setCreateOpen(true)}>{t("media.playlist.newPlaylist")}</Button>
+        <Button onClick={() => setCreateOpen(true)} data-testid="playlist-create-btn">{t("media.playlist.newPlaylist")}</Button>
       </div>
 
       {isLoading ? (
