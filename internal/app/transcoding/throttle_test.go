@@ -1,6 +1,8 @@
 package transcoding_test
 
 import (
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/evey-project/evey/internal/app/transcoding"
@@ -64,4 +66,29 @@ func TestAcquire_IsolatedPerUser(t *testing.T) {
 	th.Acquire("user1", 1)
 	assert.False(t, th.Acquire("user1", 1))
 	assert.True(t, th.Acquire("user2", 1))
+}
+
+// TestAcquire_ConcurrentRespectsLimit hammers Acquire from many goroutines and
+// asserts that no more than `max` ever succeed. Run with -race to catch any
+// mutation of the active map without the mutex.
+func TestAcquire_ConcurrentRespectsLimit(t *testing.T) {
+	th := transcoding.NewTranscodeThrottle()
+	const (
+		workers = 64
+		max     = 5
+	)
+	var success atomic.Int64
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			if th.Acquire("user1", max) {
+				success.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	assert.EqualValues(t, max, success.Load(), "exactly max acquires must succeed")
+	assert.False(t, th.Acquire("user1", max), "no further slot available")
 }
