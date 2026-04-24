@@ -7,15 +7,16 @@ const ADMIN_PAGES = [
   "/admin/users",
   "/admin/plugins",
   "/admin/webhooks",
-  "/admin/metadata",
   "/admin/feeds",
-  "/admin/audit",
   "/admin/activity",
   "/admin/sessions",
   "/admin/analytics",
   "/admin/system-health",
   "/admin/server-config",
-  "/admin/logs",
+  "/admin/remote-access",
+  "/admin/transcode-cache",
+  "/admin/api-keys",
+  "/admin/backup",
 ];
 
 for (const path of ADMIN_PAGES) {

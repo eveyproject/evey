@@ -12,15 +12,16 @@ const ADMIN_PAGES = [
   { path: "/admin/users", name: "Users" },
   { path: "/admin/plugins", name: "Plugins" },
   { path: "/admin/webhooks", name: "Webhooks" },
-  { path: "/admin/metadata", name: "Metadata" },
   { path: "/admin/feeds", name: "Feeds" },
-  { path: "/admin/audit", name: "Audit" },
   { path: "/admin/activity", name: "Activity" },
   { path: "/admin/sessions", name: "Sessions" },
   { path: "/admin/analytics", name: "Analytics" },
   { path: "/admin/system-health", name: "System Health" },
   { path: "/admin/server-config", name: "Server Config" },
-  { path: "/admin/logs", name: "Logs" },
+  { path: "/admin/remote-access", name: "Remote Access" },
+  { path: "/admin/transcode-cache", name: "Transcode Cache" },
+  { path: "/admin/api-keys", name: "API Keys" },
+  { path: "/admin/backup", name: "Backup" },
 ];
 
 for (const pg of ADMIN_PAGES) {
