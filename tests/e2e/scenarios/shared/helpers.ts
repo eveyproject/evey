@@ -119,6 +119,24 @@ export async function gotoRandomMovie(page: Page): Promise<string | null> {
   return null;
 }
 
+/** Navigate to a random SERIES detail */
+export async function gotoRandomSeries(page: Page): Promise<string | null> {
+  const token = await getToken(page);
+  await page.waitForTimeout(500);
+  const result = await fetchWithRetry(page, "/api/v1/media?pagination.pageSize=50&type=MEDIA_ITEM_TYPE_SERIES", token);
+  if (!result.ok) return null;
+  const items = (result.data as { items?: { id?: string }[] })?.items ?? [];
+  const ids = items.map((i) => i.id).filter(Boolean) as string[];
+  if (ids.length === 0) return null;
+  const shuffled = [...ids].sort(() => Math.random() - 0.5);
+  for (const id of shuffled.slice(0, 5)) {
+    await goto(page, `/media/${id}`);
+    const found = await page.waitForSelector('[data-testid="media-detail"]', { timeout: 8_000 }).catch(() => null);
+    if (found) return id;
+  }
+  return null;
+}
+
 /** API helper: GET with auth */
 export async function apiGet(page: Page, path: string) {
   const token = await getToken(page);

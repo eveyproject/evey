@@ -1,12 +1,20 @@
 import { test, expect } from "./fixtures/auth";
+import { gotoRandomMovie, gotoRandomSeries } from "./scenarios/shared/helpers";
 
-// Use env var or fallback to a known movie with metadata
-const MOVIE_ID = process.env.MEDIA_ID ?? "577d3d4d-da77-4c8a-8e46-6bee6b64635c";
-const SERIES_ID = process.env.SERIES_ID ?? "cda0bda7-a9d3-4e3b-b439-88ee774c9be9";
+// MEDIA_ID / SERIES_ID can pin a specific item (CI determinism); otherwise we
+// pick a random one whose detail page loads — the previous hardcoded fallback
+// IDs are 404 against any DB that wasn't the one they were captured from.
+const MOVIE_ID = process.env.MEDIA_ID ?? "";
+const SERIES_ID = process.env.SERIES_ID ?? "";
 
 test.describe("Media Detail — movie", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/media/${MOVIE_ID}`, { waitUntil: "networkidle" });
+    if (MOVIE_ID) {
+      await page.goto(`/media/${MOVIE_ID}`, { waitUntil: "domcontentloaded" });
+    } else {
+      const id = await gotoRandomMovie(page);
+      test.skip(!id, "No playable movie found");
+    }
     await page.waitForSelector('[data-testid="media-detail"]', { timeout: 15_000 });
   });
 
@@ -32,7 +40,13 @@ test.describe("Media Detail — movie", () => {
   test("poster image is present (desktop)", async ({ page }) => {
     // Poster is hidden on mobile (md:block), ensure viewport is wide enough
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto(`/media/${MOVIE_ID}`, { waitUntil: "networkidle" });
+    if (MOVIE_ID) {
+      await page.goto(`/media/${MOVIE_ID}`, { waitUntil: "domcontentloaded" });
+    } else {
+      const id = await gotoRandomMovie(page);
+      test.skip(!id, "No playable movie found");
+    }
+    await page.waitForSelector('[data-testid="media-detail"]', { timeout: 15_000 });
 
     const poster = page.locator('[data-testid="media-poster"]');
     await expect(poster).toBeVisible({ timeout: 10_000 });
@@ -102,7 +116,12 @@ test.describe("Media Detail — movie", () => {
 
 test.describe("Media Detail — series", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/media/${SERIES_ID}`, { waitUntil: "networkidle" });
+    if (SERIES_ID) {
+      await page.goto(`/media/${SERIES_ID}`, { waitUntil: "domcontentloaded" });
+    } else {
+      const id = await gotoRandomSeries(page);
+      test.skip(!id, "No series found");
+    }
   });
 
   test("page loads without error", async ({ page }) => {
