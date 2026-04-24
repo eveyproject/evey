@@ -10,21 +10,21 @@ import (
 
 type QueryServiceOption func(*QueryService)
 
-func WithPeople(people library.PersonRepository) QueryServiceOption {
+func WithPeople(people library.PersonQueryRepo) QueryServiceOption {
 	return func(s *QueryService) { s.people = people }
 }
 
-func WithChapters(chapters library.ChapterRepository) QueryServiceOption {
+func WithChapters(chapters library.ChapterQueryRepo) QueryServiceOption {
 	return func(s *QueryService) { s.chapters = chapters }
 }
 
-func WithTrickplay(trickplay library.TrickplayRepository) QueryServiceOption {
+func WithTrickplay(trickplay library.TrickplayQueryRepo) QueryServiceOption {
 	return func(s *QueryService) { s.trickplay = trickplay }
 }
 
 func WithTranslations(
-	mediaTranslations library.MediaItemTranslationRepository,
-	personTranslations library.PersonTranslationRepository,
+	mediaTranslations library.MediaItemTranslationQueryRepo,
+	personTranslations library.PersonTranslationQueryRepo,
 ) QueryServiceOption {
 	return func(s *QueryService) {
 		s.mediaTranslations = mediaTranslations
@@ -35,19 +35,19 @@ func WithTranslations(
 type QueryService struct {
 	libraries          library.LibraryQueryRepo
 	mediaItems         library.MediaItemQueryRepo
-	streams            library.MediaStreamRepository
+	streams            library.MediaStreamQueryRepo
 	search             library.SearchIndex
-	people             library.PersonRepository
-	mediaTranslations  library.MediaItemTranslationRepository
-	personTranslations library.PersonTranslationRepository
-	chapters           library.ChapterRepository
-	trickplay          library.TrickplayRepository
+	people             library.PersonQueryRepo
+	mediaTranslations  library.MediaItemTranslationQueryRepo
+	personTranslations library.PersonTranslationQueryRepo
+	chapters           library.ChapterQueryRepo
+	trickplay          library.TrickplayQueryRepo
 }
 
 func NewQueryService(
 	libraries library.LibraryQueryRepo,
 	mediaItems library.MediaItemQueryRepo,
-	streams library.MediaStreamRepository,
+	streams library.MediaStreamQueryRepo,
 	search library.SearchIndex,
 	opts ...QueryServiceOption,
 ) *QueryService {

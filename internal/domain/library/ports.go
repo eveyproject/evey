@@ -82,21 +82,34 @@ type SeriesAggregate struct {
 	SeasonCount     int
 }
 
+// MediaStreamQueryRepo is the read-only subset of MediaStreamRepository for
+// query services. The full repository embeds this, so postgres adapters and
+// other concrete repos satisfy both with a single implementation.
+type MediaStreamQueryRepo interface {
+	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*MediaStream, error)
+}
+
 type MediaStreamRepository interface {
+	MediaStreamQueryRepo
 	CreateBatch(ctx context.Context, streams []*MediaStream) error
 	ReplaceBatch(ctx context.Context, mediaItemID shared.MediaItemID, streams []*MediaStream) error
-	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*MediaStream, error)
 	DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error
 }
 
-type ChapterRepository interface {
-	ReplaceBatch(ctx context.Context, mediaItemID shared.MediaItemID, chapters []*Chapter) error
+// ChapterQueryRepo is the read-only subset of ChapterRepository for query
+// services. The full repository embeds this.
+type ChapterQueryRepo interface {
 	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*Chapter, error)
 }
 
-type PersonRepository interface {
-	Create(ctx context.Context, person *Person) error
-	Update(ctx context.Context, person *Person) error
+type ChapterRepository interface {
+	ChapterQueryRepo
+	ReplaceBatch(ctx context.Context, mediaItemID shared.MediaItemID, chapters []*Chapter) error
+}
+
+// PersonQueryRepo is the read-only subset of PersonRepository for query
+// services. The full repository embeds this.
+type PersonQueryRepo interface {
 	GetByID(ctx context.Context, id string) (*Person, error)
 	GetByName(ctx context.Context, name string) (*Person, error)
 	// GetByNamesBatch returns a name→Person map for the given set of
@@ -105,6 +118,12 @@ type PersonRepository interface {
 	// large casts.
 	GetByNamesBatch(ctx context.Context, names []string) (map[string]*Person, error)
 	List(ctx context.Context) ([]*Person, error)
+}
+
+type PersonRepository interface {
+	PersonQueryRepo
+	Create(ctx context.Context, person *Person) error
+	Update(ctx context.Context, person *Person) error
 }
 
 type MediaPersonRepository interface {
@@ -220,11 +239,17 @@ type FileWatcher interface {
 	Close() error
 }
 
-type TrickplayRepository interface {
-	Create(ctx context.Context, manifest *TrickplayManifest) error
+// TrickplayQueryRepo is the read-only subset of TrickplayRepository for query
+// services. The full repository embeds this.
+type TrickplayQueryRepo interface {
 	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) (*TrickplayManifest, error)
-	Delete(ctx context.Context, mediaItemID shared.MediaItemID) error
 	ListMissingMediaItemIDs(ctx context.Context) ([]string, error)
+}
+
+type TrickplayRepository interface {
+	TrickplayQueryRepo
+	Create(ctx context.Context, manifest *TrickplayManifest) error
+	Delete(ctx context.Context, mediaItemID shared.MediaItemID) error
 }
 
 // UserRating values: -1=dislike, 0=neutral/removed, 1=like
@@ -250,18 +275,32 @@ type TrickplayGenerator interface {
 	Generate(ctx context.Context, filePath string, outputDir string, interval, width, tileWidth, tileHeight, maxWorkers int) (*TrickplayResult, error)
 }
 
-type MediaItemTranslationRepository interface {
-	Upsert(ctx context.Context, t *MediaItemTranslation) error
-	UpsertBatch(ctx context.Context, translations []*MediaItemTranslation) error
+// MediaItemTranslationQueryRepo is the read-only subset of
+// MediaItemTranslationRepository for query services. The full repository
+// embeds this.
+type MediaItemTranslationQueryRepo interface {
 	GetByMediaItemAndLocale(ctx context.Context, mediaItemID, locale string) (*MediaItemTranslation, error)
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*MediaItemTranslation, error)
+}
+
+type MediaItemTranslationRepository interface {
+	MediaItemTranslationQueryRepo
+	Upsert(ctx context.Context, t *MediaItemTranslation) error
+	UpsertBatch(ctx context.Context, translations []*MediaItemTranslation) error
 	DeleteByMediaItem(ctx context.Context, mediaItemID string) error
 }
 
-type PersonTranslationRepository interface {
-	Upsert(ctx context.Context, t *PersonTranslation) error
+// PersonTranslationQueryRepo is the read-only subset of
+// PersonTranslationRepository for query services. The full repository embeds
+// this.
+type PersonTranslationQueryRepo interface {
 	GetByPersonAndLocale(ctx context.Context, personID, locale string) (*PersonTranslation, error)
 	GetByPerson(ctx context.Context, personID string) ([]*PersonTranslation, error)
+}
+
+type PersonTranslationRepository interface {
+	PersonTranslationQueryRepo
+	Upsert(ctx context.Context, t *PersonTranslation) error
 	DeleteByPerson(ctx context.Context, personID string) error
 }
 
