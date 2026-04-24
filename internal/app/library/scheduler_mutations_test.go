@@ -70,7 +70,7 @@ func TestScheduler_RunScan_ScanErrorLogged(t *testing.T) {
 
 	sched.SetNowFunc(func() time.Time { return time.Now() })
 	sched.Tick(ctx)
-	time.Sleep(200 * time.Millisecond)
+	sched.WaitForScans()
 
 	out := buf.String()
 	assert.Contains(t, out, "scan failed", "should log scan failure")
@@ -93,7 +93,7 @@ func TestScheduler_RunScan_SuccessLogged(t *testing.T) {
 
 	sched.SetNowFunc(func() time.Time { return time.Now() })
 	sched.Tick(ctx)
-	time.Sleep(200 * time.Millisecond)
+	sched.WaitForScans()
 
 	out := buf.String()
 	assert.Contains(t, out, "scan done")
@@ -116,7 +116,7 @@ func TestScheduler_RunScan_InvalidCronLogged(t *testing.T) {
 
 	sched.SetNowFunc(func() time.Time { return time.Now() })
 	sched.Tick(ctx)
-	time.Sleep(200 * time.Millisecond)
+	sched.WaitForScans()
 
 	out := buf.String()
 	assert.Contains(t, out, "invalid cron expression")
@@ -137,7 +137,7 @@ func TestScheduler_RunScan_ValidCronNoWarn(t *testing.T) {
 
 	sched.SetNowFunc(func() time.Time { return time.Now() })
 	sched.Tick(ctx)
-	time.Sleep(200 * time.Millisecond)
+	sched.WaitForScans()
 
 	out := buf.String()
 	assert.NotContains(t, out, "invalid cron expression")
@@ -159,7 +159,7 @@ func TestScheduler_RunScan_UpdateAfterRunErrorLogged(t *testing.T) {
 
 	sched.SetNowFunc(func() time.Time { return time.Now() })
 	sched.Tick(ctx)
-	time.Sleep(200 * time.Millisecond)
+	sched.WaitForScans()
 
 	out := buf.String()
 	assert.Contains(t, out, "update after run")
@@ -181,7 +181,7 @@ func TestScheduler_RunScan_UpdateAfterRunSuccessNoError(t *testing.T) {
 
 	sched.SetNowFunc(func() time.Time { return time.Now() })
 	sched.Tick(ctx)
-	time.Sleep(200 * time.Millisecond)
+	sched.WaitForScans()
 
 	out := buf.String()
 	assert.NotContains(t, out, "update after run")
