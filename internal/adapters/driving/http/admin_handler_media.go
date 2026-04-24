@@ -99,6 +99,7 @@ func (h *adminHandler) handleRefreshAll(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
 		return
 	}
+	libraryID := r.URL.Query().Get("library_id")
 	h.audit(r, "refresh_all_metadata", "metadata", nil, nil)
 	go func() {
 		defer func() {
@@ -106,7 +107,7 @@ func (h *adminHandler) handleRefreshAll(w http.ResponseWriter, r *http.Request) 
 				slog.Error("recovered panic in bulk metadata refresh", slog.Any("error", r))
 			}
 		}()
-		if err := h.metaCmd.AutoRefreshAllItems(h.serverCtx); err != nil {
+		if err := h.metaCmd.AutoRefreshAllItems(h.serverCtx, libraryID); err != nil {
 			slog.Error("bulk metadata refresh", slog.Any("err", err))
 		}
 	}()

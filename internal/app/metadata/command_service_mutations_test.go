@@ -200,7 +200,7 @@ func TestAutoRefreshAllItems_ListCallCount(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
 	require.NoError(t, repo.Create(ctx, &library.MediaItem{ID: "item-2", Title: "B"}))
 
-	require.NoError(t, cmdSvc.AutoRefreshAllItems(ctx))
+	require.NoError(t, cmdSvc.AutoRefreshAllItems(ctx, ""))
 	// With 2 items < pageSize (500), original breaks after 1 List call.
 	// Mutation (<=, >=) continues → 2nd List call (empty) breaks via len==0.
 	assert.Equal(t, int32(1), repo.listCalls.Load(), "expected exactly 1 List call when items < pageSize")
@@ -289,7 +289,7 @@ func TestAutoRefreshAllItems_ExactPageSize_TwoListCalls(t *testing.T) {
 	appmetadata.WithEnricher(enricher, repo)(cmdSvc)
 
 	seedNItems(t, repo, testPageSize)
-	require.NoError(t, cmdSvc.AutoRefreshAllItems(context.Background()))
+	require.NoError(t, cmdSvc.AutoRefreshAllItems(context.Background(), ""))
 	// Original: 1st call returns 500, !<500 → 2nd call returns 0 → break. 2 calls.
 	// BOUNDARY (<=): 500<=500 → break after 1st. 1 call.
 	assert.Equal(t, int32(2), repo.listCalls.Load())

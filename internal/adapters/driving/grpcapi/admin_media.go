@@ -36,7 +36,7 @@ func (d *adminMediaHandler) releaseHeavyOp() {
 	}
 }
 
-func (d *adminMediaHandler) RefreshAllMetadata(ctx context.Context, _ *eveyv1.RefreshAllMetadataRequest) (*eveyv1.RefreshAllMetadataResponse, error) {
+func (d *adminMediaHandler) RefreshAllMetadata(ctx context.Context, req *eveyv1.RefreshAllMetadataRequest) (*eveyv1.RefreshAllMetadataResponse, error) {
 	if d.metadataCmd == nil {
 		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	}
@@ -44,7 +44,7 @@ func (d *adminMediaHandler) RefreshAllMetadata(ctx context.Context, _ *eveyv1.Re
 		return nil, d.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.heavy_op_running")
 	}
 	defer d.releaseHeavyOp()
-	if err := d.metadataCmd.AutoRefreshAllItems(ctx); err != nil {
+	if err := d.metadataCmd.AutoRefreshAllItems(ctx, req.GetLibraryId()); err != nil {
 		return nil, internalError("refresh all metadata", err)
 	}
 	return &eveyv1.RefreshAllMetadataResponse{}, nil

@@ -439,7 +439,7 @@ type SingleItemEnricher interface {
 // are still skipped (manual intent wins).
 // Falls back to non-force bulk if the enricher only implements the basic
 // BulkItemEnricher interface.
-func (s *CommandService) AutoRefreshAllItems(ctx context.Context) error {
+func (s *CommandService) AutoRefreshAllItems(ctx context.Context, libraryID string) error {
 	fbe, forceOK := s.enricher.(ForceBulkItemEnricher)
 	be, bulkOK := s.enricher.(BulkItemEnricher)
 	if !forceOK && !bulkOK {
@@ -447,7 +447,12 @@ func (s *CommandService) AutoRefreshAllItems(ctx context.Context) error {
 	}
 	const pageSize = 500
 	for offset := 0; ; offset += pageSize {
-		items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: pageSize, Offset: offset})
+		filter := library.ListMediaItemsFilter{Limit: pageSize, Offset: offset}
+		if libraryID != "" {
+			libID := shared.LibraryID(libraryID)
+			filter.LibraryID = &libID
+		}
+		items, err := s.mediaItems.List(ctx, filter)
 		if err != nil {
 			return fmt.Errorf("list items: %w", err)
 		}

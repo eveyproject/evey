@@ -599,7 +599,7 @@ func TestDownloadArtwork_DownloaderError(t *testing.T) {
 
 func TestAutoRefreshAllItems_NoEnricher(t *testing.T) {
 	cmdSvc, _, _, _ := newTestServices()
-	err := cmdSvc.AutoRefreshAllItems(context.Background())
+	err := cmdSvc.AutoRefreshAllItems(context.Background(), "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "enricher does not support bulk refresh")
 }
@@ -620,7 +620,7 @@ func TestAutoRefreshAllItems_Success(t *testing.T) {
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-2", Title: "B"}))
 
-	err := cmdSvc.AutoRefreshAllItems(ctx)
+	err := cmdSvc.AutoRefreshAllItems(ctx, "")
 	require.NoError(t, err)
 	assert.Len(t, enricher.enrichedItems, 2)
 }
@@ -637,7 +637,7 @@ func TestAutoRefreshAllItems_EmptyRepo(t *testing.T) {
 	enricher := &fakeBulkEnricher{}
 	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 
-	err := cmdSvc.AutoRefreshAllItems(context.Background())
+	err := cmdSvc.AutoRefreshAllItems(context.Background(), "")
 	require.NoError(t, err)
 	assert.Empty(t, enricher.enrichedItems)
 }
@@ -655,7 +655,7 @@ func TestAutoRefreshAllItems_ListError(t *testing.T) {
 	enricher := &fakeBulkEnricher{}
 	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 
-	err := cmdSvc.AutoRefreshAllItems(context.Background())
+	err := cmdSvc.AutoRefreshAllItems(context.Background(), "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list items")
 }

@@ -183,7 +183,7 @@ libraries:
   failedDelete: Failed to delete library
   scanStarted: Scan started
   failedScan: Failed to start scan
-  refreshAllMetadata: Refresh all metadata
+  refreshMetadata: Refresh metadata
   refreshAllMetadataStarted: Refresh started — titles and posters will update in the background
   deleteTitle: Delete Library
   deleteConfirm: "Delete library \"{{name}}\"? This cannot be undone."

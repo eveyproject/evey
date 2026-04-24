@@ -244,6 +244,17 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
     },
   });
 
+  const refreshMetadata = useMutation({
+    mutationFn: () =>
+      eveyFetch({
+        url: "/api/v1/admin/media/refresh-metadata",
+        method: "POST",
+        data: { libraryId: library.id },
+      }),
+    onSuccess: () => toast.success(t("admin.libraries.refreshAllMetadataStarted")),
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const libStat = stats.find((s) => s.id === library.id);
   const totalItems = libStat?.itemCount;
 
@@ -293,6 +304,14 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
           )}
           <Button variant="secondary" onClick={() => setShowEdit(true)}>
             {t("common.edit")}
+          </Button>
+          <Button
+            variant="secondary"
+            loading={refreshMetadata.isPending}
+            onClick={() => refreshMetadata.mutate()}
+            data-testid="refresh-library-metadata-btn"
+          >
+            {t("admin.libraries.refreshMetadata")}
           </Button>
           <Button variant="secondary" onClick={() => setShowSchedule(true)}>
             {t("admin.libraries.schedule")}
@@ -355,31 +374,11 @@ function LibrariesPage() {
     toast.success(t("admin.libraries.libraryCreated"));
   }
 
-  const refreshAllMetadata = useMutation({
-    mutationFn: () => eveyFetch({ url: "/api/v1/admin/media/refresh-metadata", method: "POST", data: {} }),
-    onSuccess: () => toast.success(t("admin.libraries.refreshAllMetadataStarted")),
-    onError: (err: Error) => toast.error(err.message),
-  });
-
   return (
     <div className="flex flex-col gap-6" data-testid="libraries-page">
       <PageHeader
         title={t("admin.libraries.title")}
-        actions={
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => refreshAllMetadata.mutate()}
-              loading={refreshAllMetadata.isPending}
-              data-testid="refresh-all-metadata-btn"
-            >
-              {t("admin.libraries.refreshAllMetadata")}
-            </Button>
-            <Button onClick={() => setShowModal(true)} data-testid="add-library-btn">
-              {t("admin.libraries.addLibrary")}
-            </Button>
-          </div>
-        }
+        actions={<Button onClick={() => setShowModal(true)} data-testid="add-library-btn">{t("admin.libraries.addLibrary")}</Button>}
       />
 
       {isLoading ? (

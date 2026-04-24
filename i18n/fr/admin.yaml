@@ -182,7 +182,7 @@ libraries:
   failedDelete: "Échec de la suppression de la bibliothèque"
   scanStarted: "Scan lancé"
   failedScan: "Échec du lancement du scan"
-  refreshAllMetadata: "Rafraîchir toutes les métadonnées"
+  refreshMetadata: "Rafraîchir métadonnées"
   refreshAllMetadataStarted: "Rafraîchissement lancé — les titres/posters vont se corriger en tâche de fond"
   deleteTitle: "Supprimer la bibliothèque"
   deleteConfirm: "Supprimer la bibliothèque \"{{name}}\" ? Cette action est irréversible."
