@@ -168,12 +168,10 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          compression: zstd
-          compression-level: 3
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
