@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -17,19 +18,38 @@ type Scheduler struct {
 	schedules library.ScanScheduleRepository
 	scanner   LibraryScanner
 	logger    *slog.Logger
+	clock     Clock
 	nowFunc   func() time.Time
+	scanWG    sync.WaitGroup
 }
 
+// NewScheduler builds a Scheduler with the real wall clock. Backward-compatible
+// constructor used by production wiring and existing call sites.
 func NewScheduler(
 	schedules library.ScanScheduleRepository,
 	scanner LibraryScanner,
 	logger *slog.Logger,
 ) *Scheduler {
+	return NewSchedulerWithClock(schedules, scanner, logger, RealClock())
+}
+
+// NewSchedulerWithClock builds a Scheduler with an injected Clock so tests can
+// drive ticks and time deterministically.
+func NewSchedulerWithClock(
+	schedules library.ScanScheduleRepository,
+	scanner LibraryScanner,
+	logger *slog.Logger,
+	clock Clock,
+) *Scheduler {
+	if clock == nil {
+		clock = RealClock()
+	}
 	return &Scheduler{
 		schedules: schedules,
 		scanner:   scanner,
 		logger:    logger,
-		nowFunc:   time.Now,
+		clock:     clock,
+		nowFunc:   clock.Now,
 	}
 }
 
@@ -63,16 +83,23 @@ func (s *Scheduler) ListSchedules(ctx context.Context) ([]*library.ScanSchedule,
 }
 
 func (s *Scheduler) Run(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := s.clock.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-ticker.C():
 			s.tick(ctx)
 		}
 	}
+}
+
+// WaitForScans blocks until every scan goroutine started by tick() has
+// finished. Intended for deterministic tests; production callers do not need
+// to invoke it.
+func (s *Scheduler) WaitForScans() {
+	s.scanWG.Wait()
 }
 
 func (s *Scheduler) tick(ctx context.Context) {
@@ -87,11 +114,13 @@ func (s *Scheduler) tick(ctx context.Context) {
 			continue
 		}
 		s.logger.Info("scheduler: triggering scan", slog.String("library_id", string(sched.LibraryID)))
+		s.scanWG.Add(1)
 		go s.runScan(ctx, sched)
 	}
 }
 
 func (s *Scheduler) runScan(ctx context.Context, sched *library.ScanSchedule) {
+	defer s.scanWG.Done()
 	now := s.nowFunc()
 	added, updated, err := s.scanner.ScanLibrary(ctx, string(sched.LibraryID))
 	if err != nil {

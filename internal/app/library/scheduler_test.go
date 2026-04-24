@@ -340,8 +340,7 @@ func TestScheduler_Tick_TriggersOverdueScans(t *testing.T) {
 	frozen := time.Now()
 	sched.SetNowFunc(func() time.Time { return frozen })
 	sched.Tick(ctx)
-
-	time.Sleep(50 * time.Millisecond)
+	sched.WaitForScans()
 
 	assert.Contains(t, scanner.getCalled(), "lib-overdue")
 	assert.NotContains(t, scanner.getCalled(), "lib-future")
@@ -363,7 +362,7 @@ func TestScheduler_Tick_SkipsDisabledSchedules(t *testing.T) {
 
 	sched.SetNowFunc(func() time.Time { return time.Now() })
 	sched.Tick(ctx)
-	time.Sleep(50 * time.Millisecond)
+	sched.WaitForScans()
 
 	assert.Empty(t, scanner.getCalled())
 }
@@ -383,7 +382,7 @@ func TestScheduler_Tick_NilNextRunAt(t *testing.T) {
 
 	sched.SetNowFunc(func() time.Time { return time.Now() })
 	sched.Tick(ctx)
-	time.Sleep(50 * time.Millisecond)
+	sched.WaitForScans()
 
 	assert.Empty(t, scanner.getCalled())
 }
@@ -404,5 +403,156 @@ func TestScheduler_RunStopsOnCancel(t *testing.T) {
 	case <-done:
 	case <-time.After(3 * time.Second):
 		t.Fatal("Run did not stop after context cancel")
+	}
+}
+
+// fakeTicker is a manually driven Ticker used to deterministically deliver
+// ticks from tests without relying on wall-clock duration.
+type fakeTicker struct {
+	ch chan time.Time
+}
+
+func (f *fakeTicker) C() <-chan time.Time { return f.ch }
+func (f *fakeTicker) Stop()               {}
+
+// fakeClock implements applib.Clock with a fixed Now() and a single fakeTicker
+// whose channel can be triggered via Tick().
+type fakeClock struct {
+	mu     sync.Mutex
+	now    time.Time
+	ticker *fakeTicker
+}
+
+func newFakeClock(now time.Time) *fakeClock {
+	return &fakeClock{now: now, ticker: &fakeTicker{ch: make(chan time.Time)}}
+}
+
+func (f *fakeClock) Now() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.now
+}
+
+func (f *fakeClock) NewTicker(_ time.Duration) applib.Ticker { return f.ticker }
+
+// Tick delivers a single tick on the ticker channel and blocks until the
+// receiver consumes it (unbuffered channel semantics).
+func (f *fakeClock) Tick() {
+	f.ticker.ch <- f.Now()
+}
+
+// blockingScanner counts ScanLibrary invocations and signals each call on a
+// channel so tests can synchronize without sleeps.
+type blockingScanner struct {
+	mu      sync.Mutex
+	called  []string
+	calls   chan struct{}
+	scanErr error
+}
+
+func newBlockingScanner() *blockingScanner {
+	return &blockingScanner{calls: make(chan struct{}, 16)}
+}
+
+func (b *blockingScanner) ScanLibrary(_ context.Context, libraryID string) (int, int, error) {
+	b.mu.Lock()
+	b.called = append(b.called, libraryID)
+	b.mu.Unlock()
+	b.calls <- struct{}{}
+	return 1, 0, b.scanErr
+}
+
+func (b *blockingScanner) getCalled() []string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	cp := make([]string, len(b.called))
+	copy(cp, b.called)
+	return cp
+}
+
+func TestScheduler_FakeClockDrivesTickInjectedNow(t *testing.T) {
+	repo := libfakes.NewFakeScanScheduleRepository()
+	scanner := &fakeScannerForScheduler{}
+	frozen := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+	clk := newFakeClock(frozen)
+	sched := applib.NewSchedulerWithClock(repo, scanner, slog.Default(), clk)
+
+	ctx := context.Background()
+	past := frozen.Add(-time.Minute)
+	require.NoError(t, repo.Upsert(ctx, &library.ScanSchedule{
+		LibraryID:      "lib-fake",
+		CronExpression: "0 * * * *",
+		Enabled:        true,
+		NextRunAt:      &past,
+	}))
+
+	// Drive a tick deterministically without relying on wall-clock duration.
+	sched.Tick(ctx)
+	sched.WaitForScans()
+
+	assert.Contains(t, scanner.getCalled(), "lib-fake")
+}
+
+func TestScheduler_Run_FakeTickerTriggersScan(t *testing.T) {
+	repo := libfakes.NewFakeScanScheduleRepository()
+	scanner := newBlockingScanner()
+	frozen := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+	clk := newFakeClock(frozen)
+	sched := applib.NewSchedulerWithClock(repo, scanner, slog.Default(), clk)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	past := frozen.Add(-time.Minute)
+	require.NoError(t, repo.Upsert(ctx, &library.ScanSchedule{
+		LibraryID:      "lib-run-fake",
+		CronExpression: "0 * * * *",
+		Enabled:        true,
+		NextRunAt:      &past,
+	}))
+
+	runDone := make(chan struct{})
+	go func() {
+		sched.Run(ctx)
+		close(runDone)
+	}()
+
+	// Send a tick on the unbuffered fake ticker channel: blocks until Run
+	// consumes it, after which tick() runs synchronously and registers the
+	// scan goroutine via the WaitGroup.
+	clk.Tick()
+
+	// Wait for the scanner to be invoked.
+	select {
+	case <-scanner.calls:
+	case <-time.After(3 * time.Second):
+		t.Fatal("scanner was not invoked after fake tick")
+	}
+
+	cancel()
+	select {
+	case <-runDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Run did not stop after cancel")
+	}
+
+	assert.Contains(t, scanner.getCalled(), "lib-run-fake")
+}
+
+func TestRealClock_NowAdvances(t *testing.T) {
+	c := applib.RealClock()
+	t1 := c.Now()
+	t2 := c.Now()
+	assert.False(t, t2.Before(t1))
+}
+
+func TestRealClock_NewTickerFires(t *testing.T) {
+	c := applib.RealClock()
+	tk := c.NewTicker(5 * time.Millisecond)
+	defer tk.Stop()
+	select {
+	case <-tk.C():
+	case <-time.After(2 * time.Second):
+		t.Fatal("real ticker did not fire")
 	}
 }
