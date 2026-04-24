@@ -190,7 +190,7 @@ function WebhooksPage() {
         <h2 className="text-xl font-semibold text-[var(--text)]">
           {t("admin.webhooks.title")}
         </h2>
-        <Button onClick={() => setShowCreateModal(true)}>{t("admin.webhooks.createWebhook")}</Button>
+        <Button onClick={() => setShowCreateModal(true)} data-testid="add-webhook-btn">{t("admin.webhooks.createWebhook")}</Button>
       </div>
 
       {isLoading ? (

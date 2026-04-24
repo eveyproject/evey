@@ -70,6 +70,8 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <Input
+        id="webhook-name"
+        data-testid="webhook-name-input"
         label={t("admin.webhooks.form.name")}
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -77,6 +79,8 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
         required
       />
       <Input
+        id="webhook-url"
+        data-testid="webhook-url-input"
         label={t("admin.webhooks.form.url")}
         type="url"
         value={url}
@@ -130,7 +134,7 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
       </label>
 
       <div className="flex justify-end pt-2">
-        <Button type="submit" loading={isPending} disabled={!url.trim() || !name.trim()}>
+        <Button type="submit" loading={isPending} disabled={!url.trim() || !name.trim()} data-testid="webhook-form-submit">
           {existing ? t("common.save") : t("admin.webhooks.form.createWebhook")}
         </Button>
       </div>

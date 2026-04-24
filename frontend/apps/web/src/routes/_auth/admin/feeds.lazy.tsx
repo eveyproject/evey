@@ -115,6 +115,7 @@ function AdminFeedsPage() {
             disabled={saving}
             className="px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-opacity-fast hover:opacity-90 disabled:opacity-50 bg-[var(--accent)] text-[var(--filter-active-text)]"
             aria-label={t("common.save")}
+            data-testid="feeds-save-btn"
           >
             {saving ? t("common.loading") : t("common.save")}
           </button>

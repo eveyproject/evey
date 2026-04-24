@@ -101,6 +101,7 @@ function LoginPage() {
           className="flex flex-col gap-4"
         >
           <Input
+            id="username"
             label={t("auth.login.username")}
             type="text"
             value={username}
@@ -109,6 +110,7 @@ function LoginPage() {
             autoFocus
           />
           <Input
+            id="password"
             label={t("auth.login.password")}
             type="password"
             value={password}

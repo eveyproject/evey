@@ -620,7 +620,7 @@ function ServerSettingsCard() {
         <h2 className="text-base font-semibold mb-4 text-[var(--text)]">{t("admin.serverSettings.title")}</h2>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <Input label={t("admin.serverSettings.serverName")} placeholder={data.serverName.default ?? "Evey"} value={serverName} onChange={(e) => { setServerName(e.target.value); setDirty(true); }} />
+            <Input id="server-name" data-testid="server-name-input" label={t("admin.serverSettings.serverName")} placeholder={data.serverName.default ?? "Evey"} value={serverName} onChange={(e) => { setServerName(e.target.value); setDirty(true); }} />
             <ResetBtn setting={data.serverName} field="serverName" />
           </div>
           <div className="flex flex-col gap-1">
@@ -646,7 +646,7 @@ function ServerSettingsCard() {
             <ResetBtn setting={data.globalRateLimit} field="globalRateLimit" />
           </div>
           <div className="flex justify-end pt-2">
-            <Button onClick={handleSave} loading={saveMutation.isPending} disabled={!dirty}>{t("common.save")}</Button>
+            <Button onClick={handleSave} loading={saveMutation.isPending} disabled={!dirty} data-testid="server-config-save-btn">{t("common.save")}</Button>
           </div>
         </div>
       </div>
