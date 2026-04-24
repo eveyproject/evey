@@ -53,14 +53,14 @@ function UserMenu({ userInitial, avatarUrl }: { userInitial: string; avatarUrl: 
   };
 
   const items = useMemo(() => {
-    const base: { label: string; icon: React.ReactNode; action: () => void }[] = [
-      { label: t("common.nav.settings"), icon: <Settings size={16} />, action: () => go("/profile/settings") },
-      { label: t("common.nav.watchHistory"), icon: <Clock size={16} />, action: () => go("/profile/history") },
-      { label: t("common.nav.myStats"), icon: <BarChart3 size={16} />, action: () => go("/profile/stats") },
-      { label: t("common.nav.quickConnect"), icon: <QrCode size={16} />, action: () => go("/quickconnect") },
+    const base: { label: string; icon: React.ReactNode; action: () => void; testid: string }[] = [
+      { label: t("common.nav.settings"), icon: <Settings size={16} />, action: () => go("/profile/settings"), testid: "topbar-user-menu-settings" },
+      { label: t("common.nav.watchHistory"), icon: <Clock size={16} />, action: () => go("/profile/history"), testid: "topbar-user-menu-history" },
+      { label: t("common.nav.myStats"), icon: <BarChart3 size={16} />, action: () => go("/profile/stats"), testid: "topbar-user-menu-stats" },
+      { label: t("common.nav.quickConnect"), icon: <QrCode size={16} />, action: () => go("/quickconnect"), testid: "topbar-user-menu-quickconnect" },
     ];
     if (isAdmin) {
-      base.push({ label: t("common.nav.admin"), icon: <LayoutList size={16} />, action: () => go("/admin") });
+      base.push({ label: t("common.nav.admin"), icon: <LayoutList size={16} />, action: () => go("/admin"), testid: "topbar-user-menu-admin" });
     }
     return base;
   }, [go, isAdmin, t]);
@@ -73,6 +73,7 @@ function UserMenu({ userInitial, avatarUrl }: { userInitial: string; avatarUrl: 
         aria-label={t("common.nav.userMenu")}
         aria-expanded={open}
         aria-haspopup="true"
+        data-testid="topbar-user-menu-btn"
       >
         {avatarUrl ? (
           <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -81,11 +82,15 @@ function UserMenu({ userInitial, avatarUrl }: { userInitial: string; avatarUrl: 
         )}
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-48 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] shadow-lg py-1 z-overlay animate-fade-in">
+        <div
+          data-testid="topbar-user-menu"
+          className="absolute right-0 top-full mt-2 w-48 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] shadow-lg py-1 z-overlay animate-fade-in"
+        >
           {items.map((item) => (
             <button
               key={item.label}
               onClick={item.action}
+              data-testid={item.testid}
               className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
             >
               <span className="text-[var(--text-muted)] shrink-0">{item.icon}</span>
