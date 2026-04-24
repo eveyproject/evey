@@ -2,6 +2,7 @@ package feed_test
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,6 +12,27 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type fakeClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func newFakeClock() *fakeClock {
+	return &fakeClock{now: time.Unix(1_700_000_000, 0)}
+}
+
+func (f *fakeClock) Now() time.Time {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.now
+}
+
+func (f *fakeClock) Advance(d time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.now = f.now.Add(d)
+}
 
 func TestCachedAnalyzer_ReturnsCachedGenres(t *testing.T) {
 	fake := notiffakes.NewFakeWatchHistoryAnalyzer()
@@ -61,13 +83,14 @@ func TestCachedAnalyzer_Invalidate(t *testing.T) {
 func TestCachedAnalyzer_TTLExpiry(t *testing.T) {
 	fake := notiffakes.NewFakeWatchHistoryAnalyzer()
 	fake.Genres = []string{"action"}
-	cached := appfeed.NewCachedAnalyzer(fake, 50*time.Millisecond)
+	clk := newFakeClock()
+	cached := appfeed.NewCachedAnalyzer(fake, 50*time.Millisecond, appfeed.CacheWithClock(clk))
 
 	ctx := context.Background()
 	_, _ = cached.GetFavoriteGenres(ctx, "p1", 3)
 
 	fake.Genres = []string{"drama"}
-	time.Sleep(60 * time.Millisecond)
+	clk.Advance(60 * time.Millisecond)
 
 	g, err := cached.GetFavoriteGenres(ctx, "p1", 3)
 	require.NoError(t, err)

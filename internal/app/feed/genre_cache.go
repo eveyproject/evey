@@ -15,10 +15,20 @@ type genreCacheEntry struct {
 	fetchedAt time.Time
 }
 
+// clock abstracts time for tests; defaults to wall clock.
+type clock interface {
+	Now() time.Time
+}
+
+type realClock struct{}
+
+func (realClock) Now() time.Time { return time.Now() }
+
 // CachedAnalyzer wraps a WatchHistoryAnalyzer with TTL cache on GetFavoriteGenres.
 type CachedAnalyzer struct {
 	inner notification.WatchHistoryAnalyzer
 	ttl   time.Duration
+	clock clock
 	mu    sync.RWMutex
 	cache map[string]genreCacheEntry // key: profileID:minCount
 }
@@ -38,10 +48,20 @@ func CacheWithEventBus(bus shared.EventBus) CachedAnalyzerOption {
 	}
 }
 
+// CacheWithClock injects a custom clock (used in tests to avoid time.Sleep).
+func CacheWithClock(clk clock) CachedAnalyzerOption {
+	return func(c *CachedAnalyzer) {
+		if clk != nil {
+			c.clock = clk
+		}
+	}
+}
+
 func NewCachedAnalyzer(inner notification.WatchHistoryAnalyzer, ttl time.Duration, opts ...CachedAnalyzerOption) *CachedAnalyzer {
 	c := &CachedAnalyzer{
 		inner: inner,
 		ttl:   ttl,
+		clock: realClock{},
 		cache: make(map[string]genreCacheEntry),
 	}
 	for _, opt := range opts {
@@ -79,8 +99,10 @@ func itoa(n int) string {
 func (c *CachedAnalyzer) GetFavoriteGenres(ctx context.Context, profileID string, minCount int) ([]string, error) {
 	key := c.cacheKey(profileID, minCount)
 
+	now := c.clock.Now()
+
 	c.mu.RLock()
-	if entry, ok := c.cache[key]; ok && time.Since(entry.fetchedAt) < c.ttl {
+	if entry, ok := c.cache[key]; ok && now.Sub(entry.fetchedAt) < c.ttl {
 		result := make([]string, len(entry.genres))
 		copy(result, entry.genres)
 		c.mu.RUnlock()
@@ -94,7 +116,7 @@ func (c *CachedAnalyzer) GetFavoriteGenres(ctx context.Context, profileID string
 	}
 
 	c.mu.Lock()
-	c.cache[key] = genreCacheEntry{genres: genres, fetchedAt: time.Now()}
+	c.cache[key] = genreCacheEntry{genres: genres, fetchedAt: c.clock.Now()}
 	c.mu.Unlock()
 
 	return genres, nil
