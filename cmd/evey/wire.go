@@ -450,6 +450,25 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	hlsMgr := apptranscoding.NewHLSManager(ctx, cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent, hlsTranscoder)
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsMgr)
 
+	if cfg.Transcoding.CacheMaxGB > 0 {
+		evictor := apptranscoding.NewCacheEvictor(
+			cfg.Transcoding.CacheDir,
+			float64(cfg.Transcoding.CacheMaxGB),
+			10*time.Minute,
+		)
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic recovered in transcode cache evictor", "error", r, "stack", string(debug.Stack()))
+				}
+			}()
+			evictor.Run(ctx)
+		}()
+		slog.Info("transcode cache evictor started", "cacheDir", cfg.Transcoding.CacheDir, "maxGB", cfg.Transcoding.CacheMaxGB)
+	} else {
+		slog.Info("transcode cache evictor disabled (CacheMaxGB <= 0)")
+	}
+
 	return &appDeps{
 		bus: bus,
 		library: libraryDeps{
