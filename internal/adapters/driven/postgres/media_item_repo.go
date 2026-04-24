@@ -8,8 +8,11 @@ import (
 	"log/slog"
 
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // Split layout:
@@ -67,6 +70,8 @@ func (r *MediaItemRepository) withMediaItemTx(ctx context.Context, f func(*sql.T
 }
 
 func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaItem) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.Create")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
@@ -105,6 +110,8 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 		return nil
 	})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("MediaItemRepo.Create: %w", err)
 	}
 	r.bumpSeriesLatestChildAddedAt(ctx, item)
@@ -112,6 +119,8 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 }
 
 func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaItem) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.Update")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
@@ -150,8 +159,12 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	})
 	if err != nil {
 		if errors.Is(err, shared.ErrNotFound) {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("MediaItemRepo.Update: %w", err)
 	}
 	r.bumpSeriesLatestChildAddedAt(ctx, item)
@@ -159,6 +172,8 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 }
 
 func (r *MediaItemRepository) Delete(ctx context.Context, id shared.MediaItemID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.Delete")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	// SELECT type+parent_id then DELETE then (maybe) recompute the series
@@ -175,20 +190,30 @@ func (r *MediaItemRepository) Delete(ctx context.Context, id shared.MediaItemID)
 		string(id),
 	).Scan(&itemType, &parentID); {
 	case errors.Is(err, sql.ErrNoRows):
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return shared.ErrNotFound
 	case err != nil:
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("MediaItemRepo.Delete: read type: %w", err)
 	}
 
 	res, err := exec.ExecContext(ctx, `DELETE FROM media_items WHERE id = $1`, string(id))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("MediaItemRepo.Delete: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	if itemType == string(library.Episode) && parentID != "" {
 		if rcErr := r.recomputeSeriesLatestChildAddedAtFromSeason(ctx, parentID); rcErr != nil {
+			span.RecordError(rcErr)
+			span.SetStatus(codes.Error, rcErr.Error())
 			return fmt.Errorf("MediaItemRepo.Delete: %w", rcErr)
 		}
 	}
@@ -196,6 +221,8 @@ func (r *MediaItemRepository) Delete(ctx context.Context, id shared.MediaItemID)
 }
 
 func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.DeleteByIDs")
+	defer span.End()
 	if len(ids) == 0 {
 		return nil
 	}
@@ -203,6 +230,8 @@ func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) err
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = ANY($1)`, pq.Array(ids))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("MediaItemRepo.DeleteByIDs: %w", err)
 	}
 	return nil
