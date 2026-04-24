@@ -21,6 +21,8 @@ import (
 	"github.com/evey-project/evey/internal/pkg/id"
 	"github.com/evey-project/evey/internal/pkg/ratings"
 	"github.com/evey-project/evey/internal/pkg/region"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -37,6 +39,8 @@ type libraryHandler struct {
 }
 
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.CreateLibrary")
+	defer span.End()
 	lib, err := library.NewLibrary(
 		shared.LibraryID(id.New("lib-")),
 		req.Name,
@@ -47,35 +51,51 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 		library.WithLibraryRealtimeMonitoring(req.RealtimeMonitoring),
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.cmd.CreateLibrary(ctx, lib); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("create library", err)
 	}
 	return libraryToProto(lib), nil
 }
 
 func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryRequest) (*eveyv1.Library, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.GetLibrary")
+	defer span.End()
 	lib, err := h.query.GetLibrary(ctx, req.Id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "library not found")
 		return nil, status.Errorf(codes.NotFound, "library not found: %v", err)
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, lib.ID); !ok {
 		if accessErr != nil {
+			span.RecordError(accessErr)
 			slog.Warn("check library access", slog.Any("err", accessErr))
 		}
+		span.SetStatus(otelcodes.Error, "library access denied")
 		return nil, status.Errorf(codes.NotFound, "library not found")
 	}
 	return libraryToProto(lib), nil
 }
 
 func (h *libraryHandler) ListLibraries(ctx context.Context, _ *eveyv1.ListLibrariesRequest) (*eveyv1.ListLibrariesResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.ListLibraries")
+	defer span.End()
 	libs, err := h.query.ListLibraries(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list libraries", err)
 	}
 	libs, err = h.filterLibrariesByAccess(ctx, libs)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("filter libraries", err)
 	}
 	resp := &eveyv1.ListLibrariesResponse{}
@@ -86,11 +106,16 @@ func (h *libraryHandler) ListLibraries(ctx context.Context, _ *eveyv1.ListLibrar
 }
 
 func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLibraryRequest) (*eveyv1.Library, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.UpdateLibrary")
+	defer span.End()
 	if req.Id == "" {
+		span.SetStatus(otelcodes.Error, "id is required")
 		return nil, status.Errorf(codes.InvalidArgument, "id is required")
 	}
 	lib, err := h.query.GetLibrary(ctx, req.Id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "library not found")
 		return nil, status.Errorf(codes.NotFound, "library not found: %v", err)
 	}
 	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
@@ -98,8 +123,10 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 	// expose write access to other libraries.
 	if ok, accessErr := h.checkLibraryAccess(ctx, lib.ID); !ok {
 		if accessErr != nil {
+			span.RecordError(accessErr)
 			slog.Warn("update library access check", slog.Any("err", accessErr))
 		}
+		span.SetStatus(otelcodes.Error, "library access denied")
 		return nil, status.Errorf(codes.NotFound, "library not found")
 	}
 	if req.Name != nil {
@@ -108,19 +135,25 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 	if len(req.Paths) > 0 {
 		for _, p := range req.Paths {
 			if !filepath.IsAbs(p) || !strings.HasPrefix(filepath.Clean(p), "/media") {
+				span.SetStatus(otelcodes.Error, "invalid path")
 				return nil, status.Errorf(codes.InvalidArgument, "invalid path: must be an absolute path under /media")
 			}
 		}
 		lib.Paths = req.Paths
 	}
 	if err := h.cmd.UpdateLibrary(ctx, lib); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("update library", err)
 	}
 	return libraryToProto(lib), nil
 }
 
 func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLibraryRequest) (*eveyv1.DeleteLibraryResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.DeleteLibrary")
+	defer span.End()
 	if req.Id == "" {
+		span.SetStatus(otelcodes.Error, "id is required")
 		return nil, status.Errorf(codes.InvalidArgument, "id is required")
 	}
 	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
@@ -129,48 +162,70 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 	// Admins (and contexts without userAccess wired) short-circuit.
 	if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.Id)); !ok {
 		if accessErr != nil {
+			span.RecordError(accessErr)
 			slog.Warn("delete library access check", slog.Any("err", accessErr))
 		}
+		span.SetStatus(otelcodes.Error, "library access denied")
 		return nil, status.Errorf(codes.NotFound, "library not found")
 	}
 	if err := h.cmd.DeleteLibrary(ctx, req.Id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("delete library", err)
 	}
 	return &eveyv1.DeleteLibraryResponse{}, nil
 }
 
 func (h *libraryHandler) ScanLibrary(req *eveyv1.ScanLibraryRequest, stream eveyv1.LibraryService_ScanLibraryServer) error {
-	added, updated, err := h.cmd.ScanLibrary(stream.Context(), req.Id)
+	ctx, span := tracing.StartSpan(stream.Context(), "grpc.library.ScanLibrary")
+	defer span.End()
+	added, updated, err := h.cmd.ScanLibrary(ctx, req.Id)
 	if err != nil {
+		span.RecordError(err)
 		if errors.Is(err, applibrary.ErrScanInProgress) {
-			return h.translator.TranslatedError(stream.Context(), codes.FailedPrecondition, "errors.library.scan_in_progress")
+			span.SetStatus(otelcodes.Error, "scan in progress")
+			return h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.library.scan_in_progress")
 		}
+		span.SetStatus(otelcodes.Error, err.Error())
 		return internalError("scan library", err)
 	}
-	return stream.Send(&eveyv1.ScanProgress{
+	if err := stream.Send(&eveyv1.ScanProgress{
 		LibraryId:      req.Id,
 		Phase:          eveyv1.ScanPhase_SCAN_PHASE_COMPLETE,
 		Percent:        100,
 		TotalItems:     int32(added + updated),
 		ProcessedItems: int32(added + updated),
-	})
+	}); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaItemRequest) (*eveyv1.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.GetMediaItem")
+	defer span.End()
 	item, err := h.query.GetMediaItem(ctx, req.Id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "media item not found")
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
 		if accessErr != nil {
+			span.RecordError(accessErr)
 			slog.Warn("check library access", slog.Any("err", accessErr))
 		}
+		span.SetStatus(otelcodes.Error, "library access denied")
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	if blocked, parentalErr := h.isBlockedByParental(ctx, item); blocked {
 		if parentalErr != nil {
+			span.RecordError(parentalErr)
 			slog.Warn("parental check", slog.Any("err", parentalErr))
 		}
+		span.SetStatus(otelcodes.Error, "parental restricted")
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.library.parental_restricted")
 	}
 	if h.metadataSvc != nil {
@@ -210,24 +265,34 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 }
 
 func (h *libraryHandler) GetSeriesAggregate(ctx context.Context, req *eveyv1.GetSeriesAggregateRequest) (*eveyv1.SeriesAggregate, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.GetSeriesAggregate")
+	defer span.End()
 	item, err := h.query.GetMediaItem(ctx, req.Id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "media item not found")
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
 		if accessErr != nil {
+			span.RecordError(accessErr)
 			slog.Warn("check library access", slog.Any("err", accessErr))
 		}
+		span.SetStatus(otelcodes.Error, "library access denied")
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	if blocked, parentalErr := h.isBlockedByParental(ctx, item); blocked {
 		if parentalErr != nil {
+			span.RecordError(parentalErr)
 			slog.Warn("parental check", slog.Any("err", parentalErr))
 		}
+		span.SetStatus(otelcodes.Error, "parental restricted")
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.library.parental_restricted")
 	}
 	agg, err := h.query.GetSeriesAggregate(ctx, req.Id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "aggregate series: %v", err)
 	}
 	return &eveyv1.SeriesAggregate{
@@ -239,6 +304,8 @@ func (h *libraryHandler) GetSeriesAggregate(ctx context.Context, req *eveyv1.Get
 }
 
 func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMediaItemsRequest) (*eveyv1.ListMediaItemsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.ListMediaItems")
+	defer span.End()
 	filter := library.ListMediaItemsFilter{
 		SortField: mediaSortFieldFromProto[req.SortField],
 		SortOrder: sortOrderFromProto[req.SortOrder],
@@ -281,6 +348,8 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		if req.Pagination.Cursor != "" {
 			cursor, err := shared.DecodeCursor(req.Pagination.Cursor)
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(otelcodes.Error, "invalid cursor")
 				return nil, status.Errorf(codes.InvalidArgument, "invalid cursor: %v", err)
 			}
 			filter.Cursor = cursor
@@ -292,13 +361,18 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 
 	total, err := h.query.CountMediaItems(ctx, filter)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("count media items", err)
 	}
 	items, err := h.query.ListMediaItems(ctx, filter)
 	if err != nil {
+		span.RecordError(err)
 		if errors.Is(err, shared.ErrCursorMismatch) {
+			span.SetStatus(otelcodes.Error, "cursor mismatch")
 			return nil, status.Error(codes.InvalidArgument, "cursor was generated for a different sort field")
 		}
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list media items", err)
 	}
 	resp := &eveyv1.ListMediaItemsResponse{
@@ -349,6 +423,8 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 }
 
 func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMediaRequest) (*eveyv1.SearchMediaResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.SearchMedia")
+	defer span.End()
 	filters := make(map[string]string)
 	if req.Type != eveyv1.MediaItemType_MEDIA_ITEM_TYPE_UNSPECIFIED {
 		filters["type"] = mediaItemTypeFromProto[req.Type]
@@ -383,6 +459,8 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	}
 	hits, total, err := h.query.SearchMedia(ctx, req.Query, filters, sort, limit)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("search media", err)
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
@@ -414,14 +492,20 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 }
 
 func (h *libraryHandler) GetPerson(ctx context.Context, req *eveyv1.GetPersonRequest) (*eveyv1.GetPersonResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.GetPerson")
+	defer span.End()
 	if req.Id == "" {
+		span.SetStatus(otelcodes.Error, "id is required")
 		return nil, status.Errorf(codes.InvalidArgument, "id is required")
 	}
 	person, err := h.query.GetPerson(ctx, req.Id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("get person", err)
 	}
 	if person == nil {
+		span.SetStatus(otelcodes.Error, "person not found")
 		return nil, status.Errorf(codes.NotFound, "person not found")
 	}
 	// Overlay translated biography if user locale != default
@@ -633,11 +717,16 @@ func (h *libraryHandler) checkLibraryAccess(ctx context.Context, libraryID share
 }
 
 func (h *libraryHandler) GetLibrarySchedule(ctx context.Context, req *eveyv1.GetLibraryScheduleRequest) (*eveyv1.GetLibraryScheduleResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.GetLibrarySchedule")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if !claims.IsAdmin {
+		span.SetStatus(otelcodes.Error, "admin only")
 		return nil, status.Error(codes.PermissionDenied, "admin only")
 	}
 	if h.scheduler == nil {
@@ -648,6 +737,8 @@ func (h *libraryHandler) GetLibrarySchedule(ctx context.Context, req *eveyv1.Get
 		if errors.Is(err, shared.ErrNotFound) {
 			return &eveyv1.GetLibraryScheduleResponse{}, nil
 		}
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("get library schedule", err)
 	}
 	return &eveyv1.GetLibraryScheduleResponse{
@@ -656,39 +747,55 @@ func (h *libraryHandler) GetLibrarySchedule(ctx context.Context, req *eveyv1.Get
 }
 
 func (h *libraryHandler) SetLibrarySchedule(ctx context.Context, req *eveyv1.SetLibraryScheduleRequest) (*eveyv1.LibrarySchedule, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.SetLibrarySchedule")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if !claims.IsAdmin {
+		span.SetStatus(otelcodes.Error, "admin only")
 		return nil, status.Error(codes.PermissionDenied, "admin only")
 	}
 	if h.scheduler == nil {
+		span.SetStatus(otelcodes.Error, "scheduler not available")
 		return nil, status.Error(codes.Unimplemented, "scheduler not available")
 	}
 	if req.Cron == "" {
+		span.SetStatus(otelcodes.Error, "cron expression required")
 		return nil, status.Error(codes.InvalidArgument, "cron expression required")
 	}
 	sched, err := h.scheduler.SetSchedule(ctx, req.Id, req.Cron, req.Enabled)
 	if err != nil {
+		span.RecordError(err)
 		if strings.HasPrefix(err.Error(), "invalid cron") {
+			span.SetStatus(otelcodes.Error, "invalid cron expression")
 			return nil, status.Errorf(codes.InvalidArgument, "invalid cron expression: %v", err)
 		}
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("set schedule", err)
 	}
 	return scheduleToProto(sched), nil
 }
 
 func (h *libraryHandler) DeleteLibrarySchedule(ctx context.Context, req *eveyv1.DeleteLibraryScheduleRequest) (*eveyv1.DeleteLibraryScheduleResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.DeleteLibrarySchedule")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if !claims.IsAdmin {
+		span.SetStatus(otelcodes.Error, "admin only")
 		return nil, status.Error(codes.PermissionDenied, "admin only")
 	}
 	if h.scheduler != nil {
 		if delErr := h.scheduler.DeleteSchedule(ctx, req.Id); delErr != nil {
+			span.RecordError(delErr)
 			slog.Warn("delete schedule", slog.Any("err", delErr))
 		}
 	}
@@ -696,7 +803,11 @@ func (h *libraryHandler) DeleteLibrarySchedule(ctx context.Context, req *eveyv1.
 }
 
 func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.FilterMediaItemsRequest) (*eveyv1.FilterMediaItemsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.FilterMediaItems")
+	defer span.End()
 	if _, err := requireClaims(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	filter := library.ListMediaItemsFilter{
@@ -732,10 +843,14 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 
 	total, err := h.query.CountMediaItems(ctx, filter)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("count", err)
 	}
 	items, err := h.query.ListMediaItems(ctx, filter)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list", err)
 	}
 	resp := &eveyv1.FilterMediaItemsResponse{Total: int32(total)}
