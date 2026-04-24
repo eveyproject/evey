@@ -4,14 +4,12 @@ import { goto, collectErrors } from "../shared/helpers";
 test.describe("Admin > Library CRUD", () => {
   test("add library button opens modal", async ({ page }) => {
     await goto(page, "/admin/libraries");
-    const addBtn = page.locator("button", { hasText: /add|create|new/i }).first();
+    const addBtn = page.locator('[data-testid="add-library-btn"]');
     await expect(addBtn).toBeVisible({ timeout: 5_000 });
     await addBtn.click();
     await page.waitForTimeout(500);
-    // modal should show
     const modal = page.locator('[role="dialog"], .modal, [data-testid="modal"]');
     const hasModal = await modal.isVisible({ timeout: 2_000 }).catch(() => false);
-    // or inline form
     const hasForm = await page.locator("input, select").count() > 1;
     expect(hasModal || hasForm).toBe(true);
   });
