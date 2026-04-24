@@ -35,12 +35,13 @@ export function ThemeSelector() {
   const { data: pluginThemes } = usePluginThemes();
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2" data-testid="theme-switcher">
       <label className="text-sm font-medium text-[var(--text-muted)]">Theme</label>
       <div className="flex gap-2 flex-wrap">
         {(Object.keys(themes) as ThemeName[]).map((name) => (
           <button
             key={name}
+            data-testid={`theme-option-${name}`}
             onClick={() => setTheme(name)}
             className={`px-3 py-1.5 rounded-[var(--radius-md)] text-sm transition-colors-fast ${
               theme === name
@@ -56,6 +57,7 @@ export function ThemeSelector() {
           return (
             <button
               key={pt.id}
+              data-testid={`theme-option-${themeKey}`}
               onClick={() => setTheme(themeKey, pt.id)}
               className={`px-3 py-1.5 rounded-[var(--radius-md)] text-sm transition-colors-fast ${
                 theme === themeKey
