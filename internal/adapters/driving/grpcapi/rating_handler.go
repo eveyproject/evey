@@ -53,11 +53,11 @@ func (h *ratingHandler) PutThumbRating(ctx context.Context, req *eveyv1.PutThumb
 	if err != nil {
 		return nil, fmt.Errorf("ratingHandler.PutThumbRating: %w", err)
 	}
-	if req.Value < -1 || req.Value > 1 {
-		return nil, status.Error(codes.InvalidArgument, "value must be -1, 0, or 1")
-	}
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
 		return nil, fmt.Errorf("ratingHandler.PutThumbRating: %w", accessErr)
+	}
+	if req.Value < -1 || req.Value > 1 {
+		return nil, status.Error(codes.InvalidArgument, "value must be -1, 0, or 1")
 	}
 	r := &domainlibrary.UserRating{
 		ProfileID:   shared.ProfileID(claims.ProfileID),
@@ -95,11 +95,13 @@ func (h *ratingHandler) PostStarRating(ctx context.Context, req *eveyv1.PostStar
 	if err != nil {
 		return nil, fmt.Errorf("ratingHandler.PostStarRating: %w", err)
 	}
-	if req.Value < 1 || req.Value > 10 {
-		return nil, status.Error(codes.InvalidArgument, "rating must be between 1 and 10")
-	}
+	// Resolve access (and existence) before value validation so a missing
+	// mediaItemID returns NotFound instead of being masked by InvalidArgument.
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
 		return nil, fmt.Errorf("ratingHandler.PostStarRating: %w", accessErr)
+	}
+	if req.Value < 1 || req.Value > 10 {
+		return nil, status.Error(codes.InvalidArgument, "rating must be between 1 and 10")
 	}
 	if rateErr := h.starSvc.Rate(ctx, req.MediaItemId, claims.ProfileID, int(req.Value)); rateErr != nil {
 		slog.Error("star rating", slog.Any("err", rateErr))

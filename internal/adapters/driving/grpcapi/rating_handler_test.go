@@ -149,12 +149,35 @@ func TestPutThumbRating_Unauthenticated(t *testing.T) {
 func TestPutThumbRating_InvalidValue(t *testing.T) {
 	t.Parallel()
 	f := newRatingFixture()
+	f.seedMedia("m1", "lib1")
 	ctx := authedCtx("u1", "p1", true)
 
 	_, err := f.handler.PutThumbRating(ctx, &eveyv1.PutThumbRatingRequest{MediaItemId: "m1", Value: 5})
 	require.Error(t, err)
 	st, _ := status.FromError(err)
 	assert.Equal(t, codes.InvalidArgument, st.Code())
+}
+
+func TestPutThumbRating_MissingMediaWinsOverInvalidValue(t *testing.T) {
+	t.Parallel()
+	f := newRatingFixture()
+	ctx := authedCtx("u1", "p1", true)
+
+	_, err := f.handler.PutThumbRating(ctx, &eveyv1.PutThumbRatingRequest{MediaItemId: "missing", Value: 5})
+	require.Error(t, err)
+	st, _ := status.FromError(err)
+	assert.Equal(t, codes.NotFound, st.Code())
+}
+
+func TestPostStarRating_MissingMediaWinsOverInvalidValue(t *testing.T) {
+	t.Parallel()
+	f := newRatingFixture()
+	ctx := authedCtx("u1", "p1", true)
+
+	_, err := f.handler.PostStarRating(ctx, &eveyv1.PostStarRatingRequest{MediaItemId: "missing", Value: 0})
+	require.Error(t, err)
+	st, _ := status.FromError(err)
+	assert.Equal(t, codes.NotFound, st.Code())
 }
 
 // --- GetMyThumbRating ---
