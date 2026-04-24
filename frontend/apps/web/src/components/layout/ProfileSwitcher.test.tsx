@@ -94,7 +94,7 @@ describe("ProfileSwitcher", () => {
     const user = userEvent.setup();
     renderSwitcher();
     await user.click(screen.getByTestId("profile-switcher-btn"));
-    await user.click(screen.getByTestId("profile-switch-p2"));
+    await user.click(screen.getByTestId("profile-switcher-item-p2"));
     await waitFor(() => expect(mockRefreshToken).toHaveBeenCalledTimes(1));
     expect(mockRefreshToken).toHaveBeenCalledWith({ profileId: "p2" });
     expect(localStorage.getItem("evey:last_profile_id")).toBe("p2");
@@ -108,7 +108,7 @@ describe("ProfileSwitcher", () => {
     const user = userEvent.setup();
     renderSwitcher();
     await user.click(screen.getByTestId("profile-switcher-btn"));
-    await user.click(screen.getByTestId("profile-switch-p2"));
+    await user.click(screen.getByTestId("profile-switcher-item-p2"));
     await waitFor(() => expect(mockRefreshToken).toHaveBeenCalled());
     expect(mockSetTokens).not.toHaveBeenCalled();
   });
@@ -117,7 +117,7 @@ describe("ProfileSwitcher", () => {
     const user = userEvent.setup();
     renderSwitcher();
     await user.click(screen.getByTestId("profile-switcher-btn"));
-    await user.click(screen.getByTestId("profile-manage-btn"));
+    await user.click(screen.getByTestId("profile-switcher-manage"));
     expect(mockNavigate).toHaveBeenCalledWith({ to: "/profile/manage" });
   });
 

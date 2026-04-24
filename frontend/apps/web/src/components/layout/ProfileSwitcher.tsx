@@ -148,7 +148,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
                   onClick={() => void handleSwitch(p)}
                   disabled={switching !== null}
                   role="menuitem"
-                  data-testid={`profile-switch-${p.id}`}
+                  data-testid={`profile-switcher-item-${p.id}`}
                   className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer disabled:opacity-50 disabled:cursor-wait"
                 >
                   <ProfileAvatar profile={p} size={28} />
@@ -166,7 +166,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
           <button
             onClick={handleManage}
             role="menuitem"
-            data-testid="profile-manage-btn"
+            data-testid="profile-switcher-manage"
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
           >
             <Users size={16} className="text-[var(--text-muted)] shrink-0" />
