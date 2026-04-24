@@ -105,7 +105,11 @@ func Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
-			host = r.RemoteAddr
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		if h, _, ok := strings.Cut(host, "%"); ok {
+			host = h
 		}
 		ip := net.ParseIP(host)
 		if ip == nil || !ip.IsLoopback() {
