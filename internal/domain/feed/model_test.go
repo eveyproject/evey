@@ -1,6 +1,7 @@
 package feed_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/feed"
@@ -41,22 +42,22 @@ func TestAdminConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
 		cfg     feed.AdminConfig
-		wantErr string
+		wantErr error
 	}{
 		{
 			name:    "valid",
 			cfg:     feed.AdminConfig{FeedType: feed.TypeRecentlyAdded, MaxItems: 10},
-			wantErr: "",
+			wantErr: nil,
 		},
 		{
 			name:    "empty feed type",
 			cfg:     feed.AdminConfig{FeedType: "", MaxItems: 10},
-			wantErr: "invalid feed type",
+			wantErr: feed.ErrInvalidFeedType,
 		},
 		{
 			name:    "negative max items",
 			cfg:     feed.AdminConfig{FeedType: feed.TypeRecentlyAdded, MaxItems: -1},
-			wantErr: "feed max items must not be negative",
+			wantErr: feed.ErrNegativeMaxItems,
 		},
 	}
 
@@ -64,17 +65,14 @@ func TestAdminConfig_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			err := tt.cfg.Validate()
-			if tt.wantErr == "" {
+			if tt.wantErr == nil {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
 				return
 			}
-			if err == nil {
-				t.Fatal("expected error, got nil")
-			}
-			if err.Error() != tt.wantErr {
-				t.Errorf("error = %q, want %q", err.Error(), tt.wantErr)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -86,22 +84,22 @@ func TestProfileConfig_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
 		cfg     feed.ProfileConfig
-		wantErr string
+		wantErr error
 	}{
 		{
 			name:    "valid",
 			cfg:     feed.ProfileConfig{ProfileID: "p1", FeedType: feed.TypeRecentlyAdded},
-			wantErr: "",
+			wantErr: nil,
 		},
 		{
 			name:    "missing profile ID",
 			cfg:     feed.ProfileConfig{FeedType: feed.TypeRecentlyAdded},
-			wantErr: "feed profile config requires a profile ID",
+			wantErr: feed.ErrInvalidProfileID,
 		},
 		{
 			name:    "empty feed type",
 			cfg:     feed.ProfileConfig{ProfileID: "p1"},
-			wantErr: "invalid feed type",
+			wantErr: feed.ErrInvalidFeedType,
 		},
 	}
 
@@ -109,18 +107,153 @@ func TestProfileConfig_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			err := tt.cfg.Validate()
-			if tt.wantErr == "" {
+			if tt.wantErr == nil {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
 				return
 			}
-			if err == nil {
-				t.Fatal("expected error, got nil")
-			}
-			if err.Error() != tt.wantErr {
-				t.Errorf("error = %q, want %q", err.Error(), tt.wantErr)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tt.wantErr)
 			}
 		})
 	}
+}
+
+func TestNewFeedAdminConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid no options", func(t *testing.T) {
+		t.Parallel()
+		cfg, err := feed.NewFeedAdminConfig(feed.TypeRecentlyAdded)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.FeedType != feed.TypeRecentlyAdded {
+			t.Errorf("FeedType = %q, want %q", cfg.FeedType, feed.TypeRecentlyAdded)
+		}
+		if cfg.Enabled || cfg.DisplayOrder != 0 || cfg.MaxItems != 0 {
+			t.Errorf("expected zero-value defaults, got %+v", cfg)
+		}
+	})
+
+	t.Run("valid with options", func(t *testing.T) {
+		t.Parallel()
+		params := map[string]any{"sort": "added"}
+		cfg, err := feed.NewFeedAdminConfig(
+			feed.TypeMostPopular,
+			feed.WithAdminEnabled(true),
+			feed.WithAdminDisplayOrder(3),
+			feed.WithAdminMaxItems(25),
+			feed.WithAdminParams(params),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !cfg.Enabled {
+			t.Error("expected Enabled true")
+		}
+		if cfg.DisplayOrder != 3 {
+			t.Errorf("DisplayOrder = %d, want 3", cfg.DisplayOrder)
+		}
+		if cfg.MaxItems != 25 {
+			t.Errorf("MaxItems = %d, want 25", cfg.MaxItems)
+		}
+		if got := cfg.Params["sort"]; got != "added" {
+			t.Errorf("Params[sort] = %v, want added", got)
+		}
+		// Defensive clone: mutating caller map must not affect cfg.
+		params["sort"] = "tampered"
+		if cfg.Params["sort"] != "added" {
+			t.Error("WithAdminParams did not clone the input map")
+		}
+	})
+
+	t.Run("invalid feed type rejected via IsValid", func(t *testing.T) {
+		t.Parallel()
+		_, err := feed.NewFeedAdminConfig(feed.Type(""))
+		if !errors.Is(err, feed.ErrInvalidFeedType) {
+			t.Fatalf("error = %v, want ErrInvalidFeedType", err)
+		}
+	})
+
+	t.Run("negative max items rejected", func(t *testing.T) {
+		t.Parallel()
+		_, err := feed.NewFeedAdminConfig(
+			feed.TypeRecentlyAdded,
+			feed.WithAdminMaxItems(-1),
+		)
+		if !errors.Is(err, feed.ErrNegativeMaxItems) {
+			t.Fatalf("error = %v, want ErrNegativeMaxItems", err)
+		}
+	})
+}
+
+func TestNewFeedProfileConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid no options", func(t *testing.T) {
+		t.Parallel()
+		cfg, err := feed.NewFeedProfileConfig(feed.TypeRecentlyAdded, "p1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.ProfileID != "p1" {
+			t.Errorf("ProfileID = %q, want p1", cfg.ProfileID)
+		}
+		if cfg.FeedType != feed.TypeRecentlyAdded {
+			t.Errorf("FeedType = %q, want %q", cfg.FeedType, feed.TypeRecentlyAdded)
+		}
+		if cfg.Enabled != nil || cfg.DisplayOrder != nil || cfg.MaxItems != nil {
+			t.Errorf("expected nil overrides by default, got %+v", cfg)
+		}
+	})
+
+	t.Run("valid with options", func(t *testing.T) {
+		t.Parallel()
+		params := map[string]any{"genre": "drama"}
+		cfg, err := feed.NewFeedProfileConfig(
+			feed.TypeNextEpisode,
+			"p1",
+			feed.WithProfileEnabled(false),
+			feed.WithProfileDisplayOrder(7),
+			feed.WithProfileMaxItems(12),
+			feed.WithProfileParams(params),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Enabled == nil || *cfg.Enabled {
+			t.Errorf("Enabled = %v, want pointer to false", cfg.Enabled)
+		}
+		if cfg.DisplayOrder == nil || *cfg.DisplayOrder != 7 {
+			t.Errorf("DisplayOrder = %v, want pointer to 7", cfg.DisplayOrder)
+		}
+		if cfg.MaxItems == nil || *cfg.MaxItems != 12 {
+			t.Errorf("MaxItems = %v, want pointer to 12", cfg.MaxItems)
+		}
+		if got := cfg.Params["genre"]; got != "drama" {
+			t.Errorf("Params[genre] = %v, want drama", got)
+		}
+		params["genre"] = "tampered"
+		if cfg.Params["genre"] != "drama" {
+			t.Error("WithProfileParams did not clone the input map")
+		}
+	})
+
+	t.Run("missing profile ID rejected", func(t *testing.T) {
+		t.Parallel()
+		_, err := feed.NewFeedProfileConfig(feed.TypeRecentlyAdded, "")
+		if !errors.Is(err, feed.ErrInvalidProfileID) {
+			t.Fatalf("error = %v, want ErrInvalidProfileID", err)
+		}
+	})
+
+	t.Run("invalid feed type rejected via IsValid", func(t *testing.T) {
+		t.Parallel()
+		_, err := feed.NewFeedProfileConfig(feed.Type(""), "p1")
+		if !errors.Is(err, feed.ErrInvalidFeedType) {
+			t.Fatalf("error = %v, want ErrInvalidFeedType", err)
+		}
+	})
 }

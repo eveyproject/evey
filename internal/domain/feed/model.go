@@ -2,9 +2,17 @@ package feed
 
 import (
 	"errors"
+	"maps"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/shared"
+)
+
+// Sentinel errors returned by the feed config constructors.
+var (
+	ErrInvalidFeedType  = errors.New("invalid feed type")
+	ErrInvalidProfileID = errors.New("invalid profile ID")
+	ErrNegativeMaxItems = errors.New("feed max items must not be negative")
 )
 
 type Type string
@@ -48,12 +56,49 @@ type AdminConfig struct {
 
 func (c *AdminConfig) Validate() error {
 	if !c.FeedType.IsValid() {
-		return errors.New("invalid feed type")
+		return ErrInvalidFeedType
 	}
 	if c.MaxItems < 0 {
-		return errors.New("feed max items must not be negative")
+		return ErrNegativeMaxItems
 	}
 	return nil
+}
+
+// AdminConfigOption tweaks an AdminConfig before validation.
+type AdminConfigOption func(*AdminConfig)
+
+// WithAdminEnabled toggles the server-wide enabled flag.
+func WithAdminEnabled(enabled bool) AdminConfigOption {
+	return func(c *AdminConfig) { c.Enabled = enabled }
+}
+
+// WithAdminDisplayOrder sets the display order index.
+func WithAdminDisplayOrder(order int) AdminConfigOption {
+	return func(c *AdminConfig) { c.DisplayOrder = order }
+}
+
+// WithAdminMaxItems caps the number of items returned by the feed.
+func WithAdminMaxItems(maxItems int) AdminConfigOption {
+	return func(c *AdminConfig) { c.MaxItems = maxItems }
+}
+
+// WithAdminParams attaches feed-specific parameters (cloned defensively).
+func WithAdminParams(params map[string]any) AdminConfigOption {
+	return func(c *AdminConfig) { c.Params = maps.Clone(params) }
+}
+
+// NewFeedAdminConfig is the canonical constructor for the server-wide feed
+// preset. It enforces FeedType validity (sentinel ErrInvalidFeedType) and
+// rejects negative MaxItems (ErrNegativeMaxItems) before returning the value.
+func NewFeedAdminConfig(feedType Type, opts ...AdminConfigOption) (AdminConfig, error) {
+	c := AdminConfig{FeedType: feedType}
+	for _, opt := range opts {
+		opt(&c)
+	}
+	if err := c.Validate(); err != nil {
+		return AdminConfig{}, err
+	}
+	return c, nil
 }
 
 // ProfileConfig is an optional per-profile override.
@@ -69,12 +114,53 @@ type ProfileConfig struct {
 
 func (c *ProfileConfig) Validate() error {
 	if c.ProfileID == "" {
-		return errors.New("feed profile config requires a profile ID")
+		return ErrInvalidProfileID
 	}
 	if !c.FeedType.IsValid() {
-		return errors.New("invalid feed type")
+		return ErrInvalidFeedType
 	}
 	return nil
+}
+
+// ProfileConfigOption tweaks a ProfileConfig before validation.
+// nil overrides keep "use admin default" semantics.
+type ProfileConfigOption func(*ProfileConfig)
+
+// WithProfileEnabled overrides the admin enabled flag.
+func WithProfileEnabled(enabled bool) ProfileConfigOption {
+	return func(c *ProfileConfig) { c.Enabled = &enabled }
+}
+
+// WithProfileDisplayOrder overrides the display order.
+func WithProfileDisplayOrder(order int) ProfileConfigOption {
+	return func(c *ProfileConfig) { c.DisplayOrder = &order }
+}
+
+// WithProfileMaxItems overrides the max items cap.
+func WithProfileMaxItems(maxItems int) ProfileConfigOption {
+	return func(c *ProfileConfig) { c.MaxItems = &maxItems }
+}
+
+// WithProfileParams attaches profile-specific params (cloned defensively).
+func WithProfileParams(params map[string]any) ProfileConfigOption {
+	return func(c *ProfileConfig) { c.Params = maps.Clone(params) }
+}
+
+// NewFeedProfileConfig is the canonical constructor for a per-profile feed
+// override. It enforces a non-empty ProfileID (ErrInvalidProfileID) and a
+// valid FeedType (ErrInvalidFeedType) before returning the value.
+func NewFeedProfileConfig(feedType Type, profileID shared.ProfileID, opts ...ProfileConfigOption) (ProfileConfig, error) {
+	c := ProfileConfig{
+		ProfileID: profileID,
+		FeedType:  feedType,
+	}
+	for _, opt := range opts {
+		opt(&c)
+	}
+	if err := c.Validate(); err != nil {
+		return ProfileConfig{}, err
+	}
+	return c, nil
 }
 
 // MergedConfig is the resolved config for a given profile+feed.
