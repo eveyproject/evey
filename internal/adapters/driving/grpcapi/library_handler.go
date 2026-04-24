@@ -93,6 +93,15 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "library not found: %v", err)
 	}
+	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
+	// but we re-check here so a future RBAC misconfiguration does not silently
+	// expose write access to other libraries.
+	if ok, accessErr := h.checkLibraryAccess(ctx, lib.ID); !ok {
+		if accessErr != nil {
+			slog.Warn("update library access check", slog.Any("err", accessErr))
+		}
+		return nil, status.Errorf(codes.NotFound, "library not found")
+	}
 	if req.Name != nil {
 		lib.Name = *req.Name
 	}
@@ -111,6 +120,19 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 }
 
 func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLibraryRequest) (*eveyv1.DeleteLibraryResponse, error) {
+	if req.Id == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+	}
+	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
+	// but explicitly re-verify access for non-admin claims so a future RBAC
+	// misconfiguration cannot silently expose deletion of other libraries.
+	// Admins (and contexts without userAccess wired) short-circuit.
+	if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.Id)); !ok {
+		if accessErr != nil {
+			slog.Warn("delete library access check", slog.Any("err", accessErr))
+		}
+		return nil, status.Errorf(codes.NotFound, "library not found")
+	}
 	if err := h.cmd.DeleteLibrary(ctx, req.Id); err != nil {
 		return nil, internalError("delete library", err)
 	}

@@ -523,3 +523,36 @@ func TestLibraryHandler_GetMediaItem_WithOverrides(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Overridden Title", resp.Title)
 }
+
+// Defense-in-depth IDOR: UpdateLibrary must reject non-admin callers without
+// access to the target library, even though RBAC already gates this RPC to
+// admins. Guards against future RBAC misconfiguration.
+func TestLibraryHandler_UpdateLibrary_IDOR_DeniesNonAdminWithoutAccess(t *testing.T) {
+	h, libQuery, _, _, libraryAccess, _ := newTestLibraryHandler()
+
+	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/media/movies"}})
+	libraryAccess.Grant(context.Background(), "user-2", "lib-99")
+
+	ctx := userCtx("user-2", "profile-2")
+	newName := "Hijacked"
+	_, err := h.UpdateLibrary(ctx, &eveyv1.UpdateLibraryRequest{Id: "lib-1", Name: &newName})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
+// Defense-in-depth IDOR: DeleteLibrary must reject non-admin callers without
+// access to the target library, even though RBAC already gates this RPC to
+// admins.
+func TestLibraryHandler_DeleteLibrary_IDOR_DeniesNonAdminWithoutAccess(t *testing.T) {
+	h, libQuery, _, _, libraryAccess, _ := newTestLibraryHandler()
+
+	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/media/movies"}})
+	libraryAccess.Grant(context.Background(), "user-2", "lib-99")
+
+	ctx := userCtx("user-2", "profile-2")
+	_, err := h.DeleteLibrary(ctx, &eveyv1.DeleteLibraryRequest{Id: "lib-1"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}

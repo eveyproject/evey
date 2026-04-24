@@ -352,6 +352,103 @@ func TestCollectionAddCollectionItem_MissingMediaItemID_400(t *testing.T) {
 	}
 }
 
+// Defense-in-depth IDOR: DeleteCollection must reject non-admin callers
+// without library access on any item in the collection. RBAC already gates
+// this RPC to admins, so this guards against future RBAC misconfiguration.
+func TestCollectionDeleteCollection_IDOR_DeniesNonAdminWithoutAccess(t *testing.T) {
+	h, cmdRepo, mediaRepo, libAccessRepo := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-priv", "Private")
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "A", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-priv", "m1", 0)
+	// User has access to a different library.
+	libAccessRepo.Grant(context.Background(), "user-1", "lib-2")
+
+	_, err := h.DeleteCollection(nonAdminCtx("user-1"), &eveyv1.DeleteCollectionRequest{Id: "col-priv"})
+	if err == nil {
+		t.Fatal("expected NotFound for non-admin without library access")
+	}
+	if got := status.Code(err); got != codes.NotFound {
+		t.Fatalf("code: want NotFound, got %v", got)
+	}
+	// Collection must still exist (delete should not have proceeded). Use
+	// an admin context to bypass the access check itself.
+	if _, getErr := h.GetCollection(adminCtx(), &eveyv1.GetCollectionRequest{Id: "col-priv"}); getErr != nil {
+		t.Fatalf("collection should still exist after blocked delete: %v", getErr)
+	}
+}
+
+// Admin path on DeleteCollection must remain unaffected (short-circuit).
+func TestCollectionDeleteCollection_AdminBypassAccess(t *testing.T) {
+	h, cmdRepo, mediaRepo, libAccessRepo := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-priv", "Private")
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "A", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-priv", "m1", 0)
+	// Even with no library access grants, an admin context must succeed.
+	_ = libAccessRepo
+
+	_, err := h.DeleteCollection(adminCtx(), &eveyv1.DeleteCollectionRequest{Id: "col-priv"})
+	if err != nil {
+		t.Fatalf("admin DeleteCollection: %v", err)
+	}
+}
+
+// Defense-in-depth IDOR: UpdateCollection must reject non-admin callers
+// without library access on any item in the collection.
+func TestCollectionUpdateCollection_IDOR_DeniesNonAdminWithoutAccess(t *testing.T) {
+	h, cmdRepo, mediaRepo, libAccessRepo := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-priv", "Private")
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "A", Type: "movie"})
+	cmdRepo.LinkItem(context.Background(), "col-priv", "m1", 0)
+	libAccessRepo.Grant(context.Background(), "user-1", "lib-2")
+
+	_, err := h.UpdateCollection(nonAdminCtx("user-1"), &eveyv1.UpdateCollectionRequest{
+		Id:   "col-priv",
+		Name: "Hijacked",
+	})
+	if err == nil {
+		t.Fatal("expected NotFound for non-admin without library access")
+	}
+	if got := status.Code(err); got != codes.NotFound {
+		t.Fatalf("code: want NotFound, got %v", got)
+	}
+	// Collection name must be unchanged.
+	got, getErr := h.GetCollection(adminCtx(), &eveyv1.GetCollectionRequest{Id: "col-priv"})
+	if getErr != nil {
+		t.Fatalf("get collection: %v", getErr)
+	}
+	if got.Collection.Name == "Hijacked" {
+		t.Fatal("collection name was mutated despite blocked update")
+	}
+}
+
+// Admin path on UpdateCollection must remain unaffected.
+func TestCollectionUpdateCollection_AdminBypassAccess(t *testing.T) {
+	h, cmdRepo, _, _ := newTestCollectionHandlerWithAccess()
+	seedCollection(cmdRepo, "col-priv", "Old")
+
+	resp, err := h.UpdateCollection(adminCtx(), &eveyv1.UpdateCollectionRequest{
+		Id:   "col-priv",
+		Name: "New",
+	})
+	if err != nil {
+		t.Fatalf("admin UpdateCollection: %v", err)
+	}
+	if resp.Collection == nil || resp.Collection.Name != "New" {
+		t.Fatalf("expected name 'New', got %+v", resp.Collection)
+	}
+}
+
+func TestCollectionDeleteCollection_EmptyID_400(t *testing.T) {
+	h, _ := newTestCollectionHandler()
+	_, err := h.DeleteCollection(context.Background(), &eveyv1.DeleteCollectionRequest{Id: ""})
+	if err == nil {
+		t.Fatal("expected error for empty id")
+	}
+	if got := status.Code(err); got != codes.InvalidArgument {
+		t.Fatalf("code: want InvalidArgument, got %v", got)
+	}
+}
+
 func TestCollectionGetCollectionItems_Empty(t *testing.T) {
 	h, cmdRepo := newTestCollectionHandler()
 	seedCollection(cmdRepo, "col-1", "Avengers")

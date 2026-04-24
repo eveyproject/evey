@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -80,6 +81,15 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 }
 
 func (h *collectionHandler) DeleteCollection(ctx context.Context, req *eveyv1.DeleteCollectionRequest) (*eveyv1.DeleteCollectionResponse, error) {
+	if req.GetId() == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+	}
+	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
+	// but verify caller has access to at least one library backing the
+	// collection before deleting. Admins short-circuit.
+	if err := h.checkCollectionAccess(ctx, req.GetId()); err != nil {
+		return nil, err
+	}
 	if err := h.svc.Delete(ctx, req.Id); err != nil {
 		return nil, internalError("delete collection", err)
 	}
@@ -112,6 +122,12 @@ func (h *collectionHandler) UpdateCollection(ctx context.Context, req *eveyv1.Up
 	}
 	if req.GetName() == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "name is required")
+	}
+	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
+	// but verify caller has access to at least one library backing the
+	// collection before mutating. Admins short-circuit.
+	if err := h.checkCollectionAccess(ctx, req.GetId()); err != nil {
+		return nil, err
 	}
 	rules := protoRulesToDomain(req.GetRules())
 	if req.GetSmart() {
@@ -212,6 +228,37 @@ func (h *collectionHandler) allowedLibraryIDs(ctx context.Context) ([]string, er
 		return nil, nil
 	}
 	return h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+}
+
+// checkCollectionAccess verifies the caller can interact with the collection
+// identified by collectionID. Admins (and unauthenticated test contexts where
+// userAccess is nil) short-circuit. Non-admins must have library access on at
+// least one media item of the collection; otherwise NotFound is returned to
+// avoid leaking existence. Returns a gRPC status error suitable for direct
+// propagation to the client.
+func (h *collectionHandler) checkCollectionAccess(ctx context.Context, collectionID string) error {
+	allowed, err := h.allowedLibraryIDs(ctx)
+	if err != nil {
+		return internalError("check access", err)
+	}
+	if allowed == nil {
+		// Admin or no access service wired (tests) — defer to RBAC.
+		return nil
+	}
+	if _, getErr := h.svc.GetByID(ctx, collectionID); getErr != nil {
+		return status.Errorf(codes.NotFound, "collection not found")
+	}
+	items, _, itemsErr := h.svc.GetItems(ctx, collectionID, 1000, 0)
+	if itemsErr != nil {
+		slog.Warn("collection access check: get items", slog.String("collection_id", collectionID), slog.Any("err", itemsErr))
+		return internalError("get collection items", itemsErr)
+	}
+	for _, it := range items {
+		if slices.Contains(allowed, string(it.LibraryID)) {
+			return nil
+		}
+	}
+	return status.Errorf(codes.NotFound, "collection not found")
 }
 
 
