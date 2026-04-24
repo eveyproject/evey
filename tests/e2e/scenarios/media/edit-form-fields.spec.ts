@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth";
-import { gotoRandomMedia, collectErrors } from "../shared/helpers";
+import { gotoRandomMedia, collectErrors, setReactInput } from "../shared/helpers";
 
 async function openEdit(page: import("@playwright/test").Page): Promise<boolean> {
   const id = await gotoRandomMedia(page);
@@ -52,11 +52,9 @@ test.describe("Media Edit > Form fields", () => {
     test.skip(!(await openEdit(page)), "Cannot open edit");
     const input = page.locator('[data-testid="media-edit-title-input"]');
     const original = await input.inputValue();
-    await input.fill(original + " test");
-    const newVal = await input.inputValue();
-    expect(newVal).toContain(" test");
-    // restore
-    await input.fill(original);
+    await setReactInput(input, original + " test");
+    expect(await input.inputValue()).toContain(" test");
+    await setReactInput(input, original);
   });
 
   test("save button click sends API request", async ({ page }) => {
@@ -69,21 +67,21 @@ test.describe("Media Edit > Form fields", () => {
     test.skip(!(await openEdit(page)), "Cannot open edit");
     const input = page.locator('[data-testid="media-edit-title-input"]');
     const original = await input.inputValue();
-    // type at end so React's controlled-component onChange definitely fires
-    await input.click();
-    await page.keyboard.press("End");
-    await page.keyboard.type(" [e2e-noop]");
+    // unique suffix per run so a leftover override from a previous failed run
+    // doesn't make the form clean and silently no-op the save.
+    const suffix = ` [e2e-${Date.now()}]`;
+    await setReactInput(input, original + suffix);
     await page.waitForTimeout(200);
     await Promise.all([
       page.waitForRequest((r) => r.url().includes("/api/v1/metadata/overrides") && r.method() === "POST", { timeout: 5_000 }),
       page.locator(`[data-testid="media-edit-save-btn"]`).click(),
     ]);
     expect(apiCalled).toBe(true);
-    // restore (modal closed onSave; reopen)
+    // restore (modal closes on save; reopen)
     await page.locator('[data-testid="media-edit-toggle-btn"]').first().click();
     const restore = page.locator('[data-testid="media-edit-title-input"]');
     if (await restore.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await restore.fill(original);
+      await setReactInput(restore, original);
       await page.locator(`[data-testid="media-edit-save-btn"]`).click();
       await page.waitForTimeout(1_000);
     }

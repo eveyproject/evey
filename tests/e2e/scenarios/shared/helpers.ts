@@ -1,10 +1,30 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 const BASE = process.env.BASE_URL ?? "https://evey.test";
 
 /** Navigate with short timeout */
 export async function goto(page: Page, path: string) {
   await page.goto(path, { waitUntil: "domcontentloaded", timeout: 10_000 });
+}
+
+/**
+ * Set a controlled-input's value so React's onChange actually fires.
+ * Playwright's `fill` / `keyboard.type` / `pressSequentially` all bypass
+ * React 18's value setter on some inputs, leaving the form state stale and
+ * silently turning subsequent saves into no-ops. The native-setter +
+ * synthetic 'input' event below is the canonical workaround.
+ */
+export async function setReactInput(input: Locator, value: string): Promise<void> {
+  await input.evaluate((el, v) => {
+    const node = el as HTMLInputElement;
+    node.focus();
+    const proto = Object.getPrototypeOf(node);
+    const desc = Object.getOwnPropertyDescriptor(proto, "value");
+    desc?.set?.call(node, v);
+    node.dispatchEvent(new Event("input", { bubbles: true }));
+    node.dispatchEvent(new Event("change", { bubbles: true }));
+    node.blur();
+  }, value);
 }
 
 /** Get auth token from storage state */
