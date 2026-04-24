@@ -16,6 +16,7 @@ import (
 	"github.com/evey-project/evey/internal/config"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // version is set at build time via -ldflags "-X main.version=..."
@@ -55,6 +56,32 @@ func run() error {
 	if err := cfg.WarnValidate(); err != nil {
 		return fmt.Errorf("config validation: %w", err)
 	}
+
+	tracingShutdown, err := tracing.Init(context.Background(), tracing.Config{
+		Endpoint:    cfg.Tracing.OTLPEndpoint,
+		ServiceName: cfg.Tracing.ServiceName,
+		SampleRatio: cfg.Tracing.SampleRatio,
+		Disabled:    cfg.Tracing.OTLPEndpoint == "",
+	})
+	if err != nil {
+		return fmt.Errorf("tracing init: %w", err)
+	}
+	if cfg.Tracing.OTLPEndpoint == "" {
+		rootLog.Info("tracing disabled (set EVEY_OTLP_ENDPOINT to enable)")
+	} else {
+		rootLog.Info("tracing enabled",
+			slog.String("endpoint", cfg.Tracing.OTLPEndpoint),
+			slog.String("service", cfg.Tracing.ServiceName),
+			slog.Float64("sample_ratio", cfg.Tracing.SampleRatio),
+		)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tracingShutdown(shutdownCtx); err != nil {
+			slog.Warn("tracing shutdown", slog.Any("err", err))
+		}
+	}()
 
 	db, err := openDB(cfg)
 	if err != nil {

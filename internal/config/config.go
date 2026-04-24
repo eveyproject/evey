@@ -25,6 +25,13 @@ type Config struct {
 	RemoteAccess RemoteAccessConfig
 	SMTP  SMTPConfig
 	VAPID VAPIDConfig
+	Tracing TracingConfig
+}
+
+type TracingConfig struct {
+	OTLPEndpoint string  // EVEY_OTLP_ENDPOINT, empty = disabled
+	ServiceName  string  // EVEY_TRACING_SERVICE_NAME, default "evey"
+	SampleRatio  float64 // EVEY_TRACING_SAMPLE_RATIO in [0,1], default 0
 }
 
 type MetadataConfig struct {
@@ -344,6 +351,11 @@ func Load() (*Config, error) {
 			PrivateKey: envStr("VAPID_PRIVATE_KEY", ""),
 			Subject:    envStr("VAPID_SUBJECT", "mailto:admin@localhost"),
 		},
+		Tracing: TracingConfig{
+			OTLPEndpoint: envStr("EVEY_OTLP_ENDPOINT", ""),
+			ServiceName:  envStr("EVEY_TRACING_SERVICE_NAME", "evey"),
+			SampleRatio:  envFloat("EVEY_TRACING_SAMPLE_RATIO", 0),
+		},
 	}
 	return cfg, nil
 }
@@ -391,6 +403,15 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 	if v := os.Getenv(key); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
+		}
+	}
+	return fallback
+}
+
+func envFloat(key string, fallback float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
 		}
 	}
 	return fallback

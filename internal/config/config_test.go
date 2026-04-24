@@ -85,6 +85,10 @@ func TestLoad_Defaults(t *testing.T) {
 
 	assert.Empty(t, cfg.VAPID.PublicKey)
 	assert.Equal(t, "mailto:admin@localhost", cfg.VAPID.Subject)
+
+	assert.Empty(t, cfg.Tracing.OTLPEndpoint)
+	assert.Equal(t, "evey", cfg.Tracing.ServiceName)
+	assert.InDelta(t, 0.0, cfg.Tracing.SampleRatio, 0.0001)
 }
 
 func TestLoad_EnvOverrides(t *testing.T) {
@@ -135,6 +139,26 @@ func TestLoad_InvalidDurationFallsBack(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, 15*time.Minute, cfg.JWT.AccessTokenTTL)
+}
+
+func TestLoad_TracingEnvOverrides(t *testing.T) {
+	t.Setenv("EVEY_OTLP_ENDPOINT", "otel-collector:4317")
+	t.Setenv("EVEY_TRACING_SERVICE_NAME", "evey-test")
+	t.Setenv("EVEY_TRACING_SAMPLE_RATIO", "0.25")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "otel-collector:4317", cfg.Tracing.OTLPEndpoint)
+	assert.Equal(t, "evey-test", cfg.Tracing.ServiceName)
+	assert.InDelta(t, 0.25, cfg.Tracing.SampleRatio, 0.0001)
+}
+
+func TestLoad_TracingInvalidRatioFallsBack(t *testing.T) {
+	t.Setenv("EVEY_TRACING_SAMPLE_RATIO", "notafloat")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.InDelta(t, 0.0, cfg.Tracing.SampleRatio, 0.0001)
 }
 
 func TestDBConfig_DSN(t *testing.T) {
