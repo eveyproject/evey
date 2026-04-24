@@ -13,6 +13,8 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -49,14 +51,21 @@ func (h *ratingHandler) requireMediaAccess(ctx context.Context, mediaItemID stri
 }
 
 func (h *ratingHandler) PutThumbRating(ctx context.Context, req *eveyv1.PutThumbRatingRequest) (*eveyv1.PutThumbRatingResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.rating.PutThumbRating")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("ratingHandler.PutThumbRating: %w", err)
 	}
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
+		span.RecordError(accessErr)
+		span.SetStatus(otelcodes.Error, accessErr.Error())
 		return nil, fmt.Errorf("ratingHandler.PutThumbRating: %w", accessErr)
 	}
 	if req.Value < -1 || req.Value > 1 {
+		span.SetStatus(otelcodes.Error, "value must be -1, 0, or 1")
 		return nil, status.Error(codes.InvalidArgument, "value must be -1, 0, or 1")
 	}
 	r := &domainlibrary.UserRating{
@@ -65,6 +74,8 @@ func (h *ratingHandler) PutThumbRating(ctx context.Context, req *eveyv1.PutThumb
 		Value:       int(req.Value),
 	}
 	if upsertErr := h.starSvc.UpsertThumb(ctx, r); upsertErr != nil {
+		span.RecordError(upsertErr)
+		span.SetStatus(otelcodes.Error, upsertErr.Error())
 		slog.Error("upsert thumb rating", slog.Any("err", upsertErr))
 		return nil, status.Error(codes.Internal, "internal error")
 	}
@@ -72,11 +83,17 @@ func (h *ratingHandler) PutThumbRating(ctx context.Context, req *eveyv1.PutThumb
 }
 
 func (h *ratingHandler) GetMyThumbRating(ctx context.Context, req *eveyv1.GetMyThumbRatingRequest) (*eveyv1.GetMyThumbRatingResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.rating.GetMyThumbRating")
+	defer span.End()
 	_, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("ratingHandler.GetMyThumbRating: %w", err)
 	}
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
+		span.RecordError(accessErr)
+		span.SetStatus(otelcodes.Error, accessErr.Error())
 		return nil, fmt.Errorf("ratingHandler.GetMyThumbRating: %w", accessErr)
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
@@ -91,19 +108,28 @@ func (h *ratingHandler) GetMyThumbRating(ctx context.Context, req *eveyv1.GetMyT
 }
 
 func (h *ratingHandler) PostStarRating(ctx context.Context, req *eveyv1.PostStarRatingRequest) (*eveyv1.PostStarRatingResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.rating.PostStarRating")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("ratingHandler.PostStarRating: %w", err)
 	}
 	// Resolve access (and existence) before value validation so a missing
 	// mediaItemID returns NotFound instead of being masked by InvalidArgument.
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
+		span.RecordError(accessErr)
+		span.SetStatus(otelcodes.Error, accessErr.Error())
 		return nil, fmt.Errorf("ratingHandler.PostStarRating: %w", accessErr)
 	}
 	if req.Value < 1 || req.Value > 10 {
+		span.SetStatus(otelcodes.Error, "rating must be between 1 and 10")
 		return nil, status.Error(codes.InvalidArgument, "rating must be between 1 and 10")
 	}
 	if rateErr := h.starSvc.Rate(ctx, req.MediaItemId, claims.ProfileID, int(req.Value)); rateErr != nil {
+		span.RecordError(rateErr)
+		span.SetStatus(otelcodes.Error, rateErr.Error())
 		slog.Error("star rating", slog.Any("err", rateErr))
 		return nil, status.Error(codes.Internal, "internal error")
 	}
@@ -111,11 +137,17 @@ func (h *ratingHandler) PostStarRating(ctx context.Context, req *eveyv1.PostStar
 }
 
 func (h *ratingHandler) GetStarRating(ctx context.Context, req *eveyv1.GetStarRatingRequest) (*eveyv1.GetStarRatingResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.rating.GetStarRating")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("ratingHandler.GetStarRating: %w", err)
 	}
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
+		span.RecordError(accessErr)
+		span.SetStatus(otelcodes.Error, accessErr.Error())
 		return nil, fmt.Errorf("ratingHandler.GetStarRating: %w", accessErr)
 	}
 	rt, getErr := h.starSvc.GetRating(ctx, req.MediaItemId, claims.ProfileID)
@@ -123,6 +155,8 @@ func (h *ratingHandler) GetStarRating(ctx context.Context, req *eveyv1.GetStarRa
 		if errors.Is(getErr, shared.ErrNotFound) {
 			return &eveyv1.GetStarRatingResponse{Value: 0}, nil
 		}
+		span.RecordError(getErr)
+		span.SetStatus(otelcodes.Error, getErr.Error())
 		slog.Error("get star rating", slog.Any("err", getErr))
 		return nil, status.Error(codes.Internal, "internal error")
 	}
@@ -130,15 +164,23 @@ func (h *ratingHandler) GetStarRating(ctx context.Context, req *eveyv1.GetStarRa
 }
 
 func (h *ratingHandler) DeleteStarRating(ctx context.Context, req *eveyv1.DeleteStarRatingRequest) (*emptypb.Empty, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.rating.DeleteStarRating")
+	defer span.End()
 	_, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("ratingHandler.DeleteStarRating: %w", err)
 	}
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
+		span.RecordError(accessErr)
+		span.SetStatus(otelcodes.Error, accessErr.Error())
 		return nil, fmt.Errorf("ratingHandler.DeleteStarRating: %w", accessErr)
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	if delErr := h.starSvc.DeleteRating(ctx, req.MediaItemId, claims.ProfileID); delErr != nil {
+		span.RecordError(delErr)
+		span.SetStatus(otelcodes.Error, delErr.Error())
 		slog.Error("delete star rating", slog.Any("err", delErr))
 		return nil, status.Error(codes.Internal, "internal error")
 	}
@@ -146,15 +188,23 @@ func (h *ratingHandler) DeleteStarRating(ctx context.Context, req *eveyv1.Delete
 }
 
 func (h *ratingHandler) GetRatingAggregate(ctx context.Context, req *eveyv1.GetRatingAggregateRequest) (*eveyv1.GetRatingAggregateResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.rating.GetRatingAggregate")
+	defer span.End()
 	_, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("ratingHandler.GetRatingAggregate: %w", err)
 	}
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
+		span.RecordError(accessErr)
+		span.SetStatus(otelcodes.Error, accessErr.Error())
 		return nil, fmt.Errorf("ratingHandler.GetRatingAggregate: %w", accessErr)
 	}
 	aggs, aggErr := h.starSvc.GetAggregates(ctx, []string{req.MediaItemId})
 	if aggErr != nil {
+		span.RecordError(aggErr)
+		span.SetStatus(otelcodes.Error, aggErr.Error())
 		slog.Error("get rating aggregate", slog.Any("err", aggErr))
 		return nil, status.Error(codes.Internal, "internal error")
 	}
