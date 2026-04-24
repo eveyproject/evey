@@ -52,10 +52,10 @@ test.describe("IDOR > Access other user's resources", () => {
 });
 
 test.describe("IDOR > Non-admin accessing admin endpoints", () => {
-  test("DELETE /api/v1/admin/users/{id} without admin → 403", async ({ page }) => {
+  test("DELETE /api/v1/users/{id} without admin → 401/403", async ({ page }) => {
     await goto(page, "/home");
     const status = await page.evaluate(async ({ id }) => {
-      const res = await fetch(`/api/v1/admin/users/${id}`, {
+      const res = await fetch(`/api/v1/users/${id}`, {
         method: "DELETE",
       });
       return res.status;
@@ -64,12 +64,13 @@ test.describe("IDOR > Non-admin accessing admin endpoints", () => {
     expect([401, 403]).toContain(status);
   });
 
-  test("POST /api/v1/admin/metadata/refresh-all without admin → 403", async ({ page }) => {
+  test("POST /api/v1/admin/media/refresh-metadata without admin → 401/403", async ({ page }) => {
     await goto(page, "/home");
     const status = await page.evaluate(async () => {
-      const res = await fetch("/api/v1/admin/metadata/refresh-all", {
+      const res = await fetch("/api/v1/admin/media/refresh-metadata", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
       });
       return res.status;
     });
