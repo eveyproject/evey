@@ -7,7 +7,7 @@ test.describe("Playlists > Full CRUD", () => {
 
   test("create playlist via API", async ({ page }) => {
     await goto(page, "/home");
-    const res = await apiPost(page, "/api/v1/playlists", { name: plName, type: "manual" });
+    const res = await apiPost(page, "/api/v1/playlists", { name: plName, type: "PLAYLIST_TYPE_MANUAL" });
     expect(res.status).toBe(200);
     playlistId = res.body?.id ?? null;
     expect(playlistId).toBeTruthy();
@@ -64,7 +64,7 @@ test.describe("Playlists > Page stability", () => {
 
   test("create playlist button visible", async ({ page }) => {
     await goto(page, "/playlists");
-    await expect(page.locator("button", { hasText: /create|new|add/i }).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('[data-testid="playlist-create-btn"]')).toBeVisible({ timeout: 5_000 });
   });
 
   test("no JS errors", async ({ page }) => {

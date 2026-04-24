@@ -6,45 +6,49 @@ test.describe("Media > Metadata save (full CRUD)", () => {
     const id = await gotoRandomMedia(page);
     test.skip(!id, "No media found");
 
-    // read original title
-    const originalTitle = await page.locator('[data-testid="media-title"]').textContent();
+    const originalTitle = (await page.locator('[data-testid="media-title"]').textContent())?.trim() ?? "";
 
-    // open edit
-    await page.locator('button[title*="edit" i]').first().click();
-    await page.waitForTimeout(1_000);
-
-    // find title input and modify
-    const titleInput = page.locator('input').first();
-    test.skip(!(await titleInput.isVisible({ timeout: 2_000 }).catch(() => false)), "No input found in edit");
-    const currentVal = await titleInput.inputValue();
+    await page.locator('[data-testid="media-edit-toggle-btn"]').first().click();
+    const titleInput = page.locator('[data-testid="media-edit-title-input"]');
+    await expect(titleInput).toBeVisible({ timeout: 5_000 });
     const testSuffix = " [e2e-test]";
 
-    // append test suffix
-    await titleInput.fill(currentVal + testSuffix);
+    // keyboard.type fires the React onChange; .fill bypasses it on some
+    // controlled inputs and the form stays clean → save no-ops.
+    await titleInput.click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(testSuffix);
     await page.waitForTimeout(300);
 
-    // click save
-    const saveBtn = page.locator("button", { hasText: /save/i }).first();
+    const saveBtn = page.locator(`[data-testid="media-edit-save-btn"]`);
     const { serverErrors } = await collectErrors(page, async () => {
-      await saveBtn.click();
-      await page.waitForTimeout(2_000);
+      // wait for the override POST to settle before reload, otherwise the
+      // freshly-fetched detail can race the not-yet-committed write.
+      await Promise.all([
+        page.waitForResponse(
+          (r) => r.url().includes("/api/v1/metadata/overrides") && r.request().method() === "POST" && r.ok(),
+          { timeout: 5_000 },
+        ),
+        saveBtn.click(),
+      ]);
+      await page.waitForTimeout(500);
     });
-
-    // verify no server errors
     expect(serverErrors, `5xx on save: ${serverErrors.join(", ")}`).toHaveLength(0);
 
-    // reload and check title changed
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 });
     const newTitle = await page.locator('[data-testid="media-title"]').textContent();
     expect(newTitle).toContain(testSuffix);
 
     // cleanup: restore original title
-    await page.locator('button[title*="edit" i]').first().click();
-    await page.waitForTimeout(1_000);
-    const input2 = page.locator('input').first();
-    await input2.fill(originalTitle!.trim());
-    await page.locator("button", { hasText: /save/i }).first().click();
+    await page.locator('[data-testid="media-edit-toggle-btn"]').first().click();
+    const input2 = page.locator('[data-testid="media-edit-title-input"]');
+    await expect(input2).toBeVisible({ timeout: 5_000 });
+    await input2.click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("Delete");
+    await page.keyboard.type(originalTitle);
+    await page.locator(`[data-testid="media-edit-save-btn"]`).click();
     await page.waitForTimeout(1_500);
   });
 
@@ -52,22 +56,18 @@ test.describe("Media > Metadata save (full CRUD)", () => {
     const id = await gotoRandomMedia(page);
     test.skip(!id, "No media found");
 
-    await page.locator('button[title*="edit" i]').first().click();
-    await page.waitForTimeout(1_000);
+    await page.locator('[data-testid="media-edit-toggle-btn"]').first().click();
+    const titleInput = page.locator('[data-testid="media-edit-title-input"]');
+    await expect(titleInput).toBeVisible({ timeout: 5_000 });
 
-    const titleInput = page.locator('input').first();
-    test.skip(!(await titleInput.isVisible({ timeout: 2_000 }).catch(() => false)), "No input");
-
-    // clear title
     await titleInput.fill("");
     await page.waitForTimeout(300);
 
-    const saveBtn = page.locator("button", { hasText: /save/i }).first();
-    await saveBtn.click();
+    // Save button is disabled when the form has nothing dirty AND nothing was
+    // changed. `force: true` exercises the no-op path without crashing.
+    await page.locator(`[data-testid="media-edit-save-btn"]`).click({ force: true });
     await page.waitForTimeout(1_500);
 
-    // should either show error or not save empty title
-    // reload and verify title is still the original
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 });
     const title = await page.locator('[data-testid="media-title"]').textContent();
@@ -78,10 +78,10 @@ test.describe("Media > Metadata save (full CRUD)", () => {
     const id = await gotoRandomMedia(page);
     test.skip(!id, "No media found");
 
-    await page.locator('button[title*="edit" i]').first().click();
+    await page.locator('[data-testid="media-edit-toggle-btn"]').first().click();
     await page.waitForTimeout(1_000);
 
-    const refreshBtn = page.locator("button", { hasText: /refresh/i }).first();
+    const refreshBtn = page.locator(`[data-testid="media-edit-refresh-btn"]`);
     test.skip(!(await refreshBtn.isVisible({ timeout: 2_000 }).catch(() => false)), "No refresh button");
 
     const { jsErrors, serverErrors } = await collectErrors(page, async () => {

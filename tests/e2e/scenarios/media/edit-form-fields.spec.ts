@@ -4,21 +4,24 @@ import { gotoRandomMedia, collectErrors } from "../shared/helpers";
 async function openEdit(page: import("@playwright/test").Page): Promise<boolean> {
   const id = await gotoRandomMedia(page);
   if (!id) return false;
-  const btn = page.locator('button[title*="edit" i]').first();
+  const btn = page.locator('[data-testid="media-edit-toggle-btn"]').first();
   if (!(await btn.isVisible({ timeout: 3_000 }).catch(() => false))) return false;
   await btn.click();
-  await page.waitForTimeout(1_000);
-  return true;
+  // wait for the edit form to render (title input is the canonical first field)
+  return await page
+    .locator('[data-testid="media-edit-title-input"]')
+    .waitFor({ state: "visible", timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false);
 }
 
 test.describe("Media Edit > Form fields", () => {
   test("title input exists and is pre-filled", async ({ page }) => {
     test.skip(!(await openEdit(page)), "Cannot open edit");
-    const inputs = page.locator("input");
-    const count = await inputs.count();
-    expect(count).toBeGreaterThan(0);
-    const firstVal = await inputs.first().inputValue();
-    expect(firstVal.length).toBeGreaterThan(0);
+    const titleInput = page.locator('[data-testid="media-edit-title-input"]');
+    await expect(titleInput).toBeVisible({ timeout: 3_000 });
+    const val = await titleInput.inputValue();
+    expect(val.length).toBeGreaterThan(0);
   });
 
   test("overview textarea exists", async ({ page }) => {
@@ -30,12 +33,12 @@ test.describe("Media Edit > Form fields", () => {
 
   test("save button exists", async ({ page }) => {
     test.skip(!(await openEdit(page)), "Cannot open edit");
-    await expect(page.locator("button", { hasText: /save/i }).first()).toBeVisible({ timeout: 2_000 });
+    await expect(page.locator(`[data-testid="media-edit-save-btn"]`)).toBeVisible({ timeout: 2_000 });
   });
 
   test("refresh metadata button exists", async ({ page }) => {
     test.skip(!(await openEdit(page)), "Cannot open edit");
-    await expect(page.locator("button", { hasText: /refresh/i }).first()).toBeVisible({ timeout: 2_000 });
+    await expect(page.locator(`[data-testid="media-edit-refresh-btn"]`)).toBeVisible({ timeout: 2_000 });
   });
 
   test("TMDB ID field exists", async ({ page }) => {
@@ -47,7 +50,7 @@ test.describe("Media Edit > Form fields", () => {
 
   test("typing in title input works", async ({ page }) => {
     test.skip(!(await openEdit(page)), "Cannot open edit");
-    const input = page.locator("input").first();
+    const input = page.locator('[data-testid="media-edit-title-input"]');
     const original = await input.inputValue();
     await input.fill(original + " test");
     const newVal = await input.inputValue();
@@ -57,16 +60,33 @@ test.describe("Media Edit > Form fields", () => {
   });
 
   test("save button click sends API request", async ({ page }) => {
-    test.skip(!(await openEdit(page)), "Cannot open edit");
     let apiCalled = false;
     page.on("request", (req) => {
-      if (req.method() === "PUT" || req.method() === "PATCH" || req.method() === "POST") {
-        if (req.url().includes("/media/") || req.url().includes("/metadata/")) apiCalled = true;
+      if (req.url().includes("/api/v1/metadata/overrides") && req.method() === "POST") {
+        apiCalled = true;
       }
     });
-    await page.locator("button", { hasText: /save/i }).first().click();
-    await page.waitForTimeout(2_000);
+    test.skip(!(await openEdit(page)), "Cannot open edit");
+    const input = page.locator('[data-testid="media-edit-title-input"]');
+    const original = await input.inputValue();
+    // type at end so React's controlled-component onChange definitely fires
+    await input.click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" [e2e-noop]");
+    await page.waitForTimeout(200);
+    await Promise.all([
+      page.waitForRequest((r) => r.url().includes("/api/v1/metadata/overrides") && r.method() === "POST", { timeout: 5_000 }),
+      page.locator(`[data-testid="media-edit-save-btn"]`).click(),
+    ]);
     expect(apiCalled).toBe(true);
+    // restore (modal closed onSave; reopen)
+    await page.locator('[data-testid="media-edit-toggle-btn"]').first().click();
+    const restore = page.locator('[data-testid="media-edit-title-input"]');
+    if (await restore.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await restore.fill(original);
+      await page.locator(`[data-testid="media-edit-save-btn"]`).click();
+      await page.waitForTimeout(1_000);
+    }
   });
 
   test("refresh metadata sends API request", async ({ page }) => {
@@ -75,7 +95,7 @@ test.describe("Media Edit > Form fields", () => {
     page.on("request", (req) => {
       if (req.url().includes("refresh") || req.url().includes("enrich")) apiCalled = true;
     });
-    const refreshBtn = page.locator("button", { hasText: /refresh/i }).first();
+    const refreshBtn = page.locator(`[data-testid="media-edit-refresh-btn"]`);
     await refreshBtn.click();
     await page.waitForTimeout(3_000);
     expect(apiCalled).toBe(true);

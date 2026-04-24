@@ -5,15 +5,14 @@ test.describe("Admin > Feeds config", () => {
   test("feed rows are visible", async ({ page }) => {
     await goto(page, "/admin/feeds");
     await page.waitForTimeout(2_000);
-    // should show toggle switches for feeds
-    const toggles = page.locator("button[aria-label]");
+    const toggles = page.locator('button[role="switch"]');
     expect(await toggles.count()).toBeGreaterThan(0);
   });
 
   test("toggling a feed doesn't crash", async ({ page }) => {
     await goto(page, "/admin/feeds");
     await page.waitForTimeout(2_000);
-    const toggle = page.locator('button[aria-label*="able" i]').first();
+    const toggle = page.locator('button[role="switch"]').first();
     test.skip(!(await toggle.isVisible({ timeout: 2_000 }).catch(() => false)), "No toggle");
 
     const { jsErrors } = await collectErrors(page, async () => {
@@ -25,7 +24,7 @@ test.describe("Admin > Feeds config", () => {
 
   test("save button sends request without 5xx", async ({ page }) => {
     await goto(page, "/admin/feeds");
-    const saveBtn = page.locator("button", { hasText: /save/i }).first();
+    const saveBtn = page.locator('[data-testid="feeds-save-btn"]');
     test.skip(!(await saveBtn.isVisible({ timeout: 3_000 }).catch(() => false)), "No save button");
 
     const { serverErrors } = await collectErrors(page, async () => {
