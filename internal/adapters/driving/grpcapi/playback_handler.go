@@ -24,6 +24,8 @@ import (
 	"github.com/evey-project/evey/internal/pkg/id"
 	"github.com/evey-project/evey/internal/pkg/ratings"
 	"github.com/evey-project/evey/internal/pkg/region"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -66,11 +68,17 @@ func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceTyp
 }
 
 func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStreamInfoRequest) (*eveyv1.StreamInfo, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback.GetStreamInfo")
+	defer span.End()
 	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetStreamInfo: %w", err)
 	}
 	item, err := h.librarySvc.GetMediaItem(ctx, req.MediaItemId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
 	}
 	containerFormat := ""
@@ -131,7 +139,10 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 
 	decision := apptranscoding.MakePlaybackDecisionWithPrefs(streams, containerFormat, client, maxBitrateKbps, prefs)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
-		return nil, status.Errorf(codes.FailedPrecondition, "transcoding disabled by user preferences")
+		err := status.Errorf(codes.FailedPrecondition, "transcoding disabled by user preferences")
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
 	}
 	resp.TranscodeReasons = decision.TranscodeReasons
 	resp.VideoDecision = decision.VideoDecision
@@ -153,20 +164,31 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 }
 
 func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStreamRequest) (*eveyv1.PlaySession, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback.StartStream")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.StartStream: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.StartStream: %w", err)
 	}
 	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.StartStream: %w", err)
 	}
 	if h.userQuery != nil {
 		if blocked, _ := h.isBlockedByParental(ctx, profileID, req.MediaItemId); blocked {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.parental_blocked")
+			err := h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.parental_blocked")
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, err
 		}
 	}
 
@@ -178,15 +200,23 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		playback.WithPlaySessionDevice(req.DeviceName, req.ClientName),
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.cmd.StartStream(ctx, session, claims.UserID); err != nil {
+		span.RecordError(err)
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
+			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
+			span.SetStatus(otelcodes.Error, tErr.Error())
+			return nil, tErr
 		}
 		if errors.Is(err, appplayback.ErrMaxStreams) {
-			return nil, h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.playback.max_streams_reached")
+			tErr := h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.playback.max_streams_reached")
+			span.SetStatus(otelcodes.Error, tErr.Error())
+			return nil, tErr
 		}
+		span.SetStatus(otelcodes.Error, err.Error())
 		slog.Error("start stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -199,23 +229,37 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 }
 
 func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStreamRequest) (*eveyv1.StopStreamResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback.StopStream")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.StopStream: %w", err)
 	}
 	sess, sessErr := h.cmd.GetSession(ctx, req.SessionId)
 	if !claims.IsAdmin {
 		if sessErr != nil {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
+			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
+			span.RecordError(tErr)
+			span.SetStatus(otelcodes.Error, tErr.Error())
+			return nil, tErr
 		}
 		if string(sess.ProfileID) != claims.ProfileID {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.cannot_stop_other_session")
+			tErr := h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.cannot_stop_other_session")
+			span.RecordError(tErr)
+			span.SetStatus(otelcodes.Error, tErr.Error())
+			return nil, tErr
 		}
 	}
 	if err := h.cmd.StopStream(ctx, req.SessionId); err != nil {
+		span.RecordError(err)
 		if errors.Is(err, appplayback.ErrSessionNotFound) {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
+			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
+			span.SetStatus(otelcodes.Error, tErr.Error())
+			return nil, tErr
 		}
+		span.SetStatus(otelcodes.Error, err.Error())
 		slog.Error("stop stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -228,17 +272,27 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 }
 
 func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.ReportProgressRequest) (*eveyv1.ReportProgressResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback.ReportProgress")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.ReportProgress: %w", err)
 	}
 	if !claims.IsAdmin {
 		session, err := h.cmd.GetSession(ctx, req.SessionId)
 		if err != nil {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
+			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
+			span.RecordError(tErr)
+			span.SetStatus(otelcodes.Error, tErr.Error())
+			return nil, tErr
 		}
 		if string(session.ProfileID) != claims.ProfileID {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.cannot_report_other_session")
+			tErr := h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.cannot_report_other_session")
+			span.RecordError(tErr)
+			span.SetStatus(otelcodes.Error, tErr.Error())
+			return nil, tErr
 		}
 	}
 	// Consume remote command BEFORE updating the session (Update overwrites the row)
@@ -247,9 +301,13 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 		resp.RemoteCommand = cmd
 	}
 	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs, req.IsPaused); err != nil {
+		span.RecordError(err)
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
+			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
+			span.SetStatus(otelcodes.Error, tErr.Error())
+			return nil, tErr
 		}
+		span.SetStatus(otelcodes.Error, err.Error())
 		slog.Error("report progress", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -257,12 +315,18 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 }
 
 func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetWatchProgressRequest) (*eveyv1.WatchProgress, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback.GetWatchProgress")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetWatchProgress: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetWatchProgress: %w", err)
 	}
 	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
@@ -273,6 +337,8 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 		if errors.Is(err, shared.ErrNotFound) {
 			return &eveyv1.WatchProgress{}, nil
 		}
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		slog.Error("get watch progress", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -280,12 +346,18 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 }
 
 func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWatchHistoryRequest) (*eveyv1.GetWatchHistoryResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback.GetWatchHistory")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetWatchHistory: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetWatchHistory: %w", err)
 	}
 	limit := int(req.Limit)
@@ -301,6 +373,8 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 		if req.Pagination.Cursor != "" {
 			c, err := decodeTimeCursor(req.Pagination.Cursor)
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(otelcodes.Error, err.Error())
 				return nil, status.Errorf(codes.InvalidArgument, "invalid cursor: %v", err)
 			}
 			cursor = &playback.WatchHistoryCursor{LastPlayedAt: c.t, MediaItemID: c.id}
@@ -313,6 +387,8 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 		items, err = h.query.GetWatchHistory(ctx, profileID, limit, offset)
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		slog.Error("get watch history", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -351,12 +427,18 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 }
 
 func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetResumeItemsRequest) (*eveyv1.GetResumeItemsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback.GetResumeItems")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetResumeItems: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetResumeItems: %w", err)
 	}
 	limit := int(req.Limit)
@@ -365,6 +447,8 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	}
 	items, err := h.query.GetResumeItems(ctx, profileID, limit)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		slog.Error("get resume items", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -399,12 +483,18 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 }
 
 func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRequest) (*eveyv1.GetNextUpResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback.GetNextUp")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetNextUp: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetNextUp: %w", err)
 	}
 	limit := int(req.Limit)
@@ -413,6 +503,8 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	}
 	progresses, err := h.query.GetNextUp(ctx, profileID, limit)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		slog.Error("get next up", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -422,6 +514,8 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	}
 	mediaItems, err := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		slog.Error("get media items for next up", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -443,21 +537,33 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 }
 
 func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsWatchedRequest) (*eveyv1.MarkAsWatchedResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback.MarkAsWatched")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.MarkAsWatched: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.MarkAsWatched: %w", err)
 	}
 	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.MarkAsWatched: %w", err)
 	}
 	if err := h.cmd.MarkAsWatched(ctx, profileID, req.MediaItemId); err != nil {
+		span.RecordError(err)
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
+			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
+			span.SetStatus(otelcodes.Error, tErr.Error())
+			return nil, tErr
 		}
+		span.SetStatus(otelcodes.Error, err.Error())
 		slog.Error("mark as watched", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -465,21 +571,33 @@ func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsW
 }
 
 func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkAsUnwatchedRequest) (*eveyv1.MarkAsUnwatchedResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback.MarkAsUnwatched")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.MarkAsUnwatched: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.MarkAsUnwatched: %w", err)
 	}
 	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.MarkAsUnwatched: %w", err)
 	}
 	if err := h.cmd.MarkAsUnwatched(ctx, profileID, req.MediaItemId); err != nil {
+		span.RecordError(err)
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
+			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
+			span.SetStatus(otelcodes.Error, tErr.Error())
+			return nil, tErr
 		}
+		span.SetStatus(otelcodes.Error, err.Error())
 		slog.Error("mark as unwatched", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
