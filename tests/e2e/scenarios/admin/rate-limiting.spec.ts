@@ -1,12 +1,24 @@
 import { test, expect } from "../../fixtures/auth";
 import { goto, getToken } from "../shared/helpers";
 
+// Dev environments often raise EVEY_RATELIMIT_LOGIN_MAX above the prod
+// default (10) for ergonomics. Pass the same value to Playwright so this
+// test can either fire enough requests to exhaust it or skip when the
+// limit is too high to exercise without spamming the server.
+const LOGIN_LIMIT = Number(process.env.EVEY_RATELIMIT_LOGIN_MAX ?? "10");
+const MAX_REQUESTS_TO_FIRE = 100;
+
 test.describe("Rate limiting > Auth endpoint", () => {
-  test("15 rapid POST /api/v1/auth/login → 429 before 15th", async ({ page }) => {
+  test("rapid POST /api/v1/auth/login → eventually 429", async ({ page }) => {
+    test.skip(
+      LOGIN_LIMIT >= MAX_REQUESTS_TO_FIRE,
+      `EVEY_RATELIMIT_LOGIN_MAX=${LOGIN_LIMIT} too high to exercise (would fire >${MAX_REQUESTS_TO_FIRE} requests)`,
+    );
     await goto(page, "/home");
-    const statuses = await page.evaluate(async () => {
+    const fireCount = LOGIN_LIMIT + 5;
+    const statuses = await page.evaluate(async (count) => {
       const results: number[] = [];
-      const promises = Array.from({ length: 15 }, () =>
+      const promises = Array.from({ length: count }, () =>
         fetch("/api/v1/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -18,7 +30,7 @@ test.describe("Rate limiting > Auth endpoint", () => {
         results.push(s.status === "fulfilled" ? s.value : 0);
       }
       return results;
-    });
+    }, fireCount);
     const has429 = statuses.some((s) => s === 429);
     expect(has429).toBe(true);
   });

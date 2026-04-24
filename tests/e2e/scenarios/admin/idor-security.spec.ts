@@ -16,14 +16,14 @@ test.describe("IDOR > Access other user's resources", () => {
     expect([403, 404]).toContain(status);
   });
 
-  test("PUT /api/v1/media/{id}/rating with inaccessible mediaId → 403 or 404", async ({ page }) => {
+  test("POST /api/v1/media/{id}/rating with inaccessible mediaId → 403 or 404", async ({ page }) => {
     await goto(page, "/home");
     const token = await getToken(page);
     const status = await page.evaluate(async ({ tk, id }) => {
       const res = await fetch(`/api/v1/media/${id}/rating`, {
-        method: "PUT",
+        method: "POST",
         headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ rating: 5 }),
+        body: JSON.stringify({ value: 5 }),
       });
       return res.status;
     }, { tk: token, id: FAKE_UUID });

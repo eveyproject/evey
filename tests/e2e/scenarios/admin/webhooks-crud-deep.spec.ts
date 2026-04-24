@@ -8,17 +8,17 @@ test.describe("Admin > Webhooks CRUD (deep)", () => {
 
   test("create webhook via form", async ({ page }) => {
     await goto(page, "/admin/webhooks");
-    await page.locator("button", { hasText: /create|add|new/i }).first().click();
+    await page.locator('[data-testid="add-webhook-btn"]').click();
 
-    const nameInput = page.locator('input').first();
+    const nameInput = page.locator('[data-testid="webhook-name-input"]');
     await expect(nameInput).toBeVisible({ timeout: 3_000 });
 
     await nameInput.fill(webhookName);
-    await page.locator('input[type="url"]').fill(webhookUrl);
+    await page.locator('[data-testid="webhook-url-input"]').fill(webhookUrl);
 
     await Promise.all([
-      page.waitForResponse((r) => r.url().includes("/api/v1/webhooks") && r.request().method() === "POST", { timeout: 5_000 }),
-      page.locator("button[type='submit'], button:has-text('Create')").first().click(),
+      page.waitForResponse((r) => r.url().includes("/api/v1/admin/webhooks") && r.request().method() === "POST", { timeout: 5_000 }),
+      page.locator('[data-testid="webhook-form-submit"]').click(),
     ]);
 
     await page.waitForTimeout(1_000);
@@ -35,7 +35,7 @@ test.describe("Admin > Webhooks CRUD (deep)", () => {
 
   test("list webhooks via API", async ({ page }) => {
     await goto(page, "/home");
-    const res = await apiGet(page, "/api/v1/webhooks");
+    const res = await apiGet(page, "/api/v1/admin/webhooks");
     expect(res.status).toBeLessThan(500);
     const webhooks = (res.body as { webhooks?: { id?: string; name?: string }[] })?.webhooks ?? [];
     const found = webhooks.find((w) => w.name === webhookName);
@@ -46,7 +46,7 @@ test.describe("Admin > Webhooks CRUD (deep)", () => {
   test("delete webhook via API", async ({ page }) => {
     test.skip(!webhookId, "No webhook to delete");
     await goto(page, "/home");
-    const res = await apiDelete(page, `/api/v1/webhooks/${webhookId}`);
+    const res = await apiDelete(page, `/api/v1/admin/webhooks/${webhookId}`);
     expect(res.status).toBeLessThan(500);
   });
 

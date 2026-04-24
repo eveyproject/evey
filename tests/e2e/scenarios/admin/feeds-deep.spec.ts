@@ -5,7 +5,7 @@ test.describe("Admin > Feeds deep", () => {
   const waitForFeedsPage = async (page: import("@playwright/test").Page) => {
     await goto(page, "/admin/feeds");
     // wait for the save button to be visible (page loaded)
-    await page.locator("button", { hasText: /save/i }).first().waitFor({ state: "visible", timeout: 10_000 });
+    await page.locator('[data-testid="feeds-save-btn"]').waitFor({ state: "visible", timeout: 10_000 });
     // give the API data time to render rows
     await page.waitForTimeout(2_000);
   };
@@ -26,7 +26,7 @@ test.describe("Admin > Feeds deep", () => {
     test.skip(!(await hasFeedRows(page)), "No feed rows in admin");
 
     // click first Disable button (enabled feed)
-    const disableBtn = page.locator('button[aria-label="Disable"]').first();
+    const disableBtn = page.locator('button[role="switch"][aria-checked="true"]').first();
     test.skip(!(await disableBtn.isVisible({ timeout: 1_000 }).catch(() => false)), "No enabled feeds");
 
     // remember what's being disabled
@@ -37,7 +37,7 @@ test.describe("Admin > Feeds deep", () => {
     await page.waitForTimeout(300);
 
     const { serverErrors } = await collectErrors(page, async () => {
-      await page.locator("button", { hasText: /save/i }).first().click();
+      await page.locator('[data-testid="feeds-save-btn"]').click();
       await page.waitForTimeout(2_000);
     });
     expect(serverErrors).toHaveLength(0);
@@ -52,12 +52,12 @@ test.describe("Admin > Feeds deep", () => {
     await waitForFeedsPage(page);
     if (feedName) {
       const targetRow = page.locator("div[draggable='true']").filter({ hasText: feedName });
-      const enableBtn = targetRow.locator('button[aria-label="Enable"]');
+      const enableBtn = targetRow.locator('button[role="switch"][aria-checked="false"]');
       if (await enableBtn.isVisible({ timeout: 1_000 }).catch(() => false)) {
         // cleanup: re-enable
         await enableBtn.click();
         await page.waitForTimeout(300);
-        await page.locator("button", { hasText: /save/i }).first().click();
+        await page.locator('[data-testid="feeds-save-btn"]').click();
         await page.waitForTimeout(1_500);
       }
     }
@@ -67,23 +67,23 @@ test.describe("Admin > Feeds deep", () => {
     await waitForFeedsPage(page);
     test.skip(!(await hasFeedRows(page)), "No feed rows");
 
-    const disableBtn = page.locator('button[aria-label="Disable"]').last();
+    const disableBtn = page.locator('button[role="switch"][aria-checked="true"]').last();
     test.skip(!(await disableBtn.isVisible({ timeout: 1_000 }).catch(() => false)), "No enabled feeds");
 
     // disable one feed first
     await disableBtn.click();
     await page.waitForTimeout(300);
-    await page.locator("button", { hasText: /save/i }).first().click();
+    await page.locator('[data-testid="feeds-save-btn"]').click();
     await page.waitForTimeout(1_500);
 
     // re-enable it
     await waitForFeedsPage(page);
-    const enableBtn = page.locator('button[aria-label="Enable"]').first();
+    const enableBtn = page.locator('button[role="switch"][aria-checked="false"]').first();
     test.skip(!(await enableBtn.isVisible({ timeout: 1_000 }).catch(() => false)), "No disabled feed");
 
     await enableBtn.click();
     await page.waitForTimeout(300);
-    await page.locator("button", { hasText: /save/i }).first().click();
+    await page.locator('[data-testid="feeds-save-btn"]').click();
     await page.waitForTimeout(1_500);
 
     await goto(page, "/home");
@@ -109,7 +109,7 @@ test.describe("Admin > Feeds deep", () => {
       await page.waitForTimeout(500);
     }
 
-    await page.locator("button", { hasText: /save/i }).first().click();
+    await page.locator('[data-testid="feeds-save-btn"]').click();
     await page.waitForTimeout(2_000);
 
     await waitForFeedsPage(page);
@@ -127,7 +127,7 @@ test.describe("Admin > Feeds deep", () => {
         await page.mouse.move(b1.x + 12, b1.y + b1.height + 5, { steps: 10 });
         await page.mouse.up();
         await page.waitForTimeout(300);
-        await page.locator("button", { hasText: /save/i }).first().click();
+        await page.locator('[data-testid="feeds-save-btn"]').click();
         await page.waitForTimeout(1_500);
       }
     }
@@ -137,7 +137,7 @@ test.describe("Admin > Feeds deep", () => {
     await waitForFeedsPage(page);
 
     const { jsErrors, serverErrors } = await collectErrors(page, async () => {
-      await page.locator("button", { hasText: /save/i }).first().click();
+      await page.locator('[data-testid="feeds-save-btn"]').click();
       await page.waitForTimeout(1_500);
     });
     expect(jsErrors).toHaveLength(0);

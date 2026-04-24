@@ -10,12 +10,12 @@ test.describe("Admin > Webhooks", () => {
 
   test("create button exists", async ({ page }) => {
     await goto(page, "/admin/webhooks");
-    await expect(page.locator("button", { hasText: /create|add|new/i }).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('[data-testid="add-webhook-btn"]')).toBeVisible({ timeout: 5_000 });
   });
 
   test("create button opens modal/form", async ({ page }) => {
     await goto(page, "/admin/webhooks");
-    await page.locator("button", { hasText: /create|add|new/i }).first().click();
+    await page.locator('[data-testid="add-webhook-btn"]').click();
     await page.waitForTimeout(500);
     const inputs = page.locator("input");
     expect(await inputs.count()).toBeGreaterThan(0);
