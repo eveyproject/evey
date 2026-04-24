@@ -8,12 +8,15 @@ import (
 	"log/slog"
 	"net/http"
 
+	"go.opentelemetry.io/otel/codes"
+
 	appuser "github.com/evey-project/evey/internal/app/user"
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const (
@@ -28,6 +31,8 @@ const (
 
 func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsOnly bool, oidcLoginRL ...*ratelimit.Limiter) {
 	mux.HandleFunc("GET /api/v1/auth/oidc/config", func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracing.StartSpan(r.Context(), "http.auth.oidc.GetConfig")
+		defer span.End()
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"enabled": true}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
@@ -35,8 +40,12 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 	})
 
 	oidcLoginHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracing.StartSpan(r.Context(), "http.auth.oidc.Login")
+		defer span.End()
 		var nonceBuf [16]byte
 		if _, err := rand.Read(nonceBuf[:]); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "rand read failed")
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -51,16 +60,22 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 	}
 
 	mux.HandleFunc("GET /api/v1/auth/oidc/callback", func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.auth.oidc.Callback")
+		defer span.End()
+		r = r.WithContext(ctx)
 		q := r.URL.Query()
 		code := q.Get("code")
 		state := q.Get("state")
 
 		if code == "" || state == "" {
+			span.SetStatus(codes.Error, "missing code or state")
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
 
 		if _, err := oidcSvc.ValidateState(state); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "invalid state")
 			slog.Warn("oidc callback: invalid state", slog.Any("err", err))
 			http.Error(w, "invalid state", http.StatusBadRequest)
 			return
@@ -68,10 +83,13 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 
 		accessToken, refreshToken, rawIDToken, err := oidcSvc.HandleCallback(r.Context(), code)
 		if err != nil {
+			span.RecordError(err)
 			if errors.Is(err, appuser.ErrEmailDomainNotAllowed) {
+				span.SetStatus(codes.Error, "email domain not allowed")
 				http.Error(w, "access denied: email domain not allowed", http.StatusForbidden)
 				return
 			}
+			span.SetStatus(codes.Error, "handle callback failed")
 			slog.Error("oidc callback: handle failed", slog.Any("err", err))
 			http.Redirect(w, r, "/login?oidc_error=1", http.StatusFound)
 			return
@@ -114,8 +132,11 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 	})
 
 	mux.HandleFunc("GET /api/v1/auth/oidc/session", func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracing.StartSpan(r.Context(), "http.auth.oidc.Session")
+		defer span.End()
 		cookie, err := r.Cookie(oidcSessionCookieName)
 		if err != nil || cookie.Value == "" {
+			span.SetStatus(codes.Error, "no session cookie")
 			http.Error(w, `{"message":"no session"}`, http.StatusUnauthorized)
 			return
 		}
@@ -143,14 +164,20 @@ type parentalHandler struct {
 }
 
 func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.parental.GetSettings")
+	defer span.End()
+	r = r.WithContext(ctx)
 	claims := HTTPClaimsFromContext(r.Context())
 	profileID := r.PathValue("id")
 	profile, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "profile not found")
 		http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
 		return
 	}
 	if !claims.IsAdmin && string(profile.UserID) != claims.UserID {
+		span.SetStatus(codes.Error, "forbidden")
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -176,6 +203,9 @@ func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.parental.UpdateSettings")
+	defer span.End()
+	r = r.WithContext(ctx)
 	claims := HTTPClaimsFromContext(r.Context())
 	profileID := r.PathValue("id")
 	// Accept both `pin` (legacy, kept for existing tests) and `newPin`
@@ -193,6 +223,8 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		Enabled         *bool    `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "bad request body")
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 		return
 	}
@@ -202,16 +234,20 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	}
 	profile, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "profile not found")
 		http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
 		return
 	}
 	if !claims.IsAdmin && string(profile.UserID) != claims.UserID {
+		span.SetStatus(codes.Error, "forbidden")
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 
 	if body.PIN != nil && *body.PIN != "" {
 		if !isFourDigit(*body.PIN) {
+			span.SetStatus(codes.Error, "PIN not 4 digits")
 			http.Error(w, `{"message":"PIN must be 4 digits"}`, http.StatusBadRequest)
 			return
 		}
@@ -224,11 +260,16 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	case !noExistingPIN:
 		// Rotating / clearing an existing PIN requires the current PIN.
 		if !h.pinRL.Allow(profileID) {
+			span.SetStatus(codes.Error, "rate limited")
 			http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
 			return
 		}
 		valid, err := h.hasher.Verify(body.CurrentPIN, profile.Parental.PINHash)
 		if err != nil || !valid {
+			if err != nil {
+				span.RecordError(err)
+			}
+			span.SetStatus(codes.Error, "invalid current PIN")
 			http.Error(w, `{"message":"invalid current PIN"}`, http.StatusForbidden)
 			return
 		}
@@ -237,16 +278,25 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		// stolen JWT could silently lock the owner out by enabling parental
 		// + setting a PIN the attacker picks.
 		if !h.pinRL.Allow(profileID) {
+			span.SetStatus(codes.Error, "rate limited")
 			http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
 			return
 		}
 		u, uerr := h.userRepo.GetByID(r.Context(), profile.UserID)
 		if uerr != nil || u == nil {
+			if uerr != nil {
+				span.RecordError(uerr)
+			}
+			span.SetStatus(codes.Error, "user lookup failed")
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 		valid, verr := h.hasher.Verify(body.CurrentPassword, u.PasswordHash)
 		if verr != nil || !valid {
+			if verr != nil {
+				span.RecordError(verr)
+			}
+			span.SetStatus(codes.Error, "invalid password")
 			http.Error(w, `{"message":"invalid password"}`, http.StatusForbidden)
 			return
 		}
@@ -269,11 +319,14 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 			if !profile.IsKids {
 				siblings, sErr := h.profileRepo.GetByUserID(r.Context(), profile.UserID)
 				if sErr != nil {
+					span.RecordError(sErr)
+					span.SetStatus(codes.Error, "siblings lookup failed")
 					http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 					return
 				}
 				for _, s := range siblings {
 					if s != nil && s.ID != profile.ID && s.IsKids {
+						span.SetStatus(codes.Error, "kids sibling requires PIN")
 						http.Error(w, `{"message":"non-kids profile must have a PIN when a kids profile exists"}`, http.StatusConflict)
 						return
 					}
@@ -283,6 +336,8 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		} else {
 			hash, err := h.hasher.Hash(*body.PIN)
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "hash failed")
 				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 				return
 			}
@@ -294,6 +349,8 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.profileRepo.Update(r.Context(), profile); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "profile update failed")
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -316,27 +373,36 @@ func isFourDigit(s string) bool {
 }
 
 func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.parental.VerifyPIN")
+	defer span.End()
+	r = r.WithContext(ctx)
 	claims := HTTPClaimsFromContext(r.Context())
 	profileID := r.PathValue("id")
 	var body struct {
 		PIN string `json:"pin"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "bad request body")
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 		return
 	}
 	profile, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "profile not found")
 		http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
 		return
 	}
 	if !claims.IsAdmin && string(profile.UserID) != claims.UserID {
+		span.SetStatus(codes.Error, "forbidden")
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 	// Rate-limit only authorized callers — prevents cross-user DoS of the
 	// per-profile bucket.
 	if !h.pinRL.Allow(profileID) {
+		span.SetStatus(codes.Error, "rate limited")
 		http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
 		return
 	}
@@ -349,6 +415,8 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 	}
 	valid, err := h.hasher.Verify(body.PIN, profile.Parental.PINHash)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "verify failed")
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
