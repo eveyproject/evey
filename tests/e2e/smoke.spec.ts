@@ -1,36 +1,36 @@
 import { test, expect } from "./fixtures/auth";
 
 test.describe("Smoke tests", () => {
-  test("login redirects to home", async ({ page }) => {
-    // auth fixture already logged in
+  test("authenticated session lands on home", async ({ page }) => {
+    // The auth fixture only loads storage state; navigate explicitly so the
+    // assertion is meaningful.
+    await page.goto("/home", { waitUntil: "domcontentloaded" });
     expect(page.url()).toContain("/home");
   });
 
   test("home page renders media content", async ({ page }) => {
-    await page.goto("/home", { waitUntil: "networkidle" });
-    // should have at least one slider row or media card
+    await page.goto("/home", { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(2_000);
     const content = page.locator(
       '[class*="slider"], [class*="card"], [class*="Card"]',
     );
-    const count = await content.count();
-    expect(count).toBeGreaterThan(0);
+    expect(await content.count()).toBeGreaterThan(0);
   });
 
   test("navigation links work", async ({ page }) => {
-    await page.goto("/home", { waitUntil: "networkidle" });
-
-    // check that the page has navigation elements
+    await page.goto("/home", { waitUntil: "domcontentloaded" });
+    // Sidebar mounts after the auth/profile queries resolve, so wait briefly
+    // before counting — domcontentloaded only guarantees the SPA shell.
+    await page.waitForTimeout(2_000);
     const nav = page.locator("nav, aside, [role='navigation']");
-    const navCount = await nav.count();
-    expect(navCount).toBeGreaterThan(0);
+    expect(await nav.count()).toBeGreaterThan(0);
   });
 
-  test("search works", async ({ page }) => {
-    await page.goto("/home", { waitUntil: "networkidle" });
-
-    // trigger search with keyboard shortcut
+  test("keyboard shortcut focuses topbar search", async ({ page }) => {
+    await page.goto("/home", { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1_000);
     await page.keyboard.press("/");
-    const searchInput = page.locator('input[aria-label="Search"]');
+    const searchInput = page.locator('[data-testid="topbar-search-input"]');
     await expect(searchInput).toBeFocused({ timeout: 3_000 });
   });
 
@@ -38,8 +38,8 @@ test.describe("Smoke tests", () => {
     const errors: string[] = [];
     page.on("pageerror", (err) => errors.push(err.message));
 
-    await page.goto("/home", { waitUntil: "networkidle" });
-    await page.locator('[data-testid="home-page"]').waitFor({ timeout: 10_000 }).catch(() => {});
+    await page.goto("/home", { waitUntil: "domcontentloaded" });
+    await page.locator('[data-testid="home-page"]').waitFor({ timeout: 10_000 }).catch(() => { /* page-shell only */ });
 
     expect(errors).toHaveLength(0);
   });

@@ -37,7 +37,7 @@ test.describe("Home", () => {
 
   test("customize button is visible", async ({ page }) => {
     await goto(page, "/home");
-    await expect(page.locator("button", { hasText: /customize/i })).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator('[data-testid="home-customize-btn"]')).toBeVisible({ timeout: 5_000 });
   });
 });
 
@@ -318,22 +318,19 @@ test.describe("Navigation", () => {
   test("hamburger menu opens sidebar on mobile", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await goto(page, "/home");
-    const burger = page.locator('button[aria-label*="menu" i]').first();
+    const burger = page.locator('[data-testid="open-sidebar-btn"]');
     await burger.waitFor({ state: "visible", timeout: 5_000 });
     await burger.click();
-    await page.waitForTimeout(500);
-    // overlay close button = sidebar opened
-    await expect(page.locator('[aria-label*="close" i]').first()).toBeVisible({ timeout: 3_000 });
+    await expect(page.locator('[data-testid="close-sidebar-overlay"]')).toBeVisible({ timeout: 3_000 });
   });
 
   test("sidebar has navigation links", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await goto(page, "/home");
-    await page.locator('button[aria-label*="menu" i]').first().click();
+    await page.locator('[data-testid="open-sidebar-btn"]').click();
     await page.waitForTimeout(500);
     const links = page.locator("nav a");
-    const count = await links.count();
-    expect(count).toBeGreaterThan(3); // home, library, favorites, music at minimum
+    expect(await links.count()).toBeGreaterThan(3);
   });
 
   test("desktop sidebar starts collapsed", async ({ page }) => {
@@ -354,10 +351,8 @@ test.describe("Download", () => {
     const card = page.locator('[data-testid="media-card"]').first();
     await card.waitFor({ state: "visible", timeout: 10_000 });
     await card.click({ button: "right" });
-    await page.waitForTimeout(500);
-    const dl = page.locator("text=/download/i").first();
-    const visible = await dl.isVisible({ timeout: 2_000 }).catch(() => false);
-    expect(visible).toBe(true);
+    const dl = page.locator('[data-testid="media-context-menu-download"]');
+    await expect(dl).toBeVisible({ timeout: 3_000 });
   });
 });
 
