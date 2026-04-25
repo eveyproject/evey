@@ -10,6 +10,8 @@ import (
 	appcollection "github.com/evey-project/evey/internal/app/collection"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -21,12 +23,18 @@ type collectionHandler struct {
 }
 
 func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListCollectionsRequest) (*eveyv1.ListCollectionsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.collection.ListCollections")
+	defer span.End()
 	cols, err := h.svc.List(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list collections", err)
 	}
 	allowed, filterErr := h.allowedLibraryIDs(ctx)
 	if filterErr != nil {
+		span.RecordError(filterErr)
+		span.SetStatus(otelcodes.Error, filterErr.Error())
 		return nil, internalError("check access", filterErr)
 	}
 	resp := &eveyv1.ListCollectionsResponse{}
@@ -53,17 +61,25 @@ func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListC
 }
 
 func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCollectionRequest) (*eveyv1.GetCollectionResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.collection.GetCollection")
+	defer span.End()
 	col, err := h.svc.GetByID(ctx, req.Id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "collection not found")
 		return nil, status.Errorf(codes.NotFound, "collection not found: %v", err)
 	}
 	allowed, filterErr := h.allowedLibraryIDs(ctx)
 	if filterErr != nil {
+		span.RecordError(filterErr)
+		span.SetStatus(otelcodes.Error, filterErr.Error())
 		return nil, internalError("check access", filterErr)
 	}
 	if allowed != nil {
 		items, _, itemsErr := h.svc.GetItems(ctx, col.ID, 1000, 0)
 		if itemsErr != nil {
+			span.RecordError(itemsErr)
+			span.SetStatus(otelcodes.Error, itemsErr.Error())
 			return nil, internalError("get collection items", itemsErr)
 		}
 		visible := false
@@ -74,6 +90,7 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 			}
 		}
 		if !visible {
+			span.SetStatus(otelcodes.Error, "collection access denied")
 			return nil, status.Errorf(codes.NotFound, "collection not found")
 		}
 	}
@@ -81,23 +98,33 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 }
 
 func (h *collectionHandler) DeleteCollection(ctx context.Context, req *eveyv1.DeleteCollectionRequest) (*eveyv1.DeleteCollectionResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.collection.DeleteCollection")
+	defer span.End()
 	if req.GetId() == "" {
+		span.SetStatus(otelcodes.Error, "id is required")
 		return nil, status.Errorf(codes.InvalidArgument, "id is required")
 	}
 	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
 	// but verify caller has access to at least one library backing the
 	// collection before deleting. Admins short-circuit.
 	if err := h.checkCollectionAccess(ctx, req.GetId()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if err := h.svc.Delete(ctx, req.Id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("delete collection", err)
 	}
 	return &eveyv1.DeleteCollectionResponse{}, nil
 }
 
 func (h *collectionHandler) CreateCollection(ctx context.Context, req *eveyv1.CreateCollectionRequest) (*eveyv1.CreateCollectionResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.collection.CreateCollection")
+	defer span.End()
 	if req.GetName() == "" {
+		span.SetStatus(otelcodes.Error, "name is required")
 		return nil, status.Errorf(codes.InvalidArgument, "name is required")
 	}
 	rules := protoRulesToDomain(req.GetRules())
@@ -111,50 +138,70 @@ func (h *collectionHandler) CreateCollection(ctx context.Context, req *eveyv1.Cr
 		created, err = h.svc.Create(ctx, req.GetName(), rules, req.GetSortBy())
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("create collection", err)
 	}
 	return &eveyv1.CreateCollectionResponse{Collection: collectionToProto(created)}, nil
 }
 
 func (h *collectionHandler) UpdateCollection(ctx context.Context, req *eveyv1.UpdateCollectionRequest) (*eveyv1.UpdateCollectionResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.collection.UpdateCollection")
+	defer span.End()
 	if req.GetId() == "" {
+		span.SetStatus(otelcodes.Error, "id is required")
 		return nil, status.Errorf(codes.InvalidArgument, "id is required")
 	}
 	if req.GetName() == "" {
+		span.SetStatus(otelcodes.Error, "name is required")
 		return nil, status.Errorf(codes.InvalidArgument, "name is required")
 	}
 	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
 	// but verify caller has access to at least one library backing the
 	// collection before mutating. Admins short-circuit.
 	if err := h.checkCollectionAccess(ctx, req.GetId()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	rules := protoRulesToDomain(req.GetRules())
 	if req.GetSmart() {
 		col, err := h.svc.UpdateSmart(ctx, req.GetId(), req.GetName(), rules, req.GetSortBy())
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, internalError("update smart collection", err)
 		}
 		return &eveyv1.UpdateCollectionResponse{Collection: collectionToProto(col)}, nil
 	}
 	if err := h.svc.Update(ctx, req.GetId(), req.GetName(), rules, req.GetSortBy()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("update collection", err)
 	}
 	col, err := h.svc.GetByID(ctx, req.GetId())
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("fetch updated collection", err)
 	}
 	return &eveyv1.UpdateCollectionResponse{Collection: collectionToProto(col)}, nil
 }
 
 func (h *collectionHandler) AddCollectionItem(ctx context.Context, req *eveyv1.AddCollectionItemRequest) (*eveyv1.AddCollectionItemResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.collection.AddCollectionItem")
+	defer span.End()
 	if req.GetId() == "" {
+		span.SetStatus(otelcodes.Error, "id is required")
 		return nil, status.Errorf(codes.InvalidArgument, "id is required")
 	}
 	if req.GetMediaItemId() == "" {
+		span.SetStatus(otelcodes.Error, "media_item_id is required")
 		return nil, status.Errorf(codes.InvalidArgument, "media_item_id is required")
 	}
 	if err := h.svc.LinkMediaItem(ctx, req.GetId(), req.GetMediaItemId(), int(req.GetSortOrder())); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("add collection item", err)
 	}
 	return &eveyv1.AddCollectionItemResponse{}, nil
@@ -179,12 +226,18 @@ func protoRulesToDomain(in []*eveyv1.CollectionRule) []library.CollectionRule {
 }
 
 func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.GetCollectionItemsRequest) (*eveyv1.GetCollectionItemsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.collection.GetCollectionItems")
+	defer span.End()
 	items, total, err := h.svc.GetItems(ctx, req.Id, int(req.Limit), int(req.Offset))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("get collection items", err)
 	}
 	allowed, filterErr := h.allowedLibraryIDs(ctx)
 	if filterErr != nil {
+		span.RecordError(filterErr)
+		span.SetStatus(otelcodes.Error, filterErr.Error())
 		return nil, internalError("check access", filterErr)
 	}
 	ids := make([]string, 0, len(items))
