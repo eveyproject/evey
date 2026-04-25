@@ -8,6 +8,7 @@ node_modules/
 *.so
 *.dylib
 *.test
+!docker/Dockerfile.test
 *.out
 go.work
 go.work.sum

@@ -1,4 +1,4 @@
-.PHONY: proto-gen plugin-sdk plugin-zips build test lint clean \
+.PHONY: proto-gen plugin-sdk plugin-zips build test test-image test-shell lint clean \
 	migrate-up migrate-down setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile
@@ -41,8 +41,30 @@ plugin-zips:
 build:
 	go build -o bin/$(BINARY) ./cmd/evey
 
-test:
-	go test $(shell go list ./... | grep -v /gen/) -race -count=1 -timeout=300s
+test: test-image
+	docker run --rm \
+	  -v $(PWD):/app \
+	  -v /var/run/docker.sock:/var/run/docker.sock \
+	  -v evey-go-mod:/go/pkg/mod \
+	  -v evey-go-build:/root/.cache/go-build \
+	  --add-host=host.docker.internal:host-gateway \
+	  -w /app \
+	  evey-test \
+	  sh -c 'go test $$(go list ./... | grep -v /gen/) -race -count=1 -timeout=300s'
+
+test-image:
+	docker build -t evey-test -f docker/Dockerfile.test .
+
+test-shell: test-image
+	docker run --rm -it \
+	  -v $(PWD):/app \
+	  -v /var/run/docker.sock:/var/run/docker.sock \
+	  -v evey-go-mod:/go/pkg/mod \
+	  -v evey-go-build:/root/.cache/go-build \
+	  --add-host=host.docker.internal:host-gateway \
+	  -w /app \
+	  evey-test \
+	  sh
 
 lint:
 	golangci-lint run ./...

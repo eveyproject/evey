@@ -19,6 +19,9 @@ func buildTestBinary(t *testing.T) string {
 	src := filepath.Join(dir, "main.go")
 	bin := filepath.Join(dir, "test-plugin")
 
+	require.NoError(t, os.Chmod(dir, 0o755))
+	require.NoError(t, os.Chmod(filepath.Dir(dir), 0o755))
+
 	err := os.WriteFile(src, []byte(`package main
 import (
 	"os"
@@ -108,12 +111,18 @@ func TestRunnerStartCreatesSocketDir(t *testing.T) {
 }
 
 func TestRunnerRejectsEntrypointOutsidePluginDir(t *testing.T) {
+	outsideDir := t.TempDir()
+	require.NoError(t, os.Chmod(outsideDir, 0o755))
+	require.NoError(t, os.Chmod(filepath.Dir(outsideDir), 0o755))
+	outsideBin := filepath.Join(outsideDir, "fake-bin")
+	require.NoError(t, os.WriteFile(outsideBin, []byte("#!/bin/sh\nexit 0\n"), 0o755))
+
 	r := NewRunner("/data/plugins")
 	ctx := context.Background()
 
 	p := &plugin.Plugin{
 		ID:         "plg-bad",
-		Entrypoint: "/usr/bin/ls",
+		Entrypoint: outsideBin,
 	}
 
 	err := r.Start(ctx, p)
