@@ -1,4 +1,4 @@
-import { Palette, Bell, Shield, Smartphone, QrCode, Pencil, X } from "lucide-react";
+import { Palette, Bell, Shield, Smartphone, QrCode, Pencil, X, Users, Plus } from "lucide-react";
 import type React from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
@@ -15,21 +15,25 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
+import { Spinner } from "@/components/ui/Spinner";
 import { ThemeSettings } from "@/features/user/ThemeSettings";
 import { LanguageSettings } from "@/features/user/LanguageSettings";
 import { RegionSettings } from "@/features/user/RegionSettings";
 import { NotificationSettings } from "@/features/user/NotificationSettings";
 import { DeviceSettings } from "@/features/user/DeviceSettings";
 import { QuickConnectSettings } from "@/features/user/QuickConnectSettings";
+import { ProfileManagerList } from "@/features/profile/ProfileManagerList";
+import { CreateProfileDialog } from "@/features/profile/CreateProfileDialog";
 
 export const Route = createLazyFileRoute("/_auth/profile/settings")({
   component: SettingsPage,
 });
 
-type Tab = "appearance" | "notifications" | "parental" | "devices" | "quick-connect";
+type Tab = "appearance" | "profiles" | "notifications" | "parental" | "devices" | "quick-connect";
 
 const TABS: { key: Tab; labelKey: string; icon: React.ReactNode }[] = [
   { key: "appearance", labelKey: "auth.settings.tabs.appearance", icon: <Palette size={16} strokeWidth={1.5} /> },
+  { key: "profiles", labelKey: "auth.settings.tabs.profiles", icon: <Users size={16} strokeWidth={1.5} /> },
   { key: "notifications", labelKey: "auth.settings.tabs.notifications", icon: <Bell size={16} strokeWidth={1.5} /> },
   { key: "parental", labelKey: "auth.settings.tabs.parental", icon: <Shield size={16} strokeWidth={1.5} /> },
   { key: "devices", labelKey: "auth.settings.tabs.devices", icon: <Smartphone size={16} strokeWidth={1.5} /> },
@@ -227,12 +231,70 @@ function SettingsPage() {
               </div>
             </>
           )}
+          {tab === "profiles" && <ProfilesSection />}
           {tab === "notifications" && <NotificationSettings />}
           {tab === "parental" && <ParentalSection />}
           {tab === "devices" && <DeviceSettings />}
           {tab === "quick-connect" && <QuickConnectSettings />}
         </div>
       </Card>
+    </div>
+  );
+}
+
+function ProfilesSection() {
+  const { t } = useTranslation();
+  const [creating, setCreating] = useState(false);
+  const { data: user } = useUserServiceGetCurrentUser();
+  const userId = user?.id ?? "";
+  const { data: profilesResp, isLoading } = useUserServiceListProfiles(userId, {
+    query: { enabled: !!userId },
+  });
+  const profiles = profilesResp?.profiles ?? [];
+  const hasKidsProfile = profiles.some((p) => p.isKids === true);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h3 className="text-sm font-semibold text-[var(--text)]">
+            {t("auth.profile.manage.title", "Manage Profiles")}
+          </h3>
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            {t(
+              "auth.profile.manage.description",
+              "Add, edit, or remove profiles. The default profile cannot be deleted.",
+            )}
+          </p>
+        </div>
+        <Button
+          variant="primary"
+          onClick={() => setCreating(true)}
+          data-testid="profile-settings-create-profile-btn"
+        >
+          <Plus size={16} aria-hidden="true" />
+          {t("auth.profile.manage.createProfile", "Create Profile")}
+        </Button>
+      </div>
+
+      {isLoading && (
+        <div className="flex justify-center py-6">
+          <Spinner />
+        </div>
+      )}
+
+      {!isLoading && userId && (
+        <ProfileManagerList userId={userId} profiles={profiles} />
+      )}
+
+      {userId && (
+        <CreateProfileDialog
+          open={creating}
+          onClose={() => setCreating(false)}
+          userId={userId}
+          hasKidsProfile={hasKidsProfile}
+        />
+      )}
     </div>
   );
 }

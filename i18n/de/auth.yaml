@@ -142,6 +142,7 @@ settings:
   tabs:
     appearance: Darstellung
     playback: Wiedergabe
+    profiles: Profile
     notifications: Benachrichtigungen
     account: Konto
     parental: Kindersicherung

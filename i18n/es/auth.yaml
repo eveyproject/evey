@@ -142,6 +142,7 @@ settings:
   tabs:
     appearance: "Apariencia"
     playback: "Reproducción"
+    profiles: "Perfiles"
     notifications: "Notificaciones"
     account: "Cuenta"
     parental: "Control parental"

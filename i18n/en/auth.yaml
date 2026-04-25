@@ -142,6 +142,7 @@ settings:
   tabs:
     appearance: Appearance
     playback: Playback
+    profiles: Profiles
     notifications: Notifications
     account: Account
     parental: Parental

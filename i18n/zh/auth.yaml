@@ -142,6 +142,7 @@ settings:
   tabs:
     appearance: "外观"
     playback: "播放"
+    profiles: "个人资料"
     notifications: "通知"
     account: "账户"
     parental: "家长控制"

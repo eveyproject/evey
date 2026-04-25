@@ -142,6 +142,7 @@ settings:
   tabs:
     appearance: "दिखावट"
     playback: "प्लेबैक"
+    profiles: "प्रोफ़ाइल"
     notifications: "सूचनाएं"
     account: "खाता"
     parental: "अभिभावक नियंत्रण"
