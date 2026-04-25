@@ -375,6 +375,21 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list media items", err)
 	}
+	// SQL pre-filter is permissive on unknown / empty official_rating and
+	// can't see foreign certifications_by_country, so it lets through items
+	// like Outbreak (cert AU/GB only, empty official_rating) on a kids
+	// profile. Apply the strict in-memory predicate as a second pass to
+	// match the feeds / playback gates.
+	if pf.maxAge >= 0 || len(pf.blockedTags) > 0 {
+		filtered := items[:0]
+		for _, it := range items {
+			if mediaItemBlockedByParental(pf, it) {
+				continue
+			}
+			filtered = append(filtered, it)
+		}
+		items = filtered
+	}
 	resp := &eveyv1.ListMediaItemsResponse{
 		Pagination: &eveyv1.PaginationResponse{
 			TotalItems: int32(total),
