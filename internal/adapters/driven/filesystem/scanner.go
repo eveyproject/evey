@@ -3,6 +3,7 @@ package filesystem
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -16,6 +17,28 @@ var videoExtensions = map[string]bool{
 	".wmv": true, ".flv": true, ".webm": true, ".m4v": true,
 	".ts": true, ".m2ts": true, ".mpg": true, ".mpeg": true,
 	".3gp": true, ".ogv": true, ".vob": true,
+}
+
+// looksLikeMPEGTS sniffs the first 5 bytes to validate that a `.ts` or
+// `.m2ts` file is an actual MPEG transport stream rather than a TypeScript
+// source file (or anything else) that happens to share the extension.
+// MPEG-TS packets are 188 bytes and start with sync byte 0x47; M2TS adds
+// a 4-byte timestamp prefix so the sync byte sits at offset 4.
+func looksLikeMPEGTS(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	var buf [5]byte
+	n, _ := io.ReadFull(f, buf[:])
+	if n < 1 {
+		return false
+	}
+	if buf[0] == 0x47 {
+		return true
+	}
+	return n >= 5 && buf[4] == 0x47
 }
 
 type Scanner struct{}
@@ -52,6 +75,11 @@ func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile,
 
 		ext := strings.ToLower(filepath.Ext(name))
 		if !videoExtensions[ext] {
+			return nil
+		}
+
+		if (ext == ".ts" || ext == ".m2ts") && !looksLikeMPEGTS(path) {
+			slog.Debug("scan: skipping non-MPEG-TS file with .ts extension", slog.String("path", path))
 			return nil
 		}
 
