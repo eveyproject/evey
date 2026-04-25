@@ -12,6 +12,7 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
@@ -24,6 +25,7 @@ type activityHandler struct {
 	svc        *appactivity.QueryService
 	libQuery   *applibrary.QueryService
 	userAccess *appuser.AccessService
+	userQuery  *appuser.QueryService
 	translator *eveyi18n.Translator
 }
 
@@ -218,18 +220,14 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 	for i, p := range popular {
 		ids[i] = string(p.MediaItemID)
 	}
-	type miInfo struct {
-		typ       string
-		libraryID string
-	}
-	infoByID := make(map[string]miInfo, len(ids))
+	mediaByID := make(map[string]*library.MediaItem, len(ids))
 	if len(ids) > 0 && h.libQuery != nil {
 		mis, merr := h.libQuery.GetMediaItemsByIDs(ctx, ids)
 		if merr != nil {
 			slog.Warn("popular: batch fetch media items", slog.Any("err", merr))
 		}
 		for _, mi := range mis {
-			infoByID[string(mi.ID)] = miInfo{typ: string(mi.Type), libraryID: string(mi.LibraryID)}
+			mediaByID[string(mi.ID)] = mi
 		}
 	}
 	var allowedLibs map[string]bool
@@ -242,19 +240,23 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 			}
 		}
 	}
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
 	resp := &eveyv1.GetPopularMediaResponse{}
 	for _, p := range popular {
-		info, exists := infoByID[string(p.MediaItemID)]
+		mi, exists := mediaByID[string(p.MediaItemID)]
 		if !exists {
 			continue
 		}
-		if allowedLibs != nil && !allowedLibs[info.libraryID] {
+		if allowedLibs != nil && !allowedLibs[string(mi.LibraryID)] {
+			continue
+		}
+		if mediaItemBlockedByParental(pf, mi) {
 			continue
 		}
 		resp.Items = append(resp.Items, &eveyv1.PopularMediaItem{
 			MediaItemId: string(p.MediaItemID),
 			Title:       p.Title,
-			Type:        info.typ,
+			Type:        string(mi.Type),
 			PlayCount:   int32(p.PlayCount),
 		})
 	}

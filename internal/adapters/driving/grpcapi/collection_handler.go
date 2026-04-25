@@ -8,6 +8,7 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appcollection "github.com/evey-project/evey/internal/app/collection"
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -20,6 +21,25 @@ type collectionHandler struct {
 	eveyv1.UnimplementedCollectionServiceServer
 	svc        *appcollection.Service
 	userAccess *appuser.AccessService
+	libQuery   *applibrary.QueryService
+	userQuery  *appuser.QueryService
+}
+
+// collectionVisibleUnderParental returns true when at least one item in the
+// collection passes the active profile's parental filter. A collection that
+// contains only blocked items is hidden from the listing entirely so kids
+// don't see grayed-out cards leaking adult titles.
+func (h *collectionHandler) collectionVisibleUnderParental(ctx context.Context, items []*library.MediaItem) bool {
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
+	if pf.maxAge < 0 && len(pf.blockedTags) == 0 {
+		return true
+	}
+	for _, it := range items {
+		if !mediaItemBlockedByParental(pf, it) {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListCollectionsRequest) (*eveyv1.ListCollectionsResponse, error) {
@@ -39,25 +59,40 @@ func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListC
 	}
 	resp := &eveyv1.ListCollectionsResponse{}
 	for _, c := range cols {
-		if allowed != nil {
-			items, _, itemsErr := h.svc.GetItems(ctx, c.ID, 1000, 0)
-			if itemsErr != nil {
-				continue
-			}
-			visible := false
-			for _, it := range items {
-				if slices.Contains(allowed, string(it.LibraryID)) {
-					visible = true
-					break
-				}
-			}
-			if !visible {
-				continue
-			}
+		items, itemsErr := h.collectionItemsForFilter(ctx, c.ID, allowed)
+		if itemsErr {
+			continue
+		}
+		if !h.collectionVisibleUnderParental(ctx, items) {
+			continue
 		}
 		resp.Collections = append(resp.Collections, collectionToProto(c))
 	}
 	return resp, nil
+}
+
+// collectionItemsForFilter resolves the items of a collection and returns
+// only those the caller has library access to. The bool is set when the
+// collection should be skipped (item lookup failed, or library access
+// rules eliminate every item).
+func (h *collectionHandler) collectionItemsForFilter(ctx context.Context, collectionID string, allowedLibIDs []string) ([]*library.MediaItem, bool) {
+	items, _, itemsErr := h.svc.GetItems(ctx, collectionID, 1000, 0)
+	if itemsErr != nil {
+		return nil, true
+	}
+	if allowedLibIDs == nil {
+		return items, false
+	}
+	visible := items[:0]
+	for _, it := range items {
+		if slices.Contains(allowedLibIDs, string(it.LibraryID)) {
+			visible = append(visible, it)
+		}
+	}
+	if len(visible) == 0 {
+		return nil, true
+	}
+	return visible, false
 }
 
 func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCollectionRequest) (*eveyv1.GetCollectionResponse, error) {
@@ -75,13 +110,13 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 		span.SetStatus(otelcodes.Error, filterErr.Error())
 		return nil, internalError("check access", filterErr)
 	}
+	items, _, itemsErr := h.svc.GetItems(ctx, col.ID, 1000, 0)
+	if itemsErr != nil {
+		span.RecordError(itemsErr)
+		span.SetStatus(otelcodes.Error, itemsErr.Error())
+		return nil, internalError("get collection items", itemsErr)
+	}
 	if allowed != nil {
-		items, _, itemsErr := h.svc.GetItems(ctx, col.ID, 1000, 0)
-		if itemsErr != nil {
-			span.RecordError(itemsErr)
-			span.SetStatus(otelcodes.Error, itemsErr.Error())
-			return nil, internalError("get collection items", itemsErr)
-		}
 		visible := false
 		for _, it := range items {
 			if slices.Contains(allowed, string(it.LibraryID)) {
@@ -93,6 +128,10 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 			span.SetStatus(otelcodes.Error, "collection access denied")
 			return nil, status.Errorf(codes.NotFound, "collection not found")
 		}
+	}
+	if !h.collectionVisibleUnderParental(ctx, items) {
+		span.SetStatus(otelcodes.Error, "collection blocked by parental filter")
+		return nil, status.Errorf(codes.NotFound, "collection not found")
 	}
 	return &eveyv1.GetCollectionResponse{Collection: collectionToProto(col)}, nil
 }

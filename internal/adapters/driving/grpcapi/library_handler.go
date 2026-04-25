@@ -544,14 +544,23 @@ type parentalFilter struct {
 }
 
 func (h *libraryHandler) resolveParentalFilter(ctx context.Context) parentalFilter {
-	if h.userQuery == nil {
+	return resolveParentalFilterFromUserQuery(ctx, h.userQuery)
+}
+
+// resolveParentalFilterFromUserQuery is the package-level entry point used
+// by every handler that needs to filter results by the active profile's
+// parental settings. Returns a "no-op" filter (maxAge=-1, no blocked tags)
+// when the caller is unauthenticated, the profile lookup fails, or the
+// profile has no effective enforcement (i.e. is not a kids profile).
+func resolveParentalFilterFromUserQuery(ctx context.Context, userQuery *appuser.QueryService) parentalFilter {
+	if userQuery == nil {
 		return parentalFilter{maxAge: -1}
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.ProfileID == "" {
 		return parentalFilter{maxAge: -1}
 	}
-	profile, err := h.userQuery.GetProfileByID(ctx, claims.ProfileID)
+	profile, err := userQuery.GetProfileByID(ctx, claims.ProfileID)
 	if err != nil {
 		return parentalFilter{maxAge: -1}
 	}
@@ -572,10 +581,17 @@ func (h *libraryHandler) resolveParentalFilter(ctx context.Context) parentalFilt
 	}
 }
 
-func (h *libraryHandler) isBlockedByParental(ctx context.Context, item *library.MediaItem) (bool, error) {
-	pf := h.resolveParentalFilter(ctx)
+// mediaItemBlockedByParental returns true if the given item violates the
+// resolved parental filter. Mirrors libraryHandler.isBlockedByParental
+// but takes the filter as an argument so callers (feeds, collections,
+// activity) can reuse the same predicate without re-resolving it for
+// every item in a list.
+func mediaItemBlockedByParental(pf parentalFilter, item *library.MediaItem) bool {
+	if item == nil {
+		return false
+	}
 	if pf.maxAge < 0 && len(pf.blockedTags) == 0 {
-		return false, nil
+		return false
 	}
 	if pf.maxAge >= 0 {
 		rating := ""
@@ -590,13 +606,18 @@ func (h *libraryHandler) isBlockedByParental(ctx context.Context, item *library.
 			}
 		}
 		if !ratings.IsAllowedByAge(pf.region, rating, pf.maxAge) {
-			return true, nil
+			return true
 		}
 	}
 	if ratings.HasBlockedTag(itemTags(item), pf.blockedTags) {
-		return true, nil
+		return true
 	}
-	return false, nil
+	return false
+}
+
+func (h *libraryHandler) isBlockedByParental(ctx context.Context, item *library.MediaItem) (bool, error) {
+	pf := h.resolveParentalFilter(ctx)
+	return mediaItemBlockedByParental(pf, item), nil
 }
 
 func itemTags(item *library.MediaItem) []string {

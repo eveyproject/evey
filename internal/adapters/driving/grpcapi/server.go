@@ -155,11 +155,11 @@ func (s *GRPCServer) RegisterServices() {
 		playbackQry: d.PlaybackQuery,
 		hlsManager:  d.HLSManager,
 	})
-	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: d.ActivityQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
+	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: d.ActivityQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: d.NotifCmd, query: d.NotifQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})
-	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: d.FeedCmd, queries: d.FeedQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})
+	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: d.FeedCmd, queries: d.FeedQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: d.Webhook})
-	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{svc: d.Collection, userAccess: d.UserAccess})
+	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{svc: d.Collection, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery})
 	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: d.Playlist, libQuery: d.LibQuery, translator: d.Translator})
 	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: d.Favorite})
 	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: d.Transcoding})
