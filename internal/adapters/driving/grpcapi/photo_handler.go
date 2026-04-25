@@ -14,6 +14,8 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	photodomain "github.com/evey-project/evey/internal/domain/photo"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -24,7 +26,7 @@ type photoHandler struct {
 	svc        *appphoto.Service
 	userAccess *appuser.AccessService
 	libQuery   *applibrary.QueryService
-	serverCtx     context.Context
+	serverCtx  context.Context
 }
 
 func (h *photoHandler) checkLibraryAccess(ctx context.Context, libraryID shared.LibraryID) error {
@@ -46,13 +48,20 @@ func (h *photoHandler) checkLibraryAccess(ctx context.Context, libraryID shared.
 }
 
 func (h *photoHandler) ListPhotos(ctx context.Context, req *eveyv1.ListPhotosRequest) (*eveyv1.ListPhotosResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.photo.ListPhotos")
+	defer span.End()
 	if _, err := requireClaims(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("photoHandler.ListPhotos: %w", err)
 	}
 	if req.LibraryId == "" {
+		span.SetStatus(otelcodes.Error, "library_id required")
 		return nil, status.Error(codes.InvalidArgument, "library_id required")
 	}
 	if err := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	limit := int(req.Limit)
@@ -69,6 +78,8 @@ func (h *photoHandler) ListPhotos(ctx context.Context, req *eveyv1.ListPhotosReq
 		photos, total, err = h.svc.ListPhotos(ctx, shared.LibraryID(req.LibraryId), limit, offset)
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list photos", err)
 	}
 	resp := &eveyv1.ListPhotosResponse{Total: int32(total)}
@@ -79,34 +90,52 @@ func (h *photoHandler) ListPhotos(ctx context.Context, req *eveyv1.ListPhotosReq
 }
 
 func (h *photoHandler) GetPhoto(ctx context.Context, req *eveyv1.GetPhotoRequest) (*eveyv1.Photo, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.photo.GetPhoto")
+	defer span.End()
 	if _, err := requireClaims(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("photoHandler.GetPhoto: %w", err)
 	}
 	p, err := h.svc.GetPhoto(ctx, req.Id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("get photo", err)
 	}
 	if p == nil {
+		span.SetStatus(otelcodes.Error, "photo not found")
 		return nil, status.Error(codes.NotFound, "photo not found")
 	}
 	if err := h.checkLibraryAccess(ctx, p.LibraryID); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	return photoToProto(*p), nil
 }
 
 func (h *photoHandler) ListPhotoAlbums(ctx context.Context, req *eveyv1.ListPhotoAlbumsRequest) (*eveyv1.ListPhotoAlbumsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.photo.ListPhotoAlbums")
+	defer span.End()
 	if _, err := requireClaims(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("photoHandler.ListPhotoAlbums: %w", err)
 	}
 	if req.LibraryId == "" {
+		span.SetStatus(otelcodes.Error, "library_id required")
 		return nil, status.Error(codes.InvalidArgument, "library_id required")
 	}
 	if err := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	albums, err := h.svc.GetAlbums(ctx, shared.LibraryID(req.LibraryId))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list photo albums", err)
 	}
 	resp := &eveyv1.ListPhotoAlbumsResponse{}
@@ -122,13 +151,20 @@ func (h *photoHandler) ListPhotoAlbums(ctx context.Context, req *eveyv1.ListPhot
 }
 
 func (h *photoHandler) SearchPhotos(ctx context.Context, req *eveyv1.SearchPhotosRequest) (*eveyv1.SearchPhotosResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.photo.SearchPhotos")
+	defer span.End()
 	if _, err := requireClaims(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("photoHandler.SearchPhotos: %w", err)
 	}
 	if req.LibraryId == "" || req.Query == "" {
+		span.SetStatus(otelcodes.Error, "library_id and query required")
 		return nil, status.Error(codes.InvalidArgument, "library_id and query required")
 	}
 	if err := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	limit := int(req.Limit)
@@ -137,6 +173,8 @@ func (h *photoHandler) SearchPhotos(ctx context.Context, req *eveyv1.SearchPhoto
 	}
 	photos, err := h.svc.Search(ctx, shared.LibraryID(req.LibraryId), req.Query, limit)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("search photos", err)
 	}
 	resp := &eveyv1.SearchPhotosResponse{}
@@ -147,25 +185,38 @@ func (h *photoHandler) SearchPhotos(ctx context.Context, req *eveyv1.SearchPhoto
 }
 
 func (h *photoHandler) ScanPhotoDirectory(ctx context.Context, req *eveyv1.ScanPhotoDirectoryRequest) (*eveyv1.ScanPhotoDirectoryResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.photo.ScanPhotoDirectory")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("photoHandler.ScanPhotoDirectory: %w", err)
 	}
 	if !claims.IsAdmin {
+		span.SetStatus(otelcodes.Error, "admin only")
 		return nil, status.Error(codes.PermissionDenied, "admin only")
 	}
 	if req.LibraryId == "" || req.Directory == "" {
+		span.SetStatus(otelcodes.Error, "library_id and directory required")
 		return nil, status.Error(codes.InvalidArgument, "library_id and directory required")
 	}
 	if err := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	dir := filepath.Clean(req.Directory)
 	if !filepath.IsAbs(dir) || strings.Contains(dir, "..") {
+		span.SetStatus(otelcodes.Error, "invalid directory")
 		return nil, status.Error(codes.InvalidArgument, "invalid directory")
 	}
 	lib, libErr := h.libQuery.GetLibrary(ctx, req.LibraryId)
 	if libErr != nil || lib == nil {
+		if libErr != nil {
+			span.RecordError(libErr)
+		}
+		span.SetStatus(otelcodes.Error, "library not found")
 		return nil, status.Error(codes.NotFound, "library not found")
 	}
 	allowed := false
@@ -177,6 +228,7 @@ func (h *photoHandler) ScanPhotoDirectory(ctx context.Context, req *eveyv1.ScanP
 		}
 	}
 	if !allowed {
+		span.SetStatus(otelcodes.Error, "directory not within library paths")
 		return nil, status.Error(codes.InvalidArgument, "directory not within library paths")
 	}
 	// Detach from the request context: photo scan walks the filesystem and
@@ -204,23 +256,34 @@ func (h *photoHandler) ScanPhotoDirectory(ctx context.Context, req *eveyv1.ScanP
 }
 
 func (h *photoHandler) DeletePhoto(ctx context.Context, req *eveyv1.DeletePhotoRequest) (*emptypb.Empty, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.photo.DeletePhoto")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("photoHandler.DeletePhoto: %w", err)
 	}
 	p, err := h.svc.GetPhoto(ctx, req.Id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("get photo", err)
 	}
 	if p == nil {
+		span.SetStatus(otelcodes.Error, "photo not found")
 		return nil, status.Error(codes.NotFound, "photo not found")
 	}
 	if !claims.IsAdmin {
 		if accessErr := h.checkLibraryAccess(ctx, p.LibraryID); accessErr != nil {
+			span.RecordError(accessErr)
+			span.SetStatus(otelcodes.Error, accessErr.Error())
 			return nil, accessErr
 		}
 	}
 	if err := h.svc.DeletePhoto(ctx, req.Id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("delete photo", err)
 	}
 	return &emptypb.Empty{}, nil

@@ -9,12 +9,14 @@ import (
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appconfig "github.com/evey-project/evey/internal/app/config"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
-	appactivity "github.com/evey-project/evey/internal/app/activity"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 )
 
@@ -35,8 +37,12 @@ type adminSystemHandler struct {
 }
 
 func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSetupStatusRequest) (*eveyv1.SetupStatusResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.GetSetupStatus")
+	defer span.End()
 	admins, err := d.userQuery.CountAdmins(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("count admins", err)
 	}
 	resp := &eveyv1.SetupStatusResponse{SetupComplete: admins > 0}
@@ -52,9 +58,12 @@ func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSe
 }
 
 func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInfoRequest) (*eveyv1.SystemInfo, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.GetSystemInfo")
+	defer span.End()
 	admins, adminErr := d.userQuery.CountAdmins(ctx)
 	if adminErr != nil {
 		slog.Warn("count admins", slog.Any("err", adminErr))
+		span.RecordError(adminErr)
 	}
 
 	var uptimeSecs int64
@@ -63,15 +72,15 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 	}
 
 	info := &eveyv1.SystemInfo{
-		Version:                  d.version,
-		Os:                       runtime.GOOS,
-		Arch:                     runtime.GOARCH,
-		GoVersion:                runtime.Version(),
-		SetupComplete:            admins > 0,
-		UptimeSeconds:            uptimeSecs,
-		FfmpegVersion:            sysinfo.FFmpegVersion(d.ffmpegPath),
-		PasswordRecoveryEnabled:  d.userCmd.IsPasswordRecoveryEnabled(ctx),
-		SmtpConfigured:           d.smtpConfigured,
+		Version:                 d.version,
+		Os:                      runtime.GOOS,
+		Arch:                    runtime.GOARCH,
+		GoVersion:               runtime.Version(),
+		SetupComplete:           admins > 0,
+		UptimeSeconds:           uptimeSecs,
+		FfmpegVersion:           sysinfo.FFmpegVersion(d.ffmpegPath),
+		PasswordRecoveryEnabled: d.userCmd.IsPasswordRecoveryEnabled(ctx),
+		SmtpConfigured:          d.smtpConfigured,
 	}
 
 	if d.transcodingSvc != nil {
@@ -88,15 +97,21 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 	return info, nil
 }
 
-func (d *adminSystemHandler) GetServerConfig(_ context.Context, _ *eveyv1.GetServerConfigRequest) (*eveyv1.ServerConfig, error) {
+func (d *adminSystemHandler) GetServerConfig(ctx context.Context, _ *eveyv1.GetServerConfigRequest) (*eveyv1.ServerConfig, error) {
+	_, span := tracing.StartSpan(ctx, "grpc.admin.GetServerConfig")
+	defer span.End()
 	return &eveyv1.ServerConfig{Values: map[string]string{}}, nil
 }
 
-func (d *adminSystemHandler) UpdateServerConfig(_ context.Context, req *eveyv1.UpdateServerConfigRequest) (*eveyv1.ServerConfig, error) {
+func (d *adminSystemHandler) UpdateServerConfig(ctx context.Context, req *eveyv1.UpdateServerConfigRequest) (*eveyv1.ServerConfig, error) {
+	_, span := tracing.StartSpan(ctx, "grpc.admin.UpdateServerConfig")
+	defer span.End()
 	return &eveyv1.ServerConfig{Values: req.Values}, nil
 }
 
 func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupWizardRequest) (*eveyv1.SetupWizardResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.SetupWizard")
+	defer span.End()
 	// IMPORTANT: create the admin FIRST — if setup is already done Setup()
 	// returns ErrSetupDone and we must not have mutated server.language/region
 	// in the meantime. This endpoint is public (pre-setup) so any side-effect
@@ -111,9 +126,12 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 		appuser.WithSetupRegion(req.ServerRegion),
 	)
 	if err != nil {
+		span.RecordError(err)
 		if errors.Is(err, appuser.ErrSetupDone) {
+			span.SetStatus(otelcodes.Error, "setup already completed")
 			return nil, d.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.admin.setup_already_completed")
 		}
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("setup", err)
 	}
 	// Persist language/region AFTER Setup() confirmed this is a fresh install.
@@ -132,6 +150,8 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 	}
 	access, refresh, err := d.userCmd.Login(ctx, req.AdminUsername, req.AdminPassword)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("login after setup", err)
 	}
 	return &eveyv1.SetupWizardResponse{
@@ -142,8 +162,12 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 }
 
 func (d *adminSystemHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDashboardRequest) (*eveyv1.DashboardInfo, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.GetDashboard")
+	defer span.End()
 	stats, err := d.activitySvc.GetServerStats(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("get server stats", err)
 	}
 
@@ -158,12 +182,12 @@ func (d *adminSystemHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDash
 	}
 
 	resp := &eveyv1.DashboardInfo{
-		ActiveStreams:     int32(stats.ActiveStreams),
-		ActiveTranscodes:  activeTranscodes,
-		TotalMediaItems:   int32(stats.TotalItems),
-		TotalUsers:        int32(stats.TotalUsers),
-		CpuPercent:        sys.CPUPercent,
-		MemoryPercent:     sys.MemoryPercent,
+		ActiveStreams:    int32(stats.ActiveStreams),
+		ActiveTranscodes: activeTranscodes,
+		TotalMediaItems:  int32(stats.TotalItems),
+		TotalUsers:       int32(stats.TotalUsers),
+		CpuPercent:       sys.CPUPercent,
+		MemoryPercent:    sys.MemoryPercent,
 	}
 
 	if d.libLister != nil {

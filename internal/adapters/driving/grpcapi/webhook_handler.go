@@ -6,6 +6,8 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
 	"github.com/evey-project/evey/internal/domain/webhook"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	otelcodes "go.opentelemetry.io/otel/codes"
 )
 
 type webhookHandler struct {
@@ -14,6 +16,8 @@ type webhookHandler struct {
 }
 
 func (h *webhookHandler) CreateWebhook(ctx context.Context, req *eveyv1.CreateWebhookRequest) (*eveyv1.WebhookConfig, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.webhook.CreateWebhook")
+	defer span.End()
 	cfg := &webhook.Config{
 		Name:    req.Name,
 		URL:     req.Url,
@@ -23,14 +27,20 @@ func (h *webhookHandler) CreateWebhook(ctx context.Context, req *eveyv1.CreateWe
 		Enabled: req.Enabled,
 	}
 	if err := h.svc.Create(ctx, cfg); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("create webhook", err)
 	}
 	return webhookConfigToProto(cfg), nil
 }
 
 func (h *webhookHandler) ListWebhooks(ctx context.Context, _ *eveyv1.ListWebhooksRequest) (*eveyv1.ListWebhooksResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.webhook.ListWebhooks")
+	defer span.End()
 	configs, err := h.svc.List(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list webhooks", err)
 	}
 	resp := &eveyv1.ListWebhooksResponse{}
@@ -41,6 +51,8 @@ func (h *webhookHandler) ListWebhooks(ctx context.Context, _ *eveyv1.ListWebhook
 }
 
 func (h *webhookHandler) UpdateWebhook(ctx context.Context, req *eveyv1.UpdateWebhookRequest) (*eveyv1.WebhookConfig, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.webhook.UpdateWebhook")
+	defer span.End()
 	cfg := &webhook.Config{
 		ID:      req.Id,
 		Name:    req.Name,
@@ -51,21 +63,31 @@ func (h *webhookHandler) UpdateWebhook(ctx context.Context, req *eveyv1.UpdateWe
 		Enabled: req.Enabled,
 	}
 	if err := h.svc.Update(ctx, cfg); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("update webhook", err)
 	}
 	return webhookConfigToProto(cfg), nil
 }
 
 func (h *webhookHandler) DeleteWebhook(ctx context.Context, req *eveyv1.DeleteWebhookRequest) (*eveyv1.DeleteWebhookResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.webhook.DeleteWebhook")
+	defer span.End()
 	if err := h.svc.Delete(ctx, req.Id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("delete webhook", err)
 	}
 	return &eveyv1.DeleteWebhookResponse{}, nil
 }
 
 func (h *webhookHandler) ListWebhookDeliveries(ctx context.Context, req *eveyv1.ListWebhookDeliveriesRequest) (*eveyv1.ListWebhookDeliveriesResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.webhook.ListWebhookDeliveries")
+	defer span.End()
 	deliveries, err := h.svc.ListDeliveries(ctx, req.WebhookId, int(req.Limit))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list deliveries", err)
 	}
 	resp := &eveyv1.ListWebhookDeliveriesResponse{}

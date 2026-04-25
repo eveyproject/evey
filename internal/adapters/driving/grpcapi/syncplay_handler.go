@@ -6,13 +6,15 @@ import (
 	"log/slog"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmusic "github.com/evey-project/evey/internal/app/music"
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -66,8 +68,12 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 }
 
 func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSyncPlayRoomRequest) (*eveyv1.CreateSyncPlayRoomResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.syncplay.CreateRoom")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("syncplayHandler.CreateRoom: %w", err)
 	}
 	hostID := claims.ProfileID
@@ -78,14 +84,21 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 	// Playlist-bound room (music queue)
 	if req.PlaylistId != "" {
 		if h.playlistSvc == nil {
+			span.SetStatus(otelcodes.Error, "playlist service unavailable")
 			return nil, status.Error(codes.FailedPrecondition, "playlist service unavailable")
 		}
 		pl, err := h.playlistSvc.GetByID(ctx, req.PlaylistId, claims.UserID)
 		if err != nil || pl == nil {
+			if err != nil {
+				span.RecordError(err)
+			}
+			span.SetStatus(otelcodes.Error, "playlist not found")
 			return nil, status.Error(codes.NotFound, "playlist not found")
 		}
 		mediaItems, plItems, err := h.playlistSvc.GetItems(ctx, req.PlaylistId, claims.UserID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "playlist not found")
 			return nil, status.Error(codes.NotFound, "playlist not found")
 		}
 		trackIDs := make([]string, 0)
@@ -99,10 +112,13 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 			}
 		}
 		if len(trackIDs) == 0 {
+			span.SetStatus(otelcodes.Error, "playlist is empty")
 			return nil, status.Error(codes.FailedPrecondition, "playlist is empty")
 		}
 		// Validate first-track access (music). If user has no access, fail.
 		if err := h.requireMediaAccess(ctx, trackIDs[0], "music"); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, err
 		}
 		name := req.Name
@@ -114,6 +130,8 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		}
 		room, err := h.hub.CreateRoomFromPlaylist(ctx, hostID, req.PlaylistId, name, trackIDs)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, internalError("create room", err)
 		}
 		return &eveyv1.CreateSyncPlayRoomResponse{
@@ -127,6 +145,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 	}
 
 	if req.MediaId == "" {
+		span.SetStatus(otelcodes.Error, "media_id required")
 		return nil, status.Error(codes.InvalidArgument, "media_id required")
 	}
 	mediaType := req.MediaType
@@ -134,6 +153,8 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		mediaType = "video"
 	}
 	if err := h.requireMediaAccess(ctx, req.MediaId, mediaType); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	name := req.Name
@@ -146,6 +167,8 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 	}
 	room, err := h.hub.CreateRoomTyped(ctx, hostID, req.MediaId, name, mediaType)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("create room", err)
 	}
 	return &eveyv1.CreateSyncPlayRoomResponse{
@@ -159,21 +182,34 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 }
 
 func (h *syncplayHandler) JoinByCode(ctx context.Context, req *eveyv1.JoinSyncPlayByCodeRequest) (*eveyv1.JoinSyncPlayByCodeResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.syncplay.JoinByCode")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("syncplayHandler.JoinByCode: %w", err)
 	}
 	if req.Code == "" {
+		span.SetStatus(otelcodes.Error, "code required")
 		return nil, status.Error(codes.InvalidArgument, "code required")
 	}
 	room, err := h.hub.GetRoomByCode(ctx, req.Code)
 	if err != nil || room == nil {
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.SetStatus(otelcodes.Error, "room not found")
 		return nil, status.Error(codes.NotFound, "room not found")
 	}
 	if err := h.requireMediaAccess(ctx, string(room.MediaID), room.MediaType); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if err := h.hub.JoinRoom(ctx, room.ID, claims.UserID, claims.Username); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "room not found")
 		return nil, status.Error(codes.NotFound, "room not found")
 	}
 	return &eveyv1.JoinSyncPlayByCodeResponse{
@@ -185,15 +221,23 @@ func (h *syncplayHandler) JoinByCode(ctx context.Context, req *eveyv1.JoinSyncPl
 }
 
 func (h *syncplayHandler) GetRoom(ctx context.Context, req *eveyv1.GetSyncPlayRoomRequest) (*eveyv1.GetSyncPlayRoomResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.syncplay.GetRoom")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("syncplayHandler.GetRoom: %w", err)
 	}
 	room, err := h.hub.GetRoom(ctx, req.RoomId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "room not found")
 		return nil, status.Error(codes.NotFound, "room not found")
 	}
 	if err := h.requireMediaAccess(ctx, string(room.MediaID), room.MediaType); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	isMember := string(room.HostID) == claims.ProfileID || string(room.HostID) == claims.UserID
@@ -204,6 +248,7 @@ func (h *syncplayHandler) GetRoom(ctx context.Context, req *eveyv1.GetSyncPlayRo
 		}
 	}
 	if !isMember && !claims.IsAdmin {
+		span.SetStatus(otelcodes.Error, "forbidden")
 		return nil, status.Error(codes.PermissionDenied, "forbidden")
 	}
 	members := make([]*eveyv1.SyncPlayMember, 0, len(room.Members))
@@ -241,18 +286,28 @@ func (h *syncplayHandler) GetRoom(ctx context.Context, req *eveyv1.GetSyncPlayRo
 }
 
 func (h *syncplayHandler) JoinRoom(ctx context.Context, req *eveyv1.JoinSyncPlayRoomRequest) (*eveyv1.JoinSyncPlayRoomResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.syncplay.JoinRoom")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("syncplayHandler.JoinRoom: %w", err)
 	}
 	room, err := h.hub.GetRoom(ctx, req.RoomId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "room not found")
 		return nil, status.Error(codes.NotFound, "room not found")
 	}
 	if err := h.requireMediaAccess(ctx, string(room.MediaID), room.MediaType); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if err := h.hub.JoinRoom(ctx, req.RoomId, claims.UserID, claims.Username); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "room not found")
 		return nil, status.Error(codes.NotFound, "room not found")
 	}
 	return &eveyv1.JoinSyncPlayRoomResponse{
@@ -262,12 +317,17 @@ func (h *syncplayHandler) JoinRoom(ctx context.Context, req *eveyv1.JoinSyncPlay
 }
 
 func (h *syncplayHandler) LeaveRoom(ctx context.Context, req *eveyv1.LeaveSyncPlayRoomRequest) (*eveyv1.LeaveSyncPlayRoomResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.syncplay.LeaveRoom")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("syncplayHandler.LeaveRoom: %w", err)
 	}
 	if err := h.hub.LeaveRoom(ctx, req.RoomId, claims.UserID); err != nil {
 		slog.Warn("syncplay leave room failed", slog.String("room_id", req.RoomId), slog.Any("err", err))
+		span.RecordError(err)
 	}
 	return &eveyv1.LeaveSyncPlayRoomResponse{}, nil
 }

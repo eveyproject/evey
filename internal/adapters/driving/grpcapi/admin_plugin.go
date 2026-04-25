@@ -13,6 +13,8 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -45,27 +47,39 @@ func (d *adminPluginHandler) requireEnabled() error {
 }
 
 func (d *adminPluginHandler) IssuePluginToken(ctx context.Context, req *eveyv1.IssuePluginTokenRequest) (*eveyv1.IssuePluginTokenResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.IssuePluginToken")
+	defer span.End()
 	if err := d.requireEnabled(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if req.PluginId == "" {
+		span.SetStatus(otelcodes.Error, "plugin_id required")
 		return nil, status.Error(codes.InvalidArgument, "plugin_id required")
 	}
 	if d.tokenSvc == nil {
+		span.SetStatus(otelcodes.Error, "plugin token service not configured")
 		return nil, status.Error(codes.Unimplemented, "plugin token service not configured")
 	}
 	issued, err := d.tokenSvc.IssueToken(ctx, claims.UserID, req.PluginId)
 	if err != nil {
+		span.RecordError(err)
 		switch {
 		case errors.Is(err, appplugin.ErrPluginNotFound):
+			span.SetStatus(otelcodes.Error, "plugin not found")
 			return nil, status.Error(codes.NotFound, "plugin not found")
 		case errors.Is(err, appplugin.ErrPluginNotEnabled):
+			span.SetStatus(otelcodes.Error, "plugin not enabled")
 			return nil, status.Error(codes.FailedPrecondition, "plugin not enabled")
 		default:
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, internalError("issue plugin token", err)
 		}
 	}
@@ -77,8 +91,12 @@ func (d *adminPluginHandler) IssuePluginToken(ctx context.Context, req *eveyv1.I
 }
 
 func (d *adminPluginHandler) ListPluginRuntimes(ctx context.Context, _ *eveyv1.ListPluginRuntimesRequest) (*eveyv1.ListPluginRuntimesResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.ListPluginRuntimes")
+	defer span.End()
 	runtimes, err := d.pluginQuery.ListRuntimes(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list runtimes", err)
 	}
 	resp := &eveyv1.ListPluginRuntimesResponse{}
@@ -89,7 +107,11 @@ func (d *adminPluginHandler) ListPluginRuntimes(ctx context.Context, _ *eveyv1.L
 }
 
 func (d *adminPluginHandler) AddPluginRuntime(ctx context.Context, req *eveyv1.AddPluginRuntimeRequest) (*eveyv1.PluginRuntime, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.AddPluginRuntime")
+	defer span.End()
 	if err := d.requireEnabled(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	rt := &plugin.PluginRuntime{
@@ -98,53 +120,81 @@ func (d *adminPluginHandler) AddPluginRuntime(ctx context.Context, req *eveyv1.A
 		Version:  req.Version,
 	}
 	if err := d.pluginRuntime.AddRuntime(ctx, rt); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("add runtime", err)
 	}
 	return pluginRuntimeToProto(rt), nil
 }
 
 func (d *adminPluginHandler) RemovePluginRuntime(ctx context.Context, req *eveyv1.RemovePluginRuntimeRequest) (*eveyv1.RemovePluginRuntimeResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.RemovePluginRuntime")
+	defer span.End()
 	if err := d.requireEnabled(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if err := d.pluginRuntime.RemoveRuntime(ctx, req.Id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("remove runtime", err)
 	}
 	return &eveyv1.RemovePluginRuntimeResponse{}, nil
 }
 
 func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.InstallPluginRequest) (*eveyv1.Plugin, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.InstallPlugin")
+	defer span.End()
 	if err := d.requireEnabled(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	p, err := d.pluginInstaller.InstallPlugin(ctx, req.Source)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("install plugin", err)
 	}
 	return pluginToProto(p), nil
 }
 
 func (d *adminPluginHandler) UninstallPlugin(ctx context.Context, req *eveyv1.UninstallPluginRequest) (*eveyv1.UninstallPluginResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.UninstallPlugin")
+	defer span.End()
 	if err := d.requireEnabled(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if err := d.pluginInstaller.UninstallPlugin(ctx, req.Id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("uninstall plugin", err)
 	}
 	return &eveyv1.UninstallPluginResponse{}, nil
 }
 
 func (d *adminPluginHandler) EnablePlugin(ctx context.Context, req *eveyv1.EnablePluginRequest) (*eveyv1.Plugin, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.EnablePlugin")
+	defer span.End()
 	if err := d.requireEnabled(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if err := d.pluginRuntime.EnablePlugin(ctx, req.Id); err != nil {
+		span.RecordError(err)
 		switch {
 		case errors.Is(err, appplugin.ErrPluginNotFound):
+			span.SetStatus(otelcodes.Error, "plugin not found")
 			return nil, status.Error(codes.NotFound, "plugin not found")
 		case errors.Is(err, appplugin.ErrAlreadyRunning):
+			span.SetStatus(otelcodes.Error, "plugin already running")
 			return nil, status.Error(codes.FailedPrecondition, "plugin already running")
 		default:
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, internalError("enable plugin", err)
 		}
 	}
@@ -152,16 +202,24 @@ func (d *adminPluginHandler) EnablePlugin(ctx context.Context, req *eveyv1.Enabl
 }
 
 func (d *adminPluginHandler) DisablePlugin(ctx context.Context, req *eveyv1.DisablePluginRequest) (*eveyv1.Plugin, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.DisablePlugin")
+	defer span.End()
 	if err := d.requireEnabled(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if err := d.pluginRuntime.DisablePlugin(ctx, req.Id); err != nil {
+		span.RecordError(err)
 		switch {
 		case errors.Is(err, appplugin.ErrPluginNotFound):
+			span.SetStatus(otelcodes.Error, "plugin not found")
 			return nil, status.Error(codes.NotFound, "plugin not found")
 		case errors.Is(err, appplugin.ErrNotRunning):
+			span.SetStatus(otelcodes.Error, "plugin not running")
 			return nil, status.Error(codes.FailedPrecondition, "plugin not running")
 		default:
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, internalError("disable plugin", err)
 		}
 	}
@@ -169,8 +227,12 @@ func (d *adminPluginHandler) DisablePlugin(ctx context.Context, req *eveyv1.Disa
 }
 
 func (d *adminPluginHandler) ListPlugins(ctx context.Context, _ *eveyv1.ListPluginsRequest) (*eveyv1.ListPluginsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.ListPlugins")
+	defer span.End()
 	plugins, err := d.pluginQuery.ListPlugins(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list plugins", err)
 	}
 	resp := &eveyv1.ListPluginsResponse{}
@@ -181,8 +243,12 @@ func (d *adminPluginHandler) ListPlugins(ctx context.Context, _ *eveyv1.ListPlug
 }
 
 func (d *adminPluginHandler) GetPluginConfig(ctx context.Context, req *eveyv1.GetPluginConfigRequest) (*eveyv1.PluginConfig, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.GetPluginConfig")
+	defer span.End()
 	result, err := d.pluginQuery.GetPluginConfig(ctx, req.PluginId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "get config")
 		return nil, status.Errorf(codes.NotFound, "get config: %v", err)
 	}
 	values := make(map[string]string)
@@ -203,18 +269,28 @@ func (d *adminPluginHandler) GetPluginConfig(ctx context.Context, req *eveyv1.Ge
 }
 
 func (d *adminPluginHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1.UpdatePluginConfigRequest) (*eveyv1.PluginConfig, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.UpdatePluginConfig")
+	defer span.End()
 	if err := d.requireEnabled(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	result, err := d.pluginQuery.GetPluginConfig(ctx, req.PluginId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "get plugin")
 		return nil, status.Errorf(codes.NotFound, "get plugin: %v", err)
 	}
 	if err := validateConfigValues(req.Values, result.ConfigSchema); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	cfg := coerceConfigValues(req.Values, result.ConfigSchema)
 	if err := d.pluginRuntime.UpdatePluginConfig(ctx, req.PluginId, cfg); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("update config", err)
 	}
 	return &eveyv1.PluginConfig{
@@ -223,7 +299,9 @@ func (d *adminPluginHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1
 	}, nil
 }
 
-func (d *adminPluginHandler) GetPluginLogs(_ context.Context, req *eveyv1.GetPluginLogsRequest) (*eveyv1.GetPluginLogsResponse, error) {
+func (d *adminPluginHandler) GetPluginLogs(ctx context.Context, req *eveyv1.GetPluginLogsRequest) (*eveyv1.GetPluginLogsResponse, error) {
+	_, span := tracing.StartSpan(ctx, "grpc.admin.GetPluginLogs")
+	defer span.End()
 	if d.logDir == "" || req.PluginId == "" {
 		return &eveyv1.GetPluginLogsResponse{}, nil
 	}
@@ -233,6 +311,8 @@ func (d *adminPluginHandler) GetPluginLogs(_ context.Context, req *eveyv1.GetPlu
 		if errors.Is(err, os.ErrNotExist) {
 			return &eveyv1.GetPluginLogsResponse{}, nil
 		}
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("open log", err)
 	}
 	defer f.Close()

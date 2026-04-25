@@ -9,6 +9,8 @@ import (
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -28,6 +30,8 @@ type adminSessionHandler struct {
 }
 
 func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAuditLogRequest) (*eveyv1.GetAuditLogResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.GetAuditLog")
+	defer span.End()
 	filter := activity.AuditLogFilter{
 		Limit:  int(req.Limit),
 		Offset: int(req.Offset),
@@ -43,6 +47,8 @@ func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAu
 	}
 	entries, err := d.activitySvc.GetAuditLog(ctx, filter)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("get audit log", err)
 	}
 	resp := &eveyv1.GetAuditLogResponse{Total: int32(len(entries))}
@@ -53,30 +59,34 @@ func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAu
 }
 
 func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.ListActiveSessionsRequest) (*eveyv1.ListActiveSessionsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.ListActiveSessions")
+	defer span.End()
 	sessions, err := d.playbackQry.GetActiveSessions(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list active sessions", err)
 	}
 	resp := &eveyv1.ListActiveSessionsResponse{}
 	for _, s := range sessions {
 		as := &eveyv1.ActiveSession{
-			SessionId:    s.SessionID,
-			ProfileId:    string(s.ProfileID),
-			ProfileName:  s.ProfileName,
-			MediaTitle:   s.MediaTitle,
-			MediaType:    s.MediaType,
-			MediaItemId:  string(s.MediaItemID),
-			Progress:     s.ProgressPercent(),
-			DurationMs:   s.DurationMs,
-			PositionMs:   s.PositionMs,
-			StartedAt:    timestamppb.New(s.StartedAt),
-			DeviceName:   s.DeviceName,
-			DeviceType:   s.DeviceType,
-			ClientIp:     s.ClientIP,
-			PlayMethod:   s.PlayMethod,
-			VideoCodec:   s.VideoCodec,
-			AudioCodec:   s.AudioCodec,
-			Resolution:   s.Resolution,
+			SessionId:     s.SessionID,
+			ProfileId:     string(s.ProfileID),
+			ProfileName:   s.ProfileName,
+			MediaTitle:    s.MediaTitle,
+			MediaType:     s.MediaType,
+			MediaItemId:   string(s.MediaItemID),
+			Progress:      s.ProgressPercent(),
+			DurationMs:    s.DurationMs,
+			PositionMs:    s.PositionMs,
+			StartedAt:     timestamppb.New(s.StartedAt),
+			DeviceName:    s.DeviceName,
+			DeviceType:    s.DeviceType,
+			ClientIp:      s.ClientIP,
+			PlayMethod:    s.PlayMethod,
+			VideoCodec:    s.VideoCodec,
+			AudioCodec:    s.AudioCodec,
+			Resolution:    s.Resolution,
 			BandwidthBps:  s.BandwidthBps,
 			SeriesTitle:   s.SeriesTitle,
 			SeasonNumber:  int32(s.SeasonNumber),
@@ -92,11 +102,16 @@ func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.
 }
 
 func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillSessionRequest) (*eveyv1.KillSessionResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.KillSession")
+	defer span.End()
 	if req.SessionId == "" {
+		span.SetStatus(otelcodes.Error, "session_id required")
 		return nil, status.Error(codes.InvalidArgument, "session_id required")
 	}
 	session, err := d.playbackCmd.GetSession(ctx, req.SessionId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "session not found")
 		return nil, status.Errorf(codes.NotFound, "session not found: %v", err)
 	}
 	// Send stop command so the player closes gracefully
@@ -132,17 +147,25 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 }
 
 func (d *adminSessionHandler) SendSessionCommand(ctx context.Context, req *eveyv1.SendSessionCommandRequest) (*eveyv1.SendSessionCommandResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.SendSessionCommand")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if !claims.IsAdmin {
+		span.SetStatus(otelcodes.Error, "admin required")
 		return nil, status.Error(codes.PermissionDenied, "admin required")
 	}
 	if req.SessionId == "" || req.Command == "" {
+		span.SetStatus(otelcodes.Error, "session_id and command required")
 		return nil, status.Error(codes.InvalidArgument, "session_id and command required")
 	}
 	if err := d.playbackCmd.SetRemoteCommand(ctx, req.SessionId, req.Command); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("send command", err)
 	}
 	return &eveyv1.SendSessionCommandResponse{}, nil

@@ -7,6 +7,8 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -21,12 +23,16 @@ type adminTaskHandler struct {
 }
 
 func (d *adminTaskHandler) ListScheduledTasks(ctx context.Context, _ *eveyv1.ListScheduledTasksRequest) (*eveyv1.ListScheduledTasksResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.ListScheduledTasks")
+	defer span.End()
 	if d.scheduler == nil {
 		return &eveyv1.ListScheduledTasksResponse{}, nil
 	}
 	schedules, err := d.scheduler.ListSchedules(ctx)
 	if err != nil {
 		slog.Error("list scheduled tasks", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	resp := &eveyv1.ListScheduledTasksResponse{}
@@ -49,11 +55,16 @@ func (d *adminTaskHandler) ListScheduledTasks(ctx context.Context, _ *eveyv1.Lis
 }
 
 func (d *adminTaskHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.UpdateScheduledTaskRequest) (*eveyv1.ScheduledTask, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.UpdateScheduledTask")
+	defer span.End()
 	if d.scheduler == nil {
+		span.SetStatus(otelcodes.Error, "scheduler not available")
 		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.scheduler_not_available")
 	}
 	existing, err := d.scheduler.ListSchedules(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	var current *domainlibrary.ScanSchedule
@@ -64,6 +75,7 @@ func (d *adminTaskHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.
 		}
 	}
 	if current == nil {
+		span.SetStatus(otelcodes.Error, "scheduled task not found")
 		return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.admin.scheduled_task_not_found")
 	}
 	cron := current.CronExpression
@@ -77,6 +89,8 @@ func (d *adminTaskHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.
 	updated, err := d.scheduler.SetSchedule(ctx, req.Id, cron, enabled)
 	if err != nil {
 		slog.Error("update scheduled task", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	task := &eveyv1.ScheduledTask{
@@ -92,7 +106,10 @@ func (d *adminTaskHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.
 }
 
 func (d *adminTaskHandler) RunScheduledTask(ctx context.Context, req *eveyv1.RunScheduledTaskRequest) (*eveyv1.RunScheduledTaskResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.RunScheduledTask")
+	defer span.End()
 	if d.libScanner == nil {
+		span.SetStatus(otelcodes.Error, "scanner not available")
 		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.scanner_not_available")
 	}
 	go func() {
