@@ -13,6 +13,9 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 )
 
 // PeopleBioEnricher enriches bios for people missing biography data.
@@ -67,12 +70,22 @@ func NewCommandService(
 }
 
 func (s *CommandService) RefreshMetadata(ctx context.Context, mediaItemID, providerID, providerName, mediaType string) (*metadata.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.RefreshMetadata")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("media_item.id", mediaItemID),
+		attribute.String("provider.id", providerID),
+		attribute.String("provider.name", providerName),
+		attribute.String("media.type", mediaType),
+	)
 	for _, p := range s.providers {
 		if p.Name() != providerName {
 			continue
 		}
 		result, err := p.GetByProviderID(ctx, providerID, mediaType)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, fmt.Errorf("get metadata from %s: %w", providerName, err)
 		}
 		// Log-only: notification event — actual metadata fetch already succeeded above
@@ -82,18 +95,29 @@ func (s *CommandService) RefreshMetadata(ctx context.Context, mediaItemID, provi
 		}
 		return result, nil
 	}
-	return nil, fmt.Errorf("provider %s not found", providerName)
+	err := fmt.Errorf("provider %s not found", providerName)
+	span.RecordError(err)
+	span.SetStatus(otelcodes.Error, err.Error())
+	return nil, err
 }
 
 func (s *CommandService) RefreshAllTranslations(ctx context.Context, onProgress func(done, total int)) error {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.RefreshAllTranslations")
+	defer span.End()
 	if s.enricher == nil || s.mediaItems == nil {
-		return errors.New("enricher not configured")
+		err := errors.New("enricher not configured")
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
 	}
 	items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("list all items: %w", err)
 	}
 	total := len(items)
+	span.SetAttributes(attribute.Int("items.count", total))
 	for i, itemPtr := range items {
 		item := itemPtr
 		if item.Catalog == nil {
@@ -116,25 +140,53 @@ func (s *CommandService) RefreshAllTranslations(ctx context.Context, onProgress 
 }
 
 func (s *CommandService) GetMediaItem(ctx context.Context, id string) (*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.GetMediaItem")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", id))
 	if s.mediaItems == nil {
-		return nil, errors.New("media items repo not configured")
+		err := errors.New("media items repo not configured")
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
 	}
-	return s.mediaItems.GetByID(ctx, shared.MediaItemID(id))
+	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(id))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+	}
+	return item, err
 }
 
 func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, tmdbID, mediaType string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.RefreshItemMetadata")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("media_item.id", mediaItemID),
+		attribute.String("tmdb.id", tmdbID),
+		attribute.String("media.type", mediaType),
+	)
 	if s.enricher == nil || s.mediaItems == nil {
-		return errors.New("enricher not configured")
+		err := errors.New("enricher not configured")
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
 	}
 	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("get media item: %w", err)
 	}
 	result, _ := s.fetchFromProviders(ctx, tmdbID, mediaType, "")
 	if result == nil {
-		return fmt.Errorf("no provider returned metadata for tmdb id %s", tmdbID)
+		err := fmt.Errorf("no provider returned metadata for tmdb id %s", tmdbID)
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
 	}
 	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("enrich item: %w", err)
 	}
 	evtTmdb := metadata.MetadataRefreshed{MediaItemID: shared.MediaItemID(mediaItemID), Provider: "tmdb", OccurredAt: time.Now()}
@@ -145,16 +197,31 @@ func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, t
 }
 
 func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaItemID, imdbID, mediaType string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.RefreshItemMetadataByIMDB")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("media_item.id", mediaItemID),
+		attribute.String("imdb.id", imdbID),
+		attribute.String("media.type", mediaType),
+	)
 	if s.enricher == nil || s.mediaItems == nil {
-		return errors.New("enricher not configured")
+		err := errors.New("enricher not configured")
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
 	}
 	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("get media item: %w", err)
 	}
 	result, usedProvider := s.fetchFromProviders(ctx, imdbID, mediaType, "imdbapi")
 	if result == nil {
-		return fmt.Errorf("no provider returned metadata for imdb id %s", imdbID)
+		err := fmt.Errorf("no provider returned metadata for imdb id %s", imdbID)
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
 	}
 
 	if result.ProviderIDs == nil {
@@ -176,6 +243,8 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 	}
 
 	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("enrich item: %w", err)
 	}
 	evtImdb := metadata.MetadataRefreshed{MediaItemID: shared.MediaItemID(mediaItemID), Provider: usedProvider, OccurredAt: time.Now()}
@@ -233,8 +302,16 @@ func (s *CommandService) fetchFromProviders(ctx context.Context, providerID, med
 }
 
 func (s *CommandService) SetOverride(ctx context.Context, override *metadata.MetadataOverride) error {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.SetOverride")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("media_item.id", string(override.MediaItemID)),
+		attribute.String("override.field", override.FieldName),
+	)
 	override.CreatedAt = time.Now()
 	if err := s.overrides.Set(ctx, override); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("CommandService.SetOverride: %w", err)
 	}
 	// Log-only: audit event — override already persisted above
@@ -246,14 +323,24 @@ func (s *CommandService) SetOverride(ctx context.Context, override *metadata.Met
 }
 
 func (s *CommandService) RemoveOverride(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.RemoveOverride")
+	defer span.End()
+	span.SetAttributes(attribute.String("override.id", id))
 	if err := s.overrides.Delete(ctx, id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("CommandService.RemoveOverride: %w", err)
 	}
 	return nil
 }
 
 func (s *CommandService) ResetOverrides(ctx context.Context, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.ResetOverrides")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	if err := s.overrides.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("CommandService.ResetOverrides: %w", err)
 	}
 	// Log-only: audit event — overrides already deleted above
@@ -311,11 +398,19 @@ func (s *CommandService) deriveTitleFromChildren(ctx context.Context, seriesID s
 // ResetItemMetadata clears enriched metadata on an item and all its children
 // (seasons + episodes for series, episodes for seasons) then triggers re-enrichment.
 func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.ResetItemMetadata")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	if s.mediaItems == nil {
-		return errors.New("media item repository not configured")
+		err := errors.New("media item repository not configured")
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
 	}
 	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("get media item: %w", err)
 	}
 
@@ -400,10 +495,21 @@ func (s *CommandService) resetChildren(ctx context.Context, parentID string) {
 }
 
 func (s *CommandService) DownloadArtwork(ctx context.Context, record *metadata.ArtworkRecord, destPath string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.DownloadArtwork")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("media_item.id", string(record.MediaItemID)),
+		attribute.String("artwork.type", record.Type),
+	)
 	if record.SourceURL == nil {
-		return errors.New("no source URL")
+		err := errors.New("no source URL")
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
 	}
 	if err := s.downloader.Download(ctx, *record.SourceURL, destPath); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("download artwork: %w", err)
 	}
 	record.LocalPath = &destPath
@@ -440,10 +546,16 @@ type SingleItemEnricher interface {
 // Falls back to non-force bulk if the enricher only implements the basic
 // BulkItemEnricher interface.
 func (s *CommandService) AutoRefreshAllItems(ctx context.Context, libraryID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.AutoRefreshAllItems")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", libraryID))
 	fbe, forceOK := s.enricher.(ForceBulkItemEnricher)
 	be, bulkOK := s.enricher.(BulkItemEnricher)
 	if !forceOK && !bulkOK {
-		return errors.New("enricher does not support bulk refresh")
+		err := errors.New("enricher does not support bulk refresh")
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
 	}
 	const pageSize = 500
 	for offset := 0; ; offset += pageSize {
@@ -454,6 +566,8 @@ func (s *CommandService) AutoRefreshAllItems(ctx context.Context, libraryID stri
 		}
 		items, err := s.mediaItems.List(ctx, filter)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
 			return fmt.Errorf("list items: %w", err)
 		}
 		if len(items) == 0 {
@@ -549,6 +663,14 @@ func (s *CommandService) dailyReEnrich(ctx context.Context, be BulkItemEnricher)
 
 // ReEnrichWithoutOverrides re-enriches all items that have no user overrides.
 func (s *CommandService) ReEnrichWithoutOverrides(ctx context.Context, be BulkItemEnricher) (refreshed, skipped int) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.ReEnrichWithoutOverrides")
+	defer span.End()
+	defer func() {
+		span.SetAttributes(
+			attribute.Int("items.refreshed", refreshed),
+			attribute.Int("items.skipped", skipped),
+		)
+	}()
 	const pageSize = 500
 	for offset := 0; ; offset += pageSize {
 		items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: pageSize, Offset: offset})

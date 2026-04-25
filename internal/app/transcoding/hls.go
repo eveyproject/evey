@@ -15,6 +15,9 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 )
 
 func IsImageSubtitle(codec string) bool {
@@ -95,11 +98,24 @@ func (s *HLSSession) streamCount() int {
 }
 
 func (s *HLSSession) WaitReady(ctx context.Context) error {
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.HLSSession.WaitReady")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("session.id", s.ID),
+		attribute.String("media_item.id", string(s.MediaItemID)),
+	)
 	select {
 	case <-s.ready:
+		if s.err != nil {
+			span.RecordError(s.err)
+			span.SetStatus(otelcodes.Error, s.err.Error())
+		}
 		return s.err
 	case <-ctx.Done():
-		return ctx.Err()
+		err := ctx.Err()
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
 	}
 }
 
@@ -251,6 +267,14 @@ func (m *HLSManager) countByUser(userID string) int {
 }
 
 func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool, startSec float64, videoDecision, audioDecision string, opts ...HLSOption) (*HLSSession, error) {
+	_, span := tracing.StartSpan(m.shutdownCtx, "app.transcoding.HLSManager.GetOrCreate")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("user.id", userID),
+		attribute.String("media_item.id", mediaItemID),
+		attribute.String("video.decision", videoDecision),
+		attribute.String("audio.decision", audioDecision),
+	)
 	outputDir := filepath.Join(m.cacheDir, mediaItemID)
 
 	// Phase 1: check for matching session, or detach stale one. Lock is held
@@ -273,6 +297,8 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 	}
 
 	if err := m.acquireSemaphore(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 
@@ -306,7 +332,10 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 	if maxUserStreams > 0 && m.countByUser(userID) >= maxUserStreams {
 		m.mu.Unlock()
 		m.releaseSemaphore()
-		return nil, fmt.Errorf("max streams per user reached (%d)", maxUserStreams)
+		err := fmt.Errorf("max streams per user reached (%d)", maxUserStreams)
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
 	}
 
 	profiles := FilterProfiles(transcoding.DefaultHLSProfiles, sourceWidth, sourceHeight)
@@ -345,6 +374,8 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 		m.detachSessionLocked(session)
 		m.mu.Unlock()
 		m.releaseSemaphore()
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("create output dir: %w", err)
 	}
 
@@ -435,6 +466,13 @@ func (m *HLSManager) GetSession(mediaItemID string) (*HLSSession, bool) {
 func (m *HLSManager) CacheDir() string { return m.cacheDir }
 
 func (m *HLSManager) RestartFromPosition(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool, startSec float64, videoDecision, audioDecision string, opts ...HLSOption) (*HLSSession, error) {
+	_, span := tracing.StartSpan(m.shutdownCtx, "app.transcoding.HLSManager.RestartFromPosition")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("user.id", userID),
+		attribute.String("media_item.id", mediaItemID),
+		attribute.Float64("start_sec", startSec),
+	)
 	m.mu.Lock()
 	if old, ok := m.sessions[mediaItemID]; ok {
 		delete(m.sessions, mediaItemID)
@@ -452,6 +490,9 @@ func (m *HLSManager) RestartFromPosition(userID, mediaItemID, filePath string, s
 }
 
 func (m *HLSManager) RemoveSession(mediaItemID string) {
+	_, span := tracing.StartSpan(m.shutdownCtx, "app.transcoding.HLSManager.RemoveSession")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	m.mu.Lock()
 	session, ok := m.sessions[mediaItemID]
 	if !ok {
@@ -476,6 +517,8 @@ func (m *HLSManager) ActiveSessionCount() int {
 }
 
 func (m *HLSManager) CleanupAll() {
+	_, span := tracing.StartSpan(m.shutdownCtx, "app.transcoding.HLSManager.CleanupAll")
+	defer span.End()
 	m.cleanupOnce.Do(func() { close(m.stopCleanup) })
 	m.mu.Lock()
 	var toStop []*HLSSession

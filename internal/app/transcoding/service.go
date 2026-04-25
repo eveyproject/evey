@@ -10,6 +10,9 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 )
 
 var ErrMaxConcurrent = errors.New("max concurrent transcodes reached")
@@ -54,11 +57,21 @@ func NewService(
 }
 
 func (s *Service) StartTranscode(ctx context.Context, job *transcoding.TranscodeJob) error {
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.StartTranscode")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("job.id", job.ID),
+		attribute.String("media_item.id", string(job.MediaItemID)),
+	)
 	if err := job.Validate(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("invalid transcode job: %w", err)
 	}
 	active, err := s.jobs.ListActive(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("list active: %w", err)
 	}
 
@@ -72,14 +85,20 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 	if s.maxConcurrent > 0 && running >= s.maxConcurrent {
 		job.Status = transcoding.Queued
 		if err := s.jobs.Create(ctx, job); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
 			return fmt.Errorf("Service.StartTranscode: %w", err)
 		}
+		span.RecordError(ErrMaxConcurrent)
+		span.SetStatus(otelcodes.Error, ErrMaxConcurrent.Error())
 		return ErrMaxConcurrent
 	}
 
 	job.Status = transcoding.Running
 	job.StartedAt = time.Now()
 	if err := s.jobs.Create(ctx, job); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("Service.StartTranscode: %w", err)
 	}
 
@@ -95,6 +114,8 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 			slog.Warn("publish event", slog.String("event", evtFailed.EventName()), slog.Any("err", pubErr))
 		}
 		s.refreshActiveGauge(ctx)
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("start transcode: %w", err)
 	}
 
@@ -125,11 +146,18 @@ func (s *Service) refreshActiveGauge(ctx context.Context) {
 }
 
 func (s *Service) StopTranscode(ctx context.Context, jobID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.StopTranscode")
+	defer span.End()
+	span.SetAttributes(attribute.String("job.id", jobID))
 	if err := s.transcoder.Stop(ctx, jobID); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("Service.StopTranscode: %w", err)
 	}
 	job, err := s.jobs.GetByID(ctx, jobID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("Service.StopTranscode: %w", err)
 	}
 	job.Status = transcoding.Cancelled
@@ -150,40 +178,98 @@ func (s *Service) StopTranscode(ctx context.Context, jobID string) error {
 }
 
 func (s *Service) GetProgress(ctx context.Context, jobID string) (*transcoding.TranscodeProgress, error) {
-	return s.transcoder.Progress(ctx, jobID)
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.GetProgress")
+	defer span.End()
+	span.SetAttributes(attribute.String("job.id", jobID))
+	progress, err := s.transcoder.Progress(ctx, jobID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+	}
+	return progress, err
 }
 
 // GetJob returns the persisted job row. Used by gRPC handlers that
 // need the MediaItemID for ownership/library-access checks before
 // touching jobID-addressable operations (Stop, GetStatus).
 func (s *Service) GetJob(ctx context.Context, jobID string) (*transcoding.TranscodeJob, error) {
-	return s.jobs.GetByID(ctx, jobID)
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.GetJob")
+	defer span.End()
+	span.SetAttributes(attribute.String("job.id", jobID))
+	job, err := s.jobs.GetByID(ctx, jobID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+	}
+	return job, err
 }
 
 func (s *Service) ListActiveTranscodes(ctx context.Context) ([]*transcoding.TranscodeJob, error) {
-	return s.jobs.ListActive(ctx)
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.ListActiveTranscodes")
+	defer span.End()
+	jobs, err := s.jobs.ListActive(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+	}
+	return jobs, err
 }
 
 func (s *Service) ListProfiles(ctx context.Context) ([]*transcoding.TranscodeProfile, error) {
-	return s.profiles.List(ctx)
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.ListProfiles")
+	defer span.End()
+	profiles, err := s.profiles.List(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+	}
+	return profiles, err
 }
 
 func (s *Service) CreateProfile(ctx context.Context, p *transcoding.TranscodeProfile) error {
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.CreateProfile")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", p.ID))
 	if err := p.Validate(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("invalid transcode profile: %w", err)
 	}
-	return s.profiles.Create(ctx, p)
+	if err := s.profiles.Create(ctx, p); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (s *Service) UpdateProfile(ctx context.Context, p *transcoding.TranscodeProfile) error {
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.UpdateProfile")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", p.ID))
 	if err := p.Validate(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("invalid transcode profile: %w", err)
 	}
-	return s.profiles.Update(ctx, p)
+	if err := s.profiles.Update(ctx, p); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (s *Service) DeleteProfile(ctx context.Context, id string) error {
-	return s.profiles.Delete(ctx, id)
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.DeleteProfile")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", id))
+	if err := s.profiles.Delete(ctx, id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (s *Service) SetMaxConcurrent(n int) {
@@ -192,26 +278,58 @@ func (s *Service) SetMaxConcurrent(n int) {
 }
 
 func (s *Service) DetectHardware(ctx context.Context) ([]transcoding.HWDevice, error) {
-	return s.hwDetector.DetectDevices(ctx)
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.DetectHardware")
+	defer span.End()
+	devices, err := s.hwDetector.DetectDevices(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+	}
+	return devices, err
 }
 
 func (s *Service) GetCacheInfo(ctx context.Context) (*transcoding.CacheInfo, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.GetCacheInfo")
+	defer span.End()
 	if s.cache == nil {
 		return &transcoding.CacheInfo{}, nil
 	}
-	return s.cache.GetCacheInfo(ctx)
+	info, err := s.cache.GetCacheInfo(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+	}
+	return info, err
 }
 
 func (s *Service) ClearCache(ctx context.Context) error {
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.ClearCache")
+	defer span.End()
 	if s.cache == nil {
 		return nil
 	}
-	return s.cache.ClearCache(ctx)
+	if err := s.cache.ClearCache(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (s *Service) DeleteCacheFile(ctx context.Context, filename string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.DeleteCacheFile")
+	defer span.End()
+	span.SetAttributes(attribute.String("cache.filename", filename))
 	if s.cache == nil {
-		return errors.New("cache store not configured")
+		err := errors.New("cache store not configured")
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
 	}
-	return s.cache.DeleteFile(ctx, filename)
+	if err := s.cache.DeleteFile(ctx, filename); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return err
+	}
+	return nil
 }

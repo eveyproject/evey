@@ -18,6 +18,9 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/scanindex"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 )
 
 // ErrScanInProgress is returned by ScanLibrary when a scan is already running
@@ -109,6 +112,20 @@ type scanWork struct {
 }
 
 func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error) {
+	ctx, span := tracing.StartSpan(ctx, "app.scan.ScanLibrary")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", libraryID))
+	defer func() {
+		span.SetAttributes(
+			attribute.Int("items.added", added),
+			attribute.Int("items.updated", updated),
+		)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+		}
+	}()
+
 	s.scanMu.Lock()
 	if s.scanning[libraryID] {
 		s.scanMu.Unlock()
@@ -126,6 +143,7 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 	if err != nil {
 		return 0, 0, fmt.Errorf("get library: %w", err)
 	}
+	span.SetAttributes(attribute.String("library.type", string(lib.Type)))
 
 	s.publishScanStarted(ctx, libraryID)
 
@@ -513,6 +531,9 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 }
 
 func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) int64 {
+	ctx, span := tracing.StartSpan(ctx, "app.scan.ProbeAndStoreStreams")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	if s.prober == nil {
 		return 0
 	}

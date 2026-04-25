@@ -6,19 +6,31 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 )
 
 // EnrichAllPeopleBios fetches bios for all people missing biography data
 // using the person detail fetcher (TMDB search by name → details).
 func (e *Enricher) EnrichAllPeopleBios(ctx context.Context, log *slog.Logger) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.EnrichAllPeopleBios")
+	defer span.End()
 	fetcher := e.personFetcher
 	if fetcher == nil {
-		return 0, errors.New("person fetcher not configured")
+		err := errors.New("person fetcher not configured")
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return 0, err
 	}
 	all, err := e.persons.List(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return 0, fmt.Errorf("list people: %w", err)
 	}
+	span.SetAttributes(attribute.Int("persons.count", len(all)))
 	enriched := 0
 	for _, person := range all {
 		if ctx.Err() != nil {
@@ -62,5 +74,6 @@ func (e *Enricher) EnrichAllPeopleBios(ctx context.Context, log *slog.Logger) (i
 		// Rate limit: ~2 req/s to avoid TMDB throttling
 		time.Sleep(500 * time.Millisecond)
 	}
+	span.SetAttributes(attribute.Int("persons.enriched", enriched))
 	return enriched, nil
 }

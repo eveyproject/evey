@@ -12,6 +12,8 @@ import (
 	domainlib "github.com/evey-project/evey/internal/domain/library"
 	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // AutoEnrichItem searches providers and enriches a single item.
@@ -19,6 +21,9 @@ import (
 // Skips items that already have an overview (considered enriched) — admin
 // triggers a forced re-search via ForceAutoEnrichItem instead.
 func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.AutoEnrichItem")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(item.ID)))
 	e.autoEnrichItem(ctx, item, log, false)
 }
 
@@ -27,6 +32,9 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 // overrides are still respected — they represent manual intent the user
 // doesn't want overwritten by an automated search.
 func (e *Enricher) ForceAutoEnrichItem(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.ForceAutoEnrichItem")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(item.ID)))
 	e.autoEnrichItem(ctx, item, log, true)
 }
 
@@ -524,6 +532,9 @@ func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaI
 // with rate limiting to avoid 429s from external APIs. Items with an
 // existing overview + trailers are skipped so re-scans don't flood TMDB.
 func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaItem, log *slog.Logger) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.AutoEnrichAll")
+	defer span.End()
+	span.SetAttributes(attribute.Int("items.count", len(items)))
 	e.autoEnrichAll(ctx, items, log, false)
 }
 
@@ -531,6 +542,9 @@ func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 // refresh can correct bad past matches across the whole library. Admin
 // field overrides are still respected.
 func (e *Enricher) ForceAutoEnrichAll(ctx context.Context, items []*domainlib.MediaItem, log *slog.Logger) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.ForceAutoEnrichAll")
+	defer span.End()
+	span.SetAttributes(attribute.Int("items.count", len(items)))
 	e.autoEnrichAll(ctx, items, log, true)
 }
 

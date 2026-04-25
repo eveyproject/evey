@@ -8,6 +8,10 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 )
 
 // Watermarks for the LRU evictor.
@@ -103,6 +107,9 @@ func NewCacheEvictor(cacheRoot string, maxGB float64, interval time.Duration, op
 // evictors (maxBytes == 0) log once and return — this lets the caller
 // always Go-launch the evictor without branching on the config value.
 func (e *CacheEvictor) Run(ctx context.Context) {
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.CacheEvictor.Run")
+	defer span.End()
+	span.SetAttributes(attribute.String("cache.root", e.cacheRoot))
 	if e.maxBytes == 0 {
 		slog.Info("transcode cache evictor disabled (maxGB <= 0)", slog.String("cache_root", e.cacheRoot))
 		return
@@ -134,7 +141,17 @@ func (e *CacheEvictor) Run(ctx context.Context) {
 
 // EvictOnce performs a single eviction pass and returns the number of
 // bytes freed. Safe to call from admin endpoints for manual triggers.
-func (e *CacheEvictor) EvictOnce(ctx context.Context) (int64, error) {
+func (e *CacheEvictor) EvictOnce(ctx context.Context) (freed int64, err error) {
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.CacheEvictor.EvictOnce")
+	defer span.End()
+	span.SetAttributes(attribute.String("cache.root", e.cacheRoot))
+	defer func() {
+		span.SetAttributes(attribute.Int64("bytes.freed", freed))
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+		}
+	}()
 	if e.maxBytes == 0 {
 		return 0, nil
 	}
@@ -181,7 +198,6 @@ func (e *CacheEvictor) EvictOnce(ctx context.Context) (int64, error) {
 	})
 
 	lowMark := int64(float64(e.maxBytes) * lowWatermarkPct)
-	var freed int64
 	for _, s := range subdirs {
 		if total <= lowMark {
 			break

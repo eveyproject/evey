@@ -13,6 +13,9 @@ import (
 	domainlib "github.com/evey-project/evey/internal/domain/library"
 	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"golang.org/x/time/rate"
 )
 
@@ -92,15 +95,24 @@ func NewEnricher(
 // EnrichItem applies a MetadataResult to a media item: updates the item,
 // replaces artwork records, and upserts people/cast.
 func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, result *domainmetadata.MetadataResult) error {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.EnrichItem")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(item.ID)))
 	applyBasicFields(item, result)
 
 	if err := e.mediaItems.Update(ctx, item); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("update media item: %w", err)
 	}
 	if err := e.replaceArtwork(ctx, string(item.ID), result.Artwork); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("Enricher.EnrichItem: %w", err)
 	}
 	if err := e.upsertPeople(ctx, string(item.ID), result.People); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("Enricher.EnrichItem: %w", err)
 	}
 	e.indexSearch(ctx, item, result.People)
@@ -430,6 +442,13 @@ func (e *Enricher) linkCollection(ctx context.Context, mediaItemID string, ref *
 }
 
 func (e *Enricher) EnrichTranslationsForItem(ctx context.Context, item *domainlib.MediaItem, providerID, mediaType string) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.EnrichTranslationsForItem")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("media_item.id", string(item.ID)),
+		attribute.String("provider.id", providerID),
+		attribute.String("media.type", mediaType),
+	)
 	e.enrichTranslations(ctx, item, providerID, mediaType)
 }
 
@@ -465,6 +484,12 @@ func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.Media
 }
 
 func (e *Enricher) EnrichPersonTranslations(ctx context.Context, person *domainlib.Person, tmdbID int) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.EnrichPersonTranslations")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("person.id", person.ID),
+		attribute.Int("tmdb.id", tmdbID),
+	)
 	if e.personTranslations == nil || len(e.translationLocales) == 0 {
 		return
 	}

@@ -1,12 +1,15 @@
 package transcoding
 
 import (
+	"context"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 var bitmapSubCodecs = map[string]bool{
@@ -160,6 +163,9 @@ func MakePlaybackDecision(
 	client transcoding.ClientProfile,
 	maxBitrateKbps int,
 ) *transcoding.PlaybackDecision {
+	_, span := tracing.StartSpan(context.Background(), "app.transcoding.MakePlaybackDecision")
+	defer span.End()
+	span.SetAttributes(attribute.String("container.format", containerFormat))
 	return MakePlaybackDecisionWithPrefs(streams, containerFormat, client, maxBitrateKbps, DefaultTranscodingPreferences())
 }
 
@@ -178,6 +184,12 @@ func MakePlaybackDecisionWithPrefs(
 	maxBitrateKbps int,
 	prefs TranscodingPreferences,
 ) *transcoding.PlaybackDecision {
+	_, span := tracing.StartSpan(context.Background(), "app.transcoding.MakePlaybackDecisionWithPrefs")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("container.format", containerFormat),
+		attribute.Int("streams.count", len(streams)),
+	)
 	d := &transcoding.PlaybackDecision{
 		PlayMethod:       "direct_play",
 		VideoDecision:    "copy",
@@ -215,6 +227,11 @@ func MakePlaybackDecisionWithPrefs(
 	resolvePlayMethod(d, client, prefs)
 	applyDefaultBitrates(d)
 
+	span.SetAttributes(
+		attribute.String("decision.play_method", d.PlayMethod),
+		attribute.String("decision.video", d.VideoDecision),
+		attribute.String("decision.audio", d.AudioDecision),
+	)
 	return d
 }
 

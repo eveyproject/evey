@@ -4,6 +4,9 @@ import (
 	"context"
 
 	"github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 )
 
 type QueryService struct {
@@ -21,6 +24,9 @@ func NewQueryService(
 }
 
 func (s *QueryService) SearchMetadata(ctx context.Context, query, mediaType string) ([]metadata.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.SearchMetadata")
+	defer span.End()
+	span.SetAttributes(attribute.String("media.type", mediaType))
 	var results []metadata.MetadataResult
 	for _, p := range s.providers {
 		r, err := p.Search(ctx, query, nil, mediaType)
@@ -29,19 +35,44 @@ func (s *QueryService) SearchMetadata(ctx context.Context, query, mediaType stri
 		}
 		results = append(results, r...)
 	}
+	span.SetAttributes(attribute.Int("results.count", len(results)))
 	return results, nil
 }
 
 func (s *QueryService) ListOverrides(ctx context.Context, mediaItemID string) ([]*metadata.MetadataOverride, error) {
-	return s.overrides.GetByMediaItem(ctx, mediaItemID)
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.ListOverrides")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
+	overrides, err := s.overrides.GetByMediaItem(ctx, mediaItemID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+	}
+	return overrides, err
 }
 
 func (s *QueryService) GetArtwork(ctx context.Context, mediaItemID string) ([]*metadata.ArtworkRecord, error) {
-	return s.artwork.GetByMediaItem(ctx, mediaItemID)
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.GetArtwork")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
+	records, err := s.artwork.GetByMediaItem(ctx, mediaItemID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+	}
+	return records, err
 }
 
 func (s *QueryService) BatchGetArtwork(ctx context.Context, mediaItemIDs []string) (map[string][]*metadata.ArtworkRecord, error) {
-	return s.artwork.GetByMediaItems(ctx, mediaItemIDs)
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.BatchGetArtwork")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_items.count", len(mediaItemIDs)))
+	records, err := s.artwork.GetByMediaItems(ctx, mediaItemIDs)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+	}
+	return records, err
 }
 
 func (s *QueryService) ListProviders() []string {
