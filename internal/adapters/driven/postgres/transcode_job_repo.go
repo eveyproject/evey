@@ -4,7 +4,11 @@ import (
 	"context"
 	"database/sql"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type TranscodeJobRepository struct {
@@ -16,6 +20,9 @@ func NewTranscodeJobRepository(db *sql.DB) *TranscodeJobRepository {
 }
 
 func (r *TranscodeJobRepository) Create(ctx context.Context, job *transcoding.TranscodeJob) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.transcodejob.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("transcode_job.id", job.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -27,20 +34,35 @@ func (r *TranscodeJobRepository) Create(ctx context.Context, job *transcoding.Tr
 		job.ResolutionIn, job.ResolutionOut, job.BitrateIn, job.BitrateOut, job.Speed,
 		job.Status, job.ErrorMessage, job.StartedAt, job.EndedAt, job.DurationMs,
 	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 func (r *TranscodeJobRepository) GetByID(ctx context.Context, id string) (*transcoding.TranscodeJob, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.transcodejob.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("transcode_job.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanJob(r.db.QueryRowContext(ctx,
+	job, err := r.scanJob(r.db.QueryRowContext(ctx,
 		`SELECT id, media_item_id, input_codec, output_codec, hw_accel_type, preset,
 		 resolution_in, resolution_out, bitrate_in, bitrate_out, speed, status, error_message,
 		 started_at, ended_at, duration_ms
 		 FROM transcode_sessions WHERE id = $1`, id))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return job, err
 }
 
 func (r *TranscodeJobRepository) Update(ctx context.Context, job *transcoding.TranscodeJob) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.transcodejob.Update")
+	defer span.End()
+	span.SetAttributes(attribute.String("transcode_job.id", job.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -52,10 +74,16 @@ func (r *TranscodeJobRepository) Update(ctx context.Context, job *transcoding.Tr
 		job.Preset, job.ResolutionIn, job.ResolutionOut, job.BitrateIn, job.BitrateOut, job.Speed,
 		job.Status, job.ErrorMessage, job.StartedAt, job.EndedAt, job.DurationMs, job.ID,
 	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 func (r *TranscodeJobRepository) ListActive(ctx context.Context) ([]*transcoding.TranscodeJob, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.transcodejob.ListActive")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -65,13 +93,23 @@ func (r *TranscodeJobRepository) ListActive(ctx context.Context) ([]*transcoding
 		 FROM transcode_sessions WHERE status IN ('queued', 'running')
 		 ORDER BY started_at`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return r.scanJobRows(rows)
+	jobs, err := r.scanJobRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return jobs, err
 }
 
 func (r *TranscodeJobRepository) ListByMediaItem(ctx context.Context, mediaItemID string) ([]*transcoding.TranscodeJob, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.transcodejob.ListByMediaItem")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -81,10 +119,17 @@ func (r *TranscodeJobRepository) ListByMediaItem(ctx context.Context, mediaItemI
 		 FROM transcode_sessions WHERE media_item_id = $1
 		 ORDER BY started_at DESC LIMIT 100`, mediaItemID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return r.scanJobRows(rows)
+	jobs, err := r.scanJobRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return jobs, err
 }
 
 func (r *TranscodeJobRepository) scanJob(row *sql.Row) (*transcoding.TranscodeJob, error) {

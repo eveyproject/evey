@@ -7,9 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
-	"github.com/lib/pq"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type ProfileRepository struct {
@@ -21,10 +25,15 @@ func NewProfileRepository(db *sql.DB) *ProfileRepository {
 }
 
 func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(p.ID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	prefsJSON, err := json.Marshal(p.Preferences)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("ProfileRepo.Create marshal prefs: %w", err)
 	}
 	audioLangs := p.AudioLanguages
@@ -49,12 +58,17 @@ func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
 		locale, p.Region, p.CreatedAt,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("create profile: %w", err)
 	}
 	return nil
 }
 
 func (r *ProfileRepository) GetByID(ctx context.Context, id shared.ProfileID) (*user.Profile, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(id)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	p := &user.Profile{}
@@ -71,6 +85,8 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id shared.ProfileID) (*
 		&pMaxAge, pq.Array(&pBlockedTags), &pPINHash, &pEnabled,
 		&p.Locale, &p.Region, &p.CreatedAt)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("ProfileRepo.GetByID: %w", err)
 	}
 	if err := json.Unmarshal(prefsJSON, &p.Preferences); err != nil {
@@ -81,12 +97,17 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id shared.ProfileID) (*
 }
 
 func (r *ProfileRepository) GetByUserID(ctx context.Context, userID shared.UserID) ([]*user.Profile, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.GetByUserID")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(userID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at
 		 FROM profiles WHERE user_id = $1 ORDER BY is_default DESC, name`, string(userID))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("ProfileRepo.GetByUserID: %w", err)
 	}
 	defer rows.Close()
@@ -95,21 +116,30 @@ func (r *ProfileRepository) GetByUserID(ctx context.Context, userID shared.UserI
 	for rows.Next() {
 		p, err := scanProfile(rows)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("ProfileRepo.GetByUserID scan: %w", err)
 		}
 		result = append(result, p)
 	}
 	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("ProfileRepo.GetByUserID rows: %w", err)
 	}
 	return result, nil
 }
 
 func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.Update")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(p.ID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	prefsJSON, err := json.Marshal(p.Preferences)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("ProfileRepo.Update marshal prefs: %w", err)
 	}
 	audioLangs := p.AudioLanguages
@@ -133,21 +163,29 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 		locale, p.Region, p.ID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("update profile: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.GetAll")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at
 		 FROM profiles ORDER BY user_id, is_default DESC, name LIMIT 1000`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("ProfileRepo.GetAll: %w", err)
 	}
 	defer rows.Close()
@@ -156,24 +194,35 @@ func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error)
 	for rows.Next() {
 		p, err := scanProfile(rows)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("ProfileRepo.GetAll scan: %w", err)
 		}
 		result = append(result, p)
 	}
 	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("ProfileRepo.GetAll rows: %w", err)
 	}
 	return result, nil
 }
 
 func (r *ProfileRepository) Delete(ctx context.Context, id shared.ProfileID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(id)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM profiles WHERE id = $1`, string(id))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("delete profile: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
@@ -225,6 +274,8 @@ func parentalFromColumns(maxAge *int, blockedTags []string, pinHash string, enab
 // ListAdminProfiles returns profiles whose user has is_admin=TRUE.
 // Used by notification service to route security alerts.
 func (r *ProfileRepository) ListAdminProfiles(ctx context.Context) ([]*user.Profile, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.ListAdminProfiles")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -236,6 +287,8 @@ func (r *ProfileRepository) ListAdminProfiles(ctx context.Context) ([]*user.Prof
 		 WHERE u.is_admin = TRUE
 		 ORDER BY p.user_id, p.is_default DESC, p.name LIMIT 1000`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("ProfileRepo.ListAdminProfiles: %w", err)
 	}
 	defer rows.Close()
@@ -243,11 +296,15 @@ func (r *ProfileRepository) ListAdminProfiles(ctx context.Context) ([]*user.Prof
 	for rows.Next() {
 		p, err := scanProfile(rows)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("ProfileRepo.ListAdminProfiles scan: %w", err)
 		}
 		result = append(result, p)
 	}
 	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("ProfileRepo.ListAdminProfiles rows: %w", err)
 	}
 	return result, nil

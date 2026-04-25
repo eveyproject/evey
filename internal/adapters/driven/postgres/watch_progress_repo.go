@@ -6,8 +6,12 @@ import (
 	"errors"
 	"fmt"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/playback"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type WatchProgressRepository struct {
@@ -19,6 +23,12 @@ func NewWatchProgressRepository(db *sql.DB) *WatchProgressRepository {
 }
 
 func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.WatchProgress) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.Upsert")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("profile.id", string(wp.ProfileID)),
+		attribute.String("media_item.id", string(wp.MediaItemID)),
+	)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -32,12 +42,20 @@ func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.Watch
 		wp.ID, wp.ProfileID, wp.MediaItemID, wp.PositionMs, wp.Completed, wp.PlayCount, wp.LastPlayedAt,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("WatchProgressRepo.Upsert: %w", err)
 	}
 	return nil
 }
 
 func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, profileID, mediaItemID string) (*playback.WatchProgress, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetByProfileAndMedia")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("profile.id", profileID),
+		attribute.String("media_item.id", mediaItemID),
+	)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	wp := &playback.WatchProgress{}
@@ -46,15 +64,22 @@ func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, prof
 		 FROM watch_progress WHERE profile_id = $1 AND media_item_id = $2`, profileID, mediaItemID,
 	).Scan(&wp.ID, &wp.ProfileID, &wp.MediaItemID, &wp.PositionMs, &wp.Completed, &wp.PlayCount, &wp.LastPlayedAt)
 	if errors.Is(err, sql.ErrNoRows) {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return nil, shared.ErrNotFound
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("WatchProgressRepo.GetByProfileAndMedia: %w", err)
 	}
 	return wp, nil
 }
 
 func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID string, limit, offset int) ([]*playback.WatchProgress, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetByProfile")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -62,13 +87,24 @@ func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID st
 		 FROM watch_progress WHERE profile_id = $1
 		 ORDER BY last_played_at DESC LIMIT $2 OFFSET $3`, profileID, limit, offset)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("WatchProgressRepo.GetByProfile: %w", err)
 	}
 	defer rows.Close()
-	return r.scanWatchProgressRows(rows)
+	progress, err := r.scanWatchProgressRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return progress, nil
 }
 
 func (r *WatchProgressRepository) GetByProfileCursor(ctx context.Context, profileID string, cursor *playback.WatchHistoryCursor, limit int) ([]*playback.WatchProgress, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetByProfileCursor")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if limit <= 0 || limit > 500 {
@@ -88,13 +124,24 @@ func (r *WatchProgressRepository) GetByProfileCursor(ctx context.Context, profil
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("WatchProgressRepo.GetByProfileCursor: %w", err)
 	}
 	defer rows.Close()
-	return r.scanWatchProgressRows(rows)
+	progress, err := r.scanWatchProgressRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return progress, nil
 }
 
 func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetResumeItems")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -102,16 +149,27 @@ func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID 
 		 FROM watch_progress WHERE profile_id = $1 AND completed = FALSE AND position_ms > 0
 		 ORDER BY last_played_at DESC LIMIT $2`, profileID, limit)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("WatchProgressRepo.GetResumeItems: %w", err)
 	}
 	defer rows.Close()
-	return r.scanWatchProgressRows(rows)
+	progress, err := r.scanWatchProgressRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return progress, nil
 }
 
 // GetNextUp returns the next unwatched episode for each series the profile has been watching.
 // It finds episodes where the previous episode (index_number - 1) was completed,
 // but the current episode has not been completed yet.
 func (r *WatchProgressRepository) GetNextUp(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetNextUp")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -130,10 +188,18 @@ func (r *WatchProgressRepository) GetNextUp(ctx context.Context, profileID strin
 		 ORDER BY mi.parent_id, COALESCE(prev_wp.last_played_at, NOW()) DESC
 		 LIMIT $2`, profileID, limit)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("WatchProgressRepo.GetNextUp: %w", err)
 	}
 	defer rows.Close()
-	return r.scanWatchProgressRows(rows)
+	progress, err := r.scanWatchProgressRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return progress, nil
 }
 
 func (r *WatchProgressRepository) scanWatchProgressRows(rows *sql.Rows) ([]*playback.WatchProgress, error) {

@@ -6,8 +6,12 @@ import (
 	"errors"
 	"fmt"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const userColumns = `id, username, email, password_hash, is_admin, enabled,
@@ -23,6 +27,9 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 }
 
 func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(u.ID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
@@ -33,45 +40,84 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 		u.MaxBitrateKbps, u.PushConsent, u.CreatedAt, u.UpdatedAt,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("create user: %w", err)
 	}
 	return nil
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id shared.UserID) (*user.User, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(id)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanUser(r.db.QueryRowContext(ctx,
+	u, err := r.scanUser(r.db.QueryRowContext(ctx,
 		`SELECT `+userColumns+` FROM users WHERE id = $1`, string(id)))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return u, nil
 }
 
 func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*user.User, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.GetByUsername")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanUser(r.db.QueryRowContext(ctx,
+	u, err := r.scanUser(r.db.QueryRowContext(ctx,
 		`SELECT `+userColumns+` FROM users WHERE username = $1`, username))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return u, nil
 }
 
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.GetByEmail")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanUser(r.db.QueryRowContext(ctx,
+	u, err := r.scanUser(r.db.QueryRowContext(ctx,
 		`SELECT `+userColumns+` FROM users WHERE email = $1`, email))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return u, nil
 }
 
 func (r *UserRepository) GetByOIDCSubject(ctx context.Context, issuer, subject string) (*user.User, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.GetByOIDCSubject")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanUser(r.db.QueryRowContext(ctx,
+	u, err := r.scanUser(r.db.QueryRowContext(ctx,
 		`SELECT `+userColumns+` FROM users WHERE oidc_issuer = $1 AND oidc_subject = $2`, issuer, subject))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return u, nil
 }
 
 func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.List")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT `+userColumns+` FROM users ORDER BY username LIMIT 1000`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("UserRepo.List: %w", err)
 	}
 	defer rows.Close()
@@ -82,17 +128,24 @@ func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.Enabled,
 			&u.OIDCSubject, &u.OIDCIssuer, &u.MaxStreams, &u.MaxProfiles, &u.MaxDevicesPerProfile,
 			&u.MaxBitrateKbps, &u.PushConsent, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("UserRepo.List scan: %w", err)
 		}
 		result = append(result, u)
 	}
 	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("UserRepo.List rows: %w", err)
 	}
 	return result, nil
 }
 
 func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.Update")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(u.ID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx,
@@ -104,33 +157,48 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 		u.MaxBitrateKbps, u.PushConsent, u.UpdatedAt, u.ID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("update user: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *UserRepository) Delete(ctx context.Context, id shared.UserID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(id)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, string(id))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("delete user: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *UserRepository) CountAdmins(ctx context.Context) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.CountAdmins")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
 	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE is_admin = TRUE`).Scan(&count)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return 0, fmt.Errorf("count admins: %w", err)
 	}
 	return count, nil

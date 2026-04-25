@@ -7,9 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/music"
 	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/google/uuid"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type MusicTrackRepository struct {
@@ -21,11 +25,14 @@ func NewMusicTrackRepository(db *sql.DB) *MusicTrackRepository {
 }
 
 func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.Upsert")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if t.ID == "" {
 		t.ID = uuid.New().String()
 	}
+	span.SetAttributes(attribute.String("music_track.id", t.ID))
 	// Derive album identity from the parent directory if the caller did
 	// not set it. The repo is the last line of defense: we never want a
 	// row without an album_folder, because GetAlbums groups on it.
@@ -62,10 +69,17 @@ func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error 
 		t.FileSize, t.FileHash, t.ModTime, t.MimeType, t.Bitrate, t.SampleRate, t.Channels,
 		t.Genre, t.AlbumFolder, hasCover,
 	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 func (r *MusicTrackRepository) GetByID(ctx context.Context, id string) (*music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("music_track.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	t := &music.Track{}
@@ -83,17 +97,31 @@ func (r *MusicTrackRepository) GetByID(ctx context.Context, id string) (*music.T
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return t, err
 }
 
 func (r *MusicTrackRepository) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("music_track.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM music_tracks WHERE id=$1`, id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]music.Track, int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListByLibrary")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if limit <= 0 {
@@ -117,13 +145,22 @@ func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID shar
 		ORDER BY album_artist, album, disk_number, track_number
 		LIMIT $3 OFFSET $4`, libraryID, escaped, limit, offset)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, 0, err
 	}
 	defer rows.Close()
-	return scanTracksWithTotal(rows)
+	tracks, total, err := scanTracksWithTotal(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return tracks, total, err
 }
 
 func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist string) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListByAlbum")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -135,13 +172,23 @@ func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist st
 		ORDER BY disk_number, track_number
 		LIMIT 1000`, album, artist)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return scanTracks(rows)
+	tracks, err := scanTracks(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return tracks, err
 }
 
 func (r *MusicTrackRepository) ListByLibraryAndAlbum(ctx context.Context, libraryID shared.LibraryID, album string) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListByLibraryAndAlbum")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -153,10 +200,17 @@ func (r *MusicTrackRepository) ListByLibraryAndAlbum(ctx context.Context, librar
 		ORDER BY disk_number, track_number
 		LIMIT 1000`, libraryID, album)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return scanTracks(rows)
+	tracks, err := scanTracks(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return tracks, err
 }
 
 // ListByAlbumFolder returns tracks of a specific album identified by
@@ -164,6 +218,9 @@ func (r *MusicTrackRepository) ListByLibraryAndAlbum(ctx context.Context, librar
 // ListByLibraryAndAlbum: it is robust to featurings / compilations that
 // carry inconsistent album_artist tags across tracks of the same folder.
 func (r *MusicTrackRepository) ListByAlbumFolder(ctx context.Context, libraryID shared.LibraryID, albumFolder string) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListByAlbumFolder")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -175,13 +232,22 @@ func (r *MusicTrackRepository) ListByAlbumFolder(ctx context.Context, libraryID 
 		ORDER BY disk_number, track_number
 		LIMIT 1000`, libraryID, albumFolder)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return scanTracks(rows)
+	tracks, err := scanTracks(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return tracks, err
 }
 
 func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, limit, offset int) ([]music.Track, int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListByArtist")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if limit <= 0 {
@@ -197,10 +263,17 @@ func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, 
 		ORDER BY album, disk_number, track_number
 		LIMIT $2 OFFSET $3`, artist, limit, offset)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, 0, err
 	}
 	defer rows.Close()
-	return scanTracksWithTotal(rows)
+	tracks, total, err := scanTracksWithTotal(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return tracks, total, err
 }
 
 // likeEscape escapes LIKE/ILIKE meta-characters so caller-supplied input is
@@ -210,6 +283,9 @@ func likeEscape(s string) string {
 }
 
 func (r *MusicTrackRepository) Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.Search")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if limit <= 0 {
@@ -226,10 +302,17 @@ func (r *MusicTrackRepository) Search(ctx context.Context, libraryID shared.Libr
 		WHERE library_id = $1 AND (title ILIKE $2 ESCAPE '\' OR artist ILIKE $2 ESCAPE '\' OR album ILIKE $2 ESCAPE '\')
 		ORDER BY title LIMIT $3`, string(libraryID), like, limit)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return scanTracks(rows)
+	tracks, err := scanTracks(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return tracks, err
 }
 
 // GetAlbums groups tracks by their parent folder (album_folder). Each
@@ -239,6 +322,9 @@ func (r *MusicTrackRepository) Search(ctx context.Context, libraryID shared.Libr
 // import writes "Apple Essentials" on the album tag, etc). The
 // folder wins as identity; the majority wins for display.
 func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]music.Album, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.GetAlbums")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -259,6 +345,8 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.L
 		ORDER BY display_album, album_folder
 		LIMIT 10000`, libraryID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -268,6 +356,8 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.L
 		var folder string
 		var cover sql.NullString
 		if err := rows.Scan(&folder, &a.Title, &a.Artist, &a.Year, &a.TrackCount, &a.Duration, &cover); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		a.CoverArtURL = cover.String
@@ -276,10 +366,18 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.L
 		a.ID = folder
 		albums = append(albums, a)
 	}
-	return albums, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return albums, nil
 }
 
 func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID shared.LibraryID) ([]music.Artist, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.GetArtists")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -288,6 +386,8 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID shared.
 		GROUP BY 1 ORDER BY 1
 		LIMIT 10000`, libraryID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -296,13 +396,20 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID shared.
 		var a music.Artist
 		var cover sql.NullString
 		if err := rows.Scan(&a.Name, &a.TrackCount, &a.AlbumCount, &cover); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		a.CoverArtURL = cover.String
 		a.ID = a.Name
 		artists = append(artists, a)
 	}
-	return artists, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return artists, nil
 }
 
 // ListAllByLibrary returns every track in a library, used by the scanner
@@ -311,6 +418,9 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID shared.
 // every scan tick because the rest look "missing from byPath".
 // Not for UI pagination (see ListByAlbum / search endpoints).
 func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListAllByLibrary")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -320,10 +430,17 @@ func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID s
 		       genre, album_folder, cover_art_url, created_at, updated_at
 		FROM music_tracks WHERE library_id=$1`, libraryID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return scanTracks(rows)
+	tracks, err := scanTracks(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return tracks, err
 }
 
 // ListAlbumsMissingArt returns one AlbumKey per folder that has no
@@ -331,6 +448,9 @@ func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID s
 // come from the folder's majority tags, so downstream fetchers (which
 // still key on human-readable artist+album) get the best-guess values.
 func (r *MusicTrackRepository) ListAlbumsMissingArt(ctx context.Context, libraryID shared.LibraryID) ([]music.AlbumKey, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListAlbumsMissingArt")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -353,6 +473,8 @@ func (r *MusicTrackRepository) ListAlbumsMissingArt(ctx context.Context, library
 		       ) <> ''
 		LIMIT 5000`, libraryID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -360,11 +482,18 @@ func (r *MusicTrackRepository) ListAlbumsMissingArt(ctx context.Context, library
 	for rows.Next() {
 		var k music.AlbumKey
 		if err := rows.Scan(&k.AlbumFolder, &k.Album, &k.Artist); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		out = append(out, k)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return out, nil
 }
 
 // SetAlbumCoverArtURL applies a cover art URL to every track sharing the
@@ -372,6 +501,9 @@ func (r *MusicTrackRepository) ListAlbumsMissingArt(ctx context.Context, library
 // aligned with GetAlbums / ListAlbumsMissingArt and avoids mis-stamping
 // tracks when tag values disagree within the folder.
 func (r *MusicTrackRepository) SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, albumFolder, url string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.SetAlbumCoverArtURL")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `
@@ -379,10 +511,17 @@ func (r *MusicTrackRepository) SetAlbumCoverArtURL(ctx context.Context, libraryI
 		SET cover_art_url=$3, updated_at=NOW()
 		WHERE library_id=$1 AND album_folder=$2`,
 		libraryID, albumFolder, url)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 func (r *MusicTrackRepository) UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.UpdateFilePath")
+	defer span.End()
+	span.SetAttributes(attribute.String("music_track.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	// A moved file changes its parent folder; re-derive album_folder so
@@ -390,6 +529,10 @@ func (r *MusicTrackRepository) UpdateFilePath(ctx context.Context, id, newPath s
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE music_tracks SET file_path = $1, mod_time = $2, album_folder = $4, updated_at = NOW() WHERE id = $3`,
 		newPath, modTime, id, filepath.Dir(newPath))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 

@@ -5,8 +5,12 @@ import (
 	"database/sql"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/photo"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type PhotoRepository struct {
@@ -18,6 +22,9 @@ func NewPhotoRepository(db *sql.DB) *PhotoRepository {
 }
 
 func (r *PhotoRepository) Upsert(ctx context.Context, p photo.Photo) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.Upsert")
+	defer span.End()
+	span.SetAttributes(attribute.String("photo.id", p.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `
@@ -43,10 +50,17 @@ func (r *PhotoRepository) Upsert(ctx context.Context, p photo.Photo) error {
 		p.Width, p.Height, p.TakenAt, p.Latitude, p.Longitude,
 		p.CameraModel, p.Album, p.CreatedAt, p.UpdatedAt,
 	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
 func (r *PhotoRepository) GetByID(ctx context.Context, id string) (*photo.Photo, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("photo.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	p := &photo.Photo{}
@@ -63,25 +77,37 @@ func (r *PhotoRepository) GetByID(ctx context.Context, id string) (*photo.Photo,
 		return nil, nil
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return p, nil
 }
 
 func (r *PhotoRepository) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("photo.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM photos WHERE id = $1`, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]photo.Photo, int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.ListByLibrary")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -93,13 +119,23 @@ func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID shared.Li
 		LIMIT $2 OFFSET $3`, libraryID, limit, offset,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, 0, err
 	}
 	defer rows.Close()
-	return scanPhotosWithTotal(rows)
+	photos, total, err := scanPhotosWithTotal(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return photos, total, err
 }
 
 func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID shared.LibraryID, album string, limit, offset int) ([]photo.Photo, int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.ListByAlbum")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -111,13 +147,23 @@ func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID shared.Libr
 		LIMIT $3 OFFSET $4`, libraryID, album, limit, offset,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, 0, err
 	}
 	defer rows.Close()
-	return scanPhotosWithTotal(rows)
+	photos, total, err := scanPhotosWithTotal(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return photos, total, err
 }
 
 func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]photo.Album, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.GetAlbums")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -127,6 +173,8 @@ func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID shared.Librar
 		LIMIT 10000`, libraryID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -134,14 +182,24 @@ func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID shared.Librar
 	for rows.Next() {
 		var a photo.Album
 		if err := rows.Scan(&a.Name, &a.LibraryID, &a.PhotoCount, &a.CoverPhotoID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		albums = append(albums, a)
 	}
-	return albums, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return albums, nil
 }
 
 func (r *PhotoRepository) Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]photo.Photo, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.Search")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	pattern := "%" + likeEscape(query) + "%"
@@ -153,10 +211,17 @@ func (r *PhotoRepository) Search(ctx context.Context, libraryID shared.LibraryID
 		LIMIT $3`, libraryID, pattern, limit,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return scanPhotos(rows)
+	photos, err := scanPhotos(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return photos, err
 }
 
 // ListAllByLibrary returns every photo in a library, used by the scanner
@@ -167,6 +232,9 @@ func (r *PhotoRepository) Search(ctx context.Context, libraryID shared.LibraryID
 // photos holds ~50–100MB here, acceptable compared to the churn cost.
 // Not to be used for UI pagination (see ListByLibrary for that).
 func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]photo.Photo, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.ListAllByLibrary")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -175,18 +243,32 @@ func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID shared
 		FROM photos WHERE library_id = $1`, libraryID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return scanPhotos(rows)
+	photos, err := scanPhotos(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return photos, err
 }
 
 func (r *PhotoRepository) UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.UpdateFilePath")
+	defer span.End()
+	span.SetAttributes(attribute.String("photo.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE photos SET file_path = $1, mod_time = $2, updated_at = NOW() WHERE id = $3`,
 		newPath, modTime, id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 

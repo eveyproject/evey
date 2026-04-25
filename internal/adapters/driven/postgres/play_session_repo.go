@@ -8,7 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type PlaySessionRepository struct {
@@ -20,6 +24,9 @@ func NewPlaySessionRepository(db *sql.DB) *PlaySessionRepository {
 }
 
 func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySession) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("play_session.id", s.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
@@ -31,6 +38,8 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 		s.StartedAt, s.EndedAt, s.DurationMs, s.PositionMs,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaySessionRepo.Create: %w", err)
 	}
 	return nil
@@ -41,17 +50,25 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 // concurrent StartStream calls can't race past the cap. Outside a tx the
 // lock is released at statement end — so caller MUST run inside TxUnit.
 func (r *PlaySessionRepository) AcquireUserStreamLock(ctx context.Context, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.AcquireUserStreamLock")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", userID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`SELECT pg_advisory_xact_lock(hashtext($1))`, userID,
 	); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaySessionRepo.AcquireUserStreamLock: %w", err)
 	}
 	return nil
 }
 
 func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySession) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.Update")
+	defer span.End()
+	span.SetAttributes(attribute.String("play_session.id", s.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -64,12 +81,17 @@ func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySess
 		s.EndedAt, s.DurationMs, s.PositionMs, s.IsPaused, s.ID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaySessionRepo.Update: %w", err)
 	}
 	return nil
 }
 
 func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playback.PlaySession, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("play_session.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	s := &playback.PlaySession{}
@@ -81,12 +103,16 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 		&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
 		&s.StartedAt, &s.EndedAt, &s.DurationMs, &s.PositionMs, &s.IsPaused)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaySessionRepo.GetByID: %w", err)
 	}
 	return s, nil
 }
 
 func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*playback.ActiveSessionInfo, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.ListActiveSessions")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -106,6 +132,8 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		   AND ps.updated_at > NOW() - INTERVAL '5 minutes'
 		 ORDER BY ps.started_at DESC`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaySessionRepo.ListActiveSessions: %w", err)
 	}
 	defer rows.Close()
@@ -121,6 +149,8 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 			&s.PlayMethod, &s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
 			&s.SeriesTitle, &s.SeasonNumber, &s.EpisodeNumber, &s.IsPaused,
 		); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("PlaySessionRepo.ListActiveSessions scan: %w", err)
 		}
 		if s.PlayMethod == string(playback.Transcode) {
@@ -130,12 +160,17 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		result = append(result, s)
 	}
 	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaySessionRepo.ListActiveSessions rows: %w", err)
 	}
 	return result, nil
 }
 
 func (r *PlaySessionRepository) GetActiveByProfile(ctx context.Context, profileID string) ([]*playback.PlaySession, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.GetActiveByProfile")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -144,13 +179,23 @@ func (r *PlaySessionRepository) GetActiveByProfile(ctx context.Context, profileI
 		 FROM play_sessions WHERE profile_id = $1 AND ended_at IS NULL
 		 ORDER BY started_at DESC`, profileID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaySessionRepo.GetActiveByProfile: %w", err)
 	}
 	defer rows.Close()
-	return r.scanPlaySessionRows(rows)
+	sessions, err := r.scanPlaySessionRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return sessions, nil
 }
 
 func (r *PlaySessionRepository) GetHistory(ctx context.Context, f playback.PlaySessionFilter) ([]*playback.PlaySession, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.GetHistory")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var conditions []string
@@ -191,13 +236,23 @@ func (r *PlaySessionRepository) GetHistory(ctx context.Context, f playback.PlayS
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaySessionRepo.GetHistory: %w", err)
 	}
 	defer rows.Close()
-	return r.scanPlaySessionRows(rows)
+	sessions, err := r.scanPlaySessionRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return sessions, nil
 }
 
 func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.Duration) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.CloseStale")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	cutoff := time.Now().Add(-olderThan)
@@ -205,6 +260,8 @@ func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.D
 		`UPDATE play_sessions SET ended_at = NOW()
 		 WHERE ended_at IS NULL AND updated_at < $1`, cutoff)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return 0, fmt.Errorf("PlaySessionRepo.CloseStale: %w", err)
 	}
 	n, err := res.RowsAffected()
@@ -215,17 +272,25 @@ func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.D
 }
 
 func (r *PlaySessionRepository) SetRemoteCommand(ctx context.Context, sessionID, command string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.SetRemoteCommand")
+	defer span.End()
+	span.SetAttributes(attribute.String("play_session.id", sessionID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE play_sessions SET remote_command = $1 WHERE id = $2 AND ended_at IS NULL`, command, sessionID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaySessionRepo.SetRemoteCommand: %w", err)
 	}
 	return nil
 }
 
 func (r *PlaySessionRepository) ConsumeRemoteCommand(ctx context.Context, sessionID string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.ConsumeRemoteCommand")
+	defer span.End()
+	span.SetAttributes(attribute.String("play_session.id", sessionID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var cmd string
@@ -240,6 +305,9 @@ func (r *PlaySessionRepository) ConsumeRemoteCommand(ctx context.Context, sessio
 }
 
 func (r *PlaySessionRepository) CountActiveByUser(ctx context.Context, userID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.CountActiveByUser")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", userID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
@@ -249,6 +317,8 @@ func (r *PlaySessionRepository) CountActiveByUser(ctx context.Context, userID st
 		 WHERE p.user_id = $1 AND ps.ended_at IS NULL`, userID,
 	).Scan(&count)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return 0, fmt.Errorf("PlaySessionRepo.CountActiveByUser: %w", err)
 	}
 	return count, nil
