@@ -26,6 +26,8 @@ import (
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -78,12 +80,16 @@ func (h *userHandler) refreshTTLOverride(ctx context.Context) []time.Duration {
 }
 
 func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eveyv1.AuthResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.Login")
+	defer span.End()
 	start := time.Now()
 	access, refresh, err := h.auth.Login(ctx, req.Username, req.Password, h.refreshTTLOverride(ctx)...)
 	if err != nil {
 		metrics.AuthLatency.WithLabelValues("login", "failure").Observe(time.Since(start).Seconds())
 		slog.Warn("login failed", slog.String("username", req.Username), slog.Any("err", err))
 		h.audit(ctx, "", "login", "user", nil, map[string]any{"username": req.Username, "status": "failed"})
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "invalid credentials")
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}
 	metrics.AuthLatency.WithLabelValues("login", "success").Observe(time.Since(start).Seconds())
@@ -104,10 +110,14 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 }
 
 func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshTokenRequest) (*eveyv1.AuthResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.RefreshToken")
+	defer span.End()
 	start := time.Now()
 	access, newRefresh, err := h.auth.RefreshToken(ctx, req.RefreshToken, req.ProfileId, h.refreshTTLOverride(ctx)...)
 	if err != nil {
 		metrics.AuthLatency.WithLabelValues("refresh", "failure").Observe(time.Since(start).Seconds())
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "invalid credentials")
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}
 	metrics.AuthLatency.WithLabelValues("refresh", "success").Observe(time.Since(start).Seconds())
@@ -115,12 +125,17 @@ func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshToken
 }
 
 func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eveyv1.LogoutResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.Logout")
+	defer span.End()
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
+		span.SetStatus(otelcodes.Error, "unauthenticated")
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	if err := h.auth.Logout(ctx, claims.UserID); err != nil {
 		slog.Error("logout", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	h.audit(ctx, claims.UserID, "logout", "user", &claims.UserID, nil)
@@ -128,29 +143,40 @@ func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eve
 }
 
 func (h *userHandler) GetCurrentUser(ctx context.Context, _ *eveyv1.GetCurrentUserRequest) (*eveyv1.User, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.GetCurrentUser")
+	defer span.End()
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
+		span.SetStatus(otelcodes.Error, "unauthenticated")
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	u, err := h.query.GetUserByID(ctx, claims.UserID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.NotFound, "%v", err)
 	}
 	return userToProto(u), nil
 }
 
 func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequest) (*eveyv1.User, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.CreateUser")
+	defer span.End()
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
+		span.SetStatus(otelcodes.Error, "unauthenticated")
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	u, err := user.NewUser(req.Username, req.Email, "")
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	u.IsAdmin = req.IsAdmin
 	if req.MaxProfiles != nil {
 		if *req.MaxProfiles < 0 {
+			span.SetStatus(otelcodes.Error, "max_profiles must be >= 0")
 			return nil, status.Error(codes.InvalidArgument, "max_profiles must be >= 0")
 		}
 		mp := int(*req.MaxProfiles)
@@ -158,12 +184,15 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 	}
 	if req.MaxDevicesPerProfile != nil {
 		if *req.MaxDevicesPerProfile < 0 {
+			span.SetStatus(otelcodes.Error, "max_devices_per_profile must be >= 0")
 			return nil, status.Error(codes.InvalidArgument, "max_devices_per_profile must be >= 0")
 		}
 		md := int(*req.MaxDevicesPerProfile)
 		u.MaxDevicesPerProfile = &md
 	}
 	if err := h.userSvc.CreateUser(ctx, claims.IsAdmin, u, req.Password); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.PermissionDenied, "%v", err)
 	}
 	uidStr := string(u.ID)
@@ -172,32 +201,44 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 }
 
 func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequest) (*eveyv1.User, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.UpdateUser")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("userHandler.UpdateUser: %w", err)
 	}
 	if !claims.IsAdmin {
 		if req.Id != claims.UserID {
+			span.SetStatus(otelcodes.Error, "cannot update other")
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_other")
 		}
 		if req.IsAdmin != nil && *req.IsAdmin {
+			span.SetStatus(otelcodes.Error, "cannot escalate admin")
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_escalate_admin")
 		}
 		if req.MaxStreams != nil || req.MaxProfiles != nil || req.MaxDevicesPerProfile != nil {
+			span.SetStatus(otelcodes.Error, "cannot change caps")
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_change_caps")
 		}
 	}
 	if req.MaxStreams != nil && *req.MaxStreams < 0 {
+		span.SetStatus(otelcodes.Error, "max_streams must be >= 0")
 		return nil, status.Error(codes.InvalidArgument, "max_streams must be >= 0")
 	}
 	if req.MaxProfiles != nil && *req.MaxProfiles < 0 {
+		span.SetStatus(otelcodes.Error, "max_profiles must be >= 0")
 		return nil, status.Error(codes.InvalidArgument, "max_profiles must be >= 0")
 	}
 	if req.MaxDevicesPerProfile != nil && *req.MaxDevicesPerProfile < 0 {
+		span.SetStatus(otelcodes.Error, "max_devices_per_profile must be >= 0")
 		return nil, status.Error(codes.InvalidArgument, "max_devices_per_profile must be >= 0")
 	}
 	u, err := h.query.GetUserByID(ctx, req.Id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.NotFound, "%v", err)
 	}
 	if req.Username != nil {
@@ -223,14 +264,20 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 	}
 	if err := h.userSvc.UpdateUser(ctx, u); err != nil {
 		slog.Error("update user", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return userToProto(u), nil
 }
 
 func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequest) (*eveyv1.DeleteUserResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.DeleteUser")
+	defer span.End()
 	if err := h.userSvc.DeleteUser(ctx, req.Id); err != nil {
 		slog.Error("delete user", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
@@ -243,18 +290,24 @@ func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequ
 }
 
 func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRequest) (*eveyv1.User, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.DisableUser")
+	defer span.End()
 	// req.Disabled = true → disable, false → enable. The previous handler
 	// ignored the flag and always disabled, leaving no way to re-enable.
 	op := "disable_user"
 	if req.Disabled {
 		if err := h.userSvc.DisableUser(ctx, req.Id); err != nil {
 			slog.Error("disable user", slog.Any("err", err))
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, status.Errorf(codes.Internal, "internal error")
 		}
 	} else {
 		op = "enable_user"
 		if err := h.userSvc.EnableUser(ctx, req.Id); err != nil {
 			slog.Error("enable user", slog.Any("err", err))
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, status.Errorf(codes.Internal, "internal error")
 		}
 	}
@@ -273,9 +326,13 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 }
 
 func (h *userHandler) ListUsers(ctx context.Context, _ *eveyv1.ListUsersRequest) (*eveyv1.ListUsersResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.ListUsers")
+	defer span.End()
 	users, err := h.query.ListUsers(ctx)
 	if err != nil {
 		slog.Error("list users", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	resp := &eveyv1.ListUsersResponse{}
@@ -286,11 +343,16 @@ func (h *userHandler) ListUsers(ctx context.Context, _ *eveyv1.ListUsersRequest)
 }
 
 func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfileRequest) (*eveyv1.Profile, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.CreateProfile")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("userHandler.CreateProfile: %w", err)
 	}
 	if !claims.IsAdmin && req.UserId != claims.UserID {
+		span.SetStatus(otelcodes.Error, "cannot create profile for other")
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_create_profile_other")
 	}
 	opts := []user.ProfileOption{
@@ -299,6 +361,7 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	}
 	if req.AvatarPath != "" {
 		if strings.Contains(req.AvatarPath, "..") || !strings.HasPrefix(req.AvatarPath, "avatars/") {
+			span.SetStatus(otelcodes.Error, "invalid avatar path")
 			return nil, status.Error(codes.InvalidArgument, "invalid avatar path")
 		}
 		opts = append(opts, user.WithProfileAvatar(req.AvatarPath))
@@ -315,6 +378,8 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	if req.Pin != nil && *req.Pin != "" {
 		hash, hErr := h.userSvc.HashPIN(*req.Pin)
 		if hErr != nil {
+			span.RecordError(hErr)
+			span.SetStatus(otelcodes.Error, hErr.Error())
 			return nil, status.Errorf(codes.InvalidArgument, "%v", hErr)
 		}
 		opts = append(opts, user.WithProfileParental(&user.ParentalSettings{PINHash: hash}))
@@ -326,21 +391,30 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 		opts...,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.userSvc.CreateProfile(ctx, p); err != nil {
+		span.RecordError(err)
 		if errors.Is(err, appuser.ErrMaxProfilesReached) || errors.Is(err, appuser.ErrKidsRequiresPIN) {
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
 		}
 		slog.Error("create profile", slog.Any("err", err))
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return profileToProto(p), nil
 }
 
 func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfileRequest) (*eveyv1.Profile, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.UpdateProfile")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("userHandler.UpdateProfile: %w", err)
 	}
 	// Always load the existing profile — we patch non-nil fields into it so
@@ -349,12 +423,18 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 	// check in UpdateProfile.
 	p, gerr := h.query.GetProfileByID(ctx, req.Id)
 	if gerr != nil || p == nil {
+		if gerr != nil {
+			span.RecordError(gerr)
+		}
 		if !claims.IsAdmin {
+			span.SetStatus(otelcodes.Error, "cannot update profile other")
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
 		}
+		span.SetStatus(otelcodes.Error, "profile not found")
 		return nil, status.Errorf(codes.NotFound, "profile not found")
 	}
 	if !claims.IsAdmin && string(p.UserID) != claims.UserID {
+		span.SetStatus(otelcodes.Error, "cannot update profile other")
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
 	}
 	if req.Preferences != nil {
@@ -365,6 +445,7 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 	}
 	if req.AvatarPath != nil {
 		if strings.Contains(*req.AvatarPath, "..") || !strings.HasPrefix(*req.AvatarPath, "avatars/") {
+			span.SetStatus(otelcodes.Error, "invalid avatar path")
 			return nil, status.Error(codes.InvalidArgument, "invalid avatar path")
 		}
 		p.AvatarPath = req.AvatarPath
@@ -397,6 +478,8 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 	if req.Pin != nil {
 		hash, hErr := h.userSvc.HashPIN(*req.Pin)
 		if hErr != nil {
+			span.RecordError(hErr)
+			span.SetStatus(otelcodes.Error, hErr.Error())
 			return nil, status.Errorf(codes.InvalidArgument, "%v", hErr)
 		}
 		if p.Parental == nil {
@@ -405,39 +488,57 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		p.Parental.PINHash = hash
 	}
 	if err := h.userSvc.UpdateProfile(ctx, p); err != nil {
+		span.RecordError(err)
 		if errors.Is(err, appuser.ErrKidsRequiresPIN) {
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
 		}
 		slog.Error("update profile", slog.Any("err", err))
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return profileToProto(p), nil
 }
 
 func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfileRequest) (*eveyv1.DeleteProfileResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.DeleteProfile")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("userHandler.DeleteProfile: %w", err)
 	}
 	if !claims.IsAdmin {
 		existing, gerr := h.query.GetProfileByID(ctx, req.Id)
 		if gerr != nil || existing == nil || string(existing.UserID) != claims.UserID {
+			if gerr != nil {
+				span.RecordError(gerr)
+			}
+			span.SetStatus(otelcodes.Error, "cannot delete profile other")
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_delete_profile_other")
 		}
 	}
 	if err := h.userSvc.DeleteProfile(ctx, req.Id); err != nil {
+		span.RecordError(err)
 		if errors.Is(err, appuser.ErrCannotDeleteDefault) {
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
 		}
 		slog.Error("delete profile", slog.Any("err", err))
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.DeleteProfileResponse{}, nil
 }
 
 func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfilesRequest) (*eveyv1.ListProfilesResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.ListProfiles")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("userHandler.ListProfiles: %w", err)
 	}
 	userID := req.UserId
@@ -447,6 +548,8 @@ func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfiles
 	profiles, err := h.query.ListProfiles(ctx, userID)
 	if err != nil {
 		slog.Error("list profiles", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	resp := &eveyv1.ListProfilesResponse{}
@@ -457,11 +560,16 @@ func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfiles
 }
 
 func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateInviteLinkRequest) (*eveyv1.InviteLink, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.CreateInviteLink")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if !claims.IsAdmin {
+		span.SetStatus(otelcodes.Error, "admin required")
 		return nil, status.Error(codes.PermissionDenied, "admin required")
 	}
 	libIDs := make([]shared.LibraryID, len(req.LibraryIds))
@@ -478,16 +586,22 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 		user.WithInviteExpiresAt(fromTimestamppbPtr(req.ExpiresAt)),
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.access.CreateInviteLink(ctx, link); err != nil {
 		slog.Error("create invite link", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return inviteLinkToProto(link), nil
 }
 
 func (h *userHandler) ListInviteLinks(ctx context.Context, _ *eveyv1.ListInviteLinksRequest) (*eveyv1.ListInviteLinksResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.ListInviteLinks")
+	defer span.End()
 	claims := interceptors.ClaimsFromContext(ctx)
 	creatorID := ""
 	if claims != nil {
@@ -496,6 +610,8 @@ func (h *userHandler) ListInviteLinks(ctx context.Context, _ *eveyv1.ListInviteL
 	links, err := h.query.ListInviteLinks(ctx, creatorID)
 	if err != nil {
 		slog.Error("list invite links", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	resp := &eveyv1.ListInviteLinksResponse{}
@@ -506,13 +622,19 @@ func (h *userHandler) ListInviteLinks(ctx context.Context, _ *eveyv1.ListInviteL
 }
 
 func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeInviteLinkRequest) (*eveyv1.RevokeInviteLinkResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.RevokeInviteLink")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("userHandler.RevokeInviteLink: %w", err)
 	}
 	if !claims.IsAdmin {
 		links, err := h.query.ListInviteLinks(ctx, claims.UserID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, status.Errorf(codes.Internal, "internal error")
 		}
 		owned := false
@@ -523,19 +645,26 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 			}
 		}
 		if !owned {
+			span.SetStatus(otelcodes.Error, "cannot revoke invite other")
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_revoke_invite_other")
 		}
 	}
 	if err := h.access.RevokeInviteLink(ctx, req.Id); err != nil {
 		slog.Error("revoke invite link", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.RevokeInviteLinkResponse{}, nil
 }
 
 func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.RegisterWithInviteRequest) (*eveyv1.AuthResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.RegisterWithInvite")
+	defer span.End()
 	u, err := h.access.RegisterWithInvite(ctx, req.InviteCode, req.Username, req.Password, req.Email)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "invalid invite data")
 		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.invalid_invite_data")
 	}
 	access, refresh, loginErr := h.auth.Login(ctx, req.Username, req.Password)
@@ -551,6 +680,8 @@ func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.Regist
 }
 
 func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.InitiateQuickConnectRequest) (*eveyv1.QuickConnectResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.InitiateQuickConnect")
+	defer span.End()
 	qc := &user.QuickConnectRequest{
 		ID:        id.New("qc-"),
 		Code:      secureToken("qc-code-", 16),
@@ -560,14 +691,19 @@ func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.Initia
 	}
 	if err := h.access.InitiateQuickConnect(ctx, qc); err != nil {
 		slog.Error("initiate quick connect", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return quickConnectToProto(qc), nil
 }
 
 func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.AuthorizeQuickConnectRequest) (*eveyv1.AuthorizeQuickConnectResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.AuthorizeQuickConnect")
+	defer span.End()
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
+		span.SetStatus(otelcodes.Error, "unauthenticated")
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	code := req.Code
@@ -580,6 +716,8 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 	}
 	if err != nil {
 		slog.Error("authorize quick connect", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "invalid expired code")
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.invalid_expired_code")
 	}
 	if h.quickConnectHub != nil {
@@ -589,8 +727,12 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 }
 
 func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQuickConnectRequest) (*eveyv1.CheckQuickConnectResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.CheckQuickConnect")
+	defer span.End()
 	qc, err := h.query.CheckQuickConnect(ctx, req.Code)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "invalid expired code")
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.invalid_expired_code")
 	}
 	authorized := qc.Status == user.Authorized
@@ -599,6 +741,8 @@ func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQu
 		access, refresh, err := h.auth.GenerateTokensForUser(ctx, string(*qc.UserID), h.refreshTTLOverride(ctx)...)
 		if err != nil {
 			slog.Error("generate tokens for quick connect", slog.Any("err", err))
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, status.Errorf(codes.Internal, "internal error")
 		}
 		resp.Auth = &eveyv1.AuthResponse{
@@ -610,13 +754,18 @@ func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQu
 }
 
 func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKeyRequest) (*eveyv1.APIKey, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.CreateAPIKey")
+	defer span.End()
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
+		span.SetStatus(otelcodes.Error, "unauthenticated")
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 
 	rawBytes := make([]byte, 32)
 	if _, err := rand.Read(rawBytes); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	rawKey := fmt.Sprintf("evey_%s", base64.RawURLEncoding.EncodeToString(rawBytes))
@@ -632,10 +781,14 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 		user.WithAPIKeyPermissions(req.Scopes),
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.access.CreateAPIKey(ctx, key); err != nil {
 		slog.Error("create api key", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 
@@ -645,13 +798,18 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 }
 
 func (h *userHandler) ListAPIKeys(ctx context.Context, _ *eveyv1.ListAPIKeysRequest) (*eveyv1.ListAPIKeysResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.ListAPIKeys")
+	defer span.End()
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
+		span.SetStatus(otelcodes.Error, "unauthenticated")
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	keys, err := h.query.ListAPIKeys(ctx, claims.UserID)
 	if err != nil {
 		slog.Error("list api keys", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	resp := &eveyv1.ListAPIKeysResponse{}
@@ -662,13 +820,19 @@ func (h *userHandler) ListAPIKeys(ctx context.Context, _ *eveyv1.ListAPIKeysRequ
 }
 
 func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKeyRequest) (*eveyv1.RevokeAPIKeyResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.RevokeAPIKey")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("userHandler.RevokeAPIKey: %w", err)
 	}
 	if !claims.IsAdmin {
 		keys, err := h.query.ListAPIKeys(ctx, claims.UserID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, status.Errorf(codes.Internal, "internal error")
 		}
 		owned := false
@@ -679,32 +843,44 @@ func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKey
 			}
 		}
 		if !owned {
+			span.SetStatus(otelcodes.Error, "cannot revoke apikey other")
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_revoke_apikey_other")
 		}
 	}
 	if err := h.access.RevokeAPIKey(ctx, req.Id); err != nil {
 		slog.Error("revoke api key", slog.Any("err", err))
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.RevokeAPIKeyResponse{}, nil
 }
 
 func (h *userHandler) RequestPasswordReset(ctx context.Context, req *eveyv1.RequestPasswordResetRequest) (*eveyv1.RequestPasswordResetResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.RequestPasswordReset")
+	defer span.End()
 	if err := h.auth.RequestPasswordReset(ctx, req.Email); err != nil {
 		slog.Warn("request password reset", slog.Any("err", err))
+		span.RecordError(err)
 	}
 	return &eveyv1.RequestPasswordResetResponse{}, nil
 }
 
 func (h *userHandler) ResetPassword(ctx context.Context, req *eveyv1.ResetPasswordRequest) (*eveyv1.ResetPasswordResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.ResetPassword")
+	defer span.End()
 	if err := h.auth.ResetPassword(ctx, req.Token, req.NewPassword); err != nil {
+		span.RecordError(err)
 		switch {
 		case errors.Is(err, appuser.ErrResetTokenInvalid):
+			span.SetStatus(otelcodes.Error, "invalid or expired reset token")
 			return nil, status.Errorf(codes.InvalidArgument, "invalid or expired reset token")
 		case errors.Is(err, appuser.ErrPasswordTooShort):
+			span.SetStatus(otelcodes.Error, "password too short")
 			return nil, status.Errorf(codes.InvalidArgument, "password must be at least 8 characters")
 		default:
 			slog.Error("reset password", slog.Any("err", err))
+			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, status.Errorf(codes.Internal, "internal error")
 		}
 	}
