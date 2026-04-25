@@ -760,3 +760,91 @@ func TestRole_Permissions(t *testing.T) {
 		t.Error("system role should have IsSystem=true")
 	}
 }
+
+func TestProfile_EffectiveParental(t *testing.T) {
+	t.Parallel()
+
+	t.Run("non-kids without parental → nil", func(t *testing.T) {
+		t.Parallel()
+		p := &user.Profile{ID: "p1", IsKids: false}
+		if got := p.EffectiveParental(); got != nil {
+			t.Errorf("expected nil, got %+v", got)
+		}
+	})
+
+	t.Run("non-kids with parental disabled → nil", func(t *testing.T) {
+		t.Parallel()
+		p := &user.Profile{
+			ID:       "p1",
+			IsKids:   false,
+			Parental: &user.ParentalSettings{Enabled: false, MaxAge: intPtr(7)},
+		}
+		if got := p.EffectiveParental(); got != nil {
+			t.Errorf("disabled parental should yield nil, got %+v", got)
+		}
+	})
+
+	t.Run("non-kids with parental enabled → settings honored", func(t *testing.T) {
+		t.Parallel()
+		p := &user.Profile{
+			ID:       "p1",
+			IsKids:   false,
+			Parental: &user.ParentalSettings{Enabled: true, MaxAge: intPtr(15)},
+		}
+		got := p.EffectiveParental()
+		if got == nil || got.MaxAge == nil || *got.MaxAge != 15 {
+			t.Errorf("expected MaxAge=15, got %+v", got)
+		}
+	})
+
+	t.Run("kids without parental → enforced with default age", func(t *testing.T) {
+		t.Parallel()
+		p := &user.Profile{ID: "p1", IsKids: true}
+		got := p.EffectiveParental()
+		if got == nil {
+			t.Fatal("kids profile must always have effective parental")
+		}
+		if !got.Enabled {
+			t.Error("kids effective parental must be Enabled")
+		}
+		if got.MaxAge == nil || *got.MaxAge != user.DefaultKidsMaxAge {
+			t.Errorf("kids without MaxAge should fall back to DefaultKidsMaxAge=%d, got %+v",
+				user.DefaultKidsMaxAge, got.MaxAge)
+		}
+	})
+
+	t.Run("kids with parental disabled but no MaxAge → enforced with default", func(t *testing.T) {
+		t.Parallel()
+		p := &user.Profile{
+			ID:       "p1",
+			IsKids:   true,
+			Parental: &user.ParentalSettings{Enabled: false},
+		}
+		got := p.EffectiveParental()
+		if got == nil {
+			t.Fatal("kids profile must always have effective parental")
+		}
+		if !got.Enabled {
+			t.Error("kids effective parental must be Enabled regardless of stored flag")
+		}
+		if got.MaxAge == nil || *got.MaxAge != user.DefaultKidsMaxAge {
+			t.Errorf("expected default %d, got %+v", user.DefaultKidsMaxAge, got.MaxAge)
+		}
+	})
+
+	t.Run("kids with explicit MaxAge → explicit wins", func(t *testing.T) {
+		t.Parallel()
+		p := &user.Profile{
+			ID:       "p1",
+			IsKids:   true,
+			Parental: &user.ParentalSettings{MaxAge: intPtr(7), BlockedTags: []string{"violence"}},
+		}
+		got := p.EffectiveParental()
+		if got == nil || got.MaxAge == nil || *got.MaxAge != 7 {
+			t.Errorf("expected explicit MaxAge=7, got %+v", got)
+		}
+		if len(got.BlockedTags) != 1 || got.BlockedTags[0] != "violence" {
+			t.Errorf("BlockedTags should propagate, got %v", got.BlockedTags)
+		}
+	})
+}

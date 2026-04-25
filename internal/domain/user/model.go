@@ -81,6 +81,49 @@ func (p *Profile) HasPIN() bool {
 	return p != nil && p.Parental != nil && p.Parental.PINHash != ""
 }
 
+// DefaultKidsMaxAge is the implicit content-age cap applied to a profile
+// flagged as IsKids when no explicit MaxAge is configured. Conservative
+// fallback so the "kids" flag is never decorative — the alternative would
+// be that a profile literally labelled as for children sees R-rated
+// content as long as the admin forgot to flip the parental switch.
+const DefaultKidsMaxAge = 12
+
+// EffectiveParental returns the parental enforcement that should actually
+// be applied to this profile at runtime. The returned struct is meant for
+// read-only filtering decisions (rating cap, blocked tags); it does NOT
+// represent persisted state. Returns nil when no enforcement applies.
+//
+// Rules:
+//   - IsKids profiles always have parental enforcement, regardless of the
+//     stored Parental.Enabled flag. If MaxAge is unset, DefaultKidsMaxAge
+//     is used.
+//   - Non-kids profiles only enforce when Parental.Enabled is true.
+func (p *Profile) EffectiveParental() *ParentalSettings {
+	if p == nil {
+		return nil
+	}
+	if p.IsKids {
+		eff := ParentalSettings{Enabled: true}
+		if p.Parental != nil {
+			eff.BlockedTags = p.Parental.BlockedTags
+			eff.PINHash = p.Parental.PINHash
+			if p.Parental.MaxAge != nil {
+				eff.MaxAge = p.Parental.MaxAge
+			}
+		}
+		if eff.MaxAge == nil {
+			def := DefaultKidsMaxAge
+			eff.MaxAge = &def
+		}
+		return &eff
+	}
+	if p.Parental == nil || !p.Parental.Enabled {
+		return nil
+	}
+	cp := *p.Parental
+	return &cp
+}
+
 type RefreshToken struct {
 	ID         string
 	UserID     shared.UserID

@@ -658,10 +658,13 @@ func cellularCapFromPreferences(prefs map[string]string) int {
 
 func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, mediaItemID string) (bool, string) {
 	profile, err := h.userQuery.GetProfileByID(ctx, profileID)
-	if err != nil || profile.Parental == nil || !profile.Parental.Enabled {
+	if err != nil {
 		return false, ""
 	}
-	ps := profile.Parental
+	ps := profile.EffectiveParental()
+	if ps == nil {
+		return false, ""
+	}
 	item, err := h.librarySvc.GetMediaItem(ctx, mediaItemID)
 	if err != nil {
 		return false, ""

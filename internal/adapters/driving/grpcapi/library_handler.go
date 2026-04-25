@@ -552,10 +552,13 @@ func (h *libraryHandler) resolveParentalFilter(ctx context.Context) parentalFilt
 		return parentalFilter{maxAge: -1}
 	}
 	profile, err := h.userQuery.GetProfileByID(ctx, claims.ProfileID)
-	if err != nil || profile.Parental == nil || !profile.Parental.Enabled {
+	if err != nil {
 		return parentalFilter{maxAge: -1}
 	}
-	ps := profile.Parental
+	ps := profile.EffectiveParental()
+	if ps == nil {
+		return parentalFilter{maxAge: -1}
+	}
 	age := -1
 	if ps.MaxAge != nil {
 		age = *ps.MaxAge
