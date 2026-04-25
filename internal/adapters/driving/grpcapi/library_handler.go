@@ -582,10 +582,20 @@ func resolveParentalFilterFromUserQuery(ctx context.Context, userQuery *appuser.
 }
 
 // mediaItemBlockedByParental returns true if the given item violates the
-// resolved parental filter. Mirrors libraryHandler.isBlockedByParental
-// but takes the filter as an argument so callers (feeds, collections,
-// activity) can reuse the same predicate without re-resolving it for
-// every item in a list.
+// resolved parental filter. Conservative for kids: when no rating is
+// resolvable (no certifications anywhere, no official rating mapped),
+// the item is blocked rather than silently allowed — otherwise a movie
+// like Outbreak with only "AU: MA 15+" / "GB: 15" certifications would
+// slip past a profile region'd to FR because there is no FR cert and
+// the global ratings.IsAllowedByAge defaults to permissive.
+//
+// We pick the worst-case (highest) age cap across:
+//   1. the profile's region cert (if present)
+//   2. the OfficialRating field
+//   3. every other country cert we can map
+//
+// If none of those map to a known min-age, we fail closed for the kids
+// profile.
 func mediaItemBlockedByParental(pf parentalFilter, item *library.MediaItem) bool {
 	if item == nil {
 		return false
@@ -594,18 +604,43 @@ func mediaItemBlockedByParental(pf parentalFilter, item *library.MediaItem) bool
 		return false
 	}
 	if pf.maxAge >= 0 {
-		rating := ""
+		worstAge := -1
 		var certByCountry map[string]string
+		var officialRating string
 		if item.Classification != nil {
-			rating = item.Classification.OfficialRating
 			certByCountry = item.Classification.CertificationsByCountry
+			officialRating = item.Classification.OfficialRating
 		}
 		if pf.region != "" && certByCountry != nil {
 			if r, ok := certByCountry[pf.region]; ok && r != "" {
-				rating = r
+				if age := ratings.MinAgeFor(pf.region, r); age > worstAge {
+					worstAge = age
+				}
 			}
 		}
-		if !ratings.IsAllowedByAge(pf.region, rating, pf.maxAge) {
+		if officialRating != "" {
+			if age := ratings.MinAgeFor(pf.region, officialRating); age > worstAge {
+				worstAge = age
+			}
+		}
+		// Worst-case across every known foreign cert. A kid profile in FR
+		// shouldn't be the place to discover that an MA 15+ Australian rating
+		// existed all along.
+		for country, rating := range certByCountry {
+			if rating == "" {
+				continue
+			}
+			if age := ratings.MinAgeFor(country, rating); age > worstAge {
+				worstAge = age
+			}
+		}
+		if worstAge < 0 {
+			// No rating resolvable. Fail closed for kids — admin can edit the
+			// item's metadata override to expose it explicitly if it really is
+			// child-appropriate.
+			return true
+		}
+		if worstAge > pf.maxAge {
 			return true
 		}
 	}
