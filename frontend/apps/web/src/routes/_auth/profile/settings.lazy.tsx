@@ -357,6 +357,7 @@ function ParentalSection() {
 
   const enabled = parental?.enabled ?? false;
   const [maxAge, setMaxAge] = useState<string>("");
+  const [currentPin, setCurrentPin] = useState("");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [pinError, setPinError] = useState("");
@@ -383,6 +384,7 @@ function ParentalSection() {
       void qc.invalidateQueries({ queryKey: getParentalServiceGetParentalSettingsQueryKey(profileId) });
       if (pendingOpRef.current === "pin") {
         toast.success(t("auth.settings.parental.pin.saved"));
+        setCurrentPin("");
         setPin("");
         setConfirmPin("");
         setPassword("");
@@ -448,16 +450,24 @@ function ParentalSection() {
       setPinError(t("auth.settings.parental.pin.mismatch"));
       return;
     }
-    // First-time set requires the account password; rotation uses no
-    // extra field here (existing PIN is implied via sep. flow).
+    // First-time set requires the account password (otherwise a stolen
+    // JWT could lock the owner out). Rotation requires the current PIN.
+    if (hasPin && currentPin.length !== 4) {
+      setPinError(t("auth.settings.parental.pin.currentPinRequired", "Enter your current PIN"));
+      return;
+    }
     if (!hasPin && password === "") {
       setPinError(t("auth.settings.parental.pin.passwordRequired"));
       return;
     }
     if (!profileId) return;
     pendingOpRef.current = "pin";
-    const body: { newPin: string; currentPassword?: string } = { newPin: pin };
-    if (!hasPin) body.currentPassword = password;
+    const body: { newPin: string; currentPin?: string; currentPassword?: string } = { newPin: pin };
+    if (hasPin) {
+      body.currentPin = currentPin;
+    } else {
+      body.currentPassword = password;
+    }
     updateParental.mutate(body);
   }
 
@@ -563,10 +573,25 @@ function ParentalSection() {
 
       <div className="border-t border-[var(--border)] pt-4 flex flex-col gap-3">
         <div>
-          <h4 className="text-sm font-semibold text-[var(--text)]">{t("auth.settings.parental.pin.title")}</h4>
+          <h4 className="text-sm font-semibold text-[var(--text)]">
+            {hasPin
+              ? t("auth.settings.parental.pin.changeTitle", "Change PIN")
+              : t("auth.settings.parental.pin.title")}
+          </h4>
           <p className="text-xs text-[var(--text-muted)] mt-1">{t("auth.settings.parental.pin.description")}</p>
         </div>
-        <PinInput label={t("auth.settings.parental.pin.newPin")} value={pin} onChange={setPin} />
+        {hasPin && (
+          <PinInput
+            label={t("auth.settings.parental.pin.currentPin", "Current PIN")}
+            value={currentPin}
+            onChange={setCurrentPin}
+          />
+        )}
+        <PinInput
+          label={hasPin ? t("auth.settings.parental.pin.newPin") : t("auth.settings.parental.pin.newPin")}
+          value={pin}
+          onChange={setPin}
+        />
         <PinInput label={t("auth.settings.parental.pin.confirmPin")} value={confirmPin} onChange={setConfirmPin} />
         {!hasPin && (
           <Input
@@ -582,10 +607,17 @@ function ParentalSection() {
           <Button
             variant="primary"
             loading={updateParental.isPending}
-            disabled={!enabled || pin.length < 4 || (!hasPin && password === "")}
+            disabled={
+              !enabled ||
+              pin.length < 4 ||
+              (hasPin && currentPin.length < 4) ||
+              (!hasPin && password === "")
+            }
             onClick={handleSavePin}
           >
-            {t("auth.settings.parental.pin.savePin")}
+            {hasPin
+              ? t("auth.settings.parental.pin.updatePin", "Update PIN")
+              : t("auth.settings.parental.pin.savePin")}
           </Button>
         </div>
       </div>

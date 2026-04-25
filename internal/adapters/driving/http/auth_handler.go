@@ -255,10 +255,15 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 
 	noExistingPIN := profile.Parental == nil || profile.Parental.PINHash == ""
 	settingNewPIN := body.PIN != nil && *body.PIN != ""
+	mutatingPIN := body.PIN != nil // rotation, clear, or first-time set
+	disablingProtection := body.Enabled != nil && !*body.Enabled
 
 	switch {
-	case !noExistingPIN:
-		// Rotating / clearing an existing PIN requires the current PIN.
+	case (mutatingPIN || disablingProtection) && !noExistingPIN:
+		// Rotating / clearing an existing PIN, or disabling parental controls
+		// while a PIN is set, requires the current PIN. Other updates (max age,
+		// blocked tags, enabling) are not gated by the PIN — the user already
+		// authenticated to reach this endpoint.
 		if !h.pinRL.Allow(profileID) {
 			span.SetStatus(codes.Error, "rate limited")
 			http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
@@ -273,7 +278,7 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 			http.Error(w, `{"message":"invalid current PIN"}`, http.StatusForbidden)
 			return
 		}
-	case settingNewPIN && h.userRepo != nil:
+	case settingNewPIN && noExistingPIN && h.userRepo != nil:
 		// First-time PIN set: require the account password. Without this a
 		// stolen JWT could silently lock the owner out by enabling parental
 		// + setting a PIN the attacker picks.

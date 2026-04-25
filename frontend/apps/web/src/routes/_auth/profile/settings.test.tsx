@@ -144,9 +144,12 @@ describe("SettingsPage", () => {
     render(React.createElement(SettingsPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /Parental/i }));
     await waitFor(() => expect(screen.getByLabelText(/New PIN/i)).toBeInTheDocument());
+    // Rotation now requires the current PIN to pass client-side validation
+    // before reaching the new/confirm mismatch check.
+    fireEvent.change(screen.getByLabelText(/Current PIN/i), { target: { value: "0000" } });
     fireEvent.change(screen.getByLabelText(/New PIN/i), { target: { value: "1234" } });
     fireEvent.change(screen.getByLabelText(/Confirm PIN/i), { target: { value: "5678" } });
-    fireEvent.click(screen.getByRole("button", { name: /Save PIN/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Update PIN/i }));
     await waitFor(() => expect(screen.getByText(/PINs do not match/i)).toBeInTheDocument());
   });
 
