@@ -49,6 +49,17 @@ func TestMinAgeFor(t *testing.T) {
 		{"ZZ", "FOO", -1},
 		{"", "PG", -1},
 		{"US", "", -1},
+		// Agency prefix stripping (TMDB sometimes glues the agency name in)
+		{"AU", "ACB MA 15+", 15},
+		{"", "ACB MA 15+", 15},  // implied country from prefix
+		{"", "BBFC 15", 15},
+		{"", "MPAA R", 17},
+		{"", "MPA PG-13", 13},
+		{"", "FSK 16", 16},
+		{"", "CSA -12", 12},
+		{"AU", "ACB-MA 15+", 15}, // dash separator
+		// Bad/no separator: prefix attached without space stays as-is
+		{"AU", "ACBMA 15+", -1},
 	}
 	for _, tt := range tests {
 		got := MinAgeFor(tt.country, tt.rating)

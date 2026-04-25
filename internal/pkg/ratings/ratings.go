@@ -7,16 +7,69 @@ import (
 	"strings"
 )
 
+// agencyPrefixes maps a classification-agency code (sometimes glued to the
+// rating string in TMDB output, e.g. "ACB MA 15+", "BBFC 15", "MPAA R") to
+// the ISO country code its table lives under. We strip the prefix before
+// lookup, and fall back to the agency's country when the caller didn't pass
+// one (TMDB occasionally emits agency-prefixed strings as the OfficialRating
+// without an accompanying country tag).
+var agencyPrefixes = map[string]string{
+	"ACB":   "AU",
+	"OFLC":  "AU",
+	"BBFC":  "GB",
+	"MPAA":  "US",
+	"MPA":   "US",
+	"FSK":   "DE",
+	"USK":   "DE",
+	"CNC":   "FR",
+	"CSA":   "FR",
+	"DJCTQ": "BR",
+	"ICAA":  "ES",
+	"CHVRS": "CA",
+	"SBP":   "PT",
+	"EIRIN": "JP",
+}
+
+// stripAgencyPrefix peels a "<AGENCY> " or "<AGENCY>-" prefix off a rating
+// string. Returns the cleaned rating plus the implied country (empty when
+// no prefix matched).
+func stripAgencyPrefix(rating string) (string, string) {
+	for prefix, country := range agencyPrefixes {
+		// Need the boundary char to avoid matching "ACBA…" etc.
+		if strings.HasPrefix(rating, prefix+" ") || strings.HasPrefix(rating, prefix+"-") {
+			stripped := strings.TrimSpace(rating[len(prefix):])
+			stripped = strings.TrimPrefix(stripped, "-")
+			stripped = strings.TrimSpace(stripped)
+			if stripped != "" {
+				return stripped, country
+			}
+		}
+	}
+	return rating, ""
+}
+
 // MinAgeFor returns the minimum recommended age for a rating in a given country,
 // or -1 if the (country, rating) pair is unknown (caller decides the policy —
 // typically "allow" to avoid blocking legitimate content due to missing data).
 //
 // Country is an ISO 3166-1 alpha-2 code (e.g. "FR", "US", "DE").
-// Rating is the raw string TMDB returns for that country (e.g. "-12", "PG-13").
+// Rating is the raw string TMDB returns for that country (e.g. "-12", "PG-13",
+// "ACB MA 15+"). Agency prefixes ("ACB", "BBFC", "MPAA", "FSK", "CNC", "CSA",
+// "DJCTQ", "ICAA", …) are stripped before lookup so callers don't have to
+// pre-normalize, and an empty country falls back to the agency's home country.
 func MinAgeFor(country, rating string) int {
 	c := normalize(country)
 	r := normalize(rating)
-	if c == "" || r == "" {
+	if r == "" {
+		return -1
+	}
+	if cleaned, agencyCountry := stripAgencyPrefix(r); cleaned != r {
+		r = cleaned
+		if c == "" {
+			c = agencyCountry
+		}
+	}
+	if c == "" {
 		return -1
 	}
 	if table, ok := byCountry[c]; ok {
