@@ -7,9 +7,12 @@ import (
 	"strconv"
 	"sync"
 
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const (
@@ -80,6 +83,8 @@ func registerServerSettingsRoutes(
 	}
 
 	mux.HandleFunc("GET /api/v1/admin/server-settings", admin(func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracing.StartSpan(r.Context(), "http.settings.GetServerSettings")
+		defer span.End()
 		mu.RLock()
 		resp := buildResponse()
 		mu.RUnlock()
@@ -91,6 +96,9 @@ func registerServerSettingsRoutes(
 	}))
 
 	mux.HandleFunc("PUT /api/v1/admin/server-settings", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.settings.UpdateServerSettings")
+		defer span.End()
+		r = r.WithContext(ctx)
 		var body struct {
 			ServerName              *string `json:"serverName"`
 			MaxConcurrentTranscodes *int    `json:"maxConcurrentTranscodes"`
@@ -99,6 +107,8 @@ func registerServerSettingsRoutes(
 			GlobalRateLimit         *int    `json:"globalRateLimit"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "bad request")
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}

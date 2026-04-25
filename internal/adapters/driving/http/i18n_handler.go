@@ -6,18 +6,27 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 func i18nHandler(translator *i18n.Translator, devMode ...bool) http.HandlerFunc {
 	isDev := len(devMode) > 0 && devMode[0]
 	return func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracing.StartSpan(r.Context(), "http.i18n.GetMessages")
+		defer span.End()
 		locale := i18n.ParseLocale(r.PathValue("locale"))
+		span.SetAttributes(attribute.String("locale", locale))
 
 		messages := translator.AllMessages(locale)
 
 		data, err := json.Marshal(messages)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "encode error")
 			http.Error(w, "encode error", http.StatusInternalServerError)
 			return
 		}

@@ -7,18 +7,30 @@ import (
 	"os"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/pkg/urlvalidator"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/evey-project/evey/internal/pkg/urlvalidator"
 )
 
 func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.artwork.Serve")
+	defer span.End()
+	r = r.WithContext(ctx)
 	mediaID := r.PathValue("id")
 	artType := r.PathValue("artType")
+	span.SetAttributes(
+		attribute.String("media_item_id", mediaID),
+		attribute.String("art_type", artType),
+	)
 	claims := HTTPClaimsFromContext(r.Context())
 
 	if st, ok := StreamTokenFromContext(r.Context()); ok {
 		if st.MediaItemID != shared.MediaItemID(mediaID) {
+			span.SetStatus(otelcodes.Error, "stream token media mismatch")
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -26,16 +38,20 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 
 	artItem, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "media item not found")
 		http.NotFound(w, r)
 		return
 	}
 	// Artwork is public: skip library access check when no auth claims.
 	if claims != nil && !checkLibraryAccess(r.Context(), w, claims, artItem.LibraryID, h.libraryAccess) {
+		span.SetStatus(otelcodes.Error, "library access denied")
 		return
 	}
 
 	records := h.findArtworkRecords(r.Context(), mediaID, artType, artItem.ParentID)
 	if records == nil {
+		span.SetStatus(otelcodes.Error, "no artwork records")
 		http.NotFound(w, r)
 		return
 	}
@@ -68,10 +84,13 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if artURL == "" {
+		span.SetStatus(otelcodes.Error, "no artwork url")
 		http.NotFound(w, r)
 		return
 	}
 	if err := urlvalidator.ValidateRedirectURL(artURL); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "invalid redirect url")
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -139,19 +158,33 @@ func (h *mediaServe) resolveWebP(ctx context.Context, rec *domainmeta.ArtworkRec
 
 func selectArtworkHandler(tokens TokenVerifier, artworkRepo ArtworkRepo, libSvc MediaItemGetter, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.artwork.Select")
+		defer span.End()
+		r = r.WithContext(ctx)
 		claims := HTTPClaimsFromContext(r.Context())
 		mediaID := r.PathValue("id")
 		artworkID := r.PathValue("artworkId")
+		span.SetAttributes(
+			attribute.String("media_item_id", mediaID),
+			attribute.String("artwork_id", artworkID),
+		)
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "media item not found")
 			http.NotFound(w, r)
 			return
 		}
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+			span.SetStatus(otelcodes.Error, "library access denied")
 			return
 		}
 		records, err := artworkRepo.GetByMediaItem(r.Context(), mediaID)
 		if err != nil || len(records) == 0 {
+			if err != nil {
+				span.RecordError(err)
+			}
+			span.SetStatus(otelcodes.Error, "no artwork records")
 			http.NotFound(w, r)
 			return
 		}
@@ -163,6 +196,7 @@ func selectArtworkHandler(tokens TokenVerifier, artworkRepo ArtworkRepo, libSvc 
 			}
 		}
 		if selected == nil {
+			span.SetStatus(otelcodes.Error, "artwork id not found")
 			http.NotFound(w, r)
 			return
 		}

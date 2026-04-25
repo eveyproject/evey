@@ -9,10 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/config"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type qcTokenChecker interface {
@@ -46,17 +50,27 @@ func (a *qcCheckerAdapter) checkAndGenerateTokens(ctx context.Context, code stri
 
 func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker qcTokenChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Span only covers the SSE connection open, not per-event work — long-lived
+		// SSE streams shouldn't keep one span open for minutes.
+		_, span := tracing.StartSpan(r.Context(), "http.quickconnect.SSEOpen")
 		code := r.PathValue("code")
+		span.SetAttributes(attribute.String("qc_code", code))
 		if code == "" {
+			span.SetStatus(otelcodes.Error, "missing code")
+			span.End()
 			http.Error(w, `{"message":"missing code"}`, http.StatusBadRequest)
 			return
 		}
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {
+			span.SetStatus(otelcodes.Error, "streaming unsupported")
+			span.End()
 			http.Error(w, `{"message":"streaming unsupported"}`, http.StatusInternalServerError)
 			return
 		}
+		// End the open-span here — the loop below is the long-lived SSE stream.
+		span.End()
 
 		persistent := strings.EqualFold(r.Header.Get("X-Persistent-Session"), "true")
 

@@ -7,8 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type profileBody struct {
@@ -24,8 +28,13 @@ type profileBody struct {
 }
 
 func (h *adminHandler) handleCreateTranscodeProfile(w http.ResponseWriter, r *http.Request) {
-var body profileBody
+	ctx, span := tracing.StartSpan(r.Context(), "http.admin.CreateTranscodeProfile")
+	defer span.End()
+	r = r.WithContext(ctx)
+	var body profileBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "bad request")
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 		return
 	}
@@ -41,7 +50,10 @@ var body profileBody
 		AudioBitrate: body.AudioBitrate,
 		Preset:       body.Preset,
 	}
+	span.SetAttributes(attribute.String("transcode_profile_id", p.ID))
 	if err := h.transcodeSvc.CreateProfile(r.Context(), p); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "create profile failed")
 		slog.Error("create transcode profile", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
@@ -55,9 +67,15 @@ var body profileBody
 }
 
 func (h *adminHandler) handleUpdateTranscodeProfile(w http.ResponseWriter, r *http.Request) {
-profileID := r.PathValue("id")
+	ctx, span := tracing.StartSpan(r.Context(), "http.admin.UpdateTranscodeProfile")
+	defer span.End()
+	r = r.WithContext(ctx)
+	profileID := r.PathValue("id")
+	span.SetAttributes(attribute.String("transcode_profile_id", profileID))
 	var body profileBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "bad request")
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 		return
 	}
@@ -74,6 +92,8 @@ profileID := r.PathValue("id")
 		Preset:       body.Preset,
 	}
 	if err := h.transcodeSvc.UpdateProfile(r.Context(), p); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "update profile failed")
 		slog.Error("update transcode profile", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
@@ -86,8 +106,14 @@ profileID := r.PathValue("id")
 }
 
 func (h *adminHandler) handleDeleteTranscodeProfile(w http.ResponseWriter, r *http.Request) {
-profileID := r.PathValue("id")
+	ctx, span := tracing.StartSpan(r.Context(), "http.admin.DeleteTranscodeProfile")
+	defer span.End()
+	r = r.WithContext(ctx)
+	profileID := r.PathValue("id")
+	span.SetAttributes(attribute.String("transcode_profile_id", profileID))
 	if err := h.transcodeSvc.DeleteProfile(r.Context(), profileID); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "delete profile failed")
 		slog.Error("delete transcode profile", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
@@ -97,8 +123,13 @@ profileID := r.PathValue("id")
 }
 
 func (h *adminHandler) handleGetTranscodeCache(w http.ResponseWriter, r *http.Request) {
-info, err := h.transcodeSvc.GetCacheInfo(r.Context())
+	ctx, span := tracing.StartSpan(r.Context(), "http.admin.GetTranscodeCache")
+	defer span.End()
+	r = r.WithContext(ctx)
+	info, err := h.transcodeSvc.GetCacheInfo(r.Context())
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "get cache info failed")
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -128,7 +159,12 @@ info, err := h.transcodeSvc.GetCacheInfo(r.Context())
 }
 
 func (h *adminHandler) handleClearTranscodeCache(w http.ResponseWriter, r *http.Request) {
-if err := h.transcodeSvc.ClearCache(r.Context()); err != nil {
+	ctx, span := tracing.StartSpan(r.Context(), "http.admin.ClearTranscodeCache")
+	defer span.End()
+	r = r.WithContext(ctx)
+	if err := h.transcodeSvc.ClearCache(r.Context()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "clear cache failed")
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -137,16 +173,24 @@ if err := h.transcodeSvc.ClearCache(r.Context()); err != nil {
 }
 
 func (h *adminHandler) handleDeleteTranscodeCacheFile(w http.ResponseWriter, r *http.Request) {
-filename := r.PathValue("filename")
+	ctx, span := tracing.StartSpan(r.Context(), "http.admin.DeleteTranscodeCacheFile")
+	defer span.End()
+	r = r.WithContext(ctx)
+	filename := r.PathValue("filename")
+	span.SetAttributes(attribute.String("filename", filename))
 	if err := h.transcodeSvc.DeleteCacheFile(r.Context(), filename); err != nil {
+		span.RecordError(err)
 		if strings.Contains(err.Error(), "not found") {
+			span.SetStatus(otelcodes.Error, "file not found")
 			http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
 			return
 		}
 		if strings.Contains(err.Error(), "invalid") {
+			span.SetStatus(otelcodes.Error, "invalid filename")
 			http.Error(w, `{"message":"invalid filename"}`, http.StatusBadRequest)
 			return
 		}
+		span.SetStatus(otelcodes.Error, "delete cache file failed")
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}

@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type healthResponse struct {
@@ -16,6 +18,9 @@ type healthResponse struct {
 }
 
 func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.health.Check")
+	defer span.End()
+	r = r.WithContext(ctx)
 	dbStatus := "ok"
 	if s.DB != nil {
 		if err := s.DB.Ping(r.Context()); err != nil {

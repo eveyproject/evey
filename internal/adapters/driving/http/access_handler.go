@@ -7,10 +7,13 @@ import (
 	"net/url"
 	"sync"
 
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/network"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const remoteAccessConfigKey = "remote_access"
@@ -38,10 +41,15 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 	}
 
 	mux.HandleFunc("GET /api/v1/admin/remote-access", admin(func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracing.StartSpan(r.Context(), "http.access.GetRemoteAccess")
+		defer span.End()
 		encodeRA(w)
 	}))
 
 	mux.HandleFunc("PUT /api/v1/admin/remote-access", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.access.UpdateRemoteAccess")
+		defer span.End()
+		r = r.WithContext(ctx)
 		var body struct {
 			Enabled              *bool    `json:"enabled"`
 			ExternalURL          *string  `json:"externalUrl"`
@@ -49,6 +57,8 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			MaxRemoteBitrateKbps *int     `json:"maxRemoteBitrateKbps"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "bad request")
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}
@@ -62,6 +72,10 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			} else {
 				u, err := url.Parse(*body.ExternalURL)
 				if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+					if err != nil {
+						span.RecordError(err)
+					}
+					span.SetStatus(otelcodes.Error, "invalid externalUrl")
 					mu.Unlock()
 					http.Error(w, `{"message":"invalid externalUrl: must be http/https URL"}`, http.StatusBadRequest)
 					return
@@ -89,8 +103,12 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 	})))
 
 	mux.HandleFunc("GET /api/v1/admin/network-info", admin(func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracing.StartSpan(r.Context(), "http.access.NetworkInfo")
+		defer span.End()
 		ifaces, err := network.NetworkInterfaces()
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "list interfaces failed")
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
@@ -107,6 +125,8 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 	var mu sync.RWMutex
 
 	mux.HandleFunc("GET /api/v1/playback-settings", authMw(func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracing.StartSpan(r.Context(), "http.access.GetPlaybackSettings")
+		defer span.End()
 		mu.RLock()
 		fwd := cfg.Playback.SkipForwardSeconds
 		bwd := cfg.Playback.SkipBackwardSeconds
@@ -121,11 +141,16 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 	}))
 
 	mux.HandleFunc("PUT /api/v1/admin/playback-settings", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.access.UpdatePlaybackSettings")
+		defer span.End()
+		r = r.WithContext(ctx)
 		var body struct {
 			SkipForwardSeconds  *int `json:"skipForwardSeconds"`
 			SkipBackwardSeconds *int `json:"skipBackwardSeconds"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "bad request")
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}

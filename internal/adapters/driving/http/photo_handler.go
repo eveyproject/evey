@@ -11,10 +11,14 @@ import (
 	"strconv"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	domainphoto "github.com/evey-project/evey/internal/domain/photo"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/exifstrip"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // PhotoTranscoder resizes/reformats photos into the cache dir.
@@ -30,19 +34,27 @@ type photoHandler struct {
 }
 
 func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.photo.Serve")
+	defer span.End()
+	r = r.WithContext(ctx)
 	claims := HTTPClaimsFromContext(r.Context())
 	photoID := r.PathValue("id")
+	span.SetAttributes(attribute.String("photo_id", photoID))
 	p, err := h.photoSvc.GetPhoto(r.Context(), photoID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "get photo failed")
 		slog.Error("serve photo get", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
 	if p == nil {
+		span.SetStatus(otelcodes.Error, "photo not found")
 		http.NotFound(w, r)
 		return
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, p.LibraryID, h.libChecker) {
+		span.SetStatus(otelcodes.Error, "library access denied")
 		return
 	}
 	if dlErr := http.NewResponseController(w).SetWriteDeadline(time.Time{}); dlErr != nil {

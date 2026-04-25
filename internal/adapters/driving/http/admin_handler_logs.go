@@ -9,6 +9,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	otelcodes "go.opentelemetry.io/otel/codes"
+
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 func parseLineCount(r *http.Request, defaultN, maxN int) int {
@@ -64,7 +68,9 @@ func readNewLogBytes(path string, lastSize int64, maxBytes int) ([]byte, int64, 
 }
 
 func (h *adminHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
-lines := parseLineCount(r, 200, 2000)
+	_, span := tracing.StartSpan(r.Context(), "http.admin.GetLogs")
+	defer span.End()
+	lines := parseLineCount(r, 200, 2000)
 	if lines == 0 {
 		lines = 200
 	}
@@ -72,6 +78,8 @@ lines := parseLineCount(r, 200, 2000)
 	logPath := h.logDir + "/evey.log"
 	data, err := tailFile(logPath, lines)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "log file not found")
 		http.Error(w, `{"message":"log file not found"}`, http.StatusNotFound)
 		return
 	}
@@ -82,11 +90,16 @@ lines := parseLineCount(r, 200, 2000)
 }
 
 func (h *adminHandler) handleStreamLogs(w http.ResponseWriter, r *http.Request) {
-flusher, ok := w.(http.Flusher)
+	// Span only covers the SSE setup, not per-line streaming.
+	_, span := tracing.StartSpan(r.Context(), "http.admin.StreamLogsOpen")
+	flusher, ok := w.(http.Flusher)
 	if !ok {
+		span.SetStatus(otelcodes.Error, "streaming unsupported")
+		span.End()
 		http.Error(w, `{"message":"streaming unsupported"}`, http.StatusInternalServerError)
 		return
 	}
+	span.End()
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")

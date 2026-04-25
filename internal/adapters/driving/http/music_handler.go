@@ -12,9 +12,13 @@ import (
 	"regexp"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	appmusic "github.com/evey-project/evey/internal/app/music"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type musicHandler struct {
@@ -37,8 +41,12 @@ func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen *au
 }
 
 func (h *musicHandler) serveAlbumArt(w http.ResponseWriter, r *http.Request) {
+	_, span := tracing.StartSpan(r.Context(), "http.music.AlbumArt")
+	defer span.End()
 	hash := r.PathValue("hash")
+	span.SetAttributes(attribute.String("album_art_hash", hash))
 	if !albumArtHashRe.MatchString(hash) {
+		span.SetStatus(otelcodes.Error, "invalid hash")
 		http.NotFound(w, r)
 		return
 	}
@@ -58,8 +66,13 @@ func (h *musicHandler) serveAlbumArt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *musicHandler) fetchMissingArt(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.music.FetchMissingArt")
+	defer span.End()
+	r = r.WithContext(ctx)
 	n, err := h.svc.FetchMissingAlbumArtAllLibraries(r.Context())
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "fetch missing art failed")
 		slog.Error("music: fetch missing art", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -69,22 +82,34 @@ func (h *musicHandler) fetchMissingArt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.music.TrackArt")
+	defer span.End()
+	r = r.WithContext(ctx)
 	claims := HTTPClaimsFromContext(r.Context())
 	id := r.PathValue("id")
+	span.SetAttributes(attribute.String("track_id", id))
 	track, err := h.svc.GetTrack(r.Context(), id)
 	if err != nil || track == nil {
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.SetStatus(otelcodes.Error, "track not found")
 		http.NotFound(w, r)
 		return
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, track.LibraryID, h.libChecker) {
+		span.SetStatus(otelcodes.Error, "library access denied")
 		return
 	}
 	data, mimeType, err := h.svc.GetTrackArt(r.Context(), id)
 	if err != nil {
 		if os.IsNotExist(err) {
+			span.SetStatus(otelcodes.Error, "art not found")
 			http.NotFound(w, r)
 			return
 		}
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "get track art failed")
 		slog.Error("music get art", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -97,31 +122,43 @@ func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *musicHandler) streamTrack(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.music.StreamTrack")
+	defer span.End()
+	r = r.WithContext(ctx)
 	claims := HTTPClaimsFromContext(r.Context())
 	id := r.PathValue("id")
+	span.SetAttributes(attribute.String("track_id", id))
 	track, err := h.svc.GetTrack(r.Context(), id)
 	if err != nil {
 		if os.IsNotExist(err) {
+			span.SetStatus(otelcodes.Error, "track not found")
 			http.NotFound(w, r)
 			return
 		}
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "get track failed")
 		slog.Error("music get track", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	if track == nil {
+		span.SetStatus(otelcodes.Error, "track not found")
 		http.NotFound(w, r)
 		return
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, track.LibraryID, h.libChecker) {
+		span.SetStatus(otelcodes.Error, "library access denied")
 		return
 	}
 	filePath, mimeType, err := h.svc.StreamTrack(r.Context(), id)
 	if err != nil {
 		if os.IsNotExist(err) {
+			span.SetStatus(otelcodes.Error, "stream track not found")
 			http.NotFound(w, r)
 			return
 		}
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "stream track failed")
 		slog.Error("music stream", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -143,18 +180,29 @@ func (h *musicHandler) streamTrack(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *musicHandler) downloadTrack(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.music.DownloadTrack")
+	defer span.End()
+	r = r.WithContext(ctx)
 	claims := HTTPClaimsFromContext(r.Context())
 	id := r.PathValue("id")
+	span.SetAttributes(attribute.String("track_id", id))
 	track, err := h.svc.GetTrack(r.Context(), id)
 	if err != nil || track == nil {
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.SetStatus(otelcodes.Error, "track not found")
 		http.NotFound(w, r)
 		return
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, track.LibraryID, h.libChecker) {
+		span.SetStatus(otelcodes.Error, "library access denied")
 		return
 	}
 	f, err := os.Open(track.FilePath)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "open track file failed")
 		http.NotFound(w, r)
 		return
 	}
@@ -170,23 +218,35 @@ func (h *musicHandler) downloadTrack(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.music.DownloadAlbum")
+	defer span.End()
+	r = r.WithContext(ctx)
 	claims := HTTPClaimsFromContext(r.Context())
 	libraryID := r.URL.Query().Get("libraryId")
 	album := r.URL.Query().Get("album")
+	span.SetAttributes(
+		attribute.String("library_id", libraryID),
+		attribute.String("album", album),
+	)
 	if libraryID == "" || album == "" {
+		span.SetStatus(otelcodes.Error, "libraryId and album required")
 		http.Error(w, "libraryId and album are required", http.StatusBadRequest)
 		return
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, shared.LibraryID(libraryID), h.libChecker) {
+		span.SetStatus(otelcodes.Error, "library access denied")
 		return
 	}
 	tracks, err := h.svc.ListTracksByAlbum(r.Context(), shared.LibraryID(libraryID), album)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "list tracks by album failed")
 		slog.Error("music: list tracks by album", slog.Any("err", err))
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	if len(tracks) == 0 {
+		span.SetStatus(otelcodes.Error, "no tracks for album")
 		http.NotFound(w, r)
 		return
 	}

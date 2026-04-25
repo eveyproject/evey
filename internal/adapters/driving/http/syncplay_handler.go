@@ -9,10 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+	"golang.org/x/net/websocket"
+
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
 	"github.com/evey-project/evey/internal/pkg/auth"
-	"golang.org/x/net/websocket"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type syncplayHandler struct {
@@ -69,10 +73,17 @@ func (s *wsSender) SendMessage(data []byte) error {
 }
 
 func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
+	// Span only covers the upgrade handshake — the long-lived ws loop runs after.
+	spanCtx, span := tracing.StartSpan(r.Context(), "http.syncplay.WSUpgrade")
+	r = r.WithContext(spanCtx)
 	roomID := r.PathValue("id")
+	span.SetAttributes(attribute.String("room_id", roomID))
 	token := extractWSToken(r)
 	claims, vErr := s.tokenGen.ValidateAccessToken(token)
 	if vErr != nil {
+		span.RecordError(vErr)
+		span.SetStatus(otelcodes.Error, "invalid token")
+		span.End()
 		slog.Warn("syncplay ws: invalid token", slog.String("room", roomID))
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -80,22 +91,36 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 
 	room, err := s.hub.GetRoom(r.Context(), roomID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "room not found")
+		span.End()
 		http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
 		return
 	}
 	item, mErr := s.media.GetMediaItem(r.Context(), string(room.MediaID))
 	if mErr != nil || item == nil {
+		if mErr != nil {
+			span.RecordError(mErr)
+		}
+		span.SetStatus(otelcodes.Error, "media item not found")
+		span.End()
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, s.libChecker) {
+		span.SetStatus(otelcodes.Error, "library access denied")
+		span.End()
 		return
 	}
 	if !room.IsMember(claims.UserID) {
+		span.SetStatus(otelcodes.Error, "non-member attempt")
+		span.End()
 		slog.Warn("syncplay ws: non-member attempt", slog.String("user", claims.UserID), slog.String("room", roomID))
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
+	// End the upgrade-span before entering the long-lived ws loop.
+	span.End()
 
 	ctx := context.WithValue(r.Context(), wsCtxUserID, claims.UserID)
 	ctx = context.WithValue(ctx, wsCtxUsername, claims.Username)

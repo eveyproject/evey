@@ -13,10 +13,14 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainsubtitle "github.com/evey-project/evey/internal/domain/subtitle"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // subtitleService is the subset of appsubtitle.Service used by HTTP routes.
@@ -29,12 +33,20 @@ type subtitleService interface {
 
 func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.subtitle.Serve")
+		defer span.End()
+		r = r.WithContext(ctx)
 		mediaID := r.PathValue("id")
 		trackStr := r.PathValue("track")
+		span.SetAttributes(
+			attribute.String("media_item_id", mediaID),
+			attribute.String("track", trackStr),
+		)
 		claims := HTTPClaimsFromContext(r.Context())
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
 			if st.MediaItemID != shared.MediaItemID(mediaID) {
+				span.SetStatus(otelcodes.Error, "stream token media mismatch")
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
@@ -42,10 +54,15 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 		trackIndex, _ := strconv.Atoi(trackStr)
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 		if err != nil || item.File == nil || item.File.Path == "" {
+			if err != nil {
+				span.RecordError(err)
+			}
+			span.SetStatus(otelcodes.Error, "media item not found")
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+			span.SetStatus(otelcodes.Error, "library access denied")
 			return
 		}
 		filePath := item.File.Path
@@ -187,13 +204,21 @@ func (h *subtitleRoutes) requireMediaAccess(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *subtitleRoutes) search(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.subtitle.Search")
+	defer span.End()
+	r = r.WithContext(ctx)
 	mediaID := r.PathValue("id")
+	span.SetAttributes(attribute.String("media_item_id", mediaID))
 	if _, ok := h.requireMediaAccess(w, r, mediaID); !ok {
+		span.SetStatus(otelcodes.Error, "media access denied")
 		return
 	}
 	language := r.URL.Query().Get("language")
+	span.SetAttributes(attribute.String("language", language))
 	results, err := h.subtitleSvc.Search(r.Context(), mediaID, language)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "search failed")
 		slog.Error("subtitle search", slog.Any("err", err))
 		http.Error(w, `{"message":"search failed"}`, http.StatusInternalServerError)
 		return
@@ -222,8 +247,13 @@ func (h *subtitleRoutes) search(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *subtitleRoutes) download(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.subtitle.Download")
+	defer span.End()
+	r = r.WithContext(ctx)
 	mediaID := r.PathValue("id")
+	span.SetAttributes(attribute.String("media_item_id", mediaID))
 	if _, ok := h.requireMediaAccess(w, r, mediaID); !ok {
+		span.SetStatus(otelcodes.Error, "media access denied")
 		return
 	}
 	var body struct {
@@ -232,15 +262,20 @@ func (h *subtitleRoutes) download(w http.ResponseWriter, r *http.Request) {
 		Format   string `json:"format"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "bad request")
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 		return
 	}
 	if body.FileID == 0 {
+		span.SetStatus(otelcodes.Error, "fileId required")
 		http.Error(w, `{"message":"fileId required"}`, http.StatusBadRequest)
 		return
 	}
 	sub, err := h.subtitleSvc.Download(r.Context(), mediaID, body.FileID, body.Language, body.Format)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "download failed")
 		slog.Error("subtitle download", slog.Any("err", err))
 		http.Error(w, `{"message":"download failed"}`, http.StatusInternalServerError)
 		return
@@ -261,12 +296,19 @@ func (h *subtitleRoutes) download(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *subtitleRoutes) list(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.subtitle.List")
+	defer span.End()
+	r = r.WithContext(ctx)
 	mediaID := r.PathValue("id")
+	span.SetAttributes(attribute.String("media_item_id", mediaID))
 	if _, ok := h.requireMediaAccess(w, r, mediaID); !ok {
+		span.SetStatus(otelcodes.Error, "media access denied")
 		return
 	}
 	subs, err := h.subtitleSvc.List(r.Context(), mediaID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "list failed")
 		slog.Error("subtitle list", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
@@ -299,13 +341,23 @@ func (h *subtitleRoutes) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *subtitleRoutes) delete(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.subtitle.Delete")
+	defer span.End()
+	r = r.WithContext(ctx)
 	mediaID := r.PathValue("id")
 	subtitleID := r.PathValue("subtitleId")
+	span.SetAttributes(
+		attribute.String("media_item_id", mediaID),
+		attribute.String("subtitle_id", subtitleID),
+	)
 	if _, ok := h.requireMediaAccess(w, r, mediaID); !ok {
+		span.SetStatus(otelcodes.Error, "media access denied")
 		return
 	}
 	subs, err := h.subtitleSvc.List(r.Context(), mediaID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "list failed")
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -317,10 +369,13 @@ func (h *subtitleRoutes) delete(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !found {
+		span.SetStatus(otelcodes.Error, "subtitle not found")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
 	if err := h.subtitleSvc.Delete(r.Context(), subtitleID); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "delete failed")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}

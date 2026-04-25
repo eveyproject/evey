@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type browseHandler struct {
@@ -24,6 +26,8 @@ func browseDirsHandler(tokens TokenVerifier) http.HandlerFunc {
 }
 
 func (h *browseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	_, span := tracing.StartSpan(r.Context(), "http.browse.ListDirs")
+	defer span.End()
 	dir, ok := h.validatePath(w, r)
 	if !ok {
 		return

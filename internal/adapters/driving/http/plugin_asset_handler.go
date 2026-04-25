@@ -11,10 +11,14 @@ import (
 	"slices"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type pluginManager interface {
@@ -39,25 +43,38 @@ func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 }
 
 func (h *pluginAssetHandler) handleWidgetJS(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Asset")
+	defer span.End()
+	r = r.WithContext(ctx)
 	pluginID := r.PathValue("id")
+	span.SetAttributes(
+		attribute.String("plugin_id", pluginID),
+		attribute.String("asset", "widget.bundle.js"),
+	)
 	p, err := h.repo.GetByID(r.Context(), pluginID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "plugin not found")
 		http.Error(w, `{"message":"plugin not found"}`, http.StatusNotFound)
 		return
 	}
 	if !p.Enabled {
+		span.SetStatus(otelcodes.Error, "plugin disabled")
 		http.Error(w, `{"message":"plugin disabled"}`, http.StatusNotFound)
 		return
 	}
 
 	bundlePath := filepath.Join(h.pluginDir, pluginID, "widget.bundle.js")
 	if !strings.HasPrefix(filepath.Clean(bundlePath), filepath.Clean(h.pluginDir)) {
+		span.SetStatus(otelcodes.Error, "invalid path")
 		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 		return
 	}
 
 	data, err := os.ReadFile(bundlePath)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "widget not found")
 		http.Error(w, `{"message":"widget not found"}`, http.StatusNotFound)
 		return
 	}
@@ -71,30 +88,44 @@ func (h *pluginAssetHandler) handleWidgetJS(w http.ResponseWriter, r *http.Reque
 
 func (h *pluginAssetHandler) handleThemeCSS(w http.ResponseWriter, r *http.Request) {
 	// theme CSS is public — no auth required (not sensitive data)
+	ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Asset")
+	defer span.End()
+	r = r.WithContext(ctx)
 	pluginID := r.PathValue("id")
+	span.SetAttributes(
+		attribute.String("plugin_id", pluginID),
+		attribute.String("asset", "theme.css"),
+	)
 	p, err := h.repo.GetByID(r.Context(), pluginID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "plugin not found")
 		http.Error(w, `{"message":"plugin not found"}`, http.StatusNotFound)
 		return
 	}
 	if !p.Enabled {
+		span.SetStatus(otelcodes.Error, "plugin disabled")
 		http.Error(w, `{"message":"plugin disabled"}`, http.StatusNotFound)
 		return
 	}
 
 	if !slices.Contains(p.Capabilities, "ui.theme") {
+		span.SetStatus(otelcodes.Error, "not a theme plugin")
 		http.Error(w, `{"message":"not a theme plugin"}`, http.StatusNotFound)
 		return
 	}
 
 	cssPath := filepath.Join(h.pluginDir, pluginID, "theme.css")
 	if !strings.HasPrefix(filepath.Clean(cssPath), filepath.Clean(h.pluginDir)) {
+		span.SetStatus(otelcodes.Error, "invalid path")
 		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 		return
 	}
 
 	data, err := os.ReadFile(cssPath)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "theme not found")
 		http.Error(w, `{"message":"theme not found"}`, http.StatusNotFound)
 		return
 	}
@@ -112,8 +143,13 @@ func (h *pluginAssetHandler) handleThemeCSS(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.plugin.ListThemes")
+	defer span.End()
+	r = r.WithContext(ctx)
 	plugins, err := h.repo.List(r.Context())
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "list plugins failed")
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -141,9 +177,14 @@ func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Req
 func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginManager, writeRL *ratelimit.Limiter) {
 	admin := httpAdminMiddleware(tokenGen)
 	mux.HandleFunc("POST /api/v1/admin/plugins/upload", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Upload")
+		defer span.End()
+		r = r.WithContext(ctx)
 		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100MB max
 		file, _, formErr := r.FormFile("plugin")
 		if formErr != nil {
+			span.RecordError(formErr)
+			span.SetStatus(otelcodes.Error, "plugin file required")
 			http.Error(w, `{"message":"plugin file required"}`, http.StatusBadRequest)
 			return
 		}
@@ -151,6 +192,8 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 
 		tmpFile, tmpErr := os.CreateTemp("", "evey-plugin-*.zip")
 		if tmpErr != nil {
+			span.RecordError(tmpErr)
+			span.SetStatus(otelcodes.Error, "tmp file creation failed")
 			slog.Error("create temp file for plugin upload", slog.Any("err", tmpErr))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
@@ -164,6 +207,8 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 		defer tmpFile.Close()
 
 		if _, cpErr := io.Copy(tmpFile, file); cpErr != nil {
+			span.RecordError(cpErr)
+			span.SetStatus(otelcodes.Error, "write plugin upload failed")
 			slog.Error("write plugin upload", slog.Any("err", cpErr))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
@@ -172,6 +217,8 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 
 		p, installErr := svc.InstallPlugin(r.Context(), tmpFile.Name())
 		if installErr != nil {
+			span.RecordError(installErr)
+			span.SetStatus(otelcodes.Error, "install plugin failed")
 			slog.Error("install uploaded plugin", slog.Any("err", installErr))
 			if strings.Contains(installErr.Error(), "plugin blocked:") {
 				issues := extractBlockedIssues(installErr.Error())
@@ -190,6 +237,7 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 			return
 		}
 
+		span.SetAttributes(attribute.String("plugin_id", p.ID))
 		slog.Info("plugin installed via upload", slog.String("id", p.ID), slog.String("name", p.Name))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -210,9 +258,14 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginManager, writeRL *ratelimit.Limiter) {
 	admin := httpAdminMiddleware(tokenGen)
 	mux.HandleFunc("POST /api/v1/admin/plugins/preview", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Preview")
+		defer span.End()
+		r = r.WithContext(ctx)
 		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100MB max
 		file, _, formErr := r.FormFile("plugin")
 		if formErr != nil {
+			span.RecordError(formErr)
+			span.SetStatus(otelcodes.Error, "plugin file required")
 			http.Error(w, `{"message":"plugin file required"}`, http.StatusBadRequest)
 			return
 		}
@@ -220,6 +273,8 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator,
 
 		tmpFile, tmpErr := os.CreateTemp("", "evey-plugin-preview-*.zip")
 		if tmpErr != nil {
+			span.RecordError(tmpErr)
+			span.SetStatus(otelcodes.Error, "tmp file creation failed")
 			slog.Error("create temp file for plugin preview", slog.Any("err", tmpErr))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
@@ -233,6 +288,8 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator,
 		defer tmpFile.Close()
 
 		if _, cpErr := io.Copy(tmpFile, file); cpErr != nil {
+			span.RecordError(cpErr)
+			span.SetStatus(otelcodes.Error, "write plugin preview upload failed")
 			slog.Error("write plugin preview upload", slog.Any("err", cpErr))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
@@ -241,6 +298,8 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator,
 
 		preview, previewErr := svc.PreviewPlugin(r.Context(), tmpName)
 		if previewErr != nil {
+			span.RecordError(previewErr)
+			span.SetStatus(otelcodes.Error, "preview plugin failed")
 			slog.Warn("preview plugin", slog.Any("err", previewErr))
 			http.Error(w, `{"message":"plugin preview failed"}`, http.StatusBadRequest)
 			return

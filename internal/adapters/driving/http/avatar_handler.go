@@ -9,9 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const maxAvatarSize = 5 << 20 // 5 MB
@@ -33,27 +37,40 @@ func avatarUploadHandler(
 	dataDir string,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.avatar.Upload")
+		defer span.End()
+		r = r.WithContext(ctx)
 		claims := HTTPClaimsFromContext(r.Context())
 
 		profileID := r.PathValue("profileId")
+		span.SetAttributes(attribute.String("profile_id", profileID))
 		profile, err := profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
 		if err != nil || profile == nil {
+			if err != nil {
+				span.RecordError(err)
+			}
+			span.SetStatus(otelcodes.Error, "profile not found")
 			http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
 			return
 		}
 		if string(profile.UserID) != claims.UserID {
+			span.SetStatus(otelcodes.Error, "forbidden")
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 
 		r.Body = http.MaxBytesReader(w, r.Body, maxAvatarSize)
 		if err := r.ParseMultipartForm(maxAvatarSize); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "file too large")
 			http.Error(w, `{"message":"file too large (max 5MB)"}`, http.StatusBadRequest)
 			return
 		}
 
 		file, _, err := r.FormFile("avatar")
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "missing avatar file")
 			http.Error(w, `{"message":"missing avatar file"}`, http.StatusBadRequest)
 			return
 		}
@@ -64,11 +81,14 @@ func avatarUploadHandler(
 		n, _ := file.Read(buf)
 		ct := http.DetectContentType(buf[:n])
 		if _, err := file.Seek(0, 0); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "seek failed")
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
 
 		if !strings.HasPrefix(ct, "image/") {
+			span.SetStatus(otelcodes.Error, "not an image")
 			http.Error(w, `{"message":"file must be an image"}`, http.StatusBadRequest)
 			return
 		}
@@ -85,6 +105,8 @@ func avatarUploadHandler(
 
 		avatarDir := filepath.Join(dataDir, "avatars")
 		if err := os.MkdirAll(avatarDir, 0o755); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "mkdir avatar dir failed")
 			slog.Error("create avatar dir", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
@@ -103,6 +125,8 @@ func avatarUploadHandler(
 
 		out, err := os.Create(dest)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "create avatar file failed")
 			slog.Error("create avatar file", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
@@ -110,6 +134,8 @@ func avatarUploadHandler(
 		defer out.Close()
 
 		if _, err := io.Copy(out, file); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "write avatar file failed")
 			slog.Error("write avatar file", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
@@ -118,6 +144,8 @@ func avatarUploadHandler(
 		avatarPath := filepath.Join("avatars", filename)
 		profile.AvatarPath = &avatarPath
 		if err := profileRepo.Update(r.Context(), profile); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "update profile failed")
 			slog.Error("update profile avatar", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
@@ -135,9 +163,17 @@ func avatarServeHandler(
 	dataDir string,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.avatar.Serve")
+		defer span.End()
+		r = r.WithContext(ctx)
 		profileID := r.PathValue("profileId")
+		span.SetAttributes(attribute.String("profile_id", profileID))
 		profile, err := profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
 		if err != nil || profile == nil || profile.AvatarPath == nil {
+			if err != nil {
+				span.RecordError(err)
+			}
+			span.SetStatus(otelcodes.Error, "profile or avatar not found")
 			http.NotFound(w, r)
 			return
 		}
@@ -147,6 +183,7 @@ func avatarServeHandler(
 		absData, _ := filepath.Abs(dataDir)
 		absPath, _ := filepath.Abs(fullPath)
 		if !strings.HasPrefix(absPath, absData+string(filepath.Separator)) {
+			span.SetStatus(otelcodes.Error, "path traversal blocked")
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}

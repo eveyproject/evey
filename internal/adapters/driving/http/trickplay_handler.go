@@ -13,17 +13,26 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	_ "golang.org/x/image/webp"
+
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.trickplay.Manifest")
+		defer span.End()
+		r = r.WithContext(ctx)
 		mediaID := r.PathValue("id")
+		span.SetAttributes(attribute.String("media_item_id", mediaID))
 		claims := HTTPClaimsFromContext(r.Context())
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
 			if st.MediaItemID != shared.MediaItemID(mediaID) {
+				span.SetStatus(otelcodes.Error, "stream token media mismatch")
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
@@ -31,11 +40,14 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 
 		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "media item not found")
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
 		// Trickplay is public: skip library access check when no auth claims.
 		if claims != nil && !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+			span.SetStatus(otelcodes.Error, "library access denied")
 			return
 		}
 
@@ -115,12 +127,20 @@ func formatVTTTime(totalSeconds int) string {
 
 func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.trickplay.Image")
+		defer span.End()
+		r = r.WithContext(ctx)
 		mediaID := r.PathValue("id")
 		imageName := r.PathValue("image")
+		span.SetAttributes(
+			attribute.String("media_item_id", mediaID),
+			attribute.String("image", imageName),
+		)
 		claims := HTTPClaimsFromContext(r.Context())
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
 			if st.MediaItemID != shared.MediaItemID(mediaID) {
+				span.SetStatus(otelcodes.Error, "stream token media mismatch")
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
@@ -128,21 +148,28 @@ func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseU
 
 		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "media item not found")
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
 		// Trickplay image is public: skip library access check when no auth claims.
 		if claims != nil && !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+			span.SetStatus(otelcodes.Error, "library access denied")
 			return
 		}
 
 		manifest, err := libSvc.GetTrickplayManifest(r.Context(), mediaID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "manifest not found")
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
 		imagePath, err := safeJoin(manifest.ImagePath, filepath.Base(imageName))
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "unsafe image path")
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
@@ -168,7 +195,10 @@ func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseU
 
 func trickplayGenerateHandler(tokenGen TokenVerifier, libSvc TrickplayGenerator, serverCtx context.Context) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracing.StartSpan(r.Context(), "http.trickplay.Generate")
+		defer span.End()
 		mediaID := r.PathValue("id")
+		span.SetAttributes(attribute.String("media_item_id", mediaID))
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -191,8 +221,13 @@ func trickplayGenerateHandler(tokenGen TokenVerifier, libSvc TrickplayGenerator,
 
 func trickplayGenerateAllHandler(tokenGen TokenVerifier, libSvc AllTrickplayGenerator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.trickplay.GenerateAll")
+		defer span.End()
+		r = r.WithContext(ctx)
 		count, err := libSvc.GenerateAllMissingTrickplays(r.Context())
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "generate all failed")
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}

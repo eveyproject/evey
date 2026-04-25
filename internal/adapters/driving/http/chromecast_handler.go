@@ -7,7 +7,11 @@ import (
 	"log/slog"
 	"net/http"
 
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	appcast "github.com/evey-project/evey/internal/app/chromecast"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const castMaxBodySize = 4096
@@ -25,8 +29,13 @@ type castClient interface {
 
 func castDevicesHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Devices")
+		defer span.End()
+		r = r.WithContext(ctx)
 		devices, err := castSvc.Discover(r.Context())
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "discovery failed")
 			slog.Error("chromecast discover", slog.Any("err", err))
 			http.Error(w, `{"message":"discovery failed"}`, http.StatusInternalServerError)
 			return
@@ -43,6 +52,9 @@ func castDevicesHandler(tokenGen TokenVerifier, castSvc castClient) http.Handler
 
 func castPlayHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Play")
+		defer span.End()
+		r = r.WithContext(ctx)
 		var body struct {
 			DeviceUUID  string `json:"deviceUuid"`
 			MediaURL    string `json:"mediaUrl"`
@@ -50,14 +62,20 @@ func castPlayHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFun
 			ContentType string `json:"contentType"`
 		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, castMaxBodySize)).Decode(&body); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "bad request")
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}
+		span.SetAttributes(attribute.String("device_uuid", body.DeviceUUID))
 		if body.DeviceUUID == "" || body.MediaURL == "" {
+			span.SetStatus(otelcodes.Error, "deviceUuid and mediaUrl required")
 			http.Error(w, `{"message":"deviceUuid and mediaUrl required"}`, http.StatusBadRequest)
 			return
 		}
 		if err := castSvc.Play(r.Context(), body.DeviceUUID, body.MediaURL, body.Title, body.ContentType); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "play failed")
 			slog.Error("chromecast play", slog.Any("err", err))
 			http.Error(w, `{"message":"play failed"}`, http.StatusInternalServerError)
 			return
@@ -69,18 +87,27 @@ func castPlayHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFun
 
 func castStopHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Stop")
+		defer span.End()
+		r = r.WithContext(ctx)
 		var body struct {
 			DeviceUUID string `json:"deviceUuid"`
 		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, castMaxBodySize)).Decode(&body); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "bad request")
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}
+		span.SetAttributes(attribute.String("device_uuid", body.DeviceUUID))
 		if body.DeviceUUID == "" {
+			span.SetStatus(otelcodes.Error, "deviceUuid required")
 			http.Error(w, `{"message":"deviceUuid required"}`, http.StatusBadRequest)
 			return
 		}
 		if err := castSvc.Stop(r.Context(), body.DeviceUUID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "stop failed")
 			slog.Error("chromecast stop", slog.Any("err", err))
 			http.Error(w, `{"message":"stop failed"}`, http.StatusInternalServerError)
 			return
@@ -92,18 +119,27 @@ func castStopHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFun
 
 func castPauseHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Pause")
+		defer span.End()
+		r = r.WithContext(ctx)
 		var body struct {
 			DeviceUUID string `json:"deviceUuid"`
 		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, castMaxBodySize)).Decode(&body); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "bad request")
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}
+		span.SetAttributes(attribute.String("device_uuid", body.DeviceUUID))
 		if body.DeviceUUID == "" {
+			span.SetStatus(otelcodes.Error, "deviceUuid required")
 			http.Error(w, `{"message":"deviceUuid required"}`, http.StatusBadRequest)
 			return
 		}
 		if err := castSvc.Pause(r.Context(), body.DeviceUUID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "pause failed")
 			slog.Error("chromecast pause", slog.Any("err", err))
 			http.Error(w, `{"message":"pause failed"}`, http.StatusInternalServerError)
 			return
@@ -115,19 +151,28 @@ func castPauseHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFu
 
 func castSeekHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Seek")
+		defer span.End()
+		r = r.WithContext(ctx)
 		var body struct {
 			DeviceUUID  string `json:"deviceUuid"`
 			PositionSec int    `json:"positionSec"`
 		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, castMaxBodySize)).Decode(&body); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "bad request")
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}
+		span.SetAttributes(attribute.String("device_uuid", body.DeviceUUID))
 		if body.DeviceUUID == "" {
+			span.SetStatus(otelcodes.Error, "deviceUuid required")
 			http.Error(w, `{"message":"deviceUuid required"}`, http.StatusBadRequest)
 			return
 		}
 		if err := castSvc.Seek(r.Context(), body.DeviceUUID, body.PositionSec); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "seek failed")
 			slog.Error("chromecast seek", slog.Any("err", err))
 			http.Error(w, `{"message":"seek failed"}`, http.StatusInternalServerError)
 			return
@@ -139,13 +184,20 @@ func castSeekHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFun
 
 func castStatusHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Status")
+		defer span.End()
+		r = r.WithContext(ctx)
 		uuid := r.URL.Query().Get("deviceUuid")
+		span.SetAttributes(attribute.String("device_uuid", uuid))
 		if uuid == "" {
+			span.SetStatus(otelcodes.Error, "deviceUuid required")
 			http.Error(w, `{"message":"deviceUuid required"}`, http.StatusBadRequest)
 			return
 		}
 		status, err := castSvc.Status(r.Context(), uuid)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "status failed")
 			slog.Error("chromecast status", slog.Any("err", err))
 			http.Error(w, `{"message":"status failed"}`, http.StatusInternalServerError)
 			return

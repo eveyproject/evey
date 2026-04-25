@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	otelcodes "go.opentelemetry.io/otel/codes"
+
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
@@ -14,6 +16,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/runtimedetect"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type adminHandler struct {
@@ -96,10 +99,14 @@ func registerTranscodeCacheRoutes(mux *http.ServeMux, transcodeSvc *apptranscodi
 
 func registerAvailableRuntimesRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator) {
 	admin := httpAdminMiddleware(tokenGen)
-	mux.HandleFunc("GET /api/v1/admin/plugin-runtimes/available", admin(func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /api/v1/admin/plugin-runtimes/available", admin(func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracing.StartSpan(r.Context(), "http.admin.AvailableRuntimes")
+		defer span.End()
 		runtimes := runtimedetect.DetectRuntimes()
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"runtimes": runtimes}); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "json encode failed")
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
 	}))
