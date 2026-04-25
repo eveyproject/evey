@@ -334,6 +334,14 @@ func (s *CommandService) RemoveOverride(ctx context.Context, id string) error {
 	return nil
 }
 
+// GetOverride exposes a single override lookup so adapters can resolve
+// the media item it targets (used by the gRPC handler to gate Remove
+// calls behind a per-library access check without re-implementing the
+// repository hop).
+func (s *CommandService) GetOverride(ctx context.Context, id string) (*metadata.MetadataOverride, error) {
+	return s.overrides.Get(ctx, id)
+}
+
 func (s *CommandService) ResetOverrides(ctx context.Context, mediaItemID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.ResetOverrides")
 	defer span.End()

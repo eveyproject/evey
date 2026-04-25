@@ -61,6 +61,9 @@ func (h *metadataHandler) SearchMetadata(ctx context.Context, req *eveyv1.Search
 
 func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, stream eveyv1.MetadataService_RefreshMetadataServer) error {
 	ctx := stream.Context()
+	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
+		return err
+	}
 	if req.PreferredProvider != "" {
 		_, err := h.cmd.RefreshMetadata(ctx, req.MediaItemId, "", req.PreferredProvider, "")
 		if err != nil {
@@ -111,6 +114,9 @@ func (h *metadataHandler) GetArtwork(ctx context.Context, req *eveyv1.GetArtwork
 }
 
 func (h *metadataHandler) SetMetadataOverride(ctx context.Context, req *eveyv1.SetMetadataOverrideRequest) (*eveyv1.MetadataOverride, error) {
+	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
+		return nil, err
+	}
 	override, err := domainmetadata.NewMetadataOverride(id.New("mo-"), shared.MediaItemID(req.MediaItemId), req.FieldName,
 		domainmetadata.WithOverrideValue(req.CustomValue),
 	)
@@ -124,6 +130,15 @@ func (h *metadataHandler) SetMetadataOverride(ctx context.Context, req *eveyv1.S
 }
 
 func (h *metadataHandler) RemoveMetadataOverride(ctx context.Context, req *eveyv1.RemoveMetadataOverrideRequest) (*eveyv1.RemoveMetadataOverrideResponse, error) {
+	// Resolve the override → media item so we can gate the call by library
+	// access. Returning NotFound on a stale id keeps existence opaque.
+	override, err := h.cmd.GetOverride(ctx, req.Id)
+	if err != nil || override == nil {
+		return nil, status.Error(codes.NotFound, "not found")
+	}
+	if err := h.checkMediaItemAccess(ctx, string(override.MediaItemID)); err != nil {
+		return nil, err
+	}
 	if err := h.cmd.RemoveOverride(ctx, req.Id); err != nil {
 		return nil, internalError("remove override", err)
 	}

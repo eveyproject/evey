@@ -85,10 +85,10 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.NotificationService/UpdateGlobalNotificationSettings": RoleAdmin,
 			"/evey.v1.ActivityService/GetServerStats":                       RoleAdmin,
 			"/evey.v1.ActivityService/ListServerMetrics":                    RoleAdmin,
-			"/evey.v1.MetadataService/RefreshMetadata":                      RoleAdmin,
-			"/evey.v1.MetadataService/SearchMetadata":                       RoleAdmin,
-			"/evey.v1.MetadataService/SetMetadataOverride":                  RoleAdmin,
-			"/evey.v1.MetadataService/RemoveMetadataOverride":               RoleAdmin,
+			// MetadataService is intentionally NOT gated to admin: editing
+			// metadata is a per-item action, gated inside the handler via
+			// checkMediaItemAccess so a non-admin can only refresh / override
+			// items in libraries they actually have access to.
 			"/evey.v1.MKVService/GetContainerInfo":                          RoleAdmin,
 			"/evey.v1.MKVService/ListTracks":                                RoleAdmin,
 			"/evey.v1.MKVService/ExtractTrack":                              RoleAdmin,

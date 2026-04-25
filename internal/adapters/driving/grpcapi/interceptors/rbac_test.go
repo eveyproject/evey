@@ -108,11 +108,8 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		// ActivityService
 		"/evey.v1.ActivityService/GetServerStats",
 		"/evey.v1.ActivityService/ListServerMetrics",
-		// MetadataService
-		"/evey.v1.MetadataService/SearchMetadata",
-		"/evey.v1.MetadataService/RefreshMetadata",
-		"/evey.v1.MetadataService/SetMetadataOverride",
-		"/evey.v1.MetadataService/RemoveMetadataOverride",
+		// MetadataService is gated per-item via checkMediaItemAccess in the
+		// handler, not at the RBAC layer.
 		// MKVService
 		"/evey.v1.MKVService/GetContainerInfo",
 		"/evey.v1.MKVService/ListTracks",
@@ -203,7 +200,9 @@ func TestDefaultRBACConfig_ServiceCoverage(t *testing.T) {
 		"FeedService",
 		"NotificationService",
 		"ActivityService",
-		"MetadataService",
+		// MetadataService is intentionally not RBAC-gated at the
+		// interceptor layer; per-item access is enforced inside the
+		// handler.
 		"MKVService",
 		"TranscodingService",
 		"TranscodeCacheService",
