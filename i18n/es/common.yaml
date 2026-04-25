@@ -162,6 +162,7 @@ nav:
   userMenu: "Menú de usuario"
   homeFeeds: "Feeds de inicio"
   profileSwitcher: "Cambiar de perfil"
+  switchProfile: "Cambiar de perfil"
   manageProfiles: "Gestionar perfiles"
 you: "Tú"
 shortcuts:

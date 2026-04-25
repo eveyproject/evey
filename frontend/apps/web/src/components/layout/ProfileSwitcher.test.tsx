@@ -75,10 +75,9 @@ describe("ProfileSwitcher", () => {
     expect(screen.queryByTestId("profile-switcher-menu")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("profile-switcher-btn"));
     expect(screen.getByTestId("profile-switcher-menu")).toBeInTheDocument();
-    expect(screen.getByText(/Alice/)).toBeInTheDocument();
-    expect(screen.getByText(/\(You\)/)).toBeInTheDocument();
-    expect(screen.getByText("Bob")).toBeInTheDocument();
-    expect(screen.getByText("Kids")).toBeInTheDocument();
+    // The dropdown only exposes a "Switch profile" entry now; the actual
+    // profile list lives in the modal opened from that entry.
+    expect(screen.getByTestId("profile-switcher-switch")).toBeInTheDocument();
   });
 
   it("closes menu on Escape", async () => {
@@ -90,10 +89,11 @@ describe("ProfileSwitcher", () => {
     expect(screen.queryByTestId("profile-switcher-menu")).not.toBeInTheDocument();
   });
 
-  it("switches profile: refreshToken with profileId + setTokens + localStorage + invalidate", async () => {
+  it("switches profile via the modal: refreshToken + setTokens + localStorage + invalidate", async () => {
     const user = userEvent.setup();
     renderSwitcher();
     await user.click(screen.getByTestId("profile-switcher-btn"));
+    await user.click(screen.getByTestId("profile-switcher-switch"));
     await user.click(screen.getByTestId("profile-switcher-item-p2"));
     await waitFor(() => expect(mockRefreshToken).toHaveBeenCalledTimes(1));
     expect(mockRefreshToken).toHaveBeenCalledWith({ profileId: "p2" });
@@ -108,6 +108,7 @@ describe("ProfileSwitcher", () => {
     const user = userEvent.setup();
     renderSwitcher();
     await user.click(screen.getByTestId("profile-switcher-btn"));
+    await user.click(screen.getByTestId("profile-switcher-switch"));
     await user.click(screen.getByTestId("profile-switcher-item-p2"));
     await waitFor(() => expect(mockRefreshToken).toHaveBeenCalled());
     expect(mockSetTokens).not.toHaveBeenCalled();

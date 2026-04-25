@@ -6,8 +6,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore, toast } from "@evey/store";
 import { userServiceRefreshToken, userServiceLogout } from "@evey/api";
 import type { V1Profile } from "@evey/api";
-import { Users, Check, Settings, Clock, BarChart3, QrCode, LayoutList, LogOut } from "lucide-react";
+import { Users, Check, Settings, Clock, BarChart3, QrCode, LayoutList, LogOut, ArrowLeftRight } from "lucide-react";
 import { PinPromptDialog } from "@/features/profile/PinPromptDialog";
+import { Modal } from "@/components/ui/Modal";
 
 function profileAvatarUrl(p: V1Profile): string | null {
   return p.avatarPath && p.id ? `/api/v1/profiles/${p.id}/avatar` : null;
@@ -45,6 +46,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
   const { logout } = useAuthStore();
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const [open, setOpen] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
   const [pinTarget, setPinTarget] = useState<V1Profile | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -82,6 +84,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
       } catch { /* ignore storage errors */ }
       await qc.invalidateQueries();
       setOpen(false);
+      setSwitchOpen(false);
     } catch (err) {
       console.warn("profile switch failed", err);
       toast.error(err instanceof Error ? err.message : t("auth.profile.switchFailed", "Could not switch profile"));
@@ -151,46 +154,27 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
       </button>
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 w-64 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] shadow-lg py-1 z-overlay animate-fade-in"
+          className="absolute right-0 top-full mt-2 w-56 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] shadow-lg py-1 z-overlay animate-fade-in"
           role="menu"
           data-testid="profile-switcher-menu"
         >
-          <div className="px-3 py-2 flex items-center gap-3">
-            <ProfileAvatar profile={active} size={36} />
-            <div className="flex flex-col min-w-0">
-              <span className="text-sm text-[var(--text)] truncate">
-                {active.name}
-                <span className="text-[var(--text-muted)] ml-1">
-                  ({t("common.you", "You")})
-                </span>
-              </span>
-            </div>
-            <Check size={16} className="ml-auto text-[var(--accent)] shrink-0" />
-          </div>
           {others.length > 0 && (
             <>
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  setSwitchOpen(true);
+                }}
+                role="menuitem"
+                data-testid="profile-switcher-switch"
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
+              >
+                <ArrowLeftRight size={16} className="text-[var(--text-muted)] shrink-0" />
+                {t("common.nav.switchProfile", "Switch profile")}
+              </button>
               <div className="border-t border-[var(--border)] my-1" />
-              {others.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => void handleSwitch(p)}
-                  disabled={switching !== null}
-                  role="menuitem"
-                  data-testid={`profile-switcher-item-${p.id}`}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer disabled:opacity-50 disabled:cursor-wait"
-                >
-                  <ProfileAvatar profile={p} size={28} />
-                  <span className="truncate">{p.name}</span>
-                  {switching === p.id && (
-                    <span className="ml-auto text-xs text-[var(--text-muted)]">
-                      {t("common.loading", "Loading...")}
-                    </span>
-                  )}
-                </button>
-              ))}
             </>
           )}
-          <div className="border-t border-[var(--border)] my-1" />
           <button
             onClick={handleManage}
             role="menuitem"
@@ -224,6 +208,41 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
             {t("common.nav.signOut")}
           </button>
         </div>
+      )}
+      {switchOpen && (
+        <Modal
+          open
+          onClose={() => setSwitchOpen(false)}
+          title={t("common.nav.switchProfile", "Switch profile")}
+        >
+          <ul className="flex flex-col gap-1" data-testid="profile-switcher-modal-list">
+            {profiles.map((p) => {
+              const isActive = p.id === active.id;
+              return (
+                <li key={p.id}>
+                  <button
+                    onClick={() => {
+                      if (isActive) return;
+                      void handleSwitch(p);
+                    }}
+                    disabled={switching !== null || isActive}
+                    data-testid={`profile-switcher-item-${p.id}`}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-[var(--radius-sm)] text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer disabled:cursor-default"
+                  >
+                    <ProfileAvatar profile={p} size={36} />
+                    <span className="truncate flex-1 text-left">{p.name}</span>
+                    {isActive && <Check size={16} className="text-[var(--accent)] shrink-0" />}
+                    {switching === p.id && (
+                      <span className="text-xs text-[var(--text-muted)]">
+                        {t("common.loading", "Loading...")}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </Modal>
       )}
       {pinTarget && (
         <PinPromptDialog

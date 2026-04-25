@@ -137,7 +137,7 @@ describe("TopBar", () => {
     expect(screen.getAllByTestId("profile-switcher-btn")).toHaveLength(1);
   });
 
-  it("shows other profiles in the dropdown when >= 2 profiles exist", async () => {
+  it("exposes a Switch profile entry that opens the picker modal", async () => {
     mockProfiles = [
       { id: "p1", userId: "u1", name: "Alice", isDefault: true },
       { id: "p2", userId: "u1", name: "Bob", isDefault: false },
@@ -145,6 +145,9 @@ describe("TopBar", () => {
     const user = userEvent.setup();
     renderTopBar();
     await user.click(screen.getByRole("button", { name: "User menu" }));
+    const switchEntry = screen.getByTestId("profile-switcher-switch");
+    expect(switchEntry).toBeInTheDocument();
+    await user.click(switchEntry);
     expect(screen.getByTestId("profile-switcher-item-p2")).toBeInTheDocument();
   });
 });
