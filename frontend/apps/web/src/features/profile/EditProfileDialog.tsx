@@ -17,7 +17,25 @@ type UpdateProfileData = {
   region?: string;
   isKids?: boolean;
   pin?: string;
+  // -1 clears any persisted MaxAge, 0+ sets it. Only honored when isKids=true
+  // server-side.
+  maxAge?: number;
 };
+
+const MAX_AGE_OPTIONS = [
+  { value: "", label: "" }, // resolved to t() at render time
+  { value: "0", label: "0+" },
+  { value: "6", label: "6+" },
+  { value: "7", label: "7+" },
+  { value: "10", label: "10+" },
+  { value: "12", label: "12+" },
+  { value: "13", label: "13+" },
+  { value: "14", label: "14+" },
+  { value: "15", label: "15+" },
+  { value: "16", label: "16+" },
+  { value: "17", label: "17+" },
+  { value: "18", label: "18+" },
+];
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -66,6 +84,7 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
   const [pin, setPin] = useState("");
   const [locale, setLocale] = useState(profile.locale ?? "");
   const [region, setRegion] = useState(profile.region ?? "");
+  const [maxAge, setMaxAge] = useState(profile.maxAge != null ? String(profile.maxAge) : "");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,6 +94,7 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
       setPin("");
       setLocale(profile.locale ?? "");
       setRegion(profile.region ?? "");
+      setMaxAge(profile.maxAge != null ? String(profile.maxAge) : "");
       setError(null);
     }
   }, [open, profile]);
@@ -117,6 +137,20 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
     if (locale !== (profile.locale ?? "")) data.locale = locale;
     if (region !== (profile.region ?? "")) data.region = region;
     if (pin.length === 4) data.pin = pin;
+    // Send maxAge only when the field is shown (kids profile). The backend
+    // ignores it on non-kids anyway, but keeping it tied to the UI prevents
+    // stale stored values from leaking back when the user toggles isKids.
+    if (isKids) {
+      const currentMaxAge = profile.maxAge != null ? String(profile.maxAge) : "";
+      if (maxAge !== currentMaxAge) {
+        if (maxAge === "") {
+          data.maxAge = -1; // sentinel: clear
+        } else {
+          const n = parseInt(maxAge, 10);
+          if (!Number.isNaN(n)) data.maxAge = n;
+        }
+      }
+    }
     if (Object.keys(data).length === 0) {
       onClose();
       return;
@@ -144,6 +178,17 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
             {t("auth.profile.fields.isKidsHelp", "Kids profiles only see age-appropriate content.")}
           </p>
         </div>
+        {isKids && (
+          <Select
+            label={t("auth.profile.fields.maxAge", "Max age rating")}
+            options={MAX_AGE_OPTIONS.map((o) => ({
+              value: o.value,
+              label: o.value === "" ? t("auth.settings.parental.defaultMaxAge", "Default (12+)") : o.label,
+            }))}
+            value={maxAge}
+            onChange={setMaxAge}
+          />
+        )}
         <div className="flex flex-col gap-1">
           <Input
             label={t("auth.profile.fields.pin", "PIN (4 digits)")}

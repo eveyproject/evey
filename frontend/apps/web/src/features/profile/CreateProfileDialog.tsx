@@ -15,7 +15,23 @@ type CreateProfileData = {
   pin?: string;
   locale?: string;
   region?: string;
+  maxAge?: number;
 };
+
+const MAX_AGE_OPTIONS = [
+  { value: "", label: "" }, // resolved to t() at render time
+  { value: "0", label: "0+" },
+  { value: "6", label: "6+" },
+  { value: "7", label: "7+" },
+  { value: "10", label: "10+" },
+  { value: "12", label: "12+" },
+  { value: "13", label: "13+" },
+  { value: "14", label: "14+" },
+  { value: "15", label: "15+" },
+  { value: "16", label: "16+" },
+  { value: "17", label: "17+" },
+  { value: "18", label: "18+" },
+];
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -63,6 +79,7 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: C
   const [pin, setPin] = useState("");
   const [locale, setLocale] = useState("");
   const [region, setRegion] = useState("");
+  const [maxAge, setMaxAge] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const pinRequired = hasKidsProfile && !isKids;
@@ -91,6 +108,7 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: C
     setPin("");
     setLocale("");
     setRegion("");
+    setMaxAge("");
     setError(null);
   }
 
@@ -111,7 +129,13 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: C
       return;
     }
     const data: CreateProfileData = { name: name.trim() };
-    if (isKids) data.isKids = true;
+    if (isKids) {
+      data.isKids = true;
+      if (maxAge !== "") {
+        const n = parseInt(maxAge, 10);
+        if (!Number.isNaN(n)) data.maxAge = n;
+      }
+    }
     if (pin.length === 4) data.pin = pin;
     if (locale) data.locale = locale;
     if (region) data.region = region;
@@ -138,6 +162,17 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: C
             {t("auth.profile.fields.isKidsHelp", "Kids profiles only see age-appropriate content.")}
           </p>
         </div>
+        {isKids && (
+          <Select
+            label={t("auth.profile.fields.maxAge", "Max age rating")}
+            options={MAX_AGE_OPTIONS.map((o) => ({
+              value: o.value,
+              label: o.value === "" ? t("auth.settings.parental.defaultMaxAge", "Default (12+)") : o.label,
+            }))}
+            value={maxAge}
+            onChange={setMaxAge}
+          />
+        )}
         {pinRequired && (
           <div className="flex flex-col gap-1">
             <Input

@@ -1,7 +1,7 @@
 import { Palette, Bell, Shield, Smartphone, QrCode, Pencil, X, Users, Plus } from "lucide-react";
 import type React from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles } from "@evey/api";
 import { useParentalServiceGetParentalSettings, parentalServiceUpdateParentalSettings, getParentalServiceGetParentalSettingsQueryKey } from "@evey/api";
 import { getUserServiceGetCurrentUserQueryKey, getUserServiceListProfilesQueryKey } from "@evey/api";
@@ -13,8 +13,6 @@ import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Select";
-import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { ThemeSettings } from "@/features/user/ThemeSettings";
 import { LanguageSettings } from "@/features/user/LanguageSettings";
@@ -299,21 +297,6 @@ function ProfilesSection() {
   );
 }
 
-const AGE_OPTIONS = [
-  { value: "", label: "" }, // resolved at render-time via t()
-  { value: "0", label: "0+" },
-  { value: "6", label: "6+" },
-  { value: "7", label: "7+" },
-  { value: "10", label: "10+" },
-  { value: "12", label: "12+" },
-  { value: "13", label: "13+" },
-  { value: "14", label: "14+" },
-  { value: "15", label: "15+" },
-  { value: "16", label: "16+" },
-  { value: "17", label: "17+" },
-  { value: "18", label: "18+" },
-];
-
 function PinInput({
   label,
   value,
@@ -355,90 +338,26 @@ function ParentalSection() {
 
   const { data: parental } = useParentalServiceGetParentalSettings(profileId, { query: { enabled: !!profileId } } as never);
 
-  const enabled = parental?.enabled ?? false;
-  const [maxAge, setMaxAge] = useState<string>("");
   const [currentPin, setCurrentPin] = useState("");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [password, setPassword] = useState("");
-  const pendingOpRef = useRef<"pin" | "other">("other");
   const hasPin = parental?.hasPin ?? false;
-
-  // PIN-gated disable flow. Once a PIN is set the switch can't be flipped off
-  // without the PIN: otherwise a kid could bypass the lock by hitting the
-  // toggle. We open a modal, collect the current PIN, and send it as
-  // currentPin alongside enabled=false.
-  const [disableOpen, setDisableOpen] = useState(false);
-  const [disablePin, setDisablePin] = useState("");
-  const [disableError, setDisableError] = useState("");
-
-  useEffect(() => {
-    setMaxAge(parental?.maxAge != null ? String(parental.maxAge) : "");
-  }, [parental?.maxAge]);
 
   const updateParental = useMutation({
     mutationFn: (body: { enabled?: boolean; maxAge?: number; unsetMaxAge?: boolean; newPin?: string; currentPin?: string; currentPassword?: string }) =>
       parentalServiceUpdateParentalSettings(profileId, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: getParentalServiceGetParentalSettingsQueryKey(profileId) });
-      if (pendingOpRef.current === "pin") {
-        toast.success(t("auth.settings.parental.pin.saved"));
-        setCurrentPin("");
-        setPin("");
-        setConfirmPin("");
-        setPassword("");
-      } else {
-        toast.success(t("auth.settings.parental.updated"));
-      }
-      pendingOpRef.current = "other";
+      toast.success(t("auth.settings.parental.pin.saved"));
+      setCurrentPin("");
+      setPin("");
+      setConfirmPin("");
+      setPassword("");
     },
     onError: (err: Error) => toast.error(err.message || t("auth.settings.parental.failedToUpdate")),
   });
-
-  function handleToggleEnabled() {
-    if (!profileId) return;
-    // Disabling when a PIN is set requires the PIN — open the confirm modal.
-    if (enabled && hasPin) {
-      setDisablePin("");
-      setDisableError("");
-      setDisableOpen(true);
-      return;
-    }
-    updateParental.mutate({ enabled: !enabled });
-  }
-
-  function handleConfirmDisable() {
-    setDisableError("");
-    if (disablePin.length !== 4) {
-      setDisableError(t("auth.settings.parental.pin.mustBe4"));
-      return;
-    }
-    pendingOpRef.current = "other";
-    updateParental.mutate(
-      { enabled: false, currentPin: disablePin },
-      {
-        onSuccess: () => {
-          setDisableOpen(false);
-          setDisablePin("");
-          setDisableError("");
-          void qc.invalidateQueries({ queryKey: getParentalServiceGetParentalSettingsQueryKey(profileId) });
-        },
-        onError: (err: Error) => {
-          setDisableError(err.message || t("auth.settings.parental.pin.wrongPin", "Incorrect PIN"));
-        },
-      },
-    );
-  }
-
-  function handleSaveAge() {
-    if (!profileId) return;
-    if (maxAge === "") {
-      updateParental.mutate({ unsetMaxAge: true });
-    } else {
-      updateParental.mutate({ maxAge: parseInt(maxAge, 10) });
-    }
-  }
 
   function handleSavePin() {
     setPinError("");
@@ -461,7 +380,6 @@ function ParentalSection() {
       return;
     }
     if (!profileId) return;
-    pendingOpRef.current = "pin";
     const body: { newPin: string; currentPin?: string; currentPassword?: string } = { newPin: pin };
     if (hasPin) {
       body.currentPin = currentPin;
@@ -477,101 +395,16 @@ function ParentalSection() {
     );
   }
 
-  const ageOptions = AGE_OPTIONS.map((o) => ({
-    value: o.value,
-    label: o.value === "" ? t("auth.settings.parental.noRestriction") : o.label,
-  }));
-
-  const currentServerAge = parental?.maxAge != null ? String(parental.maxAge) : "";
-
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h3 className="text-sm font-semibold text-[var(--text)]">{t("auth.settings.parental.title")}</h3>
         <p className="text-xs text-[var(--text-muted)] mt-1">
-          {t("auth.settings.parental.description")}
+          {t("auth.settings.parental.pinScopeNote", "The PIN gates kids → adult profile switches. Per-profile age caps live on each profile (Profiles tab → Edit).")}
         </p>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-[var(--text)]">{t("auth.settings.parental.enable")}</p>
-          <p className="text-xs text-[var(--text-muted)]">{t("auth.settings.parental.enableDesc")}</p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          onClick={handleToggleEnabled}
-          disabled={updateParental.isPending}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors-fast focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 disabled:opacity-50 ${
-            enabled ? "bg-[var(--accent)]" : "bg-[var(--border)]"
-          }`}
-        >
-          <span
-            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform-fast ${
-              enabled ? "translate-x-6" : "translate-x-1"
-            }`}
-          />
-        </button>
-      </div>
-
       <div className="flex flex-col gap-3">
-        <Select
-          label={t("auth.settings.parental.maxAge")}
-          options={ageOptions}
-          value={maxAge}
-          onChange={setMaxAge}
-          disabled={!enabled}
-        />
-        <div>
-          <Button
-            variant="primary"
-            loading={updateParental.isPending}
-            disabled={!enabled || maxAge === currentServerAge}
-            onClick={handleSaveAge}
-          >
-            {t("auth.settings.parental.saveAge")}
-          </Button>
-        </div>
-      </div>
-
-      {disableOpen && (
-        <Modal
-          open
-          onClose={() => setDisableOpen(false)}
-          title={t("auth.settings.parental.disableTitle", "Disable parental controls")}
-        >
-          <div className="flex flex-col gap-4">
-            <p className="text-sm text-[var(--text-muted)]">
-              {t("auth.settings.parental.disableBody", "Enter the current PIN to disable parental controls.")}
-            </p>
-            <PinInput
-              label={t("auth.settings.parental.pin.currentPin", "Current PIN")}
-              value={disablePin}
-              onChange={setDisablePin}
-            />
-            {disableError && (
-              <p className="text-xs" style={{ color: "var(--color-danger)" }}>{disableError}</p>
-            )}
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setDisableOpen(false)} disabled={updateParental.isPending}>
-                {t("common.cancel")}
-              </Button>
-              <Button
-                variant="primary"
-                loading={updateParental.isPending}
-                disabled={disablePin.length !== 4}
-                onClick={handleConfirmDisable}
-              >
-                {t("common.confirm", "Confirm")}
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      <div className="border-t border-[var(--border)] pt-4 flex flex-col gap-3">
         <div>
           <h4 className="text-sm font-semibold text-[var(--text)]">
             {hasPin
@@ -588,7 +421,7 @@ function ParentalSection() {
           />
         )}
         <PinInput
-          label={hasPin ? t("auth.settings.parental.pin.newPin") : t("auth.settings.parental.pin.newPin")}
+          label={t("auth.settings.parental.pin.newPin")}
           value={pin}
           onChange={setPin}
         />
@@ -608,7 +441,6 @@ function ParentalSection() {
             variant="primary"
             loading={updateParental.isPending}
             disabled={
-              !enabled ||
               pin.length < 4 ||
               (hasPin && currentPin.length < 4) ||
               (!hasPin && password === "")

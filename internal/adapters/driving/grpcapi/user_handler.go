@@ -376,6 +376,8 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	if req.Region != nil && *req.Region != "" {
 		opts = append(opts, user.WithProfileRegion(strings.ToUpper(*req.Region)))
 	}
+	parental := &user.ParentalSettings{}
+	hasParental := false
 	if req.Pin != nil && *req.Pin != "" {
 		hash, hErr := h.userSvc.HashPIN(*req.Pin)
 		if hErr != nil {
@@ -383,7 +385,16 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 			span.SetStatus(otelcodes.Error, hErr.Error())
 			return nil, status.Errorf(codes.InvalidArgument, "%v", hErr)
 		}
-		opts = append(opts, user.WithProfileParental(&user.ParentalSettings{PINHash: hash}))
+		parental.PINHash = hash
+		hasParental = true
+	}
+	if req.MaxAge != nil && *req.MaxAge >= 0 {
+		age := int(*req.MaxAge)
+		parental.MaxAge = &age
+		hasParental = true
+	}
+	if hasParental {
+		opts = append(opts, user.WithProfileParental(parental))
 	}
 	p, err := user.NewProfile(
 		shared.ProfileID(id.New("prf-")),
@@ -487,6 +498,17 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 			p.Parental = &user.ParentalSettings{}
 		}
 		p.Parental.PINHash = hash
+	}
+	if req.MaxAge != nil {
+		if p.Parental == nil {
+			p.Parental = &user.ParentalSettings{}
+		}
+		if *req.MaxAge < 0 {
+			p.Parental.MaxAge = nil
+		} else {
+			age := int(*req.MaxAge)
+			p.Parental.MaxAge = &age
+		}
 	}
 	if err := h.userSvc.UpdateProfile(ctx, p); err != nil {
 		span.RecordError(err)

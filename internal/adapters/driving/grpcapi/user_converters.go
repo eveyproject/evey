@@ -64,6 +64,10 @@ func profileToProto(p *user.Profile) *eveyv1.Profile {
 	if p.Region != nil {
 		pb.Region = p.Region
 	}
+	if p.Parental != nil && p.Parental.MaxAge != nil {
+		v := int32(*p.Parental.MaxAge)
+		pb.MaxAge = &v
+	}
 	return pb
 }
 

@@ -209,6 +209,9 @@ message Profile {
   // Kids profile: restricted content by default + forces non-kids profiles
   // on the same user to have a PIN set.
   bool is_kids = 13;
+  // Parental MaxAge cap stored on the profile. Only meaningful when
+  // is_kids=true; absent means "use the implicit kids default (12)".
+  optional int32 max_age = 14;
 }
 
 message AuthResponse {
@@ -313,6 +316,9 @@ message CreateProfileRequest {
   optional string pin = 7; // 4-digit PIN required when kids profile exists
   optional string locale = 8;
   optional string region = 9;
+  // Parental age cap. Only honored when is_kids=true; ignored otherwise.
+  // Unset = fall back to the implicit kids default (12).
+  optional int32 max_age = 10;
 }
 
 message UpdateProfileRequest {
@@ -326,6 +332,9 @@ message UpdateProfileRequest {
   optional string region = 8;
   optional bool is_kids = 9;
   optional string pin = 10; // empty string clears the PIN; 4 digits sets it
+  // Parental age cap. Only honored when the profile is_kids=true; ignored
+  // otherwise. Sentinel: -1 clears any stored value, 0+ sets it.
+  optional int32 max_age = 11;
 }
 
 message DeleteProfileRequest {

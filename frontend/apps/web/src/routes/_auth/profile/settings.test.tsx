@@ -126,11 +126,13 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(screen.getByTestId("notification-settings")).toBeInTheDocument());
   });
 
-  it("switching to Parental tab shows parental controls toggle", async () => {
+  it("switching to Parental tab shows the PIN management section", async () => {
     const SettingsPage = await getSettingsPage();
     render(React.createElement(SettingsPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /Parental/i }));
-    await waitFor(() => expect(screen.getByRole("switch")).toBeInTheDocument());
+    // The age-toggle moved to per-profile editing; the parental tab is now
+    // strictly the PIN management form.
+    await waitFor(() => expect(screen.getByLabelText(/New PIN/i)).toBeInTheDocument());
   });
 
   it("Parental tab shows PIN error when PINs do not match", async () => {
