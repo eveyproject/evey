@@ -443,10 +443,10 @@ func registerParentalRoutes(
 		profileRepo: profileRepo,
 		userRepo:    userRepo,
 		hasher:      hasher,
-		// 5 attempts up front, then refill 1 token per minute. Generous enough
-		// for a household ("oops, wrong PIN, retry") while still cutting short
-		// brute-force attempts (after burnout, an attacker gets ~60 tries/hour).
-		pinRL: ratelimit.NewWithBurst(5, 1.0),
+		// 15 attempts up front, then refill 1 token every 20 seconds (3/min).
+		// Comfortable for a household with kids fat-fingering the PIN; after
+		// burnout still caps a brute-force attacker to ~180 tries/hour.
+		pinRL: ratelimit.NewWithBurst(15, 3.0),
 	}
 	mux.HandleFunc("GET /api/v1/profiles/{id}/parental", authMw(h.getSettings))
 	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", authMw(h.updateSettings))
