@@ -279,6 +279,22 @@ func (s *UserService) UpdateProfile(ctx context.Context, p *user.Profile) error 
 	return nil
 }
 
+// SetDefaultProfile atomically promotes profileID to be the default profile
+// of its owning user. Caller is expected to be admin (RBAC handles that);
+// the service only enforces the data invariant that exactly one profile per
+// user holds is_default=true.
+func (s *UserService) SetDefaultProfile(ctx context.Context, profileID shared.ProfileID) (*user.Profile, error) {
+	target, err := s.profiles.GetByID(ctx, profileID)
+	if err != nil {
+		return nil, fmt.Errorf("UserService.SetDefaultProfile: %w", err)
+	}
+	if err := s.profiles.SetDefault(ctx, target.UserID, target.ID); err != nil {
+		return nil, fmt.Errorf("UserService.SetDefaultProfile: %w", err)
+	}
+	target.IsDefault = true
+	return target, nil
+}
+
 //  1. User.MaxProfiles cap (create only, skipped for updates)
 //  2. Kids invariant: when any kids profile exists on this user, every
 //     non-kids profile must have a PIN set.

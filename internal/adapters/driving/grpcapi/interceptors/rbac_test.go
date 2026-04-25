@@ -88,6 +88,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.UserService/DeleteUser",
 		"/evey.v1.UserService/DisableUser",
 		"/evey.v1.UserService/ListUsers",
+		"/evey.v1.UserService/SetDefaultProfile",
 		"/evey.v1.UserService/CreateAPIKey",
 		"/evey.v1.UserService/ListAPIKeys",
 		"/evey.v1.UserService/RevokeAPIKey",

@@ -97,6 +97,28 @@ func (r *FakeProfileRepository) GetAll(_ context.Context) ([]*user.Profile, erro
 	return out, nil
 }
 
+func (r *FakeProfileRepository) SetDefault(_ context.Context, userID shared.UserID, profileID shared.ProfileID) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
+	target, ok := r.items[string(profileID)]
+	if !ok || target.UserID != userID {
+		return ErrNotFound
+	}
+	for _, p := range r.items {
+		if p.UserID == userID {
+			p.IsDefault = false
+		}
+	}
+	target.IsDefault = true
+	return nil
+}
+
 func (r *FakeProfileRepository) Delete(_ context.Context, id shared.ProfileID) error {
 	if r.Err != nil {
 		return r.Err

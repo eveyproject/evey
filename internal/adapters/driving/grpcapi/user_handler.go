@@ -27,6 +27,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -498,6 +499,34 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return profileToProto(p), nil
+}
+
+func (h *userHandler) SetDefaultProfile(ctx context.Context, req *eveyv1.SetDefaultProfileRequest) (*eveyv1.Profile, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.SetDefaultProfile")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", req.Id))
+	if _, err := requireClaims(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("userHandler.SetDefaultProfile: %w", err)
+	}
+	// RBAC interceptor already gates this to admin; double-check is unnecessary.
+	if req.Id == "" {
+		span.SetStatus(otelcodes.Error, "missing profile id")
+		return nil, status.Error(codes.InvalidArgument, "profile id is required")
+	}
+	updated, err := h.userSvc.SetDefaultProfile(ctx, shared.ProfileID(req.Id))
+	if err != nil {
+		span.RecordError(err)
+		if errors.Is(err, shared.ErrNotFound) {
+			span.SetStatus(otelcodes.Error, "profile not found")
+			return nil, status.Errorf(codes.NotFound, "profile not found")
+		}
+		slog.Error("set default profile", slog.Any("err", err))
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, status.Errorf(codes.Internal, "internal error")
+	}
+	return profileToProto(updated), nil
 }
 
 func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfileRequest) (*eveyv1.DeleteProfileResponse, error) {

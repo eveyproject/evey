@@ -26,6 +26,10 @@ type ProfileRepository interface {
 	GetAll(ctx context.Context) ([]*Profile, error)
 	Update(ctx context.Context, p *Profile) error
 	Delete(ctx context.Context, id shared.ProfileID) error
+	// SetDefault atomically clears is_default on every other profile owned
+	// by userID and sets it on profileID. Returns ErrNotFound if profileID
+	// does not exist or does not belong to userID.
+	SetDefault(ctx context.Context, userID shared.UserID, profileID shared.ProfileID) error
 }
 
 type RefreshTokenRepository interface {

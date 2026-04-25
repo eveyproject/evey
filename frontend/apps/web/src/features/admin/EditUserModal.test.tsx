@@ -14,6 +14,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceListProfiles: (_id: string, _opts: unknown) => ({ data: { profiles: [] }, isLoading: false }),
   useUserServiceCreateProfile: () => ({ mutate: vi.fn(), isPending: false }),
   useUserServiceDeleteProfile: () => ({ mutate: vi.fn(), isPending: false }),
+  useUserServiceSetDefaultProfile: () => ({ mutate: vi.fn(), isPending: false }),
   useLibraryAccessServiceGetUserLibraryAccess: (_id: string, _opts: unknown) => getAccessMock(),
   useLibraryAccessServiceSetUserLibraryAccess: () => ({ mutateAsync: setAccessMutateAsync, isPending: false }),
   useLibraryAccessServiceRevokeAllUserLibraryAccess: () => ({ mutateAsync: revokeAccessMutateAsync, isPending: false }),

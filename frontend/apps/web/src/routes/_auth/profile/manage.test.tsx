@@ -16,6 +16,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceCreateProfile: (_opts: unknown) => ({ mutate: createMutate, isPending: false }),
   useUserServiceUpdateProfile: (_opts: unknown) => ({ mutate: updateMutate, isPending: false }),
   useUserServiceDeleteProfile: (_opts: unknown) => ({ mutate: deleteMutate, isPending: false }),
+  useUserServiceSetDefaultProfile: (_opts: unknown) => ({ mutate: vi.fn(), isPending: false }),
   getUserServiceListProfilesQueryKey: (id: string) => ["/api/v1/users", id, "profiles"],
 }));
 

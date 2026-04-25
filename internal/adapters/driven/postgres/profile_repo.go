@@ -175,6 +175,60 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 	return nil
 }
 
+func (r *ProfileRepository) SetDefault(ctx context.Context, userID shared.UserID, profileID shared.ProfileID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.SetDefault")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("user.id", string(userID)),
+		attribute.String("profile.id", string(profileID)),
+	)
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("ProfileRepo.SetDefault begin tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+				slog.Warn("ProfileRepo.SetDefault rollback failed", slog.Any("err", rbErr))
+			}
+		}
+	}()
+	if _, err = tx.ExecContext(ctx,
+		`UPDATE profiles SET is_default=false WHERE user_id=$1 AND is_default=true AND id <> $2`,
+		userID, profileID,
+	); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("clear other defaults: %w", err)
+	}
+	res, err := tx.ExecContext(ctx,
+		`UPDATE profiles SET is_default=true WHERE id=$1 AND user_id=$2`,
+		profileID, userID,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("set default: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		err = shared.ErrNotFound
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
+}
+
 func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.profile.GetAll")
 	defer span.End()

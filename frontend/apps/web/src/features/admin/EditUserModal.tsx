@@ -210,7 +210,7 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
               {t("admin.users.noProfiles", "This user has no profiles yet.")}
             </p>
           ) : (
-            <ProfileManagerList userId={user.id ?? ""} profiles={profiles} />
+            <ProfileManagerList userId={user.id ?? ""} profiles={profiles} canSetDefault />
           )}
         </div>
         <div className="flex justify-end gap-2 pt-2">

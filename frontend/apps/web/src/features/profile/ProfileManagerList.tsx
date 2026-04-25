@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Star } from "lucide-react";
 import {
   useUserServiceDeleteProfile,
+  useUserServiceSetDefaultProfile,
   getUserServiceListProfilesQueryKey,
 } from "@evey/api";
 import type { V1Profile } from "@evey/api";
@@ -16,9 +17,15 @@ import { EditProfileDialog } from "./EditProfileDialog";
 interface ProfileManagerListProps {
   userId: string;
   profiles: V1Profile[];
+  /**
+   * Reveals the "Set as default" affordance on non-default profiles. The
+   * underlying RPC is admin-only on the server, so this stays gated to the
+   * admin → user-edit flow rather than the regular user settings page.
+   */
+  canSetDefault?: boolean;
 }
 
-export function ProfileManagerList({ userId, profiles }: ProfileManagerListProps) {
+export function ProfileManagerList({ userId, profiles, canSetDefault = false }: ProfileManagerListProps) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<V1Profile | null>(null);
@@ -32,6 +39,17 @@ export function ProfileManagerList({ userId, profiles }: ProfileManagerListProps
         void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(userId) });
         toast.success(t("auth.profile.deleted", "Profile deleted"));
         setConfirmDelete(null);
+      },
+      onError: (err: Error) =>
+        toast.error(err.message || t("auth.profile.failedToUpdate", "Failed to update profile")),
+    },
+  });
+
+  const setDefault = useUserServiceSetDefaultProfile({
+    mutation: {
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(userId) });
+        toast.success(t("auth.profile.manage.defaultUpdated", "Default profile updated"));
       },
       onError: (err: Error) =>
         toast.error(err.message || t("auth.profile.failedToUpdate", "Failed to update profile")),
@@ -66,6 +84,18 @@ export function ProfileManagerList({ userId, profiles }: ProfileManagerListProps
                   <Badge variant="success">{t("auth.profile.manage.kidsBadge", "Kids")}</Badge>
                 )}
               </div>
+              {canSetDefault && !isDefault && (
+                <Button
+                  variant="ghost"
+                  aria-label={t("auth.profile.manage.setDefault", "Set as default")}
+                  loading={setDefault.isPending && setDefault.variables?.id === p.id}
+                  onClick={() => {
+                    if (p.id) setDefault.mutate({ id: p.id, data: {} });
+                  }}
+                >
+                  <Star size={16} aria-hidden="true" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 aria-label={t("common.edit", "Edit")}

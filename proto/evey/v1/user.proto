@@ -87,6 +87,13 @@ service UserService {
     };
   }
 
+  rpc SetDefaultProfile(SetDefaultProfileRequest) returns (Profile) {
+    option (google.api.http) = {
+      post: "/api/v1/profiles/{id}/default"
+      body: "*"
+    };
+  }
+
   rpc ListProfiles(ListProfilesRequest) returns (ListProfilesResponse) {
     option (google.api.http) = {
       get: "/api/v1/users/{user_id}/profiles"
@@ -326,6 +333,10 @@ message DeleteProfileRequest {
 }
 
 message DeleteProfileResponse {}
+
+message SetDefaultProfileRequest {
+  string id = 1;
+}
 
 message ListProfilesRequest {
   string user_id = 1;
