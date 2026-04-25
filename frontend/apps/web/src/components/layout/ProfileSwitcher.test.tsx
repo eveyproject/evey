@@ -118,7 +118,7 @@ describe("ProfileSwitcher", () => {
     renderSwitcher();
     await user.click(screen.getByTestId("profile-switcher-btn"));
     await user.click(screen.getByTestId("profile-switcher-manage"));
-    expect(mockNavigate).toHaveBeenCalledWith({ to: "/profile/manage" });
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/profile/settings" });
   });
 
   it("falls back to isDefault when activeProfileId has no match", () => {

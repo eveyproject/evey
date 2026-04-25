@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type React from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore, toast } from "@evey/store";
-import { userServiceRefreshToken } from "@evey/api";
+import { userServiceRefreshToken, userServiceLogout } from "@evey/api";
 import type { V1Profile } from "@evey/api";
-import { Users, Check } from "lucide-react";
+import { Users, Check, Settings, Clock, BarChart3, QrCode, LayoutList, LogOut } from "lucide-react";
 import { PinPromptDialog } from "@/features/profile/PinPromptDialog";
 
 function profileAvatarUrl(p: V1Profile): string | null {
@@ -41,6 +42,8 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { logout } = useAuthStore();
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
   const [pinTarget, setPinTarget] = useState<V1Profile | null>(null);
@@ -100,8 +103,33 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
 
   const handleManage = useCallback(() => {
     setOpen(false);
-    void navigate({ to: "/profile/manage" });
+    void navigate({ to: "/profile/settings" });
   }, [navigate]);
+
+  const go = useCallback((to: string) => {
+    setOpen(false);
+    void navigate({ to });
+  }, [navigate]);
+
+  const handleLogout = useCallback(() => {
+    setOpen(false);
+    qc.clear();
+    logout();
+    localStorage.removeItem("evey-recent-searches");
+    void userServiceLogout({}).catch((err) => console.warn("logout failed", err));
+    void navigate({ to: "/login" });
+  }, [qc, logout, navigate]);
+
+  type UserMenuItem = { label: string; icon: React.ReactNode; action: () => void; testid: string };
+  const userItems: UserMenuItem[] = [
+    { label: t("common.nav.settings"), icon: <Settings size={16} />, action: () => go("/profile/settings"), testid: "topbar-user-menu-settings" },
+    { label: t("common.nav.watchHistory"), icon: <Clock size={16} />, action: () => go("/profile/history"), testid: "topbar-user-menu-history" },
+    { label: t("common.nav.myStats"), icon: <BarChart3 size={16} />, action: () => go("/profile/stats"), testid: "topbar-user-menu-stats" },
+    { label: t("common.nav.quickConnect"), icon: <QrCode size={16} />, action: () => go("/quickconnect"), testid: "topbar-user-menu-quickconnect" },
+  ];
+  if (isAdmin) {
+    userItems.push({ label: t("common.nav.admin"), icon: <LayoutList size={16} />, action: () => go("/admin"), testid: "topbar-user-menu-admin" });
+  }
 
   if (!active) return null;
 
@@ -110,7 +138,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-sm font-medium cursor-pointer hover:opacity-90 transition-opacity-fast overflow-hidden"
-        aria-label={t("common.nav.profileSwitcher", "Switch profile")}
+        aria-label={t("common.nav.userMenu", "User menu")}
         aria-expanded={open}
         aria-haspopup="true"
         data-testid="profile-switcher-btn"
@@ -171,6 +199,29 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
           >
             <Users size={16} className="text-[var(--text-muted)] shrink-0" />
             {t("common.nav.manageProfiles", "Manage Profiles")}
+          </button>
+          <div className="border-t border-[var(--border)] my-1" />
+          {userItems.map((item) => (
+            <button
+              key={item.label}
+              onClick={item.action}
+              role="menuitem"
+              data-testid={item.testid}
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
+            >
+              <span className="text-[var(--text-muted)] shrink-0">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+          <div className="border-t border-[var(--border)] my-1" />
+          <button
+            onClick={handleLogout}
+            role="menuitem"
+            data-testid="logout-btn"
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--color-danger)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
+          >
+            <LogOut size={16} className="shrink-0" />
+            {t("common.nav.signOut")}
           </button>
         </div>
       )}

@@ -1,116 +1,15 @@
-import { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import type React from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@evey/store";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, userServiceLogout } from "@evey/api";
-import { Search, Settings, Clock, LayoutList, LogOut, QrCode, BarChart3 } from "lucide-react";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
+import { Search } from "lucide-react";
 import { NotificationBell } from "@/features/user/NotificationBell";
 import { SearchDropdown } from "@/features/search/SearchDropdown";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { ProfileSwitcher } from "@/components/layout/ProfileSwitcher";
-
-function UserMenu({ userInitial, avatarUrl }: { userInitial: string; avatarUrl: string | null }) {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { logout } = useAuthStore();
-  const isAdmin = useAuthStore((s) => s.isAdmin);
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onMouseDown = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  const go = useCallback((to: string) => {
-    setOpen(false);
-    void navigate({ to });
-  }, [navigate]);
-
-  const handleLogout = () => {
-    setOpen(false);
-    queryClient.clear();
-    logout();
-    localStorage.removeItem("evey-recent-searches");
-    // Clear httpOnly refresh cookie server-side (best-effort)
-    void userServiceLogout({}).catch((err) => console.warn("logout failed", err));
-    void navigate({ to: "/login" });
-  };
-
-  const items = useMemo(() => {
-    const base: { label: string; icon: React.ReactNode; action: () => void; testid: string }[] = [
-      { label: t("common.nav.settings"), icon: <Settings size={16} />, action: () => go("/profile/settings"), testid: "topbar-user-menu-settings" },
-      { label: t("common.nav.watchHistory"), icon: <Clock size={16} />, action: () => go("/profile/history"), testid: "topbar-user-menu-history" },
-      { label: t("common.nav.myStats"), icon: <BarChart3 size={16} />, action: () => go("/profile/stats"), testid: "topbar-user-menu-stats" },
-      { label: t("common.nav.quickConnect"), icon: <QrCode size={16} />, action: () => go("/quickconnect"), testid: "topbar-user-menu-quickconnect" },
-    ];
-    if (isAdmin) {
-      base.push({ label: t("common.nav.admin"), icon: <LayoutList size={16} />, action: () => go("/admin"), testid: "topbar-user-menu-admin" });
-    }
-    return base;
-  }, [go, isAdmin, t]);
-
-  return (
-    <div ref={menuRef} className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-sm font-medium cursor-pointer hover:opacity-90 transition-opacity-fast overflow-hidden"
-        aria-label={t("common.nav.userMenu")}
-        aria-expanded={open}
-        aria-haspopup="true"
-        data-testid="topbar-user-menu-btn"
-      >
-        {avatarUrl ? (
-          <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-        ) : (
-          userInitial
-        )}
-      </button>
-      {open && (
-        <div
-          data-testid="topbar-user-menu"
-          className="absolute right-0 top-full mt-2 w-48 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] shadow-lg py-1 z-overlay animate-fade-in"
-        >
-          {items.map((item) => (
-            <button
-              key={item.label}
-              onClick={item.action}
-              data-testid={item.testid}
-              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
-            >
-              <span className="text-[var(--text-muted)] shrink-0">{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
-          <div className="border-t border-[var(--border)] my-1" />
-          <button
-            onClick={handleLogout}
-            data-testid="logout-btn"
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--color-danger)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
-          >
-            <LogOut size={16} className="shrink-0" />
-            {t("common.nav.signOut")}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function TopBar() {
   const { t } = useTranslation();
@@ -144,14 +43,6 @@ export function TopBar() {
   const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } });
   const profiles = profilesResp?.profiles ?? [];
   const activeProfileId = useAuthStore((s) => s.profileId);
-  const activeProfile = profiles.find((p) => p.id === activeProfileId)
-    ?? profiles.find((p) => p.isDefault)
-    ?? profiles[0];
-  const userInitial = currentUser?.username?.charAt(0).toUpperCase() ?? "U";
-  const userAvatarUrl = activeProfile?.avatarPath && activeProfile?.id
-    ? `/api/v1/profiles/${activeProfile.id}/avatar`
-    : null;
-  const hasMultipleProfiles = profiles.length >= 2;
   const { recents, push: pushRecent, remove: removeRecent, clear: clearRecents } = useRecentSearches();
 
   const isOnSearch = location.pathname === "/search";
@@ -253,10 +144,7 @@ export function TopBar() {
       </div>
       <div className="flex items-center gap-3">
         <NotificationBell />
-        {hasMultipleProfiles && (
-          <ProfileSwitcher profiles={profiles} activeProfileId={activeProfileId} />
-        )}
-        <UserMenu userInitial={userInitial} avatarUrl={userAvatarUrl} />
+        <ProfileSwitcher profiles={profiles} activeProfileId={activeProfileId} />
       </div>
     </header>
   );

@@ -83,13 +83,15 @@ describe("TopBar", () => {
     expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument();
   });
 
-  it("renders user menu button with initial", () => {
+  it("renders user menu button with active profile initial", () => {
+    mockProfiles = [{ id: "p1", userId: "u1", name: "Alice", isDefault: true }];
     renderTopBar();
     expect(screen.getByRole("button", { name: "User menu" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "User menu" })).toHaveTextContent("G");
+    expect(screen.getByRole("button", { name: "User menu" })).toHaveTextContent("A");
   });
 
   it("user menu opens on avatar click and shows menu items", async () => {
+    mockProfiles = [{ id: "p1", userId: "u1", name: "Alice", isDefault: true }];
     const user = userEvent.setup();
     renderTopBar();
     expect(screen.queryByText("Settings")).not.toBeInTheDocument();
@@ -100,6 +102,7 @@ describe("TopBar", () => {
   });
 
   it("logout button is visible in user menu and calls logout + navigate", async () => {
+    mockProfiles = [{ id: "p1", userId: "u1", name: "Alice", isDefault: true }];
     const user = userEvent.setup();
     renderTopBar();
     await user.click(screen.getByRole("button", { name: "User menu" }));
@@ -110,6 +113,7 @@ describe("TopBar", () => {
   });
 
   it("user menu closes when Escape is pressed", async () => {
+    mockProfiles = [{ id: "p1", userId: "u1", name: "Alice", isDefault: true }];
     const user = userEvent.setup();
     renderTopBar();
     await user.click(screen.getByRole("button", { name: "User menu" }));
@@ -119,24 +123,28 @@ describe("TopBar", () => {
   });
 
   it("does not show Admin menu item when user is not admin", async () => {
+    mockProfiles = [{ id: "p1", userId: "u1", name: "Alice", isDefault: true }];
     const user = userEvent.setup();
     renderTopBar();
     await user.click(screen.getByRole("button", { name: "User menu" }));
     expect(screen.queryByText("Admin")).not.toBeInTheDocument();
   });
 
-  it("hides profile switcher when only 1 profile exists", () => {
+  it("renders unified user menu with one profile (no separate switcher button)", () => {
     mockProfiles = [{ id: "p1", userId: "u1", name: "Alice", isDefault: true }];
     renderTopBar();
-    expect(screen.queryByTestId("profile-switcher-btn")).not.toBeInTheDocument();
+    // Only one avatar button — the profile switcher and user menu are merged.
+    expect(screen.getAllByTestId("profile-switcher-btn")).toHaveLength(1);
   });
 
-  it("shows profile switcher when >= 2 profiles exist", () => {
+  it("shows other profiles in the dropdown when >= 2 profiles exist", async () => {
     mockProfiles = [
       { id: "p1", userId: "u1", name: "Alice", isDefault: true },
       { id: "p2", userId: "u1", name: "Bob", isDefault: false },
     ];
+    const user = userEvent.setup();
     renderTopBar();
-    expect(screen.getByTestId("profile-switcher-btn")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "User menu" }));
+    expect(screen.getByTestId("profile-switcher-item-p2")).toBeInTheDocument();
   });
 });
