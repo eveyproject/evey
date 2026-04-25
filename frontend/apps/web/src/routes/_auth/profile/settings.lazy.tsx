@@ -356,7 +356,13 @@ function ParentalSection() {
       setConfirmPin("");
       setPassword("");
     },
-    onError: (err: Error) => toast.error(err.message || t("auth.settings.parental.failedToUpdate")),
+    onError: (err: Error) => {
+      // Backend i18n keys come back as the raw HTTP `message`. Resolve any
+      // recognized key through t() before surfacing to the user.
+      const raw = err.message ?? "";
+      const translated = raw.startsWith("errors.") ? t(raw, raw) : raw;
+      toast.error(translated || t("auth.settings.parental.failedToUpdate"));
+    },
   });
 
   function handleSavePin() {

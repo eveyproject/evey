@@ -266,7 +266,7 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		// authenticated to reach this endpoint.
 		if !h.pinRL.Allow(profileID) {
 			span.SetStatus(codes.Error, "rate limited")
-			http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
+			http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
 			return
 		}
 		valid, err := h.hasher.Verify(body.CurrentPIN, profile.Parental.PINHash)
@@ -284,7 +284,7 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		// + setting a PIN the attacker picks.
 		if !h.pinRL.Allow(profileID) {
 			span.SetStatus(codes.Error, "rate limited")
-			http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
+			http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
 			return
 		}
 		u, uerr := h.userRepo.GetByID(r.Context(), profile.UserID)
@@ -408,7 +408,7 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 	// per-profile bucket.
 	if !h.pinRL.Allow(profileID) {
 		span.SetStatus(codes.Error, "rate limited")
-		http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
+		http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
 		return
 	}
 	if profile.Parental == nil || profile.Parental.PINHash == "" {
@@ -443,7 +443,10 @@ func registerParentalRoutes(
 		profileRepo: profileRepo,
 		userRepo:    userRepo,
 		hasher:      hasher,
-		pinRL:       ratelimit.NewWithBurst(3, 0.6),
+		// 5 attempts up front, then refill 1 token per minute. Generous enough
+		// for a household ("oops, wrong PIN, retry") while still cutting short
+		// brute-force attempts (after burnout, an attacker gets ~60 tries/hour).
+		pinRL: ratelimit.NewWithBurst(5, 1.0),
 	}
 	mux.HandleFunc("GET /api/v1/profiles/{id}/parental", authMw(h.getSettings))
 	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", authMw(h.updateSettings))
