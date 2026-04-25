@@ -784,16 +784,15 @@ func TestProfile_EffectiveParental(t *testing.T) {
 		}
 	})
 
-	t.Run("non-kids with parental enabled → settings honored", func(t *testing.T) {
+	t.Run("non-kids with parental enabled and MaxAge → still nil (filter is kids-only)", func(t *testing.T) {
 		t.Parallel()
 		p := &user.Profile{
 			ID:       "p1",
 			IsKids:   false,
 			Parental: &user.ParentalSettings{Enabled: true, MaxAge: intPtr(15)},
 		}
-		got := p.EffectiveParental()
-		if got == nil || got.MaxAge == nil || *got.MaxAge != 15 {
-			t.Errorf("expected MaxAge=15, got %+v", got)
+		if got := p.EffectiveParental(); got != nil {
+			t.Errorf("non-kids profiles must never carry an age filter, got %+v", got)
 		}
 	})
 

@@ -245,9 +245,10 @@ func TestPlaybackHandler_StartStream_ParentalBlocked(t *testing.T) {
 		ID:     "profile-1",
 		UserID: "user-1",
 		Name:   "Kid",
+		IsKids: true,
 		Parental: &user.ParentalSettings{
 			MaxAge:  intPtr(10),
-			Enabled:   true,
+			Enabled: true,
 		},
 	})
 	mediaQuery.Seed(&library.MediaItem{
@@ -275,9 +276,10 @@ func TestPlaybackHandler_StartStream_ParentalAllowed(t *testing.T) {
 		ID:     "profile-1",
 		UserID: "user-1",
 		Name:   "Kid",
+		IsKids: true,
 		Parental: &user.ParentalSettings{
 			MaxAge:  intPtr(13),
-			Enabled:   true,
+			Enabled: true,
 		},
 	})
 	mediaQuery.Seed(&library.MediaItem{
@@ -333,6 +335,7 @@ func TestPlaybackHandler_StartStream_ParentalBlockedTag(t *testing.T) {
 		ID:     "profile-1",
 		UserID: "user-1",
 		Name:   "Kid",
+		IsKids: true,
 		Parental: &user.ParentalSettings{
 			BlockedTags: []string{"violence"},
 			Enabled:     true,

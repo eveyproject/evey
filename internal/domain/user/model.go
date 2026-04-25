@@ -93,35 +93,28 @@ const DefaultKidsMaxAge = 12
 // read-only filtering decisions (rating cap, blocked tags); it does NOT
 // represent persisted state. Returns nil when no enforcement applies.
 //
-// Rules:
-//   - IsKids profiles always have parental enforcement, regardless of the
-//     stored Parental.Enabled flag. If MaxAge is unset, DefaultKidsMaxAge
-//     is used.
-//   - Non-kids profiles only enforce when Parental.Enabled is true.
+// Rule: parental age filtering is a kids-only concern. Adults don't need
+// to be protected from R-rated content, so a MaxAge stored on a non-kids
+// profile is ignored even when Parental.Enabled is true. Kids profiles
+// always enforce, falling back to DefaultKidsMaxAge when no explicit
+// cap is set.
 func (p *Profile) EffectiveParental() *ParentalSettings {
-	if p == nil {
+	if p == nil || !p.IsKids {
 		return nil
 	}
-	if p.IsKids {
-		eff := ParentalSettings{Enabled: true}
-		if p.Parental != nil {
-			eff.BlockedTags = p.Parental.BlockedTags
-			eff.PINHash = p.Parental.PINHash
-			if p.Parental.MaxAge != nil {
-				eff.MaxAge = p.Parental.MaxAge
-			}
+	eff := ParentalSettings{Enabled: true}
+	if p.Parental != nil {
+		eff.BlockedTags = p.Parental.BlockedTags
+		eff.PINHash = p.Parental.PINHash
+		if p.Parental.MaxAge != nil {
+			eff.MaxAge = p.Parental.MaxAge
 		}
-		if eff.MaxAge == nil {
-			def := DefaultKidsMaxAge
-			eff.MaxAge = &def
-		}
-		return &eff
 	}
-	if p.Parental == nil || !p.Parental.Enabled {
-		return nil
+	if eff.MaxAge == nil {
+		def := DefaultKidsMaxAge
+		eff.MaxAge = &def
 	}
-	cp := *p.Parental
-	return &cp
+	return &eff
 }
 
 type RefreshToken struct {
