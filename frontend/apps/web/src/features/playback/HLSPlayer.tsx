@@ -181,6 +181,7 @@ export function HLSPlayer({
     videoRef, hlsRef, positionRef, streamInfo, startPositionMs,
     transcodeMode, isDirectPlay, isDirectStream, onEnded,
     setTranscodeMode, setIsBuffering,
+    streamTokenRef, onStreamTokenRefreshRef,
   });
 
   const { transcodeStartTime, setTranscodeStartTime, hlsLevels } = useTranscodePlayback({

@@ -8,18 +8,27 @@ type HlsEventHandler = (...args: unknown[]) => void;
 const hlsEventListeners: Record<string, HlsEventHandler[]> = {};
 let lastHlsInstance: MockHls | null = null;
 
+interface MockHlsConfig {
+  xhrSetup?: (xhr: XMLHttpRequest, url: string) => void;
+  startPosition?: number;
+  maxBufferLength?: number;
+  maxMaxBufferLength?: number;
+}
+
 class MockHls {
   static isSupported = vi.fn(() => true);
   static Events = {
     MANIFEST_PARSED: "hlsManifestParsed",
     AUDIO_TRACKS_UPDATED: "hlsAudioTracksUpdated",
     ERROR: "hlsError",
+    FRAG_LOADED: "hlsFragLoaded",
   };
   static ErrorTypes = {
     NETWORK_ERROR: "networkError",
     MEDIA_ERROR: "mediaError",
     OTHER_ERROR: "otherError",
   };
+  config: MockHlsConfig;
   loadSource = vi.fn();
   attachMedia = vi.fn();
   destroy = vi.fn();
@@ -31,7 +40,8 @@ class MockHls {
     if (!hlsEventListeners[event]) hlsEventListeners[event] = [];
     hlsEventListeners[event].push(handler);
   });
-  constructor() {
+  constructor(config: MockHlsConfig = {}) {
+    this.config = config;
     lastHlsInstance = this;
   }
 }
@@ -106,14 +116,14 @@ const DEFAULT_STREAM_INFO = {
   mediaStreams: [],
 };
 
-function renderPlayer(streamInfo = DEFAULT_STREAM_INFO) {
+function renderPlayer(streamInfo = DEFAULT_STREAM_INFO, opts: { onStreamTokenRefresh?: () => Promise<string>; streamToken?: string } = {}) {
   return render(
     <HLSPlayer
       streamInfo={streamInfo as never}
       sessionId="session-1"
       mediaId="media-1"
-      streamToken="test-token"
-      onStreamTokenRefresh={() => Promise.resolve("new-token")}
+      streamToken={opts.streamToken ?? "test-token"}
+      onStreamTokenRefresh={opts.onStreamTokenRefresh ?? (() => Promise.resolve("new-token"))}
       startPositionMs={0}
     />,
   );
@@ -192,5 +202,94 @@ describe("HLSPlayer", () => {
     const video = document.querySelector("video");
     expect(video).toBeTruthy();
     expect(video!.src).toContain("remux=1");
+  });
+});
+
+// Regression: a stream token has a 5-min sliding TTL on the server. After a
+// long pause (5 min, 2 h, 6 h…), the token baked into the m3u8 segment URIs
+// expires; resume returns 401. The 401 retry path must refresh the token and
+// every subsequent fragment fetch must use the fresh value, not the stale one
+// still embedded in cached URLs.
+describe("HLSPlayer: 401 token refresh after long pause", () => {
+  function fireFatal401() {
+    const handlers = hlsEventListeners[MockHls.Events.ERROR] ?? [];
+    for (const h of handlers) {
+      h(MockHls.Events.ERROR, {
+        fatal: true,
+        type: MockHls.ErrorTypes.NETWORK_ERROR,
+        details: "fragLoadError",
+        response: { code: 401 },
+      });
+    }
+  }
+
+  function callXhrSetup(url: string): { method: string; finalUrl: string } | null {
+    const setup = lastHlsInstance?.config.xhrSetup;
+    if (!setup) return null;
+    let captured: { method: string; finalUrl: string } | null = null;
+    const xhr = {
+      open: (method: string, finalUrl: string) => { captured = { method, finalUrl }; },
+    } as unknown as XMLHttpRequest;
+    setup(xhr, url);
+    return captured;
+  }
+
+  it("xhrSetup overrides a stale token already present in the URL with the current ref value", () => {
+    renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" }, { streamToken: "fresh-token" });
+    expect(lastHlsInstance).toBeTruthy();
+    const out = callXhrSetup("/api/v1/media/media-1/hls/seg_0.ts?token=stale-token");
+    expect(out).not.toBeNull();
+    expect(out!.finalUrl).toContain("token=fresh-token");
+    expect(out!.finalUrl).not.toContain("token=stale-token");
+  });
+
+  it("xhrSetup injects token when URL has no query string", () => {
+    renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" }, { streamToken: "fresh-token" });
+    const out = callXhrSetup("/api/v1/media/media-1/hls/seg_0.ts");
+    expect(out!.finalUrl).toContain("token=fresh-token");
+  });
+
+  it("xhrSetup preserves other query params when overriding token", () => {
+    renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" }, { streamToken: "fresh-token" });
+    const out = callXhrSetup("/api/v1/media/media-1/hls/seg_0.ts?token=stale&foo=bar");
+    expect(out!.finalUrl).toContain("token=fresh-token");
+    expect(out!.finalUrl).toContain("foo=bar");
+  });
+
+  it("on 401 fragment error, refreshes the token then resumes loading with the new token", async () => {
+    const refresh = vi.fn().mockResolvedValue("refreshed-token");
+    renderPlayer(
+      { ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" },
+      { streamToken: "stale-token", onStreamTokenRefresh: refresh },
+    );
+
+    // Fire the 401 — the refresh handler is async, so wait a microtask cycle.
+    fireFatal401();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(lastHlsInstance!.startLoad).toHaveBeenCalled();
+
+    // The CRITICAL assertion: subsequent fragment xhr must use the NEW token,
+    // even when the URL handed to xhrSetup still carries the stale baked-in
+    // token from the cached m3u8.
+    const out = callXhrSetup("/api/v1/media/media-1/hls/seg_5.ts?token=stale-token");
+    expect(out!.finalUrl).toContain("token=refreshed-token");
+    expect(out!.finalUrl).not.toContain("token=stale-token");
+  });
+
+  it("on a chain of 401 then refresh failure, falls into fatal-error overlay", async () => {
+    const refresh = vi.fn().mockRejectedValue(new Error("refresh failed"));
+    renderPlayer(
+      { ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" },
+      { streamToken: "stale-token", onStreamTokenRefresh: refresh },
+    );
+
+    fireFatal401();
+    // Wait for the rejected refresh promise to settle and React to flush the
+    // setFatalError state update — findByText retries with a microtask cycle.
+    expect(await screen.findByText("Unable to play at any quality level")).toBeInTheDocument();
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 });

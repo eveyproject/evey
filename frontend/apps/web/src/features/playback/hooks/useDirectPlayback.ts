@@ -28,6 +28,19 @@ interface UseDirectPlaybackArgs {
   onEnded?: () => void;
   setTranscodeMode: (v: boolean) => void;
   setIsBuffering: (v: boolean) => void;
+  streamTokenRef?: React.MutableRefObject<string>;
+  onStreamTokenRefreshRef?: React.MutableRefObject<() => Promise<string>>;
+}
+
+function replaceTokenInUrl(url: string, newToken: string): string | null {
+  try {
+    const u = new URL(url, window.location.origin);
+    if (!u.searchParams.has("token")) return null;
+    u.searchParams.set("token", newToken);
+    return u.pathname + (u.search ? u.search : "") + (u.hash ?? "");
+  } catch {
+    return null;
+  }
 }
 
 export function useDirectPlayback({
@@ -42,6 +55,8 @@ export function useDirectPlayback({
   onEnded,
   setTranscodeMode,
   setIsBuffering,
+  streamTokenRef,
+  onStreamTokenRefreshRef,
 }: UseDirectPlaybackArgs) {
   useEffect(() => {
     const video = videoRef.current;
@@ -85,12 +100,47 @@ export function useDirectPlayback({
       }, 3000);
     }
     function handleEnded() { onEnded?.(); }
+    let tokenRefreshAttempted = false;
     function handleError() {
-      const e = video!.error;
-      if (e) {
-        if (import.meta.env.DEV) console.warn("[player] direct play error:", e.code, e.message);
-        setTranscodeMode(true);
+      const v = video;
+      if (!v) return;
+      const e = v.error;
+      if (!e) return;
+      if (import.meta.env.DEV) console.warn("[player] direct play error:", e.code, e.message);
+      // The most common error after a long pause is a 401 from the stream token
+      // expiring (5-min sliding TTL). The HTML5 video element exposes only a
+      // generic MediaError, so we can't read the HTTP status — but we can try
+      // refreshing the token and retrying the same URL once before falling
+      // back to a transcode mode switch (which is heavier and re-encodes from
+      // the current position).
+      if (
+        !tokenRefreshAttempted &&
+        onStreamTokenRefreshRef?.current &&
+        streamTokenRef &&
+        v.src &&
+        v.src.includes("token=")
+      ) {
+        tokenRefreshAttempted = true;
+        const positionSec = positionRef.current || (v.currentTime || 0);
+        (async () => {
+          try {
+            const newToken = await onStreamTokenRefreshRef.current();
+            streamTokenRef.current = newToken;
+            const nextSrc = replaceTokenInUrl(v.src, newToken);
+            if (!nextSrc) {
+              setTranscodeMode(true);
+              return;
+            }
+            v.src = nextSrc;
+            v.currentTime = positionSec;
+            try { await v.play(); } catch (err) { console.warn("video.play after token refresh failed", err); }
+          } catch {
+            setTranscodeMode(true);
+          }
+        })();
+        return;
       }
+      setTranscodeMode(true);
     }
     function handleTimeUpdate() { positionRef.current = video!.currentTime; }
     function handleWaiting() { setIsBuffering(true); }

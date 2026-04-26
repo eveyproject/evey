@@ -83,9 +83,21 @@ export function useTranscodePlayback({
       maxMaxBufferLength: 60,
       xhrSetup: (xhr: XMLHttpRequest, url: string) => {
         const tok = streamTokenRef.current;
-        if (tok && !url.includes("token=")) {
-          const sep = url.includes("?") ? "&" : "?";
-          xhr.open("GET", `${url}${sep}token=${tok}`, true);
+        if (!tok) return;
+        // The server bakes the stream token into segment URIs in the master/sub
+        // playlists. The token has a 5-min sliding TTL that lapses during pause,
+        // so on resume those baked-in URLs return 401. After a 401 retry refreshes
+        // the token, every subsequent xhr must override the URL token — so we
+        // always strip and re-inject, regardless of what the URL carries.
+        try {
+          const u = new URL(url, window.location.origin);
+          u.searchParams.set("token", tok);
+          xhr.open("GET", u.toString(), true);
+        } catch {
+          if (!url.includes("token=")) {
+            const sep = url.includes("?") ? "&" : "?";
+            xhr.open("GET", `${url}${sep}token=${tok}`, true);
+          }
         }
       },
     });
@@ -115,7 +127,24 @@ export function useTranscodePlayback({
             try {
               const newToken = await onStreamTokenRefreshRef.current();
               streamTokenRef.current = newToken;
-              hls.startLoad();
+              // For manifest/level failures, hls.js holds a stale URL with the
+              // expired token. xhrSetup rewrites the token on every request,
+              // but loadSource is needed to retry the manifest itself; for
+              // fragment failures startLoad re-drives the loader.
+              const isManifestLevel =
+                data.details === "manifestLoadError" ||
+                data.details === "manifestLoadTimeOut" ||
+                data.details === "manifestParsingError" ||
+                data.details === "levelLoadError" ||
+                data.details === "levelLoadTimeOut";
+              if (isManifestLevel) {
+                const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);
+                const freshUrl = buildTranscodeHlsUrl(mediaId, newToken, currentTrackIndex, selectedBurnInTrack, seekPos);
+                hls.loadSource(freshUrl);
+                hls.startLoad();
+              } else {
+                hls.startLoad();
+              }
             } catch {
               setFatalError(true);
             }
