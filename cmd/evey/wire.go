@@ -184,6 +184,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	pluginRunner := pluginrunner.NewRunner().
 		WithLogger(pluginLogger).
 		WithAllowMissingSandbox(cfg.Log.DevMode).
+		WithSandboxMode(cfg.Plugins.SandboxMode).
 		WithEventBus(bus)
 	manifestParser := pluginrunner.NewManifestParser()
 	pluginInstaller := pluginrunner.NewZipInstaller()
