@@ -12,6 +12,7 @@ import (
 	appconfig "github.com/evey-project/evey/internal/app/config"
 	"github.com/evey-project/evey/internal/config"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 )
 
@@ -50,7 +51,9 @@ func (h *playbackSettingsHandler) initFromDB(ctx context.Context) {
 	}
 }
 
-func (h *playbackSettingsHandler) GetPlaybackSettings(_ context.Context, _ *eveyv1.GetPlaybackSettingsRequest) (*eveyv1.PlaybackSettings, error) {
+func (h *playbackSettingsHandler) GetPlaybackSettings(ctx context.Context, _ *eveyv1.GetPlaybackSettingsRequest) (*eveyv1.PlaybackSettings, error) {
+	_, span := tracing.StartSpan(ctx, "grpc.playback_settings.GetPlaybackSettings")
+	defer span.End()
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return &eveyv1.PlaybackSettings{
@@ -60,6 +63,8 @@ func (h *playbackSettingsHandler) GetPlaybackSettings(_ context.Context, _ *evey
 }
 
 func (h *playbackSettingsHandler) UpdatePlaybackSettings(ctx context.Context, req *eveyv1.UpdatePlaybackSettingsRequest) (*eveyv1.PlaybackSettings, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback_settings.UpdatePlaybackSettings")
+	defer span.End()
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if req.SkipForwardSeconds != nil && *req.SkipForwardSeconds > 0 {

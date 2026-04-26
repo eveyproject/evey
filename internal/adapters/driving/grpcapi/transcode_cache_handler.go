@@ -5,6 +5,7 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -14,6 +15,8 @@ type transcodeCacheHandler struct {
 }
 
 func (h *transcodeCacheHandler) GetTranscodeCache(ctx context.Context, _ *eveyv1.GetTranscodeCacheRequest) (*eveyv1.TranscodeCacheInfo, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.transcode_cache.GetTranscodeCache")
+	defer span.End()
 	info, err := h.svc.GetCacheInfo(ctx)
 	if err != nil {
 		return nil, internalError("get cache info", err)
@@ -33,6 +36,8 @@ func (h *transcodeCacheHandler) GetTranscodeCache(ctx context.Context, _ *eveyv1
 }
 
 func (h *transcodeCacheHandler) ClearTranscodeCache(ctx context.Context, _ *eveyv1.ClearTranscodeCacheRequest) (*eveyv1.ClearTranscodeCacheResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.transcode_cache.ClearTranscodeCache")
+	defer span.End()
 	if err := h.svc.ClearCache(ctx); err != nil {
 		return nil, internalError("clear cache", err)
 	}
@@ -40,6 +45,8 @@ func (h *transcodeCacheHandler) ClearTranscodeCache(ctx context.Context, _ *evey
 }
 
 func (h *transcodeCacheHandler) DeleteTranscodeCacheFile(ctx context.Context, req *eveyv1.DeleteTranscodeCacheFileRequest) (*eveyv1.DeleteTranscodeCacheFileResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.transcode_cache.DeleteTranscodeCacheFile")
+	defer span.End()
 	if err := h.svc.DeleteCacheFile(ctx, req.Filename); err != nil {
 		return nil, internalError("delete cache file", err)
 	}

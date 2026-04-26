@@ -8,10 +8,11 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appnotification "github.com/evey-project/evey/internal/app/notification"
-	appuser "github.com/evey-project/evey/internal/app/user"
 	applibrary "github.com/evey-project/evey/internal/app/library"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/notification"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type notificationHandler struct {
@@ -23,6 +24,8 @@ type notificationHandler struct {
 }
 
 func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1.ListNotificationsRequest) (*eveyv1.ListNotificationsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.notification.ListNotifications")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.ListNotifications: %w", err)
@@ -51,6 +54,8 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 }
 
 func (h *notificationHandler) MarkRead(ctx context.Context, req *eveyv1.MarkReadRequest) (*eveyv1.MarkReadResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.notification.MarkRead")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.MarkRead: %w", err)
@@ -62,6 +67,8 @@ func (h *notificationHandler) MarkRead(ctx context.Context, req *eveyv1.MarkRead
 }
 
 func (h *notificationHandler) MarkAllRead(ctx context.Context, req *eveyv1.MarkAllReadRequest) (*eveyv1.MarkAllReadResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.notification.MarkAllRead")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.MarkAllRead: %w", err)
@@ -77,6 +84,8 @@ func (h *notificationHandler) MarkAllRead(ctx context.Context, req *eveyv1.MarkA
 }
 
 func (h *notificationHandler) GetUnreadCount(ctx context.Context, req *eveyv1.GetUnreadCountRequest) (*eveyv1.GetUnreadCountResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.notification.GetUnreadCount")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.GetUnreadCount: %w", err)
@@ -93,6 +102,8 @@ func (h *notificationHandler) GetUnreadCount(ctx context.Context, req *eveyv1.Ge
 }
 
 func (h *notificationHandler) DeleteAllNotifications(ctx context.Context, req *eveyv1.DeleteAllNotificationsRequest) (*eveyv1.DeleteAllNotificationsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.notification.DeleteAllNotifications")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.DeleteAllNotifications: %w", err)
@@ -108,6 +119,8 @@ func (h *notificationHandler) DeleteAllNotifications(ctx context.Context, req *e
 }
 
 func (h *notificationHandler) GetNotificationSettings(ctx context.Context, req *eveyv1.GetNotificationSettingsRequest) (*eveyv1.NotificationSettings, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.notification.GetNotificationSettings")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.GetNotificationSettings: %w", err)
@@ -124,6 +137,8 @@ func (h *notificationHandler) GetNotificationSettings(ctx context.Context, req *
 }
 
 func (h *notificationHandler) UpdateNotificationSettings(ctx context.Context, req *eveyv1.UpdateNotificationSettingsRequest) (*eveyv1.NotificationSettings, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.notification.UpdateNotificationSettings")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.UpdateNotificationSettings: %w", err)
@@ -145,6 +160,8 @@ func (h *notificationHandler) UpdateNotificationSettings(ctx context.Context, re
 }
 
 func (h *notificationHandler) GetGlobalNotificationSettings(ctx context.Context, _ *eveyv1.GetGlobalNotificationSettingsRequest) (*eveyv1.NotificationSettings, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.notification.GetGlobalNotificationSettings")
+	defer span.End()
 	s, err := h.query.GetGlobalSettings(ctx)
 	if err != nil {
 		return nil, internalError("get global settings", err)
@@ -153,6 +170,8 @@ func (h *notificationHandler) GetGlobalNotificationSettings(ctx context.Context,
 }
 
 func (h *notificationHandler) UpdateGlobalNotificationSettings(ctx context.Context, req *eveyv1.UpdateGlobalNotificationSettingsRequest) (*eveyv1.NotificationSettings, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.notification.UpdateGlobalNotificationSettings")
+	defer span.End()
 	s := &notification.Settings{
 		ProfileID:   "",
 		MovieLevel:  levelFromProto(req.MovieLevel),

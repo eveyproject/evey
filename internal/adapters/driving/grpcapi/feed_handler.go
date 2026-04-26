@@ -13,6 +13,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -123,6 +124,8 @@ func (h *feedHandler) filterByParental(ctx context.Context, items []*feed.FeedIt
 }
 
 func (h *feedHandler) GetFeedConfig(ctx context.Context, req *eveyv1.GetFeedConfigRequest) (*eveyv1.GetFeedConfigResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.feed.GetFeedConfig")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.GetFeedConfig: %w", err)
@@ -143,6 +146,8 @@ func (h *feedHandler) GetFeedConfig(ctx context.Context, req *eveyv1.GetFeedConf
 }
 
 func (h *feedHandler) ContinueWatching(ctx context.Context, req *eveyv1.ContinueWatchingRequest) (*eveyv1.FeedResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.feed.ContinueWatching")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.ContinueWatching: %w", err)
@@ -163,6 +168,8 @@ func (h *feedHandler) ContinueWatching(ctx context.Context, req *eveyv1.Continue
 }
 
 func (h *feedHandler) RecentlyAdded(ctx context.Context, req *eveyv1.RecentlyAddedRequest) (*eveyv1.FeedResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.feed.RecentlyAdded")
+	defer span.End()
 	items, err := h.queries.RecentlyAdded(ctx, int(req.DaysWindow), int(req.Limit))
 	if err != nil {
 		return nil, internalError("recently added", err)
@@ -179,6 +186,8 @@ func (h *feedHandler) RecentlyAdded(ctx context.Context, req *eveyv1.RecentlyAdd
 }
 
 func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRequest) (*eveyv1.FeedResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.feed.Recommended")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.Recommended: %w", err)
@@ -203,6 +212,8 @@ func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRe
 }
 
 func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItemsRequest) (*eveyv1.FeedResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.feed.SimilarItems")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.SimilarItems: %w", err)
@@ -230,6 +241,8 @@ func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItems
 }
 
 func (h *feedHandler) GetAdminFeedConfigs(ctx context.Context, _ *eveyv1.GetAdminFeedConfigsRequest) (*eveyv1.GetAdminFeedConfigsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.feed.GetAdminFeedConfigs")
+	defer span.End()
 	configs, err := h.queries.GetAdminConfigs(ctx)
 	if err != nil {
 		return nil, internalError("get admin feed configs", err)
@@ -242,6 +255,8 @@ func (h *feedHandler) GetAdminFeedConfigs(ctx context.Context, _ *eveyv1.GetAdmi
 }
 
 func (h *feedHandler) UpdateAdminFeedConfig(ctx context.Context, req *eveyv1.UpdateAdminFeedConfigRequest) (*eveyv1.AdminFeedConfig, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.feed.UpdateAdminFeedConfig")
+	defer span.End()
 	cfg := &feed.AdminConfig{
 		FeedType:     feed.Type(req.FeedType),
 		Enabled:      req.Enabled,
@@ -255,6 +270,8 @@ func (h *feedHandler) UpdateAdminFeedConfig(ctx context.Context, req *eveyv1.Upd
 }
 
 func (h *feedHandler) UpdateProfileFeedConfig(ctx context.Context, req *eveyv1.UpdateProfileFeedConfigRequest) (*eveyv1.ProfileFeedConfig, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.feed.UpdateProfileFeedConfig")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.UpdateProfileFeedConfig: %w", err)
@@ -285,6 +302,8 @@ func (h *feedHandler) UpdateProfileFeedConfig(ctx context.Context, req *eveyv1.U
 }
 
 func (h *feedHandler) ResetProfileFeedConfig(ctx context.Context, req *eveyv1.ResetProfileFeedConfigRequest) (*eveyv1.ResetProfileFeedConfigResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.feed.ResetProfileFeedConfig")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.ResetProfileFeedConfig: %w", err)
@@ -300,6 +319,8 @@ func (h *feedHandler) ResetProfileFeedConfig(ctx context.Context, req *eveyv1.Re
 }
 
 func (h *feedHandler) ResumePlayback(ctx context.Context, req *eveyv1.ResumePlaybackRequest) (*eveyv1.FeedResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.feed.ResumePlayback")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.ResumePlayback: %w", err)
@@ -328,6 +349,8 @@ func (h *feedHandler) ResumePlayback(ctx context.Context, req *eveyv1.ResumePlay
 }
 
 func (h *feedHandler) NextEpisode(ctx context.Context, req *eveyv1.NextEpisodeRequest) (*eveyv1.FeedResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.feed.NextEpisode")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.NextEpisode: %w", err)
@@ -356,6 +379,8 @@ func (h *feedHandler) NextEpisode(ctx context.Context, req *eveyv1.NextEpisodeRe
 }
 
 func (h *feedHandler) BatchUpdateAdminFeedConfigs(ctx context.Context, req *eveyv1.BatchUpdateAdminFeedConfigsRequest) (*eveyv1.BatchUpdateAdminFeedConfigsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.feed.BatchUpdateAdminFeedConfigs")
+	defer span.End()
 	cfgs := make([]*feed.AdminConfig, 0, len(req.Configs))
 	for _, c := range req.Configs {
 		cfgs = append(cfgs, &feed.AdminConfig{

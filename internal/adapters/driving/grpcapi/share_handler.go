@@ -11,6 +11,7 @@ import (
 	appmedia "github.com/evey-project/evey/internal/app/media"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -23,6 +24,8 @@ type shareHandler struct {
 }
 
 func (h *shareHandler) CreateShareLink(ctx context.Context, req *eveyv1.CreateShareLinkRequest) (*eveyv1.CreateShareLinkResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.share.CreateShareLink")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, err
@@ -67,6 +70,8 @@ func (h *shareHandler) CreateShareLink(ctx context.Context, req *eveyv1.CreateSh
 }
 
 func (h *shareHandler) ListShareLinks(ctx context.Context, _ *eveyv1.ListShareLinksRequest) (*eveyv1.ListShareLinksResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.share.ListShareLinks")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, err
@@ -102,6 +107,8 @@ func (h *shareHandler) ListShareLinks(ctx context.Context, _ *eveyv1.ListShareLi
 }
 
 func (h *shareHandler) RevokeShareLink(ctx context.Context, req *eveyv1.RevokeShareLinkRequest) (*eveyv1.RevokeShareLinkResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.share.RevokeShareLink")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, err
@@ -122,6 +129,8 @@ func (h *shareHandler) RevokeShareLink(ctx context.Context, req *eveyv1.RevokeSh
 }
 
 func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.ValidateShareLinkRequest) (*eveyv1.ValidateShareLinkResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.share.ValidateShareLink")
+	defer span.End()
 	link, err := h.svc.Validate(ctx, req.Token)
 	if err != nil {
 		if errors.Is(err, appmedia.ErrShareExpired) || errors.Is(err, appmedia.ErrShareViewLimit) {

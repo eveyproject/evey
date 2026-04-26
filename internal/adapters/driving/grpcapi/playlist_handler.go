@@ -11,6 +11,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/playlist"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -23,6 +24,8 @@ type playlistHandler struct {
 }
 
 func (h *playlistHandler) ListPlaylists(ctx context.Context, req *eveyv1.ListPlaylistsRequest) (*eveyv1.ListPlaylistsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playlist.ListPlaylists")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.ListPlaylists: %w", err)
@@ -39,6 +42,8 @@ func (h *playlistHandler) ListPlaylists(ctx context.Context, req *eveyv1.ListPla
 }
 
 func (h *playlistHandler) GetPlaylist(ctx context.Context, req *eveyv1.GetPlaylistRequest) (*eveyv1.PlaylistProto, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playlist.GetPlaylist")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.GetPlaylist: %w", err)
@@ -51,6 +56,8 @@ func (h *playlistHandler) GetPlaylist(ctx context.Context, req *eveyv1.GetPlayli
 }
 
 func (h *playlistHandler) CreatePlaylist(ctx context.Context, req *eveyv1.CreatePlaylistRequest) (*eveyv1.PlaylistProto, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playlist.CreatePlaylist")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.CreatePlaylist: %w", err)
@@ -70,6 +77,8 @@ func (h *playlistHandler) CreatePlaylist(ctx context.Context, req *eveyv1.Create
 }
 
 func (h *playlistHandler) UpdatePlaylist(ctx context.Context, req *eveyv1.UpdatePlaylistRequest) (*eveyv1.PlaylistProto, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playlist.UpdatePlaylist")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.UpdatePlaylist: %w", err)
@@ -97,6 +106,8 @@ func (h *playlistHandler) UpdatePlaylist(ctx context.Context, req *eveyv1.Update
 }
 
 func (h *playlistHandler) DeletePlaylist(ctx context.Context, req *eveyv1.DeletePlaylistRequest) (*eveyv1.DeletePlaylistResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playlist.DeletePlaylist")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.DeletePlaylist: %w", err)
@@ -111,6 +122,8 @@ func (h *playlistHandler) DeletePlaylist(ctx context.Context, req *eveyv1.Delete
 }
 
 func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetPlaylistItemsRequest) (*eveyv1.GetPlaylistItemsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playlist.GetPlaylistItems")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.GetPlaylistItems: %w", err)
@@ -180,6 +193,8 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 }
 
 func (h *playlistHandler) AddPlaylistItem(ctx context.Context, req *eveyv1.AddPlaylistItemRequest) (*eveyv1.AddPlaylistItemResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playlist.AddPlaylistItem")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.AddPlaylistItem: %w", err)
@@ -200,6 +215,8 @@ func (h *playlistHandler) AddPlaylistItem(ctx context.Context, req *eveyv1.AddPl
 }
 
 func (h *playlistHandler) RemovePlaylistItem(ctx context.Context, req *eveyv1.RemovePlaylistItemRequest) (*eveyv1.RemovePlaylistItemResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playlist.RemovePlaylistItem")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.RemovePlaylistItem: %w", err)

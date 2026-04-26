@@ -9,6 +9,7 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/pkg/network"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"github.com/evey-project/evey/internal/pkg/urlvalidator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,7 +29,9 @@ type remoteAccessHandler struct {
 	store remoteAccessConfigStore
 }
 
-func (h *remoteAccessHandler) GetRemoteAccess(_ context.Context, _ *eveyv1.GetRemoteAccessRequest) (*eveyv1.RemoteAccessConfig, error) {
+func (h *remoteAccessHandler) GetRemoteAccess(ctx context.Context, _ *eveyv1.GetRemoteAccessRequest) (*eveyv1.RemoteAccessConfig, error) {
+	_, span := tracing.StartSpan(ctx, "grpc.remote_access.GetRemoteAccess")
+	defer span.End()
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	out := raConfigToProto(&h.cfg.RemoteAccess)
@@ -37,6 +40,8 @@ func (h *remoteAccessHandler) GetRemoteAccess(_ context.Context, _ *eveyv1.GetRe
 }
 
 func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv1.UpdateRemoteAccessRequest) (*eveyv1.RemoteAccessConfig, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.remote_access.UpdateRemoteAccess")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, err
@@ -78,7 +83,9 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 	return out, nil
 }
 
-func (h *remoteAccessHandler) GetNetworkInfo(_ context.Context, _ *eveyv1.GetNetworkInfoRequest) (*eveyv1.NetworkInfo, error) {
+func (h *remoteAccessHandler) GetNetworkInfo(ctx context.Context, _ *eveyv1.GetNetworkInfoRequest) (*eveyv1.NetworkInfo, error) {
+	_, span := tracing.StartSpan(ctx, "grpc.remote_access.GetNetworkInfo")
+	defer span.End()
 	ifaces, err := network.NetworkInterfaces()
 	if err != nil {
 		return nil, internalError("get network interfaces", err)

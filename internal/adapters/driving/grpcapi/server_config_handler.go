@@ -8,6 +8,7 @@ import (
 	appconfig "github.com/evey-project/evey/internal/app/config"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 )
 
@@ -26,6 +27,8 @@ func (h *serverConfigHandler) SetTranslator(t *eveyi18n.Translator) {
 }
 
 func (h *serverConfigHandler) GetServerConfigEntry(ctx context.Context, req *eveyv1.GetServerConfigEntryRequest) (*eveyv1.ServerConfigEntryResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.server_config.GetServerConfigEntry")
+	defer span.End()
 	if req.Key == "" {
 		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.config.key_required")
 	}
@@ -40,6 +43,8 @@ func (h *serverConfigHandler) GetServerConfigEntry(ctx context.Context, req *eve
 }
 
 func (h *serverConfigHandler) SetServerConfigEntry(ctx context.Context, req *eveyv1.SetServerConfigEntryRequest) (*eveyv1.SetServerConfigEntryResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.server_config.SetServerConfigEntry")
+	defer span.End()
 	if req.Key == "" {
 		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.config.key_required")
 	}
@@ -50,6 +55,8 @@ func (h *serverConfigHandler) SetServerConfigEntry(ctx context.Context, req *eve
 }
 
 func (h *serverConfigHandler) ListServerConfigEntries(ctx context.Context, _ *eveyv1.ListServerConfigEntriesRequest) (*eveyv1.ListServerConfigEntriesResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.server_config.ListServerConfigEntries")
+	defer span.End()
 	entries, err := h.svc.List(ctx)
 	if err != nil {
 		return nil, internalError("list config", err)
@@ -62,6 +69,8 @@ func (h *serverConfigHandler) ListServerConfigEntries(ctx context.Context, _ *ev
 }
 
 func (h *serverConfigHandler) DeleteServerConfigEntry(ctx context.Context, req *eveyv1.DeleteServerConfigEntryRequest) (*eveyv1.DeleteServerConfigEntryResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.server_config.DeleteServerConfigEntry")
+	defer span.End()
 	if req.Key == "" {
 		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.config.key_required")
 	}

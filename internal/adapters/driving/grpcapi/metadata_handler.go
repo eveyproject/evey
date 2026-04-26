@@ -11,6 +11,7 @@ import (
 	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -43,6 +44,8 @@ func (h *metadataHandler) checkMediaItemAccess(ctx context.Context, mediaItemID 
 }
 
 func (h *metadataHandler) SearchMetadata(ctx context.Context, req *eveyv1.SearchMetadataRequest) (*eveyv1.SearchMetadataResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.metadata.SearchMetadata")
+	defer span.End()
 	mediaType := mediaItemTypeFromProto[req.Type]
 	results, err := h.query.SearchMetadata(ctx, req.Query, mediaType)
 	if err != nil {
@@ -61,6 +64,8 @@ func (h *metadataHandler) SearchMetadata(ctx context.Context, req *eveyv1.Search
 
 func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, stream eveyv1.MetadataService_RefreshMetadataServer) error {
 	ctx := stream.Context()
+	_, span := tracing.StartSpan(ctx, "grpc.metadata.RefreshMetadata")
+	defer span.End()
 	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
 		return err
 	}
@@ -99,6 +104,8 @@ func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, st
 }
 
 func (h *metadataHandler) GetArtwork(ctx context.Context, req *eveyv1.GetArtworkRequest) (*eveyv1.GetArtworkResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.metadata.GetArtwork")
+	defer span.End()
 	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
 		return nil, err
 	}
@@ -114,6 +121,8 @@ func (h *metadataHandler) GetArtwork(ctx context.Context, req *eveyv1.GetArtwork
 }
 
 func (h *metadataHandler) SetMetadataOverride(ctx context.Context, req *eveyv1.SetMetadataOverrideRequest) (*eveyv1.MetadataOverride, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.metadata.SetMetadataOverride")
+	defer span.End()
 	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
 		return nil, err
 	}
@@ -130,6 +139,8 @@ func (h *metadataHandler) SetMetadataOverride(ctx context.Context, req *eveyv1.S
 }
 
 func (h *metadataHandler) RemoveMetadataOverride(ctx context.Context, req *eveyv1.RemoveMetadataOverrideRequest) (*eveyv1.RemoveMetadataOverrideResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.metadata.RemoveMetadataOverride")
+	defer span.End()
 	// Resolve the override → media item so we can gate the call by library
 	// access. Returning NotFound on a stale id keeps existence opaque.
 	override, err := h.cmd.GetOverride(ctx, req.Id)
@@ -146,6 +157,8 @@ func (h *metadataHandler) RemoveMetadataOverride(ctx context.Context, req *eveyv
 }
 
 func (h *metadataHandler) ListMetadataOverrides(ctx context.Context, req *eveyv1.ListMetadataOverridesRequest) (*eveyv1.ListMetadataOverridesResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.metadata.ListMetadataOverrides")
+	defer span.End()
 	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
 		return nil, err
 	}
@@ -161,6 +174,8 @@ func (h *metadataHandler) ListMetadataOverrides(ctx context.Context, req *eveyv1
 }
 
 func (h *metadataHandler) ResearchMetadata(ctx context.Context, req *eveyv1.ResearchMetadataRequest) (*eveyv1.ResearchMetadataResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.metadata.ResearchMetadata")
+	defer span.End()
 	if req.MediaItemId == "" {
 		return nil, status.Error(codes.InvalidArgument, "media_item_id is required")
 	}
@@ -178,7 +193,9 @@ func (h *metadataHandler) ResearchMetadata(ctx context.Context, req *eveyv1.Rese
 	}, nil
 }
 
-func (h *metadataHandler) GetMetadataProviders(_ context.Context, _ *eveyv1.GetMetadataProvidersRequest) (*eveyv1.GetMetadataProvidersResponse, error) {
+func (h *metadataHandler) GetMetadataProviders(ctx context.Context, _ *eveyv1.GetMetadataProvidersRequest) (*eveyv1.GetMetadataProvidersResponse, error) {
+	_, span := tracing.StartSpan(ctx, "grpc.metadata.GetMetadataProviders")
+	defer span.End()
 	resp := &eveyv1.GetMetadataProvidersResponse{}
 	for i, name := range h.query.ListProviders() {
 		resp.Providers = append(resp.Providers, &eveyv1.MetadataProvider{

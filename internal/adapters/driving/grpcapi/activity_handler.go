@@ -7,14 +7,15 @@ import (
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -30,6 +31,8 @@ type activityHandler struct {
 }
 
 func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPlayHistoryRequest) (*eveyv1.GetPlayHistoryResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.activity.GetPlayHistory")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("activityHandler.GetPlayHistory: %w", err)
@@ -71,6 +74,8 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 }
 
 func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserStatsRequest) (*eveyv1.UserStats, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.activity.GetUserStats")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("activityHandler.GetUserStats: %w", err)
@@ -128,6 +133,8 @@ func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserS
 }
 
 func (h *activityHandler) GetServerStats(ctx context.Context, _ *eveyv1.GetServerStatsRequest) (*eveyv1.ServerStats, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.activity.GetServerStats")
+	defer span.End()
 	stats, err := h.svc.GetServerStats(ctx)
 	if err != nil {
 		return nil, internalError("get server stats", err)
@@ -139,6 +146,8 @@ func (h *activityHandler) GetServerStats(ctx context.Context, _ *eveyv1.GetServe
 }
 
 func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLoginHistoryRequest) (*eveyv1.GetLoginHistoryResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.activity.GetLoginHistory")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("activityHandler.GetLoginHistory: %w", err)
@@ -184,6 +193,8 @@ func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLo
 }
 
 func (h *activityHandler) ListServerMetrics(ctx context.Context, req *eveyv1.ListServerMetricsRequest) (*eveyv1.ListServerMetricsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.activity.ListServerMetrics")
+	defer span.End()
 	from, fromOK := fromTimestamppb(req.From)
 	to, toOK := fromTimestamppb(req.To)
 	if !toOK {
@@ -204,6 +215,8 @@ func (h *activityHandler) ListServerMetrics(ctx context.Context, req *eveyv1.Lis
 }
 
 func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPopularMediaRequest) (*eveyv1.GetPopularMediaResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.activity.GetPopularMedia")
+	defer span.End()
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
@@ -264,6 +277,8 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 }
 
 func (h *activityHandler) GetAnalytics(ctx context.Context, _ *eveyv1.GetAnalyticsRequest) (*eveyv1.GetAnalyticsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.activity.GetAnalytics")
+	defer span.End()
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || !claims.IsAdmin {
 		return nil, status.Error(codes.PermissionDenied, "admin only")

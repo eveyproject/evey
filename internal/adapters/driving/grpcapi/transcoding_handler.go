@@ -14,6 +14,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -29,6 +30,8 @@ type transcodingHandler struct {
 
 func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, stream eveyv1.TranscodingService_StartTranscodeServer) error {
 	ctx := stream.Context()
+	_, span := tracing.StartSpan(ctx, "grpc.transcoding.StartTranscode")
+	defer span.End()
 	if req.MediaItemId == "" {
 		return status.Error(codes.InvalidArgument, "media_item_id required")
 	}
@@ -88,6 +91,8 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 }
 
 func (h *transcodingHandler) StopTranscode(ctx context.Context, req *eveyv1.StopTranscodeRequest) (*eveyv1.StopTranscodeResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.transcoding.StopTranscode")
+	defer span.End()
 	if err := h.checkJobAccess(ctx, req.JobId); err != nil {
 		return nil, err
 	}
@@ -98,6 +103,8 @@ func (h *transcodingHandler) StopTranscode(ctx context.Context, req *eveyv1.Stop
 }
 
 func (h *transcodingHandler) GetTranscodeStatus(ctx context.Context, req *eveyv1.GetTranscodeStatusRequest) (*eveyv1.TranscodeJob, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.transcoding.GetTranscodeStatus")
+	defer span.End()
 	if err := h.checkJobAccess(ctx, req.JobId); err != nil {
 		return nil, err
 	}
@@ -148,6 +155,8 @@ func (h *transcodingHandler) checkJobAccess(ctx context.Context, jobID string) e
 }
 
 func (h *transcodingHandler) ListActiveTranscodes(ctx context.Context, _ *eveyv1.ListActiveTranscodesRequest) (*eveyv1.ListActiveTranscodesResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.transcoding.ListActiveTranscodes")
+	defer span.End()
 	jobs, err := h.svc.ListActiveTranscodes(ctx)
 	if err != nil {
 		return nil, internalError("list active", err)
@@ -160,6 +169,8 @@ func (h *transcodingHandler) ListActiveTranscodes(ctx context.Context, _ *eveyv1
 }
 
 func (h *transcodingHandler) ListTranscodeProfiles(ctx context.Context, _ *eveyv1.ListTranscodeProfilesRequest) (*eveyv1.ListTranscodeProfilesResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.transcoding.ListTranscodeProfiles")
+	defer span.End()
 	profiles, err := h.svc.ListProfiles(ctx)
 	if err != nil {
 		return nil, internalError("list profiles", err)
@@ -172,6 +183,8 @@ func (h *transcodingHandler) ListTranscodeProfiles(ctx context.Context, _ *eveyv
 }
 
 func (h *transcodingHandler) DetectHardware(ctx context.Context, _ *eveyv1.DetectHardwareRequest) (*eveyv1.DetectHardwareResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.transcoding.DetectHardware")
+	defer span.End()
 	devices, err := h.svc.DetectHardware(ctx)
 	if err != nil {
 		return nil, internalError("detect hardware", err)

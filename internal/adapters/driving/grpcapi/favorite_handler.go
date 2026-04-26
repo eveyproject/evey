@@ -10,6 +10,7 @@ import (
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -41,6 +42,8 @@ func (h *favoriteHandler) requireMediaAccess(ctx context.Context, mediaItemID st
 }
 
 func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFavoritesRequest) (*eveyv1.ListFavoritesResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.favorite.ListFavorites")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.ListFavorites: %w", err)
@@ -102,6 +105,8 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 }
 
 func (h *favoriteHandler) AddFavorite(ctx context.Context, req *eveyv1.AddFavoriteRequest) (*eveyv1.AddFavoriteResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.favorite.AddFavorite")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.AddFavorite: %w", err)
@@ -121,6 +126,8 @@ func (h *favoriteHandler) AddFavorite(ctx context.Context, req *eveyv1.AddFavori
 }
 
 func (h *favoriteHandler) RemoveFavorite(ctx context.Context, req *eveyv1.RemoveFavoriteRequest) (*eveyv1.RemoveFavoriteResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.favorite.RemoveFavorite")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.RemoveFavorite: %w", err)
@@ -145,6 +152,8 @@ func (h *favoriteHandler) RemoveFavorite(ctx context.Context, req *eveyv1.Remove
 }
 
 func (h *favoriteHandler) IsFavorite(ctx context.Context, req *eveyv1.IsFavoriteRequest) (*eveyv1.IsFavoriteResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.favorite.IsFavorite")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.IsFavorite: %w", err)

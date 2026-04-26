@@ -6,6 +6,7 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appmkv "github.com/evey-project/evey/internal/app/mkv"
 	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type mkvHandler struct {
@@ -14,6 +15,8 @@ type mkvHandler struct {
 }
 
 func (h *mkvHandler) GetContainerInfo(ctx context.Context, req *eveyv1.GetContainerInfoRequest) (*eveyv1.Container, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.mkv.GetContainerInfo")
+	defer span.End()
 	c, err := h.svc.GetContainerInfo(ctx, req.Path)
 	if err != nil {
 		return nil, internalError("get container info", err)
@@ -22,6 +25,8 @@ func (h *mkvHandler) GetContainerInfo(ctx context.Context, req *eveyv1.GetContai
 }
 
 func (h *mkvHandler) ListTracks(ctx context.Context, req *eveyv1.ListMkvTracksRequest) (*eveyv1.ListMkvTracksResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.mkv.ListTracks")
+	defer span.End()
 	tracks, err := h.svc.ListTracks(ctx, req.Path)
 	if err != nil {
 		return nil, internalError("list tracks", err)
@@ -34,6 +39,8 @@ func (h *mkvHandler) ListTracks(ctx context.Context, req *eveyv1.ListMkvTracksRe
 }
 
 func (h *mkvHandler) ListChapters(ctx context.Context, req *eveyv1.ListChaptersRequest) (*eveyv1.ListChaptersResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.mkv.ListChapters")
+	defer span.End()
 	chapters, err := h.svc.ListChapters(ctx, req.Path)
 	if err != nil {
 		return nil, internalError("list chapters", err)
@@ -46,6 +53,8 @@ func (h *mkvHandler) ListChapters(ctx context.Context, req *eveyv1.ListChaptersR
 }
 
 func (h *mkvHandler) ListAttachments(ctx context.Context, req *eveyv1.ListAttachmentsRequest) (*eveyv1.ListAttachmentsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.mkv.ListAttachments")
+	defer span.End()
 	attachments, err := h.svc.ListAttachments(ctx, req.Path)
 	if err != nil {
 		return nil, internalError("list attachments", err)
@@ -58,6 +67,8 @@ func (h *mkvHandler) ListAttachments(ctx context.Context, req *eveyv1.ListAttach
 }
 
 func (h *mkvHandler) ExtractTrack(req *eveyv1.ExtractTrackRequest, stream eveyv1.MKVService_ExtractTrackServer) error {
+	_, span := tracing.StartSpan(stream.Context(), "grpc.mkv.ExtractTrack")
+	defer span.End()
 	if err := h.svc.ExtractTrack(stream.Context(), req.Path, uint64(req.TrackId), ""); err != nil {
 		return internalError("extract track", err)
 	}
@@ -65,6 +76,8 @@ func (h *mkvHandler) ExtractTrack(req *eveyv1.ExtractTrackRequest, stream eveyv1
 }
 
 func (h *mkvHandler) ExtractAttachment(ctx context.Context, req *eveyv1.ExtractAttachmentRequest) (*eveyv1.ExtractAttachmentResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.mkv.ExtractAttachment")
+	defer span.End()
 	if err := h.svc.ExtractAttachment(ctx, req.Path, uint64(req.AttachmentId), req.OutputPath); err != nil {
 		return nil, internalError("extract attachment", err)
 	}
@@ -74,6 +87,8 @@ func (h *mkvHandler) ExtractAttachment(ctx context.Context, req *eveyv1.ExtractA
 }
 
 func (h *mkvHandler) MuxContainer(req *eveyv1.MuxContainerRequest, stream eveyv1.MKVService_MuxContainerServer) error {
+	_, span := tracing.StartSpan(stream.Context(), "grpc.mkv.MuxContainer")
+	defer span.End()
 	opts := mkv.MuxOptions{
 		OutputPath: req.OutputPath,
 	}
@@ -95,6 +110,8 @@ func (h *mkvHandler) MuxContainer(req *eveyv1.MuxContainerRequest, stream eveyv1
 }
 
 func (h *mkvHandler) DemuxContainer(req *eveyv1.DemuxContainerRequest, stream eveyv1.MKVService_DemuxContainerServer) error {
+	_, span := tracing.StartSpan(stream.Context(), "grpc.mkv.DemuxContainer")
+	defer span.End()
 	var trackIDs []uint64
 	for _, id := range req.TrackIds {
 		trackIDs = append(trackIDs, uint64(id))
@@ -110,6 +127,8 @@ func (h *mkvHandler) DemuxContainer(req *eveyv1.DemuxContainerRequest, stream ev
 }
 
 func (h *mkvHandler) AddTrack(ctx context.Context, req *eveyv1.AddTrackRequest) (*eveyv1.AddTrackResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.mkv.AddTrack")
+	defer span.End()
 	input := mkv.TrackInput{
 		SourcePath: req.TrackPath,
 		Language:   req.Language,
@@ -123,6 +142,8 @@ func (h *mkvHandler) AddTrack(ctx context.Context, req *eveyv1.AddTrackRequest) 
 }
 
 func (h *mkvHandler) RemoveTrack(ctx context.Context, req *eveyv1.RemoveTrackRequest) (*eveyv1.RemoveTrackResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.mkv.RemoveTrack")
+	defer span.End()
 	if err := h.svc.RemoveTrack(ctx, req.ContainerPath, uint64(req.TrackId)); err != nil {
 		return nil, internalError("remove track", err)
 	}

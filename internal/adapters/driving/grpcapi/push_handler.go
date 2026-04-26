@@ -7,6 +7,7 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appnotification "github.com/evey-project/evey/internal/app/notification"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -32,11 +33,15 @@ type webPushHandler struct {
 	vapidPubKey string
 }
 
-func (h *webPushHandler) GetVAPIDKey(_ context.Context, _ *eveyv1.GetVAPIDKeyRequest) (*eveyv1.GetVAPIDKeyResponse, error) {
+func (h *webPushHandler) GetVAPIDKey(ctx context.Context, _ *eveyv1.GetVAPIDKeyRequest) (*eveyv1.GetVAPIDKeyResponse, error) {
+	_, span := tracing.StartSpan(ctx, "grpc.push.GetVAPIDKey")
+	defer span.End()
 	return &eveyv1.GetVAPIDKeyResponse{PublicKey: h.vapidPubKey}, nil
 }
 
 func (h *webPushHandler) RegisterWebPush(ctx context.Context, req *eveyv1.RegisterWebPushRequest) (*eveyv1.RegisterWebPushResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.push.RegisterWebPush")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, err
@@ -55,6 +60,8 @@ func (h *webPushHandler) RegisterWebPush(ctx context.Context, req *eveyv1.Regist
 }
 
 func (h *webPushHandler) UnregisterWebPush(ctx context.Context, req *eveyv1.UnregisterWebPushRequest) (*eveyv1.UnregisterWebPushResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.push.UnregisterWebPush")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, err
@@ -70,6 +77,8 @@ func (h *webPushHandler) UnregisterWebPush(ctx context.Context, req *eveyv1.Unre
 }
 
 func (h *webPushHandler) ListWebPushSubscriptions(ctx context.Context, _ *eveyv1.ListWebPushSubscriptionsRequest) (*eveyv1.ListWebPushSubscriptionsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.push.ListWebPushSubscriptions")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, err
@@ -90,6 +99,8 @@ func (h *webPushHandler) ListWebPushSubscriptions(ctx context.Context, _ *eveyv1
 }
 
 func (h *webPushHandler) DeleteWebPushSubscription(ctx context.Context, req *eveyv1.DeleteWebPushSubscriptionRequest) (*eveyv1.DeleteWebPushSubscriptionResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.push.DeleteWebPushSubscription")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, err
@@ -105,6 +116,8 @@ func (h *webPushHandler) DeleteWebPushSubscription(ctx context.Context, req *eve
 }
 
 func (h *webPushHandler) GetPushConsent(ctx context.Context, _ *eveyv1.GetPushConsentRequest) (*eveyv1.GetPushConsentResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.push.GetPushConsent")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, err
@@ -117,6 +130,8 @@ func (h *webPushHandler) GetPushConsent(ctx context.Context, _ *eveyv1.GetPushCo
 }
 
 func (h *webPushHandler) UpdatePushConsent(ctx context.Context, req *eveyv1.UpdatePushConsentRequest) (*eveyv1.UpdatePushConsentResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.push.UpdatePushConsent")
+	defer span.End()
 	claims, err := requireClaims(ctx)
 	if err != nil {
 		return nil, err
