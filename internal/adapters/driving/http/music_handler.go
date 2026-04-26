@@ -78,7 +78,9 @@ func (h *musicHandler) fetchMissingArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]int{"fetched": n})
+	if encErr := json.NewEncoder(w).Encode(map[string]int{"fetched": n}); encErr != nil {
+		slog.Warn("json encode failed", slog.Any("err", encErr))
+	}
 }
 
 func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {
