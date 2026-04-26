@@ -84,6 +84,12 @@ var analyzerRules = []analyzerRule{
 	// Dynamic imports — bypass static import restrictions
 	{regexp.MustCompile(`(?i)(__import__\s*\(|importlib\.import_module|getattr\s*\(\s*__builtins__)`), SeverityCritical, "dynamic_import", "dynamic module import (potential sandbox bypass)", nil},
 
+	// Obfuscation via getattr(__builtins__, ...) — used to retrieve eval/exec by name
+	{regexp.MustCompile(`getattr\s*\(\s*__builtins__\s*,`), SeverityCritical, "obfuscation_getattr_builtins", "getattr(__builtins__, ...) used to access builtins dynamically (sandbox bypass)", nil},
+
+	// __import__ called with a variable argument instead of a string literal
+	{regexp.MustCompile(`__import__\s*\(\s*[a-zA-Z_][a-zA-Z0-9_]*\s*[\),]`), SeverityCritical, "obfuscation_dynamic_import", "__import__ called with non-literal argument (dynamic module import)", nil},
+
 	// Node.js sandbox escape
 	{regexp.MustCompile(`(?i)(vm\.(runIn|createContext)|process\.binding\(|new\s+Function\s*\()`), SeverityCritical, "sandbox_escape", "potential sandbox escape via vm/Function/binding", nil},
 
@@ -350,6 +356,12 @@ func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
 		lineNum++
 		line := scanner.Text()
 
+		// normalized is the line after obfuscation-defusing transformations.
+		// It is used for pattern matching only — the raw line is preserved for
+		// URL extraction and for the Pattern field in findings (so displayed
+		// matches reflect normalized form but are still legible).
+		normalized := normalizeLine(line)
+
 		for _, rule := range analyzerRules {
 			if len(rule.extensions) > 0 {
 				ext := strings.ToLower(filepath.Ext(path))
@@ -358,7 +370,7 @@ func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
 				}
 			}
 
-			if loc := rule.pattern.FindString(line); loc != "" {
+			if loc := rule.pattern.FindString(normalized); loc != "" {
 				findings = append(findings, AnalysisFinding{
 					Severity:    rule.severity,
 					Category:    rule.category,
@@ -369,6 +381,9 @@ func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
 				})
 			}
 		}
+
+		// Scan for base64-encoded dangerous payloads.
+		findings = append(findings, scanBase64Strings(normalized, relPath, lineNum)...)
 
 		// Extract URLs
 		for _, u := range urlLiteralRe.FindAllString(line, -1) {
