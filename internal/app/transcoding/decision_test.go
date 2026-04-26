@@ -17,7 +17,7 @@ func TestDirectPlay_H264_AAC_MP4(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
 	assert.Equal(t, "direct_play", d.PlayMethod)
 	assert.Equal(t, "copy", d.VideoDecision)
@@ -30,7 +30,7 @@ func TestVideoTranscode_HEVC(t *testing.T) {
 		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "transcode", d.VideoDecision)
@@ -44,7 +44,7 @@ func TestAudioTranscode_DTS(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "copy", d.VideoDecision)
@@ -59,7 +59,7 @@ func TestBitrateCap(t *testing.T) {
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), Bitrate: int64Ptr(192000), IsDefault: true},
 	}
 	// user cap 8 Mbps
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 8000)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 8000)
 
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "transcode", d.VideoDecision)
@@ -81,7 +81,7 @@ func TestResolutionCap(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(3840), Height: intPtr(2160), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "transcode", d.VideoDecision)
@@ -95,7 +95,7 @@ func TestDirectStream_MKV_Container(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "matroska", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "matroska", transcoding.DefaultWebProfile, 0)
 
 	assert.Equal(t, "direct_stream", d.PlayMethod)
 	assert.Equal(t, "copy", d.VideoDecision)
@@ -110,7 +110,7 @@ func TestHDR_NonHDRClient(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(3840), Height: intPtr(2160), HDRType: &hdrType, Bitrate: int64Ptr(20000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "transcode", d.VideoDecision)
@@ -123,7 +123,7 @@ func TestSubtitleBurnIn_PGS(t *testing.T) {
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 		{StreamType: "subtitle", Codec: "hdmv_pgs_subtitle", IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
 	assert.Equal(t, "burn", d.SubtitleDecision)
 }
@@ -134,7 +134,7 @@ func TestSubtitleBurnIn_DVDSub(t *testing.T) {
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 		{StreamType: "subtitle", Codec: "dvd_subtitle", IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
 	assert.Equal(t, "burn", d.SubtitleDecision)
 }
@@ -145,7 +145,7 @@ func TestTextSubtitle_External(t *testing.T) {
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 		{StreamType: "subtitle", Codec: "subrip", IsDefault: true, IsExternal: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
 	assert.Equal(t, "external", d.SubtitleDecision)
 }
@@ -164,7 +164,7 @@ func TestMultiReason_Codec_Bitrate_Resolution(t *testing.T) {
 		{StreamType: "video", Codec: "hevc", Width: intPtr(3840), Height: intPtr(2160), Bitrate: int64Ptr(40000000), IsDefault: true},
 		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), Bitrate: int64Ptr(1536000), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mkv", client, 8000)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mkv", client, 8000)
 
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "transcode", d.VideoDecision)
@@ -191,7 +191,7 @@ func TestAudioChannelsExceeded(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(6), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "copy", d.VideoDecision)
@@ -214,7 +214,7 @@ func TestAudioChannelsNotExceeded_NoCap(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 	assert.Equal(t, 0, d.MaxAudioChannels, "MaxAudioChannels should stay zero when channels fit")
 }
 
@@ -233,7 +233,7 @@ func TestHDRClient_DirectPlay(t *testing.T) {
 		{StreamType: "video", Codec: "hevc", Width: intPtr(3840), Height: intPtr(2160), HDRType: &hdrType, Bitrate: int64Ptr(20000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 
 	assert.Equal(t, "direct_play", d.PlayMethod)
 	assert.Empty(t, d.TranscodeReasons)
@@ -258,7 +258,7 @@ func TestHEVC_EAC3_Firefox_TranscodeBoth(t *testing.T) {
 		MaxHeight:        2160,
 		MaxAudioChannels: 8,
 	}
-	d := apptranscode.MakePlaybackDecision(hevcEac3Streams(), "mkv", firefox, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), hevcEac3Streams(), "mkv", firefox, 0)
 
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "transcode", d.VideoDecision)
@@ -279,7 +279,7 @@ func TestHEVC_EAC3_Safari_CopyBoth(t *testing.T) {
 		MaxHeight:        2160,
 		MaxAudioChannels: 8,
 	}
-	d := apptranscode.MakePlaybackDecision(hevcEac3Streams(), "mkv", safari, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), hevcEac3Streams(), "mkv", safari, 0)
 
 	// Container mismatch (mkv → mp4) but both codecs supported → direct stream (remux)
 	assert.Equal(t, "direct_stream", d.PlayMethod)
@@ -291,7 +291,7 @@ func TestHEVC_EAC3_Safari_CopyBoth(t *testing.T) {
 
 func TestHEVC_EAC3_DefaultWebProfile_TranscodeBoth(t *testing.T) {
 	// DefaultWebProfile has no HEVC, no EAC3
-	d := apptranscode.MakePlaybackDecision(hevcEac3Streams(), "mkv", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), hevcEac3Streams(), "mkv", transcoding.DefaultWebProfile, 0)
 
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "transcode", d.VideoDecision)
@@ -310,7 +310,7 @@ func TestHEVC_EAC3_PartialSupport_TranscodeAudioOnly(t *testing.T) {
 		MaxHeight:        2160,
 		MaxAudioChannels: 8,
 	}
-	d := apptranscode.MakePlaybackDecision(hevcEac3Streams(), "mkv", client, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), hevcEac3Streams(), "mkv", client, 0)
 
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "copy", d.VideoDecision)

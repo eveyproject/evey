@@ -137,7 +137,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		}
 	}
 
-	decision := apptranscoding.MakePlaybackDecisionWithPrefs(streams, containerFormat, client, maxBitrateKbps, prefs)
+	decision := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, containerFormat, client, maxBitrateKbps, prefs)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
 		err := status.Errorf(codes.FailedPrecondition, "transcoding disabled by user preferences")
 		span.RecordError(err)

@@ -54,7 +54,7 @@ func TestPref_AllowDirectPlayFalse_ForcesTranscode(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.AllowDirectPlay = false
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Contains(t, d.TranscodeReasons, "direct_play_disabled")
 	assert.Equal(t, "transcode", d.VideoDecision)
@@ -71,7 +71,7 @@ func TestPref_AllowDirectStreamFalse_ForcesTranscode(t *testing.T) {
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.AllowDirectStream = false
 	// matroska container not supported by default web profile -> normally direct_stream
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "matroska", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "matroska", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Contains(t, d.TranscodeReasons, "direct_stream_disabled")
 }
@@ -85,7 +85,7 @@ func TestPref_AllowTranscodingFalse_Disallowed(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.AllowTranscoding = false
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.True(t, apptranscode.TranscodeDisallowed(d, prefs))
 }
 
@@ -96,7 +96,7 @@ func TestPref_AllowTranscodingFalse_NoTranscode_Allowed(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.AllowTranscoding = false
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "direct_play", d.PlayMethod)
 	assert.False(t, apptranscode.TranscodeDisallowed(d, prefs))
 }
@@ -110,7 +110,7 @@ func TestPref_PreferredVideoCodec_ForcesTranscode(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.PreferredVideoCodec = "hevc"
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Equal(t, "hevc", d.VideoCodec)
 	assert.Contains(t, d.TranscodeReasons, "preferred_video_codec")
@@ -123,7 +123,7 @@ func TestPref_PreferredVideoCodec_MatchesSource_NoTranscode(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.PreferredVideoCodec = "h264"
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "copy", d.VideoDecision)
 	assert.NotContains(t, d.TranscodeReasons, "preferred_video_codec")
 }
@@ -135,7 +135,7 @@ func TestPref_PreferredVideoCodec_Auto_Noop(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.PreferredVideoCodec = "auto"
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "direct_play", d.PlayMethod)
 }
 
@@ -148,7 +148,7 @@ func TestPref_PreferredAudioCodec_ForcesTranscode(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.PreferredAudioCodec = "opus"
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "transcode", d.AudioDecision)
 	assert.Equal(t, "opus", d.AudioCodec)
 	assert.Contains(t, d.TranscodeReasons, "preferred_audio_codec")
@@ -163,7 +163,7 @@ func TestPref_MaxAudioChannels_ForcesDownmix(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.MaxAudioChannels = 2
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "transcode", d.AudioDecision)
 	assert.Contains(t, d.TranscodeReasons, "audio_channels_exceeded")
 	assert.Equal(t, "aac", d.AudioCodec)
@@ -176,7 +176,7 @@ func TestPref_MaxAudioChannels_WithinLimit_NoTranscode(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.MaxAudioChannels = 2
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "copy", d.AudioDecision)
 }
 
@@ -190,7 +190,7 @@ func TestPref_SubtitleBurnIn_Always(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.SubtitleBurnIn = "always"
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "burn", d.SubtitleDecision)
 }
 
@@ -202,7 +202,7 @@ func TestPref_SubtitleBurnIn_Never(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.SubtitleBurnIn = "never"
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "external", d.SubtitleDecision)
 }
 
@@ -214,7 +214,7 @@ func TestPref_SubtitleBurnIn_Auto_Default(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.SubtitleBurnIn = "auto"
-	d := apptranscode.MakePlaybackDecisionWithPrefs(streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "burn", d.SubtitleDecision)
 }
 
@@ -283,7 +283,7 @@ func TestMakePlaybackDecisionWithPrefs_CellularCapTriggersTranscode(t *testing.T
 		MaxBitrateCellularKbps: 1_500,
 		NetworkType:            "cellular",
 	}
-	d := apptranscode.MakePlaybackDecisionWithPrefs(fourKStreams(), "mp4", transcoding.DefaultWebProfile, prefs.MaxBitrateKbps, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), fourKStreams(), "mp4", transcoding.DefaultWebProfile, prefs.MaxBitrateKbps, prefs)
 
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "transcode", d.VideoDecision)
@@ -298,7 +298,7 @@ func TestMakePlaybackDecisionWithPrefs_WifiUsesGeneralCap(t *testing.T) {
 		NetworkType:            "wifi",
 	}
 	// source total ~40 Mbps, general cap 50 Mbps → no bitrate_exceeded.
-	d := apptranscode.MakePlaybackDecisionWithPrefs(fourKStreams(), "mp4", transcoding.DefaultWebProfile, prefs.MaxBitrateKbps, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), fourKStreams(), "mp4", transcoding.DefaultWebProfile, prefs.MaxBitrateKbps, prefs)
 
 	assert.NotContains(t, d.TranscodeReasons, "bitrate_exceeded")
 }
@@ -308,7 +308,7 @@ func TestMakePlaybackDecisionWithPrefs_CellularButNoCellularCapUsesGeneral(t *te
 		MaxBitrateKbps: 8_000,
 		NetworkType:    "cellular",
 	}
-	d := apptranscode.MakePlaybackDecisionWithPrefs(fourKStreams(), "mp4", transcoding.DefaultWebProfile, prefs.MaxBitrateKbps, prefs)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), fourKStreams(), "mp4", transcoding.DefaultWebProfile, prefs.MaxBitrateKbps, prefs)
 
 	assert.Contains(t, d.TranscodeReasons, "bitrate_exceeded")
 	assert.Equal(t, int64(8_000), d.VideoBitrate)

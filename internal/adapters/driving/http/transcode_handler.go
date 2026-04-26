@@ -220,7 +220,7 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if item.File != nil {
 		containerFormat = item.File.ContainerFormat
 	}
-	decision := apptranscoding.MakePlaybackDecisionWithPrefs(streams, containerFormat, client, userMaxBitrate, prefs)
+	decision := apptranscoding.MakePlaybackDecisionWithPrefs(r.Context(), streams, containerFormat, client, userMaxBitrate, prefs)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
 		span.SetStatus(codes.Error, "transcoding disallowed by prefs")
 		http.Error(w, `{"message":"transcoding disabled by user preferences"}`, http.StatusUnprocessableEntity)
@@ -340,7 +340,7 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if item.File != nil {
 		containerFormat = item.File.ContainerFormat
 	}
-	decision := apptranscoding.MakePlaybackDecisionWithPrefs(mediaStreams, containerFormat, client, 0, prefs)
+	decision := apptranscoding.MakePlaybackDecisionWithPrefs(r.Context(), mediaStreams, containerFormat, client, 0, prefs)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
 		span.SetStatus(codes.Error, "transcoding disallowed by prefs")
 		http.Error(w, `{"message":"transcoding disabled by user preferences"}`, http.StatusUnprocessableEntity)

@@ -110,7 +110,7 @@ func TestTranscoding_KillMutant_ResolveMaxBitrate_ClientUnlimited(t *testing.T) 
 	}
 	client := transcoding.DefaultWebProfile
 	client.MaxBitrate = 0 // unlimited client
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 1000 /* 1000 kbps user cap */)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 1000 /* 1000 kbps user cap */)
 	assert.Contains(t, d.TranscodeReasons, "bitrate_exceeded",
 		"user cap must apply when clientMax is 0")
 }

@@ -10,7 +10,7 @@ import (
 )
 
 func TestEmptyStreams_DirectPlay(t *testing.T) {
-	d := apptranscode.MakePlaybackDecision(nil, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), nil, "mp4", transcoding.DefaultWebProfile, 0)
 	assert.Equal(t, "direct_play", d.PlayMethod)
 	assert.Empty(t, d.TranscodeReasons)
 }
@@ -21,7 +21,7 @@ func TestNonDefaultAudio_Ignored(t *testing.T) {
 		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: false},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 	assert.Equal(t, "copy", d.AudioDecision)
 }
 
@@ -40,7 +40,7 @@ func TestUserBitrateLowerThanClient(t *testing.T) {
 		MaxAudioChannels: 8,
 	}
 	// user cap 5000 kbps < client 20000 kbps -> user wins
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 5000)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 5000)
 	assert.Contains(t, d.TranscodeReasons, "bitrate_exceeded")
 	assert.Equal(t, int64(5000), d.VideoBitrate)
 }
@@ -60,7 +60,7 @@ func TestClientBitrateLowerThanUser(t *testing.T) {
 		MaxAudioChannels: 8,
 	}
 	// user cap 20000 > client 3000 -> client wins
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 20000)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 20000)
 	assert.Contains(t, d.TranscodeReasons, "bitrate_exceeded")
 	assert.Equal(t, int64(3000), d.VideoBitrate)
 }
@@ -70,7 +70,7 @@ func TestDefaultBitrates_Applied(t *testing.T) {
 		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
 		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Equal(t, "transcode", d.AudioDecision)
 	assert.Equal(t, int64(4000), d.VideoBitrate)
@@ -84,7 +84,7 @@ func TestMixedSubtitles_BitmapWins(t *testing.T) {
 		{StreamType: "subtitle", Codec: "subrip", IsDefault: false},
 		{StreamType: "subtitle", Codec: "hdmv_pgs_subtitle", IsDefault: false},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 	assert.Equal(t, "burn", d.SubtitleDecision)
 }
 
@@ -101,7 +101,7 @@ func TestOnlyHeightExceeded(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Contains(t, d.TranscodeReasons, "resolution_exceeded")
 	assert.Equal(t, 720, d.MaxHeight)
@@ -112,6 +112,6 @@ func TestNoBitrate_NoExceed(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 8000)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 8000)
 	assert.Equal(t, "direct_play", d.PlayMethod)
 }

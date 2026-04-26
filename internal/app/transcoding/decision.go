@@ -158,15 +158,16 @@ func parseBool(s string, def bool) bool {
 }
 
 func MakePlaybackDecision(
+	ctx context.Context,
 	streams []*library.MediaStream,
 	containerFormat string,
 	client transcoding.ClientProfile,
 	maxBitrateKbps int,
 ) *transcoding.PlaybackDecision {
-	_, span := tracing.StartSpan(context.Background(), "app.transcoding.MakePlaybackDecision")
+	ctx, span := tracing.StartSpan(ctx, "app.transcoding.MakePlaybackDecision")
 	defer span.End()
 	span.SetAttributes(attribute.String("container.format", containerFormat))
-	return MakePlaybackDecisionWithPrefs(streams, containerFormat, client, maxBitrateKbps, DefaultTranscodingPreferences())
+	return MakePlaybackDecisionWithPrefs(ctx, streams, containerFormat, client, maxBitrateKbps, DefaultTranscodingPreferences())
 }
 
 // MakePlaybackDecisionWithPrefs is the full entry point that also honors user prefs.
@@ -178,13 +179,14 @@ func MakePlaybackDecision(
 // works on that lean VO — keeping the algorithm decoupled from the library
 // entity it used to depend on field-by-field.
 func MakePlaybackDecisionWithPrefs(
+	ctx context.Context,
 	streams []*library.MediaStream,
 	containerFormat string,
 	client transcoding.ClientProfile,
 	maxBitrateKbps int,
 	prefs TranscodingPreferences,
 ) *transcoding.PlaybackDecision {
-	_, span := tracing.StartSpan(context.Background(), "app.transcoding.MakePlaybackDecisionWithPrefs")
+	_, span := tracing.StartSpan(ctx, "app.transcoding.MakePlaybackDecisionWithPrefs")
 	defer span.End()
 	span.SetAttributes(
 		attribute.String("container.format", containerFormat),

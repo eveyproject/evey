@@ -26,7 +26,7 @@ func TestResolveMaxBitrate_UserCapZero_ClientCapApplies(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(10000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 	assert.Contains(t, d.TranscodeReasons, "bitrate_exceeded")
 	assert.Equal(t, int64(5000), d.VideoBitrate)
 }
@@ -45,7 +45,7 @@ func TestResolution_MaxWidthZero_NoTranscode(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(7680), Height: intPtr(4320), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 	assert.NotContains(t, d.TranscodeReasons, "resolution_exceeded")
 	assert.Equal(t, "copy", d.VideoDecision)
 }
@@ -58,7 +58,7 @@ func TestDirectPlay_VideoCodecEmpty(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 	assert.Equal(t, "direct_play", d.PlayMethod)
 	assert.Equal(t, "", d.VideoCodec)
 }
@@ -70,7 +70,7 @@ func TestHDRTranscode_DefaultsToH264(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), HDRType: &hdr, Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
 	assert.Equal(t, "h264", d.VideoCodec)
@@ -90,7 +90,7 @@ func TestAudio_MaxChannelsZero_NoTranscode(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(8), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 	assert.NotContains(t, d.TranscodeReasons, "audio_channels_exceeded")
 	assert.Equal(t, "copy", d.AudioDecision)
 }
@@ -109,7 +109,7 @@ func TestAudio_ChannelsEqualMax_NoTranscode(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 	assert.NotContains(t, d.TranscodeReasons, "audio_channels_exceeded")
 	assert.Equal(t, "copy", d.AudioDecision)
 }
@@ -122,7 +122,7 @@ func TestBitrate_UnderCap_DirectPlay(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), Bitrate: int64Ptr(192000), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 8000)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 8000)
 	assert.Equal(t, "direct_play", d.PlayMethod)
 	assert.NotContains(t, d.TranscodeReasons, "bitrate_exceeded")
 }
@@ -134,7 +134,7 @@ func TestBitrate_ExactlyAtCap_DirectPlay(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(8000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 8000)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 8000)
 	assert.NotContains(t, d.TranscodeReasons, "bitrate_exceeded")
 	assert.Equal(t, "direct_play", d.PlayMethod)
 }
@@ -145,7 +145,7 @@ func TestBitrateOnlyTranscode_VideoCodecDefault(t *testing.T) {
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(40000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 8000)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 8000)
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Equal(t, "h264", d.VideoCodec)
 	assert.Equal(t, int64(8000), d.VideoBitrate)
@@ -157,7 +157,7 @@ func TestTranscode_SetsContainer(t *testing.T) {
 		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "mp4", d.Container)
 }
@@ -176,7 +176,7 @@ func TestPreferredContainer_EmptyFallsBackToMP4(t *testing.T) {
 		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(streams, "mp4", client, 0)
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 	assert.Equal(t, "transcode", d.PlayMethod)
 	assert.Equal(t, "mp4", d.Container)
 }
