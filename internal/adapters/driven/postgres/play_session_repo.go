@@ -12,8 +12,33 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
+
+// positionMsArg adapts a *shared.Duration to the int64-or-NULL value the
+// position_ms column accepts. Returns nil for a nil position.
+func positionMsArg(p *shared.Duration) any {
+	if p == nil {
+		return nil
+	}
+	return p.Milliseconds()
+}
+
+// scanPositionMs converts a nullable int64 read from position_ms into the
+// domain *shared.Duration. A negative stored value would be a corrupt row;
+// log and drop it (returning nil) rather than failing the whole read.
+func scanPositionMs(sessionID string, raw *int64) *shared.Duration {
+	if raw == nil {
+		return nil
+	}
+	d, err := shared.NewDurationMs(*raw)
+	if err != nil {
+		slog.Warn("invalid position_ms in play_sessions row", slog.String("sessionID", sessionID), slog.Int64("ms", *raw), slog.Any("err", err))
+		return nil
+	}
+	return &d
+}
 
 type PlaySessionRepository struct {
 	db *sql.DB
@@ -35,7 +60,7 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 		s.ID, s.ProfileID, s.MediaItemID, s.DeviceName, s.DeviceType, s.ClientIP,
 		s.PlayMethod, s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
-		s.StartedAt, s.EndedAt, s.DurationMs, s.PositionMs,
+		s.StartedAt, s.EndedAt, s.DurationMs, positionMsArg(s.Position),
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -78,7 +103,7 @@ func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySess
 		 WHERE id=$13`,
 		s.DeviceName, s.DeviceType, s.ClientIP, s.PlayMethod,
 		s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
-		s.EndedAt, s.DurationMs, s.PositionMs, s.IsPaused, s.ID,
+		s.EndedAt, s.DurationMs, positionMsArg(s.Position), s.IsPaused, s.ID,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -95,18 +120,20 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	s := &playback.PlaySession{}
+	var positionMs *int64
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
 		 video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused
 		 FROM play_sessions WHERE id = $1`, id,
 	).Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
 		&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
-		&s.StartedAt, &s.EndedAt, &s.DurationMs, &s.PositionMs, &s.IsPaused)
+		&s.StartedAt, &s.EndedAt, &s.DurationMs, &positionMs, &s.IsPaused)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaySessionRepo.GetByID: %w", err)
 	}
+	s.Position = scanPositionMs(s.ID, positionMs)
 	return s, nil
 }
 
@@ -328,11 +355,13 @@ func (r *PlaySessionRepository) scanPlaySessionRows(rows *sql.Rows) ([]*playback
 	var result []*playback.PlaySession
 	for rows.Next() {
 		s := &playback.PlaySession{}
+		var positionMs *int64
 		if err := rows.Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
 			&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
-			&s.StartedAt, &s.EndedAt, &s.DurationMs, &s.PositionMs); err != nil {
+			&s.StartedAt, &s.EndedAt, &s.DurationMs, &positionMs); err != nil {
 			return nil, fmt.Errorf("PlaySessionRepo.scanRows: %w", err)
 		}
+		s.Position = scanPositionMs(s.ID, positionMs)
 		result = append(result, s)
 	}
 	if err := rows.Err(); err != nil {

@@ -9,6 +9,7 @@ import (
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	"github.com/evey-project/evey/internal/domain/playback"
 	pbfakes "github.com/evey-project/evey/internal/domain/playback/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"google.golang.org/grpc/codes"
@@ -83,7 +84,10 @@ func TestListActiveSessions_Empty(t *testing.T) {
 
 func TestListActiveSessions_Seeded(t *testing.T) {
 	h, sessionRepo := newTestAdminSessionHandler()
-	pos := int64(12000)
+	pos, err := shared.NewDurationMs(12000)
+	if err != nil {
+		t.Fatal(err)
+	}
 	sessionRepo.Create(context.Background(), &playback.PlaySession{
 		ID:          "sess-1",
 		ProfileID:   "profile-1",
@@ -95,7 +99,7 @@ func TestListActiveSessions_Seeded(t *testing.T) {
 		AudioCodec:  "aac",
 		Resolution:  "1080p",
 		StartedAt:   time.Now(),
-		PositionMs:  &pos,
+		Position:    &pos,
 	})
 	sessionRepo.Create(context.Background(), &playback.PlaySession{
 		ID:          "sess-2",

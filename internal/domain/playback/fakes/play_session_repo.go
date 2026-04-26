@@ -85,8 +85,8 @@ func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*pl
 				Resolution:   s.Resolution,
 				BandwidthBps: s.BandwidthBps,
 			}
-			if s.PositionMs != nil {
-				info.PositionMs = *s.PositionMs
+			if s.Position != nil {
+				info.PositionMs = s.Position.Milliseconds()
 			}
 			if s.PlayMethod == string(playback.Transcode) {
 				t := s.VideoCodec + " -> h264"

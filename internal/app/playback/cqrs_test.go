@@ -139,8 +139,8 @@ func TestCommandService_ReportProgressBySession(t *testing.T) {
 
 	stored, err := sessionRepo.GetByID(ctx, "s1")
 	require.NoError(t, err)
-	require.NotNil(t, stored.PositionMs)
-	assert.Equal(t, int64(55000), *stored.PositionMs)
+	require.NotNil(t, stored.Position)
+	assert.Equal(t, int64(55000), stored.Position.Milliseconds())
 }
 
 func TestQueryService_GetResumeItems(t *testing.T) {

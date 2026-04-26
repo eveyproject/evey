@@ -11,6 +11,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/playback"
 	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/domain/user"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -332,7 +333,10 @@ func TestWatchProgressToProto(t *testing.T) {
 
 func TestPlaySessionToProto(t *testing.T) {
 	t.Parallel()
-	pos := int64(30000)
+	pos, err := shared.NewDurationMs(30000)
+	if err != nil {
+		t.Fatal(err)
+	}
 	s := &playback.PlaySession{
 		ID:          "ps-1",
 		ProfileID:   "p-1",
@@ -340,7 +344,7 @@ func TestPlaySessionToProto(t *testing.T) {
 		PlayMethod:  "direct_play",
 		DeviceName:  "Chrome",
 		DeviceType:  "web",
-		PositionMs:  &pos,
+		Position:    &pos,
 	}
 	pb := playSessionToProto(s)
 	if pb.Id != "ps-1" || pb.PositionMs != 30000 {

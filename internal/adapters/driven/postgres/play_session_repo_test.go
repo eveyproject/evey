@@ -86,10 +86,11 @@ func TestPlaySessionRepo_Update(t *testing.T) {
 
 	endedAt := time.Now().UTC().Truncate(time.Millisecond)
 	durationMs := int64(120000)
-	posMs := int64(119000)
+	pos, err := shared.NewDurationMs(119000)
+	require.NoError(t, err)
 	session.EndedAt = &endedAt
 	session.DurationMs = &durationMs
-	session.PositionMs = &posMs
+	session.Position = &pos
 	require.NoError(t, sessionRepo.Update(ctx, session))
 
 	got, err := sessionRepo.GetByID(ctx, session.ID)

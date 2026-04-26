@@ -146,7 +146,15 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	if err != nil {
 		return ErrSessionNotFound
 	}
-	session.PositionMs = &positionMs
+	// Negative positions from a misbehaving client get logged and dropped;
+	// IsPaused still gets recorded so pause UI doesn't desync. shared.Duration
+	// rejects negatives by construction.
+	pos, dErr := shared.NewDurationMs(positionMs)
+	if dErr != nil {
+		slog.Warn("invalid report progress position", slog.String("sessionID", sessionID), slog.Int64("ms", positionMs), slog.Any("err", dErr))
+	} else {
+		session.Position = &pos
+	}
 	session.IsPaused = isPaused
 	if err := s.sessions.Update(ctx, session); err != nil {
 		return fmt.Errorf("update session position: %w", err)

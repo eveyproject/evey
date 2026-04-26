@@ -48,8 +48,10 @@ type PlaySession struct {
 	StartedAt    time.Time
 	EndedAt      *time.Time
 	DurationMs   *int64
-	PositionMs   *int64
-	IsPaused     bool
+	// Position is the last reported playback position. nil when no progress
+	// has been reported yet for this session.
+	Position *shared.Duration
+	IsPaused bool
 }
 
 func (s *PlaySession) Validate() error {

@@ -243,8 +243,8 @@ func TestReportProgressBySession_UpdatesSessionPosition(t *testing.T) {
 
 	stored, err := sr.GetByID(ctx, "s1")
 	require.NoError(t, err)
-	require.NotNil(t, stored.PositionMs)
-	assert.Equal(t, int64(42000), *stored.PositionMs)
+	require.NotNil(t, stored.Position)
+	assert.Equal(t, int64(42000), stored.Position.Milliseconds())
 
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)

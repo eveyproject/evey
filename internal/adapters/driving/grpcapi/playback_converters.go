@@ -39,8 +39,8 @@ func playSessionToProto(s *playback.PlaySession) *eveyv1.PlaySession {
 		ClientName:  s.DeviceType,
 		StartedAt:   toTimestamppb(s.StartedAt),
 	}
-	if s.PositionMs != nil {
-		ps.PositionMs = *s.PositionMs
+	if s.Position != nil {
+		ps.PositionMs = s.Position.Milliseconds()
 	}
 	return ps
 }
