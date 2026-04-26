@@ -1,35 +1,55 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet, Alert } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import * as SecureStore from "expo-secure-store";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
-import { useAuthStore, useLocaleStore } from "@evey/store";
+import {
+  useUserServiceGetCurrentUser,
+  useUserServiceListProfiles,
+  userServiceRefreshToken,
+} from "@evey/api";
+import type { V1Profile } from "@evey/api";
+import { useAuthStore, useLocaleStore, toast } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
 import { supportedLanguages } from "../src/i18n";
 import i18n from "../src/i18n";
 import { useBiometricAvailable, useBiometricEnabled } from "../src/hooks/useBiometric";
+import { PinPromptDialog } from "../src/features/profile/PinPromptDialog";
+
+const LAST_PROFILE_KEY = "evey:last_profile_id";
 
 export default function ProfileSelect() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const setProfile = useAuthStore((s) => s.setProfile);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const activeProfileId = useAuthStore((s) => s.profileId);
   const serverUrl = useServerUrl();
 
-  const { data: user } = useUserServiceGetCurrentUser();
+  const { data: user, isLoading: userLoading } = useUserServiceGetCurrentUser();
   const userId = user?.id;
 
-  const { data: profilesData, isLoading } = useUserServiceListProfiles(userId ?? "", {
+  const { data: profilesData, isLoading: profilesLoading } = useUserServiceListProfiles(userId ?? "", {
     query: { enabled: !!userId },
   });
 
-  const profiles = profilesData?.profiles ?? [];
+  const profiles = useMemo(() => profilesData?.profiles ?? [], [profilesData]);
+  const loading = userLoading || profilesLoading;
+  const hasKidsProfile = profiles.some((p) => p.isKids === true);
   const defaultProfile = profiles.find((p) => p.isDefault) ?? profiles[0];
 
-  // Task 2: sync locale from profile
+  const currentProfile = profiles.find((p) => p.id === activeProfileId);
+  const currentIsKids = currentProfile?.isKids === true;
+
+  const [busy, setBusy] = useState<string | null>(null);
+  const [pinTarget, setPinTarget] = useState<V1Profile | null>(null);
+  const autoRedirectedRef = useRef(false);
+
+  // Task: sync locale from default profile (preserved from previous behavior)
   const localeSynced = useRef(false);
   useEffect(() => {
     if (localeSynced.current || !defaultProfile?.locale) return;
@@ -41,12 +61,12 @@ export default function ProfileSelect() {
     localeSynced.current = true;
   }, [defaultProfile?.locale]);
 
-  // Task 3: prompt biometric on first login
+  // Task: prompt biometric on first profile-select (preserved)
   const { available: biometricAvailable } = useBiometricAvailable();
   const { enabled: biometricEnabled, toggle: toggleBiometric } = useBiometricEnabled();
   const biometricPrompted = useRef(false);
   useEffect(() => {
-    if (biometricPrompted.current || !biometricAvailable || biometricEnabled || isLoading) return;
+    if (biometricPrompted.current || !biometricAvailable || biometricEnabled || loading) return;
     biometricPrompted.current = true;
     (async () => {
       const prompted = await SecureStore.getItemAsync("evey-biometric-prompted");
@@ -61,21 +81,74 @@ export default function ProfileSelect() {
         ],
       );
     })();
-  }, [biometricAvailable, biometricEnabled, isLoading, t, toggleBiometric]);
+  }, [biometricAvailable, biometricEnabled, loading, t, toggleBiometric]);
 
-  useEffect(() => {
-    if (!isLoading && profiles.length === 1 && profiles[0].id) {
-      setProfile(profiles[0].id);
-      router.replace("/(auth)/(tabs)");
+  const switchProfile = useCallback(async (target: V1Profile): Promise<boolean> => {
+    if (!target.id) return false;
+    try {
+      const resp = await userServiceRefreshToken({ profileId: target.id });
+      if (resp.accessToken) {
+        useAuthStore.getState().setTokens(resp.accessToken);
+      } else {
+        // No new token returned — at least pin the local profileId so AuthLayout
+        // doesn't bounce back to /profile-select.
+        setProfile(target.id);
+      }
+      try {
+        await SecureStore.setItemAsync(LAST_PROFILE_KEY, target.id);
+      } catch { /* ignore */ }
+      await qc.invalidateQueries();
+      return true;
+    } catch (err) {
+      console.warn("profile switch failed", err);
+      toast.error(err instanceof Error ? err.message : t("auth.profile.switchFailed", "Could not switch profile"));
+      return false;
     }
-  }, [isLoading, profiles, setProfile]);
+  }, [qc, setProfile, t]);
 
-  function handleSelect(profileId: string) {
-    setProfile(profileId);
-    router.replace("/(auth)/(tabs)");
-  }
+  const handleSelect = useCallback(async (p: V1Profile) => {
+    if (!p.id || busy) return;
+    const targetIsKids = p.isKids === true;
+    const needsPin = currentIsKids && !targetIsKids;
+    if (needsPin) {
+      setPinTarget(p);
+      return;
+    }
+    setBusy(p.id);
+    const ok = await switchProfile(p);
+    setBusy(null);
+    if (ok) router.replace("/(auth)/(tabs)");
+  }, [busy, currentIsKids, switchProfile]);
 
-  if (isLoading || profiles.length <= 1) {
+  // Auto-skip when no kids profile exists.
+  useEffect(() => {
+    if (loading || autoRedirectedRef.current) return;
+    if (profiles.length === 0) {
+      autoRedirectedRef.current = true;
+      router.replace("/(auth)/(tabs)");
+      return;
+    }
+    if (!hasKidsProfile) {
+      autoRedirectedRef.current = true;
+      void (async () => {
+        let lastId: string | null = null;
+        try {
+          lastId = await SecureStore.getItemAsync(LAST_PROFILE_KEY);
+        } catch { /* ignore */ }
+        const target = profiles.find((p) => p.id === lastId)
+          ?? profiles.find((p) => p.isDefault)
+          ?? profiles[0];
+        if (target?.id && target.id !== activeProfileId) {
+          await switchProfile(target);
+        } else if (target?.id) {
+          setProfile(target.id);
+        }
+        router.replace("/(auth)/(tabs)");
+      })();
+    }
+  }, [loading, hasKidsProfile, profiles, activeProfileId, switchProfile, setProfile]);
+
+  if (loading || !hasKidsProfile) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
         <ActivityIndicator color={theme.colors.accent} size="large" />
@@ -87,35 +160,73 @@ export default function ProfileSelect() {
 
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <Text style={s.title}>{t("mobile.profileSelect.title", "Who's watching?")}</Text>
+      <Text style={s.title}>{t("auth.profile.select.title", "Who's watching?")}</Text>
+      <Text style={s.subtitle}>{t("auth.profile.select.description", "Select a profile to continue.")}</Text>
       <View style={s.grid}>
-        {profiles.map((profile) => {
-          const initial = (profile.name ?? "?")[0].toUpperCase();
+        {profiles.map((p) => {
+          const initial = (p.name ?? "?")[0]?.toUpperCase() ?? "?";
+          const avatarUrl = p.avatarPath && p.id && serverUrl && accessToken
+            ? `${serverUrl}/api/v1/profiles/${p.id}/avatar?token=${accessToken}`
+            : null;
+          const isBusy = busy === p.id;
           return (
             <Pressable
-              key={profile.id}
-              style={s.card}
-              onPress={() => profile.id && handleSelect(profile.id)}
-              accessible={true}
-              accessibilityLabel={profile.name}
+              key={p.id}
+              style={[s.card, busy ? { opacity: 0.5 } : null]}
+              onPress={() => void handleSelect(p)}
+              disabled={busy !== null}
+              accessible
+              accessibilityLabel={p.name}
               accessibilityRole="button"
             >
               <View style={[s.avatar, { backgroundColor: theme.colors.accent, overflow: "hidden" }]}>
-                {profile.avatarPath && serverUrl && accessToken ? (
+                {avatarUrl ? (
                   <Image
-                    source={{ uri: `${serverUrl}/api/v1/profiles/${profile.id}/avatar?token=${accessToken}` }}
-                    style={{ width: 64, height: 64, borderRadius: 32 }}
+                    source={{ uri: avatarUrl }}
+                    style={{ width: 96, height: 96, borderRadius: 48 }}
                     contentFit="cover"
                   />
                 ) : (
                   <Text style={s.avatarText}>{initial}</Text>
                 )}
               </View>
-              <Text style={s.profileName} numberOfLines={1}>{profile.name}</Text>
+              <View style={s.nameRow}>
+                <Text style={s.profileName} numberOfLines={1}>{p.name}</Text>
+                {p.isKids && (
+                  <Text style={s.kidsBadge}>
+                    {t("auth.profile.select.kidsBadge", "Kids")}
+                  </Text>
+                )}
+              </View>
+              {isBusy && <ActivityIndicator color={theme.colors.accent} size="small" />}
             </Pressable>
           );
         })}
       </View>
+      <Pressable
+        onPress={() => router.push("/(auth)/profile/manage")}
+        style={s.manageBtn}
+        accessibilityRole="button"
+        accessibilityLabel={t("auth.profile.select.manage", "Manage Profiles")}
+      >
+        <Text style={[s.manageText, { color: theme.colors.textMuted }]}>
+          {t("auth.profile.select.manage", "Manage Profiles")}
+        </Text>
+      </Pressable>
+
+      {pinTarget && (
+        <PinPromptDialog
+          target={pinTarget}
+          onCancel={() => setPinTarget(null)}
+          onVerified={async (target) => {
+            setPinTarget(null);
+            setBusy(target.id ?? null);
+            const ok = await switchProfile(target);
+            setBusy(null);
+            if (ok) router.replace("/(auth)/(tabs)");
+          }}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -127,16 +238,23 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       backgroundColor: t.colors.bg,
     },
     content: {
-      flex: 1,
+      flexGrow: 1,
       justifyContent: "center",
       alignItems: "center",
       padding: t.spacing.xl,
     },
     title: {
-      fontSize: 24,
-      fontWeight: "bold",
+      fontSize: 26,
+      fontWeight: "700",
       color: t.colors.text,
+      marginBottom: 4,
+      textAlign: "center",
+    },
+    subtitle: {
+      fontSize: 14,
+      color: t.colors.textMuted,
       marginBottom: t.spacing.xl,
+      textAlign: "center",
     },
     grid: {
       flexDirection: "row",
@@ -146,24 +264,44 @@ const styles = (t: ReturnType<typeof useTheme>) =>
     },
     card: {
       alignItems: "center",
-      width: 100,
+      width: 120,
+      gap: 8,
     },
     avatar: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
+      width: 96,
+      height: 96,
+      borderRadius: 48,
       justifyContent: "center",
       alignItems: "center",
-      marginBottom: t.spacing.sm,
     },
     avatarText: {
       color: "#fff",
-      fontSize: 32,
-      fontWeight: "bold",
+      fontSize: 38,
+      fontWeight: "700",
+    },
+    nameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      flexWrap: "wrap",
+      justifyContent: "center",
     },
     profileName: {
       color: t.colors.text,
-      fontSize: 14,
+      fontSize: 15,
       textAlign: "center",
+    },
+    kidsBadge: {
+      fontSize: 11,
+      color: t.colors.textMuted,
+    },
+    manageBtn: {
+      marginTop: t.spacing.xl,
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+    },
+    manageText: {
+      fontSize: 14,
+      fontWeight: "500",
     },
   });

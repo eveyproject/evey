@@ -28,7 +28,10 @@ export default function AuthLayout() {
 
   return (
     <DrawerProvider>
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="profile/manage" options={{ headerShown: true, title: "" }} />
+        <Stack.Screen name="profile/settings" options={{ headerShown: true, title: "" }} />
+      </Stack>
       <SideDrawer />
       <MiniPlayer />
     </DrawerProvider>
