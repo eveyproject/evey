@@ -9,10 +9,10 @@ func TestSubscribeAndNotify(t *testing.T) {
 	h := New()
 	ch := h.Subscribe("ABC123")
 
-	go func() {
-		time.Sleep(10 * time.Millisecond)
-		h.Notify("ABC123")
-	}()
+	// Notify synchronously from another goroutine — no fixed delay needed.
+	// The subscriber channel is buffered; Notify just closes it, so the order
+	// between Subscribe and Notify is what matters and is already established.
+	go h.Notify("ABC123")
 
 	select {
 	case <-ch:

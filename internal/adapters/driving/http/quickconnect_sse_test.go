@@ -13,15 +13,22 @@ import (
 )
 
 // syncRecorder is a goroutine-safe ResponseWriter+Flusher for SSE tests.
+// It exposes a flushed signal so tests can wait deterministically for the
+// handler to emit + flush data instead of polling the buffer with sleeps.
 type syncRecorder struct {
-	mu   sync.Mutex
-	h    http.Header
-	code int
-	buf  strings.Builder
+	mu      sync.Mutex
+	h       http.Header
+	code    int
+	buf     strings.Builder
+	flushed chan struct{}
 }
 
 func newSyncRecorder() *syncRecorder {
-	return &syncRecorder{h: make(http.Header), code: http.StatusOK}
+	return &syncRecorder{
+		h:       make(http.Header),
+		code:    http.StatusOK,
+		flushed: make(chan struct{}, 16),
+	}
 }
 
 func (r *syncRecorder) Header() http.Header {
@@ -39,7 +46,14 @@ func (r *syncRecorder) WriteHeader(code int) {
 	defer r.mu.Unlock()
 	r.code = code
 }
-func (r *syncRecorder) Flush() {}
+func (r *syncRecorder) Flush() {
+	// Non-blocking notify: tests that don't care about the signal still work,
+	// and tests that wait for it get a deterministic wake-up.
+	select {
+	case r.flushed <- struct{}{}:
+	default:
+	}
+}
 func (r *syncRecorder) body() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -49,6 +63,28 @@ func (r *syncRecorder) getHeader(k string) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.h.Get(k)
+}
+
+// waitForBody blocks until the recorder body contains substr or the timeout
+// elapses, returning whether the substring was found. It uses the flushed
+// channel as a wake-up signal so we don't rely on fixed sleeps.
+func (r *syncRecorder) waitForBody(t *testing.T, substr string, timeout time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		if strings.Contains(r.body(), substr) {
+			return true
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return strings.Contains(r.body(), substr)
+		}
+		select {
+		case <-r.flushed:
+		case <-time.After(remaining):
+			return strings.Contains(r.body(), substr)
+		}
+	}
 }
 
 func TestQuickConnectSSE_MissingCode(t *testing.T) {
@@ -120,12 +156,8 @@ func TestQuickConnectSSE_InitialPingAndContextCancel(t *testing.T) {
 		close(done)
 	}()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if strings.Contains(rec.body(), ": ping") {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	if !rec.waitForBody(t, ": ping", 2*time.Second) {
+		t.Fatalf("expected initial ping, got %q", rec.body())
 	}
 
 	cancel()
@@ -164,12 +196,8 @@ func TestQuickConnectSSE_UnsubscribesOnExit(t *testing.T) {
 		close(done)
 	}()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if strings.Contains(rec.body(), ": ping") {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	if !rec.waitForBody(t, ": ping", 2*time.Second) {
+		t.Fatalf("expected initial ping, got %q", rec.body())
 	}
 
 	cancel()
@@ -221,12 +249,8 @@ func TestQuickConnectSSE_NotifyAuthorized(t *testing.T) {
 		close(done)
 	}()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if strings.Contains(rec.body(), ": ping") {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	if !rec.waitForBody(t, ": ping", 2*time.Second) {
+		t.Fatalf("expected initial ping before notify, got %q", rec.body())
 	}
 
 	hub.Notify("code123")
@@ -274,12 +298,8 @@ func TestQuickConnectSSE_NotifyNotAuthorized(t *testing.T) {
 		close(done)
 	}()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if strings.Contains(rec.body(), ": ping") {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	if !rec.waitForBody(t, ": ping", 2*time.Second) {
+		t.Fatalf("expected initial ping before notify, got %q", rec.body())
 	}
 
 	hub.Notify("codex")
@@ -328,19 +348,12 @@ func TestQuickConnectSSE_ConcurrentSubscribersSameCode(t *testing.T) {
 		}
 	}()
 
-	// Wait for all subs to emit initial ping (proves they're subscribed).
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		ready := 0
-		for _, r := range recs {
-			if strings.Contains(r.body(), ": ping") {
-				ready++
-			}
+	// Wait for each sub to emit its initial ping (proves they're subscribed)
+	// using the per-recorder flushed signal — no fixed sleeps.
+	for i, r := range recs {
+		if !r.waitForBody(t, ": ping", 3*time.Second) {
+			t.Fatalf("sub %d never emitted initial ping: %q", i, r.body())
 		}
-		if ready == subs {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
 	}
 
 	hub.Notify("shared")
