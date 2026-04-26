@@ -28,34 +28,3 @@ push:
   plugin_error_id:
     title: "Erreur du plugin : {plugin}"
 
-new_movie:
-  title: "Nouveau film"
-  message: "{title} a été ajouté à votre bibliothèque"
-
-new_episode:
-  title: "Nouvel épisode"
-  message: "{title} - nouvel épisode disponible"
-
-new_season:
-  title: "Nouvelle saison"
-  message: "{title} - nouvelle saison disponible"
-
-new_series:
-  title: "Nouvelle série"
-  message: "{title} a été ajouté à votre bibliothèque"
-
-new_album:
-  title: "Nouvel album"
-  message: "{title} a été ajouté à votre bibliothèque"
-
-library_scanned:
-  title: "Bibliothèque scannée"
-  message: "Scan de la bibliothèque terminé : {count} éléments trouvés"
-
-plugin_error:
-  title: "Erreur de plugin"
-  message: "Le plugin {title} a rencontré une erreur"
-
-custom:
-  title: "Notification"
-  message: "{message}"

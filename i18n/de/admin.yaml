@@ -4,14 +4,10 @@ nav:
   nowPlaying: Aktuelle Wiedergabe
   remoteAccess: Fernzugriff
   serverConfig: Serverkonfiguration
-  serverSettings: Servereinstellungen
   systemHealth: Systemzustand
   media: Medien
   libraries: Bibliotheken
-  metadata: Metadaten
   transcoding: Transkodierung
-  transcodeCache: Transkodierungs-Cache
-  transcodingProfiles: Transkodierungsprofile
   usersAccess: Benutzer & Zugriff
   users: Benutzer
   integrations: Integrationen
@@ -21,8 +17,6 @@ nav:
   monitoring: Überwachung
   analytics: Analysen
   activity: Aktivität
-  auditLog: Audit-Protokoll
-  liveLogs: Live-Protokolle
   maintenance: Wartung
   backupRestore: Sicherung & Wiederherstellung
 
@@ -41,10 +35,6 @@ plugin:
   sandboxed: Sandboxed
   hash: "Hash"
   hashCopied: "Hash kopiert"
-  verified: "Verifiziert"
-  updateAvailable: "Update verfügbar"
-  versionHigher: "Version {{new}} ersetzt {{current}}"
-  versionRejected: "Version {{new}} ist nicht höher als {{current}}"
   sandboxedWidget: Sandboxed-Widget
   widgetLoadError: Widget konnte nicht geladen werden
   state:
@@ -93,7 +83,6 @@ plugins:
   previewFailed: Vorschau fehlgeschlagen
   installFailed: Installation fehlgeschlagen
   availableRuntimes: Verfügbare Laufzeiten
-  noRuntimes: Keine Plugin-Laufzeiten erkannt
 
 dashboard:
   title: Dashboard
@@ -179,7 +168,6 @@ libraries:
   libraryUpdated: "Bibliothek \"{{name}}\" aktualisiert"
   libraryDeleted: "Bibliothek \"{{name}}\" gelöscht"
   editLibrary: Bibliothek bearbeiten
-  failedUpdate: Bibliothek konnte nicht aktualisiert werden
   failedDelete: Bibliothek konnte nicht gelöscht werden
   scanStarted: Scan gestartet
   failedScan: Scan konnte nicht gestartet werden
@@ -340,7 +328,6 @@ activity:
   title: Aktivität
   tabs:
     playHistory: Wiedergabeverlauf
-    loginHistory: Anmeldeverlauf
     serverStats: Serverstatistiken
   playHeaders:
     title: Titel
@@ -348,16 +335,7 @@ activity:
     duration: Dauer
     progress: Fortschritt
     started: Gestartet
-  loginHeaders:
-    user: Benutzer
-    ip: IP
-    status: Status
-    userAgent: User Agent
-    timestamp: Zeitstempel
   noPlayHistory: Kein Wiedergabeverlauf
-  noLoginHistory: Kein Anmeldeverlauf
-  ok: OK
-  failed: Fehlgeschlagen
   totalEntries: "{{count}} Einträge insgesamt"
   stats:
     totalPlays: Gesamtwiedergaben
@@ -370,8 +348,6 @@ activity:
 
 audit:
   title: Audit-Protokoll
-  action: Aktion
-  resourceType: Ressourcentyp
   tableHeaders:
     time: Zeit
     user: Benutzer
@@ -516,9 +492,7 @@ dashboardStats:
   playActivity: Wiedergabeaktivität (14 Tage)
   plays: Wiedergaben
   watchTime: Wiedergabezeit
-  contentBreakdown: Inhaltsverteilung
   activeUsers: Aktive Benutzer
-  playMethodBreakdown: Wiedergabemethode (30 Tage)
   peakHours: Spitzenzeiten (30 Tage)
   used: Belegt
   free: Frei

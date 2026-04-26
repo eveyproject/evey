@@ -1,5 +1,4 @@
 season: "Saison {{number}}"
-episode: "E{{number}}"
 chapter: "Chapitre {{number}}"
 track: "Piste {{number}}"
 burnIn: "(incrusté)"
@@ -30,7 +29,6 @@ favorites:
   titleZA: "Titre Z–A"
   yearNewest: Année (plus récent)
   rating: Note
-  yourRating: "Votre note"
   noFavorites: Pas encore de favoris
   noFavoritesDesc: "Cliquez sur l'icône cœur de n'importe quel média pour l'ajouter aux favoris."
   addToPlaylist: Ajouter à la liste de lecture
@@ -101,14 +99,11 @@ library:
   dateAdded: "Date d'ajout"
   ascending: Croissant
   descending: Décroissant
-  switchToList: Passer en vue liste
-  switchToGrid: Passer en vue grille
   noItems: Aucun élément trouvé
   noItemsFiltered: "Essayez d'ajuster vos filtres ou votre recherche."
   noItemsType: "Essayez un filtre différent, ou scannez la bibliothèque pour ajouter du contenu."
   noItemsEmpty: Cette bibliothèque est vide. Lancez un scan pour ajouter du contenu.
   goToAdmin: "Aller à l'administration"
-  loadMore: "Charger plus ({{current}} sur {{total}})"
   selected: sélectionné(s)
   addToFavorites: Ajouter aux favoris
   addedToFavorites: "{{count}} élément(s) ajouté(s) aux favoris"
@@ -152,7 +147,6 @@ library:
   markedWatched: Marqué vu
 person:
   filmography: Filmographie
-  notFound: Personne introuvable.
   unknown: Inconnu
   titleCount: "{{count}} titre"
   titleCount_plural: "{{count}} titres"
@@ -218,8 +212,6 @@ detail:
   idChangedWarning: "ID modifié - l'enregistrement récupérera les métadonnées du fournisseur"
   refreshMetadata: Actualiser les métadonnées
   resetMetadata: Réinitialiser les métadonnées
-  metadataReset: "Métadonnées réinitialisées - le ré-enrichissement va démarrer"
-  resetMetadataFailed: "Échec de la réinitialisation des métadonnées"
   reEnrichedWithNewId: Ré-enrichi avec le nouvel ID
   metadataSaved: Métadonnées enregistrées
   failedToSave: "Échec de l'enregistrement"
@@ -318,11 +310,6 @@ photos:
   noAlbumsDesc: Aucun album trouvé dans cette bibliothèque.
   noPhotoLibraries: Aucune bibliothèque de photos
   noPhotoLibrariesDesc: "Ajoutez une bibliothèque de photos dans le panneau d'administration pour commencer."
-  photoDeleted: Photo supprimée
-  failedDeletePhoto: Échec de la suppression de la photo
-  deletePhotoConfirm: "Supprimer \"{{title}}\" ? Cette action est irréversible."
-  photoCount: "{{count}} photo"
-  photoCount_plural: "{{count}} photos"
 added: Ajouté
 created: Créé
 updated: Mis à jour

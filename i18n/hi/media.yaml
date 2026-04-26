@@ -1,5 +1,4 @@
 season: "सीज़न {{number}}"
-episode: "E{{number}}"
 chapter: "अध्याय {{number}}"
 track: "ट्रैक {{number}}"
 burnIn: "(बर्न-इन)"
@@ -30,7 +29,6 @@ favorites:
   titleZA: "शीर्षक Z–A"
   yearNewest: वर्ष (नवीनतम)
   rating: रेटिंग
-  yourRating: "आपकी रेटिंग"
   noFavorites: अभी कोई पसंदीदा नहीं
   noFavoritesDesc: किसी भी मीडिया आइटम पर हृदय आइकन क्लिक करके पसंदीदा में जोड़ें।
   addToPlaylist: प्लेलिस्ट में जोड़ें
@@ -101,14 +99,11 @@ library:
   dateAdded: जोड़ने की तिथि
   ascending: आरोही
   descending: अवरोही
-  switchToList: सूची दृश्य पर जाएं
-  switchToGrid: ग्रिड दृश्य पर जाएं
   noItems: कोई आइटम नहीं मिला
   noItemsFiltered: अपने फ़िल्टर या खोज शब्द समायोजित करें।
   noItemsType: कोई अलग फ़िल्टर आज़माएं, या सामग्री जोड़ने के लिए लाइब्रेरी स्कैन करें।
   noItemsEmpty: यह लाइब्रेरी खाली है। सामग्री जोड़ने के लिए स्कैन शुरू करें।
   goToAdmin: एडमिन पर जाएं
-  loadMore: "और लोड करें ({{current}} / {{total}})"
   selected: चयनित
   addToFavorites: पसंदीदा में जोड़ें
   addedToFavorites: "{{count}} आइटम पसंदीदा में जोड़े गए"
@@ -152,7 +147,6 @@ library:
   markedWatched: देखा गया चिह्नित किया
 person:
   filmography: "फ़िल्मोग्राफ़ी"
-  notFound: व्यक्ति नहीं मिला।
   unknown: अज्ञात
   titleCount: "{{count}} शीर्षक"
   titleCount_plural: "{{count}} शीर्षक"
@@ -218,8 +212,6 @@ detail:
   idChangedWarning: "ID बदली - सहेजने पर प्रदाता से मेटाडेटा फिर से प्राप्त होगा"
   refreshMetadata: मेटाडेटा रिफ़्रेश करें
   resetMetadata: मेटाडेटा रीसेट करें
-  metadataReset: "मेटाडेटा रीसेट हो गया - पुनः संवर्धन शुरू होगा"
-  resetMetadataFailed: मेटाडेटा रीसेट करने में विफल
   reEnrichedWithNewId: नई ID से फिर से प्राप्त किया
   metadataSaved: मेटाडेटा सहेजा गया
   failedToSave: सहेजने में विफल
@@ -318,11 +310,6 @@ photos:
   noAlbumsDesc: इस लाइब्रेरी में कोई एल्बम नहीं मिला।
   noPhotoLibraries: कोई फ़ोटो लाइब्रेरी नहीं
   noPhotoLibrariesDesc: शुरू करने के लिए एडमिन पैनल में फ़ोटो लाइब्रेरी जोड़ें।
-  photoDeleted: फ़ोटो मिटाई गई
-  failedDeletePhoto: फ़ोटो मिटाने में विफल
-  deletePhotoConfirm: "\"{{title}}\" मिटाएं? यह क्रिया पूर्ववत नहीं की जा सकती।"
-  photoCount: "{{count}} फ़ोटो"
-  photoCount_plural: "{{count}} फ़ोटो"
 added: जोड़ा गया
 created: बनाया गया
 updated: अपडेट किया गया

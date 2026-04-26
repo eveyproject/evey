@@ -22,14 +22,12 @@ or: "o"
 previous: "Anterior"
 next: "Siguiente"
 edit: "Editar"
-all: "Todo"
 add: "Agregar"
 remove: "Quitar"
 name: "Nombre"
 "no": "No"
 status: "Estado"
 actions: "Acciones"
-apply: "Aplicar"
 clear: "Limpiar"
 close: "Cerrar"
 confirm: "Confirmar"
@@ -75,11 +73,8 @@ routeError:
 aria:
   closeMenu: Cerrar menú
   openMenu: Abrir menú
-  bottomNav: Navegación inferior
-  options: Opciones
   play: Reproducir
   pause: Pausa
-  loading: Cargando
   breadcrumb: Ruta de navegación
   pagination: Paginación
   previousPage: Página anterior
@@ -87,18 +82,7 @@ aria:
   reloadPage: Recargar la página
   goToHome: Ir al inicio
   dismiss: Descartar
-  removeRule: Eliminar regla
-  clearSelection: Limpiar selección
   close: Cerrar
-  deletePhoto: Eliminar foto
-  deleteCollection: Eliminar colección
-  editFilter: Editar filtro
-  deleteFilter: Eliminar filtro
-  closePlayer: Cerrar reproductor
-  subtitleFontSize: Tamaño de subtítulos
-  bgOpacity: Opacidad del fondo
-  operator: Operador
-  value: Valor
   retryPage: "Reintentar carga"
   goToHomePage: "Ir a la página de inicio"
   skipToContent: "Saltar al contenido"
@@ -149,7 +133,6 @@ nav:
   syncplay: "Escuchar juntos"
   admin: "Administración"
   backToApp: "Volver a la aplicación"
-  profile: "Perfil"
   settings: "Ajustes"
   watchHistory: "Historial de reproducción"
   myStats: "Mis estadísticas"
@@ -161,10 +144,8 @@ nav:
   adminNav: "Navegación de administración"
   userMenu: "Menú de usuario"
   homeFeeds: "Feeds de inicio"
-  profileSwitcher: "Cambiar de perfil"
   switchProfile: "Cambiar de perfil"
   manageProfiles: "Gestionar perfiles"
-you: "Tú"
 shortcuts:
   title: Atajos de teclado
   focusSearch: Enfocar búsqueda
@@ -181,7 +162,6 @@ parental:
 feeds:
   title: "Secciones de la página de inicio"
   section: Sección
-  order: Orden
   maxItems: Máx. elementos
   saved: "Configuración guardada"
   customize: Personalizar
@@ -190,7 +170,6 @@ feeds:
   labels:
     resume_playback: "Reanudar reproducción"
     next_up: "A continuación"
-    next_episode: "Siguiente episodio"
     recommended: "Recomendados"
     most_popular: "Más populares"
     collections: Colecciones

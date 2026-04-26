@@ -22,14 +22,12 @@ or: oder
 previous: Zurück
 next: Weiter
 edit: Bearbeiten
-all: Alle
 add: Hinzufügen
 remove: Entfernen
 name: Name
 "no": "Nein"
 status: Status
 actions: Aktionen
-apply: Anwenden
 clear: Leeren
 close: "Schließen"
 confirm: "Bestätigen"
@@ -112,11 +110,8 @@ noNotifications: Keine Benachrichtigungen
 aria:
   closeMenu: Menü schließen
   openMenu: Menü öffnen
-  bottomNav: Untere Navigation
-  options: Optionen
   play: Abspielen
   pause: Pause
-  loading: Laden
   breadcrumb: Brotkrümel-Navigation
   pagination: Seitennummerierung
   previousPage: Vorherige Seite
@@ -124,18 +119,7 @@ aria:
   reloadPage: Seite neu laden
   goToHome: Zur Startseite
   dismiss: Verwerfen
-  removeRule: Regel entfernen
-  clearSelection: Auswahl aufheben
   close: Schließen
-  deletePhoto: Foto löschen
-  deleteCollection: Sammlung löschen
-  editFilter: Filter bearbeiten
-  deleteFilter: Filter löschen
-  closePlayer: Player schließen
-  subtitleFontSize: Untertitel-Schriftgröße
-  bgOpacity: Hintergrund-Deckkraft
-  operator: Operator
-  value: Wert
   retryPage: Seite erneut laden
   goToHomePage: Zur Startseite gehen
   skipToContent: Zum Inhalt springen
@@ -165,7 +149,6 @@ nav:
   syncplay: "Gemeinsam hören"
   admin: Verwaltung
   backToApp: Zurück zur App
-  profile: Profil
   settings: Einstellungen
   watchHistory: Wiedergabeverlauf
   myStats: Meine Statistiken
@@ -177,10 +160,8 @@ nav:
   adminNav: Admin-Navigation
   userMenu: Benutzermenü
   homeFeeds: Startseiten-Feeds
-  profileSwitcher: Profil wechseln
   switchProfile: Profil wechseln
   manageProfiles: Profile verwalten
-you: Du
 shortcuts:
   title: Tastenkürzel
   focusSearch: Suche fokussieren
@@ -197,7 +178,6 @@ parental:
 feeds:
   title: Startseiten-Bereiche
   section: Bereich
-  order: Reihenfolge
   maxItems: Max. Elemente
   saved: Feed-Konfiguration gespeichert
   customize: Anpassen
@@ -206,7 +186,6 @@ feeds:
   labels:
     resume_playback: Wiedergabe fortsetzen
     next_up: Als Nächstes
-    next_episode: Nächste Folge
     recommended: Empfohlen
     most_popular: Am beliebtesten
     collections: Sammlungen

@@ -1,5 +1,4 @@
 season: "Season {{number}}"
-episode: "E{{number}}"
 chapter: "Chapter {{number}}"
 track: "Track {{number}}"
 burnIn: "(burn-in)"
@@ -30,7 +29,6 @@ favorites:
   titleZA: "Title Z–A"
   yearNewest: Year (newest)
   rating: Rating
-  yourRating: "Your rating"
   noFavorites: No favorites yet
   noFavoritesDesc: Click the heart icon on any media item to add it to your favorites.
   addToPlaylist: Add to Playlist
@@ -101,14 +99,11 @@ library:
   dateAdded: Date Added
   ascending: Ascending
   descending: Descending
-  switchToList: Switch to list view
-  switchToGrid: Switch to grid view
   noItems: No items found
   noItemsFiltered: Try adjusting your filters or search term.
   noItemsType: Try a different filter, or scan the library to add content.
   noItemsEmpty: This library is empty. Trigger a scan to add content.
   goToAdmin: Go to Admin
-  loadMore: "Load more ({{current}} of {{total}})"
   selected: selected
   addToFavorites: Add to favorites
   addedToFavorites: "{{count}} item(s) added to favorites"
@@ -152,7 +147,6 @@ library:
   markedWatched: Marked watched
 person:
   filmography: Filmography
-  notFound: Person not found.
   unknown: Unknown
   titleCount: "{{count}} title"
   titleCount_plural: "{{count}} titles"
@@ -218,8 +212,6 @@ detail:
   idChangedWarning: "ID changed - saving will re-fetch metadata from the provider"
   refreshMetadata: Refresh metadata
   resetMetadata: Reset metadata
-  metadataReset: Metadata reset - re-enrichment will start
-  resetMetadataFailed: Failed to reset metadata
   reEnrichedWithNewId: Re-enriched with new ID
   metadataSaved: Metadata saved
   failedToSave: Failed to save
@@ -318,11 +310,6 @@ photos:
   noAlbumsDesc: No albums found in this library.
   noPhotoLibraries: No photo libraries
   noPhotoLibrariesDesc: Add a photo library in the Admin panel to get started.
-  photoDeleted: Photo deleted
-  failedDeletePhoto: Failed to delete photo
-  deletePhotoConfirm: "Delete \"{{title}}\"? This cannot be undone."
-  photoCount: "{{count}} photo"
-  photoCount_plural: "{{count}} photos"
 added: Added
 created: Created
 updated: Updated

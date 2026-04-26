@@ -4,14 +4,10 @@ nav:
   nowPlaying: Reproduciendo ahora
   remoteAccess: Acceso remoto
   serverConfig: Configuración del servidor
-  serverSettings: Configuracion del servidor
   systemHealth: Estado del sistema
   media: Medios
   libraries: Bibliotecas
-  metadata: Metadatos
   transcoding: Transcodificación
-  transcodeCache: Caché de transcodificación
-  transcodingProfiles: Perfiles de transcodificación
   usersAccess: Usuarios y acceso
   users: Usuarios
   integrations: Integraciones
@@ -21,8 +17,6 @@ nav:
   monitoring: Monitoreo
   analytics: Analítica
   activity: Actividad
-  auditLog: Registro de auditoría
-  liveLogs: Logs en vivo
   maintenance: Mantenimiento
   backupRestore: Copia de seguridad y restauración
 plugin:
@@ -40,10 +34,6 @@ plugin:
   sandboxed: Aislado
   hash: "Hash"
   hashCopied: "Hash copiado"
-  verified: "Verificado"
-  updateAvailable: "Actualización disponible"
-  versionHigher: "La versión {{new}} reemplaza a {{current}}"
-  versionRejected: "La versión {{new}} no es superior a {{current}}"
   sandboxedWidget: Widget aislado
   widgetLoadError: Error al cargar el widget
   state:
@@ -92,7 +82,6 @@ plugins:
   previewFailed: "Error en la vista previa"
   installFailed: "Error en la instalación"
   availableRuntimes: "Entornos de ejecución disponibles"
-  noRuntimes: "No se detectaron entornos de ejecución de plugins"
 
 dashboard:
   title: "Panel"
@@ -178,7 +167,6 @@ libraries:
   libraryUpdated: "Biblioteca \"{{name}}\" actualizada"
   libraryDeleted: "Biblioteca \"{{name}}\" eliminada"
   editLibrary: "Editar biblioteca"
-  failedUpdate: "Error al actualizar la biblioteca"
   failedDelete: "Error al eliminar la biblioteca"
   scanStarted: "Escaneo iniciado"
   failedScan: "Error al iniciar el escaneo"
@@ -339,7 +327,6 @@ activity:
   title: "Actividad"
   tabs:
     playHistory: "Historial de reproducción"
-    loginHistory: "Historial de inicio de sesión"
     serverStats: "Estadísticas del servidor"
   playHeaders:
     title: "Título"
@@ -347,16 +334,7 @@ activity:
     duration: "Duración"
     progress: "Progreso"
     started: "Inicio"
-  loginHeaders:
-    user: "Usuario"
-    ip: "IP"
-    status: "Estado"
-    userAgent: "User Agent"
-    timestamp: "Fecha y hora"
   noPlayHistory: "Sin historial de reproducción"
-  noLoginHistory: "Sin historial de inicio de sesión"
-  ok: "OK"
-  failed: "Fallido"
   totalEntries: "{{count}} registros totales"
   stats:
     totalPlays: "Total de reproducciones"
@@ -369,8 +347,6 @@ activity:
 
 audit:
   title: "Registro de auditoría"
-  action: "Acción"
-  resourceType: "Tipo de recurso"
   tableHeaders:
     time: "Hora"
     user: "Usuario"
@@ -515,9 +491,7 @@ dashboardStats:
   playActivity: "Actividad de reproducción (14 días)"
   plays: "Reproducciones"
   watchTime: "Tiempo de visualización"
-  contentBreakdown: "Distribución de contenido"
   activeUsers: "Usuarios activos"
-  playMethodBreakdown: "Método de reproducción (30 días)"
   peakHours: "Horas pico (30 días)"
   used: "Usado"
   free: "Libre"

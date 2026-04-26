@@ -4,14 +4,10 @@ nav:
   nowPlaying: En cours de lecture
   remoteAccess: Accès distant
   serverConfig: Configuration du serveur
-  serverSettings: Paramètres du serveur
   systemHealth: Santé du système
   media: Médias
   libraries: Bibliothèques
-  metadata: Métadonnées
   transcoding: Transcodage
-  transcodeCache: Cache de transcodage
-  transcodingProfiles: Profils de transcodage
   usersAccess: Utilisateurs et accès
   users: Utilisateurs
   integrations: Intégrations
@@ -21,8 +17,6 @@ nav:
   monitoring: Surveillance
   analytics: Analytique
   activity: Activité
-  auditLog: "Journal d'audit"
-  liveLogs: Logs en direct
   maintenance: Maintenance
   backupRestore: Sauvegarde BDD et restauration
 plugin:
@@ -40,10 +34,6 @@ plugin:
   sandboxed: Isolé
   hash: "Empreinte"
   hashCopied: "Empreinte copiée"
-  verified: "Vérifié"
-  updateAvailable: "Mise à jour disponible"
-  versionHigher: "La version {{new}} remplace {{current}}"
-  versionRejected: "La version {{new}} n'est pas supérieure à {{current}}"
   sandboxedWidget: Widget isolé
   widgetLoadError: "Échec du chargement du widget"
   state:
@@ -92,7 +82,6 @@ plugins:
   previewFailed: "Échec de l'aperçu"
   installFailed: "Échec de l'installation"
   availableRuntimes: "Environnements d'exécution disponibles"
-  noRuntimes: "Aucun environnement d'exécution de plugin détecté"
 
 dashboard:
   title: "Tableau de bord"
@@ -178,7 +167,6 @@ libraries:
   libraryUpdated: "Bibliothèque \"{{name}}\" mise à jour"
   libraryDeleted: "Bibliothèque \"{{name}}\" supprimée"
   editLibrary: "Modifier la bibliothèque"
-  failedUpdate: "Échec de la mise à jour de la bibliothèque"
   failedDelete: "Échec de la suppression de la bibliothèque"
   scanStarted: "Scan lancé"
   failedScan: "Échec du lancement du scan"
@@ -341,7 +329,6 @@ activity:
   title: "Activité"
   tabs:
     playHistory: "Historique de lecture"
-    loginHistory: "Historique de connexion"
     serverStats: "Statistiques du serveur"
   playHeaders:
     title: "Titre"
@@ -349,16 +336,7 @@ activity:
     duration: "Durée"
     progress: "Progression"
     started: "Début"
-  loginHeaders:
-    user: "Utilisateur"
-    ip: "IP"
-    status: "Statut"
-    userAgent: "User Agent"
-    timestamp: "Horodatage"
   noPlayHistory: "Aucun historique de lecture"
-  noLoginHistory: "Aucun historique de connexion"
-  ok: "OK"
-  failed: "Échoué"
   totalEntries: "{{count}} entrées au total"
   stats:
     totalPlays: "Total de lectures"
@@ -371,8 +349,6 @@ activity:
 
 audit:
   title: "Journal d'audit"
-  action: "Action"
-  resourceType: "Type de ressource"
   tableHeaders:
     time: "Heure"
     user: "Utilisateur"
@@ -517,9 +493,7 @@ dashboardStats:
   playActivity: "Activité de lecture (14 jours)"
   plays: "Lectures"
   watchTime: "Temps de visionnage"
-  contentBreakdown: "Répartition du contenu"
   activeUsers: "Utilisateurs actifs"
-  playMethodBreakdown: "Méthode de lecture (30 jours)"
   peakHours: "Heures de pointe (30 jours)"
   used: "Utilisé"
   free: "Libre"

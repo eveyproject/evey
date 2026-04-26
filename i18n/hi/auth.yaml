@@ -37,7 +37,6 @@ login:
   invalidCredentials: "अमान्य उपयोगकर्ता नाम या पासवर्ड"
   passwordTooShort: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
   loginFailed: "लॉगिन विफल। कृपया पुनः प्रयास करें।"
-  accountLocked: "बहुत अधिक प्रयास। कृपया बाद में पुनः प्रयास करें।"
   recommendedForTV: "TV के लिए अनुशंसित"
   ssoFailed: "SSO साइन इन विफल। कृपया पुनः प्रयास करें।"
   or: "या"
@@ -83,14 +82,11 @@ register:
   alreadyHaveAccount: "पहले से खाता है?"
   signIn: "साइन इन"
 profile:
-  title: "प्रोफ़ाइल"
   edit: "संपादित करें"
   username: "उपयोगकर्ता नाम"
   email: "ईमेल"
   save: "सहेजें"
   cancel: "रद्द करें"
-  admin: "एडमिन"
-  memberSince: "सदस्य {{date}} से"
   profileUpdated: "प्रोफ़ाइल अपडेट हुई"
   failedToUpdate: "प्रोफ़ाइल अपडेट करने में विफल"
   changeAvatar: "अवतार बदलें"
@@ -128,15 +124,6 @@ profile:
     pinKeep: "वर्तमान PIN बनाए रखने के लिए खाली छोड़ें।"
     locale: "भाषा"
     region: "क्षेत्र"
-  nav:
-    settings: "सेटिंग्स"
-    settingsDesc: "थीम, सूचनाएं, पासवर्ड"
-    watchHistory: "देखने का इतिहास"
-    watchHistoryDesc: "आपका हाल ही में देखा गया मीडिया"
-    notifications: "सूचनाएं"
-    notificationsDesc: "अलर्ट और अपडेट"
-    adminPanel: "एडमिन पैनल"
-    adminPanelDesc: "सर्वर और उपयोगकर्ता प्रबंधित करें"
 settings:
   title: "सेटिंग्स"
   tabs:
@@ -147,7 +134,6 @@ settings:
     account: "खाता"
     parental: "अभिभावक नियंत्रण"
     devices: "डिवाइस"
-    apiKeys: "API कुंजियां"
     security: "सुरक्षा"
     quickConnect: "क्विक कनेक्ट"
   playback:
@@ -195,24 +181,16 @@ settings:
     changePasswordDesc: "कम से कम 8 अक्षरों का मजबूत पासवर्ड उपयोग करें।"
     newPassword: "नया पासवर्ड"
     confirmPassword: "पासवर्ड की पुष्टि करें"
-    updatePassword: "पासवर्ड अपडेट करें"
-    passwordUpdated: "पासवर्ड अपडेट हुआ"
-    passwordFailed: "पासवर्ड अपडेट करने में विफल"
     passwordMismatch: "पासवर्ड मेल नहीं खाते"
     passwordMin: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
     profileUpdated: प्रोफ़ाइल अपडेट हुई
   parental:
     title: "अभिभावक नियंत्रण"
-    description: "इस प्रोफ़ाइल के लिए रेटिंग द्वारा सामग्री प्रतिबंधित करें।"
     enable: "अभिभावक नियंत्रण सक्षम करें"
     enableDesc: "रेटिंग द्वारा सामग्री फ़िल्टर करें"
-    maxRating: "अधिकतम सामग्री रेटिंग"
-    saveRating: "रेटिंग सहेजें"
     maxAge: "अधिकतम आयु"
-    saveAge: "आयु सहेजें"
     noRestriction: "कोई प्रतिबंध नहीं"
     noProfile: "कोई प्रोफ़ाइल नहीं मिली।"
-    updated: "अभिभावक नियंत्रण अपडेट हुआ"
     failedToUpdate: "अपडेट करने में विफल"
     pin:
       title: "PIN सेट करें"
@@ -225,15 +203,6 @@ settings:
       mismatch: "PIN मेल नहीं खाते"
       passwordReauth: "खाता पासवर्ड"
       passwordRequired: "पहली बार PIN सेट करने के लिए पासवर्ड आवश्यक है"
-    ratings:
-      none: "कोई प्रतिबंध नहीं"
-      g: "G - सामान्य दर्शक"
-      pg: "PG - अभिभावक मार्गदर्शन"
-      pg13: "PG-13 - अभिभावक विशेष सावधानी"
-      r: "R - प्रतिबंधित"
-      nc17: "NC-17 - केवल वयस्क"
-    bitrates:
-      unlimited: "असीमित"
 apiKeys:
   title: "API कुंजियां"
   description: "बाहरी इंटीग्रेशन के लिए API कुंजियां बनाएं।"

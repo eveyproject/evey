@@ -28,34 +28,3 @@ push:
   plugin_error_id:
     title: "Plugin-Fehler: {plugin}"
 
-new_movie:
-  title: "Neuer Film"
-  message: "{title} wurde Ihrer Bibliothek hinzugefügt"
-
-new_episode:
-  title: "Neue Folge"
-  message: "{title} - neue Folge verfügbar"
-
-new_season:
-  title: "Neue Staffel"
-  message: "{title} - neue Staffel verfügbar"
-
-new_series:
-  title: "Neue Serie"
-  message: "{title} wurde Ihrer Bibliothek hinzugefügt"
-
-new_album:
-  title: "Neues Album"
-  message: "{title} wurde Ihrer Bibliothek hinzugefügt"
-
-library_scanned:
-  title: "Bibliothek gescannt"
-  message: "Bibliotheksscan abgeschlossen: {count} Elemente gefunden"
-
-plugin_error:
-  title: "Plugin-Fehler"
-  message: "Plugin {title} hat einen Fehler verursacht"
-
-custom:
-  title: "Benachrichtigung"
-  message: "{message}"

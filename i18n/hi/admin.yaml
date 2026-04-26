@@ -4,14 +4,10 @@ nav:
   nowPlaying: "अभी चल रहा है"
   remoteAccess: "रिमोट एक्सेस"
   serverConfig: "सर्वर कॉन्फ़िग"
-  serverSettings: "सर्वर सेटिंग्स"
   systemHealth: "सिस्टम स्वास्थ्य"
   media: "मीडिया"
   libraries: "लाइब्रेरी"
-  metadata: "मेटाडेटा"
   transcoding: "ट्रांसकोडिंग"
-  transcodeCache: "ट्रांसकोड कैश"
-  transcodingProfiles: "ट्रांसकोडिंग प्रोफाइल"
   usersAccess: "उपयोगकर्ता और एक्सेस"
   users: "उपयोगकर्ता"
   integrations: "इंटिग्रेशन"
@@ -21,8 +17,6 @@ nav:
   monitoring: "निगरानी"
   analytics: "एनालिटिक्स"
   activity: "गतिविधि"
-  auditLog: "ऑडिट लॉग"
-  liveLogs: "लाइव लॉग"
   maintenance: "रखरखाव"
   backupRestore: "बैकअप और पुनर्स्थापना"
 plugin:
@@ -40,10 +34,6 @@ plugin:
   sandboxed: "सैंडबॉक्स्ड"
   hash: "हैश"
   hashCopied: "हैश कॉपी हो गया"
-  verified: "सत्यापित"
-  updateAvailable: "अपडेट उपलब्ध"
-  versionHigher: "संस्करण {{new}} ने {{current}} को बदल दिया"
-  versionRejected: "संस्करण {{new}}, {{current}} से ऊपर नहीं है"
   sandboxedWidget: "सैंडबॉक्स्ड विजेट"
   widgetLoadError: "विजेट लोड करने में विफल"
   state:
@@ -92,7 +82,6 @@ plugins:
   previewFailed: "पूर्वावलोकन विफल"
   installFailed: "इंस्टॉल विफल"
   availableRuntimes: "उपलब्ध रनटाइम"
-  noRuntimes: "कोई प्लगइन रनटाइम नहीं मिला"
 
 dashboard:
   title: "डैशबोर्ड"
@@ -178,7 +167,6 @@ libraries:
   libraryUpdated: "लाइब्रेरी \"{{name}}\" अपडेट हुई"
   libraryDeleted: "लाइब्रेरी \"{{name}}\" मिटाई गई"
   editLibrary: "लाइब्रेरी संपादित करें"
-  failedUpdate: "लाइब्रेरी अपडेट करने में विफल"
   failedDelete: "लाइब्रेरी मिटाने में विफल"
   scanStarted: "स्कैन शुरू हुआ"
   failedScan: "स्कैन शुरू करने में विफल"
@@ -339,7 +327,6 @@ activity:
   title: "गतिविधि"
   tabs:
     playHistory: "प्ले इतिहास"
-    loginHistory: "लॉगिन इतिहास"
     serverStats: "सर्वर आंकड़े"
   playHeaders:
     title: "शीर्षक"
@@ -347,16 +334,7 @@ activity:
     duration: "अवधि"
     progress: "प्रगति"
     started: "शुरू हुआ"
-  loginHeaders:
-    user: "उपयोगकर्ता"
-    ip: "IP"
-    status: "स्थिति"
-    userAgent: "User Agent"
-    timestamp: "समय"
   noPlayHistory: "कोई प्ले इतिहास नहीं"
-  noLoginHistory: "कोई लॉगिन इतिहास नहीं"
-  ok: "सफल"
-  failed: "विफल"
   totalEntries: "कुल {{count}} प्रविष्टियां"
   stats:
     totalPlays: "कुल प्ले"
@@ -369,8 +347,6 @@ activity:
 
 audit:
   title: "ऑडिट लॉग"
-  action: "क्रिया"
-  resourceType: "संसाधन प्रकार"
   tableHeaders:
     time: "समय"
     user: "उपयोगकर्ता"
@@ -515,9 +491,7 @@ dashboardStats:
   playActivity: "प्ले गतिविधि (14 दिन)"
   plays: "प्ले"
   watchTime: "देखने का समय"
-  contentBreakdown: "सामग्री वितरण"
   activeUsers: "सक्रिय उपयोगकर्ता"
-  playMethodBreakdown: "प्ले विधि (30 दिन)"
   peakHours: "पीक घंटे (30 दिन)"
   used: "उपयोग किया"
   free: "खाली"

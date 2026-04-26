@@ -37,7 +37,6 @@ login:
   invalidCredentials: Invalid username or password
   passwordTooShort: Password must be at least 8 characters
   loginFailed: Login failed. Please try again.
-  accountLocked: Too many failed attempts. Try again later.
   recommendedForTV: Recommended for TV
   ssoFailed: SSO sign-in failed. Please try again.
   or: or
@@ -83,14 +82,11 @@ register:
   alreadyHaveAccount: Already have an account?
   signIn: Sign in
 profile:
-  title: Profile
   edit: Edit
   username: Username
   email: Email
   save: Save
   cancel: Cancel
-  admin: Admin
-  memberSince: "Member since {{date}}"
   profileUpdated: Profile updated
   failedToUpdate: Failed to update profile
   changeAvatar: Change avatar
@@ -128,15 +124,6 @@ profile:
     pinKeep: Leave blank to keep current PIN.
     locale: Language
     region: Region
-  nav:
-    settings: Settings
-    settingsDesc: "Theme, notifications, password"
-    watchHistory: Watch History
-    watchHistoryDesc: Your recently watched media
-    notifications: Notifications
-    notificationsDesc: Alerts and updates
-    adminPanel: Admin Panel
-    adminPanelDesc: Manage server and users
 settings:
   title: Settings
   tabs:
@@ -147,7 +134,6 @@ settings:
     account: Account
     parental: Parental
     devices: Devices
-    apiKeys: API Keys
     security: Security
     quickConnect: Quick Connect
   playback:
@@ -195,24 +181,16 @@ settings:
     changePasswordDesc: Use a strong password with at least 8 characters.
     newPassword: New password
     confirmPassword: Confirm password
-    updatePassword: Update password
-    passwordUpdated: Password updated
-    passwordFailed: Failed to update password
     passwordMismatch: Passwords do not match
     passwordMin: Password must be at least 8 characters
     profileUpdated: Profile updated
   parental:
     title: Parental Controls
-    description: Restrict content by rating for this profile.
     enable: Enable parental controls
     enableDesc: Filter content by rating
-    maxRating: Max content rating
-    saveRating: Save rating
     maxAge: "Max age"
-    saveAge: "Save age"
     noRestriction: "No restriction"
     noProfile: No profile found.
-    updated: Parental controls updated
     failedToUpdate: Failed to update
     pin:
       title: Set PIN
@@ -225,15 +203,6 @@ settings:
       mismatch: PINs do not match
       passwordReauth: Account password
       passwordRequired: Password required to set a PIN for the first time
-    ratings:
-      none: No restriction
-      g: "G - General Audiences"
-      pg: "PG - Parental Guidance"
-      pg13: "PG-13 - Parents Strongly Cautioned"
-      r: "R - Restricted"
-      nc17: "NC-17 - Adults Only"
-    bitrates:
-      unlimited: Unlimited
 apiKeys:
   title: API Keys
   description: Create API keys for external integrations.

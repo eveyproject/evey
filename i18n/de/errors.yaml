@@ -1,38 +1,19 @@
 auth:
   unauthenticated: "Nicht authentifiziert"
-  unauthorized: "Nicht autorisiert"
-  forbidden: "Verboten"
   invalid_credentials: "Ungültiger Benutzername oder Passwort"
-  invalid_body: "Ungültiger Anfragekörper"
   invalid_token: "Ungültiges oder abgelaufenes Token"
-  missing_token: "Token fehlt"
-  no_session: "Keine aktive Sitzung"
-  too_many_requests: "Zu viele Anfragen"
   too_many_attempts: "Zu viele Versuche"
-  passwords_do_not_match: "Passwörter stimmen nicht überein"
   password_too_short: "Passwort muss mindestens 8 Zeichen lang sein"
-  username_too_short: "Benutzername muss mindestens 3 Zeichen lang sein"
-  explicit_consent_required: "Ausdrückliche Zustimmung für Push-Benachrichtigungen erforderlich"
   missing_authorization: "Autorisierungs-Header fehlt"
   missing_metadata: "Anfrage-Metadaten fehlen"
   admin_access_required: "Administratorzugriff erforderlich"
   insufficient_permissions: "Unzureichende Berechtigungen"
   internal_method: "Diese Methode ist nur für internen Gebrauch"
   missing_key: "API-Schlüssel fehlt"
-  invalid_current_pin: "Ungültige aktuelle PIN"
   profile_not_found: "Profil nicht gefunden"
 
 general:
   not_found: "Nicht gefunden"
-  conflict: "Konflikt"
-  invalid_input: "Ungültige Eingabe"
-  rate_limited: "Rate begrenzt"
-  not_configured: "Nicht konfiguriert"
-  internal_error: "Interner Fehler"
-  encode_error: "Kodierungsfehler"
-  bad_request: "Ungültige Anfrage"
-  remote_access_disabled: "Fernzugriff deaktiviert"
-  path_traversal_detected: "Pfadtraversierung erkannt"
 
 playlist:
   not_owner: "Sie sind nicht der Playlist-Besitzer"
@@ -84,35 +65,7 @@ user:
 
 media:
   not_found: "Medium nicht gefunden"
-  file_not_found: "Datei nicht gefunden"
-  invalid_path: "Ungültiger Pfad"
-  image_not_found: "Bild nicht gefunden"
 
 transcode:
-  busy: "Transkodierung beschäftigt"
-  failed: "Transkodierung fehlgeschlagen"
-  no_active_session: "Keine aktive Transkodierungssitzung"
-  session_not_ready: "Sitzung nicht bereit"
-  segment_not_found: "Segment nicht gefunden"
   max_concurrent_reached: "Der Server transkodiert gerade andere Streams. Bitte versuche es gleich erneut."
 
-subtitle:
-  not_found: "Untertitel nicht gefunden"
-  search_failed: "Untertitelsuche fehlgeschlagen"
-  download_failed: "Untertitel-Download fehlgeschlagen"
-  file_id_required: "Datei-ID ist erforderlich"
-
-plugin:
-  blocked_by_security: "Plugin durch Sicherheitsanalyse blockiert"
-  manifest_invalid: "Ungültiges Plugin-Manifest"
-  not_found: "Plugin nicht gefunden"
-  config_save_failed: "Plugin-Konfiguration konnte nicht gespeichert werden"
-
-notification:
-  invalid_movie_level: "Ungültige Film-Benachrichtigungsstufe"
-  invalid_series_level: "Ungültige Serien-Benachrichtigungsstufe"
-  invalid_music_level: "Ungültige Musik-Benachrichtigungsstufe"
-
-backup:
-  failed: "Sicherung fehlgeschlagen"
-  restore_failed: "Wiederherstellung fehlgeschlagen"

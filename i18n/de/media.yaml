@@ -1,5 +1,4 @@
 season: "Staffel {{number}}"
-episode: "F{{number}}"
 chapter: "Kapitel {{number}}"
 track: "Titel {{number}}"
 burnIn: "(eingebrannt)"
@@ -30,7 +29,6 @@ favorites:
   titleZA: "Titel Z–A"
   yearNewest: Jahr (neueste)
   rating: Bewertung
-  yourRating: "Ihre Bewertung"
   noFavorites: Noch keine Favoriten
   noFavoritesDesc: Klicken Sie auf das Herz-Symbol eines Medienelements, um es zu den Favoriten hinzuzufügen.
   addToPlaylist: Zur Playlist hinzufügen
@@ -101,14 +99,11 @@ library:
   dateAdded: Hinzugefügt am
   ascending: Aufsteigend
   descending: Absteigend
-  switchToList: Zur Listenansicht wechseln
-  switchToGrid: Zur Rasteransicht wechseln
   noItems: Keine Elemente gefunden
   noItemsFiltered: Versuchen Sie, Ihre Filter oder Ihren Suchbegriff anzupassen.
   noItemsType: Versuchen Sie einen anderen Filter oder scannen Sie die Bibliothek, um Inhalte hinzuzufügen.
   noItemsEmpty: Diese Bibliothek ist leer. Starten Sie einen Scan, um Inhalte hinzuzufügen.
   goToAdmin: Zur Verwaltung
-  loadMore: "Mehr laden ({{current}} von {{total}})"
   selected: ausgewählt
   addToFavorites: Zu Favoriten hinzufügen
   addedToFavorites: "{{count}} Element(e) zu Favoriten hinzugefügt"
@@ -152,7 +147,6 @@ library:
   markedWatched: Als gesehen markiert
 person:
   filmography: Filmografie
-  notFound: Person nicht gefunden.
   unknown: Unbekannt
   titleCount: "{{count}} Titel"
   titleCount_plural: "{{count}} Titel"
@@ -218,8 +212,6 @@ detail:
   idChangedWarning: "ID geändert - beim Speichern werden Metadaten vom Anbieter neu abgerufen"
   refreshMetadata: Metadaten aktualisieren
   resetMetadata: Metadaten zurücksetzen
-  metadataReset: Metadaten zurückgesetzt - Neuanreicherung wird gestartet
-  resetMetadataFailed: Metadaten konnten nicht zurückgesetzt werden
   reEnrichedWithNewId: Mit neuer ID neu angereichert
   metadataSaved: Metadaten gespeichert
   failedToSave: Speichern fehlgeschlagen
@@ -318,11 +310,6 @@ photos:
   noAlbumsDesc: Keine Alben in dieser Bibliothek gefunden.
   noPhotoLibraries: Keine Fotobibliotheken
   noPhotoLibrariesDesc: Fügen Sie im Admin-Panel eine Fotobibliothek hinzu, um zu beginnen.
-  photoDeleted: Foto gelöscht
-  failedDeletePhoto: Foto konnte nicht gelöscht werden
-  deletePhotoConfirm: "\"{{title}}\" löschen? Dies kann nicht rückgängig gemacht werden."
-  photoCount: "{{count}} Foto"
-  photoCount_plural: "{{count}} Fotos"
 added: Hinzugefügt
 created: Erstellt
 updated: Aktualisiert

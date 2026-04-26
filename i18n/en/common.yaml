@@ -22,14 +22,12 @@ or: or
 previous: Previous
 next: Next
 edit: Edit
-all: All
 add: Add
 remove: Remove
 name: Name
 "no": "No"
 status: Status
 actions: Actions
-apply: Apply
 clear: Clear
 close: Close
 confirm: Confirm
@@ -112,11 +110,8 @@ noNotifications: No notifications
 aria:
   closeMenu: Close menu
   openMenu: Open menu
-  bottomNav: Bottom navigation
-  options: Options
   play: Play
   pause: Pause
-  loading: Loading
   breadcrumb: Breadcrumb
   pagination: Pagination
   previousPage: Previous page
@@ -124,18 +119,7 @@ aria:
   reloadPage: Reload the page
   goToHome: Go to home page
   dismiss: Dismiss
-  removeRule: Remove rule
-  clearSelection: Clear selection
   close: Close
-  deletePhoto: Delete photo
-  deleteCollection: Delete collection
-  editFilter: Edit filter
-  deleteFilter: Delete filter
-  closePlayer: Close player
-  subtitleFontSize: Subtitle font size
-  bgOpacity: Background opacity
-  operator: Operator
-  value: Value
   retryPage: Retry loading page
   goToHomePage: Go to home page
   skipToContent: Skip to content
@@ -165,7 +149,6 @@ nav:
   syncplay: Listen Together
   admin: Admin
   backToApp: Back to app
-  profile: Profile
   settings: Settings
   watchHistory: Watch History
   myStats: My Stats
@@ -177,10 +160,8 @@ nav:
   adminNav: Admin navigation
   userMenu: User menu
   homeFeeds: Home Feeds
-  profileSwitcher: Switch profile
   switchProfile: Switch profile
   manageProfiles: Manage Profiles
-you: You
 shortcuts:
   title: Keyboard Shortcuts
   focusSearch: Focus search
@@ -197,7 +178,6 @@ parental:
 feeds:
   title: Homepage Sections
   section: Section
-  order: Order
   maxItems: Max Items
   saved: Feed config saved
   customize: Customize
@@ -206,7 +186,6 @@ feeds:
   labels:
     resume_playback: Resume Playback
     next_up: Up Next
-    next_episode: Next Episode
     recommended: Recommended
     most_popular: Most Popular
     collections: Collections

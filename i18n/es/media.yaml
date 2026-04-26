@@ -1,5 +1,4 @@
 season: "Temporada {{number}}"
-episode: "E{{number}}"
 chapter: "Capítulo {{number}}"
 track: "Pista {{number}}"
 burnIn: "(incrustado)"
@@ -30,7 +29,6 @@ favorites:
   titleZA: "Título Z–A"
   yearNewest: Año (más reciente)
   rating: Calificación
-  yourRating: "Tu valoración"
   noFavorites: Sin favoritos aún
   noFavoritesDesc: Haz clic en el ícono de corazón en cualquier elemento para añadirlo a favoritos.
   addToPlaylist: Añadir a lista de reproducción
@@ -101,14 +99,11 @@ library:
   dateAdded: Fecha de adición
   ascending: Ascendente
   descending: Descendente
-  switchToList: Cambiar a vista de lista
-  switchToGrid: Cambiar a vista de cuadrícula
   noItems: No se encontraron elementos
   noItemsFiltered: Intenta ajustar tus filtros o término de búsqueda.
   noItemsType: Prueba un filtro diferente, o escanea la biblioteca para añadir contenido.
   noItemsEmpty: Esta biblioteca está vacía. Inicia un escaneo para añadir contenido.
   goToAdmin: Ir a Administración
-  loadMore: "Cargar más ({{current}} de {{total}})"
   selected: seleccionado(s)
   addToFavorites: Añadir a favoritos
   addedToFavorites: "{{count}} elemento(s) añadido(s) a favoritos"
@@ -152,7 +147,6 @@ library:
   markedWatched: Marcado como visto
 person:
   filmography: Filmografía
-  notFound: Persona no encontrada.
   unknown: Desconocido
   titleCount: "{{count}} título"
   titleCount_plural: "{{count}} títulos"
@@ -218,8 +212,6 @@ detail:
   idChangedWarning: "ID cambiado - al guardar se volverá a obtener los metadatos del proveedor"
   refreshMetadata: Actualizar metadatos
   resetMetadata: Restablecer metadatos
-  metadataReset: "Metadatos restablecidos - el re-enriquecimiento comenzará"
-  resetMetadataFailed: Error al restablecer metadatos
   reEnrichedWithNewId: Re-enriquecido con nuevo ID
   metadataSaved: Metadatos guardados
   failedToSave: Error al guardar
@@ -318,11 +310,6 @@ photos:
   noAlbumsDesc: No se encontraron álbumes en esta biblioteca.
   noPhotoLibraries: Sin bibliotecas de fotos
   noPhotoLibrariesDesc: Añade una biblioteca de fotos en el panel de administración para comenzar.
-  photoDeleted: Foto eliminada
-  failedDeletePhoto: Error al eliminar la foto
-  deletePhotoConfirm: "¿Eliminar \"{{title}}\"? Esta acción no se puede deshacer."
-  photoCount: "{{count}} foto"
-  photoCount_plural: "{{count}} fotos"
 added: Agregado
 created: Creado
 updated: Actualizado

@@ -4,14 +4,10 @@ nav:
   nowPlaying: "正在播放"
   remoteAccess: "远程访问"
   serverConfig: "服务器配置"
-  serverSettings: "服务器设置"
   systemHealth: "系统健康"
   media: "媒体"
   libraries: "媒体库"
-  metadata: "元数据"
   transcoding: "转码"
-  transcodeCache: "转码缓存"
-  transcodingProfiles: "转码配置"
   usersAccess: "用户与访问"
   users: "用户"
   integrations: "集成"
@@ -21,8 +17,6 @@ nav:
   monitoring: "监控"
   analytics: "分析"
   activity: "活动"
-  auditLog: "审计日志"
-  liveLogs: "实时日志"
   maintenance: "维护"
   backupRestore: "备份与恢复"
 plugin:
@@ -40,10 +34,6 @@ plugin:
   sandboxed: "沙箱"
   hash: "哈希值"
   hashCopied: "哈希值已复制"
-  verified: "已验证"
-  updateAvailable: "有可用更新"
-  versionHigher: "版本 {{new}} 替换 {{current}}"
-  versionRejected: "版本 {{new}} 不高于 {{current}}"
   sandboxedWidget: "沙箱小部件"
   widgetLoadError: "小部件加载失败"
   state:
@@ -92,7 +82,6 @@ plugins:
   previewFailed: "预览失败"
   installFailed: "安装失败"
   availableRuntimes: "可用运行时"
-  noRuntimes: "未检测到插件运行时"
 
 dashboard:
   title: "仪表盘"
@@ -178,7 +167,6 @@ libraries:
   libraryUpdated: "媒体库「{{name}}」已更新"
   libraryDeleted: "媒体库「{{name}}」已删除"
   editLibrary: "编辑媒体库"
-  failedUpdate: "更新媒体库失败"
   failedDelete: "删除媒体库失败"
   scanStarted: "扫描已开始"
   failedScan: "启动扫描失败"
@@ -339,7 +327,6 @@ activity:
   title: "活动"
   tabs:
     playHistory: "播放历史"
-    loginHistory: "登录历史"
     serverStats: "服务器统计"
   playHeaders:
     title: "标题"
@@ -347,16 +334,7 @@ activity:
     duration: "时长"
     progress: "进度"
     started: "开始时间"
-  loginHeaders:
-    user: "用户"
-    ip: "IP"
-    status: "状态"
-    userAgent: "User Agent"
-    timestamp: "时间戳"
   noPlayHistory: "没有播放历史"
-  noLoginHistory: "没有登录历史"
-  ok: "成功"
-  failed: "失败"
   totalEntries: "共 {{count}} 条记录"
   stats:
     totalPlays: "总播放次数"
@@ -369,8 +347,6 @@ activity:
 
 audit:
   title: "审计日志"
-  action: "操作"
-  resourceType: "资源类型"
   tableHeaders:
     time: "时间"
     user: "用户"
@@ -515,9 +491,7 @@ dashboardStats:
   playActivity: "播放活动 (14天)"
   plays: "播放次数"
   watchTime: "观看时长"
-  contentBreakdown: "内容分布"
   activeUsers: "活跃用户"
-  playMethodBreakdown: "播放方式 (30天)"
   peakHours: "高峰时段 (30天)"
   used: "已用"
   free: "可用"

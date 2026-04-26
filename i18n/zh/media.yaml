@@ -1,5 +1,4 @@
 season: "第 {{number}} 季"
-episode: "第{{number}}集"
 chapter: "第 {{number}} 章"
 track: "音轨 {{number}}"
 burnIn: "(内嵌)"
@@ -30,7 +29,6 @@ favorites:
   titleZA: "标题 Z–A"
   yearNewest: 年份（最新）
   rating: 评分
-  yourRating: "您的评分"
   noFavorites: 暂无收藏
   noFavoritesDesc: 点击任意媒体项的心形图标即可添加到收藏。
   addToPlaylist: 添加到播放列表
@@ -101,14 +99,11 @@ library:
   dateAdded: 添加日期
   ascending: 升序
   descending: 降序
-  switchToList: 切换到列表视图
-  switchToGrid: 切换到网格视图
   noItems: 未找到项目
   noItemsFiltered: 请尝试调整过滤条件或搜索词。
   noItemsType: 尝试不同的过滤条件，或扫描媒体库以添加内容。
   noItemsEmpty: 此媒体库为空。触发扫描以添加内容。
   goToAdmin: 前往管理
-  loadMore: "加载更多（{{current}} / {{total}}）"
   selected: 已选择
   addToFavorites: 添加到收藏
   addedToFavorites: "{{count}} 项已添加到收藏"
@@ -152,7 +147,6 @@ library:
   markedWatched: 已标为已观看
 person:
   filmography: "作品列表"
-  notFound: 未找到此人。
   unknown: 未知
   titleCount: "{{count}} 部作品"
   titleCount_plural: "{{count}} 部作品"
@@ -218,8 +212,6 @@ detail:
   idChangedWarning: "ID 已更改 - 保存将重新从提供商获取元数据"
   refreshMetadata: 刷新元数据
   resetMetadata: 重置元数据
-  metadataReset: "元数据已重置 - 将开始重新获取"
-  resetMetadataFailed: 重置元数据失败
   reEnrichedWithNewId: 已使用新 ID 重新获取
   metadataSaved: 元数据已保存
   failedToSave: 保存失败
@@ -318,11 +310,6 @@ photos:
   noAlbumsDesc: 此媒体库中没有相册。
   noPhotoLibraries: 没有照片媒体库
   noPhotoLibrariesDesc: 请在管理面板中添加照片媒体库以开始使用。
-  photoDeleted: 照片已删除
-  failedDeletePhoto: 删除照片失败
-  deletePhotoConfirm: "确定删除「{{title}}」？此操作无法撤销。"
-  photoCount: "{{count}} 张照片"
-  photoCount_plural: "{{count}} 张照片"
 added: 已添加
 created: 已创建
 updated: 已更新

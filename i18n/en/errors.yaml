@@ -1,38 +1,19 @@
 auth:
   unauthenticated: "Unauthenticated"
-  unauthorized: "Unauthorized"
-  forbidden: "Forbidden"
   invalid_credentials: "Invalid username or password"
-  invalid_body: "Invalid request body"
   invalid_token: "Invalid or expired token"
-  missing_token: "Missing token"
-  no_session: "No active session"
-  too_many_requests: "Too many requests"
   too_many_attempts: "Too many attempts"
-  passwords_do_not_match: "Passwords do not match"
   password_too_short: "Password must be at least 8 characters"
-  username_too_short: "Username must be at least 3 characters"
-  explicit_consent_required: "Explicit consent required for push notifications"
   missing_authorization: "Missing authorization header"
   missing_metadata: "Missing request metadata"
   admin_access_required: "Admin access required"
   insufficient_permissions: "Insufficient permissions"
   internal_method: "This method is for internal use only"
   missing_key: "API key is missing"
-  invalid_current_pin: "Invalid current PIN"
   profile_not_found: "Profile not found"
 
 general:
   not_found: "Not found"
-  conflict: "Conflict"
-  invalid_input: "Invalid input"
-  rate_limited: "Rate limited"
-  not_configured: "Not configured"
-  internal_error: "Internal error"
-  encode_error: "Encode error"
-  bad_request: "Bad request"
-  remote_access_disabled: "Remote access disabled"
-  path_traversal_detected: "Path traversal detected"
 
 playlist:
   not_owner: "You are not the playlist owner"
@@ -84,35 +65,7 @@ user:
 
 media:
   not_found: "Media not found"
-  file_not_found: "File not found"
-  invalid_path: "Invalid path"
-  image_not_found: "Image not found"
 
 transcode:
-  busy: "Transcode busy"
-  failed: "Transcode failed"
-  no_active_session: "No active transcode session"
-  session_not_ready: "Session not ready"
-  segment_not_found: "Segment not found"
   max_concurrent_reached: "The server is busy transcoding other streams. Please try again in a moment."
 
-subtitle:
-  not_found: "Subtitle not found"
-  search_failed: "Subtitle search failed"
-  download_failed: "Subtitle download failed"
-  file_id_required: "File ID is required"
-
-plugin:
-  blocked_by_security: "Plugin blocked by security analysis"
-  manifest_invalid: "Invalid plugin manifest"
-  not_found: "Plugin not found"
-  config_save_failed: "Failed to save plugin config"
-
-notification:
-  invalid_movie_level: "Invalid movie notification level"
-  invalid_series_level: "Invalid series notification level"
-  invalid_music_level: "Invalid music notification level"
-
-backup:
-  failed: "Backup failed"
-  restore_failed: "Restore failed"

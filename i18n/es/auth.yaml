@@ -37,7 +37,6 @@ login:
   invalidCredentials: "Nombre de usuario o contraseña inválidos"
   passwordTooShort: "La contraseña debe tener al menos 8 caracteres"
   loginFailed: "Error al iniciar sesión. Inténtalo de nuevo."
-  accountLocked: "Demasiados intentos. Inténtalo más tarde."
   recommendedForTV: "Recomendado para TV"
   ssoFailed: "Error de inicio de sesión con SSO. Inténtalo de nuevo."
   or: "o"
@@ -83,14 +82,11 @@ register:
   alreadyHaveAccount: "¿Ya tienes una cuenta?"
   signIn: "Iniciar sesión"
 profile:
-  title: "Perfil"
   edit: "Editar"
   username: "Nombre de usuario"
   email: "Correo electrónico"
   save: "Guardar"
   cancel: "Cancelar"
-  admin: "Administrador"
-  memberSince: "Miembro desde {{date}}"
   profileUpdated: "Perfil actualizado"
   failedToUpdate: "Error al actualizar el perfil"
   changeAvatar: "Cambiar avatar"
@@ -128,15 +124,6 @@ profile:
     pinKeep: "Dejar en blanco para conservar el PIN actual."
     locale: "Idioma"
     region: "Región"
-  nav:
-    settings: "Ajustes"
-    settingsDesc: "Tema, notificaciones, contraseña"
-    watchHistory: "Historial de reproducción"
-    watchHistoryDesc: "Tu contenido visto recientemente"
-    notifications: "Notificaciones"
-    notificationsDesc: "Alertas y actualizaciones"
-    adminPanel: "Panel de administración"
-    adminPanelDesc: "Administrar servidor y usuarios"
 settings:
   title: "Ajustes"
   tabs:
@@ -147,7 +134,6 @@ settings:
     account: "Cuenta"
     parental: "Control parental"
     devices: "Dispositivos"
-    apiKeys: "Claves API"
     security: "Seguridad"
     quickConnect: "Conexión rápida"
   playback:
@@ -195,24 +181,16 @@ settings:
     changePasswordDesc: "Usa una contraseña segura de al menos 8 caracteres."
     newPassword: "Nueva contraseña"
     confirmPassword: "Confirmar contraseña"
-    updatePassword: "Actualizar contraseña"
-    passwordUpdated: "Contraseña actualizada"
-    passwordFailed: "Error al actualizar la contraseña"
     passwordMismatch: "Las contraseñas no coinciden"
     passwordMin: "La contraseña debe tener al menos 8 caracteres"
     profileUpdated: Perfil actualizado
   parental:
     title: "Control parental"
-    description: "Restringir contenido por clasificación para este perfil."
     enable: "Activar control parental"
     enableDesc: "Filtrar contenido por clasificación"
-    maxRating: "Clasificación máxima"
-    saveRating: "Guardar clasificación"
     maxAge: "Edad máxima"
-    saveAge: "Guardar edad"
     noRestriction: "Sin restricción"
     noProfile: "No se encontró perfil."
-    updated: "Control parental actualizado"
     failedToUpdate: "Error al actualizar"
     pin:
       title: "Establecer PIN"
@@ -225,15 +203,6 @@ settings:
       mismatch: "Los PIN no coinciden"
       passwordReauth: "Contraseña de la cuenta"
       passwordRequired: "Contraseña requerida para establecer un PIN por primera vez"
-    ratings:
-      none: "Sin restricción"
-      g: "G - Público general"
-      pg: "PG - Guía parental"
-      pg13: "PG-13 - Precaución parental"
-      r: "R - Restringido"
-      nc17: "NC-17 - Solo adultos"
-    bitrates:
-      unlimited: "Ilimitado"
 apiKeys:
   title: "Claves API"
   description: "Crea claves API para integraciones externas."

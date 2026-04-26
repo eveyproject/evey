@@ -4,14 +4,10 @@ nav:
   nowPlaying: Now Playing
   remoteAccess: Remote Access
   serverConfig: Server Config
-  serverSettings: Server Settings
   systemHealth: System Health
   media: Media
   libraries: Libraries
-  metadata: Metadata
   transcoding: Transcoding
-  transcodeCache: Transcode Cache
-  transcodingProfiles: Transcoding Profiles
   usersAccess: Users & Access
   users: Users
   integrations: Integrations
@@ -21,8 +17,6 @@ nav:
   monitoring: Monitoring
   analytics: Analytics
   activity: Activity
-  auditLog: Audit Log
-  liveLogs: Live Logs
   maintenance: Maintenance
   backupRestore: Database Backup
 
@@ -41,10 +35,6 @@ plugin:
   sandboxed: Sandboxed
   hash: "Hash"
   hashCopied: "Hash copied"
-  verified: "Verified"
-  updateAvailable: "Update available"
-  versionHigher: "Version {{new}} replaces {{current}}"
-  versionRejected: "Version {{new}} is not higher than {{current}}"
   sandboxedWidget: Sandboxed widget
   widgetLoadError: Widget failed to load
   state:
@@ -93,7 +83,6 @@ plugins:
   previewFailed: Preview failed
   installFailed: Install failed
   availableRuntimes: Available Runtimes
-  noRuntimes: No plugin runtimes detected
 
 dashboard:
   title: Dashboard
@@ -179,7 +168,6 @@ libraries:
   libraryUpdated: "Library \"{{name}}\" updated"
   libraryDeleted: "Library \"{{name}}\" deleted"
   editLibrary: Edit Library
-  failedUpdate: Failed to update library
   failedDelete: Failed to delete library
   scanStarted: Scan started
   failedScan: Failed to start scan
@@ -342,7 +330,6 @@ activity:
   title: Activity
   tabs:
     playHistory: Play History
-    loginHistory: Login History
     serverStats: Server Stats
   playHeaders:
     title: Title
@@ -350,16 +337,7 @@ activity:
     duration: Duration
     progress: Progress
     started: Started
-  loginHeaders:
-    user: User
-    ip: IP
-    status: Status
-    userAgent: User Agent
-    timestamp: Timestamp
   noPlayHistory: No play history
-  noLoginHistory: No login history
-  ok: OK
-  failed: Failed
   totalEntries: "{{count}} total entries"
   stats:
     totalPlays: Total Plays
@@ -372,8 +350,6 @@ activity:
 
 audit:
   title: Audit Log
-  action: Action
-  resourceType: Resource Type
   tableHeaders:
     time: Time
     user: User
@@ -518,9 +494,7 @@ dashboardStats:
   playActivity: Play Activity (14 days)
   plays: Plays
   watchTime: Watch Time
-  contentBreakdown: Content Breakdown
   activeUsers: Active Users
-  playMethodBreakdown: Play Method (30 days)
   peakHours: Peak Hours (30 days)
   used: Used
   free: Free
