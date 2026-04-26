@@ -30,6 +30,10 @@ func (r *LibraryAccessRepository) Grant(ctx context.Context, userID shared.UserI
 // GrantMany inserts N grants for the same user in a single round-trip via
 // unnest on a text[]. Used by invite registration to avoid N serial INSERTs
 // when a library-scoped invite spans multiple libraries.
+//
+// Binds to an ambient *sql.Tx via txFromCtx so RegisterWithInvite can roll
+// back grants when the surrounding tx fails — otherwise a partial registration
+// could leave orphan grants pointing at a never-created user.
 func (r *LibraryAccessRepository) GrantMany(ctx context.Context, userID shared.UserID, libraryIDs []shared.LibraryID) error {
 	if len(libraryIDs) == 0 {
 		return nil
@@ -40,7 +44,7 @@ func (r *LibraryAccessRepository) GrantMany(ctx context.Context, userID shared.U
 	for i, id := range libraryIDs {
 		ids[i] = string(id)
 	}
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO library_access (user_id, library_id)
 		 SELECT $1, unnest($2::text[])
 		 ON CONFLICT DO NOTHING`,

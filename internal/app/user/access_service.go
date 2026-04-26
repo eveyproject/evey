@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -21,6 +22,7 @@ type AccessService struct {
 	hasher        user.PasswordHasher
 	events        shared.EventBus
 	defaultLocale func() string
+	uow           shared.TransactionalUnit
 }
 
 type AccessServiceOption func(*AccessService)
@@ -37,6 +39,14 @@ func WithLibraryAccess(la user.LibraryAccessRepository) AccessServiceOption {
 // when creating a new Profile via invite registration (mirrors UserService).
 func WithAccessDefaultLocale(fn func() string) AccessServiceOption {
 	return func(s *AccessService) { s.defaultLocale = fn }
+}
+
+// WithAccessUnitOfWork wires a transactional unit so RegisterWithInvite runs
+// its 4 writes (invite claim + user create + library grants + default profile)
+// atomically. Without it the flow falls back to best-effort sequential
+// execution with manual decrement-on-failure (legacy partial-rollback path).
+func WithAccessUnitOfWork(uow shared.TransactionalUnit) AccessServiceOption {
+	return func(s *AccessService) { s.uow = uow }
 }
 
 func NewAccessService(
@@ -105,39 +115,15 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 	}
 	u.IsAdmin = invite.IsAdmin
 
-	// Atomically claim one invite use-slot. The repo's IncrementUsedCount
-	// rejects the claim if the invite has been exhausted since our IsUsable()
-	// check above, closing a TOCTOU window where N concurrent registrations
-	// on a MaxUses=1 token all succeeded.
-	if err := s.invites.IncrementUsedCount(ctx, invite.ID); err != nil {
-		return nil, ErrInviteInvalid
-	}
-
-	if err := s.users.Create(ctx, u); err != nil {
-		// Best-effort rollback of the claim we just took. If this too fails,
-		// the slot stays consumed — that's a degraded outcome (admin can
-		// re-create the invite) rather than a security risk.
-		if decErr := s.invites.DecrementUsedCount(ctx, invite.ID); decErr != nil {
-			slog.Warn("invite: decrement after user.Create failed", slog.String("inviteID", invite.ID), slog.Any("err", decErr))
-		}
-		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
-	}
-	if s.libraryAccess != nil && !u.IsAdmin && len(invite.LibraryIDs) > 0 {
-		if grantErr := s.libraryAccess.GrantMany(ctx, u.ID, invite.LibraryIDs); grantErr != nil {
-			slog.Warn("invite: grant library access", slog.String("userID", string(u.ID)), slog.Any("err", grantErr))
-		}
-	}
-	evtInviteCreated := user.UserCreated{UserID: u.ID, Username: u.Username, OccurredAt: time.Now()}
-	if err := s.events.Publish(ctx, evtInviteCreated); err != nil {
-		slog.Warn("publish event", slog.String("event", evtInviteCreated.EventName()), slog.Any("err", err))
-	}
-
+	// Pre-build the default Profile so its ID is stable before the tx; we
+	// publish the ProfileCreated event with this exact ID after commit.
+	var p *user.Profile
 	if s.profiles != nil {
 		locale := ""
 		if s.defaultLocale != nil {
 			locale = s.defaultLocale()
 		}
-		p := &user.Profile{
+		p = &user.Profile{
 			ID:        shared.ProfileID(id.New("prf-")),
 			UserID:    u.ID,
 			Name:      u.Username,
@@ -145,13 +131,67 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 			Locale:    locale,
 			CreatedAt: time.Now(),
 		}
-		if pErr := s.profiles.Create(ctx, p); pErr != nil {
-			slog.Warn("auto-create profile", slog.String("userID", string(u.ID)), slog.Any("err", pErr))
-		} else {
-			evtProfile := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
-			if err := s.events.Publish(ctx, evtProfile); err != nil {
-				slog.Warn("publish event", slog.String("event", evtProfile.EventName()), slog.Any("err", err))
+	}
+
+	// apply runs the four mutations atomically. With a TransactionalUnit
+	// (production), any failure rolls back: no partial user, no consumed
+	// invite slot, no orphan grants. Without one (legacy unit-tested path)
+	// we fall back to best-effort sequential ops with the historical
+	// IncrementUsedCount/DecrementUsedCount compensation around user.Create.
+	apply := func(ctx context.Context) error {
+		// Atomic claim of one invite use-slot. The repo's IncrementUsedCount
+		// rejects the claim if the invite has been exhausted since our
+		// IsUsable() check above, closing a TOCTOU window where N concurrent
+		// registrations on a MaxUses=1 token all succeeded.
+		if err := s.invites.IncrementUsedCount(ctx, invite.ID); err != nil {
+			return ErrInviteInvalid
+		}
+		if err := s.users.Create(ctx, u); err != nil {
+			if s.uow == nil {
+				// No tx: best-effort decrement so the slot doesn't leak.
+				if decErr := s.invites.DecrementUsedCount(ctx, invite.ID); decErr != nil {
+					slog.Warn("invite: decrement after user.Create failed", slog.String("inviteID", invite.ID), slog.Any("err", decErr))
+				}
 			}
+			return fmt.Errorf("create user: %w", err)
+		}
+		if s.libraryAccess != nil && !u.IsAdmin && len(invite.LibraryIDs) > 0 {
+			if err := s.libraryAccess.GrantMany(ctx, u.ID, invite.LibraryIDs); err != nil {
+				return fmt.Errorf("grant library access: %w", err)
+			}
+		}
+		if p != nil {
+			if err := s.profiles.Create(ctx, p); err != nil {
+				return fmt.Errorf("create default profile: %w", err)
+			}
+		}
+		return nil
+	}
+
+	var txErr error
+	if s.uow != nil {
+		txErr = s.uow.Do(ctx, apply)
+	} else {
+		txErr = apply(ctx)
+	}
+	if txErr != nil {
+		// Surface ErrInviteInvalid unchanged so callers can errors.Is it.
+		if errors.Is(txErr, ErrInviteInvalid) {
+			return nil, ErrInviteInvalid
+		}
+		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", txErr)
+	}
+
+	// Events are published POST-commit so a tx rollback never produces a
+	// phantom UserCreated/ProfileCreated.
+	evtUserCreated := user.UserCreated{UserID: u.ID, Username: u.Username, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtUserCreated); err != nil {
+		slog.Warn("publish event", slog.String("event", evtUserCreated.EventName()), slog.Any("err", err))
+	}
+	if p != nil {
+		evtProfile := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
+		if err := s.events.Publish(ctx, evtProfile); err != nil {
+			slog.Warn("publish event", slog.String("event", evtProfile.EventName()), slog.Any("err", err))
 		}
 	}
 	return u, nil

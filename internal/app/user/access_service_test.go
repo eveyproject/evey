@@ -583,7 +583,12 @@ func TestRegisterWithInvite_WithProfiles_CreatesDefaultProfile(t *testing.T) {
 	}
 }
 
-func TestRegisterWithInvite_WithProfiles_ProfileCreateError_NonFatal(t *testing.T) {
+// Without a UnitOfWork, profile create still fails the whole flow now: the
+// apply closure short-circuits on profile error so the user is not "left
+// behind" with a missing default profile. (The decrement compensation in the
+// no-uow legacy path only covers the invite slot — user persistence is the
+// fake's responsibility, not the service's.)
+func TestRegisterWithInvite_WithProfiles_ProfileCreateError_NoUOW_Fails(t *testing.T) {
 	users := ufakes.NewFakeUserRepository()
 	apiKeys := ufakes.NewFakeAPIKeyRepository()
 	invites := ufakes.NewFakeInviteLinkRepository()
@@ -597,13 +602,128 @@ func TestRegisterWithInvite_WithProfiles_ProfileCreateError_NonFatal(t *testing.
 	_ = invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok"})
 	profiles.Err = errors.New("profile create fail")
 
-	u, err := svc.RegisterWithInvite(ctx, "tok", "bob", "longpassword", "bob@b.com")
-	if err != nil {
-		t.Fatalf("profile create error should be non-fatal, got %v", err)
+	if _, err := svc.RegisterWithInvite(ctx, "tok", "bob", "longpassword", "bob@b.com"); err == nil {
+		t.Fatal("expected error when profile create fails (atomic flow)")
 	}
-	if u == nil {
-		t.Fatal("expected user")
+	// No events should have been published — events fire only on commit.
+	for _, e := range events.PublishedEvents() {
+		if e.EventName() == "user.created" || e.EventName() == "user.profile.created" {
+			t.Fatalf("no creation events expected on failure, got %s", e.EventName())
+		}
 	}
+}
+
+// With a UnitOfWork, a failing profile.Create rolls back the whole
+// transaction: the user must NOT be persisted, and no creation events must
+// be published. This is the core regression test for the partial-write
+// TOCTOU that motivated the atomicity refactor.
+func TestRegisterWithInvite_WithProfiles_ProfileCreateError_UOW_RollsBack(t *testing.T) {
+	users := ufakes.NewFakeUserRepository()
+	apiKeys := ufakes.NewFakeAPIKeyRepository()
+	invites := ufakes.NewFakeInviteLinkRepository()
+	quickConnect := ufakes.NewFakeQuickConnectRepository()
+	hasher := ufakes.NewFakePasswordHasher()
+	profiles := ufakes.NewFakeProfileRepository()
+	events := fakes.NewFakeEventBus()
+
+	uow := &snapshotAccessUOW{
+		inner:        fakes.NewFakeTransactionalUnit(),
+		users:        users,
+		invites:      invites,
+		inviteTokens: []string{"rb-tok"},
+	}
+	svc := NewAccessService(users, apiKeys, invites, quickConnect, hasher, events, WithProfiles(profiles), WithAccessUnitOfWork(uow))
+	ctx := context.Background()
+	_ = invites.Create(ctx, &user.InviteLink{ID: "inv-rb", Token: "rb-tok", MaxUses: 1})
+	profiles.Err = errors.New("profile db down")
+
+	if _, err := svc.RegisterWithInvite(ctx, "rb-tok", "bob", "longpassword", "b@b.com"); err == nil {
+		t.Fatal("expected error when profile create fails inside tx")
+	}
+
+	// User must have been rolled back.
+	all, _ := users.List(ctx)
+	if len(all) != 0 {
+		t.Fatalf("expected user rolled back, got %d users", len(all))
+	}
+	// Invite slot must have been rolled back too — a retry on the MaxUses=1
+	// invite should still succeed once the underlying error is gone.
+	inv, _ := invites.GetByToken(ctx, "rb-tok")
+	if inv.UsedCount != 0 {
+		t.Fatalf("expected UsedCount rolled back to 0, got %d", inv.UsedCount)
+	}
+	// No creation events on rollback.
+	for _, e := range events.PublishedEvents() {
+		if e.EventName() == "user.created" || e.EventName() == "user.profile.created" {
+			t.Fatalf("no creation events expected on rollback, got %s", e.EventName())
+		}
+	}
+
+	// And the retry succeeds — proves slot truly was rolled back.
+	profiles.Err = nil
+	if u, err := svc.RegisterWithInvite(ctx, "rb-tok", "carol", "longpassword", "c@b.com"); err != nil || u == nil {
+		t.Fatalf("retry on rolled-back invite slot should succeed, got u=%v err=%v", u, err)
+	}
+}
+
+// snapshotAccessUOW wraps FakeTransactionalUnit to undo writes the apply
+// closure performed against the in-memory fakes when fn returns an error —
+// the fakes don't know about the ambient tx so we simulate rollback here.
+// Mirrors snapshotUOW used by user_service_test.go for the same purpose.
+type snapshotAccessUOW struct {
+	inner        *fakes.FakeTransactionalUnit
+	users        *ufakes.FakeUserRepository
+	invites      *ufakes.FakeInviteLinkRepository
+	inviteTokens []string // tokens whose UsedCount we restore on rollback
+}
+
+func (s *snapshotAccessUOW) Do(ctx context.Context, fn func(context.Context) error) error {
+	beforeUsers, _ := s.users.List(ctx)
+	beforeIDs := map[string]struct{}{}
+	for _, u := range beforeUsers {
+		beforeIDs[string(u.ID)] = struct{}{}
+	}
+	// Snapshot used_count keyed by invite token (the fake exposes only
+	// GetByToken for lookups; tests supply tokens explicitly).
+	beforeUsed := map[string]int{}
+	for _, tok := range s.inviteTokens {
+		if link, err := s.invites.GetByToken(ctx, tok); err == nil {
+			beforeUsed[tok] = link.UsedCount
+		}
+	}
+
+	err := s.inner.Do(ctx, fn)
+	if err == nil {
+		return nil
+	}
+	// Roll back any user inserted by fn.
+	after, _ := s.users.List(ctx)
+	for _, u := range after {
+		if _, ok := beforeIDs[string(u.ID)]; !ok {
+			_ = s.users.Delete(ctx, u.ID)
+		}
+	}
+	// Restore each tracked invite's used_count.
+	for _, tok := range s.inviteTokens {
+		prev, ok := beforeUsed[tok]
+		if !ok {
+			continue
+		}
+		link, gerr := s.invites.GetByToken(ctx, tok)
+		if gerr != nil {
+			continue
+		}
+		for link.UsedCount > prev {
+			if dErr := s.invites.DecrementUsedCount(ctx, link.ID); dErr != nil {
+				break
+			}
+			link, gerr = s.invites.GetByToken(ctx, tok)
+			if gerr != nil {
+				break
+			}
+		}
+	}
+	return err
 }
 
 // --- Publish error observability (kills err != nil mutations) ---

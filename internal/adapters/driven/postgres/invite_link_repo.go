@@ -92,7 +92,7 @@ func (r *InviteLinkRepository) ListByCreator(ctx context.Context, creatorID stri
 func (r *InviteLinkRepository) DecrementUsedCount(ctx context.Context, id string) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE invite_links SET used_count = used_count - 1
 		 WHERE id = $1 AND used_count > 0`, id)
 	return err
@@ -103,11 +103,15 @@ func (r *InviteLinkRepository) DecrementUsedCount(ctx context.Context, id string
 // invite row is missing or already fully used. This is intentionally atomic
 // (single UPDATE with conditional WHERE) to close the TOCTOU window between a
 // caller's IsUsable() check and the actual increment: N concurrent claimers
-// on a MaxUses=1 invite would previously all succeed; now exactly one wins.
+// on a MaxUses=1 invite would previously all succeeded; now exactly one wins.
+//
+// Binds to an ambient *sql.Tx via txFromCtx so RegisterWithInvite can claim
+// the slot, create the user, grant libraries and create the default profile
+// in a single tx — any failure rolls back the claim atomically.
 func (r *InviteLinkRepository) IncrementUsedCount(ctx context.Context, id string) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE invite_links SET used_count = used_count + 1
 		 WHERE id = $1 AND (max_uses = 0 OR used_count < max_uses)`, id)
 	if err != nil {
