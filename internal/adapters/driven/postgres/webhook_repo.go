@@ -6,9 +6,13 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/webhook"
-	"github.com/lib/pq"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type WebhookRepository struct {
@@ -20,10 +24,15 @@ func NewWebhookRepository(db *sql.DB) *WebhookRepository {
 }
 
 func (r *WebhookRepository) Create(ctx context.Context, cfg *webhook.Config) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.webhook.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("webhook.id", cfg.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	headersJSON, err := json.Marshal(cfg.Headers)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	events := cfg.Events
@@ -35,10 +44,18 @@ func (r *WebhookRepository) Create(ctx context.Context, cfg *webhook.Config) err
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		cfg.ID, cfg.Name, cfg.URL, pq.Array(events), cfg.Secret, headersJSON, cfg.Enabled, cfg.CreatedAt,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *WebhookRepository) GetByID(ctx context.Context, id string) (*webhook.Config, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.webhook.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("webhook.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	cfg := &webhook.Config{}
@@ -47,6 +64,8 @@ func (r *WebhookRepository) GetByID(ctx context.Context, id string) (*webhook.Co
 		`SELECT id, name, url, events, secret, headers, enabled, created_at FROM webhook_configs WHERE id = $1`, id,
 	).Scan(&cfg.ID, &cfg.Name, &cfg.URL, pq.Array(&cfg.Events), &cfg.Secret, &headersJSON, &cfg.Enabled, &cfg.CreatedAt)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	if err := json.Unmarshal(headersJSON, &cfg.Headers); err != nil {
@@ -56,11 +75,15 @@ func (r *WebhookRepository) GetByID(ctx context.Context, id string) (*webhook.Co
 }
 
 func (r *WebhookRepository) List(ctx context.Context) ([]*webhook.Config, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.webhook.List")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, url, events, secret, headers, enabled, created_at FROM webhook_configs ORDER BY created_at DESC LIMIT 1000`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -70,6 +93,8 @@ func (r *WebhookRepository) List(ctx context.Context) ([]*webhook.Config, error)
 		cfg := &webhook.Config{}
 		var headersJSON []byte
 		if err := rows.Scan(&cfg.ID, &cfg.Name, &cfg.URL, pq.Array(&cfg.Events), &cfg.Secret, &headersJSON, &cfg.Enabled, &cfg.CreatedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		if err := json.Unmarshal(headersJSON, &cfg.Headers); err != nil {
@@ -77,14 +102,24 @@ func (r *WebhookRepository) List(ctx context.Context) ([]*webhook.Config, error)
 		}
 		result = append(result, cfg)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *WebhookRepository) Update(ctx context.Context, cfg *webhook.Config) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.webhook.Update")
+	defer span.End()
+	span.SetAttributes(attribute.String("webhook.id", cfg.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	headersJSON, err := json.Marshal(cfg.Headers)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	events := cfg.Events
@@ -96,22 +131,33 @@ func (r *WebhookRepository) Update(ctx context.Context, cfg *webhook.Config) err
 		cfg.Name, cfg.URL, pq.Array(events), cfg.Secret, headersJSON, cfg.Enabled, cfg.ID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *WebhookRepository) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.webhook.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("webhook.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM webhook_configs WHERE id = $1`, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
@@ -126,6 +172,9 @@ func NewWebhookDeliveryRepository(db *sql.DB) *WebhookDeliveryRepository {
 }
 
 func (r *WebhookDeliveryRepository) Create(ctx context.Context, d *webhook.Delivery) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.webhook_delivery.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("webhook.id", d.WebhookID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -133,10 +182,18 @@ func (r *WebhookDeliveryRepository) Create(ctx context.Context, d *webhook.Deliv
 		 VALUES ($1,$2,$3,$4,$5,$6)`,
 		d.ID, d.WebhookID, d.Event, d.StatusCode, d.Error, d.SentAt,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *WebhookDeliveryRepository) ListByWebhook(ctx context.Context, webhookID string, limit int) ([]*webhook.Delivery, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.webhook_delivery.ListByWebhook")
+	defer span.End()
+	span.SetAttributes(attribute.String("webhook.id", webhookID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	q := `SELECT id, webhook_id, event, status_code, error, sent_at FROM webhook_deliveries WHERE webhook_id = $1 ORDER BY sent_at DESC`
@@ -146,10 +203,18 @@ func (r *WebhookDeliveryRepository) ListByWebhook(ctx context.Context, webhookID
 	q += ` LIMIT $2`
 	rows, err := r.db.QueryContext(ctx, q, webhookID, limit)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return scanDeliveries(rows)
+	result, err := scanDeliveries(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func scanDeliveries(rows *sql.Rows) ([]*webhook.Delivery, error) {

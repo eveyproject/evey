@@ -6,8 +6,12 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type FeedAdminConfigRepository struct {
@@ -19,11 +23,15 @@ func NewFeedAdminConfigRepository(db *sql.DB) *FeedAdminConfigRepository {
 }
 
 func (r *FeedAdminConfigRepository) GetAll(ctx context.Context) ([]*feed.AdminConfig, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed_admin_config.GetAll")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT feed_type, enabled, display_order, max_items, params FROM feed_admin_config ORDER BY display_order`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -34,6 +42,8 @@ func (r *FeedAdminConfigRepository) GetAll(ctx context.Context) ([]*feed.AdminCo
 		var ft string
 		var paramsJSON []byte
 		if err := rows.Scan(&ft, &cfg.Enabled, &cfg.DisplayOrder, &cfg.MaxItems, &paramsJSON); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		cfg.FeedType = feed.Type(ft)
@@ -42,14 +52,24 @@ func (r *FeedAdminConfigRepository) GetAll(ctx context.Context) ([]*feed.AdminCo
 		}
 		result = append(result, cfg)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *FeedAdminConfigRepository) Upsert(ctx context.Context, cfg *feed.AdminConfig) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed_admin_config.Upsert")
+	defer span.End()
+	span.SetAttributes(attribute.String("feed.type", string(cfg.FeedType)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	paramsJSON, err := json.Marshal(cfg.Params)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	_, err = r.db.ExecContext(ctx, `
@@ -62,14 +82,24 @@ func (r *FeedAdminConfigRepository) Upsert(ctx context.Context, cfg *feed.AdminC
 			params = EXCLUDED.params`,
 		string(cfg.FeedType), cfg.Enabled, cfg.DisplayOrder, cfg.MaxItems, paramsJSON,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *FeedAdminConfigRepository) BatchUpsert(ctx context.Context, cfgs []*feed.AdminConfig) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed_admin_config.BatchUpsert")
+	defer span.End()
+	span.SetAttributes(attribute.Int("feed.count", len(cfgs)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	defer tx.Rollback()
@@ -83,6 +113,8 @@ func (r *FeedAdminConfigRepository) BatchUpsert(ctx context.Context, cfgs []*fee
 			max_items = EXCLUDED.max_items,
 			params = EXCLUDED.params`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	defer stmt.Close()
@@ -90,21 +122,38 @@ func (r *FeedAdminConfigRepository) BatchUpsert(ctx context.Context, cfgs []*fee
 	for _, cfg := range cfgs {
 		paramsJSON, err := json.Marshal(cfg.Params)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 		if _, err := stmt.ExecContext(ctx, string(cfg.FeedType), cfg.Enabled, cfg.DisplayOrder, cfg.MaxItems, paramsJSON); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *FeedAdminConfigRepository) DeleteByType(ctx context.Context, feedType feed.Type) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed_admin_config.DeleteByType")
+	defer span.End()
+	span.SetAttributes(attribute.String("feed.type", string(feedType)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM feed_admin_config WHERE feed_type = $1`, string(feedType))
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 type FeedProfileConfigRepository struct {
@@ -116,11 +165,16 @@ func NewFeedProfileConfigRepository(db *sql.DB) *FeedProfileConfigRepository {
 }
 
 func (r *FeedProfileConfigRepository) GetByProfile(ctx context.Context, profileID string) ([]*feed.ProfileConfig, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed_profile_config.GetByProfile")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT feed_type, enabled, display_order, max_items, params FROM feed_profile_config WHERE profile_id = $1 ORDER BY display_order LIMIT 100`, profileID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -131,6 +185,8 @@ func (r *FeedProfileConfigRepository) GetByProfile(ctx context.Context, profileI
 		var ft string
 		var paramsJSON []byte
 		if err := rows.Scan(&ft, &cfg.Enabled, &cfg.DisplayOrder, &cfg.MaxItems, &paramsJSON); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		cfg.FeedType = feed.Type(ft)
@@ -139,14 +195,24 @@ func (r *FeedProfileConfigRepository) GetByProfile(ctx context.Context, profileI
 		}
 		result = append(result, cfg)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *FeedProfileConfigRepository) Upsert(ctx context.Context, cfg *feed.ProfileConfig) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed_profile_config.Upsert")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(cfg.ProfileID)), attribute.String("feed.type", string(cfg.FeedType)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	paramsJSON, err := json.Marshal(cfg.Params)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	_, err = r.db.ExecContext(ctx, `
@@ -159,24 +225,45 @@ func (r *FeedProfileConfigRepository) Upsert(ctx context.Context, cfg *feed.Prof
 			params = EXCLUDED.params`,
 		cfg.ProfileID, string(cfg.FeedType), cfg.Enabled, cfg.DisplayOrder, cfg.MaxItems, paramsJSON,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *FeedProfileConfigRepository) Delete(ctx context.Context, profileID string, feedType feed.Type) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed_profile_config.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID), attribute.String("feed.type", string(feedType)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM feed_profile_config WHERE profile_id = $1 AND feed_type = $2`,
 		profileID, string(feedType))
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *FeedProfileConfigRepository) DeleteByType(ctx context.Context, feedType feed.Type) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed_profile_config.DeleteByType")
+	defer span.End()
+	span.SetAttributes(attribute.String("feed.type", string(feedType)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM feed_profile_config WHERE feed_type = $1`, string(feedType))
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 var _ feed.AdminConfigRepository = (*FeedAdminConfigRepository)(nil)

@@ -8,8 +8,12 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type PlaySessionStatsReader struct {
@@ -25,6 +29,9 @@ func NewPlaySessionStatsReader(db *sql.DB) *PlaySessionStatsReader {
 }
 
 func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID shared.ProfileID) (*activity.UserStats, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.play_session_stats.GetUserStats")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(profileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	stats := &activity.UserStats{
@@ -81,6 +88,8 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 
 	rows, err := r.db.QueryContext(ctx, q, profileID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -88,6 +97,8 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 	for rows.Next() {
 		var kind, col1, col2, col3 string
 		if err := rows.Scan(&kind, &col1, &col2, &col3); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		switch kind {
@@ -123,12 +134,19 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 			stats.PlayByMonth[col1] = activity.MonthlyStats{PlayCount: cnt, TotalTimeMs: totalMs}
 		}
 	}
-	return stats, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return stats, nil
 }
 
 const serverStatsCacheDuration = 5 * time.Minute
 
 func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.ServerStatsResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.play_session_stats.GetServerStats")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	r.serverStatsMu.Lock()
@@ -149,6 +167,8 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 			(SELECT COALESCE(SUM(duration_ms), 0) FROM play_sessions)`,
 	).Scan(&stats.ActiveStreams, &stats.ActiveTranscodes, &stats.TotalUsers, &stats.TotalItems, &stats.TotalPlayTimeMs)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
@@ -160,6 +180,8 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 }
 
 func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, limit int) ([]activity.MediaPlayCount, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.play_session_stats.GetMostPopular")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -172,6 +194,8 @@ func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, limit int) 
 		 ORDER BY play_count DESC
 		 LIMIT $1`, limit)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -180,11 +204,18 @@ func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, limit int) 
 	for rows.Next() {
 		var mpc activity.MediaPlayCount
 		if err := rows.Scan(&mpc.MediaItemID, &mpc.Title, &mpc.PlayCount); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result = append(result, mpc)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 

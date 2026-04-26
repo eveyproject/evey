@@ -8,8 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type UserRatingRepository struct {
@@ -21,6 +25,9 @@ func NewUserRatingRepository(db *sql.DB) *UserRatingRepository {
 }
 
 func (r *UserRatingRepository) Upsert(ctx context.Context, rating *library.UserRating) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user_rating.Upsert")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(rating.ProfileID)), attribute.String("media_item.id", string(rating.MediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `
@@ -29,10 +36,18 @@ func (r *UserRatingRepository) Upsert(ctx context.Context, rating *library.UserR
 		ON CONFLICT (profile_id, media_item_id)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
 	`, rating.ProfileID, rating.MediaItemID, rating.Value, time.Now())
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *UserRatingRepository) Get(ctx context.Context, profileID, mediaItemID string) (*library.UserRating, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user_rating.Get")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID), attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	row := r.db.QueryRowContext(ctx, `
@@ -45,12 +60,17 @@ func (r *UserRatingRepository) Get(ctx context.Context, profileID, mediaItemID s
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, shared.ErrNotFound
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return &ur, nil
 }
 
 func (r *UserRatingRepository) GetForItems(ctx context.Context, profileID string, mediaItemIDs []string) (map[string]*library.UserRating, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user_rating.GetForItems")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID), attribute.Int("media_item.count", len(mediaItemIDs)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(mediaItemIDs) == 0 {
@@ -69,6 +89,8 @@ func (r *UserRatingRepository) GetForItems(ctx context.Context, profileID string
 		WHERE profile_id = $1 AND media_item_id IN (%s)
 	`, strings.Join(placeholders, ",")), args...)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -76,11 +98,18 @@ func (r *UserRatingRepository) GetForItems(ctx context.Context, profileID string
 	for rows.Next() {
 		var ur library.UserRating
 		if err := rows.Scan(&ur.ProfileID, &ur.MediaItemID, &ur.Value); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result[string(ur.MediaItemID)] = &ur
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 var _ library.UserRatingRepository = (*UserRatingRepository)(nil)

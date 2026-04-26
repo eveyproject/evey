@@ -5,8 +5,12 @@ import (
 	"database/sql"
 
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/notification"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type NotificationSettingsRepository struct {
@@ -18,6 +22,9 @@ func NewNotificationSettingsRepository(db *sql.DB) *NotificationSettingsReposito
 }
 
 func (r *NotificationSettingsRepository) GetByProfile(ctx context.Context, profileID string) (*notification.Settings, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification_settings.GetByProfile")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	s := &notification.Settings{ProfileID: shared.ProfileID(profileID)}
@@ -30,6 +37,8 @@ func (r *NotificationSettingsRepository) GetByProfile(ctx context.Context, profi
 		return r.GetGlobalDefaults(ctx)
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	s.MovieLevel = notification.Level(ml)
@@ -40,6 +49,9 @@ func (r *NotificationSettingsRepository) GetByProfile(ctx context.Context, profi
 }
 
 func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, profileIDs []string) (map[string]*notification.Settings, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification_settings.GetByProfiles")
+	defer span.End()
+	span.SetAttributes(attribute.Int("profile.count", len(profileIDs)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	result := make(map[string]*notification.Settings, len(profileIDs))
@@ -51,12 +63,16 @@ func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, prof
 		pq.Array(profileIDs),
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var pid, ml, sl, msl string
 		if scanErr := rows.Scan(&pid, &ml, &sl, &msl); scanErr != nil {
+			span.RecordError(scanErr)
+			span.SetStatus(codes.Error, scanErr.Error())
 			return nil, scanErr
 		}
 		result[pid] = &notification.Settings{
@@ -67,6 +83,8 @@ func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, prof
 		}
 	}
 	if rowsErr := rows.Err(); rowsErr != nil {
+		span.RecordError(rowsErr)
+		span.SetStatus(codes.Error, rowsErr.Error())
 		return nil, rowsErr
 	}
 	// fill missing profiles with global defaults
@@ -85,6 +103,9 @@ func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, prof
 }
 
 func (r *NotificationSettingsRepository) Upsert(ctx context.Context, s *notification.Settings) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification_settings.Upsert")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(s.ProfileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -96,10 +117,17 @@ func (r *NotificationSettingsRepository) Upsert(ctx context.Context, s *notifica
 		   music_level = EXCLUDED.music_level`,
 		string(s.ProfileID), string(s.MovieLevel), string(s.SeriesLevel), string(s.MusicLevel),
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *NotificationSettingsRepository) GetGlobalDefaults(ctx context.Context) (*notification.Settings, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification_settings.GetGlobalDefaults")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	s := &notification.Settings{}
@@ -117,13 +145,20 @@ func (r *NotificationSettingsRepository) GetGlobalDefaults(ctx context.Context) 
 }
 
 func (r *NotificationSettingsRepository) UpsertGlobalDefaults(ctx context.Context, s *notification.Settings) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification_settings.UpsertGlobalDefaults")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE notification_settings_global SET movie_level=$1, series_level=$2, music_level=$3 WHERE id=1`,
 		string(s.MovieLevel), string(s.SeriesLevel), string(s.MusicLevel),
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 var _ notification.SettingsRepository = (*NotificationSettingsRepository)(nil)

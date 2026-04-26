@@ -8,8 +8,12 @@ import (
 	"log/slog"
 
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type PersonRepository struct {
@@ -21,10 +25,15 @@ func NewPersonRepository(db *sql.DB) *PersonRepository {
 }
 
 func (r *PersonRepository) Create(ctx context.Context, person *library.Person) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.person.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("person.id", person.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	providerJSON, err := json.Marshal(person.ProviderIDs)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	_, err = r.db.ExecContext(ctx,
@@ -33,29 +42,54 @@ func (r *PersonRepository) Create(ctx context.Context, person *library.Person) e
 		 ON CONFLICT (name) DO NOTHING`,
 		person.ID, person.Name, providerJSON, person.ThumbPath, person.Biography, person.Birthday, person.Deathday, person.PlaceOfBirth, person.KnownFor,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *PersonRepository) GetByID(ctx context.Context, id string) (*library.Person, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.person.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("person.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanPerson(r.db.QueryRowContext(ctx,
+	person, err := r.scanPerson(r.db.QueryRowContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people WHERE id = $1`, id))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return person, nil
 }
 
 func (r *PersonRepository) GetByName(ctx context.Context, name string) (*library.Person, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.person.GetByName")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanPerson(r.db.QueryRowContext(ctx,
+	person, err := r.scanPerson(r.db.QueryRowContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people WHERE name = $1`, name))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return person, nil
 }
 
 // GetByNamesBatch returns a name→Person map for the given names. Missing
 // names are simply absent from the map. Single query with ANY($1) so a
 // cast of 50 names doesn't translate to 50 round-trips.
 func (r *PersonRepository) GetByNamesBatch(ctx context.Context, names []string) (map[string]*library.Person, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.person.GetByNamesBatch")
+	defer span.End()
+	span.SetAttributes(attribute.Int("person.count", len(names)))
 	out := make(map[string]*library.Person, len(names))
 	if len(names) == 0 {
 		return out, nil
@@ -66,6 +100,8 @@ func (r *PersonRepository) GetByNamesBatch(ctx context.Context, names []string) 
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people WHERE name = ANY($1)`, pq.Array(names))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -73,6 +109,8 @@ func (r *PersonRepository) GetByNamesBatch(ctx context.Context, names []string) 
 		p := &library.Person{}
 		var providerJSON []byte
 		if err := rows.Scan(&p.ID, &p.Name, &providerJSON, &p.ThumbPath, &p.Biography, &p.Birthday, &p.Deathday, &p.PlaceOfBirth, &p.KnownFor); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		if err := json.Unmarshal(providerJSON, &p.ProviderIDs); err != nil {
@@ -80,16 +118,25 @@ func (r *PersonRepository) GetByNamesBatch(ctx context.Context, names []string) 
 		}
 		out[p.Name] = p
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *PersonRepository) List(ctx context.Context) ([]*library.Person, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.person.List")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people ORDER BY name LIMIT 10000`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -99,6 +146,8 @@ func (r *PersonRepository) List(ctx context.Context) ([]*library.Person, error) 
 		person := &library.Person{}
 		var providerJSON []byte
 		if err := rows.Scan(&person.ID, &person.Name, &providerJSON, &person.ThumbPath, &person.Biography, &person.Birthday, &person.Deathday, &person.PlaceOfBirth, &person.KnownFor); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		if err := json.Unmarshal(providerJSON, &person.ProviderIDs); err != nil {
@@ -106,14 +155,24 @@ func (r *PersonRepository) List(ctx context.Context) ([]*library.Person, error) 
 		}
 		result = append(result, person)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *PersonRepository) Update(ctx context.Context, person *library.Person) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.person.Update")
+	defer span.End()
+	span.SetAttributes(attribute.String("person.id", person.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	providerJSON, err := json.Marshal(person.ProviderIDs)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	_, err = r.db.ExecContext(ctx,
@@ -121,7 +180,12 @@ func (r *PersonRepository) Update(ctx context.Context, person *library.Person) e
 		 WHERE id=$1`,
 		person.ID, person.ThumbPath, person.Biography, person.Birthday, person.Deathday, person.PlaceOfBirth, person.KnownFor, providerJSON,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *PersonRepository) scanPerson(row *sql.Row) (*library.Person, error) {

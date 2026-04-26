@@ -4,8 +4,12 @@ import (
 	"context"
 	"database/sql"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type TranscodeProfileRepository struct {
@@ -17,20 +21,33 @@ func NewTranscodeProfileRepository(db *sql.DB) *TranscodeProfileRepository {
 }
 
 func (r *TranscodeProfileRepository) GetByID(ctx context.Context, id string) (*transcoding.TranscodeProfile, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.transcode_profile.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("transcode_profile.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanProfile(r.db.QueryRowContext(ctx,
+	p, err := r.scanProfile(r.db.QueryRowContext(ctx,
 		`SELECT id, name, video_codec, audio_codec, container, max_width, max_height, video_bitrate, audio_bitrate, preset
 		 FROM transcode_profiles WHERE id = $1`, id))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return p, nil
 }
 
 func (r *TranscodeProfileRepository) List(ctx context.Context) ([]*transcoding.TranscodeProfile, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.transcode_profile.List")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, video_codec, audio_codec, container, max_width, max_height, video_bitrate, audio_bitrate, preset
 		 FROM transcode_profiles ORDER BY name LIMIT 100`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -40,14 +57,24 @@ func (r *TranscodeProfileRepository) List(ctx context.Context) ([]*transcoding.T
 		p := &transcoding.TranscodeProfile{}
 		if err := rows.Scan(&p.ID, &p.Name, &p.VideoCodec, &p.AudioCodec, &p.Container,
 			&p.MaxWidth, &p.MaxHeight, &p.VideoBitrate, &p.AudioBitrate, &p.Preset); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result = append(result, p)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *TranscodeProfileRepository) Create(ctx context.Context, profile *transcoding.TranscodeProfile) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.transcode_profile.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("transcode_profile.id", profile.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -56,10 +83,18 @@ func (r *TranscodeProfileRepository) Create(ctx context.Context, profile *transc
 		profile.ID, profile.Name, profile.VideoCodec, profile.AudioCodec, profile.Container,
 		profile.MaxWidth, profile.MaxHeight, profile.VideoBitrate, profile.AudioBitrate, profile.Preset,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *TranscodeProfileRepository) Update(ctx context.Context, profile *transcoding.TranscodeProfile) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.transcode_profile.Update")
+	defer span.End()
+	span.SetAttributes(attribute.String("transcode_profile.id", profile.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx,
@@ -68,22 +103,33 @@ func (r *TranscodeProfileRepository) Update(ctx context.Context, profile *transc
 		profile.MaxWidth, profile.MaxHeight, profile.VideoBitrate, profile.AudioBitrate, profile.Preset,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *TranscodeProfileRepository) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.transcode_profile.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("transcode_profile.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM transcode_profiles WHERE id = $1`, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil

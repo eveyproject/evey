@@ -9,8 +9,12 @@ import (
 	"log/slog"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/playlist"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type PlaylistRepository struct {
@@ -22,10 +26,15 @@ func NewPlaylistRepository(db *sql.DB) *PlaylistRepository {
 }
 
 func (r *PlaylistRepository) Create(ctx context.Context, pl *playlist.Playlist) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("playlist.id", pl.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rulesJSON, err := json.Marshal(pl.Rules)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistRepo.Create marshal rules: %w", err)
 	}
 	_, err = r.db.ExecContext(ctx,
@@ -34,12 +43,17 @@ func (r *PlaylistRepository) Create(ctx context.Context, pl *playlist.Playlist) 
 		pl.ID, pl.Name, pl.Description, pl.UserID, pl.Type, rulesJSON, pl.SortBy, pl.SortOrder, pl.CreatedAt, pl.UpdatedAt,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistRepo.Create: %w", err)
 	}
 	return nil
 }
 
 func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.Playlist, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("playlist.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	pl := &playlist.Playlist{}
@@ -52,6 +66,8 @@ func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.
 		return nil, shared.ErrNotFound
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaylistRepo.GetByID: %w", err)
 	}
 	if err := json.Unmarshal(rulesJSON, &pl.Rules); err != nil {
@@ -61,6 +77,9 @@ func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.
 }
 
 func (r *PlaylistRepository) List(ctx context.Context, userID string) ([]*playlist.Playlist, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist.List")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", userID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -68,6 +87,8 @@ func (r *PlaylistRepository) List(ctx context.Context, userID string) ([]*playli
 		 FROM playlists WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1000`, userID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaylistRepo.List: %w", err)
 	}
 	defer rows.Close()
@@ -77,6 +98,8 @@ func (r *PlaylistRepository) List(ctx context.Context, userID string) ([]*playli
 		pl := &playlist.Playlist{}
 		var rulesJSON []byte
 		if err := rows.Scan(&pl.ID, &pl.Name, &pl.Description, &pl.UserID, &pl.Type, &rulesJSON, &pl.SortBy, &pl.SortOrder, &pl.CreatedAt, &pl.UpdatedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("PlaylistRepo.List scan: %w", err)
 		}
 		if err := json.Unmarshal(rulesJSON, &pl.Rules); err != nil {
@@ -85,16 +108,23 @@ func (r *PlaylistRepository) List(ctx context.Context, userID string) ([]*playli
 		result = append(result, pl)
 	}
 	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaylistRepo.List rows: %w", err)
 	}
 	return result, nil
 }
 
 func (r *PlaylistRepository) Update(ctx context.Context, pl *playlist.Playlist) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist.Update")
+	defer span.End()
+	span.SetAttributes(attribute.String("playlist.id", pl.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rulesJSON, err := json.Marshal(pl.Rules)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistRepo.Update marshal rules: %w", err)
 	}
 	res, err := r.db.ExecContext(ctx,
@@ -102,22 +132,33 @@ func (r *PlaylistRepository) Update(ctx context.Context, pl *playlist.Playlist) 
 		pl.Name, pl.Description, rulesJSON, pl.SortBy, pl.SortOrder, pl.UpdatedAt, pl.ID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistRepo.Update: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *PlaylistRepository) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("playlist.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM playlists WHERE id = $1`, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistRepo.Delete: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
@@ -134,6 +175,9 @@ func NewPlaylistItemRepository(db *sql.DB) *PlaylistItemRepository {
 }
 
 func (r *PlaylistItemRepository) Add(ctx context.Context, item *playlist.PlaylistItem) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist_item.Add")
+	defer span.End()
+	span.SetAttributes(attribute.String("playlist.id", string(item.PlaylistID)), attribute.String("media_item.id", string(item.MediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	mediaType := item.MediaType
@@ -146,12 +190,17 @@ func (r *PlaylistItemRepository) Add(ctx context.Context, item *playlist.Playlis
 		item.PlaylistID, item.MediaItemID, item.SortOrder, item.AddedAt, mediaType,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistItemRepo.Add: %w", err)
 	}
 	return nil
 }
 
 func (r *PlaylistItemRepository) Remove(ctx context.Context, playlistID, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist_item.Remove")
+	defer span.End()
+	span.SetAttributes(attribute.String("playlist.id", playlistID), attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx,
@@ -159,6 +208,8 @@ func (r *PlaylistItemRepository) Remove(ctx context.Context, playlistID, mediaIt
 		playlistID, mediaItemID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistItemRepo.Remove: %w", err)
 	}
 	n, err := res.RowsAffected()
@@ -166,12 +217,17 @@ func (r *PlaylistItemRepository) Remove(ctx context.Context, playlistID, mediaIt
 		slog.Warn("rows affected", slog.Any("err", err))
 	}
 	if n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *PlaylistItemRepository) GetByPlaylistID(ctx context.Context, playlistID string) ([]*playlist.PlaylistItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist_item.GetByPlaylistID")
+	defer span.End()
+	span.SetAttributes(attribute.String("playlist.id", playlistID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -179,6 +235,8 @@ func (r *PlaylistItemRepository) GetByPlaylistID(ctx context.Context, playlistID
 		 FROM playlist_items WHERE playlist_id = $1 ORDER BY sort_order`, playlistID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaylistItemRepo.GetByPlaylistID: %w", err)
 	}
 	defer rows.Close()
@@ -187,27 +245,41 @@ func (r *PlaylistItemRepository) GetByPlaylistID(ctx context.Context, playlistID
 	for rows.Next() {
 		item := &playlist.PlaylistItem{}
 		if err := rows.Scan(&item.PlaylistID, &item.MediaItemID, &item.SortOrder, &item.AddedAt, &item.MediaType); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("PlaylistItemRepo.GetByPlaylistID scan: %w", err)
 		}
 		result = append(result, item)
 	}
 	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaylistItemRepo.GetByPlaylistID rows: %w", err)
 	}
 	return result, nil
 }
 
 func (r *PlaylistItemRepository) Reorder(ctx context.Context, playlistID string, mediaItemIDs []string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist_item.Reorder")
+	defer span.End()
+	span.SetAttributes(attribute.String("playlist.id", playlistID), attribute.Int("media_item.count", len(mediaItemIDs)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistItemRepo.Reorder begin tx: %w", err)
 	}
 	defer tx.Rollback()
 
 	if len(mediaItemIDs) == 0 {
-		return tx.Commit()
+		if err := tx.Commit(); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
+		}
+		return nil
 	}
 	var vals []string
 	args := []any{playlistID}
@@ -219,9 +291,13 @@ func (r *PlaylistItemRepository) Reorder(ctx context.Context, playlistID string,
 		FROM (VALUES ` + strings.Join(vals, ", ") + `) AS v(mid, new_order)
 		WHERE playlist_items.playlist_id = $1 AND playlist_items.media_item_id = v.mid`
 	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistItemRepo.Reorder exec: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistItemRepo.Reorder commit: %w", err)
 	}
 	return nil
@@ -238,6 +314,8 @@ func NewSmartPlaylistQuerier(db *sql.DB) *SmartPlaylistQuerier {
 }
 
 func (q *SmartPlaylistQuerier) Query(ctx context.Context, spec playlist.Spec, sortBy, sortOrder string, limit int) ([]shared.MediaItemID, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.smart_playlist.Query")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	query := "SELECT mi.id " + mediaItemFromJoins
@@ -275,6 +353,8 @@ func (q *SmartPlaylistQuerier) Query(ctx context.Context, spec playlist.Spec, so
 
 	rows, err := q.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("SmartPlaylistQuerier.Query: %w", err)
 	}
 	defer rows.Close()
@@ -283,11 +363,15 @@ func (q *SmartPlaylistQuerier) Query(ctx context.Context, spec playlist.Spec, so
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("SmartPlaylistQuerier.Query scan: %w", err)
 		}
 		ids = append(ids, shared.MediaItemID(id))
 	}
 	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("SmartPlaylistQuerier.Query rows: %w", err)
 	}
 	return ids, nil

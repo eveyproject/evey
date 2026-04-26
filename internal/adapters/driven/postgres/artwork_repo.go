@@ -6,9 +6,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/lib/pq"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type ArtworkRepository struct {
@@ -20,6 +24,9 @@ func NewArtworkRepository(db *sql.DB) *ArtworkRepository {
 }
 
 func (r *ArtworkRepository) Create(ctx context.Context, a *metadata.ArtworkRecord) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("artwork.id", a.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -27,10 +34,18 @@ func (r *ArtworkRepository) Create(ctx context.Context, a *metadata.ArtworkRecor
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 		a.ID, a.MediaItemID, a.PersonID, a.Type, a.Provider, a.SourceURL, a.LocalPath, a.WebPPath, a.Width, a.Height, a.Language, a.SortOrder,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *ArtworkRepository) CreateBatch(ctx context.Context, records []*metadata.ArtworkRecord) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.CreateBatch")
+	defer span.End()
+	span.SetAttributes(attribute.Int("artwork.count", len(records)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(records) == 0 {
@@ -46,23 +61,42 @@ func (r *ArtworkRepository) CreateBatch(ctx context.Context, records []*metadata
 	}
 	q := `INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order) VALUES ` + strings.Join(vals, ",")
 	_, err := r.db.ExecContext(ctx, q, args...)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *ArtworkRepository) GetByMediaItem(ctx context.Context, mediaItemID string) ([]*metadata.ArtworkRecord, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.GetByMediaItem")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
 		 FROM artwork WHERE media_item_id = $1 ORDER BY sort_order`, mediaItemID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return r.scanArtworkRows(rows)
+	result, err := r.scanArtworkRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *ArtworkRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*metadata.ArtworkRecord, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.GetByMediaItems")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(mediaItemIDs) == 0 {
@@ -72,11 +106,15 @@ func (r *ArtworkRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
 		 FROM artwork WHERE media_item_id = ANY($1) ORDER BY media_item_id, sort_order`, pq.Array(mediaItemIDs))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
 	records, err := r.scanArtworkRows(rows)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	result := make(map[string][]*metadata.ArtworkRecord, len(mediaItemIDs))
@@ -87,62 +125,102 @@ func (r *ArtworkRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []
 }
 
 func (r *ArtworkRepository) GetByPerson(ctx context.Context, personID string) ([]*metadata.ArtworkRecord, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.GetByPerson")
+	defer span.End()
+	span.SetAttributes(attribute.String("person.id", personID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
 		 FROM artwork WHERE person_id = $1 ORDER BY sort_order`, personID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return r.scanArtworkRows(rows)
+	result, err := r.scanArtworkRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *ArtworkRepository) UpdateSortOrder(ctx context.Context, id string, sortOrder int) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.UpdateSortOrder")
+	defer span.End()
+	span.SetAttributes(attribute.String("artwork.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `UPDATE artwork SET sort_order = $1 WHERE id = $2`, sortOrder, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *ArtworkRepository) UpdateWebPPath(ctx context.Context, id string, webpPath string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.UpdateWebPPath")
+	defer span.End()
+	span.SetAttributes(attribute.String("artwork.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `UPDATE artwork SET webp_path = $1 WHERE id = $2`, webpPath, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *ArtworkRepository) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("artwork.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM artwork WHERE id = $1`, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *ArtworkRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.DeleteByMediaItemID")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM artwork WHERE media_item_id = $1`, mediaItemID)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *ArtworkRepository) scanArtworkRows(rows *sql.Rows) ([]*metadata.ArtworkRecord, error) {

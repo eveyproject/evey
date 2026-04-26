@@ -8,7 +8,11 @@ import (
 	"log/slog"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type AuditLogRepository struct {
@@ -20,10 +24,15 @@ func NewAuditLogRepository(db *sql.DB) *AuditLogRepository {
 }
 
 func (r *AuditLogRepository) Create(ctx context.Context, e *activity.AuditLogEntry) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.audit_log.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("audit_log.id", e.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	detailsJSON, err := json.Marshal(e.Details)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	_, err = r.db.ExecContext(ctx,
@@ -31,10 +40,17 @@ func (r *AuditLogRepository) Create(ctx context.Context, e *activity.AuditLogEnt
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		e.ID, e.UserID, e.Action, e.ResourceType, e.ResourceID, detailsJSON, e.ClientIP, e.UserAgent, e.DeviceName, e.CreatedAt,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter) ([]*activity.AuditLogEntry, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.audit_log.List")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var conditions []string
@@ -98,6 +114,8 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -107,6 +125,8 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 		e := &activity.AuditLogEntry{}
 		var detailsJSON []byte
 		if err := rows.Scan(&e.ID, &e.UserID, &e.Username, &e.Action, &e.ResourceType, &e.ResourceID, &e.ResourceName, &detailsJSON, &e.ClientIP, &e.UserAgent, &e.DeviceName, &e.CreatedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		if err := json.Unmarshal(detailsJSON, &e.Details); err != nil {
@@ -114,7 +134,12 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 		}
 		result = append(result, e)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 var _ activity.AuditLogRepository = (*AuditLogRepository)(nil)

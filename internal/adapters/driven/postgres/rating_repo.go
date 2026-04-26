@@ -6,9 +6,13 @@ import (
 	"errors"
 	"time"
 
+	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/rating"
 	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/lib/pq"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type RatingRepository struct {
@@ -20,6 +24,9 @@ func NewRatingRepository(db *sql.DB) *RatingRepository {
 }
 
 func (r *RatingRepository) Upsert(ctx context.Context, rt rating.Rating) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.rating.Upsert")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(rt.MediaItemID)), attribute.String("profile.id", string(rt.ProfileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	now := time.Now()
@@ -29,10 +36,18 @@ func (r *RatingRepository) Upsert(ctx context.Context, rt rating.Rating) error {
 		ON CONFLICT (media_item_id, profile_id)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
 	`, rt.MediaItemID, rt.ProfileID, rt.Value.Int(), now)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *RatingRepository) Get(ctx context.Context, mediaItemID, profileID string) (*rating.Rating, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.rating.Get")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID), attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var rt rating.Rating
@@ -45,10 +60,14 @@ func (r *RatingRepository) Get(ctx context.Context, mediaItemID, profileID strin
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, shared.ErrNotFound
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	rv, err := rating.NewRatingValue(value)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	rt.Value = rv
@@ -56,15 +75,26 @@ func (r *RatingRepository) Get(ctx context.Context, mediaItemID, profileID strin
 }
 
 func (r *RatingRepository) Delete(ctx context.Context, mediaItemID, profileID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.rating.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID), attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `
 		DELETE FROM media_ratings WHERE media_item_id = $1 AND profile_id = $2
 	`, mediaItemID, profileID)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *RatingRepository) GetAggregates(ctx context.Context, mediaItemIDs []string) (map[string]rating.Aggregate, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.rating.GetAggregates")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(mediaItemIDs) == 0 {
@@ -77,6 +107,8 @@ func (r *RatingRepository) GetAggregates(ctx context.Context, mediaItemIDs []str
 		GROUP BY media_item_id
 	`, pq.Array(mediaItemIDs))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -85,11 +117,18 @@ func (r *RatingRepository) GetAggregates(ctx context.Context, mediaItemIDs []str
 		var id string
 		var agg rating.Aggregate
 		if err := rows.Scan(&id, &agg.Average, &agg.Count); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result[id] = agg
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 var _ rating.Repository = (*RatingRepository)(nil)

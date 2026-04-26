@@ -6,8 +6,12 @@ import (
 	"fmt"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type LoginHistoryRepository struct {
@@ -19,6 +23,9 @@ func NewLoginHistoryRepository(db *sql.DB) *LoginHistoryRepository {
 }
 
 func (r *LoginHistoryRepository) Create(ctx context.Context, e *activity.LoginEntry) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.login_history.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("login_history.id", e.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -26,10 +33,18 @@ func (r *LoginHistoryRepository) Create(ctx context.Context, e *activity.LoginEn
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		e.ID, e.UserID, e.ClientIP, e.UserAgent, e.AuthMethod, e.Success, e.FailureReason, e.CreatedAt,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *LoginHistoryRepository) GetByUserID(ctx context.Context, userID shared.UserID, limit, offset int) ([]*activity.LoginEntry, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.login_history.GetByUserID")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(userID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -37,6 +52,8 @@ func (r *LoginHistoryRepository) GetByUserID(ctx context.Context, userID shared.
 		 FROM login_history WHERE user_id = $1
 		 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, userID, limit, offset)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -45,14 +62,24 @@ func (r *LoginHistoryRepository) GetByUserID(ctx context.Context, userID shared.
 	for rows.Next() {
 		e := &activity.LoginEntry{}
 		if err := rows.Scan(&e.ID, &e.UserID, &e.ClientIP, &e.UserAgent, &e.AuthMethod, &e.Success, &e.FailureReason, &e.CreatedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result = append(result, e)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *LoginHistoryRepository) ListByUserIDCursor(ctx context.Context, userID shared.UserID, successOnly bool, from, to *time.Time, cursor *activity.LoginHistoryCursor, limit int) ([]*activity.LoginEntry, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.login_history.ListByUserIDCursor")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(userID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if limit <= 0 || limit > 500 {
@@ -85,6 +112,8 @@ func (r *LoginHistoryRepository) ListByUserIDCursor(ctx context.Context, userID 
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -93,11 +122,18 @@ func (r *LoginHistoryRepository) ListByUserIDCursor(ctx context.Context, userID 
 	for rows.Next() {
 		e := &activity.LoginEntry{}
 		if err := rows.Scan(&e.ID, &e.UserID, &e.ClientIP, &e.UserAgent, &e.AuthMethod, &e.Success, &e.FailureReason, &e.CreatedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result = append(result, e)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 var _ activity.LoginHistoryRepository = (*LoginHistoryRepository)(nil)

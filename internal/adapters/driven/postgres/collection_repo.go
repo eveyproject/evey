@@ -9,8 +9,12 @@ import (
 	"log/slog"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type CollectionRepository struct {
@@ -22,6 +26,9 @@ func NewCollectionRepository(db *sql.DB) *CollectionRepository {
 }
 
 func (r *CollectionRepository) Create(ctx context.Context, col *library.Collection) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("collection.id", col.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rulesJSON, err := json.Marshal(col.Rules)
@@ -38,10 +45,18 @@ func (r *CollectionRepository) Create(ctx context.Context, col *library.Collecti
 		col.ID, col.Name, col.Overview, col.TmdbID, col.PosterURL, col.BackdropURL,
 		rulesJSON, sortBy, col.CreatedAt, col.UpdatedAt,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *CollectionRepository) Upsert(ctx context.Context, col *library.Collection) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.Upsert")
+	defer span.End()
+	span.SetAttributes(attribute.String("collection.id", col.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rulesJSON, err := json.Marshal(col.Rules)
@@ -66,10 +81,18 @@ func (r *CollectionRepository) Upsert(ctx context.Context, col *library.Collecti
 		col.ID, col.Name, col.Overview, col.TmdbID, col.PosterURL, col.BackdropURL,
 		rulesJSON, sortBy, col.CreatedAt, col.UpdatedAt,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *CollectionRepository) Update(ctx context.Context, col *library.Collection) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.Update")
+	defer span.End()
+	span.SetAttributes(attribute.String("collection.id", col.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rulesJSON, err := json.Marshal(col.Rules)
@@ -86,6 +109,8 @@ func (r *CollectionRepository) Update(ctx context.Context, col *library.Collecti
 		col.Name, col.Overview, rulesJSON, sortBy, col.UpdatedAt, col.ID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	n, rowsErr := res.RowsAffected()
@@ -93,12 +118,17 @@ func (r *CollectionRepository) Update(ctx context.Context, col *library.Collecti
 		slog.Warn("rows affected", slog.Any("err", rowsErr))
 	}
 	if n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *CollectionRepository) GetByID(ctx context.Context, id string) (*library.Collection, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("collection.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	col := &library.Collection{}
@@ -112,6 +142,8 @@ func (r *CollectionRepository) GetByID(ctx context.Context, id string) (*library
 		return nil, shared.ErrNotFound
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	if err := json.Unmarshal(rulesJSON, &col.Rules); err != nil {
@@ -121,6 +153,9 @@ func (r *CollectionRepository) GetByID(ctx context.Context, id string) (*library
 }
 
 func (r *CollectionRepository) GetByTmdbID(ctx context.Context, tmdbID int) (*library.Collection, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.GetByTmdbID")
+	defer span.End()
+	span.SetAttributes(attribute.Int("collection.tmdb_id", tmdbID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	col := &library.Collection{}
@@ -134,6 +169,8 @@ func (r *CollectionRepository) GetByTmdbID(ctx context.Context, tmdbID int) (*li
 		return nil, shared.ErrNotFound
 	}
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	if err := json.Unmarshal(rulesJSON, &col.Rules); err != nil {
@@ -143,12 +180,16 @@ func (r *CollectionRepository) GetByTmdbID(ctx context.Context, tmdbID int) (*li
 }
 
 func (r *CollectionRepository) List(ctx context.Context) ([]*library.Collection, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.List")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, overview, tmdb_id, poster_url, backdrop_url, rules, sort_by, created_at, updated_at
 		 FROM collections ORDER BY name LIMIT 1000`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -159,6 +200,8 @@ func (r *CollectionRepository) List(ctx context.Context) ([]*library.Collection,
 		var rulesJSON []byte
 		if err := rows.Scan(&col.ID, &col.Name, &col.Overview, &col.TmdbID, &col.PosterURL, &col.BackdropURL,
 			&rulesJSON, &col.SortBy, &col.CreatedAt, &col.UpdatedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		if err := json.Unmarshal(rulesJSON, &col.Rules); err != nil {
@@ -166,14 +209,24 @@ func (r *CollectionRepository) List(ctx context.Context) ([]*library.Collection,
 		}
 		result = append(result, col)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *CollectionRepository) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("collection.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM collections WHERE id = $1`, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	n, err := res.RowsAffected()
@@ -181,12 +234,17 @@ func (r *CollectionRepository) Delete(ctx context.Context, id string) error {
 		slog.Warn("rows affected", slog.Any("err", err))
 	}
 	if n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil
 }
 
 func (r *CollectionRepository) LinkItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.LinkItem")
+	defer span.End()
+	span.SetAttributes(attribute.String("collection.id", collectionID), attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -195,10 +253,18 @@ func (r *CollectionRepository) LinkItem(ctx context.Context, collectionID, media
 		 ON CONFLICT DO NOTHING`,
 		collectionID, mediaItemID, sortOrder,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string, limit, offset int) ([]*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.GetItems")
+	defer span.End()
+	span.SetAttributes(attribute.String("collection.id", collectionID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if limit <= 0 || limit > DefaultListLimit {
@@ -210,17 +276,31 @@ func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string
 	if offset > 0 {
 		query += fmt.Sprintf(" OFFSET %d", offset)
 	}
-	return r.queryMediaItems(ctx, query, collectionID)
+	items, err := r.queryMediaItems(ctx, query, collectionID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return items, nil
 }
 
 func (r *CollectionRepository) CountItems(ctx context.Context, collectionID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.CountItems")
+	defer span.End()
+	span.SetAttributes(attribute.String("collection.id", collectionID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
 	err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM collection_items WHERE collection_id = $1`, collectionID,
 	).Scan(&count)
-	return count, err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return count, nil
 }
 
 func (r *CollectionRepository) queryMediaItems(ctx context.Context, query string, args ...any) ([]*library.MediaItem, error) {
@@ -251,6 +331,9 @@ func NewCollectionSmartQuerier(db *sql.DB) *CollectionSmartQuerier {
 }
 
 func (q *CollectionSmartQuerier) QueryByRules(ctx context.Context, rules []library.CollectionRule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.QueryByRules")
+	defer span.End()
+	span.SetAttributes(attribute.Int("collection.rule.count", len(rules)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	query := fmt.Sprintf("SELECT %s %s", mediaItemColumns, mediaItemFromJoins)
@@ -296,10 +379,18 @@ func (q *CollectionSmartQuerier) QueryByRules(ctx context.Context, rules []libra
 
 	rows, err := q.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return q.scanItems(rows)
+	items, err := q.scanItems(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return items, nil
 }
 
 func buildCollectionRuleCondition(rule library.CollectionRule, argIdx *int) (string, []any) {

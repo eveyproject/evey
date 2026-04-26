@@ -6,8 +6,12 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type UserRoleRepository struct {
@@ -19,6 +23,9 @@ func NewUserRoleRepository(db *sql.DB) *UserRoleRepository {
 }
 
 func (r *UserRoleRepository) AssignRole(ctx context.Context, userID shared.UserID, roleID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user_role.AssignRole")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(userID)), attribute.String("role.id", roleID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -26,18 +33,34 @@ func (r *UserRoleRepository) AssignRole(ctx context.Context, userID shared.UserI
 		 ON CONFLICT (user_id, role_id) DO NOTHING`,
 		string(userID), roleID,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *UserRoleRepository) RemoveRole(ctx context.Context, userID shared.UserID, roleID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user_role.RemoveRole")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(userID)), attribute.String("role.id", roleID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2`, string(userID), roleID)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *UserRoleRepository) GetRolesByUserID(ctx context.Context, userID shared.UserID) ([]*user.Role, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user_role.GetRolesByUserID")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(userID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -47,6 +70,8 @@ func (r *UserRoleRepository) GetRolesByUserID(ctx context.Context, userID shared
 		 WHERE ur.user_id = $1
 		 ORDER BY r.name`, string(userID))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -56,6 +81,8 @@ func (r *UserRoleRepository) GetRolesByUserID(ctx context.Context, userID shared
 		role := &user.Role{}
 		var permJSON []byte
 		if err := rows.Scan(&role.ID, &role.Name, &role.Description, &permJSON, &role.IsSystem); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		if err := json.Unmarshal(permJSON, &role.Permissions); err != nil {
@@ -63,7 +90,12 @@ func (r *UserRoleRepository) GetRolesByUserID(ctx context.Context, userID shared
 		}
 		result = append(result, role)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 var _ user.UserRoleRepository = (*UserRoleRepository)(nil)

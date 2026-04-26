@@ -5,7 +5,11 @@ import (
 	"database/sql"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type NotificationRepository struct {
@@ -17,6 +21,9 @@ func NewNotificationRepository(db *sql.DB) *NotificationRepository {
 }
 
 func (r *NotificationRepository) Create(ctx context.Context, n *notification.Notification) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("notification.id", n.ID), attribute.String("profile.id", string(n.ProfileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -25,10 +32,18 @@ func (r *NotificationRepository) Create(ctx context.Context, n *notification.Not
 		n.ID, n.ProfileID, string(n.Type), n.Title, n.Message, n.MediaItemID,
 		string(n.Level), n.CreatedAt, n.ExpiresAt,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification.ListByProfile")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	q := `SELECT id, profile_id, type, title, message, media_item_id, level, created_at, expires_at, delivered_at, read_at
@@ -43,10 +58,18 @@ func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID st
 	q += ` LIMIT $2 OFFSET $3`
 	rows, err := r.db.QueryContext(ctx, q, profileID, limit, offset)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return scanNotifications(rows)
+	result, err := scanNotifications(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func scanNotifications(rows *sql.Rows) ([]*notification.Notification, error) {
@@ -66,43 +89,82 @@ func scanNotifications(rows *sql.Rows) ([]*notification.Notification, error) {
 }
 
 func (r *NotificationRepository) MarkRead(ctx context.Context, id, profileID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification.MarkRead")
+	defer span.End()
+	span.SetAttributes(attribute.String("notification.id", id), attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	now := time.Now()
 	_, err := r.db.ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE id = $2 AND profile_id = $3 AND read_at IS NULL`, now, id, profileID)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *NotificationRepository) MarkAllRead(ctx context.Context, profileID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification.MarkAllRead")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	now := time.Now()
 	_, err := r.db.ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE profile_id = $2 AND read_at IS NULL`, now, profileID)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *NotificationRepository) UnreadCount(ctx context.Context, profileID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification.UnreadCount")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
 	err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM notifications WHERE profile_id = $1 AND read_at IS NULL`, profileID,
 	).Scan(&count)
-	return count, err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return count, nil
 }
 
 func (r *NotificationRepository) DeleteAll(ctx context.Context, profileID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification.DeleteAll")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM notifications WHERE profile_id = $1`, profileID)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *NotificationRepository) CleanupExpired(ctx context.Context) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification.CleanupExpired")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM notifications WHERE expires_at IS NOT NULL AND expires_at < NOW()`)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 var _ notification.Repository = (*NotificationRepository)(nil)

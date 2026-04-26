@@ -5,7 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/favorite"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type FavoriteRepository struct {
@@ -17,6 +21,9 @@ func NewFavoriteRepository(db *sql.DB) *FavoriteRepository {
 }
 
 func (r *FavoriteRepository) Add(ctx context.Context, fav *favorite.Favorite) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.favorite.Add")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(fav.ProfileID)), attribute.String("media_item.id", string(fav.MediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -26,12 +33,17 @@ func (r *FavoriteRepository) Add(ctx context.Context, fav *favorite.Favorite) er
 		fav.ID, fav.ProfileID, fav.MediaItemID, fav.CreatedAt,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("FavoriteRepo.Add: %w", err)
 	}
 	return nil
 }
 
 func (r *FavoriteRepository) Remove(ctx context.Context, profileID, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.favorite.Remove")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID), attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -39,12 +51,17 @@ func (r *FavoriteRepository) Remove(ctx context.Context, profileID, mediaItemID 
 		profileID, mediaItemID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("FavoriteRepo.Remove: %w", err)
 	}
 	return nil
 }
 
 func (r *FavoriteRepository) List(ctx context.Context, profileID string, limit, offset int) ([]*favorite.Favorite, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.favorite.List")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -54,6 +71,8 @@ func (r *FavoriteRepository) List(ctx context.Context, profileID string, limit, 
 		profileID, limit, offset,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("FavoriteRepo.List: %w", err)
 	}
 	defer rows.Close()
@@ -61,17 +80,24 @@ func (r *FavoriteRepository) List(ctx context.Context, profileID string, limit, 
 	for rows.Next() {
 		f := &favorite.Favorite{}
 		if err := rows.Scan(&f.ID, &f.ProfileID, &f.MediaItemID, &f.CreatedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("FavoriteRepo.List scan: %w", err)
 		}
 		result = append(result, f)
 	}
 	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("FavoriteRepo.List rows: %w", err)
 	}
 	return result, nil
 }
 
 func (r *FavoriteRepository) IsFavorite(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.favorite.IsFavorite")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID), attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var exists bool
@@ -80,6 +106,8 @@ func (r *FavoriteRepository) IsFavorite(ctx context.Context, profileID, mediaIte
 		profileID, mediaItemID,
 	).Scan(&exists)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return false, fmt.Errorf("FavoriteRepo.IsFavorite: %w", err)
 	}
 	return exists, nil

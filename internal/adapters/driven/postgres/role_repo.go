@@ -6,7 +6,11 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type RoleRepository struct {
@@ -18,10 +22,15 @@ func NewRoleRepository(db *sql.DB) *RoleRepository {
 }
 
 func (r *RoleRepository) Create(ctx context.Context, role *user.Role) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.role.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("role.id", role.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	permJSON, err := json.Marshal(role.Permissions)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	_, err = r.db.ExecContext(ctx,
@@ -29,32 +38,58 @@ func (r *RoleRepository) Create(ctx context.Context, role *user.Role) error {
 		 VALUES ($1,$2,$3,$4,$5)`,
 		role.ID, role.Name, role.Description, permJSON, role.IsSystem,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *RoleRepository) GetByID(ctx context.Context, id string) (*user.Role, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.role.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("role.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanRole(r.db.QueryRowContext(ctx,
+	role, err := r.scanRole(r.db.QueryRowContext(ctx,
 		`SELECT id, name, description, permissions, is_system
 		 FROM roles WHERE id = $1`, id))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return role, nil
 }
 
 func (r *RoleRepository) GetByName(ctx context.Context, name string) (*user.Role, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.role.GetByName")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanRole(r.db.QueryRowContext(ctx,
+	role, err := r.scanRole(r.db.QueryRowContext(ctx,
 		`SELECT id, name, description, permissions, is_system
 		 FROM roles WHERE name = $1`, name))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return role, nil
 }
 
 func (r *RoleRepository) List(ctx context.Context) ([]*user.Role, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.role.List")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, description, permissions, is_system
 		 FROM roles ORDER BY name LIMIT 1000`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -64,6 +99,8 @@ func (r *RoleRepository) List(ctx context.Context) ([]*user.Role, error) {
 		role := &user.Role{}
 		var permJSON []byte
 		if err := rows.Scan(&role.ID, &role.Name, &role.Description, &permJSON, &role.IsSystem); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		if err := json.Unmarshal(permJSON, &role.Permissions); err != nil {
@@ -71,7 +108,12 @@ func (r *RoleRepository) List(ctx context.Context) ([]*user.Role, error) {
 		}
 		result = append(result, role)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *RoleRepository) scanRole(row *sql.Row) (*user.Role, error) {

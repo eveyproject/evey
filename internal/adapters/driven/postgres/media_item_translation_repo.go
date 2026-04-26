@@ -7,8 +7,12 @@ import (
 	"fmt"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type MediaItemTranslationRepository struct {
@@ -20,6 +24,9 @@ func NewMediaItemTranslationRepository(db *sql.DB) *MediaItemTranslationReposito
 }
 
 func (r *MediaItemTranslationRepository) Upsert(ctx context.Context, t *library.MediaItemTranslation) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_item_translation.Upsert")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(t.MediaItemID)), attribute.String("locale", t.Locale))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `
@@ -28,13 +35,21 @@ func (r *MediaItemTranslationRepository) Upsert(ctx context.Context, t *library.
 		ON CONFLICT (media_item_id, locale)
 		DO UPDATE SET title = EXCLUDED.title, overview = EXCLUDED.overview, tagline = EXCLUDED.tagline
 	`, t.MediaItemID, t.Locale, t.Title, t.Overview, t.Tagline)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 // UpsertBatch inserts or updates a slice of translations in a single
 // multi-row statement. Enrichment typically hits 5-10 locales per item,
 // so batching collapses those N round-trips into one.
 func (r *MediaItemTranslationRepository) UpsertBatch(ctx context.Context, translations []*library.MediaItemTranslation) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_item_translation.UpsertBatch")
+	defer span.End()
+	span.SetAttributes(attribute.Int("translation.count", len(translations)))
 	if len(translations) == 0 {
 		return nil
 	}
@@ -52,10 +67,18 @@ func (r *MediaItemTranslationRepository) UpsertBatch(ctx context.Context, transl
 		strings.Join(valueClauses, ",") +
 		` ON CONFLICT (media_item_id, locale) DO UPDATE SET title = EXCLUDED.title, overview = EXCLUDED.overview, tagline = EXCLUDED.tagline`
 	_, err := r.db.ExecContext(ctx, q, args...)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *MediaItemTranslationRepository) GetByMediaItemAndLocale(ctx context.Context, mediaItemID, locale string) (*library.MediaItemTranslation, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_item_translation.GetByMediaItemAndLocale")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID), attribute.String("locale", locale))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	row := r.db.QueryRowContext(ctx, `
@@ -68,12 +91,17 @@ func (r *MediaItemTranslationRepository) GetByMediaItemAndLocale(ctx context.Con
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, shared.ErrNotFound
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return &t, nil
 }
 
 func (r *MediaItemTranslationRepository) GetByMediaItem(ctx context.Context, mediaItemID string) ([]*library.MediaItemTranslation, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_item_translation.GetByMediaItem")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
@@ -83,6 +111,8 @@ func (r *MediaItemTranslationRepository) GetByMediaItem(ctx context.Context, med
 		ORDER BY locale
 	`, mediaItemID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -90,18 +120,33 @@ func (r *MediaItemTranslationRepository) GetByMediaItem(ctx context.Context, med
 	for rows.Next() {
 		var t library.MediaItemTranslation
 		if err := rows.Scan(&t.MediaItemID, &t.Locale, &t.Title, &t.Overview, &t.Tagline); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result = append(result, &t)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *MediaItemTranslationRepository) DeleteByMediaItem(ctx context.Context, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_item_translation.DeleteByMediaItem")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM media_item_translations WHERE media_item_id = $1`, mediaItemID)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 var _ library.MediaItemTranslationRepository = (*MediaItemTranslationRepository)(nil)

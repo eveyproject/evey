@@ -5,8 +5,12 @@ import (
 	"database/sql"
 	"errors"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type TrickplayRepository struct {
@@ -18,6 +22,9 @@ func NewTrickplayRepository(db *sql.DB) *TrickplayRepository {
 }
 
 func (r *TrickplayRepository) Create(ctx context.Context, m *library.TrickplayManifest) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.trickplay.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(m.MediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -34,10 +41,18 @@ func (r *TrickplayRepository) Create(ctx context.Context, m *library.TrickplayMa
 		   created_at = EXCLUDED.created_at`,
 		m.ID, m.MediaItemID, m.Interval, m.Width, m.Height, m.TileWidth, m.TileHeight, m.ImageCount, m.ImagePath, m.CreatedAt,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *TrickplayRepository) GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) (*library.TrickplayManifest, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.trickplay.GetByMediaItemID")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	m := &library.TrickplayManifest{}
@@ -48,17 +63,32 @@ func (r *TrickplayRepository) GetByMediaItemID(ctx context.Context, mediaItemID 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, shared.ErrNotFound
 	}
-	return m, err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return m, nil
 }
 
 func (r *TrickplayRepository) Delete(ctx context.Context, mediaItemID shared.MediaItemID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.trickplay.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM trickplay_manifests WHERE media_item_id = $1`, mediaItemID)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.trickplay.ListMissingMediaItemIDs")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -70,6 +100,8 @@ func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]st
 		 ORDER BY mi.added_at DESC
 		 LIMIT 10000`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -77,11 +109,18 @@ func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]st
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		ids = append(ids, id)
 	}
-	return ids, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return ids, nil
 }
 
 var _ library.TrickplayRepository = (*TrickplayRepository)(nil)

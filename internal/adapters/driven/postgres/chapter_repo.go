@@ -6,8 +6,12 @@ import (
 	"fmt"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type ChapterRepository struct {
@@ -19,20 +23,32 @@ func NewChapterRepository(db *sql.DB) *ChapterRepository {
 }
 
 func (r *ChapterRepository) ReplaceBatch(ctx context.Context, mediaItemID shared.MediaItemID, chapters []*library.Chapter) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.chapter.ReplaceBatch")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)), attribute.Int("chapter.count", len(chapters)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	defer tx.Rollback()
 
 	if _, err := tx.ExecContext(ctx, `DELETE FROM chapters WHERE media_item_id = $1`, string(mediaItemID)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
 	if len(chapters) == 0 {
-		return tx.Commit()
+		if err := tx.Commit(); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
+		}
+		return nil
 	}
 
 	var b strings.Builder
@@ -48,18 +64,30 @@ func (r *ChapterRepository) ReplaceBatch(ctx context.Context, mediaItemID shared
 	}
 
 	if _, err := tx.ExecContext(ctx, b.String(), args...); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *ChapterRepository) GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*library.Chapter, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.chapter.GetByMediaItemID")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, title, start_time_ms, end_time_ms, sort_order
 		 FROM chapters WHERE media_item_id = $1 ORDER BY sort_order`, string(mediaItemID))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -68,11 +96,18 @@ func (r *ChapterRepository) GetByMediaItemID(ctx context.Context, mediaItemID sh
 	for rows.Next() {
 		ch := &library.Chapter{}
 		if err := rows.Scan(&ch.ID, &ch.MediaItemID, &ch.Title, &ch.StartTimeMs, &ch.EndTimeMs, &ch.SortOrder); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result = append(result, ch)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 var _ library.ChapterRepository = (*ChapterRepository)(nil)

@@ -5,8 +5,12 @@ import (
 	"database/sql"
 	"log/slog"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/subtitle"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type SubtitleRepository struct {
@@ -18,6 +22,9 @@ func NewSubtitleRepository(db *sql.DB) *SubtitleRepository {
 }
 
 func (r *SubtitleRepository) Save(ctx context.Context, sub *subtitle.SubtitleDownload) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.subtitle.Save")
+	defer span.End()
+	span.SetAttributes(attribute.String("subtitle.id", sub.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -31,10 +38,18 @@ func (r *SubtitleRepository) Save(ctx context.Context, sub *subtitle.SubtitleDow
 		   downloaded_at = EXCLUDED.downloaded_at`,
 		sub.ID, sub.MediaItemID, sub.Language, sub.Format, sub.FilePath, sub.Source, sub.DownloadedAt,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *SubtitleRepository) GetByMediaItem(ctx context.Context, mediaItemID string) ([]*subtitle.SubtitleDownload, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.subtitle.GetByMediaItem")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -44,6 +59,8 @@ func (r *SubtitleRepository) GetByMediaItem(ctx context.Context, mediaItemID str
 		mediaItemID,
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -51,18 +68,30 @@ func (r *SubtitleRepository) GetByMediaItem(ctx context.Context, mediaItemID str
 	for rows.Next() {
 		s := &subtitle.SubtitleDownload{}
 		if err := rows.Scan(&s.ID, &s.MediaItemID, &s.Language, &s.Format, &s.FilePath, &s.Source, &s.DownloadedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result = append(result, s)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *SubtitleRepository) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.subtitle.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("subtitle.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM downloaded_subtitles WHERE id = $1`, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	n, err := res.RowsAffected()
@@ -70,6 +99,8 @@ func (r *SubtitleRepository) Delete(ctx context.Context, id string) error {
 		slog.Warn("rows affected", slog.Any("err", err))
 	}
 	if n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil

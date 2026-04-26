@@ -4,8 +4,12 @@ import (
 	"context"
 	"database/sql"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type PluginRuntimeRepository struct {
@@ -17,6 +21,9 @@ func NewPluginRuntimeRepository(db *sql.DB) *PluginRuntimeRepository {
 }
 
 func (r *PluginRuntimeRepository) Create(ctx context.Context, rt *plugin.PluginRuntime) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.plugin_runtime.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("plugin_runtime.id", rt.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -24,10 +31,18 @@ func (r *PluginRuntimeRepository) Create(ctx context.Context, rt *plugin.PluginR
 		 VALUES ($1,$2,$3,$4,$5,$6)`,
 		rt.ID, rt.Language, rt.Version, rt.Status, rt.Notes, rt.TestedAt,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *PluginRuntimeRepository) GetByLanguageAndVersion(ctx context.Context, language, version string) (*plugin.PluginRuntime, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.plugin_runtime.GetByLanguageAndVersion")
+	defer span.End()
+	span.SetAttributes(attribute.String("plugin_runtime.language", language), attribute.String("plugin_runtime.version", version))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rt := &plugin.PluginRuntime{}
@@ -36,45 +51,75 @@ func (r *PluginRuntimeRepository) GetByLanguageAndVersion(ctx context.Context, l
 		 FROM plugin_runtimes WHERE language = $1 AND version = $2`, language, version,
 	).Scan(&rt.ID, &rt.Language, &rt.Version, &rt.Status, &rt.Notes, &rt.TestedAt)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return rt, nil
 }
 
 func (r *PluginRuntimeRepository) ListByLanguage(ctx context.Context, language string) ([]*plugin.PluginRuntime, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.plugin_runtime.ListByLanguage")
+	defer span.End()
+	span.SetAttributes(attribute.String("plugin_runtime.language", language))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, language, version, status, notes, tested_at
 		 FROM plugin_runtimes WHERE language = $1 ORDER BY version LIMIT 100`, language)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return r.scanRuntimeRows(rows)
+	result, err := r.scanRuntimeRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *PluginRuntimeRepository) List(ctx context.Context) ([]*plugin.PluginRuntime, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.plugin_runtime.List")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, language, version, status, notes, tested_at
 		 FROM plugin_runtimes ORDER BY language, version LIMIT 1000`)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
-	return r.scanRuntimeRows(rows)
+	result, err := r.scanRuntimeRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *PluginRuntimeRepository) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.plugin_runtime.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("plugin_runtime.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM plugin_runtimes WHERE id = $1`, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
 	return nil

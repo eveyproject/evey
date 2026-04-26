@@ -5,7 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type PlayHistoryRepository struct {
@@ -17,6 +20,8 @@ func NewPlayHistoryRepository(db *sql.DB) *PlayHistoryRepository {
 }
 
 func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHistoryFilter) ([]*activity.PlayHistoryEntry, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.play_history.List")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	query := `
@@ -77,6 +82,8 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -92,11 +99,18 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 			&e.DeviceName, &e.ClientName, &e.PlayMethod,
 			&e.StartedAt, &e.EndedAt,
 		); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result = append(result, e)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 var _ activity.PlayHistoryRepository = (*PlayHistoryRepository)(nil)

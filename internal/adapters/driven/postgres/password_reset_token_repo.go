@@ -5,8 +5,12 @@ import (
 	"database/sql"
 	"errors"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type PasswordResetTokenRepository struct {
@@ -18,16 +22,26 @@ func NewPasswordResetTokenRepository(db *sql.DB) *PasswordResetTokenRepository {
 }
 
 func (r *PasswordResetTokenRepository) Create(ctx context.Context, t *user.PasswordResetToken) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.password_reset_token.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("password_reset_token.id", t.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, used, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
 		t.ID, t.UserID, t.TokenHash, t.ExpiresAt, t.Used, t.CreatedAt)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *PasswordResetTokenRepository) GetByTokenHash(ctx context.Context, hash string) (*user.PasswordResetToken, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.password_reset_token.GetByTokenHash")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	t := &user.PasswordResetToken{}
@@ -40,31 +54,56 @@ func (r *PasswordResetTokenRepository) GetByTokenHash(ctx context.Context, hash 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, shared.ErrNotFound
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return t, nil
 }
 
 func (r *PasswordResetTokenRepository) MarkUsed(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.password_reset_token.MarkUsed")
+	defer span.End()
+	span.SetAttributes(attribute.String("password_reset_token.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE password_reset_tokens SET used = TRUE WHERE id = $1`, id)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *PasswordResetTokenRepository) DeleteByUserID(ctx context.Context, userID shared.UserID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.password_reset_token.DeleteByUserID")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(userID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM password_reset_tokens WHERE user_id = $1`, string(userID))
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *PasswordResetTokenRepository) DeleteExpired(ctx context.Context) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.password_reset_token.DeleteExpired")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM password_reset_tokens WHERE expires_at < NOW() OR used = TRUE`)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }

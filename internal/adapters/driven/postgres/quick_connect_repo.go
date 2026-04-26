@@ -5,8 +5,12 @@ import (
 	"database/sql"
 	"errors"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type QuickConnectRepository struct {
@@ -18,6 +22,9 @@ func NewQuickConnectRepository(db *sql.DB) *QuickConnectRepository {
 }
 
 func (r *QuickConnectRepository) Create(ctx context.Context, req *user.QuickConnectRequest) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.quick_connect.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("quick_connect.id", req.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -25,10 +32,17 @@ func (r *QuickConnectRepository) Create(ctx context.Context, req *user.QuickConn
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		req.ID, req.Code, req.Secret, req.UserID, req.DeviceName, req.Status, req.ExpiresAt, req.CreatedAt,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *QuickConnectRepository) GetByCode(ctx context.Context, code string) (*user.QuickConnectRequest, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.quick_connect.GetByCode")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	req := &user.QuickConnectRequest{}
@@ -40,12 +54,16 @@ func (r *QuickConnectRepository) GetByCode(ctx context.Context, code string) (*u
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, shared.ErrNotFound
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return req, nil
 }
 
 func (r *QuickConnectRepository) GetByShortCode(ctx context.Context, shortCode string) (*user.QuickConnectRequest, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.quick_connect.GetByShortCode")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	req := &user.QuickConnectRequest{}
@@ -59,12 +77,17 @@ func (r *QuickConnectRepository) GetByShortCode(ctx context.Context, shortCode s
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, shared.ErrNotFound
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return req, nil
 }
 
 func (r *QuickConnectRepository) UpdateStatus(ctx context.Context, id, status string, userID *string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.quick_connect.UpdateStatus")
+	defer span.End()
+	span.SetAttributes(attribute.String("quick_connect.id", id), attribute.String("quick_connect.status", status))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	// Only transition from 'pending' — authorizing a non-pending request
@@ -73,14 +96,26 @@ func (r *QuickConnectRepository) UpdateStatus(ctx context.Context, id, status st
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE quick_connect_requests SET status = $1, user_id = $2 WHERE id = $3 AND status = 'pending'`,
 		status, userID, id)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *QuickConnectRepository) DeleteExpired(ctx context.Context) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.quick_connect.DeleteExpired")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM quick_connect_requests WHERE expires_at < NOW()`)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 var _ user.QuickConnectRepository = (*QuickConnectRepository)(nil)

@@ -6,8 +6,12 @@ import (
 	"fmt"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type MediaPersonRepository struct {
@@ -19,6 +23,9 @@ func NewMediaPersonRepository(db *sql.DB) *MediaPersonRepository {
 }
 
 func (r *MediaPersonRepository) Create(ctx context.Context, mp *library.MediaPerson) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_person.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mp.MediaItemID)), attribute.String("person.id", string(mp.PersonID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -27,10 +34,18 @@ func (r *MediaPersonRepository) Create(ctx context.Context, mp *library.MediaPer
 		 ON CONFLICT (media_item_id, person_id, role_type) DO NOTHING`,
 		mp.MediaItemID, mp.PersonID, mp.RoleType, mp.CharacterName, mp.SortOrder,
 	)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *MediaPersonRepository) CreateBatch(ctx context.Context, mps []*library.MediaPerson) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_person.CreateBatch")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_person.count", len(mps)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(mps) == 0 {
@@ -49,23 +64,41 @@ func (r *MediaPersonRepository) CreateBatch(ctx context.Context, mps []*library.
 		strings.Join(vals, ",") +
 		` ON CONFLICT (media_item_id, person_id, role_type) DO NOTHING`
 	_, err := r.db.ExecContext(ctx, q, args...)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *MediaPersonRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_person.DeleteByMediaItemID")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM media_people WHERE media_item_id = $1`, string(mediaItemID))
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 func (r *MediaPersonRepository) GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*library.MediaPerson, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_person.GetByMediaItemID")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT media_item_id, person_id, role_type, character_name, sort_order
 		 FROM media_people WHERE media_item_id = $1 ORDER BY sort_order`, string(mediaItemID))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer rows.Close()
@@ -74,11 +107,18 @@ func (r *MediaPersonRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 	for rows.Next() {
 		mp := &library.MediaPerson{}
 		if err := rows.Scan(&mp.MediaItemID, &mp.PersonID, &mp.RoleType, &mp.CharacterName, &mp.SortOrder); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		result = append(result, mp)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 var _ library.MediaPersonRepository = (*MediaPersonRepository)(nil)
