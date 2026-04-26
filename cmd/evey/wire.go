@@ -173,6 +173,14 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	// Dev mode can run without /app/libevey-sandbox.so (e.g. on a developer
 	// laptop). Production is strict: a plugin without the 'subprocess' perm
 	// that can't be sandboxed fails closed.
+	//
+	// SECURITY: emit a prominent warning when the sandbox bypass is active so
+	// that ops can catch a misconfigured production instance immediately.
+	if cfg.Log.DevMode {
+		slog.Warn("SECURITY WARNING: plugin sandbox bypass is ENABLED — " +
+			"DevMode=true must NEVER be set in production; " +
+			"plugins without the 'subprocess' permission will start unsandboxed")
+	}
 	pluginRunner := pluginrunner.NewRunner().
 		WithLogger(pluginLogger).
 		WithAllowMissingSandbox(cfg.Log.DevMode).

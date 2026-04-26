@@ -261,6 +261,25 @@ func TestRunnerRefusesUnsandboxedStart(t *testing.T) {
 	require.ErrorIs(t, err, ErrSandboxUnavailable)
 }
 
+// TestRunnerDevOverrideAllowsMissingSandbox pins the dev-mode contract:
+// WithAllowMissingSandbox(true) must let a plugin without 'subprocess'
+// permission start even when the sandbox lib is absent.  This is intentional
+// for developer laptops / CI environments where libevey-sandbox.so is not
+// built.  Production wiring MUST NOT pass true here (see wire.go).
+func TestRunnerDevOverrideAllowsMissingSandbox(t *testing.T) {
+	bin := buildTestBinary(t)
+	dir := filepath.Dir(bin)
+	ctx := context.Background()
+
+	// Simulate dev mode: sandbox lib absent, bypass enabled.
+	r := NewRunner(dir).WithAllowMissingSandbox(true)
+	p := &plugin.Plugin{ID: "plg-devoverride", Name: bin /* no subprocess perm */}
+
+	err := r.Start(ctx, p)
+	require.NoError(t, err, "dev-mode bypass must allow start without sandbox lib")
+	_ = r.Stop(ctx, p.ID)
+}
+
 // TestRunnerAllowsSubprocessPermWithoutSandbox documents that plugins
 // explicitly granted the subprocess permission bypass the sandbox check
 // (they need it to spawn helper processes).

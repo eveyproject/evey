@@ -103,8 +103,16 @@ func (r *Runner) WithIPCCallback(cb OnIPCResult) *Runner {
 	return r
 }
 
-// WithAllowMissingSandbox lets tests and dev environments skip the
-// strict "sandbox-or-refuse" check. Production MUST leave this false.
+// WithAllowMissingSandbox lets tests and local dev environments skip the
+// strict "sandbox-or-refuse" check when libevey-sandbox.so is absent.
+//
+// CONTRACT:
+//   - Production MUST pass allow=false (fail-closed: plugin start is refused
+//     when the sandbox lib is missing).
+//   - Pass allow=true ONLY when cfg.Log.DevMode is true (developer laptop) or
+//     inside test binaries.  Passing true in a production environment is a
+//     security misconfiguration — callers in wire.go must emit a visible
+//     warning so ops can catch it (see cmd/evey/wire.go).
 func (r *Runner) WithAllowMissingSandbox(allow bool) *Runner {
 	r.allowMissingSandbox = allow
 	return r
