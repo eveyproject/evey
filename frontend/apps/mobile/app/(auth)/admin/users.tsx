@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { View, Text, FlatList, Pressable, TextInput, Modal, Alert, Switch, ActivityIndicator, StyleSheet, ScrollView, Share } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
@@ -277,6 +277,7 @@ export default function AdminUsersScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const router = useRouter();
   const [showCreate, setShowCreate] = useState(false);
   const [newUsername, setNewUsername] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -388,6 +389,15 @@ export default function AdminUsersScreen() {
         </View>
         <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{item.email || "—"}</Text>
       </View>
+      <Pressable
+        onPress={() => item.id && router.push(`/admin/users/${item.id}` as never)}
+        hitSlop={8}
+        style={{ padding: 4 }}
+        accessibilityRole="button"
+        accessibilityLabel={t("common.edit", "Edit")}
+      >
+        <Ionicons name="pencil-outline" size={18} color={theme.colors.accent} />
+      </Pressable>
       {!item.isAdmin && (
         <Pressable
           onPress={() => setLibAccessUser(item)}
@@ -418,7 +428,7 @@ export default function AdminUsersScreen() {
         <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
       </Pressable>
     </View>
-  ), [theme, handleDelete, handleToggleDisable, setLibAccessUser]);
+  ), [theme, handleDelete, handleToggleDisable, setLibAccessUser, router, t]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
