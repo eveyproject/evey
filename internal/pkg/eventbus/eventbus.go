@@ -52,6 +52,7 @@ type Option func(*options)
 
 type options struct {
 	queueSize int
+	retry     *RetryConfig
 }
 
 func WithQueueSize(n int) Option {
@@ -59,6 +60,15 @@ func WithQueueSize(n int) Option {
 		if n > 0 {
 			o.queueSize = n
 		}
+	}
+}
+
+// WithRetry overrides the bus retry policy. Primarily intended for tests that
+// need short, deterministic backoffs; production code should rely on
+// DefaultRetryConfig.
+func WithRetry(cfg RetryConfig) Option {
+	return func(o *options) {
+		o.retry = &cfg
 	}
 }
 
@@ -74,10 +84,14 @@ func NewWithPoolSize(workers int, opts ...Option) *InMemoryEventBus {
 	for _, fn := range opts {
 		fn(&o)
 	}
+	retry := DefaultRetryConfig
+	if o.retry != nil {
+		retry = *o.retry
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	b := &InMemoryEventBus{
 		subs:   make(map[string][]subscription),
-		retry:  DefaultRetryConfig,
+		retry:  retry,
 		queue:  make(chan dispatchJob, o.queueSize),
 		ctx:    ctx,
 		cancel: cancel,

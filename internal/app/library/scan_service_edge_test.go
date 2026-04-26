@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -59,14 +58,15 @@ func TestScanService_ConcurrentScanSameLibrary_Rejected(t *testing.T) {
 	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
 
 	release := make(chan struct{})
-	var inFlight atomic.Bool
+	started := make(chan struct{})
+	var startedOnce sync.Once
 	// Use music scanner to hold the first scan open inside ScanLibrary.
 	music := newFakeTypedDirScanner()
 	h.libQuery.Seed(&library.Library{ID: "lib-m", Type: "music", Paths: []string{"/music"}})
 	h.libCmd.Seed(&library.Library{ID: "lib-m", Type: "music", Paths: []string{"/music"}})
 	blocking := &blockingDirScanner{
 		onCall: func() {
-			inFlight.Store(true)
+			startedOnce.Do(func() { close(started) })
 			<-release
 		},
 	}
@@ -79,12 +79,12 @@ func TestScanService_ConcurrentScanSameLibrary_Rejected(t *testing.T) {
 		errCh <- err
 	}()
 
-	// Wait for the first scan to reach ScanDirectory.
-	deadline := time.Now().Add(2 * time.Second)
-	for !inFlight.Load() && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
+	// Wait deterministically for the first scan to reach ScanDirectory.
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first scan did not reach blocking ScanDirectory")
 	}
-	require.True(t, inFlight.Load(), "first scan did not reach blocking ScanDirectory")
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-m")
 	require.Error(t, err)

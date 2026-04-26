@@ -2,6 +2,7 @@ package eventbus_test
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -19,127 +20,180 @@ type testEvent struct {
 
 func (e testEvent) EventName() string { return "test.event" }
 
+// fastRetry is a tight retry policy for tests that need to exercise the retry
+// code path without paying production-sized backoffs.
+func fastRetry() eventbus.RetryConfig {
+	return eventbus.RetryConfig{
+		MaxRetries: 3,
+		Backoffs: []time.Duration{
+			1 * time.Millisecond,
+			1 * time.Millisecond,
+			1 * time.Millisecond,
+		},
+	}
+}
+
+// waitFor yields the goroutine until fn returns true or the deadline elapses.
+// It avoids fixed sleeps by using runtime.Gosched so the scheduler can run the
+// asynchronous workers under test.
+func waitFor(t *testing.T, timeout time.Duration, fn func() bool) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if fn() {
+			return true
+		}
+		runtime.Gosched()
+	}
+	return fn()
+}
 
 func TestPublishSubscribe(t *testing.T) {
 	t.Parallel()
 	bus := eventbus.New()
-	var mu sync.Mutex
-	var received []shared.Event
+	defer bus.Stop()
 
+	done := make(chan shared.Event, 1)
 	bus.Subscribe("test.event", func(_ context.Context, event shared.Event) {
-		mu.Lock()
-		received = append(received, event)
-		mu.Unlock()
+		done <- event
 	})
 
 	_ = bus.Publish(context.Background(), testEvent{msg: "hello"})
-	time.Sleep(50 * time.Millisecond)
 
-	mu.Lock()
-	defer mu.Unlock()
-	assert.Len(t, received, 1)
-	assert.Equal(t, "hello", received[0].(testEvent).msg)
+	select {
+	case ev := <-done:
+		assert.Equal(t, "hello", ev.(testEvent).msg)
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler never received the event")
+	}
 }
 
 func TestMultipleSubscribers(t *testing.T) {
 	t.Parallel()
 	bus := eventbus.New()
-	var mu sync.Mutex
-	count := 0
+	defer bus.Stop()
 
+	var count atomic.Int32
+	var wg sync.WaitGroup
+	wg.Add(3)
 	for range 3 {
 		bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
-			mu.Lock()
-			count++
-			mu.Unlock()
+			count.Add(1)
+			wg.Done()
 		})
 	}
 
 	_ = bus.Publish(context.Background(), testEvent{msg: "multi"})
-	time.Sleep(50 * time.Millisecond)
-
-	mu.Lock()
-	defer mu.Unlock()
-	assert.Equal(t, 3, count)
+	waitGroupOrFatal(t, &wg, 2*time.Second, "not all subscribers were invoked")
+	assert.Equal(t, int32(3), count.Load())
 }
 
 func TestUnsubscribe(t *testing.T) {
 	t.Parallel()
 	bus := eventbus.New()
-	var mu sync.Mutex
-	count := 0
+	defer bus.Stop()
 
+	var count atomic.Int32
 	id := bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
-		mu.Lock()
-		count++
-		mu.Unlock()
+		count.Add(1)
+	})
+
+	// Add a second subscriber so we can deterministically wait for the publish
+	// to be fully drained even though the first handler should never run.
+	drained := make(chan struct{}, 1)
+	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
+		drained <- struct{}{}
 	})
 
 	bus.Unsubscribe(id)
 	_ = bus.Publish(context.Background(), testEvent{msg: "gone"})
-	time.Sleep(50 * time.Millisecond)
 
-	mu.Lock()
-	defer mu.Unlock()
-	assert.Equal(t, 0, count)
+	select {
+	case <-drained:
+	case <-time.After(2 * time.Second):
+		t.Fatal("publish was never delivered to the marker subscriber")
+	}
+	assert.Equal(t, int32(0), count.Load())
 }
 
 func TestPanickingHandlerDoesNotCrash(t *testing.T) {
 	t.Parallel()
-	bus := eventbus.New()
-	var mu sync.Mutex
-	normalCalled := false
+	bus := eventbus.New(eventbus.WithRetry(fastRetry()))
+	defer bus.Stop()
+
+	normalCalled := make(chan struct{}, 1)
 
 	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
 		panic("deliberate panic")
 	})
 	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
-		mu.Lock()
-		normalCalled = true
-		mu.Unlock()
+		select {
+		case normalCalled <- struct{}{}:
+		default:
+		}
 	})
 
 	assert.NotPanics(t, func() {
 		_ = bus.Publish(context.Background(), testEvent{msg: "panic test"})
 	})
-	time.Sleep(100 * time.Millisecond)
 
-	mu.Lock()
-	defer mu.Unlock()
-	assert.True(t, normalCalled)
+	select {
+	case <-normalCalled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("normal subscriber was not invoked")
+	}
 }
 
 func TestRetryOnPanicThenSuccess(t *testing.T) {
 	t.Parallel()
-	bus := eventbus.New()
+	bus := eventbus.New(eventbus.WithRetry(fastRetry()))
+	defer bus.Stop()
+
 	var calls atomic.Int32
+	done := make(chan struct{}, 1)
 
 	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
 		n := calls.Add(1)
 		if n <= 2 {
 			panic("transient failure")
 		}
+		select {
+		case done <- struct{}{}:
+		default:
+		}
 	})
 
 	_ = bus.Publish(context.Background(), testEvent{msg: "retry"})
-	time.Sleep(3 * time.Second)
 
-	assert.Equal(t, int32(3), calls.Load(), "handler should be called 3 times (2 panics + 1 success)")
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("handler did not succeed after retries; calls=%d", calls.Load())
+	}
+	assert.Equal(t, int32(3), calls.Load(),
+		"handler should be called 3 times (2 panics + 1 success)")
 }
 
 func TestAllRetriesExhausted(t *testing.T) {
 	t.Parallel()
-	bus := eventbus.New()
-	var calls atomic.Int32
+	bus := eventbus.New(eventbus.WithRetry(fastRetry()))
+	defer bus.Stop()
 
+	var calls atomic.Int32
 	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
 		calls.Add(1)
 		panic("always fails")
 	})
 
 	_ = bus.Publish(context.Background(), testEvent{msg: "exhaust"})
-	time.Sleep(3 * time.Second)
 
+	if !waitFor(t, 2*time.Second, func() bool { return calls.Load() == 3 }) {
+		t.Fatalf("handler was not retried MaxRetries times; got %d", calls.Load())
+	}
+	// Wait a little longer to assert no further calls happen after exhaustion.
+	if waitFor(t, 100*time.Millisecond, func() bool { return calls.Load() > 3 }) {
+		t.Fatalf("handler invoked more than MaxRetries times: %d", calls.Load())
+	}
 	assert.Equal(t, int32(3), calls.Load(), "handler called MaxRetries times")
 }
 
@@ -161,43 +215,76 @@ func TestPublisherCtxCancelDoesNotAbortWorker(t *testing.T) {
 
 	select {
 	case <-called:
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(2 * time.Second):
 		t.Fatal("handler was not invoked after publisher ctx cancel")
 	}
 }
 
 func TestBusStopCancelsWorkerRetries(t *testing.T) {
 	t.Parallel()
-	bus := eventbus.NewWithPoolSize(1)
-	var calls atomic.Int32
+	// Use longer-than-test backoffs so we can race Stop() against the first
+	// retry wait deterministically.
+	cfg := eventbus.RetryConfig{
+		MaxRetries: 3,
+		Backoffs: []time.Duration{
+			500 * time.Millisecond,
+			500 * time.Millisecond,
+			500 * time.Millisecond,
+		},
+	}
+	bus := eventbus.NewWithPoolSize(1, eventbus.WithRetry(cfg))
 
+	var calls atomic.Int32
+	firstCall := make(chan struct{}, 1)
 	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
 		calls.Add(1)
+		select {
+		case firstCall <- struct{}{}:
+		default:
+		}
 		panic("always fails")
 	})
 
 	_ = bus.Publish(context.Background(), testEvent{msg: "busstop"})
-	// Let the first call happen then stop the bus during first backoff (100ms).
-	time.Sleep(30 * time.Millisecond)
-	bus.Stop()
-	time.Sleep(200 * time.Millisecond)
 
+	// Wait for the worker to enter the first backoff, then Stop the bus.
+	select {
+	case <-firstCall:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler was not invoked at all")
+	}
+	bus.Stop()
+
+	// After Stop the worker exits its retry loop; ensure call count never
+	// reaches MaxRetries (because we cancelled before the second backoff
+	// elapsed).
 	got := calls.Load()
 	assert.LessOrEqual(t, got, int32(2), "bus stop should abort retry loop; got %d", got)
 }
 
 func TestSuccessfulDeliveryNoRetry(t *testing.T) {
 	t.Parallel()
-	bus := eventbus.New()
-	var calls atomic.Int32
+	bus := eventbus.New(eventbus.WithRetry(fastRetry()))
+	defer bus.Stop()
 
+	var calls atomic.Int32
+	done := make(chan struct{}, 1)
 	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
 		calls.Add(1)
+		done <- struct{}{}
 	})
 
 	_ = bus.Publish(context.Background(), testEvent{msg: "ok"})
-	time.Sleep(50 * time.Millisecond)
 
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler was not invoked")
+	}
+	// Ensure no spurious retries follow.
+	if waitFor(t, 50*time.Millisecond, func() bool { return calls.Load() > 1 }) {
+		t.Fatalf("successful handler was retried; calls=%d", calls.Load())
+	}
 	assert.Equal(t, int32(1), calls.Load(), "successful handler called exactly once")
 }
 
@@ -210,7 +297,8 @@ func TestWorkerPoolBoundedConcurrency(t *testing.T) {
 	var current atomic.Int32
 	var done sync.WaitGroup
 
-	done.Add(20)
+	const total = 20
+	done.Add(total)
 	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
 		defer done.Done()
 		c := current.Add(1)
@@ -220,22 +308,27 @@ func TestWorkerPoolBoundedConcurrency(t *testing.T) {
 				break
 			}
 		}
-		time.Sleep(10 * time.Millisecond)
+		// Tight busy-yield to keep the handler "in-flight" briefly without
+		// using a fixed time.Sleep. Yielding the goroutine lets the scheduler
+		// run sibling workers so the concurrency observation is meaningful.
+		for i := 0; i < 100; i++ {
+			runtime.Gosched()
+		}
 		current.Add(-1)
 	})
 
-	for range 20 {
+	for range total {
 		_ = bus.Publish(context.Background(), testEvent{msg: "pool"})
 	}
-	done.Wait()
+	waitGroupOrFatal(t, &done, 5*time.Second, "not all events were processed")
 
-	assert.LessOrEqual(t, maxConcurrent.Load(), int32(2), "concurrency should not exceed pool size")
+	assert.LessOrEqual(t, maxConcurrent.Load(), int32(2),
+		"concurrency should not exceed pool size")
 }
 
 func TestWorkerPoolQueueFullDropsEvent(t *testing.T) {
 	t.Parallel()
 	bus := eventbus.NewWithPoolSize(1, eventbus.WithQueueSize(64))
-	defer bus.Stop()
 
 	blocker := make(chan struct{})
 	var received atomic.Int32
@@ -251,7 +344,11 @@ func TestWorkerPoolQueueFullDropsEvent(t *testing.T) {
 	}
 
 	close(blocker)
-	time.Sleep(200 * time.Millisecond)
+
+	// Stop the bus to deterministically drain the queue: Stop() closes the
+	// queue and waits for all in-flight jobs to finish. After Stop returns
+	// the worker is guaranteed not to consume any more events.
+	bus.Stop()
 
 	got := received.Load()
 	assert.Less(t, got, int32(200), "some events should be dropped when queue is full")
@@ -293,8 +390,15 @@ func TestMetricDropsOnQueueFull(t *testing.T) {
 		_ = bus.Publish(context.Background(), droppedEvent{})
 	}
 	close(blocker)
-	time.Sleep(100 * time.Millisecond)
 
+	// Wait until the dropped counter strictly increases. The increment is
+	// recorded synchronously in Publish for queue-full drops, so a short poll
+	// is sufficient even on a busy CI host.
+	if !waitFor(t, 2*time.Second, func() bool {
+		return gatherCounter(t, "eventbus_events_dropped_total", "event_name", "test.dropped") > droppedBefore
+	}) {
+		t.Fatal("eventbus_events_dropped_total never increased")
+	}
 	droppedAfter := gatherCounter(t, "eventbus_events_dropped_total", "event_name", "test.dropped")
 	assert.Greater(t, droppedAfter-droppedBefore, float64(0),
 		"eventbus_events_dropped_total should increase when queue is saturated")
@@ -360,4 +464,19 @@ func gatherGauge(t *testing.T, name string) float64 {
 		}
 	}
 	return 0
+}
+
+// waitGroupOrFatal blocks until wg.Wait() returns or timeout elapses.
+func waitGroupOrFatal(t *testing.T, wg *sync.WaitGroup, timeout time.Duration, msg string) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		t.Fatal(msg)
+	}
 }
