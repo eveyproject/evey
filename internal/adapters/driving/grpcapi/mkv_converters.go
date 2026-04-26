@@ -16,7 +16,7 @@ var mkvTrackTypeToProto = map[mkv.TrackType]eveyv1.TrackType{
 func mkvContainerToProto(c *mkv.Container) *eveyv1.Container {
 	pb := &eveyv1.Container{
 		Path:       c.Path,
-		DurationMs: c.DurationMs,
+		DurationMs: c.Duration.Milliseconds(),
 		Info: &eveyv1.ContainerInfo{
 			MuxingApp:  c.Info.MuxingApp,
 			WritingApp: c.Info.WritingApp,

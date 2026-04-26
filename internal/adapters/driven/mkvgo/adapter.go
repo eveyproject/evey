@@ -3,6 +3,7 @@ package mkvgo
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/gravity-zero/mkvgo/mkv/reader"
 
 	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type Adapter struct{}
@@ -106,9 +108,17 @@ func (a *Adapter) ExtractAttachment(ctx context.Context, containerPath string, a
 // --- converters ---
 
 func fromExtContainer(c *extmkv.Container, path string) *mkv.Container {
+	// Probe values from the external library are usually >= 0 but a corrupt
+	// segment could surface a negative value; log and clamp to zero rather
+	// than fail the read so the rest of the metadata stays usable.
+	dur, err := shared.NewDurationMs(c.DurationMs)
+	if err != nil {
+		slog.Warn("mkvgo: negative container duration", slog.String("path", path), slog.Int64("ms", c.DurationMs))
+		dur = shared.Duration{}
+	}
 	out := &mkv.Container{
-		Path:       path,
-		DurationMs: c.DurationMs,
+		Path:     path,
+		Duration: dur,
 		Info: mkv.SegmentInfo{
 			Title:         c.Info.Title,
 			MuxingApp:     c.Info.MuxingApp,

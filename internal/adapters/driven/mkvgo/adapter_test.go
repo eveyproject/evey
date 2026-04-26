@@ -47,8 +47,8 @@ func TestFromExtContainer(t *testing.T) {
 	if c.Path != "/media/test.mkv" {
 		t.Errorf("path = %q, want /media/test.mkv", c.Path)
 	}
-	if c.DurationMs != 120000 {
-		t.Errorf("duration = %d, want 120000", c.DurationMs)
+	if c.Duration.Milliseconds() != 120000 {
+		t.Errorf("duration = %d, want 120000", c.Duration.Milliseconds())
 	}
 	if c.Info.Title != "Test Movie" {
 		t.Errorf("title = %q", c.Info.Title)

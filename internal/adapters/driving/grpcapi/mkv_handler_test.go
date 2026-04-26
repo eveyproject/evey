@@ -8,6 +8,7 @@ import (
 	appmkv "github.com/evey-project/evey/internal/app/mkv"
 	"github.com/evey-project/evey/internal/domain/mkv"
 	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 func newTestMKVHandler() (*mkvHandler, *mkvfakes.FakeContainerReader, *mkvfakes.FakeContainerWriter) {
@@ -22,9 +23,10 @@ func seedContainer(reader *mkvfakes.FakeContainerReader) {
 	ht := uint32(1080)
 	ch := uint8(6)
 	sr := float64(48000)
+	dur, _ := shared.NewDurationMs(7200000)
 	reader.Containers["/media/movie.mkv"] = &mkv.Container{
-		Path:       "/media/movie.mkv",
-		DurationMs: 7200000,
+		Path:     "/media/movie.mkv",
+		Duration: dur,
 		Info: mkv.SegmentInfo{
 			Title:      "Test Movie",
 			MuxingApp:  "libebml",

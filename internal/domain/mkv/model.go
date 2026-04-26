@@ -1,6 +1,10 @@
 package mkv
 
-import "time"
+import (
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+)
 
 type TrackType string
 
@@ -17,7 +21,10 @@ type Container struct {
 	Chapters    []Chapter
 	Attachments []Attachment
 	Tags        []Tag
-	DurationMs  int64
+	// Duration is the total container length parsed from the segment.
+	// Stored as shared.Duration (non-negative ms) so callers can't mix
+	// units; conversions happen at the mkvgo adapter and gRPC boundaries.
+	Duration shared.Duration
 }
 
 type SegmentInfo struct {

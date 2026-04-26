@@ -428,10 +428,11 @@ func TestMkvContainerToProto(t *testing.T) {
 	ch := uint8(2)
 	sr := float64(44100)
 	bd := uint8(16)
+	dur, _ := shared.NewDurationMs(120000)
 	c := &mkv.Container{
-		Path:       "/f.mkv",
-		DurationMs: 120000,
-		Info:       mkv.SegmentInfo{MuxingApp: "libmatroska", WritingApp: "mkvmerge", Title: "Test"},
+		Path:     "/f.mkv",
+		Duration: dur,
+		Info:     mkv.SegmentInfo{MuxingApp: "libmatroska", WritingApp: "mkvmerge", Title: "Test"},
 		Tracks: []mkv.Track{
 			{ID: 1, Type: mkv.VideoTrack, Codec: "V_MPEG4/ISO/AVC", Width: &w, Height: &h},
 			{ID: 2, Type: mkv.AudioTrack, Codec: "A_AAC", Channels: &ch, SampleRate: &sr, BitDepth: &bd},

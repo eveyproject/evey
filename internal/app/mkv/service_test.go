@@ -8,6 +8,7 @@ import (
 	appmkv "github.com/evey-project/evey/internal/app/mkv"
 	"github.com/evey-project/evey/internal/domain/mkv"
 	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,9 +21,10 @@ func newMKVService() (*appmkv.Service, *mkvfakes.FakeContainerReader, *mkvfakes.
 
 func TestGetContainerInfo(t *testing.T) {
 	svc, reader, _ := newMKVService()
+	dur, _ := shared.NewDurationMs(120000)
 	reader.Containers["/media/test.mkv"] = &mkv.Container{
-		Path:       "/media/test.mkv",
-		DurationMs: 120000,
+		Path:     "/media/test.mkv",
+		Duration: dur,
 		Tracks: []mkv.Track{
 			{ID: 1, Type: mkv.VideoTrack, Codec: "h264"},
 			{ID: 2, Type: mkv.AudioTrack, Codec: "aac"},
@@ -31,7 +33,7 @@ func TestGetContainerInfo(t *testing.T) {
 
 	info, err := svc.GetContainerInfo(context.Background(), "/media/test.mkv")
 	require.NoError(t, err)
-	assert.Equal(t, int64(120000), info.DurationMs)
+	assert.Equal(t, int64(120000), info.Duration.Milliseconds())
 	assert.Len(t, info.Tracks, 2)
 }
 

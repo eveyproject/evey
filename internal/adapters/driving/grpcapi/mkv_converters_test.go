@@ -5,6 +5,7 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,9 +65,10 @@ func TestMkvTrackToProto_NilOptionals(t *testing.T) {
 
 func TestMkvContainerToProto_NestedLists(t *testing.T) {
 	t.Parallel()
+	dur, _ := shared.NewDurationMs(3600000)
 	c := &mkv.Container{
-		Path:       "/m.mkv",
-		DurationMs: 3600000,
+		Path:     "/m.mkv",
+		Duration: dur,
 		Info: mkv.SegmentInfo{
 			MuxingApp:  "mkvmerge",
 			WritingApp: "handbrake",
