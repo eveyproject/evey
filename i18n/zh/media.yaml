@@ -212,6 +212,11 @@ detail:
   idChangedWarning: "ID 已更改 - 保存将重新从提供商获取元数据"
   refreshMetadata: 刷新元数据
   resetMetadata: 重置元数据
+  rematchMetadata: 重新匹配元数据
+  rematchConfirm: 这将移除所有覆盖和提供商 ID,并根据原始文件名重新搜索元数据。是否继续?
+  rematchSuccess: "已重新匹配:{{title}}"
+  rematchSuccessFallback: 重新搜索完成
+  rematchFailed: 重新匹配元数据失败
   reEnrichedWithNewId: 已使用新 ID 重新获取
   metadataSaved: 元数据已保存
   failedToSave: 保存失败

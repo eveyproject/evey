@@ -64,6 +64,13 @@ service MetadataService {
       delete: "/api/v1/metadata/{media_item_id}"
     };
   }
+
+  rpc ResearchMetadata(ResearchMetadataRequest) returns (ResearchMetadataResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/metadata/{media_item_id}/research"
+      body: "*"
+    };
+  }
 }
 
 message MetadataResult {
@@ -175,3 +182,13 @@ message DeleteMetadataRequest {
 }
 
 message DeleteMetadataResponse {}
+
+message ResearchMetadataRequest {
+  string media_item_id = 1;
+}
+
+message ResearchMetadataResponse {
+  string media_item_id = 1;
+  bool matched = 2;
+  string new_title = 3;
+}

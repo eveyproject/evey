@@ -14,6 +14,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
 
 interface EditForm {
@@ -154,6 +155,8 @@ export function MetadataEditPanel({
   const [form, setForm] = useState<EditForm>(initialForm);
   const [saving, setSaving] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [rematchOpen, setRematchOpen] = useState(false);
+  const [rematching, setRematching] = useState(false);
   const canSave =
     form.title.trim() !== "" ||
     form.originalTitle.trim() !== "" ||
@@ -245,6 +248,32 @@ export function MetadataEditPanel({
       setRefreshStatus("error");
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(`${t("media.detail.refreshFailed")}: ${msg}`);
+    }
+  }
+
+  // Re-match: ask the backend to drop overrides + provider IDs and re-search
+  // metadata from ScanTitle. Used to recover from a wrong TMDB match in one
+  // click. Wrapped with eveyFetch (orval not regenerated for the new RPC).
+  async function handleRematch() {
+    if (!item.id) return;
+    setRematching(true);
+    try {
+      const resp = await eveyFetch<{ mediaItemId?: string; matched?: boolean; newTitle?: string }>({
+        url: `/api/v1/metadata/${item.id}/research`,
+        method: "POST",
+        data: {},
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
+      queryClient.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
+      const newTitle = resp?.newTitle ?? "";
+      toast.success(t("media.detail.rematchSuccess", { title: newTitle || t("media.detail.rematchSuccessFallback") }));
+      setRematchOpen(false);
+      onSave();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`${t("media.detail.rematchFailed")}: ${msg}`);
+    } finally {
+      setRematching(false);
     }
   }
 
@@ -349,9 +378,25 @@ export function MetadataEditPanel({
         <Button type="button" variant="danger" onClick={handleResetMetadata} data-testid="media-edit-reset-btn">
           {t("media.detail.resetMetadata")}
         </Button>
+        <Button type="button" variant="danger" onClick={() => setRematchOpen(true)} data-testid="media-edit-rematch-btn">
+          {t("media.detail.rematchMetadata")}
+        </Button>
         <Button type="button" variant="secondary" onClick={onCancel} data-testid="media-edit-cancel-btn">{t("common.cancel")}</Button>
       </div>
       {setOverride.isError && <p className="text-sm text-[var(--color-danger)]">{t("media.detail.failedToSaveDot")}</p>}
+      <Modal open={rematchOpen} onClose={() => !rematching && setRematchOpen(false)} title={t("media.detail.rematchMetadata")} size="sm">
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-[var(--text-muted)]">{t("media.detail.rematchConfirm")}</p>
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="secondary" onClick={() => setRematchOpen(false)} disabled={rematching}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="button" variant="danger" loading={rematching} onClick={handleRematch} data-testid="media-edit-rematch-confirm-btn">
+              {t("media.detail.rematchMetadata")}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </form>
   );
 }

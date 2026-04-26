@@ -212,6 +212,11 @@ detail:
   idChangedWarning: "ID cambiado - al guardar se volverá a obtener los metadatos del proveedor"
   refreshMetadata: Actualizar metadatos
   resetMetadata: Restablecer metadatos
+  rematchMetadata: Re-emparejar metadatos
+  rematchConfirm: "Esto eliminará todas las anulaciones y los IDs de proveedor, y volverá a buscar metadatos a partir del nombre del archivo. ¿Continuar?"
+  rematchSuccess: "Re-emparejado: {{title}}"
+  rematchSuccessFallback: búsqueda completada
+  rematchFailed: Error al re-emparejar metadatos
   reEnrichedWithNewId: Re-enriquecido con nuevo ID
   metadataSaved: Metadatos guardados
   failedToSave: Error al guardar

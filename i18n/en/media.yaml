@@ -212,6 +212,11 @@ detail:
   idChangedWarning: "ID changed - saving will re-fetch metadata from the provider"
   refreshMetadata: Refresh metadata
   resetMetadata: Reset metadata
+  rematchMetadata: Re-match metadata
+  rematchConfirm: This will drop all overrides and provider IDs and re-search metadata from the original filename. Continue?
+  rematchSuccess: "Re-matched: {{title}}"
+  rematchSuccessFallback: re-search complete
+  rematchFailed: Failed to re-match metadata
   reEnrichedWithNewId: Re-enriched with new ID
   metadataSaved: Metadata saved
   failedToSave: Failed to save

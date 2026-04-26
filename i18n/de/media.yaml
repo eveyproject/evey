@@ -212,6 +212,11 @@ detail:
   idChangedWarning: "ID geändert - beim Speichern werden Metadaten vom Anbieter neu abgerufen"
   refreshMetadata: Metadaten aktualisieren
   resetMetadata: Metadaten zurücksetzen
+  rematchMetadata: Metadaten neu zuordnen
+  rematchConfirm: "Dadurch werden alle Überschreibungen und Anbieter-IDs entfernt und die Metadatensuche anhand des Dateinamens neu gestartet. Fortfahren?"
+  rematchSuccess: "Neu zugeordnet: {{title}}"
+  rematchSuccessFallback: Suche abgeschlossen
+  rematchFailed: Metadaten-Neuzuordnung fehlgeschlagen
   reEnrichedWithNewId: Mit neuer ID neu angereichert
   metadataSaved: Metadaten gespeichert
   failedToSave: Speichern fehlgeschlagen

@@ -212,6 +212,11 @@ detail:
   idChangedWarning: "ID बदली - सहेजने पर प्रदाता से मेटाडेटा फिर से प्राप्त होगा"
   refreshMetadata: मेटाडेटा रिफ़्रेश करें
   resetMetadata: मेटाडेटा रीसेट करें
+  rematchMetadata: मेटाडेटा फिर से मिलाएँ
+  rematchConfirm: यह सभी ओवरराइड और प्रदाता ID हटा देगा और मूल फ़ाइल नाम से मेटाडेटा फिर से खोजेगा। जारी रखें?
+  rematchSuccess: "फिर से मिलाया गया: {{title}}"
+  rematchSuccessFallback: पुनः खोज पूर्ण
+  rematchFailed: मेटाडेटा फिर से मिलाने में विफल
   reEnrichedWithNewId: नई ID से फिर से प्राप्त किया
   metadataSaved: मेटाडेटा सहेजा गया
   failedToSave: सहेजने में विफल

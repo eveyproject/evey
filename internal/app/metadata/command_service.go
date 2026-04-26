@@ -546,6 +546,125 @@ type SingleItemEnricher interface {
 	AutoEnrichItem(ctx context.Context, item *library.MediaItem, log *slog.Logger)
 }
 
+// ForceSingleItemEnricher bypasses the "already enriched" short-circuit for a
+// single item — used by ResearchMetadata to correct a wrong TMDB match in
+// place. Admin field overrides are still respected by the underlying enricher.
+type ForceSingleItemEnricher interface {
+	ForceAutoEnrichItem(ctx context.Context, item *library.MediaItem, log *slog.Logger)
+}
+
+// ResearchMetadataResult is what the gRPC handler reports back: did we land on
+// a different title (i.e. the re-search produced a new match) and what is it.
+type ResearchMetadataResult struct {
+	Item     *library.MediaItem
+	Matched  bool
+	NewTitle string
+}
+
+// ResearchMetadata clears the wrong-match traces from an item (overrides,
+// provider IDs, year, enriched title/overview/tagline/originalTitle) and
+// re-runs auto-enrichment from the stable ScanTitle. Used by the admin
+// "Re-match" button to fix a bad TMDB match in one click without forcing
+// the user to manually walk through the override repo.
+//
+// Steps:
+//  1. Load item.
+//  2. Delete every override targeting the item.
+//  3. Strip ProviderIDs (tmdb/imdb/thetvdb) and Year from the catalog.
+//  4. Reset Title to ScanTitle (when set), clear OriginalTitle/Overview/Tagline.
+//  5. Persist.
+//  6. Force-enrich (bypasses overview short-circuit so the search runs even
+//     though the item has been touched many times before).
+//  7. Re-load and report whether we ended up with a different title.
+func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID string) (*ResearchMetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.ResearchMetadata")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
+	if s.mediaItems == nil {
+		err := errors.New("media item repository not configured")
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("get media item: %w", err)
+	}
+
+	previousTitle := item.Title
+
+	// 1. Drop every override on the item — they were tied to the bad match.
+	if err := s.overrides.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("delete overrides: %w", err)
+	}
+
+	// 2. Strip wrong provider IDs + year so the next enrichment runs a fresh
+	// search instead of rehydrating from the stale TMDB record.
+	if item.Catalog != nil {
+		if item.Catalog.ProviderIDs != nil {
+			delete(item.Catalog.ProviderIDs, "tmdb")
+			delete(item.Catalog.ProviderIDs, "imdb")
+			delete(item.Catalog.ProviderIDs, "thetvdb")
+		}
+		item.Catalog.Year = nil
+	}
+
+	// 3. Reset enriched fields so re-enrichment writes a clean record.
+	// ScanTitle is the filesystem-derived title that survived prior matches —
+	// it's the source of truth for the search query.
+	if item.ScanTitle != "" {
+		item.Title = item.ScanTitle
+	}
+	item.OriginalTitle = ""
+	item.Overview = ""
+	item.Tagline = ""
+	item.UpdatedAt = time.Now()
+
+	if err := s.mediaItems.Update(ctx, item); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("update media item: %w", err)
+	}
+
+	// Audit-style event so admin tooling can surface the action.
+	evtRemoved := metadata.MetadataOverrideRemoved{MediaItemID: shared.MediaItemID(mediaItemID), FieldName: "*", OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtRemoved); err != nil {
+		slog.Warn("publish event", slog.String("event", evtRemoved.EventName()), slog.Any("err", err))
+	}
+
+	// 4. Re-fetch (state pre-enrich) so we hand the enricher the persisted form.
+	item, err = s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("reload media item: %w", err)
+	}
+
+	// 5. Force-enrich. ForceAutoEnrichItem bypasses the "already has overview"
+	// short-circuit; AutoEnrichItem would refuse to act because we just left
+	// an overview-less item but its enricher chain still walks the same path
+	// — keep the explicit force variant for clarity.
+	if fse, ok := s.enricher.(ForceSingleItemEnricher); ok {
+		fse.ForceAutoEnrichItem(ctx, item, slog.Default())
+	} else if se, ok := s.enricher.(SingleItemEnricher); ok {
+		se.AutoEnrichItem(ctx, item, slog.Default())
+	}
+
+	// 6. Reload to pick up enrichment writes, decide whether the title moved.
+	final, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("reload after enrich: %w", err)
+	}
+	matched := final.Title != "" && final.Title != previousTitle && final.Overview != ""
+	return &ResearchMetadataResult{Item: final, Matched: matched, NewTitle: final.Title}, nil
+}
+
 // AutoRefreshAllItems auto-searches and enriches all media items using the
 // enricher. This is the admin-triggered "Refresh all metadata" entry point —
 // it bypasses the "already has overview" short-circuit so past bad TMDB

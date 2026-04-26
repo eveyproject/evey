@@ -212,6 +212,11 @@ detail:
   idChangedWarning: "ID modifié - l'enregistrement récupérera les métadonnées du fournisseur"
   refreshMetadata: Actualiser les métadonnées
   resetMetadata: Réinitialiser les métadonnées
+  rematchMetadata: Re-rechercher les métadonnées
+  rematchConfirm: "Cette action supprimera tous les remplacements et identifiants du fournisseur, puis relancera la recherche de métadonnées depuis le nom de fichier d'origine. Continuer ?"
+  rematchSuccess: "Re-match : {{title}}"
+  rematchSuccessFallback: recherche terminée
+  rematchFailed: Échec de la re-recherche de métadonnées
   reEnrichedWithNewId: Ré-enrichi avec le nouvel ID
   metadataSaved: Métadonnées enregistrées
   failedToSave: "Échec de l'enregistrement"

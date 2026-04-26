@@ -323,6 +323,151 @@ func TestWaitWorkers_NoWorkersReturnsImmediately(t *testing.T) {
 	}
 }
 
+// --- ResearchMetadata ---
+
+// fakeForceEnricher implements ForceSingleItemEnricher and writes a known
+// post-enrichment state so the test can verify the post-enrich GetByID path.
+type fakeForceEnricher struct {
+	mediaRepo *libfakes.FakeMediaItemRepository
+	newTitle  string
+	overview  string
+	tmdbID    string
+}
+
+func (f *fakeForceEnricher) EnrichItem(_ context.Context, _ *library.MediaItem, _ *metadata.MetadataResult) error {
+	return nil
+}
+func (f *fakeForceEnricher) EnrichTranslationsForItem(_ context.Context, _ *library.MediaItem, _, _ string) {
+}
+func (f *fakeForceEnricher) ForceAutoEnrichItem(ctx context.Context, item *library.MediaItem, _ *slog.Logger) {
+	stored, err := f.mediaRepo.GetByID(ctx, item.ID)
+	if err != nil {
+		return
+	}
+	stored.Title = f.newTitle
+	stored.Overview = f.overview
+	stored.Catalog = &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": f.tmdbID}}
+	_ = f.mediaRepo.Update(ctx, stored)
+}
+
+func TestResearchMetadata_NoRepo(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	_, err := cmdSvc.ResearchMetadata(context.Background(), "any")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "media item repository not configured")
+}
+
+func TestResearchMetadata_ItemNotFound(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+
+	_, err := cmdSvc.ResearchMetadata(context.Background(), "missing")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get media item")
+}
+
+func TestResearchMetadata_ResetsAndReEnrichesFromScanTitle(t *testing.T) {
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	cmdSvc := appmetadata.NewCommandService(
+		overrideRepo,
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		sharedfakes.NewFakeEventBus(),
+		nil,
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeForceEnricher{mediaRepo: mediaRepo, newTitle: "Billions", overview: "Wall Street drama", tmdbID: "1419"}
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	year := 2018
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID:            "m1",
+		Type:          library.Series,
+		Title:         "The Foods that Make Billions",
+		ScanTitle:     "Billions",
+		OriginalTitle: "Billions (orig)",
+		Overview:      "wrong overview",
+		Tagline:       "wrong tagline",
+		Catalog: &library.MediaCatalog{
+			ProviderIDs: map[string]string{"tmdb": "wrong-id", "imdb": "tt0000000", "thetvdb": "999", "wikidata": "Q123"},
+			Year:        &year,
+		},
+	}))
+	require.NoError(t, overrideRepo.Set(ctx, &metadata.MetadataOverride{
+		ID: "ov-1", MediaItemID: "m1", FieldName: "title", CustomValue: "stale",
+	}))
+
+	res, err := cmdSvc.ResearchMetadata(ctx, "m1")
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.True(t, res.Matched, "title moved + overview present → matched true")
+	assert.Equal(t, "Billions", res.NewTitle)
+
+	// overrides removed
+	ovs, _ := overrideRepo.GetByMediaItem(ctx, "m1")
+	assert.Empty(t, ovs)
+
+	// final state in repo
+	final, err := mediaRepo.GetByID(ctx, shared.MediaItemID("m1"))
+	require.NoError(t, err)
+	assert.Equal(t, "Billions", final.Title)
+	assert.Equal(t, "Wall Street drama", final.Overview)
+	require.NotNil(t, final.Catalog)
+	assert.Equal(t, "1419", final.Catalog.ProviderIDs["tmdb"])
+	// non-targeted provider IDs (wikidata) were also dropped because the
+	// enricher overwrote the catalog wholesale — that's fine; what matters
+	// here is that the bad tmdb/imdb/thetvdb didn't survive.
+}
+
+func TestResearchMetadata_NoEnricherStillResetsState(t *testing.T) {
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	cmdSvc := appmetadata.NewCommandService(
+		overrideRepo,
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		sharedfakes.NewFakeEventBus(),
+		nil,
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	// Enricher that doesn't satisfy ForceSingleItemEnricher / SingleItemEnricher
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	year := 2010
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID:            "m1",
+		Type:          library.MovieItem,
+		Title:         "Wrong Title",
+		ScanTitle:     "Inception",
+		OriginalTitle: "x",
+		Overview:      "y",
+		Tagline:       "z",
+		Catalog:       &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "00000"}, Year: &year},
+	}))
+
+	res, err := cmdSvc.ResearchMetadata(ctx, "m1")
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	// fakeTranslationsEnricher implements SingleItemEnricher (AutoEnrichItem)
+	// but doesn't write anything → overview remains empty → matched=false.
+	assert.False(t, res.Matched)
+	assert.Equal(t, "Inception", res.NewTitle)
+
+	final, err := mediaRepo.GetByID(ctx, shared.MediaItemID("m1"))
+	require.NoError(t, err)
+	assert.Equal(t, "Inception", final.Title)
+	assert.Empty(t, final.Overview)
+	assert.Empty(t, final.Tagline)
+	assert.Empty(t, final.OriginalTitle)
+	require.NotNil(t, final.Catalog)
+	assert.Empty(t, final.Catalog.ProviderIDs["tmdb"])
+	assert.Nil(t, final.Catalog.Year)
+}
+
+// --- StartEnrichmentWorker ---
+
 func TestStartEnrichmentWorker_WaitWorkersCompletesAfterCancel(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
 	mediaRepo := libfakes.NewFakeMediaItemRepository()

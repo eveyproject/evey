@@ -160,6 +160,24 @@ func (h *metadataHandler) ListMetadataOverrides(ctx context.Context, req *eveyv1
 	return resp, nil
 }
 
+func (h *metadataHandler) ResearchMetadata(ctx context.Context, req *eveyv1.ResearchMetadataRequest) (*eveyv1.ResearchMetadataResponse, error) {
+	if req.MediaItemId == "" {
+		return nil, status.Error(codes.InvalidArgument, "media_item_id is required")
+	}
+	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
+		return nil, err
+	}
+	res, err := h.cmd.ResearchMetadata(ctx, req.MediaItemId)
+	if err != nil {
+		return nil, internalError("research metadata", err)
+	}
+	return &eveyv1.ResearchMetadataResponse{
+		MediaItemId: req.MediaItemId,
+		Matched:     res.Matched,
+		NewTitle:    res.NewTitle,
+	}, nil
+}
+
 func (h *metadataHandler) GetMetadataProviders(_ context.Context, _ *eveyv1.GetMetadataProvidersRequest) (*eveyv1.GetMetadataProvidersResponse, error) {
 	resp := &eveyv1.GetMetadataProvidersResponse{}
 	for i, name := range h.query.ListProviders() {

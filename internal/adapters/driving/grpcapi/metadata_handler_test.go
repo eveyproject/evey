@@ -6,9 +6,13 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
+	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/metadata"
 	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func newTestMetadataHandler() (*metadataHandler, *metafakes.FakeMetadataProvider, *metafakes.FakeArtworkRepository, *metafakes.FakeMetadataOverrideRepository) {
@@ -181,6 +185,73 @@ func TestMetadataGetMetadataProviders(t *testing.T) {
 	if resp.Providers[0].Priority != 1 {
 		t.Errorf("expected priority 1, got %d", resp.Providers[0].Priority)
 	}
+}
+
+func TestMetadataResearchMetadata_MissingID(t *testing.T) {
+	h, _, _, _ := newTestMetadataHandler()
+	_, err := h.ResearchMetadata(context.Background(), &eveyv1.ResearchMetadataRequest{MediaItemId: ""})
+	if err == nil {
+		t.Fatal("expected error for empty media_item_id")
+	}
+	if got := status.Code(err); got != codes.InvalidArgument {
+		t.Errorf("expected InvalidArgument, got %v", got)
+	}
+}
+
+func TestMetadataResearchMetadata_DropsOverridesAndResets(t *testing.T) {
+	provider := metafakes.NewFakeMetadataProvider("tmdb")
+	artworkRepo := metafakes.NewFakeArtworkRepository()
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	events := sharedfakes.NewFakeEventBus()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	providers := []metadata.MetadataProvider{provider}
+	cmd := appmetadata.NewCommandService(overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(), events, providers)
+	appmetadata.WithEnricher(&noopEnricher{}, mediaRepo)(cmd)
+	query := appmetadata.NewQueryService(overrideRepo, artworkRepo, providers)
+	h := &metadataHandler{cmd: cmd, query: query}
+
+	ctx := context.Background()
+	if err := mediaRepo.Create(ctx, &library.MediaItem{
+		ID:        "mi-1",
+		Type:      library.MovieItem,
+		Title:     "Wrong Match",
+		ScanTitle: "Real",
+		Catalog:   &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "wrong"}},
+	}); err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+	if err := overrideRepo.Set(ctx, &metadata.MetadataOverride{ID: "ov-1", MediaItemID: "mi-1", FieldName: "title", CustomValue: "x"}); err != nil {
+		t.Fatalf("set override: %v", err)
+	}
+
+	resp, err := h.ResearchMetadata(ctx, &eveyv1.ResearchMetadataRequest{MediaItemId: "mi-1"})
+	if err != nil {
+		t.Fatalf("ResearchMetadata: %v", err)
+	}
+	if resp.MediaItemId != "mi-1" {
+		t.Errorf("expected media_item_id mi-1, got %q", resp.MediaItemId)
+	}
+	if resp.NewTitle != "Real" {
+		t.Errorf("expected NewTitle 'Real' (reset to ScanTitle), got %q", resp.NewTitle)
+	}
+	if resp.Matched {
+		t.Errorf("noop enricher does not write a new match → Matched should be false")
+	}
+
+	ovs, _ := overrideRepo.GetByMediaItem(ctx, "mi-1")
+	if len(ovs) != 0 {
+		t.Errorf("expected overrides cleared, got %d", len(ovs))
+	}
+}
+
+// noopEnricher satisfies ItemEnricher without doing any work — used to
+// verify ResearchMetadata's reset half independently of search behaviour.
+type noopEnricher struct{}
+
+func (noopEnricher) EnrichItem(_ context.Context, _ *library.MediaItem, _ *metadata.MetadataResult) error {
+	return nil
+}
+func (noopEnricher) EnrichTranslationsForItem(_ context.Context, _ *library.MediaItem, _, _ string) {
 }
 
 func TestMetadataListMetadataOverrides(t *testing.T) {

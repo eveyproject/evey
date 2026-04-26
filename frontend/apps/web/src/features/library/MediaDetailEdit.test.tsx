@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MetadataEditPanel } from "./MediaDetailEdit";
@@ -9,6 +9,7 @@ const mockSetOverride = { mutateAsync: vi.fn().mockResolvedValue({}), isError: f
 const mockRemoveOverride = { mutateAsync: vi.fn().mockResolvedValue({}) };
 const mockRefresh = { mutateAsync: vi.fn().mockResolvedValue({}) };
 const mockListOverrides = vi.fn().mockReturnValue({ data: { overrides: [] } });
+const mockEveyFetch = vi.fn().mockResolvedValue({ mediaItemId: "m1", matched: true, newTitle: "Billions" });
 
 vi.mock("@evey/api", () => ({
   useMetadataServiceSetMetadataOverride: () => mockSetOverride,
@@ -17,7 +18,7 @@ vi.mock("@evey/api", () => ({
   useMetadataServiceGetArtwork: () => ({ data: undefined }),
   useMetadataServiceListMetadataOverrides: (...args: unknown[]) => mockListOverrides(...args),
   getMetadataServiceListMetadataOverridesQueryKey: (id: string) => [`/api/v1/metadata/${id}/overrides`],
-  eveyFetch: vi.fn().mockResolvedValue(undefined),
+  eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
 }));
 
 vi.mock("@evey/store", () => ({
@@ -168,5 +169,40 @@ describe("FieldBadge", () => {
     });
     render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
     expect(screen.getAllByText(/overrid/i).length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("Re-match metadata", () => {
+  it("renders the re-match button", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    expect(screen.getByTestId("media-edit-rematch-btn")).toBeInTheDocument();
+  });
+
+  it("opens a confirmation modal when clicked", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    fireEvent.click(screen.getByTestId("media-edit-rematch-btn"));
+    expect(screen.getByTestId("media-edit-rematch-confirm-btn")).toBeInTheDocument();
+  });
+
+  it("calls eveyFetch with the research endpoint on confirm", async () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    fireEvent.click(screen.getByTestId("media-edit-rematch-btn"));
+    fireEvent.click(screen.getByTestId("media-edit-rematch-confirm-btn"));
+    await waitFor(() => {
+      expect(mockEveyFetch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: "/api/v1/metadata/m1/research",
+          method: "POST",
+        }),
+      );
+    });
+  });
+
+  it("invokes onSave after a successful re-match", async () => {
+    const onSave = vi.fn();
+    render(<MetadataEditPanel {...defaultProps} onSave={onSave} />, { wrapper: Wrapper });
+    fireEvent.click(screen.getByTestId("media-edit-rematch-btn"));
+    fireEvent.click(screen.getByTestId("media-edit-rematch-confirm-btn"));
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
   });
 });
