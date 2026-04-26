@@ -139,7 +139,7 @@ function ProfileCard() {
             <div className="flex items-center gap-2">
               <p className="text-lg font-semibold text-[var(--text)] truncate">{user?.username ?? "..."}</p>
               {user?.isAdmin && (
-                <span className="text-xs bg-[var(--accent)] text-[var(--filter-active-text)] px-2 py-0.5 rounded-[var(--radius-sm)]">Admin</span>
+                <span className="text-xs bg-[var(--accent)] text-[var(--filter-active-text)] px-2 py-0.5 rounded-[var(--radius-sm)]">{t("common.nav.admin")}</span>
               )}
             </div>
             <p className="text-sm text-[var(--text-muted)] truncate">{user?.email || "—"}</p>

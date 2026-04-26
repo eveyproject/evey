@@ -43,6 +43,7 @@ scrollLeft: "बाएं स्क्रॉल करें"
 scrollRight: "दाएं स्क्रॉल करें"
 appearance: "रूप-रंग"
 appearanceDesc: "अपनी थीम और भाषा चुनें।"
+theme: "थीम"
 language: "भाषा"
 languageDesc: "अपनी पसंदीदा भाषा चुनें"
 region:

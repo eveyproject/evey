@@ -43,6 +43,7 @@ scrollLeft: "Desplazar a la izquierda"
 scrollRight: "Desplazar a la derecha"
 appearance: "Apariencia"
 appearanceDesc: "Elige tu tema y tu idioma."
+theme: "Tema"
 language: "Idioma"
 languageDesc: "Elige tu idioma preferido"
 region:

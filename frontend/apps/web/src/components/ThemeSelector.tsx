@@ -1,6 +1,7 @@
 import { useThemeStore } from "@evey/store";
 import { themes, type ThemeName } from "@evey/theme";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api";
 import { pluginThemeName } from "./theme-utils";
 
@@ -31,12 +32,13 @@ function usePluginThemes() {
 }
 
 export function ThemeSelector() {
+  const { t } = useTranslation();
   const { theme, setTheme } = useThemeStore();
   const { data: pluginThemes } = usePluginThemes();
 
   return (
     <div className="flex flex-col gap-2" data-testid="theme-switcher">
-      <label className="text-sm font-medium text-[var(--text-muted)]">Theme</label>
+      <label className="text-sm font-medium text-[var(--text-muted)]">{t("common.theme")}</label>
       <div className="flex gap-2 flex-wrap">
         {(Object.keys(themes) as ThemeName[]).map((name) => (
           <button

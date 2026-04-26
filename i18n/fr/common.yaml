@@ -43,6 +43,7 @@ scrollLeft: Défiler à gauche
 scrollRight: Défiler à droite
 appearance: Apparence
 appearanceDesc: "Choisissez votre thème et votre langue."
+theme: Thème
 language: Langue
 languageDesc: Choisissez votre langue préférée
 region:

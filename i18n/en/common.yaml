@@ -43,6 +43,7 @@ scrollLeft: Scroll left
 scrollRight: Scroll right
 appearance: Appearance
 appearanceDesc: "Choose your color theme and language."
+theme: Theme
 language: Language
 languageDesc: Choose your preferred language
 region:

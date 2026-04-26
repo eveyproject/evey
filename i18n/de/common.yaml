@@ -43,6 +43,7 @@ scrollLeft: Nach links scrollen
 scrollRight: Nach rechts scrollen
 appearance: Darstellung
 appearanceDesc: "Wählen Sie Ihr Farbdesign und Ihre Sprache."
+theme: Design
 language: Sprache
 languageDesc: Wählen Sie Ihre bevorzugte Sprache
 region:
