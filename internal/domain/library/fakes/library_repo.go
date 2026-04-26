@@ -120,3 +120,8 @@ func (r *FakeLibraryRepository) Delete(_ context.Context, id shared.LibraryID) e
 	delete(r.items, string(id))
 	return nil
 }
+
+var (
+	_ library.LibraryCommandRepo = (*FakeLibraryRepository)(nil)
+	_ library.LibraryQueryRepo   = (*FakeLibraryRepository)(nil)
+)

@@ -7,19 +7,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
-// LibraryRepository has no more callers in the domain/app layers — the CQRS
-// split (LibraryCommandRepo + LibraryQueryRepo) now carries read vs write
-// responsibilities separately. The unified interface stays only because the
-// concrete postgres adapter and FakeLibraryRepository implement the union
-// set; remove if anyone else redeclares a similar god-interface.
-//
-// Deprecated: use LibraryCommandRepo for writes and LibraryQueryRepo for reads.
-type LibraryRepository interface {
-	LibraryCommandRepo
-	LibraryQueryRepo
-}
-
-// ListLibrariesFilter paginates LibraryRepository.List with offset semantics.
+// ListLibrariesFilter paginates LibraryQueryRepo.List with offset semantics.
 // Zero values mean "no pagination" — all rows returned, ordered by name.
 // Limit is capped at MaxListLibrariesLimit (500); higher values are clamped.
 type ListLibrariesFilter struct {
@@ -27,7 +15,7 @@ type ListLibrariesFilter struct {
 	Offset int
 }
 
-// MaxListLibrariesLimit caps the page size for LibraryRepository.List.
+// MaxListLibrariesLimit caps the page size for LibraryQueryRepo.List.
 const MaxListLibrariesLimit = 500
 
 type ListMediaItemsFilter struct {

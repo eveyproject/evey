@@ -133,4 +133,7 @@ func (r *LibraryRepository) Delete(ctx context.Context, id shared.LibraryID) err
 	return nil
 }
 
-var _ library.LibraryRepository = (*LibraryRepository)(nil)
+var (
+	_ library.LibraryCommandRepo = (*LibraryRepository)(nil)
+	_ library.LibraryQueryRepo   = (*LibraryRepository)(nil)
+)
