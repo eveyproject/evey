@@ -29,6 +29,13 @@ const (
 	pluginGID         = 1001
 	sandboxLibPath    = "/app/libevey-sandbox.so"
 	subprocessPerm    = "subprocess"
+
+	// Sandbox modes for WithSandboxMode.
+	sandboxModeBasic      = "basic"      // LD_PRELOAD + UID drop (default)
+	sandboxModeBubblewrap = "bubblewrap" // bwrap namespace isolation
+	sandboxModeStrict     = "strict"     // bubblewrap + LD_PRELOAD seccomp
+
+	defaultSandboxMode = sandboxModeBasic
 )
 
 type processEntry struct {
@@ -72,6 +79,7 @@ type Runner struct {
 	allowMissingSandbox bool
 	eventBus            EventBus
 	hostRegistry        HostRegistry
+	sandboxMode         string
 }
 
 // ErrSandboxUnavailable is returned by Start when a plugin without the
@@ -132,6 +140,26 @@ func (r *Runner) WithEventBus(bus EventBus) *Runner {
 // env var is left unset.
 func (r *Runner) WithHostRegistry(reg HostRegistry) *Runner {
 	r.hostRegistry = reg
+	return r
+}
+
+// WithSandboxMode sets the isolation strategy used when launching plugins.
+// Valid values: "basic" (default), "bubblewrap", "strict".
+//   - "basic"      — LD_PRELOAD seccomp lib + UID drop (existing behaviour).
+//   - "bubblewrap" — bwrap namespace isolation (user/pid/uts/ipc/net). Requires
+//     the bwrap binary in $PATH (Alpine: apk add bubblewrap).
+//   - "strict"     — bubblewrap namespaces AND LD_PRELOAD seccomp lib.
+//
+// Any unrecognised value is silently mapped to "basic" — callers should treat
+// it as a configuration error and validate upstream (e.g. from config).
+func (r *Runner) WithSandboxMode(mode string) *Runner {
+	switch mode {
+	case sandboxModeBubblewrap, sandboxModeStrict:
+		r.sandboxMode = mode
+	default:
+		// Empty string, "basic", or any unknown value → basic.
+		r.sandboxMode = sandboxModeBasic
+	}
 	return r
 }
 
@@ -371,11 +399,31 @@ func buildPluginEnv(pluginID, sock, hostSock string) []string {
 	}
 }
 
-// applySandbox appends LD_PRELOAD=<sandbox.so> to cmd.Env unless the plugin
-// has the subprocess permission. Fail-closed: a plugin without subprocess
-// AND without a sandbox lib is refused, with a plugin.error published so
-// an admin gets paged. Dev/tests can opt out via WithAllowMissingSandbox.
+// applySandbox sets up the sandbox for a plugin process. The behaviour
+// depends on the runner's sandboxMode:
+//
+//   - "basic" (default): appends LD_PRELOAD seccomp lib to cmd.Env, unless
+//     the plugin has the subprocess permission. Fail-closed when the lib is
+//     missing (unless WithAllowMissingSandbox is set).
+//   - "bubblewrap": wraps the command with bwrap namespace isolation.
+//     Requires bwrap in $PATH; returns an error if absent.
+//   - "strict": bubblewrap namespaces AND LD_PRELOAD seccomp lib.
 func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) error {
+	mode := r.sandboxMode
+	if mode == "" {
+		mode = sandboxModeBasic
+	}
+
+	switch mode {
+	case sandboxModeBubblewrap, sandboxModeStrict:
+		return r.applyBwrapSandbox(parentCtx, p, cmd, mode)
+	default:
+		return r.applyBasicSandbox(parentCtx, p, cmd)
+	}
+}
+
+// applyBasicSandbox is the original LD_PRELOAD + UID-drop sandbox path.
+func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) error {
 	if slices.Contains(p.Permissions, subprocessPerm) {
 		return nil
 	}
@@ -393,6 +441,62 @@ func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *
 	}
 	slog.Warn("starting plugin without sandbox (dev override)",
 		slog.String("plugin_id", p.ID))
+	return nil
+}
+
+// applyBwrapSandbox wraps cmd with bubblewrap namespace isolation.
+// For "strict" mode it also applies the LD_PRELOAD seccomp lib.
+// Mutates cmd.Path and cmd.Args in-place so the exec.Cmd already built in
+// Start is reused unchanged (Env, SysProcAttr, Dir, Stdout/Stderr).
+func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd, mode string) error {
+	bwrapPath, err := exec.LookPath("bwrap")
+	if err != nil {
+		slog.Error("bwrap not found in PATH",
+			slog.String("plugin_id", p.ID),
+			slog.String("sandbox_mode", mode))
+		r.publishPluginError(parentCtx, p.ID, "bwrap binary missing; plugin refused start")
+		return fmt.Errorf("pluginrunner: sandbox_mode=%q requires bwrap binary in $PATH (apk add bubblewrap)", mode)
+	}
+
+	pluginDir := p.InstallDir
+	if pluginDir == "" {
+		pluginDir = defaultPluginDir
+	}
+	hasNet := slices.Contains(p.Permissions, networkPerm)
+
+	prefix := buildBwrapCmd(pluginDir, hasNet, mode)
+
+	// cmd.Args[0] is the program name; the original full argv is cmd.Args.
+	originalArgv := cmd.Args // e.g. ["/data/plugins/foo/plugin", "--arg"]
+
+	// New argv: bwrap [flags] -- <original argv...>
+	newArgs := append(prefix, originalArgv...)
+
+	cmd.Path = bwrapPath
+	cmd.Args = newArgs
+
+	// "strict" = bubblewrap + LD_PRELOAD seccomp lib on top.
+	if mode == sandboxModeStrict {
+		libPath := r.ensureSandboxLib()
+		if libPath != "" {
+			cmd.Env = append(cmd.Env, "LD_PRELOAD="+libPath)
+		} else if !r.allowMissingSandbox {
+			slog.Error("refusing to start plugin without seccomp lib (strict mode)",
+				slog.String("plugin_id", p.ID),
+				slog.String("sandbox_lib", sandboxLibPath))
+			r.publishPluginError(parentCtx, p.ID, "sandbox library unavailable; plugin refused start (strict)")
+			return fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
+		} else {
+			slog.Warn("strict mode without seccomp lib (dev override)",
+				slog.String("plugin_id", p.ID))
+		}
+	}
+
+	slog.Info("plugin sandbox applied",
+		slog.String("plugin_id", p.ID),
+		slog.String("sandbox_mode", mode),
+		slog.String("plugin_dir", pluginDir),
+		slog.Bool("has_network_perm", hasNet))
 	return nil
 }
 

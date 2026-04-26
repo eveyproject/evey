@@ -280,6 +280,62 @@ func TestRunnerDevOverrideAllowsMissingSandbox(t *testing.T) {
 	_ = r.Stop(ctx, p.ID)
 }
 
+// TestWithSandboxMode_StoresBubblewrap verifies that WithSandboxMode stores
+// the "bubblewrap" value on the runner.
+func TestWithSandboxMode_StoresBubblewrap(t *testing.T) {
+	r := NewRunner().WithSandboxMode("bubblewrap")
+	assert.Equal(t, sandboxModeBubblewrap, r.sandboxMode)
+}
+
+// TestWithSandboxMode_StoresStrict verifies that WithSandboxMode stores "strict".
+func TestWithSandboxMode_StoresStrict(t *testing.T) {
+	r := NewRunner().WithSandboxMode("strict")
+	assert.Equal(t, sandboxModeStrict, r.sandboxMode)
+}
+
+// TestWithSandboxMode_StoresBasic verifies that "basic" is stored as-is.
+func TestWithSandboxMode_StoresBasic(t *testing.T) {
+	r := NewRunner().WithSandboxMode("basic")
+	assert.Equal(t, sandboxModeBasic, r.sandboxMode)
+}
+
+// TestWithSandboxMode_InvalidMappedToBasic documents that any unrecognised
+// value (including empty string) is silently mapped to "basic". This prevents
+// accidental escalation from a config typo — the runner stays in the known-safe
+// default rather than refusing to start or behaving unpredictably.
+func TestWithSandboxMode_InvalidMappedToBasic(t *testing.T) {
+	for _, bad := range []string{"", "none", "BUBBLEWRAP", "unknown"} {
+		r := NewRunner().WithSandboxMode(bad)
+		assert.Equal(t, sandboxModeBasic, r.sandboxMode,
+			"mode %q should be mapped to basic", bad)
+	}
+}
+
+// TestWithSandboxMode_BwrapAbsent verifies that Start returns an error with
+// a helpful message when sandbox_mode=bubblewrap and bwrap is not in PATH.
+// This test overrides PATH to guarantee bwrap is absent.
+func TestWithSandboxMode_BwrapAbsent(t *testing.T) {
+	bin := buildTestBinary(t)
+	dir := filepath.Dir(bin)
+	ctx := context.Background()
+
+	t.Setenv("PATH", "/nonexistent-empty-path")
+
+	r := NewRunner(dir).
+		WithSandboxMode("bubblewrap").
+		WithAllowMissingSandbox(true)
+
+	p := &plugin.Plugin{
+		ID:   "plg-bwrap-absent",
+		Name: bin,
+	}
+
+	err := r.Start(ctx, p)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bwrap")
+	assert.Contains(t, err.Error(), "$PATH")
+}
+
 // TestRunnerAllowsSubprocessPermWithoutSandbox documents that plugins
 // explicitly granted the subprocess permission bypass the sandbox check
 // (they need it to spawn helper processes).
