@@ -39,12 +39,13 @@ const (
 )
 
 type processEntry struct {
-	cmd      *exec.Cmd
-	cancel   context.CancelFunc
-	sockPath string
-	pluginID string
-	ipc      *ipcClient
-	done     chan struct{} // closed when cmd.Wait() returns in Start goroutine
+	cmd        *exec.Cmd
+	cancel     context.CancelFunc
+	sockPath   string
+	pluginID   string
+	ipc        *ipcClient
+	done       chan struct{} // closed when cmd.Wait() returns in Start goroutine
+	cgroupPath string       // empty when cgroup v2 is unavailable
 }
 
 // OnIPCResult is called after IPC Initialize completes (success or failure).
@@ -80,6 +81,8 @@ type Runner struct {
 	eventBus            EventBus
 	hostRegistry        HostRegistry
 	sandboxMode         string
+	cgroupCfg           cgroupConfig
+	cgroupWarnOnce      sync.Once
 }
 
 // ErrSandboxUnavailable is returned by Start when a plugin without the
@@ -159,6 +162,20 @@ func (r *Runner) WithSandboxMode(mode string) *Runner {
 	default:
 		// Empty string, "basic", or any unknown value → basic.
 		r.sandboxMode = sandboxModeBasic
+	}
+	return r
+}
+
+// WithResourceLimits configures cgroup v2 resource limits applied to each
+// plugin process. Pass 0 for any value to use the package default
+// (256 MiB memory, 50% CPU, 64 PIDs). Has no effect when cgroup v2 is
+// unavailable; a warning is emitted once at the first Start call.
+func (r *Runner) WithResourceLimits(memBytes int64, cpuQuotaUS, cpuPeriodUS, pidsMax int) *Runner {
+	r.cgroupCfg = cgroupConfig{
+		memBytes:  memBytes,
+		cpuQuota:  cpuQuotaUS,
+		cpuPeriod: cpuPeriodUS,
+		pidsMax:   pidsMax,
 	}
 	return r
 }
@@ -267,7 +284,22 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	}
 	cmd.SysProcAttr = pluginSysProcAttr()
 
+	// Prepare cgroup v2 limits before spawning. Failure is non-fatal:
+	// we warn once and proceed without limits (fail-soft).
+	cgroupPath, cgroupErr := prepareCgroup(p.ID, r.cgroupCfg)
+	if cgroupErr != nil {
+		r.cgroupWarnOnce.Do(func() {
+			slog.Warn("cgroup v2 resource limits unavailable, running without limits",
+				slog.String("plugin", p.ID), slog.Any("err", cgroupErr))
+		})
+	} else if cgroupPath == "" {
+		r.cgroupWarnOnce.Do(func() {
+			slog.Warn("cgroup v2 not available on this host, resource limits disabled")
+		})
+	}
+
 	if err := cmd.Start(); err != nil {
+		cleanupCgroup(cgroupPath)
 		r.rollbackStart(cancel, pluginSockDir, p.ID, true)
 		return fmt.Errorf("start plugin %s: %w", p.ID, err)
 	}
@@ -278,16 +310,26 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	if r.hostRegistry != nil {
 		r.hostRegistry.SetExpectedPID(p.ID, int32(cmd.Process.Pid))
 	}
+
+	// Attach the process to its cgroup after the PID is known.
+	if attachErr := attachToCgroup(cgroupPath, cmd.Process.Pid); attachErr != nil {
+		slog.Warn("attach plugin to cgroup failed, running without limits",
+			slog.String("plugin", p.ID), slog.Any("err", attachErr))
+		cleanupCgroup(cgroupPath)
+		cgroupPath = ""
+	}
+
 	if r.logger != nil {
 		r.logger.WriteLog(p.ID, fmt.Sprintf("[INFO] plugin process started pid=%d", cmd.Process.Pid))
 	}
 
 	entry := &processEntry{
-		cmd:      cmd,
-		cancel:   cancel,
-		sockPath: sock,
-		pluginID: p.ID,
-		done:     make(chan struct{}),
+		cmd:        cmd,
+		cancel:     cancel,
+		sockPath:   sock,
+		pluginID:   p.ID,
+		done:       make(chan struct{}),
+		cgroupPath: cgroupPath,
 	}
 	go r.connectIPC(ctx, entry, p)
 
@@ -536,6 +578,7 @@ func (r *Runner) trackLifecycle(entry *processEntry, cancel context.CancelFunc, 
 	if err2 := os.Remove(sock); err2 != nil {
 		slog.Warn("remove plugin sock on crash", slog.Any("err", err2))
 	}
+	cleanupCgroup(entry.cgroupPath)
 	if r.hostRegistry != nil {
 		r.hostRegistry.UnregisterPlugin(p.ID)
 	}
@@ -635,6 +678,8 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 	if err := os.RemoveAll(filepath.Dir(entry.sockPath)); err != nil {
 		slog.Warn("remove plugin sock dir", slog.Any("err", err))
 	}
+
+	cleanupCgroup(entry.cgroupPath)
 
 	if r.hostRegistry != nil {
 		r.hostRegistry.UnregisterPlugin(pluginID)
