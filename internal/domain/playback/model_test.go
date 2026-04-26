@@ -5,7 +5,17 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
+
+func mustDuration(t *testing.T, ms int64) shared.Duration {
+	t.Helper()
+	d, err := shared.NewDurationMs(ms)
+	if err != nil {
+		t.Fatalf("NewDurationMs(%d): %v", ms, err)
+	}
+	return d
+}
 
 func TestNewPlaySession(t *testing.T) {
 	t.Parallel()
@@ -68,9 +78,9 @@ func TestWatchProgress_IsInProgress(t *testing.T) {
 		wp   playback.WatchProgress
 		want bool
 	}{
-		{"completed", playback.WatchProgress{Completed: true, PositionMs: 5000}, false},
-		{"position zero", playback.WatchProgress{Completed: false, PositionMs: 0}, false},
-		{"in progress", playback.WatchProgress{Completed: false, PositionMs: 5000}, true},
+		{"completed", playback.WatchProgress{Completed: true, Position: mustDuration(t, 5000)}, false},
+		{"position zero", playback.WatchProgress{Completed: false}, false},
+		{"in progress", playback.WatchProgress{Completed: false, Position: mustDuration(t, 5000)}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

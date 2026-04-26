@@ -317,11 +317,15 @@ func TestAPIKeyToProto(t *testing.T) {
 
 func TestWatchProgressToProto(t *testing.T) {
 	t.Parallel()
+	pos, err := shared.NewDurationMs(60000)
+	if err != nil {
+		t.Fatal(err)
+	}
 	wp := &playback.WatchProgress{
 		ID:          "wp-1",
 		ProfileID:   "p-1",
 		MediaItemID: "m-1",
-		PositionMs:  60000,
+		Position:    pos,
 		Completed:   true,
 		PlayCount:   3,
 	}

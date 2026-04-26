@@ -248,7 +248,7 @@ func TestReportProgressBySession_UpdatesSessionPosition(t *testing.T) {
 
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
-	assert.Equal(t, int64(42000), wp.PositionMs)
+	assert.Equal(t, int64(42000), wp.Position.Milliseconds())
 	assert.False(t, wp.Completed)
 }
 
@@ -330,7 +330,7 @@ func TestMarkAsUnwatched_ResetsProgress(t *testing.T) {
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.False(t, wp.Completed)
-	assert.Equal(t, int64(0), wp.PositionMs)
+	assert.Equal(t, int64(0), wp.Position.Milliseconds())
 	assert.Equal(t, 0, wp.PlayCount)
 }
 
@@ -484,7 +484,7 @@ func TestReportProgress_HappyPath(t *testing.T) {
 
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
-	assert.Equal(t, int64(12000), wp.PositionMs)
+	assert.Equal(t, int64(12000), wp.Position.Milliseconds())
 	assert.True(t, wp.Completed)
 	assert.Equal(t, shared.ProfileID("p1"), wp.ProfileID)
 	assert.Equal(t, shared.MediaItemID("m1"), wp.MediaItemID)

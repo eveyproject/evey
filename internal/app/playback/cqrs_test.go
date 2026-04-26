@@ -43,7 +43,7 @@ func TestCommandService_ReportProgress_QueryService_Get(t *testing.T) {
 
 	wp, err := q.GetWatchProgress(ctx, "p1", "m1")
 	require.NoError(t, err)
-	assert.Equal(t, int64(45000), wp.PositionMs)
+	assert.Equal(t, int64(45000), wp.Position.Milliseconds())
 	assert.False(t, wp.Completed)
 }
 
@@ -79,7 +79,7 @@ func TestCommandService_MarkAsUnwatched(t *testing.T) {
 	wp, err := q.GetWatchProgress(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.False(t, wp.Completed)
-	assert.Equal(t, int64(0), wp.PositionMs)
+	assert.Equal(t, int64(0), wp.Position.Milliseconds())
 }
 
 func TestCommandService_StartStream_MaxStreams(t *testing.T) {
@@ -135,7 +135,7 @@ func TestCommandService_ReportProgressBySession(t *testing.T) {
 
 	wp, err := q.GetWatchProgress(ctx, "p1", "m1")
 	require.NoError(t, err)
-	assert.Equal(t, int64(55000), wp.PositionMs)
+	assert.Equal(t, int64(55000), wp.Position.Milliseconds())
 
 	stored, err := sessionRepo.GetByID(ctx, "s1")
 	require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestServiceWrapper_DelegatesToCQRS(t *testing.T) {
 
 	wp, err := svc.GetWatchProgress(ctx, "p1", "m1")
 	require.NoError(t, err)
-	assert.Equal(t, int64(12000), wp.PositionMs)
+	assert.Equal(t, int64(12000), wp.Position.Milliseconds())
 
 	assert.NotNil(t, svc.CommandService())
 	assert.NotNil(t, svc.QueryService())

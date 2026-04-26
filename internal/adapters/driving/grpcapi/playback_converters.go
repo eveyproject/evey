@@ -22,7 +22,7 @@ func watchProgressToProto(wp *playback.WatchProgress) *eveyv1.WatchProgress {
 		Id:           wp.ID,
 		ProfileId:    string(wp.ProfileID),
 		MediaItemId:  string(wp.MediaItemID),
-		PositionMs:   wp.PositionMs,
+		PositionMs:   wp.Position.Milliseconds(),
 		Played:       wp.Completed,
 		PlayCount:    int32(wp.PlayCount),
 		LastPlayedAt: toTimestamppb(wp.LastPlayedAt),

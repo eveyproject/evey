@@ -27,7 +27,7 @@ type WatchProgress struct {
 	ID           string
 	ProfileID    shared.ProfileID
 	MediaItemID  shared.MediaItemID
-	PositionMs   int64
+	Position     shared.Duration
 	Completed    bool
 	PlayCount    int
 	LastPlayedAt time.Time
@@ -166,7 +166,7 @@ type StreamDetail struct {
 }
 
 func (wp *WatchProgress) IsInProgress() bool {
-	return !wp.Completed && wp.PositionMs > 0
+	return !wp.Completed && !wp.Position.IsZero()
 }
 
 func (s *PlaySession) IsActive() bool {

@@ -6,6 +6,7 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,11 +28,15 @@ func TestPlayMethodEnumMapping(t *testing.T) {
 func TestWatchProgressToProto_Timestamps(t *testing.T) {
 	t.Parallel()
 	last := time.Date(2024, 5, 1, 8, 0, 0, 0, time.UTC)
+	pos, err := shared.NewDurationMs(12345)
+	if err != nil {
+		t.Fatal(err)
+	}
 	wp := &playback.WatchProgress{
 		ID:           "wp-ts",
 		ProfileID:    "p-1",
 		MediaItemID:  "m-1",
-		PositionMs:   12345,
+		Position:     pos,
 		Completed:    false,
 		PlayCount:    1,
 		LastPlayedAt: last,

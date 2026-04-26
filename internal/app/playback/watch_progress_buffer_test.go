@@ -11,12 +11,24 @@ import (
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	"github.com/evey-project/evey/internal/domain/playback"
 	pbfakes "github.com/evey-project/evey/internal/domain/playback/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// mustDurationMs is a test helper that panics on a negative input — tests
+// that pass real (non-negative) literals stay terse without sprinkling
+// error-handling boilerplate at every call site.
+func mustDurationMs(ms int64) shared.Duration {
+	d, err := shared.NewDurationMs(ms)
+	if err != nil {
+		panic(err)
+	}
+	return d
+}
 
 // countingProgressRepo records every Upsert so tests can verify whether the
 // hot path hit the DB. Embeds the fake to keep the rest of the surface intact.
@@ -46,7 +58,7 @@ func TestWatchProgressBuffer_EnqueueDoesNotHitRepo(t *testing.T) {
 		buf.Enqueue(&playback.WatchProgress{
 			ProfileID:    "p1",
 			MediaItemID:  "m1",
-			PositionMs:   int64(i * 1000),
+			Position:     mustDurationMs(int64(i * 1000)),
 			LastPlayedAt: time.Now(),
 		})
 	}
@@ -61,9 +73,9 @@ func TestWatchProgressBuffer_FlushPersistsLatestPerKey(t *testing.T) {
 	repo := newCountingProgressRepo()
 	buf := appplayback.NewWatchProgressBuffer(repo, time.Hour) // no auto-tick
 
-	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", PositionMs: 1000, LastPlayedAt: time.Now()})
-	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", PositionMs: 5000, LastPlayedAt: time.Now()})
-	buf.Enqueue(&playback.WatchProgress{ProfileID: "p2", MediaItemID: "m2", PositionMs: 2000, LastPlayedAt: time.Now()})
+	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", Position: mustDurationMs(1000), LastPlayedAt: time.Now()})
+	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", Position: mustDurationMs(5000), LastPlayedAt: time.Now()})
+	buf.Enqueue(&playback.WatchProgress{ProfileID: "p2", MediaItemID: "m2", Position: mustDurationMs(2000), LastPlayedAt: time.Now()})
 
 	n := buf.Flush(context.Background())
 	assert.Equal(t, 2, n)
@@ -71,11 +83,11 @@ func TestWatchProgressBuffer_FlushPersistsLatestPerKey(t *testing.T) {
 
 	wp1, err := repo.GetByProfileAndMedia(context.Background(), "p1", "m1")
 	require.NoError(t, err)
-	assert.Equal(t, int64(5000), wp1.PositionMs, "latest position wins")
+	assert.Equal(t, int64(5000), wp1.Position.Milliseconds(), "latest position wins")
 
 	wp2, err := repo.GetByProfileAndMedia(context.Background(), "p2", "m2")
 	require.NoError(t, err)
-	assert.Equal(t, int64(2000), wp2.PositionMs)
+	assert.Equal(t, int64(2000), wp2.Position.Milliseconds())
 }
 
 func TestWatchProgressBuffer_PeriodicFlush(t *testing.T) {
@@ -88,7 +100,7 @@ func TestWatchProgressBuffer_PeriodicFlush(t *testing.T) {
 	buf.Start(ctx)
 	defer buf.Stop()
 
-	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", PositionMs: 1000, LastPlayedAt: time.Now()})
+	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", Position: mustDurationMs(1000), LastPlayedAt: time.Now()})
 
 	require.Eventually(t, func() bool {
 		return repo.Calls() >= 1 && buf.Pending() == 0
@@ -105,7 +117,7 @@ func TestWatchProgressBuffer_StopFlushesPending(t *testing.T) {
 	defer cancel()
 	buf.Start(ctx)
 
-	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", PositionMs: 9000, LastPlayedAt: time.Now()})
+	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", Position: mustDurationMs(9000), LastPlayedAt: time.Now()})
 	require.Equal(t, int64(0), repo.Calls(), "ticker should not have fired yet")
 
 	buf.Stop()
@@ -113,7 +125,7 @@ func TestWatchProgressBuffer_StopFlushesPending(t *testing.T) {
 	assert.Equal(t, int64(1), repo.Calls(), "Stop must drain pending writes")
 	wp, err := repo.GetByProfileAndMedia(context.Background(), "p1", "m1")
 	require.NoError(t, err)
-	assert.Equal(t, int64(9000), wp.PositionMs)
+	assert.Equal(t, int64(9000), wp.Position.Milliseconds())
 }
 
 func TestWatchProgressBuffer_CtxCancelTriggersFinalFlush(t *testing.T) {
@@ -124,7 +136,7 @@ func TestWatchProgressBuffer_CtxCancelTriggersFinalFlush(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	buf.Start(ctx)
 
-	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", PositionMs: 4242, LastPlayedAt: time.Now()})
+	buf.Enqueue(&playback.WatchProgress{ProfileID: "p1", MediaItemID: "m1", Position: mustDurationMs(4242), LastPlayedAt: time.Now()})
 	cancel()
 
 	// Stop blocks on the goroutine's defer-flush, so by the time it returns
@@ -188,7 +200,7 @@ func TestWatchProgressBuffer_ConcurrentEnqueueAndFlush(t *testing.T) {
 				buf.Enqueue(&playback.WatchProgress{
 					ProfileID:    "p1",
 					MediaItemID:  "m1",
-					PositionMs:   int64(w*1000 + i),
+					Position:     mustDurationMs(int64(w*1000 + i)),
 					LastPlayedAt: time.Now(),
 				})
 			}
@@ -231,7 +243,7 @@ func TestCommandService_ReportProgressBySession_BuffersWrite(t *testing.T) {
 	assert.Equal(t, 1, persisted)
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
-	assert.Equal(t, int64(15000), wp.PositionMs, "latest position wins after fold")
+	assert.Equal(t, int64(15000), wp.Position.Milliseconds(), "latest position wins after fold")
 }
 
 func TestCommandService_ReportProgressBySession_NoBufferStaysSynchronous(t *testing.T) {
@@ -289,5 +301,5 @@ func TestCommandService_StartStopProgressFlusher_DrainsOnStop(t *testing.T) {
 	assert.Equal(t, int64(1), pr.Calls(), "graceful stop drains the buffer")
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
-	assert.Equal(t, int64(8000), wp.PositionMs)
+	assert.Equal(t, int64(8000), wp.Position.Milliseconds())
 }

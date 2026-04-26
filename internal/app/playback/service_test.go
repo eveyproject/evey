@@ -58,7 +58,7 @@ func TestUpdateProgress(t *testing.T) {
 
 	wp, err := progressRepo.GetByProfileAndMedia(ctx, "prof-1", "item-1")
 	require.NoError(t, err)
-	assert.Equal(t, int64(30000), wp.PositionMs)
+	assert.Equal(t, int64(30000), wp.Position.Milliseconds())
 	assert.False(t, wp.Completed)
 
 	// update progress further
@@ -67,7 +67,7 @@ func TestUpdateProgress(t *testing.T) {
 
 	wp, err = progressRepo.GetByProfileAndMedia(ctx, "prof-1", "item-1")
 	require.NoError(t, err)
-	assert.Equal(t, int64(60000), wp.PositionMs)
+	assert.Equal(t, int64(60000), wp.Position.Milliseconds())
 	assert.True(t, wp.Completed)
 }
 

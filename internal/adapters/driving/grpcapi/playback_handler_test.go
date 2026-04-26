@@ -25,6 +25,17 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// mustPlaybackDurationMs builds a shared.Duration for tests; failing fast
+// on a negative literal keeps fixtures terse without per-call boilerplate.
+func mustPlaybackDurationMs(t *testing.T, ms int64) shared.Duration {
+	t.Helper()
+	d, err := shared.NewDurationMs(ms)
+	if err != nil {
+		t.Fatalf("NewDurationMs(%d): %v", ms, err)
+	}
+	return d
+}
+
 func newTestPlaybackHandler() (*playbackHandler, *pbfakes.FakePlaySessionRepository, *pbfakes.FakeWatchProgressRepository, *libfakes.FakeMediaItemQueryRepo, *userfakes.FakeProfileRepository, *libfakes.FakeMediaStreamRepository) {
 	progressRepo := pbfakes.NewFakeWatchProgressRepository()
 	sessionRepo := pbfakes.NewFakePlaySessionRepository()
@@ -152,7 +163,7 @@ func TestPlaybackHandler_GetWatchProgress_Exists(t *testing.T) {
 		ID:           "wp-1",
 		ProfileID:    "profile-1",
 		MediaItemID:  "mi-1",
-		PositionMs:   45000,
+		Position:     mustPlaybackDurationMs(t, 45000),
 		Completed:    false,
 		LastPlayedAt: time.Now(),
 	})
@@ -175,7 +186,7 @@ func TestPlaybackHandler_GetResumeItems(t *testing.T) {
 		ID:           "wp-1",
 		ProfileID:    "profile-1",
 		MediaItemID:  "mi-1",
-		PositionMs:   30000,
+		Position:     mustPlaybackDurationMs(t, 30000),
 		Completed:    false,
 		LastPlayedAt: time.Now(),
 	})
@@ -422,11 +433,11 @@ func TestPlaybackHandler_GetWatchHistory(t *testing.T) {
 
 	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
 		ID: "wp-1", ProfileID: "profile-1", MediaItemID: "mi-1",
-		PositionMs: 30000, LastPlayedAt: time.Now(),
+		Position: mustPlaybackDurationMs(t, 30000), LastPlayedAt: time.Now(),
 	})
 	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
 		ID: "wp-2", ProfileID: "profile-1", MediaItemID: "mi-2",
-		PositionMs: 60000, LastPlayedAt: time.Now(),
+		Position: mustPlaybackDurationMs(t, 60000), LastPlayedAt: time.Now(),
 	})
 
 	resp, err := h.GetWatchHistory(ctx, &eveyv1.GetWatchHistoryRequest{Limit: 10})
@@ -449,7 +460,7 @@ func TestPlaybackHandler_GetWatchHistory_Pagination(t *testing.T) {
 	for i := range 5 {
 		progressRepo.Upsert(context.Background(), &playback.WatchProgress{
 			ID: fmt.Sprintf("wp-%d", i), ProfileID: shared.ProfileID("profile-1"),
-			MediaItemID: shared.MediaItemID(fmt.Sprintf("mi-%d", i)), PositionMs: int64(i * 1000),
+			MediaItemID: shared.MediaItemID(fmt.Sprintf("mi-%d", i)), Position: mustPlaybackDurationMs(t, int64(i*1000)),
 			LastPlayedAt: time.Now(),
 		})
 	}
@@ -467,7 +478,7 @@ func TestPlaybackHandler_GetNextUp(t *testing.T) {
 
 	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
 		ID: "wp-1", ProfileID: "profile-1", MediaItemID: "mi-ep1",
-		PositionMs: 30000, Completed: true, LastPlayedAt: time.Now(),
+		Position: mustPlaybackDurationMs(t, 30000), Completed: true, LastPlayedAt: time.Now(),
 	})
 	mediaQuery.Seed(&library.MediaItem{
 		ID: "mi-ep1", Title: "Episode 1", Type: "episode",

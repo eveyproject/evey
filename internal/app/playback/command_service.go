@@ -167,11 +167,14 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	if err := s.sessions.Update(ctx, session); err != nil {
 		return fmt.Errorf("update session position: %w", err)
 	}
+	// WatchProgress.Position is non-negative by construction; on a corrupt
+	// input we already logged above and pos is zero — keep buffering forward
+	// so the player UI can still record "session is alive" via IsPaused.
 	wp := &playback.WatchProgress{
 		ID:           id.New("wp-"),
 		ProfileID:    session.ProfileID,
 		MediaItemID:  session.MediaItemID,
-		PositionMs:   positionMs,
+		Position:     pos,
 		Completed:    false,
 		LastPlayedAt: time.Now(),
 	}
@@ -193,11 +196,15 @@ func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaIte
 	if err := s.validateProfile(ctx, shared.ProfileID(profileID)); err != nil {
 		return err
 	}
+	pos, dErr := shared.NewDurationMs(positionMs)
+	if dErr != nil {
+		slog.Warn("invalid report progress position", slog.String("profileID", profileID), slog.Int64("ms", positionMs), slog.Any("err", dErr))
+	}
 	wp := &playback.WatchProgress{
 		ID:           id.New("wp-"),
 		ProfileID:    shared.ProfileID(profileID),
 		MediaItemID:  shared.MediaItemID(mediaItemID),
-		PositionMs:   positionMs,
+		Position:     pos,
 		Completed:    completed,
 		LastPlayedAt: time.Now(),
 	}
@@ -309,7 +316,6 @@ func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaIt
 		ProfileID:    shared.ProfileID(profileID),
 		MediaItemID:  shared.MediaItemID(mediaItemID),
 		Completed:    false,
-		PositionMs:   0,
 		PlayCount:    0,
 		LastPlayedAt: time.Now(),
 	}

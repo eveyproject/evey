@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -13,6 +14,20 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
+
+// scanWatchProgressPosition converts the position_ms column (NOT NULL,
+// see migration 015) into the domain shared.Duration. A negative stored
+// value would indicate row corruption; we log and clamp to zero rather
+// than failing the whole read so the rest of the watch history stays
+// useful for the caller.
+func scanWatchProgressPosition(wpID string, raw int64) shared.Duration {
+	d, err := shared.NewDurationMs(raw)
+	if err != nil {
+		slog.Warn("invalid position_ms in watch_progress row", slog.String("watchProgressID", wpID), slog.Int64("ms", raw), slog.Any("err", err))
+		return shared.Duration{}
+	}
+	return d
+}
 
 type WatchProgressRepository struct {
 	db *sql.DB
@@ -39,7 +54,7 @@ func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.Watch
 		   completed = EXCLUDED.completed,
 		   play_count = EXCLUDED.play_count,
 		   last_played_at = EXCLUDED.last_played_at`,
-		wp.ID, wp.ProfileID, wp.MediaItemID, wp.PositionMs, wp.Completed, wp.PlayCount, wp.LastPlayedAt,
+		wp.ID, wp.ProfileID, wp.MediaItemID, wp.Position.Milliseconds(), wp.Completed, wp.PlayCount, wp.LastPlayedAt,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -59,10 +74,11 @@ func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, prof
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	wp := &playback.WatchProgress{}
+	var positionMs int64
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
 		 FROM watch_progress WHERE profile_id = $1 AND media_item_id = $2`, profileID, mediaItemID,
-	).Scan(&wp.ID, &wp.ProfileID, &wp.MediaItemID, &wp.PositionMs, &wp.Completed, &wp.PlayCount, &wp.LastPlayedAt)
+	).Scan(&wp.ID, &wp.ProfileID, &wp.MediaItemID, &positionMs, &wp.Completed, &wp.PlayCount, &wp.LastPlayedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		span.RecordError(shared.ErrNotFound)
 		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
@@ -73,6 +89,7 @@ func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, prof
 		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("WatchProgressRepo.GetByProfileAndMedia: %w", err)
 	}
+	wp.Position = scanWatchProgressPosition(wp.ID, positionMs)
 	return wp, nil
 }
 
@@ -206,9 +223,11 @@ func (r *WatchProgressRepository) scanWatchProgressRows(rows *sql.Rows) ([]*play
 	var result []*playback.WatchProgress
 	for rows.Next() {
 		wp := &playback.WatchProgress{}
-		if err := rows.Scan(&wp.ID, &wp.ProfileID, &wp.MediaItemID, &wp.PositionMs, &wp.Completed, &wp.PlayCount, &wp.LastPlayedAt); err != nil {
+		var positionMs int64
+		if err := rows.Scan(&wp.ID, &wp.ProfileID, &wp.MediaItemID, &positionMs, &wp.Completed, &wp.PlayCount, &wp.LastPlayedAt); err != nil {
 			return nil, fmt.Errorf("WatchProgressRepo.scanRows: %w", err)
 		}
+		wp.Position = scanWatchProgressPosition(wp.ID, positionMs)
 		result = append(result, wp)
 	}
 	if err := rows.Err(); err != nil {

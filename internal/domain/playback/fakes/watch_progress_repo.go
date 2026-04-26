@@ -126,7 +126,7 @@ func (r *FakeWatchProgressRepository) GetResumeItems(_ context.Context, profileI
 	}
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
-		if string(wp.ProfileID) == profileID && !wp.Completed && wp.PositionMs > 0 {
+		if string(wp.ProfileID) == profileID && !wp.Completed && !wp.Position.IsZero() {
 			result = append(result, wp)
 		}
 	}
