@@ -243,6 +243,7 @@ func (r *FakeMediaItemQueryRepo) SeriesAggregate(_ context.Context, seriesID sha
 	visited := map[string]bool{string(seriesID): true}
 	queue := []string{string(seriesID)}
 	var agg library.SeriesAggregate
+	var totalMs int64
 	seasons := make(map[string]bool)
 	for len(queue) > 0 {
 		parent := queue[0]
@@ -258,7 +259,7 @@ func (r *FakeMediaItemQueryRepo) SeriesAggregate(_ context.Context, seriesID sha
 			queue = append(queue, string(item.ID))
 			if string(item.Type) == "episode" {
 				if item.File != nil && !item.File.Duration.IsZero() {
-					agg.TotalDurationMs += item.File.Duration.Milliseconds()
+					totalMs += item.File.Duration.Milliseconds()
 				}
 				agg.EpisodeCount++
 				if item.ParentID != "" {
@@ -268,6 +269,11 @@ func (r *FakeMediaItemQueryRepo) SeriesAggregate(_ context.Context, seriesID sha
 		}
 	}
 	agg.SeasonCount = len(seasons)
+	dur, derr := shared.NewDurationMs(totalMs)
+	if derr != nil {
+		return library.SeriesAggregate{}, derr
+	}
+	agg.TotalDuration = dur
 	return agg, nil
 }
 

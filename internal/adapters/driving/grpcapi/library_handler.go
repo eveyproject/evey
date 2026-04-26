@@ -297,7 +297,7 @@ func (h *libraryHandler) GetSeriesAggregate(ctx context.Context, req *eveyv1.Get
 	}
 	return &eveyv1.SeriesAggregate{
 		SeriesId:        req.Id,
-		TotalDurationMs: agg.TotalDurationMs,
+		TotalDurationMs: agg.TotalDuration.Milliseconds(),
 		EpisodeCount:    int32(agg.EpisodeCount),
 		SeasonCount:     int32(agg.SeasonCount),
 	}, nil

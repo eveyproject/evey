@@ -339,6 +339,7 @@ func (r *MediaItemRepository) SeriesAggregate(ctx context.Context, seriesID shar
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var agg library.SeriesAggregate
+	var totalMs int64
 	err := r.db.QueryRowContext(ctx, `
 		WITH RECURSIVE descendants AS (
 		  SELECT id, parent_id, type FROM media_items WHERE id = $1
@@ -352,10 +353,15 @@ func (r *MediaItemRepository) SeriesAggregate(ctx context.Context, seriesID shar
 		  COUNT(DISTINCT d.parent_id) FILTER (WHERE d.type = 'episode') AS season_count
 		FROM descendants d
 		LEFT JOIN media_files mf ON mf.media_item_id = d.id`,
-		string(seriesID)).Scan(&agg.TotalDurationMs, &agg.EpisodeCount, &agg.SeasonCount)
+		string(seriesID)).Scan(&totalMs, &agg.EpisodeCount, &agg.SeasonCount)
 	if err != nil {
 		return library.SeriesAggregate{}, fmt.Errorf("MediaItemRepo.SeriesAggregate: %w", err)
 	}
+	dur, derr := shared.NewDurationMs(totalMs)
+	if derr != nil {
+		return library.SeriesAggregate{}, fmt.Errorf("MediaItemRepo.SeriesAggregate: build duration: %w", derr)
+	}
+	agg.TotalDuration = dur
 	return agg, nil
 }
 

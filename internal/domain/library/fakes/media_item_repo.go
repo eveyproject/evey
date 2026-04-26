@@ -167,6 +167,7 @@ func (r *FakeMediaItemRepository) SeriesAggregate(_ context.Context, seriesID sh
 	}
 	agg := library.SeriesAggregate{}
 	seasonIDs := map[string]bool{}
+	var totalMs int64
 	for _, item := range r.items {
 		if !want[string(item.ID)] {
 			continue
@@ -176,13 +177,18 @@ func (r *FakeMediaItemRepository) SeriesAggregate(_ context.Context, seriesID sh
 		}
 		agg.EpisodeCount++
 		if item.File != nil && !item.File.Duration.IsZero() {
-			agg.TotalDurationMs += item.File.Duration.Milliseconds()
+			totalMs += item.File.Duration.Milliseconds()
 		}
 		if item.ParentID != "" {
 			seasonIDs[item.ParentID] = true
 		}
 	}
 	agg.SeasonCount = len(seasonIDs)
+	dur, derr := shared.NewDurationMs(totalMs)
+	if derr != nil {
+		return library.SeriesAggregate{}, derr
+	}
+	agg.TotalDuration = dur
 	return agg, nil
 }
 

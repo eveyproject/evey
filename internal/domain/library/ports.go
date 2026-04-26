@@ -65,9 +65,9 @@ type MediaItemRepository interface {
 // SeriesAggregate is the denormalized runtime view of a series computed on the
 // fly. Season count is the distinct parent_ids of the counted episodes.
 type SeriesAggregate struct {
-	TotalDurationMs int64
-	EpisodeCount    int
-	SeasonCount     int
+	TotalDuration shared.Duration
+	EpisodeCount  int
+	SeasonCount   int
 }
 
 // MediaStreamQueryRepo is the read-only subset of MediaStreamRepository for
