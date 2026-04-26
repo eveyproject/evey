@@ -152,7 +152,7 @@ Mapping per mode:
 
 Implementation deps:
 
-- `apk add bubblewrap` in `Dockerfile` (community repo, ~200 KB).
+- `apk add bubblewrap` in `Dockerfile` (community repo, ~200 KB) — **done**, present in runtime image.
 - Linux kernel `unprivileged_userns_clone=1` (Alpine ≥3.18 default).
 - Docker users may need `--security-opt seccomp=unconfined` or `--cap-add SYS_ADMIN` if their host seccomp profile blocks `clone(CLONE_NEWUSER)`.
 
