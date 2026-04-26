@@ -2,6 +2,7 @@ package transcoding_test
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -12,6 +13,29 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// readDirSignalFS wraps an osFS-like impl and signals (once) on the first
+// ReadDir invocation. Tests use this to wait deterministically for the
+// evictor's Run loop to enter EvictOnce instead of sleeping for a magic
+// duration.
+type readDirSignalFS struct {
+	called chan struct{}
+	once   bool
+}
+
+func (f *readDirSignalFS) ReadDir(path string) ([]os.DirEntry, error) {
+	if !f.once {
+		f.once = true
+		close(f.called)
+	}
+	return os.ReadDir(path)
+}
+
+func (f *readDirSignalFS) WalkDir(root string, fn fs.WalkDirFunc) error {
+	return filepath.WalkDir(root, fn)
+}
+
+func (f *readDirSignalFS) RemoveAll(path string) error { return os.RemoveAll(path) }
 
 // writeSubdir creates root/<name>/blob with size bytes and forces both file
 // and directory modtimes to mt so the LRU ordering is deterministic.
@@ -100,7 +124,10 @@ func TestCacheEvictor_DisabledWhenMaxGBZero(t *testing.T) {
 func TestCacheEvictor_RunStopsOnContextCancel(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	e := transcoding.NewCacheEvictor(root, 1, 50*time.Millisecond)
+	signalFS := &readDirSignalFS{called: make(chan struct{})}
+	// Tight tick interval so the first tick fires quickly; signalFS lets
+	// us observe it deterministically without sleeping.
+	e := transcoding.NewCacheEvictor(root, 1, 5*time.Millisecond, transcoding.WithFileSystem(signalFS))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -109,8 +136,13 @@ func TestCacheEvictor_RunStopsOnContextCancel(t *testing.T) {
 		close(done)
 	}()
 
-	// Give the loop one or two ticks then cancel.
-	time.Sleep(120 * time.Millisecond)
+	// Wait deterministically until the loop has actually run one tick
+	// (proves Run entered its select), then cancel and verify Run returns.
+	select {
+	case <-signalFS.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("evictor never invoked ReadDir; ticker never fired")
+	}
 	cancel()
 
 	select {

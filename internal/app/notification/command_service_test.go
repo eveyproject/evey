@@ -3,6 +3,7 @@ package notification_test
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
@@ -129,9 +130,13 @@ func TestCommandService_StartCleanup_ExitsOnCtxDone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	svc.StartCleanup(ctx)
 	cancel()
-	// allow goroutine to exit
-	time.Sleep(50 * time.Millisecond)
-	// No way to directly observe goroutine exit, but -race will catch leaks/issues.
+	// Wait deterministically for the cancellation to propagate, then yield
+	// the scheduler so the cleanup goroutine has a chance to observe
+	// ctx.Done() and return. -race covers actual leak detection.
+	<-ctx.Done()
+	for i := 0; i < 100; i++ {
+		runtime.Gosched()
+	}
 }
 
 func TestCommandService_Start_StopsOnCtxDone(t *testing.T) {
@@ -140,7 +145,13 @@ func TestCommandService_Start_StopsOnCtxDone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	svc.Start(ctx)
 	cancel()
-	time.Sleep(50 * time.Millisecond)
+	// Wait deterministically for the cancellation to propagate, then yield
+	// the scheduler so the dedupe-cleanup goroutine can observe ctx.Done()
+	// and return. -race covers actual leak detection.
+	<-ctx.Done()
+	for i := 0; i < 100; i++ {
+		runtime.Gosched()
+	}
 }
 
 func TestCommandService_Start_StopsOnStop(t *testing.T) {
@@ -253,14 +264,15 @@ func TestCommandService_FlushBatches_FlushesPending(t *testing.T) {
 	assert.Empty(t, items, "batched event should not be emitted before flush")
 
 	svc.FlushBatches()
-	// small wait for async persistAndDispatch
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		items, _ = repo.ListByProfile(ctx, "p1", false, 0, 0)
-		if len(items) > 0 {
-			break
+	// Wait deterministically for async persistAndDispatch to materialize
+	// the batched notification. Replaces a hand-rolled poll-with-sleep loop.
+	require.Eventually(t, func() bool {
+		got, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+		if err != nil {
+			return false
 		}
-		time.Sleep(10 * time.Millisecond)
-	}
+		items = got
+		return len(items) > 0
+	}, 2*time.Second, 5*time.Millisecond)
 	assert.Len(t, items, 1)
 }
