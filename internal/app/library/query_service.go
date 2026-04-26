@@ -6,6 +6,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type QueryServiceOption func(*QueryService)
@@ -64,6 +65,8 @@ func NewQueryService(
 }
 
 func (s *QueryService) GetMediaItemTranslation(ctx context.Context, mediaItemID, locale string) (*library.MediaItemTranslation, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetMediaItemTranslation")
+	defer span.End()
 	if s.mediaTranslations == nil {
 		return nil, shared.ErrNotConfigured
 	}
@@ -71,6 +74,8 @@ func (s *QueryService) GetMediaItemTranslation(ctx context.Context, mediaItemID,
 }
 
 func (s *QueryService) GetPersonTranslation(ctx context.Context, personID, locale string) (*library.PersonTranslation, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetPersonTranslation")
+	defer span.End()
 	if s.personTranslations == nil {
 		return nil, shared.ErrNotConfigured
 	}
@@ -78,6 +83,8 @@ func (s *QueryService) GetPersonTranslation(ctx context.Context, personID, local
 }
 
 func (s *QueryService) GetPerson(ctx context.Context, id string) (*library.Person, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetPerson")
+	defer span.End()
 	if s.people == nil {
 		return nil, shared.ErrNotConfigured
 	}
@@ -85,18 +92,26 @@ func (s *QueryService) GetPerson(ctx context.Context, id string) (*library.Perso
 }
 
 func (s *QueryService) GetLibrary(ctx context.Context, id string) (*library.Library, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetLibrary")
+	defer span.End()
 	return s.libraries.GetByID(ctx, shared.LibraryID(id))
 }
 
 func (s *QueryService) ListLibraries(ctx context.Context) ([]*library.Library, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.ListLibraries")
+	defer span.End()
 	return s.libraries.List(ctx, library.ListLibrariesFilter{})
 }
 
 func (s *QueryService) GetMediaItem(ctx context.Context, id string) (*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetMediaItem")
+	defer span.End()
 	return s.mediaItems.GetByID(ctx, shared.MediaItemID(id))
 }
 
 func (s *QueryService) GetMediaItemsByIDs(ctx context.Context, ids []string) ([]*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetMediaItemsByIDs")
+	defer span.End()
 	typedIDs := make([]shared.MediaItemID, len(ids))
 	for i, id := range ids {
 		typedIDs[i] = shared.MediaItemID(id)
@@ -105,18 +120,26 @@ func (s *QueryService) GetMediaItemsByIDs(ctx context.Context, ids []string) ([]
 }
 
 func (s *QueryService) ListMediaItems(ctx context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.ListMediaItems")
+	defer span.End()
 	return s.mediaItems.List(ctx, filter)
 }
 
 func (s *QueryService) CountMediaItems(ctx context.Context, filter library.ListMediaItemsFilter) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.CountMediaItems")
+	defer span.End()
 	return s.mediaItems.Count(ctx, filter)
 }
 
 func (s *QueryService) GetCast(ctx context.Context, mediaItemID string) ([]library.CastMember, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetCast")
+	defer span.End()
 	return s.mediaItems.GetCastByMediaItem(ctx, shared.MediaItemID(mediaItemID))
 }
 
 func (s *QueryService) GetCastForItems(ctx context.Context, mediaItemIDs []string) (map[string][]library.CastMember, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetCastForItems")
+	defer span.End()
 	typedIDs := make([]shared.MediaItemID, len(mediaItemIDs))
 	for i, id := range mediaItemIDs {
 		typedIDs[i] = shared.MediaItemID(id)
@@ -133,14 +156,20 @@ func (s *QueryService) GetCastForItems(ctx context.Context, mediaItemIDs []strin
 }
 
 func (s *QueryService) GetSeriesAggregate(ctx context.Context, seriesID string) (library.SeriesAggregate, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetSeriesAggregate")
+	defer span.End()
 	return s.mediaItems.SeriesAggregate(ctx, shared.MediaItemID(seriesID))
 }
 
 func (s *QueryService) GetMediaStreams(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetMediaStreams")
+	defer span.End()
 	return s.streams.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
 }
 
 func (s *QueryService) GetChapters(ctx context.Context, mediaItemID string) ([]*library.Chapter, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetChapters")
+	defer span.End()
 	if s.chapters == nil {
 		return []*library.Chapter{}, nil
 	}
@@ -148,6 +177,8 @@ func (s *QueryService) GetChapters(ctx context.Context, mediaItemID string) ([]*
 }
 
 func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetTrickplayManifest")
+	defer span.End()
 	if s.trickplay == nil {
 		return nil, errors.New("trickplay not configured")
 	}
@@ -155,5 +186,7 @@ func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID str
 }
 
 func (s *QueryService) SearchMedia(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.SearchMedia")
+	defer span.End()
 	return s.search.Search(ctx, query, filters, sort, limit)
 }

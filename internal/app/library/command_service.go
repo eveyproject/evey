@@ -11,6 +11,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type CommandServiceOption func(*CommandService)
@@ -196,6 +197,8 @@ func (s *CommandService) StartBackgroundGeneration(ctx context.Context) {
 // --- Direct methods (library CRUD) ---
 
 func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library) error {
+	ctx, span := tracing.StartSpan(ctx, "app.library.CreateLibrary")
+	defer span.End()
 	if err := lib.Validate(); err != nil {
 		return fmt.Errorf("create library: %w", err)
 	}
@@ -218,6 +221,8 @@ func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library
 }
 
 func (s *CommandService) UpdateLibrary(ctx context.Context, lib *library.Library) error {
+	ctx, span := tracing.StartSpan(ctx, "app.library.UpdateLibrary")
+	defer span.End()
 	lib.UpdatedAt = time.Now()
 	if err := s.libraries.Update(ctx, lib); err != nil {
 		return fmt.Errorf("update library: %w", err)
@@ -226,6 +231,8 @@ func (s *CommandService) UpdateLibrary(ctx context.Context, lib *library.Library
 }
 
 func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.library.DeleteLibrary")
+	defer span.End()
 	if err := s.libraries.Delete(ctx, shared.LibraryID(id)); err != nil {
 		return fmt.Errorf("delete library: %w", err)
 	}
@@ -240,6 +247,8 @@ func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
 }
 
 func (s *CommandService) DeleteMediaItem(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.library.DeleteMediaItem")
+	defer span.End()
 	if err := s.mediaItems.Delete(ctx, shared.MediaItemID(id)); err != nil {
 		return fmt.Errorf("CommandService.DeleteMediaItem: %w", err)
 	}

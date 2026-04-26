@@ -15,6 +15,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const (
@@ -139,6 +140,8 @@ func WithSetupRegion(region string) SetupOption {
 }
 
 func (s *CommandService) Setup(ctx context.Context, username, password, email string, opts ...SetupOption) (*user.User, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.Setup")
+	defer span.End()
 	var cfg setupOptions
 	for _, fn := range opts {
 		fn(&cfg)
@@ -205,6 +208,8 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 }
 
 func (s *CommandService) Login(ctx context.Context, username, password string, ttlOverride ...time.Duration) (accessToken, refreshToken string, err error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.Login")
+	defer span.End()
 	username = strings.TrimSpace(username)
 	password = strings.TrimSpace(password)
 	locked, lockErr := s.loginAttempts.IsLocked(ctx, username)
@@ -290,6 +295,8 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 }
 
 func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID string, ttlOverride ...time.Duration) (accessToken, refreshToken string, err error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.GenerateTokensForUser")
+	defer span.End()
 	u, err := s.users.GetByID(ctx, shared.UserID(userID))
 	if err != nil {
 		return "", "", fmt.Errorf("user not found: %w", err)
@@ -349,6 +356,8 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 // requestedProfileID (optional) activates a specific profile on the new access
 // token; must belong to the refreshing user or the refresh is rejected.
 func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfileID string, ttlOverride ...time.Duration) (string, string, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.RefreshToken")
+	defer span.End()
 	rt, err := s.claimRefreshToken(ctx, token)
 	if err != nil {
 		return "", "", err
@@ -498,6 +507,8 @@ func (s *CommandService) lookupProfileLocale(ctx context.Context, profileID stri
 }
 
 func (s *CommandService) Logout(ctx context.Context, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.Logout")
+	defer span.End()
 	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
 		return fmt.Errorf("CommandService.Logout: %w", err)
 	}
@@ -592,6 +603,8 @@ func (s *CommandService) IsPasswordRecoveryEnabled(ctx context.Context) bool {
 const passwordResetTokenTTL = 30 * time.Minute
 
 func (s *CommandService) RequestPasswordReset(ctx context.Context, email string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.RequestPasswordReset")
+	defer span.End()
 	if !s.IsPasswordRecoveryEnabled(ctx) {
 		return ErrPasswordRecoveryDisabled
 	}
@@ -643,6 +656,8 @@ func (s *CommandService) RequestPasswordReset(ctx context.Context, email string)
 }
 
 func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPassword string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.ResetPassword")
+	defer span.End()
 	if s.resetTokens == nil {
 		return ErrResetTokenInvalid
 	}

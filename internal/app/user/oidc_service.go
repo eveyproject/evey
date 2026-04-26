@@ -19,6 +19,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 var ErrOIDCDisabled = errors.New("OIDC not enabled")
@@ -160,6 +161,8 @@ func (s *OIDCService) signState(nonce string) string {
 // HandleCallback exchanges the code, verifies the ID token, finds/creates the user,
 // and returns Evey access + refresh tokens plus the raw OIDC id_token for RP-Initiated Logout.
 func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessToken, refreshToken, rawOIDCIDToken string, err error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.HandleCallback")
+	defer span.End()
 	oauth2Token, err := s.oauth2Cfg.Exchange(ctx, code)
 	if err != nil {
 		return "", "", "", fmt.Errorf("token exchange: %w", err)

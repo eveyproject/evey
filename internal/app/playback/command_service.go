@@ -10,6 +10,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type CommandService struct {
@@ -70,6 +71,8 @@ func (s *CommandService) validateProfile(ctx context.Context, profileID shared.P
 }
 
 func (s *CommandService) StartStream(ctx context.Context, session *playback.PlaySession, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.StartStream")
+	defer span.End()
 	if err := session.Validate(); err != nil {
 		return fmt.Errorf("invalid play session: %w", err)
 	}
@@ -126,6 +129,8 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 }
 
 func (s *CommandService) StopStream(ctx context.Context, sessionID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.StopStream")
+	defer span.End()
 	session, err := s.sessionQueries.GetByID(ctx, sessionID)
 	if err != nil {
 		return ErrSessionNotFound
@@ -151,6 +156,8 @@ func (s *CommandService) StopStream(ctx context.Context, sessionID string) error
 }
 
 func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID string, positionMs int64, isPaused bool) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.ReportProgressBySession")
+	defer span.End()
 	session, err := s.sessionQueries.GetByID(ctx, sessionID)
 	if err != nil {
 		return ErrSessionNotFound
@@ -194,6 +201,8 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 }
 
 func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaItemID string, positionMs int64, completed bool) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.ReportProgress")
+	defer span.End()
 	if err := s.validateProfile(ctx, shared.ProfileID(profileID)); err != nil {
 		return err
 	}
@@ -216,6 +225,8 @@ func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaIte
 }
 
 func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.MarkAsWatched")
+	defer span.End()
 	if err := s.validateProfile(ctx, shared.ProfileID(profileID)); err != nil {
 		return err
 	}
@@ -242,18 +253,26 @@ func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItem
 }
 
 func (s *CommandService) GetSession(ctx context.Context, sessionID string) (*playback.PlaySession, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.GetSession")
+	defer span.End()
 	return s.sessionQueries.GetByID(ctx, sessionID)
 }
 
 func (s *CommandService) SetRemoteCommand(ctx context.Context, sessionID, command string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.SetRemoteCommand")
+	defer span.End()
 	return s.sessions.SetRemoteCommand(ctx, sessionID, command)
 }
 
 func (s *CommandService) ConsumeRemoteCommand(ctx context.Context, sessionID string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.ConsumeRemoteCommand")
+	defer span.End()
 	return s.sessions.ConsumeRemoteCommand(ctx, sessionID)
 }
 
 func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.Duration) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.CleanupStaleSessions")
+	defer span.End()
 	return s.sessions.CloseStale(ctx, maxAge)
 }
 
@@ -309,6 +328,8 @@ func (s *CommandService) runCleanup(ctx context.Context, maxAge time.Duration) {
 }
 
 func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.MarkAsUnwatched")
+	defer span.End()
 	if err := s.validateProfile(ctx, shared.ProfileID(profileID)); err != nil {
 		return err
 	}

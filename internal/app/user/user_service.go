@@ -9,6 +9,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type UserService struct {
@@ -79,6 +80,8 @@ func (s *UserService) resolveDefaultLocale() string {
 }
 
 func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *user.User, password string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.CreateUser")
+	defer span.End()
 	if !callerIsAdmin {
 		return ErrNotAdmin
 	}
@@ -129,6 +132,8 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 }
 
 func (s *UserService) UpdateUser(ctx context.Context, u *user.User) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.UpdateUser")
+	defer span.End()
 	u.UpdatedAt = time.Now()
 	if err := s.users.Update(ctx, u); err != nil {
 		return fmt.Errorf("UserService.UpdateUser: %w", err)
@@ -137,6 +142,8 @@ func (s *UserService) UpdateUser(ctx context.Context, u *user.User) error {
 }
 
 func (s *UserService) SetUserBitrateLimit(ctx context.Context, userID string, maxBitrateKbps int) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.SetUserBitrateLimit")
+	defer span.End()
 	u, err := s.users.GetByID(ctx, shared.UserID(userID))
 	if err != nil {
 		return fmt.Errorf("UserService.SetUserBitrateLimit: %w", err)
@@ -150,6 +157,8 @@ func (s *UserService) SetUserBitrateLimit(ctx context.Context, userID string, ma
 }
 
 func (s *UserService) ChangePassword(ctx context.Context, userID, newPassword string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.ChangePassword")
+	defer span.End()
 	if len(newPassword) < 8 {
 		return ErrPasswordTooShort
 	}
@@ -177,6 +186,8 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, newPassword st
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.DeleteUser")
+	defer span.End()
 	u, err := s.users.GetByID(ctx, shared.UserID(userID))
 	if err != nil {
 		return fmt.Errorf("UserService.DeleteUser: %w", err)
@@ -204,6 +215,8 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 }
 
 func (s *UserService) DisableUser(ctx context.Context, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.DisableUser")
+	defer span.End()
 	u, err := s.users.GetByID(ctx, shared.UserID(userID))
 	if err != nil {
 		return fmt.Errorf("UserService.DisableUser: %w", err)
@@ -235,6 +248,8 @@ func (s *UserService) DisableUser(ctx context.Context, userID string) error {
 // EnableUser re-enables a previously-disabled account. Idempotent if already
 // enabled. Publishes UserEnabled for audit-trail symmetry with UserDisabled.
 func (s *UserService) EnableUser(ctx context.Context, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.EnableUser")
+	defer span.End()
 	u, err := s.users.GetByID(ctx, shared.UserID(userID))
 	if err != nil {
 		return fmt.Errorf("UserService.EnableUser: %w", err)
@@ -252,6 +267,8 @@ func (s *UserService) EnableUser(ctx context.Context, userID string) error {
 }
 
 func (s *UserService) CreateProfile(ctx context.Context, p *user.Profile) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.CreateProfile")
+	defer span.End()
 	if err := p.Validate(); err != nil {
 		return fmt.Errorf("invalid profile: %w", err)
 	}
@@ -270,6 +287,8 @@ func (s *UserService) CreateProfile(ctx context.Context, p *user.Profile) error 
 }
 
 func (s *UserService) UpdateProfile(ctx context.Context, p *user.Profile) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.UpdateProfile")
+	defer span.End()
 	if err := s.checkProfileInvariants(ctx, p, true); err != nil {
 		return err
 	}
@@ -284,6 +303,8 @@ func (s *UserService) UpdateProfile(ctx context.Context, p *user.Profile) error 
 // the service only enforces the data invariant that exactly one profile per
 // user holds is_default=true.
 func (s *UserService) SetDefaultProfile(ctx context.Context, profileID shared.ProfileID) (*user.Profile, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.SetDefaultProfile")
+	defer span.End()
 	target, err := s.profiles.GetByID(ctx, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("UserService.SetDefaultProfile: %w", err)
@@ -341,6 +362,8 @@ func (s *UserService) checkProfileInvariants(ctx context.Context, p *user.Profil
 }
 
 func (s *UserService) DeleteProfile(ctx context.Context, profileID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.DeleteProfile")
+	defer span.End()
 	p, err := s.profiles.GetByID(ctx, shared.ProfileID(profileID))
 	if err != nil {
 		return fmt.Errorf("UserService.DeleteProfile: %w", err)

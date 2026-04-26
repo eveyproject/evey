@@ -10,6 +10,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type AccessService struct {
@@ -73,6 +74,8 @@ func NewAccessService(
 }
 
 func (s *AccessService) CreateInviteLink(ctx context.Context, link *user.InviteLink) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.CreateInviteLink")
+	defer span.End()
 	if err := link.Validate(); err != nil {
 		return fmt.Errorf("invalid invite link: %w", err)
 	}
@@ -84,6 +87,8 @@ func (s *AccessService) CreateInviteLink(ctx context.Context, link *user.InviteL
 }
 
 func (s *AccessService) RevokeInviteLink(ctx context.Context, inviteID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.RevokeInviteLink")
+	defer span.End()
 	if err := s.invites.Delete(ctx, inviteID); err != nil {
 		return fmt.Errorf("AccessService.RevokeInviteLink: %w", err)
 	}
@@ -91,6 +96,8 @@ func (s *AccessService) RevokeInviteLink(ctx context.Context, inviteID string) e
 }
 
 func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username, password, email string) (*user.User, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.RegisterWithInvite")
+	defer span.End()
 	if len(password) < 8 {
 		return nil, ErrPasswordTooShort
 	}
@@ -198,6 +205,8 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 }
 
 func (s *AccessService) InitiateQuickConnect(ctx context.Context, req *user.QuickConnectRequest) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.InitiateQuickConnect")
+	defer span.End()
 	req.CreatedAt = time.Now()
 	if err := s.quickConnect.Create(ctx, req); err != nil {
 		return fmt.Errorf("AccessService.InitiateQuickConnect: %w", err)
@@ -206,6 +215,8 @@ func (s *AccessService) InitiateQuickConnect(ctx context.Context, req *user.Quic
 }
 
 func (s *AccessService) AuthorizeQuickConnect(ctx context.Context, code string, userID string) (fullCode string, err error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.AuthorizeQuickConnect")
+	defer span.End()
 	req, err := s.quickConnect.GetByCode(ctx, code)
 	if err != nil {
 		return "", fmt.Errorf("AccessService.AuthorizeQuickConnect: %w", err)
@@ -217,6 +228,8 @@ func (s *AccessService) AuthorizeQuickConnect(ctx context.Context, code string, 
 }
 
 func (s *AccessService) AuthorizeByShortCode(ctx context.Context, shortCode string, userID string) (fullCode string, err error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.AuthorizeByShortCode")
+	defer span.End()
 	req, err := s.quickConnect.GetByShortCode(ctx, shortCode)
 	if err != nil {
 		return "", fmt.Errorf("AccessService.AuthorizeByShortCode: %w", err)
@@ -228,6 +241,8 @@ func (s *AccessService) AuthorizeByShortCode(ctx context.Context, shortCode stri
 }
 
 func (s *AccessService) CreateAPIKey(ctx context.Context, key *user.APIKeyModel) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.CreateAPIKey")
+	defer span.End()
 	if err := key.Validate(); err != nil {
 		return fmt.Errorf("invalid API key: %w", err)
 	}
@@ -243,6 +258,8 @@ func (s *AccessService) CreateAPIKey(ctx context.Context, key *user.APIKeyModel)
 }
 
 func (s *AccessService) RevokeAPIKey(ctx context.Context, keyID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.RevokeAPIKey")
+	defer span.End()
 	if err := s.apiKeys.Delete(ctx, keyID); err != nil {
 		return fmt.Errorf("AccessService.RevokeAPIKey: %w", err)
 	}
@@ -254,6 +271,8 @@ func (s *AccessService) RevokeAPIKey(ctx context.Context, keyID string) error {
 }
 
 func (s *AccessService) HasLibraryAccess(ctx context.Context, userID, libraryID string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.HasLibraryAccess")
+	defer span.End()
 	return s.libraryAccess.HasAccess(ctx, shared.UserID(userID), shared.LibraryID(libraryID))
 }
 
@@ -265,6 +284,8 @@ func (s *AccessService) HasLibraryAccess(ctx context.Context, userID, libraryID 
 // admin-level visibility across every gRPC handler that filters via
 // this method (feed, playback, collection, favorite, notification, …).
 func (s *AccessService) GetLibraryAccessByUserID(ctx context.Context, userID string) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.GetLibraryAccessByUserID")
+	defer span.End()
 	ids, err := s.libraryAccess.GetByUserID(ctx, shared.UserID(userID))
 	if err != nil {
 		return nil, err
@@ -277,9 +298,13 @@ func (s *AccessService) GetLibraryAccessByUserID(ctx context.Context, userID str
 }
 
 func (s *AccessService) GrantLibraryAccess(ctx context.Context, userID, libraryID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.GrantLibraryAccess")
+	defer span.End()
 	return s.libraryAccess.Grant(ctx, shared.UserID(userID), shared.LibraryID(libraryID))
 }
 
 func (s *AccessService) RevokeLibraryAccess(ctx context.Context, userID, libraryID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.RevokeLibraryAccess")
+	defer span.End()
 	return s.libraryAccess.Revoke(ctx, shared.UserID(userID), shared.LibraryID(libraryID))
 }
