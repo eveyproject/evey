@@ -386,6 +386,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	infra.pluginRunner.WithIPCCallback(pluginRuntimeSvc.HandleIPCResult)
 	pluginQuerySvc := appplugin.NewQueryService(r.Plugin, r.PluginRuntime)
 	pluginTokenSvc := appplugin.NewTokenService(r.Plugin, infra.tokenGen)
+	pluginSandboxMode := "basic"
+	if cfg.Log.DevMode {
+		pluginSandboxMode = "none"
+	}
+	pluginSecurityDashboardSvc := appplugin.NewSecurityDashboardService(r.Plugin, bus, pluginSandboxMode)
 
 	permInterceptor := grpcapi.PluginPermissionInterceptor(permChecker)
 	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, infra.pluginLogger, permInterceptor)
@@ -522,18 +527,19 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			playlistSvc:      playlistSvc,
 		},
 		engagement: engagementDeps{
-			activityCmdSvc:     activityCmdSvc,
-			activityQuerySvc:   activityQuerySvc,
-			notifCmdSvc:        notifCmdSvc,
-			notifQuerySvc:      notifQuerySvc,
-			feedCmdSvc:         feedCmdSvc,
-			feedQuerySvc:       feedQuerySvc,
-			webhookSvc:         webhookSvc,
-			pluginInstallerSvc: pluginInstallerSvc,
-			pluginRuntimeSvc:   pluginRuntimeSvc,
-			pluginQuerySvc:     pluginQuerySvc,
-			pluginTokenSvc:     pluginTokenSvc,
-			pluginHostServer:   pluginHostSrv,
+			activityCmdSvc:             activityCmdSvc,
+			activityQuerySvc:           activityQuerySvc,
+			notifCmdSvc:                notifCmdSvc,
+			notifQuerySvc:              notifQuerySvc,
+			feedCmdSvc:                 feedCmdSvc,
+			feedQuerySvc:               feedQuerySvc,
+			webhookSvc:                 webhookSvc,
+			pluginInstallerSvc:         pluginInstallerSvc,
+			pluginRuntimeSvc:           pluginRuntimeSvc,
+			pluginQuerySvc:             pluginQuerySvc,
+			pluginTokenSvc:             pluginTokenSvc,
+			pluginHostServer:           pluginHostSrv,
+			pluginSecurityDashboardSvc: pluginSecurityDashboardSvc,
 		},
 		auth: authDeps{
 			tokenGen: infra.tokenGen,

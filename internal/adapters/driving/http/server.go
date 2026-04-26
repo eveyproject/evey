@@ -134,10 +134,11 @@ type HTTPServer struct {
 	Hasher            domainuser.PasswordHasher
 
 	// Plugin
-	PluginRepo      domainplugin.PluginRepository
-	PluginSvc       pluginManager
-	PluginDir       string
-	CSSSanitizer    cssSanitizer
+	PluginRepo                 domainplugin.PluginRepository
+	PluginSvc                  pluginManager
+	PluginDir                  string
+	CSSSanitizer               cssSanitizer
+	PluginSecurityDashboardSvc pluginSecurityDashboardProvider
 
 	// DLNA
 	DLNASvc *appdlna.Service
@@ -350,6 +351,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			registerPluginUploadRoute(mux, s.TokenGen, s.PluginSvc, s.AdminWriteRL)
 			registerPluginPreviewRoute(mux, s.TokenGen, s.PluginSvc, s.AdminWriteRL)
 		}
+	}
+	if s.PluginSecurityDashboardSvc != nil {
+		registerPluginSecurityDashboardRoute(mux, s.TokenGen, s.PluginSecurityDashboardSvc)
 	}
 
 

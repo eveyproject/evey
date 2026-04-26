@@ -87,11 +87,12 @@ type engagementDeps struct {
 	feedCmdSvc         *appfeed.CommandService
 	feedQuerySvc       *appfeed.QueryService
 	webhookSvc         *appwebhook.Service
-	pluginInstallerSvc *appplugin.InstallerService
-	pluginRuntimeSvc   *appplugin.RuntimeService
-	pluginQuerySvc     *appplugin.QueryService
-	pluginTokenSvc     *appplugin.TokenService
-	pluginHostServer   *pluginhost.HostServer
+	pluginInstallerSvc         *appplugin.InstallerService
+	pluginRuntimeSvc           *appplugin.RuntimeService
+	pluginQuerySvc             *appplugin.QueryService
+	pluginTokenSvc             *appplugin.TokenService
+	pluginHostServer           *pluginhost.HostServer
+	pluginSecurityDashboardSvc *appplugin.SecurityDashboardService
 }
 
 // authDeps groups authentication infrastructure.
