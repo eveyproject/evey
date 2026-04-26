@@ -422,12 +422,15 @@ func TestStartCleanup_RunsInitialCleanup(t *testing.T) {
 	sr.Create(ctx, stale)
 
 	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	cmd.StartCleanupWithInterval(cancelCtx, 10*time.Millisecond, 2*time.Hour)
-	time.Sleep(50 * time.Millisecond)
-	cancel()
 
-	stored, _ := sr.GetByID(ctx, "s-stale")
-	assert.NotNil(t, stored.EndedAt)
+	// Wait deterministically for the cleanup goroutine to close the stale
+	// session. Replaces a fragile time.Sleep that raced on slow CI/WSL.
+	require.Eventually(t, func() bool {
+		stored, err := sr.GetByID(ctx, "s-stale")
+		return err == nil && stored != nil && stored.EndedAt != nil
+	}, 2*time.Second, 5*time.Millisecond)
 }
 
 func TestStartCleanup_TickerCleansNewStale(t *testing.T) {
@@ -439,16 +442,18 @@ func TestStartCleanup_TickerCleansNewStale(t *testing.T) {
 	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	cmd.StartCleanupWithInterval(cancelCtx, 20*time.Millisecond, 1*time.Hour)
-	time.Sleep(10 * time.Millisecond)
 
 	sr.Create(ctx, &playback.PlaySession{
 		ID: "s-late", ProfileID: "p1", MediaItemID: "m1",
 		StartedAt: time.Now().Add(-2 * time.Hour),
 	})
-	time.Sleep(60 * time.Millisecond)
 
-	stored, _ := sr.GetByID(ctx, "s-late")
-	assert.NotNil(t, stored.EndedAt)
+	// A subsequent ticker tick must close the new stale session. Polling
+	// avoids racing the ticker on slow hosts.
+	require.Eventually(t, func() bool {
+		stored, err := sr.GetByID(ctx, "s-late")
+		return err == nil && stored != nil && stored.EndedAt != nil
+	}, 2*time.Second, 5*time.Millisecond)
 }
 
 func TestMarkAsWatched_UpsertError(t *testing.T) {

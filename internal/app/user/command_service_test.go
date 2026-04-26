@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	ufakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"github.com/stretchr/testify/require"
 )
 
 type authTestDeps struct {
@@ -1006,11 +1008,12 @@ func TestStartCleanup_RunsInitialCleanup(t *testing.T) {
 	}
 
 	d.svc.StartCleanupWithInterval(ctx, 50*time.Millisecond)
-	time.Sleep(100 * time.Millisecond)
-
-	if d.refreshTkns.Count() != 0 {
-		t.Fatalf("expected expired token deleted, got %d", d.refreshTkns.Count())
-	}
+	// Replaces a fragile time.Sleep that raced with the cleanup goroutine
+	// on slow CI/WSL hosts. Eventually retries until the expired token is
+	// purged or the timeout elapses.
+	require.Eventually(t, func() bool {
+		return d.refreshTkns.Count() == 0
+	}, 2*time.Second, 5*time.Millisecond)
 }
 
 func TestStartCleanup_TickerCleansAgain(t *testing.T) {
@@ -1018,21 +1021,18 @@ func TestStartCleanup_TickerCleansAgain(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	d.svc.StartCleanupWithInterval(ctx, 50*time.Millisecond)
-	time.Sleep(80 * time.Millisecond)
+	d.svc.StartCleanupWithInterval(ctx, 20*time.Millisecond)
 
 	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
 		ID: "rt-exp2", UserID: "u1", TokenHash: "h-exp2",
 		ExpiresAt: time.Now().Add(-1 * time.Hour), CreatedAt: time.Now(),
 	})
-	if d.refreshTkns.Count() != 1 {
-		t.Fatal("expected 1 token seeded")
-	}
-
-	time.Sleep(80 * time.Millisecond)
-	if d.refreshTkns.Count() != 0 {
-		t.Fatalf("expected ticker to clean expired token, got %d", d.refreshTkns.Count())
-	}
+	// Even if we race the very first tick (which would observe 0 tokens
+	// before our Create), a subsequent tick will catch the new expired
+	// token. Eventually polls instead of sleeping a fixed duration.
+	require.Eventually(t, func() bool {
+		return d.refreshTkns.Count() == 0
+	}, 2*time.Second, 5*time.Millisecond)
 }
 
 func TestStartCleanup_StopsOnCancel(t *testing.T) {
@@ -1040,7 +1040,13 @@ func TestStartCleanup_StopsOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	d.svc.StartCleanup(ctx)
 	cancel()
-	time.Sleep(20 * time.Millisecond)
+	// Wait deterministically for the cancellation to propagate, then yield
+	// the scheduler so the cleanup goroutine has a chance to observe
+	// ctx.Done() and return. -race covers actual leak detection.
+	<-ctx.Done()
+	for i := 0; i < 100; i++ {
+		runtime.Gosched()
+	}
 }
 
 // --- Login lockout ---
