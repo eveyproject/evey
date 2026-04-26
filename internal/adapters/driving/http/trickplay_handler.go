@@ -64,7 +64,7 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 		totalFrames := manifest.ImageCount * tilesPerImage
 		var durationMs int64
 		if item.File != nil {
-			durationMs = item.File.DurationMs
+			durationMs = item.File.Duration.Milliseconds()
 		}
 		if durationMs > 0 && manifest.Interval > 0 {
 			realFrames := int(durationMs/1000) / manifest.Interval

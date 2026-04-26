@@ -90,7 +90,7 @@ func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 		pb.FilePath = item.File.Path
 		pb.FileSize = item.File.Size
 		pb.ContainerFormat = item.File.ContainerFormat
-		pb.DurationMs = item.File.DurationMs
+		pb.DurationMs = item.File.Duration.Milliseconds()
 		pb.Bitrate = item.File.Bitrate
 	}
 	if item.Classification != nil {

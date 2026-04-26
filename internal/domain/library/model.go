@@ -220,7 +220,7 @@ type MediaFile struct {
 	Size            int64
 	Fingerprint     string
 	ModTime         time.Time
-	DurationMs      int64
+	Duration        shared.Duration
 	Bitrate         int64
 	ContainerFormat string
 }

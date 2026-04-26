@@ -257,8 +257,8 @@ func (r *FakeMediaItemQueryRepo) SeriesAggregate(_ context.Context, seriesID sha
 			visited[string(item.ID)] = true
 			queue = append(queue, string(item.ID))
 			if string(item.Type) == "episode" {
-				if item.File != nil && item.File.DurationMs > 0 {
-					agg.TotalDurationMs += item.File.DurationMs
+				if item.File != nil && !item.File.Duration.IsZero() {
+					agg.TotalDurationMs += item.File.Duration.Milliseconds()
 				}
 				agg.EpisodeCount++
 				if item.ParentID != "" {

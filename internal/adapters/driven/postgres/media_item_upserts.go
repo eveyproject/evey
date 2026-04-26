@@ -38,7 +38,7 @@ func upsertMediaFile(ctx context.Context, tx *sql.Tx, item *library.MediaItem) e
 		   bitrate = EXCLUDED.bitrate,
 		   container_format = EXCLUDED.container_format`,
 		string(item.ID), f.Path, f.Size, fingerprint,
-		f.ModTime, f.DurationMs, f.Bitrate, f.ContainerFormat,
+		f.ModTime, f.Duration.Milliseconds(), f.Bitrate, f.ContainerFormat,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert media_files: %w", err)

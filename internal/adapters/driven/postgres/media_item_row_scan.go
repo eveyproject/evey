@@ -89,7 +89,14 @@ func buildMediaFile(filePath *string, fileSize *int64, fingerprint *string, modT
 		f.ModTime = modTime.Time
 	}
 	if durationMs != nil {
-		f.DurationMs = *durationMs
+		// Negative duration_ms in postgres would be a corrupt row; clamp to
+		// zero rather than fail the whole read so the rest of the item
+		// stays usable. shared.NewDurationMs only errors on negative input.
+		if d, err := shared.NewDurationMs(*durationMs); err == nil {
+			f.Duration = d
+		} else {
+			slog.Warn("invalid duration_ms in media_files row", slog.String("path", *filePath), slog.Int64("ms", *durationMs), slog.Any("err", err))
+		}
 	}
 	if bitrate != nil {
 		f.Bitrate = *bitrate

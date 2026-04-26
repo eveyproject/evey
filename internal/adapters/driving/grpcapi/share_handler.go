@@ -137,7 +137,7 @@ func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.Valida
 
 	var durationMs int64
 	if item.File != nil {
-		durationMs = item.File.DurationMs
+		durationMs = item.File.Duration.Milliseconds()
 	}
 	return &eveyv1.ValidateShareLinkResponse{
 		MediaId:    string(item.ID),

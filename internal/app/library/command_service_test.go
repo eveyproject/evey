@@ -615,7 +615,7 @@ func TestUpsertMediaFile_NewItem_WithDuration(t *testing.T) {
 	items := h.mediaItems.All()
 	require.Len(t, items, 1)
 	require.NotNil(t, items[0].File)
-	assert.Equal(t, int64(120000), items[0].File.DurationMs)
+	assert.Equal(t, int64(120000), items[0].File.Duration.Milliseconds())
 }
 
 func TestUpsertMediaFile_NewItem_WithYear(t *testing.T) {
@@ -1574,9 +1574,10 @@ func TestUpsertMediaFile_Changed_WithDuration_UpdatesDuration(t *testing.T) {
 	h.libQuery.Seed(lib)
 	h.libCmd.Seed(lib)
 
+	d1s, _ := shared.NewDurationMs(1000)
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1",
-		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 500, DurationMs: 1000},
+		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 500, Duration: d1s},
 	})
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
@@ -1593,7 +1594,7 @@ func TestUpsertMediaFile_Changed_WithDuration_UpdatesDuration(t *testing.T) {
 
 	item, _ := h.mediaItems.GetByID(context.Background(), "item-1")
 	require.NotNil(t, item.File)
-	assert.Equal(t, int64(9999), item.File.DurationMs)
+	assert.Equal(t, int64(9999), item.File.Duration.Milliseconds())
 }
 
 func TestUpsertMediaFile_Changed_ZeroDuration_KeepsOldDuration(t *testing.T) {
@@ -1603,9 +1604,10 @@ func TestUpsertMediaFile_Changed_ZeroDuration_KeepsOldDuration(t *testing.T) {
 	h.libQuery.Seed(lib)
 	h.libCmd.Seed(lib)
 
+	d5s, _ := shared.NewDurationMs(5000)
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1",
-		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 500, DurationMs: 5000},
+		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 500, Duration: d5s},
 	})
 
 	// Prober returns 0 duration
@@ -1618,7 +1620,7 @@ func TestUpsertMediaFile_Changed_ZeroDuration_KeepsOldDuration(t *testing.T) {
 
 	item, _ := h.mediaItems.GetByID(context.Background(), "item-1")
 	require.NotNil(t, item.File)
-	assert.Equal(t, int64(5000), item.File.DurationMs, "should keep old duration when prober returns 0")
+	assert.Equal(t, int64(5000), item.File.Duration.Milliseconds(), "should keep old duration when prober returns 0")
 }
 
 func TestUpsertMediaFile_NewItem_ParentID_Propagated(t *testing.T) {

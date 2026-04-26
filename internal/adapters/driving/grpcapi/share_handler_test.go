@@ -48,12 +48,13 @@ func newShareTestEnv() *shareTestEnv {
 		appuser.WithLibraryAccess(libAccessRepo),
 	)
 
+	d2h, _ := shared.NewDurationMs(7200000)
 	mediaItemRepo.Seed(&library.MediaItem{
 		ID:        "media-1",
 		LibraryID: "lib-1",
 		Title:     "Test Movie",
 		Type:      "movie",
-		File:      &library.MediaFile{DurationMs: 7200000},
+		File:      &library.MediaFile{Duration: d2h},
 	})
 
 	h := &shareHandler{

@@ -428,9 +428,14 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 		return fmt.Errorf("create media item: %w", err)
 	}
 	if dur := s.ProbeAndStoreStreams(ctx, string(item.ID), f.Path); dur > 0 {
-		item.File.DurationMs = dur
-		if err := s.mediaItems.Update(ctx, item); err != nil {
-			slog.Warn("update media item duration failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+		d, err := shared.NewDurationMs(dur)
+		if err != nil {
+			slog.Warn("invalid probed duration", slog.String("mediaItemID", string(item.ID)), slog.Int64("ms", dur), slog.Any("err", err))
+		} else {
+			item.File.Duration = d
+			if err := s.mediaItems.Update(ctx, item); err != nil {
+				slog.Warn("update media item duration failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+			}
 		}
 	}
 	if s.metadata != nil {
@@ -501,9 +506,14 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		slog.Warn("update media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 	}
 	if dur := s.ProbeAndStoreStreams(ctx, string(existing.ID), f.Path); dur > 0 {
-		existing.File.DurationMs = dur
-		if err := s.mediaItems.Update(ctx, existing); err != nil {
-			slog.Warn("update media item duration failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+		d, err := shared.NewDurationMs(dur)
+		if err != nil {
+			slog.Warn("invalid probed duration", slog.String("mediaItemID", string(existing.ID)), slog.Int64("ms", dur), slog.Any("err", err))
+		} else {
+			existing.File.Duration = d
+			if err := s.mediaItems.Update(ctx, existing); err != nil {
+				slog.Warn("update media item duration failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
+			}
 		}
 	}
 	if s.metadata != nil {

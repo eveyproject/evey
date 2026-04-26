@@ -175,8 +175,8 @@ func (r *FakeMediaItemRepository) SeriesAggregate(_ context.Context, seriesID sh
 			continue
 		}
 		agg.EpisodeCount++
-		if item.File != nil && item.File.DurationMs > 0 {
-			agg.TotalDurationMs += item.File.DurationMs
+		if item.File != nil && !item.File.Duration.IsZero() {
+			agg.TotalDurationMs += item.File.Duration.Milliseconds()
 		}
 		if item.ParentID != "" {
 			seasonIDs[item.ParentID] = true

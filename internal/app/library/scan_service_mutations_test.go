@@ -369,7 +369,7 @@ func TestScanService_NewItem_DurationUpdatedWhenPositive(t *testing.T) {
 	items := h.media.All()
 	require.Len(t, items, 1)
 	require.NotNil(t, items[0].File)
-	assert.Equal(t, int64(42000), items[0].File.DurationMs, "positive duration must be stored")
+	assert.Equal(t, int64(42000), items[0].File.Duration.Milliseconds(), "positive duration must be stored")
 }
 
 func TestScanService_NewItem_DurationZeroNotStored(t *testing.T) {
@@ -386,7 +386,7 @@ func TestScanService_NewItem_DurationZeroNotStored(t *testing.T) {
 	items := h.media.All()
 	require.Len(t, items, 1)
 	if items[0].File != nil {
-		assert.Equal(t, int64(0), items[0].File.DurationMs)
+		assert.Equal(t, int64(0), items[0].File.Duration.Milliseconds())
 	}
 }
 
