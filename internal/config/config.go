@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -23,9 +24,20 @@ type Config struct {
 	Log          LogConfig
 	Backup       BackupConfig
 	RemoteAccess RemoteAccessConfig
-	SMTP  SMTPConfig
-	VAPID VAPIDConfig
+	SMTP    SMTPConfig
+	VAPID   VAPIDConfig
 	Tracing TracingConfig
+	Plugins PluginsConfig
+}
+
+// PluginsConfig holds configuration for the third-party plugin subsystem.
+type PluginsConfig struct {
+	// SandboxMode controls the isolation level applied to plugin processes.
+	// Valid values: "basic" (LD_PRELOAD seccomp + UID drop),
+	// "bubblewrap" (bwrap namespace isolation), "strict" (bwrap + strict seccomp).
+	// Defaults to "basic" when unset or empty.
+	// EVEY_PLUGINS_SANDBOX_MODE
+	SandboxMode string
 }
 
 type TracingConfig struct {
@@ -240,6 +252,19 @@ func (c *Config) WarnValidate() error {
 		slog.Warn("OIDC enabled but client secret is empty — set EVEY_OIDC_CLIENT_SECRET")
 	}
 
+	switch c.Plugins.SandboxMode {
+	case "basic", "bubblewrap", "strict":
+		// valid
+	default:
+		errs = append(errs, fmt.Sprintf("cfg.Plugins.SandboxMode: invalid value %q (expected basic|bubblewrap|strict)", c.Plugins.SandboxMode))
+	}
+	if c.Plugins.SandboxMode == "bubblewrap" || c.Plugins.SandboxMode == "strict" {
+		if _, err := exec.LookPath("bwrap"); err != nil {
+			slog.Warn("cfg.Plugins.SandboxMode requires bwrap but binary not found in $PATH — plugin runner may fail at runtime",
+				slog.String("sandbox_mode", c.Plugins.SandboxMode))
+		}
+	}
+
 	if len(errs) > 0 {
 		return fmt.Errorf("config validation failed: %s", strings.Join(errs, "; "))
 	}
@@ -356,8 +381,20 @@ func Load() (*Config, error) {
 			ServiceName:  envStr("EVEY_TRACING_SERVICE_NAME", "evey"),
 			SampleRatio:  envFloat("EVEY_TRACING_SAMPLE_RATIO", 0),
 		},
+		Plugins: PluginsConfig{
+			SandboxMode: envPluginSandboxMode("EVEY_PLUGINS_SANDBOX_MODE", "basic"),
+		},
 	}
 	return cfg, nil
+}
+
+// envPluginSandboxMode reads the sandbox mode env var and defaults to fallback
+// when unset or empty. The value is lowercased for robustness.
+func envPluginSandboxMode(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return strings.ToLower(strings.TrimSpace(v))
+	}
+	return fallback
 }
 
 func envStr(key, fallback string) string {

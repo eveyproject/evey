@@ -234,6 +234,7 @@ func TestWarnValidate_ProdDefaultDBPasswordRejected(t *testing.T) {
 	cfg := &Config{
 		DB:          DBConfig{Password: "evey", SSLMode: "disable", Host: "localhost"},
 		Meilisearch: MeilisearchConfig{APIKey: "strong-key-abcdefghij"},
+		Plugins:     PluginsConfig{SandboxMode: "basic"},
 	}
 	err := cfg.WarnValidate()
 	require.Error(t, err)
@@ -245,6 +246,7 @@ func TestWarnValidate_DevModeDowngradesToWarnings(t *testing.T) {
 		Log:         LogConfig{DevMode: true},
 		DB:          DBConfig{Password: "evey", SSLMode: "disable", Host: "localhost"},
 		Meilisearch: MeilisearchConfig{APIKey: "changeme"},
+		Plugins:     PluginsConfig{SandboxMode: "basic"},
 	}
 	err := cfg.WarnValidate()
 	require.NoError(t, err, "dev mode must log warnings, not return errors")
@@ -254,6 +256,7 @@ func TestWarnValidate_DefaultMeiliKeyRejected(t *testing.T) {
 	cfg := &Config{
 		DB:          DBConfig{Password: "strong", SSLMode: "disable", Host: "localhost"},
 		Meilisearch: MeilisearchConfig{APIKey: "changeme"},
+		Plugins:     PluginsConfig{SandboxMode: "basic"},
 	}
 	err := cfg.WarnValidate()
 	require.Error(t, err)
@@ -264,7 +267,83 @@ func TestWarnValidate_StrongConfigPasses(t *testing.T) {
 	cfg := &Config{
 		DB:          DBConfig{Password: "a-long-random-password-xyz", SSLMode: "require", Host: "localhost"},
 		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+		Plugins:     PluginsConfig{SandboxMode: "basic"},
 	}
 	err := cfg.WarnValidate()
 	require.NoError(t, err)
+}
+
+// --- PluginsConfig / SandboxMode tests ---
+
+func TestLoad_PluginsSandboxModeDefault(t *testing.T) {
+	t.Parallel()
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "basic", cfg.Plugins.SandboxMode)
+}
+
+func TestLoad_PluginsSandboxModeEnvOverride(t *testing.T) {
+	tests := []struct {
+		envVal   string
+		expected string
+	}{
+		{"basic", "basic"},
+		{"bubblewrap", "bubblewrap"},
+		{"strict", "strict"},
+		// whitespace/case tolerance
+		{"  STRICT  ", "strict"},
+		{"Bubblewrap", "bubblewrap"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.envVal, func(t *testing.T) {
+			t.Setenv("EVEY_PLUGINS_SANDBOX_MODE", tt.envVal)
+			cfg, err := Load()
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, cfg.Plugins.SandboxMode)
+		})
+	}
+}
+
+func TestLoad_PluginsSandboxModeEmptyFallsToBasic(t *testing.T) {
+	t.Setenv("EVEY_PLUGINS_SANDBOX_MODE", "")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "basic", cfg.Plugins.SandboxMode)
+}
+
+func TestWarnValidate_SandboxModeValid(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"basic", "bubblewrap", "strict"} {
+		mode := mode
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
+			cfg := &Config{
+				DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
+				Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+				Plugins:     PluginsConfig{SandboxMode: mode},
+			}
+			err := cfg.WarnValidate()
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestWarnValidate_SandboxModeInvalid(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"none", "docker", "", "unknown"} {
+		mode := mode
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
+			cfg := &Config{
+				DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
+				Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+				Plugins:     PluginsConfig{SandboxMode: mode},
+			}
+			err := cfg.WarnValidate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "cfg.Plugins.SandboxMode")
+			assert.Contains(t, err.Error(), "basic|bubblewrap|strict")
+		})
+	}
 }
