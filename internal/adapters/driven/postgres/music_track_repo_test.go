@@ -78,7 +78,7 @@ func TestMusicTrackRepo_Delete(t *testing.T) {
 	require.NoError(t, repo.Delete(ctx, "mt2"))
 
 	got, err := repo.GetByID(ctx, "mt2")
-	require.NoError(t, err)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 	assert.Nil(t, got)
 }
 

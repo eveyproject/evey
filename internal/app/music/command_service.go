@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -303,7 +304,7 @@ func (s *CommandService) FetchMissingAlbumArtAllLibraries(ctx context.Context) (
 
 func (s *CommandService) DeleteTrack(ctx context.Context, trackID string) error {
 	t, err := s.tracks.GetByID(ctx, trackID)
-	if err != nil {
+	if err != nil && !errors.Is(err, shared.ErrNotFound) {
 		return fmt.Errorf("CommandService.DeleteTrack: %w", err)
 	}
 	var libraryID shared.LibraryID

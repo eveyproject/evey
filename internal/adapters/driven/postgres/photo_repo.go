@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -73,8 +74,8 @@ func (r *PhotoRepository) GetByID(ctx context.Context, id string) (*photo.Photo,
 		&p.Width, &p.Height, &p.TakenAt, &p.Latitude, &p.Longitude,
 		&p.CameraModel, &p.Album, &p.CreatedAt, &p.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
-		return nil, nil
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, shared.ErrNotFound
 	}
 	if err != nil {
 		span.RecordError(err)

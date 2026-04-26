@@ -2,6 +2,7 @@ package photo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -190,7 +191,7 @@ func (s *CommandService) processOnePhoto(ctx context.Context, libraryID string, 
 
 func (s *CommandService) DeletePhoto(ctx context.Context, photoID string) error {
 	p, err := s.repo.GetByID(ctx, photoID)
-	if err != nil {
+	if err != nil && !errors.Is(err, shared.ErrNotFound) {
 		return fmt.Errorf("CommandService.DeletePhoto: %w", err)
 	}
 	var libraryID shared.LibraryID

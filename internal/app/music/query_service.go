@@ -2,6 +2,7 @@ package music
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -20,11 +21,18 @@ func NewQueryService(tracks music.TrackRepository, scanner music.MusicScanner) *
 }
 
 func (s *QueryService) GetTrack(ctx context.Context, trackID string) (*music.Track, error) {
-	return s.tracks.GetByID(ctx, trackID)
+	t, err := s.tracks.GetByID(ctx, trackID)
+	if errors.Is(err, shared.ErrNotFound) {
+		return nil, nil
+	}
+	return t, err
 }
 
 func (s *QueryService) GetTrackArt(ctx context.Context, trackID string) (data []byte, mimeType string, err error) {
 	t, err := s.tracks.GetByID(ctx, trackID)
+	if errors.Is(err, shared.ErrNotFound) {
+		return nil, "", os.ErrNotExist
+	}
 	if err != nil {
 		return nil, "", err
 	}
@@ -73,6 +81,9 @@ func (s *QueryService) Search(ctx context.Context, libraryID shared.LibraryID, q
 
 func (s *QueryService) StreamTrack(ctx context.Context, trackID string) (filePath string, mimeType string, err error) {
 	t, err := s.tracks.GetByID(ctx, trackID)
+	if errors.Is(err, shared.ErrNotFound) {
+		return "", "", os.ErrNotExist
+	}
 	if err != nil {
 		return "", "", err
 	}

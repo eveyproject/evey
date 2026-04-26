@@ -42,7 +42,7 @@ func (r *FakeRepository) GetByID(_ context.Context, id string) (*photo.Photo, er
 	defer r.mu.RUnlock()
 	p, ok := r.photos[id]
 	if !ok {
-		return nil, nil
+		return nil, shared.ErrNotFound
 	}
 	return &p, nil
 }

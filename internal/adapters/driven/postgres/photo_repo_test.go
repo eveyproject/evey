@@ -72,7 +72,7 @@ func TestPhotoRepo_Delete(t *testing.T) {
 	require.NoError(t, repo.Delete(ctx, "ph2"))
 
 	got, err := repo.GetByID(ctx, "ph2")
-	require.NoError(t, err)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 	assert.Nil(t, got)
 }
 

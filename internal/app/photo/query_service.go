@@ -2,6 +2,7 @@ package photo
 
 import (
 	"context"
+	"errors"
 
 	"github.com/evey-project/evey/internal/domain/photo"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -34,7 +35,11 @@ func (s *QueryService) GetAlbums(ctx context.Context, libraryID shared.LibraryID
 }
 
 func (s *QueryService) GetPhoto(ctx context.Context, id string) (*photo.Photo, error) {
-	return s.repo.GetByID(ctx, id)
+	p, err := s.repo.GetByID(ctx, id)
+	if errors.Is(err, shared.ErrNotFound) {
+		return nil, nil
+	}
+	return p, err
 }
 
 func (s *QueryService) Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]photo.Photo, error) {

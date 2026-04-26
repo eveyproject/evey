@@ -61,7 +61,7 @@ func (r *FakeMusicTrackRepository) GetByID(_ context.Context, id string) (*music
 	defer r.mu.RUnlock()
 	t, ok := r.tracks[id]
 	if !ok {
-		return nil, nil
+		return nil, shared.ErrNotFound
 	}
 	return &t, nil
 }

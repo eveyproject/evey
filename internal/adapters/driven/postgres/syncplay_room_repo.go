@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/syncplay"
 )
 
@@ -71,8 +73,8 @@ func (r *SyncPlayRoomRepo) scanRoom(ctx context.Context, query string, arg strin
 		&membersJSON, &stateJSON, &room.CreatedAt, &room.MediaType,
 		&playlistID, &queueJSON, &room.TrackIndex,
 	)
-	if err == sql.ErrNoRows {
-		return nil, nil
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, shared.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -102,9 +104,6 @@ func (r *SyncPlayRoomRepo) AddMember(ctx context.Context, roomID string, member 
 	if err != nil {
 		return err
 	}
-	if room == nil {
-		return nil
-	}
 	for _, m := range room.Members {
 		if m.UserID == member.UserID {
 			return nil
@@ -128,9 +127,6 @@ func (r *SyncPlayRoomRepo) RemoveMember(ctx context.Context, roomID string, user
 	room, err := r.Get(ctx, roomID)
 	if err != nil {
 		return err
-	}
-	if room == nil {
-		return nil
 	}
 	filtered := room.Members[:0]
 	for _, m := range room.Members {

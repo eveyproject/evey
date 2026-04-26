@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"strings"
 	"time"
@@ -94,14 +95,15 @@ func (r *MusicTrackRepository) GetByID(ctx context.Context, id string) (*music.T
 		&t.FileSize, &t.FileHash, &t.ModTime, &t.MimeType, &t.Bitrate, &t.SampleRate, &t.Channels,
 		&t.Genre, &t.AlbumFolder, &t.CoverArtURL, &t.CreatedAt, &t.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
-		return nil, nil
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, shared.ErrNotFound
 	}
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		return nil, err
 	}
-	return t, err
+	return t, nil
 }
 
 func (r *MusicTrackRepository) Delete(ctx context.Context, id string) error {
