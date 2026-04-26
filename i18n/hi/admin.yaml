@@ -82,6 +82,15 @@ plugins:
   previewFailed: "पूर्वावलोकन विफल"
   installFailed: "इंस्टॉल विफल"
   availableRuntimes: "उपलब्ध रनटाइम"
+  security:
+    title: सुरक्षा डैशबोर्ड
+    clean: स्वच्छ
+    critical: गंभीर
+    warnings: चेतावनियाँ
+    errorBadge: त्रुटि
+    findings: निष्कर्ष
+    lastError: अंतिम त्रुटि
+    noData: कोई सुरक्षा डेटा उपलब्ध नहीं।
 
 dashboard:
   title: "डैशबोर्ड"

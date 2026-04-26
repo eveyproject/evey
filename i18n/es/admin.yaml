@@ -82,6 +82,15 @@ plugins:
   previewFailed: "Error en la vista previa"
   installFailed: "Error en la instalación"
   availableRuntimes: "Entornos de ejecución disponibles"
+  security:
+    title: Panel de seguridad
+    clean: Limpio
+    critical: crítico
+    warnings: advertencias
+    errorBadge: Error
+    findings: Hallazgos
+    lastError: Último error
+    noData: No hay datos de seguridad disponibles.
 
 dashboard:
   title: "Panel"

@@ -82,6 +82,15 @@ plugins:
   previewFailed: "Échec de l'aperçu"
   installFailed: "Échec de l'installation"
   availableRuntimes: "Environnements d'exécution disponibles"
+  security:
+    title: Tableau de bord sécurité
+    clean: Sain
+    critical: critique
+    warnings: avertissements
+    errorBadge: Erreur
+    findings: Résultats
+    lastError: Dernière erreur
+    noData: Aucune donnée de sécurité disponible.
 
 dashboard:
   title: "Tableau de bord"

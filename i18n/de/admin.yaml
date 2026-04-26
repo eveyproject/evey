@@ -83,6 +83,15 @@ plugins:
   previewFailed: Vorschau fehlgeschlagen
   installFailed: Installation fehlgeschlagen
   availableRuntimes: Verfügbare Laufzeiten
+  security:
+    title: Sicherheits-Dashboard
+    clean: Sauber
+    critical: kritisch
+    warnings: Warnungen
+    errorBadge: Fehler
+    findings: Befunde
+    lastError: Letzter Fehler
+    noData: Keine Sicherheitsdaten verfügbar.
 
 dashboard:
   title: Dashboard

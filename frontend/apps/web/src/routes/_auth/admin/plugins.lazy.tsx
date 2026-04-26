@@ -19,6 +19,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { PluginCard } from "@/features/admin/PluginCard";
+import { PluginSecurityDashboard } from "@/features/admin/PluginSecurityDashboard";
 
 export const Route = createLazyFileRoute("/_auth/admin/plugins")({
   component: PluginsPage,
@@ -488,6 +489,10 @@ function PluginsPage() {
           ))}
         </div>
       )}
+
+      <div className="border-t border-[var(--border)] pt-6">
+        <PluginSecurityDashboard />
+      </div>
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title={t("admin.plugins.installPlugin")} size="xl">
         <InstallPluginForm onSuccess={handleInstallSuccess} />

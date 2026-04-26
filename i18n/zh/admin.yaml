@@ -82,6 +82,15 @@ plugins:
   previewFailed: "预览失败"
   installFailed: "安装失败"
   availableRuntimes: "可用运行时"
+  security:
+    title: 安全仪表板
+    clean: 安全
+    critical: 严重
+    warnings: 警告
+    errorBadge: 错误
+    findings: 发现
+    lastError: 最近错误
+    noData: 暂无安全数据。
 
 dashboard:
   title: "仪表盘"
