@@ -1057,6 +1057,8 @@ func TestLogin_LockedAfterMaxFails(t *testing.T) {
 	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
 
 	d.svc.loginAttempts = newLoginAttemptLimiter(1, 15*time.Minute)
+	d.svc.loginMaxFails = 1
+	d.svc.loginWindow = 15 * time.Minute
 
 	_, _, err := d.svc.Login(ctx, "alice", "wrong")
 	if !errors.Is(err, ErrInvalidCredentials) {
@@ -1075,6 +1077,8 @@ func TestLogin_NotLockedBeforeMaxFails(t *testing.T) {
 	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
 
 	d.svc.loginAttempts = newLoginAttemptLimiter(2, 15*time.Minute)
+	d.svc.loginMaxFails = 2
+	d.svc.loginWindow = 15 * time.Minute
 
 	d.svc.Login(ctx, "alice", "wrong")
 
@@ -1093,6 +1097,8 @@ func TestLogin_LocksAtProdThreshold(t *testing.T) {
 	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
 
 	d.svc.loginAttempts = newLoginAttemptLimiter(5, 15*time.Minute)
+	d.svc.loginMaxFails = 5
+	d.svc.loginWindow = 15 * time.Minute
 
 	for i := 0; i < 5; i++ {
 		_, _, err := d.svc.Login(ctx, "alice", "wrong")
@@ -1394,11 +1400,13 @@ func TestLogin_ResetClearsLockout(t *testing.T) {
 	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
 
 	d.svc.loginAttempts = newLoginAttemptLimiter(1, 15*time.Minute)
+	d.svc.loginMaxFails = 1
+	d.svc.loginWindow = 15 * time.Minute
 
 	d.svc.Login(ctx, "alice", "wrong")
 
 	// Successful login resets, so next wrong+correct cycle works
-	d.svc.loginAttempts.reset("alice")
+	_ = d.svc.loginAttempts.Reset(context.Background(), "alice")
 	_, _, err := d.svc.Login(ctx, "alice", "correct")
 	if err != nil {
 		t.Fatalf("login should succeed after reset: %v", err)

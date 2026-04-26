@@ -261,6 +261,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	userAuthOpts := []appuser.CommandServiceOption{
 		appuser.WithPasswordReset(r.PasswordResetToken, r.ServerCfg, smtpConfigured),
 		appuser.WithUnitOfWork(postgres.NewTxUnit(db)),
+		appuser.WithLoginAttemptRepository(r.LoginAttempt),
 	}
 	userAuthSvc := appuser.NewCommandService(
 		r.User, r.Profile, r.RefreshToken,

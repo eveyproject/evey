@@ -45,7 +45,9 @@ type CommandService struct {
 	serverCfg       shared.ServerConfigRepository
 	smtpConfigured  bool
 	refreshTokenTTL time.Duration
-	loginAttempts   *loginAttemptLimiter
+	loginAttempts   user.LoginAttemptRepository
+	loginMaxFails   int
+	loginWindow     time.Duration
 	setupMu         sync.Mutex
 	setupDone       bool
 	uow             shared.TransactionalUnit
@@ -76,6 +78,8 @@ func NewCommandService(
 		refreshTokenTTL: refreshTokenTTL,
 		quickConnect:    quickConnect,
 		loginAttempts:   newLoginAttemptLimiter(loginMaxAttempts, loginAttemptWindow),
+		loginMaxFails:   loginMaxAttempts,
+		loginWindow:     loginAttemptWindow,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -97,6 +101,13 @@ func WithPasswordReset(resetTokens user.PasswordResetTokenRepository, serverCfg 
 // password reset: user update + token mark-used) commit/rollback atomically.
 func WithUnitOfWork(uow shared.TransactionalUnit) CommandServiceOption {
 	return func(s *CommandService) { s.uow = uow }
+}
+
+// WithLoginAttemptRepository replaces the default in-memory rate limiter with
+// a persistent one (e.g. postgres) so lockout state survives restarts and is
+// shared across instances.
+func WithLoginAttemptRepository(repo user.LoginAttemptRepository) CommandServiceOption {
+	return func(s *CommandService) { s.loginAttempts = repo }
 }
 
 func (s *CommandService) InitSetupState(ctx context.Context) {
@@ -196,13 +207,19 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 func (s *CommandService) Login(ctx context.Context, username, password string, ttlOverride ...time.Duration) (accessToken, refreshToken string, err error) {
 	username = strings.TrimSpace(username)
 	password = strings.TrimSpace(password)
-	if s.loginAttempts.isLocked(username) {
+	locked, lockErr := s.loginAttempts.IsLocked(ctx, username)
+	if lockErr != nil {
+		slog.Warn("login attempt IsLocked", slog.String("username", username), slog.Any("err", lockErr))
+	}
+	if locked {
 		return "", "", ErrAccountLocked
 	}
 
 	u, err := s.users.GetByUsername(ctx, username)
 	if err != nil {
-		s.loginAttempts.record(username)
+		if recErr := s.loginAttempts.Record(ctx, username, s.loginMaxFails, s.loginWindow); recErr != nil {
+			slog.Warn("login attempt Record", slog.String("username", username), slog.Any("err", recErr))
+		}
 		return "", "", ErrInvalidCredentials
 	}
 	if !u.CanLogin() {
@@ -211,10 +228,14 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 
 	ok, err := s.hasher.Verify(password, u.PasswordHash)
 	if err != nil || !ok {
-		s.loginAttempts.record(username)
+		if recErr := s.loginAttempts.Record(ctx, username, s.loginMaxFails, s.loginWindow); recErr != nil {
+			slog.Warn("login attempt Record", slog.String("username", username), slog.Any("err", recErr))
+		}
 		return "", "", ErrInvalidCredentials
 	}
-	s.loginAttempts.reset(username)
+	if resetErr := s.loginAttempts.Reset(ctx, username); resetErr != nil {
+		slog.Warn("login attempt Reset", slog.String("username", username), slog.Any("err", resetErr))
+	}
 
 	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
 	if err != nil {
@@ -784,3 +805,43 @@ func (l *loginAttemptLimiter) reset(username string) {
 	defer l.mu.Unlock()
 	delete(l.attempts, username)
 }
+
+// IsLocked implements user.LoginAttemptRepository.
+func (l *loginAttemptLimiter) IsLocked(_ context.Context, username string) (bool, error) {
+	return l.isLocked(username), nil
+}
+
+// Record implements user.LoginAttemptRepository.
+// maxFails and window override the limiter's own values when provided.
+func (l *loginAttemptLimiter) Record(_ context.Context, username string, maxFails int, window time.Duration) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := time.Now()
+
+	if len(l.attempts) >= l.maxSize {
+		l.evictLocked(now)
+	}
+
+	e, ok := l.attempts[username]
+	if !ok {
+		e = &attemptEntry{}
+		l.attempts[username] = e
+	} else if now.Sub(e.lastSeen) > window {
+		e = &attemptEntry{}
+		l.attempts[username] = e
+	}
+	e.count++
+	e.lastSeen = now
+	if e.count >= maxFails {
+		e.lockedAt = now
+	}
+	return nil
+}
+
+// Reset implements user.LoginAttemptRepository.
+func (l *loginAttemptLimiter) Reset(_ context.Context, username string) error {
+	l.reset(username)
+	return nil
+}
+
+var _ user.LoginAttemptRepository = (*loginAttemptLimiter)(nil)

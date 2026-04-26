@@ -58,6 +58,7 @@ type Repos struct {
 	PasswordResetToken       *PasswordResetTokenRepository
 	MediaItemTranslation     *MediaItemTranslationRepository
 	PersonTranslation        *PersonTranslationRepository
+	LoginAttempt             *LoginAttemptRepository
 }
 
 func NewRepos(db *sql.DB) *Repos {
@@ -116,5 +117,6 @@ func NewRepos(db *sql.DB) *Repos {
 		PasswordResetToken:       NewPasswordResetTokenRepository(db),
 		MediaItemTranslation:     NewMediaItemTranslationRepository(db),
 		PersonTranslation:        NewPersonTranslationRepository(db),
+		LoginAttempt:             NewLoginAttemptRepository(db),
 	}
 }
