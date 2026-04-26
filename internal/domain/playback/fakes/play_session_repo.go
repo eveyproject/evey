@@ -51,7 +51,12 @@ func (r *FakePlaySessionRepository) GetByID(_ context.Context, id string) (*play
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return s, nil
+	// Return a copy: callers (incl. polling tests) inspect fields like
+	// EndedAt while CloseStale concurrently mutates the stored session.
+	// Sharing the pointer triggers a -race warning even though callers
+	// don't write through it.
+	cp := *s
+	return &cp, nil
 }
 
 func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*playback.ActiveSessionInfo, error) {
