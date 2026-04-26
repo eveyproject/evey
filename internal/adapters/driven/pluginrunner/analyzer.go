@@ -108,6 +108,34 @@ var analyzerRules = []analyzerRule{
 
 	// Process signals
 	{regexp.MustCompile(`(?i)process\.kill\s*\(\s*1[,)]|os\.kill\s*\(\s*1[,)]`), SeverityCritical, "privilege", "attempt to signal PID 1 (server process)", nil},
+
+	// Python — unsafe deserialization (arbitrary code exec)
+	{regexp.MustCompile(`(?i)(pickle\.loads?|pickle\.load\s*\(|marshal\.loads?|marshal\.load\s*\()`), SeverityCritical, "deserialization", "unsafe deserialization (pickle/marshal can execute arbitrary code)", nil},
+	{regexp.MustCompile(`(?i)(yaml\.load\s*\([^,)]+\))`), SeverityWarning, "deserialization", "yaml.load without explicit Loader (use yaml.safe_load)", nil},
+	{regexp.MustCompile(`(?i)__reduce__|__reduce_ex__`), SeverityCritical, "deserialization", "custom __reduce__ can hijack deserialization", nil},
+
+	// Python — class hierarchy traversal (sandbox escape)
+	{regexp.MustCompile(`(?i)(__class__\.__bases__|__subclasses__\s*\(\)|__mro__\b)`), SeverityCritical, "sandbox_escape", "class hierarchy traversal (common Python sandbox escape)", nil},
+
+	// PHP — code execution patterns
+	{regexp.MustCompile(`(?i)preg_replace\s*\(.*\/e`), SeverityCritical, "shell_exec", "PHP preg_replace /e modifier executes matched content as PHP code", nil},
+	{regexp.MustCompile(`(?i)\bassert\s*\(\s*(base64_decode|gzinflate|str_rot13|\$_)`), SeverityCritical, "obfuscation", "PHP assert() with dynamic/encoded argument (code execution)", nil},
+	{regexp.MustCompile(`(?i)(chr\s*\(\s*\d+\s*\)\s*\.){3,}`), SeverityWarning, "obfuscation", "PHP chr() chain (potential string obfuscation)", nil},
+	{regexp.MustCompile(`(?i)str_rot13\s*\(`), SeverityWarning, "obfuscation", "PHP str_rot13 (common obfuscation technique)", nil},
+	{regexp.MustCompile(`(?i)(system\s*\(|passthru\s*\(|shell_exec\s*\(|popen\s*\(|proc_open\s*\()`), SeverityCritical, "shell_exec", "PHP shell execution function", nil},
+
+	// Ruby — command execution
+	{regexp.MustCompile("(?i)(`[^`]*`)"), SeverityWarning, "shell_exec", "Ruby backtick command execution", []string{".rb"}},
+	{regexp.MustCompile(`(?i)(Kernel\.(exec|system|spawn)\s*\(|%x\{|IO\.popen\s*\()`), SeverityCritical, "shell_exec", "Ruby Kernel.exec/system/spawn or IO.popen", []string{".rb"}},
+	{regexp.MustCompile(`(?i)open\s*\(\s*["']\|`), SeverityCritical, "shell_exec", "Ruby open('|cmd') shell injection via pipe prefix", []string{".rb"}},
+
+	// Go — unsafe pointer arithmetic
+	{regexp.MustCompile(`(?i)\bunsafe\.Pointer\b`), SeverityWarning, "native_code", "Go unsafe.Pointer (bypasses type safety)", []string{".go"}},
+	{regexp.MustCompile(`(?i)\bunsafe\.Slice\b|\bunsafe\.SliceData\b|\bunsafe\.StringData\b`), SeverityWarning, "native_code", "Go unsafe slice/string manipulation", []string{".go"}},
+
+	// Shell — base64 pipe to shell (obfuscated payload)
+	{regexp.MustCompile(`(?i)(base64\s+-d|base64\s+--decode|openssl\s+enc\s+-d)[^|]*\|\s*(sh|bash|dash|zsh|ash)\b`), SeverityCritical, "obfuscation", "base64-decoded payload piped to shell", nil},
+	{regexp.MustCompile(`(?i)echo\s+[A-Za-z0-9+/]{20,}={0,2}\s*\|\s*(base64|openssl)`), SeverityCritical, "obfuscation", "inline base64 blob piped to decoder (obfuscated shell payload)", nil},
 }
 
 // URL extraction patterns — all network schemes

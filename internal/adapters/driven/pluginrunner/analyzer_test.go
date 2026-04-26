@@ -751,6 +751,248 @@ func TestStaticAnalyzer_Analyze_InvalidDir(t *testing.T) {
 	}
 }
 
+func TestAnalyzer_Deserialization(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantCat string
+		wantSev AnalysisSeverity
+	}{
+		{"pickle.loads", "data = pickle.loads(b'...')", "deserialization", SeverityCritical},
+		{"pickle.load", "obj = pickle.load(f)", "deserialization", SeverityCritical},
+		{"marshal.loads", "x = marshal.loads(data)", "deserialization", SeverityCritical},
+		{"yaml.load no loader", "cfg = yaml.load(data)", "deserialization", SeverityWarning},
+		{"__reduce__", "def __reduce__(self): return (os.system, ('id',))", "deserialization", SeverityCritical},
+		{"__reduce_ex__", "def __reduce_ex__(self, proto): return ...", "deserialization", SeverityCritical},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "exploit.py", tt.content)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == tt.wantCat && f.Severity == tt.wantSev {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected %s/%d finding for %q", tt.wantCat, tt.wantSev, tt.content)
+			}
+		})
+	}
+}
+
+func TestAnalyzer_ClassHierarchy(t *testing.T) {
+	tests := []string{
+		`klass.__class__.__bases__`,
+		`for c in object.__subclasses__(): pass`,
+		`for t in cls.__mro__: pass`,
+	}
+	for _, code := range tests {
+		t.Run(code, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "escape.py", code)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Safe {
+				t.Fatalf("expected unsafe for %q", code)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == "sandbox_escape" && f.Severity == SeverityCritical {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected sandbox_escape critical for %q", code)
+			}
+		})
+	}
+}
+
+func TestAnalyzer_PHPExec(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantCat string
+		wantSev AnalysisSeverity
+	}{
+		{"preg_replace /e", `preg_replace('/(.+)/e', '$1', $input);`, "shell_exec", SeverityCritical},
+		{"assert base64_decode", `assert(base64_decode($payload));`, "obfuscation", SeverityCritical},
+		{"assert $_GET", `assert($_GET['cmd']);`, "obfuscation", SeverityCritical},
+		{"str_rot13", `eval(str_rot13('flfgrz("vq");'));`, "obfuscation", SeverityWarning},
+		{"system()", `system($_GET['cmd']);`, "shell_exec", SeverityCritical},
+		{"passthru()", `passthru($cmd);`, "shell_exec", SeverityCritical},
+		{"shell_exec()", `$out = shell_exec('id');`, "shell_exec", SeverityCritical},
+		{"proc_open()", `$p = proc_open($cmd, $desc, $pipes);`, "shell_exec", SeverityCritical},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "exploit.php", tt.content)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == tt.wantCat && f.Severity == tt.wantSev {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected %s/%d finding for %q", tt.wantCat, tt.wantSev, tt.content)
+			}
+		})
+	}
+}
+
+func TestAnalyzer_RubyExec(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantCat string
+		wantSev AnalysisSeverity
+	}{
+		{"backtick", "`id`", "shell_exec", SeverityWarning},
+		{"Kernel.exec", `Kernel.exec("id")`, "shell_exec", SeverityCritical},
+		{"Kernel.system", `Kernel.system("ls")`, "shell_exec", SeverityCritical},
+		{"IO.popen", `IO.popen("cmd")`, "shell_exec", SeverityCritical},
+		{"open pipe prefix", `open("|id")`, "shell_exec", SeverityCritical},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "exploit.rb", tt.content)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == tt.wantCat && f.Severity == tt.wantSev {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected %s/%d finding for %q", tt.wantCat, tt.wantSev, tt.content)
+			}
+		})
+	}
+}
+
+func TestAnalyzer_RubyExec_NotFiredOnNonRuby(t *testing.T) {
+	// Backtick rule is scoped to .rb — should not fire on .py files
+	dir := t.TempDir()
+	writeFile(t, dir, "clean.py", "result = `id`")
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range report.Findings {
+		if f.Category == "shell_exec" && f.Pattern == "`id`" {
+			t.Error("Ruby backtick rule should not fire on .py files")
+		}
+	}
+}
+
+func TestAnalyzer_GoUnsafe(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{"unsafe.Pointer", `p := unsafe.Pointer(&x)`},
+		{"unsafe.Slice", `s := unsafe.Slice(ptr, n)`},
+		{"unsafe.SliceData", `d := unsafe.SliceData(s)`},
+		{"unsafe.StringData", `d := unsafe.StringData(str)`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "exploit.go", tt.content)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == "native_code" && f.Severity == SeverityWarning {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected native_code warning for %q", tt.content)
+			}
+			// unsafe rules are warnings — plugin still safe
+			if !report.Safe {
+				t.Error("expected safe plugin — unsafe.* is WARNING not CRITICAL")
+			}
+		})
+	}
+}
+
+func TestAnalyzer_GoUnsafe_NotFiredOnNonGo(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "clean.py", "p = unsafe.Pointer(x)")
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range report.Findings {
+		if f.Category == "native_code" && f.Description == "Go unsafe.Pointer (bypasses type safety)" {
+			t.Error("Go unsafe.Pointer rule should not fire on .py files")
+		}
+	}
+}
+
+func TestAnalyzer_ShellBase64Pipe(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{"base64 -d pipe bash", `base64 -d payload.b64 | bash`},
+		{"base64 --decode pipe sh", `base64 --decode encoded.txt | sh`},
+		{"openssl enc -d pipe zsh", `openssl enc -d -base64 -in f | zsh`},
+		{"echo blob pipe base64", `echo aW1wb3J0IG9zOyBvcy5zeXN0ZW0oInJtIC1yZiAvIik= | base64`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "payload.sh", tt.content)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Safe {
+				t.Fatalf("expected unsafe for %q", tt.content)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == "obfuscation" && f.Severity == SeverityCritical {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected obfuscation critical for %q", tt.content)
+			}
+		})
+	}
+}
+
 func TestAnalyze_SDKStubsSkipped(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "plugin_pb2.py", `eval("should not be scanned")`)
