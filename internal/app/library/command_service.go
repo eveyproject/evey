@@ -93,7 +93,7 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 	return s.scan.ScanLibrary(ctx, libraryID)
 }
 
-func (s *CommandService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) int64 {
+func (s *CommandService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) shared.Duration {
 	return s.scan.ProbeAndStoreStreams(ctx, mediaItemID, filePath)
 }
 

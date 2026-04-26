@@ -329,7 +329,7 @@ func TestScanService_ProbeAndStoreStreams_NilProberReturnsZero(t *testing.T) {
 		h.scanner, nil /* prober */, h.search, h.bus,
 	)
 	got := svc.ProbeAndStoreStreams(context.Background(), "m1", "/unused")
-	assert.Equal(t, int64(0), got)
+	assert.True(t, got.IsZero())
 }
 
 // --- Library without Paths: scans nothing but still emits started+completed ---

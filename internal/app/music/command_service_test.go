@@ -301,8 +301,9 @@ func TestCommandService_ParseTrack_ProberFillsFields(t *testing.T) {
 	br := int64(320000)
 	sr := 44100
 	ch := 2
+	probeDur, _ := shared.NewDurationMs(123456)
 	prober.Results[path] = &library.ProbeResult{
-		DurationMs: 123456,
+		Duration: probeDur,
 		Streams: []*library.MediaStream{
 			// Video stream first to verify we skip non-audio.
 			{StreamType: "video"},

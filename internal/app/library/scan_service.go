@@ -427,15 +427,10 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 	if err := s.mediaItems.Create(ctx, item); err != nil {
 		return fmt.Errorf("create media item: %w", err)
 	}
-	if dur := s.ProbeAndStoreStreams(ctx, string(item.ID), f.Path); dur > 0 {
-		d, err := shared.NewDurationMs(dur)
-		if err != nil {
-			slog.Warn("invalid probed duration", slog.String("mediaItemID", string(item.ID)), slog.Int64("ms", dur), slog.Any("err", err))
-		} else {
-			item.File.Duration = d
-			if err := s.mediaItems.Update(ctx, item); err != nil {
-				slog.Warn("update media item duration failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
-			}
+	if dur := s.ProbeAndStoreStreams(ctx, string(item.ID), f.Path); !dur.IsZero() {
+		item.File.Duration = dur
+		if err := s.mediaItems.Update(ctx, item); err != nil {
+			slog.Warn("update media item duration failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
 		}
 	}
 	if s.metadata != nil {
@@ -505,15 +500,10 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	if err := s.mediaItems.Update(ctx, existing); err != nil {
 		slog.Warn("update media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 	}
-	if dur := s.ProbeAndStoreStreams(ctx, string(existing.ID), f.Path); dur > 0 {
-		d, err := shared.NewDurationMs(dur)
-		if err != nil {
-			slog.Warn("invalid probed duration", slog.String("mediaItemID", string(existing.ID)), slog.Int64("ms", dur), slog.Any("err", err))
-		} else {
-			existing.File.Duration = d
-			if err := s.mediaItems.Update(ctx, existing); err != nil {
-				slog.Warn("update media item duration failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
-			}
+	if dur := s.ProbeAndStoreStreams(ctx, string(existing.ID), f.Path); !dur.IsZero() {
+		existing.File.Duration = dur
+		if err := s.mediaItems.Update(ctx, existing); err != nil {
+			slog.Warn("update media item duration failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 		}
 	}
 	if s.metadata != nil {
@@ -540,16 +530,16 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	}
 }
 
-func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) int64 {
+func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) shared.Duration {
 	ctx, span := tracing.StartSpan(ctx, "app.scan.ProbeAndStoreStreams")
 	defer span.End()
 	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	if s.prober == nil {
-		return 0
+		return shared.Duration{}
 	}
 	result, err := s.prober.ProbeStreams(ctx, filePath)
 	if err != nil {
-		return 0
+		return shared.Duration{}
 	}
 	for _, st := range result.Streams {
 		st.MediaItemID = shared.MediaItemID(mediaItemID)
@@ -568,7 +558,7 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 	if err := s.mediaStreams.ReplaceBatch(ctx, shared.MediaItemID(mediaItemID), allStreams); err != nil {
 		slog.Warn("replace media streams failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
 	}
-	return result.DurationMs
+	return result.Duration
 }
 
 // scanWorkerCount returns the scan goroutine pool size.

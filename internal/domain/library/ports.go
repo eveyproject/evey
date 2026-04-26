@@ -153,8 +153,8 @@ type FileScanner interface {
 }
 
 type ProbeResult struct {
-	Streams    []*MediaStream
-	DurationMs int64
+	Streams  []*MediaStream
+	Duration shared.Duration
 }
 
 type StreamProber interface {

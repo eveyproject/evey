@@ -359,7 +359,7 @@ func TestScanService_NewItem_DurationUpdatedWhenPositive(t *testing.T) {
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
 	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
-	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{DurationMs: 42000}
+	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{Duration: mustProbeDuration(42000)}
 	h.scanner.Results["/m"] = []library.ScannedFile{
 		{Path: "/m/a.mkv", Size: 100, Fingerprint: "fp", Type: library.MovieItem, Title: "A"},
 	}
@@ -376,7 +376,7 @@ func TestScanService_NewItem_DurationZeroNotStored(t *testing.T) {
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
 	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
-	// prober returns DurationMs=0 (default).
+	// prober returns Duration zero (default).
 	h.scanner.Results["/m"] = []library.ScannedFile{
 		{Path: "/m/a.mkv", Size: 100, Fingerprint: "fp", Type: library.MovieItem, Title: "A"},
 	}
@@ -397,7 +397,7 @@ func TestScanService_NewItem_DurationUpdateErrorLogged(t *testing.T) {
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
 	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
-	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{DurationMs: 42000}
+	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{Duration: mustProbeDuration(42000)}
 	h.scanner.Results["/m"] = []library.ScannedFile{
 		{Path: "/m/a.mkv", Size: 100, Fingerprint: "fp", Type: library.MovieItem, Title: "A"},
 	}
@@ -604,7 +604,7 @@ func TestScanService_ProbeAndStoreStreams_ReplaceBatchErrorLogged(t *testing.T) 
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
 	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
-	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{DurationMs: 1000}
+	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{Duration: mustProbeDuration(1000)}
 	h.scanner.Results["/m"] = []library.ScannedFile{
 		{Path: "/m/a.mkv", Size: 100, Fingerprint: "fp", Type: library.MovieItem, Title: "A"},
 	}
@@ -672,7 +672,7 @@ func TestScanService_NewItem_DurationZeroNoDurationUpdate(t *testing.T) {
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
 	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
-	// No prober result → DurationMs=0 (default fake).
+	// No prober result → Duration zero (default fake).
 	h.scanner.Results["/m"] = []library.ScannedFile{
 		{Path: "/m/a.mkv", Size: 100, Fingerprint: "fp", Type: library.MovieItem, Title: "A"},
 	}
@@ -745,7 +745,7 @@ func TestScanService_ProbeAndStoreStreams_UsesSubScannerWhenMetadataNil(t *testi
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
 	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
-	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{DurationMs: 1000}
+	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{Duration: mustProbeDuration(1000)}
 	subScanner := libfakes.NewFakeSubtitleScanner()
 	subScanner.Results["/m/a.mkv"] = []library.ExternalSubtitle{
 		{Path: "/m/a.en.srt", Language: "eng", Format: "srt"},

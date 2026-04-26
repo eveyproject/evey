@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type Prober struct {
@@ -123,12 +124,18 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 		streams = append(streams, ms)
 	}
 
-	var durationMs int64
+	var duration shared.Duration
 	if dur, err := strconv.ParseFloat(probe.Format.Duration, 64); err == nil && dur > 0 {
-		durationMs = int64(dur * 1000)
+		// Ignore conversion errors here: an invalid duration just means we
+		// can't report one — the streams are still valid and the scan/probe
+		// chain treats a zero duration as "unknown" and recovers on the next
+		// pass once the file has the right metadata.
+		if d, derr := shared.NewDurationMs(int64(dur * 1000)); derr == nil {
+			duration = d
+		}
 	}
 
-	return &library.ProbeResult{Streams: streams, DurationMs: durationMs}, nil
+	return &library.ProbeResult{Streams: streams, Duration: duration}, nil
 }
 
 func codecTypeToStreamType(t string) library.StreamType {

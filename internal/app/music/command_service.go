@@ -400,7 +400,7 @@ func (s *CommandService) parseTrack(path, libraryID, mimeType string, fileSize i
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if pr, perr := s.prober.ProbeStreams(ctx, path); perr == nil && pr != nil {
-			t.Duration = float64(pr.DurationMs) / 1000.0
+			t.Duration = pr.Duration.Seconds()
 			for _, st := range pr.Streams {
 				if st == nil || st.StreamType != "audio" {
 					continue

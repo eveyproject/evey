@@ -96,7 +96,7 @@ func TestProbeStreams_WithFakeScript(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	assert.Equal(t, int64(7200500), result.DurationMs)
+	assert.Equal(t, int64(7200500), result.Duration.Milliseconds())
 	require.Len(t, result.Streams, 2)
 
 	video := result.Streams[0]
@@ -145,7 +145,7 @@ func TestProbeStreams_WithColorSpace(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	assert.Equal(t, int64(5400000), result.DurationMs)
+	assert.Equal(t, int64(5400000), result.Duration.Milliseconds())
 	require.Len(t, result.Streams, 1)
 
 	s := result.Streams[0]
@@ -174,7 +174,7 @@ func TestProbeStreams_EmptyStreams(t *testing.T) {
 	result, err := p.ProbeStreams(context.Background(), "/fake/empty.mkv")
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, int64(0), result.DurationMs)
+	assert.Equal(t, int64(0), result.Duration.Milliseconds())
 	assert.Empty(t, result.Streams)
 }
 

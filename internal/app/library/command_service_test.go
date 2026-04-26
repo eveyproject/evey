@@ -17,6 +17,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mustProbeDuration is a tiny helper that builds a shared.Duration for test
+// fixtures. Inline NewDurationMs+nil-check would triple the line count of
+// every prober.Results entry without adding signal.
+func mustProbeDuration(ms int64) shared.Duration {
+	d, err := shared.NewDurationMs(ms)
+	if err != nil {
+		panic(err)
+	}
+	return d
+}
+
 type cmdTestHarness struct {
 	svc        *applib.CommandService
 	libCmd     *libfakes.FakeLibraryCommandRepo
@@ -601,7 +612,7 @@ func TestUpsertMediaFile_NewItem_WithDuration(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		DurationMs: 120000,
+		Duration:   mustProbeDuration(120000),
 		Streams:    []*library.MediaStream{{ID: "s1", StreamType: "video"}},
 	}
 
@@ -794,7 +805,7 @@ func TestDiscoverExternalSubtitles_VttCodecRenamed(t *testing.T) {
 	}
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		DurationMs: 5000,
+		Duration:   mustProbeDuration(5000),
 		Streams:    []*library.MediaStream{{ID: "v1", StreamType: "video", StreamIndex: 0}},
 	}
 
@@ -834,7 +845,7 @@ func TestDiscoverExternalSubtitles_NonVttCodecKept(t *testing.T) {
 	}
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		DurationMs: 5000,
+		Duration:   mustProbeDuration(5000),
 		Streams:    []*library.MediaStream{},
 	}
 
@@ -870,7 +881,7 @@ func TestDiscoverExternalSubtitles_MaxIdxContinuesFromExisting(t *testing.T) {
 	}
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		DurationMs: 5000,
+		Duration:   mustProbeDuration(5000),
 		Streams: []*library.MediaStream{
 			{ID: "v1", StreamType: "video", StreamIndex: 0},
 			{ID: "a1", StreamType: "audio", StreamIndex: 1},
@@ -910,7 +921,7 @@ func TestDiscoverExternalSubtitles_ForcedFlag(t *testing.T) {
 	}
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		DurationMs: 5000,
+		Duration:   mustProbeDuration(5000),
 		Streams:    []*library.MediaStream{},
 	}
 
@@ -934,7 +945,7 @@ func TestDiscoverExternalSubtitles_NilScanner_NoSubs(t *testing.T) {
 	h := newHarness()
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		DurationMs: 5000,
+		Duration:   mustProbeDuration(5000),
 		Streams:    []*library.MediaStream{{ID: "v1", StreamType: "video"}},
 	}
 
@@ -961,7 +972,7 @@ func TestProbeAndStoreStreams_StoresStreams(t *testing.T) {
 	h := newHarness()
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		DurationMs: 7500,
+		Duration:   mustProbeDuration(7500),
 		Streams: []*library.MediaStream{
 			{ID: "ps1", StreamType: "video", Codec: "h264"},
 			{ID: "ps2", StreamType: "audio", Codec: "aac"},
@@ -969,7 +980,7 @@ func TestProbeAndStoreStreams_StoresStreams(t *testing.T) {
 	}
 
 	dur := h.svc.ProbeAndStoreStreams(context.Background(), "item-1", "/movies/film.mkv")
-	assert.Equal(t, int64(7500), dur)
+	assert.Equal(t, int64(7500), dur.Milliseconds())
 
 	streams, err := h.streams.GetByMediaItemID(context.Background(), "item-1")
 	require.NoError(t, err)
@@ -991,7 +1002,7 @@ func TestProbeAndStoreStreams_NilProber(t *testing.T) {
 		libfakes.NewFakeTrickplayRepository(), libfakes.NewFakeTrickplayGenerator(), "/cache", nil,
 	)
 	dur := svc.ProbeAndStoreStreams(context.Background(), "item-1", "/movies/film.mkv")
-	assert.Equal(t, int64(0), dur)
+	assert.True(t, dur.IsZero())
 }
 
 func TestProbeAndStoreStreams_ProbeError_Returns0(t *testing.T) {
@@ -1000,7 +1011,7 @@ func TestProbeAndStoreStreams_ProbeError_Returns0(t *testing.T) {
 	h.prober.Err = errors.New("ffprobe missing")
 
 	dur := h.svc.ProbeAndStoreStreams(context.Background(), "item-1", "/movies/film.mkv")
-	assert.Equal(t, int64(0), dur)
+	assert.True(t, dur.IsZero())
 }
 
 func TestProbeAndStoreStreams_DeletesOldStreams(t *testing.T) {
@@ -1012,7 +1023,7 @@ func TestProbeAndStoreStreams_DeletesOldStreams(t *testing.T) {
 	})
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		DurationMs: 1000,
+		Duration:   mustProbeDuration(1000),
 		Streams:    []*library.MediaStream{{ID: "new-1", StreamType: "audio"}},
 	}
 
@@ -1581,7 +1592,7 @@ func TestUpsertMediaFile_Changed_WithDuration_UpdatesDuration(t *testing.T) {
 	})
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		DurationMs: 9999,
+		Duration:   mustProbeDuration(9999),
 		Streams:    []*library.MediaStream{{ID: "v1", StreamType: "video"}},
 	}
 
