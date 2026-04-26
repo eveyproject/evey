@@ -386,11 +386,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	infra.pluginRunner.WithIPCCallback(pluginRuntimeSvc.HandleIPCResult)
 	pluginQuerySvc := appplugin.NewQueryService(r.Plugin, r.PluginRuntime)
 	pluginTokenSvc := appplugin.NewTokenService(r.Plugin, infra.tokenGen)
-	pluginSandboxMode := "basic"
-	if cfg.Log.DevMode {
-		pluginSandboxMode = "none"
-	}
-	pluginSecurityDashboardSvc := appplugin.NewSecurityDashboardService(r.Plugin, bus, pluginSandboxMode)
+	pluginSecurityDashboardSvc := appplugin.NewSecurityDashboardService(r.Plugin, bus, cfg.Plugins.SandboxMode)
 
 	permInterceptor := grpcapi.PluginPermissionInterceptor(permChecker)
 	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, infra.pluginLogger, permInterceptor)
