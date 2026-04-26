@@ -85,11 +85,11 @@ func TestSortFieldAndOrderMapping(t *testing.T) {
 
 func TestStreamTypeEnumMapping(t *testing.T) {
 	t.Parallel()
-	cases := map[string]eveyv1.MediaStreamType{
-		"video":      eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_VIDEO,
-		"audio":      eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_AUDIO,
-		"subtitle":   eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_SUBTITLE,
-		"attachment": eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_ATTACHMENT,
+	cases := map[library.StreamType]eveyv1.MediaStreamType{
+		library.StreamTypeVideo:      eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_VIDEO,
+		library.StreamTypeAudio:      eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_AUDIO,
+		library.StreamTypeSubtitle:   eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_SUBTITLE,
+		library.StreamTypeAttachment: eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_ATTACHMENT,
 	}
 	for k, v := range cases {
 		assert.Equal(t, v, streamTypeToProto[k])

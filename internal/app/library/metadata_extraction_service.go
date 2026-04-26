@@ -85,7 +85,7 @@ func (s *MetadataExtractionService) discoverExternalSubtitles(existing []*librar
 			ID:           uuid.New().String(),
 			MediaItemID:  shared.MediaItemID(mediaItemID),
 			StreamIndex:  maxIdx,
-			StreamType:   string(library.Subtitle),
+			StreamType:   library.Subtitle,
 			Codec:        codec,
 			Language:     sub.Language,
 			IsForced:     sub.IsForced,

@@ -279,7 +279,7 @@ type MediaStream struct {
 	ID             string
 	MediaItemID    shared.MediaItemID
 	StreamIndex    int
-	StreamType     string
+	StreamType     StreamType
 	Codec          string
 	CodecLongName  string
 	Profile        string
@@ -301,7 +301,7 @@ type MediaStream struct {
 	ExternalPath   *string
 }
 
-func (s *MediaStream) GetStreamType() string  { return s.StreamType }
+func (s *MediaStream) GetStreamType() string  { return string(s.StreamType) }
 func (s *MediaStream) GetBitDepth() *int       { return s.BitDepth }
 func (s *MediaStream) GetColorSpace() *string  { return s.ColorSpace }
 func (s *MediaStream) GetHDRType() *string     { return s.HDRType }

@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/evey-project/evey/internal/domain/library"
 )
 
 func TestParseFrameRate_Valid(t *testing.T) {
@@ -51,15 +53,15 @@ func TestParseFrameRate_Invalid(t *testing.T) {
 func TestCodecTypeToStreamType(t *testing.T) {
 	cases := []struct {
 		input    string
-		expected string
+		expected library.StreamType
 	}{
-		{"video", "video"},
-		{"audio", "audio"},
-		{"subtitle", "subtitle"},
-		{"attachment", "attachment"},
-		{"unknown", "attachment"},
-		{"data", "attachment"},
-		{"", "attachment"},
+		{"video", library.StreamTypeVideo},
+		{"audio", library.StreamTypeAudio},
+		{"subtitle", library.StreamTypeSubtitle},
+		{"attachment", library.StreamTypeAttachment},
+		{"unknown", library.StreamTypeAttachment},
+		{"data", library.StreamTypeAttachment},
+		{"", library.StreamTypeAttachment},
 	}
 	for _, tc := range cases {
 		t.Run(tc.input, func(t *testing.T) {
@@ -99,7 +101,7 @@ func TestProbeStreams_WithFakeScript(t *testing.T) {
 
 	video := result.Streams[0]
 	assert.Equal(t, 0, video.StreamIndex)
-	assert.Equal(t, "video", video.StreamType)
+	assert.Equal(t, library.StreamTypeVideo, video.StreamType)
 	assert.Equal(t, "h264", video.Codec)
 	assert.Equal(t, "eng", video.Language)
 	assert.True(t, video.IsDefault)
@@ -113,7 +115,7 @@ func TestProbeStreams_WithFakeScript(t *testing.T) {
 
 	audio := result.Streams[1]
 	assert.Equal(t, 1, audio.StreamIndex)
-	assert.Equal(t, "audio", audio.StreamType)
+	assert.Equal(t, library.StreamTypeAudio, audio.StreamType)
 	assert.Equal(t, "aac", audio.Codec)
 	assert.Equal(t, "eng", audio.Language)
 	assert.Equal(t, "Surround", audio.Title)

@@ -51,13 +51,13 @@ func TestMediaStreamRepo_CreateBatch_GetByMediaItemID(t *testing.T) {
 	require.Len(t, got, 2)
 
 	assert.Equal(t, "s1", got[0].ID)
-	assert.Equal(t, "video", got[0].StreamType)
+	assert.Equal(t, library.StreamTypeVideo, got[0].StreamType)
 	assert.Equal(t, "h264", got[0].Codec)
 	assert.Equal(t, 1920, *got[0].Width)
 	assert.Equal(t, 1080, *got[0].Height)
 
 	assert.Equal(t, "s2", got[1].ID)
-	assert.Equal(t, "audio", got[1].StreamType)
+	assert.Equal(t, library.StreamTypeAudio, got[1].StreamType)
 	assert.Equal(t, 6, *got[1].Channels)
 }
 

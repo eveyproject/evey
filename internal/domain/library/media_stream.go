@@ -4,13 +4,12 @@ package library
 // the legacy short-form constants (Video, Audio, Subtitle) live in model.go
 // for historical reasons; this file augments the enum with the canonical
 // StreamType-prefixed names, the missing "attachment" variant, and the
-// IsValid/String surface used by future validators.
+// IsValid/String surface used by validators.
 //
-// The MediaStream.StreamType struct field stays as `string` for now: the
-// cascade to postgres, ffmpeg, http, grpcapi and app/* call sites is out of
-// scope for this change (tracked as a follow-up). Once those sites migrate
-// to the typed value the struct field can be promoted to StreamType and the
-// legacy short-form constants in model.go can be removed.
+// The MediaStream.StreamType struct field is the typed StreamType: postgres,
+// ffmpeg, http, grpcapi and app/* call sites all consume the typed value.
+// The legacy short-form constants in model.go are kept as aliases for the
+// StreamType-prefixed names; equivalence is pinned by TestStreamType_LegacyAliases.
 
 const (
 	// StreamTypeVideo is the canonical typed alias for Video. Equivalent to

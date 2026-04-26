@@ -50,7 +50,7 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 			continue
 		}
 		out = append(out, StreamSpec{
-			Type:      s.StreamType,
+			Type:      string(s.StreamType),
 			Codec:     s.Codec,
 			Width:     s.Width,
 			Height:    s.Height,

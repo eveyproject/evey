@@ -180,11 +180,11 @@ var sortOrderFromProto = map[eveyv1.SortOrder]string{
 	eveyv1.SortOrder_SORT_ORDER_DESC: "desc",
 }
 
-var streamTypeToProto = map[string]eveyv1.MediaStreamType{
-	"video":      eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_VIDEO,
-	"audio":      eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_AUDIO,
-	"subtitle":   eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_SUBTITLE,
-	"attachment": eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_ATTACHMENT,
+var streamTypeToProto = map[library.StreamType]eveyv1.MediaStreamType{
+	library.StreamTypeVideo:      eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_VIDEO,
+	library.StreamTypeAudio:      eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_AUDIO,
+	library.StreamTypeSubtitle:   eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_SUBTITLE,
+	library.StreamTypeAttachment: eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_ATTACHMENT,
 }
 
 func mediaStreamToProto(s *library.MediaStream) *eveyv1.MediaStream {

@@ -131,16 +131,16 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 	return &library.ProbeResult{Streams: streams, DurationMs: durationMs}, nil
 }
 
-func codecTypeToStreamType(t string) string {
+func codecTypeToStreamType(t string) library.StreamType {
 	switch t {
 	case "video":
-		return "video"
+		return library.StreamTypeVideo
 	case "audio":
-		return "audio"
+		return library.StreamTypeAudio
 	case "subtitle":
-		return "subtitle"
+		return library.StreamTypeSubtitle
 	default:
-		return "attachment"
+		return library.StreamTypeAttachment
 	}
 }
 

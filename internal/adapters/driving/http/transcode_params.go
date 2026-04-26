@@ -67,7 +67,7 @@ func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, rem
 	}
 	a.streams = streams
 	for _, s := range streams {
-		slog.Debug("transcode: stream", slog.String("media_id", mediaID), slog.String("type", s.StreamType), slog.String("codec", s.Codec), slog.Bool("default", s.IsDefault))
+		slog.Debug("transcode: stream", slog.String("media_id", mediaID), slog.String("type", string(s.StreamType)), slog.String("codec", s.Codec), slog.Bool("default", s.IsDefault))
 		if s.StreamType == "video" && !remuxOnly && !containsCodec(client.VideoCodecs, s.Codec) {
 			a.needsVideoTranscode = true
 		}
