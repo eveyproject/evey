@@ -1011,3 +1011,386 @@ func TestAnalyze_SDKStubsSkipped(t *testing.T) {
 		t.Fatal("expected safe — SDK stubs should be skipped entirely")
 	}
 }
+
+func TestAnalyze_Deserialization_Pickle_Critical(t *testing.T) {
+	for _, code := range []string{
+		`data = pickle.loads(payload)`,
+		`obj = pickle.load(f)`,
+		`marshal.loads(raw)`,
+	} {
+		t.Run(code, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "exploit.py", code)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Safe {
+				t.Fatalf("expected unsafe for %q", code)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == "deserialization" && f.Severity == SeverityCritical {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected deserialization critical finding for %q", code)
+			}
+		})
+	}
+}
+
+func TestAnalyze_Deserialization_YamlLoad_Warning(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "config.py", `data = yaml.load(stream)`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// yaml.load without Loader is WARNING — plugin stays safe
+	if !report.Safe {
+		t.Error("expected safe plugin — yaml.load is warning, not critical")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "deserialization" && f.Severity == SeverityWarning {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected deserialization warning for yaml.load")
+	}
+}
+
+func TestAnalyze_Deserialization_Reduce_Critical(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "evil.py", `
+class Exploit:
+    def __reduce__(self):
+        return (os.system, ("rm -rf /",))
+`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe — __reduce__ hijack")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "deserialization" && f.Severity == SeverityCritical {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected deserialization critical finding for __reduce__")
+	}
+}
+
+func TestAnalyze_ClassHierarchyTraversal_Critical(t *testing.T) {
+	for _, code := range []string{
+		`subs = ().__class__.__bases__[0].__subclasses__()`,
+		`cls.__subclasses__()`,
+		`for c in obj.__mro__:`,
+	} {
+		t.Run(code, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "escape.py", code)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Safe {
+				t.Fatalf("expected unsafe for %q", code)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == "sandbox_escape" && f.Severity == SeverityCritical {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected sandbox_escape critical finding for %q", code)
+			}
+		})
+	}
+}
+
+func TestAnalyze_PHP_PregReplaceE_Critical(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "vuln.php", `preg_replace('/.*/e', $_POST['cmd'], '');`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe — preg_replace /e")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "shell_exec" && f.Severity == SeverityCritical {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected shell_exec critical finding for preg_replace /e")
+	}
+}
+
+func TestAnalyze_PHP_AssertEncoded_Critical(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "backdoor.php", `assert(base64_decode('c3lzdGVtKCJpZCIpOw=='));`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe — assert with encoded arg")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "obfuscation" && f.Severity == SeverityCritical {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected obfuscation critical finding for PHP assert(base64_decode(...))")
+	}
+}
+
+func TestAnalyze_PHP_ShellWithVar_Critical(t *testing.T) {
+	for _, code := range []string{
+		`system($cmd);`,
+		`passthru($_GET['cmd']);`,
+		`shell_exec($input);`,
+	} {
+		t.Run(code, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "exec.php", code)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Safe {
+				t.Fatalf("expected unsafe for %q", code)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == "shell_exec" && f.Severity == SeverityCritical {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected shell_exec critical finding for %q", code)
+			}
+		})
+	}
+}
+
+func TestAnalyze_PHP_ChrChain_Warning(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "obf.php", `$s = chr(115).chr(121).chr(115).chr(116);`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Safe {
+		t.Error("expected safe — chr() chain is WARNING not CRITICAL")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "obfuscation" && f.Severity == SeverityWarning {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected obfuscation warning for PHP chr() chain")
+	}
+}
+
+func TestAnalyze_PHP_StrRot13_Warning(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "obf.php", `eval(str_rot13('flfgrz'));`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// str_rot13 itself is WARNING; eval makes it CRITICAL via existing rule
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "obfuscation" && f.Severity == SeverityWarning && f.Description == "PHP str_rot13 (common obfuscation technique)" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected obfuscation warning for str_rot13")
+	}
+}
+
+func TestAnalyze_Ruby_KernelExec_Critical(t *testing.T) {
+	for _, code := range []string{
+		`Kernel.exec("id")`,
+		`Kernel.system("ls")`,
+		`Kernel.spawn("bash")`,
+	} {
+		t.Run(code, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "run.rb", code)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Safe {
+				t.Fatalf("expected unsafe for %q", code)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == "shell_exec" && f.Severity == SeverityCritical {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected shell_exec critical finding for %q", code)
+			}
+		})
+	}
+}
+
+func TestAnalyze_Ruby_IOPopen_Critical(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "shell.rb", `IO.popen("ls -la")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe — IO.popen in .rb")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "shell_exec" && f.Severity == SeverityCritical {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected shell_exec critical finding for IO.popen")
+	}
+}
+
+func TestAnalyze_Ruby_OpenPipePrefix_Critical(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "inject.rb", `open("|whoami")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe — open('|cmd') in .rb")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "shell_exec" && f.Severity == SeverityCritical {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected shell_exec critical finding for open('|cmd')")
+	}
+}
+
+func TestAnalyze_Ruby_RulesOnlyApplyToRbFiles(t *testing.T) {
+	dir := t.TempDir()
+	// Same code in a .py file — should NOT trigger Ruby-scoped rules
+	writeFile(t, dir, "shell.py", `IO.popen("ls")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range report.Findings {
+		if f.Description == "Ruby IO.popen or %x{} shell execution" {
+			t.Error("Ruby rule should not fire on .py file")
+		}
+	}
+}
+
+func TestAnalyze_Go_UnsafePointer_Warning(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "hack.go", `p := unsafe.Pointer(&x)`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Safe {
+		t.Error("expected safe — unsafe.Pointer is WARNING not CRITICAL")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "native_code" && f.Severity == SeverityWarning {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected native_code warning for unsafe.Pointer in .go file")
+	}
+}
+
+func TestAnalyze_Go_UnsafePointerOnlyInGoFiles(t *testing.T) {
+	dir := t.TempDir()
+	// Same pattern in .py — should NOT trigger Go-scoped rule
+	writeFile(t, dir, "notes.py", `# unsafe.Pointer`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range report.Findings {
+		if f.Description == "Go unsafe.Pointer (bypasses type safety)" {
+			t.Error("Go unsafe.Pointer rule should not fire on .py file")
+		}
+	}
+}
+
+func TestAnalyze_Base64PipeToShell_Critical(t *testing.T) {
+	for _, code := range []string{
+		`base64 -d payload.b64 | bash`,
+		`base64 --decode encoded.txt | sh`,
+		`echo aWQ= | base64 -d | zsh`,
+	} {
+		t.Run(code, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "dropper.sh", code)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Safe {
+				t.Fatalf("expected unsafe for %q", code)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == "obfuscation" && f.Severity == SeverityCritical {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected obfuscation critical finding for %q", code)
+			}
+		})
+	}
+}
