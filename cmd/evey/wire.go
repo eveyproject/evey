@@ -304,9 +304,15 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		rootLog.Info("OIDC SSO enabled", slog.String("issuer", cfg.OIDC.Issuer))
 	}
 
+	// Buffer player-tick progress writes so the (~5s) hot path skips DB I/O.
+	// Periodic flusher upserts the latest state per (profile, media). On
+	// crash up to one flush interval of progress is lost — acceptable for a
+	// self-hosted single instance per the backlog tradeoff.
+	progressBuffer := appplayback.NewWatchProgressBuffer(r.WatchProgress, appplayback.DefaultWatchProgressFlushInterval)
 	playbackSvc := appplayback.NewService(
 		r.WatchProgress, r.WatchProgress, r.PlaySession, r.PlaySession, r.User, r.Profile, bus,
 		appplayback.WithUnitOfWork(postgres.NewTxUnit(db)),
+		appplayback.WithWatchProgressBuffer(progressBuffer),
 	)
 
 	transcodingSvc := apptranscoding.NewService(

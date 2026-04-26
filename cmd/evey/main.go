@@ -142,6 +142,7 @@ func run() error {
 	deps.engagement.notifCmdSvc.StartCleanup(ctx)
 	deps.user.authSvc.StartCleanup(ctx)
 	deps.media.playbackSvc.CommandService().StartCleanup(ctx)
+	deps.media.playbackSvc.CommandService().StartProgressFlusher(ctx)
 	deps.backupSvc.StartScheduler(ctx, cfg.Backup.IntervalHours, cfg.Backup.RetentionDays)
 	go deps.library.scheduler.Run(ctx)
 
@@ -183,6 +184,7 @@ func run() error {
 
 	deps.engagement.pluginHostServer.Stop()
 	deps.engagement.notifCmdSvc.Stop()
+	deps.media.playbackSvc.CommandService().StopProgressFlusher()
 	deps.bus.Stop()
 	deps.media.streamTokenStore.Stop()
 	grpcSrv.Stop()

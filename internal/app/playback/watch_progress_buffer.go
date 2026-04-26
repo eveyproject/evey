@@ -1,0 +1,160 @@
+package playback
+
+import (
+	"context"
+	"log/slog"
+	"sync"
+	"time"
+
+	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/domain/shared"
+)
+
+// watchProgressKey identifies a buffered progress entry. Per the backlog,
+// the player tick (~5s) repeatedly upserts the same (profile, media) pair —
+// folding writes by this key turns N ticks into one DB upsert per flush.
+type watchProgressKey struct {
+	profileID   shared.ProfileID
+	mediaItemID shared.MediaItemID
+}
+
+// WatchProgressBuffer coalesces ReportProgressBySession upserts in memory and
+// flushes them periodically to the backing repository. The hot path becomes a
+// map write (no DB round-trip); a goroutine drains the map every Interval.
+//
+// Tradeoff: a server crash drops up to FlushInterval worth of progress for
+// active streams. Acceptable per the backlog — self-hosted, low write rate.
+type WatchProgressBuffer struct {
+	repo          playback.ProgressCommandRepo
+	flushInterval time.Duration
+
+	mu      sync.Mutex
+	pending map[watchProgressKey]*playback.WatchProgress
+
+	stopOnce sync.Once
+	stopCh   chan struct{}
+	doneCh   chan struct{}
+}
+
+// DefaultWatchProgressFlushInterval matches the player tick cadence so a flush
+// races at most one in-flight progress update per active stream.
+const DefaultWatchProgressFlushInterval = 5 * time.Second
+
+// NewWatchProgressBuffer constructs a buffer with the given flush cadence.
+// If interval <= 0, DefaultWatchProgressFlushInterval is used.
+func NewWatchProgressBuffer(repo playback.ProgressCommandRepo, interval time.Duration) *WatchProgressBuffer {
+	if interval <= 0 {
+		interval = DefaultWatchProgressFlushInterval
+	}
+	return &WatchProgressBuffer{
+		repo:          repo,
+		flushInterval: interval,
+		pending:       make(map[watchProgressKey]*playback.WatchProgress),
+		stopCh:        make(chan struct{}),
+		doneCh:        make(chan struct{}),
+	}
+}
+
+// Enqueue records the latest progress for (profileID, mediaItemID), folding
+// any earlier pending entry. Returns immediately — no I/O on the hot path.
+func (b *WatchProgressBuffer) Enqueue(wp *playback.WatchProgress) {
+	if wp == nil {
+		return
+	}
+	k := watchProgressKey{profileID: wp.ProfileID, mediaItemID: wp.MediaItemID}
+	b.mu.Lock()
+	b.pending[k] = wp
+	b.mu.Unlock()
+}
+
+// Pending returns the count of buffered entries (mainly for tests/metrics).
+func (b *WatchProgressBuffer) Pending() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return len(b.pending)
+}
+
+// snapshot drains the pending map and returns the entries to persist.
+// Holding the mutex only during the swap keeps the hot path latency-free.
+func (b *WatchProgressBuffer) snapshot() []*playback.WatchProgress {
+	b.mu.Lock()
+	if len(b.pending) == 0 {
+		b.mu.Unlock()
+		return nil
+	}
+	out := make([]*playback.WatchProgress, 0, len(b.pending))
+	for _, wp := range b.pending {
+		out = append(out, wp)
+	}
+	b.pending = make(map[watchProgressKey]*playback.WatchProgress)
+	b.mu.Unlock()
+	return out
+}
+
+// Flush drains and upserts every pending entry. The repo lacks a batch API,
+// so we issue one Upsert per entry; failures are logged and the entry is
+// dropped (the next tick will re-enqueue a fresher position). Returns the
+// number of entries successfully persisted.
+func (b *WatchProgressBuffer) Flush(ctx context.Context) int {
+	entries := b.snapshot()
+	if len(entries) == 0 {
+		return 0
+	}
+	persisted := 0
+	for _, wp := range entries {
+		if err := b.repo.Upsert(ctx, wp); err != nil {
+			slog.Warn("watch progress flush",
+				slog.String("profileID", string(wp.ProfileID)),
+				slog.String("mediaItemID", string(wp.MediaItemID)),
+				slog.Any("err", err),
+			)
+			continue
+		}
+		persisted++
+	}
+	return persisted
+}
+
+// Start launches the periodic flush goroutine. Cancelling ctx OR calling
+// Stop() drains the buffer one last time before returning.
+//
+// Idempotent: calling Start twice spawns a single loop because doneCh is
+// only closed once. Callers should treat this as run-once.
+func (b *WatchProgressBuffer) Start(ctx context.Context) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in watch progress buffer flush", slog.Any("recover", r))
+			}
+			// Final flush on shutdown — uses a fresh context so a cancelled
+			// parent doesn't abort the last write. Bound it tightly to avoid
+			// blocking shutdown indefinitely on a slow DB.
+			flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			b.Flush(flushCtx)
+			cancel()
+			close(b.doneCh)
+		}()
+		ticker := time.NewTicker(b.flushInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-b.stopCh:
+				return
+			case <-ticker.C:
+				b.Flush(ctx)
+			}
+		}
+	}()
+}
+
+// Stop signals the flush loop to exit and waits for the final drain.
+// Safe to call multiple times. Idempotent so graceful shutdown can be
+// invoked from several places without coordination.
+func (b *WatchProgressBuffer) Stop() {
+	b.stopOnce.Do(func() {
+		close(b.stopCh)
+	})
+	<-b.doneCh
+}

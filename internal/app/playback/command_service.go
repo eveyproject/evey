@@ -13,13 +13,14 @@ import (
 )
 
 type CommandService struct {
-	progress       playback.ProgressCommandRepo
-	sessions       playback.SessionCommandRepo
-	sessionQueries playback.SessionQueryRepo
-	users          user.UserRepository
-	profiles       user.ProfileRepository
-	events         shared.EventBus
-	uow            shared.TransactionalUnit
+	progress         playback.ProgressCommandRepo
+	progressBuffer   *WatchProgressBuffer
+	sessions         playback.SessionCommandRepo
+	sessionQueries   playback.SessionQueryRepo
+	users            user.UserRepository
+	profiles         user.ProfileRepository
+	events           shared.EventBus
+	uow              shared.TransactionalUnit
 }
 
 type CommandServiceOption func(*CommandService)
@@ -29,6 +30,13 @@ type CommandServiceOption func(*CommandService)
 // preventing the TOCTOU race where N concurrent requests bypass MaxStreams.
 func WithUnitOfWork(uow shared.TransactionalUnit) CommandServiceOption {
 	return func(s *CommandService) { s.uow = uow }
+}
+
+// WithWatchProgressBuffer routes ReportProgressBySession through an in-memory
+// buffer flushed periodically. Without it, every player tick (~5s/stream)
+// upserts the DB directly. Pass nil to keep the synchronous path (tests).
+func WithWatchProgressBuffer(buf *WatchProgressBuffer) CommandServiceOption {
+	return func(s *CommandService) { s.progressBuffer = buf }
 }
 
 func NewCommandService(
@@ -167,6 +175,14 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 		Completed:    false,
 		LastPlayedAt: time.Now(),
 	}
+	// Buffer-mode keeps the player tick off the DB hot path; the periodic
+	// flusher absorbs N ticks per (profile, media) into a single upsert.
+	// Crash window = flush interval. Synchronous fallback preserves the
+	// old behaviour for tests and any caller that opts out of buffering.
+	if s.progressBuffer != nil {
+		s.progressBuffer.Enqueue(wp)
+		return nil
+	}
 	if err := s.progress.Upsert(ctx, wp); err != nil {
 		return fmt.Errorf("CommandService.ReportProgressBySession: %w", err)
 	}
@@ -235,6 +251,24 @@ func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.D
 
 func (s *CommandService) StartCleanup(ctx context.Context) {
 	s.StartCleanupWithInterval(ctx, 2*time.Minute, 5*time.Minute)
+}
+
+// StartProgressFlusher launches the watch-progress flusher when one is wired.
+// No-op when WithWatchProgressBuffer wasn't used. Safe to call from main.
+func (s *CommandService) StartProgressFlusher(ctx context.Context) {
+	if s.progressBuffer == nil {
+		return
+	}
+	s.progressBuffer.Start(ctx)
+}
+
+// StopProgressFlusher drains and stops the flusher if any. Call during
+// graceful shutdown so the last 0-5s of progress reaches the DB before exit.
+func (s *CommandService) StopProgressFlusher() {
+	if s.progressBuffer == nil {
+		return
+	}
+	s.progressBuffer.Stop()
 }
 
 func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval, maxAge time.Duration) {
