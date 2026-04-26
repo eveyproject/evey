@@ -55,11 +55,29 @@ When the server runs as root, the plugin process is started under UID/GID 1001 (
 
 ### 4. Seccomp filter (LD_PRELOAD)
 
-[`sandbox/sandbox.c`](../sandbox/sandbox.c) is a tiny constructor that calls `prctl(PR_SET_NO_NEW_PRIVS)` then `PR_SET_SECCOMP` with a BPF program that **denies `execve` and `execveat`**, allowing every other syscall.
+[`sandbox/sandbox.c`](../sandbox/sandbox.c) is a tiny constructor that calls `prctl(PR_SET_NO_NEW_PRIVS)` then `PR_SET_SECCOMP` with a BPF program that **denies ~38 syscalls**, allowing every other syscall.
+
+Blocked syscalls, grouped by category:
+
+| Category | Syscalls blocked |
+|---|---|
+| Exec | `execve`, `execveat` |
+| Process control / debug | `ptrace`, `process_vm_readv`, `process_vm_writev` |
+| Filesystem mount | `mount`, `umount2`, `pivot_root`, `chroot` |
+| Namespaces | `unshare`, `setns` |
+| Kernel modules | `init_module`, `finit_module`, `delete_module` |
+| BPF / perf | `bpf`, `perf_event_open` |
+| Hardware I/O | `ioperm`, `iopl` |
+| Swap / memory mgmt | `swapon`, `swapoff` |
+| System control | `syslog`, `reboot`, `settimeofday`, `clock_settime`, `clock_adjtime`, `adjtimex` |
+| Kexec | `kexec_load`, `kexec_file_load` |
+| Setuid family | `setuid`, `setgid`, `setreuid`, `setregid`, `setresuid`, `setresgid` |
+| Capabilities | `capset` |
+| Keyring | `add_key`, `request_key`, `keyctl` |
 
 Limits — read this carefully:
 
-- **Denylist of 2 syscalls.** `open`, `read`, `write`, `connect`, `socket`, `unlink`, `mmap`, `mprotect`, `clone`, etc. are all permitted.
+- **Denylist of ~38 syscalls.** `open`, `read`, `write`, `connect`, `socket`, `unlink`, `mmap`, `mprotect`, `clone`, etc. are all permitted.
 - **No filesystem isolation.** A plugin can read every file readable by UID 1001 — its own directory, `/tmp`, the host socket dir, and any sibling plugin's install dir (since sibling dirs are also chowned to 1001).
 - **No network isolation.** Outbound TCP/UDP is unrestricted; data exfiltration is possible.
 - **Static binary bypass.** A Go/Rust binary that calls `syscall(SYS_execve, ...)` directly is not affected by LD_PRELOAD because the loader never invokes the constructor. Detection: the analyzer tags the binary as `compiled_binary` and the install is blocked unless `native-binary` is requested. This is why the BLOCK-by-default policy matters.
@@ -107,7 +125,7 @@ The notification service subscribes and pages the admin via the configured chann
 | Network egress unrestricted | exfiltration possible | static analyzer flags `requests.*` patterns; admin reviews URL list at preview | bubblewrap `--unshare-net` opt-in (v1.x) |
 | Filesystem unconfined within UID 1001 | sibling plugin reads | install dirs chmod 0750 + analyzer flags `/etc/passwd` patterns | bubblewrap `--ro-bind /` + writable `--bind <plugin_dir>` only |
 | All plugins share UID 1001 | a malicious plugin can send signals to siblings, read their `/proc/<pid>/environ` | `PR_SET_DUMPABLE=0` in sandbox lib (TODO) | per-plugin user namespace via bubblewrap |
-| Seccomp = denylist (2 syscalls) | plugin can `open`/`socket`/`connect` freely | `subprocess` permission gate; native-binary BLOCK | bubblewrap seccomp policy + allowlist mode for `strict` plugins |
+| Seccomp = denylist (~38 syscalls) | plugin can `open`/`socket`/`connect` freely; exec, ptrace, mount, bpf, kexec, module load, setuid-family, keyring blocked — see [§4](#4-seccomp-filter-ld_preload) | `subprocess` permission gate; native-binary BLOCK | bubblewrap seccomp policy + allowlist mode for `strict` plugins |
 | Static binary skips LD_PRELOAD | seccomp inactive | analyzer flags + native-binary opt-in BLOCKS install by default | seccomp applied at exec time via `bwrap --seccomp` (kernel-level, no library required) |
 | Regex analyzer is bypassable by obfuscation | motivated attacker can hide patterns | admin Preview + permission review | server-side risk-scoring + reputation check on plugin author |
 
