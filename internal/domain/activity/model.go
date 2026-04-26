@@ -12,7 +12,7 @@ type PlayHistoryEntry struct {
 	MediaItemID shared.MediaItemID
 	MediaTitle  string
 	MediaType   string
-	DurationMs  int64
+	Duration    shared.Duration
 	PositionMs  int64
 	Completed   bool
 	DeviceName  string

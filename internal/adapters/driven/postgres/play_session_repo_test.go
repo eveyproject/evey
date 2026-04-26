@@ -85,19 +85,20 @@ func TestPlaySessionRepo_Update(t *testing.T) {
 	require.NoError(t, sessionRepo.Create(ctx, session))
 
 	endedAt := time.Now().UTC().Truncate(time.Millisecond)
-	durationMs := int64(120000)
+	dur, durErr := shared.NewDurationMs(120000)
+	require.NoError(t, durErr)
 	pos, err := shared.NewDurationMs(119000)
 	require.NoError(t, err)
 	session.EndedAt = &endedAt
-	session.DurationMs = &durationMs
+	session.Duration = &dur
 	session.Position = &pos
 	require.NoError(t, sessionRepo.Update(ctx, session))
 
 	got, err := sessionRepo.GetByID(ctx, session.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.EndedAt)
-	require.NotNil(t, got.DurationMs)
-	assert.Equal(t, durationMs, *got.DurationMs)
+	require.NotNil(t, got.Duration)
+	assert.Equal(t, int64(120000), got.Duration.Milliseconds())
 }
 
 func TestPlaySessionRepo_GetActiveByProfile(t *testing.T) {

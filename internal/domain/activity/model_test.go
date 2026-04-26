@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 func TestAuthMethodConstants(t *testing.T) {
@@ -36,13 +37,14 @@ func TestPlayHistoryEntry_CompletionFlag(t *testing.T) {
 
 	t.Run("completed play", func(t *testing.T) {
 		t.Parallel()
+		dur, _ := shared.NewDurationMs(5400000) // 90 min
 		entry := &activity.PlayHistoryEntry{
 			ID:          "h1",
 			ProfileID:   "p1",
 			MediaItemID: "m1",
 			MediaTitle:  "Inception",
 			MediaType:   "movie",
-			DurationMs:  5400000, // 90 min
+			Duration:    dur,
 			PositionMs:  5400000,
 			Completed:   true,
 			StartedAt:   now.Add(-90 * time.Minute),
@@ -50,20 +52,21 @@ func TestPlayHistoryEntry_CompletionFlag(t *testing.T) {
 		if !entry.Completed {
 			t.Error("entry should be marked completed")
 		}
-		if entry.PositionMs != entry.DurationMs {
-			t.Errorf("position should equal duration for completed item: pos=%d dur=%d", entry.PositionMs, entry.DurationMs)
+		if entry.PositionMs != entry.Duration.Milliseconds() {
+			t.Errorf("position should equal duration for completed item: pos=%d dur=%d", entry.PositionMs, entry.Duration.Milliseconds())
 		}
 	})
 
 	t.Run("partial play", func(t *testing.T) {
 		t.Parallel()
+		dur, _ := shared.NewDurationMs(2700000) // 45 min
 		entry := &activity.PlayHistoryEntry{
 			ID:          "h2",
 			ProfileID:   "p1",
 			MediaItemID: "m2",
 			MediaTitle:  "Series Ep 1",
 			MediaType:   "episode",
-			DurationMs:  2700000, // 45 min
+			Duration:    dur,
 			PositionMs:  1350000, // 22.5 min — halfway
 			Completed:   false,
 			StartedAt:   now.Add(-30 * time.Minute),
@@ -71,7 +74,7 @@ func TestPlayHistoryEntry_CompletionFlag(t *testing.T) {
 		if entry.Completed {
 			t.Error("partial play should not be marked completed")
 		}
-		if entry.PositionMs >= entry.DurationMs {
+		if entry.PositionMs >= entry.Duration.Milliseconds() {
 			t.Error("position should be less than duration for incomplete item")
 		}
 	})

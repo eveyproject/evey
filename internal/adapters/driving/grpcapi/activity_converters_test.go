@@ -68,13 +68,14 @@ func TestServerMetricToProto_ZeroTotalMemory(t *testing.T) {
 func TestPlayHistoryEntryToProto_FullFields(t *testing.T) {
 	t.Parallel()
 	end := time.Date(2024, 2, 2, 0, 0, 0, 0, time.UTC)
+	dur, _ := shared.NewDurationMs(1000)
 	e := &activity.PlayHistoryEntry{
 		ID:          "ph-1",
 		ProfileID:   shared.ProfileID("p1"),
 		MediaItemID: shared.MediaItemID("m1"),
 		MediaTitle:  "t",
 		MediaType:   "movie",
-		DurationMs:  1000,
+		Duration:    dur,
 		PositionMs:  500,
 		Completed:   true,
 		DeviceName:  "dev",

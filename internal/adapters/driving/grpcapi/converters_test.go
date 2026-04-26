@@ -584,13 +584,14 @@ func TestServerMetricToProto_ZeroTotal(t *testing.T) {
 func TestPlayHistoryEntryToProto(t *testing.T) {
 	t.Parallel()
 	ended := time.Now()
+	dur, _ := shared.NewDurationMs(120000)
 	e := &activity.PlayHistoryEntry{
 		ID:          "ph-1",
 		ProfileID:   "p-1",
 		MediaItemID: "m-1",
 		MediaTitle:  "Movie",
 		MediaType:   "movie",
-		DurationMs:  120000,
+		Duration:    dur,
 		PositionMs:  60000,
 		Completed:   false,
 		EndedAt:     &ended,

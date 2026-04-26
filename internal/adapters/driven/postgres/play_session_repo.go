@@ -60,7 +60,7 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 		s.ID, s.ProfileID, s.MediaItemID, s.DeviceName, s.DeviceType, s.ClientIP,
 		s.PlayMethod, s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
-		s.StartedAt, s.EndedAt, s.DurationMs, positionMsArg(s.Position),
+		s.StartedAt, s.EndedAt, durationMsArg(s.Duration), positionMsArg(s.Position),
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -103,7 +103,7 @@ func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySess
 		 WHERE id=$13`,
 		s.DeviceName, s.DeviceType, s.ClientIP, s.PlayMethod,
 		s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
-		s.EndedAt, s.DurationMs, positionMsArg(s.Position), s.IsPaused, s.ID,
+		s.EndedAt, durationMsArg(s.Duration), positionMsArg(s.Position), s.IsPaused, s.ID,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -121,18 +121,20 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 	defer cancel()
 	s := &playback.PlaySession{}
 	var positionMs *int64
+	var durationMs *int64
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
 		 video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused
 		 FROM play_sessions WHERE id = $1`, id,
 	).Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
 		&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
-		&s.StartedAt, &s.EndedAt, &s.DurationMs, &positionMs, &s.IsPaused)
+		&s.StartedAt, &s.EndedAt, &durationMs, &positionMs, &s.IsPaused)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaySessionRepo.GetByID: %w", err)
 	}
+	s.Duration = scanDurationMs(s.ID, durationMs)
 	s.Position = scanPositionMs(s.ID, positionMs)
 	return s, nil
 }
@@ -168,10 +170,11 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 	var result []*playback.ActiveSessionInfo
 	for rows.Next() {
 		s := &playback.ActiveSessionInfo{}
+		var rawDurationMs int64
 		if err := rows.Scan(
 			&s.SessionID, &s.ProfileID, &s.ProfileName,
 			&s.MediaItemID, &s.MediaTitle, &s.MediaType,
-			&s.DurationMs, &s.PositionMs,
+			&rawDurationMs, &s.PositionMs,
 			&s.StartedAt, &s.DeviceName, &s.DeviceType, &s.ClientIP,
 			&s.PlayMethod, &s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
 			&s.SeriesTitle, &s.SeasonNumber, &s.EpisodeNumber, &s.IsPaused,
@@ -179,6 +182,9 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("PlaySessionRepo.ListActiveSessions scan: %w", err)
+		}
+		if d, err := shared.NewDurationMs(rawDurationMs); err == nil {
+			s.Duration = d
 		}
 		if s.PlayMethod == string(playback.Transcode) {
 			info := fmt.Sprintf("%s -> %s", s.VideoCodec, "h264")
@@ -356,11 +362,13 @@ func (r *PlaySessionRepository) scanPlaySessionRows(rows *sql.Rows) ([]*playback
 	for rows.Next() {
 		s := &playback.PlaySession{}
 		var positionMs *int64
+		var durationMs *int64
 		if err := rows.Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
 			&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
-			&s.StartedAt, &s.EndedAt, &s.DurationMs, &positionMs); err != nil {
+			&s.StartedAt, &s.EndedAt, &durationMs, &positionMs); err != nil {
 			return nil, fmt.Errorf("PlaySessionRepo.scanRows: %w", err)
 		}
+		s.Duration = scanDurationMs(s.ID, durationMs)
 		s.Position = scanPositionMs(s.ID, positionMs)
 		result = append(result, s)
 	}

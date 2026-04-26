@@ -18,7 +18,7 @@ func (e TranscodeStarted) EventName() string { return "transcode.started" }
 type TranscodeCompleted struct {
 	JobID       string
 	MediaItemID shared.MediaItemID
-	DurationMs  int64
+	Duration    shared.Duration
 	OccurredAt  time.Time
 }
 

@@ -179,7 +179,7 @@ type FeedItem struct {
 	Title         string
 	Type          string
 	PositionMs    int64
-	DurationMs    int64
+	Duration      shared.Duration
 	AddedAt       string
 	Score         int
 	SeasonNumber  int // episodes have both set; zero for other types

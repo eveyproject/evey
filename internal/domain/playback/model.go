@@ -47,7 +47,7 @@ type PlaySession struct {
 	BandwidthBps int64
 	StartedAt    time.Time
 	EndedAt      *time.Time
-	DurationMs   *int64
+	Duration *shared.Duration
 	// Position is the last reported playback position. nil when no progress
 	// has been reported yet for this session.
 	Position *shared.Duration
@@ -122,7 +122,7 @@ type ActiveSessionInfo struct {
 	MediaItemID   shared.MediaItemID
 	MediaTitle    string
 	MediaType     string
-	DurationMs    int64
+	Duration      shared.Duration
 	PositionMs    int64
 	StartedAt     time.Time
 	DeviceName    string
@@ -141,10 +141,11 @@ type ActiveSessionInfo struct {
 }
 
 func (a *ActiveSessionInfo) ProgressPercent() float64 {
-	if a.DurationMs <= 0 {
+	dms := a.Duration.Milliseconds()
+	if dms <= 0 {
 		return 0
 	}
-	p := float64(a.PositionMs) / float64(a.DurationMs) * 100
+	p := float64(a.PositionMs) / float64(dms) * 100
 	if p > 100 {
 		return 100
 	}

@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -91,10 +92,11 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 	var result []*activity.PlayHistoryEntry
 	for rows.Next() {
 		e := &activity.PlayHistoryEntry{}
+		var rawDurationMs int64
 		if err := rows.Scan(
 			&e.ID, &e.ProfileID, &e.MediaItemID,
 			&e.MediaTitle, &e.MediaType,
-			&e.DurationMs, &e.PositionMs,
+			&rawDurationMs, &e.PositionMs,
 			&e.Completed,
 			&e.DeviceName, &e.ClientName, &e.PlayMethod,
 			&e.StartedAt, &e.EndedAt,
@@ -102,6 +104,9 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
+		}
+		if d, err := shared.NewDurationMs(rawDurationMs); err == nil {
+			e.Duration = d
 		}
 		result = append(result, e)
 	}

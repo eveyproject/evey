@@ -77,7 +77,7 @@ func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.
 			MediaType:     s.MediaType,
 			MediaItemId:   string(s.MediaItemID),
 			Progress:      s.ProgressPercent(),
-			DurationMs:    s.DurationMs,
+			DurationMs:    s.Duration.Milliseconds(),
 			PositionMs:    s.PositionMs,
 			StartedAt:     timestamppb.New(s.StartedAt),
 			DeviceName:    s.DeviceName,

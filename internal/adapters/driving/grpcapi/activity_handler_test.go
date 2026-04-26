@@ -9,6 +9,7 @@ import (
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	"github.com/evey-project/evey/internal/domain/activity"
 	actfakes "github.com/evey-project/evey/internal/domain/activity/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -34,15 +35,17 @@ func TestActivityHandler_GetPlayHistory_Success(t *testing.T) {
 	now := time.Now()
 	// ph1 is newer than ph2 so it sorts first under the DESC timestamp
 	// order the cursor pagination uses.
+	dur1, _ := shared.NewDurationMs(120000)
+	dur2, _ := shared.NewDurationMs(90000)
 	playHistory.Add(
 		&activity.PlayHistoryEntry{
 			ID: "ph1", ProfileID: "profile-1", MediaItemID: "m1",
-			MediaTitle: "Movie 1", MediaType: "movie", DurationMs: 120000,
+			MediaTitle: "Movie 1", MediaType: "movie", Duration: dur1,
 			PositionMs: 60000, StartedAt: now,
 		},
 		&activity.PlayHistoryEntry{
 			ID: "ph2", ProfileID: "profile-1", MediaItemID: "m2",
-			MediaTitle: "Movie 2", MediaType: "movie", DurationMs: 90000,
+			MediaTitle: "Movie 2", MediaType: "movie", Duration: dur2,
 			PositionMs: 90000, Completed: true, StartedAt: now.Add(-time.Minute),
 		},
 	)

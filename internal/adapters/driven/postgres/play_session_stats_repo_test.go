@@ -48,8 +48,8 @@ func TestPlaySessionStatsRepo_GetUserStats_WithData(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 
 	session := newTestPlaySession("pss-ps1", string(p.ID), string(item.ID))
-	dur := int64(60000)
-	session.DurationMs = &dur
+	dur, _ := shared.NewDurationMs(60000)
+	session.Duration = &dur
 	require.NoError(t, sessionRepo.Create(ctx, session))
 
 	stats, err := statsRepo.GetUserStats(ctx, p.ID)
