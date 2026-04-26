@@ -1,11 +1,18 @@
 package plugin_test
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -608,4 +615,121 @@ func TestInstallPlugin_AllowsCompiledBinaryWithPermission(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, p)
 	assert.Contains(t, p.Permissions, "native-binary")
+}
+
+// makeMinimalPluginZip builds a valid zip archive in memory with a single
+// manifest.json so it can be served over HTTP in tests.
+func makeMinimalPluginZip(t *testing.T, name, version string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	f, err := w.Create("manifest.json")
+	require.NoError(t, err)
+	_, err = fmt.Fprintf(f, `{"name":%q,"version":%q,"language":"go","entrypoint":"./plugin"}`, name, version)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+	return buf.Bytes()
+}
+
+// --- URL install ---
+
+func TestInstallPlugin_WithURL_Success(t *testing.T) {
+	zipContent := makeMinimalPluginZip(t, "url-plugin", "1.0.0")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		_, _ = w.Write(zipContent)
+	}))
+	defer srv.Close()
+
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifest("url-plugin")
+
+	p, err := svc.InstallPlugin(context.Background(), srv.URL)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	assert.Equal(t, "url-plugin", p.Name)
+}
+
+func TestInstallPlugin_WithURL_HashMismatch(t *testing.T) {
+	zipContent := makeMinimalPluginZip(t, "url-plugin-hash", "1.0.0")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		_, _ = w.Write(zipContent)
+	}))
+	defer srv.Close()
+
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifest("url-plugin-hash")
+
+	badHash := strings.Repeat("0", 64)
+	_, err := svc.InstallPlugin(context.Background(), srv.URL+"#sha256:"+badHash)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "hash mismatch")
+}
+
+func TestInstallPlugin_WithURL_HashMatch(t *testing.T) {
+	zipContent := makeMinimalPluginZip(t, "url-plugin-hashok", "1.0.0")
+	h := sha256.Sum256(zipContent)
+	correctHash := hex.EncodeToString(h[:])
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		_, _ = w.Write(zipContent)
+	}))
+	defer srv.Close()
+
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifest("url-plugin-hashok")
+
+	p, err := svc.InstallPlugin(context.Background(), srv.URL+"#sha256:"+correctHash)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	assert.Equal(t, correctHash, p.SourceHash)
+}
+
+func TestInstallPlugin_WithURL_SizeLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		// Stream slightly more than 100 MB so the size limit is hit.
+		const maxBytes = 100 << 20
+		_, _ = io.Copy(w, io.LimitReader(zeroReader{}, maxBytes+1024))
+	}))
+	defer srv.Close()
+
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifest("big-plugin")
+
+	_, err := svc.InstallPlugin(context.Background(), srv.URL)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds 100 MB")
+}
+
+func TestInstallPlugin_WithLocalPath_Unchanged(t *testing.T) {
+	// downloadIfURL must leave local paths untouched and return empty hash.
+	zip := tmpZip(t, "local-content")
+
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifest("local-plugin")
+
+	p, err := svc.InstallPlugin(context.Background(), zip)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	assert.Equal(t, "local-plugin", p.Name)
+
+	// Verify hash matches what hashFile would compute on the local file.
+	data, readErr := os.ReadFile(zip)
+	require.NoError(t, readErr)
+	sum := sha256.Sum256(data)
+	assert.Equal(t, hex.EncodeToString(sum[:]), p.SourceHash)
+}
+
+// zeroReader is an infinite stream of zero bytes, used to simulate a
+// response body larger than the installer's 100 MB cap.
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 0
+	}
+	return len(p), nil
 }

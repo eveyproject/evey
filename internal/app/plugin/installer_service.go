@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,6 +20,74 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/id"
 )
+
+// downloadIfURL detects if source is an HTTP(S) URL, downloads it into a
+// temp file with a 100 MB limit and returns the local path + cleanup func.
+// The fragment "#sha256:<hex>" is parsed as the expected hash if present and
+// stripped from the URL before the download.
+// For local paths, returns source unchanged + noop cleanup + "" hash.
+func downloadIfURL(ctx context.Context, source string) (localPath, expectedHash string, cleanup func(), err error) {
+	cleanup = func() {}
+
+	// Parse optional "#sha256:<hex>" fragment.
+	rawURL, fragment, _ := strings.Cut(source, "#")
+	if strings.HasPrefix(fragment, "sha256:") {
+		expectedHash = strings.TrimPrefix(fragment, "sha256:")
+		source = rawURL
+	}
+
+	if !strings.HasPrefix(source, "http://") && !strings.HasPrefix(source, "https://") {
+		localPath = source
+		return
+	}
+
+	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
+	if reqErr != nil {
+		err = fmt.Errorf("build download request: %w", reqErr)
+		return
+	}
+	req.Header.Set("User-Agent", "evey-plugin-installer/1.0")
+
+	resp, doErr := http.DefaultClient.Do(req)
+	if doErr != nil {
+		err = fmt.Errorf("download plugin: %w", doErr)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		err = fmt.Errorf("download plugin: HTTP %d", resp.StatusCode)
+		return
+	}
+
+	tmp, tmpErr := os.CreateTemp("", "evey-plugin-dl-*.zip")
+	if tmpErr != nil {
+		err = fmt.Errorf("create temp file: %w", tmpErr)
+		return
+	}
+	localPath = tmp.Name()
+	cleanup = func() {
+		tmp.Close()
+		os.Remove(localPath) //nolint:errcheck
+	}
+
+	const maxBytes = 100 << 20 // 100 MB
+	if _, cpErr := io.Copy(tmp, io.LimitReader(resp.Body, maxBytes+1)); cpErr != nil {
+		cleanup()
+		cleanup = func() {}
+		localPath = ""
+		err = fmt.Errorf("write plugin download: %w", cpErr)
+		return
+	}
+	if fi, statErr := tmp.Stat(); statErr == nil && fi.Size() > maxBytes {
+		cleanup()
+		cleanup = func() {}
+		localPath = ""
+		err = fmt.Errorf("plugin zip exceeds 100 MB limit")
+		return
+	}
+	tmp.Close()
+	return
+}
 
 // nativeBinaryPerm is the manifest permission a plugin must declare to
 // be allowed to ship compiled binaries or embedded archives. Without it
@@ -101,9 +170,16 @@ type PluginPreview struct {
 	SourceHash   string
 }
 
-func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Plugin, error) {
+func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*plugin.Plugin, error) {
 	s.installMu.Lock()
 	defer s.installMu.Unlock()
+
+	localPath, expectedHash, cleanupDL, dlErr := downloadIfURL(ctx, source)
+	defer cleanupDL()
+	if dlErr != nil {
+		return nil, fmt.Errorf("resolve plugin source: %w", dlErr)
+	}
+	zipPath := localPath
 
 	manifest, err := s.parser.Parse(zipPath)
 	if err != nil {
@@ -129,6 +205,9 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 	sourceHash, hashErr := hashFile(zipPath)
 	if hashErr != nil {
 		return nil, fmt.Errorf("hash plugin file: %w", hashErr)
+	}
+	if expectedHash != "" && sourceHash != expectedHash {
+		return nil, fmt.Errorf("plugin hash mismatch: expected %s, got %s", expectedHash, sourceHash)
 	}
 
 	p, err := plugin.NewPluginFromManifest(id.New("plg-"), sourceHash, manifest)
