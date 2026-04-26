@@ -16,6 +16,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/photo"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/scanindex"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type CommandService struct {
@@ -40,6 +41,8 @@ type photoJob struct {
 }
 
 func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.photo.ScanDirectory")
+	defer span.End()
 	if s.libRepo != nil {
 		if _, err := s.libRepo.GetByID(ctx, shared.LibraryID(libraryID)); err != nil {
 			return 0, fmt.Errorf("library %s not found: %w", libraryID, err)
@@ -190,6 +193,8 @@ func (s *CommandService) processOnePhoto(ctx context.Context, libraryID string, 
 }
 
 func (s *CommandService) DeletePhoto(ctx context.Context, photoID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.photo.DeletePhoto")
+	defer span.End()
 	p, err := s.repo.GetByID(ctx, photoID)
 	if err != nil && !errors.Is(err, shared.ErrNotFound) {
 		return fmt.Errorf("CommandService.DeletePhoto: %w", err)

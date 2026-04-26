@@ -7,6 +7,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/playlist"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // MediaItemReader hydrates a list of media item IDs into full MediaItem
@@ -38,6 +39,8 @@ func NewQueryService(
 }
 
 func (s *QueryService) GetByID(ctx context.Context, id, userID string) (*playlist.Playlist, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playlist.GetByID")
+	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -49,10 +52,14 @@ func (s *QueryService) GetByID(ctx context.Context, id, userID string) (*playlis
 }
 
 func (s *QueryService) List(ctx context.Context, userID string) ([]*playlist.Playlist, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playlist.List")
+	defer span.End()
 	return s.playlists.List(ctx, userID)
 }
 
 func (s *QueryService) GetItems(ctx context.Context, playlistID, userID string) ([]*library.MediaItem, []*playlist.PlaylistItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playlist.GetItems")
+	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, playlistID)
 	if err != nil {
 		return nil, nil, err

@@ -6,6 +6,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/photo"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type QueryService struct {
@@ -17,6 +18,8 @@ func NewQueryService(repo photo.Repository) *QueryService {
 }
 
 func (s *QueryService) ListPhotos(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]photo.Photo, int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.photo.ListPhotos")
+	defer span.End()
 	if limit <= 0 || limit > 5000 {
 		limit = 200
 	}
@@ -24,6 +27,8 @@ func (s *QueryService) ListPhotos(ctx context.Context, libraryID shared.LibraryI
 }
 
 func (s *QueryService) ListPhotosByAlbum(ctx context.Context, libraryID shared.LibraryID, album string, limit, offset int) ([]photo.Photo, int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.photo.ListPhotosByAlbum")
+	defer span.End()
 	if limit <= 0 || limit > 5000 {
 		limit = 200
 	}
@@ -31,10 +36,14 @@ func (s *QueryService) ListPhotosByAlbum(ctx context.Context, libraryID shared.L
 }
 
 func (s *QueryService) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]photo.Album, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.photo.GetAlbums")
+	defer span.End()
 	return s.repo.GetAlbums(ctx, libraryID)
 }
 
 func (s *QueryService) GetPhoto(ctx context.Context, id string) (*photo.Photo, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.photo.GetPhoto")
+	defer span.End()
 	p, err := s.repo.GetByID(ctx, id)
 	if errors.Is(err, shared.ErrNotFound) {
 		return nil, nil
@@ -43,6 +52,8 @@ func (s *QueryService) GetPhoto(ctx context.Context, id string) (*photo.Photo, e
 }
 
 func (s *QueryService) Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]photo.Photo, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.photo.Search")
+	defer span.End()
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}

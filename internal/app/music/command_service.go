@@ -21,6 +21,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/music"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/scanindex"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // AlbumArtFetcher fetches album artwork from an external source.
@@ -65,6 +66,8 @@ func albumArtHash(artist, album string) string {
 // to fetch artwork via the configured AlbumArtFetcher, persists to disk, and
 // updates track rows. Returns the number of albums successfully updated.
 func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.music.FetchMissingAlbumArt")
+	defer span.End()
 	if s.albumArtFetcher == nil || s.albumArtDir == "" {
 		return 0, nil
 	}
@@ -118,6 +121,8 @@ type trackJob struct {
 }
 
 func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.music.ScanDirectory")
+	defer span.End()
 	if s.libRepo != nil {
 		if _, err := s.libRepo.GetByID(ctx, shared.LibraryID(libraryID)); err != nil {
 			return 0, fmt.Errorf("library %s not found: %w", libraryID, err)
@@ -280,6 +285,8 @@ func (s *CommandService) kickAlbumArtFetch(libraryID string) {
 
 // FetchMissingAlbumArtAllLibraries iterates music libraries and fetches missing art.
 func (s *CommandService) FetchMissingAlbumArtAllLibraries(ctx context.Context) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.music.FetchMissingAlbumArtAllLibraries")
+	defer span.End()
 	if s.libRepo == nil {
 		return 0, nil
 	}
@@ -303,6 +310,8 @@ func (s *CommandService) FetchMissingAlbumArtAllLibraries(ctx context.Context) (
 }
 
 func (s *CommandService) DeleteTrack(ctx context.Context, trackID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.music.DeleteTrack")
+	defer span.End()
 	t, err := s.tracks.GetByID(ctx, trackID)
 	if err != nil && !errors.Is(err, shared.ErrNotFound) {
 		return fmt.Errorf("CommandService.DeleteTrack: %w", err)

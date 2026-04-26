@@ -8,6 +8,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/rating"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type CommandService struct {
@@ -20,6 +21,8 @@ func NewCommandService(repo rating.Repository, bus shared.EventBus) *CommandServ
 }
 
 func (s *CommandService) Rate(ctx context.Context, mediaItemID, profileID string, value int) error {
+	ctx, span := tracing.StartSpan(ctx, "app.rating.Rate")
+	defer span.End()
 	score, err := rating.NewRatingValue(value)
 	if err != nil {
 		return fmt.Errorf("CommandService.Rate: %w", err)
@@ -41,6 +44,8 @@ func (s *CommandService) Rate(ctx context.Context, mediaItemID, profileID string
 }
 
 func (s *CommandService) DeleteRating(ctx context.Context, mediaItemID, profileID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.rating.DeleteRating")
+	defer span.End()
 	if err := s.repo.Delete(ctx, mediaItemID, profileID); err != nil {
 		return fmt.Errorf("CommandService.DeleteRating: %w", err)
 	}

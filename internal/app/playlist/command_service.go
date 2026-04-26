@@ -8,6 +8,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/playlist"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type CommandService struct {
@@ -35,6 +36,8 @@ func (s *CommandService) WithMusicTrackChecker(checker MusicTrackChecker) *Comma
 }
 
 func (s *CommandService) Create(ctx context.Context, pl *playlist.Playlist) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playlist.Create")
+	defer span.End()
 	ptype := pl.Type
 	if ptype == "" {
 		ptype = playlist.Manual
@@ -59,6 +62,8 @@ func (s *CommandService) Create(ctx context.Context, pl *playlist.Playlist) erro
 }
 
 func (s *CommandService) Update(ctx context.Context, pl *playlist.Playlist, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playlist.Update")
+	defer span.End()
 	if pl.Name == "" {
 		return errors.New("invalid playlist: playlist name is required")
 	}
@@ -77,6 +82,8 @@ func (s *CommandService) Update(ctx context.Context, pl *playlist.Playlist, user
 }
 
 func (s *CommandService) Delete(ctx context.Context, id, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playlist.Delete")
+	defer span.End()
 	existing, err := s.playlists.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("CommandService.Delete: %w", err)
@@ -88,6 +95,8 @@ func (s *CommandService) Delete(ctx context.Context, id, userID string) error {
 }
 
 func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, userID, mediaType string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playlist.AddItem")
+	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, playlistID)
 	if err != nil {
 		return fmt.Errorf("CommandService.AddItem: %w", err)
@@ -146,6 +155,8 @@ func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, u
 }
 
 func (s *CommandService) RemoveItem(ctx context.Context, playlistID, mediaItemID, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playlist.RemoveItem")
+	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, playlistID)
 	if err != nil {
 		return fmt.Errorf("CommandService.RemoveItem: %w", err)
@@ -160,6 +171,8 @@ func (s *CommandService) RemoveItem(ctx context.Context, playlistID, mediaItemID
 }
 
 func (s *CommandService) ReorderItems(ctx context.Context, playlistID, userID string, mediaItemIDs []string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playlist.ReorderItems")
+	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, playlistID)
 	if err != nil {
 		return fmt.Errorf("CommandService.ReorderItems: %w", err)
