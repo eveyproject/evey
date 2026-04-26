@@ -35,7 +35,7 @@ const (
 	sandboxModeBubblewrap = "bubblewrap" // bwrap namespace isolation
 	sandboxModeStrict     = "strict"     // bubblewrap + LD_PRELOAD seccomp
 
-	defaultSandboxMode = sandboxModeBasic
+	defaultSandboxMode = sandboxModeBubblewrap
 )
 
 type processEntry struct {
@@ -147,21 +147,21 @@ func (r *Runner) WithHostRegistry(reg HostRegistry) *Runner {
 }
 
 // WithSandboxMode sets the isolation strategy used when launching plugins.
-// Valid values: "basic" (default), "bubblewrap", "strict".
-//   - "basic"      — LD_PRELOAD seccomp lib + UID drop (existing behaviour).
+// Valid values: "bubblewrap" (default), "strict", "basic".
 //   - "bubblewrap" — bwrap namespace isolation (user/pid/uts/ipc/net). Requires
 //     the bwrap binary in $PATH (Alpine: apk add bubblewrap).
 //   - "strict"     — bubblewrap namespaces AND LD_PRELOAD seccomp lib.
+//   - "basic"      — LD_PRELOAD seccomp lib + UID drop only (legacy).
 //
-// Any unrecognised value is silently mapped to "basic" — callers should treat
-// it as a configuration error and validate upstream (e.g. from config).
+// Any unrecognised value (including empty string) is silently mapped to
+// defaultSandboxMode ("bubblewrap") — callers should validate upstream.
 func (r *Runner) WithSandboxMode(mode string) *Runner {
 	switch mode {
-	case sandboxModeBubblewrap, sandboxModeStrict:
+	case sandboxModeBasic, sandboxModeBubblewrap, sandboxModeStrict:
 		r.sandboxMode = mode
 	default:
-		// Empty string, "basic", or any unknown value → basic.
-		r.sandboxMode = sandboxModeBasic
+		// Empty string or any unknown value → default mode.
+		r.sandboxMode = defaultSandboxMode
 	}
 	return r
 }
@@ -442,18 +442,18 @@ func buildPluginEnv(pluginID, sock, hostSock string) []string {
 }
 
 // applySandbox sets up the sandbox for a plugin process. The behaviour
-// depends on the runner's sandboxMode:
+// depends on the runner's sandboxMode (set via WithSandboxMode; production
+// always sets it via config; tests that call NewRunner() without WithSandboxMode
+// receive sandboxModeBasic as an internal fallback):
 //
-//   - "basic" (default): appends LD_PRELOAD seccomp lib to cmd.Env, unless
-//     the plugin has the subprocess permission. Fail-closed when the lib is
-//     missing (unless WithAllowMissingSandbox is set).
-//   - "bubblewrap": wraps the command with bwrap namespace isolation.
+//   - "bubblewrap" (production default): bwrap namespace isolation.
 //     Requires bwrap in $PATH; returns an error if absent.
 //   - "strict": bubblewrap namespaces AND LD_PRELOAD seccomp lib.
+//   - "basic": LD_PRELOAD seccomp lib + UID drop only (legacy/test fallback).
 func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) error {
 	mode := r.sandboxMode
 	if mode == "" {
-		mode = sandboxModeBasic
+		mode = sandboxModeBasic // internal fallback for tests; prod always calls WithSandboxMode
 	}
 
 	switch mode {

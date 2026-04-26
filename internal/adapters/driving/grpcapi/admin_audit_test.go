@@ -68,7 +68,20 @@ func TestAdminGetAuditLog_WithFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAuditLog: %v", err)
 	}
-	_ = resp
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+	for _, entry := range resp.Entries {
+		if entry.UserId != "u-1" {
+			t.Errorf("expected UserId u-1, got %q", entry.UserId)
+		}
+		if entry.Action != "login" {
+			t.Errorf("expected Action login, got %q", entry.Action)
+		}
+		if entry.ResourceType != "user" {
+			t.Errorf("expected ResourceType user, got %q", entry.ResourceType)
+		}
+	}
 }
 
 func TestListActiveSessions_Empty(t *testing.T) {

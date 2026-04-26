@@ -21,16 +21,17 @@ Every plugin ZIP is unpacked to a temp dir and walked by [`pluginrunner.AnalyzeP
 
 | Category | Severity | Examples |
 |---|---|---|
-| `shell_exec` | CRITICAL | `os.system`, `subprocess.run`, `exec()`, `child_process.exec` |
+| `shell_exec` | CRITICAL | `os.system`, `subprocess.run`, `exec()`, `child_process.exec`, PHP `system()`/`passthru()`/`shell_exec()`/`proc_open()`, `preg_replace /e`, Ruby backtick/`Kernel.exec`/`open('|cmd')` |
 | `network` | WARNING / CRITICAL | `requests.get`, `fetch`, reverse/bind shells |
 | `filesystem` | WARNING / CRITICAL | `/etc/passwd`, `.ssh/`, `rm -rf`, symlink ops |
-| `obfuscation` | CRITICAL | `eval`, `exec`, base64 decode, hex sequences, `__builtins__` |
+| `obfuscation` | CRITICAL | `eval`, `exec`, base64 decode, hex sequences, `__builtins__`, PHP `assert(base64_decode(...))`, shell `base64 -d \| bash`, `echo <blob> \| openssl` |
 | `privilege` | CRITICAL | `setuid`, `chmod 4777`, `sudo`, signal PID 1 |
 | `cryptomining` | CRITICAL | `stratum+tcp`, `xmrig`, `cryptonight` |
-| `runtime_install` | CRITICAL | `pip install`, `npm install`, `curl ... | sh` |
+| `runtime_install` | CRITICAL | `pip install`, `npm install`, `curl ... \| sh` |
 | `dynamic_import` | CRITICAL | `__import__()`, `importlib.import_module` |
-| `sandbox_escape` | CRITICAL | `vm.runIn*`, `process.binding`, `new Function` |
-| `native_code` | CRITICAL | `ctypes.CDLL`, `ffi.Library` |
+| `sandbox_escape` | CRITICAL | `vm.runIn*`, `process.binding`, `new Function`, Python `__subclasses__()`, `__class__.__bases__`, `__mro__` class-hierarchy traversal |
+| `deserialization` | CRITICAL / WARNING | `pickle.loads`/`pickle.load`, `marshal.loads`, `__reduce__`/`__reduce_ex__`; WARNING: `yaml.load()` without explicit Loader |
+| `native_code` | CRITICAL / WARNING | `ctypes.CDLL`, `ffi.Library`; WARNING: Go `unsafe.Pointer`, `unsafe.Slice`, `unsafe.SliceData`, `unsafe.StringData` |
 | `compiled_binary` | WARNING → BLOCK | `.so`, `.dll`, `.exe`, `.wasm`, `.jar` (opaque to scanner) |
 | `embedded_archive` | WARNING → BLOCK | `.zip`, `.tar.gz` (extractable code) |
 | `mime_mismatch` | WARNING (treated as critical) | file ext claims image, content is something else |

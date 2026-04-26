@@ -91,6 +91,8 @@ plugins:
     findings: Résultats
     lastError: Dernière erreur
     noData: Aucune donnée de sécurité disponible.
+    signed: Signed
+    unsigned: Unsigned
 
 dashboard:
   title: "Tableau de bord"

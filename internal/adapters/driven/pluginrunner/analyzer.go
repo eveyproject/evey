@@ -207,7 +207,15 @@ func (a *StaticAnalyzer) Analyze(dir string) (*plugin.AnalysisReport, error) {
 	}
 	seenCat := map[string]bool{}
 	for _, f := range raw.Findings {
-		report.Issues = append(report.Issues, fmt.Sprintf("[%s] %s:%d — %s (%s)", severityLabel(f.Severity), f.File, f.Line, f.Description, f.Pattern))
+		sev := severityLabel(f.Severity)
+		report.Issues = append(report.Issues, fmt.Sprintf("[%s] %s:%d — %s (%s)", sev, f.File, f.Line, f.Description, f.Pattern))
+		report.RawFindings = append(report.RawFindings, plugin.PluginFinding{
+			Category:    f.Category,
+			Severity:    sev,
+			File:        f.File,
+			Line:        f.Line,
+			Description: f.Description,
+		})
 		if f.Category != "" && !seenCat[f.Category] {
 			seenCat[f.Category] = true
 			report.Categories = append(report.Categories, f.Category)

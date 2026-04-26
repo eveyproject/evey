@@ -103,6 +103,7 @@ type InstallerService struct {
 	events       shared.EventBus
 	installer    plugin.PluginInstaller
 	analyzer     plugin.PluginAnalyzer
+	sigVerifier  plugin.SignatureVerifier
 	fs           plugin.PluginFileSystem
 	cssSanitizer plugin.CSSSanitizer
 	permChecker  *PermissionChecker
@@ -134,6 +135,10 @@ func InstallerWithFileSystem(fs plugin.PluginFileSystem) InstallerOption {
 
 func InstallerWithCSSSanitizer(cs plugin.CSSSanitizer) InstallerOption {
 	return func(s *InstallerService) { s.cssSanitizer = cs }
+}
+
+func InstallerWithSignatureVerifier(v plugin.SignatureVerifier) InstallerOption {
+	return func(s *InstallerService) { s.sigVerifier = v }
 }
 
 func NewInstallerService(
@@ -210,10 +215,22 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		return nil, fmt.Errorf("plugin hash mismatch: expected %s, got %s", expectedHash, sourceHash)
 	}
 
+	// Cosign signature verification — policy controls whether failure blocks.
+	var sigStatus *plugin.SignatureStatus
+	if s.sigVerifier != nil {
+		sigStatus, err = s.sigVerifier.VerifySignature(ctx, zipPath, "")
+		if err != nil {
+			// Only reached when policy is "enforce" and verification failed.
+			return nil, fmt.Errorf("plugin blocked: %w", err)
+		}
+	}
+
 	p, err := plugin.NewPluginFromManifest(id.New("plg-"), sourceHash, manifest)
 	if err != nil {
 		return nil, fmt.Errorf("build plugin: %w", err)
 	}
+
+	p.Signature = sigStatus
 
 	if s.installer != nil {
 		installDir := filepath.Join(s.pluginDir, p.ID)
@@ -263,6 +280,13 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 				s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
 			}
 			return nil, fmt.Errorf("plugin blocked: critical security issues found: %v", report.Issues)
+		}
+		// Escalate specific WARNING categories to blocking. These patterns are
+		// dangerous enough that admin opt-in (like native-binary) or a source
+		// fix is required before install. Categories not listed here remain
+		// non-blocking warnings persisted for admin review post-install.
+		if err := s.checkEscalatedWarnings(ctx, p, report); err != nil {
+			return nil, err
 		}
 		// Native binaries and archives bypass the static analyzer (they
 		// are opaque blobs). Block installation by default — the manifest
@@ -392,6 +416,36 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 // isStaticPlugin returns true for plugins that don't need a subprocess (CSS themes).
 func isStaticPlugin(p *plugin.Plugin) bool {
 	return strings.EqualFold(p.Language, "css")
+}
+
+// checkEscalatedWarnings blocks installation when the analysis report contains
+// WARNING-severity findings in categories whose risk is high enough to require
+// either a source fix or explicit opt-in, not just post-install admin review.
+//
+// Escalated categories:
+//   - "deserialization": yaml.load without Loader — replace with yaml.safe_load
+//   - "obfuscation" (warning-level patterns): str_rot13, chr() chains — code obfuscation
+//   - "native_code" (Go unsafe.*): allowed when the "native-binary" permission is declared
+func (s *InstallerService) checkEscalatedWarnings(_ context.Context, p *plugin.Plugin, report *plugin.AnalysisReport) error {
+	blockAndClean := func(msg string) error {
+		if s.fs != nil {
+			s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
+		}
+		return fmt.Errorf("plugin blocked: %s", msg)
+	}
+
+	if report.HasWarningCategory("deserialization") {
+		return blockAndClean("unsafe deserialization patterns detected (e.g. yaml.load without Loader) — use safe alternatives such as yaml.safe_load()")
+	}
+	if report.HasWarningCategory("obfuscation") {
+		return blockAndClean("code obfuscation patterns detected (str_rot13, chr() concatenation) — remove obfuscated constructs before installing")
+	}
+	// native_code warnings (Go unsafe.*) require explicit native-binary opt-in
+	// because unsafe code bypasses Go memory safety guarantees.
+	if report.HasWarningCategory("native_code") && !slices.Contains(p.Permissions, nativeBinaryPerm) {
+		return blockAndClean(fmt.Sprintf("native/unsafe code patterns detected — declare permission %q in manifest to opt in", nativeBinaryPerm))
+	}
+	return nil
 }
 
 func hashFile(path string) (string, error) {

@@ -224,15 +224,18 @@ Permissions are declared in the manifest and enforced at runtime via a gRPC inte
 Before installation, the analyzer scans all non-binary files for suspicious patterns:
 
 **Critical (blocks install):**
-- Shell execution (`os.system`, `subprocess`, `exec()`, `child_process`)
+- Shell execution (`os.system`, `subprocess`, `exec()`, `child_process`, PHP `system()`/`passthru()`/`shell_exec()`/`proc_open()`, `preg_replace /e`, Ruby backtick/`Kernel.exec`/`open('|cmd')`)
 - Reverse/bind shells
 - Sensitive file access (`/etc/passwd`, `/etc/shadow`, `.ssh/`)
 - Dynamic code execution (`eval()`, `exec()`, `compile()`)
 - Privilege escalation (`setuid`, `chmod 4777`, `sudo`)
 - Crypto mining indicators (`stratum+tcp`, `xmrig`, `coinhive`)
 - Runtime package installation (`pip install`, `npm install`, `curl | sh`)
-- Dynamic imports / sandbox escape (`__import__`, `vm.runIn`, `new Function`)
+- Dynamic imports / sandbox escape (`__import__`, `vm.runIn`, `new Function`, Python `__subclasses__()`/`__class__.__bases__`/`__mro__`)
+- Unsafe deserialization (`pickle.loads`, `marshal.loads`, `__reduce__`/`__reduce_ex__`)
 - Native code execution (`ctypes.CDLL`, `ffi.Library`)
+- Obfuscated shell payloads (shell `base64 -d | bash`, `echo <blob> | openssl`)
+- PHP obfuscation (`assert(base64_decode(...))`)
 - String concatenation evasion (obfuscated imports)
 - Signals to PID 1
 
@@ -245,6 +248,9 @@ Before installation, the analyzer scans all non-binary files for suspicious patt
 - Unvendored dependency manifests
 - Non-HTTP URL schemes (`wss://`, `ssh://`, `ftp://`)
 - JWT/private key file references, `.env.*` references
+- `yaml.load()` without explicit Loader (Python deserialization risk)
+- PHP `str_rot13()` and `chr()` concatenation obfuscation
+- Go `unsafe.Pointer` / `unsafe.Slice` / `unsafe.SliceData` / `unsafe.StringData`
 
 The analyzer also extracts all URLs (literal, template, concatenated) for audit.
 
@@ -363,6 +369,26 @@ plugins. Flip it on only on hosts where you intend to install plugins.
 `POST /api/v1/admin/plugins/upload` (admin-only, multipart form, field `plugin`).
 
 Max upload size: 100 MB.
+
+### Install from URL
+
+The install endpoint also accepts an HTTPS URL as the `source` field instead of a file upload:
+
+```
+POST /api/v1/admin/plugins/install
+Content-Type: application/json
+{ "source": "https://example.com/my-plugin-1.2.0.zip#sha256:abc123…" }
+```
+
+The `#sha256:<hex>` fragment is **optional but strongly recommended**. When present, the installer verifies the downloaded ZIP matches the expected digest before extracting. If the hashes differ the install is aborted with an error.
+
+| Behaviour | Detail |
+|---|---|
+| Max download size | 100 MB — larger responses are rejected |
+| Context propagation | The HTTP request inherits the admin request context (cancelled if the admin disconnects) |
+| Temp file | Written to a system temp dir; deleted automatically after install (success or failure) |
+| Hash fragment | `#sha256:<64-hex-chars>` — stripped from the URL before the request is sent |
+| Local path | A local file path (no scheme) passes through unchanged — hash fragment is also accepted |
 
 ### ZIP extraction limits
 

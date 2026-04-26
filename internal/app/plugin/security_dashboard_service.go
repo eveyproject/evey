@@ -40,7 +40,7 @@ func NewSecurityDashboardService(
 	sandboxMode string,
 ) *SecurityDashboardService {
 	if sandboxMode == "" {
-		sandboxMode = "basic"
+		sandboxMode = "bubblewrap"
 	}
 	s := &SecurityDashboardService{
 		plugins:       plugins,
@@ -106,6 +106,9 @@ func (s *SecurityDashboardService) GetSecurityDashboard(ctx context.Context) ([]
 			snap.Findings = findingsFromReport(p.AnalysisReport)
 		}
 
+		// Signature status from cosign verification at install time.
+		snap.Signature = p.Signature
+
 		// Last error from in-memory cache.
 		if le, ok := s.lastErrors[p.ID]; ok {
 			snap.LastError = le
@@ -134,14 +137,28 @@ func (s *SecurityDashboardService) effectiveSandboxMode(p *domainplugin.Plugin) 
 	return s.sandboxMode
 }
 
-// findingsFromReport converts the domain AnalysisReport (Issues []string with
-// embedded "[SEVERITY] file:line — description") into SecurityFinding structs.
-// The AnalysisReport.Issues slice is a pre-formatted string; we parse category
-// from Categories and use the Issues strings as the Description field.
-// Since the raw AnalysisFinding structs are not persisted in the domain model
-// (only the formatted Issues strings are), we reconstruct what we can from
-// the stored data and use the Categories list for category names.
+// findingsFromReport converts the domain AnalysisReport into SecurityFinding
+// structs for the security dashboard.
+//
+// Preferred path: use RawFindings (populated at install time since the
+// analyzer stores full per-finding data including description, file, line).
+// Fallback path: reconstruct from Issues []string for legacy rows that were
+// installed before RawFindings was added to the domain model.
 func findingsFromReport(r *domainplugin.AnalysisReport) []domainplugin.SecurityFinding {
+	if len(r.RawFindings) > 0 {
+		findings := make([]domainplugin.SecurityFinding, 0, len(r.RawFindings))
+		for _, f := range r.RawFindings {
+			findings = append(findings, domainplugin.SecurityFinding{
+				Category:    f.Category,
+				Severity:    f.Severity,
+				File:        f.File,
+				Line:        f.Line,
+				Description: f.Description,
+			})
+		}
+		return findings
+	}
+	// Legacy fallback: reconstruct from formatted Issues strings.
 	if len(r.Issues) == 0 {
 		return nil
 	}
@@ -151,12 +168,10 @@ func findingsFromReport(r *domainplugin.AnalysisReport) []domainplugin.SecurityF
 		if i < len(r.Categories) {
 			cat = r.Categories[i]
 		}
-		severity := parseSeverityFromIssue(issue)
 		findings = append(findings, domainplugin.SecurityFinding{
-			Category: cat,
-			Severity: severity,
-			File:     "",   // not separately stored in domain AnalysisReport
-			Line:     0,
+			Category:    cat,
+			Severity:    parseSeverityFromIssue(issue),
+			Description: issue, // full formatted string as description for legacy rows
 		})
 	}
 	return findings

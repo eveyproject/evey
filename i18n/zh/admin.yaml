@@ -91,6 +91,8 @@ plugins:
     findings: 发现
     lastError: 最近错误
     noData: 暂无安全数据。
+    signed: Signed
+    unsigned: Unsigned
 
 dashboard:
   title: "仪表盘"

@@ -299,15 +299,15 @@ func TestWithSandboxMode_StoresBasic(t *testing.T) {
 	assert.Equal(t, sandboxModeBasic, r.sandboxMode)
 }
 
-// TestWithSandboxMode_InvalidMappedToBasic documents that any unrecognised
-// value (including empty string) is silently mapped to "basic". This prevents
-// accidental escalation from a config typo — the runner stays in the known-safe
-// default rather than refusing to start or behaving unpredictably.
-func TestWithSandboxMode_InvalidMappedToBasic(t *testing.T) {
+// TestWithSandboxMode_InvalidMappedToDefault documents that any unrecognised
+// value (including empty string) is silently mapped to the default sandbox mode
+// (bubblewrap). This prevents accidental escalation from a config typo —
+// the runner stays in the known-safe default rather than refusing to start.
+func TestWithSandboxMode_InvalidMappedToDefault(t *testing.T) {
 	for _, bad := range []string{"", "none", "BUBBLEWRAP", "unknown"} {
 		r := NewRunner().WithSandboxMode(bad)
-		assert.Equal(t, sandboxModeBasic, r.sandboxMode,
-			"mode %q should be mapped to basic", bad)
+		assert.Equal(t, defaultSandboxMode, r.sandboxMode,
+			"mode %q should be mapped to the default sandbox mode", bad)
 	}
 }
 

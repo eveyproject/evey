@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Shield, AlertTriangle, XCircle, Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { Shield, AlertTriangle, XCircle, Clock, ChevronDown, ChevronUp, CheckCircle, ShieldOff } from "lucide-react";
 import { eveyFetch } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
@@ -11,6 +11,13 @@ interface SecurityFinding {
   severity: string;
   file: string;
   line: number;
+  description?: string;
+}
+
+interface SignatureStatus {
+  verified: boolean;
+  verifiedBy?: string;
+  error?: string;
 }
 
 interface PluginLastError {
@@ -26,6 +33,7 @@ interface PluginSecuritySnapshot {
   permissions: string[];
   findings: SecurityFinding[];
   lastError?: PluginLastError;
+  signature?: SignatureStatus;
   sourceSHA256: string;
   installedAt: string;
   lastStartedAt?: string;
@@ -91,6 +99,19 @@ function SnapshotRow({ snap }: { snap: PluginSecuritySnapshot }) {
           ) : (
             <Badge variant="success">{t("plugins.security.clean")}</Badge>
           )}
+          {snap.signature && (
+            snap.signature.verified ? (
+              <Badge variant="success">
+                <CheckCircle size={10} className="mr-1" />
+                {t("plugins.security.signed")}
+              </Badge>
+            ) : (
+              <Badge variant="warning">
+                <ShieldOff size={10} className="mr-1" />
+                {t("plugins.security.unsigned")}
+              </Badge>
+            )
+          )}
           {hasError && (
             <Badge variant="error">{t("plugins.security.errorBadge")}</Badge>
           )}
@@ -123,9 +144,12 @@ function SnapshotRow({ snap }: { snap: PluginSecuritySnapshot }) {
                   >
                     {f.severity.toUpperCase()}
                   </span>
-                  <span className="text-[var(--text)]">{f.category}</span>
+                  <span className="text-[var(--text)] font-medium">{f.category}</span>
+                  {f.description && (
+                    <span className="text-[var(--text-muted)] truncate">{f.description}</span>
+                  )}
                   {f.file && (
-                    <span className="font-mono text-[var(--text-muted)] ml-auto">
+                    <span className="font-mono text-[var(--text-muted)] ml-auto shrink-0">
                       {f.file}:{f.line}
                     </span>
                   )}

@@ -59,3 +59,11 @@ type PluginFileSystem interface {
 	CopySDKStubs(language, installDir string) error
 	ChownPluginDir(dir string)
 }
+
+// SignatureVerifier checks the cosign signature of a plugin ZIP.
+// zipPath is the local path to the ZIP file.
+// sigPath is the path to the detached signature file (empty = zipPath+".sig").
+// Returns (nil, nil) when verification is disabled (policy="off" or no key configured).
+type SignatureVerifier interface {
+	VerifySignature(ctx context.Context, zipPath, sigPath string) (*SignatureStatus, error)
+}

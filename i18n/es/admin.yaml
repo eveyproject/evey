@@ -91,6 +91,8 @@ plugins:
     findings: Hallazgos
     lastError: Último error
     noData: No hay datos de seguridad disponibles.
+    signed: Signed
+    unsigned: Unsigned
 
 dashboard:
   title: "Panel"

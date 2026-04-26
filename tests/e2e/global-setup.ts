@@ -38,7 +38,9 @@ export default async function globalSetup() {
     if (!res.ok) return;
     const data = (await res.json()) as { accessToken?: string };
     if (!data.accessToken) return;
-    const payload = JSON.parse(atob(data.accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    const tokenParts = data.accessToken.split(".");
+    if (tokenParts.length < 3 || !tokenParts[1]) return;
+    const payload = JSON.parse(atob(tokenParts[1].replace(/-/g, "+").replace(/_/g, "/")));
     localStorage.setItem("evey-auth", JSON.stringify({
       state: {
         accessToken: data.accessToken,

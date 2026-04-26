@@ -91,6 +91,8 @@ plugins:
     findings: निष्कर्ष
     lastError: अंतिम त्रुटि
     noData: कोई सुरक्षा डेटा उपलब्ध नहीं।
+    signed: Signed
+    unsigned: Unsigned
 
 dashboard:
   title: "डैशबोर्ड"

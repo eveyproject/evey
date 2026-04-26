@@ -35,9 +35,28 @@ type PluginsConfig struct {
 	// SandboxMode controls the isolation level applied to plugin processes.
 	// Valid values: "basic" (LD_PRELOAD seccomp + UID drop),
 	// "bubblewrap" (bwrap namespace isolation), "strict" (bwrap + strict seccomp).
-	// Defaults to "basic" when unset or empty.
+	// Defaults to "bubblewrap" when unset or empty.
 	// EVEY_PLUGINS_SANDBOX_MODE
 	SandboxMode string
+
+	// Resource limits applied via cgroup v2 per plugin process.
+	// Zero values use the runner package defaults (256 MiB, 50% CPU, 64 PIDs).
+	// EVEY_PLUGINS_MEMORY_MB — max RSS in MiB, default 256.
+	MemoryMB int64
+	// EVEY_PLUGINS_CPU_PERCENT — CPU share in percent (1-100), default 50.
+	CPUPercent int
+	// EVEY_PLUGINS_PIDS_MAX — max process/thread count per plugin, default 64.
+	PIDsMax int
+
+	// CosignPolicy controls whether plugin ZIPs must carry a cosign signature.
+	// Values: "off" (default, no verification), "warn" (log if absent/invalid),
+	// "enforce" (block install when signature is missing or invalid).
+	// EVEY_PLUGINS_COSIGN_POLICY
+	CosignPolicy string
+	// CosignPublicKey is a path to the PEM public key used to verify signatures.
+	// Required when CosignPolicy != "off".
+	// EVEY_PLUGINS_COSIGN_PUBLIC_KEY
+	CosignPublicKey string
 }
 
 type TracingConfig struct {
@@ -264,6 +283,18 @@ func (c *Config) WarnValidate() error {
 				slog.String("sandbox_mode", c.Plugins.SandboxMode))
 		}
 	}
+	switch c.Plugins.CosignPolicy {
+	case "off", "warn", "enforce":
+		// valid
+	default:
+		errs = append(errs, fmt.Sprintf("cfg.Plugins.CosignPolicy: invalid value %q (expected off|warn|enforce)", c.Plugins.CosignPolicy))
+	}
+	if c.Plugins.CosignPolicy != "off" && c.Plugins.CosignPublicKey == "" {
+		slog.Warn("cfg.Plugins.CosignPolicy is non-off but EVEY_PLUGINS_COSIGN_PUBLIC_KEY is not set — signature verification will always fail")
+	}
+	if p := c.Plugins.CPUPercent; p < 0 || p > 100 {
+		errs = append(errs, fmt.Sprintf("cfg.Plugins.CPUPercent: value %d out of range (1-100)", p))
+	}
 
 	if len(errs) > 0 {
 		return fmt.Errorf("config validation failed: %s", strings.Join(errs, "; "))
@@ -382,7 +413,12 @@ func Load() (*Config, error) {
 			SampleRatio:  envFloat("EVEY_TRACING_SAMPLE_RATIO", 0),
 		},
 		Plugins: PluginsConfig{
-			SandboxMode: envPluginSandboxMode("EVEY_PLUGINS_SANDBOX_MODE", "basic"),
+			SandboxMode:     envPluginSandboxMode("EVEY_PLUGINS_SANDBOX_MODE", "bubblewrap"),
+			MemoryMB:        int64(envInt("EVEY_PLUGINS_MEMORY_MB", 256)),
+			CPUPercent:      envInt("EVEY_PLUGINS_CPU_PERCENT", 50),
+			PIDsMax:         envInt("EVEY_PLUGINS_PIDS_MAX", 64),
+			CosignPolicy:    strings.ToLower(strings.TrimSpace(envStr("EVEY_PLUGINS_COSIGN_POLICY", "off"))),
+			CosignPublicKey: envStr("EVEY_PLUGINS_COSIGN_PUBLIC_KEY", ""),
 		},
 	}
 	return cfg, nil

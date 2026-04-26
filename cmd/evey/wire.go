@@ -99,11 +99,12 @@ type infraDeps struct {
 	omdbProvider     *metadataadapter.OMDbProvider
 	artworkDL        *metadataadapter.ArtworkHTTPDownloader
 	personFetcher    *metadataadapter.TMDBPersonFetcher
-	pluginRunner     *pluginrunner.Runner
-	pluginLogger     *pluginrunner.PluginLogger
-	manifestParser   *pluginrunner.YAMLManifestParser
-	pluginInstaller  *pluginrunner.ZipInstaller
-	pluginAnalyzer   *pluginrunner.StaticAnalyzer
+	pluginRunner      *pluginrunner.Runner
+	pluginLogger      *pluginrunner.PluginLogger
+	manifestParser    *pluginrunner.YAMLManifestParser
+	pluginInstaller   *pluginrunner.ZipInstaller
+	pluginAnalyzer    *pluginrunner.StaticAnalyzer
+	pluginSigVerifier *pluginrunner.CosignVerifier
 	subScanner       *filesystem.SubtitleScanner
 	tmdbKey          string
 }
@@ -181,14 +182,23 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 			"DevMode=true must NEVER be set in production; " +
 			"plugins without the 'subprocess' permission will start unsandboxed")
 	}
+	// Convert CPUPercent (1-100) to cgroup v2 cpu.max values:
+	//   quota  = percent * 1000 µs  (per 100 ms period)
+	//   period = 100 000 µs
+	cpuQuotaUS := cfg.Plugins.CPUPercent * 1000
+	if cpuQuotaUS <= 0 {
+		cpuQuotaUS = 50000 // 50% default
+	}
 	pluginRunner := pluginrunner.NewRunner().
 		WithLogger(pluginLogger).
 		WithAllowMissingSandbox(cfg.Log.DevMode).
 		WithSandboxMode(cfg.Plugins.SandboxMode).
+		WithResourceLimits(cfg.Plugins.MemoryMB*1024*1024, cpuQuotaUS, 100000, cfg.Plugins.PIDsMax).
 		WithEventBus(bus)
 	manifestParser := pluginrunner.NewManifestParser()
 	pluginInstaller := pluginrunner.NewZipInstaller()
 	pluginAnalyzer := pluginrunner.NewStaticAnalyzer()
+	pluginSigVerifier := pluginrunner.NewCosignVerifier(cfg.Plugins.CosignPolicy, cfg.Plugins.CosignPublicKey)
 
 	translator, i18nErr := eveyi18n.NewFromDir("i18n")
 	if i18nErr != nil {
@@ -226,13 +236,14 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		omdbProvider:    omdbProvider,
 		artworkDL:       artworkDownloader,
 		personFetcher:   personFetcher,
-		pluginRunner:    pluginRunner,
-		pluginLogger:    pluginLogger,
-		manifestParser:  manifestParser,
-		pluginInstaller: pluginInstaller,
-		pluginAnalyzer:  pluginAnalyzer,
-		subScanner:      subScanner,
-		tmdbKey:         tmdbKey,
+		pluginRunner:      pluginRunner,
+		pluginLogger:      pluginLogger,
+		manifestParser:    manifestParser,
+		pluginInstaller:   pluginInstaller,
+		pluginAnalyzer:    pluginAnalyzer,
+		pluginSigVerifier: pluginSigVerifier,
+		subScanner:        subScanner,
+		tmdbKey:           tmdbKey,
 	}, nil
 }
 
@@ -375,6 +386,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, infra.pluginRunner, infra.manifestParser, bus,
 		appplugin.InstallerWithInstaller(infra.pluginInstaller),
 		appplugin.InstallerWithAnalyzer(infra.pluginAnalyzer),
+		appplugin.InstallerWithSignatureVerifier(infra.pluginSigVerifier),
 		appplugin.InstallerWithPermissionChecker(permChecker),
 		appplugin.InstallerWithFileSystem(pluginFS),
 		appplugin.InstallerWithCSSSanitizer(cssSanitizer),
