@@ -9,6 +9,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/syncplay"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type SyncPlayRoomRepo struct {
@@ -20,6 +21,8 @@ func NewSyncPlayRoomRepo(db *sql.DB) *SyncPlayRoomRepo {
 }
 
 func (r *SyncPlayRoomRepo) Create(ctx context.Context, room *syncplay.Room) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.Create")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	membersJSON, err := json.Marshal(room.Members)
@@ -51,6 +54,8 @@ func (r *SyncPlayRoomRepo) Create(ctx context.Context, room *syncplay.Room) erro
 }
 
 func (r *SyncPlayRoomRepo) Get(ctx context.Context, id string) (*syncplay.Room, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.Get")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at, media_type, playlist_id, queue, track_index
@@ -58,6 +63,8 @@ func (r *SyncPlayRoomRepo) Get(ctx context.Context, id string) (*syncplay.Room, 
 }
 
 func (r *SyncPlayRoomRepo) GetByCode(ctx context.Context, code string) (*syncplay.Room, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.GetByCode")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at, media_type, playlist_id, queue, track_index
@@ -98,6 +105,8 @@ func (r *SyncPlayRoomRepo) scanRoom(ctx context.Context, query string, arg strin
 }
 
 func (r *SyncPlayRoomRepo) AddMember(ctx context.Context, roomID string, member syncplay.Member) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.AddMember")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	room, err := r.Get(ctx, roomID)
@@ -122,6 +131,8 @@ func (r *SyncPlayRoomRepo) AddMember(ctx context.Context, roomID string, member 
 }
 
 func (r *SyncPlayRoomRepo) RemoveMember(ctx context.Context, roomID string, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.RemoveMember")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	room, err := r.Get(ctx, roomID)
@@ -146,6 +157,8 @@ func (r *SyncPlayRoomRepo) RemoveMember(ctx context.Context, roomID string, user
 }
 
 func (r *SyncPlayRoomRepo) UpdateState(ctx context.Context, roomID string, state syncplay.PlaybackState) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.UpdateState")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	stateJSON, err := json.Marshal(state)
@@ -160,6 +173,8 @@ func (r *SyncPlayRoomRepo) UpdateState(ctx context.Context, roomID string, state
 }
 
 func (r *SyncPlayRoomRepo) UpdateTrackIndex(ctx context.Context, roomID string, idx int, mediaID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.UpdateTrackIndex")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -170,6 +185,8 @@ func (r *SyncPlayRoomRepo) UpdateTrackIndex(ctx context.Context, roomID string, 
 }
 
 func (r *SyncPlayRoomRepo) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.Delete")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,

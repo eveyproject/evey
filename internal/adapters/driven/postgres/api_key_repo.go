@@ -9,6 +9,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type APIKeyRepository struct {
@@ -20,6 +21,8 @@ func NewAPIKeyRepository(db *sql.DB) *APIKeyRepository {
 }
 
 func (r *APIKeyRepository) Create(ctx context.Context, key *user.APIKeyModel) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.api_key.Create")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	permJSON, err := json.Marshal(key.Permissions)
@@ -35,6 +38,8 @@ func (r *APIKeyRepository) Create(ctx context.Context, key *user.APIKeyModel) er
 }
 
 func (r *APIKeyRepository) GetByKeyHash(ctx context.Context, hash string) (*user.APIKeyModel, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.api_key.GetByKeyHash")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	key := &user.APIKeyModel{}
@@ -53,6 +58,8 @@ func (r *APIKeyRepository) GetByKeyHash(ctx context.Context, hash string) (*user
 }
 
 func (r *APIKeyRepository) ListByUserID(ctx context.Context, userID shared.UserID) ([]*user.APIKeyModel, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.api_key.ListByUserID")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -79,6 +86,8 @@ func (r *APIKeyRepository) ListByUserID(ctx context.Context, userID shared.UserI
 }
 
 func (r *APIKeyRepository) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.api_key.Delete")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM api_keys WHERE id = $1`, id)
@@ -92,6 +101,8 @@ func (r *APIKeyRepository) Delete(ctx context.Context, id string) error {
 }
 
 func (r *APIKeyRepository) UpdateLastUsed(ctx context.Context, id string, t time.Time) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.api_key.UpdateLastUsed")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx,

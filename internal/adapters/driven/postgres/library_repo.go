@@ -8,6 +8,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type LibraryRepository struct {
@@ -19,6 +20,8 @@ func NewLibraryRepository(db *sql.DB) *LibraryRepository {
 }
 
 func (r *LibraryRepository) Create(ctx context.Context, lib *library.Library) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library.Create")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	pathsJSON, err := json.Marshal(lib.Paths)
@@ -37,6 +40,8 @@ func (r *LibraryRepository) Create(ctx context.Context, lib *library.Library) er
 }
 
 func (r *LibraryRepository) GetByID(ctx context.Context, id shared.LibraryID) (*library.Library, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library.GetByID")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	lib := &library.Library{}
@@ -55,6 +60,8 @@ func (r *LibraryRepository) GetByID(ctx context.Context, id shared.LibraryID) (*
 }
 
 func (r *LibraryRepository) List(ctx context.Context, filter library.ListLibrariesFilter) ([]*library.Library, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library.List")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	const baseQuery = `SELECT id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at
@@ -100,6 +107,8 @@ func (r *LibraryRepository) List(ctx context.Context, filter library.ListLibrari
 }
 
 func (r *LibraryRepository) Update(ctx context.Context, lib *library.Library) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library.Update")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	pathsJSON, err := json.Marshal(lib.Paths)
@@ -121,6 +130,8 @@ func (r *LibraryRepository) Update(ctx context.Context, lib *library.Library) er
 }
 
 func (r *LibraryRepository) Delete(ctx context.Context, id shared.LibraryID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library.Delete")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM libraries WHERE id = $1`, string(id))

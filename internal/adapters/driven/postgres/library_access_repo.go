@@ -8,6 +8,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type LibraryAccessRepository struct {
@@ -19,6 +20,8 @@ func NewLibraryAccessRepository(db *sql.DB) *LibraryAccessRepository {
 }
 
 func (r *LibraryAccessRepository) Grant(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library_access.Grant")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -38,6 +41,8 @@ func (r *LibraryAccessRepository) GrantMany(ctx context.Context, userID shared.U
 	if len(libraryIDs) == 0 {
 		return nil
 	}
+	ctx, span := tracing.StartSpan(ctx, "postgres.library_access.GrantMany")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	ids := make([]string, len(libraryIDs))
@@ -53,6 +58,8 @@ func (r *LibraryAccessRepository) GrantMany(ctx context.Context, userID shared.U
 }
 
 func (r *LibraryAccessRepository) Revoke(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library_access.Revoke")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
@@ -62,6 +69,8 @@ func (r *LibraryAccessRepository) Revoke(ctx context.Context, userID shared.User
 }
 
 func (r *LibraryAccessRepository) GetByUserID(ctx context.Context, userID shared.UserID) ([]shared.LibraryID, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library_access.GetByUserID")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -82,6 +91,8 @@ func (r *LibraryAccessRepository) GetByUserID(ctx context.Context, userID shared
 }
 
 func (r *LibraryAccessRepository) HasAccess(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library_access.HasAccess")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	// Single round-trip: COUNT(*) = total restrictions, matched = whether the
@@ -102,6 +113,8 @@ func (r *LibraryAccessRepository) HasAccess(ctx context.Context, userID shared.U
 }
 
 func (r *LibraryAccessRepository) ListUsersWithRestrictions(ctx context.Context) (map[shared.UserID][]shared.LibraryID, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library_access.ListUsersWithRestrictions")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,

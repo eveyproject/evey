@@ -8,6 +8,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type InviteLinkRepository struct {
@@ -19,6 +20,8 @@ func NewInviteLinkRepository(db *sql.DB) *InviteLinkRepository {
 }
 
 func (r *InviteLinkRepository) Create(ctx context.Context, link *user.InviteLink) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.invite_link.Create")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	libIDs := link.LibraryIDs
@@ -56,6 +59,8 @@ func scanInviteLink(scanner interface {
 }
 
 func (r *InviteLinkRepository) GetByToken(ctx context.Context, token string) (*user.InviteLink, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.invite_link.GetByToken")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	row := r.db.QueryRowContext(ctx,
@@ -65,6 +70,8 @@ func (r *InviteLinkRepository) GetByToken(ctx context.Context, token string) (*u
 }
 
 func (r *InviteLinkRepository) ListByCreator(ctx context.Context, creatorID string) ([]*user.InviteLink, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.invite_link.ListByCreator")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -90,6 +97,8 @@ func (r *InviteLinkRepository) ListByCreator(ctx context.Context, creatorID stri
 // never go below 0. Used by registration flow when user.Create fails after a
 // successful claim to avoid leaking a slot.
 func (r *InviteLinkRepository) DecrementUsedCount(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.invite_link.DecrementUsedCount")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
@@ -109,6 +118,8 @@ func (r *InviteLinkRepository) DecrementUsedCount(ctx context.Context, id string
 // the slot, create the user, grant libraries and create the default profile
 // in a single tx — any failure rolls back the claim atomically.
 func (r *InviteLinkRepository) IncrementUsedCount(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.invite_link.IncrementUsedCount")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
@@ -125,6 +136,8 @@ func (r *InviteLinkRepository) IncrementUsedCount(ctx context.Context, id string
 }
 
 func (r *InviteLinkRepository) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.invite_link.Delete")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM invite_links WHERE id = $1`, id)

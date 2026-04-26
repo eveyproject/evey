@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type AnalyticsReader struct {
@@ -19,6 +20,8 @@ func NewAnalyticsReader(db *sql.DB) *AnalyticsReader {
 }
 
 func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.AnalyticsData, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.analytics.GetAnalytics")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
