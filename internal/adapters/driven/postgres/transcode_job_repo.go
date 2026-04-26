@@ -3,13 +3,39 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
+
+// durationMsArg adapts a *shared.Duration to the int64-or-NULL value the
+// duration_ms column accepts. Returns nil for a nil duration.
+func durationMsArg(d *shared.Duration) any {
+	if d == nil {
+		return nil
+	}
+	return d.Milliseconds()
+}
+
+// scanDurationMs converts a nullable int64 read from duration_ms into the
+// domain *shared.Duration. A negative stored value would be a corrupt row;
+// log and drop it (returning nil) rather than failing the whole read.
+func scanDurationMs(jobID string, raw *int64) *shared.Duration {
+	if raw == nil {
+		return nil
+	}
+	d, err := shared.NewDurationMs(*raw)
+	if err != nil {
+		slog.Warn("invalid duration_ms in transcode_sessions row", slog.String("jobID", jobID), slog.Int64("ms", *raw), slog.Any("err", err))
+		return nil
+	}
+	return &d
+}
 
 type TranscodeJobRepository struct {
 	db *sql.DB
@@ -32,7 +58,7 @@ func (r *TranscodeJobRepository) Create(ctx context.Context, job *transcoding.Tr
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
 		job.ID, job.MediaItemID, job.InputCodec, job.OutputCodec, job.HWAccelType, job.Preset,
 		job.ResolutionIn, job.ResolutionOut, job.BitrateIn, job.BitrateOut, job.Speed,
-		job.Status, job.ErrorMessage, job.StartedAt, job.EndedAt, job.DurationMs,
+		job.Status, job.ErrorMessage, job.StartedAt, job.EndedAt, durationMsArg(job.Duration),
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -72,7 +98,7 @@ func (r *TranscodeJobRepository) Update(ctx context.Context, job *transcoding.Tr
 		 WHERE id=$16`,
 		job.MediaItemID, job.InputCodec, job.OutputCodec, job.HWAccelType,
 		job.Preset, job.ResolutionIn, job.ResolutionOut, job.BitrateIn, job.BitrateOut, job.Speed,
-		job.Status, job.ErrorMessage, job.StartedAt, job.EndedAt, job.DurationMs, job.ID,
+		job.Status, job.ErrorMessage, job.StartedAt, job.EndedAt, durationMsArg(job.Duration), job.ID,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -134,14 +160,16 @@ func (r *TranscodeJobRepository) ListByMediaItem(ctx context.Context, mediaItemI
 
 func (r *TranscodeJobRepository) scanJob(row *sql.Row) (*transcoding.TranscodeJob, error) {
 	job := &transcoding.TranscodeJob{}
+	var durationMs *int64
 	err := row.Scan(
 		&job.ID, &job.MediaItemID, &job.InputCodec, &job.OutputCodec, &job.HWAccelType, &job.Preset,
 		&job.ResolutionIn, &job.ResolutionOut, &job.BitrateIn, &job.BitrateOut, &job.Speed,
-		&job.Status, &job.ErrorMessage, &job.StartedAt, &job.EndedAt, &job.DurationMs,
+		&job.Status, &job.ErrorMessage, &job.StartedAt, &job.EndedAt, &durationMs,
 	)
 	if err != nil {
 		return nil, err
 	}
+	job.Duration = scanDurationMs(job.ID, durationMs)
 	return job, nil
 }
 
@@ -149,13 +177,15 @@ func (r *TranscodeJobRepository) scanJobRows(rows *sql.Rows) ([]*transcoding.Tra
 	var result []*transcoding.TranscodeJob
 	for rows.Next() {
 		job := &transcoding.TranscodeJob{}
+		var durationMs *int64
 		if err := rows.Scan(
 			&job.ID, &job.MediaItemID, &job.InputCodec, &job.OutputCodec, &job.HWAccelType, &job.Preset,
 			&job.ResolutionIn, &job.ResolutionOut, &job.BitrateIn, &job.BitrateOut, &job.Speed,
-			&job.Status, &job.ErrorMessage, &job.StartedAt, &job.EndedAt, &job.DurationMs,
+			&job.Status, &job.ErrorMessage, &job.StartedAt, &job.EndedAt, &durationMs,
 		); err != nil {
 			return nil, err
 		}
+		job.Duration = scanDurationMs(job.ID, durationMs)
 		result = append(result, job)
 	}
 	return result, rows.Err()

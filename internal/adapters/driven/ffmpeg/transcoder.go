@@ -81,7 +81,12 @@ func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (
 				return
 			}
 			line := scanner.Text()
-			if p, ok := ParseProgress(line, job.ID, job.DurationMs); ok {
+			var durationMs *int64
+			if job.Duration != nil {
+				ms := job.Duration.Milliseconds()
+				durationMs = &ms
+			}
+			if p, ok := ParseProgress(line, job.ID, durationMs); ok {
 				rj.mu.Lock()
 				rj.progress = p
 				rj.mu.Unlock()

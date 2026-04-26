@@ -63,7 +63,10 @@ type TranscodeJob struct {
 	ErrorMessage  string
 	StartedAt     time.Time
 	EndedAt       *time.Time
-	DurationMs    *int64
+	// Duration is the elapsed transcode time once the job is terminal. nil
+	// while queued/running. Stored as a pointer so the queued/running rows
+	// distinguish "not yet measured" from a 0 ms duration on disk.
+	Duration *shared.Duration
 }
 
 func (j *TranscodeJob) Validate() error {
