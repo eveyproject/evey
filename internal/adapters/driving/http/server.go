@@ -174,6 +174,9 @@ type HTTPServer struct {
 	// Frame extraction (for admin snapshot preview)
 	FrameExtractor FrameExtractor
 
+	// IntroDetector triggers async intro/outro detection for a media item.
+	IntroDetector IntroDetectionTrigger
+
 	// WebDir is the path to the built frontend dist (e.g. /srv).
 	// If set and the directory exists, the server serves the SPA from it.
 	WebDir string
@@ -222,6 +225,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", auth(snapshotHandler(s.TokenGen, s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL())))
 	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.TokenGen, s.LibCmdSvc, s.ServerCtx))))
 	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
+	if s.IntroDetector != nil {
+		mux.HandleFunc("POST /api/v1/admin/media/{id}/detect-segments", introDetectionHandler(s.TokenGen, s.IntroDetector))
+	}
 	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", auth(playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs)))
 	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", auth(hlsMasterHandler(hlsMasterServe{
 		tokens: s.TokenGen, libSvc: s.LibQuerySvc, hlsManager: s.HLSManager,
