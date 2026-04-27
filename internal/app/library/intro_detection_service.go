@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"sort"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,6 +32,7 @@ type IntroDetectionService struct {
 	detector          IntroDetector
 	trickplayCacheDir string
 	shutdownCtx       context.Context
+	events            shared.EventBus
 }
 
 func NewIntroDetectionService(
@@ -54,6 +57,10 @@ func (s *IntroDetectionService) WithShutdownCtx(ctx context.Context) {
 	s.shutdownCtx = ctx
 }
 
+func (s *IntroDetectionService) WithEventBus(bus shared.EventBus) {
+	s.events = bus
+}
+
 func (s *IntroDetectionService) isTrickplayEnabled(ctx context.Context) bool {
 	if s.configRepo == nil {
 		return true
@@ -65,7 +72,75 @@ func (s *IntroDetectionService) isTrickplayEnabled(ctx context.Context) bool {
 	return entry.Value != "false"
 }
 
-// DetectIntro is the main entry point. Runs the two-pass pipeline and upserts a MediaSegment.
+// StartWorker subscribes to media.item.added and runs detection on a full
+// season once the stream of additions to the same parent stabilises (30s debounce).
+func (s *IntroDetectionService) StartWorker(ctx context.Context) {
+	if s.events == nil {
+		return
+	}
+	var mu sync.Mutex
+	timers := make(map[string]*time.Timer)
+
+	s.events.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
+		e, ok := ev.(domainlibrary.MediaItemAdded)
+		if !ok || e.Type != string(domainlibrary.Episode) {
+			return
+		}
+		item, err := s.mediaItems.GetByID(ctx, e.MediaItemID)
+		if err != nil || item.ParentID == "" {
+			return
+		}
+		parentID := item.ParentID
+
+		mu.Lock()
+		if t, exists := timers[parentID]; exists {
+			t.Stop()
+		}
+		timers[parentID] = time.AfterFunc(30*time.Second, func() {
+			mu.Lock()
+			delete(timers, parentID)
+			mu.Unlock()
+
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("recovered panic in intro detection worker", slog.Any("error", r))
+				}
+			}()
+			s.detectSeason(ctx, parentID)
+		})
+		mu.Unlock()
+	})
+}
+
+// detectSeason runs detection on every episode of the given season that has no segments yet.
+func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID string) {
+	episodeType := string(domainlibrary.Episode)
+	siblings, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
+		ParentID: &parentID,
+		Type:     &episodeType,
+		Limit:    100,
+	})
+	if err != nil {
+		slog.Warn("intro detection: list season episodes", slog.String("parent_id", parentID), slog.Any("err", err))
+		return
+	}
+	for _, ep := range siblings {
+		if ctx.Err() != nil {
+			return
+		}
+		existing, err := s.segmentRepo.GetByMediaItemID(ctx, ep.ID)
+		if err == nil && len(existing) > 0 {
+			continue
+		}
+		epCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+		if err := s.DetectIntro(epCtx, string(ep.ID)); err != nil {
+			slog.Warn("intro detection failed", slog.String("media_id", string(ep.ID)), slog.Any("err", err))
+		}
+		cancel()
+	}
+}
+
+// DetectIntro is the main entry point. Runs the two-pass pipeline and upserts all detected segments.
 func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID string) error {
 	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
@@ -75,76 +150,147 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 		return errors.New("media item has no file path")
 	}
 
-	startMs, endMs, source, confidence, err := s.runPipeline(ctx, item)
+	segments, err := s.runPipeline(ctx, item)
 	if err != nil {
 		return fmt.Errorf("detection pipeline: %w", err)
 	}
-	if startMs == 0 && endMs == 0 {
-		slog.Info("intro_detection: no intro found", slog.String("media_id", mediaItemID))
+	if len(segments) == 0 {
+		slog.Info("intro_detection: no segments found", slog.String("media_id", mediaItemID))
 		return nil
 	}
 
-	seg := &domainlibrary.MediaSegment{
-		ID:          uuid.New().String(),
-		MediaItemID: shared.MediaItemID(mediaItemID),
-		Type:        "intro",
-		StartMs:     startMs,
-		EndMs:       endMs,
-		Confidence:  confidence,
-		Source:      source,
+	for _, seg := range segments {
+		seg.ID = uuid.New().String()
+		seg.MediaItemID = shared.MediaItemID(mediaItemID)
+		if err := s.segmentRepo.Upsert(ctx, &seg); err != nil {
+			return fmt.Errorf("upsert segment %s: %w", seg.Type, err)
+		}
+		slog.Info("intro_detection: segment stored",
+			slog.String("media_id", mediaItemID),
+			slog.String("type", seg.Type),
+			slog.Int64("start_ms", seg.StartMs),
+			slog.Int64("end_ms", seg.EndMs),
+		)
 	}
-	if err := s.segmentRepo.Upsert(ctx, seg); err != nil {
-		return fmt.Errorf("upsert segment: %w", err)
-	}
-	slog.Info("intro_detection: segment stored",
-		slog.String("media_id", mediaItemID),
-		slog.Int64("start_ms", startMs),
-		slog.Int64("end_ms", endMs),
-		slog.String("source", source),
-	)
 	return nil
 }
 
 // runPipeline executes pass 1 (pHash) then pass 2 (precision FFmpeg).
-// Returns (startMs, endMs, source, confidence, error). Returns (0,0,...) when no intro found.
-func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlibrary.MediaItem) (startMs, endMs int64, source string, confidence float64, err error) {
+// Returns 0, 1, or 2 segments (intro, possibly with a recap).
+func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlibrary.MediaItem) ([]domainlibrary.MediaSegment, error) {
 	mediaItemID := string(item.ID)
 
 	if s.isTrickplayEnabled(ctx) {
-		startApprox, endApprox, found, phashErr := s.pHashPass(ctx, item)
+		windows, phashErr := s.pHashPass(ctx, item)
 		if phashErr != nil {
 			slog.Warn("intro_detection: phash pass failed, falling back",
 				slog.String("media_id", mediaItemID),
 				slog.Any("err", phashErr),
 			)
-		} else if found {
-			// Pass 2: precision
-			startSec := float64(startApprox) / 1000
-			endSec := float64(endApprox) / 1000
-			pStartMs, pEndMs, precErr := s.detector.PrecisionPass(ctx, item.File.Path, startSec, endSec, 15)
-			if precErr != nil {
-				slog.Warn("intro_detection: precision pass failed, using coarse window",
-					slog.String("media_id", mediaItemID),
-					slog.Any("err", precErr),
-				)
-				return startApprox, endApprox, "phash", 0.7, nil
+		} else if len(windows) > 0 {
+			segments := classifySegments(windows)
+			// Run precision pass on the intro window only.
+			for i, seg := range segments {
+				if seg.Type != "intro" {
+					continue
+				}
+				startSec := float64(seg.StartMs) / 1000
+				endSec := float64(seg.EndMs) / 1000
+				pStartMs, pEndMs, precErr := s.detector.PrecisionPass(ctx, item.File.Path, startSec, endSec, 15)
+				if precErr != nil {
+					slog.Warn("intro_detection: precision pass failed, using coarse window",
+						slog.String("media_id", mediaItemID),
+						slog.Any("err", precErr),
+					)
+					seg.Confidence = 0.7
+				} else {
+					seg.StartMs = pStartMs
+					seg.EndMs = pEndMs
+					seg.Confidence = 0.9
+				}
+				seg.Source = "phash"
+				segments[i] = seg
 			}
-			return pStartMs, pEndMs, "phash", 0.9, nil
+			for i, seg := range segments {
+				if seg.Type == "recap" {
+					seg.Source = "phash"
+					seg.Confidence = 0.7
+					segments[i] = seg
+				}
+			}
+			return segments, nil
 		}
 	}
 
-	// Fallback: concurrent audio/subtitle passes
-	return s.concurrentFallback(ctx, item)
+	// Fallback: concurrent audio/subtitle passes.
+	startMs, endMs, source, confidence, err := s.concurrentFallback(ctx, item)
+	if err != nil || (startMs == 0 && endMs == 0) {
+		return nil, err
+	}
+	return []domainlibrary.MediaSegment{{
+		Type:       "intro",
+		StartMs:    startMs,
+		EndMs:      endMs,
+		Source:     source,
+		Confidence: confidence,
+	}}, nil
+}
+
+// matchWindow represents a contiguous time range of matching hashes.
+type matchWindow struct {
+	startMs, endMs int64
+}
+
+// classifySegments converts up to 2 match windows into typed MediaSegments.
+// If 2 windows and the earlier one is < 60s → earlier=recap, later=intro.
+// Otherwise only the longest window is used as intro.
+// Exported for unit tests.
+func classifySegments(windows []matchWindow) []domainlibrary.MediaSegment {
+	switch len(windows) {
+	case 0:
+		return nil
+	case 1:
+		return []domainlibrary.MediaSegment{{
+			Type:    "intro",
+			StartMs: windows[0].startMs,
+			EndMs:   windows[0].endMs,
+		}}
+	default:
+		earlier, later := windows[0], windows[1]
+		earlyDur := earlier.endMs - earlier.startMs
+		const recapMaxMs = 60 * 1000
+		if earlyDur < recapMaxMs {
+			return []domainlibrary.MediaSegment{
+				{Type: "recap", StartMs: earlier.startMs, EndMs: earlier.endMs},
+				{Type: "intro", StartMs: later.startMs, EndMs: later.endMs},
+			}
+		}
+		// Earlier window ≥ 60s: unclear which is the real intro — use only the larger one.
+		laterDur := later.endMs - later.startMs
+		if earlyDur >= laterDur {
+			return []domainlibrary.MediaSegment{{
+				Type:    "intro",
+				StartMs: earlier.startMs,
+				EndMs:   earlier.endMs,
+			}}
+		}
+		return []domainlibrary.MediaSegment{{
+			Type:    "intro",
+			StartMs: later.startMs,
+			EndMs:   later.endMs,
+		}}
+	}
 }
 
 // pHashPass performs the coarse localization via trickplay sprite frequency maps.
 // Waits up to 24h for a trickplay manifest if one doesn't exist yet.
-func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibrary.MediaItem) (startMs, endMs int64, found bool, err error) {
+// Returns up to 2 non-overlapping match windows in chronological order.
+func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibrary.MediaItem) ([]matchWindow, error) {
 	mediaID := shared.MediaItemID(item.ID)
 
 	manifest, err := s.waitForManifest(ctx, mediaID)
 	if err != nil {
-		return 0, 0, false, err
+		return nil, err
 	}
 
 	episodeType := string(domainlibrary.Episode)
@@ -154,7 +300,7 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 		Limit:    100,
 	})
 	if listErr != nil {
-		return 0, 0, false, fmt.Errorf("list siblings: %w", listErr)
+		return nil, fmt.Errorf("list siblings: %w", listErr)
 	}
 
 	var durationMs int64
@@ -180,22 +326,69 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 	}
 
 	if len(episodeHashes) < 2 {
-		return 0, 0, false, nil
+		return nil, nil
 	}
 
 	introHashes := FrequencyMap(episodeHashes, 0.70)
 	if len(introHashes) == 0 {
-		return 0, 0, false, nil
+		return nil, nil
 	}
 
-	// Find the matching frame window in the target episode's own hash sequence.
+	// Find matching frame windows in the target episode's own hash sequence.
 	targetHashes, hashErr := s.extractEpisodeHashes(manifest, cutoffFrame)
 	if hashErr != nil || len(targetHashes) == 0 {
-		return 0, 0, false, nil
+		return nil, nil
 	}
 
-	startMs, endMs, found = longestContiguousWindow(manifest, introHashes, targetHashes)
-	return startMs, endMs, found, nil
+	return topTwoContiguousWindows(manifest, introHashes, targetHashes), nil
+}
+
+// topTwoContiguousWindows returns up to 2 non-overlapping match windows in target hashes,
+// sorted by start position (chronological order). The two longest runs are selected.
+func topTwoContiguousWindows(manifest *domainlibrary.TrickplayManifest, introHashes map[uint64]bool, targetHashes []uint64) []matchWindow {
+	if manifest.Interval <= 0 || len(targetHashes) == 0 {
+		return nil
+	}
+	intervalMs := int64(manifest.Interval * 1000)
+
+	type run struct{ start, length int }
+	var runs []run
+	runStart, runLen := 0, 0
+	for i, h := range targetHashes {
+		if introHashes[h] {
+			if runLen == 0 {
+				runStart = i
+			}
+			runLen++
+		} else {
+			if runLen > 0 {
+				runs = append(runs, run{runStart, runLen})
+			}
+			runLen = 0
+		}
+	}
+	if runLen > 0 {
+		runs = append(runs, run{runStart, runLen})
+	}
+	if len(runs) == 0 {
+		return nil
+	}
+
+	// Select top 2 by length, then restore chronological order.
+	sort.Slice(runs, func(i, j int) bool { return runs[i].length > runs[j].length })
+	if len(runs) > 2 {
+		runs = runs[:2]
+	}
+	sort.Slice(runs, func(i, j int) bool { return runs[i].start < runs[j].start })
+
+	out := make([]matchWindow, 0, len(runs))
+	for _, r := range runs {
+		out = append(out, matchWindow{
+			startMs: int64(r.start) * intervalMs,
+			endMs:   int64(r.start+r.length) * intervalMs,
+		})
+	}
+	return out
 }
 
 // waitForManifest polls for the trickplay manifest, waiting up to 24h.

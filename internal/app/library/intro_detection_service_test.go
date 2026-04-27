@@ -127,3 +127,160 @@ func TestLongestContiguousWindow_AllMatch(t *testing.T) {
 	assert.Equal(t, int64(0), startMs)
 	assert.Equal(t, int64(3*5*1000), endMs)
 }
+
+// --- topTwoContiguousWindows tests ---
+
+// TestTopTwoContiguousWindows_Empty returns nil for an empty target.
+func TestTopTwoContiguousWindows_Empty(t *testing.T) {
+	t.Parallel()
+	manifest := &domainlibrary.TrickplayManifest{Interval: 10}
+	result := topTwoContiguousWindows(manifest, map[uint64]bool{0x1: true}, nil)
+	assert.Nil(t, result)
+
+	result2 := topTwoContiguousWindows(manifest, map[uint64]bool{0x1: true}, []uint64{})
+	assert.Nil(t, result2)
+}
+
+// TestTopTwoContiguousWindows_ZeroInterval returns nil for zero interval.
+func TestTopTwoContiguousWindows_ZeroInterval(t *testing.T) {
+	t.Parallel()
+	manifest := &domainlibrary.TrickplayManifest{Interval: 0}
+	result := topTwoContiguousWindows(manifest, map[uint64]bool{0x1: true}, []uint64{0x1, 0x1})
+	assert.Nil(t, result)
+}
+
+// TestTopTwoContiguousWindows_SingleRun returns a single window.
+func TestTopTwoContiguousWindows_SingleRun(t *testing.T) {
+	t.Parallel()
+	// indices 1,2,3 match → 1 run of length 3
+	introHashes := map[uint64]bool{0xAA: true, 0xBB: true, 0xCC: true}
+	target := []uint64{0x00, 0xAA, 0xBB, 0xCC, 0x00}
+	manifest := &domainlibrary.TrickplayManifest{Interval: 10}
+
+	result := topTwoContiguousWindows(manifest, introHashes, target)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(1*10*1000), result[0].startMs)
+	assert.Equal(t, int64(4*10*1000), result[0].endMs)
+}
+
+// TestTopTwoContiguousWindows_TwoEqualRuns returns both, sorted chronologically.
+func TestTopTwoContiguousWindows_TwoEqualRuns(t *testing.T) {
+	t.Parallel()
+	// run1: indices 0,1 (AA,BB), run2: indices 3,4 (AA,BB)
+	introHashes := map[uint64]bool{0xAA: true, 0xBB: true}
+	target := []uint64{0xAA, 0xBB, 0x00, 0xAA, 0xBB}
+	manifest := &domainlibrary.TrickplayManifest{Interval: 5}
+
+	result := topTwoContiguousWindows(manifest, introHashes, target)
+	require.Len(t, result, 2)
+	// Chronological: earlier run first.
+	assert.Equal(t, int64(0), result[0].startMs)
+	assert.Equal(t, int64(2*5*1000), result[0].endMs)
+	assert.Equal(t, int64(3*5*1000), result[1].startMs)
+	assert.Equal(t, int64(5*5*1000), result[1].endMs)
+}
+
+// TestTopTwoContiguousWindows_ThreeRunsKeepsTopTwo verifies only the two longest runs are kept.
+func TestTopTwoContiguousWindows_ThreeRunsKeepsTopTwo(t *testing.T) {
+	t.Parallel()
+	// run1(len=3): 0,1,2  run2(len=1): 4  run3(len=2): 6,7
+	// Top 2 by length: run1(3) and run3(2). Chronological: run1 then run3.
+	introHashes := map[uint64]bool{0xAA: true, 0xBB: true, 0xCC: true}
+	target := []uint64{0xAA, 0xBB, 0xCC, 0x00, 0xAA, 0x00, 0xAA, 0xBB}
+	manifest := &domainlibrary.TrickplayManifest{Interval: 10}
+
+	result := topTwoContiguousWindows(manifest, introHashes, target)
+	require.Len(t, result, 2)
+	// run1: start=0, end=3
+	assert.Equal(t, int64(0), result[0].startMs)
+	assert.Equal(t, int64(3*10*1000), result[0].endMs)
+	// run3: start=6, end=8
+	assert.Equal(t, int64(6*10*1000), result[1].startMs)
+	assert.Equal(t, int64(8*10*1000), result[1].endMs)
+}
+
+// TestTopTwoContiguousWindows_RunAtEnd verifies a run ending at the last frame.
+func TestTopTwoContiguousWindows_RunAtEnd(t *testing.T) {
+	t.Parallel()
+	introHashes := map[uint64]bool{0xAA: true}
+	target := []uint64{0x00, 0xAA, 0xAA}
+	manifest := &domainlibrary.TrickplayManifest{Interval: 10}
+
+	result := topTwoContiguousWindows(manifest, introHashes, target)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(1*10*1000), result[0].startMs)
+	assert.Equal(t, int64(3*10*1000), result[0].endMs)
+}
+
+// --- classifySegments tests ---
+
+// TestClassifySegments_NoWindows returns empty slice.
+func TestClassifySegments_NoWindows(t *testing.T) {
+	t.Parallel()
+	segs := classifySegments(nil)
+	assert.Empty(t, segs)
+
+	segs2 := classifySegments([]matchWindow{})
+	assert.Empty(t, segs2)
+}
+
+// TestClassifySegments_OneWindow produces a single intro segment.
+func TestClassifySegments_OneWindow(t *testing.T) {
+	t.Parallel()
+	windows := []matchWindow{{startMs: 5000, endMs: 90000}}
+	segs := classifySegments(windows)
+	require.Len(t, segs, 1)
+	assert.Equal(t, "intro", segs[0].Type)
+	assert.Equal(t, int64(5000), segs[0].StartMs)
+	assert.Equal(t, int64(90000), segs[0].EndMs)
+}
+
+// TestClassifySegments_TwoWindowsEarlierShort produces recap + intro when earlier < 60s.
+func TestClassifySegments_TwoWindowsEarlierShort(t *testing.T) {
+	t.Parallel()
+	// earlier window: 0–30s (30s < 60s → recap)
+	// later window: 60s–150s (intro)
+	windows := []matchWindow{
+		{startMs: 0, endMs: 30_000},
+		{startMs: 60_000, endMs: 150_000},
+	}
+	segs := classifySegments(windows)
+	require.Len(t, segs, 2)
+	assert.Equal(t, "recap", segs[0].Type)
+	assert.Equal(t, int64(0), segs[0].StartMs)
+	assert.Equal(t, int64(30_000), segs[0].EndMs)
+	assert.Equal(t, "intro", segs[1].Type)
+	assert.Equal(t, int64(60_000), segs[1].StartMs)
+	assert.Equal(t, int64(150_000), segs[1].EndMs)
+}
+
+// TestClassifySegments_TwoWindowsEarlierLong returns only the largest intro when earlier ≥ 60s.
+func TestClassifySegments_TwoWindowsEarlierLong(t *testing.T) {
+	t.Parallel()
+	// earlier window: 0–90s (90s ≥ 60s), later window: 120s–180s (60s)
+	// earlier is bigger → only earlier returned as intro
+	windows := []matchWindow{
+		{startMs: 0, endMs: 90_000},
+		{startMs: 120_000, endMs: 180_000},
+	}
+	segs := classifySegments(windows)
+	require.Len(t, segs, 1)
+	assert.Equal(t, "intro", segs[0].Type)
+	assert.Equal(t, int64(0), segs[0].StartMs)
+	assert.Equal(t, int64(90_000), segs[0].EndMs)
+}
+
+// TestClassifySegments_TwoWindowsEarlierLongLaterBigger: earlier ≥60s but later is bigger → later is intro.
+func TestClassifySegments_TwoWindowsEarlierLongLaterBigger(t *testing.T) {
+	t.Parallel()
+	// earlier: 0–70s (70s), later: 100s–200s (100s → bigger)
+	windows := []matchWindow{
+		{startMs: 0, endMs: 70_000},
+		{startMs: 100_000, endMs: 200_000},
+	}
+	segs := classifySegments(windows)
+	require.Len(t, segs, 1)
+	assert.Equal(t, "intro", segs[0].Type)
+	assert.Equal(t, int64(100_000), segs[0].StartMs)
+	assert.Equal(t, int64(200_000), segs[0].EndMs)
+}

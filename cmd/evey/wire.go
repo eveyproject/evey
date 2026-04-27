@@ -605,6 +605,10 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 	}
 	deps.library.cmdSvc.StartTrickplayWorker(ctx)
 	deps.library.cmdSvc.StartBackgroundGeneration(ctx)
+	if deps.library.introDetectionSvc != nil {
+		deps.library.introDetectionSvc.WithEventBus(bus)
+		deps.library.introDetectionSvc.StartWorker(ctx)
+	}
 
 	if rs, ok := infra.searchAdapter.(*search.ResilientSearch); ok {
 		if sa, isMeili := rs.Primary().(*meili.SearchAdapter); isMeili {
