@@ -22,6 +22,7 @@ type IntroDetector interface {
 	PrecisionPass(ctx context.Context, filePath string, startSec, endSec, padSec float64) (int64, int64, error)
 	AudioFallback(ctx context.Context, filePath string, maxSec float64) (int64, int64, bool, error)
 	DetectEndCredits(ctx context.Context, filePath string, durationSec float64) (int64, int64, bool, error)
+	DetectStudioLogo(hashes []uint64, intervalSec int) (int64, int64, bool)
 }
 
 // IntroDetectionService orchestrates the two-pass intro detection pipeline.
@@ -161,6 +162,12 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 	if seg, ecErr := s.detectEndCredits(ctx, item); ecErr != nil {
 		slog.Warn("intro_detection: end credits failed", slog.String("media_id", mediaItemID), slog.Any("err", ecErr))
 	} else if seg != nil {
+		segments = append(segments, *seg)
+	}
+
+	// Studio logo detection also runs independently for both films and episodes.
+	// It requires a trickplay manifest but does not wait if one is absent.
+	if seg := s.detectStudioLogo(ctx, item); seg != nil {
 		segments = append(segments, *seg)
 	}
 
@@ -587,6 +594,42 @@ func subtitleGapFallback(item *domainlibrary.MediaItem) (startMs, endMs int64, f
 	// path covers this case in practice.
 	_ = item
 	return 0, 0, false
+}
+
+// detectStudioLogo attempts to match the first ~90 seconds of trickplay frames
+// against known studio logo fingerprints. Returns nil when no manifest is available,
+// when no patterns match, or when the catalog has no fingerprints yet.
+// Does NOT wait for a manifest — skips immediately if not present.
+func (s *IntroDetectionService) detectStudioLogo(ctx context.Context, item *domainlibrary.MediaItem) *domainlibrary.MediaSegment {
+	manifest, err := s.trickplayRepo.GetByMediaItemID(ctx, item.ID)
+	if err != nil {
+		return nil
+	}
+	if manifest.Interval <= 0 {
+		return nil
+	}
+
+	// Extract only enough frames to cover 90 seconds.
+	maxFrames := 90 / manifest.Interval
+	if maxFrames < 1 {
+		maxFrames = 1
+	}
+	hashes, hashErr := s.extractEpisodeHashes(manifest, maxFrames)
+	if hashErr != nil || len(hashes) == 0 {
+		return nil
+	}
+
+	startMs, endMs, found := s.detector.DetectStudioLogo(hashes, manifest.Interval)
+	if !found {
+		return nil
+	}
+	return &domainlibrary.MediaSegment{
+		Type:       "studio_logo",
+		StartMs:    startMs,
+		EndMs:      endMs,
+		Confidence: 0.7,
+		Source:     "logo_match",
+	}
 }
 
 // detectEndCredits runs the credits detector on the file and returns a

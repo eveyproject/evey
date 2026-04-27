@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "patterns": [
+    {"name": "Marvel Studios",                "hashes": [], "minMatches": 1},
+    {"name": "Walt Disney Pictures",          "hashes": [], "minMatches": 1},
+    {"name": "Walt Disney Animation Studios", "hashes": [], "minMatches": 1},
+    {"name": "Pixar",                         "hashes": [], "minMatches": 1},
+    {"name": "Lucasfilm",                     "hashes": [], "minMatches": 1},
+    {"name": "Universal Pictures",            "hashes": [], "minMatches": 1},
+    {"name": "Warner Bros. Pictures",         "hashes": [], "minMatches": 1},
+    {"name": "Paramount Pictures",            "hashes": [], "minMatches": 1},
+    {"name": "Columbia Pictures",             "hashes": [], "minMatches": 1},
+    {"name": "20th Century Studios",          "hashes": [], "minMatches": 1},
+    {"name": "Netflix",                       "hashes": [], "minMatches": 1},
+    {"name": "HBO",                           "hashes": [], "minMatches": 1}
+  ]
+}

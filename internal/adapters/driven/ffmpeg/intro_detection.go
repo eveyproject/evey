@@ -318,6 +318,14 @@ func parseEndCredits(output string, startSec, durationSec float64) (startMs, end
 	return 0, 0, false
 }
 
+// DetectStudioLogo searches the first ~90 seconds of trickplay frame hashes for
+// a match against the embedded studio logo catalog. intervalSec is the number of
+// seconds between consecutive trickplay frames (e.g. 15 for default trickplay).
+// Returns (startMs, endMs, true) when a match clears the minMatches threshold.
+func (d *IntroDetector) DetectStudioLogo(hashes []uint64, intervalSec int) (startMs, endMs int64, found bool) {
+	return detectStudioLogoIn(hashes, intervalSec, loadedStudioLogos, 5)
+}
+
 // grayscaleLuminance converts a color to uint8 luminance using BT.601 coefficients.
 // Kept here for potential future use; currently draw.BiLinear produces Gray pixels.
 func grayscaleLuminance(c color.Color) uint8 {

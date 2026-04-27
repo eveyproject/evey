@@ -291,16 +291,23 @@ func TestClassifySegments_TwoWindowsEarlierLongLaterBigger(t *testing.T) {
 
 // fakeDetector implements IntroDetector for tests.
 // ExtractTileHashes, PrecisionPass, AudioFallback return zero/not-found;
-// DetectEndCredits returns the configured response.
+// DetectEndCredits and DetectStudioLogo return the configured responses.
 type fakeDetector struct {
 	creditsStartMs int64
 	creditsEndMs   int64
 	creditsFound   bool
 	creditsErr     error
+
+	logoStartMs int64
+	logoEndMs   int64
+	logoFound   bool
+
+	// tileHashes is returned by ExtractTileHashes when non-nil; defaults to nil (no hashes).
+	tileHashes []uint64
 }
 
 func (f *fakeDetector) ExtractTileHashes(_ string, _, _, _, _ int) ([]uint64, error) {
-	return nil, nil
+	return f.tileHashes, nil
 }
 func (f *fakeDetector) PrecisionPass(_ context.Context, _ string, startSec, endSec, _ float64) (int64, int64, error) {
 	return int64(startSec * 1000), int64(endSec * 1000), nil
@@ -310,6 +317,9 @@ func (f *fakeDetector) AudioFallback(_ context.Context, _ string, _ float64) (in
 }
 func (f *fakeDetector) DetectEndCredits(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
 	return f.creditsStartMs, f.creditsEndMs, f.creditsFound, f.creditsErr
+}
+func (f *fakeDetector) DetectStudioLogo(_ []uint64, _ int) (int64, int64, bool) {
+	return f.logoStartMs, f.logoEndMs, f.logoFound
 }
 
 // fakeSegmentRepo records all Upsert calls.
@@ -361,6 +371,12 @@ func (r *fakeMediaItemRepo) SeriesAggregate(_ context.Context, _ shared.MediaIte
 // fakeTrickplayRepo returns ErrNotFound for any lookup so the pHash pass is skipped.
 type fakeTrickplayRepo struct{}
 
+// fakeTrickplayRepoWithManifest returns the provided manifest for any lookup.
+// Used to exercise detectStudioLogo, which queries the manifest non-blocking.
+type fakeTrickplayRepoWithManifest struct {
+	manifest *domainlibrary.TrickplayManifest
+}
+
 func (r *fakeTrickplayRepo) GetByMediaItemID(_ context.Context, _ shared.MediaItemID) (*domainlibrary.TrickplayManifest, error) {
 	return nil, shared.ErrNotFound
 }
@@ -371,6 +387,19 @@ func (r *fakeTrickplayRepo) Create(_ context.Context, _ *domainlibrary.Trickplay
 	return nil
 }
 func (r *fakeTrickplayRepo) Delete(_ context.Context, _ shared.MediaItemID) error { return nil }
+
+func (r *fakeTrickplayRepoWithManifest) GetByMediaItemID(_ context.Context, _ shared.MediaItemID) (*domainlibrary.TrickplayManifest, error) {
+	return r.manifest, nil
+}
+func (r *fakeTrickplayRepoWithManifest) ListMissingMediaItemIDs(_ context.Context) ([]string, error) {
+	return nil, nil
+}
+func (r *fakeTrickplayRepoWithManifest) Create(_ context.Context, _ *domainlibrary.TrickplayManifest) error {
+	return nil
+}
+func (r *fakeTrickplayRepoWithManifest) Delete(_ context.Context, _ shared.MediaItemID) error {
+	return nil
+}
 
 // fakeConfigRepo disables trickplay so the pHash pass is skipped immediately,
 // preventing the 24h waitForManifest loop from blocking tests.
@@ -390,6 +419,18 @@ func newTestService(det IntroDetector, segRepo domainlibrary.MediaSegmentReposit
 	return NewIntroDetectionService(
 		segRepo,
 		&fakeTrickplayRepo{},
+		&fakeMediaItemRepo{item: item},
+		&fakeConfigRepo{},
+		det,
+		"/tmp/trickplay",
+	)
+}
+
+// newTestServiceWithTrickplay assembles an IntroDetectionService with a manifest-returning trickplay repo.
+func newTestServiceWithTrickplay(det IntroDetector, segRepo domainlibrary.MediaSegmentRepository, item *domainlibrary.MediaItem, manifest *domainlibrary.TrickplayManifest) *IntroDetectionService {
+	return NewIntroDetectionService(
+		segRepo,
+		&fakeTrickplayRepoWithManifest{manifest: manifest},
 		&fakeMediaItemRepo{item: item},
 		&fakeConfigRepo{},
 		det,
@@ -460,4 +501,60 @@ func TestDetectIntro_SkipsEndCreditsWhenNotFound(t *testing.T) {
 	for _, seg := range segRepo.upserted {
 		assert.NotEqual(t, "end_credits", seg.Type, "no end_credits segment should be upserted when not found")
 	}
+}
+
+// TestDetectIntro_AppendsStudioLogoWhenDetected verifies that when DetectStudioLogo
+// returns found=true the resulting segment is upserted with type "studio_logo".
+func TestDetectIntro_AppendsStudioLogoWhenDetected(t *testing.T) {
+	t.Parallel()
+
+	dur, _ := shared.NewDurationMs(3_600_000) // 60 min
+	item := &domainlibrary.MediaItem{
+		ID:        shared.MediaItemID("item-logo-1"),
+		LibraryID: shared.LibraryID("lib-1"),
+		Type:      domainlibrary.MovieItem,
+		Title:     "Test Movie Logo",
+		File: &domainlibrary.MediaFile{
+			Path:     "/movies/logo_test.mkv",
+			Duration: dur,
+		},
+	}
+
+	// Manifest with Interval=15 so detectStudioLogo computes maxFrames=6.
+	manifest := &domainlibrary.TrickplayManifest{
+		MediaItemID: item.ID,
+		Interval:    15,
+		TileWidth:   5,
+		TileHeight:  3,
+		Width:       160,
+		Height:      90,
+		ImageCount:  1,
+	}
+
+	det := &fakeDetector{
+		// tileHashes causes extractEpisodeHashes to return a non-empty slice so
+		// the logo detection path is reached.
+		tileHashes:  []uint64{0x1111, 0x2222, 0x3333},
+		logoStartMs: 0,
+		logoEndMs:   5_000,
+		logoFound:   true,
+	}
+	segRepo := &fakeSegmentRepo{}
+	svc := newTestServiceWithTrickplay(det, segRepo, item, manifest)
+
+	err := svc.DetectIntro(context.Background(), "item-logo-1")
+	require.NoError(t, err)
+
+	var logoSeg *domainlibrary.MediaSegment
+	for _, seg := range segRepo.upserted {
+		if seg.Type == "studio_logo" {
+			logoSeg = seg
+			break
+		}
+	}
+	require.NotNil(t, logoSeg, "studio_logo segment must be upserted when DetectStudioLogo returns found=true")
+	assert.Equal(t, int64(0), logoSeg.StartMs)
+	assert.Equal(t, int64(5_000), logoSeg.EndMs)
+	assert.InDelta(t, 0.7, logoSeg.Confidence, 0.001)
+	assert.Equal(t, "logo_match", logoSeg.Source)
 }
