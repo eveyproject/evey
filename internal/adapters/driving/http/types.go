@@ -113,3 +113,8 @@ type ImageConverter interface {
 type LibraryLister interface {
 	ListLibraries(ctx context.Context) ([]*domainlibrary.Library, error)
 }
+
+// IntroDetectionTrigger triggers intro/outro detection for a media item.
+type IntroDetectionTrigger interface {
+	DetectIntro(ctx context.Context, mediaItemID string) error
+}

@@ -86,6 +86,7 @@ type infraDeps struct {
 	transcoder       *ffmpeg.Transcoder
 	hwDetector       *ffmpeg.HWDetector
 	trickplayGen     *ffmpeg.TrickplayGenerator
+	introDetector    *ffmpeg.IntroDetector
 	imageConverter   *ffmpeg.ImageConverter
 	mkvAdapter       *mkvgoadapter.Adapter
 	bus              *eventbus.InMemoryEventBus
@@ -129,6 +130,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	transcoder := ffmpeg.NewTranscoder("ffmpeg", cfg.Transcoding.CacheDir)
 	hwDetector := ffmpeg.NewHWDetector("ffmpeg")
 	trickplayGen := ffmpeg.NewTrickplayGenerator("ffmpeg", "ffprobe")
+	introDetector := ffmpeg.NewIntroDetector("ffmpeg", "ffprobe")
 	imageConverter := ffmpeg.NewImageConverter("ffmpeg")
 	mkvAdapter := mkvgoadapter.New()
 	bus := eventbus.New()
@@ -223,6 +225,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		transcoder:      transcoder,
 		hwDetector:      hwDetector,
 		trickplayGen:    trickplayGen,
+		introDetector:   introDetector,
 		imageConverter:  imageConverter,
 		mkvAdapter:      mkvAdapter,
 		bus:             bus,
@@ -479,6 +482,17 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	hlsTranscoder := ffmpeg.NewHLSTranscoder()
 	hlsMgr := apptranscoding.NewHLSManager(ctx, cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent, hlsTranscoder)
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsMgr)
+
+	introDetectionSvc := applibrary.NewIntroDetectionService(
+		postgres.NewMediaSegmentRepository(db),
+		r.Trickplay,
+		r.MediaItem,
+		r.ServerCfg,
+		infra.introDetector,
+		cfg.Transcoding.TrickplayCacheDir,
+	)
+	introDetectionSvc.WithShutdownCtx(ctx)
+	_ = introDetectionSvc // TODO: thread through appDeps.library and http.go HTTPServer.IntroDetector
 
 	if cfg.Transcoding.CacheMaxGB > 0 {
 		evictor := apptranscoding.NewCacheEvictor(
