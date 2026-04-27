@@ -435,6 +435,7 @@ export function HLSPlayer({
       )}
       <ProgressReporter sessionId={sessionId} videoRef={videoRef} transcodeOffsetRef={transcodeOffsetRef} onRemoteStop={onClose} />
       <SkipIntroButton
+        mediaId={mediaId}
         filePath={filePath}
         currentTime={overlayTime}
         onSkip={(t) => handleSeekRequest(t)}
