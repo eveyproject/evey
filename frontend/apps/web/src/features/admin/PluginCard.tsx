@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/Card";
@@ -13,6 +12,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import {
   useAdminPluginServiceGetPluginConfig,
   useAdminPluginServiceUpdatePluginConfig,
+  useAdminPluginServiceGetPluginLogs,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import type { V1Plugin, V1PluginState } from "@evey/api";
@@ -297,6 +297,12 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
   const { t } = useTranslation();
   const [showConfig, setShowConfig] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
+  const { data: logsData, isLoading: logsLoading } = useAdminPluginServiceGetPluginLogs(
+    plugin.id ?? "",
+    { limit: 100 },
+    { query: { enabled: showLogs && !!plugin.id, staleTime: 10_000 } },
+  );
   const analysisReport = plugin.analysisReport;
   const hasWarnings =
     analysisReport != null &&
@@ -363,14 +369,39 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
         <Button variant="ghost" onClick={() => setShowConfig((v) => !v)}>
           {showConfig ? t("admin.plugin.hideConfig") : t("admin.plugin.config")}
         </Button>
-        <Link
-          to="/admin/system-health"
-          className="inline-flex items-center px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
-        >
-          {t("admin.plugin.logs")}
-        </Link>
+        <Button variant="ghost" onClick={() => setShowLogs((v) => !v)}>
+          {showLogs ? t("admin.plugin.hideLogs") : t("admin.plugin.logs")}
+        </Button>
         <Button variant="danger" onClick={onUninstall}>{t("admin.plugin.uninstall")}</Button>
       </div>
+
+      {showLogs && (
+        <div className="border-t pt-3 mt-1 border-[var(--border)]">
+          {logsLoading ? (
+            <div className="flex justify-center py-4"><Spinner size="sm" /></div>
+          ) : (logsData?.entries?.length ?? 0) === 0 ? (
+            <p className="text-xs text-[var(--text-muted)] py-2">{t("admin.plugin.noLogs")}</p>
+          ) : (
+            <div className="flex flex-col gap-1 max-h-64 overflow-y-auto font-mono text-xs">
+              {logsData!.entries!.map((entry, i) => (
+                <div key={i} className="flex gap-2 items-start">
+                  <span className={
+                    entry.level === "ERROR" ? "text-[var(--badge-error-text,#fca5a5)] shrink-0" :
+                    entry.level === "WARN" ? "text-[var(--badge-warning-text,#fde047)] shrink-0" :
+                    "text-[var(--text-muted)] shrink-0"
+                  }>
+                    {entry.level ?? "INFO"}
+                  </span>
+                  <span className="text-[var(--text-muted)] shrink-0">
+                    {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : ""}
+                  </span>
+                  <span className="text-[var(--text)] break-all">{entry.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {hasWarnings && (
         <div className="border-t pt-3 mt-1 border-[var(--border)]">

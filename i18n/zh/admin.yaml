@@ -25,6 +25,8 @@ plugin:
   config: "配置"
   hideConfig: "隐藏配置"
   logs: "日志"
+  noLogs: "暂无日志。"
+  hideLogs: "隐藏日志"
   uninstall: "卸载"
   configuration: "配置"
   noConfig: "未定义配置项。"
@@ -56,6 +58,7 @@ plugins:
   chooseFile: "选择文件..."
   previewInstall: "预览并安装"
   pluginFileZip: "插件文件 (.zip)"
+  sigFileOptional: "签名文件 (.zip.sig，可选)"
   sourceUrl: "来源 URL"
   nameOptional: "名称（可选）"
   urlSkipPreview: "注意：URL 安装将跳过预览步骤。"
@@ -91,8 +94,8 @@ plugins:
     findings: 发现
     lastError: 最近错误
     noData: 暂无安全数据。
-    signed: Signed
-    unsigned: Unsigned
+    signed: 已签名
+    unsigned: 未签名
 
 dashboard:
   title: "仪表盘"

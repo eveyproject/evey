@@ -25,6 +25,8 @@ plugin:
   config: "कॉन्फ़िग"
   hideConfig: "कॉन्फ़िग छुपाएं"
   logs: "लॉग"
+  noLogs: "कोई लॉग उपलब्ध नहीं।"
+  hideLogs: "लॉग छुपाएं"
   uninstall: "अनइंस्टॉल"
   configuration: "कॉन्फ़िगरेशन"
   noConfig: "कोई कॉन्फ़िग की परिभाषित नहीं।"
@@ -56,6 +58,7 @@ plugins:
   chooseFile: "फ़ाइल चुनें..."
   previewInstall: "पूर्वावलोकन और इंस्टॉल"
   pluginFileZip: "प्लगइन फ़ाइल (.zip)"
+  sigFileOptional: "हस्ताक्षर फ़ाइल (.zip.sig, वैकल्पिक)"
   sourceUrl: "स्रोत URL"
   nameOptional: "नाम (वैकल्पिक)"
   urlSkipPreview: "नोट: URL इंस्टॉल पूर्वावलोकन चरण छोड़ देता है।"
@@ -91,8 +94,8 @@ plugins:
     findings: निष्कर्ष
     lastError: अंतिम त्रुटि
     noData: कोई सुरक्षा डेटा उपलब्ध नहीं।
-    signed: Signed
-    unsigned: Unsigned
+    signed: हस्ताक्षरित
+    unsigned: अहस्ताक्षरित
 
 dashboard:
   title: "डैशबोर्ड"

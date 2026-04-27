@@ -26,6 +26,8 @@ plugin:
   config: Config
   hideConfig: Hide Config
   logs: Logs
+  noLogs: No logs available.
+  hideLogs: Hide Logs
   uninstall: Uninstall
   configuration: Configuration
   noConfig: No config keys defined.
@@ -57,6 +59,7 @@ plugins:
   chooseFile: "Choose file..."
   previewInstall: Preview & Install
   pluginFileZip: Plugin file (.zip)
+  sigFileOptional: "Signature file (.zip.sig, optional)"
   sourceUrl: Source URL
   nameOptional: Name (optional)
   urlSkipPreview: "Note: URL installs skip the preview step."

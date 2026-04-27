@@ -90,30 +90,30 @@ function SnapshotRow({ snap }: { snap: PluginSecuritySnapshot }) {
           )}
           {counts.critical > 0 ? (
             <Badge variant="error">
-              {counts.critical} {t("plugins.security.critical")}
+              {counts.critical} {t("admin.plugins.security.critical")}
             </Badge>
           ) : counts.warning > 0 ? (
             <Badge variant="warning">
-              {counts.warning} {t("plugins.security.warnings")}
+              {counts.warning} {t("admin.plugins.security.warnings")}
             </Badge>
           ) : (
-            <Badge variant="success">{t("plugins.security.clean")}</Badge>
+            <Badge variant="success">{t("admin.plugins.security.clean")}</Badge>
           )}
           {snap.signature && (
             snap.signature.verified ? (
               <Badge variant="success">
                 <CheckCircle size={10} className="mr-1" />
-                {t("plugins.security.signed")}
+                {t("admin.plugins.security.signed")}
               </Badge>
             ) : (
               <Badge variant="warning">
                 <ShieldOff size={10} className="mr-1" />
-                {t("plugins.security.unsigned")}
+                {t("admin.plugins.security.unsigned")}
               </Badge>
             )
           )}
           {hasError && (
-            <Badge variant="error">{t("plugins.security.errorBadge")}</Badge>
+            <Badge variant="error">{t("admin.plugins.security.errorBadge")}</Badge>
           )}
           {(hasFindings || hasError) ? (
             expanded ? <ChevronUp size={14} className="text-[var(--text-muted)]" /> : <ChevronDown size={14} className="text-[var(--text-muted)]" />
@@ -126,7 +126,7 @@ function SnapshotRow({ snap }: { snap: PluginSecuritySnapshot }) {
           {hasFindings && (
             <div className="flex flex-col gap-1.5 pt-3">
               <span className="text-xs font-semibold text-[var(--text-muted)]">
-                {t("plugins.security.findings")}
+                {t("admin.plugins.security.findings")}
               </span>
               {snap.findings.map((f, i) => (
                 <div key={i} className="flex items-start gap-2 text-xs">
@@ -163,7 +163,7 @@ function SnapshotRow({ snap }: { snap: PluginSecuritySnapshot }) {
               <Clock size={12} className="text-[var(--badge-error-text,#fca5a5)] shrink-0 mt-0.5" />
               <div className="min-w-0">
                 <span className="font-semibold text-[var(--badge-error-text,#fca5a5)]">
-                  {t("plugins.security.lastError")}
+                  {t("admin.plugins.security.lastError")}
                 </span>
                 <span className="ml-1 text-[var(--text-muted)]">
                   {new Date(snap.lastError.ts).toLocaleString()}
@@ -200,7 +200,7 @@ export function PluginSecurityDashboard() {
       <div className="flex items-center gap-2">
         <Shield size={16} className="text-[var(--text-muted)]" />
         <h3 className="text-base font-semibold text-[var(--text)]">
-          {t("plugins.security.title")}
+          {t("admin.plugins.security.title")}
         </h3>
       </div>
 
@@ -210,7 +210,7 @@ export function PluginSecurityDashboard() {
         </div>
       ) : snapshots.length === 0 ? (
         <p className="text-sm text-[var(--text-muted)] py-2">
-          {t("plugins.security.noData")}
+          {t("admin.plugins.security.noData")}
         </p>
       ) : (
         <div className="flex flex-col gap-2">

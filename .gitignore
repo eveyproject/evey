@@ -75,6 +75,7 @@ frontend/apps/web/tsconfig.tsbuildinfo
 *.zip
 !plugins/dist/*.zip
 !tests/plugins/*.zip
+!tests/plugins/cosign/*.zip
 
 # E2E test artifacts
 tests/e2e/.e2e-start-time
@@ -90,4 +91,8 @@ frontend/apps/mobile/.expo/
 # Dev scripts (local only) — except anything referenced from Makefile.
 scripts/
 !scripts/build-test-plugins.sh
+!scripts/gen_cosign_fixtures.go
+
+# Cosign test fixtures — private key must never be committed
+tests/plugins/cosign/test.key
 text

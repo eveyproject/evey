@@ -25,6 +25,8 @@ plugin:
   config: Config
   hideConfig: Ocultar config
   logs: Logs
+  noLogs: No hay logs disponibles.
+  hideLogs: Ocultar logs
   uninstall: Desinstalar
   configuration: Configuración
   noConfig: No hay claves de config definidas.
@@ -56,6 +58,7 @@ plugins:
   chooseFile: "Elegir archivo..."
   previewInstall: "Vista previa e instalar"
   pluginFileZip: "Archivo de plugin (.zip)"
+  sigFileOptional: "Archivo de firma (.zip.sig, opcional)"
   sourceUrl: "URL de origen"
   nameOptional: "Nombre (opcional)"
   urlSkipPreview: "Nota: Las instalaciones por URL omiten el paso de vista previa."
@@ -91,8 +94,8 @@ plugins:
     findings: Hallazgos
     lastError: Último error
     noData: No hay datos de seguridad disponibles.
-    signed: Signed
-    unsigned: Unsigned
+    signed: Firmado
+    unsigned: No firmado
 
 dashboard:
   title: "Panel"

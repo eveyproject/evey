@@ -215,6 +215,19 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 		}
 		tmpFile.Close()
 
+		// Optional cosign signature: save alongside the zip so the verifier
+		// can find it at <zipPath>.sig without the caller needing to know the
+		// temp file path.
+		if sigFile, _, sigErr := r.FormFile("sig"); sigErr == nil {
+			sigPath := tmpName + ".sig"
+			defer os.Remove(sigPath) //nolint:errcheck
+			if sf, createErr := os.Create(sigPath); createErr == nil {
+				_, _ = io.Copy(sf, sigFile)
+				sf.Close()
+			}
+			sigFile.Close()
+		}
+
 		p, installErr := svc.InstallPlugin(r.Context(), tmpFile.Name())
 		if installErr != nil {
 			span.RecordError(installErr)

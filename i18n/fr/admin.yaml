@@ -25,6 +25,8 @@ plugin:
   config: Config
   hideConfig: Masquer config
   logs: Logs
+  noLogs: Aucun log disponible.
+  hideLogs: Masquer les logs
   uninstall: Désinstaller
   configuration: Configuration
   noConfig: Aucune clé de config définie.
@@ -56,6 +58,7 @@ plugins:
   chooseFile: "Choisir un fichier..."
   previewInstall: "Aperçu et installation"
   pluginFileZip: "Fichier plugin (.zip)"
+  sigFileOptional: "Fichier signature (.zip.sig, optionnel)"
   sourceUrl: "URL source"
   nameOptional: "Nom (optionnel)"
   urlSkipPreview: "Note : Les installations par URL ignorent l'étape d'aperçu."
@@ -91,8 +94,8 @@ plugins:
     findings: Résultats
     lastError: Dernière erreur
     noData: Aucune donnée de sécurité disponible.
-    signed: Signed
-    unsigned: Unsigned
+    signed: Signé
+    unsigned: Non signé
 
 dashboard:
   title: "Tableau de bord"

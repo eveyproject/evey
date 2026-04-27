@@ -197,7 +197,10 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   const [blockedIssues, setBlockedIssues] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileName, setSelectedFileName] = useState("");
+  const [selectedSigFile, setSelectedSigFile] = useState<File | null>(null);
+  const [selectedSigFileName, setSelectedSigFileName] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const sigFileRef = useRef<HTMLInputElement>(null);
   const [source, setSource] = useState("");
   const [name, setName] = useState("");
   const installPlugin = useAdminPluginServiceInstallPlugin({ mutation: { onSuccess } });
@@ -233,6 +236,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     try {
       const formData = new FormData();
       formData.append("plugin", file);
+      if (selectedSigFile) formData.append("sig", selectedSigFile);
       const res = await eveyFetchRaw({ url: "/api/v1/admin/plugins/upload", method: "POST", body: formData });
       const body = (await res.json()) as { blocked?: boolean; issues?: string[] };
       if (body.blocked && body.issues) {
@@ -256,6 +260,8 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     setBlockedIssues([]);
     setSelectedFile(null);
     setSelectedFileName("");
+    setSelectedSigFile(null);
+    setSelectedSigFileName("");
   }
 
   function handleUrlSubmit(e: React.FormEvent) {
@@ -313,6 +319,36 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
             >
               <Upload size={16} className="shrink-0" />
               {selectedFileName || t("admin.plugins.chooseFile")}
+            </button>
+          </div>
+          <div>
+            <label
+              className="block text-sm font-medium mb-1 text-[var(--text-muted)]"
+            >
+              {t("admin.plugins.sigFileOptional")}
+            </label>
+            <input
+              ref={sigFileRef}
+              type="file"
+              accept=".sig"
+              className="hidden"
+              onChange={() => {
+                const f = sigFileRef.current?.files?.[0];
+                if (f) { setSelectedSigFile(f); setSelectedSigFileName(f.name); }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => sigFileRef.current?.click()}
+              className="flex items-center gap-2 w-full px-4 py-3 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast cursor-pointer"
+              style={{
+                backgroundColor: "var(--surface-raised, var(--surface))",
+                color: selectedSigFileName ? "var(--text)" : "var(--text-muted)",
+                border: "1px dashed var(--border)",
+              }}
+            >
+              <Upload size={16} className="shrink-0" />
+              {selectedSigFileName || t("admin.plugins.chooseFile")}
             </button>
           </div>
           {error && (

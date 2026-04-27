@@ -54,6 +54,7 @@ func (v *CosignVerifier) VerifySignature(ctx context.Context, zipPath, sigPath s
 		"verify-blob",
 		"--key", v.keyPath,
 		"--signature", sigPath,
+		"--insecure-ignore-tlog", // key-based local verification doesn't use Rekor
 		zipPath,
 	)
 	var stderr bytes.Buffer

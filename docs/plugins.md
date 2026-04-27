@@ -192,6 +192,58 @@ Every plugin ZIP is hashed with SHA256 at install time. The hash is stored in th
 sha256sum my-plugin.zip
 ```
 
+### Cosign signature verification
+
+Evey supports optional [Sigstore cosign](https://docs.sigstore.dev/cosign/overview/) key-based signature verification for plugin ZIPs. Three policies are available, set via environment variables:
+
+| Variable | Description |
+|---|---|
+| `EVEY_PLUGINS_COSIGN_POLICY` | `off` (default) \| `warn` \| `enforce` |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | Path to PEM public key file (PKIX format) |
+
+**Policies:**
+- `off` — signature check is skipped entirely (default)
+- `warn` — verification runs; failure is logged but install proceeds
+- `enforce` — install is rejected if the signature is missing or invalid
+
+#### Generating a key pair
+
+```bash
+cosign generate-key-pair          # produces cosign.key (private) + cosign.pub (public)
+# or with the bundled Go generator:
+go run scripts/gen_cosign_fixtures.go   # writes to tests/plugins/cosign/
+```
+
+Keep the private key (`cosign.key`) secret. Distribute `cosign.pub` to anyone who needs to verify. Point `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` at the public key file on the server.
+
+#### Signing a plugin ZIP
+
+```bash
+cosign sign-blob --key cosign.key --output-signature my-plugin.zip.sig my-plugin.zip
+```
+
+The signature file (`my-plugin.zip.sig`) is a base64-encoded ASN.1 ECDSA signature over `SHA256(zip)`.
+
+#### Installing a signed plugin
+
+**Via admin UI:** Upload the `.zip` in the plugin file field and the `.zip.sig` in the signature field (optional input shown below the ZIP picker).
+
+**Via API upload:**
+```bash
+curl -X POST /api/v1/admin/plugins/upload \
+  -H "Authorization: Bearer <token>" \
+  -F "plugin=@my-plugin.zip" \
+  -F "sig=@my-plugin.zip.sig"
+```
+
+When `EVEY_PLUGINS_COSIGN_POLICY=enforce` and no `.sig` is provided (or the signature doesn't match), the install is rejected.
+
+#### Notes
+
+- Evey calls `cosign verify-blob --key <pub> --signature <sig> --insecure-ignore-tlog <zip>`. The `--insecure-ignore-tlog` flag is required for key-based local verification — it skips the Rekor transparency log, which is only relevant for keyless/OIDC signing flows.
+- `cosign` must be in `$PATH` on the server. If it is not found and policy is `enforce`, the install is blocked. Under `warn`, a warning is logged.
+- Test fixtures (valid, tampered, wrong-key) are in `tests/plugins/cosign/`. Regenerate them with `go run scripts/gen_cosign_fixtures.go` (overwrites everything except the committed public key).
+
 ### Update flow
 
 Upload a ZIP with the **same `name`** and a **higher semver version**. The installer:
