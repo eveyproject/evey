@@ -21,6 +21,7 @@ type IntroDetector interface {
 	ExtractTileHashes(spritePath string, tileWidth, tileHeight, tilePixelWidth, tilePixelHeight int) ([]uint64, error)
 	PrecisionPass(ctx context.Context, filePath string, startSec, endSec, padSec float64) (int64, int64, error)
 	AudioFallback(ctx context.Context, filePath string, maxSec float64) (int64, int64, bool, error)
+	DetectEndCredits(ctx context.Context, filePath string, durationSec float64) (int64, int64, bool, error)
 }
 
 // IntroDetectionService orchestrates the two-pass intro detection pipeline.
@@ -154,6 +155,15 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 	if err != nil {
 		return fmt.Errorf("detection pipeline: %w", err)
 	}
+
+	// End credits detection runs independently of the intro pipeline so that
+	// films (which produce no intro windows) also get a credits segment.
+	if seg, ecErr := s.detectEndCredits(ctx, item); ecErr != nil {
+		slog.Warn("intro_detection: end credits failed", slog.String("media_id", mediaItemID), slog.Any("err", ecErr))
+	} else if seg != nil {
+		segments = append(segments, *seg)
+	}
+
 	if len(segments) == 0 {
 		slog.Info("intro_detection: no segments found", slog.String("media_id", mediaItemID))
 		return nil
@@ -577,4 +587,31 @@ func subtitleGapFallback(item *domainlibrary.MediaItem) (startMs, endMs int64, f
 	// path covers this case in practice.
 	_ = item
 	return 0, 0, false
+}
+
+// detectEndCredits runs the credits detector on the file and returns a
+// MediaSegment if found. Caller is responsible for setting ID and MediaItemID
+// before persisting.
+func (s *IntroDetectionService) detectEndCredits(ctx context.Context, item *domainlibrary.MediaItem) (*domainlibrary.MediaSegment, error) {
+	if item.File == nil || item.File.Path == "" {
+		return nil, nil
+	}
+	durationSec := item.File.Duration.Seconds()
+	if durationSec < 60 {
+		return nil, nil
+	}
+	startMs, endMs, found, err := s.detector.DetectEndCredits(ctx, item.File.Path, durationSec)
+	if err != nil {
+		return nil, fmt.Errorf("detect end credits: %w", err)
+	}
+	if !found {
+		return nil, nil
+	}
+	return &domainlibrary.MediaSegment{
+		Type:       "end_credits",
+		StartMs:    startMs,
+		EndMs:      endMs,
+		Confidence: 0.6,
+		Source:     "blackdetect",
+	}, nil
 }

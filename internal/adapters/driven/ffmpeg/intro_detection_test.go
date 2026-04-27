@@ -131,3 +131,58 @@ func TestParseDetections_Black(t *testing.T) {
 	assert.InDelta(t, 1.0, blacks[0].start, 0.001)
 	assert.InDelta(t, 2.0, blacks[0].end, 0.001)
 }
+
+// --- parseEndCredits tests ---
+
+// TestParseEndCredits_Empty returns not-found for empty input.
+func TestParseEndCredits_Empty(t *testing.T) {
+	t.Parallel()
+	_, _, found := parseEndCredits("", 100.0, 200.0)
+	assert.False(t, found)
+}
+
+// TestParseEndCredits_TooShort ignores a black region shorter than 1.0s.
+func TestParseEndCredits_TooShort(t *testing.T) {
+	t.Parallel()
+	input := "[blackdetect @ 0x1234] black_start:1.5 black_end:1.8 black_duration:0.3"
+	_, _, found := parseEndCredits(input, 100.0, 200.0)
+	assert.False(t, found)
+}
+
+// TestParseEndCredits_Found returns a segment when a qualifying black region exists.
+func TestParseEndCredits_Found(t *testing.T) {
+	t.Parallel()
+	const startSec = 100.0
+	const durSec = 200.0
+	input := "[blackdetect @ 0x1234] black_start:1.5 black_end:4.0 black_duration:2.5"
+	startMs, endMs, found := parseEndCredits(input, startSec, durSec)
+	require.True(t, found)
+	assert.Equal(t, int64((startSec+1.5)*1000), startMs)
+	assert.Equal(t, int64(durSec*1000), endMs)
+}
+
+// TestParseEndCredits_FirstQualifyingWins returns the first region that meets the threshold.
+func TestParseEndCredits_FirstQualifyingWins(t *testing.T) {
+	t.Parallel()
+	const startSec = 50.0
+	const durSec = 300.0
+	input := `[blackdetect @ 0x1] black_start:2.0 black_end:3.2 black_duration:1.2
+[blackdetect @ 0x2] black_start:8.0 black_end:15.0 black_duration:7.0`
+	startMs, endMs, found := parseEndCredits(input, startSec, durSec)
+	require.True(t, found)
+	// First qualifying region (offset 2.0) wins.
+	assert.Equal(t, int64((startSec+2.0)*1000), startMs)
+	assert.Equal(t, int64(durSec*1000), endMs)
+}
+
+// TestParseEndCredits_ExactBoundary treats black_duration==1.0 as qualifying.
+func TestParseEndCredits_ExactBoundary(t *testing.T) {
+	t.Parallel()
+	const startSec = 0.0
+	const durSec = 120.0
+	input := "[blackdetect @ 0x1] black_start:5.0 black_end:6.0 black_duration:1.0"
+	startMs, endMs, found := parseEndCredits(input, startSec, durSec)
+	require.True(t, found)
+	assert.Equal(t, int64(5000), startMs)
+	assert.Equal(t, int64(durSec*1000), endMs)
+}

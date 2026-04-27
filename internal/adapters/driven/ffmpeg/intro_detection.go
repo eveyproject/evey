@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -253,6 +254,65 @@ func mergeTransitions(silences, blacks []floatRange, windowStart, windowEnd floa
 	for _, s := range silences {
 		if inWindow(s) {
 			return s.start, s.end, true
+		}
+	}
+	return 0, 0, false
+}
+
+var (
+	reBlackStart    = regexp.MustCompile(`black_start:(\d+\.?\d*)`)
+	reBlackDuration = regexp.MustCompile(`black_duration:(\d+\.?\d*)`)
+)
+
+// DetectEndCredits scans the last portion of a video file for black regions
+// indicating end credits. Returns (startMs, endMs, true, nil) when a credits
+// roll is detected (sustained black region in the last 10% / max 10min window).
+// Returns (0, 0, false, nil) when nothing useful is found — caller skips.
+func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, durationSec float64) (startMs, endMs int64, found bool, err error) {
+	if durationSec < 60 {
+		return 0, 0, false, nil
+	}
+	startSec := math.Max(0, durationSec-math.Min(600, durationSec*0.2))
+
+	args := []string{
+		"nice", "-n", "19",
+		d.binary,
+		"-nostdin",
+		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
+		"-i", filePath,
+		"-vf", "blackdetect=d=0.5:pix_th=0.10",
+		"-an",
+		"-vsync", "vfr",
+		"-f", "null",
+		"-",
+	}
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	out, _ := cmd.CombinedOutput()
+
+	creditsStartMs, creditsEndMs, ok := parseEndCredits(string(out), startSec, durationSec)
+	if !ok {
+		return 0, 0, false, nil
+	}
+	return creditsStartMs, creditsEndMs, true, nil
+}
+
+// parseEndCredits finds the first black region with duration >= 1.0s in the
+// FFmpeg output produced for the window starting at startSec. Offsets in the
+// output are relative to -ss startSec and are converted back to file-absolute ms.
+func parseEndCredits(output string, startSec, durationSec float64) (startMs, endMs int64, found bool) {
+	for _, line := range strings.Split(output, "\n") {
+		startMatches := reBlackStart.FindStringSubmatch(line)
+		durMatches := reBlackDuration.FindStringSubmatch(line)
+		if len(startMatches) < 2 || len(durMatches) < 2 {
+			continue
+		}
+		offset, err1 := strconv.ParseFloat(startMatches[1], 64)
+		dur, err2 := strconv.ParseFloat(durMatches[1], 64)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		if dur >= 1.0 {
+			return int64((startSec + offset) * 1000), int64(durationSec * 1000), true
 		}
 	}
 	return 0, 0, false

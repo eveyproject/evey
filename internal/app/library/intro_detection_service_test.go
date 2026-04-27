@@ -1,9 +1,11 @@
 package library
 
 import (
+	"context"
 	"testing"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -283,4 +285,179 @@ func TestClassifySegments_TwoWindowsEarlierLongLaterBigger(t *testing.T) {
 	assert.Equal(t, "intro", segs[0].Type)
 	assert.Equal(t, int64(100_000), segs[0].StartMs)
 	assert.Equal(t, int64(200_000), segs[0].EndMs)
+}
+
+// --- end credits service integration tests ---
+
+// fakeDetector implements IntroDetector for tests.
+// ExtractTileHashes, PrecisionPass, AudioFallback return zero/not-found;
+// DetectEndCredits returns the configured response.
+type fakeDetector struct {
+	creditsStartMs int64
+	creditsEndMs   int64
+	creditsFound   bool
+	creditsErr     error
+}
+
+func (f *fakeDetector) ExtractTileHashes(_ string, _, _, _, _ int) ([]uint64, error) {
+	return nil, nil
+}
+func (f *fakeDetector) PrecisionPass(_ context.Context, _ string, startSec, endSec, _ float64) (int64, int64, error) {
+	return int64(startSec * 1000), int64(endSec * 1000), nil
+}
+func (f *fakeDetector) AudioFallback(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
+	return 0, 0, false, nil
+}
+func (f *fakeDetector) DetectEndCredits(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
+	return f.creditsStartMs, f.creditsEndMs, f.creditsFound, f.creditsErr
+}
+
+// fakeSegmentRepo records all Upsert calls.
+type fakeSegmentRepo struct {
+	upserted []*domainlibrary.MediaSegment
+}
+
+func (r *fakeSegmentRepo) Upsert(_ context.Context, seg *domainlibrary.MediaSegment) error {
+	r.upserted = append(r.upserted, seg)
+	return nil
+}
+func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, _ shared.MediaItemID) ([]*domainlibrary.MediaSegment, error) {
+	return nil, nil
+}
+func (r *fakeSegmentRepo) DeleteByMediaItemID(_ context.Context, _ shared.MediaItemID) error {
+	return nil
+}
+
+// fakeMediaItemRepo returns the configured item for any GetByID call.
+type fakeMediaItemRepo struct {
+	item *domainlibrary.MediaItem
+}
+
+func (r *fakeMediaItemRepo) GetByID(_ context.Context, _ shared.MediaItemID) (*domainlibrary.MediaItem, error) {
+	return r.item, nil
+}
+func (r *fakeMediaItemRepo) Create(_ context.Context, _ *domainlibrary.MediaItem) error { return nil }
+func (r *fakeMediaItemRepo) List(_ context.Context, _ domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
+	return nil, nil
+}
+func (r *fakeMediaItemRepo) Update(_ context.Context, _ *domainlibrary.MediaItem) error { return nil }
+func (r *fakeMediaItemRepo) Delete(_ context.Context, _ shared.MediaItemID) error       { return nil }
+func (r *fakeMediaItemRepo) GetByFilePath(_ context.Context, _ string) (*domainlibrary.MediaItem, error) {
+	return nil, nil
+}
+func (r *fakeMediaItemRepo) GetByFileFingerprint(_ context.Context, _ string) (*domainlibrary.MediaItem, error) {
+	return nil, nil
+}
+func (r *fakeMediaItemRepo) GetByLibraryTypeTitle(_ context.Context, _ shared.LibraryID, _, _, _ string) (*domainlibrary.MediaItem, error) {
+	return nil, nil
+}
+func (r *fakeMediaItemRepo) Count(_ context.Context, _ domainlibrary.ListMediaItemsFilter) (int, error) {
+	return 0, nil
+}
+func (r *fakeMediaItemRepo) SeriesAggregate(_ context.Context, _ shared.MediaItemID) (domainlibrary.SeriesAggregate, error) {
+	return domainlibrary.SeriesAggregate{}, nil
+}
+
+// fakeTrickplayRepo returns ErrNotFound for any lookup so the pHash pass is skipped.
+type fakeTrickplayRepo struct{}
+
+func (r *fakeTrickplayRepo) GetByMediaItemID(_ context.Context, _ shared.MediaItemID) (*domainlibrary.TrickplayManifest, error) {
+	return nil, shared.ErrNotFound
+}
+func (r *fakeTrickplayRepo) ListMissingMediaItemIDs(_ context.Context) ([]string, error) {
+	return nil, nil
+}
+func (r *fakeTrickplayRepo) Create(_ context.Context, _ *domainlibrary.TrickplayManifest) error {
+	return nil
+}
+func (r *fakeTrickplayRepo) Delete(_ context.Context, _ shared.MediaItemID) error { return nil }
+
+// fakeConfigRepo disables trickplay so the pHash pass is skipped immediately,
+// preventing the 24h waitForManifest loop from blocking tests.
+type fakeConfigRepo struct{}
+
+func (r *fakeConfigRepo) Get(_ context.Context, _ string) (*shared.ServerConfigEntry, error) {
+	return &shared.ServerConfigEntry{Key: "trickplay.enabled", Value: "false"}, nil
+}
+func (r *fakeConfigRepo) Set(_ context.Context, _, _ string) error   { return nil }
+func (r *fakeConfigRepo) Delete(_ context.Context, _ string) error   { return nil }
+func (r *fakeConfigRepo) List(_ context.Context) ([]*shared.ServerConfigEntry, error) {
+	return nil, nil
+}
+
+// newTestService assembles a minimal IntroDetectionService for unit tests.
+func newTestService(det IntroDetector, segRepo domainlibrary.MediaSegmentRepository, item *domainlibrary.MediaItem) *IntroDetectionService {
+	return NewIntroDetectionService(
+		segRepo,
+		&fakeTrickplayRepo{},
+		&fakeMediaItemRepo{item: item},
+		&fakeConfigRepo{},
+		det,
+		"/tmp/trickplay",
+	)
+}
+
+// TestDetectIntro_AppendsEndCreditsWhenDetected verifies that when DetectEndCredits
+// returns found=true the resulting segment is upserted with type "end_credits".
+func TestDetectIntro_AppendsEndCreditsWhenDetected(t *testing.T) {
+	t.Parallel()
+
+	dur, _ := shared.NewDurationMs(3_600_000) // 60 min
+	item := &domainlibrary.MediaItem{
+		ID:        shared.MediaItemID("item-1"),
+		LibraryID: shared.LibraryID("lib-1"),
+		Type:      domainlibrary.MovieItem,
+		Title:     "Test Movie",
+		File: &domainlibrary.MediaFile{
+			Path:     "/movies/test.mkv",
+			Duration: dur,
+		},
+	}
+
+	det := &fakeDetector{
+		creditsStartMs: 3_480_000, // 58 min
+		creditsEndMs:   3_600_000, // 60 min
+		creditsFound:   true,
+	}
+	segRepo := &fakeSegmentRepo{}
+	svc := newTestService(det, segRepo, item)
+
+	err := svc.DetectIntro(context.Background(), "item-1")
+	require.NoError(t, err)
+
+	require.Len(t, segRepo.upserted, 1)
+	assert.Equal(t, "end_credits", segRepo.upserted[0].Type)
+	assert.Equal(t, int64(3_480_000), segRepo.upserted[0].StartMs)
+	assert.Equal(t, int64(3_600_000), segRepo.upserted[0].EndMs)
+	assert.InDelta(t, 0.6, segRepo.upserted[0].Confidence, 0.001)
+	assert.Equal(t, "blackdetect", segRepo.upserted[0].Source)
+}
+
+// TestDetectIntro_SkipsEndCreditsWhenNotFound verifies that when DetectEndCredits
+// returns found=false no end_credits segment is upserted.
+func TestDetectIntro_SkipsEndCreditsWhenNotFound(t *testing.T) {
+	t.Parallel()
+
+	dur, _ := shared.NewDurationMs(3_600_000)
+	item := &domainlibrary.MediaItem{
+		ID:        shared.MediaItemID("item-2"),
+		LibraryID: shared.LibraryID("lib-1"),
+		Type:      domainlibrary.MovieItem,
+		Title:     "Test Movie 2",
+		File: &domainlibrary.MediaFile{
+			Path:     "/movies/test2.mkv",
+			Duration: dur,
+		},
+	}
+
+	det := &fakeDetector{creditsFound: false}
+	segRepo := &fakeSegmentRepo{}
+	svc := newTestService(det, segRepo, item)
+
+	err := svc.DetectIntro(context.Background(), "item-2")
+	require.NoError(t, err)
+
+	for _, seg := range segRepo.upserted {
+		assert.NotEqual(t, "end_credits", seg.Type, "no end_credits segment should be upserted when not found")
+	}
 }
