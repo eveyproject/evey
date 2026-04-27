@@ -335,6 +335,20 @@ type Chapter struct {
 	SortOrder   int
 }
 
+// MediaSegment represents a detected time range within a media item
+// (e.g. intro, outro, recap, preview). Type is one of "intro", "outro",
+// "recap", "preview". Source identifies the detection method.
+type MediaSegment struct {
+	ID          string
+	MediaItemID shared.MediaItemID
+	Type        string
+	StartMs     int64
+	EndMs       int64
+	Confidence  float64
+	Source      string
+	CreatedAt   time.Time
+}
+
 type ScanSchedule struct {
 	LibraryID      shared.LibraryID
 	CronExpression string

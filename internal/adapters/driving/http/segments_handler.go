@@ -1,0 +1,88 @@
+package httpapi
+
+import (
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"strings"
+
+	"go.opentelemetry.io/otel/codes"
+
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+)
+
+func segmentsHandler(tokenGen TokenVerifier, svc SegmentsGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
+	type segmentJSON struct {
+		Type       string  `json:"type"`
+		StartMs    int64   `json:"startMs"`
+		EndMs      int64   `json:"endMs"`
+		Confidence float64 `json:"confidence"`
+		Source     string  `json:"source"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.segments.Get")
+		defer span.End()
+		r = r.WithContext(ctx)
+		mediaID := r.PathValue("id")
+		claims := HTTPClaimsFromContext(r.Context())
+
+		if st, ok := StreamTokenFromContext(r.Context()); ok {
+			if st.MediaItemID != shared.MediaItemID(mediaID) {
+				span.SetStatus(codes.Error, "stream token media mismatch")
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+		}
+		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "media item not found")
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+			span.SetStatus(codes.Error, "library access denied")
+			return
+		}
+		segments, err := svc.GetSegments(r.Context(), mediaID)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "get segments failed")
+			http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
+			return
+		}
+
+		// Optional ?types=intro,outro filter
+		var typeFilter map[string]struct{}
+		if raw := r.URL.Query().Get("types"); raw != "" {
+			typeFilter = make(map[string]struct{})
+			for _, t := range strings.Split(raw, ",") {
+				if t = strings.TrimSpace(t); t != "" {
+					typeFilter[t] = struct{}{}
+				}
+			}
+		}
+
+		out := make([]segmentJSON, 0, len(segments))
+		for _, seg := range segments {
+			if typeFilter != nil {
+				if _, ok := typeFilter[seg.Type]; !ok {
+					continue
+				}
+			}
+			out = append(out, segmentJSON{
+				Type:       seg.Type,
+				StartMs:    seg.StartMs,
+				EndMs:      seg.EndMs,
+				Confidence: seg.Confidence,
+				Source:     seg.Source,
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		setCORSHeaders(w, r, baseURL)
+		if err := json.NewEncoder(w).Encode(map[string]any{"segments": out}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
+	}
+}

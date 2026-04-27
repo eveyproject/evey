@@ -95,6 +95,18 @@ type ChapterRepository interface {
 	ReplaceBatch(ctx context.Context, mediaItemID shared.MediaItemID, chapters []*Chapter) error
 }
 
+// MediaSegmentQueryRepo is the read-only subset used by query services.
+type MediaSegmentQueryRepo interface {
+	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*MediaSegment, error)
+}
+
+// MediaSegmentRepository is the full read-write interface for media segments.
+type MediaSegmentRepository interface {
+	MediaSegmentQueryRepo
+	Upsert(ctx context.Context, seg *MediaSegment) error
+	DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error
+}
+
 // PersonQueryRepo is the read-only subset of PersonRepository for query
 // services. The full repository embeds this.
 type PersonQueryRepo interface {

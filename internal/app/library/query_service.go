@@ -23,6 +23,10 @@ func WithTrickplay(trickplay library.TrickplayQueryRepo) QueryServiceOption {
 	return func(s *QueryService) { s.trickplay = trickplay }
 }
 
+func WithSegments(segments library.MediaSegmentQueryRepo) QueryServiceOption {
+	return func(s *QueryService) { s.segments = segments }
+}
+
 func WithTranslations(
 	mediaTranslations library.MediaItemTranslationQueryRepo,
 	personTranslations library.PersonTranslationQueryRepo,
@@ -43,6 +47,7 @@ type QueryService struct {
 	personTranslations library.PersonTranslationQueryRepo
 	chapters           library.ChapterQueryRepo
 	trickplay          library.TrickplayQueryRepo
+	segments           library.MediaSegmentQueryRepo
 }
 
 func NewQueryService(
@@ -174,6 +179,15 @@ func (s *QueryService) GetChapters(ctx context.Context, mediaItemID string) ([]*
 		return []*library.Chapter{}, nil
 	}
 	return s.chapters.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
+}
+
+func (s *QueryService) GetSegments(ctx context.Context, mediaItemID string) ([]*library.MediaSegment, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetSegments")
+	defer span.End()
+	if s.segments == nil {
+		return []*library.MediaSegment{}, nil
+	}
+	return s.segments.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
 }
 
 func (s *QueryService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {

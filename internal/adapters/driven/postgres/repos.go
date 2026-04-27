@@ -43,6 +43,7 @@ type Repos struct {
 	FeedConfigCmd        *FeedConfigCommandRepo
 	FeedConfigQuery      *FeedConfigQueryRepo
 	Chapter              *ChapterRepository
+	MediaSegment         *MediaSegmentRepository
 	ScanSchedule         *ScanScheduleRepository
 	LibraryAccess        *LibraryAccessRepository
 	Collection           *CollectionRepository
@@ -102,6 +103,7 @@ func NewRepos(db *sql.DB) *Repos {
 		FeedConfigCmd:        NewFeedConfigCommandRepo(db),
 		FeedConfigQuery:      NewFeedConfigQueryRepo(db),
 		Chapter:              NewChapterRepository(db),
+		MediaSegment:         NewMediaSegmentRepository(db),
 		ScanSchedule:         NewScanScheduleRepository(db),
 		LibraryAccess:        NewLibraryAccessRepository(db),
 		Collection:           NewCollectionRepository(db),

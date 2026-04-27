@@ -67,6 +67,11 @@ type ChaptersGetter interface {
 	GetChapters(ctx context.Context, mediaItemID string) ([]*domainlibrary.Chapter, error)
 }
 
+// SegmentsGetter retrieves media segments (intro/outro/etc.) for a media item.
+type SegmentsGetter interface {
+	GetSegments(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaSegment, error)
+}
+
 // TrickplayGetter retrieves trickplay manifests.
 type TrickplayGetter interface {
 	GetTrickplayManifest(ctx context.Context, mediaItemID string) (*domainlibrary.TrickplayManifest, error)
