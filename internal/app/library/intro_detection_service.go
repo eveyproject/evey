@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/bits"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -346,7 +347,8 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 		return nil, nil
 	}
 
-	introHashes := FrequencyMap(episodeHashes, 0.70)
+	const maxHamming = 8
+	introHashes := FrequencyMapHamming(episodeHashes, 0.70, maxHamming)
 	if len(introHashes) == 0 {
 		return nil, nil
 	}
@@ -357,12 +359,18 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 		return nil, nil
 	}
 
-	return topTwoContiguousWindows(manifest, introHashes, targetHashes), nil
+	return topTwoContiguousWindowsHamming(manifest, introHashes, targetHashes, maxHamming), nil
 }
 
 // topTwoContiguousWindows returns up to 2 non-overlapping match windows in target hashes,
 // sorted by start position (chronological order). The two longest runs are selected.
 func topTwoContiguousWindows(manifest *domainlibrary.TrickplayManifest, introHashes map[uint64]bool, targetHashes []uint64) []matchWindow {
+	return topTwoContiguousWindowsHamming(manifest, introHashes, targetHashes, 0)
+}
+
+// topTwoContiguousWindowsHamming is like topTwoContiguousWindows but matches each
+// target hash within maxHamming bits of any introHash (0 = exact match).
+func topTwoContiguousWindowsHamming(manifest *domainlibrary.TrickplayManifest, introHashes map[uint64]bool, targetHashes []uint64, maxHamming int) []matchWindow {
 	if manifest.Interval <= 0 || len(targetHashes) == 0 {
 		return nil
 	}
@@ -372,7 +380,7 @@ func topTwoContiguousWindows(manifest *domainlibrary.TrickplayManifest, introHas
 	var runs []run
 	runStart, runLen := 0, 0
 	for i, h := range targetHashes {
-		if introHashes[h] {
+		if matchesIntroHashes(h, introHashes, maxHamming) {
 			if runLen == 0 {
 				runStart = i
 			}
@@ -391,7 +399,6 @@ func topTwoContiguousWindows(manifest *domainlibrary.TrickplayManifest, introHas
 		return nil
 	}
 
-	// Select top 2 by length, then restore chronological order.
 	sort.Slice(runs, func(i, j int) bool { return runs[i].length > runs[j].length })
 	if len(runs) > 2 {
 		runs = runs[:2]
@@ -535,6 +542,68 @@ func FrequencyMap(episodeHashes [][]uint64, threshold float64) map[uint64]bool {
 		}
 	}
 	return result
+}
+
+// hammingDist returns the number of differing bits between two 64-bit hashes.
+func hammingDist(a, b uint64) int {
+	return bits.OnesCount64(a ^ b)
+}
+
+// FrequencyMapHamming is like FrequencyMap but counts an episode as containing
+// a candidate hash if any of its hashes is within maxHamming bits.
+// Trickplay aHash at 1 frame/15s rarely has identical bytes across episodes
+// (frame timing drift ±15s), so exact-match misses real intros — Hamming ≤8
+// catches the same logo/title-card frame even when offset by a few seconds.
+// Candidates come from the first episode's unique hashes.
+func FrequencyMapHamming(episodeHashes [][]uint64, threshold float64, maxHamming int) map[uint64]bool {
+	if len(episodeHashes) == 0 {
+		return nil
+	}
+	if maxHamming <= 0 {
+		return FrequencyMap(episodeHashes, threshold)
+	}
+	seen := make(map[uint64]struct{}, len(episodeHashes[0]))
+	candidates := make([]uint64, 0, len(episodeHashes[0]))
+	for _, h := range episodeHashes[0] {
+		if _, ok := seen[h]; !ok {
+			seen[h] = struct{}{}
+			candidates = append(candidates, h)
+		}
+	}
+	total := len(episodeHashes)
+	result := make(map[uint64]bool)
+	for _, c := range candidates {
+		count := 0
+		for _, ep := range episodeHashes {
+			for _, h := range ep {
+				if hammingDist(c, h) <= maxHamming {
+					count++
+					break
+				}
+			}
+		}
+		if float64(count)/float64(total) >= threshold {
+			result[c] = true
+		}
+	}
+	return result
+}
+
+// matchesIntroHashes returns true if h is within maxHamming bits of any introHash.
+// Falls back to exact map lookup when maxHamming is 0.
+func matchesIntroHashes(h uint64, introHashes map[uint64]bool, maxHamming int) bool {
+	if introHashes[h] {
+		return true
+	}
+	if maxHamming <= 0 {
+		return false
+	}
+	for ih := range introHashes {
+		if hammingDist(ih, h) <= maxHamming {
+			return true
+		}
+	}
+	return false
 }
 
 // concurrentFallback runs audio and subtitle-gap detection concurrently.
