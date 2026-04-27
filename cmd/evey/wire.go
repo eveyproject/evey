@@ -484,7 +484,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsMgr)
 
 	introDetectionSvc := applibrary.NewIntroDetectionService(
-		postgres.NewMediaSegmentRepository(db),
+		r.MediaSegment,
 		r.Trickplay,
 		r.MediaItem,
 		r.ServerCfg,
@@ -492,7 +492,6 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		cfg.Transcoding.TrickplayCacheDir,
 	)
 	introDetectionSvc.WithShutdownCtx(ctx)
-	_ = introDetectionSvc // TODO: thread through appDeps.library and http.go HTTPServer.IntroDetector
 
 	if cfg.Transcoding.CacheMaxGB > 0 {
 		evictor := apptranscoding.NewCacheEvictor(
@@ -516,9 +515,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	return &appDeps{
 		bus: bus,
 		library: libraryDeps{
-			cmdSvc:    libCmdSvc,
-			querySvc:  libQuerySvc,
-			scheduler: libScheduler,
+			cmdSvc:            libCmdSvc,
+			querySvc:          libQuerySvc,
+			scheduler:         libScheduler,
+			introDetectionSvc: introDetectionSvc,
 		},
 		user: userDeps{
 			authSvc:   userAuthSvc,

@@ -133,6 +133,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		UserBitrate:          httpapi.NewUserBitrateAdapter(deps.user.querySvc),
 		ProfilePrefs:         httpapi.NewProfilePrefsAdapter(deps.user.querySvc),
 		FrameExtractor:       deps.frameExtractor,
+		IntroDetector:        deps.library.introDetectionSvc,
 	}
 
 	srv.RegisterRoutes(mux, gwMux)

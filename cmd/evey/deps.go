@@ -38,9 +38,10 @@ import (
 
 // libraryDeps groups library scanning, querying and scheduling services.
 type libraryDeps struct {
-	cmdSvc    *applibrary.CommandService
-	querySvc  *applibrary.QueryService
-	scheduler *applibrary.Scheduler
+	cmdSvc            *applibrary.CommandService
+	querySvc          *applibrary.QueryService
+	scheduler         *applibrary.Scheduler
+	introDetectionSvc *applibrary.IntroDetectionService
 }
 
 // userDeps groups user/auth services.
