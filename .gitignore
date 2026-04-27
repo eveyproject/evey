@@ -71,6 +71,11 @@ frontend/apps/web/tsconfig.tsbuildinfo
 .claude/worktrees/
 .claude/scheduled_tasks.lock
 
+# Installed plugins (runtime-generated, not tracked)
+plugins/*
+!plugins/.gitkeep
+!plugins/dist/
+
 # Plugin ZIPs (dist/ contains release-ready zips, root zips are dev artifacts)
 *.zip
 !plugins/dist/*.zip

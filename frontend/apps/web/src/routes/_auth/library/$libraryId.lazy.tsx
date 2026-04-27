@@ -57,6 +57,16 @@ const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSo
 
 const PAGE_SIZE = 48;
 
+const DEDICATED_ROUTES: Partial<Record<string, string>> = {
+  LIBRARY_TYPE_PHOTOS: "/photos",
+  LIBRARY_TYPE_MUSIC: "/music",
+};
+
+const DEFAULT_TYPE_FILTER: Partial<Record<string, LibraryServiceListMediaItemsType>> = {
+  LIBRARY_TYPE_SHOWS: "MEDIA_ITEM_TYPE_SERIES",
+  LIBRARY_TYPE_MOVIES: "MEDIA_ITEM_TYPE_MOVIE",
+};
+
 function LibraryPage() {
   const { t } = useTranslation();
     const { libraryId: slug } = Route.useParams();
@@ -152,12 +162,12 @@ function LibraryPage() {
   const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
 
   useEffect(() => {
-    if (!library || typeFilter !== undefined) return;
-    if (library.type === "LIBRARY_TYPE_SHOWS") {
-      void navigate({ to: "/library/$libraryId", params: { libraryId: slug }, search: { ...search, type: "MEDIA_ITEM_TYPE_SERIES" as LibraryServiceListMediaItemsType }, replace: true });
-    } else if (library.type === "LIBRARY_TYPE_MOVIES") {
-      void navigate({ to: "/library/$libraryId", params: { libraryId: slug }, search: { ...search, type: "MEDIA_ITEM_TYPE_MOVIE" as LibraryServiceListMediaItemsType }, replace: true });
-    }
+    if (!library) return;
+    const dedicated = DEDICATED_ROUTES[library.type ?? ""];
+    if (dedicated) { void navigate({ to: dedicated, replace: true }); return; }
+    if (typeFilter !== undefined) return;
+    const type = DEFAULT_TYPE_FILTER[library.type ?? ""];
+    if (type) void navigate({ to: "/library/$libraryId", params: { libraryId: slug }, search: { ...search, type }, replace: true });
   // eslint-disable-next-line react-hooks/exhaustive-deps -- search/slug excluded: search is a new object each render, slug is stable but derived from params already covered
   }, [library?.type, typeFilter, navigate]);
 

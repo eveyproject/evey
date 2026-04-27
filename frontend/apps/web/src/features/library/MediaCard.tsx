@@ -126,7 +126,7 @@ export const MediaCard = memo(function MediaCard({
   const hasProgressBar = showProgress && pct !== undefined;
 
   return (
-    <div className="relative">
+    <div className="relative w-fit">
     {ctxMenu && item.id && (
       <CardContextMenu
         mediaId={item.id}
