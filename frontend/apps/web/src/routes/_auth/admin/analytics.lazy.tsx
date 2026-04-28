@@ -93,7 +93,7 @@ function TopMediaTable({ items }: { items: TopMediaItem[] }) {
     );
   }
 
-  const maxPlays = Math.max(...items.map((i) => i.play_count), 1);
+  const maxDuration = Math.max(...items.map((i) => i.total_duration_seconds), 1);
 
   return (
     <div
@@ -118,25 +118,23 @@ function TopMediaTable({ items }: { items: TopMediaItem[] }) {
               <td className="px-4 py-3 font-medium text-[var(--text)]">
                 {item.title}
               </td>
-              <td className="px-4 py-3 min-w-[160px]">
+              <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
+                {item.play_count}
+              </td>
+              <td className="px-4 py-3 min-w-[200px]">
                 <div className="flex items-center gap-2">
-                  <div
-                    className="h-1.5 flex-1 rounded-full bg-[var(--border)]"
-                  >
+                  <div className="h-1.5 flex-1 rounded-full bg-[var(--border)]">
                     <div
                       className="h-1.5 rounded-full bg-[var(--accent)]"
                       style={{
-                        width: `${Math.round((item.play_count / maxPlays) * 100)}%`,
+                        width: `${Math.round((item.total_duration_seconds / maxDuration) * 100)}%`,
                       }}
                     />
                   </div>
-                  <span className="text-xs w-8 text-right text-[var(--text-muted)]">
-                    {item.play_count}
+                  <span className="text-xs w-16 text-right text-[var(--text-muted)] tabular-nums">
+                    {formatDuration(item.total_duration_seconds)}
                   </span>
                 </div>
-              </td>
-              <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
-                {formatDuration(item.total_duration_seconds)}
               </td>
             </tr>
           ))}

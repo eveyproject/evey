@@ -133,7 +133,7 @@ func (r *AnalyticsReader) fetchTopMedia(ctx context.Context) ([]activity.TopMedi
 		         ELSE mi.title
 		       END AS display_title,
 		       COUNT(*) AS play_count,
-		       COALESCE(SUM(ps.duration_ms)::bigint / 1000, 0) AS total_duration_seconds
+		       COALESCE(SUM(COALESCE(ps.position_ms, ps.duration_ms, 0))::bigint / 1000, 0) AS total_duration_seconds
 		FROM play_sessions ps
 		INNER JOIN media_items mi ON mi.id = ps.media_item_id
 		LEFT JOIN media_items season ON season.id = mi.parent_id AND mi.type = 'episode'
@@ -191,7 +191,7 @@ func (r *AnalyticsReader) fetchDailyPlays(ctx context.Context) ([]activity.Daily
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT d::date::text AS day,
 		       COUNT(ps.id) AS play_count,
-		       COALESCE(SUM(ps.duration_ms)::bigint / 1000, 0) AS watch_time_seconds
+		       COALESCE(SUM(COALESCE(ps.position_ms, ps.duration_ms, 0))::bigint / 1000, 0) AS watch_time_seconds
 		FROM generate_series(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, '1 day') AS d
 		LEFT JOIN play_sessions ps ON ps.started_at::date = d::date
 		GROUP BY d
