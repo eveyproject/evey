@@ -57,6 +57,7 @@ import { Route as AuthAdminApiKeysRouteImport } from './routes/_auth/admin/api-k
 import { Route as AuthAdminAnalyticsRouteImport } from './routes/_auth/admin/analytics'
 import { Route as AuthAdminActivityRouteImport } from './routes/_auth/admin/activity'
 import { Route as AuthCollectionsSmartFilterIdRouteImport } from './routes/_auth/collections/smart/$filterId'
+import { Route as AuthAdminMediaMediaIdRouteImport } from './routes/_auth/admin/media.$mediaId'
 
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
@@ -378,6 +379,13 @@ const AuthCollectionsSmartFilterIdRoute =
       (d) => d.Route,
     ),
   )
+const AuthAdminMediaMediaIdRoute = AuthAdminMediaMediaIdRouteImport.update({
+  id: '/media/$mediaId',
+  path: '/media/$mediaId',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/media.$mediaId.lazy').then((d) => d.Route),
+)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -426,6 +434,7 @@ export interface FileRoutesByFullPath {
   '/photos/': typeof AuthPhotosIndexRoute
   '/playlists/': typeof AuthPlaylistsIndexRoute
   '/profile/': typeof AuthProfileIndexRoute
+  '/admin/media/$mediaId': typeof AuthAdminMediaMediaIdRoute
   '/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
 }
 export interface FileRoutesByTo {
@@ -474,6 +483,7 @@ export interface FileRoutesByTo {
   '/photos': typeof AuthPhotosIndexRoute
   '/playlists': typeof AuthPlaylistsIndexRoute
   '/profile': typeof AuthProfileIndexRoute
+  '/admin/media/$mediaId': typeof AuthAdminMediaMediaIdRoute
   '/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
 }
 export interface FileRoutesById {
@@ -525,6 +535,7 @@ export interface FileRoutesById {
   '/_auth/photos/': typeof AuthPhotosIndexRoute
   '/_auth/playlists/': typeof AuthPlaylistsIndexRoute
   '/_auth/profile/': typeof AuthProfileIndexRoute
+  '/_auth/admin/media/$mediaId': typeof AuthAdminMediaMediaIdRoute
   '/_auth/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
 }
 export interface FileRouteTypes {
@@ -576,6 +587,7 @@ export interface FileRouteTypes {
     | '/photos/'
     | '/playlists/'
     | '/profile/'
+    | '/admin/media/$mediaId'
     | '/collections/smart/$filterId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -624,6 +636,7 @@ export interface FileRouteTypes {
     | '/photos'
     | '/playlists'
     | '/profile'
+    | '/admin/media/$mediaId'
     | '/collections/smart/$filterId'
   id:
     | '__root__'
@@ -674,6 +687,7 @@ export interface FileRouteTypes {
     | '/_auth/photos/'
     | '/_auth/playlists/'
     | '/_auth/profile/'
+    | '/_auth/admin/media/$mediaId'
     | '/_auth/collections/smart/$filterId'
   fileRoutesById: FileRoutesById
 }
@@ -1027,6 +1041,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCollectionsSmartFilterIdRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/admin/media/$mediaId': {
+      id: '/_auth/admin/media/$mediaId'
+      path: '/media/$mediaId'
+      fullPath: '/admin/media/$mediaId'
+      preLoaderRoute: typeof AuthAdminMediaMediaIdRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
   }
 }
 
@@ -1046,6 +1067,7 @@ interface AuthAdminRouteChildren {
   AuthAdminUsersRoute: typeof AuthAdminUsersRoute
   AuthAdminWebhooksRoute: typeof AuthAdminWebhooksRoute
   AuthAdminIndexRoute: typeof AuthAdminIndexRoute
+  AuthAdminMediaMediaIdRoute: typeof AuthAdminMediaMediaIdRoute
 }
 
 const AuthAdminRouteChildren: AuthAdminRouteChildren = {
@@ -1064,6 +1086,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminUsersRoute: AuthAdminUsersRoute,
   AuthAdminWebhooksRoute: AuthAdminWebhooksRoute,
   AuthAdminIndexRoute: AuthAdminIndexRoute,
+  AuthAdminMediaMediaIdRoute: AuthAdminMediaMediaIdRoute,
 }
 
 const AuthAdminRouteWithChildren = AuthAdminRoute._addFileChildren(

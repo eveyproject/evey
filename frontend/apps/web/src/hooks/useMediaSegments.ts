@@ -10,7 +10,7 @@ export interface MediaSegment {
 }
 
 export function useMediaSegments(mediaId: string | undefined, types?: string[]) {
-  const typesParam = types?.join(",") ?? "intro,outro";
+  const typesParam = types?.join(",") ?? "intro,outro,recap,end_credits,studio_logo";
   return useQuery<MediaSegment[]>({
     queryKey: ["/api/v1/media/segments", mediaId, typesParam],
     queryFn: async () => {

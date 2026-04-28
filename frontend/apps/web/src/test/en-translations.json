@@ -1341,5 +1341,18 @@
   "player.unableToPlayAnyQuality": "Unable to play at any quality level",
   "player.watchTogether": "Watch Together",
   "common.itemCount_one": "{{count}} item",
-  "common.itemCount_other": "{{count}} items"
+  "common.itemCount_other": "{{count}} items",
+  "admin.segments.title": "Media Segments",
+  "admin.segments.intro": "Intro",
+  "admin.segments.recap": "Recap",
+  "admin.segments.end_credits": "End credits",
+  "admin.segments.studio_logo": "Studio logo",
+  "admin.segments.markStart": "Mark start here",
+  "admin.segments.markEnd": "Mark end here",
+  "admin.segments.save": "Save",
+  "admin.segments.delete": "Delete",
+  "admin.segments.redetect": "Re-trigger auto detection",
+  "admin.segments.propagate": "Apply to season",
+  "admin.segments.lockedHint": "This segment is manually locked and will not be overwritten by auto detection.",
+  "admin.segments.propagateSuccess": "Propagated to {{count}} episode(s)"
 }

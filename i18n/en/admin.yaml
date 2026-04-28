@@ -524,3 +524,18 @@ serverSettings:
   saved: Settings saved
   usingDefault: "Using default:"
   reset: Reset to default
+
+segments:
+  title: Media segments
+  intro: Intro
+  recap: Recap
+  end_credits: End credits
+  studio_logo: Studio logo
+  markStart: Mark start here
+  markEnd: Mark end here
+  save: Save
+  delete: Delete
+  redetect: Re-run auto detection
+  propagate: Apply to season
+  lockedHint: This segment is locked manually and will not be overwritten by auto detection.
+  propagateSuccess: "Propagated to {{count}} episode(s)"

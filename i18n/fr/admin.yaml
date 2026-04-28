@@ -523,3 +523,18 @@ serverSettings:
   saved: "Paramètres enregistrés"
   usingDefault: "Valeur par défaut :"
   reset: "Réinitialiser"
+
+segments:
+  title: "Segments du média"
+  intro: "Intro"
+  recap: "Recap"
+  end_credits: "Générique de fin"
+  studio_logo: "Logo studio"
+  markStart: "Marquer début ici"
+  markEnd: "Marquer fin ici"
+  save: "Sauvegarder"
+  delete: "Supprimer"
+  redetect: "Re-déclencher détection auto"
+  propagate: "Appliquer à la saison"
+  lockedHint: "Ce segment est verrouillé manuellement et ne sera pas écrasé par la détection auto."
+  propagateSuccess: "Propagé sur {{count}} épisode(s)"
