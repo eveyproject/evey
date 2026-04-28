@@ -105,6 +105,7 @@ type MediaSegmentRepository interface {
 	MediaSegmentQueryRepo
 	Upsert(ctx context.Context, seg *MediaSegment) error
 	DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error
+	DeleteByMediaItemIDAndType(ctx context.Context, mediaItemID shared.MediaItemID, segType string) error
 }
 
 // PersonQueryRepo is the read-only subset of PersonRepository for query

@@ -180,7 +180,7 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 	for _, seg := range segments {
 		seg.ID = uuid.New().String()
 		seg.MediaItemID = shared.MediaItemID(mediaItemID)
-		if err := s.segmentRepo.Upsert(ctx, &seg); err != nil {
+		if err := s.upsertSegmentRespectingManual(ctx, &seg); err != nil {
 			return fmt.Errorf("upsert segment %s: %w", seg.Type, err)
 		}
 		slog.Info("intro_detection: segment stored",
@@ -189,6 +189,226 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 			slog.Int64("start_ms", seg.StartMs),
 			slog.Int64("end_ms", seg.EndMs),
 		)
+	}
+	return nil
+}
+
+// upsertSegmentRespectingManual upserts unless an existing segment for the same
+// (media_item_id, type) has source "manual" or "manual_propagated" — operator
+// choices must never be silently overwritten by re-runs of auto-detection.
+func (s *IntroDetectionService) upsertSegmentRespectingManual(ctx context.Context, seg *domainlibrary.MediaSegment) error {
+	existing, err := s.segmentRepo.GetByMediaItemID(ctx, seg.MediaItemID)
+	if err == nil {
+		for _, e := range existing {
+			if e.Type == seg.Type && (e.Source == "manual" || e.Source == "manual_propagated") {
+				slog.Info("intro_detection: skipping auto upsert, manual lock present",
+					slog.String("media_id", string(seg.MediaItemID)),
+					slog.String("type", seg.Type),
+					slog.String("existing_source", e.Source))
+				return nil
+			}
+		}
+	}
+	return s.segmentRepo.Upsert(ctx, seg)
+}
+
+// SetManualSegment upserts a single segment with source="manual" and confidence=1.0.
+// This is the operator-driven override path. The (media_item_id, type) DB unique
+// constraint makes this idempotent: posting the same type updates start/end.
+func (s *IntroDetectionService) SetManualSegment(ctx context.Context, mediaItemID, segType string, startMs, endMs int64) error {
+	if err := validateSegmentInput(segType, startMs, endMs); err != nil {
+		return err
+	}
+	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
+	if err != nil {
+		return fmt.Errorf("get media item: %w", err)
+	}
+	if item.File != nil && !item.File.Duration.IsZero() {
+		durMs := item.File.Duration.Milliseconds()
+		if endMs > durMs {
+			return fmt.Errorf("end_ms %d exceeds media duration %d", endMs, durMs)
+		}
+	}
+	seg := &domainlibrary.MediaSegment{
+		ID:          uuid.New().String(),
+		MediaItemID: shared.MediaItemID(mediaItemID),
+		Type:        segType,
+		StartMs:     startMs,
+		EndMs:       endMs,
+		Confidence:  1.0,
+		Source:      "manual",
+	}
+	return s.segmentRepo.Upsert(ctx, seg)
+}
+
+// DeleteSegment removes a segment of the given type for the given media item.
+func (s *IntroDetectionService) DeleteSegment(ctx context.Context, mediaItemID, segType string) error {
+	return s.segmentRepo.DeleteByMediaItemIDAndType(ctx, shared.MediaItemID(mediaItemID), segType)
+}
+
+// PropagateSegment takes a manually-defined segment on a reference episode and
+// re-runs pHash detection across the season, using the reference's frame hashes
+// (covering [startMs, endMs]) as the introHashes set. Each sibling that finds
+// a matching contiguous window gets a "manual_propagated" segment. Siblings
+// that already have a "manual" lock are skipped (operator choice wins).
+//
+// Only works on episodes; films return an error.
+func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaItemID, segType string) (propagatedTo []string, err error) {
+	refItem, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(refMediaItemID))
+	if err != nil {
+		return nil, fmt.Errorf("get reference item: %w", err)
+	}
+	if refItem.Type != domainlibrary.Episode {
+		return nil, fmt.Errorf("propagate only works on episodes, got %q", refItem.Type)
+	}
+	if refItem.ParentID == "" {
+		return nil, errors.New("episode has no parent (season) to propagate within")
+	}
+
+	refSegments, err := s.segmentRepo.GetByMediaItemID(ctx, refItem.ID)
+	if err != nil {
+		return nil, fmt.Errorf("load reference segments: %w", err)
+	}
+	var refSeg *domainlibrary.MediaSegment
+	for _, sg := range refSegments {
+		if sg.Type == segType {
+			refSeg = sg
+			break
+		}
+	}
+	if refSeg == nil {
+		return nil, fmt.Errorf("no %s segment on reference episode", segType)
+	}
+
+	refManifest, err := s.trickplayRepo.GetByMediaItemID(ctx, refItem.ID)
+	if err != nil {
+		return nil, fmt.Errorf("reference trickplay missing: %w", err)
+	}
+	refAllHashes, err := s.extractEpisodeHashes(refManifest, manifestTotalFrames(refManifest))
+	if err != nil || len(refAllHashes) == 0 {
+		return nil, fmt.Errorf("extract reference hashes: %w", err)
+	}
+	intervalMs := int64(refManifest.Interval) * 1000
+	if intervalMs <= 0 {
+		return nil, errors.New("reference manifest has invalid interval")
+	}
+	startIdx := refSeg.StartMs / intervalMs
+	endIdx := refSeg.EndMs / intervalMs
+	if endIdx > int64(len(refAllHashes)) {
+		endIdx = int64(len(refAllHashes))
+	}
+	if startIdx < 0 || startIdx >= endIdx {
+		return nil, errors.New("reference segment out of trickplay range")
+	}
+	introHashes := make(map[uint64]bool)
+	for _, h := range refAllHashes[startIdx:endIdx] {
+		introHashes[h] = true
+	}
+
+	episodeType := string(domainlibrary.Episode)
+	siblings, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
+		ParentID: &refItem.ParentID,
+		Type:     &episodeType,
+		Limit:    100,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list siblings: %w", err)
+	}
+
+	const maxHamming = 8
+	for _, sib := range siblings {
+		if sib.ID == refItem.ID {
+			continue
+		}
+		sibSegs, _ := s.segmentRepo.GetByMediaItemID(ctx, sib.ID)
+		manualLock := false
+		for _, sg := range sibSegs {
+			if sg.Type == segType && sg.Source == "manual" {
+				manualLock = true
+				break
+			}
+		}
+		if manualLock {
+			continue
+		}
+
+		sibManifest, sibErr := s.trickplayRepo.GetByMediaItemID(ctx, sib.ID)
+		if sibErr != nil {
+			continue
+		}
+		sibHashes, hashErr := s.extractEpisodeHashes(sibManifest, manifestTotalFrames(sibManifest))
+		if hashErr != nil || len(sibHashes) == 0 {
+			continue
+		}
+
+		windows := topTwoContiguousWindowsHamming(sibManifest, introHashes, sibHashes, maxHamming)
+		if len(windows) == 0 {
+			continue
+		}
+		refDur := refSeg.EndMs - refSeg.StartMs
+		chosen := pickWindowMatchingDuration(windows, refDur)
+		if chosen == nil {
+			continue
+		}
+		seg := &domainlibrary.MediaSegment{
+			ID:          uuid.New().String(),
+			MediaItemID: sib.ID,
+			Type:        segType,
+			StartMs:     chosen.startMs,
+			EndMs:       chosen.endMs,
+			Confidence:  0.85,
+			Source:      "manual_propagated",
+		}
+		if upsertErr := s.segmentRepo.Upsert(ctx, seg); upsertErr != nil {
+			slog.Warn("propagate: upsert failed",
+				slog.String("sibling", string(sib.ID)),
+				slog.Any("err", upsertErr))
+			continue
+		}
+		propagatedTo = append(propagatedTo, string(sib.ID))
+	}
+	return propagatedTo, nil
+}
+
+// pickWindowMatchingDuration returns the window whose duration is closest to ref,
+// within a 50% tolerance, or nil if none qualifies.
+func pickWindowMatchingDuration(windows []matchWindow, refDurationMs int64) *matchWindow {
+	var best *matchWindow
+	var bestDelta int64 = -1
+	for i, w := range windows {
+		dur := w.endMs - w.startMs
+		delta := dur - refDurationMs
+		if delta < 0 {
+			delta = -delta
+		}
+		if dur*2 < refDurationMs || dur > refDurationMs*2 {
+			continue
+		}
+		if bestDelta < 0 || delta < bestDelta {
+			bestDelta = delta
+			best = &windows[i]
+		}
+	}
+	return best
+}
+
+// manifestTotalFrames returns the upper bound on extractable frames for a manifest.
+func manifestTotalFrames(m *domainlibrary.TrickplayManifest) int {
+	return m.ImageCount * m.TileWidth * m.TileHeight
+}
+
+// validateSegmentInput rejects unknown types and bad ranges.
+func validateSegmentInput(segType string, startMs, endMs int64) error {
+	switch segType {
+	case "intro", "recap", "end_credits", "studio_logo":
+	default:
+		return fmt.Errorf("invalid segment type %q", segType)
+	}
+	if startMs < 0 {
+		return errors.New("start_ms must be >= 0")
+	}
+	if endMs <= startMs {
+		return errors.New("end_ms must be > start_ms")
 	}
 	return nil
 }

@@ -228,6 +228,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
 	if s.IntroDetector != nil {
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/detect-segments", introDetectionHandler(s.TokenGen, s.IntroDetector))
+		mux.HandleFunc("PUT /api/v1/admin/media/{id}/segments", setSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
+		mux.HandleFunc("DELETE /api/v1/admin/media/{id}/segments", deleteSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
+		mux.HandleFunc("POST /api/v1/admin/media/{id}/segments/propagate", propagateSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 	}
 	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", auth(playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs)))
 	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", auth(hlsMasterHandler(hlsMasterServe{

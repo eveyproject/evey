@@ -105,4 +105,26 @@ func (r *MediaSegmentRepository) DeleteByMediaItemID(ctx context.Context, mediaI
 	return nil
 }
 
+func (r *MediaSegmentRepository) DeleteByMediaItemIDAndType(ctx context.Context, mediaItemID shared.MediaItemID, segType string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.DeleteByMediaItemIDAndType")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("media_item.id", string(mediaItemID)),
+		attribute.String("segment.type", segType),
+	)
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM media_segments WHERE media_item_id = $1 AND type = $2`,
+		string(mediaItemID), segType,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
 var _ library.MediaSegmentRepository = (*MediaSegmentRepository)(nil)

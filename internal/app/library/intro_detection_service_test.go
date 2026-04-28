@@ -322,25 +322,48 @@ func (f *fakeDetector) DetectStudioLogo(_ []uint64, _ int) (int64, int64, bool) 
 	return f.logoStartMs, f.logoEndMs, f.logoFound
 }
 
-// fakeSegmentRepo records all Upsert calls.
+// fakeSegmentRepo records all Upsert calls and stores segments by (mediaItemID, type).
+// GetByMediaItemID returns segments that were previously upserted.
 type fakeSegmentRepo struct {
 	upserted []*domainlibrary.MediaSegment
+	// seeded allows tests to pre-populate segments for GetByMediaItemID.
+	seeded []*domainlibrary.MediaSegment
+	// deleted records (mediaItemID, type) pairs passed to DeleteByMediaItemIDAndType.
+	deleted []string
 }
 
 func (r *fakeSegmentRepo) Upsert(_ context.Context, seg *domainlibrary.MediaSegment) error {
 	r.upserted = append(r.upserted, seg)
 	return nil
 }
-func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, _ shared.MediaItemID) ([]*domainlibrary.MediaSegment, error) {
-	return nil, nil
+func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, id shared.MediaItemID) ([]*domainlibrary.MediaSegment, error) {
+	var out []*domainlibrary.MediaSegment
+	for _, s := range r.seeded {
+		if s.MediaItemID == id {
+			out = append(out, s)
+		}
+	}
+	// Also include previously upserted segments.
+	for _, s := range r.upserted {
+		if s.MediaItemID == id {
+			out = append(out, s)
+		}
+	}
+	return out, nil
 }
 func (r *fakeSegmentRepo) DeleteByMediaItemID(_ context.Context, _ shared.MediaItemID) error {
 	return nil
 }
+func (r *fakeSegmentRepo) DeleteByMediaItemIDAndType(_ context.Context, id shared.MediaItemID, segType string) error {
+	r.deleted = append(r.deleted, string(id)+"/"+segType)
+	return nil
+}
 
-// fakeMediaItemRepo returns the configured item for any GetByID call.
+// fakeMediaItemRepo returns the configured item for GetByID calls and optionally
+// a list of siblings for List calls.
 type fakeMediaItemRepo struct {
-	item *domainlibrary.MediaItem
+	item     *domainlibrary.MediaItem
+	siblings []*domainlibrary.MediaItem
 }
 
 func (r *fakeMediaItemRepo) GetByID(_ context.Context, _ shared.MediaItemID) (*domainlibrary.MediaItem, error) {
@@ -348,7 +371,7 @@ func (r *fakeMediaItemRepo) GetByID(_ context.Context, _ shared.MediaItemID) (*d
 }
 func (r *fakeMediaItemRepo) Create(_ context.Context, _ *domainlibrary.MediaItem) error { return nil }
 func (r *fakeMediaItemRepo) List(_ context.Context, _ domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
-	return nil, nil
+	return r.siblings, nil
 }
 func (r *fakeMediaItemRepo) Update(_ context.Context, _ *domainlibrary.MediaItem) error { return nil }
 func (r *fakeMediaItemRepo) Delete(_ context.Context, _ shared.MediaItemID) error       { return nil }
@@ -432,6 +455,18 @@ func newTestServiceWithTrickplay(det IntroDetector, segRepo domainlibrary.MediaS
 		segRepo,
 		&fakeTrickplayRepoWithManifest{manifest: manifest},
 		&fakeMediaItemRepo{item: item},
+		&fakeConfigRepo{},
+		det,
+		"/tmp/trickplay",
+	)
+}
+
+// newTestServiceFull assembles an IntroDetectionService with a custom media item repo and trickplay repo.
+func newTestServiceFull(det IntroDetector, segRepo domainlibrary.MediaSegmentRepository, itemRepo *fakeMediaItemRepo, trickRepo domainlibrary.TrickplayRepository) *IntroDetectionService {
+	return NewIntroDetectionService(
+		segRepo,
+		trickRepo,
+		itemRepo,
 		&fakeConfigRepo{},
 		det,
 		"/tmp/trickplay",
@@ -557,4 +592,255 @@ func TestDetectIntro_AppendsStudioLogoWhenDetected(t *testing.T) {
 	assert.Equal(t, int64(5_000), logoSeg.EndMs)
 	assert.InDelta(t, 0.7, logoSeg.Confidence, 0.001)
 	assert.Equal(t, "logo_match", logoSeg.Source)
+}
+
+// --- SetManualSegment tests ---
+
+func TestSetManualSegment_RejectsBadType(t *testing.T) {
+	t.Parallel()
+	dur, _ := shared.NewDurationMs(3_600_000)
+	item := &domainlibrary.MediaItem{
+		ID: shared.MediaItemID("item-manual-1"),
+		File: &domainlibrary.MediaFile{
+			Path:     "/ep.mkv",
+			Duration: dur,
+		},
+	}
+	segRepo := &fakeSegmentRepo{}
+	svc := newTestService(&fakeDetector{}, segRepo, item)
+
+	err := svc.SetManualSegment(context.Background(), "item-manual-1", "unknown_type", 0, 5000)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid segment type")
+	assert.Empty(t, segRepo.upserted)
+}
+
+func TestSetManualSegment_RejectsBadRange(t *testing.T) {
+	t.Parallel()
+	dur, _ := shared.NewDurationMs(3_600_000)
+	item := &domainlibrary.MediaItem{
+		ID: shared.MediaItemID("item-manual-2"),
+		File: &domainlibrary.MediaFile{
+			Path:     "/ep.mkv",
+			Duration: dur,
+		},
+	}
+	segRepo := &fakeSegmentRepo{}
+	svc := newTestService(&fakeDetector{}, segRepo, item)
+
+	// endMs == startMs
+	err := svc.SetManualSegment(context.Background(), "item-manual-2", "intro", 5000, 5000)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "end_ms must be > start_ms")
+
+	// endMs < startMs
+	err = svc.SetManualSegment(context.Background(), "item-manual-2", "intro", 5000, 4000)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "end_ms must be > start_ms")
+}
+
+func TestSetManualSegment_UpsertsWithSourceManual(t *testing.T) {
+	t.Parallel()
+	dur, _ := shared.NewDurationMs(3_600_000)
+	item := &domainlibrary.MediaItem{
+		ID: shared.MediaItemID("item-manual-3"),
+		File: &domainlibrary.MediaFile{
+			Path:     "/ep.mkv",
+			Duration: dur,
+		},
+	}
+	segRepo := &fakeSegmentRepo{}
+	svc := newTestService(&fakeDetector{}, segRepo, item)
+
+	err := svc.SetManualSegment(context.Background(), "item-manual-3", "intro", 10_000, 60_000)
+	require.NoError(t, err)
+	require.Len(t, segRepo.upserted, 1)
+	seg := segRepo.upserted[0]
+	assert.Equal(t, "intro", seg.Type)
+	assert.Equal(t, int64(10_000), seg.StartMs)
+	assert.Equal(t, int64(60_000), seg.EndMs)
+	assert.Equal(t, "manual", seg.Source)
+	assert.InDelta(t, 1.0, seg.Confidence, 0.001)
+	assert.NotEmpty(t, seg.ID)
+}
+
+func TestSetManualSegment_RejectsEndExceedingDuration(t *testing.T) {
+	t.Parallel()
+	// Duration = 60s = 60_000 ms
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID: shared.MediaItemID("item-manual-4"),
+		File: &domainlibrary.MediaFile{
+			Path:     "/ep.mkv",
+			Duration: dur,
+		},
+	}
+	segRepo := &fakeSegmentRepo{}
+	svc := newTestService(&fakeDetector{}, segRepo, item)
+
+	err := svc.SetManualSegment(context.Background(), "item-manual-4", "intro", 0, 70_000)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds media duration")
+}
+
+// --- Manual lock tests ---
+
+func TestDetectIntro_RespectsManualLock(t *testing.T) {
+	t.Parallel()
+	dur, _ := shared.NewDurationMs(3_600_000)
+	mediaID := shared.MediaItemID("item-lock-1")
+	item := &domainlibrary.MediaItem{
+		ID:   mediaID,
+		Type: domainlibrary.MovieItem,
+		File: &domainlibrary.MediaFile{
+			Path:     "/ep.mkv",
+			Duration: dur,
+		},
+	}
+	// Pre-seed a manual lock for the "end_credits" type.
+	existing := &domainlibrary.MediaSegment{
+		ID:          "existing-1",
+		MediaItemID: mediaID,
+		Type:        "end_credits",
+		StartMs:     3_400_000,
+		EndMs:       3_600_000,
+		Source:      "manual",
+		Confidence:  1.0,
+	}
+	segRepo := &fakeSegmentRepo{seeded: []*domainlibrary.MediaSegment{existing}}
+	det := &fakeDetector{
+		creditsStartMs: 3_480_000,
+		creditsEndMs:   3_600_000,
+		creditsFound:   true,
+	}
+	svc := newTestService(det, segRepo, item)
+
+	err := svc.DetectIntro(context.Background(), string(mediaID))
+	require.NoError(t, err)
+
+	// The auto-detected end_credits must NOT overwrite the manual one.
+	for _, seg := range segRepo.upserted {
+		assert.NotEqual(t, "end_credits", seg.Type, "auto detection must not upsert when manual lock exists")
+	}
+}
+
+func TestDetectIntro_RespectsManualPropagatedLock(t *testing.T) {
+	t.Parallel()
+	dur, _ := shared.NewDurationMs(3_600_000)
+	mediaID := shared.MediaItemID("item-lock-2")
+	item := &domainlibrary.MediaItem{
+		ID:   mediaID,
+		Type: domainlibrary.MovieItem,
+		File: &domainlibrary.MediaFile{
+			Path:     "/ep.mkv",
+			Duration: dur,
+		},
+	}
+	existing := &domainlibrary.MediaSegment{
+		ID:          "existing-2",
+		MediaItemID: mediaID,
+		Type:        "end_credits",
+		StartMs:     3_400_000,
+		EndMs:       3_600_000,
+		Source:      "manual_propagated",
+		Confidence:  0.85,
+	}
+	segRepo := &fakeSegmentRepo{seeded: []*domainlibrary.MediaSegment{existing}}
+	det := &fakeDetector{
+		creditsStartMs: 3_480_000,
+		creditsEndMs:   3_600_000,
+		creditsFound:   true,
+	}
+	svc := newTestService(det, segRepo, item)
+
+	err := svc.DetectIntro(context.Background(), string(mediaID))
+	require.NoError(t, err)
+
+	for _, seg := range segRepo.upserted {
+		assert.NotEqual(t, "end_credits", seg.Type, "auto detection must not upsert when manual_propagated lock exists")
+	}
+}
+
+// --- DeleteSegment tests ---
+
+func TestDeleteSegment_CallsRepoWithType(t *testing.T) {
+	t.Parallel()
+	item := &domainlibrary.MediaItem{
+		ID: shared.MediaItemID("item-del-1"),
+	}
+	segRepo := &fakeSegmentRepo{}
+	svc := newTestService(&fakeDetector{}, segRepo, item)
+
+	err := svc.DeleteSegment(context.Background(), "item-del-1", "intro")
+	require.NoError(t, err)
+	require.Len(t, segRepo.deleted, 1)
+	assert.Equal(t, "item-del-1/intro", segRepo.deleted[0])
+}
+
+// --- PropagateSegment tests ---
+
+func TestPropagateSegment_FailsForFilms(t *testing.T) {
+	t.Parallel()
+	item := &domainlibrary.MediaItem{
+		ID:   shared.MediaItemID("movie-1"),
+		Type: domainlibrary.MovieItem,
+	}
+	segRepo := &fakeSegmentRepo{}
+	svc := newTestService(&fakeDetector{}, segRepo, item)
+
+	_, err := svc.PropagateSegment(context.Background(), "movie-1", "intro")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "propagate only works on episodes")
+}
+
+func TestPropagateSegment_FailsWithoutReferenceSegment(t *testing.T) {
+	t.Parallel()
+	parentID := "season-1"
+	item := &domainlibrary.MediaItem{
+		ID:       shared.MediaItemID("ep-ref-1"),
+		Type:     domainlibrary.Episode,
+		ParentID: parentID,
+	}
+	segRepo := &fakeSegmentRepo{} // no segments seeded
+	svc := newTestService(&fakeDetector{}, segRepo, item)
+
+	_, err := svc.PropagateSegment(context.Background(), "ep-ref-1", "intro")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no intro segment on reference episode")
+}
+
+// --- pickWindowMatchingDuration tests ---
+
+func TestPickWindowMatchingDuration_PicksClosestToDuration(t *testing.T) {
+	t.Parallel()
+	// refDur = 15_000 ms
+	// windows: {0,5000}=5s (too short: 5*2=10 < 15), {0,16000}=16s (ok), {0,30000}=30s (30>15*2=30 not, exactly 30=15*2, borderline)
+	windows := []matchWindow{
+		{startMs: 0, endMs: 5_000},
+		{startMs: 0, endMs: 16_000},
+		{startMs: 0, endMs: 30_000},
+	}
+	result := pickWindowMatchingDuration(windows, 15_000)
+	// {0,5000}: dur=5000, 5000*2=10000 < 15000 → rejected
+	// {0,16000}: dur=16000, 16000*2=32000 >= 15000 and 16000 <= 15000*2=30000 → ok, delta=1000
+	// {0,30000}: dur=30000, 30000*2=60000 >= 15000 and 30000 <= 30000 → ok, delta=15000
+	// Best: 16000 (delta=1000 < 15000)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(16_000), result.endMs)
+}
+
+func TestPickWindowMatchingDuration_TooShortReturnsNil(t *testing.T) {
+	t.Parallel()
+	windows := []matchWindow{{startMs: 0, endMs: 2_000}}
+	result := pickWindowMatchingDuration(windows, 15_000)
+	// 2000*2=4000 < 15000 → rejected
+	assert.Nil(t, result)
+}
+
+func TestPickWindowMatchingDuration_TooLongReturnsNil(t *testing.T) {
+	t.Parallel()
+	windows := []matchWindow{{startMs: 0, endMs: 90_000}}
+	result := pickWindowMatchingDuration(windows, 15_000)
+	// 90000 > 15000*2=30000 → rejected
+	assert.Nil(t, result)
 }

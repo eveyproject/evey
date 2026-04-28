@@ -114,7 +114,11 @@ type LibraryLister interface {
 	ListLibraries(ctx context.Context) ([]*domainlibrary.Library, error)
 }
 
-// IntroDetectionTrigger triggers intro/outro detection for a media item.
+// IntroDetectionTrigger triggers intro/outro detection for a media item and
+// exposes manual override operations for admin use.
 type IntroDetectionTrigger interface {
 	DetectIntro(ctx context.Context, mediaItemID string) error
+	SetManualSegment(ctx context.Context, mediaItemID, segType string, startMs, endMs int64) error
+	DeleteSegment(ctx context.Context, mediaItemID, segType string) error
+	PropagateSegment(ctx context.Context, refMediaItemID, segType string) ([]string, error)
 }
