@@ -31,16 +31,16 @@ func setupPluginAssetTest(t *testing.T) (*http.ServeMux, string, *pluginfakes.Fa
 
 	p := &plugin.Plugin{
 		ID:           "p1",
-		Name:         "test-widget",
+		Name:         "test-plugin",
 		Enabled:      true,
 		Capabilities: []string{"ui.extension"},
-		Frontend:     []plugin.FrontModule{{Slot: "player.overlay", Src: "widget.jsx"}},
+		Frontend:     []plugin.FrontModule{{Slot: "player.overlay", Src: "front.jsx"}},
 	}
 	require.NoError(t, repo.Create(context.Background(), p))
 
 	pluginDir := filepath.Join(dir, "p1")
 	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "widget.bundle.js"), []byte("export default function(){}"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "front.js"), []byte("export default function(){}"), 0o644))
 
 	mux := http.NewServeMux()
 	registerPluginAssetRoutes(mux, tokenGen, repo, dir, func(data []byte) ([]byte, []string) { return data, nil })
@@ -50,34 +50,49 @@ func setupPluginAssetTest(t *testing.T) (*http.ServeMux, string, *pluginfakes.Fa
 	return mux, token, repo, dir
 }
 
-func TestWidgetJS_Success(t *testing.T) {
+func TestWidgetJS_LegacyRedirect(t *testing.T) {
+	// /widget.js must 301 to /front.js — clients must follow the redirect.
 	mux, token, _, _ := setupPluginAssetTest(t)
 
 	req := httptest.NewRequest("GET", "/api/v1/plugins/p1/widget.js", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusMovedPermanently, w.Code)
+	assert.Equal(t, "/api/v1/plugins/p1/front.js", w.Header().Get("Location"))
+}
+
+func TestFrontJS_Success(t *testing.T) {
+	mux, token, _, _ := setupPluginAssetTest(t)
+
+	req := httptest.NewRequest("GET", "/api/v1/plugins/p1/front.js", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "application/javascript", w.Header().Get("Content-Type"))
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
 	assert.Contains(t, w.Header().Get("Cache-Control"), "max-age=3600")
+	assert.Contains(t, w.Header().Get("Content-Security-Policy"), "script-src")
 	assert.Contains(t, w.Body.String(), "export default")
 }
 
-func TestWidgetJS_Unauthorized(t *testing.T) {
+func TestFrontJS_Unauthorized(t *testing.T) {
 	mux, _, _, _ := setupPluginAssetTest(t)
 
-	req := httptest.NewRequest("GET", "/api/v1/plugins/p1/widget.js", nil)
+	req := httptest.NewRequest("GET", "/api/v1/plugins/p1/front.js", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestWidgetJS_PluginNotFound(t *testing.T) {
+func TestFrontJS_PluginNotFound(t *testing.T) {
 	mux, token, _, _ := setupPluginAssetTest(t)
 
-	req := httptest.NewRequest("GET", "/api/v1/plugins/nonexistent/widget.js", nil)
+	req := httptest.NewRequest("GET", "/api/v1/plugins/nonexistent/front.js", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -85,13 +100,14 @@ func TestWidgetJS_PluginNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestWidgetJS_PluginDisabled(t *testing.T) {
+func TestFrontJS_PluginDisabled(t *testing.T) {
 	mux, token, repo, _ := setupPluginAssetTest(t)
 	require.NoError(t, repo.Create(context.Background(), &plugin.Plugin{
 		ID: "p2", Name: "disabled", Enabled: false,
+		Frontend: []plugin.FrontModule{{Slot: "player.overlay", Src: "front.jsx"}},
 	}))
 
-	req := httptest.NewRequest("GET", "/api/v1/plugins/p2/widget.js", nil)
+	req := httptest.NewRequest("GET", "/api/v1/plugins/p2/front.js", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -99,36 +115,31 @@ func TestWidgetJS_PluginDisabled(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestThemeCSS_Success(t *testing.T) {
-	mux, token, repo, dir := setupPluginAssetTest(t)
-
+func TestFrontJS_NoFrontend(t *testing.T) {
+	mux, token, repo, _ := setupPluginAssetTest(t)
 	require.NoError(t, repo.Create(context.Background(), &plugin.Plugin{
-		ID: "theme1", Name: "dark-theme", Enabled: true, Capabilities: []string{"ui.theme"},
+		ID: "p3", Name: "no-ui", Enabled: true,
+		Capabilities: []string{"backend"},
 	}))
-	themeDir := filepath.Join(dir, "theme1")
-	require.NoError(t, os.MkdirAll(themeDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(themeDir, "theme.css"), []byte(":root { --accent: red; }"), 0o644))
+
+	req := httptest.NewRequest("GET", "/api/v1/plugins/p3/front.js", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestPluginThemeCSS_LegacyRedirect(t *testing.T) {
+	// /plugins/{id}/theme.css must 301 to /themes/{id}/theme.css
+	mux, _, _, _ := setupPluginAssetTest(t)
 
 	req := httptest.NewRequest("GET", "/api/v1/plugins/theme1/theme.css", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "text/css", w.Header().Get("Content-Type"))
-	assert.Contains(t, w.Body.String(), "--accent")
-}
-
-func TestThemeCSS_NoThemeCapability(t *testing.T) {
-	mux, token, _, _ := setupPluginAssetTest(t)
-
-	// p1 has ui.extension, not ui.theme
-	req := httptest.NewRequest("GET", "/api/v1/plugins/p1/theme.css", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, http.StatusMovedPermanently, w.Code)
+	assert.Equal(t, "/api/v1/themes/theme1/theme.css", w.Header().Get("Location"))
 }
 
 // --- preview endpoint tests ---

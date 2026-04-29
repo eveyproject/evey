@@ -357,6 +357,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 	if s.PluginRepo != nil && s.PluginDir != "" {
 		registerPluginAssetRoutes(mux, s.TokenGen, s.PluginRepo, s.PluginDir, s.CSSSanitizer)
+		registerThemeAssetRoutes(mux, s.TokenGen, s.PluginRepo, s.PluginDir)
 		if s.PluginSvc != nil {
 			registerPluginUploadRoute(mux, s.TokenGen, s.PluginSvc, s.AdminWriteRL)
 			registerPluginPreviewRoute(mux, s.TokenGen, s.PluginSvc, s.AdminWriteRL)

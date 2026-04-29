@@ -29,27 +29,42 @@ type pluginManager interface {
 type cssSanitizer func(data []byte) (sanitized []byte, warnings []string)
 
 type pluginAssetHandler struct {
-	pluginDir   string
-	repo        domainplugin.PluginRepository
-	sanitizeCSS cssSanitizer
+	pluginDir string
+	repo      domainplugin.PluginRepository
 }
 
 func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, repo domainplugin.PluginRepository, pluginDir string, sanitize cssSanitizer) {
 	authMw := httpAuthMiddleware(tokenGen)
-	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo, sanitizeCSS: sanitize}
-	mux.HandleFunc("GET /api/v1/plugins/{id}/widget.js", authMw(h.handleWidgetJS))
-	mux.HandleFunc("GET /api/v1/plugins/{id}/theme.css", h.handleThemeCSS) // public — no auth
+	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo}
+	// Legacy redirect: /widget.js → /front.js (301 permanent)
+	mux.HandleFunc("GET /api/v1/plugins/{id}/widget.js", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		http.Redirect(w, r, "/api/v1/plugins/"+id+"/front.js", http.StatusMovedPermanently)
+	})
+	mux.HandleFunc("GET /api/v1/plugins/{id}/front.js", authMw(h.handleFrontJS))
+	// Legacy redirect: plugins/{id}/theme.css → themes/{id}/theme.css (301 permanent)
+	mux.HandleFunc("GET /api/v1/plugins/{id}/theme.css", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		http.Redirect(w, r, "/api/v1/themes/"+id+"/theme.css", http.StatusMovedPermanently)
+	})
 	mux.HandleFunc("GET /api/v1/plugins/themes", authMw(h.handleListThemes))
 }
 
-func (h *pluginAssetHandler) handleWidgetJS(w http.ResponseWriter, r *http.Request) {
-	ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Asset")
+// frontCSP builds the Content-Security-Policy for plugin front modules.
+// connect-src is derived from the plugin's ExternalFetch allow-list once that
+// field exists on the model; for now there is no such field, so it is 'none'.
+func frontCSP(_ []string) string {
+	return "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data: blob:; font-src data:"
+}
+
+func (h *pluginAssetHandler) handleFrontJS(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.plugin.FrontJS")
 	defer span.End()
 	r = r.WithContext(ctx)
 	pluginID := r.PathValue("id")
 	span.SetAttributes(
 		attribute.String("plugin_id", pluginID),
-		attribute.String("asset", "widget.bundle.js"),
+		attribute.String("asset", "front.js"),
 	)
 	p, err := h.repo.GetByID(r.Context(), pluginID)
 	if err != nil {
@@ -60,84 +75,36 @@ func (h *pluginAssetHandler) handleWidgetJS(w http.ResponseWriter, r *http.Reque
 	}
 	if !p.Enabled {
 		span.SetStatus(otelcodes.Error, "plugin disabled")
-		http.Error(w, `{"message":"plugin disabled"}`, http.StatusNotFound)
+		http.Error(w, `{"message":"plugin not found"}`, http.StatusNotFound)
+		return
+	}
+	// Only plugins with frontend extension points expose a front module.
+	if len(p.UIWidgets) == 0 {
+		span.SetStatus(otelcodes.Error, "no frontend")
+		http.Error(w, `{"message":"plugin not found"}`, http.StatusNotFound)
 		return
 	}
 
-	bundlePath := filepath.Join(h.pluginDir, pluginID, "widget.bundle.js")
-	if !strings.HasPrefix(filepath.Clean(bundlePath), filepath.Clean(h.pluginDir)) {
+	frontPath := filepath.Join(h.pluginDir, pluginID, "front.js")
+	if !strings.HasPrefix(filepath.Clean(frontPath), filepath.Clean(h.pluginDir)) {
 		span.SetStatus(otelcodes.Error, "invalid path")
 		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 		return
 	}
 
-	data, err := os.ReadFile(bundlePath)
+	data, err := os.ReadFile(frontPath)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, "widget not found")
-		http.Error(w, `{"message":"widget not found"}`, http.StatusNotFound)
+		span.SetStatus(otelcodes.Error, "front.js not found")
+		http.Error(w, `{"message":"plugin not found"}`, http.StatusNotFound)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/javascript")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", frontCSP(nil))
 	w.Header().Set("Cache-Control", "public, max-age=3600")
-	if _, err := w.Write(data); err != nil {
-		return
-	}
-}
-
-func (h *pluginAssetHandler) handleThemeCSS(w http.ResponseWriter, r *http.Request) {
-	// theme CSS is public — no auth required (not sensitive data)
-	ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Asset")
-	defer span.End()
-	r = r.WithContext(ctx)
-	pluginID := r.PathValue("id")
-	span.SetAttributes(
-		attribute.String("plugin_id", pluginID),
-		attribute.String("asset", "theme.css"),
-	)
-	p, err := h.repo.GetByID(r.Context(), pluginID)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, "plugin not found")
-		http.Error(w, `{"message":"plugin not found"}`, http.StatusNotFound)
-		return
-	}
-	if !p.Enabled {
-		span.SetStatus(otelcodes.Error, "plugin disabled")
-		http.Error(w, `{"message":"plugin disabled"}`, http.StatusNotFound)
-		return
-	}
-
-	if !slices.Contains(p.Capabilities, "ui.theme") {
-		span.SetStatus(otelcodes.Error, "not a theme plugin")
-		http.Error(w, `{"message":"not a theme plugin"}`, http.StatusNotFound)
-		return
-	}
-
-	cssPath := filepath.Join(h.pluginDir, pluginID, "theme.css")
-	if !strings.HasPrefix(filepath.Clean(cssPath), filepath.Clean(h.pluginDir)) {
-		span.SetStatus(otelcodes.Error, "invalid path")
-		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
-		return
-	}
-
-	data, err := os.ReadFile(cssPath)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, "theme not found")
-		http.Error(w, `{"message":"theme not found"}`, http.StatusNotFound)
-		return
-	}
-
-	sanitized, warnings := h.sanitizeCSS(data)
-	if len(warnings) > 0 {
-		slog.Warn("css sanitizer removed rules", slog.String("plugin", pluginID), slog.Any("warnings", warnings))
-	}
-
-	w.Header().Set("Content-Type", "text/css")
-	w.Header().Set("Cache-Control", "public, max-age=3600")
-	if _, err := w.Write(sanitized); err != nil {
+	if _, writeErr := w.Write(data); writeErr != nil {
 		return
 	}
 }
