@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"gopkg.in/yaml.v3"
@@ -101,16 +102,42 @@ func validateManifest(m *plugin.PluginManifest) error {
 	if !semverRe.MatchString(m.Version) {
 		return fmt.Errorf("manifest: version %q is not valid semver (expected X.Y.Z or X.Y.Z-label)", m.Version)
 	}
-	if m.Entrypoint == "" {
-		return errors.New("manifest: entrypoint is required")
-	}
-	if m.Language == "" {
-		return errors.New("manifest: language is required")
+
+	// Migrate ui_widgets fallback: if frontend is empty but ui_widgets provided, copy over.
+	if len(m.Frontend) == 0 && len(m.UIWidgets) > 0 {
+		m.Frontend = m.UIWidgets
 	}
 
-	for _, cap := range m.Capabilities {
-		if !KnownCapabilities[cap] {
-			return fmt.Errorf("manifest: unknown capability %q", cap)
+	if m.Kind == plugin.KindTheme {
+		// Themes are front-end only: no runtime, no entrypoint, no permissions.
+		if m.Language != "" {
+			return errors.New("manifest: theme must not have a language")
+		}
+		if m.Entrypoint != "" {
+			return errors.New("manifest: theme must not have an entrypoint")
+		}
+		if len(m.Permissions) > 0 {
+			return errors.New("manifest: theme must not declare permissions")
+		}
+		if len(m.Capabilities) > 0 {
+			return errors.New("manifest: theme must not declare capabilities")
+		}
+	} else {
+		// kind == plugin or empty (backward compat: kind empty treated as plugin).
+		if m.Entrypoint == "" {
+			return errors.New("manifest: entrypoint is required")
+		}
+		if m.Language == "" {
+			return errors.New("manifest: language is required")
+		}
+
+		for _, cap := range m.Capabilities {
+			if strings.HasPrefix(cap, "ui.") {
+				return fmt.Errorf("manifest: unknown capability %q", cap)
+			}
+			if !KnownCapabilities[cap] {
+				return fmt.Errorf("manifest: unknown capability %q", cap)
+			}
 		}
 	}
 

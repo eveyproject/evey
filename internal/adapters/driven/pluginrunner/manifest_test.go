@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,6 +33,7 @@ func createTestZip(t *testing.T, filename, content string) string {
 func TestParseValidManifest(t *testing.T) {
 	yaml := `
 name: test-plugin
+kind: plugin
 version: "1.0.0"
 description: A test plugin
 author: tester
@@ -58,6 +60,7 @@ min_evey_version: "1.0.0"
 	assert.Equal(t, []string{"media.read"}, m.Capabilities)
 	assert.Equal(t, []string{"network", "api.library"}, m.Permissions)
 	assert.Equal(t, "1.0.0", m.MinEveyVersion)
+	assert.Equal(t, plugin.KindPlugin, m.Kind)
 }
 
 func TestParseYmlExtension(t *testing.T) {
@@ -346,4 +349,187 @@ func TestSemverRegex_Directly(t *testing.T) {
 			assert.Equal(t, tt.valid, got, "semverRe.MatchString(%q)", tt.version)
 		})
 	}
+}
+
+// --- kind-aware tests ---
+
+func TestParseTheme_Valid(t *testing.T) {
+	yml := `
+name: dark-theme
+kind: theme
+version: "1.0.0"
+description: A dark theme
+frontend:
+  - slot: player.skin
+    src: theme.css
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	m, err := parser.Parse(zipPath)
+	require.NoError(t, err)
+	assert.Equal(t, plugin.KindTheme, m.Kind)
+	assert.Equal(t, "dark-theme", m.Name)
+	assert.Empty(t, m.Language)
+	assert.Empty(t, m.Entrypoint)
+	require.Len(t, m.Frontend, 1)
+	assert.Equal(t, "player.skin", m.Frontend[0].Slot)
+}
+
+func TestParseTheme_WithEntrypoint_Fails(t *testing.T) {
+	yml := `
+name: dark-theme
+kind: theme
+version: "1.0.0"
+entrypoint: ./theme
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "theme must not have an entrypoint")
+}
+
+func TestParseTheme_WithLanguage_Fails(t *testing.T) {
+	yml := `
+name: dark-theme
+kind: theme
+version: "1.0.0"
+language: css
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "theme must not have a language")
+}
+
+func TestParseTheme_WithPermissions_Fails(t *testing.T) {
+	yml := `
+name: dark-theme
+kind: theme
+version: "1.0.0"
+permissions:
+  - network
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "theme must not declare permissions")
+}
+
+func TestParseTheme_WithCapabilities_Fails(t *testing.T) {
+	yml := `
+name: dark-theme
+kind: theme
+version: "1.0.0"
+capabilities:
+  - media.read
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "theme must not declare capabilities")
+}
+
+func TestParsePlugin_WithoutEntrypoint_Fails(t *testing.T) {
+	yml := `
+name: my-plugin
+kind: plugin
+version: "1.0.0"
+language: go
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "entrypoint is required")
+}
+
+func TestParsePlugin_WithoutLanguage_Fails(t *testing.T) {
+	yml := `
+name: my-plugin
+kind: plugin
+version: "1.0.0"
+entrypoint: ./plugin
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "language is required")
+}
+
+func TestParsePlugin_UIThemeCapability_Fails(t *testing.T) {
+	yml := `
+name: my-plugin
+kind: plugin
+version: "1.0.0"
+language: go
+entrypoint: ./plugin
+capabilities:
+  - ui.theme
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "unknown capability")
+}
+
+func TestParsePlugin_UIExtensionCapability_Fails(t *testing.T) {
+	yml := `
+name: my-plugin
+kind: plugin
+version: "1.0.0"
+language: go
+entrypoint: ./plugin
+capabilities:
+  - ui.extension
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "unknown capability")
+}
+
+func TestParsePlugin_UIWidgetsFallback(t *testing.T) {
+	// Legacy manifest uses ui_widgets; should be read into Frontend.
+	yml := `
+name: legacy-plugin
+kind: plugin
+version: "1.0.0"
+language: go
+entrypoint: ./plugin
+ui_widgets:
+  - slot: player.overlay
+    src: overlay.js
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	m, err := parser.Parse(zipPath)
+	require.NoError(t, err)
+	require.Len(t, m.Frontend, 1)
+	assert.Equal(t, "player.overlay", m.Frontend[0].Slot)
+	assert.Equal(t, "overlay.js", m.Frontend[0].Src)
+}
+
+func TestParseKindEmpty_TreatedAsPlugin(t *testing.T) {
+	// Backward compat: no kind field = plugin rules apply.
+	yml := `
+name: old-plugin
+version: "1.0.0"
+language: go
+entrypoint: ./plugin
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	m, err := parser.Parse(zipPath)
+	require.NoError(t, err)
+	assert.Equal(t, plugin.PluginKind(""), m.Kind)
 }

@@ -34,7 +34,7 @@ func setupPluginAssetTest(t *testing.T) (*http.ServeMux, string, *pluginfakes.Fa
 		Name:         "test-widget",
 		Enabled:      true,
 		Capabilities: []string{"ui.extension"},
-		UIWidgets:    []plugin.UIWidget{{Slot: "player.overlay", Src: "widget.jsx"}},
+		Frontend:     []plugin.FrontModule{{Slot: "player.overlay", Src: "widget.jsx"}},
 	}
 	require.NoError(t, repo.Create(context.Background(), p))
 

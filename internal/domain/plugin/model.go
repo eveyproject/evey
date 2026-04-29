@@ -5,6 +5,13 @@ import (
 	"time"
 )
 
+type PluginKind string
+
+const (
+	KindTheme  PluginKind = "theme"
+	KindPlugin PluginKind = "plugin"
+)
+
 type PluginStatus string
 
 const (
@@ -25,6 +32,7 @@ const (
 
 type Plugin struct {
 	ID           string
+	Kind         PluginKind
 	Name         string
 	Version      string
 	Description  string
@@ -34,7 +42,7 @@ type Plugin struct {
 	InstallDir   string
 	Capabilities []string
 	Permissions  []string
-	UIWidgets    []UIWidget
+	Frontend     []FrontModule
 	ConfigSchema map[string]any
 	Config       map[string]any
 	SourceHash   string
@@ -52,6 +60,9 @@ type Plugin struct {
 	Signature *SignatureStatus
 }
 
+// IsTheme returns true when the plugin is a pure front-end theme (no backend runtime).
+func (p *Plugin) IsTheme() bool { return p.Kind == KindTheme }
+
 func (p *Plugin) Validate() error {
 	if p.ID == "" {
 		return errors.New("plugin requires an ID")
@@ -64,6 +75,17 @@ func (p *Plugin) Validate() error {
 	}
 	if p.Status != "" && !p.Status.IsValid() {
 		return errors.New("plugin: invalid status")
+	}
+	if p.Kind == KindTheme {
+		if p.Language != "" {
+			return errors.New("plugin: theme must not have a language")
+		}
+		if p.Entrypoint != "" {
+			return errors.New("plugin: theme must not have an entrypoint")
+		}
+		if len(p.Permissions) > 0 {
+			return errors.New("plugin: theme must not declare permissions")
+		}
 	}
 	return nil
 }
@@ -80,9 +102,17 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 	if err := manifest.Validate(); err != nil {
 		return nil, err
 	}
+
+	// Resolve frontend modules: prefer manifest.Frontend, fall back to UIWidgets.
+	frontend := manifest.Frontend
+	if len(frontend) == 0 {
+		frontend = manifest.UIWidgets
+	}
+
 	now := time.Now()
 	p := &Plugin{
 		ID:           id,
+		Kind:         manifest.Kind,
 		Name:         manifest.Name,
 		Version:      manifest.Version,
 		Description:  manifest.Description,
@@ -92,7 +122,7 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 		Capabilities: manifest.Capabilities,
 		Permissions:  manifest.Permissions,
 		ConfigSchema: manifest.ConfigSchema,
-		UIWidgets:    manifest.UIWidgets,
+		Frontend:     frontend,
 		Config:       make(map[string]any),
 		SourceHash:   sourceHash,
 		Enabled:      true,
@@ -121,20 +151,35 @@ func (m *PluginManifest) Validate() error {
 	if m.Version == "" {
 		return errors.New("manifest requires a version")
 	}
-	// CSS-only themes have no executable entrypoint.
-	if m.Language != "css" && m.Entrypoint == "" {
-		return errors.New("manifest requires an entrypoint")
+	if m.Kind == KindTheme {
+		if m.Language != "" {
+			return errors.New("manifest: theme must not have a language")
+		}
+		if m.Entrypoint != "" {
+			return errors.New("manifest: theme must not have an entrypoint")
+		}
+		if len(m.Permissions) > 0 {
+			return errors.New("manifest: theme must not declare permissions")
+		}
+	} else {
+		// kind == plugin or empty (backward compat: kind empty = plugin)
+		// Language check is intentionally delegated to the pluginrunner layer
+		// where full manifest validation (semver, capabilities) is performed.
+		if m.Entrypoint == "" {
+			return errors.New("manifest requires an entrypoint")
+		}
 	}
 	return nil
 }
 
-type UIWidget struct {
+type FrontModule struct {
 	Slot string `yaml:"slot" json:"slot"`
 	Src  string `yaml:"src" json:"src"`
 }
 
 type PluginManifest struct {
 	Name           string         `yaml:"name"`
+	Kind           PluginKind     `yaml:"kind"`
 	Version        string         `yaml:"version"`
 	Description    string         `yaml:"description"`
 	Author         string         `yaml:"author"`
@@ -144,7 +189,10 @@ type PluginManifest struct {
 	Permissions    []string       `yaml:"permissions"`
 	MinEveyVersion string         `yaml:"min_evey_version"`
 	ConfigSchema   map[string]any `yaml:"config_schema"`
-	UIWidgets      []UIWidget     `yaml:"ui_widgets"`
+	Frontend       []FrontModule  `yaml:"frontend"`
+	// UIWidgets is a fallback read field for backward compat (phase migration).
+	// Will be removed in phase 6. New manifests must use frontend:.
+	UIWidgets []FrontModule `yaml:"ui_widgets"`
 }
 
 // PluginFinding is a single static-analysis finding with full detail.
@@ -160,8 +208,8 @@ type PluginFinding struct {
 
 type AnalysisReport struct {
 	Safe        bool
-	Issues      []string      // pre-formatted "[SEVERITY] file:line — description (pattern)"
-	Categories  []string      // unique finding categories — used by the installer to gate native-binary opt-in
+	Issues      []string       // pre-formatted "[SEVERITY] file:line — description (pattern)"
+	Categories  []string       // unique finding categories — used by the installer to gate native-binary opt-in
 	RawFindings []PluginFinding // per-finding detail: populated at install time, used for dashboard
 	URLs        []ExtractedURL
 	FileCount   int
