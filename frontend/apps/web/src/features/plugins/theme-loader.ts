@@ -7,7 +7,7 @@ export function loadPluginTheme(pluginId: string): void {
   const link = document.createElement("link");
   link.id = id;
   link.rel = "stylesheet";
-  link.href = `/api/v1/plugins/${pluginId}/theme.css`;
+  link.href = `/api/v1/themes/${pluginId}/theme.css`;
   document.head.appendChild(link);
 }
 

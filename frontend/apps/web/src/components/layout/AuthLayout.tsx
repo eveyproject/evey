@@ -7,7 +7,6 @@ import { TopBar } from "./TopBar";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { KeyboardShortcutsHelp } from "@/components/ui/KeyboardShortcutsHelp";
 import { GlobalAudioPlayer } from "@/features/music/GlobalAudioPlayer";
-import { ThemeLoader } from "@/features/plugins/ThemeLoader";
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -81,7 +80,6 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
       <KeyboardShortcutsHelp open={showHelp} onClose={() => setShowHelp(false)} />
       <GlobalAudioPlayer />
-      <ThemeLoader />
     </div>
   );
 }
