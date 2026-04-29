@@ -69,6 +69,7 @@ min_evey_version: "1.0.0"
 func TestParseYmlExtension(t *testing.T) {
 	yaml := `
 name: test-plugin
+kind: plugin
 version: "1.0.0"
 language: go
 entrypoint: ./plugin
@@ -110,6 +111,7 @@ entrypoint: ./plugin
 func TestParseMissingEntrypoint(t *testing.T) {
 	yaml := `
 name: test-plugin
+kind: plugin
 version: "1.0.0"
 language: go
 `
@@ -123,6 +125,7 @@ language: go
 func TestParseMissingLanguage(t *testing.T) {
 	yaml := `
 name: test-plugin
+kind: plugin
 version: "1.0.0"
 entrypoint: ./plugin
 `
@@ -136,6 +139,7 @@ entrypoint: ./plugin
 func TestParseInvalidCapability(t *testing.T) {
 	yaml := `
 name: test-plugin
+kind: plugin
 version: "1.0.0"
 language: go
 entrypoint: ./plugin
@@ -152,6 +156,7 @@ capabilities:
 func TestParseInvalidPermission(t *testing.T) {
 	yaml := `
 name: test-plugin
+kind: plugin
 version: "1.0.0"
 language: go
 entrypoint: ./plugin
@@ -182,6 +187,7 @@ func TestParseInvalidZipPath(t *testing.T) {
 func TestParse_PluginYml(t *testing.T) {
 	yml := `
 name: yml-plugin
+kind: plugin
 version: "1.0.0"
 language: python
 entrypoint: python main.py
@@ -195,7 +201,7 @@ entrypoint: python main.py
 }
 
 func TestParse_ManifestSizeLimit(t *testing.T) {
-	huge := "name: big\nversion: \"1.0.0\"\nlanguage: go\nentrypoint: ./plugin\ndescription: " + strings.Repeat("x", 2*1024*1024) + "\n"
+	huge := "name: big\nkind: plugin\nversion: \"1.0.0\"\nlanguage: go\nentrypoint: ./plugin\ndescription: " + strings.Repeat("x", 2*1024*1024) + "\n"
 	zipPath := createTestZip(t, "plugin.yaml", huge)
 	parser := NewManifestParser()
 
@@ -210,6 +216,7 @@ func TestParse_ManifestSizeLimit(t *testing.T) {
 func TestParse_EmptyName_Fails(t *testing.T) {
 	yml := `
 name: ""
+kind: plugin
 version: "1.0.0"
 language: go
 entrypoint: ./plugin
@@ -224,6 +231,7 @@ entrypoint: ./plugin
 func TestParse_EmptyEntrypoint_Fails(t *testing.T) {
 	yml := `
 name: test
+kind: plugin
 version: "1.0.0"
 language: go
 entrypoint: ""
@@ -238,6 +246,7 @@ entrypoint: ""
 func TestParse_UnknownCapability_Fails(t *testing.T) {
 	yml := `
 name: test
+kind: plugin
 version: "1.0.0"
 language: go
 entrypoint: ./plugin
@@ -254,6 +263,7 @@ capabilities:
 func TestParse_UnknownPermission_Fails(t *testing.T) {
 	yml := `
 name: test
+kind: plugin
 version: "1.0.0"
 language: go
 entrypoint: ./plugin
@@ -271,6 +281,7 @@ func TestParseDir_FallbackToYml(t *testing.T) {
 	dir := t.TempDir()
 	yml := `
 name: dir-yml-plugin
+kind: plugin
 version: "1.0.0"
 language: python
 entrypoint: python main.py
@@ -301,7 +312,7 @@ func TestParse_ValidSemver(t *testing.T) {
 	parser := NewManifestParser()
 	for _, v := range valid {
 		t.Run(v, func(t *testing.T) {
-			yml := "name: test\nversion: \"" + v + "\"\nlanguage: go\nentrypoint: ./plugin\n"
+			yml := "name: test\nkind: plugin\nversion: \"" + v + "\"\nlanguage: go\nentrypoint: ./plugin\n"
 			zipPath := createTestZip(t, "plugin.yaml", yml)
 			_, err := parser.Parse(zipPath)
 			assert.NoError(t, err, "version %q should be valid", v)
@@ -318,7 +329,7 @@ func TestParse_InvalidSemver(t *testing.T) {
 	parser := NewManifestParser()
 	for _, v := range invalid {
 		t.Run("reject_"+v, func(t *testing.T) {
-			yml := "name: test\nversion: \"" + v + "\"\nlanguage: go\nentrypoint: ./plugin\n"
+			yml := "name: test\nkind: plugin\nversion: \"" + v + "\"\nlanguage: go\nentrypoint: ./plugin\n"
 			zipPath := createTestZip(t, "plugin.yaml", yml)
 			_, err := parser.Parse(zipPath)
 			if v == "" {
@@ -333,6 +344,7 @@ func TestParse_InvalidSemver(t *testing.T) {
 func TestParse_NetworkWithoutExtfetch_Fails(t *testing.T) {
 	yml := `
 name: test
+kind: plugin
 version: "1.0.0"
 language: go
 entrypoint: ./plugin
@@ -349,6 +361,7 @@ permissions:
 func TestParse_NetworkWithExtfetch_OK(t *testing.T) {
 	yml := `
 name: test
+kind: plugin
 version: "1.0.0"
 language: go
 entrypoint: ./plugin
@@ -368,6 +381,7 @@ external_fetch:
 func TestParse_InvalidExtfetch_Fails(t *testing.T) {
 	yml := `
 name: test
+kind: plugin
 version: "1.0.0"
 language: go
 entrypoint: ./plugin
@@ -572,8 +586,9 @@ ui_widgets:
 	assert.Equal(t, "overlay.js", m.Frontend[0].Src)
 }
 
-func TestParseKindEmpty_TreatedAsPlugin(t *testing.T) {
-	// Backward compat: no kind field = plugin rules apply.
+func TestParseKindEmpty_Rejected(t *testing.T) {
+	// New manifests must declare kind explicitly; migrateManifest (installer layer)
+	// handles old manifests before validateManifest is called.
 	yml := `
 name: old-plugin
 version: "1.0.0"
@@ -583,7 +598,6 @@ entrypoint: ./plugin
 	zipPath := createTestZip(t, "plugin.yaml", yml)
 	parser := NewManifestParser()
 
-	m, err := parser.Parse(zipPath)
-	require.NoError(t, err)
-	assert.Equal(t, plugin.PluginKind(""), m.Kind)
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "kind is required")
 }

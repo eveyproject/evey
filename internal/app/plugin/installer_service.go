@@ -163,6 +163,31 @@ func NewInstallerService(
 	return s
 }
 
+// migrateManifest infers Kind for legacy manifests that pre-date the two-kind
+// model. Must be called before manifest.Validate() so old manifests continue
+// to install without requiring a manifest update.
+//
+//   - Kind == "" && Language == "css"  → KindTheme  (clear Language + Entrypoint)
+//   - Kind == "" && Language != ""     → KindPlugin
+func migrateManifest(m *plugin.PluginManifest) {
+	if m.Kind != "" {
+		return
+	}
+	if m.Language == "css" {
+		slog.Warn("manifest: kind not set for css manifest, inferring 'theme'",
+			slog.String("name", m.Name))
+		m.Kind = plugin.KindTheme
+		m.Language = ""
+		m.Entrypoint = ""
+		return
+	}
+	if m.Language != "" {
+		slog.Warn("manifest: kind not set, inferring 'plugin'",
+			slog.String("name", m.Name), slog.String("language", m.Language))
+		m.Kind = plugin.KindPlugin
+	}
+}
+
 // PluginPreview holds manifest info + analysis without installing.
 type PluginPreview struct {
 	Name         string
@@ -192,6 +217,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	if err != nil {
 		return nil, fmt.Errorf("parse manifest: %w", err)
 	}
+	migrateManifest(manifest)
 	if err := manifest.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid manifest: %w", err)
 	}
@@ -369,6 +395,7 @@ func (s *InstallerService) PreviewPlugin(_ context.Context, zipPath string) (*Pl
 	if err != nil {
 		return nil, fmt.Errorf("parse manifest: %w", err)
 	}
+	migrateManifest(manifest)
 	if err := manifest.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid manifest: %w", err)
 	}

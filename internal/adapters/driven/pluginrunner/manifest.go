@@ -110,6 +110,10 @@ func validateManifest(m *plugin.PluginManifest) error {
 		m.Frontend = m.UIWidgets
 	}
 
+	if m.Kind == "" {
+		return errors.New("manifest: kind is required (use 'plugin' or 'theme')")
+	}
+
 	if m.Kind == plugin.KindTheme {
 		// Themes are front-end only: no runtime, no entrypoint, no permissions.
 		if m.Language != "" {
