@@ -22,6 +22,7 @@ vi.mock("@evey/api", () => ({
   useAdminPluginServiceInstallPlugin: vi.fn(() => ({ mutate: mockInstallPlugin, isPending: false })),
   useAdminPluginServiceGetPluginConfig: vi.fn(() => ({ data: { values: {} }, isLoading: false })),
   useAdminPluginServiceUpdatePluginConfig: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useAdminPluginServiceGetPluginLogs: vi.fn(() => ({ data: undefined, isLoading: false })),
 }));
 
 vi.mock("@evey/store", () => ({
@@ -36,6 +37,10 @@ vi.mock("@tanstack/react-query", async (importActual) => {
 
 vi.mock("@/components/ui/Spinner", () => ({
   Spinner: () => React.createElement("div", { "data-testid": "spinner" }),
+}));
+
+vi.mock("@/features/admin/PluginSecurityDashboard", () => ({
+  PluginSecurityDashboard: () => null,
 }));
 
 vi.mock("@/components/ui/Modal", () => ({

@@ -14,6 +14,7 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@evey/api", () => ({
   useAdminPluginServiceGetPluginConfig: () => ({ data: undefined, isLoading: false }),
   useAdminPluginServiceUpdatePluginConfig: () => ({ mutate: vi.fn(), isPending: false }),
+  useAdminPluginServiceGetPluginLogs: () => ({ data: undefined, isLoading: false }),
 }));
 
 vi.mock("@evey/store", () => ({

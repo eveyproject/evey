@@ -22,6 +22,14 @@ vi.mock("./TopBar", () => ({
   TopBar: () => <div data-testid="topbar">TopBar</div>,
 }));
 
+vi.mock("@/features/plugins/ThemeLoader", () => ({
+  ThemeLoader: () => null,
+}));
+
+vi.mock("@/features/music/GlobalAudioPlayer", () => ({
+  GlobalAudioPlayer: () => null,
+}));
+
 vi.mock("@/hooks/useKeyboardShortcuts", () => ({
   useKeyboardShortcuts: () => ({ showHelp: false, setShowHelp: vi.fn() }),
 }));
