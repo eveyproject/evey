@@ -101,9 +101,32 @@ export function PluginIframe({ pluginId, src: _src, context }: PluginIframeProps
   const [height, setHeight] = useState(100);
   const [error, setError] = useState(false);
   const [pluginToken, setPluginToken] = useState<string | null>(null);
+  const [pluginConfig, setPluginConfig] = useState<Record<string, unknown>>({});
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
+
+  // Fetch the plugin's saved admin config and forward it to the iframe in
+  // the init message so front modules don't have to deal with auth themselves.
+  // Admin-only endpoint — non-admins receive an empty config map.
+  useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+    eveyFetch<{ values?: Record<string, unknown> }>({
+      url: `/api/v1/admin/plugins/${encodeURIComponent(pluginId)}/config`,
+      method: "GET",
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setPluginConfig(data.values ?? {});
+      })
+      .catch(() => {
+        // Non-admin or no config saved — leave defaults.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pluginId, accessToken]);
 
   // Fetch scoped plugin token at mount; schedule refresh before expiry.
   useEffect(() => {
@@ -145,6 +168,7 @@ export function PluginIframe({ pluginId, src: _src, context }: PluginIframeProps
             {
               type: "init",
               context: context ?? {},
+              config: pluginConfig,
               locale: i18n.language,
               theme: detectThemeMode(),
             },
@@ -171,7 +195,7 @@ export function PluginIframe({ pluginId, src: _src, context }: PluginIframeProps
           break;
       }
     },
-    [context, i18n.language, navigate],
+    [context, pluginConfig, i18n.language, navigate],
   );
 
   useEffect(() => {

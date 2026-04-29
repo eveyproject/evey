@@ -1,0 +1,31 @@
+name: weather
+kind: plugin
+version: 1.0.0
+description: Displays current weather for a configurable location on the home page
+author: evey-examples
+language: nodejs
+entrypoint: node main.js
+permissions:
+  - network
+external_fetch:
+  - api.open-meteo.com
+  - geocoding-api.open-meteo.com
+frontend:
+  - slot: home.section
+    src: front.js
+config_schema:
+  city:
+    type: string
+    label: City
+    required: true
+    default: Paris
+    description: City name (resolved via Open-Meteo geocoding)
+  units:
+    type: select
+    label: Temperature units
+    default: celsius
+    options:
+      - value: celsius
+        label: Celsius (°C)
+      - value: fahrenheit
+        label: Fahrenheit (°F)
