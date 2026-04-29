@@ -30,12 +30,17 @@ type cssSanitizer func(data []byte) (sanitized []byte, warnings []string)
 type pluginAssetHandler struct {
 	pluginDir string
 	repo      domainplugin.PluginRepository
+	tokenGen  *auth.JWTGenerator
 }
 
 func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, repo domainplugin.PluginRepository, pluginDir string, sanitize cssSanitizer) {
 	authMw := httpAuthMiddleware(tokenGen)
-	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo}
-	mux.HandleFunc("GET /api/v1/plugins/{id}/front.js", authMw(h.handleFrontJS))
+	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo, tokenGen: tokenGen}
+	// front.js accepts either a regular user access token OR the scoped
+	// plugin token issued via /plugins/{id}/token (the iframe loads the
+	// script via <script src="...?token=PLUGIN_TOKEN"> and has no access
+	// to the user's session). The handler does its own auth.
+	mux.HandleFunc("GET /api/v1/plugins/{id}/front.js", h.handleFrontJS)
 	mux.HandleFunc("GET /api/v1/plugins/themes", authMw(h.handleListThemes))
 }
 
@@ -50,6 +55,23 @@ func frontCSP(extFetch []string) string {
 	return "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src " + connectSrc + "; img-src data: blob:; font-src data:"
 }
 
+// authorizeFrontJS validates the bearer token in the request — either a
+// plugin-scoped token (must match the current pluginID) or a regular access
+// token. Returns true on success.
+func (h *pluginAssetHandler) authorizeFrontJS(r *http.Request, pluginID string) bool {
+	tok := extractBearerToken(r)
+	if tok == "" {
+		return false
+	}
+	if pc, err := h.tokenGen.ParsePluginToken(tok); err == nil {
+		return pc.PluginID == pluginID
+	}
+	if _, err := h.tokenGen.ValidateAccessToken(tok); err == nil {
+		return true
+	}
+	return false
+}
+
 func (h *pluginAssetHandler) handleFrontJS(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.plugin.FrontJS")
 	defer span.End()
@@ -59,6 +81,15 @@ func (h *pluginAssetHandler) handleFrontJS(w http.ResponseWriter, r *http.Reques
 		attribute.String("plugin_id", pluginID),
 		attribute.String("asset", "front.js"),
 	)
+
+	// Auth: accept either a regular user access token (Authorization header
+	// or ?token=) or the scoped plugin token issued for this plugin id.
+	if !h.authorizeFrontJS(r, pluginID) {
+		span.SetStatus(otelcodes.Error, "unauthorized")
+		http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
 	p, err := h.repo.GetByID(r.Context(), pluginID)
 	if err != nil {
 		span.RecordError(err)

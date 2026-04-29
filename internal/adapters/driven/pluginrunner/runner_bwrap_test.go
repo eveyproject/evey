@@ -9,19 +9,19 @@ import (
 )
 
 func TestBuildBwrapCmd_BasicReturnsNil(t *testing.T) {
-	result := buildBwrapCmd("/data/plugins/foo", true, sandboxModeBasic, "")
+	result := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", true, sandboxModeBasic, "")
 	assert.Nil(t, result, "basic mode must return nil (no bwrap prefix)")
 }
 
 func TestBuildBwrapCmd_BubblewrapWithoutNetworkHasUnshareNet(t *testing.T) {
-	args := buildBwrapCmd("/data/plugins/foo", false, sandboxModeBubblewrap, "")
+	args := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", false, sandboxModeBubblewrap, "")
 	require.NotNil(t, args)
 	assert.Equal(t, "bwrap", args[0])
 	assert.Contains(t, args, "--unshare-net", "plugin without network perm must get --unshare-net")
 }
 
 func TestBuildBwrapCmd_BubblewrapWithNetworkNoUnshareNet(t *testing.T) {
-	args := buildBwrapCmd("/data/plugins/foo", true, sandboxModeBubblewrap, "")
+	args := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", true, sandboxModeBubblewrap, "")
 	require.NotNil(t, args)
 	assert.NotContains(t, args, "--unshare-net", "plugin with network perm must NOT get --unshare-net")
 }
@@ -29,7 +29,7 @@ func TestBuildBwrapCmd_BubblewrapWithNetworkNoUnshareNet(t *testing.T) {
 func TestBuildBwrapCmd_StrictHasBwrapFlags(t *testing.T) {
 	// strict mode should produce the same bwrap prefix as bubblewrap
 	// (the LD_PRELOAD addition happens in applyBwrapSandbox, not here).
-	args := buildBwrapCmd("/data/plugins/bar", false, sandboxModeStrict, "")
+	args := buildBwrapCmd("/data/plugins/bar", "/tmp/evey/plugins/test", false, sandboxModeStrict, "")
 	require.NotNil(t, args)
 	assert.Equal(t, "bwrap", args[0])
 	assert.Contains(t, args, "--unshare-user")
@@ -39,7 +39,7 @@ func TestBuildBwrapCmd_StrictHasBwrapFlags(t *testing.T) {
 
 func TestBuildBwrapCmd_ContainsROBindAndPluginBind(t *testing.T) {
 	pluginDir := "/data/plugins/my-plugin"
-	args := buildBwrapCmd(pluginDir, false, sandboxModeBubblewrap, "")
+	args := buildBwrapCmd(pluginDir, "/tmp/evey/plugins/test", false, sandboxModeBubblewrap, "")
 	require.NotNil(t, args)
 
 	// Must have --ro-bind / /
@@ -58,13 +58,13 @@ func TestBuildBwrapCmd_ContainsROBindAndPluginBind(t *testing.T) {
 }
 
 func TestBuildBwrapCmd_EndsWithDoubleDash(t *testing.T) {
-	args := buildBwrapCmd("/data/plugins/foo", false, sandboxModeBubblewrap, "")
+	args := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", false, sandboxModeBubblewrap, "")
 	require.NotNil(t, args)
 	assert.Equal(t, "--", args[len(args)-1], "last arg before plugin command must be --")
 }
 
 func TestBuildBwrapCmd_ContainsProcDevTmpfs(t *testing.T) {
-	args := buildBwrapCmd("/data/plugins/foo", true, sandboxModeBubblewrap, "")
+	args := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", true, sandboxModeBubblewrap, "")
 	require.NotNil(t, args)
 	assert.Contains(t, args, "--proc")
 	assert.Contains(t, args, "--dev-bind")
@@ -74,7 +74,7 @@ func TestBuildBwrapCmd_ContainsProcDevTmpfs(t *testing.T) {
 
 func TestBuildBwrapCmd_WithHostsFile(t *testing.T) {
 	hostsFile := "/tmp/evey-plugin-hosts-test123"
-	args := buildBwrapCmd("/data/plugins/foo", true, sandboxModeBubblewrap, hostsFile)
+	args := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", true, sandboxModeBubblewrap, hostsFile)
 	require.NotNil(t, args)
 
 	// Find the --ro-bind for hostsFile
@@ -89,7 +89,7 @@ func TestBuildBwrapCmd_WithHostsFile(t *testing.T) {
 }
 
 func TestBuildBwrapCmd_NoHostsFile(t *testing.T) {
-	args := buildBwrapCmd("/data/plugins/foo", true, sandboxModeBubblewrap, "")
+	args := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", true, sandboxModeBubblewrap, "")
 	require.NotNil(t, args)
 	assert.NotContains(t, args, "/etc/hosts", "no hostsFile means /etc/hosts must not appear in args")
 }
