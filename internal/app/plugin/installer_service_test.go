@@ -75,9 +75,9 @@ func goManifestVersioned(name, version string) *plugindomain.PluginManifest {
 
 func cssManifest(name string) *plugindomain.PluginManifest {
 	return &plugindomain.PluginManifest{
-		Name:     name,
-		Version:  "1.0.0",
-		Language: "css",
+		Kind:    plugindomain.KindTheme,
+		Name:    name,
+		Version: "1.0.0",
 	}
 }
 
@@ -209,6 +209,23 @@ func TestInstallPlugin_LoadsPermissions(t *testing.T) {
 	assert.NoError(t, pc.CheckPermission(p.ID, "api.library"))
 	assert.NoError(t, pc.CheckPermission(p.ID, "api.media"))
 	assert.Error(t, pc.CheckPermission(p.ID, "api.admin"))
+}
+
+func TestInstall_PluginWithoutBackend_Rejected(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	// kind:plugin with an entrypoint but no runtime language — passes manifest
+	// validation but must be rejected by the installer before touching the FS.
+	parser.Result = &plugindomain.PluginManifest{
+		Kind:       plugindomain.KindPlugin,
+		Name:       "no-lang-plugin",
+		Version:    "1.0.0",
+		Entrypoint: "./plugin",
+		// Language intentionally empty
+	}
+
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "kind:plugin requires a backend")
 }
 
 // --- Hash ---

@@ -66,7 +66,7 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 	if p.Status == plugin.Running {
 		return ErrAlreadyRunning
 	}
-	if isStaticPlugin(p) {
+	if p.IsTheme() {
 		p.Status = plugin.Running
 		p.ErrorMessage = ""
 		return s.plugins.Update(ctx, p)
@@ -159,7 +159,7 @@ func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 		if !p.Enabled || (p.Status != plugin.Running && p.Status != plugin.Initializing) {
 			continue
 		}
-		if isStaticPlugin(p) {
+		if p.IsTheme() {
 			continue
 		}
 		rebuilt := false

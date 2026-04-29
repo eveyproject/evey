@@ -49,7 +49,7 @@ func TestStartPlugin_CSSTheme_NoRunner(t *testing.T) {
 	svc, pluginRepo, runner, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-css", Name: "theme", Language: "css", Status: plugindomain.Stopped, Enabled: true,
+		ID: "plg-css", Kind: plugindomain.KindTheme, Name: "theme", Status: plugindomain.Stopped, Enabled: true,
 	}))
 
 	err := svc.StartPlugin(ctx, "plg-css")
@@ -279,7 +279,7 @@ func TestAutoStartPlugins_SkipsCSS(t *testing.T) {
 
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
-		ID: "plg-css-auto", Name: "css-theme", Language: "css",
+		ID: "plg-css-auto", Kind: plugindomain.KindTheme, Name: "css-theme",
 		Status: plugindomain.Running, Enabled: true,
 	}))
 

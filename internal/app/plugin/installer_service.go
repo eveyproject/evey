@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -230,6 +231,12 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		return nil, fmt.Errorf("build plugin: %w", err)
 	}
 
+	// Defense-in-depth: a kind:plugin without a backend language is nonsensical —
+	// use kind:theme for front-only customization.
+	if p.Kind == plugin.KindPlugin && p.Language == "" {
+		return nil, errors.New("kind:plugin requires a backend; for front-only customization use kind:theme")
+	}
+
 	p.Signature = sigStatus
 
 	if s.installer != nil {
@@ -313,7 +320,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		return nil, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
 	}
 
-	if !isStaticPlugin(p) {
+	if !p.IsTheme() {
 		if err := s.runner.Start(ctx, p); err != nil {
 			p.Status = plugin.Error
 			p.ErrorMessage = err.Error()
@@ -411,11 +418,6 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 		slog.Warn("publish event", slog.String("event", evtUninstalled.EventName()), slog.Any("err", err))
 	}
 	return nil
-}
-
-// isStaticPlugin returns true for plugins that don't need a subprocess (CSS themes).
-func isStaticPlugin(p *plugin.Plugin) bool {
-	return strings.EqualFold(p.Language, "css")
 }
 
 // checkEscalatedWarnings blocks installation when the analysis report contains
