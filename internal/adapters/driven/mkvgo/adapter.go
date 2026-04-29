@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	"github.com/gravity-zero/mkvgo/mkv/ops"
@@ -19,9 +20,28 @@ type Adapter struct{}
 
 func New() *Adapter { return &Adapter{} }
 
+// ebmlContainerExts holds the file extensions backed by an EBML container
+// (Matroska / WebM family). The mkvgo reader can only parse these — calling
+// it on a non-EBML file (AVI, MP4, MOV, …) fails with an "expected EBML
+// header" error. Callers should treat non-EBML files as containers with no
+// chapters/attachments rather than surfacing an error.
+var ebmlContainerExts = map[string]bool{
+	".mkv": true, ".mka": true, ".mks": true, ".mk3d": true, ".webm": true,
+}
+
+// IsEBMLContainer reports whether path's extension is an EBML container the
+// mkvgo reader can parse. Callers can skip the read entirely for false
+// returns and treat the container as empty.
+func IsEBMLContainer(path string) bool {
+	return ebmlContainerExts[strings.ToLower(filepath.Ext(path))]
+}
+
 // --- ContainerReader ---
 
 func (a *Adapter) Open(ctx context.Context, path string) (*mkv.Container, error) {
+	if !IsEBMLContainer(path) {
+		return &mkv.Container{Path: path}, nil
+	}
 	c, err := reader.Open(ctx, path)
 	if err != nil {
 		return nil, fmt.Errorf("mkvgo open: %w", err)
