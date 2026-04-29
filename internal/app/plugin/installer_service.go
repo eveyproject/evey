@@ -20,6 +20,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/themejs"
 )
 
 // downloadIfURL detects if source is an HTTP(S) URL, downloads it into a
@@ -256,6 +257,22 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 				if writeErr := os.WriteFile(themePath, sanitized, 0o644); writeErr != nil {
 					slog.Warn("write sanitized theme.css", slog.String("pluginID", p.ID), slog.Any("err", writeErr))
 				}
+			}
+		}
+	}
+
+	if p.InstallDir != "" && slices.Contains(p.Capabilities, "ui.theme") {
+		jsPath := filepath.Join(p.InstallDir, "theme.js")
+		if raw, readErr := os.ReadFile(jsPath); readErr == nil {
+			scanErr, scanWarns := themejs.Scan(raw)
+			if len(scanWarns) > 0 {
+				slog.Warn("theme JS scanner warnings", slog.String("pluginID", p.ID), slog.Any("warnings", scanWarns))
+			}
+			if scanErr != nil {
+				if s.fs != nil {
+					s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
+				}
+				return nil, fmt.Errorf("plugin blocked: theme.js contains forbidden pattern: %w", scanErr)
 			}
 		}
 	}

@@ -391,6 +391,199 @@ func TestRegexCSSSanitizer_Wrapper_DelegatesToPackageFn(t *testing.T) {
 	}
 }
 
+// ---- Tests for enhanced rules (phase 5) ----
+
+func TestSanitizeCSS_SensitiveSelector_PasswordInput(t *testing.T) {
+	input := []byte(`input[type=password] { outline: 2px solid red; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "outline") {
+		t.Errorf("password input rule not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for sensitive selector removal")
+	}
+}
+
+func TestSanitizeCSS_SensitiveSelector_AdminClass(t *testing.T) {
+	input := []byte(`.admin-panel { display: none; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "display: none") {
+		t.Errorf(".admin-* rule not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for admin class removal")
+	}
+}
+
+func TestSanitizeCSS_SensitiveSelector_TokenClass(t *testing.T) {
+	input := []byte(`.token-display { visibility: hidden; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "visibility") {
+		t.Errorf(".token-* rule not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for token class removal")
+	}
+}
+
+func TestSanitizeCSS_SensitiveSelector_SecretClass(t *testing.T) {
+	input := []byte(`.secret-key { color: transparent; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "transparent") {
+		t.Errorf(".secret-* rule not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for secret class removal")
+	}
+}
+
+func TestSanitizeCSS_SensitiveSelector_SafeRulesPreserved(t *testing.T) {
+	input := []byte(`.card { color: red; } .admin-panel { display: none; } .footer { margin: 0; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "display: none") {
+		t.Errorf(".admin-* rule should be removed")
+	}
+	if !containsString(out, "color: red") {
+		t.Error(".card rule was incorrectly removed")
+	}
+	if !containsString(out, "margin: 0") {
+		t.Error(".footer rule was incorrectly removed")
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning")
+	}
+}
+
+func TestSanitizeCSS_FullScreenOverlay_Blocked(t *testing.T) {
+	input := []byte(`.overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "position: fixed") {
+		t.Errorf("full-screen overlay not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for full-screen overlay removal")
+	}
+}
+
+func TestSanitizeCSS_FullScreenOverlay_StickyBlocked(t *testing.T) {
+	input := []byte(`.phish { position: sticky; top: 0; width: 100vw; height: 100vh; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "position: sticky") {
+		t.Errorf("full-screen sticky overlay not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning")
+	}
+}
+
+func TestSanitizeCSS_FullScreenOverlay_PartialNotBlocked(t *testing.T) {
+	// position:fixed + only width:100vw (no top/left/height) — NOT a full overlay
+	input := []byte(`.banner { position: fixed; width: 100vw; bottom: 0; }`)
+	out, warns := SanitizeCSS(input)
+	if !containsString(out, "position: fixed") {
+		t.Errorf("partial fixed rule incorrectly removed: %s", out)
+	}
+	_ = warns
+}
+
+func TestSanitizeCSS_PointerEventsNone_OnButton(t *testing.T) {
+	input := []byte(`button { pointer-events: none; color: red; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "pointer-events: none") {
+		t.Errorf("pointer-events:none on button not removed: %s", out)
+	}
+	// The rest of the rule should be preserved.
+	if !containsString(out, "color: red") {
+		t.Errorf("legitimate declaration removed from button rule: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning")
+	}
+}
+
+func TestSanitizeCSS_PointerEventsNone_OnNonInteractive(t *testing.T) {
+	// pointer-events:none on a non-interactive element is fine (e.g. decorative overlay layer)
+	input := []byte(`.decoration { pointer-events: none; width: 100px; }`)
+	out, warns := SanitizeCSS(input)
+	if !containsString(out, "pointer-events: none") {
+		t.Errorf("pointer-events:none on decoration incorrectly removed: %s", out)
+	}
+	_ = warns
+}
+
+func TestSanitizeCSS_ZIndex_ClampedAbove999(t *testing.T) {
+	input := []byte(`.modal { z-index: 9999; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "9999") {
+		t.Errorf("z-index 9999 not clamped: %s", out)
+	}
+	if !containsString(out, "999") {
+		t.Errorf("z-index not clamped to 999: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for z-index clamping")
+	}
+}
+
+func TestSanitizeCSS_ZIndex_AllowedBelow1000(t *testing.T) {
+	input := []byte(`.modal { z-index: 500; }`)
+	out, warns := SanitizeCSS(input)
+	if string(out) != string(input) {
+		t.Errorf("z-index 500 should not be modified: %s", out)
+	}
+	if len(warns) != 0 {
+		t.Errorf("unexpected warnings for z-index 500: %v", warns)
+	}
+}
+
+func TestSanitizeCSS_ZIndex_ExactBoundary999(t *testing.T) {
+	input := []byte(`.modal { z-index: 999; }`)
+	out, warns := SanitizeCSS(input)
+	if string(out) != string(input) {
+		t.Errorf("z-index 999 should not be modified: %s", out)
+	}
+	if len(warns) != 0 {
+		t.Errorf("unexpected warnings for z-index 999: %v", warns)
+	}
+}
+
+func TestSanitizeCSS_AllNewRulesPass_SafeCSS(t *testing.T) {
+	// Transitions, animations, custom props, flexbox, grid all pass through.
+	input := []byte(`
+:root { --accent: #ff0; }
+.card { display: flex; flex-direction: column; gap: 16px; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+@keyframes slide { from { transform: translateX(0); } to { transform: translateX(100%); } }
+.fade { transition: opacity 0.3s ease; animation: slide 1s; }
+.logo { background: url(data:image/png;base64,iVBORz...); }
+@font-face { src: url(data:font/woff2;base64,d09G...); }
+.item { z-index: 500; }
+.decoration { pointer-events: none; }
+`)
+	out, warns := SanitizeCSS(input)
+	if len(warns) != 0 {
+		t.Errorf("safe CSS produced unexpected warnings: %v\noutput: %s", warns, out)
+	}
+	if !containsString(out, "display: flex") {
+		t.Error("flexbox removed")
+	}
+	if !containsString(out, "display: grid") {
+		t.Error("grid removed")
+	}
+	if !containsString(out, "@keyframes") {
+		t.Error("keyframes removed")
+	}
+	if !containsString(out, "data:image/png") {
+		t.Error("data image URL removed")
+	}
+	if !containsString(out, "data:font/woff2") {
+		t.Error("data font URL removed")
+	}
+	if !containsString(out, "z-index: 500") {
+		t.Error("z-index 500 removed")
+	}
+}
+
 func containsString(b []byte, s string) bool {
 	return len(b) > 0 && len(s) > 0 && string(b) != "" && contains(string(b), s)
 }
