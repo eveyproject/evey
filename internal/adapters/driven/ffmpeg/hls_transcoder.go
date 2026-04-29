@@ -62,7 +62,10 @@ type hlsHandle struct {
 func (h *hlsHandle) run(ctx context.Context) {
 	defer close(h.done)
 
-	isSingle := h.opts.VideoDecision == "copy"
+	// Single-variant outputs (copy + single-profile transcode) write only
+	// stream_0.m3u8; we synthesise master.m3u8 manually. Multi-variant
+	// transcodes use ffmpeg's -master_pl_name and produce master.m3u8 directly.
+	isSingle := h.opts.VideoDecision == "copy" || len(h.opts.Profiles) <= 1
 
 	if isSingle {
 		streamPath := filepath.Join(h.opts.OutputDir, "stream_0.m3u8")
