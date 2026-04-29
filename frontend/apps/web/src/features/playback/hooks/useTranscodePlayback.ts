@@ -64,7 +64,12 @@ export function useTranscodePlayback({
     if (!Hls.isSupported()) {
       video.src = hlsUrl;
       video.currentTime = 0;
-      if (!wasPausedRef.current) video.play().catch((err) => console.warn("video.play failed", err));
+      if (!wasPausedRef.current) {
+        video.play().catch(() => {
+          video.muted = true;
+          void video.play().catch(() => { /* user gesture required */ });
+        });
+      }
       function onTimeUpdate() { positionRef.current = video!.currentTime; }
       function handleEnded() { onEnded?.(); }
       video.addEventListener("timeupdate", onTimeUpdate);
@@ -108,7 +113,13 @@ export function useTranscodePlayback({
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       setHlsLevels(hls.levels.map((l) => l.height));
-      video.play().catch((err) => console.warn("video.play failed", err));
+      // Browsers block unmuted autoplay until the user has interacted with
+      // the page. Fall back to a muted start so playback begins; the player
+      // UI surfaces the muted state and the user unmutes with one click.
+      video.play().catch(() => {
+        video.muted = true;
+        void video.play().catch(() => { /* user gesture required */ });
+      });
     });
 
     let retries = 0;
