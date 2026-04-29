@@ -44,6 +44,8 @@ capabilities:
 permissions:
   - network
   - api.library
+external_fetch:
+  - api.tmdb.org
 min_evey_version: "1.0.0"
 `
 	zipPath := createTestZip(t, "plugin.yaml", yaml)
@@ -61,6 +63,7 @@ min_evey_version: "1.0.0"
 	assert.Equal(t, []string{"network", "api.library"}, m.Permissions)
 	assert.Equal(t, "1.0.0", m.MinEveyVersion)
 	assert.Equal(t, plugin.KindPlugin, m.Kind)
+	assert.Equal(t, []string{"api.tmdb.org"}, m.ExternalFetch)
 }
 
 func TestParseYmlExtension(t *testing.T) {
@@ -325,6 +328,57 @@ func TestParse_InvalidSemver(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParse_NetworkWithoutExtfetch_Fails(t *testing.T) {
+	yml := `
+name: test
+version: "1.0.0"
+language: go
+entrypoint: ./plugin
+permissions:
+  - network
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "network permission requires")
+}
+
+func TestParse_NetworkWithExtfetch_OK(t *testing.T) {
+	yml := `
+name: test
+version: "1.0.0"
+language: go
+entrypoint: ./plugin
+permissions:
+  - network
+external_fetch:
+  - api.tmdb.org
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	m, err := parser.Parse(zipPath)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"api.tmdb.org"}, m.ExternalFetch)
+}
+
+func TestParse_InvalidExtfetch_Fails(t *testing.T) {
+	yml := `
+name: test
+version: "1.0.0"
+language: go
+entrypoint: ./plugin
+external_fetch:
+  - "*"
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "wildcard")
 }
 
 func TestSemverRegex_Directly(t *testing.T) {

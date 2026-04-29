@@ -355,3 +355,20 @@ func TestRunnerAllowsSubprocessPermWithoutSandbox(t *testing.T) {
 	require.NoError(t, err)
 	_ = r.Stop(ctx, p.ID)
 }
+
+func TestBuildHostsFile_Empty(t *testing.T) {
+	path, cleanup, err := buildHostsFile("plg-test", nil)
+	require.NoError(t, err)
+	assert.Empty(t, path)
+	assert.NotNil(t, cleanup)
+	cleanup() // must not panic
+}
+
+func TestBuildHostsFile_Wildcard_Skipped(t *testing.T) {
+	// Wildcard-only list produces no concrete hosts → path is empty, no error.
+	path, cleanup, err := buildHostsFile("plg-test", []string{"*.tmdb.org"})
+	require.NoError(t, err)
+	assert.Empty(t, path, "wildcard-only list must produce empty path")
+	assert.NotNil(t, cleanup)
+	cleanup()
+}

@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
@@ -147,5 +149,40 @@ func validateManifest(m *plugin.PluginManifest) error {
 		}
 	}
 
+	if err := validateExternalFetch(m.ExternalFetch); err != nil {
+		return err
+	}
+
+	if slices.Contains(m.Permissions, "network") && len(m.ExternalFetch) == 0 {
+		return errors.New("manifest: network permission requires non-empty external_fetch")
+	}
+
+	return nil
+}
+
+// validateExternalFetch checks that every entry in the list is a plain
+// hostname or a hostname with an HTTPS scheme — no wildcards, no paths, no
+// bare IP addresses (those can't be meaningfully whitelisted in /etc/hosts).
+func validateExternalFetch(entries []string) error {
+	for _, entry := range entries {
+		if strings.HasPrefix(entry, "*.") || entry == "*" {
+			return fmt.Errorf("manifest: external_fetch entry %q is a wildcard — use explicit hostnames", entry)
+		}
+		host := entry
+		if strings.Contains(entry, "://") {
+			u, err := url.Parse(entry)
+			if err != nil {
+				return fmt.Errorf("manifest: external_fetch entry %q is not a valid URL: %w", entry, err)
+			}
+			host = u.Hostname()
+		}
+		if host == "" {
+			return fmt.Errorf("manifest: external_fetch entry %q has no resolvable hostname", entry)
+		}
+		// reject plain IP addresses — hostnames only
+		if net := strings.ReplaceAll(host, ".", ""); strings.Trim(net, "0123456789") == "" {
+			return fmt.Errorf("manifest: external_fetch entry %q must be a hostname, not an IP address", entry)
+		}
+	}
 	return nil
 }

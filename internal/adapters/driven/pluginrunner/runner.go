@@ -506,7 +506,9 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 	}
 	hasNet := slices.Contains(p.Permissions, networkPerm)
 
-	prefix := buildBwrapCmd(pluginDir, hasNet, mode)
+	hostsFile, _, _ := buildHostsFile(p.ID, p.ExternalFetch) // cleanup deferred to process exit (V1)
+
+	prefix := buildBwrapCmd(pluginDir, hasNet, mode, hostsFile)
 
 	// cmd.Args[0] is the program name; the original full argv is cmd.Args.
 	originalArgv := cmd.Args // e.g. ["/data/plugins/foo/plugin", "--arg"]

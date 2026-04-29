@@ -1,0 +1,1 @@
+ALTER TABLE plugins ADD COLUMN IF NOT EXISTS external_fetch JSONB;

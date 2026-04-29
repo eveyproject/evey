@@ -51,6 +51,9 @@ type Plugin struct {
 	ErrorMessage string
 	InstalledAt  time.Time
 	UpdatedAt    time.Time
+	// ExternalFetch is the DNS whitelist for plugins with the "network" permission.
+	// Only hostnames declared here are reachable inside the bwrap sandbox.
+	ExternalFetch []string
 	// AnalysisReport captures the static-analysis output from the install step
 	// so the admin can audit non-critical warnings (compiled binaries, symlinks,
 	// base64 blobs, suspicious URLs) after the plugin is live. Nil on legacy rows.
@@ -111,24 +114,25 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 
 	now := time.Now()
 	p := &Plugin{
-		ID:           id,
-		Kind:         manifest.Kind,
-		Name:         manifest.Name,
-		Version:      manifest.Version,
-		Description:  manifest.Description,
-		Author:       manifest.Author,
-		Language:     manifest.Language,
-		Entrypoint:   manifest.Entrypoint,
-		Capabilities: manifest.Capabilities,
-		Permissions:  manifest.Permissions,
-		ConfigSchema: manifest.ConfigSchema,
-		Frontend:     frontend,
-		Config:       make(map[string]any),
-		SourceHash:   sourceHash,
-		Enabled:      true,
-		Status:       Stopped,
-		InstalledAt:  now,
-		UpdatedAt:    now,
+		ID:            id,
+		Kind:          manifest.Kind,
+		Name:          manifest.Name,
+		Version:       manifest.Version,
+		Description:   manifest.Description,
+		Author:        manifest.Author,
+		Language:      manifest.Language,
+		Entrypoint:    manifest.Entrypoint,
+		Capabilities:  manifest.Capabilities,
+		Permissions:   manifest.Permissions,
+		ConfigSchema:  manifest.ConfigSchema,
+		Frontend:      frontend,
+		ExternalFetch: manifest.ExternalFetch,
+		Config:        make(map[string]any),
+		SourceHash:    sourceHash,
+		Enabled:       true,
+		Status:        Stopped,
+		InstalledAt:   now,
+		UpdatedAt:     now,
 	}
 	if err := p.Validate(); err != nil {
 		return nil, err
@@ -189,10 +193,11 @@ type PluginManifest struct {
 	Permissions    []string       `yaml:"permissions"`
 	MinEveyVersion string         `yaml:"min_evey_version"`
 	ConfigSchema   map[string]any `yaml:"config_schema"`
-	Frontend       []FrontModule  `yaml:"frontend"`
+	Frontend      []FrontModule  `yaml:"frontend"`
 	// UIWidgets is a fallback read field for backward compat (phase migration).
 	// Will be removed in phase 6. New manifests must use frontend:.
-	UIWidgets []FrontModule `yaml:"ui_widgets"`
+	UIWidgets     []FrontModule  `yaml:"ui_widgets"`
+	ExternalFetch []string       `yaml:"external_fetch"`
 }
 
 // PluginFinding is a single static-analysis finding with full detail.

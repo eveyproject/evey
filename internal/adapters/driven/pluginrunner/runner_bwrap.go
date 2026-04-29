@@ -7,8 +7,10 @@ const networkPerm = "network"
 // pluginDir is the writable bind mount for the plugin's own directory.
 // hasNetworkPerm controls whether --unshare-net is omitted (true = plugin
 // may reach the network; false = network namespace is isolated).
+// hostsFile, when non-empty and hasNetworkPerm is true, is bind-mounted
+// read-only as /etc/hosts so only whitelisted hosts are resolvable.
 // Returns nil when mode == "basic" so callers can short-circuit.
-func buildBwrapCmd(pluginDir string, hasNetworkPerm bool, mode string) []string {
+func buildBwrapCmd(pluginDir string, hasNetworkPerm bool, mode string, hostsFile string) []string {
 	if mode == sandboxModeBasic {
 		return nil
 	}
@@ -28,6 +30,13 @@ func buildBwrapCmd(pluginDir string, hasNetworkPerm bool, mode string) []string 
 	args = append(args,
 		"--ro-bind", "/", "/",
 		"--bind", pluginDir, pluginDir,
+	)
+
+	if hostsFile != "" && hasNetworkPerm {
+		args = append(args, "--ro-bind", hostsFile, "/etc/hosts")
+	}
+
+	args = append(args,
 		"--proc", "/proc",
 		"--dev-bind", "/dev", "/dev",
 		"--tmpfs", "/tmp",
