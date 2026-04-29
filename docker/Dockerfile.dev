@@ -3,7 +3,8 @@ FROM golang:1.26.2-alpine
 RUN apk add --no-cache ffmpeg curl postgresql-client gcc musl-dev linux-headers \
     python3 py3-pip py3-grpcio py3-protobuf \
     nodejs npm tzdata \
-    bash perl lua5.4 ruby php83 && \
+    bash perl lua5.4 ruby php83 \
+    bubblewrap && \
     go install github.com/air-verse/air@latest && \
     go install github.com/bufbuild/buf/cmd/buf@v1.47.2 && \
     npm install -g esbuild@0.25.12 @grpc/grpc-js@1.12.6 @grpc/proto-loader@0.7.13 && \

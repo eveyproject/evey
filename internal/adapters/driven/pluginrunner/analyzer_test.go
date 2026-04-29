@@ -653,7 +653,8 @@ func TestAnalyze_SuspiciousScheme_Warning(t *testing.T) {
 
 func TestAnalyze_DepManifest_Warning(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, "package.json", `{"name": "test", "version": "1.0.0"}`)
+	// package.json that DECLARES deps but ships none vendored — should warn.
+	writeFile(t, dir, "package.json", `{"name":"t","version":"1.0.0","dependencies":{"left-pad":"1.3.0"}}`)
 	writeFile(t, dir, "main.js", `console.log("ok")`)
 
 	report, err := AnalyzePlugin(dir)
@@ -667,7 +668,24 @@ func TestAnalyze_DepManifest_Warning(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error("expected unvendored_deps warning for package.json")
+		t.Error("expected unvendored_deps warning for package.json with deps")
+	}
+}
+
+func TestAnalyze_DepManifest_NoDeps_NoWarning(t *testing.T) {
+	dir := t.TempDir()
+	// Metadata-only package.json (no deps declared) — must NOT warn.
+	writeFile(t, dir, "package.json", `{"name":"t","version":"1.0.0"}`)
+	writeFile(t, dir, "main.js", `console.log("ok")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range report.Findings {
+		if f.Category == "unvendored_deps" {
+			t.Errorf("unexpected unvendored_deps warning: %+v", f)
+		}
 	}
 }
 

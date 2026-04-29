@@ -156,6 +156,40 @@ var depManifests = map[string]bool{
 	"composer.json": true, "Gemfile": true, "go.mod": true,
 }
 
+// manifestDeclaresDeps best-effort scan: returns true when the manifest
+// actually lists third-party dependencies. Empty / metadata-only manifests
+// (e.g. a package.json with no "dependencies" field) don't trigger the
+// unvendored_deps warning since they pull in nothing at runtime.
+func manifestDeclaresDeps(path string) bool {
+	data, err := os.ReadFile(path) //nolint:gosec
+	if err != nil {
+		return true // can't read → fail closed
+	}
+	base := filepath.Base(path)
+	switch base {
+	case "package.json":
+		// Match a non-empty "dependencies" or "peerDependencies" object.
+		return depJSONRe.Match(data)
+	case "composer.json":
+		return depJSONRe.Match(data)
+	case "requirements.txt":
+		// Any non-empty, non-comment line counts as a declared dep.
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" && !strings.HasPrefix(line, "#") {
+				return true
+			}
+		}
+		return false
+	case "go.mod":
+		return strings.Contains(string(data), "require ")
+	}
+	// Lockfiles and other manifests: presence implies deps were resolved.
+	return true
+}
+
+var depJSONRe = regexp.MustCompile(`(?s)"(?:dependencies|peerDependencies|require)"\s*:\s*\{[^}]*"`)
+
 // Executable binary extensions — emit a warning (cannot be statically analyzed)
 var executableExtensions = map[string]bool{
 	".so": true, ".dll": true, ".dylib": true, ".exe": true,
@@ -259,9 +293,11 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 			return nil
 		}
 
-		// Warn if dependency manifests are present (deps must be vendored)
+		// Warn when a dependency manifest declares deps that aren't vendored.
+		// An empty/no-deps manifest (e.g. package.json with only {"main":"x.js"})
+		// is fine — many plugins rely solely on the runtime's bundled SDK.
 		base := info.Name()
-		if depManifests[base] {
+		if depManifests[base] && manifestDeclaresDeps(path) {
 			relPath, relErr := filepath.Rel(dir, path)
 			if relErr != nil {
 				relPath = path
@@ -272,7 +308,7 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 				File:        relPath,
 				Line:        0,
 				Pattern:     base,
-				Description: "dependency manifest found — deps must be vendored in the ZIP",
+				Description: "dependency manifest declares deps but no vendored modules found — bundle node_modules / vendor / etc. in the ZIP",
 			})
 		}
 

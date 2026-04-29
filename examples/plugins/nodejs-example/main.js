@@ -11,15 +11,14 @@ const path = require("path");
 const PLUGIN_SOCK = process.env.EVEY_PLUGIN_SOCK || "/tmp/evey/plugins/nodejs-hello.sock";
 const HOST_SOCK = process.env.EVEY_HOST_SOCK || "/tmp/evey/plugins/evey-host.sock";
 
-// Load proto — adjust path to where proto files are mounted
-const PROTO_PATH = path.join(__dirname, "../../proto/plugin/v1/plugin_api.proto");
+// Load proto — copied next to main.js by the installer (CopySDKStubs).
+const PROTO_PATH = path.join(__dirname, "plugin_api.proto");
 const pkgDef = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
   longs: String,
   enums: String,
   defaults: true,
   oneofs: true,
-  includeDirs: [path.join(__dirname, "../../proto")],
 });
 const proto = grpc.loadPackageDefinition(pkgDef).plugin.v1;
 
