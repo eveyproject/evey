@@ -15,7 +15,7 @@ import (
 )
 
 const pluginColumns = `id, name, version, description, author, language, entrypoint, install_dir,
-	 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash, analysis_report, signature`
+	 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash, analysis_report, signature, kind, frontend`
 
 type PluginRepository struct {
 	db *sql.DB
@@ -73,12 +73,26 @@ func (r *PluginRepository) Create(ctx context.Context, p *plugin.Plugin) error {
 			return err
 		}
 	}
+	var frontendJSON []byte
+	if len(p.Frontend) > 0 {
+		frontendJSON, err = json.Marshal(p.Frontend)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
+		}
+	}
+	kind := p.Kind
+	if kind == "" {
+		kind = plugin.KindPlugin
+	}
 	_, err = r.db.ExecContext(ctx,
 		`INSERT INTO plugins (`+pluginColumns+`)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
 		p.ID, p.Name, p.Version, p.Description, p.Author, p.Language, p.Entrypoint, p.InstallDir,
 		capJSON, permJSON, schemaJSON, configJSON,
 		p.Enabled, p.Status, p.ErrorMessage, p.InstalledAt, p.UpdatedAt, p.SourceHash, reportJSON, sigJSON,
+		string(kind), frontendJSON,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -133,15 +147,25 @@ func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
 	var result []*plugin.Plugin
 	for rows.Next() {
 		p := &plugin.Plugin{}
-		var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON []byte
+		var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON []byte
+		var kindStr string
 		if err := rows.Scan(&p.ID, &p.Name, &p.Version, &p.Description, &p.Author, &p.Language,
 			&p.Entrypoint, &p.InstallDir, &capJSON, &permJSON, &schemaJSON, &configJSON,
-			&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON); err != nil {
+			&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON,
+			&kindStr, &frontendJSON); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
-		unmarshalPluginJSON(p, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON)
+		p.Kind = plugin.PluginKind(kindStr)
+		if p.Kind == "" {
+			if p.Language == "css" {
+				p.Kind = plugin.KindTheme
+			} else {
+				p.Kind = plugin.KindPlugin
+			}
+		}
+		unmarshalPluginJSON(p, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON)
 		result = append(result, p)
 	}
 	if err := rows.Err(); err != nil {
@@ -200,14 +224,28 @@ func (r *PluginRepository) Update(ctx context.Context, p *plugin.Plugin) error {
 			return err
 		}
 	}
+	var frontendJSON []byte
+	if len(p.Frontend) > 0 {
+		frontendJSON, err = json.Marshal(p.Frontend)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
+		}
+	}
+	kind := p.Kind
+	if kind == "" {
+		kind = plugin.KindPlugin
+	}
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE plugins SET name=$1, version=$2, description=$3, author=$4, language=$5,
 		 entrypoint=$6, install_dir=$7, capabilities=$8, permissions=$9, config_schema=$10, config=$11,
 		 enabled=$12, status=$13, error_message=$14, updated_at=$15, source_hash=$16, analysis_report=$17,
-		 signature=$18 WHERE id=$19`,
+		 signature=$18, kind=$19, frontend=$20 WHERE id=$21`,
 		p.Name, p.Version, p.Description, p.Author, p.Language,
 		p.Entrypoint, p.InstallDir, capJSON, permJSON, schemaJSON, configJSON,
-		p.Enabled, p.Status, p.ErrorMessage, p.UpdatedAt, p.SourceHash, reportJSON, sigJSON, p.ID,
+		p.Enabled, p.Status, p.ErrorMessage, p.UpdatedAt, p.SourceHash, reportJSON, sigJSON,
+		string(kind), frontendJSON, p.ID,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -244,18 +282,28 @@ func (r *PluginRepository) Delete(ctx context.Context, id string) error {
 
 func (r *PluginRepository) scanPlugin(row *sql.Row) (*plugin.Plugin, error) {
 	p := &plugin.Plugin{}
-	var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON []byte
+	var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON []byte
+	var kindStr string
 	err := row.Scan(&p.ID, &p.Name, &p.Version, &p.Description, &p.Author, &p.Language,
 		&p.Entrypoint, &p.InstallDir, &capJSON, &permJSON, &schemaJSON, &configJSON,
-		&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON)
+		&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON,
+		&kindStr, &frontendJSON)
 	if err != nil {
 		return nil, err
 	}
-	unmarshalPluginJSON(p, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON)
+	p.Kind = plugin.PluginKind(kindStr)
+	if p.Kind == "" {
+		if p.Language == "css" {
+			p.Kind = plugin.KindTheme
+		} else {
+			p.Kind = plugin.KindPlugin
+		}
+	}
+	unmarshalPluginJSON(p, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON)
 	return p, nil
 }
 
-func unmarshalPluginJSON(p *plugin.Plugin, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON []byte) {
+func unmarshalPluginJSON(p *plugin.Plugin, capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON []byte) {
 	if err := json.Unmarshal(capJSON, &p.Capabilities); err != nil {
 		slog.Warn("json unmarshal", slog.String("field", "capabilities"), slog.Any("err", err))
 	}
@@ -282,6 +330,11 @@ func unmarshalPluginJSON(p *plugin.Plugin, capJSON, permJSON, schemaJSON, config
 			slog.Warn("json unmarshal", slog.String("field", "signature"), slog.Any("err", err))
 		} else {
 			p.Signature = &sig
+		}
+	}
+	if len(frontendJSON) > 0 {
+		if err := json.Unmarshal(frontendJSON, &p.Frontend); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "frontend"), slog.Any("err", err))
 		}
 	}
 }

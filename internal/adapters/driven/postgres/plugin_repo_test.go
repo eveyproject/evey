@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -133,4 +134,95 @@ func TestPluginRepo_Update_NotFound(t *testing.T) {
 	p := newTestPlugin("plugin-missing")
 	err := repo.Update(context.Background(), p)
 	assert.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+func TestPluginRepo_Kind_Plugin(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPluginRepository(db)
+	ctx := context.Background()
+
+	p := newTestPlugin("pl-kind-plugin")
+	p.Kind = plugin.KindPlugin
+	require.NoError(t, repo.Create(ctx, p))
+
+	got, err := repo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, plugin.KindPlugin, got.Kind)
+}
+
+func TestPluginRepo_Kind_Theme(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPluginRepository(db)
+	ctx := context.Background()
+
+	p := newTestPlugin("pl-kind-theme")
+	p.Kind = plugin.KindTheme
+	p.Language = "css"
+	p.Entrypoint = ""
+	p.Capabilities = []string{}
+	p.Permissions = []string{}
+	require.NoError(t, repo.Create(ctx, p))
+
+	got, err := repo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, plugin.KindTheme, got.Kind)
+}
+
+func TestPluginRepo_Frontend_RoundTrip(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPluginRepository(db)
+	ctx := context.Background()
+
+	p := newTestPlugin("pl-frontend")
+	p.Kind = plugin.KindPlugin
+	p.Frontend = []plugin.FrontModule{{Slot: "home.section", Src: "front.js"}}
+	require.NoError(t, repo.Create(ctx, p))
+
+	got, err := repo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	require.Len(t, got.Frontend, 1)
+	assert.Equal(t, "home.section", got.Frontend[0].Slot)
+	assert.Equal(t, "front.js", got.Frontend[0].Src)
+}
+
+// TestPluginRepo_Kind_Backfill verifies the Go-level backfill that deduces
+// Kind from Language when a row was written without a kind value
+// (simulates rows that predate the DEFAULT constraint clean-up).
+func TestPluginRepo_Kind_Backfill(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewPluginRepository(db)
+	ctx := context.Background()
+
+	insertMinimal := func(t *testing.T, db *sql.DB, id, language, kind string) {
+		t.Helper()
+		_, err := db.ExecContext(ctx, `
+			INSERT INTO plugins (id, name, version, language, entrypoint, install_dir,
+			                     capabilities, permissions, config_schema, config,
+			                     enabled, status, installed_at, updated_at, kind)
+			VALUES ($1, $2, '1.0.0', $3, '', '',
+			        '[]', '[]', '{}', '{}',
+			        true, 'stopped', NOW(), NOW(), $4)`,
+			id, "plugin_"+id, language, kind)
+		require.NoError(t, err)
+	}
+
+	// Row with kind='' (simulates pre-migration-cleanup row) and non-css language
+	insertMinimal(t, db, "bl-plugin", "python", "")
+	got, err := repo.GetByID(ctx, "bl-plugin")
+	require.NoError(t, err)
+	assert.Equal(t, plugin.KindPlugin, got.Kind)
+
+	// Row with kind='' (simulates pre-migration-cleanup row) and css language
+	insertMinimal(t, db, "bl-theme", "css", "")
+	got, err = repo.GetByID(ctx, "bl-theme")
+	require.NoError(t, err)
+	assert.Equal(t, plugin.KindTheme, got.Kind)
 }
