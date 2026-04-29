@@ -27,6 +27,7 @@ func pluginToProto(p *plugin.Plugin) *eveyv1.Plugin {
 		Permissions:  p.Permissions,
 		Capabilities: p.Capabilities,
 		SourceHash:   p.SourceHash,
+		ErrorMessage: p.ErrorMessage,
 	}
 	if p.AnalysisReport != nil {
 		rep := &eveyv1.PluginAnalysisReport{

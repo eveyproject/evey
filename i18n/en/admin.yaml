@@ -46,6 +46,7 @@ plugin:
     stopped: Stopped
     installed: Installed
     unknown: Unknown
+  errorDetails: Error details
   analysisReport:
     title: Security notice
     issues: Issues

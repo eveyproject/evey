@@ -124,6 +124,7 @@ message Plugin {
   repeated string capabilities = 12;
   string source_hash = 13;
   PluginAnalysisReport analysis_report = 14;
+  string error_message = 15;
 }
 
 // PluginAnalysisReport exposes the static-analysis warnings recorded at

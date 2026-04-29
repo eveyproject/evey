@@ -360,6 +360,17 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
         </p>
       )}
 
+      {plugin.state === "PLUGIN_STATE_ERROR" && plugin.errorMessage && (
+        <div className="rounded border border-[var(--color-danger,#7f1d1d)] bg-[var(--badge-error-bg,rgba(127,29,29,0.15))] px-3 py-2 text-xs">
+          <p className="font-semibold text-[var(--badge-error-text,#fca5a5)] mb-1">
+            {t("admin.plugin.errorDetails", "Error details")}
+          </p>
+          <p className="font-mono text-[var(--text)] break-all whitespace-pre-wrap">
+            {plugin.errorMessage}
+          </p>
+        </div>
+      )}
+
       <div className="flex gap-2 pt-1 flex-wrap">
         {plugin.enabled ? (
           <Button variant="secondary" onClick={onDisable}>{t("common.disable")}</Button>

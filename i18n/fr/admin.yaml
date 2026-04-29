@@ -45,6 +45,7 @@ plugin:
     stopped: Arrêté
     installed: Installé
     unknown: Inconnu
+  errorDetails: "Détails de l'erreur"
   analysisReport:
     title: "Avis de sécurité"
     issues: "Problèmes"
