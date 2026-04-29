@@ -22,15 +22,18 @@ import plugin_api_pb2_grpc as rpc
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("webhook-example")
 
-HOST_ADDR = os.environ.get("EVEY_HOST_ADDR", "localhost:50051")
-PLUGIN_PORT = os.environ.get("EVEY_PLUGIN_PORT", "50052")
+PLUGIN_SOCK = os.environ.get("EVEY_PLUGIN_SOCK")
+HOST_SOCK = os.environ.get("EVEY_HOST_SOCK")
 
 
 class WebhookPlugin(rpc.PluginServiceServicer):
     def __init__(self):
         # gRPC channel to call back into the Evey host
-        channel = grpc.insecure_channel(HOST_ADDR)
-        self.host = rpc.HostServiceStub(channel)
+        if HOST_SOCK:
+            channel = grpc.insecure_channel(f"unix://{HOST_SOCK}")
+            self.host = rpc.HostServiceStub(channel)
+        else:
+            self.host = None
 
     def Initialize(self, request, context):
         log.info("initialize: plugin_id=%s", request.plugin_id)
@@ -73,11 +76,14 @@ class WebhookPlugin(rpc.PluginServiceServicer):
 
 
 def serve():
+    if not PLUGIN_SOCK:
+        log.error("EVEY_PLUGIN_SOCK not set")
+        return
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
     rpc.add_PluginServiceServicer_to_server(WebhookPlugin(), server)
-    server.add_insecure_port("0.0.0.0:" + PLUGIN_PORT)
+    server.add_insecure_port(f"unix://{PLUGIN_SOCK}")
     server.start()
-    log.info("webhook plugin listening on port %s", PLUGIN_PORT)
+    log.info("webhook plugin listening on %s", PLUGIN_SOCK)
     server.wait_for_termination()
 
 

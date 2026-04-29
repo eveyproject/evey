@@ -4,9 +4,11 @@ version: 1.0.0
 description: Example metadata provider plugin
 author: evey-examples
 language: nodejs
-entrypoint: main.js
+entrypoint: node main.js
 capabilities:
   - metadata.provider
 permissions:
   - network
   - media.write
+external_fetch:
+  - api.themoviedb.org

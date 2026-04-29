@@ -4,7 +4,7 @@ version: 1.0.0
 description: Demonstrates every config_schema field type
 author: evey-examples
 language: nodejs
-entrypoint: main.js
+entrypoint: node main.js
 frontend:
   - slot: admin.section
     src: front.js

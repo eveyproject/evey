@@ -9,7 +9,11 @@ const PROTO_PATH = path.join(__dirname, "plugin_api.proto");
 const pkgDef = protoLoader.loadSync(PROTO_PATH, { keepCase: true });
 const proto = grpc.loadPackageDefinition(pkgDef).plugin.v1;
 
-const PLUGIN_PORT = process.env.EVEY_PLUGIN_PORT || "50052";
+const PLUGIN_SOCK = process.env.EVEY_PLUGIN_SOCK;
+if (!PLUGIN_SOCK) {
+  console.error("EVEY_PLUGIN_SOCK not set");
+  process.exit(1);
+}
 
 const server = new grpc.Server();
 server.addService(proto.PluginService.service, {
@@ -20,7 +24,7 @@ server.addService(proto.PluginService.service, {
   GetCapabilities(_call, cb) { cb(null, { api_version: "1", capabilities: [] }); },
 });
 
-server.bindAsync("0.0.0.0:" + PLUGIN_PORT, grpc.ServerCredentials.createInsecure(), (err) => {
+server.bindAsync(`unix://${PLUGIN_SOCK}`, grpc.ServerCredentials.createInsecure(), (err) => {
   if (err) { console.error(err); process.exit(1); }
-  console.log("config-demo listening on port %s", PLUGIN_PORT);
+  console.error(`config-demo listening on ${PLUGIN_SOCK}`);
 });

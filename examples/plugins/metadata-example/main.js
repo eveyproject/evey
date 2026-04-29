@@ -17,7 +17,11 @@ const PROTO_PATH = path.join(__dirname, "plugin_api.proto");
 const pkgDef = protoLoader.loadSync(PROTO_PATH, { keepCase: true });
 const proto = grpc.loadPackageDefinition(pkgDef).plugin.v1;
 
-const PLUGIN_PORT = process.env.EVEY_PLUGIN_PORT || "50052";
+const PLUGIN_SOCK = process.env.EVEY_PLUGIN_SOCK;
+if (!PLUGIN_SOCK) {
+  console.error("EVEY_PLUGIN_SOCK not set");
+  process.exit(1);
+}
 
 // PluginService implementation (host -> plugin)
 const pluginImpl = {
@@ -66,10 +70,10 @@ const pluginImpl = {
 // Start gRPC server
 const server = new grpc.Server();
 server.addService(proto.PluginService.service, pluginImpl);
-server.bindAsync("0.0.0.0:" + PLUGIN_PORT, grpc.ServerCredentials.createInsecure(), (err) => {
+server.bindAsync(`unix://${PLUGIN_SOCK}`, grpc.ServerCredentials.createInsecure(), (err) => {
   if (err) {
     console.error("bind failed:", err);
     process.exit(1);
   }
-  console.log("metadata plugin listening on port %s", PLUGIN_PORT);
+  console.error(`metadata plugin listening on ${PLUGIN_SOCK}`);
 });

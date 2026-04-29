@@ -4,7 +4,7 @@ version: 1.0.0
 description: Example webhook receiver plugin
 author: evey-examples
 language: python
-entrypoint: main.py
+entrypoint: python3 main.py
 capabilities:
   - webhook.receiver
 permissions:
