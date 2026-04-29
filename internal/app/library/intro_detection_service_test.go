@@ -358,6 +358,9 @@ func (r *fakeSegmentRepo) DeleteByMediaItemIDAndType(_ context.Context, id share
 	r.deleted = append(r.deleted, string(id)+"/"+segType)
 	return nil
 }
+func (r *fakeSegmentRepo) ListSeasonsMissingSegments(_ context.Context) ([]string, error) {
+	return nil, nil
+}
 
 // fakeMediaItemRepo returns the configured item for GetByID calls and optionally
 // a list of siblings for List calls.

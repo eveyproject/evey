@@ -77,6 +77,8 @@ func (s *IntroDetectionService) isTrickplayEnabled(ctx context.Context) bool {
 
 // StartWorker subscribes to media.item.added and runs detection on a full
 // season once the stream of additions to the same parent stabilises (30s debounce).
+// Also schedules a background backfill sweep at startup so seasons that were
+// scanned before the feature existed (or while the worker was down) get covered.
 func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 	if s.events == nil {
 		return
@@ -113,6 +115,46 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 		})
 		mu.Unlock()
 	})
+
+	// Backfill sweep — runs once at startup, 60s after boot, in the background.
+	// Picks up seasons that have episodes without segments (legacy data, or
+	// scans that landed while the worker was offline). Each season is detected
+	// sequentially to keep CPU usage bounded.
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(60 * time.Second):
+		}
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("recovered panic in intro detection backfill", slog.Any("error", r))
+			}
+		}()
+		s.backfillMissingSeasons(ctx)
+	}()
+}
+
+// backfillMissingSeasons enumerates every season parent that has episodes
+// without any media_segments rows and runs detection. Idempotent — episodes
+// already covered are skipped by detectSeason.
+func (s *IntroDetectionService) backfillMissingSeasons(ctx context.Context) {
+	parentIDs, err := s.segmentRepo.ListSeasonsMissingSegments(ctx)
+	if err != nil {
+		slog.Warn("intro detection backfill: list seasons", slog.Any("err", err))
+		return
+	}
+	if len(parentIDs) == 0 {
+		return
+	}
+	slog.Info("intro detection backfill: starting", slog.Int("seasons", len(parentIDs)))
+	for _, pid := range parentIDs {
+		if ctx.Err() != nil {
+			return
+		}
+		s.detectSeason(ctx, pid)
+	}
+	slog.Info("intro detection backfill: done")
 }
 
 // detectSeason runs detection on every episode of the given season that has no segments yet.

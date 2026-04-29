@@ -106,6 +106,10 @@ type MediaSegmentRepository interface {
 	Upsert(ctx context.Context, seg *MediaSegment) error
 	DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error
 	DeleteByMediaItemIDAndType(ctx context.Context, mediaItemID shared.MediaItemID, segType string) error
+	// ListSeasonsMissingSegments returns the parent_ids of seasons that have
+	// at least one episode without any media_segments rows. Used by the intro
+	// detection backfill sweep at startup.
+	ListSeasonsMissingSegments(ctx context.Context) ([]string, error)
 }
 
 // PersonQueryRepo is the read-only subset of PersonRepository for query

@@ -127,4 +127,48 @@ func (r *MediaSegmentRepository) DeleteByMediaItemIDAndType(ctx context.Context,
 	return nil
 }
 
+// ListSeasonsMissingSegments returns the parent_ids of seasons whose
+// episodes (type='episode') have a trickplay manifest but no media_segments
+// rows yet. Drives the startup backfill — only returns seasons that can
+// actually be detected (trickplay required by the pHash pass).
+func (r *MediaSegmentRepository) ListSeasonsMissingSegments(ctx context.Context) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.ListSeasonsMissingSegments")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT DISTINCT mi.parent_id
+		FROM media_items mi
+		JOIN trickplay_manifests tm ON tm.media_item_id = mi.id
+		LEFT JOIN media_segments ms ON ms.media_item_id = mi.id
+		WHERE mi.type = 'episode'
+		  AND mi.parent_id <> ''
+		  AND ms.id IS NULL
+	`)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return ids, nil
+}
+
 var _ library.MediaSegmentRepository = (*MediaSegmentRepository)(nil)
