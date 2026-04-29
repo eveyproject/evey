@@ -1,14 +1,13 @@
 name: config-demo
+kind: plugin
 version: 1.0.0
 description: Demonstrates every config_schema field type
 author: evey-examples
 language: nodejs
 entrypoint: main.js
-capabilities:
-  - ui.extension
-ui_widgets:
+frontend:
   - slot: admin.section
-    src: widget.bundle.js
+    src: front.js
 config_schema:
   api_key:
     type: password

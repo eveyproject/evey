@@ -25,7 +25,7 @@ export const BRIDGE_SCRIPT = `
   window.addEventListener("message", function(e) {
     if (e.data && e.data.type === "init") {
       for (var i = 0; i < initCallbacks.length; i++) {
-        try { initCallbacks[i](e.data); } catch(err) { console.error("[evey-widget]", err); }
+        try { initCallbacks[i](e.data); } catch(err) { console.error("[evey-front]", err); }
       }
     }
   });

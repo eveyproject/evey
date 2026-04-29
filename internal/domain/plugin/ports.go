@@ -43,8 +43,8 @@ type PluginAnalyzer interface {
 	Analyze(dir string) (*AnalysisReport, error)
 }
 
-type WidgetCompiler interface {
-	CompileWidget(srcPath, outPath string) error
+type FrontCompiler interface {
+	CompileFront(srcPath, outPath string) error
 }
 
 // CSSSanitizer removes dangerous CSS constructs from plugin themes.

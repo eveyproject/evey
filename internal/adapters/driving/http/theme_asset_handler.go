@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -58,7 +57,7 @@ func (h *themeAssetHandler) handleThemeCSS(w http.ResponseWriter, r *http.Reques
 		http.Error(w, `{"message":"theme not found"}`, http.StatusNotFound)
 		return
 	}
-	if !slices.Contains(p.Capabilities, "ui.theme") {
+	if !p.IsTheme() {
 		span.SetStatus(otelcodes.Error, "not a theme")
 		http.Error(w, `{"message":"theme not found"}`, http.StatusNotFound)
 		return
@@ -110,7 +109,7 @@ func (h *themeAssetHandler) handleThemeJS(w http.ResponseWriter, r *http.Request
 		http.Error(w, `{"message":"theme not found"}`, http.StatusNotFound)
 		return
 	}
-	if !slices.Contains(p.Capabilities, "ui.theme") {
+	if !p.IsTheme() {
 		span.SetStatus(otelcodes.Error, "not a theme")
 		http.Error(w, `{"message":"theme not found"}`, http.StatusNotFound)
 		return

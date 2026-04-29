@@ -29,10 +29,10 @@ func setupThemeAssetTest(t *testing.T) (*http.ServeMux, string, *pluginfakes.Fak
 
 	// dark-theme: a valid theme plugin
 	theme := &plugin.Plugin{
-		ID:           "dark",
-		Name:         "dark-theme",
-		Enabled:      true,
-		Capabilities: []string{"ui.theme"},
+		ID:      "dark",
+		Name:    "dark-theme",
+		Kind:    plugin.KindTheme,
+		Enabled: true,
 	}
 	require.NoError(t, repo.Create(context.Background(), theme))
 
@@ -68,8 +68,7 @@ func TestThemeCSS_Public_Success(t *testing.T) {
 func TestThemeCSS_NotTheme(t *testing.T) {
 	mux, _, repo, _ := setupThemeAssetTest(t)
 	require.NoError(t, repo.Create(context.Background(), &plugin.Plugin{
-		ID: "ext1", Name: "extension", Enabled: true,
-		Capabilities: []string{"ui.extension"},
+		ID: "ext1", Name: "extension", Kind: plugin.KindPlugin, Enabled: true,
 	}))
 
 	req := httptest.NewRequest("GET", "/api/v1/themes/ext1/theme.css", nil)
@@ -92,8 +91,7 @@ func TestThemeCSS_NotFound(t *testing.T) {
 func TestThemeCSS_Disabled(t *testing.T) {
 	mux, _, repo, _ := setupThemeAssetTest(t)
 	require.NoError(t, repo.Create(context.Background(), &plugin.Plugin{
-		ID: "off", Name: "off-theme", Enabled: false,
-		Capabilities: []string{"ui.theme"},
+		ID: "off", Name: "off-theme", Kind: plugin.KindTheme, Enabled: false,
 	}))
 
 	req := httptest.NewRequest("GET", "/api/v1/themes/off/theme.css", nil)
@@ -105,10 +103,8 @@ func TestThemeCSS_Disabled(t *testing.T) {
 
 func TestThemeCSS_FileNotFound(t *testing.T) {
 	mux, _, repo, dir := setupThemeAssetTest(t)
-	// Create a theme plugin but without the actual file on disk
 	require.NoError(t, repo.Create(context.Background(), &plugin.Plugin{
-		ID: "nocss", Name: "no-css-theme", Enabled: true,
-		Capabilities: []string{"ui.theme"},
+		ID: "nocss", Name: "no-css-theme", Kind: plugin.KindTheme, Enabled: true,
 	}))
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "nocss"), 0o755))
 	// Intentionally do NOT write theme.css
@@ -151,8 +147,7 @@ func TestThemeJS_Unauthorized(t *testing.T) {
 func TestThemeJS_NotTheme(t *testing.T) {
 	mux, token, repo, _ := setupThemeAssetTest(t)
 	require.NoError(t, repo.Create(context.Background(), &plugin.Plugin{
-		ID: "ext2", Name: "extension2", Enabled: true,
-		Capabilities: []string{"ui.extension"},
+		ID: "ext2", Name: "extension2", Kind: plugin.KindPlugin, Enabled: true,
 	}))
 
 	req := httptest.NewRequest("GET", "/api/v1/themes/ext2/theme.js", nil)
@@ -166,8 +161,7 @@ func TestThemeJS_NotTheme(t *testing.T) {
 func TestThemeJS_FileNotFound(t *testing.T) {
 	mux, token, repo, dir := setupThemeAssetTest(t)
 	require.NoError(t, repo.Create(context.Background(), &plugin.Plugin{
-		ID: "nojs", Name: "no-js-theme", Enabled: true,
-		Capabilities: []string{"ui.theme"},
+		ID: "nojs", Name: "no-js-theme", Kind: plugin.KindTheme, Enabled: true,
 	}))
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "nojs"), 0o755))
 	// Intentionally do NOT write theme.js

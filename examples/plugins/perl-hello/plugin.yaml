@@ -1,4 +1,5 @@
 name: perl-hello
+kind: plugin
 version: 1.0.0
 description: Example Perl plugin — stays alive as daemon
 author: Evey

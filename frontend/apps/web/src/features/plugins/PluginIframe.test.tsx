@@ -37,13 +37,13 @@ describe("PluginIframe", () => {
   it("renders nothing when no access token", () => {
     mockToken = null;
     const { container } = render(
-      <PluginIframe pluginId="p1" src="/widget.js" />,
+      <PluginIframe pluginId="p1" src="/front.js" />,
     );
     expect(container.innerHTML).toBe("");
   });
 
   it("fetches scoped plugin token from gateway", async () => {
-    render(<PluginIframe pluginId="p1" src="/widget.js" />);
+    render(<PluginIframe pluginId="p1" src="/front.js" />);
     await waitFor(() => expect(eveyFetchMock).toHaveBeenCalled());
     const [req] = eveyFetchMock.mock.calls[0];
     expect((req as { url: string }).url).toBe("/api/v1/plugins/p1/token");
@@ -51,23 +51,23 @@ describe("PluginIframe", () => {
   });
 
   it("injects scoped plugin token into srcdoc (not user access token)", async () => {
-    render(<PluginIframe pluginId="p1" src="/widget.js" />);
+    render(<PluginIframe pluginId="p1" src="/front.js" />);
     const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
     const srcdoc = iframe.getAttribute("srcdoc") ?? "";
     expect(srcdoc).toContain("SCOPED-PLUGIN-TOKEN");
     expect(srcdoc).not.toContain("USER-ACCESS-TOKEN");
-    expect(srcdoc).toContain("/api/v1/plugins/p1/widget.js");
+    expect(srcdoc).toContain("/api/v1/plugins/p1/front.js");
   });
 
   it("uses sandbox=allow-scripts", async () => {
-    render(<PluginIframe pluginId="p1" src="/widget.js" />);
+    render(<PluginIframe pluginId="p1" src="/front.js" />);
     const iframe = await screen.findByTitle(/p1/);
     expect(iframe).toHaveAttribute("sandbox", "allow-scripts");
   });
 
   it("shows error fallback when token issuance fails", async () => {
     eveyFetchMock.mockRejectedValueOnce(new Error("forbidden"));
-    render(<PluginIframe pluginId="p1" src="/widget.js" />);
+    render(<PluginIframe pluginId="p1" src="/front.js" />);
     await waitFor(() => {
       // error fallback uses translation key as text in test env
       expect(screen.queryByTitle(/p1/)).toBeNull();

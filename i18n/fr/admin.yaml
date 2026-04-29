@@ -36,8 +36,8 @@ plugin:
   sandboxed: Isolé
   hash: "Empreinte"
   hashCopied: "Empreinte copiée"
-  sandboxedWidget: Widget isolé
-  widgetLoadError: "Échec du chargement du widget"
+  sandboxedFront: Widget isolé
+  frontLoadError: "Échec du chargement du widget"
   state:
     running: "En cours d'exécution"
     starting: "Démarrage…"

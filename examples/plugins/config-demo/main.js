@@ -1,5 +1,5 @@
 // Config Demo Plugin — minimal stub
-// The interesting part is in plugin.yaml (config_schema) and widget.bundle.js
+// The interesting part is in plugin.yaml (config_schema) and front.js
 
 const grpc = require("@grpc/grpc-js");
 const protoLoader = require("@grpc/proto-loader");

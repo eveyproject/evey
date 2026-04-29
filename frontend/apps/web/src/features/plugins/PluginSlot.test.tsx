@@ -49,13 +49,13 @@ describe("PluginSlot", () => {
     });
   });
 
-  it("renders iframe for matching plugin widget", async () => {
+  it("renders iframe for matching plugin front module", async () => {
     mockEveyFetch.mockResolvedValue({
       plugins: [
         {
           id: "p1",
           enabled: true,
-          uiWidgets: [{ slot: "player.overlay", src: "widget.jsx" }],
+          frontend: [{ slot: "player.overlay", src: "front.jsx" }],
         },
       ],
     });
@@ -70,7 +70,7 @@ describe("PluginSlot", () => {
   it("skips disabled plugins", async () => {
     mockEveyFetch.mockResolvedValue({
       plugins: [
-        { id: "p1", enabled: false, uiWidgets: [{ slot: "sidebar.bottom", src: "w.jsx" }] },
+        { id: "p1", enabled: false, frontend: [{ slot: "sidebar.bottom", src: "w.jsx" }] },
       ],
     });
 
@@ -90,13 +90,13 @@ describe("PluginSlot", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("only renders widgets matching the slot name", async () => {
+  it("only renders front modules matching the slot name", async () => {
     mockEveyFetch.mockResolvedValue({
       plugins: [
         {
           id: "p1",
           enabled: true,
-          uiWidgets: [
+          frontend: [
             { slot: "home.section", src: "a.jsx" },
             { slot: "player.overlay", src: "b.jsx" },
           ],
@@ -109,15 +109,15 @@ describe("PluginSlot", () => {
     await waitFor(() => {
       const iframe = screen.getByTestId("plugin-iframe-p1");
       expect(iframe).toBeInTheDocument();
-      expect(iframe.getAttribute("data-src")).toBe("/api/v1/plugins/p1/widget.js");
+      expect(iframe.getAttribute("data-src")).toBe("/api/v1/plugins/p1/front.js");
     });
   });
 
-  it("renders multiple widgets from different plugins", async () => {
+  it("renders front modules from multiple plugins", async () => {
     mockEveyFetch.mockResolvedValue({
       plugins: [
-        { id: "p1", enabled: true, uiWidgets: [{ slot: "sidebar", src: "w1.jsx" }] },
-        { id: "p2", enabled: true, uiWidgets: [{ slot: "sidebar", src: "w2.jsx" }] },
+        { id: "p1", enabled: true, frontend: [{ slot: "sidebar", src: "w1.jsx" }] },
+        { id: "p2", enabled: true, frontend: [{ slot: "sidebar", src: "w2.jsx" }] },
       ],
     });
 

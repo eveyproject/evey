@@ -74,7 +74,7 @@ function detectThemeMode(): "dark" | "light" {
 
 function buildSrcdoc(pluginId: string, pluginToken: string): string {
   const themeVars = getThemeVars();
-  const scriptUrl = `/api/v1/plugins/${pluginId}/widget.js?token=${encodeURIComponent(pluginToken)}`;
+  const scriptUrl = `/api/v1/plugins/${pluginId}/front.js?token=${encodeURIComponent(pluginToken)}`;
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -189,7 +189,7 @@ export function PluginIframe({ pluginId, src: _src, context }: PluginIframeProps
   if (error) {
     return (
       <div style={{ color: "var(--text-muted)", padding: "8px 0", fontSize: "0.875rem" }}>
-        {t("admin.plugin.widgetLoadError")}
+        {t("admin.plugin.frontLoadError")}
       </div>
     );
   }
@@ -209,7 +209,7 @@ export function PluginIframe({ pluginId, src: _src, context }: PluginIframeProps
         overflow: "hidden",
         display: "block",
       }}
-      title={`${t("admin.plugin.sandboxedWidget")} - ${pluginId}`}
+      title={`${t("admin.plugin.sandboxedFront")} - ${pluginId}`}
     />
   );
 }

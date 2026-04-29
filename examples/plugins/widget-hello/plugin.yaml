@@ -1,11 +1,10 @@
-name: hello-widget
+name: hello-front
+kind: plugin
 version: 1.0.0
-description: Simple hello-world widget demonstrating the postMessage bridge
+description: Simple hello-world front module demonstrating the postMessage bridge
 author: evey-examples
 language: nodejs
-entrypoint: widget.bundle.js
-capabilities:
-  - ui.extension
-ui_widgets:
+entrypoint: front.js
+frontend:
   - slot: home.section
-    src: widget.bundle.js
+    src: front.js

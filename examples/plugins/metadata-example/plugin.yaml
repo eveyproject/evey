@@ -1,4 +1,5 @@
 name: example-metadata
+kind: plugin
 version: 1.0.0
 description: Example metadata provider plugin
 author: evey-examples

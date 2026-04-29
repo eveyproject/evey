@@ -1083,7 +1083,7 @@ func TestParseClientProfile_InvalidValues(t *testing.T) {
 func TestListThemes_OK(t *testing.T) {
 	mux, token, repo, _ := setupPluginAssetTest(t)
 	_ = repo.Create(context.Background(), &plugin.Plugin{
-		ID: "theme1", Name: "Dark Theme", Enabled: true, Capabilities: []string{"ui.theme"},
+		ID: "theme1", Name: "Dark Theme", Kind: plugin.KindTheme, Enabled: true,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/themes", nil)

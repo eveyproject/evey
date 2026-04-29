@@ -1,4 +1,5 @@
 name: php-hello
+kind: plugin
 version: 1.0.0
 description: Example PHP plugin — stays alive as daemon
 author: Evey

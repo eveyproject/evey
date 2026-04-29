@@ -36,8 +36,8 @@ plugin:
   sandboxed: "沙箱"
   hash: "哈希值"
   hashCopied: "哈希值已复制"
-  sandboxedWidget: "沙箱小部件"
-  widgetLoadError: "小部件加载失败"
+  sandboxedFront: "沙箱小部件"
+  frontLoadError: "小部件加载失败"
   state:
     running: "运行中"
     starting: "启动中…"

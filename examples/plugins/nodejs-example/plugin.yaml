@@ -1,4 +1,5 @@
 name: nodejs-hello
+kind: plugin
 version: 1.0.0
 description: Example Node.js plugin — logs media events
 author: Evey

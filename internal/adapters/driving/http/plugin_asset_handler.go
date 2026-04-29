@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -134,7 +133,7 @@ func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Req
 		if !p.Enabled {
 			continue
 		}
-		if slices.Contains(p.Capabilities, "ui.theme") {
+		if p.IsTheme() {
 			result = append(result, themeEntry{ID: p.ID, Name: p.Name})
 		}
 	}

@@ -1,13 +1,13 @@
 package fakes
 
-type FakeWidgetCompiler struct {
+type FakeFrontCompiler struct {
 	Err error
 }
 
-func NewFakeWidgetCompiler() *FakeWidgetCompiler {
-	return &FakeWidgetCompiler{}
+func NewFakeFrontCompiler() *FakeFrontCompiler {
+	return &FakeFrontCompiler{}
 }
 
-func (c *FakeWidgetCompiler) CompileWidget(_, _ string) error {
+func (c *FakeFrontCompiler) CompileFront(_, _ string) error {
 	return c.Err
 }

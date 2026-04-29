@@ -36,8 +36,8 @@ plugin:
   sandboxed: Aislado
   hash: "Hash"
   hashCopied: "Hash copiado"
-  sandboxedWidget: Widget aislado
-  widgetLoadError: Error al cargar el widget
+  sandboxedFront: Widget aislado
+  frontLoadError: Error al cargar el widget
   state:
     running: En ejecución
     starting: "Iniciando…"

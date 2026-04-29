@@ -36,8 +36,8 @@ plugin:
   sandboxed: "सैंडबॉक्स्ड"
   hash: "हैश"
   hashCopied: "हैश कॉपी हो गया"
-  sandboxedWidget: "सैंडबॉक्स्ड विजेट"
-  widgetLoadError: "विजेट लोड करने में विफल"
+  sandboxedFront: "सैंडबॉक्स्ड विजेट"
+  frontLoadError: "विजेट लोड करने में विफल"
   state:
     running: "चल रहा है"
     starting: "शुरू हो रहा है…"
