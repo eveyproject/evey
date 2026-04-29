@@ -105,11 +105,6 @@ func validateManifest(m *plugin.PluginManifest) error {
 		return fmt.Errorf("manifest: version %q is not valid semver (expected X.Y.Z or X.Y.Z-label)", m.Version)
 	}
 
-	// Migrate ui_widgets fallback: if frontend is empty but ui_widgets provided, copy over.
-	if len(m.Frontend) == 0 && len(m.UIWidgets) > 0 {
-		m.Frontend = m.UIWidgets
-	}
-
 	if m.Kind == "" {
 		return errors.New("manifest: kind is required (use 'plugin' or 'theme')")
 	}

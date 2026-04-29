@@ -106,12 +106,6 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 		return nil, err
 	}
 
-	// Resolve frontend modules: prefer manifest.Frontend, fall back to UIWidgets.
-	frontend := manifest.Frontend
-	if len(frontend) == 0 {
-		frontend = manifest.UIWidgets
-	}
-
 	now := time.Now()
 	p := &Plugin{
 		ID:            id,
@@ -125,7 +119,7 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 		Capabilities:  manifest.Capabilities,
 		Permissions:   manifest.Permissions,
 		ConfigSchema:  manifest.ConfigSchema,
-		Frontend:      frontend,
+		Frontend:      manifest.Frontend,
 		ExternalFetch: manifest.ExternalFetch,
 		Config:        make(map[string]any),
 		SourceHash:    sourceHash,
@@ -155,7 +149,8 @@ func (m *PluginManifest) Validate() error {
 	if m.Version == "" {
 		return errors.New("manifest requires a version")
 	}
-	if m.Kind == KindTheme {
+	switch m.Kind {
+	case KindTheme:
 		if m.Language != "" {
 			return errors.New("manifest: theme must not have a language")
 		}
@@ -165,13 +160,14 @@ func (m *PluginManifest) Validate() error {
 		if len(m.Permissions) > 0 {
 			return errors.New("manifest: theme must not declare permissions")
 		}
-	} else {
-		// kind == plugin or empty (backward compat: kind empty = plugin)
+	case KindPlugin:
 		// Language check is intentionally delegated to the pluginrunner layer
 		// where full manifest validation (semver, capabilities) is performed.
 		if m.Entrypoint == "" {
 			return errors.New("manifest requires an entrypoint")
 		}
+	default:
+		return errors.New("manifest: kind is required (use 'plugin' or 'theme')")
 	}
 	return nil
 }
@@ -193,11 +189,8 @@ type PluginManifest struct {
 	Permissions    []string       `yaml:"permissions"`
 	MinEveyVersion string         `yaml:"min_evey_version"`
 	ConfigSchema   map[string]any `yaml:"config_schema"`
-	Frontend      []FrontModule  `yaml:"frontend"`
-	// UIWidgets is a fallback read field for backward compat (phase migration).
-	// Will be removed in phase 6. New manifests must use frontend:.
-	UIWidgets     []FrontModule  `yaml:"ui_widgets"`
-	ExternalFetch []string       `yaml:"external_fetch"`
+	Frontend       []FrontModule  `yaml:"frontend"`
+	ExternalFetch  []string       `yaml:"external_fetch"`
 }
 
 // PluginFinding is a single static-analysis finding with full detail.

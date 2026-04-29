@@ -109,7 +109,7 @@ func TestScan_RejectsTextFileWithTsExtension(t *testing.T) {
 	dir := t.TempDir()
 
 	// TypeScript source masquerading as a transport stream.
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "widget-bridge.ts"), []byte("export interface Widget {}\n"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "front-bridge.ts"), []byte("export interface FrontModule {}\n"), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "config.m2ts"), []byte("import x from 'y'\n"), 0644))
 	// Real TS / M2TS streams pass through.
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "real.ts"), []byte{0x47, 0x00, 0x00, 0x00, 0x00}, 0644))

@@ -37,8 +37,8 @@ plugin:
   sandboxed: Sandboxed
   hash: "Hash"
   hashCopied: "Hash kopiert"
-  sandboxedFront: Sandboxed-Widget
-  frontLoadError: Widget konnte nicht geladen werden
+  sandboxedFront: Sandboxed-Front-Modul
+  frontLoadError: Front-Modul konnte nicht geladen werden
   state:
     running: Läuft
     starting: "Startet..."

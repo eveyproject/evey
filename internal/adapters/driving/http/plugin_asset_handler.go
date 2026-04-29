@@ -35,17 +35,7 @@ type pluginAssetHandler struct {
 func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, repo domainplugin.PluginRepository, pluginDir string, sanitize cssSanitizer) {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo}
-	// Legacy redirect: /widget.js → /front.js (301 permanent)
-	mux.HandleFunc("GET /api/v1/plugins/{id}/widget.js", func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		http.Redirect(w, r, "/api/v1/plugins/"+id+"/front.js", http.StatusMovedPermanently)
-	})
 	mux.HandleFunc("GET /api/v1/plugins/{id}/front.js", authMw(h.handleFrontJS))
-	// Legacy redirect: plugins/{id}/theme.css → themes/{id}/theme.css (301 permanent)
-	mux.HandleFunc("GET /api/v1/plugins/{id}/theme.css", func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		http.Redirect(w, r, "/api/v1/themes/"+id+"/theme.css", http.StatusMovedPermanently)
-	})
 	mux.HandleFunc("GET /api/v1/plugins/themes", authMw(h.handleListThemes))
 }
 

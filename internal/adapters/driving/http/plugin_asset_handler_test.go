@@ -50,19 +50,6 @@ func setupPluginAssetTest(t *testing.T) (*http.ServeMux, string, *pluginfakes.Fa
 	return mux, token, repo, dir
 }
 
-func TestWidgetJS_LegacyRedirect(t *testing.T) {
-	// /widget.js must 301 to /front.js — clients must follow the redirect.
-	mux, token, _, _ := setupPluginAssetTest(t)
-
-	req := httptest.NewRequest("GET", "/api/v1/plugins/p1/widget.js", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusMovedPermanently, w.Code)
-	assert.Equal(t, "/api/v1/plugins/p1/front.js", w.Header().Get("Location"))
-}
-
 func TestFrontJS_Success(t *testing.T) {
 	mux, token, _, _ := setupPluginAssetTest(t)
 
@@ -128,18 +115,6 @@ func TestFrontJS_NoFrontend(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
-}
-
-func TestPluginThemeCSS_LegacyRedirect(t *testing.T) {
-	// /plugins/{id}/theme.css must 301 to /themes/{id}/theme.css
-	mux, _, _, _ := setupPluginAssetTest(t)
-
-	req := httptest.NewRequest("GET", "/api/v1/plugins/theme1/theme.css", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusMovedPermanently, w.Code)
-	assert.Equal(t, "/api/v1/themes/theme1/theme.css", w.Header().Get("Location"))
 }
 
 // --- preview endpoint tests ---

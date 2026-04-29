@@ -14,7 +14,7 @@ vi.mock("@evey/store", () => ({
     sel({ accessToken: mockToken }),
 }));
 
-vi.mock("./widget-bridge", () => ({
+vi.mock("./front-bridge", () => ({
   BRIDGE_SCRIPT: "/* bridge */",
 }));
 

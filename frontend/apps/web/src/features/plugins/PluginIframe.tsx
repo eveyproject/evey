@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast, useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api";
-import { BRIDGE_SCRIPT } from "./widget-bridge";
+import { BRIDGE_SCRIPT } from "./front-bridge";
 
 interface PluginIframeProps {
   pluginId: string;

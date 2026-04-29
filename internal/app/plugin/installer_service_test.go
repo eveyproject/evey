@@ -58,6 +58,7 @@ func tmpZip(t *testing.T, content string) string {
 func goManifest(name string) *plugindomain.PluginManifest {
 	return &plugindomain.PluginManifest{
 		Name:       name,
+		Kind:       plugindomain.KindPlugin,
 		Version:    "1.0.0",
 		Language:   "go",
 		Entrypoint: "./plugin",
@@ -67,6 +68,7 @@ func goManifest(name string) *plugindomain.PluginManifest {
 func goManifestVersioned(name, version string) *plugindomain.PluginManifest {
 	return &plugindomain.PluginManifest{
 		Name:       name,
+		Kind:       plugindomain.KindPlugin,
 		Version:    version,
 		Language:   "go",
 		Entrypoint: "./plugin",
@@ -500,6 +502,7 @@ func TestPreviewPlugin(t *testing.T) {
 
 	parser.Result = &plugindomain.PluginManifest{
 		Name:         "preview-plugin",
+		Kind:         plugindomain.KindPlugin,
 		Version:      "2.0.0",
 		Description:  "desc",
 		Author:       "author",

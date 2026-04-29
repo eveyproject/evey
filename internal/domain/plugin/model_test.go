@@ -38,6 +38,7 @@ func TestNewPluginFromManifest(t *testing.T) {
 		t.Parallel()
 		m := &plugin.PluginManifest{
 			Name:        "my-plugin",
+			Kind:        plugin.KindPlugin,
 			Version:     "1.0.0",
 			Description: "d",
 			Author:      "a",
@@ -105,10 +106,12 @@ func TestPluginManifest_Validate(t *testing.T) {
 		m       plugin.PluginManifest
 		wantErr bool
 	}{
-		{"valid", plugin.PluginManifest{Name: "plg", Version: "1.0.0", Entrypoint: "main.py"}, false},
-		{"missing name", plugin.PluginManifest{Version: "1.0.0", Entrypoint: "main.py"}, true},
-		{"missing version", plugin.PluginManifest{Name: "plg", Entrypoint: "main.py"}, true},
-		{"missing entrypoint", plugin.PluginManifest{Name: "plg", Version: "1.0.0"}, true},
+		{"valid plugin", plugin.PluginManifest{Name: "plg", Kind: plugin.KindPlugin, Version: "1.0.0", Entrypoint: "main.py"}, false},
+		{"valid theme", plugin.PluginManifest{Name: "thm", Kind: plugin.KindTheme, Version: "1.0.0"}, false},
+		{"missing name", plugin.PluginManifest{Kind: plugin.KindPlugin, Version: "1.0.0", Entrypoint: "main.py"}, true},
+		{"missing version", plugin.PluginManifest{Name: "plg", Kind: plugin.KindPlugin, Entrypoint: "main.py"}, true},
+		{"missing kind", plugin.PluginManifest{Name: "plg", Version: "1.0.0", Entrypoint: "main.py"}, true},
+		{"missing entrypoint", plugin.PluginManifest{Name: "plg", Kind: plugin.KindPlugin, Version: "1.0.0"}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

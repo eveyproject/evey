@@ -1,6 +1,6 @@
-// Config Demo Widget — displays the plugin's current configuration
+// Config Demo Front — displays the plugin's current configuration
 (function () {
-  var root = document.getElementById("evey-widget") || document.body;
+  var root = document.body;
 
   window.evey.onInit(function (ctx) {
     var config = (ctx && ctx.config) || {};

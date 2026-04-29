@@ -564,28 +564,6 @@ capabilities:
 	assert.ErrorContains(t, err, "unknown capability")
 }
 
-func TestParsePlugin_UIWidgetsFallback(t *testing.T) {
-	// Legacy manifest uses ui_widgets; should be read into Frontend.
-	yml := `
-name: legacy-plugin
-kind: plugin
-version: "1.0.0"
-language: go
-entrypoint: ./plugin
-ui_widgets:
-  - slot: player.overlay
-    src: overlay.js
-`
-	zipPath := createTestZip(t, "plugin.yaml", yml)
-	parser := NewManifestParser()
-
-	m, err := parser.Parse(zipPath)
-	require.NoError(t, err)
-	require.Len(t, m.Frontend, 1)
-	assert.Equal(t, "player.overlay", m.Frontend[0].Slot)
-	assert.Equal(t, "overlay.js", m.Frontend[0].Src)
-}
-
 func TestParseKindEmpty_Rejected(t *testing.T) {
 	// New manifests must declare kind explicitly; migrateManifest (installer layer)
 	// handles old manifests before validateManifest is called.
