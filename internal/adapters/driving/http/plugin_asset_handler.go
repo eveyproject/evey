@@ -51,10 +51,14 @@ func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 }
 
 // frontCSP builds the Content-Security-Policy for plugin front modules.
-// connect-src is derived from the plugin's ExternalFetch allow-list once that
-// field exists on the model; for now there is no such field, so it is 'none'.
-func frontCSP(_ []string) string {
-	return "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data: blob:; font-src data:"
+// connect-src is populated from the plugin's ExternalFetch allow-list so only
+// explicitly declared hostnames are reachable from within the module.
+func frontCSP(extFetch []string) string {
+	connectSrc := "'none'"
+	if len(extFetch) > 0 {
+		connectSrc = strings.Join(extFetch, " ")
+	}
+	return "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src " + connectSrc + "; img-src data: blob:; font-src data:"
 }
 
 func (h *pluginAssetHandler) handleFrontJS(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +83,7 @@ func (h *pluginAssetHandler) handleFrontJS(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	// Only plugins with frontend extension points expose a front module.
-	if len(p.UIWidgets) == 0 {
+	if len(p.Frontend) == 0 {
 		span.SetStatus(otelcodes.Error, "no frontend")
 		http.Error(w, `{"message":"plugin not found"}`, http.StatusNotFound)
 		return
@@ -102,7 +106,7 @@ func (h *pluginAssetHandler) handleFrontJS(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/javascript")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Security-Policy", frontCSP(nil))
+	w.Header().Set("Content-Security-Policy", frontCSP(p.ExternalFetch))
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	if _, writeErr := w.Write(data); writeErr != nil {
 		return

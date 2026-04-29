@@ -109,6 +109,11 @@ message PluginRuntime {
   bool available = 6;
 }
 
+message FrontModule {
+  string slot = 1;
+  string src = 2;
+}
+
 message Plugin {
   string id = 1;
   string name = 2;
@@ -125,6 +130,9 @@ message Plugin {
   string source_hash = 13;
   PluginAnalysisReport analysis_report = 14;
   string error_message = 15;
+  string kind = 16;
+  repeated FrontModule frontend = 17;
+  repeated string external_fetch = 18;
 }
 
 // PluginAnalysisReport exposes the static-analysis warnings recorded at

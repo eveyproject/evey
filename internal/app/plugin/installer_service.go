@@ -261,7 +261,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		}
 	}
 
-	if p.InstallDir != "" && slices.Contains(p.Capabilities, "ui.theme") {
+	if p.InstallDir != "" && p.IsTheme() {
 		jsPath := filepath.Join(p.InstallDir, "theme.js")
 		if raw, readErr := os.ReadFile(jsPath); readErr == nil {
 			scanErr, scanWarns := themejs.Scan(raw)

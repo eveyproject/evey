@@ -4,7 +4,7 @@ import { eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { PluginIframe } from "./PluginIframe";
 
-interface UIWidget {
+interface FrontModule {
   slot: string;
   src: string;
 }
@@ -12,7 +12,7 @@ interface UIWidget {
 interface PluginInfo {
   id: string;
   enabled: boolean;
-  uiWidgets?: UIWidget[];
+  frontend?: FrontModule[];
   capabilities?: string[];
 }
 
@@ -59,15 +59,15 @@ export function PluginSlot({ name, context }: PluginSlotProps) {
   });
 
   const plugins = data?.plugins ?? [];
-  const matches: { pluginId: string; widgetUrl: string }[] = [];
+  const matches: { pluginId: string; frontUrl: string }[] = [];
 
   for (const plugin of plugins) {
     if (!plugin.enabled || !plugin.id) continue;
-    for (const widget of plugin.uiWidgets ?? []) {
-      if (widget.slot === name) {
+    for (const mod of plugin.frontend ?? []) {
+      if (mod.slot === name) {
         matches.push({
           pluginId: plugin.id,
-          widgetUrl: `/api/v1/plugins/${plugin.id}/widget.js`,
+          frontUrl: `/api/v1/plugins/${plugin.id}/front.js`,
         });
       }
     }
@@ -79,7 +79,7 @@ export function PluginSlot({ name, context }: PluginSlotProps) {
     <>
       {matches.map((m) => (
         <PluginErrorBoundary key={m.pluginId} pluginId={m.pluginId}>
-          <PluginIframe pluginId={m.pluginId} src={m.widgetUrl} context={context} />
+          <PluginIframe pluginId={m.pluginId} src={m.frontUrl} context={context} />
         </PluginErrorBoundary>
       ))}
     </>

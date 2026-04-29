@@ -15,19 +15,24 @@ var pluginStateToProto = map[plugin.PluginStatus]eveyv1.PluginState{
 
 func pluginToProto(p *plugin.Plugin) *eveyv1.Plugin {
 	pb := &eveyv1.Plugin{
-		Id:           p.ID,
-		Name:         p.Name,
-		Description:  p.Description,
-		Version:      p.Version,
-		Author:       p.Author,
-		Language:     p.Language,
-		Enabled:      p.Enabled,
-		State:        pluginStateToProto[p.Status],
-		InstalledAt:  toTimestamppb(p.InstalledAt),
-		Permissions:  p.Permissions,
-		Capabilities: p.Capabilities,
-		SourceHash:   p.SourceHash,
-		ErrorMessage: p.ErrorMessage,
+		Id:            p.ID,
+		Name:          p.Name,
+		Description:   p.Description,
+		Version:       p.Version,
+		Author:        p.Author,
+		Language:      p.Language,
+		Enabled:       p.Enabled,
+		State:         pluginStateToProto[p.Status],
+		InstalledAt:   toTimestamppb(p.InstalledAt),
+		Permissions:   p.Permissions,
+		Capabilities:  p.Capabilities,
+		SourceHash:    p.SourceHash,
+		ErrorMessage:  p.ErrorMessage,
+		Kind:          string(p.Kind),
+		ExternalFetch: p.ExternalFetch,
+	}
+	for _, m := range p.Frontend {
+		pb.Frontend = append(pb.Frontend, &eveyv1.FrontModule{Slot: m.Slot, Src: m.Src})
 	}
 	if p.AnalysisReport != nil {
 		rep := &eveyv1.PluginAnalysisReport{
