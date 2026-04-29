@@ -247,7 +247,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		p.InstallDir = installDir
 	}
 
-	if p.InstallDir != "" && slices.Contains(p.Capabilities, "ui.theme") && s.cssSanitizer != nil {
+	if p.InstallDir != "" && p.IsTheme() && s.cssSanitizer != nil {
 		themePath := filepath.Join(p.InstallDir, "theme.css")
 		if raw, readErr := os.ReadFile(themePath); readErr == nil {
 			sanitized, warns := s.cssSanitizer.SanitizeCSS(raw)

@@ -36,8 +36,7 @@ func TestInstallPlugin_CSSSanitizer_InvokedOnUITheme(t *testing.T) {
 	)
 
 	parser.Result = &plugindomain.PluginManifest{
-		Name: "themed", Version: "1.0.0", Language: "css",
-		Capabilities: []string{"ui.theme"},
+		Name: "themed", Version: "1.0.0", Kind: plugindomain.KindTheme,
 	}
 
 	// Pre-create installDir+theme.css so installer.Extract no-op + os.ReadFile works.
@@ -88,8 +87,7 @@ func TestInstallPlugin_CSSSanitizer_RewritesThemeFile(t *testing.T) {
 	)
 
 	parser.Result = &plugindomain.PluginManifest{
-		Name: "themed-real", Version: "1.0.0", Language: "css",
-		Capabilities: []string{"ui.theme"},
+		Name: "themed-real", Version: "1.0.0", Kind: plugindomain.KindTheme,
 	}
 
 	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "x"))
@@ -325,8 +323,7 @@ func TestInstallPlugin_CSSSanitizer_NoWarnings_DoesNotRewrite(t *testing.T) {
 		appplugin.InstallerWithCSSSanitizer(sanitizer),
 	)
 	parser.Result = &plugindomain.PluginManifest{
-		Name: "no-warn-theme", Version: "1.0.0", Language: "css",
-		Capabilities: []string{"ui.theme"},
+		Name: "no-warn-theme", Version: "1.0.0", Kind: plugindomain.KindTheme,
 	}
 
 	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "x"))
