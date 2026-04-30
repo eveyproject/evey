@@ -45,12 +45,24 @@ const STATE_LABEL_KEYS: Record<string, string> = {
 
 interface ConfigFieldSchema {
   type?: string;
+  label?: string;
   description?: string;
   default?: unknown;
   required?: boolean;
-  options?: string[];
+  // YAML accepts either a flat list of strings or a list of {value,label}
+  // objects (the documented standard form). Both shapes are normalised at
+  // render time.
+  options?: Array<string | { value: string; label?: string }>;
   min?: number;
   max?: number;
+}
+
+function normaliseOptions(opts: ConfigFieldSchema["options"]): Array<{ value: string; label: string }> {
+  return (opts ?? []).map((o) =>
+    typeof o === "string"
+      ? { value: o, label: o }
+      : { value: String(o.value), label: o.label ?? String(o.value) },
+  );
 }
 
 function validateField(key: string, value: string, schema: ConfigFieldSchema): string | undefined {
@@ -104,7 +116,7 @@ function SchemaField({
             label={label}
             value={value}
             onChange={onChange}
-            options={(schema.options ?? []).map((o) => ({ value: o, label: o }))}
+            options={normaliseOptions(schema.options)}
             error={error}
           />
           {description}
