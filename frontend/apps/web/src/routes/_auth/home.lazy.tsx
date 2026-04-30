@@ -446,6 +446,7 @@ function HomePage() {
           />
         ) : (
           <>
+            <PluginSlot name="home.section" />
             {sections.map((cfg) => {
               const ft = cfg.feedType ?? "";
               if (ft.startsWith("library:")) {
@@ -463,7 +464,6 @@ function HomePage() {
               .map((lib) => (
                 <LibrarySlider key={lib.id} libraryId={lib.id!} name={lib.name ?? t("media.home.library")} libraryType={lib.type} />
               ))}
-            <PluginSlot name="home.section" />
           </>
         )}
       </div>
