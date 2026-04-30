@@ -8,7 +8,11 @@ import * as THREE from "three";
 import type { WeatherProfile } from "./types";
 
 // Sky shader: vertical gradient + faint sun/moon glow at upper-left.
+// Explicit precision in BOTH vertex + fragment so uniforms with the same
+// name link correctly across stages (three.js otherwise injects different
+// platform defaults and the GL linker rejects "uniform not linkable").
 const skyVS = /* glsl */ `
+  precision highp float;
   varying vec2 vUv;
   void main() {
     vUv = uv;
@@ -16,7 +20,7 @@ const skyVS = /* glsl */ `
   }
 `;
 const skyFS = /* glsl */ `
-  precision mediump float;
+  precision highp float;
   uniform vec3 uTop;
   uniform vec3 uBottom;
   uniform float uSun;
@@ -37,6 +41,7 @@ const skyFS = /* glsl */ `
 
 // Orb shader: noise-displaced sphere, pulsing fresnel rim.
 const orbVS = /* glsl */ `
+  precision highp float;
   uniform float uTime;
   varying vec3 vNormal;
   varying vec3 vViewDir;
@@ -71,7 +76,7 @@ const orbVS = /* glsl */ `
   }
 `;
 const orbFS = /* glsl */ `
-  precision mediump float;
+  precision highp float;
   uniform vec3 uColor;
   uniform float uTime;
   varying vec3 vNormal;

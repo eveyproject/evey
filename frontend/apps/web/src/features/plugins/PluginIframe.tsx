@@ -95,7 +95,13 @@ function buildSrcdoc(pluginId: string, entryPath: string, pluginToken: string, e
   // allowed via explicit origin. Use window.location.origin so the CSP
   // matches the parent host the iframe is embedded in.
   const hostOrigin = typeof window !== "undefined" ? window.location.origin : "";
-  const connectSrc = externalFetch.length > 0 ? externalFetch.join(" ") : "'none'";
+  // CSP origins must be absolute (scheme + host). The manifest declares
+  // bare hostnames in external_fetch (api.open-meteo.com); prefix https://
+  // so the browser doesn't resolve them against the iframe's about:srcdoc
+  // base, which would yield invalid `about://hostname` directives.
+  const connectSrc = externalFetch.length > 0
+    ? externalFetch.map((h) => (/^https?:\/\//i.test(h) ? h : `https://${h}`)).join(" ")
+    : "'none'";
   const csp = [
     "default-src 'none'",
     `script-src ${hostOrigin} 'unsafe-inline'`,
