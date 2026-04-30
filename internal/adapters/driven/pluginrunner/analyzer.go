@@ -230,8 +230,8 @@ type StaticAnalyzer struct{}
 
 func NewStaticAnalyzer() *StaticAnalyzer { return &StaticAnalyzer{} }
 
-func (a *StaticAnalyzer) Analyze(dir string) (*plugin.AnalysisReport, error) {
-	raw, err := AnalyzePlugin(dir)
+func (a *StaticAnalyzer) Analyze(dir, webRoot string) (*plugin.AnalysisReport, error) {
+	raw, err := AnalyzePluginWithWebRoot(dir, webRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -278,8 +278,26 @@ func severityLabel(s AnalysisSeverity) string {
 }
 
 // AnalyzePlugin scans a plugin directory for suspicious patterns.
+// Equivalent to AnalyzePluginWithWebRoot(dir, "") — kept for tests/callers
+// that don't carry a manifest.
 func AnalyzePlugin(dir string) (*AnalysisReport, error) {
+	return AnalyzePluginWithWebRoot(dir, "")
+}
+
+// AnalyzePluginWithWebRoot scans a plugin directory but skips source-code
+// pattern matching for files under webRoot. Files under webRoot are still
+// counted (FileCount), still scanned for `unvendored_deps`, and still get
+// URL extraction — but the regex-vs-minified-JS noise factory is silenced.
+// The browser-side defence (iframe sandbox + meta CSP) is the actual
+// security boundary for that content; the analyzer's job here is to catch
+// bad host-executed code (entrypoint, libraries it loads).
+func AnalyzePluginWithWebRoot(dir, webRoot string) (*AnalysisReport, error) {
 	report := &AnalysisReport{Safe: true}
+
+	cleanWebRoot := ""
+	if webRoot != "" && filepath.Clean(webRoot) != "." {
+		cleanWebRoot = filepath.Clean(webRoot)
+	}
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
@@ -363,6 +381,19 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 		relPath, relErr := filepath.Rel(dir, path)
 		if relErr != nil {
 			relPath = path
+		}
+
+		// Skip source-code pattern rules for files under web_root: those
+		// are bundled frontend assets (esbuild/Vite output) served as-is to
+		// the browser, where the iframe sandbox + meta CSP + per-file size
+		// + MIME nosniff + CORS gating are the actual security boundary.
+		// Regex matching against minified JS produces false positives at
+		// every other line (RegExp.exec, Class.Fetch, etc.).
+		if cleanWebRoot != "" {
+			rel := filepath.Clean(relPath)
+			if rel == cleanWebRoot || strings.HasPrefix(rel, cleanWebRoot+string(filepath.Separator)) {
+				return nil
+			}
 		}
 
 		findings, urls, scanErr := scanFile(path, relPath)

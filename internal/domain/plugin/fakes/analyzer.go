@@ -13,7 +13,7 @@ func NewFakePluginAnalyzer() *FakePluginAnalyzer {
 	}
 }
 
-func (f *FakePluginAnalyzer) Analyze(_ string) (*plugin.AnalysisReport, error) {
+func (f *FakePluginAnalyzer) Analyze(_, _ string) (*plugin.AnalysisReport, error) {
 	if f.Err != nil {
 		return nil, f.Err
 	}

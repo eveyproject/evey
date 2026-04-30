@@ -40,7 +40,14 @@ type PluginLogger interface {
 }
 
 type PluginAnalyzer interface {
-	Analyze(dir string) (*AnalysisReport, error)
+	// Analyze walks the plugin directory and emits findings. webRoot, when
+	// non-empty, marks a subdir whose contents are bundled frontend assets
+	// served as-is to the browser — those files are scanned for size/URL
+	// extraction but skip the source-code pattern rules (regex matching on
+	// minified bundles produces noise that drowns the signal). The backend
+	// entrypoint and any unbundled scripts outside webRoot stay fully
+	// scrutinised.
+	Analyze(dir, webRoot string) (*AnalysisReport, error)
 }
 
 type FrontCompiler interface {

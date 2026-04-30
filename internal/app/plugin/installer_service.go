@@ -288,7 +288,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	}
 
 	if s.analyzer != nil && p.InstallDir != "" {
-		report, analyzeErr := s.analyzer.Analyze(p.InstallDir)
+		report, analyzeErr := s.analyzer.Analyze(p.InstallDir, p.WebRoot)
 		if analyzeErr != nil {
 			// Fail-closed: without a clean analysis we cannot grant install —
 			// a third-party plugin could ship obfuscated malware that the
@@ -396,7 +396,7 @@ func (s *InstallerService) PreviewPlugin(_ context.Context, zipPath string) (*Pl
 				}
 			}()
 			if extErr := s.installer.Extract(zipPath, tmpDir); extErr == nil {
-				report, analyzeErr := s.analyzer.Analyze(tmpDir)
+				report, analyzeErr := s.analyzer.Analyze(tmpDir, manifest.WebRoot)
 				if analyzeErr == nil {
 					preview.Analysis = report
 				}

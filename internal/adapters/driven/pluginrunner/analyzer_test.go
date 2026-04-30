@@ -718,7 +718,7 @@ func TestStaticAnalyzer_Analyze_CleanPlugin(t *testing.T) {
 	writeFile(t, dir, "main.py", `print("hello")`)
 
 	a := NewStaticAnalyzer()
-	report, err := a.Analyze(dir)
+	report, err := a.Analyze(dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -735,7 +735,7 @@ func TestStaticAnalyzer_Analyze_UnsafePlugin(t *testing.T) {
 	writeFile(t, dir, "bad.py", `os.system("whoami")`)
 
 	a := NewStaticAnalyzer()
-	report, err := a.Analyze(dir)
+	report, err := a.Analyze(dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -752,7 +752,7 @@ func TestStaticAnalyzer_Analyze_WithURLs(t *testing.T) {
 	writeFile(t, dir, "net.py", `url = "https://api.example.com/v1"`)
 
 	a := NewStaticAnalyzer()
-	report, err := a.Analyze(dir)
+	report, err := a.Analyze(dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -763,7 +763,7 @@ func TestStaticAnalyzer_Analyze_WithURLs(t *testing.T) {
 
 func TestStaticAnalyzer_Analyze_InvalidDir(t *testing.T) {
 	a := NewStaticAnalyzer()
-	_, err := a.Analyze("/nonexistent/path/to/plugin")
+	_, err := a.Analyze("/nonexistent/path/to/plugin", "")
 	if err == nil {
 		t.Error("expected error for nonexistent dir")
 	}
@@ -1410,5 +1410,58 @@ func TestAnalyze_Base64PipeToShell_Critical(t *testing.T) {
 				t.Errorf("expected obfuscation critical finding for %q", code)
 			}
 		})
+	}
+}
+
+func TestAnalyzePlugin_WebRootSkipsPatternRules(t *testing.T) {
+	dir := t.TempDir()
+	// Backend (host-executed): MUST be scanned for shell exec.
+	writeFile(t, dir, "main.js", `require("child_process").exec("rm -rf /")`)
+	// Frontend bundle under web_root=dist: minified JS that LOOKS like it
+	// has eval/exec but is actually browser-side code, never runs on host.
+	// Pattern rules must skip this file.
+	writeFile(t, dir, "dist/index.js", `var r=/x/g;r.exec(s);System(x);eval("noop");`)
+
+	report, err := AnalyzePluginWithWebRoot(dir, "dist")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Backend finding still fires.
+	var hasBackendCrit bool
+	for _, f := range report.Findings {
+		if f.File == "main.js" && f.Severity == SeverityCritical {
+			hasBackendCrit = true
+		}
+		// Anything from dist/ would be wrong.
+		if filepath.Dir(f.File) == "dist" {
+			t.Errorf("unexpected finding under web_root: %+v", f)
+		}
+	}
+	if !hasBackendCrit {
+		t.Error("backend exec must still be flagged when web_root is set")
+	}
+	if report.TotalFilesScanned != 2 {
+		t.Errorf("expected both files counted (web_root file just skips pattern rules), got %d", report.TotalFilesScanned)
+	}
+}
+
+func TestAnalyzePlugin_WebRootDotMeansNoSkip(t *testing.T) {
+	// web_root: "." means "expose the entire plugin dir" — analyzer must not
+	// then silence pattern rules globally (that would defeat the analyzer).
+	dir := t.TempDir()
+	writeFile(t, dir, "main.js", `require("child_process").exec("evil")`)
+
+	report, err := AnalyzePluginWithWebRoot(dir, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hasCrit bool
+	for _, f := range report.Findings {
+		if f.Severity == SeverityCritical {
+			hasCrit = true
+		}
+	}
+	if !hasCrit {
+		t.Error("web_root='.' must NOT silence pattern rules — plugin root scan stays active")
 	}
 }
