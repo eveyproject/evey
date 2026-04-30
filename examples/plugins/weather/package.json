@@ -2,7 +2,6 @@
   "name": "evey-plugin-weather",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "build": "esbuild src/index.tsx --bundle --format=iife --target=es2020 --jsx=automatic --minify --outfile=dist/index.js --loader:.js=jsx --define:process.env.NODE_ENV=\\\"production\\\""
   },
