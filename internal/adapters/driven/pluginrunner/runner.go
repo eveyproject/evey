@@ -257,7 +257,13 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(parentCtx, pluginExecTimeout)
+	// Detach from the caller's request context: the plugin must outlive the
+	// HTTP/gRPC request that triggered Start. Without WithoutCancel, the
+	// request ctx is canceled as soon as the install handler returns, which
+	// in turn cancels the cmd ctx — making connectIPC's Initialize RPC fail
+	// with "code = Canceled" 200ms after the process spawns.
+	// We keep parentCtx's deadline (if any) so a true timeout still aborts.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(parentCtx), pluginExecTimeout)
 	cmd := exec.CommandContext(ctx, cmdName, cmdArgs...)
 	if p.InstallDir != "" {
 		cmd.Dir = p.InstallDir
