@@ -9,7 +9,12 @@ RUN apk add --no-cache ffmpeg curl postgresql-client gcc musl-dev linux-headers 
     go install github.com/bufbuild/buf/cmd/buf@v1.47.2 && \
     npm install -g esbuild@0.25.12 @grpc/grpc-js@1.12.6 @grpc/proto-loader@0.7.13 && \
     ln -sf /usr/bin/lua5.4 /usr/bin/lua && \
-    ln -sf /usr/bin/php83 /usr/bin/php
+    ln -sf /usr/bin/php83 /usr/bin/php && \
+    # Alpine ships bwrap without the setuid-root bit; without it bwrap can't
+    # call unshare() under Docker's default seccomp profile, which kills the
+    # plugin sandbox. Setuid is the upstream-recommended fallback when the
+    # kernel restricts unprivileged user namespaces.
+    chmod u+s /usr/bin/bwrap
 
 ENV TZ=Europe/Paris
 

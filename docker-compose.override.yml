@@ -31,19 +31,20 @@ services:
       EVEY_LOG_LEVEL: debug
       EVEY_RATELIMIT_LOGIN_MAX: "1000"
       EVEY_RATELIMIT_GLOBAL_MAX: "10000"
+    # Docker's default seccomp profile blocks unshare(CLONE_NEWUSER) unless
+    # the caller has CAP_SYS_ADMIN. bwrap-as-root inside the container has
+    # the cap dropped, so its sandbox setup fails. Disabling seccomp for
+    # this dev container is the minimal fix — no extra capabilities granted,
+    # no privileged mode. Production deploys typically run under a real
+    # init that doesn't constrain unshare via seccomp.
+    security_opt:
+      - seccomp=unconfined
     # bwrap needs CAP_SYS_ADMIN to create user/pid/net namespaces. Docker
     # drops it by default (kernel.unprivileged_userns_clone=0 inside the
     # container), so plugin sandbox setup fails with "No permissions to
     # creating new namespace". Granting the cap restores plugin runtime in
     # dev. Production deploys should use the default unprivileged user
     # namespace path (host sysctl=1).
-    # bwrap creates user/pid/net namespaces via unshare(). Docker Desktop's
-    # default seccomp profile blocks unshare(CLONE_NEWUSER) for unprivileged
-    # processes (more restrictive than vanilla Docker). Drop seccomp here so
-    # bwrap can actually sandbox plugins.
-    security_opt:
-      - seccomp=unconfined
-      - apparmor=unconfined
     volumes:
       - .:/app
       - ./evey-data:/data
