@@ -89,14 +89,20 @@ function buildSrcdoc(pluginId: string, entryPath: string, pluginToken: string, e
   const themeVars = getThemeVars();
   const baseHref = `/api/v1/plugins/${pluginId}/assets/`;
   const scriptUrl = `${baseHref}${entryPath}?token=${encodeURIComponent(pluginToken)}`;
+  // Sandbox iframe (allow-scripts only, no allow-same-origin) gets an opaque
+  // origin where 'self' resolves to "no origin matches". Anything cross-
+  // origin, including scripts loaded from this very evey host, must be
+  // allowed via explicit origin. Use window.location.origin so the CSP
+  // matches the parent host the iframe is embedded in.
+  const hostOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const connectSrc = externalFetch.length > 0 ? externalFetch.join(" ") : "'none'";
   const csp = [
     "default-src 'none'",
-    "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
+    `script-src ${hostOrigin} 'unsafe-inline'`,
+    `style-src ${hostOrigin} 'unsafe-inline'`,
     `connect-src ${connectSrc}`,
-    "img-src 'self' data: blob:",
-    "font-src 'self' data:",
+    `img-src ${hostOrigin} data: blob:`,
+    `font-src ${hostOrigin} data:`,
   ].join("; ");
   return `<!DOCTYPE html>
 <html>

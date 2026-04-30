@@ -14,8 +14,13 @@ interface PluginInfo {
   enabled: boolean;
   frontend?: FrontModule[];
   capabilities?: string[];
+  // grpc-gateway protojson emits camelCase by default (webRoot, externalFetch)
+  // — accept both snake_case and camelCase to stay robust against gateway
+  // configuration quirks.
   web_root?: string;
+  webRoot?: string;
   external_fetch?: string[];
+  externalFetch?: string[];
 }
 
 interface ListPluginsResponse {
@@ -72,7 +77,8 @@ export function PluginSlot({ name, context }: PluginSlotProps) {
 
   for (const plugin of plugins) {
     if (!plugin.enabled || !plugin.id) continue;
-    const webRoot = plugin.web_root ?? "";
+    const webRoot = plugin.webRoot ?? plugin.web_root ?? "";
+    const externalFetch = plugin.externalFetch ?? plugin.external_fetch ?? [];
     for (const mod of plugin.frontend ?? []) {
       if (mod.slot !== name) continue;
       // Strip web_root prefix from the manifest src so the URL the iframe
@@ -87,7 +93,7 @@ export function PluginSlot({ name, context }: PluginSlotProps) {
       matches.push({
         pluginId: plugin.id,
         entryPath: entry,
-        externalFetch: plugin.external_fetch ?? [],
+        externalFetch,
       });
     }
   }

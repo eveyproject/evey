@@ -53,12 +53,21 @@ type analyzerRule struct {
 }
 
 var analyzerRules = []analyzerRule{
-	// Shell execution
-	{regexp.MustCompile(`(?i)(os\.system|subprocess\.(call|run|Popen)|exec\(|child_process\.exec|spawn\()`), SeverityCritical, "shell_exec", "shell command execution", nil},
+	// Shell execution — qualified calls (clear intent, no false positives).
+	{regexp.MustCompile(`(?i)(os\.system|subprocess\.(call|run|Popen)|child_process\.(exec|execSync|spawn|spawnSync))`), SeverityCritical, "shell_exec", "shell command execution", nil},
+	// Bare `exec(` / `spawn(` — only when preceded by a non-member-access
+	// boundary (space, start, ;, (, {, =, ,) so `regex.exec(`, `Class.spawn(`,
+	// `pool.exec(` don't trigger. Case-sensitive on the bare identifier
+	// because `Exec` / `Spawn` are class names in three.js / R3F.
+	{regexp.MustCompile(`(?:^|[\s;(,{=])(?:exec|spawn)\s*\(`), SeverityCritical, "shell_exec", "bare exec/spawn call", nil},
 	{regexp.MustCompile(`(?i)(os\.popen|commands\.getoutput|backtick)`), SeverityCritical, "shell_exec", "shell command execution via pipe", nil},
 
-	// Network — outbound connections
-	{regexp.MustCompile(`(?i)(socket\.connect|http\.request|urllib\.request|requests\.(get|post|put|delete)|fetch\(|axios\.|net\.Dial)`), SeverityWarning, "network", "outbound network connection", nil},
+	// Network — outbound connections.
+	// Qualified network APIs first (always meaningful).
+	{regexp.MustCompile(`(?i)(socket\.connect|http\.request|urllib\.request|requests\.(get|post|put|delete)|axios\.|net\.Dial)`), SeverityWarning, "network", "outbound network connection", nil},
+	// Bare `fetch(` only when not a member access. Lowercase only —
+	// `Fetch` / `prefetchFetch` / etc. are common identifiers in minified JS.
+	{regexp.MustCompile(`(?:^|[\s;(,{=])fetch\s*\(`), SeverityWarning, "network", "outbound fetch() call", nil},
 	{regexp.MustCompile(`(?i)(reverse.?shell|bind.?shell|nc\s+-[elp]|ncat\s|socat\s)`), SeverityCritical, "network", "potential reverse/bind shell", nil},
 
 	// Filesystem — dangerous access
@@ -66,8 +75,9 @@ var analyzerRules = []analyzerRule{
 	{regexp.MustCompile(`(?i)(shutil\.rmtree|rimraf|rm\s+-rf|os\.remove|unlink\()`), SeverityWarning, "filesystem", "recursive file deletion", nil},
 	{regexp.MustCompile(`(?i)(symlink|os\.link|os\.symlink|fs\.symlinkSync)`), SeverityWarning, "filesystem", "symlink creation", nil},
 
-	// Code obfuscation
-	{regexp.MustCompile(`(?i)(eval\(|exec\(|compile\(.*exec)`), SeverityCritical, "obfuscation", "dynamic code execution (eval/exec)", nil},
+	// Code obfuscation — `eval(` is always dangerous regardless of where it
+	// appears. `compile(...exec)` is Python-specific.
+	{regexp.MustCompile(`(?i)(eval\(|compile\(.*exec)`), SeverityCritical, "obfuscation", "dynamic code execution (eval/compile)", nil},
 	{regexp.MustCompile(`(?i)(base64\.b64decode|atob\(|Buffer\.from\(.*base64)`), SeverityWarning, "obfuscation", "base64 decoding (potential obfuscated payload)", nil},
 	{regexp.MustCompile(`\\x[0-9a-fA-F]{2}.*\\x[0-9a-fA-F]{2}.*\\x[0-9a-fA-F]{2}`), SeverityWarning, "obfuscation", "hex-encoded string sequence", nil},
 
@@ -122,7 +132,10 @@ var analyzerRules = []analyzerRule{
 	{regexp.MustCompile(`(?i)\bassert\s*\(\s*(base64_decode|gzinflate|str_rot13|\$_)`), SeverityCritical, "obfuscation", "PHP assert() with dynamic/encoded argument (code execution)", nil},
 	{regexp.MustCompile(`(?i)(chr\s*\(\s*\d+\s*\)\s*\.){3,}`), SeverityWarning, "obfuscation", "PHP chr() chain (potential string obfuscation)", nil},
 	{regexp.MustCompile(`(?i)str_rot13\s*\(`), SeverityWarning, "obfuscation", "PHP str_rot13 (common obfuscation technique)", nil},
-	{regexp.MustCompile(`(?i)(system\s*\(|passthru\s*\(|shell_exec\s*\(|popen\s*\(|proc_open\s*\()`), SeverityCritical, "shell_exec", "PHP shell execution function", nil},
+	// PHP shell execution. `system\(` was triggering on `THREE.System(`,
+	// `EffectSystem(`, etc. — capital S = class name, lowercase only. Also
+	// require the call NOT be a member access (no `.system(`).
+	{regexp.MustCompile(`(?:^|[^.\w])(?:system|passthru|shell_exec|popen|proc_open)\s*\(`), SeverityCritical, "shell_exec", "PHP shell execution function", []string{".php"}},
 
 	// Ruby — command execution
 	{regexp.MustCompile("(?i)(`[^`]*`)"), SeverityWarning, "shell_exec", "Ruby backtick command execution", []string{".rb"}},
@@ -154,6 +167,18 @@ var depManifests = map[string]bool{
 	"requirements.txt": true, "Pipfile": true, "pyproject.toml": true,
 	"package.json": true, "yarn.lock": true, "pnpm-lock.yaml": true,
 	"composer.json": true, "Gemfile": true, "go.mod": true,
+}
+
+// isDepLockfile returns true for lockfiles whose URL extraction would
+// flood the report with every transitive dependency's tarball.
+func isDepLockfile(name string) bool {
+	switch name {
+	case "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+		"Pipfile.lock", "poetry.lock", "composer.lock",
+		"Gemfile.lock", "go.sum":
+		return true
+	}
+	return false
 }
 
 // manifestDeclaresDeps best-effort scan: returns true when the manifest
@@ -284,20 +309,13 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 	return AnalyzePluginWithWebRoot(dir, "")
 }
 
-// AnalyzePluginWithWebRoot scans a plugin directory but skips source-code
-// pattern matching for files under webRoot. Files under webRoot are still
-// counted (FileCount), still scanned for `unvendored_deps`, and still get
-// URL extraction — but the regex-vs-minified-JS noise factory is silenced.
-// The browser-side defence (iframe sandbox + meta CSP) is the actual
-// security boundary for that content; the analyzer's job here is to catch
-// bad host-executed code (entrypoint, libraries it loads).
-func AnalyzePluginWithWebRoot(dir, webRoot string) (*AnalysisReport, error) {
+// AnalyzePluginWithWebRoot is the same as AnalyzePlugin: webRoot is no
+// longer used to silence pattern rules (we tightened the regexes instead
+// so `regex.exec(`, `Class.Fetch(`, `THREE.System(` etc. don't false-
+// positive on minified bundles). Kept for callers that already pass the
+// manifest's WebRoot — argument is accepted but unused.
+func AnalyzePluginWithWebRoot(dir, _ string) (*AnalysisReport, error) {
 	report := &AnalysisReport{Safe: true}
-
-	cleanWebRoot := ""
-	if webRoot != "" && filepath.Clean(webRoot) != "." {
-		cleanWebRoot = filepath.Clean(webRoot)
-	}
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
@@ -383,25 +401,17 @@ func AnalyzePluginWithWebRoot(dir, webRoot string) (*AnalysisReport, error) {
 			relPath = path
 		}
 
-		// Skip source-code pattern rules for files under web_root: those
-		// are bundled frontend assets (esbuild/Vite output) served as-is to
-		// the browser, where the iframe sandbox + meta CSP + per-file size
-		// + MIME nosniff + CORS gating are the actual security boundary.
-		// Regex matching against minified JS produces false positives at
-		// every other line (RegExp.exec, Class.Fetch, etc.).
-		if cleanWebRoot != "" {
-			rel := filepath.Clean(relPath)
-			if rel == cleanWebRoot || strings.HasPrefix(rel, cleanWebRoot+string(filepath.Separator)) {
-				return nil
-			}
-		}
-
 		findings, urls, scanErr := scanFile(path, relPath)
 		if scanErr != nil {
 			return scanErr
 		}
 		report.Findings = append(report.Findings, findings...)
-		report.URLs = append(report.URLs, urls...)
+		// Lockfiles list every transitive dep's tarball URL — that's not
+		// signal, just noise. Keep findings (the unvendored_deps warning
+		// fires on the manifest itself) but drop URL extraction here.
+		if !isDepLockfile(base) {
+			report.URLs = append(report.URLs, urls...)
+		}
 		return nil
 	})
 	if err != nil {

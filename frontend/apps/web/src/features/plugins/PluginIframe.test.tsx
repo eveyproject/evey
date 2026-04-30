@@ -69,13 +69,15 @@ describe("PluginIframe", () => {
     expect(srcdoc).toContain('<base href="/api/v1/plugins/p1/assets/">');
   });
 
-  it("injects meta CSP with default-src none and script-src self", async () => {
+  it("injects meta CSP with default-src none and script-src host origin", async () => {
     render(<PluginIframe pluginId="p1" src="index.js" />);
     const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
     const srcdoc = iframe.getAttribute("srcdoc") ?? "";
     expect(srcdoc).toContain('http-equiv="Content-Security-Policy"');
     expect(srcdoc).toContain("default-src 'none'");
-    expect(srcdoc).toContain("script-src 'self' 'unsafe-inline'");
+    // script-src uses the host origin, not 'self', because the sandboxed
+    // iframe has an opaque origin where 'self' matches nothing.
+    expect(srcdoc).toMatch(/script-src https?:\/\/[^ ]+ 'unsafe-inline'/);
   });
 
   it("CSP connect-src reflects the externalFetch list when provided", async () => {

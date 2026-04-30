@@ -1413,55 +1413,40 @@ func TestAnalyze_Base64PipeToShell_Critical(t *testing.T) {
 	}
 }
 
-func TestAnalyzePlugin_WebRootSkipsPatternRules(t *testing.T) {
+func TestAnalyzePlugin_MinifiedBundleNoFalsePositives(t *testing.T) {
+	// Realistic minified-bundle content: regex.exec, Class.Fetch,
+	// THREE.System are all standard JS APIs, not dangerous. The tightened
+	// patterns must not flag any of these as critical/warning.
 	dir := t.TempDir()
-	// Backend (host-executed): MUST be scanned for shell exec.
-	writeFile(t, dir, "main.js", `require("child_process").exec("rm -rf /")`)
-	// Frontend bundle under web_root=dist: minified JS that LOOKS like it
-	// has eval/exec but is actually browser-side code, never runs on host.
-	// Pattern rules must skip this file.
-	writeFile(t, dir, "dist/index.js", `var r=/x/g;r.exec(s);System(x);eval("noop");`)
+	writeFile(t, dir, "dist/index.js",
+		`var r=/x/g;r.exec(s);obj.Fetch();THREE.System.run();this.spawn();dispatch.fetch();a.exec(opts);`)
 
-	report, err := AnalyzePluginWithWebRoot(dir, "dist")
+	report, err := AnalyzePlugin(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Backend finding still fires.
-	var hasBackendCrit bool
 	for _, f := range report.Findings {
-		if f.File == "main.js" && f.Severity == SeverityCritical {
-			hasBackendCrit = true
+		if f.Category == "shell_exec" || f.Category == "network" {
+			t.Errorf("false positive on minified-bundle method call: %+v", f)
 		}
-		// Anything from dist/ would be wrong.
-		if filepath.Dir(f.File) == "dist" {
-			t.Errorf("unexpected finding under web_root: %+v", f)
-		}
-	}
-	if !hasBackendCrit {
-		t.Error("backend exec must still be flagged when web_root is set")
-	}
-	if report.TotalFilesScanned != 2 {
-		t.Errorf("expected both files counted (web_root file just skips pattern rules), got %d", report.TotalFilesScanned)
 	}
 }
 
-func TestAnalyzePlugin_WebRootDotMeansNoSkip(t *testing.T) {
-	// web_root: "." means "expose the entire plugin dir" — analyzer must not
-	// then silence pattern rules globally (that would defeat the analyzer).
+func TestAnalyzePlugin_BareExecStillFlagged(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, "main.js", `require("child_process").exec("evil")`)
+	writeFile(t, dir, "main.js", `exec("rm -rf /");`)
 
-	report, err := AnalyzePluginWithWebRoot(dir, ".")
+	report, err := AnalyzePlugin(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var hasCrit bool
+	var found bool
 	for _, f := range report.Findings {
-		if f.Severity == SeverityCritical {
-			hasCrit = true
+		if f.Category == "shell_exec" && f.Severity == SeverityCritical {
+			found = true
 		}
 	}
-	if !hasCrit {
-		t.Error("web_root='.' must NOT silence pattern rules — plugin root scan stays active")
+	if !found {
+		t.Error("bare exec( call must still be flagged")
 	}
 }
