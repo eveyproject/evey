@@ -422,6 +422,12 @@ func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
 	var urls []ExtractedURL
 	seen := map[string]bool{}
 	scanner := bufio.NewScanner(f)
+	// Minified bundles (esbuild/Vite IIFE output, vendor.js chunks) routinely
+	// produce single lines >64 KB — the default Scanner buffer chokes with
+	// "token too long". Bump the cap to 4 MB which covers any realistic
+	// minified file we'd ship in a plugin (plugin-asset size limit is 50 MB
+	// per file but a single line that big would already be pathological).
+	scanner.Buffer(make([]byte, 64<<10), 4<<20)
 	lineNum := 0
 
 	for scanner.Scan() {
