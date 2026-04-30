@@ -4,13 +4,12 @@
 # or after a manifest-schema bump so the uploadable bundles stay in
 # sync with the documented examples.
 #
-# Usage: ./scripts/build-test-plugins.sh
+# For plugins that ship a package.json with a "build" script (e.g. a
+# Vite/esbuild bundle for the front module), runs `npm install` and
+# `npm run build` before zipping. node_modules/ is excluded from the
+# zip — only dist/ + sources are shipped.
 #
-# Zip names track the source directory name (not the manifest `name:`)
-# so a reader browsing examples/plugins/<foo>/ finds the matching
-# tests/plugins/<foo>.zip without cross-referencing manifests.
-# Security-test + theme-malicious plugins have no example dir; they
-# live directly under tests/plugins/ and are left untouched.
+# Usage: ./scripts/build-test-plugins.sh
 
 set -euo pipefail
 
@@ -26,11 +25,25 @@ for dir in "$src"/*/; do
 
   name=$(basename "$dir")
   zip_path="$out/$name.zip"
+
+  # If the plugin has a package.json with a build script (front bundle),
+  # install deps + run build to populate dist/. Skip if dist is fresh.
+  if [ -f "$dir/package.json" ] && grep -q '"build"' "$dir/package.json"; then
+    if [ ! -d "$dir/node_modules" ]; then
+      echo "  $name: installing deps (first run)..."
+      (cd "$dir" && npm install --silent)
+    fi
+    echo "  $name: building front bundle..."
+    (cd "$dir" && npm run build --silent)
+  fi
+
   rm -f "$zip_path"
-  # -j would flatten; we want relative paths preserved.
-  # -X strips extra attributes (reproducibility-friendly).
-  # -r recurse, -q quiet.
-  (cd "$dir" && zip -q -X -r "$zip_path" .)
+  # Exclude dev artefacts that don't belong in the runtime zip.
+  (cd "$dir" && zip -q -X -r "$zip_path" . \
+    -x "node_modules/*" \
+    -x "src/*" \
+    -x "tsconfig.json" \
+    -x ".gitignore")
   printf "  %-30s -> %s\n" "$name" "$(basename "$zip_path")"
 done
 

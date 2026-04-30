@@ -10,10 +10,10 @@ permissions:
 external_fetch:
   - api.open-meteo.com
   - geocoding-api.open-meteo.com
-web_root: .
+web_root: dist
 frontend:
   - slot: home.section
-    src: front.js
+    src: dist/index.js
 config_schema:
   city:
     type: string

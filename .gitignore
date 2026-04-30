@@ -101,3 +101,7 @@ scripts/
 # Cosign test fixtures — private key must never be committed
 tests/plugins/cosign/test.key
 text
+
+# plugin example builds
+examples/plugins/*/node_modules/
+examples/plugins/*/dist/
