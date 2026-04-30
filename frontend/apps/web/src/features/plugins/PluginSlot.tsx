@@ -50,8 +50,11 @@ interface PluginSlotProps {
 export function PluginSlot({ name, context }: PluginSlotProps) {
   const isAuthenticated = useAuthStore((s) => !!s.accessToken);
 
+  // Use the same queryKey as the admin Plugins page so install/enable/
+  // uninstall mutations there invalidate this list too — otherwise the
+  // home page keeps rendering iframes for plugin ids that no longer exist.
   const { data } = useQuery<ListPluginsResponse>({
-    queryKey: ["plugins", "list"],
+    queryKey: ["/api/v1/admin/plugins"],
     queryFn: () =>
       eveyFetch<ListPluginsResponse>({ url: "/api/v1/admin/plugins", method: "GET" }),
     staleTime: 60_000,
