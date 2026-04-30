@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,31 +29,37 @@ type pluginManager interface {
 type cssSanitizer func(data []byte) (sanitized []byte, warnings []string)
 
 type pluginAssetHandler struct {
-	pluginDir string
-	repo      domainplugin.PluginRepository
-	tokenGen  *auth.JWTGenerator
+	pluginDir   string
+	repo        domainplugin.PluginRepository
+	tokenGen    *auth.JWTGenerator
+	sanitizeCSS cssSanitizer
+}
+
+// maxPluginAssetBytes is the per-file size limit for plugin asset responses.
+// The 100 MB total zip limit is enforced separately at install time.
+const maxPluginAssetBytes int64 = 50 << 20 // 50 MB
+
+// corsRequiredAssetExt is the set of asset extensions that need
+// Access-Control-Allow-Origin: null for the iframe (opaque origin) to
+// fetch them — fonts always require CORS, fetch()-able blobs (3D models,
+// JSON, raw binaries) too. Other types load via <img>/<script>/<link>
+// without CORS.
+var corsRequiredAssetExt = map[string]bool{
+	".woff": true, ".woff2": true, ".ttf": true, ".otf": true,
+	".glb": true, ".gltf": true, ".json": true, ".bin": true,
+	".wasm": true,
 }
 
 func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, repo domainplugin.PluginRepository, pluginDir string, sanitize cssSanitizer) {
 	authMw := httpAuthMiddleware(tokenGen)
-	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo, tokenGen: tokenGen}
-	// front.js accepts either a regular user access token OR the scoped
-	// plugin token issued via /plugins/{id}/token (the iframe loads the
-	// script via <script src="...?token=PLUGIN_TOKEN"> and has no access
-	// to the user's session). The handler does its own auth.
-	mux.HandleFunc("GET /api/v1/plugins/{id}/front.js", h.handleFrontJS)
+	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo, tokenGen: tokenGen, sanitizeCSS: sanitize}
+	// Generic asset route — serves any file under <install_dir>/<web_root>/.
+	// Single-bundle frontends only in v1 (no dynamic-import code splitting).
+	// Authentication accepts a user access token OR the scoped plugin token
+	// issued via /plugins/{id}/token (the iframe loads the script via
+	// <script src="...?token=PLUGIN_TOKEN">).
+	mux.HandleFunc("GET /api/v1/plugins/{id}/assets/{path...}", h.handlePluginAsset)
 	mux.HandleFunc("GET /api/v1/plugins/themes", authMw(h.handleListThemes))
-}
-
-// frontCSP builds the Content-Security-Policy for plugin front modules.
-// connect-src is populated from the plugin's ExternalFetch allow-list so only
-// explicitly declared hostnames are reachable from within the module.
-func frontCSP(extFetch []string) string {
-	connectSrc := "'none'"
-	if len(extFetch) > 0 {
-		connectSrc = strings.Join(extFetch, " ")
-	}
-	return "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src " + connectSrc + "; img-src data: blob:; font-src data:"
 }
 
 // authorizeFrontJS validates the bearer token in the request — either a
@@ -72,21 +79,32 @@ func (h *pluginAssetHandler) authorizeFrontJS(r *http.Request, pluginID string) 
 	return false
 }
 
-func (h *pluginAssetHandler) handleFrontJS(w http.ResponseWriter, r *http.Request) {
-	ctx, span := tracing.StartSpan(r.Context(), "http.plugin.FrontJS")
+func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Asset")
 	defer span.End()
 	r = r.WithContext(ctx)
+
 	pluginID := r.PathValue("id")
+	requestedPath := r.PathValue("path")
+
 	span.SetAttributes(
 		attribute.String("plugin_id", pluginID),
-		attribute.String("asset", "front.js"),
+		attribute.String("asset_path", requestedPath),
 	)
 
-	// Auth: accept either a regular user access token (Authorization header
-	// or ?token=) or the scoped plugin token issued for this plugin id.
+	// (1) Auth — plugin-scoped token OR access token.
 	if !h.authorizeFrontJS(r, pluginID) {
 		span.SetStatus(otelcodes.Error, "unauthorized")
 		http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	// (3) Path traversal — explicit reject before any join.
+	if strings.Contains(requestedPath, "..") ||
+		strings.HasPrefix(requestedPath, "/") ||
+		strings.Contains(requestedPath, "\\") {
+		span.SetStatus(otelcodes.Error, "path traversal rejected")
+		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 		return
 	}
 
@@ -102,32 +120,100 @@ func (h *pluginAssetHandler) handleFrontJS(w http.ResponseWriter, r *http.Reques
 		http.Error(w, `{"message":"plugin not found"}`, http.StatusNotFound)
 		return
 	}
-	// Only plugins with frontend extension points expose a front module.
 	if len(p.Frontend) == 0 {
-		span.SetStatus(otelcodes.Error, "no frontend")
+		span.SetStatus(otelcodes.Error, "no frontend module declared")
 		http.Error(w, `{"message":"plugin not found"}`, http.StatusNotFound)
 		return
 	}
+	if p.WebRoot == "" {
+		span.SetStatus(otelcodes.Error, "plugin has no web_root configured")
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
 
-	frontPath := filepath.Join(h.pluginDir, pluginID, "front.js")
-	if !strings.HasPrefix(filepath.Clean(frontPath), filepath.Clean(h.pluginDir)) {
-		span.SetStatus(otelcodes.Error, "invalid path")
+	// (2) Path restriction — only files under <install_dir>/<web_root>/.
+	pluginRoot := filepath.Join(h.pluginDir, pluginID)
+	webRoot := filepath.Clean(filepath.Join(pluginRoot, p.WebRoot))
+	if !strings.HasPrefix(webRoot, filepath.Clean(pluginRoot)) {
+		span.SetStatus(otelcodes.Error, "web_root escapes plugin dir")
+		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
+		return
+	}
+	candidate := filepath.Clean(filepath.Join(webRoot, requestedPath))
+	if !strings.HasPrefix(candidate, webRoot+string(filepath.Separator)) && candidate != webRoot {
+		span.SetStatus(otelcodes.Error, "path escapes web_root")
 		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 		return
 	}
 
-	data, err := os.ReadFile(frontPath)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, "front.js not found")
-		http.Error(w, `{"message":"plugin not found"}`, http.StatusNotFound)
+	// (7) Per-file size limit — refuse > 50 MB before opening.
+	stat, statErr := os.Stat(candidate)
+	if statErr != nil {
+		span.RecordError(statErr)
+		span.SetStatus(otelcodes.Error, "asset not found")
+		http.Error(w, `{"message":"asset not found"}`, http.StatusNotFound)
+		return
+	}
+	if stat.IsDir() {
+		span.SetStatus(otelcodes.Error, "asset is a directory")
+		http.Error(w, `{"message":"asset not found"}`, http.StatusNotFound)
+		return
+	}
+	if stat.Size() > maxPluginAssetBytes {
+		slog.Warn("plugin asset rejected: size limit",
+			slog.String("plugin_id", pluginID),
+			slog.String("path", requestedPath),
+			slog.Int64("size", stat.Size()),
+			slog.Int64("limit", maxPluginAssetBytes))
+		span.SetStatus(otelcodes.Error, "asset exceeds size limit")
+		http.Error(w, `{"message":"asset too large"}`, http.StatusNotFound)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/javascript")
+	data, readErr := os.ReadFile(candidate)
+	if readErr != nil {
+		span.RecordError(readErr)
+		span.SetStatus(otelcodes.Error, "asset read failed")
+		http.Error(w, `{"message":"asset not found"}`, http.StatusNotFound)
+		return
+	}
+
+	// (4) Content-Type by extension + nosniff.
+	ext := strings.ToLower(filepath.Ext(candidate))
+	ct := mime.TypeByExtension(ext)
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	// .js/.mjs sometimes resolves to text/javascript on older Go runtimes;
+	// prefer application/javascript for ES modules dispatched by Vite.
+	if ext == ".js" || ext == ".mjs" {
+		ct = "application/javascript; charset=utf-8"
+	}
+
+	// (8) CSS sanitizer — pass any CSS asset through the same sanitizer
+	// that runs on theme.css at install time, so a plugin-shipped stylesheet
+	// can't smuggle dangerous selectors past the install-time scrub.
+	if ext == ".css" && h.sanitizeCSS != nil {
+		sanitized, warns := h.sanitizeCSS(data)
+		if len(warns) > 0 {
+			slog.Warn("plugin css sanitizer cleaned rules",
+				slog.String("plugin_id", pluginID),
+				slog.String("path", requestedPath),
+				slog.Any("warnings", warns))
+		}
+		data = sanitized
+	}
+
+	w.Header().Set("Content-Type", ct)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Security-Policy", frontCSP(p.ExternalFetch))
-	w.Header().Set("Cache-Control", "public, max-age=3600")
+	// (6) Cache-Control immutable — Vite/esbuild emits hashed filenames so
+	// the cache key already encodes the content. Same for the entry file.
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	// (5) CORS for fonts/binary fetch-targets only.
+	if corsRequiredAssetExt[ext] {
+		w.Header().Set("Access-Control-Allow-Origin", "null")
+		w.Header().Set("Access-Control-Allow-Methods", "GET")
+	}
 	if _, writeErr := w.Write(data); writeErr != nil {
 		return
 	}

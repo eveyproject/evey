@@ -1,0 +1,1 @@
+ALTER TABLE plugins ADD COLUMN web_root TEXT NOT NULL DEFAULT '';

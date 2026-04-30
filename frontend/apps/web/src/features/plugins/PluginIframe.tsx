@@ -7,7 +7,11 @@ import { BRIDGE_SCRIPT } from "./front-bridge";
 
 interface PluginIframeProps {
   pluginId: string;
+  // src is the entry path RELATIVE to the plugin's web_root (e.g. "index.js"
+  // when the manifest declared web_root: "dist" and frontend.src: "dist/index.js").
+  // PluginSlot strips the prefix; PluginIframe just appends to the assets base.
   src: string;
+  externalFetch?: string[];
   context?: Record<string, unknown>;
 }
 
@@ -72,14 +76,35 @@ function detectThemeMode(): "dark" | "light" {
   return luminance > 128 ? "light" : "dark";
 }
 
-function buildSrcdoc(pluginId: string, pluginToken: string): string {
+// buildSrcdoc renders the iframe's HTML. The asset base URL points at the
+// plugin's served web_root, so relative imports inside the bundle (`./chunk.js`,
+// `assets/foo.png`) resolve against the same origin without the plugin author
+// needing to bake a runtime-specific base into their build.
+//
+// The meta CSP is the actual enforcement boundary inside the iframe: the
+// CSP header on the JS response is cosmetic since CSP is per-document.
+// `connect-src` is fed from the plugin's external_fetch allow-list so the
+// front module can only reach hosts the admin has approved.
+function buildSrcdoc(pluginId: string, entryPath: string, pluginToken: string, externalFetch: string[]): string {
   const themeVars = getThemeVars();
-  const scriptUrl = `/api/v1/plugins/${pluginId}/front.js?token=${encodeURIComponent(pluginToken)}`;
+  const baseHref = `/api/v1/plugins/${pluginId}/assets/`;
+  const scriptUrl = `${baseHref}${entryPath}?token=${encodeURIComponent(pluginToken)}`;
+  const connectSrc = externalFetch.length > 0 ? externalFetch.join(" ") : "'none'";
+  const csp = [
+    "default-src 'none'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    `connect-src ${connectSrc}`,
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+  ].join("; ");
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="${csp}">
+  <base href="${baseHref}">
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: transparent; font-family: system-ui, -apple-system, sans-serif; }
@@ -96,7 +121,7 @@ function buildSrcdoc(pluginId: string, pluginToken: string): string {
 </html>`;
 }
 
-export function PluginIframe({ pluginId, src: _src, context }: PluginIframeProps) {
+export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIframeProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(100);
   const [error, setError] = useState(false);
@@ -204,8 +229,8 @@ export function PluginIframe({ pluginId, src: _src, context }: PluginIframeProps
   }, [handleMessage]);
 
   const srcdoc = useMemo(
-    () => (pluginToken ? buildSrcdoc(pluginId, pluginToken) : null),
-    [pluginId, pluginToken],
+    () => (pluginToken ? buildSrcdoc(pluginId, src, pluginToken, externalFetch ?? []) : null),
+    [pluginId, src, pluginToken, externalFetch],
   );
 
   if (!accessToken) return null;

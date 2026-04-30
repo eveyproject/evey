@@ -109,7 +109,9 @@ describe("PluginSlot", () => {
     await waitFor(() => {
       const iframe = screen.getByTestId("plugin-iframe-p1");
       expect(iframe).toBeInTheDocument();
-      expect(iframe.getAttribute("data-src")).toBe("/api/v1/plugins/p1/front.js");
+      // entry path is what PluginSlot passes after stripping web_root.
+      // Here web_root is unset → entry stays equal to the manifest src.
+      expect(iframe.getAttribute("data-src")).toBe("a.jsx");
     });
   });
 
@@ -126,6 +128,26 @@ describe("PluginSlot", () => {
     await waitFor(() => {
       expect(screen.getByTestId("plugin-iframe-p1")).toBeInTheDocument();
       expect(screen.getByTestId("plugin-iframe-p2")).toBeInTheDocument();
+    });
+  });
+
+  it("strips web_root prefix from the entry path", async () => {
+    mockEveyFetch.mockResolvedValue({
+      plugins: [
+        {
+          id: "p1",
+          enabled: true,
+          web_root: "dist",
+          frontend: [{ slot: "home.section", src: "dist/index.js" }],
+        },
+      ],
+    });
+
+    render(<PluginSlot name="home.section" />, { wrapper: Wrapper });
+
+    await waitFor(() => {
+      const iframe = screen.getByTestId("plugin-iframe-p1");
+      expect(iframe.getAttribute("data-src")).toBe("index.js");
     });
   });
 });

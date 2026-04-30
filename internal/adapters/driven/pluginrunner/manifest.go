@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -154,6 +155,15 @@ func validateManifest(m *plugin.PluginManifest) error {
 
 	if slices.Contains(m.Permissions, "network") && len(m.ExternalFetch) == 0 {
 		return errors.New("manifest: network permission requires non-empty external_fetch")
+	}
+
+	// web_root is enforced when frontend modules are declared. Domain layer
+	// already validates the path syntax + that every src is under web_root;
+	// here we just emit a soft warning when the author exposes the entire
+	// plugin directory by setting web_root to ".".
+	if len(m.Frontend) > 0 && filepath.Clean(m.WebRoot) == "." {
+		slog.Warn("manifest web_root=\".\" exposes the entire plugin directory; consider moving frontend assets into a subdir",
+			slog.String("plugin", m.Name))
 	}
 
 	return nil

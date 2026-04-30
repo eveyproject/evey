@@ -10,6 +10,7 @@ permissions:
 external_fetch:
   - api.open-meteo.com
   - geocoding-api.open-meteo.com
+web_root: .
 frontend:
   - slot: home.section
     src: front.js

@@ -133,6 +133,7 @@ message Plugin {
   string kind = 16;
   repeated FrontModule frontend = 17;
   repeated string external_fetch = 18;
+  string web_root = 19;
 }
 
 // PluginAnalysisReport exposes the static-analysis warnings recorded at

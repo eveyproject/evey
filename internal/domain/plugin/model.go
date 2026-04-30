@@ -2,6 +2,9 @@ package plugin
 
 import (
 	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -40,6 +43,10 @@ type Plugin struct {
 	Language     string
 	Entrypoint   string
 	InstallDir   string
+	// WebRoot is the relative subdirectory inside InstallDir whose contents
+	// are exposed via the public asset route. Required when Frontend is set;
+	// any file outside that root cannot be requested by the iframe.
+	WebRoot      string
 	Capabilities []string
 	Permissions  []string
 	Frontend     []FrontModule
@@ -116,6 +123,7 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 		Author:        manifest.Author,
 		Language:      manifest.Language,
 		Entrypoint:    manifest.Entrypoint,
+		WebRoot:       manifest.WebRoot,
 		Capabilities:  manifest.Capabilities,
 		Permissions:   manifest.Permissions,
 		ConfigSchema:  manifest.ConfigSchema,
@@ -169,6 +177,51 @@ func (m *PluginManifest) Validate() error {
 	default:
 		return errors.New("manifest: kind is required (use 'plugin' or 'theme')")
 	}
+	if len(m.Frontend) > 0 {
+		if m.WebRoot == "" {
+			return errors.New("manifest: web_root is required when frontend is declared")
+		}
+		if err := validateWebRoot(m.WebRoot); err != nil {
+			return err
+		}
+		for _, f := range m.Frontend {
+			if err := validateSrcUnderWebRoot(m.WebRoot, f.Src); err != nil {
+				return fmt.Errorf("manifest: frontend src %q: %w", f.Src, err)
+			}
+		}
+	}
+	return nil
+}
+
+// validateWebRoot rejects absolute paths, "..", or backslash separators.
+// "." is allowed (means plugin root) but the pluginrunner layer warns.
+func validateWebRoot(wr string) error {
+	if strings.HasPrefix(wr, "/") {
+		return errors.New("manifest: web_root must be a relative path")
+	}
+	if strings.Contains(wr, "\\") {
+		return errors.New("manifest: web_root must not contain backslashes")
+	}
+	cleaned := filepath.Clean(wr)
+	for _, seg := range strings.Split(cleaned, string(filepath.Separator)) {
+		if seg == ".." {
+			return errors.New("manifest: web_root must not contain '..' segments")
+		}
+	}
+	return nil
+}
+
+// validateSrcUnderWebRoot ensures src has webRoot as a path prefix after Clean.
+func validateSrcUnderWebRoot(webRoot, src string) error {
+	cleanRoot := filepath.Clean(webRoot)
+	cleanSrc := filepath.Clean(src)
+	if cleanRoot == "." {
+		return nil // plugin root — anything under it is allowed
+	}
+	prefix := cleanRoot + string(filepath.Separator)
+	if cleanSrc != cleanRoot && !strings.HasPrefix(cleanSrc, prefix) {
+		return fmt.Errorf("src must be under web_root %q", webRoot)
+	}
 	return nil
 }
 
@@ -185,6 +238,7 @@ type PluginManifest struct {
 	Author         string         `yaml:"author"`
 	Language       string         `yaml:"language"`
 	Entrypoint     string         `yaml:"entrypoint"`
+	WebRoot        string         `yaml:"web_root"`
 	Capabilities   []string       `yaml:"capabilities"`
 	Permissions    []string       `yaml:"permissions"`
 	MinEveyVersion string         `yaml:"min_evey_version"`

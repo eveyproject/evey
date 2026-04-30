@@ -15,7 +15,7 @@ import (
 )
 
 const pluginColumns = `id, name, version, description, author, language, entrypoint, install_dir,
-	 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash, analysis_report, signature, kind, frontend, external_fetch`
+	 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash, analysis_report, signature, kind, frontend, external_fetch, web_root`
 
 type PluginRepository struct {
 	db *sql.DB
@@ -97,11 +97,11 @@ func (r *PluginRepository) Create(ctx context.Context, p *plugin.Plugin) error {
 	}
 	_, err = r.db.ExecContext(ctx,
 		`INSERT INTO plugins (`+pluginColumns+`)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
 		p.ID, p.Name, p.Version, p.Description, p.Author, p.Language, p.Entrypoint, p.InstallDir,
 		capJSON, permJSON, schemaJSON, configJSON,
 		p.Enabled, p.Status, p.ErrorMessage, p.InstalledAt, p.UpdatedAt, p.SourceHash, reportJSON, sigJSON,
-		string(kind), frontendJSON, extFetchJSON,
+		string(kind), frontendJSON, extFetchJSON, p.WebRoot,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -161,7 +161,7 @@ func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
 		if err := rows.Scan(&p.ID, &p.Name, &p.Version, &p.Description, &p.Author, &p.Language,
 			&p.Entrypoint, &p.InstallDir, &capJSON, &permJSON, &schemaJSON, &configJSON,
 			&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON,
-			&kindStr, &frontendJSON, &extFetchJSON); err != nil {
+			&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
@@ -259,11 +259,11 @@ func (r *PluginRepository) Update(ctx context.Context, p *plugin.Plugin) error {
 		`UPDATE plugins SET name=$1, version=$2, description=$3, author=$4, language=$5,
 		 entrypoint=$6, install_dir=$7, capabilities=$8, permissions=$9, config_schema=$10, config=$11,
 		 enabled=$12, status=$13, error_message=$14, updated_at=$15, source_hash=$16, analysis_report=$17,
-		 signature=$18, kind=$19, frontend=$20, external_fetch=$21 WHERE id=$22`,
+		 signature=$18, kind=$19, frontend=$20, external_fetch=$21, web_root=$22 WHERE id=$23`,
 		p.Name, p.Version, p.Description, p.Author, p.Language,
 		p.Entrypoint, p.InstallDir, capJSON, permJSON, schemaJSON, configJSON,
 		p.Enabled, p.Status, p.ErrorMessage, p.UpdatedAt, p.SourceHash, reportJSON, sigJSON,
-		string(kind), frontendJSON, extFetchJSON, p.ID,
+		string(kind), frontendJSON, extFetchJSON, p.WebRoot, p.ID,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -305,7 +305,7 @@ func (r *PluginRepository) scanPlugin(row *sql.Row) (*plugin.Plugin, error) {
 	err := row.Scan(&p.ID, &p.Name, &p.Version, &p.Description, &p.Author, &p.Language,
 		&p.Entrypoint, &p.InstallDir, &capJSON, &permJSON, &schemaJSON, &configJSON,
 		&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON,
-		&kindStr, &frontendJSON, &extFetchJSON)
+		&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot)
 	if err != nil {
 		return nil, err
 	}

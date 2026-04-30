@@ -30,6 +30,7 @@ func pluginToProto(p *plugin.Plugin) *eveyv1.Plugin {
 		ErrorMessage:  p.ErrorMessage,
 		Kind:          string(p.Kind),
 		ExternalFetch: p.ExternalFetch,
+		WebRoot:       p.WebRoot,
 	}
 	for _, m := range p.Frontend {
 		pb.Frontend = append(pb.Frontend, &eveyv1.FrontModule{Slot: m.Slot, Src: m.Src})

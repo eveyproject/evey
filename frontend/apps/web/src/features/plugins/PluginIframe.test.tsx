@@ -37,39 +37,71 @@ describe("PluginIframe", () => {
   it("renders nothing when no access token", () => {
     mockToken = null;
     const { container } = render(
-      <PluginIframe pluginId="p1" src="/front.js" />,
+      <PluginIframe pluginId="p1" src="index.js" />,
     );
     expect(container.innerHTML).toBe("");
   });
 
   it("fetches scoped plugin token from gateway", async () => {
-    render(<PluginIframe pluginId="p1" src="/front.js" />);
-    await waitFor(() => expect(eveyFetchMock).toHaveBeenCalled());
-    const [req] = eveyFetchMock.mock.calls[0];
-    expect((req as { url: string }).url).toBe("/api/v1/plugins/p1/token");
-    expect((req as { method: string }).method).toBe("POST");
+    render(<PluginIframe pluginId="p1" src="index.js" />);
+    await waitFor(() => {
+      // Among parallel fetches (token + admin config) one must be the token call.
+      const calls = eveyFetchMock.mock.calls;
+      const tokenCall = calls.find(([req]) => (req as { url: string }).url === "/api/v1/plugins/p1/token");
+      expect(tokenCall, "token fetch was expected").toBeTruthy();
+      expect((tokenCall![0] as { method: string }).method).toBe("POST");
+    });
   });
 
-  it("injects scoped plugin token into srcdoc (not user access token)", async () => {
-    render(<PluginIframe pluginId="p1" src="/front.js" />);
+  it("injects scoped plugin token + asset URL into srcdoc", async () => {
+    render(<PluginIframe pluginId="p1" src="index.js" />);
     const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
     const srcdoc = iframe.getAttribute("srcdoc") ?? "";
     expect(srcdoc).toContain("SCOPED-PLUGIN-TOKEN");
     expect(srcdoc).not.toContain("USER-ACCESS-TOKEN");
-    expect(srcdoc).toContain("/api/v1/plugins/p1/front.js");
+    expect(srcdoc).toContain("/api/v1/plugins/p1/assets/index.js");
+  });
+
+  it("injects <base href> pointing at the assets root", async () => {
+    render(<PluginIframe pluginId="p1" src="index.js" />);
+    const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
+    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
+    expect(srcdoc).toContain('<base href="/api/v1/plugins/p1/assets/">');
+  });
+
+  it("injects meta CSP with default-src none and script-src self", async () => {
+    render(<PluginIframe pluginId="p1" src="index.js" />);
+    const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
+    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
+    expect(srcdoc).toContain('http-equiv="Content-Security-Policy"');
+    expect(srcdoc).toContain("default-src 'none'");
+    expect(srcdoc).toContain("script-src 'self' 'unsafe-inline'");
+  });
+
+  it("CSP connect-src reflects the externalFetch list when provided", async () => {
+    render(<PluginIframe pluginId="p1" src="index.js" externalFetch={["api.example.com", "cdn.example.org"]} />);
+    const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
+    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
+    expect(srcdoc).toContain("connect-src api.example.com cdn.example.org");
+  });
+
+  it("CSP connect-src is 'none' when externalFetch is empty", async () => {
+    render(<PluginIframe pluginId="p1" src="index.js" />);
+    const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
+    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
+    expect(srcdoc).toContain("connect-src 'none'");
   });
 
   it("uses sandbox=allow-scripts", async () => {
-    render(<PluginIframe pluginId="p1" src="/front.js" />);
+    render(<PluginIframe pluginId="p1" src="index.js" />);
     const iframe = await screen.findByTitle(/p1/);
     expect(iframe).toHaveAttribute("sandbox", "allow-scripts");
   });
 
   it("shows error fallback when token issuance fails", async () => {
     eveyFetchMock.mockRejectedValueOnce(new Error("forbidden"));
-    render(<PluginIframe pluginId="p1" src="/front.js" />);
+    render(<PluginIframe pluginId="p1" src="index.js" />);
     await waitFor(() => {
-      // error fallback uses translation key as text in test env
       expect(screen.queryByTitle(/p1/)).toBeNull();
     });
   });

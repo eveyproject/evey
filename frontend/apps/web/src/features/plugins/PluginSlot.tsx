@@ -14,6 +14,8 @@ interface PluginInfo {
   enabled: boolean;
   frontend?: FrontModule[];
   capabilities?: string[];
+  web_root?: string;
+  external_fetch?: string[];
 }
 
 interface ListPluginsResponse {
@@ -62,17 +64,31 @@ export function PluginSlot({ name, context }: PluginSlotProps) {
   });
 
   const plugins = data?.plugins ?? [];
-  const matches: { pluginId: string; frontUrl: string }[] = [];
+  const matches: {
+    pluginId: string;
+    entryPath: string;
+    externalFetch: string[];
+  }[] = [];
 
   for (const plugin of plugins) {
     if (!plugin.enabled || !plugin.id) continue;
+    const webRoot = plugin.web_root ?? "";
     for (const mod of plugin.frontend ?? []) {
-      if (mod.slot === name) {
-        matches.push({
-          pluginId: plugin.id,
-          frontUrl: `/api/v1/plugins/${plugin.id}/front.js`,
-        });
+      if (mod.slot !== name) continue;
+      // Strip web_root prefix from the manifest src so the URL the iframe
+      // loads is relative to the assets base. e.g. web_root="dist" + src=
+      // "dist/index.js" → entry "index.js" served at /assets/index.js.
+      let entry = mod.src;
+      if (webRoot && webRoot !== ".") {
+        const prefix = webRoot.endsWith("/") ? webRoot : webRoot + "/";
+        if (entry.startsWith(prefix)) entry = entry.slice(prefix.length);
+        else if (entry === webRoot) entry = "";
       }
+      matches.push({
+        pluginId: plugin.id,
+        entryPath: entry,
+        externalFetch: plugin.external_fetch ?? [],
+      });
     }
   }
 
@@ -82,7 +98,12 @@ export function PluginSlot({ name, context }: PluginSlotProps) {
     <>
       {matches.map((m) => (
         <PluginErrorBoundary key={m.pluginId} pluginId={m.pluginId}>
-          <PluginIframe pluginId={m.pluginId} src={m.frontUrl} context={context} />
+          <PluginIframe
+            pluginId={m.pluginId}
+            src={m.entryPath}
+            externalFetch={m.externalFetch}
+            context={context}
+          />
         </PluginErrorBoundary>
       ))}
     </>

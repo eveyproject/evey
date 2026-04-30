@@ -5,6 +5,7 @@ description: Demonstrates every config_schema field type
 author: evey-examples
 language: nodejs
 entrypoint: node main.js
+web_root: .
 frontend:
   - slot: admin.section
     src: front.js
