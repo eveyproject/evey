@@ -1,6 +1,9 @@
 package notification
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type PushSubscriptionRepository interface {
 	Upsert(ctx context.Context, userID, profileID, endpoint, p256dh, auth string) error
@@ -17,6 +20,11 @@ type PushSender interface {
 type Repository interface {
 	Create(ctx context.Context, n *Notification) error
 	ListByProfile(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*Notification, error)
+	// FindRecentByProfileTypeAndSeries returns notifications matching profileID, one of types,
+	// and relatedMediaID (series ID), created after since. Used for deduplication.
+	FindRecentByProfileTypeAndSeries(ctx context.Context, profileID string, types []Type, relatedMediaID string, since time.Time) ([]*Notification, error)
+	// Update persists title and episode_count changes on an existing notification.
+	Update(ctx context.Context, n *Notification) error
 	MarkRead(ctx context.Context, id, profileID string) error
 	MarkAllRead(ctx context.Context, profileID string) error
 	UnreadCount(ctx context.Context, profileID string) (int, error)

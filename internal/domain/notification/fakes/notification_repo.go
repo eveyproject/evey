@@ -153,3 +153,61 @@ func (r *FakeNotificationRepository) CleanupExpired(_ context.Context) error {
 	r.items = out
 	return nil
 }
+
+func (r *FakeNotificationRepository) FindRecentByProfileTypeAndSeries(_ context.Context, profileID string, types []notification.Type, relatedMediaID string, since time.Time) ([]*notification.Notification, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	typeSet := make(map[notification.Type]bool, len(types))
+	for _, t := range types {
+		typeSet[t] = true
+	}
+	var out []*notification.Notification
+	for _, n := range r.items {
+		if string(n.ProfileID) != profileID {
+			continue
+		}
+		if !typeSet[n.Type] {
+			continue
+		}
+		if string(n.RelatedMediaID) != relatedMediaID {
+			continue
+		}
+		if n.CreatedAt.Before(since) {
+			continue
+		}
+		out = append(out, n)
+	}
+	return out, nil
+}
+
+func (r *FakeNotificationRepository) Update(_ context.Context, updated *notification.Notification) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, n := range r.items {
+		if n.ID == updated.ID && string(n.ProfileID) == string(updated.ProfileID) {
+			n.Title = updated.Title
+			n.EpisodeCount = updated.EpisodeCount
+			return nil
+		}
+	}
+	return nil
+}
+
+// ensure compile-time interface check
+var _ notification.Repository = (*FakeNotificationRepository)(nil)
+
+// GetItems returns a copy of all stored notifications (for test assertions).
+func (r *FakeNotificationRepository) GetItems() []*notification.Notification {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]*notification.Notification, len(r.items))
+	copy(out, r.items)
+	return out
+}
+

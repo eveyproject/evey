@@ -3,6 +3,7 @@ package notification
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
@@ -89,6 +90,32 @@ func typeAndTitle(mediaType, title, seriesTitle string) (notification.Type, stri
 
 func levelForType(cfg *notification.Settings, t notification.Type) notification.Level {
 	return cfg.LevelForType(t)
+}
+
+// seriesKeyFor builds an opaque deduplication key for a series within a library.
+// This key is stored in related_media_id and is not a real MediaItemID.
+func seriesKeyFor(libraryID, seriesTitle string) string {
+	if seriesTitle == "" {
+		return ""
+	}
+	return libraryID + ":" + seriesTitle
+}
+
+// extractSeriesName recovers the series title from a stored notification title.
+// Stored titles follow patterns:
+//   - "new_episode:SeriesTitle — Episode Title"
+//   - "new_episode:SeriesTitle (N episodes)"
+//
+// Returns the portion after the "new_episode:" prefix, up to " —" or " (".
+func extractSeriesName(storedTitle string) string {
+	payload := strings.TrimPrefix(storedTitle, "new_episode:")
+	if idx := strings.Index(payload, " ("); idx > 0 {
+		return payload[:idx]
+	}
+	if idx := strings.Index(payload, " — "); idx > 0 { // " — "
+		return payload[:idx]
+	}
+	return payload
 }
 
 // batchedSeriesTitle returns the display label (without type prefix) and push spec.

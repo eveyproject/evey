@@ -1393,3 +1393,210 @@ func TestNotificationService_Batch_TimerFlushes(t *testing.T) {
 	assert.Contains(t, notifs[0].Title, "Lost")
 	assert.Contains(t, notifs[0].Title, "2 episodes")
 }
+
+// TestNoEpisodeNotificationWhenSeriesNotificationCreatedRecently verifies that
+// when a new_series notification was already emitted for a series within 24h,
+// subsequent new_episode notifications for the same series are suppressed.
+func TestNoEpisodeNotificationWhenSeriesNotificationCreatedRecently(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	// First batch: series + season + episodes — produces exactly one new_series notif.
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "sr1", LibraryID: "lib1",
+		Title: "Stranger Things", SeriesTitle: "Stranger Things",
+		Type: "series", OccurredAt: time.Now(),
+	})
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep1", LibraryID: "lib1",
+		Title: "Chapter One", SeriesTitle: "Stranger Things",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep2", LibraryID: "lib1",
+		Title: "Chapter Two", SeriesTitle: "Stranger Things",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "first import: only new_series expected")
+	assert.Equal(t, notifdom.TypeNewSeries, notifs[0].Type)
+
+	// Second batch: more episodes from the same series arrive (dedupe key is new,
+	// different episode IDs). Should be suppressed because new_series was recent.
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep3", LibraryID: "lib1",
+		Title: "Chapter Three", SeriesTitle: "Stranger Things",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+	svc.FlushBatches()
+
+	notifs, err = repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, notifs, 1, "episode after recent new_series must be suppressed")
+}
+
+// TestNoEpisodeNotificationWhenSeasonNotificationCreatedRecently verifies that
+// a new_season notification for a series suppresses subsequent new_episode
+// notifications within the 24h window.
+func TestNoEpisodeNotificationWhenSeasonNotificationCreatedRecently(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	// First batch: season + episodes → new_season notif.
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "sn1", LibraryID: "lib1",
+		Title: "Season 3", SeriesTitle: "Breaking Bad",
+		Type: "season", OccurredAt: time.Now(),
+	})
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep1", LibraryID: "lib1",
+		Title: "S03E01", SeriesTitle: "Breaking Bad",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1)
+	assert.Equal(t, notifdom.TypeNewSeason, notifs[0].Type)
+
+	// Subsequent episode from same series should be suppressed.
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep2", LibraryID: "lib1",
+		Title: "S03E02", SeriesTitle: "Breaking Bad",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+	svc.FlushBatches()
+
+	notifs, err = repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, notifs, 1, "episode after recent new_season must be suppressed")
+}
+
+// TestEpisodeNotificationsAreGroupedWithin24h verifies that when a new_episode
+// notification already exists for a series within 24h, a subsequent episode
+// import updates that notification rather than creating a new one.
+func TestEpisodeNotificationsAreGroupedWithin24h(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	// First episode for a known series.
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep7", LibraryID: "lib1",
+		Title: "S01E07", SeriesTitle: "The Wire",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "first episode should create one notification")
+	assert.Equal(t, notifdom.TypeNewEpisode, notifs[0].Type)
+
+	// Second episode within 24h — should update the existing notification.
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep8", LibraryID: "lib1",
+		Title: "S01E08", SeriesTitle: "The Wire",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+	svc.FlushBatches()
+
+	notifs, err = repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "second episode within 24h should update existing notification, not create a new one")
+	assert.Contains(t, notifs[0].Title, "The Wire", "updated title should contain series name")
+	assert.Contains(t, notifs[0].Title, "2 episodes", "updated title should show accumulated count")
+
+	// Third episode within 24h — count should now be 3.
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep9", LibraryID: "lib1",
+		Title: "S01E09", SeriesTitle: "The Wire",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+	svc.FlushBatches()
+
+	notifs, err = repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "third episode within 24h must still result in exactly 1 notification")
+	assert.Contains(t, notifs[0].Title, "3 episodes")
+}
+
+// TestEpisodeNotificationCreatedAfter24hWindow verifies that when the grouping
+// window has elapsed, a new independent notification is created instead of
+// updating the older one.
+func TestEpisodeNotificationCreatedAfter24hWindow(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	// Directly inject an old new_episode notification that is 25h old (beyond window).
+	seriesKey := "lib1:Homeland"
+	oldCreatedAt := time.Now().Add(-25 * time.Hour)
+	expires := time.Now().AddDate(0, 0, 30)
+	_ = repo.Create(ctx, &notifdom.Notification{
+		ID:             "old-ep",
+		ProfileID:      "p1",
+		Type:           notifdom.TypeNewEpisode,
+		Title:          "new_episode:Homeland — S02E05",
+		RelatedMediaID: shared.MediaItemID(seriesKey),
+		EpisodeCount:   1,
+		Level:          notifdom.LevelAll,
+		CreatedAt:      oldCreatedAt,
+		ExpiresAt:      &expires,
+	})
+
+	// Now a new episode arrives — the old notif is outside the 24h window.
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep6", LibraryID: "lib1",
+		Title: "S02E06", SeriesTitle: "Homeland",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, notifs, 2, "after 24h window a new separate notification should be created")
+}

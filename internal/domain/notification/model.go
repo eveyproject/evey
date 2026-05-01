@@ -59,17 +59,19 @@ func (l Level) IsValid() bool {
 }
 
 type Notification struct {
-	ID          string
-	ProfileID   shared.ProfileID
-	Type        Type
-	Title       string
-	Message     string
-	MediaItemID shared.MediaItemID
-	Level       Level
-	CreatedAt   time.Time
-	ExpiresAt   *time.Time
-	DeliveredAt *time.Time
-	ReadAt      *time.Time
+	ID             string
+	ProfileID      shared.ProfileID
+	Type           Type
+	Title          string
+	Message        string
+	MediaItemID    shared.MediaItemID
+	RelatedMediaID shared.MediaItemID // series ID for new_episode/new_season grouping
+	EpisodeCount   int               // accumulated episode count for grouped new_episode notifs
+	Level          Level
+	CreatedAt      time.Time
+	ExpiresAt      *time.Time
+	DeliveredAt    *time.Time
+	ReadAt         *time.Time
 }
 
 func (n *Notification) Validate() error {
@@ -150,6 +152,14 @@ func WithNotificationMessage(msg string) NotificationOption {
 
 func WithNotificationMediaItem(id shared.MediaItemID) NotificationOption {
 	return func(n *Notification) { n.MediaItemID = id }
+}
+
+func WithRelatedMediaID(id shared.MediaItemID) NotificationOption {
+	return func(n *Notification) { n.RelatedMediaID = id }
+}
+
+func WithEpisodeCount(count int) NotificationOption {
+	return func(n *Notification) { n.EpisodeCount = count }
 }
 
 func WithNotificationLevel(l Level) NotificationOption {
