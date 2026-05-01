@@ -14,6 +14,29 @@ import (
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
+// --- helpers for resize tests ---
+
+func artworkHandlerWithConverter(t *testing.T, conv ImageConverter) (http.Handler, string) {
+	t.Helper()
+	tmp := t.TempDir()
+	imgPath := filepath.Join(tmp, "poster.jpg")
+	if err := os.WriteFile(imgPath, []byte("fake-jpeg-original"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	localPath := imgPath
+	h := mediaHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
+		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
+			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &localPath}},
+		}},
+		"http://localhost",
+		allowAll(),
+		withImageConverter(conv, &fakeArtworkWriter{}),
+	)
+	return h, imgPath
+}
+
 func TestArtwork_LocalFile_200(t *testing.T) {
 	tmp := t.TempDir()
 	imgPath := filepath.Join(tmp, "poster.jpg")
@@ -180,5 +203,125 @@ func TestArtwork_IDOR_403(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+// --- resize variant tests ---
+
+func TestArtwork_Width_400_ServeResized(t *testing.T) {
+	conv := &fakeImageConverter{}
+	h, _ := artworkHandlerWithConverter(t, conv)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster?w=400", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("artType", "poster")
+	req = withHTTPClaims(req, testClaims(false))
+	req.Header.Set("Accept", "image/webp")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "image/webp" {
+		t.Errorf("expected Content-Type image/webp, got %s", ct)
+	}
+	if conv.resizeCalled == 0 {
+		t.Error("expected ResizeAndConvertToWebP to be called")
+	}
+}
+
+func TestArtwork_Width_999_SnapsToNearest(t *testing.T) {
+	// 999 snaps to 780 (nearest allowed width).
+	conv := &fakeImageConverter{}
+	h, _ := artworkHandlerWithConverter(t, conv)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster?w=999", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("artType", "poster")
+	req = withHTTPClaims(req, testClaims(false))
+	req.Header.Set("Accept", "image/webp")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if conv.resizeCalled == 0 {
+		t.Error("expected ResizeAndConvertToWebP to be called for snapped width")
+	}
+}
+
+func TestParseRequestedWidth_Snap(t *testing.T) {
+	cases := []struct {
+		query string
+		want  int
+	}{
+		{"", 0},
+		{"abc", 0},
+		{"0", 0},
+		{"-5", 0},
+		{"185", 185},
+		{"200", 185}, // nearest to 185 (diff=15) vs 342 (diff=142)
+		{"300", 342}, // nearest to 342 (diff=42) vs 185 (diff=115)
+		{"400", 342}, // 400-342=58 < 500-400=100
+		{"999", 780},
+	}
+	for _, tc := range cases {
+		url := "/test"
+		if tc.query != "" {
+			url += "?w=" + tc.query
+		}
+		r := httptest.NewRequest(http.MethodGet, url, nil)
+		got := parseRequestedWidth(r)
+		if got != tc.want {
+			t.Errorf("parseRequestedWidth(w=%q) = %d, want %d", tc.query, got, tc.want)
+		}
+	}
+}
+
+func TestArtwork_Width_Empty_NoResize(t *testing.T) {
+	conv := &fakeImageConverter{}
+	h, _ := artworkHandlerWithConverter(t, conv)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("artType", "poster")
+	req = withHTTPClaims(req, testClaims(false))
+	req.Header.Set("Accept", "image/webp")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if conv.resizeCalled != 0 {
+		t.Error("ResizeAndConvertToWebP should NOT be called when no ?w= param")
+	}
+}
+
+func TestArtwork_Width_CacheHit_NoSecondResize(t *testing.T) {
+	conv := &fakeImageConverter{}
+	h, imgPath := artworkHandlerWithConverter(t, conv)
+
+	// Pre-create the variant so it already exists on disk — simulates a cache hit.
+	variantPath := buildVariantPath(imgPath, 342)
+	if err := os.WriteFile(variantPath, []byte("RIFF-webp-cached"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster?w=342", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("artType", "poster")
+	req = withHTTPClaims(req, testClaims(false))
+	req.Header.Set("Accept", "image/webp")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if conv.resizeCalled != 0 {
+		t.Errorf("ResizeAndConvertToWebP should NOT be called on cache hit, called %d times", conv.resizeCalled)
 	}
 }

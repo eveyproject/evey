@@ -15,8 +15,9 @@ import (
 )
 
 type fakeImageConverter struct {
-	called  bool
-	failErr error
+	called       bool
+	resizeCalled int
+	failErr      error
 }
 
 func (f *fakeImageConverter) ConvertToWebP(_ context.Context, src, dst string, quality int) error {
@@ -25,6 +26,15 @@ func (f *fakeImageConverter) ConvertToWebP(_ context.Context, src, dst string, q
 		return f.failErr
 	}
 	return os.WriteFile(dst, []byte("RIFF-webp-fake"), 0644)
+}
+
+func (f *fakeImageConverter) ResizeAndConvertToWebP(_ context.Context, src, dst string, width, quality int) error {
+	f.resizeCalled++
+	if f.failErr != nil {
+		return f.failErr
+	}
+	// Write a smaller fake to distinguish from full-res.
+	return os.WriteFile(dst, []byte("RIFF-webp-resized"), 0644)
 }
 
 type fakeArtworkWriter struct {

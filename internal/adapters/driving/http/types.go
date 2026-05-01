@@ -104,9 +104,12 @@ type ArtworkReader interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*domainmeta.ArtworkRecord, error)
 }
 
-// ImageConverter converts images to WebP.
+// ImageConverter converts images to WebP, with optional resize.
 type ImageConverter interface {
 	ConvertToWebP(ctx context.Context, srcPath, dstPath string, quality int) error
+	// ResizeAndConvertToWebP scales src to fit width (height auto, ratio preserved)
+	// and encodes WebP at quality. width=0 means no resize.
+	ResizeAndConvertToWebP(ctx context.Context, srcPath, dstPath string, width, quality int) error
 }
 
 // LibraryLister lists all libraries.

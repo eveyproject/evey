@@ -97,7 +97,7 @@ export const MediaCard = memo(function MediaCard({
   const posterSrcSet = useMemo(() => {
     if (!poster) return undefined;
     const sep = poster.includes("?") ? "&" : "?";
-    return `${poster}${sep}w=200 200w, ${poster}${sep}w=300 300w, ${poster}${sep}w=400 400w`;
+    return `${poster}${sep}w=185 185w, ${poster}${sep}w=342 342w, ${poster}${sep}w=500 500w`;
   }, [poster]);
 
   const initial = item.title ? item.title[0].toUpperCase() : "?";
@@ -209,7 +209,7 @@ export const MediaCard = memo(function MediaCard({
           <img
             src={poster}
             srcSet={posterSrcSet}
-            sizes="(max-width: 640px) 144px, (max-width: 1024px) 176px, 200px"
+            sizes="(max-width: 640px) 185px, (max-width: 1024px) 342px, 500px"
             alt={item.title ?? ""}
             loading="lazy"
             decoding="async"

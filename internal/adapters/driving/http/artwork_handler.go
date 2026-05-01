@@ -2,10 +2,13 @@ package httpapi
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
@@ -15,6 +18,49 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"github.com/evey-project/evey/internal/pkg/urlvalidator"
 )
+
+// artworkResizeTimeout bounds the ffmpeg call for a single poster resize.
+const artworkResizeTimeout = 10 * time.Second
+
+// allowedWidths caps variant creation to a fixed set so the cache stays bounded.
+// 0 is the sentinel for "no resize".
+var allowedWidths = []int{185, 342, 500, 780}
+
+// parseRequestedWidth reads ?w= from the request and snaps it to the nearest
+// allowed width. Returns 0 when the parameter is absent or unparseable.
+func parseRequestedWidth(r *http.Request) int {
+	raw := r.URL.Query().Get("w")
+	if raw == "" {
+		return 0
+	}
+	w, err := strconv.Atoi(raw)
+	if err != nil || w <= 0 {
+		return 0
+	}
+	best := 0
+	bestDiff := 1 << 30
+	for _, allowed := range allowedWidths {
+		diff := w - allowed
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff < bestDiff {
+			bestDiff = diff
+			best = allowed
+		}
+	}
+	return best
+}
+
+// buildVariantPath derives the on-disk path for a resized variant, e.g.
+// /data/artworks/abc/poster.jpg → /data/artworks/abc/poster_w400.webp
+func buildVariantPath(srcPath string, width int) string {
+	base := srcPath
+	if idx := strings.LastIndex(srcPath, "."); idx >= 0 {
+		base = srcPath[:idx]
+	}
+	return fmt.Sprintf("%s_w%d.webp", base, width)
+}
 
 func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.artwork.Serve")
@@ -58,11 +104,31 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 
 	wantsWebP := strings.Contains(r.Header.Get("Accept"), "image/webp")
 	w.Header().Set("Vary", "Accept")
+	requestedWidth := parseRequestedWidth(r)
 
 	for _, rec := range records {
 		if artType == "" || rec.Type == artType {
 			if rec.LocalPath != nil && *rec.LocalPath != "" {
 				if wantsWebP {
+					// When a width is requested, generate (or serve from cache) a resized variant.
+					if requestedWidth > 0 && h.imgConverter != nil {
+						variantPath := buildVariantPath(*rec.LocalPath, requestedWidth)
+						if _, statErr := os.Stat(variantPath); statErr != nil {
+							// Not cached yet — generate with 10 s timeout so a slow ffmpeg
+							// doesn't block the response indefinitely.
+							ctx10, cancel := context.WithTimeout(r.Context(), artworkResizeTimeout)
+							defer cancel()
+							if resErr := h.imgConverter.ResizeAndConvertToWebP(ctx10, *rec.LocalPath, variantPath, requestedWidth, 80); resErr != nil {
+								slog.Warn("artwork resize", slog.String("src", *rec.LocalPath), slog.Int("width", requestedWidth), slog.Any("err", resErr))
+								variantPath = "" // fall through to full-res WebP
+							}
+						}
+						if variantPath != "" {
+							w.Header().Set("Content-Type", "image/webp")
+							serveFileWithCache(w, r, variantPath)
+							return
+						}
+					}
 					if webp := h.resolveWebP(r.Context(), rec); webp != "" {
 						w.Header().Set("Content-Type", "image/webp")
 						serveFileWithCache(w, r, webp)
