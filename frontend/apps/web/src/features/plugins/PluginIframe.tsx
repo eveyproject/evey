@@ -87,7 +87,13 @@ function detectThemeMode(): "dark" | "light" {
 // front module can only reach hosts the admin has approved.
 function buildSrcdoc(pluginId: string, entryPath: string, pluginToken: string, externalFetch: string[]): string {
   const themeVars = getThemeVars();
-  const baseHref = `/api/v1/plugins/${pluginId}/assets/`;
+  // Use ABSOLUTE URLs for the base + script src. Firefox in an
+  // about:srcdoc iframe resolves path-only URLs against `about:srcdoc`
+  // (not the parent host), which leaves relative paths unresolvable and
+  // refuses the script load. Chromium is more lenient. Absolute URLs
+  // sidestep the difference entirely.
+  const hostOriginForUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const baseHref = `${hostOriginForUrl}/api/v1/plugins/${pluginId}/assets/`;
   const scriptUrl = `${baseHref}${entryPath}?token=${encodeURIComponent(pluginToken)}`;
   // Sandbox iframe (allow-scripts only, no allow-same-origin) gets an opaque
   // origin where 'self' resolves to "no origin matches". Anything cross-
@@ -143,22 +149,24 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
   const { t, i18n } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
 
-  // Fetch the plugin's saved admin config and forward it to the iframe in
+  // Fetch the plugin's saved config and forward it to the iframe in
   // the init message so front modules don't have to deal with auth themselves.
-  // Admin-only endpoint — non-admins receive an empty config map.
+  // Accessible to any authenticated user — returns the values the admin configured.
   useEffect(() => {
     if (!accessToken) return;
     let cancelled = false;
     eveyFetch<{ values?: Record<string, unknown> }>({
-      url: `/api/v1/admin/plugins/${encodeURIComponent(pluginId)}/config`,
+      url: `/api/v1/plugins/${encodeURIComponent(pluginId)}/config`,
       method: "GET",
     })
       .then((data) => {
         if (cancelled) return;
         setPluginConfig(data.values ?? {});
       })
-      .catch(() => {
-        // Non-admin or no config saved — leave defaults.
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn("plugin config fetch failed", err);
+        }
       });
     return () => {
       cancelled = true;
@@ -269,6 +277,8 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
         height: `${height}px`,
         overflow: "hidden",
         display: "block",
+        background: "transparent",
+        colorScheme: "normal",
       }}
       title={`${t("admin.plugin.sandboxedFront")} - ${pluginId}`}
     />

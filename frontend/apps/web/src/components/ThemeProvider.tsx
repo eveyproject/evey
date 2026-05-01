@@ -23,7 +23,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (!pluginId) return;
     const checkPlugin = async () => {
       try {
-        const res = await eveyFetch<ListPluginsResponse>({ url: "/api/v1/admin/plugins", method: "GET" });
+        const res = await eveyFetch<ListPluginsResponse>({ url: "/api/v1/plugins", method: "GET" });
         const installed = res.plugins ?? [];
         if (!installed.some((p) => p.id === pluginId)) {
           setTheme("default");

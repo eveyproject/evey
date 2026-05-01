@@ -11,7 +11,10 @@ interface FrontModule {
 
 interface PluginInfo {
   id: string;
-  enabled: boolean;
+  // enabled is absent from the public /api/v1/plugins response (only
+  // enabled+running plugins are returned), so treat it as optional.
+  // When present (legacy admin response), the filter below still applies.
+  enabled?: boolean;
   frontend?: FrontModule[];
   capabilities?: string[];
   // grpc-gateway protojson emits camelCase by default (webRoot, externalFetch)
@@ -61,9 +64,9 @@ export function PluginSlot({ name, context }: PluginSlotProps) {
   // uninstall mutations there invalidate this list too — otherwise the
   // home page keeps rendering iframes for plugin ids that no longer exist.
   const { data } = useQuery<ListPluginsResponse>({
-    queryKey: ["/api/v1/admin/plugins"],
+    queryKey: ["/api/v1/plugins"],
     queryFn: () =>
-      eveyFetch<ListPluginsResponse>({ url: "/api/v1/admin/plugins", method: "GET" }),
+      eveyFetch<ListPluginsResponse>({ url: "/api/v1/plugins", method: "GET" }),
     staleTime: 60_000,
     enabled: isAuthenticated,
   });
@@ -76,7 +79,9 @@ export function PluginSlot({ name, context }: PluginSlotProps) {
   }[] = [];
 
   for (const plugin of plugins) {
-    if (!plugin.enabled || !plugin.id) continue;
+    // enabled is absent in the public API response (route only returns
+    // enabled+running plugins), so treat undefined as true.
+    if (plugin.enabled === false || !plugin.id) continue;
     const webRoot = plugin.webRoot ?? plugin.web_root ?? "";
     const externalFetch = plugin.externalFetch ?? plugin.external_fetch ?? [];
     for (const mod of plugin.frontend ?? []) {

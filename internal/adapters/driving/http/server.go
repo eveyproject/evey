@@ -363,6 +363,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			registerPluginPreviewRoute(mux, s.TokenGen, s.PluginSvc, s.AdminWriteRL)
 		}
 	}
+	if s.PluginRepo != nil {
+		registerPluginPublicRoutes(mux, s.TokenGen, s.PluginRepo)
+	}
 	if s.PluginSecurityDashboardSvc != nil {
 		registerPluginSecurityDashboardRoute(mux, s.TokenGen, s.PluginSecurityDashboardSvc)
 	}
