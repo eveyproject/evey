@@ -188,6 +188,19 @@ function PreviewPanel({
   );
 }
 
+// parseEscalationEntries pulls "permission:network, capability:foo, ..." out
+// of the gRPC error message produced by checkPermissionEscalation server-side.
+function parseEscalationEntries(msg: string): string[] {
+  const marker = "new entries requested: ";
+  const idx = msg.indexOf(marker);
+  if (idx < 0) return [];
+  return msg
+    .slice(idx + marker.length)
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<"file" | "url">("file");
@@ -195,6 +208,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   const [preview, setPreview] = useState<PluginPreview | null>(null);
   const [error, setError] = useState("");
   const [blockedIssues, setBlockedIssues] = useState<string[]>([]);
+  const [escalationEntries, setEscalationEntries] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileName, setSelectedFileName] = useState("");
   const [selectedSigFile, setSelectedSigFile] = useState<File | null>(null);
@@ -203,7 +217,25 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   const sigFileRef = useRef<HTMLInputElement>(null);
   const [source, setSource] = useState("");
   const [name, setName] = useState("");
-  const installPlugin = useAdminPluginServiceInstallPlugin({ mutation: { onSuccess } });
+  const installPlugin = useAdminPluginServiceInstallPlugin({
+    mutation: {
+      onSuccess: () => {
+        setEscalationEntries([]);
+        onSuccess();
+      },
+      onError: (err: unknown) => {
+        // gRPC FailedPrecondition with "new entries requested: ..." means the
+        // update widens permissions and the admin must explicitly acknowledge.
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("new entries requested:")) {
+          setEscalationEntries(parseEscalationEntries(msg));
+          setError("");
+        } else {
+          setError(msg || t("admin.plugins.installFailed"));
+        }
+      },
+    },
+  });
 
   function getFile(): File | null {
     return fileRef.current?.files?.[0] ?? null;
@@ -228,16 +260,28 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     }
   }
 
-  async function handleFileInstall() {
+  async function handleFileInstall(acceptPermissionChanges = false) {
     const file = selectedFile;
     if (!file) { toast.error(t("admin.plugins.fileMissing")); return; }
     setStep("installing");
     setError("");
+    if (!acceptPermissionChanges) setEscalationEntries([]);
     try {
       const formData = new FormData();
       formData.append("plugin", file);
       if (selectedSigFile) formData.append("sig", selectedSigFile);
+      if (acceptPermissionChanges) formData.append("accept_permission_changes", "true");
       const res = await eveyFetchRaw({ url: "/api/v1/admin/plugins/upload", method: "POST", body: formData });
+      // 428 PreconditionRequired = update widens permissions; show diff and
+      // re-POST with accept_permission_changes once the admin confirms.
+      if (res.status === 428) {
+        const body = (await res.json()) as { permission_changes?: boolean; new_entries?: string[] };
+        if (body.permission_changes) {
+          setEscalationEntries(body.new_entries ?? []);
+          setStep("reviewing");
+          return;
+        }
+      }
       const body = (await res.json()) as { blocked?: boolean; issues?: string[] };
       if (body.blocked && body.issues) {
         setBlockedIssues(body.issues);
@@ -245,6 +289,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
         setStep("reviewing");
         return;
       }
+      setEscalationEntries([]);
       setStep("done");
       onSuccess();
     } catch (err) {
@@ -258,6 +303,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     setPreview(null);
     setError("");
     setBlockedIssues([]);
+    setEscalationEntries([]);
     setSelectedFile(null);
     setSelectedFileName("");
     setSelectedSigFile(null);
@@ -267,6 +313,14 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   function handleUrlSubmit(e: React.FormEvent) {
     e.preventDefault();
     installPlugin.mutate({ data: { source, name } });
+  }
+
+  function handleConfirmEscalation() {
+    if (mode === "file") {
+      void handleFileInstall(true);
+    } else {
+      installPlugin.mutate({ data: { source, name, acceptPermissionChanges: true } });
+    }
   }
 
   const hasWarnings = !!preview?.permissions?.includes("subprocess") ||
@@ -288,6 +342,46 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
           {t("admin.plugins.fromUrl")}
         </Button>
       </div>
+
+      {escalationEntries.length > 0 && (
+        <div
+          className="flex flex-col gap-3 p-4 rounded-[var(--radius-md)]"
+          style={{
+            backgroundColor: "var(--badge-warning-bg, #78350f)",
+            border: "1px solid var(--badge-warning-text, #fde047)",
+          }}
+        >
+          <div className="flex items-start gap-2">
+            <TriangleAlert size={18} className="shrink-0 mt-0.5" style={{ color: "var(--badge-warning-text, #fde047)" }} />
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-semibold" style={{ color: "var(--badge-warning-text, #fde047)" }}>
+                {t("admin.plugins.permissionEscalation.title")}
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {t("admin.plugins.permissionEscalation.description")}
+              </p>
+            </div>
+          </div>
+          <ul className="flex flex-col gap-1 text-xs list-disc pl-6 font-mono">
+            {escalationEntries.map((e, i) => (
+              <li key={i} style={{ color: "var(--badge-warning-text, #fde047)" }}>
+                {e}
+              </li>
+            ))}
+          </ul>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={resetFileFlow}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={handleConfirmEscalation}
+              loading={installPlugin.isPending || step === "installing"}
+            >
+              {t("admin.plugins.permissionEscalation.confirm")}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {mode === "file" && step !== "reviewing" && step !== "installing" && (
         <div className="flex flex-col gap-4">
@@ -399,7 +493,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
             hasWarnings={hasWarnings}
             installing={step === "installing"}
             onCancel={resetFileFlow}
-            onConfirm={handleFileInstall}
+            onConfirm={() => handleFileInstall(false)}
           />
         </>
       )}

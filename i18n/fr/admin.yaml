@@ -85,6 +85,10 @@ plugins:
   blockedByAnalysis: "Plugin bloqué par l'analyse de sécurité"
   previewFailed: "Échec de l'aperçu"
   installFailed: "Échec de l'installation"
+  permissionEscalation:
+    title: "Cette mise à jour demande de nouvelles permissions"
+    description: "La mise à jour du plugin élargit ses permissions, capabilities, slots frontend ou hôtes external_fetch. Vérifiez les ajouts ci-dessous et ne confirmez que si vous faites confiance à ces nouveaux droits."
+    confirm: "Approuver et installer"
   availableRuntimes: "Environnements d'exécution disponibles"
   security:
     title: Tableau de bord sécurité

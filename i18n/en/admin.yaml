@@ -86,6 +86,10 @@ plugins:
   blockedByAnalysis: Plugin blocked by security analysis
   previewFailed: Preview failed
   installFailed: Install failed
+  permissionEscalation:
+    title: This update requests new permissions
+    description: The plugin update widens its permissions, capabilities, frontend slots, or external_fetch hosts. Review the diff below and confirm only if you trust the new requirements.
+    confirm: Approve and install
   availableRuntimes: Available Runtimes
   security:
     title: Security Dashboard

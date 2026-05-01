@@ -151,10 +151,23 @@ func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.Inst
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
+	// When the admin has explicitly acknowledged the permission diff in the
+	// UI, the request carries accept_permission_changes=true and we authorize
+	// the installer to proceed even when the update widens permissions /
+	// capabilities / slots / external_fetch hosts.
+	if req.GetAcceptPermissionChanges() {
+		ctx = appplugin.WithAllowPermissionEscalation(ctx)
+	}
 	p, err := d.pluginInstaller.InstallPlugin(ctx, req.Source)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		// Surface permission escalation as FAILED_PRECONDITION so the
+		// frontend can detect it and show the diff modal. The error text
+		// already contains the "new entries requested: ..." breakdown.
+		if errors.Is(err, appplugin.ErrPluginPermissionEscalation) {
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		}
 		return nil, internalError("install plugin", err)
 	}
 	return pluginToProto(p), nil

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"mime"
@@ -305,11 +306,30 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 			sigFile.Close()
 		}
 
-		p, installErr := svc.InstallPlugin(r.Context(), tmpFile.Name())
+		// accept_permission_changes=true means the admin has acknowledged the
+		// permission diff in the UI and authorizes the update to widen the set.
+		installCtx := r.Context()
+		if r.FormValue("accept_permission_changes") == "true" {
+			installCtx = appplugin.WithAllowPermissionEscalation(installCtx)
+		}
+
+		p, installErr := svc.InstallPlugin(installCtx, tmpFile.Name())
 		if installErr != nil {
 			span.RecordError(installErr)
 			span.SetStatus(otelcodes.Error, "install plugin failed")
 			slog.Error("install uploaded plugin", slog.Any("err", installErr))
+			if errors.Is(installErr, appplugin.ErrPluginPermissionEscalation) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusPreconditionRequired)
+				if encErr := json.NewEncoder(w).Encode(map[string]any{
+					"message":             "plugin update requires permission acknowledgment",
+					"permission_changes":  true,
+					"new_entries":         extractEscalationEntries(installErr.Error()),
+				}); encErr != nil {
+					slog.Warn("encode escalation response", slog.Any("err", encErr))
+				}
+				return
+			}
 			if strings.Contains(installErr.Error(), "plugin blocked:") {
 				issues := extractBlockedIssues(installErr.Error())
 				w.Header().Set("Content-Type", "application/json")
@@ -478,4 +498,26 @@ func extractBlockedIssues(errMsg string) []string {
 		return []string{errMsg}
 	}
 	return issues
+}
+
+// extractEscalationEntries pulls the "permission:network, capability:foo, ..."
+// list out of the error message produced by checkPermissionEscalation.
+// The format is `...: new entries requested: ENTRY[, ENTRY...]`. Returns the
+// list as `["permission:network", "capability:foo"]` so the frontend can
+// render the diff modal without re-parsing free-form prose.
+func extractEscalationEntries(errMsg string) []string {
+	const marker = "new entries requested: "
+	idx := strings.Index(errMsg, marker)
+	if idx < 0 {
+		return nil
+	}
+	raw := errMsg[idx+len(marker):]
+	parts := strings.Split(raw, ", ")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast, useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, eveyFetchRaw } from "@evey/api";
 import { BRIDGE_SCRIPT } from "./front-bridge";
 
 interface PluginIframeProps {
@@ -13,31 +13,6 @@ interface PluginIframeProps {
   src: string;
   externalFetch?: string[];
   context?: Record<string, unknown>;
-}
-
-interface IssuedPluginToken {
-  token: string;
-  expiresAt: number; // epoch ms
-  scopes: string[];
-}
-
-// Refresh just before expiry (5min TTL server-side -> refresh at 4m30s).
-const REFRESH_BEFORE_MS = 30_000;
-
-async function issuePluginToken(pluginId: string): Promise<IssuedPluginToken> {
-  const data = await eveyFetch<{
-    token: string;
-    expires_at?: string;
-    expiresAt?: string;
-    scopes?: string[];
-  }>({
-    url: `/api/v1/plugins/${encodeURIComponent(pluginId)}/token`,
-    method: "POST",
-    data: { plugin_id: pluginId },
-  });
-  const expRaw = data.expires_at ?? data.expiresAt;
-  const expiresAt = expRaw ? Date.parse(expRaw) : Date.now() + 5 * 60_000;
-  return { token: data.token, expiresAt, scopes: data.scopes ?? [] };
 }
 
 function getThemeVars(): string {
@@ -76,25 +51,26 @@ function detectThemeMode(): "dark" | "light" {
   return luminance > 128 ? "light" : "dark";
 }
 
-// buildSrcdoc renders the iframe's HTML. The asset base URL points at the
-// plugin's served web_root, so relative imports inside the bundle (`./chunk.js`,
-// `assets/foo.png`) resolve against the same origin without the plugin author
-// needing to bake a runtime-specific base into their build.
+// buildSrcdoc renders the iframe's HTML. The plugin bundle is INLINED into
+// a <script> tag rather than fetched via <script src=…?token=…> to keep the
+// scoped plugin token out of any URL (Referer / browser history / server-log
+// leak). The parent fetches the bundle text via Authorization: Bearer header
+// and embeds it here. v1 plugins are single-bundle (no dynamic-import code
+// splitting) so an inline <script> covers the full module.
 //
 // The meta CSP is the actual enforcement boundary inside the iframe: the
 // CSP header on the JS response is cosmetic since CSP is per-document.
 // `connect-src` is fed from the plugin's external_fetch allow-list so the
 // front module can only reach hosts the admin has approved.
-function buildSrcdoc(pluginId: string, entryPath: string, pluginToken: string, externalFetch: string[]): string {
+function buildSrcdoc(pluginId: string, bundleCode: string, externalFetch: string[]): string {
   const themeVars = getThemeVars();
-  // Use ABSOLUTE URLs for the base + script src. Firefox in an
-  // about:srcdoc iframe resolves path-only URLs against `about:srcdoc`
-  // (not the parent host), which leaves relative paths unresolvable and
-  // refuses the script load. Chromium is more lenient. Absolute URLs
-  // sidestep the difference entirely.
+  // Use ABSOLUTE URLs for the base href. Firefox in an about:srcdoc iframe
+  // resolves path-only URLs against `about:srcdoc` (not the parent host),
+  // which leaves relative paths unresolvable. Absolute URLs sidestep the
+  // difference. The base remains useful for any same-origin <img>/<link>
+  // the bundle injects at runtime.
   const hostOriginForUrl = typeof window !== "undefined" ? window.location.origin : "";
   const baseHref = `${hostOriginForUrl}/api/v1/plugins/${pluginId}/assets/`;
-  const scriptUrl = `${baseHref}${entryPath}?token=${encodeURIComponent(pluginToken)}`;
   // Sandbox iframe (allow-scripts only, no allow-same-origin) gets an opaque
   // origin where 'self' resolves to "no origin matches". Anything cross-
   // origin, including scripts loaded from this very evey host, must be
@@ -116,6 +92,10 @@ function buildSrcdoc(pluginId: string, entryPath: string, pluginToken: string, e
     `img-src ${hostOrigin} data: blob:`,
     `font-src ${hostOrigin} data:`,
   ].join("; ");
+  // Defuse any literal `</script>` in the bundle text so the HTML parser
+  // doesn't terminate the inline script early. The replacement is HTML-only
+  // (the JS tokenizer treats `<\/script>` as the same string).
+  const inlineSafe = bundleCode.replace(/<\/script/gi, "<\\/script");
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -134,7 +114,7 @@ function buildSrcdoc(pluginId: string, entryPath: string, pluginToken: string, e
   <script>${BRIDGE_SCRIPT}<\/script>
 </head>
 <body>
-  <script src="${scriptUrl}"><\/script>
+  <script>${inlineSafe}<\/script>
 </body>
 </html>`;
 }
@@ -143,7 +123,7 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(100);
   const [error, setError] = useState(false);
-  const [pluginToken, setPluginToken] = useState<string | null>(null);
+  const [bundleCode, setBundleCode] = useState<string | null>(null);
   const [pluginConfig, setPluginConfig] = useState<Record<string, unknown>>({});
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
@@ -173,30 +153,34 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
     };
   }, [pluginId, accessToken]);
 
-  // Fetch scoped plugin token at mount; schedule refresh before expiry.
+  // Fetch the plugin bundle text via Authorization: Bearer header so the
+  // scoped token never appears in a URL. The bundle is then inlined into
+  // the iframe srcdoc as a <script> tag (single-bundle in v1, no chunk
+  // splitting). authorizeFrontJS server-side accepts the user access token
+  // here, identical to how it accepted the plugin token in the URL form.
   useEffect(() => {
     if (!accessToken) return;
     let cancelled = false;
-    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const fetchToken = async () => {
+    (async () => {
       try {
-        const issued = await issuePluginToken(pluginId);
-        if (cancelled) return;
-        setPluginToken(issued.token);
-        const delay = Math.max(issued.expiresAt - Date.now() - REFRESH_BEFORE_MS, 10_000);
-        refreshTimer = setTimeout(fetchToken, delay);
+        const res = await eveyFetchRaw({
+          url: `/api/v1/plugins/${encodeURIComponent(pluginId)}/assets/${src}`,
+          method: "GET",
+        });
+        if (!res.ok) {
+          throw new Error(`plugin bundle fetch failed: ${res.status}`);
+        }
+        const code = await res.text();
+        if (!cancelled) setBundleCode(code);
       } catch (e) {
-        console.warn("plugin token issue failed", e);
+        console.warn("plugin bundle fetch failed", e);
         if (!cancelled) setError(true);
       }
-    };
-    void fetchToken();
+    })();
     return () => {
       cancelled = true;
-      if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [pluginId, accessToken]);
+  }, [pluginId, src, accessToken]);
 
   const handleMessage = useCallback(
     (e: MessageEvent) => {
@@ -250,8 +234,8 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
   }, [handleMessage]);
 
   const srcdoc = useMemo(
-    () => (pluginToken ? buildSrcdoc(pluginId, src, pluginToken, externalFetch ?? []) : null),
-    [pluginId, src, pluginToken, externalFetch],
+    () => (bundleCode != null ? buildSrcdoc(pluginId, bundleCode, externalFetch ?? []) : null),
+    [pluginId, bundleCode, externalFetch],
   );
 
   if (!accessToken) return null;

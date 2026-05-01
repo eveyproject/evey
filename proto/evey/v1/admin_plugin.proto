@@ -195,6 +195,13 @@ message RemovePluginRuntimeResponse {}
 message InstallPluginRequest {
   string source = 1;
   string name = 2;
+  // Set to true after the admin has explicitly acknowledged the new
+  // permissions / capabilities / slots / external_fetch hosts requested by
+  // an update. When false, an update that escalates permissions returns
+  // FAILED_PRECONDITION with the diff in the error message and the install
+  // is rolled back. The frontend should surface a modal listing the diff
+  // and retry with this flag set after the admin confirms.
+  bool accept_permission_changes = 3;
 }
 
 message UninstallPluginRequest {
