@@ -98,6 +98,27 @@ func downloadIfURL(ctx context.Context, source string) (localPath, expectedHash 
 // the regex scanner cannot inspect.
 const nativeBinaryPerm = "native-binary"
 
+// ErrPluginPermissionEscalation is returned when an update would silently
+// grant the plugin new permissions, capabilities, frontend slots, or
+// external_fetch entries that were not present in the installed version.
+// The caller (admin handler) must pass WithAllowPermissionEscalation(ctx)
+// after an explicit admin acknowledgment to proceed.
+var ErrPluginPermissionEscalation = errors.New("plugin update requires permission escalation")
+
+type permEscalationCtxKey struct{}
+
+// WithAllowPermissionEscalation returns a child context that authorizes an
+// update to proceed even when it adds new permissions/capabilities/slots/hosts.
+// Call this only after the admin has explicitly acknowledged the diff.
+func WithAllowPermissionEscalation(ctx context.Context) context.Context {
+	return context.WithValue(ctx, permEscalationCtxKey{}, true)
+}
+
+func allowPermissionEscalation(ctx context.Context) bool {
+	v, _ := ctx.Value(permEscalationCtxKey{}).(bool)
+	return v
+}
+
 type InstallerService struct {
 	plugins      plugin.PluginRepository
 	runner       plugin.PluginRunner
@@ -201,6 +222,11 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		cmp := CompareSemver(manifest.Version, existing.Version)
 		if cmp <= 0 {
 			return nil, fmt.Errorf("plugin already installed at version %s, new version must be higher", existing.Version)
+		}
+		if !allowPermissionEscalation(ctx) {
+			if err := checkPermissionEscalation(manifest, existing); err != nil {
+				return nil, err
+			}
 		}
 		if err := s.UninstallPlugin(ctx, existing.ID); err != nil {
 			return nil, fmt.Errorf("uninstall old version: %w", err)
@@ -494,6 +520,57 @@ func CompareSemver(a, b string) int {
 		}
 	}
 	return 0
+}
+
+// checkPermissionEscalation returns ErrPluginPermissionEscalation when the
+// incoming manifest requests permissions, capabilities, frontend slots, or
+// external_fetch entries that are absent from the currently installed plugin.
+// Same-or-reduced sets are allowed without escalation.
+func checkPermissionEscalation(manifest *plugin.PluginManifest, existing *plugin.Plugin) error {
+	existingPerms := sliceToSet(existing.Permissions)
+	existingCaps := sliceToSet(existing.Capabilities)
+	existingHosts := sliceToSet(existing.ExternalFetch)
+
+	existingSlots := make(map[string]struct{}, len(existing.Frontend))
+	for _, f := range existing.Frontend {
+		existingSlots[f.Slot] = struct{}{}
+	}
+
+	var added []string
+	for _, p := range manifest.Permissions {
+		if _, ok := existingPerms[p]; !ok {
+			added = append(added, "permission:"+p)
+		}
+	}
+	for _, c := range manifest.Capabilities {
+		if _, ok := existingCaps[c]; !ok {
+			added = append(added, "capability:"+c)
+		}
+	}
+	for _, h := range manifest.ExternalFetch {
+		if _, ok := existingHosts[h]; !ok {
+			added = append(added, "external_fetch:"+h)
+		}
+	}
+	for _, f := range manifest.Frontend {
+		if _, ok := existingSlots[f.Slot]; !ok {
+			added = append(added, "slot:"+f.Slot)
+		}
+	}
+
+	if len(added) > 0 {
+		return fmt.Errorf("%w: new entries requested: %s", ErrPluginPermissionEscalation, strings.Join(added, ", "))
+	}
+	return nil
+}
+
+// sliceToSet converts a string slice to a set map for O(1) membership tests.
+func sliceToSet(ss []string) map[string]struct{} {
+	m := make(map[string]struct{}, len(ss))
+	for _, s := range ss {
+		m[s] = struct{}{}
+	}
+	return m
 }
 
 func parseSemverParts(v string) [3]int {

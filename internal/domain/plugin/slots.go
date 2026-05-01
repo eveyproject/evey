@@ -12,6 +12,13 @@ type SlotMeta struct {
 // AllowedSlots enumerates every slot a plugin is permitted to mount in.
 // Critical paths (admin/*, login/*, setup/*, profile/security/*) are
 // intentionally absent — plugins must never inject UI there.
+//
+// Slots NOT included and why:
+//   - admin.*      : admin area is privileged; plugin injection there is a privilege-escalation vector.
+//   - login.*      : login path is authentication-critical; even cosmetic injection can be used for phishing.
+//   - setup.*      : first-run setup handles credentials; same risk as login.
+//   - profile.security.* : security settings (PIN, password); injection would undermine access controls.
+//   - sidebar      : too generic — mount point is ambiguous without an explicit sub-path.
 var AllowedSlots = map[string]SlotMeta{
 	"home.section":             {Auth: true, Critical: false},
 	"home.hero":                {Auth: true, Critical: false},
@@ -19,6 +26,8 @@ var AllowedSlots = map[string]SlotMeta{
 	"media.detail.sidebar":     {Auth: true, Critical: false},
 	"player.overlay":           {Auth: true, Critical: false},
 	"settings.user.appearance": {Auth: true, Critical: false},
+	// sidebar.bottom is the navigation tray bottom area — non-critical, cosmetic.
+	"sidebar.bottom": {Auth: true, Critical: false},
 }
 
 // IsSlotAllowed returns true when a plugin is permitted to mount in this slot.

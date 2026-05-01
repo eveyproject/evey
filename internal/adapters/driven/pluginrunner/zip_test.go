@@ -239,6 +239,31 @@ func TestZipExtract_StripsSetuid(t *testing.T) {
 	assert.Zero(t, info.Mode()&os.ModeSetuid, "setuid must be stripped")
 }
 
+func TestExtractZip_RejectsSymlink(t *testing.T) {
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "symlink.zip")
+	f, err := os.Create(zipPath)
+	require.NoError(t, err)
+
+	w := zip.NewWriter(f)
+	// ExternalAttrs high 16 bits hold the Unix mode word.
+	// Type bits 0120000 = symlink; perms 0644 → ExternalAttrs = 0o120644 << 16.
+	header := &zip.FileHeader{Name: "evil-link", Method: zip.Store}
+	header.ExternalAttrs = 0o120644 << 16
+	fw, err := w.CreateHeader(header)
+	require.NoError(t, err)
+	_, err = fw.Write([]byte("/etc/passwd"))
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+	require.NoError(t, f.Close())
+
+	dest := t.TempDir()
+	installer := NewZipInstaller()
+	err = installer.Extract(zipPath, dest)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "symlinks not allowed")
+}
+
 // fmt_itoa is a small helper so tests don't pull fmt for one %d.
 func fmt_itoa(i int) string {
 	if i == 0 {

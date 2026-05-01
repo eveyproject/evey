@@ -743,6 +743,62 @@ func TestInstallPlugin_WithLocalPath_Unchanged(t *testing.T) {
 	assert.Equal(t, hex.EncodeToString(sum[:]), p.SourceHash)
 }
 
+// --- Permission escalation guard ---
+
+func TestInstallPlugin_Update_EscalatesPermissions_Blocked(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+
+	// v1: api.library only
+	parser.Result = goManifestVersioned("escalate-me", "1.0.0")
+	parser.Result.Permissions = []string{"api.library"}
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	// v2: adds network + subprocess — should be blocked without explicit allow
+	parser.Result = goManifestVersioned("escalate-me", "2.0.0")
+	parser.Result.Permissions = []string{"api.library", "network", "subprocess"}
+	parser.Result.ExternalFetch = []string{"example.com"}
+	_, err = svc.InstallPlugin(context.Background(), tmpZip(t, "v2"))
+	require.Error(t, err)
+	require.ErrorIs(t, err, appplugin.ErrPluginPermissionEscalation)
+	assert.Contains(t, err.Error(), "permission:network")
+}
+
+func TestInstallPlugin_Update_SamePermissions_Allowed(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+
+	// v1: api.library
+	parser.Result = goManifestVersioned("stable-perms", "1.0.0")
+	parser.Result.Permissions = []string{"api.library"}
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	// v2: same permissions set — must succeed
+	parser.Result = goManifestVersioned("stable-perms", "2.0.0")
+	parser.Result.Permissions = []string{"api.library"}
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v2"))
+	require.NoError(t, err)
+	assert.Equal(t, "2.0.0", p.Version)
+}
+
+func TestInstallPlugin_Update_EscalationAllowedByContext(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+
+	// v1: api.library
+	parser.Result = goManifestVersioned("ctx-escalate", "1.0.0")
+	parser.Result.Permissions = []string{"api.library"}
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	// v2: adds subprocess — allowed because context carries explicit admin ack
+	parser.Result = goManifestVersioned("ctx-escalate", "2.0.0")
+	parser.Result.Permissions = []string{"api.library", "subprocess"}
+	ctx := appplugin.WithAllowPermissionEscalation(context.Background())
+	p, err := svc.InstallPlugin(ctx, tmpZip(t, "v2"))
+	require.NoError(t, err)
+	assert.Equal(t, "2.0.0", p.Version)
+}
+
 // zeroReader is an infinite stream of zero bytes, used to simulate a
 // response body larger than the installer's 100 MB cap.
 type zeroReader struct{}

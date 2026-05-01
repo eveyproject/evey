@@ -24,6 +24,7 @@ func buildBwrapCmd(pluginDir, pluginSockDir string, hasNetworkPerm bool, mode st
 		"--unshare-pid",
 		"--unshare-uts",
 		"--unshare-ipc",
+		"--unshare-cgroup",
 	}
 
 	if !hasNetworkPerm {

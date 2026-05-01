@@ -58,6 +58,13 @@ func extractZipFile(f *zip.File, destDir string, totalBytes *uint64) error {
 		return os.MkdirAll(target, 0o755)
 	}
 
+	// Go's zip.FileInfo.Mode() does not propagate Unix file-type bits, so
+	// we inspect ExternalAttrs directly: high 16 bits hold the Unix mode
+	// word, and type bits 0120000 indicate a symlink.
+	if f.ExternalAttrs>>16&0o170000 == 0o120000 {
+		return fmt.Errorf("symlinks not allowed in plugin archives: %s", f.Name)
+	}
+
 	if f.UncompressedSize64 > maxZipFileSize {
 		return fmt.Errorf("file %s exceeds max size (%d bytes)", f.Name, maxZipFileSize)
 	}

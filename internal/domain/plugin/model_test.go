@@ -123,3 +123,46 @@ func TestPluginManifest_Validate(t *testing.T) {
 		})
 	}
 }
+
+func TestPluginManifest_Validate_SlotWhitelist(t *testing.T) {
+	t.Parallel()
+
+	t.Run("allowed slot accepted", func(t *testing.T) {
+		t.Parallel()
+		m := plugin.PluginManifest{
+			Name:       "slot-ok",
+			Kind:       plugin.KindPlugin,
+			Version:    "1.0.0",
+			Entrypoint: "main.py",
+			WebRoot:    "ui",
+			Frontend: []plugin.FrontModule{
+				{Slot: "home.section", Src: "ui/widget.js"},
+			},
+		}
+		if err := m.Validate(); err != nil {
+			t.Errorf("expected no error for whitelisted slot, got: %v", err)
+		}
+	})
+
+	t.Run("critical slot rejected", func(t *testing.T) {
+		t.Parallel()
+		m := plugin.PluginManifest{
+			Name:       "slot-bad",
+			Kind:       plugin.KindPlugin,
+			Version:    "1.0.0",
+			Entrypoint: "main.py",
+			WebRoot:    "ui",
+			Frontend: []plugin.FrontModule{
+				{Slot: "admin.users", Src: "ui/widget.js"},
+			},
+		}
+		err := m.Validate()
+		if err == nil {
+			t.Fatal("expected error for non-whitelisted slot, got nil")
+		}
+		want := `manifest: frontend slot "admin.users" not allowed`
+		if err.Error() != want {
+			t.Errorf("error message mismatch\ngot:  %q\nwant: %q", err.Error(), want)
+		}
+	})
+}

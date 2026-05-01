@@ -185,6 +185,9 @@ func (m *PluginManifest) Validate() error {
 			return err
 		}
 		for _, f := range m.Frontend {
+			if !IsSlotAllowed(f.Slot) {
+				return fmt.Errorf("manifest: frontend slot %q not allowed", f.Slot)
+			}
 			if err := validateSrcUnderWebRoot(m.WebRoot, f.Src); err != nil {
 				return fmt.Errorf("manifest: frontend src %q: %w", f.Src, err)
 			}
