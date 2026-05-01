@@ -39,13 +39,14 @@ const (
 )
 
 type processEntry struct {
-	cmd        *exec.Cmd
-	cancel     context.CancelFunc
-	sockPath   string
-	pluginID   string
-	ipc        *ipcClient
-	done       chan struct{} // closed when cmd.Wait() returns in Start goroutine
-	cgroupPath string       // empty when cgroup v2 is unavailable
+	cmd           *exec.Cmd
+	cancel        context.CancelFunc
+	sockPath      string
+	pluginID      string
+	ipc           *ipcClient
+	done          chan struct{} // closed when cmd.Wait() returns in Start goroutine
+	cgroupPath    string        // empty when cgroup v2 is unavailable
+	hostsCleanup  func()        // removes the temp /etc/hosts file; nil if not built
 }
 
 // OnIPCResult is called after IPC Initialize completes (success or failure).
@@ -276,10 +277,19 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	}
 
 	cmd.Env = buildPluginEnv(p.ID, sock, hostSock)
-	if err := r.applySandbox(parentCtx, p, cmd); err != nil {
+	hostsCleanup, err := r.applySandbox(parentCtx, p, cmd)
+	if err != nil {
 		r.rollbackStart(cancel, pluginSockDir, p.ID, true)
 		return err
 	}
+	// hostsCleanup must run if Start fails between applySandbox and the point
+	// where the cleanup is handed off to the lifecycle goroutines below.
+	hostsCleanedUp := false
+	defer func() {
+		if !hostsCleanedUp && hostsCleanup != nil {
+			hostsCleanup()
+		}
+	}()
 
 	if r.logger != nil {
 		cmd.Stdout = r.logger.Writer(p.ID)
@@ -330,13 +340,15 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	}
 
 	entry := &processEntry{
-		cmd:        cmd,
-		cancel:     cancel,
-		sockPath:   sock,
-		pluginID:   p.ID,
-		done:       make(chan struct{}),
-		cgroupPath: cgroupPath,
+		cmd:          cmd,
+		cancel:       cancel,
+		sockPath:     sock,
+		pluginID:     p.ID,
+		done:         make(chan struct{}),
+		cgroupPath:   cgroupPath,
+		hostsCleanup: hostsCleanup,
 	}
+	hostsCleanedUp = true // ownership handed to entry; trackLifecycle/Stop will call it
 	go r.connectIPC(ctx, entry, p)
 
 	r.mu.Lock()
@@ -456,7 +468,7 @@ func buildPluginEnv(pluginID, sock, hostSock string) []string {
 //     Requires bwrap in $PATH; returns an error if absent.
 //   - "strict": bubblewrap namespaces AND LD_PRELOAD seccomp lib.
 //   - "basic": LD_PRELOAD seccomp lib + UID drop only (legacy/test fallback).
-func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) error {
+func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) (func(), error) {
 	mode := r.sandboxMode
 	if mode == "" {
 		mode = sandboxModeBasic // internal fallback for tests; prod always calls WithSandboxMode
@@ -466,7 +478,7 @@ func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *
 	case sandboxModeBubblewrap, sandboxModeStrict:
 		return r.applyBwrapSandbox(parentCtx, p, cmd, mode)
 	default:
-		return r.applyBasicSandbox(parentCtx, p, cmd)
+		return nil, r.applyBasicSandbox(parentCtx, p, cmd)
 	}
 }
 
@@ -496,14 +508,14 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 // For "strict" mode it also applies the LD_PRELOAD seccomp lib.
 // Mutates cmd.Path and cmd.Args in-place so the exec.Cmd already built in
 // Start is reused unchanged (Env, SysProcAttr, Dir, Stdout/Stderr).
-func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd, mode string) error {
+func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd, mode string) (func(), error) {
 	bwrapPath, err := exec.LookPath("bwrap")
 	if err != nil {
 		slog.Error("bwrap not found in PATH",
 			slog.String("plugin_id", p.ID),
 			slog.String("sandbox_mode", mode))
 		r.publishPluginError(parentCtx, p.ID, "bwrap binary missing; plugin refused start")
-		return fmt.Errorf("pluginrunner: sandbox_mode=%q requires bwrap binary in $PATH (apk add bubblewrap)", mode)
+		return nil, fmt.Errorf("pluginrunner: sandbox_mode=%q requires bwrap binary in $PATH (apk add bubblewrap)", mode)
 	}
 
 	pluginDir := p.InstallDir
@@ -512,7 +524,11 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 	}
 	hasNet := slices.Contains(p.Permissions, networkPerm)
 
-	hostsFile, _, _ := buildHostsFile(p.ID, p.ExternalFetch) // cleanup deferred to process exit (V1)
+	hostsFile, hostsCleanup, hostsErr := buildHostsFile(p.ID, p.ExternalFetch)
+	if hostsErr != nil {
+		slog.Warn("build /etc/hosts file failed; running without DNS whitelist",
+			slog.String("plugin_id", p.ID), slog.Any("err", hostsErr))
+	}
 
 	pluginSockDir := filepath.Join(sockDir, p.ID)
 	prefix := buildBwrapCmd(pluginDir, pluginSockDir, hasNet, mode, hostsFile)
@@ -536,7 +552,10 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 				slog.String("plugin_id", p.ID),
 				slog.String("sandbox_lib", sandboxLibPath))
 			r.publishPluginError(parentCtx, p.ID, "sandbox library unavailable; plugin refused start (strict)")
-			return fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
+			if hostsCleanup != nil {
+				hostsCleanup()
+			}
+			return nil, fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
 		} else {
 			slog.Warn("strict mode without seccomp lib (dev override)",
 				slog.String("plugin_id", p.ID))
@@ -548,7 +567,7 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 		slog.String("sandbox_mode", mode),
 		slog.String("plugin_dir", pluginDir),
 		slog.Bool("has_network_perm", hasNet))
-	return nil
+	return hostsCleanup, nil
 }
 
 func pluginSysProcAttr() *syscall.SysProcAttr {
@@ -586,6 +605,9 @@ func (r *Runner) trackLifecycle(entry *processEntry, cancel context.CancelFunc, 
 	cancel()
 	if err2 := os.Remove(sock); err2 != nil {
 		slog.Warn("remove plugin sock on crash", slog.Any("err", err2))
+	}
+	if entry.hostsCleanup != nil {
+		entry.hostsCleanup()
 	}
 	cleanupCgroup(entry.cgroupPath)
 	if r.hostRegistry != nil {
@@ -688,6 +710,9 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 		slog.Warn("remove plugin sock dir", slog.Any("err", err))
 	}
 
+	if entry.hostsCleanup != nil {
+		entry.hostsCleanup()
+	}
 	cleanupCgroup(entry.cgroupPath)
 
 	if r.hostRegistry != nil {

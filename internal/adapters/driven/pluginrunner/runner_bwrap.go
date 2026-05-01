@@ -35,7 +35,9 @@ func buildBwrapCmd(pluginDir, pluginSockDir string, hasNetworkPerm bool, mode st
 		"--ro-bind", "/", "/",
 		"--bind", pluginDir, pluginDir,
 		"--proc", "/proc",
-		"--dev-bind", "/dev", "/dev",
+		// --dev synthesises a minimal /dev (null, zero, full, random, urandom,
+		// tty, pts) without exposing physical host devices like --dev-bind would.
+		"--dev", "/dev",
 		"--tmpfs", "/tmp",
 	)
 

@@ -67,7 +67,8 @@ func TestBuildBwrapCmd_ContainsProcDevTmpfs(t *testing.T) {
 	args := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", true, sandboxModeBubblewrap, "")
 	require.NotNil(t, args)
 	assert.Contains(t, args, "--proc")
-	assert.Contains(t, args, "--dev-bind")
+	assert.Contains(t, args, "--dev")
+	assert.NotContains(t, args, "--dev-bind", "must use synthesised --dev, not host /dev bind-mount")
 	assert.Contains(t, args, "--tmpfs")
 	assert.Contains(t, args, "--die-with-parent")
 }

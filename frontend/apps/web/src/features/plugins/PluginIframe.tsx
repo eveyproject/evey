@@ -235,7 +235,8 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
           break;
         case "resize":
           if (typeof data.height === "number" && data.height > 0) {
-            setHeight(data.height);
+            // Clamp to [50, 800] to prevent visual DoS via unbounded resize.
+            setHeight(Math.max(50, Math.min(800, data.height)));
           }
           break;
       }
