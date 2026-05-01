@@ -8,6 +8,7 @@ nav:
   media: "मीडिया"
   libraries: "लाइब्रेरी"
   transcoding: "ट्रांसकोडिंग"
+  artworks: "आर्टवर्क कैश"
   usersAccess: "उपयोगकर्ता और एक्सेस"
   users: "उपयोगकर्ता"
   integrations: "इंटिग्रेशन"
@@ -19,6 +20,25 @@ nav:
   activity: "गतिविधि"
   maintenance: "रखरखाव"
   backupRestore: "बैकअप और पुनर्स्थापना"
+
+artworks:
+  title: "आर्टवर्क (लोकल कैश)"
+  subtitle: "TMDB आर्टवर्क को लोकल में डाउनलोड करें ताकि WebP सर्व हो"
+  cacheStatus: "कैश स्थिति"
+  storedLocally: "आर्टवर्क लोकल में संग्रहीत"
+  totalRecords: "कुल रिकॉर्ड"
+  missing: "लोकल कॉपी नहीं"
+  statsUnavailable: "आँकड़े उपलब्ध नहीं"
+  downloadSection: "अनुपस्थित आर्टवर्क डाउनलोड करें"
+  downloadDesc: "TMDB URL वाले लेकिन बिना लोकल कॉपी वाले सभी आर्टवर्क डाउनलोड करें।"
+  downloadMissing: "अनुपस्थित आर्टवर्क डाउनलोड करें"
+  downloading: "डाउनलोड हो रहा है..."
+  downloadAgain: "दोबारा डाउनलोड करें"
+  downloadComplete: "आर्टवर्क डाउनलोड पूर्ण"
+  downloadFailed: "डाउनलोड शुरू करने में विफल"
+  done: "हो गया"
+  errorsPartial: "त्रुटियाँ (आंशिक डाउनलोड)"
+
 plugin:
   enabled: "सक्षम"
   disabled: "अक्षम"

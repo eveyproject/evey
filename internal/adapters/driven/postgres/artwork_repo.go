@@ -168,6 +168,71 @@ func (r *ArtworkRepository) UpdateSortOrder(ctx context.Context, id string, sort
 	return nil
 }
 
+func (r *ArtworkRepository) ListMissingLocalPath(ctx context.Context) ([]*metadata.ArtworkRecord, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.ListMissingLocalPath")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, 2*defaultQueryTimeout)
+	defer cancel()
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
+		 FROM artwork WHERE source_url IS NOT NULL AND (local_path IS NULL OR local_path = '') ORDER BY id`)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	result, err := r.scanArtworkRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
+}
+
+func (r *ArtworkRepository) LocalPathStats(ctx context.Context) (metadata.ArtworkStats, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.LocalPathStats")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var stats metadata.ArtworkStats
+	row := r.db.QueryRowContext(ctx,
+		`SELECT
+			COUNT(*) AS total,
+			COUNT(CASE WHEN local_path IS NOT NULL AND local_path <> '' THEN 1 END) AS with_local,
+			COUNT(CASE WHEN local_path IS NULL OR local_path = '' THEN 1 END) AS missing_local
+		 FROM artwork`)
+	if err := row.Scan(&stats.TotalRecords, &stats.WithLocalPath, &stats.MissingLocalPath); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return stats, err
+	}
+	// TotalSizeBytes is not tracked in the DB (would require a dedicated column).
+	// The frontend receives 0 and can display it as "N/A" or omit it.
+	return stats, nil
+}
+
+func (r *ArtworkRepository) UpdateLocalPath(ctx context.Context, id string, localPath string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.UpdateLocalPath")
+	defer span.End()
+	span.SetAttributes(attribute.String("artwork.id", id))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := r.db.ExecContext(ctx, `UPDATE artwork SET local_path = $1 WHERE id = $2`, localPath, id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
 func (r *ArtworkRepository) UpdateWebPPath(ctx context.Context, id string, webpPath string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.UpdateWebPPath")
 	defer span.End()

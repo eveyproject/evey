@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -36,6 +38,31 @@ func WithMediaPersons(repo library.MediaPersonRepository) CommandServiceOption {
 	return func(s *CommandService) { s.mediaPersons = repo }
 }
 
+// DownloadJob tracks the progress of a bulk artwork download operation.
+type DownloadJob struct {
+	ID        string
+	Total     int
+	Processed atomic.Int64
+	Errors    []string
+	mu        sync.Mutex
+	Done      bool
+}
+
+func (j *DownloadJob) addError(msg string) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	j.Errors = append(j.Errors, msg)
+}
+
+// ListErrors returns a copy of error messages accumulated during the job.
+func (j *DownloadJob) ListErrors() []string {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	out := make([]string, len(j.Errors))
+	copy(out, j.Errors)
+	return out
+}
+
 type CommandService struct {
 	overrides    metadata.MetadataOverrideRepository
 	artwork      metadata.ArtworkRepository
@@ -46,6 +73,21 @@ type CommandService struct {
 	mediaPersons library.MediaPersonRepository
 	enricher     ItemEnricher
 	workerWg     sync.WaitGroup
+
+	// auto-download settings
+	autoDownloadEnabled bool
+	dataDir             string
+
+	// in-memory job registry for bulk downloads
+	jobsMu sync.RWMutex
+	jobs   map[string]*DownloadJob
+}
+
+func WithAutoDownload(dataDir string, enabled bool) CommandServiceOption {
+	return func(s *CommandService) {
+		s.dataDir = dataDir
+		s.autoDownloadEnabled = enabled
+	}
 }
 
 func NewCommandService(
@@ -62,11 +104,150 @@ func NewCommandService(
 		downloader: downloader,
 		events:     events,
 		providers:  providers,
+		jobs:       make(map[string]*DownloadJob),
 	}
 	for _, opt := range opts {
 		opt(s)
 	}
 	return s
+}
+
+// SetAutoDownload updates the auto-download setting at runtime (e.g. after server-config change).
+func (s *CommandService) SetAutoDownload(dataDir string, enabled bool) {
+	s.dataDir = dataDir
+	s.autoDownloadEnabled = enabled
+}
+
+// artworkDestPath derives the on-disk path for an artwork record.
+// Pattern: <dataDir>/artworks/<mediaItemID>/<artworkID>.<ext>
+func (s *CommandService) artworkDestPath(rec *metadata.ArtworkRecord) string {
+	ext := ".jpg"
+	if rec.SourceURL != nil {
+		u := *rec.SourceURL
+		if idx := strings.LastIndex(u, "."); idx >= 0 && idx > strings.LastIndex(u, "/") {
+			candidate := u[idx:]
+			// strip query string
+			if q := strings.Index(candidate, "?"); q >= 0 {
+				candidate = candidate[:q]
+			}
+			if len(candidate) <= 5 {
+				ext = candidate
+			}
+		}
+	}
+	return filepath.Join(s.dataDir, "artworks", string(rec.MediaItemID), rec.ID+ext)
+}
+
+// ArtworkStats returns aggregate coverage statistics.
+func (s *CommandService) ArtworkStats(ctx context.Context) (metadata.ArtworkStats, error) {
+	return s.artwork.LocalPathStats(ctx)
+}
+
+// StartBulkDownload launches a background goroutine to download all artwork records
+// that have a SourceURL but no LocalPath. Returns a job ID immediately.
+// Concurrent: at most concurrency downloads at once.
+func (s *CommandService) StartBulkDownload(ctx context.Context, serverCtx context.Context) (string, int, error) {
+	if s.dataDir == "" {
+		return "", 0, errors.New("dataDir not configured")
+	}
+	records, err := s.artwork.ListMissingLocalPath(ctx)
+	if err != nil {
+		return "", 0, fmt.Errorf("list missing artwork: %w", err)
+	}
+
+	jobID := fmt.Sprintf("artdl-%d", time.Now().UnixNano())
+	job := &DownloadJob{
+		ID:    jobID,
+		Total: len(records),
+	}
+	s.jobsMu.Lock()
+	s.jobs[jobID] = job
+	s.jobsMu.Unlock()
+
+	go s.runBulkDownload(serverCtx, job, records)
+	return jobID, len(records), nil
+}
+
+// runBulkDownload executes the download job with capped concurrency (4 workers).
+func (s *CommandService) runBulkDownload(ctx context.Context, job *DownloadJob, records []*metadata.ArtworkRecord) {
+	const maxConcurrent = 4
+	sem := make(chan struct{}, maxConcurrent)
+	var wg sync.WaitGroup
+
+	for _, rec := range records {
+		rec := rec
+		select {
+		case <-ctx.Done():
+			break
+		case sem <- struct{}{}:
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			destPath := s.artworkDestPath(rec)
+			// Skip if already downloaded (re-entrant)
+			if _, err := os.Stat(destPath); err == nil {
+				if err2 := s.artwork.UpdateLocalPath(ctx, rec.ID, destPath); err2 != nil {
+					slog.Warn("artwork bulk: update already-present local path",
+						slog.String("id", rec.ID), slog.Any("err", err2))
+				}
+				job.Processed.Add(1)
+				return
+			}
+			if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+				job.addError(fmt.Sprintf("%s: mkdir: %v", rec.ID, err))
+				job.Processed.Add(1)
+				return
+			}
+			if err := s.DownloadArtwork(ctx, rec, destPath); err != nil {
+				job.addError(fmt.Sprintf("%s: %v", rec.ID, err))
+				job.Processed.Add(1)
+				return
+			}
+			if err := s.artwork.UpdateLocalPath(ctx, rec.ID, destPath); err != nil {
+				slog.Warn("artwork bulk: save local path",
+					slog.String("id", rec.ID), slog.Any("err", err))
+			}
+			job.Processed.Add(1)
+		}()
+	}
+	wg.Wait()
+
+	s.jobsMu.Lock()
+	job.Done = true
+	s.jobsMu.Unlock()
+}
+
+// GetDownloadJob retrieves a job by ID; returns nil if not found.
+func (s *CommandService) GetDownloadJob(jobID string) *DownloadJob {
+	s.jobsMu.RLock()
+	defer s.jobsMu.RUnlock()
+	return s.jobs[jobID]
+}
+
+// maybeAutoDownload triggers an automatic download when auto-download is enabled.
+// It is best-effort: errors are only logged.
+func (s *CommandService) maybeAutoDownload(ctx context.Context, rec *metadata.ArtworkRecord) {
+	if !s.autoDownloadEnabled || s.dataDir == "" || rec.SourceURL == nil {
+		return
+	}
+	destPath := s.artworkDestPath(rec)
+	if _, err := os.Stat(destPath); err == nil {
+		// already downloaded
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		slog.Warn("auto-download artwork: mkdir", slog.String("id", rec.ID), slog.Any("err", err))
+		return
+	}
+	if err := s.DownloadArtwork(ctx, rec, destPath); err != nil {
+		slog.Warn("auto-download artwork", slog.String("id", rec.ID), slog.Any("err", err))
+		return
+	}
+	if err := s.artwork.UpdateLocalPath(ctx, rec.ID, destPath); err != nil {
+		slog.Warn("auto-download artwork: save local path", slog.String("id", rec.ID), slog.Any("err", err))
+	}
 }
 
 func (s *CommandService) RefreshMetadata(ctx context.Context, mediaItemID, providerID, providerName, mediaType string) (*metadata.MetadataResult, error) {

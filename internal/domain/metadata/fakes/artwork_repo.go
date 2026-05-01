@@ -97,6 +97,53 @@ func (r *FakeArtworkRepository) GetByPerson(_ context.Context, personID string) 
 	return result, nil
 }
 
+func (r *FakeArtworkRepository) ListMissingLocalPath(_ context.Context) ([]*metadata.ArtworkRecord, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*metadata.ArtworkRecord
+	for _, a := range r.items {
+		if a.SourceURL != nil && (a.LocalPath == nil || *a.LocalPath == "") {
+			result = append(result, a)
+		}
+	}
+	return result, nil
+}
+
+func (r *FakeArtworkRepository) LocalPathStats(_ context.Context) (metadata.ArtworkStats, error) {
+	if r.Err != nil {
+		return metadata.ArtworkStats{}, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var stats metadata.ArtworkStats
+	for _, a := range r.items {
+		stats.TotalRecords++
+		if a.LocalPath != nil && *a.LocalPath != "" {
+			stats.WithLocalPath++
+		} else {
+			stats.MissingLocalPath++
+		}
+	}
+	return stats, nil
+}
+
+func (r *FakeArtworkRepository) UpdateLocalPath(_ context.Context, id string, localPath string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	a, ok := r.items[id]
+	if !ok {
+		return ErrNotFound
+	}
+	a.LocalPath = &localPath
+	return nil
+}
+
 func (r *FakeArtworkRepository) UpdateWebPPath(_ context.Context, id string, webpPath string) error {
 	if r.Err != nil {
 		return r.Err

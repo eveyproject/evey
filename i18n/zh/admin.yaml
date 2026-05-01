@@ -8,6 +8,7 @@ nav:
   media: "媒体"
   libraries: "媒体库"
   transcoding: "转码"
+  artworks: "图片缓存"
   usersAccess: "用户与访问"
   users: "用户"
   integrations: "集成"
@@ -19,6 +20,25 @@ nav:
   activity: "活动"
   maintenance: "维护"
   backupRestore: "备份与恢复"
+
+artworks:
+  title: "图片（本地缓存）"
+  subtitle: "将TMDB图片下载到本地，提供WebP格式而非重定向"
+  cacheStatus: "缓存状态"
+  storedLocally: "本地缓存图片"
+  totalRecords: "总记录数"
+  missing: "缺少本地副本"
+  statsUnavailable: "统计不可用"
+  downloadSection: "下载缺失图片"
+  downloadDesc: "下载所有有TMDB来源URL但无本地副本的图片。"
+  downloadMissing: "下载缺失图片"
+  downloading: "下载中..."
+  downloadAgain: "重新下载"
+  downloadComplete: "图片下载完成"
+  downloadFailed: "启动下载失败"
+  done: "完成"
+  errorsPartial: "错误（部分下载）"
+
 plugin:
   enabled: "已启用"
   disabled: "已禁用"

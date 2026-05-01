@@ -25,6 +25,10 @@ type CollectionLinker interface {
 	LinkMediaItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error
 }
 
+// ArtworkPostSaveHook is called for each artwork record immediately after it is
+// persisted during scan enrichment. Used to trigger auto-download when enabled.
+type ArtworkPostSaveHook func(ctx context.Context, rec *domainmetadata.ArtworkRecord)
+
 type Enricher struct {
 	artwork              domainmetadata.ArtworkRepository
 	persons              domainlib.PersonRepository
@@ -39,6 +43,7 @@ type Enricher struct {
 	translationLocales   []string
 	personFetcher        personDetailFetcher
 	overrides            domainmetadata.MetadataOverrideRepository
+	artworkPostSaveHook  ArtworkPostSaveHook
 }
 
 type EnricherOption func(*Enricher)
@@ -51,6 +56,12 @@ func EnricherWithPersonFetcher(f personDetailFetcher) EnricherOption {
 // auto-enrichment skips items whose admin has manually edited any field.
 func EnricherWithOverrides(r domainmetadata.MetadataOverrideRepository) EnricherOption {
 	return func(e *Enricher) { e.overrides = r }
+}
+
+// EnricherWithArtworkPostSaveHook registers a callback fired after each artwork
+// record batch is persisted. CommandService uses this to trigger auto-download.
+func EnricherWithArtworkPostSaveHook(hook ArtworkPostSaveHook) EnricherOption {
+	return func(e *Enricher) { e.artworkPostSaveHook = hook }
 }
 
 func EnricherWithTranslations(
@@ -194,6 +205,11 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 	}
 	if err := e.artwork.CreateBatch(ctx, records); err != nil {
 		return fmt.Errorf("create artwork batch: %w", err)
+	}
+	if e.artworkPostSaveHook != nil {
+		for _, rec := range records {
+			e.artworkPostSaveHook(ctx, rec)
+		}
 	}
 	return nil
 }

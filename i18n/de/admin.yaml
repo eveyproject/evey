@@ -8,6 +8,7 @@ nav:
   media: Medien
   libraries: Bibliotheken
   transcoding: Transkodierung
+  artworks: Artwork-Cache
   usersAccess: Benutzer & Zugriff
   users: Benutzer
   integrations: Integrationen
@@ -19,6 +20,24 @@ nav:
   activity: Aktivität
   maintenance: Wartung
   backupRestore: Sicherung & Wiederherstellung
+
+artworks:
+  title: Artworks (lokaler Cache)
+  subtitle: TMDB-Artworks lokal herunterladen, um WebP statt Weiterleitungen zu liefern
+  cacheStatus: Cache-Status
+  storedLocally: lokal gespeicherte Artworks
+  totalRecords: Gesamteintraege
+  missing: Lokale Kopie fehlt
+  statsUnavailable: Statistiken nicht verfuegbar
+  downloadSection: Fehlende Artworks herunterladen
+  downloadDesc: Laedt alle Artworks mit TMDB-URL aber ohne lokale Kopie herunter.
+  downloadMissing: Fehlende Artworks herunterladen
+  downloading: "Wird heruntergeladen..."
+  downloadAgain: Erneut herunterladen
+  downloadComplete: Artwork-Download abgeschlossen
+  downloadFailed: Download konnte nicht gestartet werden
+  done: Fertig
+  errorsPartial: Fehler (teilweiser Download)
 
 plugin:
   enabled: Aktiviert
