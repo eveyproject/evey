@@ -1,21 +1,18 @@
-// Entry point for the weather plugin's front module.
+// Entry point for the weather plugin front module.
 //
-// Mounts a React app into document.body that renders:
-//   - an R3F Canvas with a procedural sky + a noise-displaced orb that
-//     adapts to the current weather, plus rain/snow particle systems
-//     and a storm flash light when applicable
-//   - an HTML overlay with the temperature + city + condition label,
-//     anchored top-right and transparent over the canvas
+// Bridge contract: window.evey.onInit fires with { config: { city, units } }.
+// Flow: onInit → geocode + fetchWeather → conditionToScene → render App.
 //
-// Bridge contract (plugin API): window.evey.{onInit, resize}.
-// onInit fires once with { context, config, locale, theme }; we read
-// config.city + config.units to drive the API requests.
+// Open-Meteo endpoints (whitelisted in plugin.yaml):
+//   https://geocoding-api.open-meteo.com/v1/search
+//   https://api.open-meteo.com/v1/forecast
 
 import { createRoot } from "react-dom/client";
-import { Canvas } from "@react-three/fiber";
-import { useEffect, useState } from "react";
-import { profileForWeather, type WeatherState } from "./types";
-import { Scene } from "./scene";
+import { useState, useEffect, StrictMode } from "react";
+import { OpenMeteoWeatherProvider } from "./adapters/OpenMeteoWeatherProvider";
+import { conditionToScene } from "./domain/mapping/conditionToScene";
+import type { SceneParams, WeatherSnapshot } from "./domain/weather";
+import { App } from "./App";
 
 declare global {
   interface Window {
@@ -33,134 +30,110 @@ declare global {
   }
 }
 
-const GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search";
-const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
+const provider = new OpenMeteoWeatherProvider();
 
-interface GeocodeResult {
-  results?: Array<{ latitude: number; longitude: number; name: string }>;
+// Placeholder scene for loading state (clear day)
+const LOADING_PARAMS: SceneParams = {
+  cloudCover: 0,
+  cloudDensity: 0,
+  cloudSpeed: 0.1,
+  precipitation: "none",
+  precipIntensity: 0,
+  windVec: [1, 0],
+  thunderRate: 0,
+  fog: 0,
+  isDay: false,
+  sunAltitude: -0.4,
+  sunAzimuth: 0,
+  moonPhase: 0.5,
+  palette: {
+    zenith:  [0.18, 0.42, 0.82],
+    horizon: [0.85, 0.72, 0.52],
+    sun:     [1.00, 0.92, 0.65],
+    fog:     [0.95, 0.92, 0.88],
+  },
+  label: "Loading…",
+  labelKey: "loading",
+};
+
+interface PluginState {
+  params: SceneParams;
+  snap: WeatherSnapshot | null;
+  error: string | null;
 }
 
-interface ForecastResult {
-  current_weather?: {
-    temperature: number;
-    weathercode: number;
-    is_day: 0 | 1;
-  };
-}
+function WeatherPlugin({ city, units, locale }: { city: string; units: "celsius" | "fahrenheit"; locale: string }) {
+  const [state, setState] = useState<PluginState>({
+    params: LOADING_PARAMS,
+    snap: null,
+    error: null,
+  });
 
-async function geocode(city: string): Promise<{ lat: number; lon: number; name: string }> {
-  const url = `${GEOCODE_URL}?count=1&language=en&name=${encodeURIComponent(city)}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`geocoding HTTP ${r.status}`);
-  const data: GeocodeResult = await r.json();
-  if (!data.results || data.results.length === 0) throw new Error(`city not found: ${city}`);
-  const r0 = data.results[0];
-  return { lat: r0.latitude, lon: r0.longitude, name: r0.name };
-}
-
-async function fetchWeather(lat: number, lon: number, units: "celsius" | "fahrenheit"): Promise<{ temp: number; code: number; isDay: boolean }> {
-  const unitParam = units === "fahrenheit" ? "&temperature_unit=fahrenheit" : "";
-  const r = await fetch(`${FORECAST_URL}?current_weather=true&latitude=${lat}&longitude=${lon}${unitParam}`);
-  if (!r.ok) throw new Error(`forecast HTTP ${r.status}`);
-  const data: ForecastResult = await r.json();
-  if (!data.current_weather) throw new Error("no current_weather");
-  return {
-    temp: data.current_weather.temperature,
-    code: data.current_weather.weathercode,
-    isDay: data.current_weather.is_day === 1,
-  };
-}
-
-function App({ city, units }: { city: string; units: "celsius" | "fahrenheit" }) {
-  const [state, setState] = useState<WeatherState | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Signal host of desired iframe height once.
+  useEffect(() => {
+    window.evey?.resize(280);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const geo = await geocode(city);
-        const w = await fetchWeather(geo.lat, geo.lon, units);
+        const coord = await provider.geocode(city, locale);
+        const current = await provider.getCurrent(coord, units);
         if (cancelled) return;
-        setState({ city: geo.name, temp: w.temp, code: w.code, isDay: w.isDay, units });
+        const snap: WeatherSnapshot = {
+          ...current,
+          cityName: coord.name,
+          units,
+        };
+        const params = conditionToScene(snap, new Date());
+        setState({ params, snap, error: null });
       } catch (e) {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : "fetch failed");
+        setState(prev => ({
+          ...prev,
+          error: e instanceof Error ? e.message : "fetch failed",
+        }));
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [city, units]);
 
-  // Notify the host of the desired iframe height once after first paint.
-  useEffect(() => {
-    const h = 240;
-    window.evey?.resize(h);
-  }, []);
-
-  const profile = state
-    ? profileForWeather(state.code, state.isDay)
-    : profileForWeather(0, true);
-
   return (
-    <div
-      style={{
-        position: "relative",
-        width: "100%",
-        height: "240px",
-        borderRadius: "16px",
-        overflow: "hidden",
-        background: "transparent",
-        boxShadow: "0 12px 32px rgba(0,0,0,0.25)",
-      }}
-    >
-      <Canvas
-        camera={{ position: [0, 0, 4.5], fov: 35 }}
-        dpr={[1, 2]}
-        gl={{ antialias: true, alpha: true }}
-        style={{ position: "absolute", inset: 0 }}
-      >
-        <Scene profile={profile} />
-      </Canvas>
-      <div
-        style={{
-          position: "absolute",
-          top: 16,
-          right: 20,
-          color: "#ffffff",
-          fontFamily: "system-ui, -apple-system, sans-serif",
-          textAlign: "right",
-          textShadow: "0 2px 6px rgba(0,0,0,0.55)",
-          pointerEvents: "none",
-        }}
-      >
-        <div style={{ fontSize: 44, fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1 }}>
-          {state ? `${Math.round(state.temp)}${state.units === "fahrenheit" ? "°F" : "°C"}` : "—"}
-        </div>
-        <div style={{ fontSize: 13, opacity: 0.85, marginTop: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-          {error
-            ? "Unavailable"
-            : state
-              ? `${state.city} · ${profile.label}`
-              : "Loading…"}
-        </div>
-      </div>
-    </div>
+    <App
+      params={state.params}
+      city={state.snap?.cityName ?? city}
+      temp={state.snap?.temperatureDisplay ?? null}
+      units={units}
+      error={state.error}
+      locale={locale}
+    />
   );
 }
 
-function bootstrap(config: { city?: string; units?: "celsius" | "fahrenheit" } | undefined) {
+function bootstrap(
+  config: { city?: string; units?: "celsius" | "fahrenheit" } | undefined,
+  locale: string | undefined,
+) {
   document.documentElement.style.background = "transparent";
   document.body.style.margin = "0";
   document.body.style.background = "transparent";
+  document.body.style.overflow = "hidden";
+
   const root = createRoot(document.body);
-  root.render(<App city={config?.city || "Paris"} units={config?.units || "celsius"} />);
+  root.render(
+    <StrictMode>
+      <WeatherPlugin
+        city={config?.city ?? "Paris"}
+        units={config?.units ?? "celsius"}
+        locale={locale ?? "en"}
+      />
+    </StrictMode>
+  );
 }
 
-if (window.evey) {
-  window.evey.onInit((data) => bootstrap(data?.config));
+if (typeof window !== "undefined" && window.evey) {
+  window.evey.onInit((data) => bootstrap(data?.config, data?.locale));
 } else {
-  // Fallback when running outside the host bridge (dev preview).
-  bootstrap(undefined);
+  bootstrap(undefined, undefined);
 }
