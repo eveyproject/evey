@@ -34,11 +34,18 @@ type IntroDetectionService struct {
 	trickplayRepo     domainlibrary.TrickplayRepository
 	mediaItems        domainlibrary.MediaItemRepository
 	configRepo        shared.ServerConfigRepository
+	fpCache           domainlibrary.IntroFingerprintCacheRepository
 	detector          IntroDetector
 	trickplayCacheDir string
 	shutdownCtx       context.Context
 	events            shared.EventBus
 }
+
+// currentPHashAlgoVersion identifies the hash function used to populate the
+// cache. Bump it whenever ExtractTileHashes' output distribution changes
+// (e.g. aHash → pHash DCT) so the cache invalidates en masse without per-row
+// surgery. v1 = aHash 8×8 average over 5×5 tiles at 320×180.
+const currentPHashAlgoVersion int16 = 1
 
 func NewIntroDetectionService(
 	segmentRepo domainlibrary.MediaSegmentRepository,
@@ -64,6 +71,13 @@ func (s *IntroDetectionService) WithShutdownCtx(ctx context.Context) {
 
 func (s *IntroDetectionService) WithEventBus(bus shared.EventBus) {
 	s.events = bus
+}
+
+// WithFingerprintCache enables persistent caching of pHash tile hashes.
+// When set, pHashPass reads from / writes to the cache; when nil, hashes are
+// always recomputed from the trickplay sprites (no behavior change vs. v0).
+func (s *IntroDetectionService) WithFingerprintCache(cache domainlibrary.IntroFingerprintCacheRepository) {
+	s.fpCache = cache
 }
 
 func (s *IntroDetectionService) isTrickplayEnabled(ctx context.Context) bool {
@@ -385,7 +399,11 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 	if err != nil {
 		return nil, fmt.Errorf("reference trickplay missing: %w", err)
 	}
-	refAllHashes, refAllMs, err := s.extractEpisodeHashes(refManifest, manifestTotalFrames(refManifest))
+	refFingerprint := ""
+	if refItem.File != nil {
+		refFingerprint = refItem.File.Fingerprint
+	}
+	refAllHashes, refAllMs, err := s.extractEpisodeHashesCached(ctx, string(refItem.ID), refFingerprint, refManifest, manifestTotalFrames(refManifest))
 	if err != nil || len(refAllHashes) == 0 {
 		return nil, fmt.Errorf("extract reference hashes: %w", err)
 	}
@@ -432,7 +450,11 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 		if sibErr != nil {
 			continue
 		}
-		sibHashes, sibMs, hashErr := s.extractEpisodeHashes(sibManifest, manifestTotalFrames(sibManifest))
+		sibFingerprint := ""
+		if sib.File != nil {
+			sibFingerprint = sib.File.Fingerprint
+		}
+		sibHashes, sibMs, hashErr := s.extractEpisodeHashesCached(ctx, string(sib.ID), sibFingerprint, sibManifest, manifestTotalFrames(sibManifest))
 		if hashErr != nil || len(sibHashes) == 0 {
 			continue
 		}
@@ -687,7 +709,11 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 		if sibErr != nil {
 			continue
 		}
-		hashes, _, hashErr := s.extractEpisodeHashes(sibManifest, cutoffFrame)
+		sibFingerprint := ""
+		if sib.File != nil {
+			sibFingerprint = sib.File.Fingerprint
+		}
+		hashes, _, hashErr := s.extractEpisodeHashesCached(ctx, string(sib.ID), sibFingerprint, sibManifest, cutoffFrame)
 		if hashErr != nil || len(hashes) == 0 {
 			continue
 		}
@@ -701,7 +727,11 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 	}
 
 	// Find matching frame windows in the target episode's own hash sequence.
-	targetHashes, targetMs, hashErr := s.extractEpisodeHashes(manifest, cutoffFrame)
+	targetFingerprint := ""
+	if item.File != nil {
+		targetFingerprint = item.File.Fingerprint
+	}
+	targetHashes, targetMs, hashErr := s.extractEpisodeHashesCached(ctx, string(item.ID), targetFingerprint, manifest, cutoffFrame)
 	if hashErr != nil || len(targetHashes) == 0 {
 		return nil, nil
 	}
@@ -1035,6 +1065,58 @@ func (s *IntroDetectionService) waitForManifest(ctx context.Context, mediaID sha
 			}
 		}
 	}
+}
+
+// extractEpisodeHashesCached returns hashes/timestamps for a media item,
+// short-circuiting via the fingerprint cache when the cached file_fingerprint
+// matches the current MediaFile.Fingerprint and algo_version is current.
+// Falls back to extractEpisodeHashes on cache miss / invalidation, and
+// writes the FULL manifest hash sequence back when the cache is wired.
+// Truncation to cutoffFrame is applied to the returned slice but the cache
+// stores the unsliced version, so a later call with a larger cutoff still
+// hits the cache (e.g. PropagateSegment uses manifestTotalFrames while
+// pHashPass uses 25%).
+//
+// fileFingerprint can be empty (pre-fingerprint media files); in that case
+// the cache is skipped (read AND write).
+func (s *IntroDetectionService) extractEpisodeHashesCached(ctx context.Context, mediaItemID, fileFingerprint string, manifest *domainlibrary.TrickplayManifest, cutoffFrame int) ([]uint64, []int64, error) {
+	truncate := func(h []uint64, t []int64) ([]uint64, []int64) {
+		if cutoffFrame > 0 && cutoffFrame < len(h) {
+			return h[:cutoffFrame], t[:cutoffFrame]
+		}
+		return h, t
+	}
+	if s.fpCache == nil || fileFingerprint == "" {
+		return s.extractEpisodeHashes(manifest, cutoffFrame)
+	}
+	cached, err := s.fpCache.Get(ctx, mediaItemID)
+	if err == nil && cached.FileFingerprint == fileFingerprint && cached.AlgoVersion == currentPHashAlgoVersion {
+		h, t := truncate(cached.PhashTiles, cached.PhashTimestamps)
+		return h, t, nil
+	}
+	// Miss / stale / version mismatch / read error: recompute the FULL
+	// manifest (so a larger-cutoff caller later doesn't have to recompute)
+	// and store before truncating for this caller.
+	allHashes, allTimestamps, extractErr := s.extractEpisodeHashes(manifest, manifestTotalFrames(manifest))
+	if extractErr != nil || len(allHashes) == 0 {
+		return allHashes, allTimestamps, extractErr
+	}
+	if upsertErr := s.fpCache.Upsert(ctx, &domainlibrary.IntroFingerprintCacheEntry{
+		MediaItemID:     mediaItemID,
+		FileFingerprint: fileFingerprint,
+		PhashTiles:      allHashes,
+		PhashTimestamps: allTimestamps,
+		AlgoVersion:     currentPHashAlgoVersion,
+	}); upsertErr != nil {
+		// Cache write failures are non-fatal: log and proceed with the freshly
+		// computed hashes so the pipeline still produces a result.
+		slog.Warn("intro_detection: cache upsert failed",
+			slog.String("media_id", mediaItemID),
+			slog.Any("err", upsertErr),
+		)
+	}
+	h, t := truncate(allHashes, allTimestamps)
+	return h, t, nil
 }
 
 // extractEpisodeHashes reads trickplay sprites for a manifest and returns the

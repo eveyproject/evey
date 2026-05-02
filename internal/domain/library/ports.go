@@ -332,3 +332,30 @@ type PersonDetailsFetcher interface {
 type PersonTranslationFetcher interface {
 	FetchPersonTranslations(ctx context.Context, name string, locales []string) (map[string]string, error)
 }
+
+// IntroFingerprintCacheEntry is the cached pHash fingerprint for one media
+// item. Audio bands are intentionally not cached in v1 — they are
+// candidate-window-specific (different padSec/searchSec per call) and the
+// cost of regenerating them per detection run is small compared to the
+// trickplay sprite decode + tile hash cycle that this cache short-circuits.
+type IntroFingerprintCacheEntry struct {
+	MediaItemID      string
+	FileFingerprint  string
+	PhashTiles       []uint64 // one hash per kept tile, in tile order
+	PhashTimestamps  []int64  // matching source-video timestamp (ms) for every PhashTiles entry
+	AlgoVersion      int16    // bumped whenever the hash function changes — invalidates the row
+	ExtractedAt      time.Time
+}
+
+// IntroFingerprintCacheRepository persists and retrieves cached pHash
+// fingerprints keyed by media item id. Invalidation is up to the caller:
+// look up by media id, compare FileFingerprint and AlgoVersion against the
+// current values, recompute and Upsert if either differs. The repository
+// itself does no validation — keep it dumb so changes to the invalidation
+// policy don't require touching the adapter.
+type IntroFingerprintCacheRepository interface {
+	Get(ctx context.Context, mediaItemID string) (*IntroFingerprintCacheEntry, error)
+	Upsert(ctx context.Context, entry *IntroFingerprintCacheEntry) error
+	Delete(ctx context.Context, mediaItemID string) error
+	DeleteByAlgoVersionBelow(ctx context.Context, version int16) (int64, error)
+}

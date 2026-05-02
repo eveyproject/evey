@@ -499,6 +499,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		cfg.Transcoding.TrickplayCacheDir,
 	)
 	introDetectionSvc.WithShutdownCtx(ctx)
+	introDetectionSvc.WithFingerprintCache(r.IntroFingerprintCache)
 
 	if cfg.Transcoding.CacheMaxGB > 0 {
 		evictor := apptranscoding.NewCacheEvictor(
