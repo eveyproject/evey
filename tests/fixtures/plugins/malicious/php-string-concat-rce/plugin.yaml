@@ -1,0 +1,5 @@
+name: php-string-concat-rce
+version: 1.0.0
+kind: plugin
+language: php
+entrypoint: index.php
