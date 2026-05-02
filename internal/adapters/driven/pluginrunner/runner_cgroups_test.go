@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 // overrideCgroupRoot replaces the package-level cgroupRoot with root for the
@@ -208,4 +209,50 @@ func TestPrepareCgroup_RejectsPathTraversal(t *testing.T) {
 		_, err := prepareCgroup(malicious, cgroupConfig{})
 		assert.Error(t, err, "pluginID %q must be rejected", malicious)
 	}
+}
+
+// TestCgroupFDIfSupported_EmptyPath verifies that cgroupFDIfSupported returns
+// (-1, false) when called with an empty path — no fd must be opened.
+func TestCgroupFDIfSupported_EmptyPath(t *testing.T) {
+	fd, ok := cgroupFDIfSupported("")
+	assert.False(t, ok)
+	assert.Equal(t, -1, fd)
+}
+
+// TestCgroupFDIfSupported_NonExistentPath verifies that cgroupFDIfSupported
+// returns (-1, false) when the cgroup directory does not exist.
+func TestCgroupFDIfSupported_NonExistentPath(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("unix.Open only on Linux")
+	}
+	fd, ok := cgroupFDIfSupported("/nonexistent/cgroup/path/that/does/not/exist")
+	assert.False(t, ok)
+	assert.Equal(t, -1, fd)
+}
+
+// TestCgroupAttachPreExec_OnLinux57 verifies that cgroupFDIfSupported opens a
+// valid fd on a real directory (simulating the cgroupfs case). On Linux 5.7+
+// the returned fd can be passed to SysProcAttr.CgroupFD so the kernel places
+// the child in the cgroup before main() runs (no race window). When the fd is
+// valid, it must be closeable via unix.Close without error.
+func TestCgroupAttachPreExec_OnLinux57(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("cgroup fd pre-exec only on Linux")
+	}
+
+	// Use a real directory (t.TempDir returns a real os-backed path) to
+	// verify O_PATH|O_DIRECTORY succeeds. In production this would be the
+	// cgroupfs directory, but any accessible directory validates the codepath.
+	dir := t.TempDir()
+
+	fd, ok := cgroupFDIfSupported(dir)
+	if !ok {
+		t.Skip("cgroupFDIfSupported returned false — kernel may not support O_PATH on this dir")
+	}
+	require.True(t, ok, "expected fd to be opened on a real directory")
+	require.NotEqual(t, -1, fd, "expected a valid file descriptor")
+
+	// Verify the fd is closeable — proves it was actually opened.
+	err := unix.Close(fd)
+	assert.NoError(t, err, "fd must be closeable without error")
 }

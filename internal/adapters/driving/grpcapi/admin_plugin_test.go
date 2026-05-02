@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestAdminListPluginRuntimes(t *testing.T) {
@@ -192,5 +194,46 @@ func TestAdminGetPluginLogs_Pagination(t *testing.T) {
 	}
 	if resp.Total != 5 {
 		t.Errorf("expected total=5, got %d", resp.Total)
+	}
+}
+
+// TestGetPluginLogs_RejectsPathTraversal verifies that GetPluginLogs returns
+// InvalidArgument for plugin IDs that contain path traversal sequences or
+// other characters outside the allowed alphanumeric/hyphen/underscore set.
+// This prevents a compromised admin token from reading arbitrary files on disk.
+func TestGetPluginLogs_RejectsPathTraversal(t *testing.T) {
+	tmpDir := t.TempDir()
+	d := newTestPluginHandler()
+	d.logDir = tmpDir
+
+	maliciousIDs := []string{
+		"../../etc/passwd",
+		"../secret",
+		"plg-../escape",
+		"plg-test/subdir",
+		"plg test", // space not allowed
+		"plg;injection",
+		"", // empty — handled separately (returns empty response, not error)
+		strings.Repeat("a", 65), // exceeds 64-char limit
+	}
+
+	for _, id := range maliciousIDs {
+		if id == "" {
+			// Empty ID returns an empty response, not an error (existing behaviour).
+			continue
+		}
+		resp, err := d.GetPluginLogs(context.Background(), &eveyv1.GetPluginLogsRequest{PluginId: id})
+		if err == nil {
+			t.Errorf("pluginID %q: expected error, got response with %d entries", id, len(resp.GetEntries()))
+			continue
+		}
+		st, ok := status.FromError(err)
+		if !ok {
+			t.Errorf("pluginID %q: expected gRPC status error, got %v", id, err)
+			continue
+		}
+		if st.Code() != codes.InvalidArgument {
+			t.Errorf("pluginID %q: expected InvalidArgument, got %s", id, st.Code())
+		}
 	}
 }

@@ -654,6 +654,10 @@ func makeMinimalPluginZip(t *testing.T, name, version string) []byte {
 // --- URL install ---
 
 func TestInstallPlugin_WithURL_Success(t *testing.T) {
+	// httptest.NewServer binds loopback (127.0.0.1) and uses plain http.
+	// Enable the dev-mode bypass so the SSRF guard doesn't reject it.
+	t.Setenv(appplugin.AllowHTTPInstallEnvVar, "true")
+
 	zipContent := makeMinimalPluginZip(t, "url-plugin", "1.0.0")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
@@ -671,6 +675,8 @@ func TestInstallPlugin_WithURL_Success(t *testing.T) {
 }
 
 func TestInstallPlugin_WithURL_HashMismatch(t *testing.T) {
+	t.Setenv(appplugin.AllowHTTPInstallEnvVar, "true")
+
 	zipContent := makeMinimalPluginZip(t, "url-plugin-hash", "1.0.0")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
@@ -688,6 +694,8 @@ func TestInstallPlugin_WithURL_HashMismatch(t *testing.T) {
 }
 
 func TestInstallPlugin_WithURL_HashMatch(t *testing.T) {
+	t.Setenv(appplugin.AllowHTTPInstallEnvVar, "true")
+
 	zipContent := makeMinimalPluginZip(t, "url-plugin-hashok", "1.0.0")
 	h := sha256.Sum256(zipContent)
 	correctHash := hex.EncodeToString(h[:])
@@ -708,6 +716,8 @@ func TestInstallPlugin_WithURL_HashMatch(t *testing.T) {
 }
 
 func TestInstallPlugin_WithURL_SizeLimit(t *testing.T) {
+	t.Setenv(appplugin.AllowHTTPInstallEnvVar, "true")
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
 		// Stream slightly more than 100 MB so the size limit is hit.
@@ -797,6 +807,80 @@ func TestInstallPlugin_Update_EscalationAllowedByContext(t *testing.T) {
 	p, err := svc.InstallPlugin(ctx, tmpZip(t, "v2"))
 	require.NoError(t, err)
 	assert.Equal(t, "2.0.0", p.Version)
+}
+
+// --- SSRF protection ---
+
+// TestDownloadIfURL_RejectsHTTPScheme verifies that http:// URLs are rejected
+// unless the dev-mode env var is set.
+func TestDownloadIfURL_RejectsHTTPScheme(t *testing.T) {
+	// No EVEY_PLUGINS_ALLOW_HTTP_INSTALL env var → must be rejected.
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifest("ssrf-http")
+
+	_, err := svc.InstallPlugin(context.Background(), "http://example.com/plugin.zip")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "only https install URLs are accepted")
+}
+
+// TestDownloadIfURL_RejectsPrivateIP verifies that an https URL whose hostname
+// resolves to a private RFC1918 address is rejected.
+func TestDownloadIfURL_RejectsPrivateIP(t *testing.T) {
+	// 10.0.0.1 is an RFC1918 private address and must be blocked.
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifest("ssrf-private")
+
+	_, err := svc.InstallPlugin(context.Background(), "https://10.0.0.1/plugin.zip")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "forbidden IP")
+}
+
+// TestDownloadIfURL_RejectsLinkLocal verifies that link-local addresses
+// (169.254.x.x — AWS/GCP metadata endpoint range) are blocked.
+func TestDownloadIfURL_RejectsLinkLocal(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifest("ssrf-linklocal")
+
+	_, err := svc.InstallPlugin(context.Background(), "https://169.254.169.254/latest/meta-data/")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "forbidden IP")
+}
+
+// TestDownloadIfURL_RejectsLoopback verifies that loopback addresses are blocked.
+func TestDownloadIfURL_RejectsLoopback(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifest("ssrf-loopback")
+
+	_, err := svc.InstallPlugin(context.Background(), "https://127.0.0.1/plugin.zip")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "forbidden IP")
+}
+
+// TestDownloadIfURL_RejectsRedirectToPrivate verifies that a server that
+// initially responds with a valid URL but then redirects to a private IP is
+// blocked by the CheckRedirect re-validation. The test serves a 302 to an
+// https URL with a private RFC1918 IP literal — no actual connection is made
+// since the check rejects the redirect before the dial.
+func TestDownloadIfURL_RejectsRedirectToPrivate(t *testing.T) {
+	// allow_http=true so the initial request to the httptest server (loopback)
+	// passes the scheme + IP checks on the initial URL only.
+	t.Setenv(appplugin.AllowHTTPInstallEnvVar, "true")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Redirect to an https URL whose host is a private RFC1918 address.
+		// The CheckRedirect hook runs validateInstallURL on this target URL
+		// (https scheme passes, but 192.168.0.1 is RFC1918 → rejected).
+		http.Redirect(w, r, "https://192.168.0.1/plugin.zip", http.StatusFound)
+	}))
+	defer srv.Close()
+
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifest("ssrf-redirect")
+
+	_, err := svc.InstallPlugin(context.Background(), srv.URL+"/plugin.zip")
+	require.Error(t, err)
+	// The error surfaces as "download plugin: ... redirect rejected: ..."
+	assert.Contains(t, err.Error(), "redirect rejected")
 }
 
 // zeroReader is an infinite stream of zero bytes, used to simulate a

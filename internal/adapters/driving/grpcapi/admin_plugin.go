@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -19,6 +20,11 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// validPluginIDRe restricts plugin IDs to alphanumeric, hyphen, and underscore
+// characters (1–64 chars). This prevents path traversal when the ID is used to
+// construct log file paths (e.g. "../../etc/passwd" would escape logDir).
+var validPluginIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 type adminPluginHandler struct {
 	eveyv1.UnimplementedAdminPluginServiceServer
@@ -317,6 +323,13 @@ func (d *adminPluginHandler) GetPluginLogs(ctx context.Context, req *eveyv1.GetP
 	defer span.End()
 	if d.logDir == "" || req.PluginId == "" {
 		return &eveyv1.GetPluginLogsResponse{}, nil
+	}
+	// Defense-in-depth: validate the plugin ID before using it in a path join.
+	// The admin role is checked upstream (RBAC), but a compromised admin token
+	// should not be able to read arbitrary files via path traversal.
+	if !validPluginIDRe.MatchString(req.PluginId) {
+		span.SetStatus(otelcodes.Error, "invalid plugin id")
+		return nil, status.Error(codes.InvalidArgument, "invalid plugin id")
 	}
 	logPath := filepath.Join(d.logDir, "plugins", req.PluginId+".log")
 	f, err := os.Open(logPath) //nolint:gosec

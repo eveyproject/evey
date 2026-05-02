@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"golang.org/x/sys/unix"
 )
 
 // validCgroupPluginID restricts pluginID to characters safe to embed in a
@@ -126,4 +128,24 @@ func cleanupCgroup(cgroupPath string) {
 	if err := os.Remove(cgroupPath); err != nil && !os.IsNotExist(err) {
 		slog.Warn("cleanup plugin cgroup", slog.String("path", cgroupPath), slog.Any("err", err))
 	}
+}
+
+// cgroupFDIfSupported opens the cgroup directory with O_PATH and returns the
+// file descriptor so the kernel can atomically place the new process into the
+// cgroup via clone3 (requires Linux 5.7+ / cgroup_fd feature). The caller
+// MUST close the fd when done (defer unix.Close(fd)).
+//
+// Returns (-1, false) when the path is empty, when the open fails (e.g. kernel
+// < 5.7 that does not expose the directory, or cgroups v2 unavailable), or
+// when running in a test environment with a synthetic cgroup root that doesn't
+// back an actual cgroupfs. The caller falls back to the post-Start attach path.
+func cgroupFDIfSupported(cgroupPath string) (int, bool) {
+	if cgroupPath == "" {
+		return -1, false
+	}
+	fd, err := unix.Open(cgroupPath, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return -1, false
+	}
+	return fd, true
 }

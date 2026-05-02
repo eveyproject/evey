@@ -16,6 +16,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -298,7 +299,8 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
-	cmd.SysProcAttr = pluginSysProcAttr()
+	sysProcAttr := pluginSysProcAttr()
+	cmd.SysProcAttr = sysProcAttr
 
 	// Prepare cgroup v2 limits before spawning. Failure is non-fatal:
 	// we warn once and proceed without limits (fail-soft).
@@ -314,6 +316,25 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		})
 	}
 
+	// H1: Pre-exec cgroup attach via clone3 (Linux 5.7+, CgroupFD feature).
+	// When supported, the kernel places the child in the cgroup atomically
+	// before the first instruction executes, closing the race window between
+	// cmd.Start and the post-Start attachToCgroup write.
+	cgroupAttachedPreExec := false
+	if cgroupPath != "" {
+		if fd, ok := cgroupFDIfSupported(cgroupPath); ok {
+			sysProcAttr.UseCgroupFD = true
+			sysProcAttr.CgroupFD = fd
+			defer unix.Close(fd)
+			cgroupAttachedPreExec = true
+		} else {
+			r.cgroupWarnOnce.Do(func() {
+				slog.Warn("kernel <5.7 or cgroup fd unavailable: post-start cgroup attach (race window open)",
+					slog.String("plugin", p.ID))
+			})
+		}
+	}
+
 	if err := cmd.Start(); err != nil {
 		cleanupCgroup(cgroupPath)
 		r.rollbackStart(cancel, pluginSockDir, p.ID, true)
@@ -327,12 +348,15 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		r.hostRegistry.SetExpectedPID(p.ID, int32(cmd.Process.Pid))
 	}
 
-	// Attach the process to its cgroup after the PID is known.
-	if attachErr := attachToCgroup(cgroupPath, cmd.Process.Pid); attachErr != nil {
-		slog.Warn("attach plugin to cgroup failed, running without limits",
-			slog.String("plugin", p.ID), slog.Any("err", attachErr))
-		cleanupCgroup(cgroupPath)
-		cgroupPath = ""
+	// Fallback: attach the process to its cgroup after the PID is known.
+	// Only reached when the pre-exec CgroupFD path was unavailable.
+	if !cgroupAttachedPreExec {
+		if attachErr := attachToCgroup(cgroupPath, cmd.Process.Pid); attachErr != nil {
+			slog.Warn("attach plugin to cgroup failed, running without limits",
+				slog.String("plugin", p.ID), slog.Any("err", attachErr))
+			cleanupCgroup(cgroupPath)
+			cgroupPath = ""
+		}
 	}
 
 	if r.logger != nil {

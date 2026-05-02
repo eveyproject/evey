@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -26,6 +28,77 @@ import (
 // uninstallRetryDelays are the back-off intervals used between RemoveAll
 // attempts during uninstall. Three attempts total (initial + two retries).
 var uninstallRetryDelays = [2]time.Duration{500 * time.Millisecond, 2 * time.Second}
+
+// AllowHTTPInstallEnvVar is the name of the environment variable that, when
+// set to "true", bypasses the https-only and private-IP-block rules in
+// validateInstallURL. Intended for local development and tests only.
+const AllowHTTPInstallEnvVar = "EVEY_PLUGINS_ALLOW_HTTP_INSTALL"
+
+// validateInstallURL enforces SSRF protection on plugin install URLs:
+//  1. Scheme must be "https" (http is refused unless the dev-mode env var is set).
+//  2. Every IP that the hostname resolves to must be a public, routable address
+//     (RFC1918 / loopback / link-local / unspecified are blocked).
+//
+// Returns the parsed URL on success, or a descriptive error so the admin sees
+// exactly why the request was rejected.
+func validateInstallURL(source string) (*url.URL, error) {
+	u, err := url.Parse(source)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+	if u.Host == "" {
+		return nil, errors.New("install URL missing host")
+	}
+
+	allowHTTP := os.Getenv(AllowHTTPInstallEnvVar) == "true"
+
+	if u.Scheme != "https" {
+		if !allowHTTP {
+			return nil, fmt.Errorf("only https install URLs are accepted (got scheme %q); set %s=true to allow http in dev/test environments", u.Scheme, AllowHTTPInstallEnvVar)
+		}
+		// Dev-mode bypass: allow http AND skip the IP check (test servers bind loopback).
+		return u, nil
+	}
+
+	host := u.Hostname()
+	// If the host is already an IP literal, check it directly.
+	if ip := net.ParseIP(host); ip != nil {
+		if isPrivateOrSpecialIP(ip) {
+			return nil, fmt.Errorf("install URL host %s is a forbidden IP address (loopback/private/link-local)", host)
+		}
+		return u, nil
+	}
+
+	// Resolve the hostname and reject if any resolved IP is in a private range.
+	// We reject if ANY IP is private — an attacker could arrange for DNS to
+	// return one public IP and one private IP; checking all IPs is necessary.
+	ips, lookupErr := net.LookupIP(host)
+	if lookupErr != nil {
+		return nil, fmt.Errorf("resolve install URL host %q: %w", host, lookupErr)
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("install URL host %q resolved to no IP addresses", host)
+	}
+	for _, ip := range ips {
+		if isPrivateOrSpecialIP(ip) {
+			return nil, fmt.Errorf("install URL host %q resolves to forbidden IP %s (loopback/private/link-local)", host, ip)
+		}
+	}
+	return u, nil
+}
+
+// isPrivateOrSpecialIP returns true for addresses that must never be reached
+// by the plugin downloader: loopback, RFC1918 private, link-local unicast/
+// multicast, interface-local multicast, and the unspecified address.
+// net.IP.IsPrivate() (Go 1.17+) covers RFC1918 (IPv4) and RFC4193 (IPv6).
+func isPrivateOrSpecialIP(ip net.IP) bool {
+	return ip.IsLoopback() ||
+		ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() ||
+		ip.IsInterfaceLocalMulticast() ||
+		ip.IsUnspecified()
+}
 
 // downloadIfURL detects if source is an HTTP(S) URL, downloads it into a
 // temp file with a 100 MB limit and returns the local path + cleanup func.
@@ -47,6 +120,12 @@ func downloadIfURL(ctx context.Context, source string) (localPath, expectedHash 
 		return
 	}
 
+	// SSRF protection: validate scheme and resolve host before issuing the request.
+	if _, valErr := validateInstallURL(source); valErr != nil {
+		err = fmt.Errorf("install URL rejected: %w", valErr)
+		return
+	}
+
 	req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
 	if reqErr != nil {
 		err = fmt.Errorf("build download request: %w", reqErr)
@@ -54,7 +133,22 @@ func downloadIfURL(ctx context.Context, source string) (localPath, expectedHash 
 	}
 	req.Header.Set("User-Agent", "evey-plugin-installer/1.0")
 
-	resp, doErr := http.DefaultClient.Do(req)
+	// Custom HTTP client: re-validate every redirect target so an attacker
+	// cannot use a 302 response to pivot to an internal address
+	// (e.g. serve a public URL that redirects to 169.254.169.254).
+	client := &http.Client{
+		CheckRedirect: func(redirectReq *http.Request, via []*http.Request) error {
+			if len(via) >= 5 {
+				return errors.New("too many redirects (max 5)")
+			}
+			if _, valErr := validateInstallURL(redirectReq.URL.String()); valErr != nil {
+				return fmt.Errorf("redirect rejected: %w", valErr)
+			}
+			return nil
+		},
+	}
+
+	resp, doErr := client.Do(req)
 	if doErr != nil {
 		err = fmt.Errorf("download plugin: %w", doErr)
 		return
