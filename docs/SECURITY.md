@@ -130,14 +130,14 @@ The notification service subscribes and pages the admin via the configured chann
 | Static binary skips LD_PRELOAD | seccomp inactive | analyzer flags + native-binary opt-in BLOCKS install by default | seccomp applied at exec time via `bwrap --seccomp` (kernel-level, no library required) |
 | Regex analyzer is bypassable by obfuscation | motivated attacker can hide patterns | admin Preview + permission review | server-side risk-scoring + reputation check on plugin author |
 
-## Roadmap — `sandbox_mode` config (post-beta)
+## Roadmap — `sandbox_mode` config
 
-Planned in a v1.x release, opt-in via `evey.yaml`:
+Configurable via `evey.yaml` (or `EVEY_PLUGINS_SANDBOX_MODE` env var):
 
 ```yaml
-sandbox_mode: basic     # default — current LD_PRELOAD seccomp + UID drop
-# sandbox_mode: bubblewrap  # full namespace isolation per plugin (recommended)
-# sandbox_mode: strict      # bubblewrap + seccomp allowlist (locked-down API set)
+sandbox_mode: bubblewrap  # default since 2026-04-26 — full namespace isolation
+# sandbox_mode: basic       # legacy LD_PRELOAD seccomp + UID drop (dev only)
+# sandbox_mode: strict      # bubblewrap + seccomp allowlist (locked-down API)
 ```
 
 Mapping per mode:
@@ -157,7 +157,32 @@ Implementation deps:
 - Linux kernel `unprivileged_userns_clone=1` (Alpine ≥3.18 default).
 - Docker users may need `--security-opt seccomp=unconfined` or `--cap-add SYS_ADMIN` if their host seccomp profile blocks `clone(CLONE_NEWUSER)`.
 
-The default stays `basic` — friction-zero for plugin authors, opt-in for admins who want the harder isolation.
+## DNS whitelist (V1 — best effort)
+
+Plugins with the `network` permission must declare an `external_fetch` allow-list
+in their manifest. At runtime, the bwrap namespace is given a synthetic
+`/etc/hosts` containing only the resolved IPs of allowed hosts. Anything else
+returns NXDOMAIN.
+
+**Limitations of V1**:
+- IP literals bypass: a plugin calling `connect("1.2.3.4", 443)` does not go
+  through DNS and reaches the IP unimpeded.
+- Custom resolvers: a plugin shipping a UDP resolver (`53/udp`) can query an
+  arbitrary nameserver and reach any host.
+- SNI/Host header trickery: once any whitelisted host is resolved, the plugin
+  can reuse that TCP connection target.
+
+**Mitigation guidance**:
+- Treat `network` permission as "audit manually": verify the plugin source
+  does not call IPs directly, ship its own resolver, or call non-whitelisted
+  paths.
+- Operators should monitor egress traffic from the host running the plugin
+  runtime (Prometheus + flow exporter, or simply `ss -tnp | grep <plugin-pid>`).
+
+**Roadmap V2** (post-1.0):
+- netfilter rules per plugin namespace constraining outbound to whitelisted
+  CIDRs only.
+- Optional egress HTTP proxy with TLS SNI inspection.
 
 ## Reporting a vulnerability
 

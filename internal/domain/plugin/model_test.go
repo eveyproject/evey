@@ -136,7 +136,7 @@ func TestPluginManifest_Validate_SlotWhitelist(t *testing.T) {
 			Entrypoint: "main.py",
 			WebRoot:    "ui",
 			Frontend: []plugin.FrontModule{
-				{Slot: "home.section", Src: "ui/widget.js"},
+				{Slot: "home.section", Src: "ui/front.js"},
 			},
 		}
 		if err := m.Validate(); err != nil {
@@ -153,7 +153,7 @@ func TestPluginManifest_Validate_SlotWhitelist(t *testing.T) {
 			Entrypoint: "main.py",
 			WebRoot:    "ui",
 			Frontend: []plugin.FrontModule{
-				{Slot: "admin.users", Src: "ui/widget.js"},
+				{Slot: "admin.users", Src: "ui/front.js"},
 			},
 		}
 		err := m.Validate()
