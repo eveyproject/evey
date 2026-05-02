@@ -81,6 +81,7 @@ plugins/*
 !plugins/dist/*.zip
 !tests/plugins/*.zip
 !tests/plugins/cosign/*.zip
+!tests/e2e/fixtures/plugin-zips/*.zip
 
 # E2E test artifacts
 tests/e2e/.e2e-start-time
