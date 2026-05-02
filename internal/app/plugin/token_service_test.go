@@ -2,6 +2,8 @@ package plugin_test
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"errors"
 	"testing"
 	"time"
@@ -9,6 +11,7 @@ import (
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	plugindomain "github.com/evey-project/evey/internal/domain/plugin"
 	plgfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
+	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,13 +52,14 @@ func TestIssueToken_FiltersForbiddenAndIntersects(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, repo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg1", Name: "p", Enabled: true,
-		Permissions: []string{"media.read", "library.read", "admin:users", "auth:login", "user:write"},
+		// Permissions use dot format (canonical) as they appear in the manifest.
+		Permissions: []string{"media.read", "library.read", "admin.users", "auth.login", "user.write"},
 	}))
 	res, err := svc.IssueToken(ctx, "user-1", "plg1")
 	require.NoError(t, err)
 	assert.NotEmpty(t, res.Token)
-	// Forbidden scopes must have been stripped before signing.
-	assert.Equal(t, []string{"media:read", "library:read"}, iss.lastScopes)
+	// Forbidden scopes must have been stripped; allowed scopes stay in dot format.
+	assert.Equal(t, []string{"media.read", "library.read"}, iss.lastScopes)
 	assert.Equal(t, "user-1", iss.lastUser)
 	assert.Equal(t, "plg1", iss.lastPlugin)
 	assert.Equal(t, appplugin.PluginTokenTTL, iss.lastTTL)
@@ -109,4 +113,49 @@ func TestIssueToken_NoApprovedPermissionsYieldsEmptyScopes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, res.Scopes)
 	assert.Empty(t, iss.lastScopes)
+}
+
+// TestScopeChain_DotFormat validates the full permission pipeline:
+// manifest dot-format permission → IssueToken → JWT claims → PermissionChecker.
+// This locks in that no colon-conversion step silently empties the scope list.
+func TestScopeChain_DotFormat(t *testing.T) {
+	t.Parallel()
+
+	// Real RSA key + JWTGenerator so we exercise the actual signing/parsing path.
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	gen := auth.NewJWTGenerator(key, time.Minute)
+
+	repo := plgfakes.NewFakePluginRepository()
+	ctx := context.Background()
+	require.NoError(t, repo.Create(ctx, &plugindomain.Plugin{
+		ID:          "chain-plg",
+		Name:        "chain",
+		Enabled:     true,
+		Permissions: []string{"media.read", "api.library"},
+	}))
+
+	svc := appplugin.NewTokenService(repo, gen)
+	issued, err := svc.IssueToken(ctx, "u1", "chain-plg")
+	require.NoError(t, err)
+	assert.NotEmpty(t, issued.Token)
+
+	// Scopes in the returned struct must be dot-format, non-empty.
+	assert.Contains(t, issued.Scopes, "media.read", "media.read must survive issuance unchanged")
+	assert.Contains(t, issued.Scopes, "api.library", "api.library must survive issuance unchanged")
+
+	// Parse the raw JWT and verify claims carry dot-format scopes.
+	claims, parseErr := gen.ParsePluginToken(issued.Token)
+	require.NoError(t, parseErr)
+	assert.True(t, claims.HasScope("media.read"), "JWT claims must include media.read")
+	assert.True(t, claims.HasScope("api.library"), "JWT claims must include api.library")
+
+	// PermissionChecker (used by gRPC interceptor) must accept the dot-format
+	// permissions loaded from the manifest.
+	checker := appplugin.NewPermissionChecker(repo)
+	checker.LoadPermissions("chain-plg", []string{"media.read", "api.library"})
+	assert.NoError(t, checker.CheckAnyPermission("chain-plg", "api.library", "media.read"),
+		"interceptor must grant access when plugin has the required permission")
+	assert.NoError(t, checker.CheckAnyPermission("chain-plg", "media.read"),
+		"media.read alone must be sufficient for read-only RPCs")
 }

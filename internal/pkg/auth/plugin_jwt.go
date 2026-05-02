@@ -13,25 +13,31 @@ import (
 const PluginTokenType = "plugin"
 
 // AllowedPluginScopes is the whitelist of scopes that may ever appear on a plugin token.
-// Any scope not in this set is stripped during issuance (defence-in-depth).
+// Uses dot format (media.read, api.library) — the same format used by plugin manifests
+// and the gRPC interceptor's methodPermissions table. Any scope not in this set is
+// stripped during issuance (defence-in-depth).
 var AllowedPluginScopes = map[string]bool{
-	"media:read":        true,
-	"media:write":       true,
-	"library:read":      true,
-	"user:read":         true,
-	"playback:read":     true,
-	"stats:read":        true,
-	"notification:read": true,
+	"media.read":        true,
+	"media.write":       true,
+	"library.read":      true,
+	"user.read":         true,
+	"playback.read":     true,
+	"stats.read":        true,
+	"notification.read": true,
+	"api.library":       true,
+	"api.metadata":      true,
+	"api.user":          true,
+	"notification.sender": true,
 }
 
 // ForbiddenPluginScopePrefixes: scopes starting with any of these are rejected even
-// if they slip into the manifest. admin:*/auth:*/system:*/user:write/library:write.
+// if they slip into the manifest. admin.*/auth.*/system.*/user.write/library.write.
 var forbiddenExact = map[string]bool{
-	"user:write":    true,
-	"library:write": true,
+	"user.write":    true,
+	"library.write": true,
 }
 
-var forbiddenPrefix = []string{"admin:", "auth:", "system:"}
+var forbiddenPrefix = []string{"admin.", "auth.", "system."}
 
 // PluginClaims are the claims carried by a scoped plugin iframe JWT.
 type PluginClaims struct {

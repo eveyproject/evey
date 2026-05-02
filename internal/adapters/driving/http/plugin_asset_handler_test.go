@@ -73,6 +73,25 @@ func TestPluginAsset_HappyJS(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "export default")
 }
 
+func TestPluginAsset_SecurityHeaders(t *testing.T) {
+	mux, token, _, _ := setupPluginAssetTest(t)
+
+	for _, path := range []string{"index.js", "style.css", "font.woff2", "image.png"} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/api/v1/plugins/p1/assets/"+path, nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"),
+				"plugin assets must not be embeddable in a foreign frame")
+			assert.Equal(t, "default-src 'none'; sandbox", w.Header().Get("Content-Security-Policy"),
+				"plugin assets served directly must be maximally restricted")
+		})
+	}
+}
+
 func TestPluginAsset_FontHasCORS(t *testing.T) {
 	mux, token, _, _ := setupPluginAssetTest(t)
 

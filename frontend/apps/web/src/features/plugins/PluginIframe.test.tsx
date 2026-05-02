@@ -23,6 +23,11 @@ vi.mock("@evey/store", () => ({
     sel({ accessToken: mockToken }),
 }));
 
+// front-bridge.ts BRIDGE_SCRIPT is inlined into the srcdoc and runs inside
+// the sandboxed iframe — it cannot be exercised from jsdom tests. The source-
+// origin guard (`e.source !== window.parent`) added in that script is a
+// static code review and cannot be integration-tested here without a real
+// browser environment.
 vi.mock("./front-bridge", () => ({
   BRIDGE_SCRIPT: "/* bridge */",
 }));

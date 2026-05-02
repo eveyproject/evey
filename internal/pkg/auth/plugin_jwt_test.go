@@ -26,15 +26,15 @@ func newGen(t *testing.T, ttl time.Duration) *auth.JWTGenerator {
 func TestFilterPluginScopes_WhitelistAndForbidden(t *testing.T) {
 	t.Parallel()
 	in := []string{
-		"media:read", "media:write", "library:read", "user:read",
-		"playback:read", "stats:read", "notification:read",
-		"admin:users", "auth:login", "user:write", "library:write",
-		"system:shutdown", "unknown:scope", "media:read", // dup
+		"media.read", "media.write", "library.read", "user.read",
+		"playback.read", "stats.read", "notification.read",
+		"admin.users", "auth.login", "user.write", "library.write",
+		"system.shutdown", "unknown.scope", "media.read", // dup
 	}
 	out := auth.FilterPluginScopes(in)
 	assert.Equal(t, []string{
-		"media:read", "media:write", "library:read", "user:read",
-		"playback:read", "stats:read", "notification:read",
+		"media.read", "media.write", "library.read", "user.read",
+		"playback.read", "stats.read", "notification.read",
 	}, out)
 }
 
@@ -42,19 +42,19 @@ func TestGenerateAndParsePluginToken_Roundtrip(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
 	tok, exp, scopes, err := g.GeneratePluginToken("u1", "plg1",
-		[]string{"media:read", "admin:x", "library:read"}, 5*time.Minute)
+		[]string{"media.read", "admin.x", "library.read"}, 5*time.Minute)
 	require.NoError(t, err)
 	assert.NotEmpty(t, tok)
 	assert.WithinDuration(t, time.Now().Add(5*time.Minute), exp, 2*time.Second)
-	assert.Equal(t, []string{"media:read", "library:read"}, scopes)
+	assert.Equal(t, []string{"media.read", "library.read"}, scopes)
 
 	claims, err := g.ParsePluginToken(tok)
 	require.NoError(t, err)
 	assert.Equal(t, "u1", claims.UserID)
 	assert.Equal(t, "plg1", claims.PluginID)
 	assert.Equal(t, auth.PluginTokenType, claims.TokenType)
-	assert.True(t, claims.HasScope("media:read"))
-	assert.False(t, claims.HasScope("admin:x"))
+	assert.True(t, claims.HasScope("media.read"))
+	assert.False(t, claims.HasScope("admin.x"))
 }
 
 func TestParsePluginToken_RejectsUserAccessToken(t *testing.T) {
@@ -71,7 +71,7 @@ func TestParsePluginToken_RejectsUserAccessToken(t *testing.T) {
 func TestGeneratePluginToken_Expiry(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
-	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", []string{"media:read"}, -1*time.Second)
+	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", []string{"media.read"}, -1*time.Second)
 	// negative ttl rejected
 	require.Error(t, err)
 	assert.Empty(t, tok)
@@ -80,7 +80,7 @@ func TestGeneratePluginToken_Expiry(t *testing.T) {
 func TestGeneratePluginToken_ZeroTTL(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
-	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", []string{"media:read"}, 0)
+	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", []string{"media.read"}, 0)
 	require.Error(t, err, "ttl=0 must be rejected (boundary)")
 	assert.Empty(t, tok)
 }
@@ -89,7 +89,7 @@ func TestParsePluginToken_Expired(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
 	// generate with tiny positive ttl then wait
-	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", []string{"media:read"}, 1*time.Millisecond)
+	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", []string{"media.read"}, 1*time.Millisecond)
 	require.NoError(t, err)
 	time.Sleep(20 * time.Millisecond)
 	_, err = g.ParsePluginToken(tok)
@@ -99,9 +99,9 @@ func TestParsePluginToken_Expired(t *testing.T) {
 func TestGeneratePluginToken_RequiresIDs(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
-	_, _, _, err := g.GeneratePluginToken("", "p", []string{"media:read"}, time.Minute)
+	_, _, _, err := g.GeneratePluginToken("", "p", []string{"media.read"}, time.Minute)
 	require.Error(t, err)
-	_, _, _, err = g.GeneratePluginToken("u", "", []string{"media:read"}, time.Minute)
+	_, _, _, err = g.GeneratePluginToken("u", "", []string{"media.read"}, time.Minute)
 	require.Error(t, err)
 }
 
@@ -109,8 +109,8 @@ func TestGeneratePluginToken_ForbiddenScopesStripped(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
 	_, _, scopes, err := g.GeneratePluginToken("u", "p",
-		[]string{"admin:users", "auth:login", "system:x", "user:write", "library:write", "media:read"},
+		[]string{"admin.users", "auth.login", "system.x", "user.write", "library.write", "media.read"},
 		time.Minute)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"media:read"}, scopes, "only whitelisted scope remains")
+	assert.Equal(t, []string{"media.read"}, scopes, "only whitelisted scope remains")
 }

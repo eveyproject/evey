@@ -207,6 +207,13 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 
 	w.Header().Set("Content-Type", ct)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// Prevent plugin assets from being embedded in a foreign <iframe>.
+	// Assets are loaded via <script>/<link> inside the srcdoc iframe, not
+	// framed themselves, so DENY does not interfere with normal operation.
+	w.Header().Set("X-Frame-Options", "DENY")
+	// If a browser navigates directly to a plugin asset URL, constrain what
+	// it can do. 'none' blocks all sub-resources; sandbox adds extra isolation.
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
 	// (6) Cache-Control immutable — Vite/esbuild emits hashed filenames so
 	// the cache key already encodes the content. Same for the entry file.
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")

@@ -40,8 +40,8 @@ type IssuedToken struct {
 
 // IssueToken returns a scoped JWT for (userID, pluginID). Scopes are the
 // intersection of the plugin's admin-approved permissions (Plugin.Permissions)
-// with the auth-level allow-list. Forbidden scopes (admin:*, auth:*, system:*,
-// user:write, library:write) are stripped unconditionally.
+// with the auth-level allow-list. Forbidden scopes (admin.*, auth.*, system.*,
+// user.write, library.write) are stripped unconditionally.
 func (s *TokenService) IssueToken(ctx context.Context, userID, pluginID string) (*IssuedToken, error) {
 	if userID == "" {
 		return nil, errors.New("userID required")
@@ -54,7 +54,7 @@ func (s *TokenService) IssueToken(ctx context.Context, userID, pluginID string) 
 		return nil, ErrPluginNotEnabled
 	}
 
-	scopes := auth.FilterPluginScopes(permissionsToScopes(p.Permissions))
+	scopes := auth.FilterPluginScopes(p.Permissions)
 
 	tok, exp, final, err := s.issuer.GeneratePluginToken(userID, pluginID, scopes, s.ttl)
 	if err != nil {
@@ -63,24 +63,3 @@ func (s *TokenService) IssueToken(ctx context.Context, userID, pluginID string) 
 	return &IssuedToken{Token: tok, ExpiresAt: exp, Scopes: final}, nil
 }
 
-// permissionsToScopes maps legacy dot-style permissions (media.read) to scope
-// form (media:read). Values already in scope form pass through unchanged.
-func permissionsToScopes(perms []string) []string {
-	out := make([]string, 0, len(perms))
-	for _, p := range perms {
-		out = append(out, normalizePermission(p))
-	}
-	return out
-}
-
-func normalizePermission(p string) string {
-	// Replace first '.' with ':' for back-compat with api.* / media.* style.
-	b := []byte(p)
-	for i, c := range b {
-		if c == '.' {
-			b[i] = ':'
-			break
-		}
-	}
-	return string(b)
-}
