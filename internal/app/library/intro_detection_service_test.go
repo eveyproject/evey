@@ -2,6 +2,8 @@ package library
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"testing"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
@@ -82,209 +84,123 @@ func TestFrequencyMap_DuplicatesCountedOnce(t *testing.T) {
 	assert.False(t, result[h], "duplicate hashes within same episode must only count once")
 }
 
-// TestLongestContiguousWindow_BasicMatch ensures a matching run is found.
-func TestLongestContiguousWindow_BasicMatch(t *testing.T) {
-	t.Parallel()
-	introHashes := map[uint64]bool{0xAA: true, 0xBB: true, 0xCC: true}
-	// Target: [0xDD, 0xAA, 0xBB, 0xCC, 0xEE]
-	// Longest run of intro hashes: indices 1,2,3 → 3 frames.
-	target := []uint64{0xDD, 0xAA, 0xBB, 0xCC, 0xEE}
-	manifest := &domainlibrary.TrickplayManifest{Interval: 10}
+// --- allCandidatesGapTolerant tests ---
 
-	startMs, endMs, found := longestContiguousWindow(manifest, introHashes, target)
-	require.True(t, found)
-	assert.Equal(t, int64(1*10*1000), startMs)
-	assert.Equal(t, int64(4*10*1000), endMs)
-}
-
-// TestLongestContiguousWindow_NoMatch returns not-found when no hash matches.
-func TestLongestContiguousWindow_NoMatch(t *testing.T) {
-	t.Parallel()
-	introHashes := map[uint64]bool{0xAA: true}
-	target := []uint64{0x11, 0x22, 0x33}
-	manifest := &domainlibrary.TrickplayManifest{Interval: 10}
-
-	_, _, found := longestContiguousWindow(manifest, introHashes, target)
-	assert.False(t, found)
-}
-
-// TestLongestContiguousWindow_EmptyTarget returns not-found on empty hash slice.
-func TestLongestContiguousWindow_EmptyTarget(t *testing.T) {
-	t.Parallel()
-	manifest := &domainlibrary.TrickplayManifest{Interval: 10}
-	_, _, found := longestContiguousWindow(manifest, map[uint64]bool{0x1: true}, []uint64{})
-	assert.False(t, found)
-}
-
-// TestLongestContiguousWindow_AllMatch verifies full-sequence match.
-func TestLongestContiguousWindow_AllMatch(t *testing.T) {
-	t.Parallel()
-	var h1, h2 uint64 = 0x01, 0x02
-	introHashes := map[uint64]bool{h1: true, h2: true}
-	target := []uint64{h1, h2, h1}
-	manifest := &domainlibrary.TrickplayManifest{Interval: 5}
-
-	startMs, endMs, found := longestContiguousWindow(manifest, introHashes, target)
-	require.True(t, found)
-	assert.Equal(t, int64(0), startMs)
-	assert.Equal(t, int64(3*5*1000), endMs)
-}
-
-// --- topTwoContiguousWindows tests ---
-
-// TestTopTwoContiguousWindows_Empty returns nil for an empty target.
-func TestTopTwoContiguousWindows_Empty(t *testing.T) {
-	t.Parallel()
-	manifest := &domainlibrary.TrickplayManifest{Interval: 10}
-	result := topTwoContiguousWindows(manifest, map[uint64]bool{0x1: true}, nil)
-	assert.Nil(t, result)
-
-	result2 := topTwoContiguousWindows(manifest, map[uint64]bool{0x1: true}, []uint64{})
-	assert.Nil(t, result2)
-}
-
-// TestTopTwoContiguousWindows_ZeroInterval returns nil for zero interval.
-func TestTopTwoContiguousWindows_ZeroInterval(t *testing.T) {
-	t.Parallel()
-	manifest := &domainlibrary.TrickplayManifest{Interval: 0}
-	result := topTwoContiguousWindows(manifest, map[uint64]bool{0x1: true}, []uint64{0x1, 0x1})
-	assert.Nil(t, result)
-}
-
-// TestTopTwoContiguousWindows_SingleRun returns a single window.
-func TestTopTwoContiguousWindows_SingleRun(t *testing.T) {
-	t.Parallel()
-	// indices 1,2,3 match → 1 run of length 3
-	introHashes := map[uint64]bool{0xAA: true, 0xBB: true, 0xCC: true}
-	target := []uint64{0x00, 0xAA, 0xBB, 0xCC, 0x00}
-	manifest := &domainlibrary.TrickplayManifest{Interval: 10}
-
-	result := topTwoContiguousWindows(manifest, introHashes, target)
-	require.Len(t, result, 1)
-	assert.Equal(t, int64(1*10*1000), result[0].startMs)
-	assert.Equal(t, int64(4*10*1000), result[0].endMs)
-}
-
-// TestTopTwoContiguousWindows_TwoEqualRuns returns both, sorted chronologically.
-func TestTopTwoContiguousWindows_TwoEqualRuns(t *testing.T) {
-	t.Parallel()
-	// run1: indices 0,1 (AA,BB), run2: indices 3,4 (AA,BB)
-	introHashes := map[uint64]bool{0xAA: true, 0xBB: true}
-	target := []uint64{0xAA, 0xBB, 0x00, 0xAA, 0xBB}
-	manifest := &domainlibrary.TrickplayManifest{Interval: 5}
-
-	result := topTwoContiguousWindows(manifest, introHashes, target)
-	require.Len(t, result, 2)
-	// Chronological: earlier run first.
-	assert.Equal(t, int64(0), result[0].startMs)
-	assert.Equal(t, int64(2*5*1000), result[0].endMs)
-	assert.Equal(t, int64(3*5*1000), result[1].startMs)
-	assert.Equal(t, int64(5*5*1000), result[1].endMs)
-}
-
-// TestTopTwoContiguousWindows_ThreeRunsKeepsTopTwo verifies only the two longest runs are kept.
-func TestTopTwoContiguousWindows_ThreeRunsKeepsTopTwo(t *testing.T) {
-	t.Parallel()
-	// run1(len=3): 0,1,2  run2(len=1): 4  run3(len=2): 6,7
-	// Top 2 by length: run1(3) and run3(2). Chronological: run1 then run3.
-	introHashes := map[uint64]bool{0xAA: true, 0xBB: true, 0xCC: true}
-	target := []uint64{0xAA, 0xBB, 0xCC, 0x00, 0xAA, 0x00, 0xAA, 0xBB}
-	manifest := &domainlibrary.TrickplayManifest{Interval: 10}
-
-	result := topTwoContiguousWindows(manifest, introHashes, target)
-	require.Len(t, result, 2)
-	// run1: start=0, end=3
-	assert.Equal(t, int64(0), result[0].startMs)
-	assert.Equal(t, int64(3*10*1000), result[0].endMs)
-	// run3: start=6, end=8
-	assert.Equal(t, int64(6*10*1000), result[1].startMs)
-	assert.Equal(t, int64(8*10*1000), result[1].endMs)
-}
-
-// TestTopTwoContiguousWindows_RunAtEnd verifies a run ending at the last frame.
-func TestTopTwoContiguousWindows_RunAtEnd(t *testing.T) {
-	t.Parallel()
-	introHashes := map[uint64]bool{0xAA: true}
-	target := []uint64{0x00, 0xAA, 0xAA}
-	manifest := &domainlibrary.TrickplayManifest{Interval: 10}
-
-	result := topTwoContiguousWindows(manifest, introHashes, target)
-	require.Len(t, result, 1)
-	assert.Equal(t, int64(1*10*1000), result[0].startMs)
-	assert.Equal(t, int64(3*10*1000), result[0].endMs)
-}
-
-// --- classifySegments tests ---
-
-// TestClassifySegments_NoWindows returns empty slice.
-func TestClassifySegments_NoWindows(t *testing.T) {
-	t.Parallel()
-	segs := classifySegments(nil)
-	assert.Empty(t, segs)
-
-	segs2 := classifySegments([]matchWindow{})
-	assert.Empty(t, segs2)
-}
-
-// TestClassifySegments_OneWindow produces a single intro segment.
-func TestClassifySegments_OneWindow(t *testing.T) {
-	t.Parallel()
-	windows := []matchWindow{{startMs: 5000, endMs: 90000}}
-	segs := classifySegments(windows)
-	require.Len(t, segs, 1)
-	assert.Equal(t, "intro", segs[0].Type)
-	assert.Equal(t, int64(5000), segs[0].StartMs)
-	assert.Equal(t, int64(90000), segs[0].EndMs)
-}
-
-// TestClassifySegments_TwoWindowsEarlierShort produces recap + intro when earlier < 60s.
-func TestClassifySegments_TwoWindowsEarlierShort(t *testing.T) {
-	t.Parallel()
-	// earlier window: 0–30s (30s < 60s → recap)
-	// later window: 60s–150s (intro)
-	windows := []matchWindow{
-		{startMs: 0, endMs: 30_000},
-		{startMs: 60_000, endMs: 150_000},
+// msSeq builds a slice of timestamps with constant spacing — convenience for
+// tests that don't care about jitter and want N frames every `step` ms.
+func msSeq(n int, step int64) []int64 {
+	out := make([]int64, n)
+	for i := range n {
+		out[i] = int64(i) * step
 	}
-	segs := classifySegments(windows)
+	return out
+}
+
+func TestAllCandidatesGapTolerant_Empty(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, allCandidatesGapTolerant(map[uint64]bool{0x1: true}, nil, nil, 0))
+	assert.Nil(t, allCandidatesGapTolerant(map[uint64]bool{0x1: true}, []uint64{}, []int64{}, 0))
+}
+
+func TestAllCandidatesGapTolerant_PureContiguousRun(t *testing.T) {
+	t.Parallel()
+	intro := map[uint64]bool{0xAA: true, 0xBB: true, 0xCC: true}
+	target := []uint64{0x00, 0xAA, 0xBB, 0xCC, 0x00}
+	ms := msSeq(5, 10_000) // 0, 10s, 20s, 30s, 40s
+	cands := allCandidatesGapTolerant(intro, target, ms, 0)
+	require.Len(t, cands, 1)
+	// Run is frames 1..3 (inclusive). startMs=ms[1], endMs=ms[4] (next-frame ms).
+	assert.Equal(t, int64(10_000), cands[0].startMs)
+	assert.Equal(t, int64(40_000), cands[0].endMs)
+	assert.Equal(t, 3, cands[0].matchCount)
+}
+
+func TestAllCandidatesGapTolerant_MergesGap1(t *testing.T) {
+	t.Parallel()
+	intro := map[uint64]bool{0xAA: true, 0xBB: true}
+	target := []uint64{0xAA, 0xAA, 0x00, 0xBB, 0xBB}
+	ms := msSeq(5, 10_000)
+	cands := allCandidatesGapTolerant(intro, target, ms, 0)
+	require.Len(t, cands, 1)
+	assert.Equal(t, int64(0), cands[0].startMs)
+	// Last match at frame 4, end_ms uses last matched (no frame 5 in slice).
+	assert.Equal(t, int64(40_000), cands[0].endMs)
+	assert.Equal(t, 4, cands[0].matchCount)
+}
+
+func TestAllCandidatesGapTolerant_DoesNotMergeGap3(t *testing.T) {
+	t.Parallel()
+	intro := map[uint64]bool{0xAA: true, 0xBB: true}
+	target := []uint64{0xAA, 0xAA, 0x00, 0x00, 0x00, 0xBB, 0xBB}
+	ms := msSeq(7, 10_000)
+	cands := allCandidatesGapTolerant(intro, target, ms, 0)
+	require.Len(t, cands, 2)
+	assert.Equal(t, int64(0), cands[0].startMs)
+	assert.Equal(t, int64(20_000), cands[0].endMs)
+	assert.Equal(t, int64(50_000), cands[1].startMs)
+	assert.Equal(t, int64(60_000), cands[1].endMs)
+}
+
+func TestAllCandidatesGapTolerant_DropsSingletons(t *testing.T) {
+	t.Parallel()
+	intro := map[uint64]bool{0xAA: true}
+	target := []uint64{0x00, 0xAA, 0x00, 0x00, 0x00, 0xAA, 0xAA}
+	ms := msSeq(7, 10_000)
+	cands := allCandidatesGapTolerant(intro, target, ms, 0)
+	require.Len(t, cands, 1)
+	assert.Equal(t, int64(50_000), cands[0].startMs)
+	assert.Equal(t, int64(60_000), cands[0].endMs)
+}
+
+func TestAllCandidatesGapTolerant_UsesRealJitteredTimestamps(t *testing.T) {
+	t.Parallel()
+	// Simulates skip_frame nokey: ffmpeg snapped frames to keyframes, so
+	// timestamps are NOT uniform multiples of the requested interval.
+	intro := map[uint64]bool{0xAA: true, 0xBB: true, 0xCC: true}
+	target := []uint64{0x00, 0xAA, 0xBB, 0xCC, 0x00}
+	// Realistic: intended interval 15s, actual frames at 0, 13.4, 28.1, 42.6, 57.2
+	ms := []int64{0, 13_400, 28_100, 42_600, 57_200}
+	cands := allCandidatesGapTolerant(intro, target, ms, 0)
+	require.Len(t, cands, 1)
+	assert.Equal(t, int64(13_400), cands[0].startMs)
+	assert.Equal(t, int64(57_200), cands[0].endMs) // frame 4 ms = next-frame end
+}
+
+// --- classifyConfirmed tests ---
+
+func TestClassifyConfirmed_Empty(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, classifyConfirmed(nil))
+}
+
+func TestClassifyConfirmed_PicksLongestAsIntro(t *testing.T) {
+	t.Parallel()
+	wins := []confirmedWindow{
+		{startMs: 0, endMs: 30_000, confidence: 0.9},
+		{startMs: 60_000, endMs: 180_000, confidence: 0.95}, // longest
+		{startMs: 200_000, endMs: 220_000, confidence: 0.9},
+	}
+	segs := classifyConfirmed(wins)
+	// Should produce: recap (0-30s, <60s, before intro) + intro (60-180s)
 	require.Len(t, segs, 2)
 	assert.Equal(t, "recap", segs[0].Type)
 	assert.Equal(t, int64(0), segs[0].StartMs)
 	assert.Equal(t, int64(30_000), segs[0].EndMs)
 	assert.Equal(t, "intro", segs[1].Type)
 	assert.Equal(t, int64(60_000), segs[1].StartMs)
-	assert.Equal(t, int64(150_000), segs[1].EndMs)
+	assert.Equal(t, int64(180_000), segs[1].EndMs)
+	assert.Equal(t, 0.95, segs[1].Confidence)
 }
 
-// TestClassifySegments_TwoWindowsEarlierLong returns only the largest intro when earlier ≥ 60s.
-func TestClassifySegments_TwoWindowsEarlierLong(t *testing.T) {
+func TestClassifyConfirmed_NoRecapWhenEarlierIsLong(t *testing.T) {
 	t.Parallel()
-	// earlier window: 0–90s (90s ≥ 60s), later window: 120s–180s (60s)
-	// earlier is bigger → only earlier returned as intro
-	windows := []matchWindow{
-		{startMs: 0, endMs: 90_000},
-		{startMs: 120_000, endMs: 180_000},
+	wins := []confirmedWindow{
+		{startMs: 0, endMs: 90_000, confidence: 0.9}, // ≥60s, not recap
+		{startMs: 120_000, endMs: 200_000, confidence: 0.9},
 	}
-	segs := classifySegments(windows)
+	segs := classifyConfirmed(wins)
 	require.Len(t, segs, 1)
 	assert.Equal(t, "intro", segs[0].Type)
-	assert.Equal(t, int64(0), segs[0].StartMs)
-	assert.Equal(t, int64(90_000), segs[0].EndMs)
-}
-
-// TestClassifySegments_TwoWindowsEarlierLongLaterBigger: earlier ≥60s but later is bigger → later is intro.
-func TestClassifySegments_TwoWindowsEarlierLongLaterBigger(t *testing.T) {
-	t.Parallel()
-	// earlier: 0–70s (70s), later: 100s–200s (100s → bigger)
-	windows := []matchWindow{
-		{startMs: 0, endMs: 70_000},
-		{startMs: 100_000, endMs: 200_000},
-	}
-	segs := classifySegments(windows)
-	require.Len(t, segs, 1)
-	assert.Equal(t, "intro", segs[0].Type)
-	assert.Equal(t, int64(100_000), segs[0].StartMs)
-	assert.Equal(t, int64(200_000), segs[0].EndMs)
 }
 
 // --- end credits service integration tests ---
@@ -320,6 +236,9 @@ func (f *fakeDetector) DetectEndCredits(_ context.Context, _ string, _ float64) 
 }
 func (f *fakeDetector) DetectStudioLogo(_ []uint64, _ int) (int64, int64, bool) {
 	return f.logoStartMs, f.logoEndMs, f.logoFound
+}
+func (f *fakeDetector) AudioBandedFingerprint(_ context.Context, _ string, _, _ float64, _ int) ([]float64, error) {
+	return nil, nil
 }
 
 // fakeSegmentRepo records all Upsert calls and stores segments by (mediaItemID, type).
@@ -452,15 +371,51 @@ func newTestService(det IntroDetector, segRepo domainlibrary.MediaSegmentReposit
 	)
 }
 
-// newTestServiceWithTrickplay assembles an IntroDetectionService with a manifest-returning trickplay repo.
-func newTestServiceWithTrickplay(det IntroDetector, segRepo domainlibrary.MediaSegmentRepository, item *domainlibrary.MediaItem, manifest *domainlibrary.TrickplayManifest) *IntroDetectionService {
+// writeTrickplaySidecarFixture writes a minimal sidecar JSON for a given media
+// id under cacheDir so extractEpisodeHashes can read frame timestamps.
+func writeTrickplaySidecarFixture(t *testing.T, cacheDir, mediaID string, intervalSec, framesPerSprite, totalFrames int) {
+	t.Helper()
+	dir := cacheDir + "/" + mediaID
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("mkdir %s: %v", dir, err)
+	}
+	frames := make([]int64, totalFrames)
+	for i := range totalFrames {
+		frames[i] = int64(i*intervalSec) * 1000
+	}
+	payload := fmt.Sprintf(`{"tile_width":5,"tile_height":3,"frames_per_sprite":%d,"frame_ms":[%s]}`,
+		framesPerSprite, joinInts64(frames))
+	path := dir + "/trickplay.json"
+	if err := os.WriteFile(path, []byte(payload), 0644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func joinInts64(s []int64) string {
+	out := ""
+	for i, v := range s {
+		if i > 0 {
+			out += ","
+		}
+		out += fmt.Sprintf("%d", v)
+	}
+	return out
+}
+
+// newTestServiceWithTrickplay assembles an IntroDetectionService with a
+// manifest-returning trickplay repo and a per-test temp cache dir + sidecar.
+func newTestServiceWithTrickplay(t *testing.T, det IntroDetector, segRepo domainlibrary.MediaSegmentRepository, item *domainlibrary.MediaItem, manifest *domainlibrary.TrickplayManifest) *IntroDetectionService {
+	t.Helper()
+	cacheDir := t.TempDir()
+	totalFrames := manifest.ImageCount * manifest.TileWidth * manifest.TileHeight
+	writeTrickplaySidecarFixture(t, cacheDir, string(manifest.MediaItemID), manifest.Interval, manifest.TileWidth*manifest.TileHeight, totalFrames)
 	return NewIntroDetectionService(
 		segRepo,
 		&fakeTrickplayRepoWithManifest{manifest: manifest},
 		&fakeMediaItemRepo{item: item},
 		&fakeConfigRepo{},
 		det,
-		"/tmp/trickplay",
+		cacheDir,
 	)
 }
 
@@ -578,7 +533,7 @@ func TestDetectIntro_AppendsStudioLogoWhenDetected(t *testing.T) {
 		logoFound:   true,
 	}
 	segRepo := &fakeSegmentRepo{}
-	svc := newTestServiceWithTrickplay(det, segRepo, item, manifest)
+	svc := newTestServiceWithTrickplay(t, det, segRepo, item, manifest)
 
 	err := svc.DetectIntro(context.Background(), "item-logo-1")
 	require.NoError(t, err)

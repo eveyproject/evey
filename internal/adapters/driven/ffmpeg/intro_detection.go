@@ -336,3 +336,243 @@ func grayscaleLuminance(c color.Color) uint8 {
 
 // Suppress "declared but not used" for grayscaleLuminance when it has no callers.
 var _ = grayscaleLuminance
+
+// AudioRMSProfile decodes a slice of the file [startSec, startSec+durationSec)
+// to PCM mono 8 kHz s16le and returns RMS energy averaged over fixed-length bins
+// (default 250 ms = 2000 samples). Used as a low-cost audio fingerprint for
+// cross-episode intro confirmation: the same musical theme will yield highly
+// correlated RMS envelopes across episodes; a coincidental scene transition
+// will not.
+//
+// Returns nil + error on decode failure. Returns an empty slice without error
+// if the segment is shorter than one bin.
+func (d *IntroDetector) AudioRMSProfile(ctx context.Context, filePath string, startSec, durationSec float64, binMs int) ([]float64, error) {
+	if binMs <= 0 {
+		binMs = 250
+	}
+	const sampleRate = 8000
+	samplesPerBin := sampleRate * binMs / 1000
+
+	args := []string{
+		"-nostdin",
+		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
+		"-t", strconv.FormatFloat(durationSec, 'f', 3, 64),
+		"-i", filePath,
+		"-vn",
+		"-ar", strconv.Itoa(sampleRate),
+		"-ac", "1",
+		"-f", "s16le",
+		"pipe:1",
+	}
+	cmd := exec.CommandContext(ctx, d.binary, args...)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = nil
+	if err := cmd.Run(); err != nil {
+		// FFmpeg may exit non-zero on stream end; tolerate when we got bytes.
+		if stdout.Len() == 0 {
+			return nil, fmt.Errorf("ffmpeg pcm decode: %w", err)
+		}
+	}
+
+	raw := stdout.Bytes()
+	totalSamples := len(raw) / 2
+	if totalSamples < samplesPerBin {
+		return []float64{}, nil
+	}
+	bins := totalSamples / samplesPerBin
+	out := make([]float64, bins)
+	for b := range bins {
+		var acc float64
+		base := b * samplesPerBin * 2
+		for i := 0; i < samplesPerBin; i++ {
+			lo := raw[base+i*2]
+			hi := raw[base+i*2+1]
+			s := int16(uint16(lo) | uint16(hi)<<8)
+			f := float64(s) / 32768.0
+			acc += f * f
+		}
+		out[b] = math.Sqrt(acc / float64(samplesPerBin))
+	}
+	return out, nil
+}
+
+// AudioBandedFingerprint decodes the segment to PCM 8kHz mono and produces
+// a per-bin spectral fingerprint: for each fixed-length bin (binMs), it runs
+// the Goertzel algorithm at 6 log-spaced frequencies (~120, 250, 500, 1000,
+// 2000, 3500 Hz) and emits 6 log-magnitudes per bin.
+//
+// Returned shape: []float64 of length numBins*6, ordered
+// [bin0_b0, bin0_b1,...,bin0_b5, bin1_b0,...].
+//
+// Compared to plain RMS envelope (AudioRMSProfile), this captures *which*
+// frequencies dominate over time — robust against different audio mixes
+// (FRENCH vs MULTI dub) carrying the same underlying music: the dialogue
+// channel changes RMS but the band ratios still reflect the music's spectral
+// structure.
+func (d *IntroDetector) AudioBandedFingerprint(ctx context.Context, filePath string, startSec, durationSec float64, binMs int) ([]float64, error) {
+	if binMs <= 0 {
+		binMs = 250
+	}
+	const sampleRate = 8000
+	samplesPerBin := sampleRate * binMs / 1000
+
+	args := []string{
+		"-nostdin",
+		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
+		"-t", strconv.FormatFloat(durationSec, 'f', 3, 64),
+		"-i", filePath,
+		"-vn",
+		"-ar", strconv.Itoa(sampleRate),
+		"-ac", "1",
+		"-f", "s16le",
+		"pipe:1",
+	}
+	cmd := exec.CommandContext(ctx, d.binary, args...)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = nil
+	if err := cmd.Run(); err != nil {
+		if stdout.Len() == 0 {
+			return nil, fmt.Errorf("ffmpeg pcm decode: %w", err)
+		}
+	}
+
+	raw := stdout.Bytes()
+	totalSamples := len(raw) / 2
+	if totalSamples < samplesPerBin {
+		return []float64{}, nil
+	}
+	bins := totalSamples / samplesPerBin
+
+	// 12 log-spaced target frequencies (Hz), within 0..Nyquist (4000Hz).
+	freqs := []float64{80, 150, 250, 400, 600, 900, 1300, 1800, 2400, 3000, 3500, 3800}
+	// Goertzel coefficients for each freq, given samplesPerBin and sampleRate.
+	cosw := make([]float64, len(freqs))
+	for i, f := range freqs {
+		w := 2 * math.Pi * f / float64(sampleRate)
+		cosw[i] = math.Cos(w)
+	}
+
+	// Decode samples into a float buffer once.
+	samples := make([]float64, totalSamples)
+	for i := 0; i < totalSamples; i++ {
+		lo := raw[i*2]
+		hi := raw[i*2+1]
+		s := int16(uint16(lo) | uint16(hi)<<8)
+		samples[i] = float64(s) / 32768.0
+	}
+
+	nb := len(freqs)
+	out := make([]float64, bins*nb)
+	for b := 0; b < bins; b++ {
+		bin := samples[b*samplesPerBin : (b+1)*samplesPerBin]
+		// Per-bin sum used for L1 normalization across bands. Without this,
+		// the loudness component dominates Pearson and a quiet vs loud rendering
+		// of the same intro music will not correlate.
+		var sum float64
+		mags := out[b*nb : (b+1)*nb]
+		for k, c := range cosw {
+			var q1, q2 float64
+			twoCos := 2 * c
+			for _, s := range bin {
+				q0 := twoCos*q1 - q2 + s
+				q2 = q1
+				q1 = q0
+			}
+			mag := math.Sqrt(q1*q1 + q2*q2 - twoCos*q1*q2)
+			lm := math.Log1p(mag)
+			mags[k] = lm
+			sum += lm
+		}
+		if sum > 0 {
+			for k := range mags {
+				mags[k] /= sum
+			}
+		}
+	}
+	return out, nil
+}
+
+// PearsonCorrelation computes the Pearson correlation coefficient between two
+// equal-length series. Returns 0 for empty/zero-variance inputs to avoid NaN.
+// Range: [-1, 1]. Higher means more similar shape (invariant to mean and scale).
+func PearsonCorrelation(a, b []float64) float64 {
+	n := len(a)
+	if n == 0 || n != len(b) {
+		return 0
+	}
+	var sumA, sumB float64
+	for i := 0; i < n; i++ {
+		sumA += a[i]
+		sumB += b[i]
+	}
+	meanA := sumA / float64(n)
+	meanB := sumB / float64(n)
+	var num, dA, dB float64
+	for i := 0; i < n; i++ {
+		da := a[i] - meanA
+		db := b[i] - meanB
+		num += da * db
+		dA += da * da
+		dB += db * db
+	}
+	if dA == 0 || dB == 0 {
+		return 0
+	}
+	return num / math.Sqrt(dA*dB)
+}
+
+// SlidingBestPearson slides the shorter window `target` across `reference` and
+// returns the highest Pearson correlation observed plus the offset (in bins
+// from the start of `reference`) where the maximum was found. If
+// len(reference) < len(target), returns (0, 0).
+//
+// This is the core of cross-episode audio confirmation: target audio profile
+// is the candidate intro window from one episode; reference is a wider
+// candidate region from a sibling episode. A clean peak indicates the two
+// episodes share the same audio signal — a real recurring intro — even if
+// the absolute timestamp drifts across episodes.
+func SlidingBestPearson(target, reference []float64) (bestCorr float64, bestOffset int) {
+	if len(reference) < len(target) || len(target) == 0 {
+		return 0, 0
+	}
+	maxOff := len(reference) - len(target)
+	bestCorr = -1
+	for off := 0; off <= maxOff; off++ {
+		c := PearsonCorrelation(target, reference[off:off+len(target)])
+		if c > bestCorr {
+			bestCorr = c
+			bestOffset = off
+		}
+	}
+	return bestCorr, bestOffset
+}
+
+// SlidingBestPearsonBanded is SlidingBestPearson for multi-channel banded
+// fingerprints (vectorSize floats per time bin, e.g. 6 bands). Slides the
+// target window over reference one *time bin* at a time (vectorSize floats)
+// and computes Pearson on the full multi-band concatenation per offset.
+// Returns the best correlation and the offset measured in time bins.
+func SlidingBestPearsonBanded(target, reference []float64, vectorSize int) (bestCorr float64, bestOffsetBins int) {
+	if vectorSize <= 0 {
+		return 0, 0
+	}
+	if len(target)%vectorSize != 0 || len(reference)%vectorSize != 0 {
+		return 0, 0
+	}
+	if len(reference) < len(target) || len(target) == 0 {
+		return 0, 0
+	}
+	maxOffBins := (len(reference) - len(target)) / vectorSize
+	bestCorr = -1
+	for offBins := 0; offBins <= maxOffBins; offBins++ {
+		offFloats := offBins * vectorSize
+		c := PearsonCorrelation(target, reference[offFloats:offFloats+len(target)])
+		if c > bestCorr {
+			bestCorr = c
+			bestOffsetBins = offBins
+		}
+	}
+	return bestCorr, bestOffsetBins
+}
