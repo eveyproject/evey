@@ -128,6 +128,73 @@ describe("eveyFetch", () => {
     expect(updater).toHaveBeenCalledTimes(1);
   });
 
+  // --- Pre-flight JWT expiry refresh (proactive) ----------------------------
+  // mkJwt builds a structurally-valid JWT with a custom exp claim so the
+  // pre-flight expiry check (`_ensureFreshToken` → `isJwtExpired`) actually
+  // engages. Signature is bogus — the test only exercises decode logic.
+  function mkJwt(expSecondsFromNow: number): string {
+    const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" })).replace(/=/g, "");
+    const exp    = Math.floor(Date.now() / 1000) + expSecondsFromNow;
+    const payload = btoa(JSON.stringify({ exp, sub: "test" })).replace(/=/g, "");
+    return `${header}.${payload}.signature`;
+  }
+
+  it("refreshes upfront when the cached token is expired (no 401 round-trip)", async () => {
+    setTokenProvider(() => mkJwt(-30)); // already 30s past expiry
+    const updater = vi.fn();
+    setTokensUpdater(updater);
+
+    fetchMock
+      .mockResolvedValueOnce(mockResponse(200, { accessToken: "fresh" })) // /auth/refresh
+      .mockResolvedValueOnce(mockResponse(200, { data: "ok" }));          // actual call
+
+    const result = await eveyFetch<{ data: string }>({ url: "/api/test", method: "GET" });
+
+    expect(result).toEqual({ data: "ok" });
+    expect(updater).toHaveBeenCalledWith("fresh");
+    // Exactly 2 fetches — no 401 detour, refresh happens upfront.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // First call must be the refresh, second the actual API call.
+    expect(fetchMock.mock.calls[0][0]).toContain("/auth/refresh");
+    // The actual call uses the new token, not the expired one.
+    expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe("Bearer fresh");
+  });
+
+  it("does NOT refresh when the cached token is still valid", async () => {
+    setTokenProvider(() => mkJwt(300)); // 5min in the future
+    fetchMock.mockResolvedValueOnce(mockResponse(200, { data: "ok" }));
+
+    const result = await eveyFetch<{ data: string }>({ url: "/api/test", method: "GET" });
+
+    expect(result).toEqual({ data: "ok" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).not.toContain("/auth/refresh");
+  });
+
+  it("concurrent calls with an expired token share a single refresh", async () => {
+    setTokenProvider(() => mkJwt(-1));
+    const updater = vi.fn();
+    setTokensUpdater(updater);
+
+    fetchMock
+      .mockResolvedValueOnce(mockResponse(200, { accessToken: "fresh" })) // single refresh
+      .mockResolvedValue(mockResponse(200, { data: "ok" }));
+
+    const [a, b, c] = await Promise.all([
+      eveyFetch<{ data: string }>({ url: "/api/a", method: "GET" }),
+      eveyFetch<{ data: string }>({ url: "/api/b", method: "GET" }),
+      eveyFetch<{ data: string }>({ url: "/api/c", method: "GET" }),
+    ]);
+
+    expect(a).toEqual({ data: "ok" });
+    expect(b).toEqual({ data: "ok" });
+    expect(c).toEqual({ data: "ok" });
+
+    const refreshCalls = fetchMock.mock.calls.filter(([url]) => (url as string).includes("/auth/refresh"));
+    expect(refreshCalls).toHaveLength(1);
+    expect(updater).toHaveBeenCalledTimes(1);
+  });
+
   it("parses NDJSON streaming response (last line)", async () => {
     fetchMock.mockResolvedValueOnce(
       mockNDJSONResponse([

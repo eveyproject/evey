@@ -12,12 +12,18 @@ import { translateNotificationTitle, useRelativeTime } from "./notificationUtils
 
 interface Notification {
   id?: string;
+  type?: string;
   title?: string;
   message?: string;
   mediaItemId?: string;
   createdAt?: string;
   readAt?: string;
 }
+
+// Notification types hidden from the user-facing bell. The average user
+// doesn't care about plugin failures — admins still see them in the
+// dedicated plugin security dashboard.
+const HIDDEN_TYPES = new Set(["plugin_error"]);
 
 function notificationUrl(n: Notification): string | undefined {
   if (n.mediaItemId) return `/media/${n.mediaItemId}`;
@@ -34,8 +40,12 @@ export function NotificationBell() {
   const { data: countData, isError: countError } = useNotificationServiceGetUnreadCount();
   const count = countData?.count ?? 0;
 
-  const { data: listData, isError: listError } = useNotificationServiceListNotifications({ limit: 5 });
-  const notifications = listData?.notifications ?? [];
+  // Pull a few extra so filtering doesn't leave the dropdown empty when
+  // the head of the list happens to be plugin_error noise.
+  const { data: listData, isError: listError } = useNotificationServiceListNotifications({ limit: 15 });
+  const notifications = (listData?.notifications ?? [])
+    .filter((n: Notification) => !n.type || !HIDDEN_TYPES.has(n.type))
+    .slice(0, 5);
   const queryClient = useQueryClient();
   const markAllRead = useNotificationServiceMarkAllRead({
     mutation: {

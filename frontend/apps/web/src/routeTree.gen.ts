@@ -53,6 +53,7 @@ import { Route as AuthAdminPluginsRouteImport } from './routes/_auth/admin/plugi
 import { Route as AuthAdminLibrariesRouteImport } from './routes/_auth/admin/libraries'
 import { Route as AuthAdminFeedsRouteImport } from './routes/_auth/admin/feeds'
 import { Route as AuthAdminBackupRouteImport } from './routes/_auth/admin/backup'
+import { Route as AuthAdminArtworksRouteImport } from './routes/_auth/admin/artworks'
 import { Route as AuthAdminApiKeysRouteImport } from './routes/_auth/admin/api-keys'
 import { Route as AuthAdminAnalyticsRouteImport } from './routes/_auth/admin/analytics'
 import { Route as AuthAdminActivityRouteImport } from './routes/_auth/admin/activity'
@@ -348,6 +349,13 @@ const AuthAdminBackupRoute = AuthAdminBackupRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/backup.lazy').then((d) => d.Route),
 )
+const AuthAdminArtworksRoute = AuthAdminArtworksRouteImport.update({
+  id: '/artworks',
+  path: '/artworks',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/artworks.lazy').then((d) => d.Route),
+)
 const AuthAdminApiKeysRoute = AuthAdminApiKeysRouteImport.update({
   id: '/api-keys',
   path: '/api-keys',
@@ -405,6 +413,7 @@ export interface FileRoutesByFullPath {
   '/admin/activity': typeof AuthAdminActivityRoute
   '/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/admin/api-keys': typeof AuthAdminApiKeysRoute
+  '/admin/artworks': typeof AuthAdminArtworksRoute
   '/admin/backup': typeof AuthAdminBackupRoute
   '/admin/feeds': typeof AuthAdminFeedsRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
@@ -454,6 +463,7 @@ export interface FileRoutesByTo {
   '/admin/activity': typeof AuthAdminActivityRoute
   '/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/admin/api-keys': typeof AuthAdminApiKeysRoute
+  '/admin/artworks': typeof AuthAdminArtworksRoute
   '/admin/backup': typeof AuthAdminBackupRoute
   '/admin/feeds': typeof AuthAdminFeedsRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
@@ -506,6 +516,7 @@ export interface FileRoutesById {
   '/_auth/admin/activity': typeof AuthAdminActivityRoute
   '/_auth/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/_auth/admin/api-keys': typeof AuthAdminApiKeysRoute
+  '/_auth/admin/artworks': typeof AuthAdminArtworksRoute
   '/_auth/admin/backup': typeof AuthAdminBackupRoute
   '/_auth/admin/feeds': typeof AuthAdminFeedsRoute
   '/_auth/admin/libraries': typeof AuthAdminLibrariesRoute
@@ -558,6 +569,7 @@ export interface FileRouteTypes {
     | '/admin/activity'
     | '/admin/analytics'
     | '/admin/api-keys'
+    | '/admin/artworks'
     | '/admin/backup'
     | '/admin/feeds'
     | '/admin/libraries'
@@ -607,6 +619,7 @@ export interface FileRouteTypes {
     | '/admin/activity'
     | '/admin/analytics'
     | '/admin/api-keys'
+    | '/admin/artworks'
     | '/admin/backup'
     | '/admin/feeds'
     | '/admin/libraries'
@@ -658,6 +671,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/activity'
     | '/_auth/admin/analytics'
     | '/_auth/admin/api-keys'
+    | '/_auth/admin/artworks'
     | '/_auth/admin/backup'
     | '/_auth/admin/feeds'
     | '/_auth/admin/libraries'
@@ -1013,6 +1027,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminBackupRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/artworks': {
+      id: '/_auth/admin/artworks'
+      path: '/artworks'
+      fullPath: '/admin/artworks'
+      preLoaderRoute: typeof AuthAdminArtworksRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/api-keys': {
       id: '/_auth/admin/api-keys'
       path: '/api-keys'
@@ -1055,6 +1076,7 @@ interface AuthAdminRouteChildren {
   AuthAdminActivityRoute: typeof AuthAdminActivityRoute
   AuthAdminAnalyticsRoute: typeof AuthAdminAnalyticsRoute
   AuthAdminApiKeysRoute: typeof AuthAdminApiKeysRoute
+  AuthAdminArtworksRoute: typeof AuthAdminArtworksRoute
   AuthAdminBackupRoute: typeof AuthAdminBackupRoute
   AuthAdminFeedsRoute: typeof AuthAdminFeedsRoute
   AuthAdminLibrariesRoute: typeof AuthAdminLibrariesRoute
@@ -1074,6 +1096,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminActivityRoute: AuthAdminActivityRoute,
   AuthAdminAnalyticsRoute: AuthAdminAnalyticsRoute,
   AuthAdminApiKeysRoute: AuthAdminApiKeysRoute,
+  AuthAdminArtworksRoute: AuthAdminArtworksRoute,
   AuthAdminBackupRoute: AuthAdminBackupRoute,
   AuthAdminFeedsRoute: AuthAdminFeedsRoute,
   AuthAdminLibrariesRoute: AuthAdminLibrariesRoute,

@@ -46,6 +46,53 @@ let refreshFailed = false;
 /** Reset module state — for tests only */
 export function _resetFetcherState() { refreshPromise = null; refreshFailed = false; }
 
+// Treat JWTs as expired when within this many seconds of their `exp` claim.
+// Buffers clock skew + the time it takes to round-trip a request.
+const EXPIRY_GRACE_SECONDS = 5;
+
+/**
+ * Decode a JWT payload (no signature verify) and return whether it's
+ * already expired (or close enough that we should refresh now).
+ *
+ * Returns true on any parse failure — better to attempt a refresh than
+ * to send a malformed token.
+ */
+function isJwtExpired(token: string): boolean {
+  const parts = token.split(".");
+  if (parts.length !== 3) return false; // not a JWT we recognize — trust caller
+  try {
+    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
+    const json = typeof atob === "function" ? atob(padded) : Buffer.from(padded, "base64").toString("binary");
+    const claims = JSON.parse(json) as { exp?: number };
+    if (typeof claims.exp !== "number") return false;
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    return claims.exp <= nowSeconds + EXPIRY_GRACE_SECONDS;
+  } catch {
+    return false; // unparseable JWT — let the server reject with 401
+  }
+}
+
+/**
+ * Resolve the access token to use for an outbound request. If the cached
+ * token is expired (or missing on a request that previously had one),
+ * await the single-flight refresh so all concurrent callers reuse the
+ * same fresh token instead of each tripping a 401 + their own retry.
+ *
+ * Exported for the test suite.
+ */
+export async function _ensureFreshToken(): Promise<string | undefined> {
+  const token = getToken?.() ?? undefined;
+  if (!token) return undefined;
+  if (!isJwtExpired(token)) return token;
+  if (refreshFailed) return token;       // give up — caller will get 401 → fireUnauthorized
+  try {
+    return await attemptRefresh();
+  } catch {
+    return token;                        // fall through; the 401 path will fire unauthorized
+  }
+}
+
 function resolveURL(url: string): string {
   return baseURL ? `${baseURL}${url}` : url;
 }
@@ -132,7 +179,7 @@ async function fetchWithRefresh(
 }
 
 export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response> {
-  const token = getToken?.();
+  const token = await _ensureFreshToken();
   const headers: Record<string, string> = { ...extraHeaders, ...(request.headers ?? {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const locale = getLocale?.();
@@ -157,7 +204,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
 }
 
 export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
-  const token = getToken?.();
+  const token = await _ensureFreshToken();
   const headers: Record<string, string> = { ...extraHeaders, ...(request.headers ?? {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const locale = getLocale?.();
