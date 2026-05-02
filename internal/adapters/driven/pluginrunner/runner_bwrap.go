@@ -31,8 +31,23 @@ func buildBwrapCmd(pluginDir, pluginSockDir string, hasNetworkPerm bool, mode st
 		args = append(args, "--unshare-net")
 	}
 
+	// Selective read-only mounts: cover all supported plugin runtimes
+	// (bash, lua, nodejs, python, php) on Alpine and Debian without exposing
+	// secrets-bearing host paths like /data, /var, /home, /root, /etc/passwd,
+	// /etc/shadow, /etc/ssh, or /run.
+	// --ro-bind-try silently skips paths absent on the current distro.
 	args = append(args,
-		"--ro-bind", "/", "/",
+		"--ro-bind", "/usr", "/usr",
+		"--ro-bind", "/bin", "/bin",
+		"--ro-bind", "/sbin", "/sbin",
+		"--ro-bind-try", "/lib", "/lib",
+		"--ro-bind-try", "/lib64", "/lib64",
+		"--ro-bind-try", "/etc/ssl", "/etc/ssl",
+		"--ro-bind-try", "/etc/ca-certificates", "/etc/ca-certificates",
+		"--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf",
+		"--ro-bind-try", "/etc/nsswitch.conf", "/etc/nsswitch.conf",
+		"--ro-bind-try", "/etc/alpine-release", "/etc/alpine-release",
+		"--ro-bind-try", "/etc/os-release", "/etc/os-release",
 		"--bind", pluginDir, pluginDir,
 		"--proc", "/proc",
 		// --dev synthesises a minimal /dev (null, zero, full, random, urandom,

@@ -42,12 +42,9 @@ func TestBuildBwrapCmd_ContainsROBindAndPluginBind(t *testing.T) {
 	args := buildBwrapCmd(pluginDir, "/tmp/evey/plugins/test", false, sandboxModeBubblewrap, "")
 	require.NotNil(t, args)
 
-	// Must have --ro-bind / /
+	// Must have at least one --ro-bind (selective whitelist, not / /)
 	roIdx := slices.Index(args, "--ro-bind")
 	require.NotEqual(t, -1, roIdx, "--ro-bind flag must be present")
-	require.Less(t, roIdx+2, len(args), "--ro-bind must have two following arguments")
-	assert.Equal(t, "/", args[roIdx+1])
-	assert.Equal(t, "/", args[roIdx+2])
 
 	// Must have --bind <pluginDir> <pluginDir>
 	bindIdx := slices.Index(args, "--bind")
@@ -93,4 +90,46 @@ func TestBuildBwrapCmd_NoHostsFile(t *testing.T) {
 	args := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", true, sandboxModeBubblewrap, "")
 	require.NotNil(t, args)
 	assert.NotContains(t, args, "/etc/hosts", "no hostsFile means /etc/hosts must not appear in args")
+}
+
+func TestBwrapMountWhitelist(t *testing.T) {
+	// pluginDir intentionally NOT under /data — the test asserts that no
+	// host-secret path is bind-mounted; the plugin's own writable workdir
+	// is a legitimate --bind regardless of where the operator places it.
+	pluginDir := "/srv/evey-plugins/foo"
+	args := buildBwrapCmd(pluginDir, "/tmp/evey/plugins/test", false, sandboxModeBubblewrap, "")
+	require.NotNil(t, args)
+
+	// The broad root bind must be gone.
+	for i := 0; i < len(args)-2; i++ {
+		if args[i] == "--ro-bind" && args[i+1] == "/" && args[i+2] == "/" {
+			t.Fatal("--ro-bind / / must not appear: it exposes the entire host filesystem")
+		}
+	}
+
+	// /usr must be present (covers python, node, php, lua interpreters on Alpine/Debian).
+	foundUsr := false
+	for i := 0; i < len(args)-2; i++ {
+		if args[i] == "--ro-bind" && args[i+1] == "/usr" && args[i+2] == "/usr" {
+			foundUsr = true
+			break
+		}
+	}
+	assert.True(t, foundUsr, "--ro-bind /usr /usr must be present for runtime interpreters")
+
+	// /data must not appear as a bind source (secrets are stored there).
+	for i := 0; i < len(args)-1; i++ {
+		if (args[i] == "--ro-bind" || args[i] == "--ro-bind-try" || args[i] == "--bind") &&
+			len(args[i+1]) >= 5 && args[i+1][:5] == "/data" {
+			t.Fatalf("bind of /data path must not appear, got: %s %s", args[i], args[i+1])
+		}
+	}
+
+	// /var must not appear as a bind source.
+	for i := 0; i < len(args)-1; i++ {
+		if (args[i] == "--ro-bind" || args[i] == "--ro-bind-try" || args[i] == "--bind") &&
+			len(args[i+1]) >= 4 && args[i+1][:4] == "/var" {
+			t.Fatalf("bind of /var path must not appear, got: %s %s", args[i], args[i+1])
+		}
+	}
 }
