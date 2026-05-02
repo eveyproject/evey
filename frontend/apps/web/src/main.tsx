@@ -7,6 +7,7 @@ import { useAuthStore } from "@evey/store";
 import { setTokenProvider, setTokensUpdater, setLocaleProvider, userServiceRefreshToken } from "@evey/api";
 import { useLocaleStore } from "@evey/store";
 import { registerServiceWorker } from "@/lib/webpush";
+import { ThemeLoader } from "@/features/themes/ThemeLoader";
 import "./i18n";
 import "./styles/main.css";
 
@@ -182,6 +183,7 @@ declare module "@tanstack/react-router" {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
+      <ThemeLoader />
       <RouterProvider router={router} />
     </QueryClientProvider>
   </StrictMode>

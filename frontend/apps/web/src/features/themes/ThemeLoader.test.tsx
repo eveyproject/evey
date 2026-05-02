@@ -1,0 +1,336 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, waitFor, act } from "@testing-library/react";
+import { ThemeLoader } from "./ThemeLoader";
+
+// --- hoisted mock state ---
+const { mockPluginId, mockAccessToken } = vi.hoisted(() => ({
+  mockPluginId: { value: null as string | null },
+  mockAccessToken: { value: null as string | null },
+}));
+
+vi.mock("@evey/store", () => ({
+  useThemeStore: (sel?: (s: Record<string, unknown>) => unknown) => {
+    const state = { pluginId: mockPluginId.value };
+    if (sel) return sel(state);
+    return state;
+  },
+  useAuthStore: (sel: (s: Record<string, unknown>) => unknown) =>
+    sel({ accessToken: mockAccessToken.value }),
+}));
+
+// Capture eveyFetchRaw calls
+const eveyFetchRawMock = vi.fn();
+vi.mock("@evey/api", () => ({
+  eveyFetchRaw: (...args: unknown[]) => eveyFetchRawMock(...args),
+}));
+
+// Mock theme-bridge to keep BRIDGE_SCRIPT short in tests
+vi.mock("./theme-bridge", () => ({
+  THEME_BRIDGE_SCRIPT: "/* bridge */",
+}));
+
+function makeOkResponse() {
+  return Promise.resolve({
+    ok: true,
+    status: 200,
+    text: async () => "// theme js",
+  });
+}
+
+function make404Rejection() {
+  const err = Object.assign(new Error("not found"), { httpStatus: 404 });
+  return Promise.reject(err);
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockPluginId.value = null;
+  mockAccessToken.value = null;
+  // Clean up any injected DOM artefacts from previous test
+  document.querySelectorAll("[id^='evey-theme-']").forEach((el) => el.remove());
+});
+
+afterEach(() => {
+  document.querySelectorAll("[id^='evey-theme-']").forEach((el) => el.remove());
+});
+
+describe("ThemeLoader", () => {
+  it("renders null and injects nothing when no pluginId", () => {
+    mockPluginId.value = null;
+    const { container } = render(<ThemeLoader />);
+    expect(container.innerHTML).toBe("");
+    expect(document.querySelector("[id^='evey-theme-css-']")).toBeNull();
+  });
+
+  it("injects theme.css <link> when pluginId is set", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "TOKEN";
+    // theme.js returns 404 (CSS-only theme)
+    eveyFetchRawMock.mockImplementation(make404Rejection);
+
+    render(<ThemeLoader />);
+
+    await waitFor(() => {
+      const link = document.getElementById("evey-theme-css-dark");
+      expect(link).not.toBeNull();
+      expect((link as HTMLLinkElement).href).toContain("/api/v1/themes/dark/theme.css");
+    });
+  });
+
+  it("does not inject iframe when theme.js returns 404", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "TOKEN";
+    eveyFetchRawMock.mockImplementation(make404Rejection);
+
+    render(<ThemeLoader />);
+
+    await waitFor(() => {
+      expect(document.getElementById("evey-theme-css-dark")).not.toBeNull();
+    });
+
+    // Wait a bit to ensure the async flow completes
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    expect(document.getElementById("evey-theme-iframe-dark")).toBeNull();
+  });
+
+  it("injects hidden sandbox iframe when theme.js exists (200 OK)", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "TOKEN";
+    eveyFetchRawMock.mockImplementation(makeOkResponse);
+
+    render(<ThemeLoader />);
+
+    await waitFor(() => {
+      const iframe = document.getElementById("evey-theme-iframe-dark");
+      expect(iframe).not.toBeNull();
+    });
+  });
+
+  it("iframe has sandbox=allow-scripts attribute", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "TOKEN";
+    eveyFetchRawMock.mockImplementation(makeOkResponse);
+
+    render(<ThemeLoader />);
+
+    await waitFor(() => {
+      const iframe = document.getElementById("evey-theme-iframe-dark") as HTMLIFrameElement | null;
+      expect(iframe).not.toBeNull();
+      expect(iframe!.getAttribute("sandbox")).toBe("allow-scripts");
+    });
+  });
+
+  it("iframe srcdoc contains CSP meta tag", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "TOKEN";
+    eveyFetchRawMock.mockImplementation(makeOkResponse);
+
+    render(<ThemeLoader />);
+
+    await waitFor(() => {
+      const iframe = document.getElementById("evey-theme-iframe-dark") as HTMLIFrameElement | null;
+      expect(iframe).not.toBeNull();
+      expect(iframe!.srcdoc).toContain("Content-Security-Policy");
+    });
+  });
+
+  it("iframe srcdoc contains connect-src 'none'", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "TOKEN";
+    eveyFetchRawMock.mockImplementation(makeOkResponse);
+
+    render(<ThemeLoader />);
+
+    await waitFor(() => {
+      const iframe = document.getElementById("evey-theme-iframe-dark") as HTMLIFrameElement | null;
+      expect(iframe).not.toBeNull();
+      expect(iframe!.srcdoc).toContain("connect-src 'none'");
+    });
+  });
+
+  it("iframe srcdoc contains bridge script", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "TOKEN";
+    eveyFetchRawMock.mockImplementation(makeOkResponse);
+
+    render(<ThemeLoader />);
+
+    await waitFor(() => {
+      const iframe = document.getElementById("evey-theme-iframe-dark") as HTMLIFrameElement | null;
+      expect(iframe).not.toBeNull();
+      expect(iframe!.srcdoc).toContain("bridge");
+    });
+  });
+
+  it("iframe srcdoc references theme.js URL", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "TOKEN";
+    eveyFetchRawMock.mockImplementation(makeOkResponse);
+
+    render(<ThemeLoader />);
+
+    await waitFor(() => {
+      const iframe = document.getElementById("evey-theme-iframe-dark") as HTMLIFrameElement | null;
+      expect(iframe).not.toBeNull();
+      expect(iframe!.srcdoc).toContain("/api/v1/themes/dark/theme.js");
+    });
+  });
+
+  it("does not inject iframe when no access token", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = null; // not authenticated
+    eveyFetchRawMock.mockImplementation(makeOkResponse);
+
+    render(<ThemeLoader />);
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    // CSS link may or may not be there — but no iframe
+    expect(document.getElementById("evey-theme-iframe-dark")).toBeNull();
+    // fetch should not have been called
+    expect(eveyFetchRawMock).not.toHaveBeenCalled();
+  });
+
+  it("cleans up assets when pluginId changes to null", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "TOKEN";
+    eveyFetchRawMock.mockImplementation(makeOkResponse);
+
+    const { rerender } = render(<ThemeLoader />);
+
+    await waitFor(() => {
+      expect(document.getElementById("evey-theme-css-dark")).not.toBeNull();
+    });
+
+    // Simulate theme deactivation
+    mockPluginId.value = null;
+    rerender(<ThemeLoader />);
+
+    await waitFor(() => {
+      expect(document.getElementById("evey-theme-css-dark")).toBeNull();
+    });
+  });
+});
+
+describe("ThemeLoader postMessage handling", () => {
+  it("theme.css message injects a <style> element into <head>", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "TOKEN";
+    eveyFetchRawMock.mockImplementation(makeOkResponse);
+
+    // Spy on useThemeStore.getState for the message handler
+    const { useThemeStore } = await import("@evey/store");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (useThemeStore as any).getState = () => ({ pluginId: "dark" });
+
+    render(<ThemeLoader />);
+
+    await waitFor(() => {
+      expect(document.getElementById("evey-theme-iframe-dark")).not.toBeNull();
+    });
+
+    // Simulate a postMessage from the iframe — jsdom doesn't actually run
+    // iframe JS so we dispatch the message from "null" source to test the handler.
+    // The handler guards on e.source === iframe.contentWindow; in jsdom the
+    // iframe contentWindow is available but can't be matched to a MessageEvent
+    // source easily. We dispatch on window directly and skip source check
+    // by patching the iframeRef via the behaviour we can observe.
+    // Instead, exercise the CSS sanitization path directly.
+    const styleId = "evey-theme-injected-dark";
+    expect(document.getElementById(styleId)).toBeNull();
+
+    // Directly dispatch a message that looks like it comes from the iframe window.
+    // In jsdom, contentWindow of a dynamically created iframe is accessible.
+    const iframe = document.getElementById("evey-theme-iframe-dark") as HTMLIFrameElement;
+    const fakeSource = iframe.contentWindow;
+
+    act(() => {
+      const ev = new MessageEvent("message", {
+        data: { type: "theme.css", rules: "body { color: red; }" },
+        source: fakeSource as Window,
+      });
+      window.dispatchEvent(ev);
+    });
+
+    await waitFor(() => {
+      const style = document.getElementById(styleId);
+      expect(style).not.toBeNull();
+      expect(style!.textContent).toContain("body { color: red; }");
+    });
+  });
+
+  it("theme.css sanitizes dangerous patterns before injection", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "TOKEN";
+    eveyFetchRawMock.mockImplementation(makeOkResponse);
+
+    const { useThemeStore } = await import("@evey/store");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (useThemeStore as any).getState = () => ({ pluginId: "dark" });
+
+    render(<ThemeLoader />);
+
+    await waitFor(() => {
+      expect(document.getElementById("evey-theme-iframe-dark")).not.toBeNull();
+    });
+
+    const iframe = document.getElementById("evey-theme-iframe-dark") as HTMLIFrameElement;
+    const fakeSource = iframe.contentWindow;
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            type: "theme.css",
+            rules: "body { background: expression(alert(1)); } <script>evil()</script>",
+          },
+          source: fakeSource as Window,
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      const style = document.getElementById("evey-theme-injected-dark");
+      expect(style).not.toBeNull();
+      expect(style!.textContent).not.toContain("expression(");
+      expect(style!.textContent).not.toContain("<script>");
+    });
+  });
+
+  it("ignores postMessage from unknown source", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "TOKEN";
+    eveyFetchRawMock.mockImplementation(makeOkResponse);
+
+    const { useThemeStore } = await import("@evey/store");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (useThemeStore as any).getState = () => ({ pluginId: "dark" });
+
+    render(<ThemeLoader />);
+
+    await waitFor(() => {
+      expect(document.getElementById("evey-theme-iframe-dark")).not.toBeNull();
+    });
+
+    // Dispatch from a null source (different from iframe.contentWindow)
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: { type: "theme.css", rules: "body { color: blue; }" },
+          source: null,
+        }),
+      );
+    });
+
+    // Style should NOT be injected since source doesn't match
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 30));
+    });
+    expect(document.getElementById("evey-theme-injected-dark")).toBeNull();
+  });
+});
