@@ -98,7 +98,7 @@ func registerArtworkAdminRoutes(
 			return
 		}
 		status := "running"
-		if job.Done {
+		if job.Done.Load() {
 			status = "done"
 		}
 		processed := job.Processed.Load()

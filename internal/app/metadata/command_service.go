@@ -45,7 +45,10 @@ type DownloadJob struct {
 	Processed atomic.Int64
 	Errors    []string
 	mu        sync.Mutex
-	Done      bool
+	// Done is set once the bulk download goroutine has finished. Read by
+	// the polling HTTP handler concurrently with the writer in
+	// runBulkDownload — must be atomic to keep `go test -race` happy.
+	Done atomic.Bool
 }
 
 func (j *DownloadJob) addError(msg string) {
@@ -213,10 +216,7 @@ func (s *CommandService) runBulkDownload(ctx context.Context, job *DownloadJob, 
 		}()
 	}
 	wg.Wait()
-
-	s.jobsMu.Lock()
-	job.Done = true
-	s.jobsMu.Unlock()
+	job.Done.Store(true)
 }
 
 // GetDownloadJob retrieves a job by ID; returns nil if not found.
