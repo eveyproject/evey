@@ -122,6 +122,9 @@ func (s *RuntimeService) StopPlugin(ctx context.Context, id string) error {
 	return nil
 }
 
+// EnablePlugin marks the plugin enabled and (for non-theme plugins) starts
+// the runner. Without the runner.Start call the plugin remained Stopped after
+// re-enabling — matching DB state but not actually serving traffic.
 func (s *RuntimeService) EnablePlugin(ctx context.Context, id string) error {
 	p, err := s.plugins.GetByID(ctx, id)
 	if err != nil {
@@ -129,7 +132,20 @@ func (s *RuntimeService) EnablePlugin(ctx context.Context, id string) error {
 	}
 	p.Enabled = true
 	p.UpdatedAt = time.Now()
-	return s.plugins.Update(ctx, p)
+	if err := s.plugins.Update(ctx, p); err != nil {
+		return err
+	}
+	if p.Status == plugin.Running {
+		return nil
+	}
+	// Themes are "running" without a runner — flip the status so the UI
+	// reflects that the theme is active.
+	if p.IsTheme() {
+		p.Status = plugin.Running
+		p.ErrorMessage = ""
+		return s.plugins.Update(ctx, p)
+	}
+	return s.StartPlugin(ctx, id)
 }
 
 func (s *RuntimeService) DisablePlugin(ctx context.Context, id string) error {
