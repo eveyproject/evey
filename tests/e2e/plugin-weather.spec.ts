@@ -2,7 +2,7 @@
 // assert the iframe loads its bundle without console errors and the
 // canvas renders. Uses the auth state from globalSetup.
 
-import { test, expect } from "@playwright/test";
+import { test, expect, request as playwrightRequest } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
@@ -13,27 +13,28 @@ const STORAGE_STATE = path.join(__dirname, ".auth-state.json");
 const ZIP_PATH = path.resolve(__dirname, "../../tests/plugins/weather.zip");
 const BASE_URL = process.env.BASE_URL ?? "https://evey.test";
 
-test.use({
-  storageState: STORAGE_STATE,
-  ignoreHTTPSErrors: true,
-});
+test.use({ storageState: STORAGE_STATE, ignoreHTTPSErrors: true });
 
 function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}` };
 }
 
-// Extract a fresh access token by hitting /refresh with the cookies +
-// CSRF token Playwright inherits from storageState (set by globalSetup).
-async function getAccessToken(request: APIRequestContext): Promise<string> {
-  const cookies = await request.storageState().then((s) => s.cookies);
-  const csrfCookie = cookies.find((c) => c.name === "_csrf" || c.name === "_csrf_token" || c.name === "csrf_token");
-  const headers: Record<string, string> = {};
-  if (csrfCookie) headers["X-CSRF-Token"] = csrfCookie.value;
-  const res = await request.post(`${BASE_URL}/api/v1/auth/refresh`, { headers });
-  if (!res.ok()) throw new Error(`refresh failed ${res.status()}: ${await res.text()}`);
-  const body = await res.json();
-  const tok = body.accessToken ?? body.access_token;
-  if (!tok) throw new Error("refresh returned no token");
+// global-setup persists the accessToken into localStorage under "evey-auth".
+// Navigating to /home gives us a same-origin context to read it. No CSRF
+// dance: we just grab the JWT and use it as a Bearer header.
+async function getAccessToken(page: import("@playwright/test").Page): Promise<string> {
+  await page.goto(`${BASE_URL}/home`, { waitUntil: "domcontentloaded" });
+  const tok = await page.evaluate(() => {
+    const raw = localStorage.getItem("evey-auth");
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as { state?: { accessToken?: string } };
+      return parsed.state?.accessToken ?? null;
+    } catch {
+      return null;
+    }
+  });
+  if (!tok) throw new Error("no accessToken in localStorage — global-setup didn't run?");
   return tok;
 }
 
@@ -60,12 +61,19 @@ async function uninstallExistingWeather(request: APIRequestContext, token: strin
 test.describe("Weather plugin", () => {
   test("uploads, installs, and renders the R3F scene with no console errors", async ({ page, request }) => {
     expect(fs.existsSync(ZIP_PATH), `weather.zip not found at ${ZIP_PATH} — run scripts/build-test-plugins.sh first`).toBeTruthy();
-    const token = await getAccessToken(request);
-    await uninstallExistingWeather(request, token);
+    // Auth: read the JWT global-setup persisted in localStorage. We can't
+    // hit /refresh because that requires the CSRF double-submit cookie which
+    // Playwright's APIRequestContext can't read from the browser context.
+    const token = await getAccessToken(page);
+    // Use an isolated APIRequestContext for admin calls so they auth via
+    // the Bearer header without dragging the browser's session cookies
+    // (which would force CSRF on every state-changing call).
+    const apiCtx = await playwrightRequest.newContext({ ignoreHTTPSErrors: true });
+    await uninstallExistingWeather(apiCtx, token);
 
     // 1) Upload via multipart form to the admin upload endpoint.
     const zipBytes = fs.readFileSync(ZIP_PATH);
-    const upload = await request.post(`${BASE_URL}/api/v1/admin/plugins/upload`, {
+    const upload = await apiCtx.post(`${BASE_URL}/api/v1/admin/plugins/upload`, {
       headers: authHeaders(token),
       multipart: {
         plugin: { name: "weather.zip", mimeType: "application/zip", buffer: zipBytes },
@@ -78,7 +86,7 @@ test.describe("Weather plugin", () => {
     // 2) Wait for the plugin process to come up (running status).
     let status = "";
     for (let i = 0; i < 30; i++) {
-      const list = await listPlugins(request, token);
+      const list = await listPlugins(apiCtx, token);
       const me = list.find((p: { id: string }) => p.id === uploaded.id);
       status = me?.state ?? "";
       if (status === "PLUGIN_STATE_RUNNING") break;
@@ -94,8 +102,9 @@ test.describe("Weather plugin", () => {
     });
     page.on("pageerror", (err) => pageErrors.push(err.message));
 
-    // 4) Navigate home and wait for the iframe.
-    await page.goto(`${BASE_URL}/home`, { waitUntil: "networkidle" });
+    // 4) The page is already on /home (loaded by getAccessToken). Force a
+    // re-navigation so the just-installed plugin shows in the slot list.
+    await page.goto(`${BASE_URL}/home`, { waitUntil: "domcontentloaded" });
     const iframeEl = page.locator('iframe[title*="' + uploaded.id + '"]');
     await expect(iframeEl).toBeAttached({ timeout: 15_000 });
 
@@ -135,6 +144,14 @@ test.describe("Weather plugin", () => {
       if (/ssl certificate error/i.test(msg)) return false;
       if (/err_timed_out/i.test(msg)) return false;
       if (/failed to load resource/i.test(msg)) return false;
+      // Vite HMR websocket gets cut short by the test's re-navigation.
+      if (/connection to wss?:.*was interrupted/i.test(msg)) return false;
+      if (/@vite\/client/i.test(msg)) return false;
+      // Firefox sometimes aborts in-flight TMDB poster requests on
+      // re-navigation and reports "Image corrupt or truncated" — unrelated
+      // to the plugin under test.
+      if (/image corrupt or truncated/i.test(msg)) return false;
+      if (/image\.tmdb\.org/i.test(msg)) return false;
       return true;
     });
     expect(fatalErrors, `unexpected errors:\n${fatalErrors.join("\n")}`).toEqual([]);

@@ -1,36 +1,50 @@
-import { chromium } from "@playwright/test";
-import { readFileSync } from "fs";
+// Open Firefox via Playwright, navigate to /home with the existing
+// auth-state, find the plugin iframe, and print its srcdoc + the CSP
+// directive specifically + any console errors.
 
-const state = JSON.parse(readFileSync(".auth-state.json", "utf8"));
-const browser = await chromium.launch();
-const ctx = await browser.newContext({
-  storageState: state,
-  ignoreHTTPSErrors: true,
-  baseURL: "https://evey.test",
-});
-const page = await ctx.newPage();
-await page.goto("/admin/feeds", { waitUntil: "domcontentloaded", timeout: 10000 });
-await page.waitForTimeout(4000);
+import { firefox } from "@playwright/test";
+import * as fs from "fs";
+import * as path from "path";
+import { fileURLToPath } from "url";
 
-const bodyText = await page.evaluate(() => document.body.innerText.slice(0, 500));
-console.log("Body text:", bodyText);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const STORAGE_STATE = "/home/gravity/side_projects/evey/tests/e2e/.auth-state.json";
 
-const allBtns = await page.evaluate(() => {
-  return Array.from(document.querySelectorAll("button")).map((e) => ({
-    text: e.textContent?.trim().slice(0, 40),
-    label: e.getAttribute("aria-label"),
-    classes: e.className.slice(0, 40),
-  }));
-});
-console.log("All buttons:", JSON.stringify(allBtns, null, 2));
+(async () => {
+  const browser = await firefox.launch();
+  const context = await browser.newContext({
+    storageState: STORAGE_STATE,
+    ignoreHTTPSErrors: true,
+  });
+  const page = await context.newPage();
 
-const allDraggable = await page.evaluate(() => {
-  return Array.from(document.querySelectorAll("[draggable]")).map((e) => ({
-    tag: e.tagName,
-    draggable: e.getAttribute("draggable"),
-    text: e.textContent?.trim().slice(0, 50),
-  }));
-});
-console.log("All draggable:", JSON.stringify(allDraggable, null, 2));
+  page.on("console", (msg) => {
+    if (msg.type() === "error" || msg.type() === "warning") {
+      console.log(`[FF console.${msg.type()}]`, msg.text());
+    }
+  });
+  page.on("pageerror", (e) => console.log("[FF pageerror]", e.message));
 
-await browser.close();
+  await page.goto("https://evey.test/home", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(8000);
+
+  const iframes = page.locator("iframe");
+  const count = await iframes.count();
+  console.log(`\n=== iframes on page: ${count} ===`);
+  for (let i = 0; i < count; i++) {
+    const f = iframes.nth(i);
+    const title = await f.getAttribute("title");
+    const srcdoc = await f.getAttribute("srcdoc");
+    console.log(`\n--- iframe[${i}] title=${title} ---`);
+    if (srcdoc) {
+      console.log("srcdoc length:", srcdoc.length);
+      // Print just the head section
+      const head = srcdoc.match(/<head>([\s\S]*?)<\/head>/);
+      if (head) console.log("HEAD:\n" + head[1].slice(0, 2000));
+      const body = srcdoc.match(/<body>([\s\S]*?)<\/body>/);
+      if (body) console.log("BODY:\n" + body[1].slice(0, 600));
+    }
+  }
+
+  await browser.close();
+})();
