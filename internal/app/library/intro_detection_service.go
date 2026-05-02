@@ -546,9 +546,11 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 				// studio logo. Skip it.
 				return classifyConfirmed(confirmed), nil
 			}
-			slog.Info("intro_detection: no candidate confirmed by audio, falling back",
+			slog.Info("intro_detection.pipeline_decision",
 				slog.String("media_id", mediaItemID),
-				slog.Int("candidates", len(result.candidates)),
+				slog.Int("candidates_evaluated", len(result.candidates)),
+				slog.Int("siblings_total", len(result.siblings)),
+				slog.String("decision", "fallback_no_candidate_confirmed"),
 			)
 		}
 	}
@@ -809,7 +811,13 @@ func allCandidatesGapTolerant(introHashes map[uint64]bool, targetHashes []uint64
 // them tightly. This is what distinguishes a real intro from a recurring
 // landscape/transition shot that happens to share visual hashes.
 func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item *domainlibrary.MediaItem, result *pHashResult) []confirmedWindow {
+	mediaID := string(item.ID)
 	if item.File == nil || item.File.Path == "" || len(result.siblings) == 0 {
+		slog.Debug("intro_detection.candidate_evaluated",
+			slog.String("media_id", mediaID),
+			slog.Int("siblings_total", len(result.siblings)),
+			slog.String("decision", "rejected_no_target_or_siblings"),
+		)
 		return nil
 	}
 
@@ -837,10 +845,21 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 
 		targetFp, err := s.detector.AudioBandedFingerprint(ctx, item.File.Path, tStart, tDur, binMs)
 		if err != nil || len(targetFp) == 0 {
+			slog.Debug("intro_detection.candidate_evaluated",
+				slog.String("media_id", mediaID),
+				slog.Int64("candidate_start_ms", cand.startMs),
+				slog.Int64("candidate_end_ms", cand.endMs),
+				slog.Int("match_count", cand.matchCount),
+				slog.Int("siblings_total", len(result.siblings)),
+				slog.String("decision", "rejected_target_extract_failed"),
+				slog.Any("err", err),
+			)
 			continue
 		}
 
 		drifts := make([]float64, 0, len(result.siblings))
+		correlated := 0
+		extractFailed := 0
 		for _, sib := range result.siblings {
 			sStart := startSec - searchSec
 			if sStart < 0 {
@@ -849,18 +868,30 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 			sDur := endSec + searchSec - sStart
 			sibFp, err := s.detector.AudioBandedFingerprint(ctx, sib.File.Path, sStart, sDur, binMs)
 			if err != nil || len(sibFp) == 0 {
+				extractFailed++
 				continue
 			}
 			corr, offBins := ffmpegPkgSlidingBestPearsonBanded(targetFp, sibFp, numBands)
 			if corr < corrThreshold {
 				continue
 			}
+			correlated++
 			offSec := float64(offBins*binMs) / 1000
 			drift := offSec - (tStart - sStart)
 			drifts = append(drifts, drift)
 		}
 
 		if len(drifts) < minMatches {
+			slog.Debug("intro_detection.candidate_evaluated",
+				slog.String("media_id", mediaID),
+				slog.Int64("candidate_start_ms", cand.startMs),
+				slog.Int64("candidate_end_ms", cand.endMs),
+				slog.Int("match_count", cand.matchCount),
+				slog.Int("siblings_total", len(result.siblings)),
+				slog.Int("siblings_correlated", correlated),
+				slog.Int("siblings_extract_failed", extractFailed),
+				slog.String("decision", "rejected_low_matches"),
+			)
 			continue
 		}
 		median := medianFloat(drifts)
@@ -872,9 +903,37 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 		}
 		ratio := float64(coherent) / float64(len(result.siblings))
 		if ratio < minRatio {
+			slog.Debug("intro_detection.candidate_evaluated",
+				slog.String("media_id", mediaID),
+				slog.Int64("candidate_start_ms", cand.startMs),
+				slog.Int64("candidate_end_ms", cand.endMs),
+				slog.Int("match_count", cand.matchCount),
+				slog.Int("siblings_total", len(result.siblings)),
+				slog.Int("siblings_correlated", correlated),
+				slog.Int("siblings_extract_failed", extractFailed),
+				slog.Float64("drift_median", median),
+				slog.Any("drift_values", drifts),
+				slog.Int("coherent_count", coherent),
+				slog.Float64("ratio", ratio),
+				slog.String("decision", "rejected_low_ratio"),
+			)
 			continue
 		}
 
+		slog.Debug("intro_detection.candidate_evaluated",
+			slog.String("media_id", mediaID),
+			slog.Int64("candidate_start_ms", cand.startMs),
+			slog.Int64("candidate_end_ms", cand.endMs),
+			slog.Int("match_count", cand.matchCount),
+			slog.Int("siblings_total", len(result.siblings)),
+			slog.Int("siblings_correlated", correlated),
+			slog.Int("siblings_extract_failed", extractFailed),
+			slog.Float64("drift_median", median),
+			slog.Any("drift_values", drifts),
+			slog.Int("coherent_count", coherent),
+			slog.Float64("ratio", ratio),
+			slog.String("decision", "accepted"),
+		)
 		confirmed = append(confirmed, confirmedWindow{
 			startMs:    cand.startMs,
 			endMs:      cand.endMs,
