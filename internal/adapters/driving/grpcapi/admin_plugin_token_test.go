@@ -55,7 +55,7 @@ func TestIssuePluginToken_HappyPath(t *testing.T) {
 	if resp.Token == "" {
 		t.Error("empty token")
 	}
-	if len(resp.Scopes) != 1 || resp.Scopes[0] != "media:read" {
+	if len(resp.Scopes) != 1 || resp.Scopes[0] != "media.read" {
 		t.Errorf("scopes = %v", resp.Scopes)
 	}
 	if resp.ExpiresAt == nil {

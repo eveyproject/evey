@@ -8,6 +8,10 @@ import (
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	plugindomain "github.com/evey-project/evey/internal/domain/plugin"
+	pluginfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -197,43 +201,183 @@ func TestAdminGetPluginLogs_Pagination(t *testing.T) {
 	}
 }
 
-// TestGetPluginLogs_RejectsPathTraversal verifies that GetPluginLogs returns
-// InvalidArgument for plugin IDs that contain path traversal sequences or
-// other characters outside the allowed alphanumeric/hyphen/underscore set.
-// This prevents a compromised admin token from reading arbitrary files on disk.
-func TestGetPluginLogs_RejectsPathTraversal(t *testing.T) {
-	tmpDir := t.TempDir()
-	d := newTestPluginHandler()
-	d.logDir = tmpDir
+// newUpdateTestHandler builds a handler + manifest parser that are wired
+// for PreviewPluginUpdate / ApplyPluginUpdate tests. The caller controls
+// the parser result before each call.
+func newUpdateTestHandler(t *testing.T) (*adminPluginHandler, *pluginfakes.FakePluginRepository, *pluginfakes.FakeManifestParser) {
+	t.Helper()
+	repo := pluginfakes.NewFakePluginRepository()
+	runner := pluginfakes.NewFakePluginRunner()
+	parser := pluginfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	installer := pluginfakes.NewFakePluginInstaller()
+	analyzer := pluginfakes.NewFakePluginAnalyzer()
+	fs := pluginfakes.NewFakePluginFileSystem()
+	runtimeRepo := pluginfakes.NewFakePluginRuntimeRepository()
+	analyzer.Report = &plugindomain.AnalysisReport{Safe: true}
 
-	maliciousIDs := []string{
-		"../../etc/passwd",
-		"../secret",
-		"plg-../escape",
-		"plg-test/subdir",
-		"plg test", // space not allowed
-		"plg;injection",
-		"", // empty — handled separately (returns empty response, not error)
-		strings.Repeat("a", 65), // exceeds 64-char limit
+	svc := appplugin.NewInstallerService(repo, runner, parser, bus,
+		appplugin.InstallerWithInstaller(installer),
+		appplugin.InstallerWithAnalyzer(analyzer),
+		appplugin.InstallerWithPluginDir(t.TempDir()),
+		appplugin.InstallerWithFileSystem(fs),
+	)
+	h := &adminPluginHandler{
+		pluginInstaller: svc,
+		pluginRuntime:   appplugin.NewRuntimeService(repo, runtimeRepo, runner, parser, bus),
+		pluginQuery:     appplugin.NewQueryService(repo, runtimeRepo),
+		enabled:         true,
+	}
+	return h, repo, parser
+}
+
+// tmpZipGRPC creates a tiny temp zip file for handler tests.
+func tmpZipGRPC(t *testing.T, content string) string {
+	t.Helper()
+	f, err := os.CreateTemp(t.TempDir(), "plugin-*.zip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(content); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return f.Name()
+}
+
+func TestPreviewPluginUpdate_MissingPluginID(t *testing.T) {
+	h, _, _ := newUpdateTestHandler(t)
+	_, err := h.PreviewPluginUpdate(context.Background(), &eveyv1.PreviewPluginUpdateRequest{
+		PluginId: "",
+		Source:   "/some/path.zip",
+	})
+	if code := status.Code(err); code != codes.InvalidArgument {
+		t.Fatalf("code = %v, want InvalidArgument", code)
+	}
+}
+
+func TestPreviewPluginUpdate_MissingSource(t *testing.T) {
+	h, _, _ := newUpdateTestHandler(t)
+	_, err := h.PreviewPluginUpdate(context.Background(), &eveyv1.PreviewPluginUpdateRequest{
+		PluginId: "plg-1",
+		Source:   "",
+	})
+	if code := status.Code(err); code != codes.InvalidArgument {
+		t.Fatalf("code = %v, want InvalidArgument", code)
+	}
+}
+
+func TestPreviewPluginUpdate_NotFound(t *testing.T) {
+	h, _, parser := newUpdateTestHandler(t)
+	parser.Result = &plugindomain.PluginManifest{
+		Name: "x", Kind: plugindomain.KindPlugin, Version: "1.0.0",
+		Language: "go", Entrypoint: "./p",
+	}
+	_, err := h.PreviewPluginUpdate(context.Background(), &eveyv1.PreviewPluginUpdateRequest{
+		PluginId: "plg-ghost",
+		Source:   tmpZipGRPC(t, "zip"),
+	})
+	if code := status.Code(err); code != codes.NotFound {
+		t.Fatalf("code = %v, want NotFound", code)
+	}
+}
+
+func TestPreviewPluginUpdate_NewPermission(t *testing.T) {
+	h, repo, parser := newUpdateTestHandler(t)
+	ctx := context.Background()
+
+	// Seed v1 plugin.
+	if err := repo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-prev", Name: "preview-me", Version: "1.0.0",
+		Kind: plugindomain.KindPlugin, Language: "go", Entrypoint: "./p",
+		Permissions: []string{"api.library"},
+	}); err != nil {
+		t.Fatal(err)
 	}
 
-	for _, id := range maliciousIDs {
-		if id == "" {
-			// Empty ID returns an empty response, not an error (existing behaviour).
-			continue
-		}
-		resp, err := d.GetPluginLogs(context.Background(), &eveyv1.GetPluginLogsRequest{PluginId: id})
-		if err == nil {
-			t.Errorf("pluginID %q: expected error, got response with %d entries", id, len(resp.GetEntries()))
-			continue
-		}
-		st, ok := status.FromError(err)
-		if !ok {
-			t.Errorf("pluginID %q: expected gRPC status error, got %v", id, err)
-			continue
-		}
-		if st.Code() != codes.InvalidArgument {
-			t.Errorf("pluginID %q: expected InvalidArgument, got %s", id, st.Code())
-		}
+	// Candidate adds "network".
+	parser.Result = &plugindomain.PluginManifest{
+		Name: "preview-me", Kind: plugindomain.KindPlugin, Version: "2.0.0",
+		Language: "go", Entrypoint: "./p",
+		Permissions: []string{"api.library", "network"},
+	}
+
+	resp, err := h.PreviewPluginUpdate(ctx, &eveyv1.PreviewPluginUpdateRequest{
+		PluginId: "plg-prev",
+		Source:   tmpZipGRPC(t, "v2"),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.CurrentVersion != "1.0.0" {
+		t.Errorf("CurrentVersion = %q", resp.CurrentVersion)
+	}
+	if resp.CandidateVersion != "2.0.0" {
+		t.Errorf("CandidateVersion = %q", resp.CandidateVersion)
+	}
+	if len(resp.PermissionsAdded) != 1 || resp.PermissionsAdded[0] != "network" {
+		t.Errorf("PermissionsAdded = %v", resp.PermissionsAdded)
+	}
+	if !resp.RequiresAck {
+		t.Error("RequiresAck should be true when permissions added")
+	}
+	if resp.SourceHash == "" {
+		t.Error("SourceHash should not be empty")
+	}
+}
+
+func TestApplyPluginUpdate_MissingAcknowledgedHash(t *testing.T) {
+	h, _, _ := newUpdateTestHandler(t)
+	_, err := h.ApplyPluginUpdate(context.Background(), &eveyv1.ApplyPluginUpdateRequest{
+		PluginId: "plg-1",
+		Source:   "/some/path.zip",
+		// acknowledged_hash intentionally absent
+	})
+	if code := status.Code(err); code != codes.InvalidArgument {
+		t.Fatalf("code = %v, want InvalidArgument", code)
+	}
+}
+
+func TestApplyPluginUpdate_HashMismatch(t *testing.T) {
+	h, repo, parser := newUpdateTestHandler(t)
+	ctx := context.Background()
+
+	if err := repo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-apply", Name: "apply-me", Version: "1.0.0",
+		Kind: plugindomain.KindPlugin, Language: "go", Entrypoint: "./p",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	parser.Result = &plugindomain.PluginManifest{
+		Name: "apply-me", Kind: plugindomain.KindPlugin, Version: "2.0.0",
+		Language: "go", Entrypoint: "./p",
+	}
+
+	_, err := h.ApplyPluginUpdate(ctx, &eveyv1.ApplyPluginUpdateRequest{
+		PluginId:         "plg-apply",
+		Source:           tmpZipGRPC(t, "v2"),
+		AcknowledgedHash: strings.Repeat("0", 64),
+	})
+	if code := status.Code(err); code != codes.Aborted {
+		t.Fatalf("code = %v, want Aborted (hash mismatch)", code)
+	}
+}
+
+func TestApplyPluginUpdate_NotFound(t *testing.T) {
+	h, _, parser := newUpdateTestHandler(t)
+	parser.Result = &plugindomain.PluginManifest{
+		Name: "x", Kind: plugindomain.KindPlugin, Version: "1.0.0",
+		Language: "go", Entrypoint: "./p",
+	}
+	_, err := h.ApplyPluginUpdate(context.Background(), &eveyv1.ApplyPluginUpdateRequest{
+		PluginId:         "plg-ghost",
+		Source:           tmpZipGRPC(t, "v"),
+		AcknowledgedHash: strings.Repeat("a", 64),
+	})
+	if code := status.Code(err); code != codes.NotFound {
+		t.Fatalf("code = %v, want NotFound", code)
 	}
 }

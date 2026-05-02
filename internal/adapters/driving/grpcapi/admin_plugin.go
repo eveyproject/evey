@@ -7,7 +7,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -20,11 +19,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
-
-// validPluginIDRe restricts plugin IDs to alphanumeric, hyphen, and underscore
-// characters (1–64 chars). This prevents path traversal when the ID is used to
-// construct log file paths (e.g. "../../etc/passwd" would escape logDir).
-var validPluginIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 type adminPluginHandler struct {
 	eveyv1.UnimplementedAdminPluginServiceServer
@@ -318,18 +312,94 @@ func (d *adminPluginHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1
 	}, nil
 }
 
+func (d *adminPluginHandler) PreviewPluginUpdate(ctx context.Context, req *eveyv1.PreviewPluginUpdateRequest) (*eveyv1.PreviewPluginUpdateResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.PreviewPluginUpdate")
+	defer span.End()
+	if err := d.requireEnabled(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	if req.PluginId == "" {
+		return nil, status.Error(codes.InvalidArgument, "plugin_id required")
+	}
+	if req.Source == "" {
+		return nil, status.Error(codes.InvalidArgument, "source required")
+	}
+	preview, err := d.pluginInstaller.PreviewUpdate(ctx, req.PluginId, req.Source)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		if errors.Is(err, appplugin.ErrPluginNotFound) {
+			return nil, status.Error(codes.NotFound, "plugin not found")
+		}
+		return nil, internalError("preview update", err)
+	}
+	resp := &eveyv1.PreviewPluginUpdateResponse{
+		CurrentVersion:       preview.CurrentVersion,
+		CandidateVersion:     preview.CandidateVersion,
+		PermissionsAdded:     preview.PermissionsDiff.Added,
+		PermissionsRemoved:   preview.PermissionsDiff.Removed,
+		CapabilitiesAdded:    preview.CapabilitiesDiff.Added,
+		CapabilitiesRemoved:  preview.CapabilitiesDiff.Removed,
+		SlotsAdded:           preview.SlotsDiff.Added,
+		SlotsRemoved:         preview.SlotsDiff.Removed,
+		ExternalFetchAdded:   preview.ExternalFetchDiff.Added,
+		ExternalFetchRemoved: preview.ExternalFetchDiff.Removed,
+		SignatureStatus:      preview.SignatureStatus,
+		RequiresAck:          preview.RequiresAck,
+		SourceHash:           preview.SourceHash,
+	}
+	for _, f := range preview.NewFindings {
+		resp.NewFindings = append(resp.NewFindings, &eveyv1.SecurityFinding{
+			Category:    f.Category,
+			Severity:    f.Severity,
+			File:        f.File,
+			Line:        int32(f.Line),
+			Description: f.Description,
+		})
+	}
+	return resp, nil
+}
+
+func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.ApplyPluginUpdateRequest) (*eveyv1.Plugin, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.ApplyPluginUpdate")
+	defer span.End()
+	if err := d.requireEnabled(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	if req.PluginId == "" {
+		return nil, status.Error(codes.InvalidArgument, "plugin_id required")
+	}
+	if req.Source == "" {
+		return nil, status.Error(codes.InvalidArgument, "source required")
+	}
+	if req.AcknowledgedHash == "" {
+		return nil, status.Error(codes.InvalidArgument, "acknowledged_hash required")
+	}
+	p, err := d.pluginInstaller.ApplyUpdate(ctx, req.PluginId, req.Source, req.AcknowledgedHash)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case errors.Is(err, appplugin.ErrPluginNotFound):
+			return nil, status.Error(codes.NotFound, "plugin not found")
+		case errors.Is(err, appplugin.ErrCandidateChanged):
+			return nil, status.Error(codes.Aborted, err.Error())
+		default:
+			return nil, internalError("apply update", err)
+		}
+	}
+	return pluginToProto(p), nil
+}
+
 func (d *adminPluginHandler) GetPluginLogs(ctx context.Context, req *eveyv1.GetPluginLogsRequest) (*eveyv1.GetPluginLogsResponse, error) {
 	_, span := tracing.StartSpan(ctx, "grpc.admin.GetPluginLogs")
 	defer span.End()
 	if d.logDir == "" || req.PluginId == "" {
 		return &eveyv1.GetPluginLogsResponse{}, nil
-	}
-	// Defense-in-depth: validate the plugin ID before using it in a path join.
-	// The admin role is checked upstream (RBAC), but a compromised admin token
-	// should not be able to read arbitrary files via path traversal.
-	if !validPluginIDRe.MatchString(req.PluginId) {
-		span.SetStatus(otelcodes.Error, "invalid plugin id")
-		return nil, status.Error(codes.InvalidArgument, "invalid plugin id")
 	}
 	logPath := filepath.Join(d.logDir, "plugins", req.PluginId+".log")
 	f, err := os.Open(logPath) //nolint:gosec

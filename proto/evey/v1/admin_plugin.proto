@@ -88,6 +88,26 @@ service AdminPluginService {
       body: "*"
     };
   }
+
+  // PreviewPluginUpdate returns a diff of what would change if the candidate
+  // ZIP were applied to the currently installed plugin. No state is mutated.
+  rpc PreviewPluginUpdate(PreviewPluginUpdateRequest) returns (PreviewPluginUpdateResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/plugins/{plugin_id}/preview-update"
+      body: "*"
+    };
+  }
+
+  // ApplyPluginUpdate applies a previously previewed update. The
+  // acknowledged_hash must match the SHA-256 of the candidate ZIP computed
+  // during the preview call (anti-TOCTOU guard). When the preview indicated
+  // requires_ack=true, the admin must explicitly confirm before calling this.
+  rpc ApplyPluginUpdate(ApplyPluginUpdateRequest) returns (Plugin) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/plugins/{plugin_id}/apply-update"
+      body: "*"
+    };
+  }
 }
 
 message IssuePluginTokenRequest {
@@ -243,4 +263,42 @@ message GetPluginLogsRequest {
 message GetPluginLogsResponse {
   repeated PluginLogEntry entries = 1;
   int32 total = 2;
+}
+
+message SecurityFinding {
+  string category = 1;
+  string severity = 2;
+  string file = 3;
+  int32 line = 4;
+  string description = 5;
+}
+
+message PreviewPluginUpdateRequest {
+  string plugin_id = 1;
+  string source = 2;
+}
+
+message PreviewPluginUpdateResponse {
+  string current_version = 1;
+  string candidate_version = 2;
+  repeated string permissions_added = 3;
+  repeated string permissions_removed = 4;
+  repeated string capabilities_added = 5;
+  repeated string capabilities_removed = 6;
+  repeated string slots_added = 7;
+  repeated string slots_removed = 8;
+  repeated string external_fetch_added = 9;
+  repeated string external_fetch_removed = 10;
+  repeated SecurityFinding new_findings = 11;
+  string signature_status = 12;
+  bool requires_ack = 13;
+  string source_hash = 14;
+}
+
+message ApplyPluginUpdateRequest {
+  string plugin_id = 1;
+  string source = 2;
+  // acknowledged_hash must match the source_hash returned by PreviewPluginUpdate.
+  // Ensures the admin acknowledged exactly the candidate that was previewed.
+  string acknowledged_hash = 3;
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	plugindomain "github.com/evey-project/evey/internal/domain/plugin"
 	plgfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,4 +64,52 @@ func TestInvalidatePermissions(t *testing.T) {
 	checker.InvalidatePermissions("plg-1")
 	err := checker.CheckPermission("plg-1", "api.library")
 	assert.ErrorIs(t, err, appplugin.ErrPermissionDenied)
+}
+
+// --- DiffPermissions ---
+
+func TestDiffPermissions_NoChange(t *testing.T) {
+	diff := appplugin.DiffPermissions([]string{"a", "b"}, []string{"a", "b"})
+	assert.Empty(t, diff.Added)
+	assert.Empty(t, diff.Removed)
+	assert.True(t, diff.IsEmpty())
+}
+
+func TestDiffPermissions_Added(t *testing.T) {
+	diff := appplugin.DiffPermissions([]string{"a"}, []string{"a", "b"})
+	assert.Equal(t, []string{"b"}, diff.Added)
+	assert.Empty(t, diff.Removed)
+	assert.False(t, diff.IsEmpty())
+}
+
+func TestDiffPermissions_Removed(t *testing.T) {
+	diff := appplugin.DiffPermissions([]string{"a", "b"}, []string{"a"})
+	assert.Empty(t, diff.Added)
+	assert.Equal(t, []string{"b"}, diff.Removed)
+}
+
+func TestDiffPermissions_Both(t *testing.T) {
+	diff := appplugin.DiffPermissions([]string{"a", "b"}, []string{"b", "c"})
+	assert.Equal(t, []string{"c"}, diff.Added)
+	assert.Equal(t, []string{"a"}, diff.Removed)
+}
+
+func TestDiffPermissions_Empty(t *testing.T) {
+	diff := appplugin.DiffPermissions(nil, nil)
+	assert.Empty(t, diff.Added)
+	assert.Empty(t, diff.Removed)
+}
+
+func TestDiffSlots_Added(t *testing.T) {
+	current := []plugindomain.FrontModule{{Slot: "header"}}
+	candidate := []plugindomain.FrontModule{{Slot: "header"}, {Slot: "footer"}}
+	diff := appplugin.DiffSlots(current, candidate)
+	assert.Equal(t, []string{"footer"}, diff.Added)
+	assert.Empty(t, diff.Removed)
+}
+
+func TestDiffExternalFetch_Added(t *testing.T) {
+	diff := appplugin.DiffExternalFetch([]string{"api.example.com"}, []string{"api.example.com", "cdn.evil.com"})
+	assert.Equal(t, []string{"cdn.evil.com"}, diff.Added)
+	assert.Empty(t, diff.Removed)
 }

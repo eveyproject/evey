@@ -13,6 +13,9 @@ var (
 	ErrPluginNotFound = errors.New("plugin not found")
 	ErrAlreadyRunning = errors.New("plugin already running")
 	ErrNotRunning     = errors.New("plugin not running")
+	// ErrCandidateChanged is returned by ApplyUpdate when the candidate ZIP
+	// hash no longer matches the hash the admin acknowledged in PreviewUpdate.
+	ErrCandidateChanged = errors.New("candidate changed since preview, retry")
 )
 
 // QueryService handles read-only plugin operations.

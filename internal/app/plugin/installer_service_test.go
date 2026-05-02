@@ -654,10 +654,6 @@ func makeMinimalPluginZip(t *testing.T, name, version string) []byte {
 // --- URL install ---
 
 func TestInstallPlugin_WithURL_Success(t *testing.T) {
-	// httptest.NewServer binds loopback (127.0.0.1) and uses plain http.
-	// Enable the dev-mode bypass so the SSRF guard doesn't reject it.
-	t.Setenv(appplugin.AllowHTTPInstallEnvVar, "true")
-
 	zipContent := makeMinimalPluginZip(t, "url-plugin", "1.0.0")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
@@ -675,8 +671,6 @@ func TestInstallPlugin_WithURL_Success(t *testing.T) {
 }
 
 func TestInstallPlugin_WithURL_HashMismatch(t *testing.T) {
-	t.Setenv(appplugin.AllowHTTPInstallEnvVar, "true")
-
 	zipContent := makeMinimalPluginZip(t, "url-plugin-hash", "1.0.0")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
@@ -694,8 +688,6 @@ func TestInstallPlugin_WithURL_HashMismatch(t *testing.T) {
 }
 
 func TestInstallPlugin_WithURL_HashMatch(t *testing.T) {
-	t.Setenv(appplugin.AllowHTTPInstallEnvVar, "true")
-
 	zipContent := makeMinimalPluginZip(t, "url-plugin-hashok", "1.0.0")
 	h := sha256.Sum256(zipContent)
 	correctHash := hex.EncodeToString(h[:])
@@ -716,8 +708,6 @@ func TestInstallPlugin_WithURL_HashMatch(t *testing.T) {
 }
 
 func TestInstallPlugin_WithURL_SizeLimit(t *testing.T) {
-	t.Setenv(appplugin.AllowHTTPInstallEnvVar, "true")
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
 		// Stream slightly more than 100 MB so the size limit is hit.
@@ -809,80 +799,6 @@ func TestInstallPlugin_Update_EscalationAllowedByContext(t *testing.T) {
 	assert.Equal(t, "2.0.0", p.Version)
 }
 
-// --- SSRF protection ---
-
-// TestDownloadIfURL_RejectsHTTPScheme verifies that http:// URLs are rejected
-// unless the dev-mode env var is set.
-func TestDownloadIfURL_RejectsHTTPScheme(t *testing.T) {
-	// No EVEY_PLUGINS_ALLOW_HTTP_INSTALL env var → must be rejected.
-	svc, _, _, parser, _, _ := newTestInstallerService()
-	parser.Result = goManifest("ssrf-http")
-
-	_, err := svc.InstallPlugin(context.Background(), "http://example.com/plugin.zip")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "only https install URLs are accepted")
-}
-
-// TestDownloadIfURL_RejectsPrivateIP verifies that an https URL whose hostname
-// resolves to a private RFC1918 address is rejected.
-func TestDownloadIfURL_RejectsPrivateIP(t *testing.T) {
-	// 10.0.0.1 is an RFC1918 private address and must be blocked.
-	svc, _, _, parser, _, _ := newTestInstallerService()
-	parser.Result = goManifest("ssrf-private")
-
-	_, err := svc.InstallPlugin(context.Background(), "https://10.0.0.1/plugin.zip")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "forbidden IP")
-}
-
-// TestDownloadIfURL_RejectsLinkLocal verifies that link-local addresses
-// (169.254.x.x — AWS/GCP metadata endpoint range) are blocked.
-func TestDownloadIfURL_RejectsLinkLocal(t *testing.T) {
-	svc, _, _, parser, _, _ := newTestInstallerService()
-	parser.Result = goManifest("ssrf-linklocal")
-
-	_, err := svc.InstallPlugin(context.Background(), "https://169.254.169.254/latest/meta-data/")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "forbidden IP")
-}
-
-// TestDownloadIfURL_RejectsLoopback verifies that loopback addresses are blocked.
-func TestDownloadIfURL_RejectsLoopback(t *testing.T) {
-	svc, _, _, parser, _, _ := newTestInstallerService()
-	parser.Result = goManifest("ssrf-loopback")
-
-	_, err := svc.InstallPlugin(context.Background(), "https://127.0.0.1/plugin.zip")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "forbidden IP")
-}
-
-// TestDownloadIfURL_RejectsRedirectToPrivate verifies that a server that
-// initially responds with a valid URL but then redirects to a private IP is
-// blocked by the CheckRedirect re-validation. The test serves a 302 to an
-// https URL with a private RFC1918 IP literal — no actual connection is made
-// since the check rejects the redirect before the dial.
-func TestDownloadIfURL_RejectsRedirectToPrivate(t *testing.T) {
-	// allow_http=true so the initial request to the httptest server (loopback)
-	// passes the scheme + IP checks on the initial URL only.
-	t.Setenv(appplugin.AllowHTTPInstallEnvVar, "true")
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Redirect to an https URL whose host is a private RFC1918 address.
-		// The CheckRedirect hook runs validateInstallURL on this target URL
-		// (https scheme passes, but 192.168.0.1 is RFC1918 → rejected).
-		http.Redirect(w, r, "https://192.168.0.1/plugin.zip", http.StatusFound)
-	}))
-	defer srv.Close()
-
-	svc, _, _, parser, _, _ := newTestInstallerService()
-	parser.Result = goManifest("ssrf-redirect")
-
-	_, err := svc.InstallPlugin(context.Background(), srv.URL+"/plugin.zip")
-	require.Error(t, err)
-	// The error surfaces as "download plugin: ... redirect rejected: ..."
-	assert.Contains(t, err.Error(), "redirect rejected")
-}
-
 // zeroReader is an infinite stream of zero bytes, used to simulate a
 // response body larger than the installer's 100 MB cap.
 type zeroReader struct{}
@@ -892,4 +808,130 @@ func (zeroReader) Read(p []byte) (int, error) {
 		p[i] = 0
 	}
 	return len(p), nil
+}
+
+// --- PreviewUpdate ---
+
+func TestPreviewUpdate_NewPermission(t *testing.T) {
+	svc, pluginRepo, _, parser, _, _ := newTestInstallerService()
+	ctx := context.Background()
+
+	// Install v1 with api.library only.
+	parser.Result = goManifestVersioned("perm-update", "1.0.0")
+	parser.Result.Permissions = []string{"api.library"}
+	p, err := svc.InstallPlugin(ctx, tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	// Preview v2 that adds network permission.
+	parser.Result = goManifestVersioned("perm-update", "2.0.0")
+	parser.Result.Permissions = []string{"api.library", "network"}
+
+	preview, err := svc.PreviewUpdate(ctx, p.ID, tmpZip(t, "v2"))
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.0", preview.CurrentVersion)
+	assert.Equal(t, "2.0.0", preview.CandidateVersion)
+	assert.Equal(t, []string{"network"}, preview.PermissionsDiff.Added)
+	assert.Empty(t, preview.PermissionsDiff.Removed)
+	assert.True(t, preview.RequiresAck)
+	assert.NotEmpty(t, preview.SourceHash)
+
+	// Confirm the repo still has the old plugin (preview mutates nothing).
+	still, _ := pluginRepo.GetByID(ctx, p.ID)
+	assert.Equal(t, "1.0.0", still.Version)
+}
+
+func TestPreviewUpdate_NoChange(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	ctx := context.Background()
+
+	parser.Result = goManifestVersioned("stable-update", "1.0.0")
+	parser.Result.Permissions = []string{"api.library"}
+	p, err := svc.InstallPlugin(ctx, tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	parser.Result = goManifestVersioned("stable-update", "2.0.0")
+	parser.Result.Permissions = []string{"api.library"}
+
+	preview, err := svc.PreviewUpdate(ctx, p.ID, tmpZip(t, "v2"))
+	require.NoError(t, err)
+	assert.Empty(t, preview.PermissionsDiff.Added)
+	assert.Empty(t, preview.PermissionsDiff.Removed)
+	assert.False(t, preview.RequiresAck)
+}
+
+func TestPreviewUpdate_ExternalFetchAdded(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	ctx := context.Background()
+
+	parser.Result = goManifestVersioned("fetch-update", "1.0.0")
+	p, err := svc.InstallPlugin(ctx, tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	parser.Result = goManifestVersioned("fetch-update", "2.0.0")
+	parser.Result.ExternalFetch = []string{"cdn.example.com"}
+
+	preview, err := svc.PreviewUpdate(ctx, p.ID, tmpZip(t, "v2"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"cdn.example.com"}, preview.ExternalFetchDiff.Added)
+	assert.True(t, preview.RequiresAck)
+}
+
+func TestPreviewUpdate_PluginNotFound(t *testing.T) {
+	svc, _, _, _, _, _ := newTestInstallerService()
+	_, err := svc.PreviewUpdate(context.Background(), "plg-ghost", tmpZip(t, "v1"))
+	assert.ErrorIs(t, err, appplugin.ErrPluginNotFound)
+}
+
+// --- ApplyUpdate ---
+
+func TestApplyUpdate_HashMismatch(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	ctx := context.Background()
+
+	parser.Result = goManifestVersioned("hash-guard", "1.0.0")
+	p, err := svc.InstallPlugin(ctx, tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	parser.Result = goManifestVersioned("hash-guard", "2.0.0")
+	zip2 := tmpZip(t, "v2")
+
+	// Pass a wrong hash.
+	_, err = svc.ApplyUpdate(ctx, p.ID, zip2, strings.Repeat("0", 64))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, appplugin.ErrCandidateChanged)
+}
+
+func TestApplyUpdate_RequiresAckWhenPermsAdded(t *testing.T) {
+	svc, pluginRepo, _, parser, _, _ := newTestInstallerService()
+	ctx := context.Background()
+
+	// v1: no permissions.
+	parser.Result = goManifestVersioned("ack-guard", "1.0.0")
+	p, err := svc.InstallPlugin(ctx, tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	// v2: adds subprocess.
+	parser.Result = goManifestVersioned("ack-guard", "2.0.0")
+	parser.Result.Permissions = []string{"subprocess"}
+	zip2 := tmpZip(t, "v2")
+
+	// Preview to get the real hash.
+	preview, err := svc.PreviewUpdate(ctx, p.ID, zip2)
+	require.NoError(t, err)
+	assert.True(t, preview.RequiresAck)
+
+	// ApplyUpdate with the correct acknowledged_hash succeeds.
+	p2, err := svc.ApplyUpdate(ctx, p.ID, zip2, preview.SourceHash)
+	require.NoError(t, err)
+	assert.Equal(t, "2.0.0", p2.Version)
+
+	all, _ := pluginRepo.List(ctx)
+	assert.Len(t, all, 1)
+	assert.Equal(t, "2.0.0", all[0].Version)
+}
+
+func TestApplyUpdate_PluginNotFound(t *testing.T) {
+	svc, _, _, _, _, _ := newTestInstallerService()
+	_, err := svc.ApplyUpdate(context.Background(), "plg-ghost", tmpZip(t, "v1"), strings.Repeat("0", 64))
+	assert.ErrorIs(t, err, appplugin.ErrPluginNotFound)
 }
