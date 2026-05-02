@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -89,6 +90,17 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Empty(t, cfg.Tracing.OTLPEndpoint)
 	assert.Equal(t, "evey", cfg.Tracing.ServiceName)
 	assert.InDelta(t, 0.0, cfg.Tracing.SampleRatio, 0.0001)
+
+	// Plugins defaults: bubblewrap sandbox + cosign warn (non-blocking, surfaces
+	// finding when key is configured). Without a key the verifier degrades to
+	// a no-op so plugin developers see no behaviour change vs the previous
+	// "off" default — only admins who configure a key get verification.
+	assert.Equal(t, "bubblewrap", cfg.Plugins.SandboxMode)
+	assert.Equal(t, "warn", cfg.Plugins.CosignPolicy)
+	assert.Empty(t, cfg.Plugins.CosignPublicKey)
+	assert.Equal(t, int64(256), cfg.Plugins.MemoryMB)
+	assert.Equal(t, 50, cfg.Plugins.CPUPercent)
+	assert.Equal(t, 64, cfg.Plugins.PIDsMax)
 }
 
 func TestLoad_EnvOverrides(t *testing.T) {
@@ -346,4 +358,158 @@ func TestWarnValidate_SandboxModeInvalid(t *testing.T) {
 			assert.Contains(t, err.Error(), "basic|bubblewrap|strict")
 		})
 	}
+}
+
+func TestWarnValidate_PluginsResourceLimitsRejectNegative(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name      string
+		cfg       PluginsConfig
+		wantField string
+	}{
+		{
+			name: "MemoryMB negative",
+			cfg: PluginsConfig{
+				SandboxMode: "basic", CosignPolicy: "off",
+				MemoryMB: -1,
+			},
+			wantField: "cfg.Plugins.MemoryMB",
+		},
+		{
+			name: "PIDsMax negative",
+			cfg: PluginsConfig{
+				SandboxMode: "basic", CosignPolicy: "off",
+				PIDsMax: -100,
+			},
+			wantField: "cfg.Plugins.PIDsMax",
+		},
+		{
+			name: "CPUPercent negative",
+			cfg: PluginsConfig{
+				SandboxMode: "basic", CosignPolicy: "off",
+				CPUPercent: -1,
+			},
+			wantField: "cfg.Plugins.CPUPercent",
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := &Config{
+				DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
+				Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+				Plugins:     tc.cfg,
+			}
+			err := cfg.WarnValidate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantField)
+		})
+	}
+}
+
+func TestWarnValidate_CosignKey_MissingFile(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{
+		DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+		Plugins: PluginsConfig{
+			SandboxMode:     "basic",
+			CosignPolicy:    "enforce",
+			CosignPublicKey: "/does/not/exist.pem",
+		},
+	}
+	err := cfg.WarnValidate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cfg.Plugins.CosignPublicKey")
+	assert.Contains(t, err.Error(), "cannot read")
+}
+
+func TestWarnValidate_CosignKey_InvalidPEM(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// File exists but is not PEM-encoded.
+	junk := dir + "/junk.key"
+	require.NoError(t, os.WriteFile(junk, []byte("not a pem at all"), 0o600))
+	cfg := &Config{
+		DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+		Plugins: PluginsConfig{
+			SandboxMode:     "basic",
+			CosignPolicy:    "enforce",
+			CosignPublicKey: junk,
+		},
+	}
+	err := cfg.WarnValidate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a PEM")
+}
+
+func TestWarnValidate_CosignKey_WrongPEMType(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	priv := dir + "/priv.key"
+	pemData := "-----BEGIN PRIVATE KEY-----\nMIIBVQIBADANBgkq\n-----END PRIVATE KEY-----\n"
+	require.NoError(t, os.WriteFile(priv, []byte(pemData), 0o600))
+	cfg := &Config{
+		DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+		Plugins: PluginsConfig{
+			SandboxMode:     "basic",
+			CosignPolicy:    "enforce",
+			CosignPublicKey: priv,
+		},
+	}
+	err := cfg.WarnValidate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "PUBLIC KEY")
+}
+
+func TestWarnValidate_CosignKey_ValidPEM(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	pub := dir + "/pub.key"
+	pemData := "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE\n-----END PUBLIC KEY-----\n"
+	require.NoError(t, os.WriteFile(pub, []byte(pemData), 0o600))
+	cfg := &Config{
+		DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+		Plugins: PluginsConfig{
+			SandboxMode:     "basic",
+			CosignPolicy:    "enforce",
+			CosignPublicKey: pub,
+		},
+	}
+	err := cfg.WarnValidate()
+	require.NoError(t, err)
+}
+
+func TestWarnValidate_CosignKey_KMSRefSkipped(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{
+		DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+		Plugins: PluginsConfig{
+			SandboxMode:     "basic",
+			CosignPolicy:    "enforce",
+			CosignPublicKey: "gcpkms://projects/x/locations/global/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1",
+		},
+	}
+	err := cfg.WarnValidate()
+	require.NoError(t, err)
+}
+
+func TestWarnValidate_PluginsResourceLimitsZeroAccepted(t *testing.T) {
+	t.Parallel()
+	// Zero means "use default" — must not be rejected.
+	cfg := &Config{
+		DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+		Plugins: PluginsConfig{
+			SandboxMode: "basic", CosignPolicy: "off",
+			MemoryMB: 0, PIDsMax: 0, CPUPercent: 0,
+		},
+	}
+	err := cfg.WarnValidate()
+	require.NoError(t, err)
 }

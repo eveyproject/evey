@@ -76,8 +76,11 @@ var analyzerRules = []analyzerRule{
 	{regexp.MustCompile(`(?i)(symlink|os\.link|os\.symlink|fs\.symlinkSync)`), SeverityWarning, "filesystem", "symlink creation", nil},
 
 	// Code obfuscation — `eval(` is always dangerous regardless of where it
-	// appears. `compile(...exec)` is Python-specific.
-	{regexp.MustCompile(`(?i)(eval\(|compile\(.*exec)`), SeverityCritical, "obfuscation", "dynamic code execution (eval/compile)", nil},
+	// appears. Python's `compile(src, fname, "exec")` is matched by requiring
+	// an "exec"/'exec' string literal INSIDE the compile() parens, so chained
+	// calls like `renderer.compile(L,V,j); regex.exec(...)` from minified
+	// Three.js bundles don't trigger.
+	{regexp.MustCompile(`(?i)(eval\(|compile\s*\([^)]*?['"]exec['"][^)]*\))`), SeverityCritical, "obfuscation", "dynamic code execution (eval/compile)", nil},
 	{regexp.MustCompile(`(?i)(base64\.b64decode|atob\(|Buffer\.from\(.*base64)`), SeverityWarning, "obfuscation", "base64 decoding (potential obfuscated payload)", nil},
 	{regexp.MustCompile(`\\x[0-9a-fA-F]{2}.*\\x[0-9a-fA-F]{2}.*\\x[0-9a-fA-F]{2}`), SeverityWarning, "obfuscation", "hex-encoded string sequence", nil},
 
@@ -108,8 +111,16 @@ var analyzerRules = []analyzerRule{
 
 	// String concatenation evasion — building dangerous strings dynamically
 	{regexp.MustCompile(`(?i)require\s*\(\s*["'][^"']*["']\s*\+`), SeverityCritical, "obfuscation", "dynamic require with string concatenation", nil},
+	// require with array.join evasion: require(["child", "_process"].join(""))
+	{regexp.MustCompile(`(?i)require\s*\(\s*\[[^\]]+\]\s*\.\s*(?:join|reduce)\s*\(`), SeverityCritical, "obfuscation", "dynamic require with array.join evasion", nil},
 	{regexp.MustCompile(`(?i)["']child_["']\s*\+|["']sub["']\s*\+\s*["']process`), SeverityCritical, "obfuscation", "obfuscated child_process/subprocess import", nil},
 	{regexp.MustCompile(`(?i)["']pass["']\s*\+\s*["']wd|["']shad["']\s*\+\s*["']ow`), SeverityCritical, "obfuscation", "obfuscated sensitive file path construction", nil},
+	// JavaScript String.fromCharCode payload assembly (3+ codepoints).
+	// Threshold of 3 args avoids hits on legitimate `String.fromCharCode(0xfeff)`
+	// or single-char emit; obfuscators always produce long lists.
+	{regexp.MustCompile(`String\.fromCharCode\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+`), SeverityWarning, "obfuscation", "String.fromCharCode chain (potential payload assembly)", nil},
+	// Python: ''.join([chr(n), chr(m), ...]) — equivalent to chr-chain in PHP.
+	{regexp.MustCompile(`(?i)["']{2}\.join\s*\(\s*\[?\s*chr\s*\(\s*\d+\s*\)\s*,\s*chr\s*\(`), SeverityWarning, "obfuscation", "Python chr-list join (potential string obfuscation)", nil},
 
 	// Sensitive file paths — broader patterns
 	{regexp.MustCompile(`(?i)/proc/\d+/environ`), SeverityCritical, "filesystem", "access to process environment via /proc", nil},
@@ -131,6 +142,12 @@ var analyzerRules = []analyzerRule{
 	{regexp.MustCompile(`(?i)preg_replace\s*\(.*\/e`), SeverityCritical, "shell_exec", "PHP preg_replace /e modifier executes matched content as PHP code", nil},
 	{regexp.MustCompile(`(?i)\bassert\s*\(\s*(base64_decode|gzinflate|str_rot13|\$_)`), SeverityCritical, "obfuscation", "PHP assert() with dynamic/encoded argument (code execution)", nil},
 	{regexp.MustCompile(`(?i)(chr\s*\(\s*\d+\s*\)\s*\.){3,}`), SeverityWarning, "obfuscation", "PHP chr() chain (potential string obfuscation)", nil},
+	// chr() chain WITHOUT explicit dot concat: chr(115) . chr(121) variant where
+	// the writer drops the dot (PHP 8 short concat) or uses comma list inside an
+	// implode/array. Catch 3+ chr() calls in close proximity regardless of
+	// glue character — only (whitespace|.|,) allowed between them so we don't
+	// over-match unrelated calls on the same line.
+	{regexp.MustCompile(`(?i)chr\s*\(\s*\d+\s*\)\s*[\s.,]\s*chr\s*\(\s*\d+\s*\)\s*[\s.,]\s*chr\s*\(\s*\d+\s*\)`), SeverityWarning, "obfuscation", "PHP chr() chain (no-dot variant)", nil},
 	{regexp.MustCompile(`(?i)str_rot13\s*\(`), SeverityWarning, "obfuscation", "PHP str_rot13 (common obfuscation technique)", nil},
 	// PHP shell execution. `system\(` was triggering on `THREE.System(`,
 	// `EffectSystem(`, etc. — capital S = class name, lowercase only. Also

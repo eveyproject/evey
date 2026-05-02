@@ -15,6 +15,28 @@ interface PluginIframeProps {
   context?: Record<string, unknown>;
 }
 
+// Plugin frontends may request client-side navigation via postMessage. Only
+// non-sensitive paths are allowed: an attacker plugin must not be able to push
+// the user to /admin/*, /auth/*, /setup/*, or /profile/security/* (overlay +
+// nav = phishing vector). Protocol-relative URLs ("//evil.com"), absolute URLs,
+// and javascript:/data: schemes are rejected so the iframe cannot pivot the
+// top window away from the app origin.
+const ALLOWED_NAV_PREFIXES = [
+  "/home",
+  "/library",
+  "/media",
+  "/player",
+  "/settings",
+  "/search",
+];
+
+export function isAllowedNavPath(path: string): boolean {
+  if (!path.startsWith("/")) return false;
+  if (path.startsWith("//")) return false;
+  if (path.length > 2048) return false;
+  return ALLOWED_NAV_PREFIXES.some((p) => path === p || path.startsWith(p + "/") || path.startsWith(p + "?"));
+}
+
 function getThemeVars(): string {
   const computed = getComputedStyle(document.documentElement);
   const vars: string[] = [];
@@ -182,6 +204,13 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
     };
   }, [pluginId, src, accessToken]);
 
+  // Sliding-window rate limit for toasts: a plugin can emit at most TOAST_MAX
+  // toasts per TOAST_WINDOW_MS. Drop silently past the cap — a noisy plugin
+  // must not be able to fill the screen or thrash the toast store.
+  const TOAST_MAX = 3;
+  const TOAST_WINDOW_MS = 1000;
+  const toastTimestamps = useRef<number[]>([]);
+
   const handleMessage = useCallback(
     (e: MessageEvent) => {
       const iframe = iframeRef.current;
@@ -205,16 +234,25 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
           );
           break;
         case "navigate":
-          if (typeof data.path === "string") {
+          if (typeof data.path === "string" && isAllowedNavPath(data.path)) {
             navigate({ to: data.path });
           }
           break;
         case "toast":
           if (typeof data.message === "string") {
+            const now = Date.now();
+            const recent = toastTimestamps.current.filter((t) => now - t < TOAST_WINDOW_MS);
+            if (recent.length >= TOAST_MAX) {
+              toastTimestamps.current = recent;
+              break; // drop silently — over the rate cap
+            }
+            recent.push(now);
+            toastTimestamps.current = recent;
+            const msg = data.message.slice(0, 200);
             const level = data.level as "success" | "error" | "info";
-            if (level === "success") toast.success(data.message);
-            else if (level === "error") toast.error(data.message);
-            else toast.info(data.message);
+            if (level === "success") toast.success(msg);
+            else if (level === "error") toast.error(msg);
+            else toast.info(msg);
           }
           break;
         case "resize":

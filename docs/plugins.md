@@ -1,5 +1,7 @@
 # Plugin System
 
+> Writing your first plugin? Jump to **[Plugin developer setup](plugins/dev-setup.md)** — install deps, scaffold, sign, troubleshoot.
+
 ## Overview
 
 Evey plugins extend the server with metadata providers, media processing, webhooks, notifications, UI widgets, and CSS themes. Plugins run as isolated subprocesses communicating with the host via gRPC over Unix domain sockets.
@@ -519,14 +521,23 @@ Config is stored per-plugin in the database and passed to the plugin at `Initial
 |---|---|---|
 | `home.section` | Home page | Section below existing content |
 | `player.overlay` | Video player | Overlay on top of the player |
-| `admin.section` | Admin panel | Custom admin section |
-| `login.background` | Login page | Background customization |
 | `sidebar.bottom` | Sidebar | Widget at sidebar bottom |
 | `media.detail.sidebar` | Media detail page | Sidebar widget on detail view |
 
 Usage in frontend: `<PluginSlot name="home.section" context={{ mediaId }} />`
 
-The `PluginSlot` component queries the plugin list, finds widgets matching the slot name, and renders each in a sandboxed `PluginIframe`.
+The `PluginSlot` component queries the plugin list, finds frontend modules matching the slot name, and renders each in a sandboxed `PluginIframe`.
+
+### Forbidden slots
+
+The installer rejects any manifest whose `frontend[].slot` targets a privileged area. These are off-limits by design — a compromised plugin must never reach admin tooling, the auth flow, the initial setup wizard, or per-profile security settings:
+
+- `admin.*`
+- `login.*` and `auth.*`
+- `setup.*`
+- `profile.security.*`
+
+The single source of truth for the allow-list is `internal/domain/plugin/slots.go`. Any new slot must be declared there before it can be used in a manifest.
 
 ## SDK
 

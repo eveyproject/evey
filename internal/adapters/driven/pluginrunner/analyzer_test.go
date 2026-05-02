@@ -379,6 +379,113 @@ with open("/etc/passwd") as f:
 	}
 }
 
+// L2 — obfuscation gaps that the original ruleset missed.
+
+func TestAnalyzePlugin_PHPChrChain_NoDot(t *testing.T) {
+	dir := t.TempDir()
+	// PHP 8 short concat / array glue without explicit dot — original
+	// regex required `chr(N).` repeated 3+ times, missing this form.
+	writeFile(t, dir, "shell.php", `<?php
+$x = chr(115) . chr(121) . chr(115);  // dot form (existing rule)
+$y = chr(99) chr(109) chr(100);       // no-dot form (new rule)
+echo $x.$y;
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "obfuscation" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected obfuscation finding for PHP chr() chain (no-dot form)")
+	}
+}
+
+func TestAnalyzePlugin_RequireArrayJoin(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "evil.js", `
+const cp = require(["child", "_process"].join(""));
+cp.exec("id");
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "obfuscation" && f.Severity == SeverityCritical {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected critical obfuscation finding for require([...].join())")
+	}
+}
+
+func TestAnalyzePlugin_FromCharCodeChain(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "obf.js", `
+var p = String.fromCharCode(102, 101, 116, 99, 104);
+window[p]("https://evil.com");
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "obfuscation" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected obfuscation finding for String.fromCharCode chain")
+	}
+}
+
+func TestAnalyzePlugin_PythonChrJoin(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "obf.py", `
+mod = "".join([chr(111), chr(115)])  # builds "os"
+__import__(mod).system("id")
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "obfuscation" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected obfuscation finding for Python chr-list join")
+	}
+}
+
+func TestAnalyzePlugin_FromCharCodeShort_NoFalsePositive(t *testing.T) {
+	dir := t.TempDir()
+	// Single-arg fromCharCode is legitimate (BOM strip etc.) — must not trip.
+	writeFile(t, dir, "ok.js", `
+var bom = String.fromCharCode(0xfeff);
+console.log(bom);
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range report.Findings {
+		if f.Category == "obfuscation" {
+			t.Errorf("unexpected obfuscation hit on single-arg fromCharCode: %+v", f)
+		}
+	}
+}
+
 func TestAnalyze_CleanPlugin_IsSafe(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "main.py", `print("hello")`)

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"os"
@@ -9,6 +10,34 @@ import (
 	"strings"
 	"time"
 )
+
+// validateCosignPublicKey checks that the configured cosign public key path
+// points to a readable PEM-encoded public key. Run at startup so a typo or
+// missing file is surfaced immediately rather than at the first plugin
+// install. Accepts standard PEM blocks (PUBLIC KEY) only; cosign also
+// supports key references prefixed with k8s://, gcpkms://, etc., which we
+// treat as opaque and skip validation for.
+func validateCosignPublicKey(pathOrRef string) error {
+	if strings.Contains(pathOrRef, "://") {
+		// remote KMS reference — cosign resolves at verify time.
+		return nil
+	}
+	data, err := os.ReadFile(pathOrRef)
+	if err != nil {
+		return fmt.Errorf("cannot read public key file %q: %w", pathOrRef, err)
+	}
+	if len(data) == 0 {
+		return fmt.Errorf("public key file %q is empty", pathOrRef)
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return fmt.Errorf("public key file %q is not a PEM-encoded key", pathOrRef)
+	}
+	if !strings.Contains(block.Type, "PUBLIC KEY") {
+		return fmt.Errorf("public key file %q has unexpected PEM type %q (expected PUBLIC KEY)", pathOrRef, block.Type)
+	}
+	return nil
+}
 
 type Config struct {
 	Server       ServerConfig
@@ -49,7 +78,8 @@ type PluginsConfig struct {
 	PIDsMax int
 
 	// CosignPolicy controls whether plugin ZIPs must carry a cosign signature.
-	// Values: "off" (default, no verification), "warn" (log if absent/invalid),
+	// Values: "off" (no verification), "warn" (default — install proceeds but
+	// unsigned/invalid plugins surface a finding in the security dashboard),
 	// "enforce" (block install when signature is missing or invalid).
 	// EVEY_PLUGINS_COSIGN_POLICY
 	CosignPolicy string
@@ -289,11 +319,30 @@ func (c *Config) WarnValidate() error {
 	default:
 		errs = append(errs, fmt.Sprintf("cfg.Plugins.CosignPolicy: invalid value %q (expected off|warn|enforce)", c.Plugins.CosignPolicy))
 	}
-	if c.Plugins.CosignPolicy != "off" && c.Plugins.CosignPublicKey == "" {
-		slog.Warn("cfg.Plugins.CosignPolicy is non-off but EVEY_PLUGINS_COSIGN_PUBLIC_KEY is not set — signature verification will always fail")
+	if c.Plugins.CosignPolicy != "off" {
+		if c.Plugins.CosignPublicKey == "" {
+			// Default policy is "warn"; without a key the verifier degrades to
+			// a no-op (see CosignVerifier.VerifySignature). Flag it so admins
+			// know they're not actually verifying anything.
+			slog.Warn("EVEY_PLUGINS_COSIGN_POLICY is non-off but EVEY_PLUGINS_COSIGN_PUBLIC_KEY is unset — signature verification is disabled. Set the public key to enable, or set policy=off to silence.",
+				slog.String("policy", c.Plugins.CosignPolicy))
+		} else {
+			// Fail-fast on misconfigured cosign key: in `enforce` mode every
+			// install would silently fail later; in `warn` we'd flood logs on
+			// each upload. Catch unreadable / non-PEM key files at startup.
+			if err := validateCosignPublicKey(c.Plugins.CosignPublicKey); err != nil {
+				errs = append(errs, fmt.Sprintf("cfg.Plugins.CosignPublicKey: %v", err))
+			}
+		}
 	}
 	if p := c.Plugins.CPUPercent; p < 0 || p > 100 {
 		errs = append(errs, fmt.Sprintf("cfg.Plugins.CPUPercent: value %d out of range (1-100)", p))
+	}
+	if m := c.Plugins.MemoryMB; m < 0 {
+		errs = append(errs, fmt.Sprintf("cfg.Plugins.MemoryMB: value %d must be >= 0 (0 = use default)", m))
+	}
+	if p := c.Plugins.PIDsMax; p < 0 {
+		errs = append(errs, fmt.Sprintf("cfg.Plugins.PIDsMax: value %d must be >= 0 (0 = use default)", p))
 	}
 
 	if len(errs) > 0 {
@@ -417,7 +466,7 @@ func Load() (*Config, error) {
 			MemoryMB:        int64(envInt("EVEY_PLUGINS_MEMORY_MB", 256)),
 			CPUPercent:      envInt("EVEY_PLUGINS_CPU_PERCENT", 50),
 			PIDsMax:         envInt("EVEY_PLUGINS_PIDS_MAX", 64),
-			CosignPolicy:    strings.ToLower(strings.TrimSpace(envStr("EVEY_PLUGINS_COSIGN_POLICY", "off"))),
+			CosignPolicy:    strings.ToLower(strings.TrimSpace(envStr("EVEY_PLUGINS_COSIGN_POLICY", "warn"))),
 			CosignPublicKey: envStr("EVEY_PLUGINS_COSIGN_PUBLIC_KEY", ""),
 		},
 	}

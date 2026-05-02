@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { QuickConnect } from "@/components/QuickConnect";
-import { PluginSlot } from "@/features/plugins/PluginSlot";
 
 type LoginSearch = {
   oidc_error?: string;
@@ -77,9 +76,6 @@ function LoginPage() {
     <div
       className="min-h-screen flex items-center justify-center px-4 relative gradient-auth-page"
     >
-      <div className="absolute inset-0 pointer-events-none">
-        <PluginSlot name="login.background" />
-      </div>
       <Card className="w-full max-w-sm p-8 shadow-2xl">
         <div className="flex flex-col items-center mb-8">
           <div

