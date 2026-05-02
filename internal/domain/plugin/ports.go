@@ -22,6 +22,11 @@ type PluginRuntimeRepository interface {
 type PluginRunner interface {
 	Start(ctx context.Context, p *Plugin) error
 	Stop(ctx context.Context, pluginID string) error
+	// Kill sends SIGKILL to the entire process group of the plugin, bypassing
+	// the graceful gRPC shutdown path. Used as a fallback when Stop times out
+	// or returns an error. Returns nil if the plugin is not tracked (already
+	// dead or never started).
+	Kill(pluginID string) error
 	Health(ctx context.Context, pluginID string) (bool, error)
 	SendEvent(ctx context.Context, pluginID string, event any) error
 }

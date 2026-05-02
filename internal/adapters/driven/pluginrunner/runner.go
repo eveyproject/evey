@@ -726,6 +726,58 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 	return nil
 }
 
+// Kill sends SIGKILL to the process group of the plugin, bypassing gRPC
+// shutdown. Used when Stop returns an error or the process refuses SIGTERM.
+// The process entry is removed from the tracking map so trackLifecycle does
+// not try to handle an exit that we already own. Returns nil when the plugin
+// is not tracked (already dead or never started).
+func (r *Runner) Kill(pluginID string) error {
+	r.mu.Lock()
+	entry, ok := r.processes[pluginID]
+	if !ok {
+		r.mu.Unlock()
+		return nil
+	}
+	delete(r.processes, pluginID)
+	r.mu.Unlock()
+
+	defer entry.cancel()
+
+	if entry.cmd.Process == nil {
+		return nil
+	}
+
+	// SIGKILL the entire process group — the plugin may have spawned children
+	// (interpreters, worker threads) that need to die along with the leader.
+	// Setpgid:true in SysProcAttr guarantees pgid == pid for the leader.
+	pgid := -entry.cmd.Process.Pid
+	if err := syscall.Kill(pgid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+		slog.Warn("kill plugin process group", slog.String("pluginID", pluginID), slog.Any("err", err))
+	}
+
+	// Wait briefly for the OS to recycle FDs so the install dir can be removed.
+	select {
+	case <-entry.done:
+	case <-time.After(2 * time.Second):
+	}
+
+	if err := os.RemoveAll(filepath.Dir(entry.sockPath)); err != nil {
+		slog.Warn("remove plugin sock dir after kill", slog.Any("err", err))
+	}
+	if entry.hostsCleanup != nil {
+		entry.hostsCleanup()
+	}
+	cleanupCgroup(entry.cgroupPath)
+	if r.hostRegistry != nil {
+		r.hostRegistry.UnregisterPlugin(pluginID)
+	}
+	if r.logger != nil {
+		r.logger.WriteLog(pluginID, "[INFO] plugin process killed (SIGKILL)")
+		r.logger.ClosePlugin(pluginID)
+	}
+	return nil
+}
+
 func (r *Runner) Health(ctx context.Context, pluginID string) (bool, error) {
 	r.mu.RLock()
 	entry, ok := r.processes[pluginID]
