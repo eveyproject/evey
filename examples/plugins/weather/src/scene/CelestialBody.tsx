@@ -19,7 +19,7 @@ import * as THREE from "three";
 import { CELESTIAL_VERT, SUN_FRAG, MOON_FRAG } from "../shaders/celestial";
 import { useSceneParams } from "./WeatherScene";
 import { useFrameThrottle } from "../runtime/useFrameThrottle";
-import { cloudTexRef } from "./cloudTextureRef";
+import { cloudTexRef, moonStateRef } from "./cloudTextureRef";
 // Moon texture: NASA/GSFC via Wikipedia Commons, public domain.
 // Source: https://commons.wikimedia.org/wiki/File:FullMoon2010.jpg
 // Original credit: NASA / Goddard Space Flight Center / Arizona State University
@@ -38,14 +38,16 @@ const R = 4;
 // For 40px disk radius (80px diameter): quad_half = 40 / 10.58 ≈ 3.78
 // For 31px moon disk radius: quad_half = 31 / 10.58 ≈ 2.93
 const SUN_QUAD_HALF  = 3.80;   // → ~80px disk diameter
-const MOON_QUAD_HALF = 5.00;   // → ~105px disk diameter (larger, more presence)
+const MOON_QUAD_HALF = 10.00;  // → ~210px disk diameter (2× the previous size)
 
 export function CelestialBody() {
   const params  = useSceneParams();
   const { gl, size } = useThree();
 
-  // Dedicated scene + camera mirroring R3F main camera (fov=40, pos=[0,0,4])
-  const celestialScene  = useMemo(() => new THREE.Scene(), []);
+  // Two scenes: moon is rendered BEFORE the cloud upscale so cloud puffs
+  // sit on top of it; sun is rendered AFTER everything so it stays on top.
+  const moonScene = useMemo(() => new THREE.Scene(), []);
+  const sunScene  = useMemo(() => new THREE.Scene(), []);
   const celestialCamera = useMemo(() => {
     const cam = new THREE.PerspectiveCamera(40, size.width / size.height, 0.1, 50);
     cam.position.set(0, 0, 4);
@@ -84,10 +86,10 @@ export function CelestialBody() {
     });
     const mesh = new THREE.Mesh(geo, mat);
     sunMeshRef.current = mesh;
-    celestialScene.add(mesh);
-    return () => { celestialScene.remove(mesh); geo.dispose(); mat.dispose(); };
+    sunScene.add(mesh);
+    return () => { sunScene.remove(mesh); geo.dispose(); mat.dispose(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [celestialScene]);
+  }, [sunScene]);
 
   // ─── Moon ───────────────────────────────────────────────────────────────
   const moonMeshRef = useRef<THREE.Mesh>(null!);
@@ -121,10 +123,10 @@ export function CelestialBody() {
     });
     const mesh = new THREE.Mesh(geo, mat);
     moonMeshRef.current = mesh;
-    celestialScene.add(mesh);
-    return () => { celestialScene.remove(mesh); geo.dispose(); mat.dispose(); };
+    moonScene.add(mesh);
+    return () => { moonScene.remove(mesh); geo.dispose(); mat.dispose(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [celestialScene]);
+  }, [moonScene]);
 
   // ─── Update loop ────────────────────────────────────────────────────────
   useFrameThrottle((_, dt) => {
@@ -184,23 +186,39 @@ export function CelestialBody() {
         -R * Math.cos(moonAlt) * Math.cos(moonAz)
       );
       moonMeshRef.current.lookAt(0, 0, 0);
+
+      // Project moon world position to screen NDC for the cloud halo shader.
+      const ndc = moonMeshRef.current.position.clone().project(celestialCamera);
+      moonStateRef.screenX = ndc.x;
+      moonStateRef.screenY = ndc.y;
+      moonStateRef.intensity = moonUniforms.uIntensity.value;
+    } else {
+      moonStateRef.intensity = 0;
     }
   });
 
-  // ─── Render: blit after clouds (priority=3) ─────────────────────────────
-  // Render both sun and moon in a single pass — they are in the same scene.
-  // autoClear=false preserves the cloud layer already on canvas.
+  // ─── Moon pass (priority=1.9): rendered BEFORE the cloud upscale (which
+  // runs at priority=2) so cloud puffs occlude the moon naturally. ────────
   useFrame((state) => {
-    const shouldDraw =
-      sunUniforms.uIntensity.value  > 0.005 ||
-      moonUniforms.uIntensity.value > 0.005;
-    if (!shouldDraw) return;
-
+    if (moonUniforms.uIntensity.value <= 0.005) return;
     const renderer = state.gl;
     const prevAutoClear = renderer.autoClear;
     renderer.autoClear = false;
     renderer.setRenderTarget(null);
-    renderer.render(celestialScene, celestialCamera);
+    renderer.render(moonScene, celestialCamera);
+    renderer.autoClear = prevAutoClear;
+  }, 1.9);
+
+  // ─── Sun pass (priority=3): rendered AFTER everything so the disc and
+  // its halo sit on top, with per-pixel cloud occlusion handled inside
+  // SUN_FRAG. ─────────────────────────────────────────────────────────────
+  useFrame((state) => {
+    if (sunUniforms.uIntensity.value <= 0.005) return;
+    const renderer = state.gl;
+    const prevAutoClear = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.setRenderTarget(null);
+    renderer.render(sunScene, celestialCamera);
     renderer.autoClear = prevAutoClear;
   }, 3);
 

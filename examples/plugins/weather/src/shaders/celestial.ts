@@ -103,12 +103,12 @@ void main() {
   float d = length(p);
 
   float diskR = 0.20;
-  float edgeFade = smoothstep(diskR + 0.025, diskR - 0.005, d);
-
-  // Outside the disk: soft halo only, no texture sample.
-  if (edgeFade < 0.001) {
-    float halo = exp(-d * d * 8.0) * 0.20;
-    gl_FragColor = vec4(vec3(0.85, 0.88, 0.95) * halo, halo * uIntensity);
+  // Smooth shader-side AA — the PNG bleeds RGB past the disc so the
+  // bilinear filter never reads pure black, and we can do a proper
+  // smoothstep without a dark fringe.
+  float discAA = smoothstep(diskR + 0.003, diskR - 0.003, d);
+  if (discAA < 0.001) {
+    gl_FragColor = vec4(0.0);
     return;
   }
 
@@ -117,29 +117,37 @@ void main() {
   texUV = clamp(texUV, 0.0, 1.0);
   vec4 moonTex = texture2D(uTexture, texUV);
 
-  // ── Phase shadow (same geometry as the previous procedural version) ──
-  const float PI = 3.14159265;
-  float phaseAngle = uPhase * 2.0 * PI;
-  // terminatorX: +1 at new(0), 0 at quarter(0.25), -1 at full(0.5)
-  float terminatorX = cos(phaseAngle);
+  // ── Phase shadow ──
+  // Shadow disc is the same size as the moon disc (radius 1 in moon-disc
+  // coords). Its center moves with phase so:
+  //   phase=0   (new):     centerX=0  → covers entire moon (all shadow)
+  //   phase=0.25 (waxing): centerX=-1 → covers left half  (right half lit)
+  //   phase=0.5  (full):   centerX=-2 → off-disc          (all lit)
+  //   phase=0.75 (waning): centerX=+1 → covers right half (left half lit)
+  //   phase=1   (new):     centerX=0  → covers entire moon
   vec2 pn = p / diskR;
-  float shadowMask;
+  float shadowX;
   if (uPhase < 0.5) {
-    // Waxing: shadow disc on left, shrinks as phase → 0.5
-    vec2 sc = vec2(terminatorX, 0.0);
-    shadowMask = 1.0 - smoothstep(0.95, 1.05, length(pn - sc));
+    shadowX = -4.0 * uPhase;          // 0 → -2 over [0, 0.5]
   } else {
-    // Waning: shadow disc on right
-    vec2 sc = vec2(-terminatorX, 0.0);
-    shadowMask = 1.0 - smoothstep(0.95, 1.05, length(pn - sc));
+    shadowX =  4.0 - 4.0 * uPhase;    // 2 → 0 over [0.5, 1.0]
   }
-  // Dark side retains faint earthshine glow (0.10 base)
-  float litFactor = mix(0.10, 1.0, 1.0 - shadowMask);
+  vec2 sc = vec2(shadowX, 0.0);
+  // Inside the shadow disc → in shadow; smooth at the terminator.
+  float shadowMask = 1.0 - smoothstep(0.92, 1.04, length(pn - sc));
+  // Dark side retains faint earthshine glow (0.12 base) so it's not pitch black.
+  float litFactor = mix(0.12, 1.0, 1.0 - shadowMask);
 
-  vec3 col = moonTex.rgb * litFactor;
-  // Subtle blue-grey lift for night-mood
-  col = mix(col, col * vec3(0.95, 0.97, 1.05), 0.15);
+  // Remap source luminance from [0..1] to [floor..1] so the darkest maria
+  // (≈12% in the NASA photo) read as a soft mid-grey instead of pitch
+  // black against a dark widget background. Power curve preserves the
+  // crater texture without flattening contrast.
+  vec3 lifted = mix(vec3(0.42), vec3(1.0), pow(moonTex.rgb, vec3(0.65)));
+  // Light limb compensation against natural rim darkening.
+  float limbBoost = 1.0 + smoothstep(diskR * 0.55, diskR * 1.0, d) * 0.4;
+  vec3 col = clamp(lifted * limbBoost, 0.0, 1.0) * litFactor;
 
-  gl_FragColor = vec4(col, edgeFade * uIntensity * moonTex.a);
+  // Alpha = shader-side smooth AA × intensity.
+  gl_FragColor = vec4(col, discAA * uIntensity);
 }
 `;

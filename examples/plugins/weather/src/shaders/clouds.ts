@@ -1,12 +1,12 @@
-// Layered 2.5D cloud shader — Apple Weather style.
-// Four FBM layers composited front-to-back; vertical gradient lighting
-// (screen-space Y) gives lit tops and shadowed bases without noisy derivatives.
-// Rendered off-screen into a half-res FBO (NoBlending → straight RGBA).
-// Upscaled to canvas at priority=2, after EffectComposer — bloom never touches clouds.
+// Volumetric clouds — port of vanta.js CLOUDS effect (MIT, Copyright 2020
+// Teng Bao), itself a near-verbatim adaptation of Inigo Quilez "Clouds"
+// Shadertoy XslGRr (https://www.shadertoy.com/view/XslGRr).
 //
-// References:
-//   - Inigo Quilez "fbm" — https://iquilezles.org/articles/fbm/
-//   - Shadertoy "Drifting Clouds 2D" guil (4tdSWr)
+// 4-level-of-detail raymarcher: 115 steps total split across map5/map4/map3/map2.
+// Front-to-back compositing with self-shadowing approximation via density
+// gradient toward sun. Rendered into a half-res FBO and upscaled with a
+// 5-tap tent filter. Output is straight RGBA; alpha = cloud accumulation
+// only — the host page background shows through where there are no clouds.
 
 export const CLOUDS_VERT = /* glsl */ `
 precision highp float;
@@ -20,132 +20,195 @@ void main() {
 export const CLOUDS_FRAG = /* glsl */ `
 precision highp float;
 
-uniform float uTime;
-uniform float uCover;
-uniform float uDensity;
-uniform float uSpeed;
-uniform vec2  uWind;
-uniform vec3  uSunDir;
+uniform vec2  iResolution;
+uniform float iTime;
+
+uniform vec3  uSkyColor;
+uniform vec3  uCloudColor;
+uniform vec3  uCloudShadow;
 uniform vec3  uSunColor;
-uniform vec3  uAmbient;
-uniform int   uSteps;
+uniform vec3  uSunGlare;
+uniform vec3  uSunlight;
+
+uniform vec3  uSunDir;
+uniform float uSpeed;
+uniform float uCover;       // 0..1
+uniform float uDensity;     // 0..1
+uniform float uPrecip;      // 0..1 rain intensity → darkens dense cloud cores
+uniform vec2  uMoonNDC;     // moon center in NDC (-1..1)
+uniform float uMoonI;       // 0..1 — 0 hides the halo entirely
 
 varying vec2 vUv;
 
-// ---------------------------------------------------------------------------
-// Value noise + FBM
-// ---------------------------------------------------------------------------
-float hash21(vec2 p) {
-  p = fract(p * vec2(127.1, 311.7));
-  return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+float hash(float p) {
+  p = fract(p * 0.011);
+  p *= (p + 7.5);
+  p *= (p + p);
+  return fract(p);
 }
 
-float vnoise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  vec2 u = f * f * (3.0 - 2.0 * f);
+float noise(vec3 x) {
+  vec3 p = floor(x);
+  vec3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  float n = p.x + p.y * 57.0 + 113.0 * p.z;
   return mix(
-    mix(hash21(i),                 hash21(i + vec2(1.0, 0.0)), u.x),
-    mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), u.x),
-    u.y
-  );
+    mix(mix(hash(n +   0.0), hash(n +   1.0), f.x),
+        mix(hash(n +  57.0), hash(n +  58.0), f.x), f.y),
+    mix(mix(hash(n + 113.0), hash(n + 114.0), f.x),
+        mix(hash(n + 170.0), hash(n + 171.0), f.x), f.y),
+    f.z);
 }
 
-float fbm(vec2 p) {
-  float v = 0.0, a = 0.5;
-  float c = 0.766, s = 0.643; // 40° rotation
-  mat2 r = mat2(c, s, -s, c);
-  for (int i = 0; i < 5; i++) {
-    v += a * vnoise(p);
-    p = r * p * 2.01;
-    a *= 0.5;
+const float K_TIME = 1000.0;
+
+// Vanta / IQ slab + a low-frequency presence mask that punches volumetric
+// holes in the cloud field, breaking the horizon line into distinct puffs.
+float shape(float f, vec3 p) {
+  float raw  = clamp(1.5 - p.y - 2.0 + 1.75 * f, 0.0, 1.0);
+  float bias = mix(0.45, 0.18, uCover);
+  float d    = clamp((raw - bias) * 2.4, 0.0, 1.0);
+
+  // Large-scale presence mask — sinusoidal in x+z so cloud cells alternate
+  // with empty sky. uCover raises the presence floor so overcast isn't full
+  // of holes.
+  float presence = 0.5 + 0.5 * sin(p.x * 0.6 + 1.7) * cos(p.z * 0.4 - 0.9);
+  float gate     = smoothstep(0.30, 0.65, presence + uCover * 0.55);
+  return d * gate * mix(0.30, 0.85, uCover) * uDensity;
+}
+
+float map5(in vec3 p) {
+  vec3 drift = vec3(0.5, 0.01, 1.0) * 0.5 * uSpeed;
+  vec3 q = p - drift * (iTime + K_TIME);
+  float f;
+  f  = 0.50000 * noise(q); q *= 2.02;
+  f += 0.25000 * noise(q); q *= 2.03;
+  f += 0.12500 * noise(q); q *= 2.01;
+  f += 0.06250 * noise(q); q *= 2.02;
+  f += 0.03125 * noise(q);
+  return shape(f, p);
+}
+float map4(in vec3 p) {
+  vec3 drift = vec3(0.5, 0.01, 1.0) * 0.5 * uSpeed;
+  vec3 q = p - drift * (iTime + K_TIME);
+  float f;
+  f  = 0.50000 * noise(q); q *= 2.02;
+  f += 0.25000 * noise(q); q *= 2.03;
+  f += 0.12500 * noise(q); q *= 2.01;
+  f += 0.06250 * noise(q);
+  return shape(f, p);
+}
+float map3(in vec3 p) {
+  vec3 drift = vec3(0.5, 0.01, 1.0) * 0.5 * uSpeed;
+  vec3 q = p - drift * (iTime + K_TIME);
+  float f;
+  f  = 0.50000 * noise(q); q *= 2.02;
+  f += 0.25000 * noise(q); q *= 2.03;
+  f += 0.12500 * noise(q);
+  return shape(f, p);
+}
+float map2(in vec3 p) {
+  vec3 drift = vec3(0.5, 0.01, 1.0) * 0.5 * uSpeed;
+  vec3 q = p - drift * (iTime + K_TIME);
+  float f;
+  f  = 0.50000 * noise(q); q *= 2.02;
+  f += 0.25000 * noise(q);
+  return shape(f, p);
+}
+
+vec4 integrate(in vec4 sum, in float dif, in float den, in vec3 bgcol, in float t) {
+  vec3 lin = uCloudColor * 1.4 + uSunlight * dif;
+  vec4 col = vec4(mix(vec3(1.0, 0.95, 0.85), uCloudShadow, den), den);
+  col.xyz *= lin;
+  col.xyz = mix(col.xyz, bgcol, 1.0 - exp(-0.003 * t * t));
+  col.a *= 0.4;
+  col.rgb *= col.a;
+  return sum + col * (1.0 - sum.a);
+}
+
+#define MARCH(STEPS, MAPLOD) \
+  for (int i = 0; i < STEPS; i++) { \
+    vec3 pos = ro + t * rd; \
+    if (pos.y < -3.0 || pos.y > 2.0 || sum.a > 0.99) break; \
+    float den = MAPLOD(pos); \
+    if (den > 0.01) { \
+      float dif = clamp((den - MAPLOD(pos + 0.3 * uSunDir)) / 0.6, 0.0, 1.0); \
+      sum = integrate(sum, dif, den, bgcol, t); \
+    } \
+    t += max(0.075, 0.02 * t); \
   }
-  return clamp((v - 0.03) / 0.94, 0.0, 1.0);
+
+vec4 raymarch(in vec3 ro, in vec3 rd, in vec3 bgcol) {
+  vec4 sum = vec4(0.0);
+  float t = 0.0;
+  MARCH(20, map5)
+  MARCH(25, map4)
+  MARCH(30, map3)
+  MARCH(40, map2)
+  return clamp(sum, 0.0, 1.0);
 }
 
-// ---------------------------------------------------------------------------
-// Cloud sample: returns alpha only.
-// Colour is determined OUTSIDE by the vertical gradient.
-// ---------------------------------------------------------------------------
-float cloudAlpha(vec2 p, float thr, float soft) {
-  vec2 q = vec2(fbm(p),
-                fbm(p + vec2(3.7, 1.9)));
-  float n = fbm(p + q * 0.55);
-  return smoothstep(thr - soft, thr + soft, n);
+mat3 setCamera(in vec3 ro, in vec3 ta, float cr) {
+  vec3 cw = normalize(ta - ro);
+  vec3 cp = vec3(sin(cr), cos(cr), 0.0);
+  vec3 cu = normalize(cross(cw, cp));
+  vec3 cv = normalize(cross(cu, cw));
+  return mat3(cu, cv, cw);
 }
 
 void main() {
-  vec2 uv = vUv;
-  uv.x *= 3.20; // slightly less stretch = larger, rounder clouds
+  // Aspect-correct screen coords centered: p = (-1..1, ~-asp..asp).
+  vec2 p = (vUv * 2.0 - 1.0);
+  p.x *= iResolution.x / iResolution.y;
 
-  vec2 wd = normalize(uWind + vec2(0.0001)) * uSpeed * 0.018;
-  vec2 dt = wd * uTime;
+  // Slow horizontal sway so the scene feels alive.
+  float swayX = sin(iTime * 0.05 + 3.1415) * 0.25 + 0.25;
+  vec2 m = vec2(swayX * 0.25, 0.85);
 
-  // Coverage threshold — lower = more clouds
-  float thr  = mix(0.68, 0.28, uCover);
-  // Edge softness — 0.12 gives clean but not toon-like edges
-  float soft = 0.12;
+  // Camera low + target high → ray climbs into the cloud slab so puffs
+  // sit in the upper portion of the widget rather than along the horizon.
+  vec3 ro = vec3(4.0 * sin(3.0 * m.x), 0.10, 4.0 * cos(3.0 * m.x));
+  vec3 ta = vec3(0.0, 2.2, 0.0);
+  mat3 ca = setCamera(ro, ta, 0.0);
+  vec3 rd = ca * normalize(vec3(p, 1.5));
 
-  // Layer 0: cirrus (thin, high, sparse — softer edges)
-  float A0 = cloudAlpha(uv * 0.90 + dt * 0.35 + vec2( 0.0,  0.0), thr + 0.14, soft * 1.40);
-  // Layer 1: large cumulus (main mass, most visible)
-  float A1 = cloudAlpha(uv * 1.60 + dt * 0.85 + vec2(11.2,  4.8), thr,        soft);
-  // Layer 2: mid cumulus
-  float A2 = cloudAlpha(uv * 2.60 + dt * 1.30 + vec2(23.4, 10.1), thr - 0.06, soft * 0.90);
-  // Layer 3: small puffs (detail/texture)
-  float A3 = cloudAlpha(uv * 4.20 + dt * 1.85 + vec2(37.1, 17.8), thr - 0.10, soft * 0.80);
+  // Sky / sun glow used as the bg color the cloud march fades toward.
+  float sun = clamp(dot(uSunDir, rd), 0.0, 1.0);
+  vec3 bgcol = uSkyColor - rd.y * 0.2 * vec3(1.0, 0.5, 1.0) + 0.075;
+  bgcol += 0.2 * uSunColor * pow(sun, 8.0);
 
-  // Per-layer max alpha — density=1 gives near-opaque, density=0.4 gives ~55% cloud opacity
-  float d  = uDensity;
-  float a0 = A0 * 0.40 * d;
-  float a1 = A1 * 0.88 * d;  // main layer: drives most of the opacity
-  float a2 = A2 * 0.75 * d;
-  float a3 = A3 * 0.60 * d;
+  vec4 res = raymarch(ro, rd, bgcol);
 
-  // Vertical fade: clouds in upper ~60% of frame.
-  // vUv.y=0 = bottom of screen, y=1 = top.
-  // Soft ramp from y=0.30..0.55 so cloud bases have a natural curved underbelly.
-  float vert = smoothstep(0.28, 0.55, vUv.y) * smoothstep(1.00, 0.97, vUv.y);
-  a0 *= vert; a1 *= vert; a2 *= vert; a3 *= vert;
+  // Final color = clouds composited over sky tint, plus sun glare fringe.
+  vec3 col = bgcol * (1.0 - res.w) + res.xyz;
+  col += 0.2 * uSunGlare * pow(sun, 3.0);
 
-  // Vertical gradient: cloud base (y≈0.35) is shadowed, top (y≈1.0) is lit.
-  // litGrad=0 → shadow underside; litGrad=1 → lit top.
-  float litGrad = smoothstep(0.38, 0.80, vUv.y);
+  // Rain — darken the dense cloud cores (storm bellies). Wide smoothstep
+  // range plus a tiny dither breaks the visible band the half-res FBO
+  // would otherwise show along the mask threshold.
+  float coreMask = smoothstep(0.15, 1.05, res.w);
+  float dither   = (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.04;
+  coreMask = clamp(coreMask + dither, 0.0, 1.0);
+  vec3 stormCol  = vec3(0.18, 0.20, 0.26);
+  col = mix(col, stormCol, coreMask * uPrecip * 0.85);
 
-  // Apple Weather colour palette:
-  //   litTop ≈ (0.95, 0.95, 0.96) — near-white sun-lit top
-  //   shadow ≈ (0.72, 0.74, 0.80) — cool blue-grey underside
-  // Both are significantly lighter than any sky blue → clouds pop clearly.
-  vec3 litTop = vec3(0.95, 0.95, 0.96);
-  vec3 shadow = vec3(0.72, 0.74, 0.80);
+  // Moonlight halo: cloud puffs in front of the moon catch a soft cool
+  // glow. screenNDC distance from the moon center, modulated by cloud
+  // density so it only lights actual cloud pixels (not the empty sky).
+  vec2 ndc = vUv * 2.0 - 1.0;
+  float moonDist = length(ndc - uMoonNDC);
+  float moonHalo = exp(-moonDist * moonDist * 5.0) * uMoonI;
+  vec3 moonGlow  = vec3(0.78, 0.85, 1.00);  // cool blue-white
+  // The halo only paints clouds (res.w), preserving transparent sky.
+  col += moonGlow * moonHalo * res.w * 0.65;
 
-  // Warm lit top slightly with sun, cool shadow slightly with zenith
-  litTop = clamp(mix(litTop, uSunColor * 0.72 + vec3(0.20), 0.14), 0.80, 0.97);
-  shadow = mix(shadow, uAmbient * 0.28 + vec3(0.50), 0.18);
-
-  // Per-layer colours — litGrad blends shadow underside → lit top
-  vec3 c0 = mix(shadow * 0.97, litTop * 0.92, litGrad * 0.78 + 0.18); // cirrus: mostly lit
-  vec3 c1 = mix(shadow,        litTop,         litGrad * 0.85 + 0.10); // main: full range
-  vec3 c2 = mix(shadow,        litTop * 0.98,  litGrad * 0.82 + 0.12);
-  vec3 c3 = mix(shadow * 0.94, litTop * 0.90,  litGrad * 0.80 + 0.14); // small puffs
-
-  // Front-to-back composite (L3 nearest viewer)
-  vec3  acc   = vec3(0.0);
-  float trans = 1.0;
-  acc += c3 * a3;           trans *= (1.0 - a3);
-  acc += c2 * a2 * trans;   trans *= (1.0 - a2);
-  acc += c1 * a1 * trans;   trans *= (1.0 - a1);
-  acc += c0 * a0 * trans;   trans *= (1.0 - a0);
-
-  float totalAlpha = clamp(1.0 - trans, 0.0, 1.0);
-
-  // Soft underbelly fade — natural curved cloud base, not a straight horizontal cut
-  float edge = smoothstep(0.26, 0.45, vUv.y);
-  totalAlpha *= edge;
-
-  // Straight-alpha output (NoBlending on this material — FBO stores gl_FragColor directly)
-  vec3 finalColor = totalAlpha > 0.001 ? (acc / totalAlpha) : shadow;
-  gl_FragColor = vec4(finalColor, clamp(totalAlpha, 0.0, 1.0));
+  // Output: alpha tied to cloud accumulation so the host page background
+  // shows through where there are no clouds. Clamp top to 0.92 to keep
+  // a hint of transparency even on dense cloud cores.
+  // Cap below 0.85 so even thick cloud cores let a whisper of background
+  // through — looks like real cumulus, not painted-on fog.
+  float alpha = clamp(res.w * 1.05, 0.0, 0.82);
+  gl_FragColor = vec4(col, alpha);
 }
 `;
 
@@ -162,35 +225,17 @@ export const CLOUD_UPSCALE_FRAG = /* glsl */ `
 precision highp float;
 uniform sampler2D uCloud;
 uniform vec2      uTexel;
-uniform vec3      uSkyZenith;
-uniform vec3      uSkyHorizon;
 varying vec2      vUv;
 
 void main() {
-  // 5-tap tent filter upscale from half-res cloud FBO
-  vec4 c = texture2D(uCloud, vUv)                          * 0.36
-         + texture2D(uCloud, vUv + vec2( uTexel.x,  0.0)) * 0.16
-         + texture2D(uCloud, vUv + vec2(-uTexel.x,  0.0)) * 0.16
-         + texture2D(uCloud, vUv + vec2( 0.0,  uTexel.y)) * 0.16
-         + texture2D(uCloud, vUv + vec2( 0.0, -uTexel.y)) * 0.16;
-
-
-  // Sky gradient — this pass is fully opaque, replacing the EffectComposer output.
-  float t  = smoothstep(0.0, 1.0, vUv.y);
-  vec3 sky = mix(uSkyHorizon, uSkyZenith, t);
-
-  // subtle dither to break gradient banding
-  float h = fract(sin(dot(vUv * 512.0, vec2(127.1, 311.7))) * 43758.5453);
-  sky += (h - 0.5) * 0.010;
-
-  // c.rgb is straight (NoBlending on FBO material stores gl_FragColor directly).
-  // Blend clouds over sky using straight alpha.
-  float cloudAlpha = clamp(c.a, 0.0, 0.88);
-  vec3  cloudRgb   = c.rgb;
-
-  // Blend clouds (straight alpha) over sky
-  vec3  final = mix(sky, cloudRgb, cloudAlpha);
-
-  gl_FragColor = vec4(final, 1.0);
+  // Shift cloud band upward so puffs sit higher in the widget.
+  vec2 sUv = vec2(vUv.x, vUv.y - 0.32);
+  // 5-tap tent filter to soften the half-res FBO upscale.
+  vec4 c = texture2D(uCloud, sUv)                         * 0.36
+         + texture2D(uCloud, sUv + vec2( uTexel.x, 0.0)) * 0.16
+         + texture2D(uCloud, sUv + vec2(-uTexel.x, 0.0)) * 0.16
+         + texture2D(uCloud, sUv + vec2(0.0,  uTexel.y)) * 0.16
+         + texture2D(uCloud, sUv + vec2(0.0, -uTexel.y)) * 0.16;
+  gl_FragColor = c;
 }
 `;
