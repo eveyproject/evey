@@ -32,10 +32,10 @@ func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 		expectedCat   string
 	}{
 		// php-string-concat-rce: "sys" . "tem" reassembles system() via PHP dot
-		// concat. Detection requires the dot-concat fold added by Worker A.
+		// concat. Detected by alias pre-pass: $f = "system" → $f($cmd) → system($cmd).
 		{
 			dir:           "php-string-concat-rce",
-			workerANeeded: true,
+			workerANeeded: false,
 			expectedCat:   "shell_exec",
 		},
 		// python-fstring-eval: outer eval( is plaintext — detected today.
@@ -45,18 +45,17 @@ func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 			expectedCat:   "obfuscation",
 		},
 		// js-constructor-escape: Function.constructor used to escape sandbox.
-		// Requires Worker A to add constructor-based escape pattern.
 		{
 			dir:           "js-constructor-escape",
-			workerANeeded: true,
+			workerANeeded: false,
 			expectedCat:   "sandbox_escape",
 		},
-		// python-os-alias: os aliased to _o then m.system() called.
-		// os.system rule doesn't match m.system — needs Worker A alias rule.
+		// python-os-alias: os aliased to _o then m = _o; m.system() called.
+		// Detected by alias pre-pass: m.system() → os.system() after chain resolution.
 		{
 			dir:           "python-os-alias",
-			workerANeeded: true,
-			expectedCat:   "execution",
+			workerANeeded: false,
+			expectedCat:   "shell_exec",
 		},
 		// python-getattr-builtin: getattr(__builtins__, ...) — detected today.
 		{
@@ -65,16 +64,15 @@ func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 			expectedCat:   "dynamic_import",
 		},
 		// go-raw-syscall: syscall.Syscall(59,...) = raw execve, no stdlib wrapper.
-		// Requires Worker A to add Go syscall.Syscall critical rule.
 		{
 			dir:           "go-raw-syscall",
-			workerANeeded: true,
+			workerANeeded: false,
 			expectedCat:   "native_code",
 		},
 		// php-combo-realistic: multi-vector — same dot-concat fold as #1 needed.
 		{
 			dir:           "php-combo-realistic",
-			workerANeeded: true,
+			workerANeeded: false,
 			expectedCat:   "", // any critical finding is sufficient
 		},
 	}

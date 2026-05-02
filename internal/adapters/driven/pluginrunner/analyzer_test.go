@@ -1568,8 +1568,6 @@ func TestAnalyzerCriticalBypasses(t *testing.T) {
 	}{
 		{
 			// PHP dot-concat obfuscation: "sys"."tem" folds to "system".
-			// The folded string then appears in an eval context — eval sees "system"
-			// which matches the dynamic code exec rule.
 			name:    "php_dot_concat_system",
 			file:    "shell.php",
 			content: `eval("sys"."tem"."('id');");`,
@@ -1595,7 +1593,6 @@ func TestAnalyzerCriticalBypasses(t *testing.T) {
 		},
 		{
 			// Python getattr(__builtins__) with join-obfuscated argument.
-			// "".join(["e","x","e","c"]) folds to "exec", then getattr(__builtins__,"exec") fires.
 			name:    "python_getattr_builtins_join",
 			file:    "bypass.py",
 			content: `getattr(__builtins__, "".join(["e","x","e","c"]))`,
@@ -1608,13 +1605,14 @@ func TestAnalyzerCriticalBypasses(t *testing.T) {
 		},
 		{
 			// PHP combo: shell exec + host secret access.
-			name: "php_combo_secret_exfil",
-			file: "exfil.php",
+			name:    "php_combo_secret_exfil",
+			file:    "exfil.php",
 			content: `system($_GET['c']); file_get_contents("/data/jwt.key"); curl_exec($ch);`,
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			writeFile(t, dir, tt.file, tt.content)
@@ -1653,6 +1651,103 @@ func TestAnalyzerCriticalBypasses_GoSyscall_NotOnPHP(t *testing.T) {
 	for _, f := range report.Findings {
 		if f.Category == "native_code" && f.Description == "raw syscall by number" {
 			t.Error("Go raw syscall rule must not fire on .php files")
+		}
+	}
+}
+
+// TestAliasResolution_PHP verifies that PHP string-concat variable callable
+// patterns are detected: $f = "sys"."tem"; $f($x) → system($x).
+func TestAliasResolution_PHP(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "rce.php", `<?php
+$f = "sys"."tem";
+$cmd = $_GET['c'];
+$f($cmd);
+`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe — PHP string-concat var-callable should be detected")
+	}
+	hasCritical := false
+	for _, f := range report.Findings {
+		if f.Severity == SeverityCritical {
+			hasCritical = true
+		}
+	}
+	if !hasCritical {
+		t.Error("expected Critical finding for PHP $f = 'system'; $f($cmd)")
+	}
+}
+
+// TestAliasResolution_Python verifies that multi-line os-alias chains are
+// detected: import os as _o; m = _o; m.system("id").
+func TestAliasResolution_Python(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "alias.py", `import os as _o
+m = _o
+m.system("id")
+`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe — multi-line os alias chain should be detected")
+	}
+	hasCritical := false
+	for _, f := range report.Findings {
+		if f.Severity == SeverityCritical {
+			hasCritical = true
+		}
+	}
+	if !hasCritical {
+		t.Error("expected Critical finding for import os as _o; m = _o; m.system()")
+	}
+}
+
+// TestAliasResolution_NoFalsePositive verifies that assigning a non-dangerous
+// string and calling the variable does not trigger a finding.
+func TestAliasResolution_NoFalsePositive(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "safe.py", `f = "hello"
+f("world")
+`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range report.Findings {
+		if f.Category == "shell_exec" && f.Severity == SeverityCritical {
+			t.Errorf("unexpected Critical shell_exec for benign variable call: %+v", f)
+		}
+	}
+}
+
+// TestAliasResolution_VarReassigned verifies that if a variable is reassigned
+// to a non-dangerous value after being set to a dangerous one, no substitution
+// occurs and the call is not flagged.
+func TestAliasResolution_VarReassigned(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "safe.py", `f = "system"
+f = lambda x: x
+f("safe")
+`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// After reassignment to a lambda the original binding is invalid.
+	// We must NOT substitute system( for f( here.
+	for _, f := range report.Findings {
+		if f.Category == "shell_exec" && f.Severity == SeverityCritical && f.Line == 3 {
+			t.Errorf("must not flag f() as system() after var reassignment: %+v", f)
 		}
 	}
 }

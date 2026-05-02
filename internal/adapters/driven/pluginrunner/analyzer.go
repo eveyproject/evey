@@ -179,8 +179,6 @@ var analyzerRules = []analyzerRule{
 	// Python module aliasing — import os as _o; _o.system(...)
 	{regexp.MustCompile(`(?i)(?:from\s+\S+\s+)?(?:os|subprocess|builtins|importlib)\s+(?:import\s+\w+\s+)?as\s+[a-zA-Z_]\w*`), SeverityWarning, "obfuscation", "module aliased — verify usage", nil},
 	// Python aliased OS module used for shell execution on the same line.
-	// Detects the combination of alias declaration + dangerous call on one line.
-	// Pattern: "os as <id>" followed anywhere on the line by ".<dangerous_call>("
 	{regexp.MustCompile(`(?i)(?:os|subprocess)\s+as\s+[a-zA-Z_]\w*.*\.(system|popen|exec|call|run)\s*\(`), SeverityCritical, "shell_exec", "aliased OS module used for shell execution", nil},
 
 	// Host secret access — CRITICAL (covers /data/*.key, /data/jwt, .aws/credentials, /run/secrets/, etc.)
@@ -489,16 +487,19 @@ func verifyAssetMIME(path, ext string, expected []string) string {
 }
 
 func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
-	f, err := os.Open(path)
+	raw, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
 		return nil, nil, err
 	}
-	defer f.Close()
+
+	// File-level alias pre-pass: resolves simple variable/module bindings across
+	// lines so that per-line rules can match patterns like $f = "system"; $f($x).
+	content := resolveSimpleAliases(string(raw))
 
 	var findings []AnalysisFinding
 	var urls []ExtractedURL
 	seen := map[string]bool{}
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(strings.NewReader(content))
 	// Minified bundles (esbuild/Vite IIFE output, vendor.js chunks) routinely
 	// produce single lines >64 KB — the default Scanner buffer chokes with
 	// "token too long". Bump the cap to 4 MB which covers any realistic

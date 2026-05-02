@@ -494,12 +494,9 @@ func TestFoldJoin_NoChange_WithVariables(t *testing.T) {
 
 func TestFoldJoin_NoChange_EmptyList(t *testing.T) {
 	src := `"".join([])`
-	got := foldJoin(src)
-	want := `""`
-	// An empty list is fine to fold to empty string — or leave as-is both are acceptable.
+	// An empty list is fine to fold to empty string — or leave as-is, both acceptable.
 	// We just verify no panic.
-	_ = got
-	_ = want
+	_ = foldJoin(src)
 }
 
 // ─── stringConcatRe PHP dot operator ─────────────────────────────────────────
@@ -525,5 +522,73 @@ func TestFoldStringConcat_JSPlus_StillWorks(t *testing.T) {
 	want := `"system"`
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// ─── resolveSimpleAliases ─────────────────────────────────────────────────────
+
+func TestResolveSimpleAliases_PHPVarCallable(t *testing.T) {
+	// $f = "system"; $f($cmd) should become system($cmd)
+	src := `<?php
+$f = "system";
+$cmd = $_GET['c'];
+$f($cmd);
+`
+	got := resolveSimpleAliases(src)
+	if !strings.Contains(got, "system($cmd)") {
+		t.Errorf("expected system($cmd) after alias resolution, got:\n%s", got)
+	}
+}
+
+func TestResolveSimpleAliases_PHPDotConcatVar(t *testing.T) {
+	// $f = "sys"."tem" → after foldStringConcat + resolveSimpleAliases → system($cmd)
+	// resolveSimpleAliases itself doesn't fold — but scanFile runs foldStringConcat
+	// per-line after the pre-pass. The fixture index.php uses this pattern.
+	// This test verifies the raw string assignment tracking works.
+	src := "$f = \"system\";\n$f($x);\n"
+	got := resolveSimpleAliases(src)
+	if !strings.Contains(got, "system($x)") {
+		t.Errorf("expected system($x) after alias resolution, got:\n%s", got)
+	}
+}
+
+func TestResolveSimpleAliases_PythonModuleChain(t *testing.T) {
+	// import os as _o; m = _o; m.system("id") → os.system("id")
+	src := "import os as _o\nm = _o\nm.system(\"id\")\n"
+	got := resolveSimpleAliases(src)
+	if !strings.Contains(got, "os.system") {
+		t.Errorf("expected os.system after alias chain resolution, got:\n%s", got)
+	}
+}
+
+func TestResolveSimpleAliases_NoSubstitution_BenignValue(t *testing.T) {
+	// f = "hello" is not dangerous — must not be substituted
+	src := "f = \"hello\"\nf(\"world\")\n"
+	got := resolveSimpleAliases(src)
+	if strings.Contains(got, "hello(") {
+		t.Errorf("unexpected substitution for benign value, got:\n%s", got)
+	}
+	// The original call site must remain unchanged
+	if !strings.Contains(got, "f(\"world\")") {
+		t.Errorf("expected f(\"world\") to remain unchanged, got:\n%s", got)
+	}
+}
+
+func TestResolveSimpleAliases_Reassigned_NoSub(t *testing.T) {
+	// f = "system"; f = lambda x: x  → f is re-assigned, must not sub
+	src := "f = \"system\"\nf = lambda x: x\nf(\"safe\")\n"
+	got := resolveSimpleAliases(src)
+	// f("safe") must NOT become system("safe")
+	if strings.Contains(got, "system(\"safe\")") {
+		t.Errorf("must not substitute after re-assignment, got:\n%s", got)
+	}
+}
+
+func TestResolveSimpleAliases_NoContent_NoAlloc(t *testing.T) {
+	// No aliases → content returned unchanged (fast path)
+	src := "print(\"hello\")\n"
+	got := resolveSimpleAliases(src)
+	if got != src {
+		t.Errorf("expected identical content for no-alias file, got:\n%s", got)
 	}
 }

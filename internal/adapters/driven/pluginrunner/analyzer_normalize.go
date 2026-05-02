@@ -264,26 +264,24 @@ var fstringLiteralRe = regexp.MustCompile(`f"((?:\{'[^']*'\})+)"`)
 // e.g. f"{'ev'}{'al'}" becomes "eval".
 func foldFStrings(src string) string {
 	return fstringLiteralRe.ReplaceAllStringFunc(src, func(m string) string {
-		// Extract the inner part between f" and "
 		subs := fstringLiteralRe.FindStringSubmatch(m)
 		if len(subs) < 2 {
 			return m
 		}
 		inner := subs[1] // e.g. {'ev'}{'al'}
-		// Extract each literal value between {' and '}
 		var result strings.Builder
 		for len(inner) > 0 {
 			start := strings.Index(inner, "{'")
 			if start == -1 {
 				break
 			}
-			inner = inner[start+2:] // skip {'
+			inner = inner[start+2:]
 			end := strings.Index(inner, "'}")
 			if end == -1 {
 				break
 			}
 			result.WriteString(inner[:end])
-			inner = inner[end+2:] // skip '}
+			inner = inner[end+2:]
 		}
 		return `"` + result.String() + `"`
 	})
@@ -300,19 +298,17 @@ func foldJoin(src string) string {
 		if len(subs) < 2 {
 			return m
 		}
-		items := subs[1] // e.g. "e","x","e","c"
+		items := subs[1]
 		var result strings.Builder
-		// Extract all string literals (single or double quoted) from the list.
 		i := 0
 		for i < len(items) {
-			// Skip whitespace and commas
 			if items[i] == ' ' || items[i] == '\t' || items[i] == ',' || items[i] == '\n' || items[i] == '\r' {
 				i++
 				continue
 			}
 			q := items[i]
 			if q != '"' && q != '\'' {
-				// Non-literal element — can't fold safely
+				// Non-literal element — can't fold safely.
 				return m
 			}
 			i++
@@ -335,6 +331,179 @@ func foldJoin(src string) string {
 		}
 		return `"` + result.String() + `"`
 	})
+}
+
+// dangerousStringValues is the set of string values that, when assigned to a
+// variable, warrant tracking so variable-callable patterns can be detected.
+var dangerousStringValues = map[string]bool{
+	"system": true, "exec": true, "passthru": true,
+	"shell_exec": true, "popen": true, "proc_open": true,
+	"eval": true,
+}
+
+// dangerousModuleAliases is the set of module names whose aliases should be
+// tracked for method-call detection after chained assignment.
+var dangerousModuleAliases = map[string]bool{
+	"os": true, "subprocess": true, "builtins": true,
+}
+
+// importAliasRe matches Python import-as declarations:
+//
+//	import os as _o
+//	import subprocess as sp
+//	from os import system as s
+var importAliasRe = regexp.MustCompile(`(?:from\s+\S+\s+)?import\s+(\S+)\s+as\s+([a-zA-Z_]\w*)`)
+
+// varStringAssignRe matches simple PHP/Python string assignments after
+// concat folding: $f = "system"  or  f = 'exec'
+var varStringAssignRe = regexp.MustCompile(`^[\$]?([a-zA-Z_]\w*)\s*=\s*["']([a-zA-Z_][\w]*)["']\s*(?:;|$|#)`)
+
+// varIdentAssignRe matches simple identifier = identifier assignments:
+//
+//	m = _o   (where _o was previously bound to os)
+var varIdentAssignRe = regexp.MustCompile(`^([a-zA-Z_]\w*)\s*=\s*([a-zA-Z_]\w*)\s*$`)
+
+// anyAssignRe detects any assignment to a bare variable name (PHP or Python).
+// Used to detect reassignments that would invalidate a previous binding.
+var anyAssignRe = regexp.MustCompile(`^[\$]?([a-zA-Z_]\w*)\s*=`)
+
+// resolveSimpleAliases performs a file-level pre-pass that:
+//  1. Detects `import X as alias` for dangerous modules (os, subprocess).
+//  2. Detects `var = alias` chained assignments (e.g. m = _o where _o → os).
+//  3. Detects `$var = "dangerousName"` (PHP/Python) constant string assignments
+//     after string-concat folding.
+//  4. Substitutes alias usages so subsequent per-line rules can match them.
+//
+// Safety limits:
+//   - A variable that is re-assigned (any RHS) is dropped from the binding map.
+//   - String concat folding is applied to each line before binding extraction so
+//     `$f = "sys"."tem"` is seen as `$f = "system"`.
+//   - Only one level of module-alias chaining is resolved.
+//   - Object method chains are not followed.
+func resolveSimpleAliases(content string) string {
+	lines := strings.Split(content, "\n")
+
+	// moduleAlias maps alias → canonical module name ("os", "subprocess", …).
+	moduleAlias := map[string]string{}
+	// stringAlias maps varname → dangerous string value.
+	stringAlias := map[string]string{}
+	// firstSeen tracks whether we have already recorded a binding for a var.
+	firstSeen := map[string]bool{}
+	// reassigned tracks vars that were assigned more than once (any RHS).
+	reassigned := map[string]bool{}
+
+	// Pass 1: collect bindings (line by line, with per-line concat folding).
+	for _, rawLine := range lines {
+		// Apply concat folding so "$f = "sys"."tem"" → "$f = "system"" before matching.
+		line := strings.TrimSpace(foldStringConcat(rawLine))
+
+		// import X as alias  /  from pkg import X as alias
+		if m := importAliasRe.FindStringSubmatch(line); m != nil {
+			modName := m[1]
+			alias := m[2]
+			if dangerousModuleAliases[modName] {
+				if firstSeen[alias] {
+					reassigned[alias] = true
+					delete(moduleAlias, alias)
+				} else {
+					firstSeen[alias] = true
+					moduleAlias[alias] = modName
+				}
+			}
+			continue
+		}
+
+		// Detect any assignment to track reassignments.
+		if m := anyAssignRe.FindStringSubmatch(line); m != nil {
+			varName := m[1]
+
+			// Check for string assignment: $f = "system" or f = 'exec'
+			if sm := varStringAssignRe.FindStringSubmatch(line); sm != nil {
+				val := sm[2]
+				if dangerousStringValues[val] {
+					if firstSeen[varName] {
+						// Re-assigned — invalidate binding.
+						reassigned[varName] = true
+						delete(stringAlias, varName)
+						delete(moduleAlias, varName)
+					} else {
+						firstSeen[varName] = true
+						stringAlias[varName] = val
+					}
+				} else {
+					// Assigned to a non-dangerous string value — invalidate any prior binding.
+					if firstSeen[varName] {
+						reassigned[varName] = true
+						delete(stringAlias, varName)
+						delete(moduleAlias, varName)
+					}
+				}
+				continue
+			}
+
+			// Check for ident = ident: m = _o (module alias chain)
+			if im := varIdentAssignRe.FindStringSubmatch(line); im != nil {
+				lhs := im[1]
+				rhs := im[2]
+				if mod, ok := moduleAlias[rhs]; ok {
+					if firstSeen[lhs] {
+						reassigned[lhs] = true
+						delete(moduleAlias, lhs)
+					} else {
+						firstSeen[lhs] = true
+						moduleAlias[lhs] = mod
+					}
+					continue
+				}
+			}
+
+			// Any other assignment to a tracked var → invalidate it.
+			if firstSeen[varName] {
+				reassigned[varName] = true
+				delete(stringAlias, varName)
+				delete(moduleAlias, varName)
+			}
+		}
+	}
+
+	// Nothing to substitute → return early without allocating.
+	if len(moduleAlias) == 0 && len(stringAlias) == 0 {
+		return content
+	}
+
+	// Pass 2: substitute usages line by line.
+	result := make([]string, len(lines))
+	for i, line := range lines {
+		// Module alias substitutions: alias. → module.
+		for alias, mod := range moduleAlias {
+			line = strings.ReplaceAll(line, alias+".", mod+".")
+		}
+
+		// String alias substitutions: $varName( → dangerous(  and  varName( → dangerous(
+		for varName, dangerous := range stringAlias {
+			// PHP form: $varName(
+			phpPat := "$" + varName + "("
+			if strings.Contains(line, phpPat) {
+				line = strings.ReplaceAll(line, phpPat, dangerous+"(")
+				continue
+			}
+			// Python form: varName(  with word-boundary check (not preceded by . or \w)
+			pyPat := varName + "("
+			if idx := strings.Index(line, pyPat); idx >= 0 {
+				if idx == 0 || (line[idx-1] != '.' && !isWordChar(line[idx-1])) {
+					line = strings.Replace(line, pyPat, dangerous+"(", 1)
+				}
+			}
+		}
+		result[i] = line
+	}
+
+	return strings.Join(result, "\n")
+}
+
+// isWordChar returns true for characters that can appear in an identifier.
+func isWordChar(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_'
 }
 
 // normalizeLine applies all normalization steps to a single source line
