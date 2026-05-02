@@ -410,7 +410,8 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 		return nil, fmt.Errorf("list siblings: %w", err)
 	}
 
-	const maxHamming = 8
+	cfg := loadIntroConfig(ctx, s.configRepo)
+	maxHamming := cfg.MaxHamming
 	for _, sib := range siblings {
 		if sib.ID == refItem.ID {
 			continue
@@ -527,16 +528,17 @@ func validateSegmentInput(segType string, startMs, endMs int64) error {
 // fragmented by unique transition frames.
 func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlibrary.MediaItem) ([]domainlibrary.MediaSegment, error) {
 	mediaItemID := string(item.ID)
+	cfg := loadIntroConfig(ctx, s.configRepo)
 
 	if s.isTrickplayEnabled(ctx) {
-		result, phashErr := s.pHashPass(ctx, item)
+		result, phashErr := s.pHashPass(ctx, item, cfg)
 		if phashErr != nil {
 			slog.Warn("intro_detection: phash pass failed, falling back",
 				slog.String("media_id", mediaItemID),
 				slog.Any("err", phashErr),
 			)
 		} else if result != nil && len(result.candidates) > 0 {
-			confirmed := s.confirmAudioCandidates(ctx, item, result)
+			confirmed := s.confirmAudioCandidates(ctx, item, result, cfg)
 			if len(confirmed) > 0 {
 				// Boundaries from the trickplay+audio stage are already
 				// trustworthy (real keyframe ms via showinfo + audio cross-
@@ -544,7 +546,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 				// but it picks the *first* silence/black in the input window,
 				// which collapses to ~1s when an episode opens with a black
 				// studio logo. Skip it.
-				return classifyConfirmed(confirmed), nil
+				return classifyConfirmed(confirmed, cfg), nil
 			}
 			slog.Info("intro_detection.pipeline_decision",
 				slog.String("media_id", mediaItemID),
@@ -603,7 +605,7 @@ type confirmedWindow struct {
 // emitted. Source is set to "phash" with confidence inherited from the
 // confirmation stage (typically 0.95 for audio-confirmed, 0.7 for visual-only
 // fallback).
-func classifyConfirmed(windows []confirmedWindow) []domainlibrary.MediaSegment {
+func classifyConfirmed(windows []confirmedWindow, cfg introConfig) []domainlibrary.MediaSegment {
 	if len(windows) == 0 {
 		return nil
 	}
@@ -621,14 +623,13 @@ func classifyConfirmed(windows []confirmedWindow) []domainlibrary.MediaSegment {
 		Source:     "phash",
 		Confidence: intro.confidence,
 	}}
-	// Look for an earlier short window (<60s) ending before intro start: that's
-	// the recap (a brief "previously on…" before the title sequence).
-	const recapMaxMs = 60 * 1000
+	// Look for an earlier short window (< RecapMaxMs) ending before intro start:
+	// that's the recap (a brief "previously on…" before the title sequence).
 	for _, w := range windows {
 		if w.endMs > intro.startMs {
 			continue
 		}
-		if (w.endMs - w.startMs) >= recapMaxMs {
+		if (w.endMs - w.startMs) >= cfg.RecapMaxMs {
 			continue
 		}
 		out = append([]domainlibrary.MediaSegment{{
@@ -647,7 +648,7 @@ func classifyConfirmed(windows []confirmedWindow) []domainlibrary.MediaSegment {
 // maps. Waits up to 24h for a trickplay manifest. Returns all candidate
 // windows (gap-tolerant, ≥2 matched frames) along with the sibling MediaItems
 // needed for the audio-confirmation stage.
-func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibrary.MediaItem) (*pHashResult, error) {
+func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibrary.MediaItem, cfg introConfig) (*pHashResult, error) {
 	mediaID := shared.MediaItemID(item.ID)
 
 	manifest, err := s.waitForManifest(ctx, mediaID)
@@ -669,7 +670,7 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 	if item.File != nil {
 		durationMs = item.File.Duration.Milliseconds()
 	}
-	cutoffFrame := frameCutoff(manifest, durationMs)
+	cutoffFrame := frameCutoff(manifest, durationMs, cfg.FrameCutoffPercent)
 
 	// Collect hashes for siblings that have a trickplay manifest. Keep MediaItems
 	// in parallel so the audio-confirmation stage can read their file paths.
@@ -711,13 +712,12 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 	// rely on audio confirmation downstream to reject false positives that
 	// pass through.
 	allEps := append([][]uint64{targetHashes}, episodeHashes...)
-	const maxHamming = 8
-	introHashes := FrequencyMapHamming(allEps, 0.50, maxHamming)
+	introHashes := FrequencyMapHamming(allEps, cfg.FreqMapThreshold, cfg.MaxHamming)
 	if len(introHashes) == 0 {
 		return nil, nil
 	}
 
-	candidates := allCandidatesGapTolerant(introHashes, targetHashes, targetMs, maxHamming)
+	candidates := allCandidatesGapTolerant(introHashes, targetHashes, targetMs, cfg.MaxHamming)
 	return &pHashResult{
 		candidates: candidates,
 		siblings:   siblingItems,
@@ -810,7 +810,7 @@ func allCandidatesGapTolerant(introHashes map[uint64]bool, targetHashes []uint64
 // drifts uniformly across the search range, while a true recurring intro pins
 // them tightly. This is what distinguishes a real intro from a recurring
 // landscape/transition shot that happens to share visual hashes.
-func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item *domainlibrary.MediaItem, result *pHashResult) []confirmedWindow {
+func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item *domainlibrary.MediaItem, result *pHashResult, cfg introConfig) []confirmedWindow {
 	mediaID := string(item.ID)
 	if item.File == nil || item.File.Path == "" || len(result.siblings) == 0 {
 		slog.Debug("intro_detection.candidate_evaluated",
@@ -821,29 +821,18 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 		return nil
 	}
 
-	const (
-		padSec        = 10.0
-		searchSec     = 30.0
-		binMs         = 250
-		numBands      = 12
-		corrThreshold = 0.45 // permissive enough to absorb extraction jitter; drift coherence does the real filtering
-		driftTolSec   = 6.0
-		minMatches    = 3
-		minRatio      = 0.6
-	)
-
 	confirmed := make([]confirmedWindow, 0, len(result.candidates))
 	for _, cand := range result.candidates {
 		startSec := float64(cand.startMs) / 1000
 		endSec := float64(cand.endMs) / 1000
 
-		tStart := startSec - padSec
+		tStart := startSec - cfg.PadSec
 		if tStart < 0 {
 			tStart = 0
 		}
-		tDur := endSec + padSec - tStart
+		tDur := endSec + cfg.PadSec - tStart
 
-		targetFp, err := s.detector.AudioBandedFingerprint(ctx, item.File.Path, tStart, tDur, binMs)
+		targetFp, err := s.detector.AudioBandedFingerprint(ctx, item.File.Path, tStart, tDur, cfg.BinMs)
 		if err != nil || len(targetFp) == 0 {
 			slog.Debug("intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
@@ -861,27 +850,27 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 		correlated := 0
 		extractFailed := 0
 		for _, sib := range result.siblings {
-			sStart := startSec - searchSec
+			sStart := startSec - cfg.SearchSec
 			if sStart < 0 {
 				sStart = 0
 			}
-			sDur := endSec + searchSec - sStart
-			sibFp, err := s.detector.AudioBandedFingerprint(ctx, sib.File.Path, sStart, sDur, binMs)
+			sDur := endSec + cfg.SearchSec - sStart
+			sibFp, err := s.detector.AudioBandedFingerprint(ctx, sib.File.Path, sStart, sDur, cfg.BinMs)
 			if err != nil || len(sibFp) == 0 {
 				extractFailed++
 				continue
 			}
-			corr, offBins := ffmpegPkgSlidingBestPearsonBanded(targetFp, sibFp, numBands)
-			if corr < corrThreshold {
+			corr, offBins := ffmpegPkgSlidingBestPearsonBanded(targetFp, sibFp, cfg.NumBands)
+			if corr < cfg.CorrThreshold {
 				continue
 			}
 			correlated++
-			offSec := float64(offBins*binMs) / 1000
+			offSec := float64(offBins*cfg.BinMs) / 1000
 			drift := offSec - (tStart - sStart)
 			drifts = append(drifts, drift)
 		}
 
-		if len(drifts) < minMatches {
+		if len(drifts) < cfg.MinMatches {
 			slog.Debug("intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
 				slog.Int64("candidate_start_ms", cand.startMs),
@@ -897,12 +886,12 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 		median := medianFloat(drifts)
 		coherent := 0
 		for _, d := range drifts {
-			if math.Abs(d-median) <= driftTolSec {
+			if math.Abs(d-median) <= cfg.DriftTolSec {
 				coherent++
 			}
 		}
 		ratio := float64(coherent) / float64(len(result.siblings))
-		if ratio < minRatio {
+		if ratio < cfg.MinRatio {
 			slog.Debug("intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
 				slog.Int64("candidate_start_ms", cand.startMs),
@@ -1092,13 +1081,18 @@ func (s *IntroDetectionService) extractEpisodeHashes(manifest *domainlibrary.Tri
 	return hashes, ms, nil
 }
 
-// frameCutoff returns the number of frames covering the first 25% of the episode.
-func frameCutoff(manifest *domainlibrary.TrickplayManifest, durationMs int64) int {
+// frameCutoff returns the number of frames covering the first cutoffPercent of
+// the episode (0.25 by default — searches the first quarter for the intro).
+// If cutoffPercent is ≤ 0 or > 1, falls back to 0.25.
+func frameCutoff(manifest *domainlibrary.TrickplayManifest, durationMs int64, cutoffPercent float64) int {
 	if manifest.Interval <= 0 || durationMs <= 0 {
 		return manifest.ImageCount * manifest.TileWidth * manifest.TileHeight
 	}
+	if cutoffPercent <= 0 || cutoffPercent > 1 {
+		cutoffPercent = 0.25
+	}
 	totalFrames := int(durationMs/1000) / manifest.Interval
-	return totalFrames / 4
+	return int(float64(totalFrames) * cutoffPercent)
 }
 
 // FrequencyMap builds a set of hashes that appear in at least threshold fraction of episodes.

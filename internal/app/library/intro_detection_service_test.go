@@ -170,7 +170,7 @@ func TestAllCandidatesGapTolerant_UsesRealJitteredTimestamps(t *testing.T) {
 
 func TestClassifyConfirmed_Empty(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, classifyConfirmed(nil))
+	assert.Empty(t, classifyConfirmed(nil, defaultIntroConfig()))
 }
 
 func TestClassifyConfirmed_PicksLongestAsIntro(t *testing.T) {
@@ -180,7 +180,7 @@ func TestClassifyConfirmed_PicksLongestAsIntro(t *testing.T) {
 		{startMs: 60_000, endMs: 180_000, confidence: 0.95}, // longest
 		{startMs: 200_000, endMs: 220_000, confidence: 0.9},
 	}
-	segs := classifyConfirmed(wins)
+	segs := classifyConfirmed(wins, defaultIntroConfig())
 	// Should produce: recap (0-30s, <60s, before intro) + intro (60-180s)
 	require.Len(t, segs, 2)
 	assert.Equal(t, "recap", segs[0].Type)
@@ -198,7 +198,7 @@ func TestClassifyConfirmed_NoRecapWhenEarlierIsLong(t *testing.T) {
 		{startMs: 0, endMs: 90_000, confidence: 0.9}, // ≥60s, not recap
 		{startMs: 120_000, endMs: 200_000, confidence: 0.9},
 	}
-	segs := classifyConfirmed(wins)
+	segs := classifyConfirmed(wins, defaultIntroConfig())
 	require.Len(t, segs, 1)
 	assert.Equal(t, "intro", segs[0].Type)
 }
