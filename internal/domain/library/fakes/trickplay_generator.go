@@ -23,7 +23,18 @@ func (g *FakeTrickplayGenerator) Generate(_ context.Context, filePath, outputDir
 	}
 	r := g.Results[filePath]
 	if r == nil {
-		return &library.TrickplayResult{ImageDir: outputDir, ImageCount: 1}, nil
+		// Provide a minimal but valid result (1 sprite, 1 frame at 0 ms).
+		return &library.TrickplayResult{ImageDir: outputDir, ImageCount: 1, FrameTimestampsMs: []int64{0}}, nil
+	}
+	if len(r.FrameTimestampsMs) == 0 {
+		// Synthesize uniform timestamps so callers that need a sidecar still
+		// get a populated result.
+		total := r.ImageCount * tileWidth * tileHeight
+		ms := make([]int64, total)
+		for i := range total {
+			ms[i] = int64(i*interval) * 1000
+		}
+		r.FrameTimestampsMs = ms
 	}
 	return r, nil
 }

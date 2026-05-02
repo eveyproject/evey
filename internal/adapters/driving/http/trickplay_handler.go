@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -60,17 +61,24 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 		}
 		tilesPerImage := manifest.TileWidth * manifest.TileHeight
 
-		// Compute real frame count from video duration (not ImageCount * tiles which overestimates)
-		totalFrames := manifest.ImageCount * tilesPerImage
+		// Read the per-frame timestamp sidecar — required, no fallback.
+		// (interval-based timing was wrong when keyframes are sparse.)
+		frameMs, sidecarErr := readSidecarTimestamps(manifest.ImagePath)
+		if sidecarErr != nil || len(frameMs) == 0 {
+			slog.Warn("trickplay: missing or empty sidecar",
+				slog.String("media_id", mediaID),
+				slog.String("image_path", manifest.ImagePath),
+				slog.Any("err", sidecarErr),
+			)
+			w.Header().Set("Content-Type", "text/vtt")
+			w.Header().Set("Cache-Control", "no-cache")
+			fmt.Fprint(w, "WEBVTT\n")
+			return
+		}
+
 		var durationMs int64
 		if item.File != nil {
 			durationMs = item.File.Duration.Milliseconds()
-		}
-		if durationMs > 0 && manifest.Interval > 0 {
-			realFrames := int(durationMs/1000) / manifest.Interval
-			if realFrames < totalFrames {
-				totalFrames = realFrames
-			}
 		}
 
 		// Detect sprite format: prefer .webp, fall back to .jpg (old caches)
@@ -97,9 +105,25 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 		setCORSHeaders(w, r, baseURL)
 		w.Header().Set("Cache-Control", "public, max-age=86400")
 		fmt.Fprint(w, "WEBVTT\n\n")
-		for i := range totalFrames {
-			startSec := i * manifest.Interval
-			endSec := (i + 1) * manifest.Interval
+		// Cue bounds use midpoints between successive frames so a hover at
+		// time T resolves to the frame whose actual timestamp is closest to T,
+		// not just the previous one. With 7-9s keyframe spacing the difference
+		// matters: hover at 22.5s should show the 22.689s frame, not the
+		// 14.848s one ~8s earlier.
+		for i, frameTs := range frameMs {
+			var cueStart, cueEnd int64
+			if i == 0 {
+				cueStart = 0
+			} else {
+				cueStart = (frameMs[i-1] + frameTs) / 2
+			}
+			if i+1 < len(frameMs) {
+				cueEnd = (frameTs + frameMs[i+1]) / 2
+			} else if durationMs > 0 {
+				cueEnd = durationMs
+			} else {
+				cueEnd = frameTs + 8000
+			}
 			imageIdx := i / tilesPerImage
 			tileIdx := i % tilesPerImage
 			col := tileIdx % manifest.TileWidth
@@ -111,18 +135,39 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 			imageFile := fmt.Sprintf("trickplay_%03d%s", imageIdx+1, spriteExt)
 			imageURL := fmt.Sprintf("/api/v1/media/%s/trickplay/%s", mediaID, imageFile)
 			fmt.Fprintf(w, "%s --> %s\n%s#xywh=%s\n\n",
-				formatVTTTime(startSec), formatVTTTime(endSec),
+				formatVTTTimeMs(cueStart), formatVTTTimeMs(cueEnd),
 				imageURL, xywh,
 			)
 		}
 	}
 }
 
-func formatVTTTime(totalSeconds int) string {
-	h := totalSeconds / 3600
-	m := (totalSeconds % 3600) / 60
-	s := totalSeconds % 60
-	return fmt.Sprintf("%02d:%02d:%02d.000", h, m, s)
+// readSidecarTimestamps reads trickplay.json next to the sprites and returns
+// the actual per-frame timestamps in ms.
+func readSidecarTimestamps(imagePath string) ([]int64, error) {
+	if imagePath == "" {
+		return nil, fmt.Errorf("empty image path")
+	}
+	path := filepath.Join(imagePath, "trickplay.json")
+	buf, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var sc struct {
+		FrameTimestamps []int64 `json:"frame_ms"`
+	}
+	if err := json.Unmarshal(buf, &sc); err != nil {
+		return nil, err
+	}
+	return sc.FrameTimestamps, nil
+}
+
+func formatVTTTimeMs(totalMs int64) string {
+	h := totalMs / 3_600_000
+	m := (totalMs % 3_600_000) / 60_000
+	s := (totalMs % 60_000) / 1000
+	ms := totalMs % 1000
+	return fmt.Sprintf("%02d:%02d:%02d.%03d", h, m, s, ms)
 }
 
 func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {

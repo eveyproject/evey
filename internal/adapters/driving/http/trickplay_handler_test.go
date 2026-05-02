@@ -19,18 +19,19 @@ func (f *fakeTrickplayGetter) GetTrickplayManifest(_ context.Context, _ string) 
 	return f.manifest, f.err
 }
 
-func TestFormatVTTTime(t *testing.T) {
+func TestFormatVTTTimeMs(t *testing.T) {
 	cases := []struct {
-		input int
+		input int64
 		want  string
 	}{
 		{0, "00:00:00.000"},
-		{61, "00:01:01.000"},
-		{3661, "01:01:01.000"},
+		{61_000, "00:01:01.000"},
+		{3_661_000, "01:01:01.000"},
+		{3_661_500, "01:01:01.500"},
 	}
 	for _, c := range cases {
-		if got := formatVTTTime(c.input); got != c.want {
-			t.Errorf("formatVTTTime(%d) = %q, want %q", c.input, got, c.want)
+		if got := formatVTTTimeMs(c.input); got != c.want {
+			t.Errorf("formatVTTTimeMs(%d) = %q, want %q", c.input, got, c.want)
 		}
 	}
 }

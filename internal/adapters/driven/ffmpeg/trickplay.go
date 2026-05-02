@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -98,16 +99,28 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	outputPattern := filepath.Join(outputDir, "trickplay_%03d.webp")
 	// -skip_frame nokey instructs the decoder to drop non-keyframe packets
 	// so HEVC/H.264 4K decode only processes I-frames (typically every
-	// 2-5 seconds). Downstream the fps=1/interval filter culls further to
-	// exactly 1 frame per N source seconds. On a 1080p HEVC episode this
-	// turns ~9 min of full decode into ~30s of keyframe-only work —
-	// without this flag the single-pass version still pegged 1 core at
-	// 100% for minutes per item.
+	// 2-5 seconds). On a 1080p HEVC episode this turns ~9 min of full
+	// decode into ~30s of keyframe-only work — without this flag the
+	// single-pass version still pegged 1 core at 100% for minutes per item.
 	//
 	// -vsync vfr stops ffmpeg from trying to duplicate frames to match
 	// a constant framerate when the input stream has gaps (keyframe
 	// skipping creates gaps by design).
-	vf := fmt.Sprintf("fps=1/%d,scale=%d:-1,tile=%dx%d", interval, width, tileWidth, tileHeight)
+	//
+	// We use the `select` filter (NOT `fps=1/N`): `fps` rewrites every
+	// output frame's PTS to a clean multiple of N, which is a lie when
+	// keyframes are sparse — players that trust the PTS would scrub to
+	// frames whose true source position differs by ±2.5s. `select` keeps
+	// each frame's original PTS, so the `showinfo` filter downstream logs
+	// the real source-video time for every kept thumbnail.
+	//
+	// Expression: pick the first frame, then any frame whose time is at
+	// least N seconds after the previously selected — yields one thumb
+	// per ~N seconds of source while honoring keyframe placement.
+	vf := fmt.Sprintf(
+		"select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,%d)',scale=%d:-1,showinfo,tile=%dx%d",
+		interval, width, tileWidth, tileHeight,
+	)
 	cmd := exec.CommandContext(ctx, "nice", "-n", "19", g.binary,
 		"-nostdin",
 		"-threads", strconv.Itoa(threads),
@@ -120,8 +133,14 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		"-quality", "75",
 		"-y", outputPattern,
 	)
-	if out, runErr := cmd.CombinedOutput(); runErr != nil {
+	out, runErr := cmd.CombinedOutput()
+	if runErr != nil {
 		return nil, fmt.Errorf("ffmpeg trickplay single-pass: %w\n%s", runErr, string(out))
+	}
+
+	timestampsMs := parseShowinfoTimestamps(string(out))
+	if len(timestampsMs) == 0 {
+		return nil, errors.New("trickplay: no timestamps captured from showinfo")
 	}
 
 	imageCount := 0
@@ -137,9 +156,32 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	}
 
 	return &library.TrickplayResult{
-		ImageDir:   outputDir,
-		ImageCount: imageCount,
+		ImageDir:          outputDir,
+		ImageCount:        imageCount,
+		FrameTimestampsMs: timestampsMs,
 	}, nil
+}
+
+// reShowinfoPts matches the pts_time field in showinfo lines.
+// Example: "[Parsed_showinfo_2 @ 0x...] n: 1 pts: 7672500 pts_time:7.672 ..."
+var reShowinfoPts = regexp.MustCompile(`pts_time:(\d+(?:\.\d+)?)`)
+
+// parseShowinfoTimestamps pulls every pts_time value from ffmpeg's stderr
+// (showinfo output) and returns them as milliseconds, in extraction order.
+func parseShowinfoTimestamps(stderr string) []int64 {
+	matches := reShowinfoPts.FindAllStringSubmatch(stderr, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	out := make([]int64, 0, len(matches))
+	for _, m := range matches {
+		v, err := strconv.ParseFloat(m[1], 64)
+		if err != nil {
+			continue
+		}
+		out = append(out, int64(v*1000))
+	}
+	return out
 }
 
 // ExtractFrame extracts a single JPEG frame at the given position (seconds).

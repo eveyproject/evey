@@ -316,7 +316,8 @@ func TestGenerateTrickplay_Success(t *testing.T) {
 	t.Parallel()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc, _, _, mediaRepo, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: "/cache/trickplay"})
+	cacheDir := t.TempDir()
+	svc, _, _, mediaRepo, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: cacheDir})
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:    "media-1",
@@ -325,7 +326,7 @@ func TestGenerateTrickplay_Success(t *testing.T) {
 	})
 
 	trickplayGen.Results["/movies/test.mkv"] = &library.TrickplayResult{
-		ImageDir:   "/cache/trickplay/media-1",
+		ImageDir:   cacheDir + "/media-1",
 		ImageCount: 3,
 	}
 
@@ -335,7 +336,7 @@ func TestGenerateTrickplay_Success(t *testing.T) {
 	manifest, err := trickplayRepo.GetByMediaItemID(context.Background(), "media-1")
 	require.NoError(t, err)
 	assert.Equal(t, shared.MediaItemID("media-1"), manifest.MediaItemID)
-	assert.Equal(t, 15, manifest.Interval)
+	assert.Equal(t, 7, manifest.Interval)
 	assert.Equal(t, 320, manifest.Width)
 	assert.Equal(t, 5, manifest.TileWidth)
 	assert.Equal(t, 5, manifest.TileHeight)

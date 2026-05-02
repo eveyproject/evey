@@ -274,6 +274,13 @@ type UserRatingRepository interface {
 type TrickplayResult struct {
 	ImageDir   string
 	ImageCount int
+	// FrameTimestampsMs is the actual timestamp (in source video, ms) of every
+	// extracted thumbnail, in tile order. Length = ImageCount * tileWidth *
+	// tileHeight (minus any unfilled tiles in the last sprite). Captured from
+	// ffmpeg's `showinfo` filter so the player and intro detector get true
+	// frame positions instead of an interval-based approximation that breaks
+	// when keyframes are sparse.
+	FrameTimestampsMs []int64
 }
 
 type TrickplayGenerator interface {

@@ -27,6 +27,10 @@ func makeFakeProbeScript(t *testing.T, duration float64) string {
 // single-pass trickplay build: find the -y output pattern (containing
 // "%03d") and touch trickplay_001.webp in its parent directory so the
 // sprite-counting loop in Generate finds at least one file.
+//
+// Also emits stderr lines mimicking the showinfo filter so the timestamp
+// parser has something to consume — without these, Generate fails on
+// "no timestamps captured from showinfo".
 func makeFakeFfmpegScript(t *testing.T) string {
 	t.Helper()
 	f, err := os.CreateTemp("", "fake-ffmpeg-trickplay-*.sh")
@@ -38,6 +42,8 @@ for arg; do
     outdir=$(dirname "$arg")
     mkdir -p "$outdir"
     touch "$outdir/trickplay_001.webp"
+    >&2 echo "[Parsed_showinfo_2 @ 0xdead] n: 0 pts: 0 pts_time:0.000 ..."
+    >&2 echo "[Parsed_showinfo_2 @ 0xdead] n: 1 pts: 100000 pts_time:10.000 ..."
     exit 0
   fi
   prev="$arg"

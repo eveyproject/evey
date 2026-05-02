@@ -66,3 +66,17 @@ type MediaItemRemoved struct {
 }
 
 func (e MediaItemRemoved) EventName() string { return "media.item.removed" }
+
+// TrickplayGenerated fires after a trickplay manifest + sidecar are written.
+// Consumers (e.g. the intro detection worker) trigger downstream work that
+// depends on the trickplay sprites being present on disk. Unlike
+// MediaItemAdded, this also fires on regenerations of existing media — that's
+// the point: rewipe trickplays + this event re-runs intro detection cleanly.
+type TrickplayGenerated struct {
+	MediaItemID shared.MediaItemID
+	ParentID    shared.MediaItemID // empty for movies
+	Type        string             // "movie" / "episode"
+	OccurredAt  time.Time
+}
+
+func (e TrickplayGenerated) EventName() string { return "trickplay.generated" }

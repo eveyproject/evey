@@ -2,9 +2,12 @@ package library
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -109,7 +112,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 		return errors.New("media item has no file path")
 	}
 
-	interval := 15
+	interval := 7
 	width := 320
 	tileWidth := 5
 	tileHeight := 5
@@ -121,6 +124,10 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 	result, err := s.trickplayGen.Generate(ctx, item.File.Path, outputDir, interval, width, tileWidth, tileHeight, workers)
 	if err != nil {
 		return fmt.Errorf("generate trickplay: %w", err)
+	}
+
+	if err := writeTrickplaySidecar(outputDir, tileWidth, tileHeight, result.FrameTimestampsMs); err != nil {
+		return fmt.Errorf("write trickplay sidecar: %w", err)
 	}
 
 	manifest := &library.TrickplayManifest{
@@ -139,7 +146,66 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 	if err := s.trickplayRepo.Create(ctx, manifest); err != nil {
 		return fmt.Errorf("store trickplay manifest: %w", err)
 	}
+
+	if s.events != nil {
+		s.events.Publish(ctx, library.TrickplayGenerated{
+			MediaItemID: shared.MediaItemID(mediaItemID),
+			ParentID:    shared.MediaItemID(item.ParentID),
+			Type:        string(item.Type),
+			OccurredAt:  time.Now(),
+		})
+	}
 	return nil
+}
+
+// trickplaySidecar is the JSON payload written next to the sprites. Stores the
+// real per-frame timestamps so the player and intro detector can map a tile
+// index ↔ source video time without assuming uniform interval (which is wrong
+// when ffmpeg snaps to keyframes).
+type trickplaySidecar struct {
+	TileWidth        int     `json:"tile_width"`
+	TileHeight       int     `json:"tile_height"`
+	FramesPerSprite  int     `json:"frames_per_sprite"`
+	FrameTimestamps  []int64 `json:"frame_ms"`
+}
+
+func writeTrickplaySidecar(outputDir string, tileWidth, tileHeight int, frameMs []int64) error {
+	if len(frameMs) == 0 {
+		return errors.New("no frame timestamps")
+	}
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("ensure %s: %w", outputDir, err)
+	}
+	sc := trickplaySidecar{
+		TileWidth:       tileWidth,
+		TileHeight:      tileHeight,
+		FramesPerSprite: tileWidth * tileHeight,
+		FrameTimestamps: frameMs,
+	}
+	buf, err := json.Marshal(sc)
+	if err != nil {
+		return fmt.Errorf("marshal sidecar: %w", err)
+	}
+	path := filepath.Join(outputDir, "trickplay.json")
+	if err := os.WriteFile(path, buf, 0644); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	return nil
+}
+
+// readTrickplaySidecar reads the sidecar written by writeTrickplaySidecar.
+// Returns an error if absent — there is no fallback to interval-based timing.
+func readTrickplaySidecar(outputDir string) (*trickplaySidecar, error) {
+	path := filepath.Join(outputDir, "trickplay.json")
+	buf, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var sc trickplaySidecar
+	if err := json.Unmarshal(buf, &sc); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return &sc, nil
 }
 
 func (s *TrickplayService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
