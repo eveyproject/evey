@@ -15,11 +15,18 @@ vi.mock("@evey/api", () => ({
   useAdminPluginServiceGetPluginConfig: () => ({ data: undefined, isLoading: false }),
   useAdminPluginServiceUpdatePluginConfig: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminPluginServiceGetPluginLogs: () => ({ data: undefined, isLoading: false }),
+  eveyFetch: vi.fn().mockReturnValue(new Promise(() => {})),
 }));
 
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
+
+// PluginUpdateDialog opens a Modal via createPortal; render inline for test assertions
+vi.mock("react-dom", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-dom")>();
+  return { ...actual, createPortal: (node: React.ReactNode) => node };
+});
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -160,5 +167,50 @@ describe("PluginCard", () => {
       { wrapper: Wrapper },
     );
     expect(screen.getByText("Error")).toBeInTheDocument();
+  });
+
+  it("shows 'Update from source...' button", () => {
+    render(
+      <PluginCard
+        plugin={basePlugin as never}
+        onEnable={vi.fn()}
+        onDisable={vi.fn()}
+        onUninstall={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+    expect(screen.getByTestId("plugin-update-toggle")).toBeInTheDocument();
+  });
+
+  it("reveals source input when Update button clicked", async () => {
+    render(
+      <PluginCard
+        plugin={basePlugin as never}
+        onEnable={vi.fn()}
+        onDisable={vi.fn()}
+        onUninstall={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+    await userEvent.click(screen.getByTestId("plugin-update-toggle"));
+    expect(screen.getByPlaceholderText("/path/to/plugin-v2.zip")).toBeInTheDocument();
+    expect(screen.getByTestId("plugin-update-preview-btn")).toBeDisabled();
+  });
+
+  it("opens PluginUpdateDialog after entering source and clicking Preview", async () => {
+    render(
+      <PluginCard
+        plugin={basePlugin as never}
+        onEnable={vi.fn()}
+        onDisable={vi.fn()}
+        onUninstall={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+    await userEvent.click(screen.getByTestId("plugin-update-toggle"));
+    await userEvent.type(screen.getByPlaceholderText("/path/to/plugin-v2.zip"), "/tmp/plugin-v2.zip");
+    await userEvent.click(screen.getByTestId("plugin-update-preview-btn"));
+    // Dialog renders (Modal title visible)
+    expect(screen.getByText(/Mise à jour/)).toBeInTheDocument();
   });
 });

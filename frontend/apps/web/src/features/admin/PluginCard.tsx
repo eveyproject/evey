@@ -16,6 +16,7 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import type { V1Plugin, V1PluginState } from "@evey/api";
+import { PluginUpdateDialog } from "./PluginUpdateDialog";
 
 type PluginWithPermissions = V1Plugin & {
   permissions?: string[];
@@ -310,6 +311,9 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
   const [showConfig, setShowConfig] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  const [updateSource, setUpdateSource] = useState<string | null>(null);
+  const [showUpdateInput, setShowUpdateInput] = useState(false);
+  const [updateSourceInput, setUpdateSourceInput] = useState("");
   const { data: logsData, isLoading: logsLoading } = useAdminPluginServiceGetPluginLogs(
     plugin.id ?? "",
     { limit: 100 },
@@ -395,8 +399,60 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
         <Button variant="ghost" onClick={() => setShowLogs((v) => !v)}>
           {showLogs ? t("admin.plugin.hideLogs") : t("admin.plugin.logs")}
         </Button>
+        <Button
+          variant="secondary"
+          onClick={() => setShowUpdateInput((v) => !v)}
+          data-testid="plugin-update-toggle"
+        >
+          {t("admin.plugin.update", "Update from source...")}
+        </Button>
         <Button variant="danger" onClick={onUninstall}>{t("admin.plugin.uninstall")}</Button>
       </div>
+
+      {showUpdateInput && (
+        <div className="border-t pt-3 mt-1 border-[var(--border)] flex flex-col gap-2">
+          <p className="text-xs font-semibold text-[var(--text-muted)]">
+            {t("admin.plugin.updateSourceLabel", "Source ZIP (path or URL)")}
+          </p>
+          <div className="flex gap-2 items-end">
+            <Input
+              label=""
+              placeholder="/path/to/plugin-v2.zip"
+              value={updateSourceInput}
+              onChange={(e) => setUpdateSourceInput(e.target.value)}
+            />
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (updateSourceInput.trim()) {
+                  setUpdateSource(updateSourceInput.trim());
+                  setShowUpdateInput(false);
+                }
+              }}
+              disabled={!updateSourceInput.trim()}
+              data-testid="plugin-update-preview-btn"
+            >
+              {t("admin.plugin.previewUpdate", "Preview")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {updateSource && plugin.id && (
+        <PluginUpdateDialog
+          pluginId={plugin.id}
+          pluginName={plugin.name}
+          source={updateSource}
+          onClose={() => {
+            setUpdateSource(null);
+            setUpdateSourceInput("");
+          }}
+          onApplied={() => {
+            setUpdateSource(null);
+            setUpdateSourceInput("");
+          }}
+        />
+      )}
 
       {showLogs && (
         <div className="border-t pt-3 mt-1 border-[var(--border)]">
