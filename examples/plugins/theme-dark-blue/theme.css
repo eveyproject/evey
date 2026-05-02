@@ -5,7 +5,14 @@
  *   --bg              Main background color
  *   --bg-secondary    Secondary/card background
  *   --surface         Surface/elevated element background
+ *   --surface-raised  Floating panels (dropdown menus, toasts, popovers)
  *   --surface-hover   Surface on hover
+ *   --text-muted      Subdued text (icons, hints)
+ *   --filter-active-text  Text on active accent buttons (chips, etc.)
+ *   --color-danger    Counter badges (notifications), destructive
+ *   --shadow-md       Box shadow for elevated cards
+ *   --radius-md       Default radius for floating panels
+ *   --overlay-text    Text colour on top of overlay backdrops
  *   --text            Primary text color
  *   --text-secondary  Secondary/muted text
  *   --accent          Primary accent color (buttons, links, active states)
@@ -24,18 +31,26 @@
   --bg: #0b1120;
   --bg-secondary: #111a2e;
   --surface: #162032;
+  --surface-raised: #1d2a44;
   --surface-hover: #1c2a42;
   --text: #e2e8f0;
   --text-secondary: #8899b4;
+  --text-muted: #94a3b8;
   --accent: #3b82f6;
   --accent-hover: #60a5fa;
   --accent-subtle: rgba(59, 130, 246, 0.12);
   --border: #1e3050;
   --shadow: rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
   --success: #22c55e;
   --warning: #f59e0b;
   --error: #ef4444;
+  --color-danger: #ef4444;
+  --filter-active-text: #ffffff;
+  --overlay-text: #ffffff;
   --radius: 8px;
+  --radius-md: 10px;
   --radius-lg: 14px;
 }
 
