@@ -45,6 +45,7 @@ export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip }: Skip
 
   if (startSec === null || endSec === null) return null;
   if (endSec <= startSec) return null;
+  if (endSec - startSec < 5) return null;
   if (currentTime < startSec || currentTime >= endSec) return null;
 
   return (

@@ -34,6 +34,7 @@ export function SkipIntroOverlay({ filePath, currentTime, onSkip }: SkipIntroOve
   const endSec = Number(introChapter.endMs ?? 0) / 1000;
 
   if (endSec <= startSec) return null;
+  if (endSec - startSec < 5) return null;
   if (currentTime < startSec || currentTime >= endSec) return null;
 
   return (

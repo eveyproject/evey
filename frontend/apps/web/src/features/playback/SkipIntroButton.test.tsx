@@ -187,4 +187,26 @@ describe("SkipIntroButton", () => {
     );
     expect(screen.getByText("Skip Intro")).toBeInTheDocument();
   });
+
+  it("returns null when API segment is shorter than 5 seconds", () => {
+    mockUseMediaSegments.mockReturnValue({
+      data: [{ ...introSegment, startMs: 1000, endMs: 4000 }],
+    });
+    mockUseQuery.mockReturnValue({ data: { chapters: [] } });
+    const { container } = render(
+      <SkipIntroButton mediaId="media-123" currentTime={2} onSkip={vi.fn()} />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("returns null when MKV chapter intro is shorter than 5 seconds", () => {
+    mockUseMediaSegments.mockReturnValue({ data: [] });
+    mockUseQuery.mockReturnValue({
+      data: { chapters: [{ title: "Intro", startMs: "1000", endMs: "4000" }] },
+    });
+    const { container } = render(
+      <SkipIntroButton filePath="/media/ep1.mkv" currentTime={2} onSkip={vi.fn()} />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
 });
