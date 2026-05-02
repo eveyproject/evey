@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"image"
 	"image/color"
 	"math"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/image/draw"
 	"golang.org/x/image/webp"
 )
 
@@ -28,9 +26,14 @@ func NewIntroDetector(binary, probeBinary string) *IntroDetector {
 	return &IntroDetector{binary: binary, probeBinary: probeBinary}
 }
 
-// ExtractTileHashes opens a trickplay sprite file and returns one aHash per tile.
-// Tiles are laid out in a tileWidth×tileHeight grid; each tile is tilePixelWidth px wide
-// and tilePixelHeight px tall.
+// ExtractTileHashes opens a trickplay sprite file and returns one perceptual
+// hash per tile. Tiles are laid out in a tileWidth×tileHeight grid; each
+// tile is tilePixelWidth px wide and tilePixelHeight px tall.
+//
+// The hash function used is pHash DCT 8×8 (kept low-frequency block of a
+// 32×32 DCT). Bumping the hash function changes the value distribution and
+// requires invalidating intro_fingerprint_cache rows en masse — bump
+// currentPHashAlgoVersion in intro_detection_service.go in lock-step.
 func (d *IntroDetector) ExtractTileHashes(spritePath string, tileWidth, tileHeight, tilePixelWidth, tilePixelHeight int) ([]uint64, error) {
 	f, err := os.Open(spritePath)
 	if err != nil {
@@ -51,44 +54,10 @@ func (d *IntroDetector) ExtractTileHashes(spritePath string, tileWidth, tileHeig
 			y0 := row * tilePixelHeight
 			x1 := x0 + tilePixelWidth
 			y1 := y0 + tilePixelHeight
-			hashes = append(hashes, aHash(img, x0, y0, x1, y1))
+			hashes = append(hashes, pHashDCT(img, x0, y0, x1, y1))
 		}
 	}
 	return hashes, nil
-}
-
-// aHash computes a 64-bit average hash of the image region [x0,y0,x1,y1].
-// The region is scaled to 8×8, converted to greyscale, and bits set where
-// pixel luminance >= mean.
-func aHash(img image.Image, x0, y0, x1, y1 int) uint64 {
-	const size = 8
-	dst := image.NewGray(image.Rect(0, 0, size, size))
-	src := img
-
-	// If the region is a sub-image crop, wrap in a sub-rectangle first.
-	srcBounds := image.Rect(x0, y0, x1, y1)
-	type subImager interface {
-		SubImage(r image.Rectangle) image.Image
-	}
-	if si, ok := src.(subImager); ok {
-		src = si.SubImage(srcBounds)
-	}
-
-	draw.BiLinear.Scale(dst, dst.Bounds(), src, srcBounds, draw.Src, nil)
-
-	var sum uint64
-	for i := range size * size {
-		sum += uint64(dst.Pix[i])
-	}
-	mean := sum / (size * size)
-
-	var h uint64
-	for i := range size * size {
-		if uint64(dst.Pix[i]) > mean {
-			h |= 1 << uint(i)
-		}
-	}
-	return h
 }
 
 // PrecisionPass runs FFmpeg silencedetect+blackdetect on [startSec-padSec, endSec+padSec].

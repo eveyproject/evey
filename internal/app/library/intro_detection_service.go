@@ -44,8 +44,12 @@ type IntroDetectionService struct {
 // currentPHashAlgoVersion identifies the hash function used to populate the
 // cache. Bump it whenever ExtractTileHashes' output distribution changes
 // (e.g. aHash → pHash DCT) so the cache invalidates en masse without per-row
-// surgery. v1 = aHash 8×8 average over 5×5 tiles at 320×180.
-const currentPHashAlgoVersion int16 = 1
+// surgery.
+//
+//	v1 = aHash 8×8 average over 5×5 tiles at 320×180 (pre-2026-05-03).
+//	v2 = pHash DCT 8×8 of a 32×32 grayscale grid, DC dropped, median split
+//	     over 63 AC coefs (current).
+const currentPHashAlgoVersion int16 = 2
 
 func NewIntroDetectionService(
 	segmentRepo domainlibrary.MediaSegmentRepository,

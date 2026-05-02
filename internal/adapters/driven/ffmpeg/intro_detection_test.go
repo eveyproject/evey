@@ -34,50 +34,50 @@ func (g *gradientImage) At(x, _ int) color.Color {
 	return color.Gray{Y: uint8(x * 255 / (g.w - 1))}
 }
 
-// TestAHash_IdenticalImages verifies that two equal images produce the same hash.
-func TestAHash_IdenticalImages(t *testing.T) {
+// TestPHashDCT_IdenticalImages verifies that two equal images produce the same hash.
+func TestPHashDCT_IdenticalImages(t *testing.T) {
 	t.Parallel()
 	img1 := newSolidImage(64, 64, 128)
 	img2 := newSolidImage(64, 64, 128)
 
-	h1 := aHash(img1, 0, 0, 64, 64)
-	h2 := aHash(img2, 0, 0, 64, 64)
+	h1 := pHashDCT(img1, 0, 0, 64, 64)
+	h2 := pHashDCT(img2, 0, 0, 64, 64)
 	assert.Equal(t, h1, h2, "identical images must produce the same hash")
 }
 
-// TestAHash_DifferentImages verifies that clearly different images produce different hashes.
+// TestPHashDCT_DifferentImages verifies that clearly different images produce different hashes.
 // Two gradient images with opposite orientations must differ.
-func TestAHash_DifferentImages(t *testing.T) {
+func TestPHashDCT_DifferentImages(t *testing.T) {
 	t.Parallel()
 	// Left-dark gradient: pixel[x] = x*255/(W-1)
 	grad := &gradientImage{w: 64, h: 64}
 	// Solid mid-grey: uniform — mean = 128, all pixels == 128 → all zero bits
 	solid := newSolidImage(64, 64, 128)
 
-	hGrad := aHash(grad, 0, 0, 64, 64)
-	hSolid := aHash(solid, 0, 0, 64, 64)
+	hGrad := pHashDCT(grad, 0, 0, 64, 64)
+	hSolid := pHashDCT(solid, 0, 0, 64, 64)
 	assert.NotEqual(t, hGrad, hSolid, "gradient and uniform images must produce different hashes")
 }
 
-// TestAHash_HorizontalFlipDiffers verifies that a left-heavy vs right-heavy gradient differs.
-func TestAHash_HorizontalFlipDiffers(t *testing.T) {
+// TestPHashDCT_HorizontalFlipDiffers verifies that a left-heavy vs right-heavy gradient differs.
+func TestPHashDCT_HorizontalFlipDiffers(t *testing.T) {
 	t.Parallel()
 	grad := &gradientImage{w: 64, h: 64}
 	// flipped version: high luminance on the left
 	flipped := &gradientImage{w: 64, h: 64}
 
-	hNormal := aHash(grad, 0, 0, 64, 64)
+	hNormal := pHashDCT(grad, 0, 0, 64, 64)
 	// Mirror the region: use right half as x0..x1 reversed isn't directly
 	// expressible, so we compare gradient vs solid — guaranteed different.
-	hSolid := aHash(newSolidImage(64, 64, 200), 0, 0, 64, 64)
+	hSolid := pHashDCT(newSolidImage(64, 64, 200), 0, 0, 64, 64)
 	_ = flipped
 
 	assert.NotEqual(t, hNormal, hSolid, "gradient and solid must produce different hashes")
 }
 
-// TestAHash_SubRegion verifies that extracting two different sub-regions of the same
+// TestPHashDCT_SubRegion verifies that extracting two different sub-regions of the same
 // image produces different hashes when the regions are visually distinct.
-func TestAHash_SubRegion(t *testing.T) {
+func TestPHashDCT_SubRegion(t *testing.T) {
 	t.Parallel()
 	// Create a 128×64 image: left half is a horizontal gradient (visually varying),
 	// right half is a vertical stripe pattern (alternating 0 and 255).
@@ -96,8 +96,8 @@ func TestAHash_SubRegion(t *testing.T) {
 			}
 		}
 	}
-	hLeft := aHash(img, 0, 0, 64, 64)
-	hRight := aHash(img, 64, 0, 128, 64)
+	hLeft := pHashDCT(img, 0, 0, 64, 64)
+	hRight := pHashDCT(img, 64, 0, 128, 64)
 	assert.NotEqual(t, hLeft, hRight, "horizontal gradient and stripe pattern must hash differently")
 }
 
