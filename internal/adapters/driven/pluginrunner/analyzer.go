@@ -166,6 +166,25 @@ var analyzerRules = []analyzerRule{
 	// Shell — base64 pipe to shell (obfuscated payload)
 	{regexp.MustCompile(`(?i)(base64\s+-d|base64\s+--decode|openssl\s+enc\s+-d)[^|]*\|\s*(sh|bash|dash|zsh|ash)\b`), SeverityCritical, "obfuscation", "base64-decoded payload piped to shell", nil},
 	{regexp.MustCompile(`(?i)echo\s+[A-Za-z0-9+/]{20,}={0,2}\s*\|\s*(base64|openssl)`), SeverityCritical, "obfuscation", "inline base64 blob piped to decoder (obfuscated shell payload)", nil},
+
+	// JS Function constructor escape — (function(){}).constructor("evil")()
+	{regexp.MustCompile(`(?i)\.constructor\s*\(\s*["']`), SeverityCritical, "sandbox_escape", "Function via .constructor", nil},
+
+	// Go raw syscall by number — syscall.Syscall(59, ...) bypasses all wrappers
+	{regexp.MustCompile(`(?i)syscall\.(Syscall|RawSyscall)\s*\(\s*\d+`), SeverityCritical, "native_code", "raw syscall by number", []string{".go"}},
+
+	// Python getattr alias on builtin — getattr(obj, "exec"/"eval"/...)
+	{regexp.MustCompile(`(?i)getattr\s*\(\s*[a-zA-Z_]\w*\s*,\s*["'](exec|eval|system|__import__|compile)`), SeverityCritical, "dynamic_import", "getattr on builtin via alias", nil},
+
+	// Python module aliasing — import os as _o; _o.system(...)
+	{regexp.MustCompile(`(?i)(?:from\s+\S+\s+)?(?:os|subprocess|builtins|importlib)\s+(?:import\s+\w+\s+)?as\s+[a-zA-Z_]\w*`), SeverityWarning, "obfuscation", "module aliased — verify usage", nil},
+	// Python aliased OS module used for shell execution on the same line.
+	// Detects the combination of alias declaration + dangerous call on one line.
+	// Pattern: "os as <id>" followed anywhere on the line by ".<dangerous_call>("
+	{regexp.MustCompile(`(?i)(?:os|subprocess)\s+as\s+[a-zA-Z_]\w*.*\.(system|popen|exec|call|run)\s*\(`), SeverityCritical, "shell_exec", "aliased OS module used for shell execution", nil},
+
+	// Host secret access — CRITICAL (covers /data/*.key, /data/jwt, .aws/credentials, /run/secrets/, etc.)
+	{regexp.MustCompile(`(?i)(/data/[^\s"'` + "`" + `]*\.(?:key|env|pem|p12|pfx)|/data/jwt|/etc/passwd|/etc/shadow|\.aws/credentials|/run/secrets/)`), SeverityCritical, "filesystem", "host secret access", nil},
 }
 
 // URL extraction patterns — all network schemes

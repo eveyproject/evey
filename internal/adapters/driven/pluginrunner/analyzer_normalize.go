@@ -12,11 +12,11 @@ import (
 // prevent pathological inputs from hanging the analyzer.
 const maxFoldPasses = 10
 
-// stringConcatRe matches two adjacent string literals joined by + with optional
-// whitespace, e.g. "foo" + "bar" or 'foo'+"bar".
+// stringConcatRe matches two adjacent string literals joined by + or . (PHP)
+// with optional whitespace, e.g. "foo" + "bar", 'foo'+"bar", or "sys"."tem".
 // Both single- and double-quoted literals are handled; inner escapes are not
 // interpreted here (folding is purely textual).
-var stringConcatRe = regexp.MustCompile(`("(?:[^"\\]|\\.)*")\s*\+\s*("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)*')\s*\+\s*('(?:[^'\\]|\\.)*')`)
+var stringConcatRe = regexp.MustCompile(`("(?:[^"\\]|\\.)*")\s*[+.]\s*("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)*')\s*[+.]\s*('(?:[^'\\]|\\.)*')`)
 
 // foldStringConcat repeatedly folds adjacent string literals joined by +
 // until the string stops changing or maxFoldPasses is reached.
@@ -254,14 +254,101 @@ func isAllASCII(s string) bool {
 	return true
 }
 
+// fstringLiteralRe matches Python f-string segments where each interpolation
+// is a single-quoted string literal: f"{'ev'}{'al'}" → "eval".
+// Only handles the pattern f"({literal})+" — more complex expressions are left as-is.
+var fstringLiteralRe = regexp.MustCompile(`f"((?:\{'[^']*'\})+)"`)
+
+// foldFStrings folds Python f-string expressions containing only single-quoted
+// string literal interpolations into a plain string.
+// e.g. f"{'ev'}{'al'}" becomes "eval".
+func foldFStrings(src string) string {
+	return fstringLiteralRe.ReplaceAllStringFunc(src, func(m string) string {
+		// Extract the inner part between f" and "
+		subs := fstringLiteralRe.FindStringSubmatch(m)
+		if len(subs) < 2 {
+			return m
+		}
+		inner := subs[1] // e.g. {'ev'}{'al'}
+		// Extract each literal value between {' and '}
+		var result strings.Builder
+		for len(inner) > 0 {
+			start := strings.Index(inner, "{'")
+			if start == -1 {
+				break
+			}
+			inner = inner[start+2:] // skip {'
+			end := strings.Index(inner, "'}")
+			if end == -1 {
+				break
+			}
+			result.WriteString(inner[:end])
+			inner = inner[end+2:] // skip '}
+		}
+		return `"` + result.String() + `"`
+	})
+}
+
+// joinListRe matches Python "".join([...]) or ''.join([...]) where the list
+// contains only string literals.
+var joinListRe = regexp.MustCompile(`["']{2}\.join\s*\(\s*\[([^\]]+)\]\s*\)`)
+
+// foldJoin folds Python "".join(["a","b","c"]) into "abc".
+func foldJoin(src string) string {
+	return joinListRe.ReplaceAllStringFunc(src, func(m string) string {
+		subs := joinListRe.FindStringSubmatch(m)
+		if len(subs) < 2 {
+			return m
+		}
+		items := subs[1] // e.g. "e","x","e","c"
+		var result strings.Builder
+		// Extract all string literals (single or double quoted) from the list.
+		i := 0
+		for i < len(items) {
+			// Skip whitespace and commas
+			if items[i] == ' ' || items[i] == '\t' || items[i] == ',' || items[i] == '\n' || items[i] == '\r' {
+				i++
+				continue
+			}
+			q := items[i]
+			if q != '"' && q != '\'' {
+				// Non-literal element — can't fold safely
+				return m
+			}
+			i++
+			j := i
+			for j < len(items) {
+				if items[j] == '\\' {
+					j += 2
+					continue
+				}
+				if items[j] == q {
+					break
+				}
+				j++
+			}
+			if j >= len(items) {
+				return m // unterminated
+			}
+			result.WriteString(items[i:j])
+			i = j + 1
+		}
+		return `"` + result.String() + `"`
+	})
+}
+
 // normalizeLine applies all normalization steps to a single source line
 // before it is fed to the regex rules:
 //  1. Unicode confusable folding
 //  2. Hex/octal/unicode escape decoding inside string literals
-//  3. String concat folding ("a"+"b" → "ab")
+//  3. Python f-string literal-only interpolation folding
+//  4. Python "".join([...]) folding
+//  5. String concat folding ("a"+"b" → "ab", "a"."b" → "ab" for PHP)
 func normalizeLine(line string) string {
 	line = normalizeUnicode(line)
 	line = decodeEscapesInStrings(line)
+	line = foldFStrings(line)
+	line = foldJoin(line)
 	line = foldStringConcat(line)
 	return line
 }

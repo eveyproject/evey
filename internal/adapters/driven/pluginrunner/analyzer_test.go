@@ -1557,3 +1557,102 @@ func TestAnalyzePlugin_BareExecStillFlagged(t *testing.T) {
 		t.Error("bare exec( call must still be flagged")
 	}
 }
+
+// TestAnalyzerCriticalBypasses covers the 7 bypass payloads identified in the
+// empirical audit. Each must produce at least one Critical finding so Safe=false.
+func TestAnalyzerCriticalBypasses(t *testing.T) {
+	tests := []struct {
+		name    string
+		file    string
+		content string
+	}{
+		{
+			// PHP dot-concat obfuscation: "sys"."tem" folds to "system".
+			// The folded string then appears in an eval context — eval sees "system"
+			// which matches the dynamic code exec rule.
+			name:    "php_dot_concat_system",
+			file:    "shell.php",
+			content: `eval("sys"."tem"."('id');");`,
+		},
+		{
+			// Python f-string literal-only interpolation folds f"{'ev'}{'al'}" to "eval".
+			name:    "python_fstring_eval",
+			file:    "eval.py",
+			content: `eval(f"{'ev'}{'al'}")`,
+		},
+		{
+			// JS .constructor escape: (function(){}).constructor("alert(1)")()
+			name:    "js_constructor_escape",
+			file:    "escape.js",
+			content: `(function(){}).constructor("alert(1)")()`,
+		},
+		{
+			// Python module aliasing: import os as _o; _o.system("id")
+			// The alias rule fires Warning; os.system also fires Critical.
+			name:    "python_import_alias",
+			file:    "alias.py",
+			content: `import os as _o; _o.system("id")`,
+		},
+		{
+			// Python getattr(__builtins__) with join-obfuscated argument.
+			// "".join(["e","x","e","c"]) folds to "exec", then getattr(__builtins__,"exec") fires.
+			name:    "python_getattr_builtins_join",
+			file:    "bypass.py",
+			content: `getattr(__builtins__, "".join(["e","x","e","c"]))`,
+		},
+		{
+			// Go raw syscall by number — only fires on .go files.
+			name:    "go_raw_syscall",
+			file:    "syscall.go",
+			content: `syscall.Syscall(59, 0, 0, 0)`,
+		},
+		{
+			// PHP combo: shell exec + host secret access.
+			name: "php_combo_secret_exfil",
+			file: "exfil.php",
+			content: `system($_GET['c']); file_get_contents("/data/jwt.key"); curl_exec($ch);`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, tt.file, tt.content)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Safe {
+				t.Fatalf("expected Safe=false for bypass payload %q; findings: %v", tt.name, report.Findings)
+			}
+			hasCritical := false
+			for _, f := range report.Findings {
+				if f.Severity == SeverityCritical {
+					hasCritical = true
+					break
+				}
+			}
+			if !hasCritical {
+				t.Errorf("expected at least one Critical finding for bypass %q; got: %v", tt.name, report.Findings)
+			}
+		})
+	}
+}
+
+// TestAnalyzerCriticalBypasses_GoSyscall_NotOnPHP verifies the Go syscall
+// rule does not fire on PHP files (extension-scoped rule).
+func TestAnalyzerCriticalBypasses_GoSyscall_NotOnPHP(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "test.php", `syscall.Syscall(59, 0, 0, 0)`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range report.Findings {
+		if f.Category == "native_code" && f.Description == "raw syscall by number" {
+			t.Error("Go raw syscall rule must not fire on .php files")
+		}
+	}
+}

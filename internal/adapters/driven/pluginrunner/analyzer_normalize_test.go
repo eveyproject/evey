@@ -429,3 +429,101 @@ func TestAnalyze_UnicodeLookalike_Negative(t *testing.T) {
 		t.Errorf("unexpected unsafe: %v", report.Findings)
 	}
 }
+
+// ─── foldFStrings ─────────────────────────────────────────────────────────────
+
+func TestFoldFStrings_EvalObfuscated(t *testing.T) {
+	got := foldFStrings(`f"{'ev'}{'al'}"`)
+	want := `"eval"`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFoldFStrings_SingleLiteral(t *testing.T) {
+	got := foldFStrings(`f"{'system'}"`)
+	want := `"system"`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFoldFStrings_NoChange_ComplexInterpolation(t *testing.T) {
+	// f-string with non-literal expression — must be left as-is
+	src := `f"{x+1}"`
+	got := foldFStrings(src)
+	if got != src {
+		t.Errorf("expected no change for complex interpolation, got %q", got)
+	}
+}
+
+func TestFoldFStrings_NoChange_PlainString(t *testing.T) {
+	src := `"hello"`
+	got := foldFStrings(src)
+	if got != src {
+		t.Errorf("expected no change for plain string, got %q", got)
+	}
+}
+
+// ─── foldJoin ────────────────────────────────────────────────────────────────
+
+func TestFoldJoin_ExecFromList(t *testing.T) {
+	got := foldJoin(`"".join(["e","x","e","c"])`)
+	want := `"exec"`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFoldJoin_SingleQuoteJoiner(t *testing.T) {
+	got := foldJoin(`''.join(['e','v','a','l'])`)
+	want := `"eval"`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFoldJoin_NoChange_WithVariables(t *testing.T) {
+	// list contains a variable — must not fold
+	src := `"".join([x, "b"])`
+	got := foldJoin(src)
+	if got != src {
+		t.Errorf("expected no change for list with variable, got %q", got)
+	}
+}
+
+func TestFoldJoin_NoChange_EmptyList(t *testing.T) {
+	src := `"".join([])`
+	got := foldJoin(src)
+	want := `""`
+	// An empty list is fine to fold to empty string — or leave as-is both are acceptable.
+	// We just verify no panic.
+	_ = got
+	_ = want
+}
+
+// ─── stringConcatRe PHP dot operator ─────────────────────────────────────────
+
+func TestFoldStringConcat_PHPDot(t *testing.T) {
+	got := foldStringConcat(`"sys"."tem"`)
+	want := `"system"`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFoldStringConcat_PHPDot_Recursive(t *testing.T) {
+	got := foldStringConcat(`"s"."y"."s"."t"."e"."m"`)
+	want := `"system"`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFoldStringConcat_JSPlus_StillWorks(t *testing.T) {
+	got := foldStringConcat(`"sys"+"tem"`)
+	want := `"system"`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
