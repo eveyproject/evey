@@ -217,41 +217,40 @@ func needsFMP4Segments(streams []*library.MediaStream) bool {
 
 func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	var args []string
-	// HLS seek precision is a 3-way tradeoff between drift, CPU cost, and
-	// manifest start-up latency. Earlier attempts:
-	//   - pre-input -ss + copy  : snap keyframe-before (-5..-10s drift)
+	// HLS seek precision: ffmpeg has -accurate_seek enabled by default
+	// since 2.1, which makes -ss BEFORE -i frame-accurate as soon as the
+	// stream is re-encoded (transcode, not copy). The pre-input -ss is
+	// the fast variant (jumps via the index, then decodes from the
+	// preceding keyframe up to the target second), so the manifest
+	// appears in the m3u8 within ~1s even on 30+ minute seeks.
+	//
+	// The catch is MPEG-TS muxing: by default ffmpeg shifts PTS by ~1.4s
+	// to give the demuxer headroom (PCR initial offset). hls.js then
+	// thinks the first segment starts at t=1.4s rather than t=0 and the
+	// playback clock drifts off by that amount, which the user
+	// experiences as "I clicked 36:41 and landed at ~36:18" (offset +
+	// snap_keyframe combination).
+	//
+	// -muxpreload 0 -muxdelay 0 disables the PTS shift so segments
+	// expose their natural starting timestamp (effectively 0). The HLS
+	// timeline ends up flush with the source-relative seek.
+	//
+	// Earlier attempts that were wrong:
 	//   - post-input -ss + copy : snap keyframe-after (+0..+5s drift)
-	//   - pre-input -ss + force_key_frames : -20s drift (combo bug)
-	//   - post-input -ss + re-encode  : accurate but ffmpeg slow-decodes
-	//     from frame 0 → manifestLoadTimeOut on deep seeks (>5min)
-	//
-	// What actually works: HYBRID seek with re-encode.
-	//   -ss (N - preRoll) before -i  → fast seek to keyframe at-or-before
-	//   -ss preRoll       after  -i  → decode-and-discard preRoll seconds
-	//                                  inside the *post-seek* stream so the
-	//                                  re-encoder starts exactly at N
-	//   -c:v libx264 -preset ultrafast → cheap accurate re-encode
-	//
-	// preRoll=8s is enough to cross at least one keyframe on every common
-	// codec (H.264/HEVC GOP ≤ 10s in practice) without ballooning startup
-	// latency: ffmpeg decodes ~8s of source before writing the first HLS
-	// segment, well under the 10s manifestLoadTimeOut hls.js default.
+	//   - pre-input -ss + force_key_frames + tune zerolatency : -20s
+	//   - hybrid two-stage -ss : second -ss treated as output position
+	//     by ffmpeg, decoded from file-start of the *post-seek* stream
+	//     which gave nonsensical offsets
 	if opts.StartSec > 0 {
-		const preRoll = 8.0
-		seekTo := opts.StartSec - preRoll
-		trim := preRoll
-		if seekTo < 0 {
-			trim = opts.StartSec
-			seekTo = 0
-		}
-		args = append(args, "-ss", fmt.Sprintf("%.3f", seekTo))
+		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 		args = append(args, "-i", opts.FilePath)
-		args = append(args, "-ss", fmt.Sprintf("%.3f", trim))
 		args = append(args,
 			"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
 			"-c:v", "libx264",
 			"-preset", "ultrafast",
 			"-pix_fmt", "yuv420p",
+			"-muxpreload", "0",
+			"-muxdelay", "0",
 		)
 	} else {
 		args = append(args, "-i", opts.FilePath)
