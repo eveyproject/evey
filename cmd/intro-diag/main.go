@@ -35,9 +35,22 @@ const (
 )
 
 var (
-	interval = envIntDefault("INTERVAL", 15)
-	cutoff   = envIntDefault("CUTOFF", 52)
+	interval    = envIntDefault("INTERVAL", 15)
+	cutoff      = envIntDefault("CUTOFF", 52)
+	fmThreshold = envFloatDefault("THRESHOLD", 0.50)
 )
+
+func envFloatDefault(key string, def float64) float64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return def
+	}
+	return f
+}
 
 func envIntDefault(key string, def int) int {
 	v := os.Getenv(key)
@@ -133,7 +146,6 @@ func main() {
 	for _, s := range siblings {
 		allEps = append(allEps, s.hashes)
 	}
-	const fmThreshold = 0.50 // matches production
 	required := int(float64(len(allEps))*fmThreshold + 0.999)
 	fmt.Printf("FrequencyMap (Hamming<=8, threshold %.2f → required ≥%d/%d episodes)\n", fmThreshold, required, len(allEps))
 	intro := make(map[uint64]bool)

@@ -43,10 +43,17 @@ type introConfig struct {
 // defaultIntroConfig returns the values previously hardcoded throughout the
 // pipeline. Any field omitted from the persisted JSON falls back to one of
 // these.
+//
+// FreqMapThreshold = 0.30: a frame is considered intro-candidate if it
+// appears in ≥30% of the season's episodes. Picked empirically — at 0.50
+// the Robin Hood S1 intro was missed because only 3 of 6 episodes carry it
+// (cold-open variability). The audio confirmation pass (CorrThreshold +
+// MinRatio) downstream still filters false positives, so a permissive
+// visual threshold here is safe.
 func defaultIntroConfig() introConfig {
 	return introConfig{
 		MaxHamming:         8,
-		FreqMapThreshold:   0.50,
+		FreqMapThreshold:   0.30,
 		PadSec:             10.0,
 		SearchSec:          30.0,
 		BinMs:              250,
