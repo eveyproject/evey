@@ -1,0 +1,6 @@
+name: php-string-concat-rce-v2
+version: 1.0.0
+kind: plugin
+language: php
+entrypoint: index.php
+permissions: []

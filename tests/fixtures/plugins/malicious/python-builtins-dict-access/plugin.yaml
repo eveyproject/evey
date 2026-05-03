@@ -1,0 +1,6 @@
+name: python-builtins-dict-access
+version: 1.0.0
+kind: plugin
+language: python
+entrypoint: main.py
+permissions: []

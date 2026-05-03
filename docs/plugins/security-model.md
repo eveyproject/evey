@@ -72,6 +72,20 @@ CRITICAL findings or `mime_mismatch` set `Safe = false` and block install.
 
 Source: `internal/adapters/driven/pluginrunner/analyzer.go`, `analyzer_normalize.go`.
 
+#### Best-effort, not enforcement
+
+The analyzer is regex- and pattern-based. It defuses well-known obfuscation classes but **cannot guarantee detection of every adversarial bypass**. Class-level coverage examples:
+
+| Class | Detected | Adversarial variants known to bypass (tracked in fixtures) |
+|---|---|---|
+| PHP variable-callable from string concat | `$f = "sys" . "tem"; $f($cmd)` (alias pre-pass) | `$x="sys"; $y="tem"; $f=$x.$y` (multi-step concat needs fixed-point resolution) |
+| Python builtin lookup via name | `getattr(__builtins__, "exec")` | `__builtins__.__dict__["exec"]` (dict indexing) |
+| JS `Function.constructor` escape | `(fn).constructor("...")()` immediate call | `const F = (fn).constructor; F("...")` (stored ref) |
+
+Each known bypass class lives in `tests/fixtures/plugins/malicious/` as a permanent regression test. Adding a new bypass requires: (1) fixture committed, (2) analyzer rule extended, (3) `installer_security_test.go` flips the case from `workerANeeded:true` → `false`.
+
+**Enforcement boundary is the bwrap sandbox + cgroups + IPC peer-cred (layers 6-7), not the analyzer.** A plugin that slips a CRITICAL pattern past the analyzer still cannot read `/data`, fork-bomb past `pids.max`, or call gRPC methods it has no permission for. The analyzer is one layer in defense-in-depth, useful to surface obvious malicious code at preview time and reduce the bwrap attack surface — not the perimeter.
+
 ### 4. Cosign signature verification
 
 Configurable via `evey.yaml` key `cosign_policy`:

@@ -75,6 +75,28 @@ func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 			workerANeeded: false,
 			expectedCat:   "", // any critical finding is sufficient
 		},
+		// === adversarial variants (class-level coverage, not token-level) ===
+		// php-string-concat-rce-v2: intermediate vars before concat ($x="sys"; $y="tem"; $f=$x.$y).
+		// Requires fixed-point alias resolution (substitute $x and $y BEFORE folding $x.$y).
+		{
+			dir:           "php-string-concat-rce-v2",
+			workerANeeded: true, // current alias pre-pass is single-pass, doesn't recurse
+			expectedCat:   "shell_exec",
+		},
+		// python-builtins-dict-access: __builtins__.__dict__[name] indexing. f-string fold
+		// produces v="eval" but pattern only matches getattr(builtins, "..."), not __dict__[v].
+		{
+			dir:           "python-builtins-dict-access",
+			workerANeeded: true,
+			expectedCat:   "dynamic_import",
+		},
+		// js-constructor-stored: const F = (fn).constructor; F(code). Pattern requires
+		// .constructor immediately followed by ( — stored reference evades.
+		{
+			dir:           "js-constructor-stored",
+			workerANeeded: true,
+			expectedCat:   "sandbox_escape",
+		},
 	}
 
 	base := fixtureRoot()
