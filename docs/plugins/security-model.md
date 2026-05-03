@@ -87,6 +87,23 @@ Each bypass class has a permanent regression test in `tests/fixtures/plugins/mal
 
 **Out of scope (sandbox enforces):** AST-level dynamic transforms — `strrev("metsys")`, `base64.b64decode(...)`, `eval(open("/encoded").read())`, runtime regex.replace. The regex analyzer cannot resolve these; the bwrap mount whitelist + cgroups + IPC peer-cred guarantee the plugin cannot escape, exfiltrate `/data`, or escalate beyond declared permissions.
 
+**Known false positives:** the analyzer matches inside source comments and docstrings. A `# pip install foo` line in a comment will trip the `runtime_install` rule. Acceptable: instructing operators to strip such comments before publishing is cheaper than per-language comment stripping in the regex analyzer; the bwrap mount whitelist + cgroups make the runtime block independent.
+
+#### Empirical runtime confirmation
+
+The mount whitelist was verified end-to-end against a running stack via a canary plugin (`tests/fixtures/plugins/canary-sandbox-runtime/`) that probes the sandbox view at startup:
+
+```
+ROOT_LIST count=9 dirs=bin,data,dev,etc,lib,proc,sbin,tmp,usr
+STAT ok /data type=dir size=60 kids=1 sample=plugins
+STAT_BLOCKED /var, /home, /root, /mnt, /media, /opt, /srv, /run (all ENOENT)
+STAT_BLOCKED /etc/passwd, /etc/shadow, /data/jwt.key (all ENOENT)
+```
+
+`/data` itself is mounted but contains only the plugin's own subdirectory (`/data/plugins`); no `jwt.key`, `backups`, `artworks` are visible. `/proc/1/environ` IS readable but PID 1 inside the namespace is the plugin itself (`--unshare-pid`), so reading its own environ is not a leak.
+
+Re-run the canary after any change to `runner_bwrap.go` to confirm the mount layout still blocks.
+
 **Enforcement boundary is the bwrap sandbox + cgroups + IPC peer-cred (layers 6-7), not the analyzer.** A plugin that slips a CRITICAL pattern past the analyzer still cannot read `/data`, fork-bomb past `pids.max`, or call gRPC methods it has no permission for. The analyzer is one layer in defense-in-depth, useful to surface obvious malicious code at preview time and reduce the bwrap attack surface — not the perimeter.
 
 ### 4. Cosign signature verification

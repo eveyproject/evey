@@ -1,0 +1,11 @@
+name: canary-sandbox-test
+version: 1.0.0
+kind: plugin
+language: nodejs
+description: Canary that probes sandbox isolation
+author: evey-test
+entrypoint: node index.js
+permissions:
+  - network
+external_fetch:
+  - api.open-meteo.com
