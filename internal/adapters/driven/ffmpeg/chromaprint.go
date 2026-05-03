@@ -42,14 +42,17 @@ func (c *Chromaprinter) Available(ctx context.Context) error {
 	return nil
 }
 
-// Compute extracts a Chromaprint fingerprint from the first lengthSec
-// seconds of the file starting at startSec. Use raw=true to get the
-// uint32 frames (needed for inter-episode comparison); the compact
-// base64 string returned by fpcalc by default is for AcoustID lookups
-// and can't be diffed.
+// Compute extracts a Chromaprint fingerprint from [startSec, startSec+lengthSec]
+// of the file. Returns the raw uint32 frames (needed for inter-episode
+// comparison; the compact base64 string returned by fpcalc by default is for
+// AcoustID lookups and can't be diffed bitwise).
 //
-// Returns the underlying []uint32 (typed alias) so the app-layer port
-// can declare its dependency without importing this adapter package.
+// fpcalc itself has no seek option — its -ts switch is for AcoustID timestamp
+// metadata, not for skipping into the input — so we pipe the audio through
+// ffmpeg with -ss/-t and let fpcalc read from stdin.
+//
+// Returns the underlying []uint32 (typed alias) so the app-layer port can
+// declare its dependency without importing this adapter package.
 func (c *Chromaprinter) Compute(ctx context.Context, filePath string, startSec, lengthSec float64) ([]uint32, error) {
 	if filePath == "" {
 		return nil, errors.New("empty file path")
@@ -57,19 +60,39 @@ func (c *Chromaprinter) Compute(ctx context.Context, filePath string, startSec, 
 	if lengthSec <= 0 {
 		lengthSec = 240 // default: scan first 4 minutes (covers the typical intro region)
 	}
-	args := []string{
-		"-raw",
-	}
-	if startSec > 0 {
-		args = append(args, "-ts", strconv.FormatFloat(startSec, 'f', 3, 64))
-	}
-	args = append(args, "-length", strconv.FormatFloat(lengthSec, 'f', 0, 64), filePath)
-
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, c.binary, args...).Output()
+
+	ffmpegArgs := []string{"-nostdin", "-hide_banner", "-loglevel", "error"}
+	if startSec > 0 {
+		ffmpegArgs = append(ffmpegArgs, "-ss", strconv.FormatFloat(startSec, 'f', 3, 64))
+	}
+	ffmpegArgs = append(ffmpegArgs,
+		"-i", filePath,
+		"-t", strconv.FormatFloat(lengthSec, 'f', 3, 64),
+		"-map", "0:a:0",
+		"-vn",
+		"-f", "wav",
+		"-",
+	)
+	ffmpegCmd := exec.CommandContext(ctx, "ffmpeg", ffmpegArgs...)
+	pipe, err := ffmpegCmd.StdoutPipe()
 	if err != nil {
-		return nil, fmt.Errorf("fpcalc: %w", err)
+		return nil, fmt.Errorf("ffmpeg stdout pipe: %w", err)
+	}
+	ffmpegCmd.Stderr = nil
+	if err := ffmpegCmd.Start(); err != nil {
+		return nil, fmt.Errorf("ffmpeg start: %w", err)
+	}
+
+	fpCmd := exec.CommandContext(ctx, c.binary, "-raw", "-length", strconv.FormatFloat(lengthSec, 'f', 0, 64), "-")
+	fpCmd.Stdin = pipe
+	out, fpErr := fpCmd.Output()
+	// Wait for ffmpeg to finish so we don't leak the process; ignore its exit
+	// status because EOF on stdout is normal once fpcalc closed the pipe.
+	_ = ffmpegCmd.Wait()
+	if fpErr != nil {
+		return nil, fmt.Errorf("fpcalc: %w", fpErr)
 	}
 	return parseFpcalcRawOutput(out)
 }
