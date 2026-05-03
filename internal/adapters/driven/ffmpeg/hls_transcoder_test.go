@@ -536,12 +536,12 @@ func TestBuildFFmpegArgs_H264Copy_UsesTSSegments(t *testing.T) {
 	assert.NotContains(t, joined, "-hls_segment_type fmp4")
 }
 
-// Verifies that buildCopyVideoArgs emits -ss AFTER -i (post-input/slow seek),
-// not before. With -c:v copy, pre-input -ss snaps to the previous keyframe
-// (often 5-10s before the user-clicked timestamp); post-input -ss snaps to
-// the NEXT keyframe (typically <5s ahead). The latter is less surprising
-// in the player UI.
-func TestTranscoding_BuildFFmpegArgs_CopyVideoSeekIsPostInput(t *testing.T) {
+// Verifies that buildCopyVideoArgs forces a video re-encode when StartSec > 0.
+// Stream copy can't trim sub-keyframe (any -ss snaps to the previous
+// keyframe), so users would see the timeline land 5-10s before the click.
+// Re-encode at -preset ultrafast lets us place a key-frame exactly at the
+// requested timestamp.
+func TestTranscoding_BuildFFmpegArgs_CopyVideoSeekTriggersReencode(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:       "/tmp/test",
 		FilePath:        "/source.mkv",
@@ -552,26 +552,31 @@ func TestTranscoding_BuildFFmpegArgs_CopyVideoSeekIsPostInput(t *testing.T) {
 		StartSec:        358.5,
 	}
 	args := ffmpeg.BuildFFmpegArgs(opts)
-	iIdx := -1
-	ssIdx := -1
-	for i, a := range args {
-		if a == "-i" && iIdx == -1 {
-			iIdx = i
-		}
-		if a == "-ss" && ssIdx == -1 {
-			ssIdx = i
-		}
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-ss 358.500", "must seek at requested timestamp")
+	assert.Contains(t, joined, "-c:v libx264", "StartSec>0 must force video re-encode (copy can't trim sub-keyframe)")
+	assert.NotContains(t, joined, "-c:v copy", "copy mode must be replaced when seeking")
+	assert.Contains(t, joined, "-preset ultrafast", "use cheap preset to keep CPU acceptable")
+	assert.Contains(t, joined, "-force_key_frames", "must force keyframe at seek point")
+}
+
+// Sanity: with StartSec == 0 we keep the cheap stream-copy path because
+// no precision problem to solve.
+func TestTranscoding_BuildFFmpegArgs_CopyVideoNoSeekKeepsCopy(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:       "/tmp/test",
+		FilePath:        "/source.mkv",
+		Profiles:        transcoding.DefaultHLSProfiles,
+		VideoDecision:   "copy",
+		AudioDecision:   "copy",
+		AudioTrackIndex: 0,
+		StartSec:        0,
 	}
-	if iIdx == -1 || ssIdx == -1 {
-		t.Fatalf("expected both -i and -ss in args, got: %v", args)
-	}
-	if ssIdx < iIdx {
-		t.Errorf("expected -ss AFTER -i (post-input slow seek), got -ss at %d before -i at %d", ssIdx, iIdx)
-	}
-	// Sanity: the value following -ss is the StartSec we asked for.
-	if ssIdx+1 >= len(args) || args[ssIdx+1] != "358.500" {
-		t.Errorf("expected -ss 358.500 after -i, got -ss %q", args[ssIdx+1])
-	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-c:v copy", "StartSec=0 must stay on stream copy")
+	assert.NotContains(t, joined, "-c:v libx264", "no re-encode needed at StartSec=0")
+	assert.NotContains(t, joined, "-ss ", "no -ss when StartSec=0")
 }
 
 // Kills hls_transcoder.go:175:19 CONDITIONALS_BOUNDARY (`StartSec > 0` vs `>= 0`)

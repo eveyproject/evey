@@ -604,13 +604,18 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 		} else if result != nil && len(result.candidates) > 0 {
 			confirmed := s.confirmAudioCandidates(ctx, item, result, cfg)
 			if len(confirmed) > 0 {
-				// Boundaries from the trickplay+audio stage are already
-				// trustworthy (real keyframe ms via showinfo + audio cross-
-				// correlation). PrecisionPass used to refine via silencedetect
-				// but it picks the *first* silence/black in the input window,
-				// which collapses to ~1s when an episode opens with a black
-				// studio logo. Skip it.
-				return classifyConfirmed(confirmed, cfg), nil
+				// pHash boundaries cover only the *matched* frames, which
+				// can be a strict subset of the real intro: title-card
+				// frames stable across episodes match, but the establishing
+				// shots and intertitles around them are unique-per-episode
+				// and don't. Use silencedetect+blackdetect on a wider
+				// window around each pHash window to widen the boundaries
+				// out to the real start/end (silence before/after the
+				// theme music). Anchored at the pHash window, so the
+				// "first silence in the file" failure mode (studio logo
+				// at 0s) doesn't apply.
+				refined := s.refineWithPrecisionPass(ctx, item.File.Path, confirmed)
+				return classifyConfirmed(refined, cfg), nil
 			}
 			slog.Info("intro_detection.pipeline_decision",
 				slog.String("media_id", mediaItemID),
@@ -633,6 +638,57 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 		Source:     source,
 		Confidence: confidence,
 	}}, nil
+}
+
+// refineWithPrecisionPass widens each pHash window to the silence/black
+// boundaries surrounding it. The pHash window is the anchor (it survived
+// audio confirmation, so we trust it points at a real intro), but its raw
+// boundaries only cover the matched frames — the actual intro can extend
+// before the first match and after the last (frames unique per episode
+// don't match across siblings).
+//
+// Strategy: for each window, run silencedetect+blackdetect on a +/-15s
+// pad around the pHash boundaries. If a transition is found, use it.
+// Otherwise keep the pHash boundaries unchanged (defensive fallback).
+//
+// PrecisionPass used to be called on the whole episode and would lock onto
+// the first studio-logo silence at 0s — that failure mode doesn't apply
+// here because we anchor on the pHash window position.
+func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, filePath string, windows []confirmedWindow) []confirmedWindow {
+	if filePath == "" || len(windows) == 0 {
+		return windows
+	}
+	const padSec = 15.0
+	out := make([]confirmedWindow, 0, len(windows))
+	for _, w := range windows {
+		startSec := float64(w.startMs) / 1000
+		endSec := float64(w.endMs) / 1000
+		refStart, refEnd, err := s.detector.PrecisionPass(ctx, filePath, startSec, endSec, padSec)
+		if err != nil || refStart <= 0 || refEnd <= refStart {
+			out = append(out, w)
+			continue
+		}
+		// Sanity guard: refined window must overlap the pHash anchor and
+		// not extend more than 2× the pad on either side. Otherwise the
+		// silence detection latched onto something irrelevant — keep raw.
+		if refEnd < w.startMs-int64(2*padSec*1000) || refStart > w.endMs+int64(2*padSec*1000) {
+			out = append(out, w)
+			continue
+		}
+		slog.Debug("intro_detection.refined",
+			slog.Int64("phash_start_ms", w.startMs),
+			slog.Int64("phash_end_ms", w.endMs),
+			slog.Int64("refined_start_ms", refStart),
+			slog.Int64("refined_end_ms", refEnd),
+		)
+		out = append(out, confirmedWindow{
+			startMs:    refStart,
+			endMs:      refEnd,
+			matchCount: w.matchCount,
+			confidence: w.confidence,
+		})
+	}
+	return out
 }
 
 // matchWindow represents a contiguous time range of matching hashes.

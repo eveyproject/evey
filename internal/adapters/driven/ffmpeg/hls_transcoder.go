@@ -217,20 +217,36 @@ func needsFMP4Segments(streams []*library.MediaStream) bool {
 
 func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	var args []string
-	args = append(args, "-i", opts.FilePath)
-	// Post-input -ss: ffmpeg decodes-and-discards until the timestamp.
-	// With -c:v copy that lands on the first keyframe AT-OR-AFTER target
-	// (typically <5s ahead). Pre-input -ss would snap to the previous
-	// keyframe instead (sometimes 10+s before), which surprised users
-	// scrubbing the timeline in stream-copy mode (the only mode where the
-	// snap is unavoidable since copy can't trim sub-keyframe).
+	// Stream copy can't trim sub-keyframe, so any -ss (pre OR post -i) snaps
+	// to the previous keyframe and the user sees the timeline land 5-10s
+	// before what they clicked. When StartSec > 0 we force a video re-encode
+	// instead — it costs CPU but the new keyframe is placed exactly at
+	// StartSec so the player atterit pile.
+	//
+	// At StartSec == 0 we keep the cheap copy path (no seek, no precision
+	// problem to solve).
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
-	args = append(args,
-		"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
-		"-c:v", "copy",
-	)
+	args = append(args, "-i", opts.FilePath)
+	if opts.StartSec > 0 {
+		// Re-encode video for frame-accurate seek. -preset ultrafast keeps
+		// CPU low; -force_key_frames at the very start guarantees the HLS
+		// first segment starts on an I-frame at exactly StartSec.
+		args = append(args,
+			"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
+			"-c:v", "libx264",
+			"-preset", "ultrafast",
+			"-tune", "zerolatency",
+			"-force_key_frames", "expr:gte(t,n_forced*3)",
+			"-pix_fmt", "yuv420p",
+		)
+	} else {
+		args = append(args,
+			"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
+			"-c:v", "copy",
+		)
+	}
 	if opts.AudioDecision == "transcode" {
 		args = append(args,
 			"-c:a", resolveAudioEncoder(opts.AudioCodec),
