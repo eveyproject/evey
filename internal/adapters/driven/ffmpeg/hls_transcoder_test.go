@@ -557,7 +557,23 @@ func TestTranscoding_BuildFFmpegArgs_CopyVideoSeekTriggersReencode(t *testing.T)
 	assert.Contains(t, joined, "-c:v libx264", "StartSec>0 must force video re-encode (copy can't trim sub-keyframe)")
 	assert.NotContains(t, joined, "-c:v copy", "copy mode must be replaced when seeking")
 	assert.Contains(t, joined, "-preset ultrafast", "use cheap preset to keep CPU acceptable")
-	assert.Contains(t, joined, "-force_key_frames", "must force keyframe at seek point")
+	// -ss must come AFTER -i so ffmpeg does an accurate slow seek
+	// (decode-and-discard from frame 0). Pre-input -ss with re-encode
+	// observed -20s drift in the wild.
+	iIdx := -1
+	ssIdx := -1
+	for i, a := range args {
+		if a == "-i" && iIdx == -1 {
+			iIdx = i
+		}
+		if a == "-ss" && ssIdx == -1 {
+			ssIdx = i
+		}
+	}
+	if iIdx == -1 || ssIdx == -1 {
+		t.Fatalf("expected both -i and -ss in args, got: %v", args)
+	}
+	assert.Greater(t, ssIdx, iIdx, "expected -ss AFTER -i for accurate seek with re-encode")
 }
 
 // Sanity: with StartSec == 0 we keep the cheap stream-copy path because

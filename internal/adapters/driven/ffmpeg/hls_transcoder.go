@@ -217,28 +217,28 @@ func needsFMP4Segments(streams []*library.MediaStream) bool {
 
 func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	var args []string
-	// Stream copy can't trim sub-keyframe, so any -ss (pre OR post -i) snaps
-	// to the previous keyframe and the user sees the timeline land 5-10s
-	// before what they clicked. When StartSec > 0 we force a video re-encode
-	// instead — it costs CPU but the new keyframe is placed exactly at
-	// StartSec so the player atterit pile.
+	// Seek precision matters: with stream copy, any -ss (pre OR post -i)
+	// snaps to the previous keyframe and the user lands 5-10s before
+	// what they clicked. Earlier attempt at re-encoding with
+	// -force_key_frames + -tune zerolatency made things worse (-20s
+	// observed) — the combo confused ffmpeg's seek+keyframe accounting.
 	//
-	// At StartSec == 0 we keep the cheap copy path (no seek, no precision
-	// problem to solve).
-	if opts.StartSec > 0 {
-		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
-	}
+	// What actually works: post-input -ss (slow accurate seek) + plain
+	// libx264 re-encode at -preset ultrafast. ffmpeg decodes-and-discards
+	// from frame 0 until the timestamp, then starts re-encoding exactly
+	// there. The output's first frame IS at StartSec; HLS segments
+	// inherit accurate PTS.
+	//
+	// CPU cost is minimal at ultrafast preset (~real-time-plus on a
+	// modern core) and only paid on seeks (StartSec > 0). At StartSec=0
+	// we keep the cheap copy path.
 	args = append(args, "-i", opts.FilePath)
 	if opts.StartSec > 0 {
-		// Re-encode video for frame-accurate seek. -preset ultrafast keeps
-		// CPU low; -force_key_frames at the very start guarantees the HLS
-		// first segment starts on an I-frame at exactly StartSec.
+		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 		args = append(args,
 			"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
 			"-c:v", "libx264",
 			"-preset", "ultrafast",
-			"-tune", "zerolatency",
-			"-force_key_frames", "expr:gte(t,n_forced*3)",
 			"-pix_fmt", "yuv420p",
 		)
 	} else {
