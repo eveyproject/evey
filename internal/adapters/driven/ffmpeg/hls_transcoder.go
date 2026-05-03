@@ -217,24 +217,36 @@ func needsFMP4Segments(streams []*library.MediaStream) bool {
 
 func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	var args []string
-	// Seek precision matters: with stream copy, any -ss (pre OR post -i)
-	// snaps to the previous keyframe and the user lands 5-10s before
-	// what they clicked. Earlier attempt at re-encoding with
-	// -force_key_frames + -tune zerolatency made things worse (-20s
-	// observed) — the combo confused ffmpeg's seek+keyframe accounting.
+	// HLS seek precision is a 3-way tradeoff between drift, CPU cost, and
+	// manifest start-up latency. Earlier attempts:
+	//   - pre-input -ss + copy  : snap keyframe-before (-5..-10s drift)
+	//   - post-input -ss + copy : snap keyframe-after (+0..+5s drift)
+	//   - pre-input -ss + force_key_frames : -20s drift (combo bug)
+	//   - post-input -ss + re-encode  : accurate but ffmpeg slow-decodes
+	//     from frame 0 → manifestLoadTimeOut on deep seeks (>5min)
 	//
-	// What actually works: post-input -ss (slow accurate seek) + plain
-	// libx264 re-encode at -preset ultrafast. ffmpeg decodes-and-discards
-	// from frame 0 until the timestamp, then starts re-encoding exactly
-	// there. The output's first frame IS at StartSec; HLS segments
-	// inherit accurate PTS.
+	// What actually works: HYBRID seek with re-encode.
+	//   -ss (N - preRoll) before -i  → fast seek to keyframe at-or-before
+	//   -ss preRoll       after  -i  → decode-and-discard preRoll seconds
+	//                                  inside the *post-seek* stream so the
+	//                                  re-encoder starts exactly at N
+	//   -c:v libx264 -preset ultrafast → cheap accurate re-encode
 	//
-	// CPU cost is minimal at ultrafast preset (~real-time-plus on a
-	// modern core) and only paid on seeks (StartSec > 0). At StartSec=0
-	// we keep the cheap copy path.
-	args = append(args, "-i", opts.FilePath)
+	// preRoll=8s is enough to cross at least one keyframe on every common
+	// codec (H.264/HEVC GOP ≤ 10s in practice) without ballooning startup
+	// latency: ffmpeg decodes ~8s of source before writing the first HLS
+	// segment, well under the 10s manifestLoadTimeOut hls.js default.
 	if opts.StartSec > 0 {
-		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
+		const preRoll = 8.0
+		seekTo := opts.StartSec - preRoll
+		trim := preRoll
+		if seekTo < 0 {
+			trim = opts.StartSec
+			seekTo = 0
+		}
+		args = append(args, "-ss", fmt.Sprintf("%.3f", seekTo))
+		args = append(args, "-i", opts.FilePath)
+		args = append(args, "-ss", fmt.Sprintf("%.3f", trim))
 		args = append(args,
 			"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
 			"-c:v", "libx264",
@@ -242,6 +254,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 			"-pix_fmt", "yuv420p",
 		)
 	} else {
+		args = append(args, "-i", opts.FilePath)
 		args = append(args,
 			"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
 			"-c:v", "copy",

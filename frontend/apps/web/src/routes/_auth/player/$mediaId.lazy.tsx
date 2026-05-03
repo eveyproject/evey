@@ -323,7 +323,17 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
               videoRef.current = el;
               usePlayerStore.getState().setVideoElement(el);
               if (el) {
-                setPlayerCleanup(() => { el.pause(); el.removeAttribute("src"); el.load(); });
+                setPlayerCleanup(() => {
+                  // play() returns a Promise that rejects with AbortError
+                  // when pause() interrupts an in-flight fetch (esp. on
+                  // HLS reload mid-seek). Swallow it — by the time we're
+                  // here the user has closed the player, no UX impact.
+                  try { el.pause(); } catch { /* ignore */ }
+                  try {
+                    el.removeAttribute("src");
+                    el.load();
+                  } catch { /* ignore */ }
+                });
               } else {
                 setPlayerCleanup(null);
               }

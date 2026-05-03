@@ -537,10 +537,10 @@ func TestBuildFFmpegArgs_H264Copy_UsesTSSegments(t *testing.T) {
 }
 
 // Verifies that buildCopyVideoArgs forces a video re-encode when StartSec > 0.
-// Stream copy can't trim sub-keyframe (any -ss snaps to the previous
-// keyframe), so users would see the timeline land 5-10s before the click.
-// Re-encode at -preset ultrafast lets us place a key-frame exactly at the
-// requested timestamp.
+// Hybrid seek: pre-input fast seek to keyframe-before, post-input trim
+// for accuracy, re-encode at ultrafast. Yields frame-accurate output
+// without the manifestLoadTimeOut that pure post-input -ss caused on
+// deep seeks (ffmpeg decoded everything from frame 0).
 func TestTranscoding_BuildFFmpegArgs_CopyVideoSeekTriggersReencode(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:       "/tmp/test",
@@ -553,27 +553,50 @@ func TestTranscoding_BuildFFmpegArgs_CopyVideoSeekTriggersReencode(t *testing.T)
 	}
 	args := ffmpeg.BuildFFmpegArgs(opts)
 	joined := strings.Join(args, " ")
-	assert.Contains(t, joined, "-ss 358.500", "must seek at requested timestamp")
 	assert.Contains(t, joined, "-c:v libx264", "StartSec>0 must force video re-encode (copy can't trim sub-keyframe)")
 	assert.NotContains(t, joined, "-c:v copy", "copy mode must be replaced when seeking")
 	assert.Contains(t, joined, "-preset ultrafast", "use cheap preset to keep CPU acceptable")
-	// -ss must come AFTER -i so ffmpeg does an accurate slow seek
-	// (decode-and-discard from frame 0). Pre-input -ss with re-encode
-	// observed -20s drift in the wild.
+	// Hybrid seek: -ss BEFORE -i carries (StartSec - preRoll) for fast
+	// keyframe-snap, -ss AFTER -i carries preRoll for accurate trim.
+	// preRoll = 8s, so for StartSec=358.5 we expect -ss 350.500 then
+	// -ss 8.000.
+	assert.Contains(t, joined, "-ss 350.500", "expected pre-input fast seek at StartSec - preRoll")
+	assert.Contains(t, joined, "-ss 8.000", "expected post-input trim at preRoll seconds")
 	iIdx := -1
-	ssIdx := -1
+	preIdx := -1
+	postIdx := -1
 	for i, a := range args {
-		if a == "-i" && iIdx == -1 {
+		if a == "-i" {
 			iIdx = i
 		}
-		if a == "-ss" && ssIdx == -1 {
-			ssIdx = i
+		if a == "-ss" && preIdx == -1 && iIdx == -1 {
+			preIdx = i
+		}
+		if a == "-ss" && iIdx >= 0 && postIdx == -1 {
+			postIdx = i
 		}
 	}
-	if iIdx == -1 || ssIdx == -1 {
-		t.Fatalf("expected both -i and -ss in args, got: %v", args)
+	assert.GreaterOrEqual(t, preIdx, 0, "expected pre-input -ss")
+	assert.Greater(t, postIdx, iIdx, "expected post-input -ss after -i")
+}
+
+// Pre-roll guard: when StartSec < preRoll (8s), the pre-input -ss must
+// clamp to 0 (no negative seek) and the post-input trim drops to
+// StartSec so the math still lands on the requested second.
+func TestTranscoding_BuildFFmpegArgs_CopyVideoSmallSeek_ClampsPreRoll(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:       "/tmp/test",
+		FilePath:        "/source.mkv",
+		Profiles:        transcoding.DefaultHLSProfiles,
+		VideoDecision:   "copy",
+		AudioDecision:   "copy",
+		AudioTrackIndex: 0,
+		StartSec:        4.0,
 	}
-	assert.Greater(t, ssIdx, iIdx, "expected -ss AFTER -i for accurate seek with re-encode")
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-ss 0.000", "pre-roll must clamp to 0 for small seek")
+	assert.Contains(t, joined, "-ss 4.000", "post-input trim must equal StartSec")
 }
 
 // Sanity: with StartSec == 0 we keep the cheap stream-copy path because
