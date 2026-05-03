@@ -1154,12 +1154,16 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 		return nil
 	}
 	const (
-		// Chromaprint frames are ~123ms each at 8 fps. A similarity ≥ 0.85
-		// (i.e. ≥ 85% of bits match between target and aligned sibling)
-		// is the standard threshold for "same recording" used by
-		// AcoustID/MusicBrainz; we keep it the same since the intro is
-		// supposed to be the *same* musical content across episodes.
-		chromaprintSimThreshold = 0.85
+		// Chromaprint frames are ~123ms each at 8 fps. AcoustID's "same
+		// recording" cutoff is 0.85, but that's for exact takes (mp3
+		// re-encodings of the same master). Cross-episode intro detection
+		// is different: same musical content, slightly different mixing /
+		// mastering / dub track per episode, so legitimate matches
+		// observed live drop to ~0.55-0.70 even on aligned windows.
+		// 0.65 keeps random-pair noise (~0.50) out while accepting real
+		// recurring intros. Drift coherence + min ratio downstream filter
+		// any false positive that slips through.
+		chromaprintSimThreshold = 0.65
 		framesPerSecond         = 8.0 // fpcalc default rate
 	)
 
