@@ -76,25 +76,27 @@ func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 			expectedCat:   "", // any critical finding is sufficient
 		},
 		// === adversarial variants (class-level coverage, not token-level) ===
-		// php-string-concat-rce-v2: intermediate vars before concat ($x="sys"; $y="tem"; $f=$x.$y).
-		// Requires fixed-point alias resolution (substitute $x and $y BEFORE folding $x.$y).
+		// php-string-concat-rce-v2: intermediate vars before concat. Detected by
+		// fixed-point alias resolution: $x and $y resolve to literals, $f resolves
+		// to "system", $f($cmd) → system($cmd).
 		{
 			dir:           "php-string-concat-rce-v2",
-			workerANeeded: true, // current alias pre-pass is single-pass, doesn't recurse
+			workerANeeded: false,
 			expectedCat:   "shell_exec",
 		},
-		// python-builtins-dict-access: __builtins__.__dict__[name] indexing. f-string fold
-		// produces v="eval" but pattern only matches getattr(builtins, "..."), not __dict__[v].
+		// python-builtins-dict-access: __builtins__.__dict__[name] indexing.
+		// Detected by literal dict-bracket pattern (after f-string fold inlines
+		// the var, or directly if literal).
 		{
 			dir:           "python-builtins-dict-access",
-			workerANeeded: true,
+			workerANeeded: false,
 			expectedCat:   "dynamic_import",
 		},
-		// js-constructor-stored: const F = (fn).constructor; F(code). Pattern requires
-		// .constructor immediately followed by ( — stored reference evades.
+		// js-constructor-stored: const F = (fn).constructor; F(code). Detected
+		// by stored-constructor tracking: F( is rewritten to .constructor(.
 		{
 			dir:           "js-constructor-stored",
-			workerANeeded: true,
+			workerANeeded: false,
 			expectedCat:   "sandbox_escape",
 		},
 	}

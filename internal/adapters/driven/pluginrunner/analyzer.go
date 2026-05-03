@@ -183,6 +183,22 @@ var analyzerRules = []analyzerRule{
 
 	// Host secret access — CRITICAL (covers /data/*.key, /data/jwt, .aws/credentials, /run/secrets/, etc.)
 	{regexp.MustCompile(`(?i)(/data/[^\s"'` + "`" + `]*\.(?:key|env|pem|p12|pfx)|/data/jwt|/etc/passwd|/etc/shadow|\.aws/credentials|/run/secrets/)`), SeverityCritical, "filesystem", "host secret access", nil},
+
+	// __builtins__.__dict__["exec"] — dict bracket indexing to retrieve builtin
+	// by name (literal). Critical if literal is dangerous.
+	{regexp.MustCompile(`__builtins__\s*\.\s*__dict__\s*\[\s*["'](exec|eval|system|__import__|compile|open)["']\s*\]`), SeverityCritical, "dynamic_import", "__builtins__.__dict__ bracket indexing", nil},
+
+	// __builtins__.__dict__[anything] — permissive variant. After alias
+	// resolution (resolveSimpleAliases) literals get inlined; this catches
+	// the unresolved case (variable name) so admin still sees a Warning.
+	{regexp.MustCompile(`__builtins__\s*\.\s*__dict__\s*\[`), SeverityWarning, "dynamic_import", "__builtins__ dict access — verify", nil},
+
+	// Stored .constructor reference followed by call: F(<ident>) where F is
+	// known to be a Function constructor. The resolver rewrites F( to
+	// .constructor( so the existing pattern at line 171 fires for literal-arg
+	// calls; this fallback catches calls with a variable argument
+	// (post-rewrite the line reads ".constructor(varname)").
+	{regexp.MustCompile(`\.constructor\s*\(\s*[a-zA-Z_]\w*\s*\)`), SeverityCritical, "sandbox_escape", "Function.constructor call with variable arg", nil},
 }
 
 // URL extraction patterns — all network schemes

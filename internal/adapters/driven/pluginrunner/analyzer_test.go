@@ -1751,3 +1751,166 @@ f("safe")
 		}
 	}
 }
+
+// TestAnalyzerV2_FixedPointMultiStepConcat: $x="sys"; $y="tem"; $f=$x.$y; $f(...)
+// requires fixed-point alias resolution (single-pass would fail because
+// the operands are vars, not literals, when $f is assigned).
+func TestAnalyzerV2_FixedPointMultiStepConcat(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.php", `<?php
+$x = "sys";
+$y = "tem";
+$f = $x . $y;
+$cmd = $_GET['c'];
+$f($cmd);
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hasCrit := false
+	for _, f := range report.Findings {
+		if f.Severity == SeverityCritical && f.Category == "shell_exec" {
+			hasCrit = true
+		}
+	}
+	if !hasCrit {
+		t.Errorf("multi-step concat must produce Critical/shell_exec, got: %+v", report.Findings)
+	}
+}
+
+// TestAnalyzerV2_FragmentedManyVars: 6 single-letter fragments concatenated
+// must not blow up false-positives, but the final concatenated value must
+// still trigger.
+func TestAnalyzerV2_FragmentedManyVars(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.php", `<?php
+$a = "s";
+$b = "y";
+$c = "s";
+$d = "t";
+$e = "e";
+$f = "m";
+$g = $a . $b . $c . $d . $e . $f;
+$g("id");
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hasCrit := false
+	for _, f := range report.Findings {
+		if f.Severity == SeverityCritical && f.Category == "shell_exec" {
+			hasCrit = true
+		}
+	}
+	if !hasCrit {
+		t.Errorf("fragmented multi-var concat must trigger, got: %+v", report.Findings)
+	}
+}
+
+// TestAnalyzerV2_CycleTerminates: $a=$b; $b=$a; $a("x") must not panic and
+// must not enter infinite recursion (fixed-point cap protects).
+func TestAnalyzerV2_CycleTerminates(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.php", `<?php
+$a = $b;
+$b = $a;
+$a("x");
+`)
+	// Just ensure no panic and analyze returns.
+	if _, err := AnalyzePlugin(dir); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestAnalyzerV2_NoFalsePositiveLegitGreeting: a benign multi-string concat
+// must not trigger any Critical finding.
+func TestAnalyzerV2_NoFalsePositiveLegitGreeting(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.js", `
+const a = "hello";
+const b = " ";
+const c = "world";
+const greeting = a + b + c;
+console.log(greeting);
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range report.Findings {
+		if f.Severity == SeverityCritical {
+			t.Errorf("benign greeting concat triggered Critical: %+v", f)
+		}
+	}
+}
+
+// TestAnalyzerV2_DictBuiltinAccessLiteral: __builtins__.__dict__["eval"] direct.
+func TestAnalyzerV2_DictBuiltinAccessLiteral(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.py", `
+fn = __builtins__.__dict__["eval"]
+fn("print(1)")
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hasCrit := false
+	for _, f := range report.Findings {
+		if f.Severity == SeverityCritical && f.Category == "dynamic_import" {
+			hasCrit = true
+		}
+	}
+	if !hasCrit {
+		t.Errorf("__dict__[literal] must trigger, got: %+v", report.Findings)
+	}
+}
+
+// TestAnalyzerV2_DictBuiltinAccessResolvedVar: __builtins__.__dict__[v]
+// where v resolves to "eval" via f-string fold + alias substitution.
+func TestAnalyzerV2_DictBuiltinAccessResolvedVar(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.py", `
+v = "eval"
+fn = __builtins__.__dict__[v]
+fn("print(1)")
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hasCrit := false
+	for _, f := range report.Findings {
+		if f.Severity == SeverityCritical && f.Category == "dynamic_import" {
+			hasCrit = true
+		}
+	}
+	if !hasCrit {
+		t.Errorf("__dict__[var-resolves-to-eval] must trigger, got: %+v", report.Findings)
+	}
+}
+
+// TestAnalyzerV2_StoredConstructor: F = (fn).constructor; F("...").
+func TestAnalyzerV2_StoredConstructor(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.js", `
+const F = (function(){}).constructor;
+const evil = F("return this");
+console.log(evil());
+`)
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hasCrit := false
+	for _, f := range report.Findings {
+		if f.Severity == SeverityCritical && f.Category == "sandbox_escape" {
+			hasCrit = true
+		}
+	}
+	if !hasCrit {
+		t.Errorf("stored constructor must trigger, got: %+v", report.Findings)
+	}
+}

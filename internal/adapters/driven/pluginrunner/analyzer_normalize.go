@@ -367,35 +367,169 @@ var varIdentAssignRe = regexp.MustCompile(`^([a-zA-Z_]\w*)\s*=\s*([a-zA-Z_]\w*)\
 // Used to detect reassignments that would invalidate a previous binding.
 var anyAssignRe = regexp.MustCompile(`^[\$]?([a-zA-Z_]\w*)\s*=`)
 
+// varConcatAssignRe matches multi-operand variable concatenation, both PHP (.)
+// and JS/Python (+):
+//
+//	$f = $x . $y
+//	$g = $a . $b . $c . $d
+//	f = a + b
+//
+// The whole RHS (capture group 2) is split on the operator at substitution
+// time. Both single and double quotes for already-literal fragments are kept
+// so a mix like  $f = $a . "tem"  still works after $a is resolved.
+var varConcatAssignRe = regexp.MustCompile(`^[\$]?([a-zA-Z_]\w*)\s*=\s*([\$]?[a-zA-Z_"'][^;]*?(?:\s*[.+]\s*[\$]?[a-zA-Z_"'][^;]*?)+)\s*(?:;|$|#)`)
+
+// concatOperandRe matches a single operand inside a concat expression: either
+// a quoted literal or a bare variable name (with optional $).
+var concatOperandRe = regexp.MustCompile(`"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|[\$]?([a-zA-Z_]\w*)`)
+
+// constructorAssignRe matches stored .constructor references:
+//
+//	const F = (function(){}).constructor
+//	let F = obj.constructor
+//	var F = X.constructor;
+//
+// Captures the lhs name in group 1.
+var constructorAssignRe = regexp.MustCompile(`(?:const|let|var)\s+([a-zA-Z_]\w*)\s*=\s*[^;]*\.constructor(?:\s*;|\s*$)`)
+
+// resolveConcatOperands takes the RHS of a concat assignment and returns the
+// concatenated literal value if every operand resolves to a string literal
+// (either inline or via stringAlias). Returns the joined string and true on
+// success; otherwise returns "", false.
+func resolveConcatOperands(rhs string, stringAlias map[string]string) (string, bool) {
+	// Split on . and + at the top level (no nesting expected for the patterns
+	// we target — this is a regex-driven analyzer, not a full AST).
+	// Replace . and + outside of quotes with a sentinel, then split.
+	var b strings.Builder
+	inS, inD := false, false
+	for i := 0; i < len(rhs); i++ {
+		c := rhs[i]
+		switch {
+		case c == '\\' && i+1 < len(rhs):
+			b.WriteByte(c)
+			b.WriteByte(rhs[i+1])
+			i++
+			continue
+		case c == '"' && !inS:
+			inD = !inD
+		case c == '\'' && !inD:
+			inS = !inS
+		case (c == '.' || c == '+') && !inS && !inD:
+			b.WriteByte(0x1F)
+			continue
+		}
+		b.WriteByte(c)
+	}
+	parts := strings.Split(b.String(), "\x1f")
+
+	var out strings.Builder
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return "", false
+		}
+		if (strings.HasPrefix(p, `"`) && strings.HasSuffix(p, `"`)) ||
+			(strings.HasPrefix(p, `'`) && strings.HasSuffix(p, `'`)) {
+			if len(p) < 2 {
+				return "", false
+			}
+			out.WriteString(p[1 : len(p)-1])
+			continue
+		}
+		// Strip leading $ for PHP variables.
+		name := strings.TrimPrefix(p, "$")
+		if !isValidIdentifier(name) {
+			return "", false
+		}
+		v, ok := stringAlias[name]
+		if !ok {
+			return "", false
+		}
+		out.WriteString(v)
+	}
+	return out.String(), true
+}
+
+func isValidIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, c := range s {
+		if i == 0 && !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') {
+			return false
+		}
+		if i > 0 && !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') {
+			return false
+		}
+	}
+	return true
+}
+
+// maxAliasIterations caps the fixed-point loop for binding resolution. Cycles
+// like  $a = $b; $b = $a  cannot extend the binding map past iteration 1, so
+// 5 is a generous budget that still bounds CPU.
+//
+// LIMITATION: AST-based dynamic transforms (strrev("metsys"), base64.b64decode,
+// eval-of-encoded-bytes, regex.replace, etc.) remain out of scope for the regex
+// analyzer. The bwrap sandbox + cgroups (defense layers 6-7) are the actual
+// enforcement boundary; the analyzer surfaces obvious cases at preview time.
+const maxAliasIterations = 5
+
 // resolveSimpleAliases performs a file-level pre-pass that:
 //  1. Detects `import X as alias` for dangerous modules (os, subprocess).
 //  2. Detects `var = alias` chained assignments (e.g. m = _o where _o → os).
 //  3. Detects `$var = "dangerousName"` (PHP/Python) constant string assignments
 //     after string-concat folding.
-//  4. Substitutes alias usages so subsequent per-line rules can match them.
+//  4. Detects multi-operand concatenation `$f = $x . $y . "literal"` and
+//     resolves it to a literal via fixed-point iteration over the binding map.
+//  5. Detects stored `.constructor` references (`const F = X.constructor`)
+//     and rewrites later calls `F(...)` as `(X).constructor(...)` so the
+//     existing constructor-call rule fires.
+//  6. Substitutes alias usages so subsequent per-line rules can match them.
 //
 // Safety limits:
-//   - A variable that is re-assigned (any RHS) is dropped from the binding map.
-//   - String concat folding is applied to each line before binding extraction so
-//     `$f = "sys"."tem"` is seen as `$f = "system"`.
-//   - Only one level of module-alias chaining is resolved.
-//   - Object method chains are not followed.
+//   - A variable that is re-assigned to a different value is dropped from
+//     the binding map.
+//   - String concat folding is applied to each line before binding extraction
+//     so `$f = "sys"."tem"` is seen as `$f = "system"`.
+//   - Multi-step concat resolution iterates with maxAliasIterations cap.
+//   - Object method chains beyond the documented patterns are not followed.
 func resolveSimpleAliases(content string) string {
 	lines := strings.Split(content, "\n")
 
 	// moduleAlias maps alias → canonical module name ("os", "subprocess", …).
 	moduleAlias := map[string]string{}
-	// stringAlias maps varname → dangerous string value.
+	// stringAlias maps varname → dangerous string value (after fixed-point).
+	// Used for pass 2 substitution: $f → "system".
 	stringAlias := map[string]string{}
+	// allStringAlias maps varname → ANY string value (including innocent
+	// fragments like "sys", "tem"). Used by resolveConcatOperands so that
+	// a multi-step concat $f = $x . $y can be resolved when $x and $y are
+	// individually innocent fragments. The dangerousness check happens on
+	// the final concatenated value, not on the fragments.
+	allStringAlias := map[string]string{}
+	// constructorAlias maps varname → true when bound to an `X.constructor`
+	// reference (the actual prefix is irrelevant; we only need to know the
+	// lhs is a Function constructor handle).
+	constructorAlias := map[string]bool{}
 	// firstSeen tracks whether we have already recorded a binding for a var.
 	firstSeen := map[string]bool{}
-	// reassigned tracks vars that were assigned more than once (any RHS).
+	// reassigned tracks vars that were assigned to a different RHS later in
+	// the source — invalidates any prior binding.
 	reassigned := map[string]bool{}
+	// pendingConcat holds RHS of multi-operand concats we couldn't resolve
+	// in the first pass (operands not yet bound). We retry with fixed-point.
+	pendingConcat := map[string]string{}
 
-	// Pass 1: collect bindings (line by line, with per-line concat folding).
+	// Pass 1: collect bindings (line by line, with per-line normalization).
 	for _, rawLine := range lines {
-		// Apply concat folding so "$f = "sys"."tem"" → "$f = "system"" before matching.
-		line := strings.TrimSpace(foldStringConcat(rawLine))
+		// Apply f-string fold + join fold + concat fold so that
+		//   v = f"{'ev'}{'al'}"   becomes  v = "eval"
+		//   k = "".join(["e","x","e","c"])   becomes  k = "exec"
+		//   $f = "sys"."tem"   becomes  $f = "system"
+		// before binding extraction. The order matters: f-strings and joins
+		// produce quoted literals that the concat folder then merges.
+		line := strings.TrimSpace(foldStringConcat(foldJoin(foldFStrings(rawLine))))
 
 		// import X as alias  /  from pkg import X as alias
 		if m := importAliasRe.FindStringSubmatch(line); m != nil {
@@ -413,29 +547,41 @@ func resolveSimpleAliases(content string) string {
 			continue
 		}
 
+		// Stored .constructor reference: const F = (...).constructor
+		if cm := constructorAssignRe.FindStringSubmatch(line); cm != nil {
+			alias := cm[1]
+			if firstSeen[alias] {
+				reassigned[alias] = true
+				delete(constructorAlias, alias)
+			} else {
+				firstSeen[alias] = true
+				constructorAlias[alias] = true
+			}
+			continue
+		}
+
 		// Detect any assignment to track reassignments.
 		if m := anyAssignRe.FindStringSubmatch(line); m != nil {
 			varName := m[1]
 
-			// Check for string assignment: $f = "system" or f = 'exec'
+			// Check for string assignment: $f = "system" or f = 'exec' or f = "sys"
 			if sm := varStringAssignRe.FindStringSubmatch(line); sm != nil {
 				val := sm[2]
-				if dangerousStringValues[val] {
-					if firstSeen[varName] {
-						// Re-assigned — invalidate binding.
+				// Track every string assignment in allStringAlias so concat
+				// resolution can compose innocent fragments into a dangerous
+				// final value (e.g. $x="sys"; $y="tem"; $f=$x.$y → "system").
+				if firstSeen[varName] {
+					if existing, ok := allStringAlias[varName]; ok && existing != val {
 						reassigned[varName] = true
+						delete(allStringAlias, varName)
 						delete(stringAlias, varName)
 						delete(moduleAlias, varName)
-					} else {
-						firstSeen[varName] = true
-						stringAlias[varName] = val
 					}
 				} else {
-					// Assigned to a non-dangerous string value — invalidate any prior binding.
-					if firstSeen[varName] {
-						reassigned[varName] = true
-						delete(stringAlias, varName)
-						delete(moduleAlias, varName)
+					firstSeen[varName] = true
+					allStringAlias[varName] = val
+					if dangerousStringValues[val] {
+						stringAlias[varName] = val
 					}
 				}
 				continue
@@ -457,6 +603,25 @@ func resolveSimpleAliases(content string) string {
 				}
 			}
 
+			// Multi-operand concat: $f = $x . $y . "literal"
+			if cm := varConcatAssignRe.FindStringSubmatch(line); cm != nil {
+				lhs := cm[1]
+				rhs := cm[2]
+				// Try immediate resolution against allStringAlias (fragments
+				// allowed). If some operand is not yet bound, queue for
+				// fixed-point retry.
+				if val, ok := resolveConcatOperands(rhs, allStringAlias); ok {
+					firstSeen[lhs] = true
+					allStringAlias[lhs] = val
+					if dangerousStringValues[val] {
+						stringAlias[lhs] = val
+					}
+				} else {
+					pendingConcat[lhs] = rhs
+				}
+				continue
+			}
+
 			// Any other assignment to a tracked var → invalidate it.
 			if firstSeen[varName] {
 				reassigned[varName] = true
@@ -466,8 +631,32 @@ func resolveSimpleAliases(content string) string {
 		}
 	}
 
+	// Pass 1.5: fixed-point retry for pending concats. Each iteration may
+	// resolve more operands as earlier-pending bindings become known.
+	for iter := 0; iter < maxAliasIterations && len(pendingConcat) > 0; iter++ {
+		progress := false
+		for lhs, rhs := range pendingConcat {
+			if reassigned[lhs] {
+				delete(pendingConcat, lhs)
+				continue
+			}
+			if val, ok := resolveConcatOperands(rhs, allStringAlias); ok {
+				firstSeen[lhs] = true
+				allStringAlias[lhs] = val
+				if dangerousStringValues[val] {
+					stringAlias[lhs] = val
+				}
+				delete(pendingConcat, lhs)
+				progress = true
+			}
+		}
+		if !progress {
+			break
+		}
+	}
+
 	// Nothing to substitute → return early without allocating.
-	if len(moduleAlias) == 0 && len(stringAlias) == 0 {
+	if len(moduleAlias) == 0 && len(stringAlias) == 0 && len(constructorAlias) == 0 {
 		return content
 	}
 
@@ -481,13 +670,11 @@ func resolveSimpleAliases(content string) string {
 
 		// String alias substitutions: $varName( → dangerous(  and  varName( → dangerous(
 		for varName, dangerous := range stringAlias {
-			// PHP form: $varName(
 			phpPat := "$" + varName + "("
 			if strings.Contains(line, phpPat) {
 				line = strings.ReplaceAll(line, phpPat, dangerous+"(")
 				continue
 			}
-			// Python form: varName(  with word-boundary check (not preceded by . or \w)
 			pyPat := varName + "("
 			if idx := strings.Index(line, pyPat); idx >= 0 {
 				if idx == 0 || (line[idx-1] != '.' && !isWordChar(line[idx-1])) {
@@ -495,6 +682,31 @@ func resolveSimpleAliases(content string) string {
 				}
 			}
 		}
+
+		// Bracket indexing substitution: __dict__[var] → __dict__["literal"]
+		// when var resolves to a known string. Iterates allStringAlias because
+		// even fragments like "exec" may legitimately appear as an indexer.
+		for varName, val := range allStringAlias {
+			bracketPat := "[" + varName + "]"
+			if strings.Contains(line, bracketPat) {
+				line = strings.ReplaceAll(line, bracketPat, `["`+val+`"]`)
+			}
+		}
+
+		// Stored constructor: rewrite F( to .constructor( so the existing
+		// pattern catches the call. Skip the binding line itself.
+		for alias := range constructorAlias {
+			pat := alias + "("
+			if idx := strings.Index(line, pat); idx >= 0 {
+				if idx == 0 || (line[idx-1] != '.' && !isWordChar(line[idx-1])) {
+					// Don't rewrite the assignment line.
+					if !strings.Contains(line, alias+" =") && !strings.Contains(line, alias+"=") {
+						line = strings.Replace(line, pat, ".constructor(", 1)
+					}
+				}
+			}
+		}
+
 		result[i] = line
 	}
 

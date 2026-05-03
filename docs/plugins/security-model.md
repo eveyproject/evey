@@ -76,13 +76,16 @@ Source: `internal/adapters/driven/pluginrunner/analyzer.go`, `analyzer_normalize
 
 The analyzer is regex- and pattern-based. It defuses well-known obfuscation classes but **cannot guarantee detection of every adversarial bypass**. Class-level coverage examples:
 
-| Class | Detected | Adversarial variants known to bypass (tracked in fixtures) |
+| Class | Detected | Notes |
 |---|---|---|
-| PHP variable-callable from string concat | `$f = "sys" . "tem"; $f($cmd)` (alias pre-pass) | `$x="sys"; $y="tem"; $f=$x.$y` (multi-step concat needs fixed-point resolution) |
-| Python builtin lookup via name | `getattr(__builtins__, "exec")` | `__builtins__.__dict__["exec"]` (dict indexing) |
-| JS `Function.constructor` escape | `(fn).constructor("...")()` immediate call | `const F = (fn).constructor; F("...")` (stored ref) |
+| PHP variable-callable from string concat | `$f = "sys" . "tem"; $f($cmd)` (single-line) and `$x="sys"; $y="tem"; $f=$x.$y; $f($cmd)` (multi-step, fixed-point resolution) | Up to 5 fixed-point iterations, cycles `$a=$b; $b=$a` terminate cleanly |
+| Python builtin lookup via name | `getattr(__builtins__, "exec")` and `__builtins__.__dict__["exec"]` (literal or via resolved variable) | Dict bracket indexer triggers Critical when literal is dangerous |
+| JS `Function.constructor` escape | `(fn).constructor("...")()` immediate call and `const F = (fn).constructor; F("...")` (stored ref tracked by binding rewrite) | Calls with variable arg `F(code)` rewritten to `.constructor(code)` and matched by the variable-arg pattern |
+| Multi-step fragmented concat | `$a="s"; $b="y"; $c="s"; $d="t"; $e="e"; $f="m"; $g=$a.$b.$c.$d.$e.$f; $g(...)` | Innocent fragments tracked separately from "dangerous" values; the danger check fires on the final concatenated string only |
 
-Each known bypass class lives in `tests/fixtures/plugins/malicious/` as a permanent regression test. Adding a new bypass requires: (1) fixture committed, (2) analyzer rule extended, (3) `installer_security_test.go` flips the case from `workerANeeded:true` → `false`.
+Each bypass class has a permanent regression test in `tests/fixtures/plugins/malicious/`. Adding a new class requires: (1) fixture committed, (2) analyzer rule or normalize-pass extended, (3) `installer_security_test.go` flips `workerANeeded:true → false` once detection is in.
+
+**Out of scope (sandbox enforces):** AST-level dynamic transforms — `strrev("metsys")`, `base64.b64decode(...)`, `eval(open("/encoded").read())`, runtime regex.replace. The regex analyzer cannot resolve these; the bwrap mount whitelist + cgroups + IPC peer-cred guarantee the plugin cannot escape, exfiltrate `/data`, or escalate beyond declared permissions.
 
 **Enforcement boundary is the bwrap sandbox + cgroups + IPC peer-cred (layers 6-7), not the analyzer.** A plugin that slips a CRITICAL pattern past the analyzer still cannot read `/data`, fork-bomb past `pids.max`, or call gRPC methods it has no permission for. The analyzer is one layer in defense-in-depth, useful to surface obvious malicious code at preview time and reduce the bwrap attack surface — not the perimeter.
 
