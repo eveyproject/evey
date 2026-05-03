@@ -640,16 +640,22 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	}}, nil
 }
 
-// refineWithPrecisionPass widens each pHash window to the silence/black
-// boundaries surrounding it. The pHash window is the anchor (it survived
-// audio confirmation, so we trust it points at a real intro), but its raw
+// refineWithPrecisionPass widens each pHash window to the actual intro
+// boundaries. The pHash window is the anchor (it survived audio
+// confirmation, so we trust it points at a real intro), but its raw
 // boundaries only cover the matched frames — the actual intro can extend
 // before the first match and after the last (frames unique per episode
 // don't match across siblings).
 //
-// Strategy: for each window, run silencedetect+blackdetect on a +/-15s
-// pad around the pHash boundaries. If a transition is found, use it.
-// Otherwise keep the pHash boundaries unchanged (defensive fallback).
+// Strategy:
+//  1. Run silencedetect+blackdetect on a +/-padSec window around the pHash
+//     anchor. If a usable transition is found, use it (most accurate).
+//  2. Otherwise apply a fixed +/-fallbackPadSec extension to the pHash
+//     window. Series with continuous music (Robin Hood, action shows)
+//     don't have detectable silence around their intro, so silencedetect
+//     finds nothing — but the actual intro is still wider than the
+//     matched-frame window. The fallback pad gives the user a usable
+//     skip button rather than a too-tight 16s window.
 //
 // PrecisionPass used to be called on the whole episode and would lock onto
 // the first studio-logo silence at 0s — that failure mode doesn't apply
@@ -658,32 +664,47 @@ func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, fil
 	if filePath == "" || len(windows) == 0 {
 		return windows
 	}
-	const padSec = 15.0
+	const (
+		padSec          = 15.0
+		fallbackPadSec  = 8000 // ms each side when silencedetect finds nothing
+	)
 	out := make([]confirmedWindow, 0, len(windows))
 	for _, w := range windows {
 		startSec := float64(w.startMs) / 1000
 		endSec := float64(w.endMs) / 1000
 		refStart, refEnd, err := s.detector.PrecisionPass(ctx, filePath, startSec, endSec, padSec)
-		if err != nil || refStart <= 0 || refEnd <= refStart {
-			out = append(out, w)
-			continue
+
+		usePrecision := err == nil &&
+			refStart > 0 && refEnd > refStart &&
+			refEnd >= w.startMs-int64(2*padSec*1000) &&
+			refStart <= w.endMs+int64(2*padSec*1000) &&
+			// PrecisionPass returns the *input* (startMs, endMs) when it
+			// finds nothing — detect the no-op to fall through to padding.
+			(refStart != w.startMs || refEnd != w.endMs)
+
+		var newStart, newEnd int64
+		var source string
+		if usePrecision {
+			newStart, newEnd, source = refStart, refEnd, "silencedetect"
+		} else {
+			newStart = w.startMs - fallbackPadSec
+			if newStart < 0 {
+				newStart = 0
+			}
+			newEnd = w.endMs + fallbackPadSec
+			source = "fixed_pad"
 		}
-		// Sanity guard: refined window must overlap the pHash anchor and
-		// not extend more than 2× the pad on either side. Otherwise the
-		// silence detection latched onto something irrelevant — keep raw.
-		if refEnd < w.startMs-int64(2*padSec*1000) || refStart > w.endMs+int64(2*padSec*1000) {
-			out = append(out, w)
-			continue
-		}
+
 		slog.Debug("intro_detection.refined",
 			slog.Int64("phash_start_ms", w.startMs),
 			slog.Int64("phash_end_ms", w.endMs),
-			slog.Int64("refined_start_ms", refStart),
-			slog.Int64("refined_end_ms", refEnd),
+			slog.Int64("refined_start_ms", newStart),
+			slog.Int64("refined_end_ms", newEnd),
+			slog.String("refine_source", source),
 		)
 		out = append(out, confirmedWindow{
-			startMs:    refStart,
-			endMs:      refEnd,
+			startMs:    newStart,
+			endMs:      newEnd,
 			matchCount: w.matchCount,
 			confidence: w.confidence,
 		})
