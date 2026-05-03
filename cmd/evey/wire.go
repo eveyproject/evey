@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"time"
 
 	appactivity "github.com/evey-project/evey/internal/app/activity"
@@ -506,6 +507,14 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	)
 	introDetectionSvc.WithShutdownCtx(ctx)
 	introDetectionSvc.WithFingerprintCache(r.IntroFingerprintCache)
+	if v := os.Getenv("EVEY_INTRO_DETECTION_MAX_PARALLEL"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			introDetectionSvc.WithMaxParallelDetections(n)
+			slog.Info("intro detection: max parallel overridden by env", slog.Int("max", n))
+		} else {
+			slog.Warn("EVEY_INTRO_DETECTION_MAX_PARALLEL not a number, keeping default", slog.String("value", v))
+		}
+	}
 
 	if cfg.Transcoding.CacheMaxGB > 0 {
 		evictor := apptranscoding.NewCacheEvictor(

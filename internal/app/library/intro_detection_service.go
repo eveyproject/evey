@@ -39,6 +39,12 @@ type IntroDetectionService struct {
 	trickplayCacheDir string
 	shutdownCtx       context.Context
 	events            shared.EventBus
+	// concurrencyLimiter caps the number of pipeline runs in flight at once.
+	// Each pipeline run is CPU + IO heavy (sprite decode, ffmpeg audio
+	// extraction across all siblings) so unbounded parallelism — what the
+	// /api/v1/admin/media/{id}/detect-segments endpoint allowed before — pegs
+	// the box and triggers context deadline exceeded on individual queries.
+	concurrencyLimiter chan struct{}
 }
 
 // currentPHashAlgoVersion identifies the hash function used to populate the
@@ -51,6 +57,13 @@ type IntroDetectionService struct {
 //	     over 63 AC coefs (current).
 const currentPHashAlgoVersion int16 = 2
 
+// defaultMaxParallelDetections caps how many pipeline runs may execute
+// concurrently. 2 is a safe default for shared boxes — pHashPass extracts
+// audio fingerprints across every sibling via ffmpeg, so each in-flight
+// detection burns ~1 CPU core for several minutes. Override via
+// WithMaxParallelDetections if the host has CPU headroom.
+const defaultMaxParallelDetections = 2
+
 func NewIntroDetectionService(
 	segmentRepo domainlibrary.MediaSegmentRepository,
 	trickplayRepo domainlibrary.TrickplayRepository,
@@ -60,13 +73,27 @@ func NewIntroDetectionService(
 	cacheDir string,
 ) *IntroDetectionService {
 	return &IntroDetectionService{
-		segmentRepo:       segmentRepo,
-		trickplayRepo:     trickplayRepo,
-		mediaItems:        mediaItems,
-		configRepo:        configRepo,
-		detector:          detector,
-		trickplayCacheDir: cacheDir,
+		segmentRepo:        segmentRepo,
+		trickplayRepo:      trickplayRepo,
+		mediaItems:         mediaItems,
+		configRepo:         configRepo,
+		detector:           detector,
+		trickplayCacheDir:  cacheDir,
+		concurrencyLimiter: make(chan struct{}, defaultMaxParallelDetections),
 	}
+}
+
+// WithMaxParallelDetections overrides the default concurrency cap. n ≤ 0 is
+// treated as "no limit" and disables the semaphore (the previous behaviour).
+// Returns the service so the call chains cleanly with the other With...
+// helpers in wire.go.
+func (s *IntroDetectionService) WithMaxParallelDetections(n int) *IntroDetectionService {
+	if n <= 0 {
+		s.concurrencyLimiter = nil
+		return s
+	}
+	s.concurrencyLimiter = make(chan struct{}, n)
+	return s
 }
 
 func (s *IntroDetectionService) WithShutdownCtx(ctx context.Context) {
@@ -262,8 +289,19 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 	}
 }
 
-// DetectIntro is the main entry point. Runs the two-pass pipeline and upserts all detected segments.
+// DetectIntro is the main entry point. Runs the two-pass pipeline and upserts
+// all detected segments. Acquires a slot from concurrencyLimiter so a flood
+// of admin /detect-segments triggers (or worker auto-runs) don't pile up
+// ffmpeg processes that thrash the host.
 func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID string) error {
+	if s.concurrencyLimiter != nil {
+		select {
+		case s.concurrencyLimiter <- struct{}{}:
+			defer func() { <-s.concurrencyLimiter }()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		return fmt.Errorf("get media item: %w", err)
