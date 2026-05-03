@@ -508,6 +508,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	introDetectionSvc.WithShutdownCtx(ctx)
 	introDetectionSvc.WithFingerprintCache(r.IntroFingerprintCache)
 	introDetectionSvc.WithChapterRepo(r.Chapter)
+	chroma := ffmpeg.NewChromaprinter("fpcalc")
+	if err := chroma.Available(ctx); err == nil {
+		introDetectionSvc.WithChromaprinter(chroma)
+		slog.Info("intro detection: chromaprint (fpcalc) available, will be used as primary audio confirmation")
+	} else {
+		slog.Info("intro detection: chromaprint unavailable, falling back to banded Pearson", slog.Any("err", err))
+	}
 	if v := os.Getenv("EVEY_INTRO_DETECTION_MAX_PARALLEL"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			introDetectionSvc.WithMaxParallelDetections(n)

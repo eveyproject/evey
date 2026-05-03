@@ -29,6 +29,16 @@ type IntroDetector interface {
 	AudioBandedFingerprint(ctx context.Context, filePath string, startSec, durationSec float64, binMs int) ([]float64, error)
 }
 
+// Chromaprinter is an optional adapter wrapping fpcalc — when set, the
+// confirmAudioCandidates pass uses Chromaprint fingerprints (industry
+// standard, robust across mix/codec/language differences) instead of the
+// in-house banded Pearson. Falls back to banded when the adapter is nil
+// or returns an error.
+type Chromaprinter interface {
+	Available(ctx context.Context) error
+	Compute(ctx context.Context, filePath string, startSec, lengthSec float64) ([]uint32, error)
+}
+
 // IntroDetectionService orchestrates the two-pass intro detection pipeline.
 type IntroDetectionService struct {
 	segmentRepo       domainlibrary.MediaSegmentRepository
@@ -37,6 +47,7 @@ type IntroDetectionService struct {
 	configRepo        shared.ServerConfigRepository
 	fpCache           domainlibrary.IntroFingerprintCacheRepository
 	chapterRepo       domainlibrary.ChapterQueryRepo
+	chromaprinter     Chromaprinter
 	detector          IntroDetector
 	trickplayCacheDir string
 	shutdownCtx       context.Context
@@ -119,6 +130,15 @@ func (s *IntroDetectionService) WithFingerprintCache(cache domainlibrary.IntroFi
 // (encoded by the uploader) and should win over any heuristic.
 func (s *IntroDetectionService) WithChapterRepo(repo domainlibrary.ChapterQueryRepo) {
 	s.chapterRepo = repo
+}
+
+// WithChromaprinter wires fpcalc as the primary audio confirmation
+// signal. When set, confirmAudioCandidates uses Chromaprint sliding-XOR
+// match instead of the in-house banded Pearson; banded stays as fallback
+// when fpcalc is unavailable on the host or returns an error for a given
+// segment.
+func (s *IntroDetectionService) WithChromaprinter(c Chromaprinter) {
+	s.chromaprinter = c
 }
 
 func (s *IntroDetectionService) isTrickplayEnabled(ctx context.Context) bool {
@@ -625,7 +645,13 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 				slog.Any("err", phashErr),
 			)
 		} else if result != nil && len(result.candidates) > 0 {
-			confirmed := s.confirmAudioCandidates(ctx, item, result, cfg)
+			var confirmed []confirmedWindow
+			if s.chromaprinter != nil {
+				confirmed = s.confirmAudioCandidatesChromaprint(ctx, item, result, cfg)
+			}
+			if len(confirmed) == 0 {
+				confirmed = s.confirmAudioCandidates(ctx, item, result, cfg)
+			}
 			if len(confirmed) > 0 {
 				// pHash boundaries cover only the *matched* frames, which
 				// can be a strict subset of the real intro: title-card
@@ -1101,6 +1127,176 @@ func allCandidatesGapTolerant(introHashes map[uint64]bool, targetHashes []uint64
 		out = append(out, pHashCandidate{startMs: startMs, endMs: endMs, matchCount: m.matchCount})
 	}
 	return out
+}
+
+// confirmAudioCandidatesChromaprint is the Chromaprint variant of
+// confirmAudioCandidates — anchored on the same pHash trickplay
+// candidates (so we never scan a "big portion" of the file: only the
+// short window around each candidate).
+//
+// For each candidate window:
+//  1. Compute the target's Chromaprint fingerprint on [start-padSec,
+//     end+padSec].
+//  2. For every sibling, compute the fingerprint on a wider search
+//     window [start-searchSec, end+searchSec] and slide-match the
+//     target into it. Similarity ≥ chromaprintSimThreshold counts.
+//  3. Drift coherence (siblings clustering around the median offset)
+//     enforces that the match is actually the same intro and not a
+//     coincidence of similar audio between two unrelated moments.
+//
+// Returns confirmedWindow{} for accepted candidates. Empty result lets
+// the caller fall through to confirmAudioCandidates (banded Pearson)
+// — that guard handles the "fpcalc broken on this episode" edge case
+// without losing detection coverage.
+func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Context, item *domainlibrary.MediaItem, result *pHashResult, cfg introConfig) []confirmedWindow {
+	mediaID := string(item.ID)
+	if s.chromaprinter == nil || item.File == nil || item.File.Path == "" || len(result.siblings) == 0 {
+		return nil
+	}
+	const (
+		// Chromaprint frames are ~123ms each at 8 fps. A similarity ≥ 0.85
+		// (i.e. ≥ 85% of bits match between target and aligned sibling)
+		// is the standard threshold for "same recording" used by
+		// AcoustID/MusicBrainz; we keep it the same since the intro is
+		// supposed to be the *same* musical content across episodes.
+		chromaprintSimThreshold = 0.85
+		framesPerSecond         = 8.0 // fpcalc default rate
+	)
+
+	confirmed := make([]confirmedWindow, 0, len(result.candidates))
+	for _, cand := range result.candidates {
+		startSec := float64(cand.startMs) / 1000
+		endSec := float64(cand.endMs) / 1000
+
+		tStart := startSec - cfg.PadSec
+		if tStart < 0 {
+			tStart = 0
+		}
+		tDur := endSec + cfg.PadSec - tStart
+
+		targetFp, err := s.chromaprinter.Compute(ctx, item.File.Path, tStart, tDur)
+		if err != nil || len(targetFp) == 0 {
+			slog.Debug("intro_detection.candidate_evaluated",
+				slog.String("media_id", mediaID),
+				slog.Int64("candidate_start_ms", cand.startMs),
+				slog.Int64("candidate_end_ms", cand.endMs),
+				slog.String("audio_engine", "chromaprint"),
+				slog.String("decision", "rejected_target_extract_failed"),
+				slog.Any("err", err),
+			)
+			continue
+		}
+
+		drifts := make([]float64, 0, len(result.siblings))
+		matched := 0
+		extractFailed := 0
+		for _, sib := range result.siblings {
+			sStart := startSec - cfg.SearchSec
+			if sStart < 0 {
+				sStart = 0
+			}
+			sDur := endSec + cfg.SearchSec - sStart
+			sibFp, err := s.chromaprinter.Compute(ctx, sib.File.Path, sStart, sDur)
+			if err != nil || len(sibFp) == 0 {
+				extractFailed++
+				continue
+			}
+			offsetFrames, sim := slidingChromaprint(targetFp, sibFp)
+			if sim < chromaprintSimThreshold {
+				continue
+			}
+			matched++
+			offsetSec := float64(offsetFrames) / framesPerSecond
+			drift := offsetSec - (tStart - sStart)
+			drifts = append(drifts, drift)
+		}
+
+		if len(drifts) < cfg.MinMatches {
+			slog.Debug("intro_detection.candidate_evaluated",
+				slog.String("media_id", mediaID),
+				slog.Int64("candidate_start_ms", cand.startMs),
+				slog.Int64("candidate_end_ms", cand.endMs),
+				slog.Int("siblings_total", len(result.siblings)),
+				slog.Int("siblings_matched", matched),
+				slog.Int("siblings_extract_failed", extractFailed),
+				slog.String("audio_engine", "chromaprint"),
+				slog.String("decision", "rejected_low_matches"),
+			)
+			continue
+		}
+		median := medianFloat(drifts)
+		coherent := 0
+		for _, d := range drifts {
+			if math.Abs(d-median) <= cfg.DriftTolSec {
+				coherent++
+			}
+		}
+		ratio := float64(coherent) / float64(len(result.siblings))
+		if ratio < cfg.MinRatio {
+			slog.Debug("intro_detection.candidate_evaluated",
+				slog.String("media_id", mediaID),
+				slog.Int64("candidate_start_ms", cand.startMs),
+				slog.Int64("candidate_end_ms", cand.endMs),
+				slog.Int("siblings_total", len(result.siblings)),
+				slog.Int("siblings_matched", matched),
+				slog.Float64("drift_median", median),
+				slog.Any("drift_values", drifts),
+				slog.Int("coherent_count", coherent),
+				slog.Float64("ratio", ratio),
+				slog.String("audio_engine", "chromaprint"),
+				slog.String("decision", "rejected_low_ratio"),
+			)
+			continue
+		}
+
+		slog.Debug("intro_detection.candidate_evaluated",
+			slog.String("media_id", mediaID),
+			slog.Int64("candidate_start_ms", cand.startMs),
+			slog.Int64("candidate_end_ms", cand.endMs),
+			slog.Int("siblings_total", len(result.siblings)),
+			slog.Int("siblings_matched", matched),
+			slog.Float64("drift_median", median),
+			slog.Any("drift_values", drifts),
+			slog.Int("coherent_count", coherent),
+			slog.Float64("ratio", ratio),
+			slog.String("audio_engine", "chromaprint"),
+			slog.String("decision", "accepted"),
+		)
+		confirmed = append(confirmed, confirmedWindow{
+			startMs:    cand.startMs,
+			endMs:      cand.endMs,
+			matchCount: cand.matchCount,
+			confidence: 0.97, // higher than banded Pearson 0.95 — Chromaprint signal is more reliable
+		})
+	}
+	return confirmed
+}
+
+// slidingChromaprint slides target over reference and returns the best
+// (offset_in_frames, similarity_in_[0,1]). similarity = 1 - hamming/
+// (32 * len(target)).
+//
+// Inlined here (mirrors ffmpeg.SlidingBestMatch) to avoid pulling the
+// adapter package into the app layer; the adapter exports the same
+// algorithm under SlidingBestMatch for consumers that don't go through
+// this service (e.g. intro-diag CLI).
+func slidingChromaprint(target, reference []uint32) (offsetFrames int, similarity float64) {
+	if len(target) == 0 || len(reference) < len(target) {
+		return 0, 0
+	}
+	maxBits := 32 * len(target)
+	bestOffset, bestBits := 0, maxBits
+	for offset := 0; offset <= len(reference)-len(target); offset++ {
+		var diffBits int
+		for i := range target {
+			diffBits += bits.OnesCount32(target[i] ^ reference[offset+i])
+		}
+		if diffBits < bestBits {
+			bestBits = diffBits
+			bestOffset = offset
+		}
+	}
+	return bestOffset, 1.0 - float64(bestBits)/float64(maxBits)
 }
 
 // confirmAudioCandidates filters pHash candidates by audio cross-correlation

@@ -1,6 +1,6 @@
 FROM golang:1.26.2-alpine
 
-RUN apk add --no-cache ffmpeg curl postgresql-client gcc musl-dev linux-headers \
+RUN apk add --no-cache ffmpeg chromaprint curl postgresql-client gcc musl-dev linux-headers \
     python3 py3-pip py3-grpcio py3-protobuf \
     nodejs npm tzdata \
     bash perl lua5.4 ruby php83 php83-pcntl php83-posix \

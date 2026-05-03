@@ -52,7 +52,7 @@ RUN gcc -shared -fPIC -nostartfiles -o /libevey-sandbox.so sandbox/sandbox.c
 # ── Stage 5: Runtime ──
 FROM alpine:3.21.3
 
-RUN apk add --no-cache bubblewrap ca-certificates curl ffmpeg postgresql-client unzip
+RUN apk add --no-cache bubblewrap ca-certificates curl ffmpeg chromaprint postgresql-client unzip
 
 RUN adduser -D -u 1000 evey \
     && adduser -D -u 1001 -G evey evey-plugin
