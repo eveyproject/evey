@@ -41,6 +41,28 @@ func (t Type) IsValid() bool {
 	return false
 }
 
+// IsAdminOnly returns true for notification types that describe operational
+// or infrastructure events admins need to know about, but that should not
+// pollute the personal notification feed (no badge, no dropdown listing).
+//
+// They still land in the same `notifications` table — querying with
+// AdminOnly() filters them in/out at read time. A future /admin/notifications
+// endpoint can surface them dedicated to admins.
+func (t Type) IsAdminOnly() bool {
+	switch t {
+	case TypeBackupFailed, TypePluginError:
+		return true
+	}
+	return false
+}
+
+// AdminOnlyTypes returns the slice of admin-only notification types so
+// callers can pass them to repository List/Count exclude filters without
+// hardcoding the values.
+func AdminOnlyTypes() []Type {
+	return []Type{TypeBackupFailed, TypePluginError}
+}
+
 type Level string
 
 const (
