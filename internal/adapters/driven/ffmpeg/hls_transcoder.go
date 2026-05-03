@@ -258,7 +258,14 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 			"-c:v", "libx264",
 			"-preset", "ultrafast",
 			"-pix_fmt", "yuv420p",
-			"-force_key_frames", "expr:gte(t,n_forced*5)",
+			// 1s GOP via -g + -keyint_min so the FIRST keyframe is at most
+			// 1s into the output. Combined with -copyts -start_at_zero,
+			// hls.js's startPosition:0 lands within ~1s of the requested
+			// seek instead of waiting for the first IDR at the ~5s GOP
+			// boundary that an expr:gte(t,n_forced*5) policy would produce.
+			"-g", "24",
+			"-keyint_min", "24",
+			"-sc_threshold", "0",
 			"-copyts",
 			"-avoid_negative_ts", "disabled",
 			"-start_at_zero",
