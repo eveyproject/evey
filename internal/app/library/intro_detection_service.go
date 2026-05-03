@@ -765,6 +765,19 @@ func (s *IntroDetectionService) chapterPass(ctx context.Context, item *domainlib
 	// Sort by start in case the repo doesn't guarantee order.
 	sort.Slice(chapters, func(i, j int) bool { return chapters[i].StartTimeMs < chapters[j].StartTimeMs })
 
+	// MKV chapters often record only the start timestamp; end_ms is then 0
+	// (or equal to start). Standard convention: a chapter ends where the
+	// next one begins. Fill missing ends in-place so the segment builders
+	// below can rely on EndTimeMs > StartTimeMs.
+	for i := range chapters {
+		if chapters[i].EndTimeMs > chapters[i].StartTimeMs {
+			continue
+		}
+		if i+1 < len(chapters) && chapters[i+1].StartTimeMs > chapters[i].StartTimeMs {
+			chapters[i].EndTimeMs = chapters[i+1].StartTimeMs
+		}
+	}
+
 	classify := func(title string) string {
 		t := strings.ToLower(strings.TrimSpace(title))
 		switch {
