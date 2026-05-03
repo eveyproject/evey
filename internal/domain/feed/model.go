@@ -45,6 +45,28 @@ func LibraryType(libraryID string) Type {
 	return Type("library:" + libraryID)
 }
 
+// IsPlugin returns true for feed types that point at a frontend plugin
+// rendering on the home page (slot "home.section"). Encoded as
+// "plugin:<plugin_id>" so the customise-home menu can list them next to
+// library and built-in feed types.
+func (t Type) IsPlugin() bool {
+	return strings.HasPrefix(string(t), "plugin:")
+}
+
+// PluginID returns the plugin id portion of a "plugin:<id>" feed type,
+// or "" when the type is not a plugin feed.
+func (t Type) PluginID() string {
+	if t.IsPlugin() {
+		return strings.TrimPrefix(string(t), "plugin:")
+	}
+	return ""
+}
+
+// PluginType builds the canonical feed type for a frontend plugin.
+func PluginType(pluginID string) Type {
+	return Type("plugin:" + pluginID)
+}
+
 // AdminConfig is the server-wide preset for a feed.
 type AdminConfig struct {
 	FeedType     Type

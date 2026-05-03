@@ -23,3 +23,18 @@ export const FEED_LABEL_KEYS: Record<KnownFeedType, string> = {
 export function isKnownFeedType(ft: string): ft is KnownFeedType {
   return (KNOWN_FEED_TYPES as readonly string[]).includes(ft);
 }
+
+// Plugin home-page sections are encoded as `plugin:<plugin_id>` so the
+// customise-home menu treats them like library entries: each plugin slot
+// has its own row, can be toggled / reordered.
+export function isPluginFeedType(ft: string): boolean {
+  return ft.startsWith("plugin:");
+}
+
+export function pluginIdFromFeedType(ft: string): string {
+  return isPluginFeedType(ft) ? ft.slice("plugin:".length) : "";
+}
+
+export function pluginFeedType(pluginId: string): string {
+  return "plugin:" + pluginId;
+}

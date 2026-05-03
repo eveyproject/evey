@@ -446,7 +446,6 @@ function HomePage() {
           />
         ) : (
           <>
-            <PluginSlot name="home.section" />
             {sections.map((cfg) => {
               const ft = cfg.feedType ?? "";
               if (ft.startsWith("library:")) {
@@ -456,9 +455,27 @@ function HomePage() {
                   <LibrarySlider key={ft} libraryId={libId} name={lib.name ?? t("media.home.library")} libraryType={lib.type} />
                 ) : null;
               }
+              if (ft.startsWith("plugin:")) {
+                // Render this single plugin's home.section slot at the
+                // exact position dictated by the customise-home order.
+                // PluginSlot filters internally to just the matching id.
+                const pluginId = ft.slice("plugin:".length);
+                return <PluginSlot key={ft} name="home.section" pluginId={pluginId} />;
+              }
               const Component = SECTION_REGISTRY[ft];
               return Component ? <Component key={ft} /> : null;
             })}
+            {/* Fallback for plugins that haven't been registered in the
+                feed config yet (newly installed): render them once below
+                the configured sections so they're visible immediately,
+                until the next CustomizePanel open writes their entry. */}
+            <PluginSlot name="home.section" excludeRegistered={
+              new Set(allSections
+                .map((s) => s.feedType ?? "")
+                .filter((ft) => ft.startsWith("plugin:"))
+                .map((ft) => ft.slice("plugin:".length)))
+            } />
+
             {libraries
               .filter((lib) => lib.id && !allSections.some((s) => s.feedType === `library:${lib.id}`))
               .map((lib) => (

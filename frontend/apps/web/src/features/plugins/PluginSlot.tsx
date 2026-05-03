@@ -55,9 +55,19 @@ class PluginErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
 interface PluginSlotProps {
   name: string;
   context?: Record<string, unknown>;
+  // pluginId: when set, only render the plugin with this id (matching the
+  // slot). Used by the home page to insert a single plugin section at the
+  // exact position dictated by the customise-home ordering, instead of
+  // dumping all home.section plugins as one block above the feeds.
+  pluginId?: string;
+  // excludeRegistered: skip plugins whose id is in this set. Used by the
+  // home page to render only the "newly-installed" plugins not yet in the
+  // user's feed config — the rest are rendered inline at their configured
+  // position by other PluginSlot calls with pluginId set.
+  excludeRegistered?: Set<string>;
 }
 
-export function PluginSlot({ name, context }: PluginSlotProps) {
+export function PluginSlot({ name, context, pluginId, excludeRegistered }: PluginSlotProps) {
   const isAuthenticated = useAuthStore((s) => !!s.accessToken);
 
   // Use the same queryKey as the admin Plugins page so install/enable/
@@ -82,6 +92,8 @@ export function PluginSlot({ name, context }: PluginSlotProps) {
     // enabled is absent in the public API response (route only returns
     // enabled+running plugins), so treat undefined as true.
     if (plugin.enabled === false || !plugin.id) continue;
+    if (pluginId && plugin.id !== pluginId) continue;
+    if (excludeRegistered && excludeRegistered.has(plugin.id)) continue;
     const webRoot = plugin.webRoot ?? plugin.web_root ?? "";
     const externalFetch = plugin.externalFetch ?? plugin.external_fetch ?? [];
     for (const mod of plugin.frontend ?? []) {

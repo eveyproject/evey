@@ -18,6 +18,31 @@ func TestType_IsValid(t *testing.T) {
 	}
 }
 
+func TestType_IsPlugin(t *testing.T) {
+	t.Parallel()
+
+	pl := feed.PluginType("plg-abc123")
+	if !pl.IsPlugin() {
+		t.Error("plugin type should return true for IsPlugin")
+	}
+	if pl.PluginID() != "plg-abc123" {
+		t.Errorf("PluginID() = %q, want %q", pl.PluginID(), "plg-abc123")
+	}
+	if feed.TypeRecentlyAdded.IsPlugin() {
+		t.Error("non-plugin type should return false")
+	}
+	if feed.TypeRecentlyAdded.PluginID() != "" {
+		t.Error("non-plugin type should return empty PluginID")
+	}
+	// Library and plugin types are disjoint.
+	if feed.LibraryType("lib-1").IsPlugin() {
+		t.Error("library type must not be detected as plugin")
+	}
+	if pl.IsLibrary() {
+		t.Error("plugin type must not be detected as library")
+	}
+}
+
 func TestType_IsLibrary(t *testing.T) {
 	t.Parallel()
 
