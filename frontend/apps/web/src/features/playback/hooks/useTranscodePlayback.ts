@@ -83,7 +83,13 @@ export function useTranscodePlayback({
     }
 
     const hls = new Hls({
-      startPosition: 0,
+      // -1 = let hls.js start at the first segment's natural PTS rather
+      // than forcing position 0. With server-side seek (the m3u8 already
+      // begins at the requested second, segment PTS pinned to ~0 via
+      // -muxpreload 0 -muxdelay 0), forcing 0 causes hls.js to nudge
+      // the playback head onto the previous keyframe boundary and the
+      // user lands a few seconds before what they clicked.
+      startPosition: -1,
       maxBufferLength: 30,
       maxMaxBufferLength: 60,
       xhrSetup: (xhr: XMLHttpRequest, url: string) => {
