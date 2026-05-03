@@ -83,13 +83,12 @@ export function useTranscodePlayback({
     }
 
     const hls = new Hls({
-      // -1 = let hls.js start at the first segment's natural PTS rather
-      // than forcing position 0. With server-side seek (the m3u8 already
-      // begins at the requested second, segment PTS pinned to ~0 via
-      // -muxpreload 0 -muxdelay 0), forcing 0 causes hls.js to nudge
-      // the playback head onto the previous keyframe boundary and the
-      // user lands a few seconds before what they clicked.
-      startPosition: -1,
+      // 0 = start at first frame of first segment. ffmpeg ships
+      // -copyts -avoid_negative_ts disabled -start_at_zero on the
+      // server side (Jellyfin's recipe), which translates the segment
+      // PTS so the first frame lands exactly at t=0. Forcing 0 here
+      // matches that, no keyframe-snap nudge.
+      startPosition: 0,
       maxBufferLength: 30,
       maxMaxBufferLength: 60,
       xhrSetup: (xhr: XMLHttpRequest, url: string) => {

@@ -242,6 +242,15 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	//     by ffmpeg, decoded from file-start of the *post-seek* stream
 	//     which gave nonsensical offsets
 	if opts.StartSec > 0 {
+		// Jellyfin's exact recipe for HLS video transcode (verified
+		// against EncodingHelper.cs in master, 2025): pre-input -ss
+		// (accurate_seek default) + libx264 + force_key_frames every 5s
+		// + copyts/avoid_negative_ts/start_at_zero so the segments
+		// preserve source PTS. The client honours the requested seek
+		// position because the m3u8 segments carry the matching
+		// timestamps. No -noaccurate_seek (that's only for mp4 + copy
+		// remux), no -muxpreload/muxdelay (conflicts with -copyts), no
+		// -tune zerolatency (was the culprit of the earlier -20s drift).
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 		args = append(args, "-i", opts.FilePath)
 		args = append(args,
@@ -249,8 +258,10 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 			"-c:v", "libx264",
 			"-preset", "ultrafast",
 			"-pix_fmt", "yuv420p",
-			"-muxpreload", "0",
-			"-muxdelay", "0",
+			"-force_key_frames", "expr:gte(t,n_forced*5)",
+			"-copyts",
+			"-avoid_negative_ts", "disabled",
+			"-start_at_zero",
 		)
 	} else {
 		args = append(args, "-i", opts.FilePath)
