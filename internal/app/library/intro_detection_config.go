@@ -38,6 +38,7 @@ type introConfig struct {
 
 	// Frame range
 	FrameCutoffPercent float64 `json:"frame_cutoff_percent"` // fraction of the episode searched for the intro (default 0.25)
+	MaxIntroStartMs    int64   `json:"max_intro_start_ms"`   // reject candidates whose start ms is past this point (default 240_000 = 4min) — beyond that it's not an intro, it's a recurring chapter card or in-episode element
 }
 
 // defaultIntroConfig returns the values previously hardcoded throughout the
@@ -50,6 +51,17 @@ type introConfig struct {
 // (cold-open variability). The audio confirmation pass (CorrThreshold +
 // MinRatio) downstream still filters false positives, so a permissive
 // visual threshold here is safe.
+//
+// MinRatio = 0.7: bumped from 0.6 after observing accepted candidates with
+// drift_values spanning ±18s (e.g. [0.25 -13.5 4 -8 -3.5 2.75 -4 -2 2 6.5
+// -10.25] → coherent=8/11=0.72 passes 0.6 but is clearly noise). 0.7
+// requires the median drift to actually represent the bulk of siblings.
+//
+// MaxIntroStartMs = 240_000 (4 min): true intros sit near the start of the
+// episode. Anything detected past 4 minutes is much more likely a
+// recurring in-episode visual element (chapter card, flashback, recap
+// segment) than an intro. Prevents false positives like Gen V "Leçons de
+// Cuisine" detected at 9:20-10:00.
 func defaultIntroConfig() introConfig {
 	return introConfig{
 		MaxHamming:         8,
@@ -61,9 +73,10 @@ func defaultIntroConfig() introConfig {
 		CorrThreshold:      0.45,
 		DriftTolSec:        6.0,
 		MinMatches:         3,
-		MinRatio:           0.6,
+		MinRatio:           0.7,
 		RecapMaxMs:         60 * 1000,
 		FrameCutoffPercent: 0.25,
+		MaxIntroStartMs:    240_000,
 	}
 }
 

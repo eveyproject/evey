@@ -874,6 +874,26 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 	}
 
 	candidates := allCandidatesGapTolerant(introHashes, targetHashes, targetMs, cfg.MaxHamming)
+	// Drop candidates that start past MaxIntroStartMs — those are not intros
+	// but recurring in-episode visual elements (chapter cards, flashbacks,
+	// previously-on segments) that happen to share visual hashes across
+	// episodes. Without this filter we surface false positives like a
+	// "Skip Intro" button at 9 minutes into an episode.
+	if cfg.MaxIntroStartMs > 0 {
+		filtered := candidates[:0]
+		for _, c := range candidates {
+			if c.startMs > cfg.MaxIntroStartMs {
+				slog.Debug("intro_detection.candidate_dropped_too_late",
+					slog.String("media_id", string(item.ID)),
+					slog.Int64("candidate_start_ms", c.startMs),
+					slog.Int64("max_intro_start_ms", cfg.MaxIntroStartMs),
+				)
+				continue
+			}
+			filtered = append(filtered, c)
+		}
+		candidates = filtered
+	}
 	return &pHashResult{
 		candidates: candidates,
 		siblings:   siblingItems,
