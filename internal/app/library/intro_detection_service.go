@@ -1236,7 +1236,8 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 			}
 		}
 		ratio := float64(coherent) / float64(len(result.siblings))
-		if ratio < cfg.MinRatio {
+		minRatio := effectiveMinRatio(cfg, len(result.siblings))
+		if ratio < minRatio {
 			slog.Debug("intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
 				slog.Int64("candidate_start_ms", cand.startMs),
@@ -1398,7 +1399,8 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 			}
 		}
 		ratio := float64(coherent) / float64(len(result.siblings))
-		if ratio < cfg.MinRatio {
+		minRatio := effectiveMinRatio(cfg, len(result.siblings))
+		if ratio < minRatio {
 			slog.Debug("intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
 				slog.Int64("candidate_start_ms", cand.startMs),
@@ -1438,6 +1440,19 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 		})
 	}
 	return confirmed
+}
+
+// effectiveMinRatio returns MinRatio adapted to the sibling sample size.
+// On large series (>=6 siblings) we keep cfg.MinRatio (default 0.7) to
+// reject noisy false positives; on smaller seasons (Robin Hood with 5
+// siblings, indie shows with 3-4) we drop to 0.6 since each sibling
+// "vote" carries more relative weight and the strict 0.7 cuts out real
+// matches with one outlier.
+func effectiveMinRatio(cfg introConfig, siblingsTotal int) float64 {
+	if siblingsTotal < 6 && cfg.MinRatio > 0.6 {
+		return 0.6
+	}
+	return cfg.MinRatio
 }
 
 // medianFloat returns the median of vs (sorts a copy in place).
