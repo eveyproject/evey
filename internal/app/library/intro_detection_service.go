@@ -665,8 +665,15 @@ func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, fil
 		return windows
 	}
 	const (
-		padSec          = 15.0
-		fallbackPadSec  = 8000 // ms each side when silencedetect finds nothing
+		padSec = 15.0
+		// Asymmetric fallback pad: pHash matches the visually-stable parts of
+		// an intro (title cards, logos), which typically sit at the END of
+		// the intro. The START is more often a cold-open transition unique
+		// per episode that doesn't match. So expand more on the start side
+		// than the end side to cover the real intro span without
+		// over-shooting into the post-intro content.
+		fallbackPadStartMs = 10_000
+		fallbackPadEndMs   = 2_000
 	)
 	out := make([]confirmedWindow, 0, len(windows))
 	for _, w := range windows {
@@ -687,11 +694,11 @@ func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, fil
 		if usePrecision {
 			newStart, newEnd, source = refStart, refEnd, "silencedetect"
 		} else {
-			newStart = w.startMs - fallbackPadSec
+			newStart = w.startMs - fallbackPadStartMs
 			if newStart < 0 {
 				newStart = 0
 			}
-			newEnd = w.endMs + fallbackPadSec
+			newEnd = w.endMs + fallbackPadEndMs
 			source = "fixed_pad"
 		}
 
