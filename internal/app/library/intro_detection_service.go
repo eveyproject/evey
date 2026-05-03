@@ -9,6 +9,7 @@ import (
 	"math/bits"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,6 +36,7 @@ type IntroDetectionService struct {
 	mediaItems        domainlibrary.MediaItemRepository
 	configRepo        shared.ServerConfigRepository
 	fpCache           domainlibrary.IntroFingerprintCacheRepository
+	chapterRepo       domainlibrary.ChapterQueryRepo
 	detector          IntroDetector
 	trickplayCacheDir string
 	shutdownCtx       context.Context
@@ -109,6 +111,14 @@ func (s *IntroDetectionService) WithEventBus(bus shared.EventBus) {
 // always recomputed from the trickplay sprites (no behavior change vs. v0).
 func (s *IntroDetectionService) WithFingerprintCache(cache domainlibrary.IntroFingerprintCacheRepository) {
 	s.fpCache = cache
+}
+
+// WithChapterRepo enables intro detection via Matroska chapter names.
+// Many MKV containers ship with chapters explicitly labelled "Intro",
+// "Opening Credits", "Generique", etc. — those are authoritative
+// (encoded by the uploader) and should win over any heuristic.
+func (s *IntroDetectionService) WithChapterRepo(repo domainlibrary.ChapterQueryRepo) {
+	s.chapterRepo = repo
 }
 
 func (s *IntroDetectionService) isTrickplayEnabled(ctx context.Context) bool {
@@ -594,6 +604,19 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	mediaItemID := string(item.ID)
 	cfg := loadIntroConfig(ctx, s.configRepo)
 
+	// MKV chapters first: authoritative when present (uploader labelled
+	// the chapter "Intro" / "Opening" / "Generique" etc.). Skip the rest
+	// of the pipeline if we got something — no heuristic beats explicit
+	// metadata.
+	if chSegs := s.chapterPass(ctx, item); len(chSegs) > 0 {
+		slog.Info("intro_detection.pipeline_decision",
+			slog.String("media_id", mediaItemID),
+			slog.String("decision", "mkv_chapter_match"),
+			slog.Int("segments", len(chSegs)),
+		)
+		return chSegs, nil
+	}
+
 	if s.isTrickplayEnabled(ctx) {
 		result, phashErr := s.pHashPass(ctx, item, cfg)
 		if phashErr != nil {
@@ -715,6 +738,101 @@ func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, fil
 			matchCount: w.matchCount,
 			confidence: w.confidence,
 		})
+	}
+	return out
+}
+
+// chapterPass looks for Matroska chapters whose title matches a known
+// intro/recap pattern (Intro, Opening, Theme, Generique, Title Sequence,
+// Previously, Recap, ...). Returns one MediaSegment per matched chapter
+// with source="mkv_chapter", confidence 1.0 — chapters are authoritative
+// since they were encoded by the uploader.
+//
+// Special cases:
+//   - "Intro End" alone is not an intro; it's the END marker. Pair with a
+//     preceding chapter (typically the cold open or studio logo) by using
+//     [start_of_episode, intro_end_chapter.start_ms] as the intro window.
+//     Heuristic: if "Intro End" is found and no plain "Intro" chapter
+//     exists, treat the previous chapter's start (or 0) as the intro start.
+func (s *IntroDetectionService) chapterPass(ctx context.Context, item *domainlibrary.MediaItem) []domainlibrary.MediaSegment {
+	if s.chapterRepo == nil {
+		return nil
+	}
+	chapters, err := s.chapterRepo.GetByMediaItemID(ctx, item.ID)
+	if err != nil || len(chapters) == 0 {
+		return nil
+	}
+	// Sort by start in case the repo doesn't guarantee order.
+	sort.Slice(chapters, func(i, j int) bool { return chapters[i].StartTimeMs < chapters[j].StartTimeMs })
+
+	classify := func(title string) string {
+		t := strings.ToLower(strings.TrimSpace(title))
+		switch {
+		case t == "intro end" || t == "end of intro" || t == "intro ends":
+			return "intro_end_marker"
+		case strings.Contains(t, "intro") ||
+			strings.Contains(t, "opening") ||
+			strings.Contains(t, "theme") ||
+			strings.Contains(t, "title sequence") ||
+			strings.Contains(t, "generique") || strings.Contains(t, "générique"):
+			return "intro"
+		case strings.Contains(t, "previously") ||
+			strings.Contains(t, "recap") ||
+			strings.HasPrefix(t, "previously on") ||
+			strings.Contains(t, "résumé") || strings.Contains(t, "resume des"):
+			return "recap"
+		case strings.Contains(t, "end credits") ||
+			strings.Contains(t, "closing credits") ||
+			strings.Contains(t, "ending"):
+			return "end_credits"
+		}
+		return ""
+	}
+
+	var (
+		out         []domainlibrary.MediaSegment
+		hasIntro    bool
+		introEndIdx = -1
+	)
+	for i, ch := range chapters {
+		kind := classify(ch.Title)
+		switch kind {
+		case "intro":
+			out = append(out, domainlibrary.MediaSegment{
+				Type: "intro", Source: "mkv_chapter", Confidence: 1.0,
+				StartMs: ch.StartTimeMs, EndMs: ch.EndTimeMs,
+			})
+			hasIntro = true
+		case "recap":
+			out = append(out, domainlibrary.MediaSegment{
+				Type: "recap", Source: "mkv_chapter", Confidence: 1.0,
+				StartMs: ch.StartTimeMs, EndMs: ch.EndTimeMs,
+			})
+		case "end_credits":
+			out = append(out, domainlibrary.MediaSegment{
+				Type: "end_credits", Source: "mkv_chapter", Confidence: 1.0,
+				StartMs: ch.StartTimeMs, EndMs: ch.EndTimeMs,
+			})
+		case "intro_end_marker":
+			introEndIdx = i
+		}
+	}
+
+	// "Intro End" without a paired "Intro" chapter: synthesise an intro
+	// segment from [previous chapter start, intro_end start]. Skip if a
+	// plain Intro chapter was already added (avoid duplicates).
+	if introEndIdx >= 0 && !hasIntro {
+		var startMs int64
+		if introEndIdx > 0 {
+			startMs = chapters[introEndIdx-1].StartTimeMs
+		}
+		endMs := chapters[introEndIdx].StartTimeMs
+		if endMs > startMs {
+			out = append(out, domainlibrary.MediaSegment{
+				Type: "intro", Source: "mkv_chapter", Confidence: 1.0,
+				StartMs: startMs, EndMs: endMs,
+			})
+		}
 	}
 	return out
 }
