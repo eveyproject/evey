@@ -35,6 +35,7 @@ func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([
 		overrideMap[o.FeedType] = o
 	}
 
+	seen := make(map[feed.Type]bool, len(admins))
 	var result []*feed.MergedConfig
 	for _, a := range admins {
 		m := &feed.MergedConfig{
@@ -57,6 +58,36 @@ func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([
 			if o.Params != nil {
 				m.Params = o.Params
 			}
+		}
+		seen[a.FeedType] = true
+		result = append(result, m)
+	}
+	// Profile overrides without an admin parent (e.g. dynamic feed types
+	// like library:<id> or plugin:<id> that are never explicitly created
+	// admin-side) must still surface in the merged view — otherwise the
+	// CustomizePanel drag/toggle persists then disappears on refetch and
+	// the home page can't honour the user's saved order.
+	//
+	// Defaults for the "missing admin" case: enabled=true, displayOrder=0.
+	// Any field set on the override wins as usual.
+	for _, o := range overrides {
+		if seen[o.FeedType] {
+			continue
+		}
+		m := &feed.MergedConfig{
+			FeedType:     o.FeedType,
+			Enabled:      true,
+			DisplayOrder: 0,
+			Params:       o.Params,
+		}
+		if o.Enabled != nil {
+			m.Enabled = *o.Enabled
+		}
+		if o.DisplayOrder != nil {
+			m.DisplayOrder = *o.DisplayOrder
+		}
+		if o.MaxItems != nil {
+			m.MaxItems = *o.MaxItems
 		}
 		result = append(result, m)
 	}

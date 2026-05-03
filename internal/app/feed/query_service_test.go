@@ -222,6 +222,58 @@ func TestQueryService_GetMergedConfig_Empty(t *testing.T) {
 	assert.Empty(t, configs)
 }
 
+// Profile-only entries (no admin parent) must surface in the merged
+// view. Otherwise dynamic feed types like library:<id> or plugin:<id>
+// — which are never registered admin-side — vanish on every refetch
+// after the user toggles or reorders them in CustomizePanel.
+func TestQueryService_GetMergedConfig_OrphanedProfileOverrides_Surface(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	queryRepo.AdminConfigs = []*feed.AdminConfig{
+		{FeedType: feed.TypeRecentlyAdded, Enabled: true, DisplayOrder: 0, MaxItems: 20},
+	}
+	enabled := true
+	displayOrder := 5
+	queryRepo.ProfileConfigs["p1"] = []*feed.ProfileConfig{
+		{ProfileID: "p1", FeedType: feed.PluginType("plg-weather"), Enabled: &enabled, DisplayOrder: &displayOrder},
+	}
+
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	configs, err := svc.GetMergedConfig(context.Background(), "p1")
+	require.NoError(t, err)
+	require.Len(t, configs, 2)
+
+	var pluginCfg *feed.MergedConfig
+	for _, c := range configs {
+		if c.FeedType == feed.PluginType("plg-weather") {
+			pluginCfg = c
+		}
+	}
+	require.NotNil(t, pluginCfg, "orphaned plugin override must surface")
+	assert.True(t, pluginCfg.Enabled)
+	assert.Equal(t, 5, pluginCfg.DisplayOrder)
+}
+
+// Profile-only with Enabled unset defaults to true (don't drop the
+// row just because the override blob omitted the flag).
+func TestQueryService_GetMergedConfig_OrphanedOverride_DefaultEnabled(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	queryRepo.ProfileConfigs["p1"] = []*feed.ProfileConfig{
+		{ProfileID: "p1", FeedType: feed.LibraryType("lib-1")},
+	}
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	configs, err := svc.GetMergedConfig(context.Background(), "p1")
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	assert.True(t, configs[0].Enabled)
+	assert.Equal(t, 0, configs[0].DisplayOrder)
+}
+
 func TestQueryService_ResumePlayback(t *testing.T) {
 	queryRepo := fakes.NewFakeConfigQueryRepo()
 	querier := fakes.NewFakeFeedQuerier()
