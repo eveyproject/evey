@@ -104,30 +104,6 @@ func TestBuildFFmpegArgs_MultiVariant(t *testing.T) {
 	assert.Contains(t, joined, "-pix_fmt yuv420p")
 }
 
-func TestBuildFFmpegArgs_SeekBeforeInput(t *testing.T) {
-	opts := transcoding.HLSProcessOpts{
-		OutputDir:     "/tmp/test",
-		FilePath:      "/f.mkv",
-		Profiles:      transcoding.DefaultHLSProfiles,
-		VideoDecision: "copy",
-		AudioDecision: "transcode",
-		StartSec:      42.5,
-	}
-	args := ffmpeg.BuildFFmpegArgs(opts)
-	ssIdx, iIdx := -1, -1
-	for i, a := range args {
-		if a == "-ss" && ssIdx < 0 {
-			ssIdx = i
-		}
-		if a == "-i" && iIdx < 0 {
-			iIdx = i
-		}
-	}
-	require.Greater(t, ssIdx, -1)
-	require.Greater(t, iIdx, -1)
-	assert.Less(t, ssIdx, iIdx, "-ss must come before -i")
-}
-
 func TestBuildFFmpegArgs_AudioNormalize(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:      "/tmp/test",
@@ -558,6 +534,44 @@ func TestBuildFFmpegArgs_H264Copy_UsesTSSegments(t *testing.T) {
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, "%03d.ts")
 	assert.NotContains(t, joined, "-hls_segment_type fmp4")
+}
+
+// Verifies that buildCopyVideoArgs emits -ss AFTER -i (post-input/slow seek),
+// not before. With -c:v copy, pre-input -ss snaps to the previous keyframe
+// (often 5-10s before the user-clicked timestamp); post-input -ss snaps to
+// the NEXT keyframe (typically <5s ahead). The latter is less surprising
+// in the player UI.
+func TestTranscoding_BuildFFmpegArgs_CopyVideoSeekIsPostInput(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:       "/tmp/test",
+		FilePath:        "/source.mkv",
+		Profiles:        transcoding.DefaultHLSProfiles,
+		VideoDecision:   "copy",
+		AudioDecision:   "copy",
+		AudioTrackIndex: 0,
+		StartSec:        358.5,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	iIdx := -1
+	ssIdx := -1
+	for i, a := range args {
+		if a == "-i" && iIdx == -1 {
+			iIdx = i
+		}
+		if a == "-ss" && ssIdx == -1 {
+			ssIdx = i
+		}
+	}
+	if iIdx == -1 || ssIdx == -1 {
+		t.Fatalf("expected both -i and -ss in args, got: %v", args)
+	}
+	if ssIdx < iIdx {
+		t.Errorf("expected -ss AFTER -i (post-input slow seek), got -ss at %d before -i at %d", ssIdx, iIdx)
+	}
+	// Sanity: the value following -ss is the StartSec we asked for.
+	if ssIdx+1 >= len(args) || args[ssIdx+1] != "358.500" {
+		t.Errorf("expected -ss 358.500 after -i, got -ss %q", args[ssIdx+1])
+	}
 }
 
 // Kills hls_transcoder.go:175:19 CONDITIONALS_BOUNDARY (`StartSec > 0` vs `>= 0`)

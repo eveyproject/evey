@@ -217,10 +217,16 @@ func needsFMP4Segments(streams []*library.MediaStream) bool {
 
 func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	var args []string
+	args = append(args, "-i", opts.FilePath)
+	// Post-input -ss: ffmpeg decodes-and-discards until the timestamp.
+	// With -c:v copy that lands on the first keyframe AT-OR-AFTER target
+	// (typically <5s ahead). Pre-input -ss would snap to the previous
+	// keyframe instead (sometimes 10+s before), which surprised users
+	// scrubbing the timeline in stream-copy mode (the only mode where the
+	// snap is unavoidable since copy can't trim sub-keyframe).
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
-	args = append(args, "-i", opts.FilePath)
 	args = append(args,
 		"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
 		"-c:v", "copy",
