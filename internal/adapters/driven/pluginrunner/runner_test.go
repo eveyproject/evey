@@ -299,6 +299,46 @@ func TestWithSandboxMode_StoresBasic(t *testing.T) {
 	assert.Equal(t, sandboxModeBasic, r.sandboxMode)
 }
 
+// TestClassifyExitError_OOMHints pins the human-readable classification of
+// SIGKILL crashes: with no cgroup limits, hint host OOM-killer; with limits,
+// hint memory.max. Anything else falls through to the raw error string.
+func TestClassifyExitError_OOMHints(t *testing.T) {
+	t.Run("nil error → empty", func(t *testing.T) {
+		assert.Equal(t, "", classifyExitError(nil, false))
+	})
+
+	t.Run("non-exit error falls through", func(t *testing.T) {
+		got := classifyExitError(os.ErrPermission, true)
+		assert.Contains(t, got, "process crashed:")
+		assert.Contains(t, got, "permission denied")
+	})
+
+	t.Run("SIGKILL without cgroup → host OOM hint", func(t *testing.T) {
+		err := killSelfAndWait(t)
+		got := classifyExitError(err, false)
+		assert.Contains(t, got, "host OOM-killer")
+		assert.Contains(t, got, "EVEY_PLUGINS_ENABLED")
+	})
+
+	t.Run("SIGKILL with cgroup → memory.max hint", func(t *testing.T) {
+		err := killSelfAndWait(t)
+		got := classifyExitError(err, true)
+		assert.Contains(t, got, "cgroup memory.max")
+		assert.Contains(t, got, "EVEY_PLUGINS_MEMORY_MB")
+	})
+}
+
+// killSelfAndWait runs `sleep 60`, sends SIGKILL, and returns the Wait error.
+// The resulting *exec.ExitError carries WaitStatus.Signal()=SIGKILL — exactly
+// the shape produced when the host OOM-killer or cgroup memory.max fires.
+func killSelfAndWait(t *testing.T) error {
+	t.Helper()
+	cmd := exec.Command("sleep", "60")
+	require.NoError(t, cmd.Start())
+	require.NoError(t, cmd.Process.Signal(os.Kill))
+	return cmd.Wait()
+}
+
 // TestWithSandboxMode_InvalidMappedToDefault documents that any unrecognised
 // value (including empty string) is silently mapped to the default sandbox mode
 // (bubblewrap). This prevents accidental escalation from a config typo —

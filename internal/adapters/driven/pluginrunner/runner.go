@@ -307,12 +307,12 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	cgroupPath, cgroupErr := prepareCgroup(p.ID, r.cgroupCfg)
 	if cgroupErr != nil {
 		r.cgroupWarnOnce.Do(func() {
-			slog.Warn("cgroup v2 resource limits unavailable, running without limits",
+			slog.Warn("cgroup v2 resource limits unavailable, running without limits — host OOM-killer may SIGKILL plugins under memory pressure. To fix in dev: mount /sys/fs/cgroup rw in docker-compose, or set EVEY_PLUGINS_ENABLED=false.",
 				slog.String("plugin", p.ID), slog.Any("err", cgroupErr))
 		})
 	} else if cgroupPath == "" {
 		r.cgroupWarnOnce.Do(func() {
-			slog.Warn("cgroup v2 not available on this host, resource limits disabled")
+			slog.Warn("cgroup v2 not available on this host, resource limits disabled — host OOM-killer may SIGKILL plugins under memory pressure")
 		})
 	}
 
@@ -638,11 +638,33 @@ func (r *Runner) trackLifecycle(entry *processEntry, cancel context.CancelFunc, 
 		r.hostRegistry.UnregisterPlugin(p.ID)
 	}
 	if err != nil {
-		slog.Warn("plugin process crashed", slog.String("plugin", p.ID), slog.Any("err", err))
-		r.publishPluginError(context.Background(), p.ID, "process crashed: "+err.Error())
+		msg := classifyExitError(err, entry.cgroupPath != "")
+		slog.Warn("plugin process crashed", slog.String("plugin", p.ID), slog.String("classification", msg), slog.Any("err", err))
+		r.publishPluginError(context.Background(), p.ID, msg)
 	} else {
 		slog.Info("plugin process exited", slog.String("plugin", p.ID))
 	}
+}
+
+// classifyExitError turns the raw exec.Cmd.Wait error into an admin-readable
+// reason. SIGKILL on a plugin with no cgroup limits is almost always the host
+// OOM-killer firing — surface the actionable hint instead of a cryptic
+// "signal: killed".
+func classifyExitError(err error, hadCgroupLimits bool) string {
+	if err == nil {
+		return ""
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		ws, ok := exitErr.Sys().(syscall.WaitStatus)
+		if ok && ws.Signaled() && ws.Signal() == syscall.SIGKILL {
+			if !hadCgroupLimits {
+				return "process killed by host OOM-killer (cgroup v2 limits unavailable; mount /sys/fs/cgroup rw, set EVEY_PLUGINS_MEMORY_MB lower, or disable EVEY_PLUGINS_ENABLED in dev)"
+			}
+			return "process killed by cgroup memory.max — raise EVEY_PLUGINS_MEMORY_MB or fix the plugin's working set"
+		}
+	}
+	return "process crashed: " + err.Error()
 }
 
 func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *plugin.Plugin) {
