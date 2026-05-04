@@ -283,6 +283,57 @@ func (s *IntroDetectionService) backfillMissingSeasons(ctx context.Context) {
 	slog.Info("intro detection backfill: done")
 }
 
+// BackfillLibrary runs the same detection loop as backfillMissingSeasons but
+// scoped to a single library. An empty libraryID is equivalent to calling
+// backfillMissingSeasons (all libraries). This is the entry point for the
+// admin "run backfill" endpoint — it runs synchronously; callers that want
+// non-blocking behaviour should wrap it in a goroutine.
+//
+// Returns the number of seasons that were scheduled (i.e. passed to
+// detectSeason, not necessarily found new segments).
+func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID string) (int, error) {
+	var parentIDs []string
+	if libraryID == "" {
+		// No filter: use the same missing-segments query as the boot sweep.
+		ids, err := s.segmentRepo.ListSeasonsMissingSegments(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("intro detection admin backfill: list seasons: %w", err)
+		}
+		parentIDs = ids
+	} else {
+		seasonType := string(domainlibrary.Season)
+		libID := shared.LibraryID(libraryID)
+		seasons, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
+			LibraryID: &libID,
+			Type:      &seasonType,
+			Limit:     10000,
+		})
+		if err != nil {
+			return 0, fmt.Errorf("intro detection admin backfill: list library seasons: %w", err)
+		}
+		for _, s := range seasons {
+			parentIDs = append(parentIDs, string(s.ID))
+		}
+	}
+
+	if len(parentIDs) == 0 {
+		return 0, nil
+	}
+	slog.Info("intro detection admin backfill: starting",
+		slog.String("library_id", libraryID),
+		slog.Int("seasons", len(parentIDs)))
+	for _, pid := range parentIDs {
+		if ctx.Err() != nil {
+			break
+		}
+		s.detectSeason(ctx, pid)
+	}
+	slog.Info("intro detection admin backfill: done",
+		slog.String("library_id", libraryID),
+		slog.Int("seasons", len(parentIDs)))
+	return len(parentIDs), nil
+}
+
 // detectSeason runs detection on every episode of the given season that
 // doesn't already have an intro segment (presence of end_credits alone is not
 // sufficient — partial detection happens when not all siblings had their

@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"sync"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -17,9 +18,17 @@ type IntroCacheInvalidator interface {
 	Invalidate(ctx context.Context, tmdbID, season, episode int) (int64, error)
 }
 
+// IntroBackfiller is the port for the admin-triggered backfill.
+type IntroBackfiller interface {
+	BackfillLibrary(ctx context.Context, libraryID string) (int, error)
+}
+
 type adminIntroHandler struct {
 	eveyv1.UnimplementedAdminIntroServiceServer
-	cache IntroCacheInvalidator
+	cache     IntroCacheInvalidator
+	backfill  IntroBackfiller
+	backfillMu sync.Mutex
+	backfillRunning bool
 }
 
 func (h *adminIntroHandler) InvalidateIntroCache(ctx context.Context, req *eveyv1.InvalidateIntroCacheRequest) (*eveyv1.InvalidateIntroCacheResponse, error) {
@@ -38,4 +47,39 @@ func (h *adminIntroHandler) InvalidateIntroCache(ctx context.Context, req *eveyv
 	}
 
 	return &eveyv1.InvalidateIntroCacheResponse{RowsDeleted: n}, nil
+}
+
+func (h *adminIntroHandler) BackfillIntroDetection(ctx context.Context, req *eveyv1.BackfillIntroDetectionRequest) (*eveyv1.BackfillIntroDetectionResponse, error) {
+	_, span := tracing.StartSpan(ctx, "grpc.admin.BackfillIntroDetection")
+	defer span.End()
+
+	if h.backfill == nil {
+		return nil, status.Errorf(codes.Unavailable, "intro detection not configured")
+	}
+
+	h.backfillMu.Lock()
+	if h.backfillRunning {
+		h.backfillMu.Unlock()
+		// Return AlreadyExists so the caller knows the job is already running —
+		// no need for a second one.
+		return nil, status.Errorf(codes.AlreadyExists, "backfill already in progress")
+	}
+	h.backfillRunning = true
+	h.backfillMu.Unlock()
+
+	libraryID := req.LibraryId
+	go func() {
+		defer func() {
+			h.backfillMu.Lock()
+			h.backfillRunning = false
+			h.backfillMu.Unlock()
+		}()
+		// Use a fresh context so the backfill outlives the HTTP request context.
+		_, _ = h.backfill.BackfillLibrary(context.Background(), libraryID)
+	}()
+
+	// seasons_scheduled is not available synchronously in non-blocking mode —
+	// the job has just been enqueued. The caller should watch server logs for
+	// progress (slog entries from BackfillLibrary).
+	return &eveyv1.BackfillIntroDetectionResponse{SeasonsScheduled: 0}, nil
 }

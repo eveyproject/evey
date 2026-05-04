@@ -122,6 +122,7 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.CollectionService/AddCollectionItem":                  RoleAdmin,
 			"/evey.v1.PhotoService/DeletePhoto":                             RoleAdmin,
 			"/evey.v1.AdminIntroService/InvalidateIntroCache":               RoleAdmin,
+			"/evey.v1.AdminIntroService/BackfillIntroDetection":             RoleAdmin,
 		},
 	}
 }

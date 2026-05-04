@@ -12,6 +12,13 @@ service AdminIntroService {
       delete: "/api/v1/admin/intro-cache/{tmdb_id}/{season}/{episode}"
     };
   }
+
+  rpc BackfillIntroDetection(BackfillIntroDetectionRequest) returns (BackfillIntroDetectionResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/intro-cache/backfill"
+      body: "*"
+    };
+  }
 }
 
 message InvalidateIntroCacheRequest {
@@ -22,4 +29,15 @@ message InvalidateIntroCacheRequest {
 
 message InvalidateIntroCacheResponse {
   int64 rows_deleted = 1;
+}
+
+message BackfillIntroDetectionRequest {
+  // library_id scopes the backfill to one library. Empty = all libraries.
+  string library_id = 1;
+}
+
+message BackfillIntroDetectionResponse {
+  // seasons_scheduled is the number of seasons passed to the detection
+  // pipeline. The job runs in the background; this is not a completion count.
+  int32 seasons_scheduled = 1;
 }

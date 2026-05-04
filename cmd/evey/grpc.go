@@ -72,6 +72,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		StarRating:      deps.content.starRatingSvc,
 		QuickConnectHub: qcHub,
 		IntroCache:      deps.repos.IntroMetadataCache,
+		IntroBackfill:   deps.library.introDetectionSvc,
 	}
 
 	if deps.repos.pushSubRepo != nil {

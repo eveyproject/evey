@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/stretchr/testify/assert"
@@ -68,4 +69,59 @@ func TestInvalidateIntroCache_RepoError_ReturnsInternal(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+// fakeIntroBackfiller records calls to BackfillLibrary.
+type fakeIntroBackfiller struct {
+	libraryIDsReceived []string
+	result             int
+	err                error
+	done               chan struct{}
+}
+
+func newFakeIntroBackfiller() *fakeIntroBackfiller {
+	return &fakeIntroBackfiller{done: make(chan struct{}, 10)}
+}
+
+func (f *fakeIntroBackfiller) BackfillLibrary(_ context.Context, libraryID string) (int, error) {
+	f.libraryIDsReceived = append(f.libraryIDsReceived, libraryID)
+	f.done <- struct{}{}
+	return f.result, f.err
+}
+
+func TestBackfillIntroDetection_StartsJobAndReturnsOK(t *testing.T) {
+	fake := newFakeIntroBackfiller()
+	fake.result = 5
+	h := &adminIntroHandler{backfill: fake}
+
+	resp, err := h.BackfillIntroDetection(context.Background(), &eveyv1.BackfillIntroDetectionRequest{
+		LibraryId: "lib-123",
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, resp)
+
+	// Wait for the goroutine to call BackfillLibrary.
+	select {
+	case <-fake.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("background goroutine did not call BackfillLibrary within timeout")
+	}
+	assert.Contains(t, fake.libraryIDsReceived, "lib-123")
+}
+
+func TestBackfillIntroDetection_AlreadyRunning_ReturnsAlreadyExists(t *testing.T) {
+	h := &adminIntroHandler{backfill: newFakeIntroBackfiller()}
+	h.backfillRunning = true
+
+	_, err := h.BackfillIntroDetection(context.Background(), &eveyv1.BackfillIntroDetectionRequest{})
+	require.Error(t, err)
+	assert.Equal(t, codes.AlreadyExists, status.Code(err))
+}
+
+func TestBackfillIntroDetection_NilBackfiller_ReturnsUnavailable(t *testing.T) {
+	h := &adminIntroHandler{}
+
+	_, err := h.BackfillIntroDetection(context.Background(), &eveyv1.BackfillIntroDetectionRequest{})
+	require.Error(t, err)
+	assert.Equal(t, codes.Unavailable, status.Code(err))
 }
