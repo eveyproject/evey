@@ -97,6 +97,7 @@ func (d *IntroDetector) AudioFallback(ctx context.Context, filePath string, maxS
 // the stderr output.
 func (d *IntroDetector) runDetect(ctx context.Context, filePath string, startSec, durationSec float64) (silences, blacks []floatRange, err error) {
 	args := []string{
+		"-threads", strconv.Itoa(introFFmpegThreads()),
 		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
 		"-t", strconv.FormatFloat(durationSec, 'f', 3, 64),
 		"-i", filePath,
@@ -247,6 +248,7 @@ func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, d
 		"nice", "-n", "19",
 		d.binary,
 		"-nostdin",
+		"-threads", strconv.Itoa(introFFmpegThreads()),
 		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
 		"-i", filePath,
 		"-vf", "blackdetect=d=0.5:pix_th=0.10",
@@ -324,6 +326,7 @@ func (d *IntroDetector) AudioRMSProfile(ctx context.Context, filePath string, st
 
 	args := []string{
 		"-nostdin",
+		"-threads", strconv.Itoa(introFFmpegThreads()),
 		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
 		"-t", strconv.FormatFloat(durationSec, 'f', 3, 64),
 		"-i", filePath,
@@ -388,6 +391,7 @@ func (d *IntroDetector) AudioBandedFingerprint(ctx context.Context, filePath str
 
 	args := []string{
 		"-nostdin",
+		"-threads", strconv.Itoa(introFFmpegThreads()),
 		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
 		"-t", strconv.FormatFloat(durationSec, 'f', 3, 64),
 		"-i", filePath,

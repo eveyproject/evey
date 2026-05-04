@@ -63,7 +63,9 @@ func (c *Chromaprinter) Compute(ctx context.Context, filePath string, startSec, 
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
-	ffmpegArgs := []string{"-nostdin", "-hide_banner", "-loglevel", "error"}
+	ffmpegArgs := []string{"-nostdin", "-hide_banner", "-loglevel", "error",
+		"-threads", strconv.Itoa(introFFmpegThreads()),
+	}
 	if startSec > 0 {
 		ffmpegArgs = append(ffmpegArgs, "-ss", strconv.FormatFloat(startSec, 'f', 3, 64))
 	}
