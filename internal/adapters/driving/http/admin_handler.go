@@ -10,7 +10,6 @@ import (
 
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/auth"
@@ -26,8 +25,6 @@ type adminHandler struct {
 	heavyRL        *ratelimit.Limiter
 	activityCmdSvc *appactivity.CommandService
 	logDir         string
-	transcodeSvc   *apptranscoding.Service
-	mediaGetter    MediaItemGetter
 	serverCtx      context.Context
 }
 
@@ -79,22 +76,6 @@ func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen *auth.JWTGene
 	h := &adminHandler{tokenGen: tokenGen, logDir: logDir}
 	mux.HandleFunc("GET /api/v1/admin/logs", admin(h.handleGetLogs))
 	mux.HandleFunc("GET /api/v1/admin/logs/stream", admin(h.handleStreamLogs))
-}
-
-func registerTranscodeProfileRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService, writeRL *ratelimit.Limiter) {
-	admin := httpAdminMiddleware(tokenGen)
-	h := &adminHandler{tokenGen: tokenGen, transcodeSvc: transcodeSvc, activityCmdSvc: actCmdSvc}
-	mux.HandleFunc("POST /api/v1/admin/transcoding/profiles", ratelimit.MiddlewareFunc(writeRL, admin(h.handleCreateTranscodeProfile)))
-	mux.HandleFunc("PUT /api/v1/admin/transcoding/profiles/{id}", ratelimit.MiddlewareFunc(writeRL, admin(h.handleUpdateTranscodeProfile)))
-	mux.HandleFunc("DELETE /api/v1/admin/transcoding/profiles/{id}", ratelimit.MiddlewareFunc(writeRL, admin(h.handleDeleteTranscodeProfile)))
-}
-
-func registerTranscodeCacheRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator, mediaGetter MediaItemGetter, actCmdSvc *appactivity.CommandService, writeRL *ratelimit.Limiter) {
-	admin := httpAdminMiddleware(tokenGen)
-	h := &adminHandler{tokenGen: tokenGen, transcodeSvc: transcodeSvc, mediaGetter: mediaGetter, activityCmdSvc: actCmdSvc}
-	mux.HandleFunc("GET /api/v1/admin/transcode-cache", admin(h.handleGetTranscodeCache))
-	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache", ratelimit.MiddlewareFunc(writeRL, admin(h.handleClearTranscodeCache)))
-	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache/{filename}", ratelimit.MiddlewareFunc(writeRL, admin(h.handleDeleteTranscodeCacheFile)))
 }
 
 func registerAvailableRuntimesRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator) {

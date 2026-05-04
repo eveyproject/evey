@@ -2,6 +2,7 @@ package playback
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -11,6 +12,12 @@ import (
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/id"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+)
+
+var (
+	ErrMaxStreams      = errors.New("max concurrent streams reached")
+	ErrSessionNotFound = errors.New("session not found")
+	ErrProfileNotFound = errors.New("profile not found")
 )
 
 type CommandService struct {

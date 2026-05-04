@@ -159,20 +159,8 @@ func NewMetadataOverride(id string, mediaItemID shared.MediaItemID, fieldName st
 
 type ArtworkRecordOption func(*ArtworkRecord)
 
-func WithArtworkPerson(personID string) ArtworkRecordOption {
-	return func(a *ArtworkRecord) { a.PersonID = &personID }
-}
-
 func WithArtworkSource(url string) ArtworkRecordOption {
 	return func(a *ArtworkRecord) { a.SourceURL = &url }
-}
-
-func WithArtworkLocal(path string) ArtworkRecordOption {
-	return func(a *ArtworkRecord) { a.LocalPath = &path }
-}
-
-func WithArtworkWebP(path string) ArtworkRecordOption {
-	return func(a *ArtworkRecord) { a.WebPPath = &path }
 }
 
 func WithArtworkDimensions(width, height int) ArtworkRecordOption {

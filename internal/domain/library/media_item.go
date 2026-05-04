@@ -59,11 +59,6 @@ func WithMediaItemSortTitle(sortTitle string) MediaItemOption {
 	return func(m *MediaItem) { m.SortTitle = sortTitle }
 }
 
-// WithMediaItemOriginalTitle sets the original-language title.
-func WithMediaItemOriginalTitle(originalTitle string) MediaItemOption {
-	return func(m *MediaItem) { m.OriginalTitle = originalTitle }
-}
-
 // WithMediaItemOverview sets the long-form synopsis.
 func WithMediaItemOverview(overview string) MediaItemOption {
 	return func(m *MediaItem) { m.Overview = overview }
@@ -98,23 +93,6 @@ func WithMediaItemYear(year int) MediaItemOption {
 // WithMediaItemFile attaches the on-disk artefact sub-aggregate.
 func WithMediaItemFile(file *MediaFile) MediaItemOption {
 	return func(m *MediaItem) { m.File = file }
-}
-
-// WithMediaItemCatalog attaches the catalog (release/year/provider IDs/
-// taxonomy) sub-aggregate.
-func WithMediaItemCatalog(catalog *MediaCatalog) MediaItemOption {
-	return func(m *MediaItem) { m.Catalog = catalog }
-}
-
-// WithMediaItemClassification attaches the rating/certification
-// sub-aggregate.
-func WithMediaItemClassification(classification *MediaClassification) MediaItemOption {
-	return func(m *MediaItem) { m.Classification = classification }
-}
-
-// WithMediaItemTrailers replaces the trailers slice.
-func WithMediaItemTrailers(trailers []Trailer) MediaItemOption {
-	return func(m *MediaItem) { m.Trailers = trailers }
 }
 
 // NewMediaItem is the canonical constructor: stamps AddedAt/UpdatedAt,

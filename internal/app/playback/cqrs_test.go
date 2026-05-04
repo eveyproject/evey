@@ -157,21 +157,6 @@ func TestQueryService_GetResumeItems(t *testing.T) {
 	assert.Equal(t, shared.MediaItemID("m1"), items[0].MediaItemID)
 }
 
-func TestServiceWrapper_DelegatesToCQRS(t *testing.T) {
-	svc, _, _, _, profileRepo, _ := newPlaybackSvc()
-	ctx := context.Background()
-
-	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
-	require.NoError(t, svc.ReportProgress(ctx, "p1", "m1", 12000, false))
-
-	wp, err := svc.GetWatchProgress(ctx, "p1", "m1")
-	require.NoError(t, err)
-	assert.Equal(t, int64(12000), wp.Position.Milliseconds())
-
-	assert.NotNil(t, svc.CommandService())
-	assert.NotNil(t, svc.QueryService())
-}
-
 func TestCommandService_MarkAsWatched_ProfileNotFound(t *testing.T) {
 	cmd, _, _, _, _, _, _ := newCQRSServices()
 	ctx := context.Background()
