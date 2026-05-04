@@ -1,0 +1,127 @@
+// Package introproviders wires external intro/recap/credits metadata
+// sources (TIDB, IntroDB) behind the domainlibrary.IntroMetadataProvider
+// port. Two upstream services with complementary coverage are queried in
+// chain order; results are cached in Postgres so a typical scan only hits
+// the network once per episode for the whole catalog lifetime.
+package introproviders
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strconv"
+
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
+)
+
+// Lookup is the resolved set of identifiers needed to query the upstream
+// providers. Filled by AncestorResolver from a MediaItem.
+//
+//   - Movies: TmdbID = movie ID, Season/Episode = 0, IsMovie = true.
+//   - TV episodes: TmdbID = series ID (NOT episode ID), Season + Episode
+//     = 1-indexed numbers, IsMovie = false.
+type Lookup struct {
+	TmdbID    int    // TIDB primary key for both movies and TV series
+	ImdbID    string // optional, may be ""; IntroDB primary key
+	Season    int    // 0 for movies
+	Episode   int    // 0 for movies
+	IsMovie   bool   // true → movie endpoint shape; false → TV episode shape
+	MediaItem *domainlibrary.MediaItem
+}
+
+// MediaAncestorRepo is the read-only slice of MediaItemRepository the
+// resolver needs. Defined as its own interface so the resolver can be
+// fed a fake or a strictly-typed query repo.
+type MediaAncestorRepo interface {
+	GetByID(ctx context.Context, id shared.MediaItemID) (*domainlibrary.MediaItem, error)
+}
+
+// AncestorResolver walks the parent chain of an Episode (Episode → Season
+// → Series) to recover the Series-level TMDB / IMDb IDs that TIDB and
+// IntroDB key on. For Movies it returns the item's own IDs.
+type AncestorResolver struct {
+	repo MediaAncestorRepo
+}
+
+// NewAncestorResolver returns a resolver backed by the given repo. The
+// repo MUST resolve MediaItem IDs to fully-loaded items (Catalog +
+// IndexNumber populated) since the resolver dereferences both fields.
+func NewAncestorResolver(repo MediaAncestorRepo) *AncestorResolver {
+	return &AncestorResolver{repo: repo}
+}
+
+// ErrLookupUnresolvable means the item has no usable TMDB/IMDb ID — a
+// hard skip for the providers (no fallback to title-search). Returned
+// when the catalog wasn't enriched, parents weren't loaded, or the item
+// is a container type (series / season).
+var ErrLookupUnresolvable = errors.New("introproviders: media has no usable TMDB or IMDb ID")
+
+// Resolve walks ancestors from item up to the series/movie root and
+// returns the canonical Lookup. Errors short-circuit the providers; the
+// caller falls back to chapter pass / heuristics.
+func (r *AncestorResolver) Resolve(ctx context.Context, item *domainlibrary.MediaItem) (Lookup, error) {
+	if item == nil {
+		return Lookup{}, ErrLookupUnresolvable
+	}
+	switch item.Type {
+	case domainlibrary.MovieItem:
+		ids := providerIDs(item)
+		tmdbID, _ := strconv.Atoi(ids["tmdb"])
+		if tmdbID == 0 && ids["imdb"] == "" {
+			return Lookup{}, ErrLookupUnresolvable
+		}
+		return Lookup{
+			TmdbID:    tmdbID,
+			ImdbID:    ids["imdb"],
+			IsMovie:   true,
+			MediaItem: item,
+		}, nil
+	case domainlibrary.Episode:
+		if item.IndexNumber == nil || *item.IndexNumber == 0 {
+			return Lookup{}, ErrLookupUnresolvable
+		}
+		ep := *item.IndexNumber
+		// Episode → Season (parent), Season → Series (grandparent).
+		season, err := r.repo.GetByID(ctx, shared.MediaItemID(item.ParentID))
+		if err != nil || season == nil || season.IndexNumber == nil {
+			return Lookup{}, fmt.Errorf("resolve season: %w", err)
+		}
+		series, err := r.repo.GetByID(ctx, shared.MediaItemID(season.ParentID))
+		if err != nil || series == nil {
+			return Lookup{}, fmt.Errorf("resolve series: %w", err)
+		}
+		ids := providerIDs(series)
+		tmdbID, _ := strconv.Atoi(ids["tmdb"])
+		if tmdbID == 0 && ids["imdb"] == "" {
+			return Lookup{}, ErrLookupUnresolvable
+		}
+		return Lookup{
+			TmdbID:    tmdbID,
+			ImdbID:    ids["imdb"],
+			Season:    *season.IndexNumber,
+			Episode:   ep,
+			IsMovie:   false,
+			MediaItem: item,
+		}, nil
+	default:
+		// Series / Season / Album / Track / Photo: no per-item segment data.
+		return Lookup{}, ErrLookupUnresolvable
+	}
+}
+
+func providerIDs(item *domainlibrary.MediaItem) map[string]string {
+	if item == nil || item.Catalog == nil || item.Catalog.ProviderIDs == nil {
+		return map[string]string{}
+	}
+	return item.Catalog.ProviderIDs
+}
+
+// Client is the narrow contract every upstream HTTP adapter (TIDB,
+// IntroDB) implements. Returning an empty slice with nil error means
+// "service responded but has no data for this lookup" — the chain
+// continues to the next provider.
+type Client interface {
+	Source() string // stable identifier for MediaSegment.Source ("tidb", "introdb")
+	Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.MediaSegment, error)
+}

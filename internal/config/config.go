@@ -97,6 +97,18 @@ type TracingConfig struct {
 
 type MetadataConfig struct {
 	Language string // ISO 639-1, default "en"
+
+	// IntroProvidersEnabled wires external segment providers (TIDB +
+	// IntroDB) ahead of the in-house intro detection pipeline. Off by
+	// default — outbound HTTP is opt-in, the user must consent.
+	// EVEY_INTRO_PROVIDERS_ENABLED
+	IntroProvidersEnabled bool
+
+	// TIDBAPIKey is an optional Bearer token for theintrodb.org. Without
+	// it the daily quota is per-IP (lower); with it the quota lifts to
+	// per-account 500/day for /media. Treat as a secret.
+	// EVEY_INTRO_TIDB_API_KEY
+	TIDBAPIKey string
 }
 
 type VAPIDConfig struct {
@@ -422,7 +434,11 @@ func Load() (*Config, error) {
 			SkipForwardSeconds:  envInt("EVEY_PLAYBACK_SKIP_FORWARD", 10),
 			SkipBackwardSeconds: envInt("EVEY_PLAYBACK_SKIP_BACKWARD", 10),
 		},
-		Metadata: MetadataConfig{Language: "en"},
+		Metadata: MetadataConfig{
+			Language:              "en",
+			IntroProvidersEnabled: envBool("EVEY_INTRO_PROVIDERS_ENABLED", false),
+			TIDBAPIKey:            envStr("EVEY_INTRO_TIDB_API_KEY", ""),
+		},
 		Backup: BackupConfig{
 			Dir:           envStr("EVEY_BACKUP_DIR", "/data/backups"),
 			IntervalHours: envInt("EVEY_BACKUP_INTERVAL_HOURS", 0),

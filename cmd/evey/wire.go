@@ -39,6 +39,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/email"
 	webpushadapter "github.com/evey-project/evey/internal/adapters/driven/webpush"
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
+	"github.com/evey-project/evey/internal/adapters/driven/introproviders"
 	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
 	itunesadapter "github.com/evey-project/evey/internal/adapters/driven/itunes"
 	meili "github.com/evey-project/evey/internal/adapters/driven/meilisearch"
@@ -522,6 +523,24 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		} else {
 			slog.Warn("EVEY_INTRO_DETECTION_MAX_PARALLEL not a number, keeping default", slog.String("value", v))
 		}
+	}
+
+	// External intro/recap/credits providers (TIDB primary, IntroDB fallback)
+	// run ahead of MKV chapter pass when enabled. Off by default — opt-in
+	// because they require outbound HTTP. The chain layer caches every
+	// answer in postgres so a typical scan only hits the network once per
+	// episode for the catalog's lifetime.
+	if cfg.Metadata.IntroProvidersEnabled {
+		resolver := introproviders.NewAncestorResolver(r.MediaItem)
+		clients := []introproviders.Client{
+			introproviders.NewTIDBClient(cfg.Metadata.TIDBAPIKey),
+			introproviders.NewIntroDBClient(),
+		}
+		chain := introproviders.NewChainedProvider(resolver, clients...)
+		cached := introproviders.NewCached(chain, resolver, r.IntroMetadataCache)
+		introDetectionSvc.WithIntroMetadataProvider(cached)
+		slog.Info("intro detection: external providers enabled (TIDB + IntroDB)",
+			slog.Bool("tidb_authenticated", cfg.Metadata.TIDBAPIKey != ""))
 	}
 
 	if cfg.Transcoding.CacheMaxGB > 0 {

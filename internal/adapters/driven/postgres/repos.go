@@ -45,6 +45,7 @@ type Repos struct {
 	Chapter              *ChapterRepository
 	MediaSegment         *MediaSegmentRepository
 	IntroFingerprintCache *IntroFingerprintCacheRepository
+	IntroMetadataCache    *IntroMetadataCacheRepository
 	ScanSchedule         *ScanScheduleRepository
 	LibraryAccess        *LibraryAccessRepository
 	Collection           *CollectionRepository
@@ -106,6 +107,7 @@ func NewRepos(db *sql.DB) *Repos {
 		Chapter:              NewChapterRepository(db),
 		MediaSegment:         NewMediaSegmentRepository(db),
 		IntroFingerprintCache: NewIntroFingerprintCacheRepository(db),
+		IntroMetadataCache:    NewIntroMetadataCacheRepository(db),
 		ScanSchedule:         NewScanScheduleRepository(db),
 		LibraryAccess:        NewLibraryAccessRepository(db),
 		Collection:           NewCollectionRepository(db),
