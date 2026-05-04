@@ -100,6 +100,29 @@ type MediaSegmentQueryRepo interface {
 	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*MediaSegment, error)
 }
 
+// IntroMetadataProvider is the port for an external source of intro/recap/
+// end_credits metadata, queried per-episode by the intro detection pipeline.
+//
+// The pipeline calls this *before* MKV chapter pass and the heuristic
+// passes — when the provider returns a non-empty slice, the rest of the
+// pipeline is short-circuited. Implementations must:
+//   - return nil, nil (or an empty slice) when no metadata is known for
+//     the item — that's the common case, the pipeline must fall through;
+//   - return MediaSegment values with Confidence ≥ 0.95 and Source set
+//     to a stable identifier (e.g. "tmdb", "anidb", "simkl") so the
+//     admin UI / backfill tooling can audit which source produced each
+//     segment;
+//   - be safe to call from a worker goroutine; the pipeline does not
+//     wrap the call with its own timeout, so the implementation owns
+//     its HTTP/IO timeouts.
+//
+// No concrete adapter is wired today; intro metadata is not part of
+// TMDB's public schema and the choice of community DB (AniDB / simkl /
+// custom) is not yet made — see backlog "TMDB intro/outro metadata".
+type IntroMetadataProvider interface {
+	GetSegments(ctx context.Context, item *MediaItem) ([]MediaSegment, error)
+}
+
 // MediaSegmentRepository is the full read-write interface for media segments.
 type MediaSegmentRepository interface {
 	MediaSegmentQueryRepo

@@ -48,6 +48,7 @@ type IntroDetectionService struct {
 	fpCache           domainlibrary.IntroFingerprintCacheRepository
 	chapterRepo       domainlibrary.ChapterQueryRepo
 	chromaprinter     Chromaprinter
+	metadataProvider  domainlibrary.IntroMetadataProvider
 	detector          IntroDetector
 	trickplayCacheDir string
 	shutdownCtx       context.Context
@@ -139,6 +140,19 @@ func (s *IntroDetectionService) WithChapterRepo(repo domainlibrary.ChapterQueryR
 // segment.
 func (s *IntroDetectionService) WithChromaprinter(c Chromaprinter) {
 	s.chromaprinter = c
+}
+
+// WithIntroMetadataProvider plugs an external source of intro/recap segments
+// (e.g. AniDB, simkl, a community plugin) ahead of the heuristic pipeline.
+// When the provider returns segments for a given item, those win over MKV
+// chapters and over the pHash/audio fallback chain — that's the contract
+// described in domainlibrary.IntroMetadataProvider.
+//
+// nil disables the pass; the rest of the pipeline runs unchanged. There is
+// no wired adapter today.
+func (s *IntroDetectionService) WithIntroMetadataProvider(p domainlibrary.IntroMetadataProvider) *IntroDetectionService {
+	s.metadataProvider = p
+	return s
 }
 
 func (s *IntroDetectionService) isTrickplayEnabled(ctx context.Context) bool {
@@ -624,7 +638,26 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	mediaItemID := string(item.ID)
 	cfg := loadIntroConfig(ctx, s.configRepo)
 
-	// MKV chapters first: authoritative when present (uploader labelled
+	// External metadata provider first: when an adapter is wired (e.g. an
+	// AniDB / simkl / community-DB lookup) and it knows this item, those
+	// segments are the most authoritative. Provider errors are non-fatal —
+	// fall through to chapters/heuristics.
+	if s.metadataProvider != nil {
+		mdSegs, mdErr := s.metadataProvider.GetSegments(ctx, item)
+		if mdErr != nil {
+			slog.Warn("intro_detection: metadata provider failed, falling back",
+				slog.String("media_id", mediaItemID), slog.Any("err", mdErr))
+		} else if len(mdSegs) > 0 {
+			slog.Info("intro_detection.pipeline_decision",
+				slog.String("media_id", mediaItemID),
+				slog.String("decision", "metadata_provider_match"),
+				slog.Int("segments", len(mdSegs)),
+			)
+			return mdSegs, nil
+		}
+	}
+
+	// MKV chapters next: authoritative when present (uploader labelled
 	// the chapter "Intro" / "Opening" / "Generique" etc.). Skip the rest
 	// of the pipeline if we got something — no heuristic beats explicit
 	// metadata.
