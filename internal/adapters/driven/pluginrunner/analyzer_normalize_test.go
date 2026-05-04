@@ -592,3 +592,88 @@ func TestResolveSimpleAliases_NoContent_NoAlloc(t *testing.T) {
 		t.Errorf("expected identical content for no-alias file, got:\n%s", got)
 	}
 }
+
+// ─── stripLineComments ───────────────────────────────────────────────────────
+
+func TestStripLineComments_PythonHashComment(t *testing.T) {
+	got := stripLineComments(`# pip install grpcio`)
+	if got != "" {
+		t.Errorf("hash comment should be fully stripped, got %q", got)
+	}
+}
+
+func TestStripLineComments_PythonTrailingHash(t *testing.T) {
+	got := stripLineComments(`x = 1  # pip install foo`)
+	want := `x = 1  `
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestStripLineComments_HashInsideDoubleQuote_Preserved(t *testing.T) {
+	// `#` inside a string literal is NOT a comment.
+	got := stripLineComments(`x = "# pip install"`)
+	want := `x = "# pip install"`
+	if got != want {
+		t.Errorf("hash inside string must survive, got %q", got)
+	}
+}
+
+func TestStripLineComments_HashInsideSingleQuote_Preserved(t *testing.T) {
+	got := stripLineComments(`x = '# pip install'`)
+	want := `x = '# pip install'`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestStripLineComments_DoubleSlashJSComment(t *testing.T) {
+	got := stripLineComments(`var x = 1; // npm install foo`)
+	want := `var x = 1; `
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestStripLineComments_DoubleSlashInURL_Preserved(t *testing.T) {
+	// `//` inside a quoted URL must survive.
+	got := stripLineComments(`fetch("https://api.example.com/path")`)
+	want := `fetch("https://api.example.com/path")`
+	if got != want {
+		t.Errorf("URL slashes must survive, got %q", got)
+	}
+}
+
+func TestStripLineComments_EscapedQuoteInside(t *testing.T) {
+	// Backslash-escaped quote must not close the string.
+	got := stripLineComments(`x = "say \"hi\" # not a comment"`)
+	want := `x = "say \"hi\" # not a comment"`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestStripLineComments_NoCommentMarker_Unchanged(t *testing.T) {
+	got := stripLineComments(`os.system("rm -rf /")`)
+	want := `os.system("rm -rf /")`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestStripLineComments_FullLineComment_Empty(t *testing.T) {
+	// Full-line comment → return empty (truncate at marker).
+	got := stripLineComments(`// some comment about os.system`)
+	if got != "" {
+		t.Errorf("got %q, want empty", got)
+	}
+}
+
+func TestStripLineComments_BacktickPreserved(t *testing.T) {
+	// Template literal in JS — backtick string.
+	got := stripLineComments("const cmd = `# not a comment` + x")
+	want := "const cmd = `# not a comment` + x"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

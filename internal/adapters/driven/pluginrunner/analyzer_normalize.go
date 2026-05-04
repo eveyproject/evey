@@ -722,14 +722,71 @@ func isWordChar(b byte) bool {
 // before it is fed to the regex rules:
 //  1. Unicode confusable folding
 //  2. Hex/octal/unicode escape decoding inside string literals
-//  3. Python f-string literal-only interpolation folding
-//  4. Python "".join([...]) folding
-//  5. String concat folding ("a"+"b" → "ab", "a"."b" → "ab" for PHP)
+//  3. Line-comment stripping (Python/Ruby/Bash # and JS/Go/PHP //)
+//  4. Python f-string literal-only interpolation folding
+//  5. Python "".join([...]) folding
+//  6. String concat folding ("a"+"b" → "ab", "a"."b" → "ab" for PHP)
 func normalizeLine(line string) string {
 	line = normalizeUnicode(line)
 	line = decodeEscapesInStrings(line)
+	line = stripLineComments(line)
 	line = foldFStrings(line)
 	line = foldJoin(line)
 	line = foldStringConcat(line)
+	return line
+}
+
+// stripLineComments truncates the line at the first comment marker that lies
+// outside string literals. Recognised markers: `#` (Python/Ruby/Bash/PHP) and
+// `//` (JS/Go/PHP). Block comments (`/* ... */`) are not handled — they span
+// lines and are rare in plugin code; the cost of mis-handling them outweighs
+// the protection (block-comment payload still needs to be paired with active
+// code that survives the line-strip to be exploitable).
+//
+// The walker tracks single, double, and backtick strings with a one-char
+// escape lookback so e.g. `"http://x.com"` and `"can't"` survive intact.
+func stripLineComments(line string) string {
+	var inSingle, inDouble, inBacktick bool
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		// Handle escape inside the active string. Backslash escapes the next
+		// char only if we are currently inside a quoted region.
+		if (inSingle || inDouble || inBacktick) && c == '\\' && i+1 < len(line) {
+			i++
+			continue
+		}
+		switch {
+		case inSingle:
+			if c == '\'' {
+				inSingle = false
+			}
+		case inDouble:
+			if c == '"' {
+				inDouble = false
+			}
+		case inBacktick:
+			if c == '`' {
+				inBacktick = false
+			}
+		default:
+			switch c {
+			case '\'':
+				inSingle = true
+			case '"':
+				inDouble = true
+			case '`':
+				inBacktick = true
+			case '#':
+				// `#` always starts a comment outside strings. In Bash this
+				// would mishandle e.g. `name=#foo` (rare/invalid usage); the
+				// false-negative cost is minimal.
+				return line[:i]
+			case '/':
+				if i+1 < len(line) && line[i+1] == '/' {
+					return line[:i]
+				}
+			}
+		}
+	}
 	return line
 }
