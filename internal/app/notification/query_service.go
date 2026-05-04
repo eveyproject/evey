@@ -61,6 +61,39 @@ func (s *QueryService) List(ctx context.Context, profileID string, unreadOnly bo
 	return out, nil
 }
 
+// ListAdminOnly returns admin-only notifications (plugin_error, backup_failed)
+// owned by the given admin profile, the inverse of List. Same over-fetch
+// strategy: callers pass a sane limit; we fetch up to 4× and filter to the
+// admin-only subset, capped at 1000 to bound memory.
+//
+// Caller is responsible for RBAC — this service does no role check; the
+// calling handler must gate by RoleAdmin.
+func (s *QueryService) ListAdminOnly(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
+	want := limit
+	if want <= 0 {
+		want = 50
+	}
+	overFetch := want * 4
+	if overFetch > 1000 {
+		overFetch = 1000
+	}
+	raw, err := s.repo.ListByProfile(ctx, profileID, unreadOnly, overFetch, offset)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*notification.Notification, 0, len(raw))
+	for _, n := range raw {
+		if n == nil || !n.Type.IsAdminOnly() {
+			continue
+		}
+		out = append(out, n)
+		if len(out) >= want {
+			break
+		}
+	}
+	return out, nil
+}
+
 // UnreadCount returns the count of unread *personal* notifications. We
 // over-fetch and count in memory rather than adding a Repository method
 // because the rate (~once per page load) and the typical unread count

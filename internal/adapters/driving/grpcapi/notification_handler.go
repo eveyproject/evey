@@ -13,6 +13,8 @@ import (
 	"github.com/evey-project/evey/internal/domain/notification"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type notificationHandler struct {
@@ -157,6 +159,32 @@ func (h *notificationHandler) UpdateNotificationSettings(ctx context.Context, re
 		return nil, internalError("update settings", err)
 	}
 	return settingsToProto(s), nil
+}
+
+// ListAdminNotifications returns the admin-only notifications (plugin_error,
+// backup_failed) addressed to the calling admin's profile. RBAC gating to
+// RoleAdmin is wired in the interceptor (see rbac.go); we still defensively
+// check claims.IsAdmin so this handler is safe even if the interceptor map
+// drifts.
+func (h *notificationHandler) ListAdminNotifications(ctx context.Context, req *eveyv1.ListAdminNotificationsRequest) (*eveyv1.ListAdminNotificationsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.notification.ListAdminNotifications")
+	defer span.End()
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("notificationHandler.ListAdminNotifications: %w", err)
+	}
+	if !claims.IsAdmin {
+		return nil, status.Errorf(codes.PermissionDenied, "admin role required")
+	}
+	items, err := h.query.ListAdminOnly(ctx, claims.ProfileID, req.UnreadOnly, int(req.Limit), int(req.Offset))
+	if err != nil {
+		return nil, internalError("list admin notifications", err)
+	}
+	resp := &eveyv1.ListAdminNotificationsResponse{}
+	for _, n := range items {
+		resp.Notifications = append(resp.Notifications, notificationToProto(n))
+	}
+	return resp, nil
 }
 
 func (h *notificationHandler) GetGlobalNotificationSettings(ctx context.Context, _ *eveyv1.GetGlobalNotificationSettingsRequest) (*eveyv1.NotificationSettings, error) {

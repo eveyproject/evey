@@ -83,6 +83,7 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.FeedService/BatchUpdateAdminFeedConfigs":              RoleAdmin,
 			"/evey.v1.NotificationService/GetGlobalNotificationSettings":    RoleAdmin,
 			"/evey.v1.NotificationService/UpdateGlobalNotificationSettings": RoleAdmin,
+			"/evey.v1.NotificationService/ListAdminNotifications":           RoleAdmin,
 			"/evey.v1.ActivityService/GetServerStats":                       RoleAdmin,
 			"/evey.v1.ActivityService/ListServerMetrics":                    RoleAdmin,
 			// MetadataService is intentionally NOT gated to admin: editing

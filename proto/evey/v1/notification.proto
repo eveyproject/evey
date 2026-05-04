@@ -52,6 +52,12 @@ service NotificationService {
     };
   }
 
+  rpc ListAdminNotifications(ListAdminNotificationsRequest) returns (ListAdminNotificationsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/notifications"
+    };
+  }
+
   rpc GetGlobalNotificationSettings(GetGlobalNotificationSettingsRequest) returns (NotificationSettings) {
     option (google.api.http) = {
       get: "/api/v1/admin/notifications/settings"
@@ -140,6 +146,16 @@ message UpdateNotificationSettingsRequest {
   NotificationLevel movie_level = 2;
   NotificationLevel series_level = 3;
   NotificationLevel music_level = 4;
+}
+
+message ListAdminNotificationsRequest {
+  bool unread_only = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListAdminNotificationsResponse {
+  repeated Notification notifications = 1;
 }
 
 message GetGlobalNotificationSettingsRequest {}

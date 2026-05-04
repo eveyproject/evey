@@ -61,6 +61,49 @@ func TestQueryService_UnreadCount_ExcludesAdminOnly(t *testing.T) {
 	assert.Equal(t, 2, count, "only n1 and n5 are unread+personal — admin-only excluded")
 }
 
+// ListAdminOnly is the inverse of List: it surfaces plugin_error and
+// backup_failed for an admin's profile, dropping personal types so the
+// admin-side bell isn't noised by new_movie / new_episode / new_series.
+func TestQueryService_ListAdminOnly_KeepsOnlyAdminTypes(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	svc := appnotification.NewQueryService(repo, settings)
+
+	mustCreate(t, repo, "p1", "n1", notification.TypeNewMovie, false)
+	mustCreate(t, repo, "p1", "n2", notification.TypePluginError, false)
+	mustCreate(t, repo, "p1", "n3", notification.TypeNewEpisode, false)
+	mustCreate(t, repo, "p1", "n4", notification.TypeBackupFailed, false)
+	mustCreate(t, repo, "p1", "n5", notification.TypeNewSeries, false)
+
+	got, err := svc.ListAdminOnly(context.Background(), "p1", false, 50, 0)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	ids := []string{got[0].ID, got[1].ID}
+	assert.Contains(t, ids, "n2")
+	assert.Contains(t, ids, "n4")
+	for _, n := range got {
+		assert.True(t, n.Type.IsAdminOnly(), "personal type leaked into admin feed: %q", n.Type)
+	}
+}
+
+// ListAdminOnly with unreadOnly=true filters by read state too — relied on
+// by the admin badge counter.
+func TestQueryService_ListAdminOnly_UnreadOnly(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	svc := appnotification.NewQueryService(repo, settings)
+
+	mustCreate(t, repo, "p1", "n1", notification.TypePluginError, false)
+	mustCreate(t, repo, "p1", "n2", notification.TypePluginError, true)
+	mustCreate(t, repo, "p1", "n3", notification.TypeBackupFailed, false)
+
+	got, err := svc.ListAdminOnly(context.Background(), "p1", true, 50, 0)
+	require.NoError(t, err)
+	assert.Len(t, got, 2, "n2 is read, must be excluded when unreadOnly=true")
+}
+
 func TestQueryService_List_HonoursLimit(t *testing.T) {
 	t.Parallel()
 	repo := notiffakes.NewFakeNotificationRepository()
