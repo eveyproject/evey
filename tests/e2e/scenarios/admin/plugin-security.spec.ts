@@ -38,6 +38,12 @@ const MALICIOUS_FIXTURES: Array<{ name: string; expectedCategory: string }> = [
   { name: "go-raw-syscall",          expectedCategory: "native_code" },
   // Multi-vector: RCE + JWT exfil + outbound HTTP
   { name: "php-combo-realistic",     expectedCategory: "" },
+  // Intermediate vars + concat → fixed-point alias resolution catches it
+  { name: "php-string-concat-rce-v2",   expectedCategory: "shell_exec" },
+  // __builtins__.__dict__[name] indexing — literal dict-bracket pattern
+  { name: "python-builtins-dict-access", expectedCategory: "dynamic_import" },
+  // const F = (fn).constructor; F(code) — stored-constructor tracking
+  { name: "js-constructor-stored",   expectedCategory: "sandbox_escape" },
 ];
 
 test.describe("plugin security — install rejection of malicious fixtures", () => {
