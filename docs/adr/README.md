@@ -14,5 +14,6 @@ Structural decisions for Evey. New ADRs are numbered sequentially and never rewr
 | [0008](0008-domain-constructors.md) | Domain aggregate constructor pattern (`NewX + Option + Validate`) | 2026-04-20 | Accepted |
 | [0009](0009-cqrs-repo-split.md) | CQRS repository split | 2026-04-20 | Accepted |
 | [0010](0010-event-bus.md) | In-process event bus with typed domain events | 2026-04-20 | Accepted |
+| [0011](0011-intro-detection-providers.md) | External intro detection providers ahead of the heuristic pipeline | 2026-05-04 | Accepted |
 
 See also [docs/ARCHITECTURE.md](../ARCHITECTURE.md) for the high-level picture.

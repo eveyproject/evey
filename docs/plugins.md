@@ -119,13 +119,15 @@ ui_widgets:
 
 The `language:` field is informational — the runner doesn't validate it.
 What matters is the `entrypoint:` command actually runs. Examples under
-`examples/plugins/` cover: `python`, `nodejs`, `bash`, `sh`, `lua`,
-`perl`, `php`, `ruby`, `css`. Compiled languages (Go, Rust, etc.) work
-too but require the `native-binary` permission (see below).
+`examples/plugins/` cover `python`, `nodejs`, and `css`. Other interpreter
+languages (`bash`, `sh`, `lua`, `perl`, `php`, `ruby`) are not bundled as
+examples but are supported by the runner — invoke the interpreter directly
+in `entrypoint:`. Compiled languages (Go, Rust, etc.) work too but require
+the `native-binary` permission (see below).
 
 - **Python** (`python`) — pre-generated gRPC stubs provided via SDK
 - **Node.js** (`nodejs`) — proto file loaded at runtime via `@grpc/proto-loader`
-- **Shell / interpreter languages** (`bash`, `sh`, `lua`, `perl`, `php`, `ruby`) — provided for experimentation, must invoke the interpreter in `entrypoint:`
+- **Shell / interpreter languages** (`bash`, `sh`, `lua`, `perl`, `php`, `ruby`) — supported but no bundled examples; must invoke the interpreter in `entrypoint:`
 - **CSS** (`css`) — static theme, no subprocess (runs as `ui.theme` capability)
 - **Compiled binaries** (Go / Rust / anything with native code) — require the `native-binary` permission because the static analyzer can't inspect them
 

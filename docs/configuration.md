@@ -104,6 +104,18 @@ EVEY_DOMAIN=media.example.com          # only for bundled Caddy
 
 See [reverse-proxy.md](reverse-proxy.md).
 
+### Intro detection
+```env
+EVEY_INTRO_TIDB_API_KEY=                # optional Bearer token for TheIntroDB (500 lookups/day vs 100 anonymous)
+EVEY_INTRO_FFMPEG_THREADS=1             # threads per ffmpeg process used by intro detection (1-16)
+```
+
+`api.tidb_key`, `intro_providers.enabled`, and `intro_providers.tidb_submit_enabled`
+can also be configured via `/admin/server-config` (DB-first, env fallback). Restart
+the server after toggling `intro_providers.enabled`.
+
+See [adr/0011-intro-detection-providers.md](adr/0011-intro-detection-providers.md).
+
 ### Logging
 ```env
 EVEY_LOG_LEVEL=info                    # debug, info, warn, error
