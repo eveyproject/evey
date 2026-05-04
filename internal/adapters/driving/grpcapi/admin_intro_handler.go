@@ -2,6 +2,8 @@ package grpcapi
 
 import (
 	"context"
+	"log/slog"
+	"runtime/debug"
 	"sync"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -68,13 +70,20 @@ func (h *adminIntroHandler) BackfillIntroDetection(ctx context.Context, req *eve
 	h.backfillMu.Unlock()
 
 	libraryID := req.LibraryId
+	// ADR-0007: detached ctx + defer recover. No outer timeout — a full library
+	// backfill can take hours on a cold catalogue and is bounded by the
+	// service's own concurrency limiter, not by a wall-clock deadline.
 	go func() {
 		defer func() {
 			h.backfillMu.Lock()
 			h.backfillRunning = false
 			h.backfillMu.Unlock()
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in admin intro backfill",
+					slog.Any("panic", r),
+					slog.String("stack", string(debug.Stack())))
+			}
 		}()
-		// Use a fresh context so the backfill outlives the HTTP request context.
 		_, _ = h.backfill.BackfillLibrary(context.Background(), libraryID)
 	}()
 

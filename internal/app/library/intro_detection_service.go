@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/bits"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -474,8 +475,19 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 		if s.contributor != nil && seg.Source == "phash" && seg.Confidence >= 0.95 {
 			segCopy := seg
 			itemCopy := item
+			// ADR-0007: detached ctx with bounded timeout + defer recover.
+			// 30s is generous for a single outbound POST.
 			go func() {
-				if cErr := s.contributor.Contribute(context.Background(), itemCopy, segCopy); cErr != nil {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("panic recovered in intro_detection: contribute",
+							slog.Any("panic", r),
+							slog.String("stack", string(debug.Stack())))
+					}
+				}()
+				cctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				if cErr := s.contributor.Contribute(cctx, itemCopy, segCopy); cErr != nil {
 					slog.Warn("intro_detection: segment contribution failed",
 						slog.String("type", segCopy.Type), slog.Any("err", cErr))
 				}
