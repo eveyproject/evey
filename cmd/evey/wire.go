@@ -548,17 +548,29 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// because they require outbound HTTP. The chain layer caches every
 	// answer in postgres so a typical scan only hits the network once per
 	// episode for the catalog's lifetime.
-	if cfg.Metadata.IntroProvidersEnabled {
+	//
+	// Resolution order for both flags: server_config DB key wins → env var
+	// fallback (seeded into DB on first run via resolveAPIKey for the
+	// secret). Admin can flip either from the /admin/server-config UI; a
+	// restart is required for the providers to (de)activate.
+	introProvidersEnabled := cfg.Metadata.IntroProvidersEnabled
+	if r.ServerCfg != nil {
+		if entry, err := r.ServerCfg.Get(ctx, "intro_providers.enabled"); err == nil && entry.Value != "" {
+			introProvidersEnabled = entry.Value == "true"
+		}
+	}
+	tidbKey := resolveAPIKey(ctx, r.ServerCfg, "api.tidb_key", "EVEY_INTRO_TIDB_API_KEY")
+	if introProvidersEnabled {
 		resolver := introproviders.NewAncestorResolver(r.MediaItem)
 		clients := []introproviders.Client{
-			introproviders.NewTIDBClient(cfg.Metadata.TIDBAPIKey),
+			introproviders.NewTIDBClient(tidbKey),
 			introproviders.NewIntroDBClient(),
 		}
 		chain := introproviders.NewChainedProvider(resolver, clients...)
 		cached := introproviders.NewCached(chain, resolver, r.IntroMetadataCache)
 		introDetectionSvc.WithIntroMetadataProvider(cached)
 		slog.Info("intro detection: external providers enabled (TIDB + IntroDB)",
-			slog.Bool("tidb_authenticated", cfg.Metadata.TIDBAPIKey != ""))
+			slog.Bool("tidb_authenticated", tidbKey != ""))
 	}
 
 	if cfg.Transcoding.CacheMaxGB > 0 {

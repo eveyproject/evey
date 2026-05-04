@@ -286,6 +286,13 @@ const API_KEY_FIELDS = [
     linkUrl: "https://www.opensubtitles.com/en/consumers",
     hasDefault: false,
   },
+  {
+    dbKey: "api.tidb_key",
+    labelKey: "admin.serverConfig.apiKeys.tidb",
+    linkKey: "admin.serverConfig.apiKeys.tidbLink",
+    linkUrl: "https://theintrodb.org/account",
+    hasDefault: false,
+  },
 ] as const;
 
 function maskKey(value: string): string {
@@ -504,6 +511,63 @@ function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
 
 const TRICKPLAY_KEY = "trickplay.enabled";
 const TRICKPLAY_CPU_KEY = "trickplay.adaptive_cpu";
+const INTRO_PROVIDERS_KEY = "intro_providers.enabled";
+
+// IntroDetectionSettingsCard surfaces the runtime knobs of the external
+// intro/recap/credits providers (TIDB + IntroDB). The TIDB Bearer token
+// itself lives in the API keys card above (api.tidb_key) — it's only
+// useful when this toggle is on.
+//
+// Toggling 'enabled' here writes to server_config but the providers are
+// only constructed once at boot — admins must restart the server for the
+// change to take effect. The note in the description spells that out.
+function IntroDetectionSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
+  const { t } = useTranslation();
+  const setEntry = useSetConfigEntry();
+
+  const enabled = entries?.find((e) => e.key === INTRO_PROVIDERS_KEY)?.value === "true";
+  const tidbKey = entries?.find((e) => e.key === "api.tidb_key")?.value ?? "";
+
+  return (
+    <div className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]">
+      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
+        {t("admin.serverConfig.introProvidersTitle")}
+      </h2>
+      <p className="text-sm mb-4 text-[var(--text-muted)]">
+        {t("admin.serverConfig.introProvidersDesc")}
+      </p>
+      <div className="flex flex-col gap-3">
+        <Checkbox
+          label={t("admin.serverConfig.introProvidersEnabled")}
+          checked={enabled}
+          onChange={(v) => setEntry.mutate({ key: INTRO_PROVIDERS_KEY, value: v ? "true" : "false" })}
+          disabled={setEntry.isPending}
+        />
+        <p className="text-xs text-[var(--text-muted)]">
+          {t("admin.serverConfig.introProvidersRestart")}
+        </p>
+        {enabled && (
+          <div className="text-xs text-[var(--text-muted)] flex flex-col gap-1 mt-1 pl-1 border-l-2 border-[var(--border)] pl-3">
+            <span>
+              {t("admin.serverConfig.introProvidersTidbStatus")}{" "}
+              {tidbKey ? (
+                <span className="text-[var(--accent)]">
+                  {t("admin.serverConfig.introProvidersTidbAuthed")}
+                </span>
+              ) : (
+                <span className="text-[var(--warning)]">
+                  {t("admin.serverConfig.introProvidersTidbAnonymous")}
+                </span>
+              )}
+            </span>
+            <span>{t("admin.serverConfig.introProvidersIntrodbStatus")}</span>
+          </div>
+        )}
+        {setEntry.isPending && <Spinner size="sm" />}
+      </div>
+    </div>
+  );
+}
 
 function TrickplaySettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   const { t } = useTranslation();
@@ -669,6 +733,8 @@ function ServerConfigPage() {
       <SmtpSettingsCard entries={entries} />
 
       <TrickplaySettingsCard entries={entries} />
+
+      <IntroDetectionSettingsCard entries={entries} />
 
       <ServerSettingsCard />
 
