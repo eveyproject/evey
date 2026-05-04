@@ -19,16 +19,19 @@ import (
 // TIDBClient is an HTTP client for theintrodb.org's `/v2/media` endpoint.
 //
 // The API documents per-source rate limits we honour conservatively:
-//   - 30 req / 10s burst on /media → enforce per-second pacing client-side
-//   - 100/day anonymous, 500/day with Bearer auth → emit a metric on 429
+//   - 30 req / 10s burst on /media → the headerRateLimiter observes the
+//     X-RateLimit-Remaining / X-RateLimit-Reset headers and proactively
+//     pauses before the next request when Remaining < 3, avoiding 429s.
+//   - 100/day anonymous, 500/day with Bearer auth → emit a metric on 429.
 //
 // On 429 we honour Retry-After when present; otherwise back off with the
-// X-RateLimit-Reset header. No automatic retry — caller can retry the
-// next call cycle. Shielding the daily quota matters more than the burst.
+// X-RateLimit-Reset header. No automatic retry — caller can retry next
+// cycle. Shielding the daily quota matters more than the burst.
 type TIDBClient struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
+	rl         *headerRateLimiter
 }
 
 // TIDBOption configures the client at construction time.
@@ -52,6 +55,7 @@ func NewTIDBClient(apiKey string, opts ...TIDBOption) *TIDBClient {
 		baseURL:    "https://api.theintrodb.org/v2",
 		apiKey:     apiKey,
 		httpClient: &http.Client{Timeout: 8 * time.Second},
+		rl:         newHeaderRateLimiter(),
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -101,6 +105,10 @@ func (c *TIDBClient) Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.
 	}
 	reqURL := c.baseURL + "/media?" + q.Encode()
 
+	if err := c.rl.Wait(ctx); err != nil {
+		return nil, fmt.Errorf("tidb: rate-limit wait cancelled: %w", err)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("tidb: build request: %w", err)
@@ -115,6 +123,10 @@ func (c *TIDBClient) Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.
 		return nil, fmt.Errorf("tidb: http: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	// Always update the rate-limiter so the next call benefits from the
+	// window information, even for non-200 responses.
+	c.rl.Update(resp.Header)
 
 	switch resp.StatusCode {
 	case http.StatusOK:
