@@ -206,14 +206,19 @@ func BuildFFmpegArgs(opts transcoding.HLSProcessOpts) []string {
 // hlsWindowSegments caps how many segments the m3u8 playlist exposes at any
 // time. Combined with -hls_flags delete_segments below, ffmpeg deletes the
 // older .ts/.m4s files as the window slides, so the on-disk transcode cache
-// stays bounded at hlsWindowSegments × hls_time × ~bitrate (≈ 90s × 5MB =
-// ~150 MB per active session for typical 1080p H.264).
+// stays bounded at hlsWindowSegments × hls_time × ~bitrate
+// (90 × 3s × ~5 MB ≈ 450 MB per active session for typical 1080p H.264).
 //
-// Trade-off accepted: the user can rewind freely within the last 90s of
-// playback. Anything earlier triggers a 404 on the missing segment, which
-// the frontend already handles by reloading the HLS source from the new
-// position via setTranscodeStartTime.
-const hlsWindowSegments = "30"
+// 90 segments = 4.5 minutes buffer. Sized for "comfort max":
+//   - Normal client (1× real-time): plenty of rewind room without 404.
+//   - Low-bandwidth client (~0.3× real-time): still keeps up with the
+//     window since ffmpeg is throttled to 1.5× via -readrate; the buffer
+//     can absorb a 5× consumer/producer ratio before segments expire
+//     out from under the player.
+//   - Seek beyond the 4.5-min buffer: frontend already handles the 404
+//     by reloading the HLS source via setTranscodeStartTime — no UX
+//     regression, just a brief reload.
+const hlsWindowSegments = "90"
 
 // hlsInputReadrate caps ffmpeg's read speed at 1.5× real-time so it
 // doesn't sprint ahead and waste CPU/disk encoding 30 minutes of buffer

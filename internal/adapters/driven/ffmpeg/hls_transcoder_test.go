@@ -107,7 +107,7 @@ func TestBuildFFmpegArgs_BoundedCacheArgs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			joined := strings.Join(ffmpeg.BuildFFmpegArgs(tc.opts), " ")
 			assert.Contains(t, joined, "-readrate 1.5", "ffmpeg input read rate must be capped at 1.5x real-time")
-			assert.Contains(t, joined, "-hls_list_size 30", "playlist must keep only 30 segments (90s buffer)")
+			assert.Contains(t, joined, "-hls_list_size 90", "playlist must keep 90 segments (4.5 min buffer for low-bandwidth clients)")
 			assert.Contains(t, joined, "-hls_flags delete_segments", "old segments must be deleted from disk as the window slides")
 		})
 	}
