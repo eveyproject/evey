@@ -122,6 +122,9 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 			return nil, err
 		}
 		name := req.Name
+		if len(name) > 100 {
+			return nil, status.Error(codes.InvalidArgument, "room name must be 100 characters or fewer")
+		}
 		if name == "" {
 			name = pl.Name
 			if name == "" {
@@ -158,6 +161,9 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		return nil, err
 	}
 	name := req.Name
+	if len(name) > 100 {
+		return nil, status.Error(codes.InvalidArgument, "room name must be 100 characters or fewer")
+	}
 	if name == "" {
 		if mediaType == "music" {
 			name = "Listen Together"
