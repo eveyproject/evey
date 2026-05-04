@@ -317,9 +317,25 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 				manualLocked = true
 				break
 			}
-			// A trickplay+audio confirmed phash intro is "good".
-			if sg.Source == "phash" && sg.EndMs-sg.StartMs >= 5_000 {
-				hasGoodIntro = true
+			// Treat any segment from an authoritative source as "good": once
+			// covered, a re-detection would burn CPU re-running pHash +
+			// Chromaprint just to land on the same answer (or worse, a
+			// noisier heuristic answer). Sources are ordered by authority
+			// in runPipeline; skipping any of them is safe.
+			//
+			// Excluded on purpose: the audio fallback ("audio") and the
+			// blackdetect end-credits source ("blackdetect") are last-
+			// resort heuristics — keep them eligible for re-detection so
+			// a future TIDB/IntroDB hit can replace them.
+			switch sg.Source {
+			case "mkv_chapter", "tidb", "introdb":
+				if sg.EndMs-sg.StartMs >= 5_000 {
+					hasGoodIntro = true
+				}
+			case "phash":
+				if sg.EndMs-sg.StartMs >= 5_000 {
+					hasGoodIntro = true
+				}
 			}
 		}
 		if manualLocked || hasGoodIntro {
