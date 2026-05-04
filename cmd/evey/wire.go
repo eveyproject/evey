@@ -567,7 +567,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			introproviders.NewIntroDBClient(),
 		}
 		chain := introproviders.NewChainedProvider(resolver, clients...)
-		cached := introproviders.NewCached(chain, resolver, r.IntroMetadataCache)
+		cached := introproviders.NewCached(chain, resolver, r.IntroMetadataCache).
+			WithNegativeTTL(30 * 24 * time.Hour)
 		introDetectionSvc.WithIntroMetadataProvider(cached)
 		slog.Info("intro detection: external providers enabled (TIDB + IntroDB)",
 			slog.Bool("tidb_authenticated", tidbKey != ""))

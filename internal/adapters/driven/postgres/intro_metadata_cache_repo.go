@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -24,13 +25,14 @@ func NewIntroMetadataCacheRepository(db *sql.DB) *IntroMetadataCacheRepository {
 	return &IntroMetadataCacheRepository{db: db}
 }
 
-// Get returns the cached payload bytes or (nil, nil) on cache miss. Any
-// other DB error is propagated. Source filtering is intentional — the
-// chain provider stores under whichever upstream answered, so a single
-// cache row maps to a single source. Reading the most-recent row keeps
-// the API simple at the cost of a tiny scan when multiple sources have
-// answered for the same key (rare).
-func (r *IntroMetadataCacheRepository) Get(ctx context.Context, tmdbID, season, episode int) ([]byte, error) {
+// Get returns the cached payload bytes and the time the row was stored,
+// or (nil, zero, nil) on a cache miss. Any other DB error is propagated.
+// Source filtering is intentional — the chain provider stores under
+// whichever upstream answered, so a single cache row maps to a single
+// source. Reading the most-recent row keeps the API simple at the cost
+// of a tiny scan when multiple sources have answered for the same key
+// (rare).
+func (r *IntroMetadataCacheRepository) Get(ctx context.Context, tmdbID, season, episode int) ([]byte, time.Time, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.intro_metadata_cache.Get")
 	defer span.End()
 	span.SetAttributes(
@@ -42,21 +44,22 @@ func (r *IntroMetadataCacheRepository) Get(ctx context.Context, tmdbID, season, 
 	defer cancel()
 
 	var payload []byte
+	var fetchedAt time.Time
 	err := r.db.QueryRowContext(ctx,
-		`SELECT payload FROM intro_metadata_cache
+		`SELECT payload, fetched_at FROM intro_metadata_cache
 		 WHERE tmdb_id = $1 AND season = $2 AND episode = $3
 		 ORDER BY fetched_at DESC LIMIT 1`,
 		tmdbID, season, episode,
-	).Scan(&payload)
+	).Scan(&payload, &fetchedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
+			return nil, time.Time{}, nil
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return nil, err
+		return nil, time.Time{}, err
 	}
-	return payload, nil
+	return payload, fetchedAt, nil
 }
 
 // Put upserts the cache row. The PK is (tmdb_id, season, episode,

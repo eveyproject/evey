@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 )
@@ -14,10 +15,10 @@ import (
 // decorator is here so it can stay private to the introproviders
 // package and not leak into the postgres adapters' public surface.
 type CacheRepo interface {
-	// Get returns the cached segments for the given key. (nil, nil)
-	// means "no cache row" — the decorator treats that as a miss and
-	// hits the upstream.
-	Get(ctx context.Context, tmdbID, season, episode int) ([]byte, error)
+	// Get returns the cached segments and the time they were stored, or
+	// (nil, zero, nil) on a cache miss — the decorator treats that as a
+	// miss and hits the upstream.
+	Get(ctx context.Context, tmdbID, season, episode int) ([]byte, time.Time, error)
 	// Put stores the JSON payload. season/episode = 0 for movies.
 	// `source` is the chain decision (which provider answered) so the
 	// admin UI can audit / invalidate per-source.
@@ -30,16 +31,29 @@ type CacheRepo interface {
 //
 // Negative caching: a (200 + empty) or 404 response also gets cached as
 // `[]` so we don't keep hammering upstream for items neither DB knows.
+// negativeTTL controls how long a negative row blocks upstream retries;
+// 0 means "forever" (legacy / explicit no-refresh).
 type Cached struct {
-	inner    domainlibrary.IntroMetadataProvider
-	resolver *AncestorResolver
-	repo     CacheRepo
+	inner       domainlibrary.IntroMetadataProvider
+	resolver    *AncestorResolver
+	repo        CacheRepo
+	negativeTTL time.Duration    // 0 = forever
+	nowFunc     func() time.Time // injectable for tests
 }
 
 // NewCached wraps inner with a postgres-backed cache. resolver is reused
 // so we don't walk ancestors twice per call.
 func NewCached(inner domainlibrary.IntroMetadataProvider, resolver *AncestorResolver, repo CacheRepo) *Cached {
-	return &Cached{inner: inner, resolver: resolver, repo: repo}
+	return &Cached{inner: inner, resolver: resolver, repo: repo, nowFunc: time.Now}
+}
+
+// WithNegativeTTL sets the maximum age of a negative (empty) cache row
+// before it is treated as a miss and the upstream is retried. This lets
+// newly-added TIDB data surface without a manual cache invalidation.
+// A value of 0 keeps the legacy behaviour (negative rows never expire).
+func (c *Cached) WithNegativeTTL(d time.Duration) *Cached {
+	c.negativeTTL = d
+	return c
 }
 
 // GetSegments first probes the cache; on miss, delegates to inner and
@@ -57,13 +71,23 @@ func (c *Cached) GetSegments(ctx context.Context, item *domainlibrary.MediaItem)
 	}
 
 	if c.repo != nil {
-		if blob, getErr := c.repo.Get(ctx, lookup.TmdbID, lookup.Season, lookup.Episode); getErr == nil && blob != nil {
-			var cached []domainlibrary.MediaSegment
-			if jerr := json.Unmarshal(blob, &cached); jerr == nil {
-				return cached, nil
+		if blob, fetchedAt, getErr := c.repo.Get(ctx, lookup.TmdbID, lookup.Season, lookup.Episode); getErr == nil && blob != nil {
+			isNegative := string(blob) == "[]"
+			if isNegative && c.negativeTTL > 0 && c.nowFunc().Sub(fetchedAt) > c.negativeTTL {
+				// Negative cache row is stale — treat as miss so the
+				// upstream is retried (TIDB may have new data now).
+				slog.Debug("intro_metadata_cache: negative row expired, refetching",
+					slog.Int("tmdb_id", lookup.TmdbID),
+					slog.Duration("age", c.nowFunc().Sub(fetchedAt)),
+					slog.Duration("ttl", c.negativeTTL))
+			} else {
+				var cached []domainlibrary.MediaSegment
+				if jerr := json.Unmarshal(blob, &cached); jerr == nil {
+					return cached, nil
+				}
+				slog.Warn("intro_metadata_cache: bad json in cache row, refetching",
+					slog.Int("tmdb_id", lookup.TmdbID))
 			}
-			slog.Warn("intro_metadata_cache: bad json in cache row, refetching",
-				slog.Int("tmdb_id", lookup.TmdbID))
 		}
 	}
 
