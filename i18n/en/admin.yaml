@@ -460,6 +460,8 @@ serverConfig:
   introProvidersTidbAuthed: authenticated (500 lookups/day)
   introProvidersTidbAnonymous: anonymous (100 lookups/day)
   introProvidersIntrodbStatus: "IntroDB: anonymous fallback (no key required)"
+  introProvidersTidbSubmit: Contribute detections back to TheIntroDB
+  introProvidersTidbSubmitDesc: When enabled, high-confidence phash detections (>= 95%) are submitted anonymously to TheIntroDB. Requires a valid API key. Opt-in.
 
 remoteAccess:
   title: Remote Access

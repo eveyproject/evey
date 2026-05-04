@@ -572,6 +572,20 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		introDetectionSvc.WithIntroMetadataProvider(cached)
 		slog.Info("intro detection: external providers enabled (TIDB + IntroDB)",
 			slog.Bool("tidb_authenticated", tidbKey != ""))
+
+		// Opt-in community contribution: submit high-confidence local detections
+		// back to TIDB. Requires an API key and the tidb_submit_enabled toggle.
+		tidbSubmitEnabled := false
+		if r.ServerCfg != nil {
+			if entry, err := r.ServerCfg.Get(ctx, "intro_providers.tidb_submit_enabled"); err == nil {
+				tidbSubmitEnabled = entry.Value == "true"
+			}
+		}
+		if tidbKey != "" && tidbSubmitEnabled {
+			submitter := introproviders.NewTIDBSubmitter(tidbKey)
+			introDetectionSvc.WithSegmentContributor(introproviders.NewTIDBContributor(submitter, resolver))
+			slog.Info("intro detection: TIDB community contribution enabled")
+		}
 	}
 
 	if cfg.Transcoding.CacheMaxGB > 0 {

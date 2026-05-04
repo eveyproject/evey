@@ -49,6 +49,7 @@ type IntroDetectionService struct {
 	chapterRepo       domainlibrary.ChapterQueryRepo
 	chromaprinter     Chromaprinter
 	metadataProvider  domainlibrary.IntroMetadataProvider
+	contributor       domainlibrary.SegmentContributor
 	detector          IntroDetector
 	trickplayCacheDir string
 	shutdownCtx       context.Context
@@ -152,6 +153,15 @@ func (s *IntroDetectionService) WithChromaprinter(c Chromaprinter) {
 // no wired adapter today.
 func (s *IntroDetectionService) WithIntroMetadataProvider(p domainlibrary.IntroMetadataProvider) *IntroDetectionService {
 	s.metadataProvider = p
+	return s
+}
+
+// WithSegmentContributor plugs an optional community contribution adapter.
+// When set, every phash-detected segment with Confidence >= 0.95 is submitted
+// fire-and-forget so other instances can benefit from our local detection.
+// nil is safe and disables contributions.
+func (s *IntroDetectionService) WithSegmentContributor(c domainlibrary.SegmentContributor) *IntroDetectionService {
+	s.contributor = c
 	return s
 }
 
@@ -457,6 +467,20 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 			slog.Int64("start_ms", seg.StartMs),
 			slog.Int64("end_ms", seg.EndMs),
 		)
+		// Contribute phash segments with high confidence back to the community
+		// database so other instances can skip local detection for the same item.
+		// Only phash segments are submitted: tidb/introdb/mkv_chapter results
+		// either came from the community already or represent third-party metadata.
+		if s.contributor != nil && seg.Source == "phash" && seg.Confidence >= 0.95 {
+			segCopy := seg
+			itemCopy := item
+			go func() {
+				if cErr := s.contributor.Contribute(context.Background(), itemCopy, segCopy); cErr != nil {
+					slog.Warn("intro_detection: segment contribution failed",
+						slog.String("type", segCopy.Type), slog.Any("err", cErr))
+				}
+			}()
+		}
 	}
 	return nil
 }

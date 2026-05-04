@@ -123,6 +123,19 @@ type IntroMetadataProvider interface {
 	GetSegments(ctx context.Context, item *MediaItem) ([]MediaSegment, error)
 }
 
+// SegmentContributor is the port for reporting high-confidence locally-detected
+// segments back to a community database (e.g. TheIntroDB). Implementations
+// should skip silently when the submission is not applicable (no API key,
+// unsupported type) so callers can invoke Contribute unconditionally.
+//
+// Contribute is expected to be called fire-and-forget in a goroutine;
+// implementations own their HTTP timeouts and should not surface non-fatal
+// errors to callers. The item is provided for any ancestor-lookup the
+// implementation needs (e.g. resolving tmdb_id from an episode).
+type SegmentContributor interface {
+	Contribute(ctx context.Context, item *MediaItem, seg MediaSegment) error
+}
+
 // MediaSegmentRepository is the full read-write interface for media segments.
 type MediaSegmentRepository interface {
 	MediaSegmentQueryRepo

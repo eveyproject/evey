@@ -459,6 +459,8 @@ serverConfig:
   introProvidersTidbAuthed: "authentifié (500 lookups/jour)"
   introProvidersTidbAnonymous: "anonyme (100 lookups/jour)"
   introProvidersIntrodbStatus: "IntroDB : secours anonyme (pas de clé requise)"
+  introProvidersTidbSubmit: Contribuer les détections à TheIntroDB
+  introProvidersTidbSubmitDesc: "Quand activé, les détections phash avec une confiance >= 95 % sont envoyées à TheIntroDB. Nécessite une clé API valide. Opt-in."
 
 remoteAccess:
   title: "Accès distant"

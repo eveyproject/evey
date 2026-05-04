@@ -512,6 +512,7 @@ function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
 const TRICKPLAY_KEY = "trickplay.enabled";
 const TRICKPLAY_CPU_KEY = "trickplay.adaptive_cpu";
 const INTRO_PROVIDERS_KEY = "intro_providers.enabled";
+const INTRO_TIDB_SUBMIT_KEY = "intro_providers.tidb_submit_enabled";
 
 // IntroDetectionSettingsCard surfaces the runtime knobs of the external
 // intro/recap/credits providers (TIDB + IntroDB). The TIDB Bearer token
@@ -527,6 +528,7 @@ function IntroDetectionSettingsCard({ entries }: { entries: ConfigEntry[] | unde
 
   const enabled = entries?.find((e) => e.key === INTRO_PROVIDERS_KEY)?.value === "true";
   const tidbKey = entries?.find((e) => e.key === "api.tidb_key")?.value ?? "";
+  const tidbSubmitEnabled = entries?.find((e) => e.key === INTRO_TIDB_SUBMIT_KEY)?.value === "true";
 
   return (
     <div className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]">
@@ -561,6 +563,21 @@ function IntroDetectionSettingsCard({ entries }: { entries: ConfigEntry[] | unde
               )}
             </span>
             <span>{t("admin.serverConfig.introProvidersIntrodbStatus")}</span>
+            {tidbKey && (
+              <div className="mt-2">
+                <Checkbox
+                  label={t("admin.serverConfig.introProvidersTidbSubmit")}
+                  checked={tidbSubmitEnabled}
+                  onChange={(v) =>
+                    setEntry.mutate({ key: INTRO_TIDB_SUBMIT_KEY, value: v ? "true" : "false" })
+                  }
+                  disabled={setEntry.isPending}
+                />
+                <p className="text-xs text-[var(--text-muted)] mt-1 pl-6">
+                  {t("admin.serverConfig.introProvidersTidbSubmitDesc")}
+                </p>
+              </div>
+            )}
           </div>
         )}
         {setEntry.isPending && <Spinner size="sm" />}
