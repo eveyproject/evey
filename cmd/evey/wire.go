@@ -40,6 +40,7 @@ import (
 	webpushadapter "github.com/evey-project/evey/internal/adapters/driven/webpush"
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"github.com/evey-project/evey/internal/adapters/driven/introproviders"
+	"github.com/evey-project/evey/internal/pkg/cpuutil"
 	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
 	itunesadapter "github.com/evey-project/evey/internal/adapters/driven/itunes"
 	meili "github.com/evey-project/evey/internal/adapters/driven/meilisearch"
@@ -523,6 +524,23 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		} else {
 			slog.Warn("EVEY_INTRO_DETECTION_MAX_PARALLEL not a number, keeping default", slog.String("value", v))
 		}
+	} else {
+		// Cale la concurrence intro detection sur le budget CPU trickplay :
+		// même origine de coût (ffmpeg + analyses GPU-less par épisode), le
+		// même réglage `trickplay.adaptive_cpu` doit gouverner les deux. Un
+		// défaut hardcodé à 2 ne tient pas compte d'une box 16-core ni d'une
+		// box 4-core : on aligne sur cpuutil.TrickplayWorkers (1-4 selon
+		// runtime.NumCPU et le mode adaptive).
+		adaptive := true
+		if r.ServerCfg != nil {
+			if entry, err := r.ServerCfg.Get(ctx, "trickplay.adaptive_cpu"); err == nil && entry.Value == "false" {
+				adaptive = false
+			}
+		}
+		n := cpuutil.TrickplayWorkers(adaptive)
+		introDetectionSvc.WithMaxParallelDetections(n)
+		slog.Info("intro detection: max parallel calé sur trickplay budget",
+			slog.Int("max", n), slog.Bool("adaptive_cpu", adaptive))
 	}
 
 	// External intro/recap/credits providers (TIDB primary, IntroDB fallback)
