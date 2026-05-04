@@ -726,6 +726,7 @@ func isWordChar(b byte) bool {
 //  4. Python f-string literal-only interpolation folding
 //  5. Python "".join([...]) folding
 //  6. String concat folding ("a"+"b" → "ab", "a"."b" → "ab" for PHP)
+//  7. Typed-array instantiation stripping (`new X.constructor(n)`)
 func normalizeLine(line string) string {
 	line = normalizeUnicode(line)
 	line = decodeEscapesInStrings(line)
@@ -733,7 +734,20 @@ func normalizeLine(line string) string {
 	line = foldFStrings(line)
 	line = foldJoin(line)
 	line = foldStringConcat(line)
+	line = stripTypedArrayConstructor(line)
 	return line
+}
+
+// stripTypedArrayConstructor removes idiomatic `new X.constructor(n)`
+// expressions from a line so the sandbox_escape rule that matches
+// `.constructor(varname)` doesn't fire on legitimate typed-array /
+// class-clone patterns common in bundled JS (Three.js, React, lodash,
+// etc.). Without `new`, `.constructor(arg)` is the dangerous Function-
+// constructor idiom — that case is left untouched.
+var typedArrayConstructorRe = regexp.MustCompile(`\bnew\s+[A-Za-z_$][\w$.]*\.constructor\s*\([^)]*\)`)
+
+func stripTypedArrayConstructor(line string) string {
+	return typedArrayConstructorRe.ReplaceAllString(line, "")
 }
 
 // stripLineComments truncates the line at the first comment marker that lies

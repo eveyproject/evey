@@ -57,7 +57,7 @@ func TestPlaySession_StartStream_TOCTOU_MaxStreams(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			sess := newTestPlaySession("toc-s"+strconv.Itoa(i), string(p.ID), string(item.ID))
-			results <- svc.StartStream(ctx, sess, string(u.ID))
+			results <- svc.CommandService().StartStream(ctx, sess, string(u.ID))
 		}(i)
 	}
 	wg.Wait()

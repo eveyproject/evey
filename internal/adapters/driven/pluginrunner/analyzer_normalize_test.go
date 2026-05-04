@@ -677,3 +677,40 @@ func TestStripLineComments_BacktickPreserved(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+// ─── stripTypedArrayConstructor ──────────────────────────────────────────────
+
+func TestStripTypedArrayConstructor_NewArrayConstructorRemoved(t *testing.T) {
+	got := stripTypedArrayConstructor(`new this.array.constructor(t)`)
+	if got != "" {
+		t.Errorf("expected empty after strip, got %q", got)
+	}
+}
+
+func TestStripTypedArrayConstructor_NewIdentConstructorRemoved(t *testing.T) {
+	got := stripTypedArrayConstructor(`r=new t.constructor(i)`)
+	want := `r=`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestStripTypedArrayConstructor_PreservesNonNewConstructorCall(t *testing.T) {
+	// Without `new`, `.constructor(arg)` is the dangerous Function-constructor
+	// idiom and must survive the strip so the rule can flag it.
+	src := `f.constructor(t)`
+	got := stripTypedArrayConstructor(src)
+	if got != src {
+		t.Errorf("non-new constructor call must survive strip, got %q", got)
+	}
+}
+
+func TestStripTypedArrayConstructor_E2E_NoFalsePositiveOnThreejsBundle(t *testing.T) {
+	// Realistic line shape from minified Three.js bundle (weather plugin).
+	line := `init(e,t,i){let r=new Et(new this.array.constructor(t),3,!1)}`
+	got := normalizeLine(line)
+	// The `.constructor(t)` payload must NOT survive normalization.
+	if strings.Contains(got, ".constructor(t)") {
+		t.Errorf("expected typed-array constructor stripped, got %q", got)
+	}
+}
