@@ -203,6 +203,59 @@ func BuildFFmpegArgs(opts transcoding.HLSProcessOpts) []string {
 	return buildMultiVariantArgs(opts)
 }
 
+// hlsWindowSegments caps how many segments the m3u8 playlist exposes at any
+// time. Combined with -hls_flags delete_segments below, ffmpeg deletes the
+// older .ts/.m4s files as the window slides, so the on-disk transcode cache
+// stays bounded at hlsWindowSegments × hls_time × ~bitrate (≈ 90s × 5MB =
+// ~150 MB per active session for typical 1080p H.264).
+//
+// Trade-off accepted: the user can rewind freely within the last 90s of
+// playback. Anything earlier triggers a 404 on the missing segment, which
+// the frontend already handles by reloading the HLS source from the new
+// position via setTranscodeStartTime.
+const hlsWindowSegments = "30"
+
+// hlsInputReadrate caps ffmpeg's read speed at 1.5× real-time so it
+// doesn't sprint ahead and waste CPU/disk encoding 30 minutes of buffer
+// the user hasn't asked for. With -hls_flags delete_segments the disk
+// stays bounded anyway, but readrate also reduces CPU spent encoding
+// frames the user will never reach (e.g. when they open a movie, watch
+// 5 minutes, then close).
+const hlsInputReadrate = "1.5"
+
+// appendInputModifiers prepends -readrate to args before the next -i.
+// Caller is responsible for adding -i and the file path after this call.
+// Caps the input read rate so ffmpeg stays close to real-time and doesn't
+// fill the disk / CPU with buffer the user will never reach.
+func appendInputModifiers(args []string) []string {
+	return append(args, "-readrate", hlsInputReadrate)
+}
+
+// appendHLSOutputArgs writes the HLS muxer arguments shared by every
+// builder. windowSegments + delete_segments cap the on-disk cache;
+// useFMP4 picks the segment container.
+func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool) []string {
+	args = append(args,
+		"-f", "hls",
+		"-hls_time", "3",
+		"-hls_list_size", hlsWindowSegments,
+		"-hls_flags", "delete_segments",
+	)
+	if useFMP4 {
+		args = append(args,
+			"-hls_segment_type", "fmp4",
+			"-hls_fmp4_init_filename", "stream_0_init.mp4",
+			"-hls_segment_filename", filepath.Join(outputDir, "stream_0_%03d.m4s"),
+		)
+	} else {
+		args = append(args,
+			"-hls_segment_filename", filepath.Join(outputDir, "stream_0_%03d.ts"),
+		)
+	}
+	args = append(args, filepath.Join(outputDir, "stream_0.m3u8"))
+	return args
+}
+
 func needsFMP4Segments(streams []*library.MediaStream) bool {
 	for _, s := range streams {
 		if s.StreamType == "video" {
@@ -252,6 +305,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		// remux), no -muxpreload/muxdelay (conflicts with -copyts), no
 		// -tune zerolatency (was the culprit of the earlier -20s drift).
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
+		args = appendInputModifiers(args)
 		args = append(args, "-i", opts.FilePath)
 		args = append(args,
 			"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
@@ -271,6 +325,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 			"-start_at_zero",
 		)
 	} else {
+		args = appendInputModifiers(args)
 		args = append(args, "-i", opts.FilePath)
 		args = append(args,
 			"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
@@ -290,21 +345,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-c:a", "copy")
 	}
 
-	useFMP4 := needsFMP4Segments(opts.Streams)
-	args = append(args, "-f", "hls", "-hls_time", "3", "-hls_list_size", "0")
-	if useFMP4 {
-		args = append(args,
-			"-hls_segment_type", "fmp4",
-			"-hls_fmp4_init_filename", "stream_0_init.mp4",
-			"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_0_%03d.m4s"),
-		)
-	} else {
-		args = append(args,
-			"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_0_%03d.ts"),
-		)
-	}
-	args = append(args, filepath.Join(opts.OutputDir, "stream_0.m3u8"))
-	return args
+	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams))
 }
 
 func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
@@ -315,6 +356,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
+	args = appendInputModifiers(args)
 	args = append(args, "-i", opts.FilePath)
 
 	p := opts.Profiles[len(opts.Profiles)-1]
@@ -365,14 +407,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-c:a", "copy")
 	}
 
-	args = append(args,
-		"-f", "hls",
-		"-hls_time", "3",
-		"-hls_list_size", "0",
-		"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_0_%03d.ts"),
-		filepath.Join(opts.OutputDir, "stream_0.m3u8"),
-	)
-	return args
+	return appendHLSOutputArgs(args, opts.OutputDir, false)
 }
 
 func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
@@ -387,6 +422,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
+	args = appendInputModifiers(args)
 	args = append(args, "-i", opts.FilePath)
 
 	var filterParts []string
@@ -449,11 +485,16 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 	args = append(args, "-var_stream_map", strings.Join(streamMap, " "))
 
+	// Multi-variant master playlist — bounded with the same windowed
+	// flags as the single-variant builders so the cache stays under
+	// hlsWindowSegments × hls_time × max(VideoBitrate / 8) per variant
+	// (typical 1080p H.264 ≈ 150 MB per variant).
 	args = append(args,
 		"-master_pl_name", "master.m3u8",
 		"-f", "hls",
 		"-hls_time", "3",
-		"-hls_list_size", "0",
+		"-hls_list_size", hlsWindowSegments,
+		"-hls_flags", "delete_segments",
 		"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.ts"),
 		filepath.Join(opts.OutputDir, "stream_%v.m3u8"),
 	)

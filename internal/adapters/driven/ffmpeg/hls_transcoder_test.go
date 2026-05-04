@@ -70,6 +70,49 @@ func TestBuildFFmpegArgs_ModeA_AllCopy(t *testing.T) {
 	assert.Contains(t, joined, "-c:a copy")
 }
 
+// All builders MUST emit the bounded HLS playlist + readrate combo so the
+// transcode cache stays under ~150 MB per active session and ffmpeg
+// doesn't sprint ahead of the user's playback position.
+func TestBuildFFmpegArgs_BoundedCacheArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		opts transcoding.HLSProcessOpts
+	}{
+		{
+			name: "copy_video",
+			opts: transcoding.HLSProcessOpts{
+				OutputDir: "/tmp/t", FilePath: "/f.mkv",
+				Profiles: transcoding.DefaultHLSProfiles,
+				VideoDecision: "copy", AudioDecision: "copy",
+			},
+		},
+		{
+			name: "single_transcode",
+			opts: transcoding.HLSProcessOpts{
+				OutputDir: "/tmp/t", FilePath: "/f.mkv",
+				Profiles:      transcoding.DefaultHLSProfiles[:1],
+				VideoDecision: "transcode", AudioDecision: "copy",
+			},
+		},
+		{
+			name: "multi_variant",
+			opts: transcoding.HLSProcessOpts{
+				OutputDir: "/tmp/t", FilePath: "/f.mkv",
+				Profiles:      transcoding.DefaultHLSProfiles,
+				VideoDecision: "transcode", AudioDecision: "transcode",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			joined := strings.Join(ffmpeg.BuildFFmpegArgs(tc.opts), " ")
+			assert.Contains(t, joined, "-readrate 1.5", "ffmpeg input read rate must be capped at 1.5x real-time")
+			assert.Contains(t, joined, "-hls_list_size 30", "playlist must keep only 30 segments (90s buffer)")
+			assert.Contains(t, joined, "-hls_flags delete_segments", "old segments must be deleted from disk as the window slides")
+		})
+	}
+}
+
 func TestBuildFFmpegArgs_ModeB_MultiVariant(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:     "/tmp/test",
