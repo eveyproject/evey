@@ -1259,7 +1259,7 @@ func TestGenerateTrickplay_StoreError_Propagates(t *testing.T) {
 		libfakes.NewFakePersonRepository(), libfakes.NewFakeMediaPersonRepository(),
 		h.scanner, h.prober, h.search, h.bus,
 		libfakes.NewFakeChapterRepository(), mkvfakes.NewFakeContainerReader(),
-		trickplayRepo, libfakes.NewFakeTrickplayGenerator(), "/cache", nil,
+		trickplayRepo, libfakes.NewFakeTrickplayGenerator(), t.TempDir(), nil,
 	)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{

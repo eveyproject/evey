@@ -347,7 +347,8 @@ func TestGenerateTrickplay_UsesCacheDir(t *testing.T) {
 	t.Parallel()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc, _, _, mediaRepo, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: "/my/custom/cache"})
+	cacheDir := t.TempDir()
+	svc, _, _, mediaRepo, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: cacheDir})
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:    "media-2",
@@ -357,7 +358,7 @@ func TestGenerateTrickplay_UsesCacheDir(t *testing.T) {
 
 	err := svc.GenerateTrickplay(context.Background(), "media-2")
 	require.NoError(t, err)
-	assert.Equal(t, "/my/custom/cache/media-2", trickplayGen.LastOutputDir)
+	assert.Equal(t, cacheDir+"/media-2", trickplayGen.LastOutputDir)
 }
 
 func TestGenerateTrickplay_MediaNotFound(t *testing.T) {
@@ -445,7 +446,7 @@ func TestGenerateTrickplay_ProceedsWhenNoActiveStreams(t *testing.T) {
 	t.Parallel()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc, _, _, mediaRepo, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: "/cache/trickplay"})
+	svc, _, _, mediaRepo, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: t.TempDir()})
 
 	checker := &fakeStreamChecker{count: 0}
 	svc.SetTrickplayActiveStreamChecker(checker)
@@ -464,7 +465,7 @@ func TestGenerateTrickplay_NilCheckerProceeds(t *testing.T) {
 	t.Parallel()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc, _, _, mediaRepo, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: "/cache/trickplay"})
+	svc, _, _, mediaRepo, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: t.TempDir()})
 	// no SetActiveStreamChecker call → nil checker
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
@@ -680,7 +681,7 @@ func TestGenerateTrickplay_AdaptiveCPUDisabled(t *testing.T) {
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
 	configRepo := sharedfakes.NewFakeServerConfigRepository()
 	configRepo.Set(context.Background(), "trickplay.adaptive_cpu", "false")
-	svc, _, _, mediaRepo, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: "/cache", configRepo: configRepo})
+	svc, _, _, mediaRepo, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: t.TempDir(), configRepo: configRepo})
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID: "m1", File: &library.MediaFile{Path: "/movies/test.mkv"},
