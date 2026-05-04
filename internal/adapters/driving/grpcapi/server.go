@@ -85,6 +85,7 @@ type GRPCServerDeps struct {
 	SyncplayHub    *appsyncplay.Hub     // optional
 	StarRating       *apprating.Service
 	QuickConnectHub  *quickconnecthub.Hub
+	IntroCache       IntroCacheInvalidator // optional
 }
 
 type GRPCServer struct {
@@ -192,6 +193,9 @@ func (s *GRPCServer) RegisterServices() {
 		eveyv1.RegisterPushServiceServer(s.server, &webPushHandler{notifCmd: d.NotifCmd, notifQuery: d.NotifQuery, vapidPubKey: d.VAPIDPubKey})
 	}
 	eveyv1.RegisterRatingServiceServer(s.server, &ratingHandler{starSvc: d.StarRating, libQuery: d.LibQuery, userAccess: d.UserAccess})
+	if d.IntroCache != nil {
+		eveyv1.RegisterAdminIntroServiceServer(s.server, &adminIntroHandler{cache: d.IntroCache})
+	}
 }
 
 func (s *GRPCServer) Start(addr string) error {

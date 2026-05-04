@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/evey-project/evey/gen/evey/v1;eveyv1";
+
+service AdminIntroService {
+  rpc InvalidateIntroCache(InvalidateIntroCacheRequest) returns (InvalidateIntroCacheResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/intro-cache/{tmdb_id}/{season}/{episode}"
+    };
+  }
+}
+
+message InvalidateIntroCacheRequest {
+  int32 tmdb_id = 1;
+  int32 season = 2;
+  int32 episode = 3;
+}
+
+message InvalidateIntroCacheResponse {
+  int64 rows_deleted = 1;
+}
