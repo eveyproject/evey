@@ -675,6 +675,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			apiKeyRepo:        r.APIKey,
 			pluginRepo:        r.Plugin,
 			quickConnectRepo:  r.QuickConnect,
+			introMetaCache:    r.IntroMetadataCache,
 		},
 		cfgStore:       httpapi.NewServerConfigStore(r.ServerCfg),
 		serverCfgSvc:   serverCfgSvc,

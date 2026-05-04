@@ -71,7 +71,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		SyncplayHub:     deps.media.syncPlayHub,
 		StarRating:      deps.content.starRatingSvc,
 		QuickConnectHub: qcHub,
-		IntroCache:      deps.repos.IntroMetadataCache,
+		IntroCache:      deps.repos.introMetaCache,
 		IntroBackfill:   deps.library.introDetectionSvc,
 	}
 

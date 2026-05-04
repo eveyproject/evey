@@ -25,6 +25,7 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
 	"github.com/evey-project/evey/internal/adapters/driving/pluginhost"
+	grpcapi "github.com/evey-project/evey/internal/adapters/driving/grpcapi"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	domainnotif "github.com/evey-project/evey/internal/domain/notification"
@@ -115,6 +116,7 @@ type repoDeps struct {
 	apiKeyRepo        domainuser.APIKeyRepository
 	pluginRepo        domainplugin.PluginRepository
 	quickConnectRepo  domainuser.QuickConnectRepository
+	introMetaCache    grpcapi.IntroCacheInvalidator
 }
 
 // appDeps holds all application-level services and adapters needed by HTTP/gRPC layers.
