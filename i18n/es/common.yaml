@@ -9,66 +9,63 @@ enabled: Activado
 disabled: Desactivado
 skip: Omitir
 continue: Continuar
-loading: "Cargando…"
+loading: Cargando…
 error: Error
 unknown: Desconocido
-settings: Ajustes
-select: "Seleccionar"
-selectAll: "Seleccionar todo"
-deselectAll: "Deseleccionar todo"
-exit: "Salir"
-search: "Buscar"
-or: "o"
-previous: "Anterior"
-next: "Siguiente"
-edit: "Editar"
-add: "Agregar"
-remove: "Quitar"
-name: "Nombre"
-"no": "No"
-status: "Estado"
-actions: "Acciones"
-clear: "Limpiar"
-close: "Cerrar"
-confirm: "Confirmar"
-test: "Probar"
-download: "Descargar"
-restore: "Restaurar"
-revoke: "Revocar"
-refresh: "Actualizar"
-done: "Listo"
-copied: "¡Copiado!"
-seeAll: "Ver todo →"
-scrollLeft: "Desplazar a la izquierda"
-scrollRight: "Desplazar a la derecha"
-appearance: "Apariencia"
-appearanceDesc: "Elige tu tema y tu idioma."
-theme: "Tema"
-language: "Idioma"
-languageDesc: "Elige tu idioma preferido"
+select: Seleccionar
+selectAll: Seleccionar todo
+deselectAll: Deseleccionar todo
+exit: Salir
+search: Buscar
+or: o
+previous: Anterior
+next: Siguiente
+edit: Editar
+add: Agregar
+remove: Quitar
+name: Nombre
+status: Estado
+actions: Acciones
+clear: Limpiar
+close: Cerrar
+confirm: Confirmar
+test: Probar
+download: Descargar
+restore: Restaurar
+revoke: Revocar
+refresh: Actualizar
+done: Listo
+copied: ¡Copiado!
+seeAll: Ver todo →
+scrollLeft: Desplazar a la izquierda
+scrollRight: Desplazar a la derecha
+appearance: Apariencia
+appearanceDesc: Elige tu tema y tu idioma.
+theme: Tema
+language: Idioma
+languageDesc: Elige tu idioma preferido
 region:
-  title: "Región"
-  desc: "Usada para clasificaciones de contenido y preferencias regionales."
-  auto: "Automático"
-newKey: "Nueva clave"
-copyKey: "Copiar clave"
-unableToLoadNotifications: "No se pudieron cargar las notificaciones"
-viewAllNotifications: "Ver todas las notificaciones"
-"yes": "Sí"
-markAllRead: "Marcar todas como leídas"
-noNotifications: "Sin notificaciones"
-item_one: "{{count}} elemento"
-item_other: "{{count}} elementos"
-filtered: "(filtrado)"
-noItemsMatch: "Ningún elemento coincide con el filtro actual."
+  title: Región
+  desc: Usada para clasificaciones de contenido y preferencias regionales.
+  auto: Automático
+newKey: Nueva clave
+copyKey: Copiar clave
+unableToLoadNotifications: No se pudieron cargar las notificaciones
+viewAllNotifications: Ver todas las notificaciones
+markAllRead: Marcar todas como leídas
+noNotifications: Sin notificaciones
+item_one: '{{count}} elemento'
+item_other: '{{count}} elementos'
+filtered: (filtrado)
+noItemsMatch: Ningún elemento coincide con el filtro actual.
 errorBoundary:
   title: Algo salió mal
-  description: "Ocurrió un error inesperado. Intenta recargar la página. Si el problema persiste, vuelve a la página de inicio."
+  description: Ocurrió un error inesperado. Intenta recargar la página. Si el problema persiste, vuelve a la página de inicio.
   tryAgain: Reintentar
   goHome: Ir al inicio
 routeError:
   title: Algo salió mal
-  description: "Ocurrió un error al cargar esta página. Puedes reintentar o volver al inicio."
+  description: Ocurrió un error al cargar esta página. Puedes reintentar o volver al inicio.
   retry: Reintentar
   goHome: Ir al inicio
 aria:
@@ -84,122 +81,102 @@ aria:
   goToHome: Ir al inicio
   dismiss: Descartar
   close: Cerrar
-  retryPage: "Reintentar carga"
-  goToHomePage: "Ir a la página de inicio"
-  skipToContent: "Saltar al contenido"
-  expand: "Expandir"
-  select: "Seleccionar"
-  deselect: "Deseleccionar"
+  retryPage: Reintentar carga
+  goToHomePage: Ir a la página de inicio
+  skipToContent: Saltar al contenido
+  expand: Expandir
+  select: Seleccionar
+  deselect: Deseleccionar
 notifications:
-  title: "Notificaciones"
-  markRead: "Marcar como leída"
-  markAllRead: "Marcar todas como leídas"
-  deleteAll: "Eliminar todas"
-  deleteAllTitle: "Eliminar todas las notificaciones"
-  deleteAllConfirm: "Esto eliminará permanentemente todas tus notificaciones. Esta acción no se puede deshacer."
-  noNotifications: "Sin notificaciones"
-  allCaughtUp: "Estás al día."
-  justNow: "Ahora mismo"
-  minutesAgo: "hace {{count}}min"
-  hoursAgo: "hace {{count}}h"
-  daysAgo: "hace {{count}}d"
-  newMovie: "Nueva película: {{name}}"
-  newEpisode: "Nuevo episodio: {{name}}"
-  newSeason: "Nueva temporada: {{name}}"
-  newSeries: "Nueva serie: {{name}}"
-  newAlbum: "Nuevo álbum: {{name}}"
-  backupFailed: "Fallo en la copia de seguridad programada"
-  clearConfirm: ¿Eliminar todas las notificaciones?
-  clearTitle: Borrar notificaciones
+  title: Notificaciones
+  markRead: Marcar como leída
+  markAllRead: Marcar todas como leídas
+  deleteAll: Eliminar todas
+  deleteAllTitle: Eliminar todas las notificaciones
+  deleteAllConfirm: Esto eliminará permanentemente todas tus notificaciones. Esta acción no se puede deshacer.
+  noNotifications: Sin notificaciones
+  allCaughtUp: Estás al día.
+  justNow: Ahora mismo
+  minutesAgo: hace {{count}}min
+  hoursAgo: hace {{count}}h
+  daysAgo: hace {{count}}d
+  newMovie: 'Nueva película: {{name}}'
+  newEpisode: 'Nuevo episodio: {{name}}'
+  newSeason: 'Nueva temporada: {{name}}'
+  newSeries: 'Nueva serie: {{name}}'
+  newAlbum: 'Nuevo álbum: {{name}}'
+  backupFailed: Fallo en la copia de seguridad programada
 watchHistory:
-  title: "Historial de reproducción"
+  title: Historial de reproducción
 userStats:
-  title: "Mis estadísticas"
-  noData: "Sin actividad de reproducción"
-  totalWatchTime: "Tiempo de visualización"
-  totalPlays: "Reproducciones totales"
-  uniqueItems: "Títulos únicos"
-  favoriteGenre: "Género favorito"
-  genreBreakdown: "Géneros"
-  monthlyActivity: "Actividad mensual"
-  mostPlayed: "Más reproducidos"
-  playsLabel: "reproducciones"
+  title: Mis estadísticas
+  noData: Sin actividad de reproducción
+  totalWatchTime: Tiempo de visualización
+  totalPlays: Reproducciones totales
+  uniqueItems: Títulos únicos
+  favoriteGenre: Género favorito
+  genreBreakdown: Géneros
+  monthlyActivity: Actividad mensual
+  mostPlayed: Más reproducidos
+  playsLabel: reproducciones
 nav:
-  home: "Inicio"
-  libraries: "Bibliotecas"
-  photos: "Fotos"
-  favorites: "Favoritos"
-  search: "Buscar"
-  music: "Música"
-  syncplay: "Escuchar juntos"
-  admin: "Administración"
-  backToApp: "Volver a la aplicación"
-  settings: "Ajustes"
-  watchHistory: "Historial de reproducción"
-  myStats: "Mis estadísticas"
-  quickConnect: "Conexión rápida"
-  signOut: "Cerrar sesión"
-  expandSidebar: "Expandir barra lateral"
-  collapseSidebar: "Contraer barra lateral"
-  mainNav: "Navegación principal"
-  adminNav: "Navegación de administración"
-  userMenu: "Menú de usuario"
-  homeFeeds: "Feeds de inicio"
-  switchProfile: "Cambiar de perfil"
-  manageProfiles: "Gestionar perfiles"
+  home: Inicio
+  libraries: Bibliotecas
+  photos: Fotos
+  favorites: Favoritos
+  music: Música
+  syncplay: Escuchar juntos
+  admin: Administración
+  backToApp: Volver a la aplicación
+  settings: Ajustes
+  watchHistory: Historial de reproducción
+  myStats: Mis estadísticas
+  quickConnect: Conexión rápida
+  signOut: Cerrar sesión
+  expandSidebar: Expandir barra lateral
+  collapseSidebar: Contraer barra lateral
+  mainNav: Navegación principal
+  adminNav: Navegación de administración
+  userMenu: Menú de usuario
+  homeFeeds: Feeds de inicio
+  switchProfile: Cambiar de perfil
+  manageProfiles: Gestionar perfiles
 shortcuts:
   title: Atajos de teclado
   focusSearch: Enfocar búsqueda
   closeModal: Cerrar modal / desenfocar campo
   goHome: Ir al inicio
   toggleHelp: Mostrar/ocultar ayuda
-  disabledHint: "Los atajos están desactivados mientras se escribe en un campo."
+  disabledHint: Los atajos están desactivados mientras se escribe en un campo.
 parental:
   restrictedContent: Contenido restringido
-  pinRequired: "Este contenido requiere verificación del PIN parental."
-  pinLabel: "PIN (4 dígitos)"
+  pinRequired: Este contenido requiere verificación del PIN parental.
+  pinLabel: PIN (4 dígitos)
   pinIncorrect: PIN incorrecto
   validate: Validar
 feeds:
-  title: "Secciones de la página de inicio"
+  title: Secciones de la página de inicio
   section: Sección
   maxItems: Máx. elementos
-  saved: "Configuración guardada"
+  saved: Configuración guardada
   customize: Personalizar
-  customizeTitle: "Personalizar inicio"
-  resetDefaults: "Restablecer"
+  customizeTitle: Personalizar inicio
+  resetDefaults: Restablecer
   labels:
-    resume_playback: "Reanudar reproducción"
-    next_up: "A continuación"
-    recommended: "Recomendados"
-    most_popular: "Más populares"
+    resume_playback: Reanudar reproducción
+    next_up: A continuación
+    recommended: Recomendados
+    most_popular: Más populares
     collections: Colecciones
-showLess: Ver menos
-readMore: Leer más
-noPoster: Sin póster
-noItems: Sin elementos
-noCollections: Sin colecciones
-playlists: Playlists
-collections: Colecciones
-loadError: Error al cargar
-activity: Actividad
 addToPlaylist: Agregar a playlist
 noManualPlaylists: No hay playlists manuales disponibles
-noPlaylists: Sin playlists
-serverVersion: Versión del servidor
-retry: Reintentar
-itemCount_one: "{{count}} elemento"
-itemCount_other: "{{count}} elementos"
+itemCount_one: '{{count}} elemento'
+itemCount_other: '{{count}} elementos'
 added: Añadido
-change: Cambiar
-clearAll: Borrar todo
-description: Descripción
 export: Exportar JSON
-never: Nunca
 pause: Pausa
 play: Reproducir
 selected: seleccionado
-selectedCount: '{{count}} seleccionado(s)'
 somethingWentWrong: Algo salió mal
 tryAgain: Intentar de nuevo
 unknownError: Error desconocido

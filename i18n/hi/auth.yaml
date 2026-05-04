@@ -1,281 +1,237 @@
 setup:
-  welcome: "Evey में आपका स्वागत है"
-  description: "आइए आपका मीडिया सर्वर सेटअप करें। बस एक मिनट लगेगा।"
-  getStarted: "शुरू करें"
-  languageTitle: "सर्वर भाषा चुनें"
-  languageHint: "यह नए प्रोफ़ाइलों और मेटाडेटा के लिए डिफ़ॉल्ट भाषा होगी। बाद में व्यवस्थापक पैनल से बदल सकते हैं।"
-  stepOf: "चरण {{current}} / {{total}} - {{name}}"
+  welcome: Evey में आपका स्वागत है
+  description: आइए आपका मीडिया सर्वर सेटअप करें। बस एक मिनट लगेगा।
+  getStarted: शुरू करें
+  languageTitle: सर्वर भाषा चुनें
+  languageHint: यह नए प्रोफ़ाइलों और मेटाडेटा के लिए डिफ़ॉल्ट भाषा होगी। बाद में व्यवस्थापक पैनल से बदल सकते हैं।
+  stepOf: चरण {{current}} / {{total}} - {{name}}
   steps:
-    language: "भाषा"
-    welcome: "स्वागत"
-    admin: "एडमिन खाता"
-    library: "पहली लाइब्रेरी"
-  createAdmin: "एडमिन खाता बनाएं"
-  username: "उपयोगकर्ता नाम"
-  password: "पासवर्ड"
-  confirmPassword: "पासवर्ड की पुष्टि करें"
-  usernameMin: "कम से कम 3 अक्षर"
-  passwordMin: "कम से कम 8 अक्षर"
-  passwordMismatch: "पासवर्ड मेल नहीं खाते"
-  setupFailed: "सेटअप विफल"
-  addLibrary: "अपनी पहली लाइब्रेरी जोड़ें"
-  addLibraryHint: "आप बाद में एडमिन पैनल से और लाइब्रेरी जोड़ सकते हैं।"
-  libraryName: "लाइब्रेरी का नाम"
-  libraryType: "लाइब्रेरी का प्रकार"
-  libraryNameRequired: "लाइब्रेरी का नाम आवश्यक है"
+    language: भाषा
+    welcome: स्वागत
+    admin: एडमिन खाता
+    library: पहली लाइब्रेरी
+  createAdmin: एडमिन खाता बनाएं
+  username: उपयोगकर्ता नाम
+  password: पासवर्ड
+  confirmPassword: पासवर्ड की पुष्टि करें
+  usernameMin: कम से कम 3 अक्षर
+  passwordMin: कम से कम 8 अक्षर
+  passwordMismatch: पासवर्ड मेल नहीं खाते
+  setupFailed: सेटअप विफल
+  addLibrary: अपनी पहली लाइब्रेरी जोड़ें
+  addLibraryHint: आप बाद में एडमिन पैनल से और लाइब्रेरी जोड़ सकते हैं।
+  libraryName: लाइब्रेरी का नाम
+  libraryType: लाइब्रेरी का प्रकार
+  libraryNameRequired: लाइब्रेरी का नाम आवश्यक है
   libraryTypes:
-    movies: "फ़िल्में"
-    shows: "शो"
-    music: "संगीत"
-    photos: "फ़ोटो"
-signingIn: "साइन इन हो रहा है…"
+    movies: फ़िल्में
+    shows: शो
+    music: संगीत
+    photos: फ़ोटो
+signingIn: साइन इन हो रहा है…
 login:
-  signIn: "साइन इन"
-  signInToAccount: "अपने खाते में साइन इन करें"
-  username: "उपयोगकर्ता नाम"
-  password: "पासवर्ड"
-  invalidCredentials: "अमान्य उपयोगकर्ता नाम या पासवर्ड"
-  passwordTooShort: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
-  loginFailed: "लॉगिन विफल। कृपया पुनः प्रयास करें।"
-  recommendedForTV: "TV के लिए अनुशंसित"
-  ssoFailed: "SSO साइन इन विफल। कृपया पुनः प्रयास करें।"
-  or: "या"
-  signInWithSSO: "SSO से साइन इन करें"
-  forgotPassword: "पासवर्ड भूल गए?"
+  signIn: साइन इन
+  signInToAccount: अपने खाते में साइन इन करें
+  username: उपयोगकर्ता नाम
+  password: पासवर्ड
+  invalidCredentials: अमान्य उपयोगकर्ता नाम या पासवर्ड
+  passwordTooShort: पासवर्ड कम से कम 8 अक्षरों का होना चाहिए
+  loginFailed: लॉगिन विफल। कृपया पुनः प्रयास करें।
+  ssoFailed: SSO साइन इन विफल। कृपया पुनः प्रयास करें।
+  or: या
+  signInWithSSO: SSO से साइन इन करें
+  forgotPassword: पासवर्ड भूल गए?
 forgotPassword:
-  title: "पासवर्ड रीसेट करें"
-  description: "अपना ईमेल दर्ज करें, हम आपको रीसेट लिंक भेजेंगे।"
-  email: "ईमेल"
-  submit: "रीसेट लिंक भेजें"
-  backToLogin: "साइन इन पर वापस जाएं"
-  checkEmail: "अपना ईमेल जांचें"
-  emailSent: "यदि इस ईमेल से कोई खाता है, तो हमने रीसेट लिंक भेजा है।"
+  title: पासवर्ड रीसेट करें
+  description: अपना ईमेल दर्ज करें, हम आपको रीसेट लिंक भेजेंगे।
+  email: ईमेल
+  submit: रीसेट लिंक भेजें
+  backToLogin: साइन इन पर वापस जाएं
+  checkEmail: अपना ईमेल जांचें
+  emailSent: यदि इस ईमेल से कोई खाता है, तो हमने रीसेट लिंक भेजा है।
 resetPassword:
-  title: "नया पासवर्ड सेट करें"
-  description: "अपने खाते के लिए नया पासवर्ड चुनें।"
-  newPassword: "नया पासवर्ड"
-  confirmPassword: "पासवर्ड की पुष्टि करें"
-  submit: "पासवर्ड रीसेट करें"
-  backToLogin: "साइन इन पर वापस जाएं"
-  invalidLink: "यह रीसेट लिंक अमान्य है।"
-  success: "पासवर्ड रीसेट हो गया!"
-  successDescription: "आपका पासवर्ड बदल दिया गया है। अब आप साइन इन कर सकते हैं।"
-  goToLogin: "साइन इन करें"
-  tokenExpired: "यह लिंक समाप्त हो गया है। कृपया नया अनुरोध करें।"
-  passwordTooShort: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए।"
-  mismatch: "पासवर्ड मेल नहीं खाते।"
-  failed: "पासवर्ड रीसेट विफल।"
+  title: नया पासवर्ड सेट करें
+  description: अपने खाते के लिए नया पासवर्ड चुनें।
+  newPassword: नया पासवर्ड
+  confirmPassword: पासवर्ड की पुष्टि करें
+  submit: पासवर्ड रीसेट करें
+  backToLogin: साइन इन पर वापस जाएं
+  invalidLink: यह रीसेट लिंक अमान्य है।
+  success: पासवर्ड रीसेट हो गया!
+  successDescription: आपका पासवर्ड बदल दिया गया है। अब आप साइन इन कर सकते हैं।
+  goToLogin: साइन इन करें
+  tokenExpired: यह लिंक समाप्त हो गया है। कृपया नया अनुरोध करें।
+  passwordTooShort: पासवर्ड कम से कम 8 अक्षरों का होना चाहिए।
+  mismatch: पासवर्ड मेल नहीं खाते।
+  failed: पासवर्ड रीसेट विफल।
 register:
-  createAccount: "खाता बनाएं"
-  createAccountBtn: "खाता बनाएं"
-  invitedMessage: "आपको आमंत्रित किया गया है! नीचे अपनी जानकारी भरें।"
-  signUpWithInvite: "आमंत्रण कोड से साइन अप करें"
-  inviteCodeLabel: "आमंत्रण कोड:"
-  username: "उपयोगकर्ता नाम"
-  email: "ईमेल"
-  password: "पासवर्ड"
-  confirmPassword: "पासवर्ड की पुष्टि करें"
-  inviteCode: "आमंत्रण कोड"
-  passwordMismatch: "पासवर्ड मेल नहीं खाते"
-  passwordMin: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
-  registrationFailed: "पंजीकरण विफल"
-  alreadyHaveAccount: "पहले से खाता है?"
-  signIn: "साइन इन"
+  createAccount: खाता बनाएं
+  createAccountBtn: खाता बनाएं
+  invitedMessage: आपको आमंत्रित किया गया है! नीचे अपनी जानकारी भरें।
+  signUpWithInvite: आमंत्रण कोड से साइन अप करें
+  inviteCodeLabel: 'आमंत्रण कोड:'
+  username: उपयोगकर्ता नाम
+  email: ईमेल
+  password: पासवर्ड
+  confirmPassword: पासवर्ड की पुष्टि करें
+  inviteCode: आमंत्रण कोड
+  passwordMismatch: पासवर्ड मेल नहीं खाते
+  passwordMin: पासवर्ड कम से कम 8 अक्षरों का होना चाहिए
+  registrationFailed: पंजीकरण विफल
+  alreadyHaveAccount: पहले से खाता है?
+  signIn: साइन इन
 profile:
-  edit: "संपादित करें"
-  username: "उपयोगकर्ता नाम"
-  email: "ईमेल"
-  save: "सहेजें"
-  cancel: "रद्द करें"
-  profileUpdated: "प्रोफ़ाइल अपडेट हुई"
-  failedToUpdate: "प्रोफ़ाइल अपडेट करने में विफल"
-  changeAvatar: "अवतार बदलें"
-  avatarUpdated: "अवतार अपडेट किया गया"
-  avatarFailed: "अवतार अपडे�� करने में विफल"
-  created: "प्रोफ़ाइल बनाई गई"
-  updated: "प्रोफ़ाइल अपडेट की गई"
-  deleted: "प्रोफ़ाइल हटाई गई"
-  editProfile: "प्रोफ़ाइल संपादित करें"
-  switchFailed: "प्रोफ़ाइल नहीं बदली जा सकी"
+  username: उपयोगकर्ता नाम
+  email: ईमेल
+  save: सहेजें
+  cancel: रद्द करें
+  profileUpdated: प्रोफ़ाइल अपडेट हुई
+  failedToUpdate: प्रोफ़ाइल अपडेट करने में विफल
+  changeAvatar: अवतार बदलें
+  avatarUpdated: अवतार अपडेट किया गया
+  avatarFailed: अवतार अपडे�� करने में विफल
+  created: प्रोफ़ाइल बनाई गई
+  updated: प्रोफ़ाइल अपडेट की गई
+  deleted: प्रोफ़ाइल हटाई गई
+  editProfile: प्रोफ़ाइल संपादित करें
+  switchFailed: प्रोफ़ाइल नहीं बदली जा सकी
   select:
-    title: "कौन देख रहा है?"
-    description: "जारी रखने के लिए एक प्रोफ़ाइल चुनें।"
-    kidsBadge: "बच्चा"
-    manage: "प्रोफ़ाइल प्रबंधित करें"
-    pinPromptTitle: "PIN दर्ज करें"
-    pinPromptBody: "जारी रखने के लिए \"{{name}}\" का PIN दर्ज करें।"
-    pinInvalid: "PIN 4 अंकों का होना चाहिए"
-    pinWrong: "ग़लत PIN"
+    title: कौन देख रहा है?
+    description: जारी रखने के लिए एक प्रोफ़ाइल चुनें।
+    kidsBadge: बच्चा
+    manage: प्रोफ़ाइल प्रबंधित करें
+    pinPromptTitle: PIN दर्ज करें
+    pinPromptBody: जारी रखने के लिए "{{name}}" का PIN दर्ज करें।
+    pinInvalid: PIN 4 अंकों का होना चाहिए
+    pinWrong: ग़लत PIN
   manage:
-    title: "प्रोफ़ाइल प्रबंधित करें"
-    description: "प्रोफ़ाइल जोड़ें, संपादित करें या हटाएँ। डिफ़ॉल्ट प्रोफ़ाइल को हटाया नहीं जा सकता।"
-    createProfile: "प्रोफ़ाइल बनाएँ"
-    deleteConfirm: "प्रोफ़ाइल \"{{name}}\" हटाएँ? यह क्रिया पूर्ववत नहीं की जा सकती।"
-    defaultProfileBadge: "डिफ़ॉल्ट"
-    kidsBadge: "बच्चा"
-    cannotDeleteDefault: "डिफ़ॉल्ट प्रोफ़ाइल को हटाया नहीं जा सकता।"
+    title: प्रोफ़ाइल प्रबंधित करें
+    description: प्रोफ़ाइल जोड़ें, संपादित करें या हटाएँ। डिफ़ॉल्ट प्रोफ़ाइल को हटाया नहीं जा सकता।
+    createProfile: प्रोफ़ाइल बनाएँ
+    deleteConfirm: प्रोफ़ाइल "{{name}}" हटाएँ? यह क्रिया पूर्ववत नहीं की जा सकती।
+    defaultProfileBadge: डिफ़ॉल्ट
+    kidsBadge: बच्चा
+    cannotDeleteDefault: डिफ़ॉल्ट प्रोफ़ाइल को हटाया नहीं जा सकता।
   fields:
-    name: "नाम"
-    nameRequired: "नाम आवश्यक है"
-    isKids: "बच्चों की प्रोफ़ाइल"
-    isKidsHelp: "इस प्रोफ़ाइल को बच्चों की प्रोफ़ाइल के रूप में चिह्नित करता है (स्विच करते समय PIN सक्षम करता है)। आयु सीमाएँ पेरेंटल कंट्रोल में कॉन्फ़िगर की जाती हैं।"
-    pin: "PIN (4 अंक)"
-    pinRequired: "क्योंकि एक बच्चों की प्रोफ़ाइल मौजूद है, एक PIN आवश्यक है।"
-    pinKeep: "वर्तमान PIN बनाए रखने के लिए खाली छोड़ें।"
-    locale: "भाषा"
-    region: "क्षेत्र"
+    name: नाम
+    nameRequired: नाम आवश्यक है
+    isKids: बच्चों की प्रोफ़ाइल
+    isKidsHelp: इस प्रोफ़ाइल को बच्चों की प्रोफ़ाइल के रूप में चिह्नित करता है (स्विच करते समय PIN सक्षम करता है)। आयु सीमाएँ पेरेंटल कंट्रोल में कॉन्फ़िगर की जाती हैं।
+    pin: PIN (4 अंक)
+    pinRequired: क्योंकि एक बच्चों की प्रोफ़ाइल मौजूद है, एक PIN आवश्यक है।
+    pinKeep: वर्तमान PIN बनाए रखने के लिए खाली छोड़ें।
+    locale: भाषा
+    region: क्षेत्र
 settings:
-  title: "सेटिंग्स"
+  title: सेटिंग्स
   tabs:
-    appearance: "दिखावट"
-    playback: "प्लेबैक"
-    profiles: "प्रोफ़ाइल"
-    notifications: "सूचनाएं"
-    account: "खाता"
-    parental: "अभिभावक नियंत्रण"
-    devices: "डिवाइस"
-    security: "सुरक्षा"
-    quickConnect: "क्विक कनेक्ट"
-  playback:
-    bitrateTitle: "अधिकतम स्ट्रीमिंग बिटरेट"
-    bitrateDesc: "स्ट्रीमिंग करते समय अधिकतम बिटरेट सीमित करें। कम मान कम बैंडविड्थ का उपयोग करते हैं।"
-    cellularBitrateTitle: "अधिकतम सेल्युलर बिटरेट"
-    cellularBitrateDesc: "मोबाइल डेटा उपयोग करते समय लागू होने वाली कम सीमा।"
-    subtitleLanguage: "डिफ़ॉल्ट उपशीर्षक भाषा"
-    audioLanguage: "डिफ़ॉल्ट ऑडियो भाषा"
-    preferredVideoCodec: "पसंदीदा वीडियो कोडेक"
-    preferredAudioCodec: "पसंदीदा ऑडियो कोडेक"
-    maxAudioChannels: "अधिकतम ऑडियो चैनल"
-    codecAuto: "स्वचालित"
-    channelsStereo: "स्टीरियो (2.0)"
-    channels51: "सराउंड (5.1)"
-    channels71: "सराउंड (7.1)"
-    subtitleBurnIn: "उपशीर्षक बर्न-इन"
-    subtitleBurnInDesc: "आवश्यक होने पर उपशीर्षकों को सीधे वीडियो स्ट्रीम में बर्न करें।"
-    subtitleBurnAuto: "स्वचालित"
-    subtitleBurnAlways: "हमेशा बर्न करें"
-    subtitleBurnNever: "कभी बर्न न करें"
-    transcodeTitle: "ट्रांसकोडिंग"
-    allowDirectPlay: "डायरेक्ट प्ले की अनुमति दें"
-    allowDirectPlayDesc: "जब डिवाइस समर्थन करे तो मूल फ़ाइल चलाएं।"
-    allowDirectStream: "डायरेक्ट स्ट्रीम की अनुमति दें"
-    allowDirectStreamDesc: "संभव होने पर बिना री-एनकोडिंग के कंटेनर को रीमक्स करें।"
-    allowTranscoding: "ट्रांसकोडिंग की अनुमति दें"
-    allowTranscodingDesc: "यदि डायरेक्ट प्ले/स्ट्रीम उपलब्ध न हो तो ट्रांसकोडिंग पर वापस जाएं।"
+    appearance: दिखावट
+    profiles: प्रोफ़ाइल
+    notifications: सूचनाएं
+    parental: अभिभावक नियंत्रण
+    devices: डिवाइस
+    quickConnect: क्विक कनेक्ट
   quickConnect:
-    title: "क्विक कनेक्ट"
-    description: "जिस डिवाइस में साइन इन करना है, उस पर दिखाया गया कोड दर्ज करें।"
-    codeLabel: "डिवाइस कोड"
-    authorize: "डिवाइस अधिकृत करें"
-    authorized: "डिवाइस सफलतापूर्वक अधिकृत"
-    invalidCode: "कोड अमान्य या समाप्त"
-    scanQr: "QR कोड स्कैन करें"
-    scanHint: "Quick Connect QR कोड पर कैमरा लगाएं"
-    cameraPermission: "Quick Connect QR कोड स्कैन करने के लिए कैमरा एक्सेस आवश्यक है।"
-    grantPermission: "कैमरा एक्सेस दें"
-    scanLabel: "क्विक कनेक्ट"
-    scanInstruction: "साइन इन करने के लिए लॉग-इन डिवाइस से स्कैन करें"
-    expiresIn: "{{seconds}}s में समाप्त"
+    title: क्विक कनेक्ट
+    description: जिस डिवाइस में साइन इन करना है, उस पर दिखाया गया कोड दर्ज करें।
+    codeLabel: डिवाइस कोड
+    authorize: डिवाइस अधिकृत करें
+    authorized: डिवाइस सफलतापूर्वक अधिकृत
+    invalidCode: कोड अमान्य या समाप्त
+    scanLabel: क्विक कनेक्ट
+    scanInstruction: साइन इन करने के लिए लॉग-इन डिवाइस से स्कैन करें
+    expiresIn: '{{seconds}}s में समाप्त'
   account:
-    changePassword: "पासवर्ड बदलें"
-    changePasswordDesc: "कम से कम 8 अक्षरों का मजबूत पासवर्ड उपयोग करें।"
-    newPassword: "नया पासवर्ड"
-    confirmPassword: "पासवर्ड की पुष्टि करें"
-    passwordMismatch: "पासवर्ड मेल नहीं खाते"
-    passwordMin: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
-    profileUpdated: प्रोफ़ाइल अपडेट हुई
+    changePasswordDesc: कम से कम 8 अक्षरों का मजबूत पासवर्ड उपयोग करें।
+    newPassword: नया पासवर्ड
+    confirmPassword: पासवर्ड की पुष्टि करें
+    passwordMismatch: पासवर्ड मेल नहीं खाते
+    passwordMin: पासवर्ड कम से कम 8 अक्षरों का होना चाहिए
   parental:
-    title: "अभिभावक नियंत्रण"
-    enable: "अभिभावक नियंत्रण सक्षम करें"
-    enableDesc: "रेटिंग द्वारा सामग्री फ़िल्टर करें"
-    maxAge: "अधिकतम आयु"
-    noRestriction: "कोई प्रतिबंध नहीं"
-    noProfile: "कोई प्रोफ़ाइल नहीं मिली।"
-    failedToUpdate: "अपडेट करने में विफल"
+    title: अभिभावक नियंत्रण
+    noProfile: कोई प्रोफ़ाइल नहीं मिली।
+    failedToUpdate: अपडेट करने में विफल
     pin:
-      title: "PIN सेट करें"
-      description: "प्रतिबंधित सामग्री अनलॉक करने के लिए 4 अंकों का PIN।"
-      newPin: "नया PIN"
-      confirmPin: "PIN की पुष्टि करें"
-      savePin: "PIN सहेजें"
-      saved: "PIN सहेजा गया"
-      mustBe4: "PIN 4 अंकों का होना चाहिए"
-      mismatch: "PIN मेल नहीं खाते"
-      passwordReauth: "खाता पासवर्ड"
-      passwordRequired: "पहली बार PIN सेट करने के लिए पासवर्ड आवश्यक है"
+      title: PIN सेट करें
+      description: प्रतिबंधित सामग्री अनलॉक करने के लिए 4 अंकों का PIN।
+      newPin: नया PIN
+      confirmPin: PIN की पुष्टि करें
+      savePin: PIN सहेजें
+      saved: PIN सहेजा गया
+      mustBe4: PIN 4 अंकों का होना चाहिए
+      mismatch: PIN मेल नहीं खाते
+      passwordReauth: खाता पासवर्ड
+      passwordRequired: पहली बार PIN सेट करने के लिए पासवर्ड आवश्यक है
 apiKeys:
-  title: "API कुंजियां"
-  description: "बाहरी इंटीग्रेशन के लिए API कुंजियां बनाएं।"
-  newKeyTitle: "नई API कुंजी"
-  name: "नाम"
-  namePlaceholder: "मेरा इंटीग्रेशन"
-  nameRequired: "नाम आवश्यक है"
-  key: "कुंजी"
-  scopes: "अनुमतियां"
-  scopesAll: "सभी (लेगेसी)"
-  scopesHint: "पूर्ण एक्सेस (लेगेसी) के लिए खाली छोड़ें। प्रतिबंधित करने के लिए विशिष्ट अनुमतियां चुनें।"
+  title: API कुंजियां
+  description: बाहरी इंटीग्रेशन के लिए API कुंजियां बनाएं।
+  newKeyTitle: नई API कुंजी
+  name: नाम
+  namePlaceholder: मेरा इंटीग्रेशन
+  nameRequired: नाम आवश्यक है
+  key: कुंजी
+  scopes: अनुमतियां
+  scopesAll: सभी (लेगेसी)
+  scopesHint: पूर्ण एक्सेस (लेगेसी) के लिए खाली छोड़ें। प्रतिबंधित करने के लिए विशिष्ट अनुमतियां चुनें।
   scopeLabels:
-    "media:read": "मीडिया मेटाडेटा पढ़ें"
-    "media:write": "मीडिया संशोधित करें और स्कैन शुरू करें"
-    "admin:read": "एडमिन गतिविधि और आँकड़े पढ़ें"
-    "admin:write": "एडमिन सेटिंग्स संशोधित करें"
-    "users:read": "उपयोगकर्ता पढ़ें"
-    "users:write": "उपयोगकर्ता संशोधित करें"
-    "playback:read": "प्लेबैक स्थिति और इतिहास पढ़ें"
-    "playback:write": "प्लेबैक और प्रगति नियंत्रित करें"
-  lastUsed: "अंतिम उपयोग"
-  created: "बनाई गई"
-  keyCreatedTitle: "API कुंजी बन गई"
-  saveWarning: "इस कुंजी को अभी सहेजें - यह दोबारा नहीं दिखाई जाएगी।"
-  noKeys: "अभी कोई API कुंजी नहीं"
-  keyCreated: "API कुंजी बन गई"
-  createError: "API कुंजी बनाने में विफल"
-  revokeTitle: "API कुंजी रद्द करें"
-  revokeConfirm: "यह API कुंजी रद्द करें? यह तुरंत काम करना बंद कर देगी।"
-  keyRevoked: "API कुंजी रद्द हो गई"
-  revokeError: "API कुंजी रद्द करने में विफल"
-  revoke: रद्द करें
+    media:read: मीडिया मेटाडेटा पढ़ें
+    media:write: मीडिया संशोधित करें और स्कैन शुरू करें
+    admin:read: एडमिन गतिविधि और आँकड़े पढ़ें
+    admin:write: एडमिन सेटिंग्स संशोधित करें
+    users:read: उपयोगकर्ता पढ़ें
+    users:write: उपयोगकर्ता संशोधित करें
+    playback:read: प्लेबैक स्थिति और इतिहास पढ़ें
+    playback:write: प्लेबैक और प्रगति नियंत्रित करें
+  lastUsed: अंतिम उपयोग
+  created: बनाई गई
+  keyCreatedTitle: API कुंजी बन गई
+  saveWarning: इस कुंजी को अभी सहेजें - यह दोबारा नहीं दिखाई जाएगी।
+  noKeys: अभी कोई API कुंजी नहीं
+  createError: API कुंजी बनाने में विफल
+  revokeTitle: API कुंजी रद्द करें
+  revokeConfirm: यह API कुंजी रद्द करें? यह तुरंत काम करना बंद कर देगी।
+  keyRevoked: API कुंजी रद्द हो गई
+  revokeError: API कुंजी रद्द करने में विफल
 devices:
-  title: "उपकरण"
-  description: "पुश सूचना उपकरण प्रबंधित करें।"
-  platform: "प्लेटफ़ॉर्म"
-  token: "टोकन"
-  registered: "पंजीकृत"
-  noDevices: "कोई पंजीकृत उपकरण नहीं"
-  revokeTitle: "उपकरण रद्द करें"
-  revokeConfirm: "यह उपकरण रद्द करें? यह अब सूचनाएं प्राप्त नहीं करेगा।"
-  deviceRevoked: "उपकरण रद्द हो गया"
-  revokeError: "उपकरण हटाने में विफल"
+  title: उपकरण
+  description: पुश सूचना उपकरण प्रबंधित करें।
+  platform: प्लेटफ़ॉर्म
+  token: टोकन
+  registered: पंजीकृत
+  noDevices: कोई पंजीकृत उपकरण नहीं
+  revokeTitle: उपकरण रद्द करें
+  revokeConfirm: यह उपकरण रद्द करें? यह अब सूचनाएं प्राप्त नहीं करेगा।
+  deviceRevoked: उपकरण रद्द हो गया
+  revokeError: उपकरण हटाने में विफल
 notificationSettings:
-  pushNotifications: "पुश सूचनाएं"
-  pushDesc: "इस उपकरण पर पुश सूचनाएं प्राप्त करें।"
-  pushEnabled: "पुश सूचनाएं सक्षम"
-  pushDisabled: "पुश सूचनाएं अक्षम"
-  pushError: "पुश सूचनाएं टॉगल करने में विफल"
-  pushNotConfigured: "इस सर्वर पर पुश सूचनाएं कॉन्फ़िगर नहीं हैं।"
-  permissionDenied: "ब्राउज़र ने सूचना अनुमति अस्वीकार कर दी।"
-  movies: "फ़िल्में"
-  series: "सीरीज़"
-  music: "संगीत"
-  saved: "सूचना प्राथमिकताएं सहेजी गईं"
-  saveError: "सूचना प्राथमिकताएं सहेजने में विफल"
-  levelDefault: "डिफ़ॉल्ट"
-  levelDisabled: "अक्षम"
-  levelAll: "सभी"
-  levelRelevant: "प्रासंगिक"
-  levelImportant: "केवल महत्वपूर्ण"
+  pushNotifications: पुश सूचनाएं
+  pushDesc: इस उपकरण पर पुश सूचनाएं प्राप्त करें।
+  pushEnabled: पुश सूचनाएं सक्षम
+  pushDisabled: पुश सूचनाएं अक्षम
+  pushError: पुश सूचनाएं टॉगल करने में विफल
+  pushNotConfigured: इस सर्वर पर पुश सूचनाएं कॉन्फ़िगर नहीं हैं।
+  permissionDenied: ब्राउज़र ने सूचना अनुमति अस्वीकार कर दी।
+  movies: फ़िल्में
+  series: सीरीज़
+  music: संगीत
+  saved: सूचना प्राथमिकताएं सहेजी गईं
+  saveError: सूचना प्राथमिकताएं सहेजने में विफल
+  levelDefault: डिफ़ॉल्ट
+  levelDisabled: अक्षम
+  levelAll: सभी
+  levelRelevant: प्रासंगिक
+  levelImportant: केवल महत्वपूर्ण
 watchHistory:
-  today: "आज"
-  yesterday: "कल"
-  thisWeek: "इस सप्ताह"
-  thisMonth: "इस महीने"
-  plays: "{{count}} बार चलाया"
-  watched: "देखा गया"
-  noHistory: "कोई देखने का इतिहास नहीं"
-  noHistoryDesc: "अपना इतिहास यहां देखने के लिए कुछ देखना शुरू करें।"
-  clearHistory: "इतिहास साफ़ करें"
-  clearTitle: "देखने का इतिहास साफ़ करें"
-  clearConfirm: "यह आपका पूरा देखने का इतिहास स्थायी रूप से मिटा देगा। यह क्रिया पूर्ववत नहीं की जा सकती।"
-  clearAll: "सब साफ़ करें"
-  title: देखने का इतिहास
+  today: आज
+  yesterday: कल
+  thisWeek: इस सप्ताह
+  thisMonth: इस महीने
+  plays: '{{count}} बार चलाया'
+  watched: देखा गया
+  noHistory: कोई देखने का इतिहास नहीं
+  noHistoryDesc: अपना इतिहास यहां देखने के लिए कुछ देखना शुरू करें।
+  clearHistory: इतिहास साफ़ करें
+  clearTitle: देखने का इतिहास साफ़ करें
+  clearConfirm: यह आपका पूरा देखने का इतिहास स्थायी रूप से मिटा देगा। यह क्रिया पूर्ववत नहीं की जा सकती।
+  clearAll: सब साफ़ करें
   openMedia: मीडिया विवरण खोलें

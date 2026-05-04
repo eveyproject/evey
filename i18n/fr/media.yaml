@@ -1,47 +1,39 @@
-season: "Saison {{number}}"
-chapter: "Chapitre {{number}}"
-track: "Piste {{number}}"
-burnIn: "(incrusté)"
+season: Saison {{number}}
+chapter: Chapitre {{number}}
+track: Piste {{number}}
+burnIn: (incrusté)
 home:
   play: Lecture
-  moreInfo: "Plus d'infos"
-  continueWatching: Reprendre la lecture
+  moreInfo: Plus d'infos
   upNext: À suivre
-  recentlyAdded: Ajoutés récemment
   mostPopular: Les plus populaires
   recommendedForYou: Recommandé pour vous
   collections: Collections
-  customize: Personnaliser
-  customizeFeed: Personnaliser le flux
   emptyLibrary: Votre bibliothèque est vide
-  emptyLibraryDesc: "Allez dans Administration → Bibliothèques pour ajouter un dossier multimédia."
+  emptyLibraryDesc: Allez dans Administration → Bibliothèques pour ajouter un dossier multimédia.
   goToLibraries: Aller aux bibliothèques
   library: Bibliothèque
 favorites:
   title: Favoris
-  empty: "Pas encore de favoris"
-  searchPlaceholder: "Rechercher…"
+  searchPlaceholder: Rechercher…
   all: Tout
   movies: Films
   series: Séries
   recentlyAdded: Ajoutés récemment
-  titleAZ: "Titre A–Z"
-  titleZA: "Titre Z–A"
+  titleAZ: Titre A–Z
+  titleZA: Titre Z–A
   yearNewest: Année (plus récent)
   rating: Note
   noFavorites: Pas encore de favoris
-  noFavoritesDesc: "Cliquez sur l'icône cœur de n'importe quel média pour l'ajouter aux favoris."
+  noFavoritesDesc: Cliquez sur l'icône cœur de n'importe quel média pour l'ajouter aux favoris.
   addToPlaylist: Ajouter à la liste de lecture
   noPlaylists: Pas encore de listes de lecture.
-  failedAddPlaylist: "Échec de l'ajout à la liste de lecture"
-  itemsAddedToPlaylist: "{{count}} élément(s) ajouté(s) à \"{{name}}\""
-  markedWatched: "{{count}} élément(s) marqué(s) comme vu(s)"
-  markedUnwatched: "{{count}} élément(s) marqué(s) comme non vu(s)"
+  failedAddPlaylist: Échec de l'ajout à la liste de lecture
+  itemsAddedToPlaylist: '{{count}} élément(s) ajouté(s) à "{{name}}"'
+  markedWatched: '{{count}} élément(s) marqué(s) comme vu(s)'
+  markedUnwatched: '{{count}} élément(s) marqué(s) comme non vu(s)'
   filterByType: Filtrer par type
   sortBy: Trier par
-  toggleFavorite: Basculer favori
-  toggled: Favoris mis à jour
-  yearOldest: Année (anciennes)
 collections:
   title: Collections
   newSmartCollection: Nouvelle collection intelligente
@@ -51,20 +43,20 @@ collections:
   noCollectionsDesc: Les collections sont automatiquement générées à partir des sagas TMDB.
   deleteConfirm: Supprimer cette collection ?
   deleteSmartConfirm: Supprimer cette collection intelligente ?
-  browseResults: "Parcourir les résultats →"
+  browseResults: Parcourir les résultats →
   smart: Intelligent
   noItems: Aucun élément
-  noItemsDesc: "Cette collection n'a pas encore d'éléments multimédias."
+  noItemsDesc: Cette collection n'a pas encore d'éléments multimédias.
   notFound: Collection introuvable
-  notFoundDesc: "Cette collection intelligente n'existe plus."
-  noRules: "Cette collection n'a aucune règle configurée."
+  notFoundDesc: Cette collection intelligente n'existe plus.
+  noRules: Cette collection n'a aucune règle configurée.
   noRuleMatch: Aucun élément ne correspond aux règles actuelles.
   smartDeleted: Collection intelligente supprimée
   deleteFailed: Échec de la suppression
   noCollectionsAvailable: Aucune collection disponible.
-  itemsAdded: "{{count}} élément(s) ajouté(s) à \"{{name}}\""
-  addFailed: "Échec de l'ajout à la collection"
-  adding: "Ajout en cours…"
+  itemsAdded: '{{count}} élément(s) ajouté(s) à "{{name}}"'
+  addFailed: Échec de l'ajout à la collection
+  adding: Ajout en cours…
   editSmartCollection: Modifier la collection intelligente
   nameRequired: Le nom est obligatoire
   noRulesYet: Pas encore de règles. Ajoutez au moins une règle pour filtrer les éléments.
@@ -77,8 +69,6 @@ collections:
   updated: Collection mise à jour
   updateFailed: Échec de la mise à jour de la collection
   deleted: Collection supprimée
-  editCollection: Modifier la collection
-  newCollection: Nouvelle collection
 library:
   title: Bibliothèque
   libraries: Bibliothèques
@@ -88,42 +78,40 @@ library:
   photos: Photos
   books: Livres
   noLibraries: Aucune bibliothèque configurée
-  noLibrariesDesc: "Ajoutez une bibliothèque dans le panneau d'administration pour parcourir vos médias."
-  filterByName: "Filtrer par nom..."
+  noLibrariesDesc: Ajoutez une bibliothèque dans le panneau d'administration pour parcourir vos médias.
+  filterByName: Filtrer par nom...
   series: Séries
   seasons: Saisons
   episodes: Épisodes
   titleSort: Titre
   year: Année
   ratingSort: Note
-  dateAdded: "Date d'ajout"
-  ascending: Croissant
-  descending: Décroissant
+  dateAdded: Date d'ajout
   noItems: Aucun élément trouvé
-  noItemsFiltered: "Essayez d'ajuster vos filtres ou votre recherche."
-  noItemsType: "Essayez un filtre différent, ou scannez la bibliothèque pour ajouter du contenu."
+  noItemsFiltered: Essayez d'ajuster vos filtres ou votre recherche.
+  noItemsType: Essayez un filtre différent, ou scannez la bibliothèque pour ajouter du contenu.
   noItemsEmpty: Cette bibliothèque est vide. Lancez un scan pour ajouter du contenu.
-  goToAdmin: "Aller à l'administration"
+  goToAdmin: Aller à l'administration
   selected: sélectionné(s)
   addToFavorites: Ajouter aux favoris
-  addedToFavorites: "{{count}} élément(s) ajouté(s) aux favoris"
-  failedFavorites: "Échec de l'ajout de certains éléments aux favoris"
+  addedToFavorites: '{{count}} élément(s) ajouté(s) aux favoris'
+  failedFavorites: Échec de l'ajout de certains éléments aux favoris
   duration: Durée
   type: Type
   addToPlaylist: Ajouter à la liste de lecture
   noPlaylists: Pas encore de listes de lecture.
-  failedAddPlaylist: "Échec de l'ajout à la liste de lecture"
-  itemsAddedToPlaylist: "{{count}} élément(s) ajouté(s) à \"{{name}}\""
+  failedAddPlaylist: Échec de l'ajout à la liste de lecture
+  itemsAddedToPlaylist: '{{count}} élément(s) ajouté(s) à "{{name}}"'
   filters: Filtres
   clearAll: Tout effacer
-  resultCount: "{{count}} résultat"
-  resultCount_plural: "{{count}} résultats"
+  resultCount: '{{count}} résultat'
+  resultCount_plural: '{{count}} résultats'
   yearLabel: Année
   yearFrom: De
-  yearTo: "À"
+  yearTo: À
   minRating: Note minimum
-  minStars: "Min {{count}} étoile"
-  minStars_plural: "Min {{count}} étoiles"
+  minStars: Min {{count}} étoile
+  minStars_plural: Min {{count}} étoiles
   clearRating: Effacer
   typeAll: Tout
   typeMovie: Film
@@ -132,8 +120,8 @@ library:
   typeTrack: Piste
   typePhoto: Photo
   typeLabel: Type
-  genreText: "Genre (texte)"
-  genrePlaceholder: "ex. Action"
+  genreText: Genre (texte)
+  genrePlaceholder: ex. Action
   genreLabel: Genre
   resolution: Résolution
   videoCodec: Codec vidéo
@@ -143,16 +131,13 @@ library:
   addToCollection: Ajouter à la collection
   markUnwatched: Marquer non vu
   markWatched: Marquer vu
-  markedUnwatched: Marqué non vu
-  markedWatched: Marqué vu
 person:
-  filmography: Filmographie
   unknown: Inconnu
-  titleCount: "{{count}} titre"
-  titleCount_plural: "{{count}} titres"
+  titleCount: '{{count}} titre'
+  titleCount_plural: '{{count}} titres'
   noFilmography: Aucune filmographie trouvée pour cette personne.
   other: Autre
-  asRole: "dans le rôle de {{role}}"
+  asRole: dans le rôle de {{role}}
   actor: Acteur
   director: Réalisateur
   writer: Scénariste
@@ -163,70 +148,63 @@ person:
 detail:
   notFound: Élément multimédia introuvable.
   play: Lecture
-  resume: Reprendre
-  favorite: Favori
-  favorited: En favoris
   markWatched: Marquer comme vu
   markUnwatched: Marquer comme non vu
   markedWatched: Marqué comme vu
   markedUnwatched: Marqué comme non vu
   addToPlaylist: Ajouter à la liste de lecture
-  yourRating: "Votre note"
+  yourRating: Votre note
   editMetadata: Modifier les métadonnées
   cast: Distribution
   crew: Équipe technique
   seasons: Saisons
-  seasonCount: "{{count}} saison"
-  seasonCount_plural: "{{count}} saisons"
+  seasonCount: '{{count}} saison'
+  seasonCount_plural: '{{count}} saisons'
   episodes: Épisodes
-  episodeCount: "{{count}} épisode"
-  episodeCount_plural: "{{count}} épisodes"
-  ep: "{{count}} ép."
+  episodeCount: '{{count}} épisode'
+  episodeCount_plural: '{{count}} épisodes'
+  ep: '{{count}} ép.'
   similarTitles: Titres similaires
   fileInfo: Informations fichier
-  director: "Réalisateur : "
-  writer: "Scénariste : "
-  studio: "Studio : "
+  director: 'Réalisateur : '
+  writer: 'Scénariste : '
+  studio: 'Studio : '
   trailer: Bande-annonce
-  close: "Fermer"
-  unsupportedPlatform: "Plateforme non supportée : {{platform}}"
+  close: Fermer
+  unsupportedPlatform: 'Plateforme non supportée : {{platform}}'
   artworkUpdated: Artwork mis à jour
-  artworkFailed: "Échec de la mise à jour de l'artwork"
+  artworkFailed: Échec de la mise à jour de l'artwork
   poster: Affiche
   backdrop: Fond
   title: Titre
   originalTitle: Titre original
   year: Année
   overview: Synopsis
-  genresLabel: "Genres (séparés par des virgules)"
+  genresLabel: Genres (séparés par des virgules)
   rating: Note
   overridden: Personnalisé
   auto: Auto
   resetToAuto: Réinitialiser
-  resetSuccess: "{{field}} réinitialisé"
+  resetSuccess: '{{field}} réinitialisé'
   resetFailed: Échec de la réinitialisation
   imdbId: ID IMDB
   tmdbId: ID TMDB
   viewOnImdb: Voir sur IMDB
   viewOnTmdb: Voir sur TMDB
-  idChangedWarning: "ID modifié - l'enregistrement récupérera les métadonnées du fournisseur"
+  idChangedWarning: ID modifié - l'enregistrement récupérera les métadonnées du fournisseur
   refreshMetadata: Actualiser les métadonnées
   resetMetadata: Réinitialiser les métadonnées
   rematchMetadata: Re-rechercher les métadonnées
-  rematchConfirm: "Cette action supprimera tous les remplacements et identifiants du fournisseur, puis relancera la recherche de métadonnées depuis le nom de fichier d'origine. Continuer ?"
-  rematchSuccess: "Re-match : {{title}}"
+  rematchConfirm: Cette action supprimera tous les remplacements et identifiants du fournisseur, puis relancera la recherche de métadonnées depuis le nom de fichier d'origine. Continuer ?
+  rematchSuccess: 'Re-match : {{title}}'
   rematchSuccessFallback: recherche terminée
   rematchFailed: Échec de la re-recherche de métadonnées
   reEnrichedWithNewId: Ré-enrichi avec le nouvel ID
   metadataSaved: Métadonnées enregistrées
-  failedToSave: "Échec de l'enregistrement"
-  failedToSaveDot: "Échec de l'enregistrement."
-  refreshFailed: "Échec de l'actualisation des métadonnées"
+  failedToSave: Échec de l'enregistrement
+  failedToSaveDot: Échec de l'enregistrement.
+  refreshFailed: Échec de l'actualisation des métadonnées
   noProfileSelected: Aucun profil sélectionné
-  alreadyDownloaded: Déjà téléchargé
-  downloadStarted: Téléchargement lancé
-  downloadComplete: Téléchargement terminé
-  downloadFailed: Échec du téléchargement
   communityRating: 'Communauté : {{average}}/5 ({{count}} avis)'
 certBody:
   FR: CSA
@@ -247,7 +225,7 @@ certBody:
   FI: KAVI
   DK: Medierådet
   SE: SMRC
-  NO: Medietilsynet
+  false: Medietilsynet
   CH: FSK
   AT: FSK
   BE: NICAM
@@ -265,10 +243,10 @@ contextMenu:
   download: Télécharger
   markWatched: Marquer comme vu
   markUnwatched: Marquer comme non vu
-  noProfileSelected: "Aucun profil sélectionné"
+  noProfileSelected: Aucun profil sélectionné
   markedWatched: Marqué comme vu
   markedUnwatched: Marqué comme non vu
-  markError: "Échec du marquage comme {{status}}"
+  markError: Échec du marquage comme {{status}}
 music:
   title: Musique
   tracks: Pistes
@@ -279,21 +257,21 @@ music:
   emptyPlaylist: Cette playlist est vide.
   downloadTrack: Télécharger la piste
   downloadAlbum: Télécharger l'album
-  searchPlaceholder: "Rechercher pistes, artistes, albums…"
-  loading: "Chargement…"
+  searchPlaceholder: Rechercher pistes, artistes, albums…
+  loading: Chargement…
   noTracks: Aucune piste trouvée.
   noTracksSearch: Aucune piste ne correspond à votre recherche.
   noAlbums: Aucun album trouvé.
   noArtists: Aucun artiste trouvé.
-  noLibraries: "Aucune bibliothèque musicale trouvée. Ajoutez-en une dans le panneau d'administration."
+  noLibraries: Aucune bibliothèque musicale trouvée. Ajoutez-en une dans le panneau d'administration.
   trackDeleted: Piste supprimée
   failedDeleteTrack: Échec de la suppression de la piste
   deleteTrackConfirm: Supprimer cette piste ? Cette action est irréversible.
   deleteTrack: Supprimer la piste
-  trackCount: "{{count}} piste"
-  trackCount_plural: "{{count}} pistes"
-  albumCount: "{{count}} album"
-  albumCount_plural: "{{count}} albums"
+  trackCount: '{{count}} piste'
+  trackCount_plural: '{{count}} pistes'
+  albumCount: '{{count}} album'
+  albumCount_plural: '{{count}} albums'
   genre: Genre
   year: Année
   shuffle: Aléatoire
@@ -301,7 +279,7 @@ music:
   unmute: Rétablir le son
   resetFilters: Réinitialiser les filtres
   addToPlaylist: Ajouter à la playlist
-  newPlaylist: "Nouvelle playlist…"
+  newPlaylist: Nouvelle playlist…
   playlistCreated: Playlist créée
   addedToPlaylist: Ajouté à la playlist
   createPlaylistPrompt: Nom de la playlist
@@ -314,19 +292,18 @@ photos:
   noAlbums: Aucun album
   noAlbumsDesc: Aucun album trouvé dans cette bibliothèque.
   noPhotoLibraries: Aucune bibliothèque de photos
-  noPhotoLibrariesDesc: "Ajoutez une bibliothèque de photos dans le panneau d'administration pour commencer."
-added: Ajouté
+  noPhotoLibrariesDesc: Ajoutez une bibliothèque de photos dans le panneau d'administration pour commencer.
 created: Créé
 updated: Mis à jour
 syncplay:
   connected: Connecté
-  connecting: "Connexion..."
+  connecting: Connexion...
   leave: Quitter
   shareLink: Partager le lien
   copyCode: Copier le code
   watchTogetherRoom: Salle Regarder ensemble
-  watchingWith: "Avec : {{names}}"
-  watchingWithMore: "Avec : {{names}} +{{count}} de plus"
+  watchingWith: 'Avec : {{names}}'
+  watchingWithMore: 'Avec : {{names}} +{{count}} de plus'
   title: Écoute partagée
   create: Créer une salle
   createRoom: Créer
@@ -335,11 +312,11 @@ syncplay:
   codeLabel: Code
   members: membres
   sharedTrack: Piste partagée
-  followingHost: "Vous êtes synchronisé avec l'hôte."
+  followingHost: Vous êtes synchronisé avec l'hôte.
   noTracks: Aucune piste trouvée
-  notMusicRoom: "Cette salle n'est pas une salle musicale."
-  orPlaylist: "Ou choisir une playlist"
-  queue: "File d'attente"
+  notMusicRoom: Cette salle n'est pas une salle musicale.
+  orPlaylist: Ou choisir une playlist
+  queue: File d'attente
   joinByCode: Rejoindre avec un code
 playlist:
   name: Nom
@@ -349,11 +326,11 @@ playlist:
   smart: Intelligent
   createTitle: Créer une liste de lecture
   createPlaylist: Créer une liste de lecture
-  newPlaylist: "+ Nouvelle liste de lecture"
+  newPlaylist: + Nouvelle liste de lecture
   noPlaylists: Pas encore de listes de lecture.
   addTitle: Ajouter à la liste de lecture
-  addSuccess: "Ajouté à la liste de lecture"
-  addError: "Échec de l'ajout à la liste de lecture"
+  addSuccess: Ajouté à la liste de lecture
+  addError: Échec de l'ajout à la liste de lecture
   createSuccess: Liste de lecture créée
   createError: Échec de la création de la liste de lecture
   rules: Règles
@@ -368,14 +345,14 @@ playlist:
   noItemsManual: Ajoutez des éléments depuis la page de détail du média.
   removedFromPlaylist: Retiré de la liste de lecture
   failedRemove: Échec du retrait
-  deleteConfirm: "Supprimer \"{{name}}\" ?"
-  deleted: "\"{{name}}\" supprimée"
+  deleteConfirm: Supprimer "{{name}}" ?
+  deleted: '"{{name}}" supprimée'
   deleteFailed: Échec de la suppression
   deletePlaylist: Supprimer la liste de lecture
   noPlaylistsDesc: Créez une liste de lecture pour organiser vos médias.
   editRules: Modifier les règles
   saveRules: Enregistrer les règles
-  noRules: "Aucune règle définie. Cliquez sur \"Modifier les règles\" pour en ajouter."
+  noRules: Aucune règle définie. Cliquez sur "Modifier les règles" pour en ajouter.
   noRulesYet: Pas encore de règles. Ajoutez au moins une règle pour filtrer les éléments.
   rulesSaved: Règles enregistrées
   rulesSaveFailed: Échec de la sauvegarde des règles
@@ -383,34 +360,26 @@ playlist:
   updated: Liste de lecture mise à jour
   updateFailed: Échec de la mise à jour de la liste de lecture
   reorderFailed: Échec du réordonnancement
-  confirmDelete: Supprimer la playlist « {{name}} » ?
-  confirmRemoveItem: Retirer de la playlist ?
-  create: Créer une playlist
-  deleteError: Échec de suppression de la playlist
-  descriptionPlaceholder: Description (facultatif)
-  namePlaceholder: Nom de la playlist
   removeRule: Supprimer la règle
   smartRules: Règles intelligentes
-  typeManual: Manuelle
-  typeSmart: Intelligente
 search:
-  searching: "Recherche..."
+  searching: Recherche...
   noResults: Aucun résultat
-  viewAllResults: "Voir les {{count}} résultats"
+  viewAllResults: Voir les {{count}} résultats
   recentSearches: Recherches récentes
   clearAll: Tout effacer
   searchFailed: Échec de la recherche
-  placeholder: "Rechercher films, séries…"
+  placeholder: Rechercher films, séries…
   all: Tout
   movies: Films
   series: Séries
-  noResultsFor: "Aucun résultat pour “{{query}}”"
-  noResultsDesc: "Essayez un autre terme, vérifiez l'orthographe ou changez le filtre."
-  resultCount: "{{count}} résultat"
-  resultCount_plural: "{{count}} résultats"
-  resultFor: "pour “{{query}}”"
+  noResultsFor: Aucun résultat pour “{{query}}”
+  noResultsDesc: Essayez un autre terme, vérifiez l'orthographe ou changez le filtre.
+  resultCount: '{{count}} résultat'
+  resultCount_plural: '{{count}} résultats'
+  resultFor: pour “{{query}}”
   searchLibrary: Rechercher dans votre médiathèque
-  searchLibraryDesc: "Saisissez au moins 2 caractères pour rechercher parmi vos films, séries et plus."
+  searchLibraryDesc: Saisissez au moins 2 caractères pour rechercher parmi vos films, séries et plus.
   clearSearch: Effacer la recherche
   filterByType: Filtrer par type
   filters: Filtres
@@ -422,9 +391,9 @@ search:
   toYear: À
   sortBy: Trier par
   relevance: Pertinence
-  titleAZ: "Titre A–Z"
+  titleAZ: Titre A–Z
   yearNewest: Année (plus récent)
-  dateAdded: "Date d'ajout"
+  dateAdded: Date d'ajout
 streams:
   audio: Audio
   subtitles: Sous-titres
@@ -432,10 +401,7 @@ streams:
   forced: Forcé
   external: Externe
 rating:
-  like: "J'aime"
-  dislike: "Je n'aime pas"
-  removeLike: "Retirer j'aime"
-  removeDislike: "Retirer je n'aime pas"
-playlists:
-  notFound: Playlist introuvable
-resume: Reprendre
+  like: J'aime
+  dislike: Je n'aime pas
+  removeLike: Retirer j'aime
+  removeDislike: Retirer je n'aime pas

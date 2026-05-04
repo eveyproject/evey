@@ -1,32 +1,27 @@
-season: "第 {{number}} 季"
-chapter: "第 {{number}} 章"
-track: "音轨 {{number}}"
-burnIn: "(内嵌)"
+season: 第 {{number}} 季
+chapter: 第 {{number}} 章
+track: 音轨 {{number}}
+burnIn: (内嵌)
 home:
   play: 播放
   moreInfo: 更多信息
-  continueWatching: 继续观看
   upNext: 即将播放
-  recentlyAdded: 最近添加
   mostPopular: 最受欢迎
   recommendedForYou: 为您推荐
   collections: 合集
-  customize: "自定义"
-  customizeFeed: 自定义首页
   emptyLibrary: 您的媒体库为空
-  emptyLibraryDesc: "前往管理 → 媒体库添加媒体文件夹。"
+  emptyLibraryDesc: 前往管理 → 媒体库添加媒体文件夹。
   goToLibraries: 前往媒体库
   library: 媒体库
 favorites:
   title: 收藏
-  empty: "暂无收藏"
-  searchPlaceholder: "搜索…"
+  searchPlaceholder: 搜索…
   all: 全部
   movies: 电影
   series: 剧集
   recentlyAdded: 最近添加
-  titleAZ: "标题 A–Z"
-  titleZA: "标题 Z–A"
+  titleAZ: 标题 A–Z
+  titleZA: 标题 Z–A
   yearNewest: 年份（最新）
   rating: 评分
   noFavorites: 暂无收藏
@@ -34,14 +29,11 @@ favorites:
   addToPlaylist: 添加到播放列表
   noPlaylists: 暂无播放列表。
   failedAddPlaylist: 添加到播放列表失败
-  itemsAddedToPlaylist: "{{count}} 项已添加到「{{name}}」"
-  markedWatched: "{{count}} 项已标记为已看"
-  markedUnwatched: "{{count}} 项已标记为未看"
+  itemsAddedToPlaylist: '{{count}} 项已添加到「{{name}}」'
+  markedWatched: '{{count}} 项已标记为已看'
+  markedUnwatched: '{{count}} 项已标记为未看'
   filterByType: 按类型筛选
   sortBy: 排序
-  toggleFavorite: 切换收藏
-  toggled: 收藏已更新
-  yearOldest: 年份（最早）
 collections:
   title: 合集
   newSmartCollection: 新建智能合集
@@ -51,7 +43,7 @@ collections:
   noCollectionsDesc: 合集根据 TMDB 系列自动生成。
   deleteConfirm: 确定删除此合集？
   deleteSmartConfirm: 确定删除此智能合集？
-  browseResults: "浏览结果 →"
+  browseResults: 浏览结果 →
   smart: 智能
   noItems: 没有项目
   noItemsDesc: 此合集暂无媒体项目。
@@ -62,9 +54,9 @@ collections:
   smartDeleted: 智能合集已删除
   deleteFailed: 删除失败
   noCollectionsAvailable: 没有可用的合集。
-  itemsAdded: "{{count}} 项已添加到「{{name}}」"
+  itemsAdded: '{{count}} 项已添加到「{{name}}」'
   addFailed: 添加到合集失败
-  adding: "添加中…"
+  adding: 添加中…
   editSmartCollection: 编辑智能合集
   nameRequired: 名称不能为空
   noRulesYet: 暂无规则。添加至少一条规则来筛选项目。
@@ -77,8 +69,6 @@ collections:
   updated: 合集已更新
   updateFailed: 更新合集失败
   deleted: 合集已删除
-  editCollection: 编辑合集
-  newCollection: 新建合集
 library:
   title: 媒体库
   libraries: 媒体库
@@ -89,7 +79,7 @@ library:
   books: 书籍
   noLibraries: 未配置媒体库
   noLibrariesDesc: 在管理面板中添加媒体库以开始浏览您的媒体收藏。
-  filterByName: "按名称筛选..."
+  filterByName: 按名称筛选...
   series: 剧集
   seasons: 季
   episodes: 集
@@ -97,8 +87,6 @@ library:
   year: 年份
   ratingSort: 评分
   dateAdded: 添加日期
-  ascending: 升序
-  descending: 降序
   noItems: 未找到项目
   noItemsFiltered: 请尝试调整过滤条件或搜索词。
   noItemsType: 尝试不同的过滤条件，或扫描媒体库以添加内容。
@@ -106,24 +94,24 @@ library:
   goToAdmin: 前往管理
   selected: 已选择
   addToFavorites: 添加到收藏
-  addedToFavorites: "{{count}} 项已添加到收藏"
+  addedToFavorites: '{{count}} 项已添加到收藏'
   failedFavorites: 添加到收藏失败
   duration: 时长
   type: 类型
   addToPlaylist: 添加到播放列表
   noPlaylists: 暂无播放列表。
   failedAddPlaylist: 添加到播放列表失败
-  itemsAddedToPlaylist: "{{count}} 项已添加到「{{name}}」"
+  itemsAddedToPlaylist: '{{count}} 项已添加到「{{name}}」'
   filters: 筛选
   clearAll: 全部清除
-  resultCount: "{{count}} 个结果"
-  resultCount_plural: "{{count}} 个结果"
+  resultCount: '{{count}} 个结果'
+  resultCount_plural: '{{count}} 个结果'
   yearLabel: 年份
   yearFrom: 从
   yearTo: 至
   minRating: 最低评分
-  minStars: "最低 {{count}} 星"
-  minStars_plural: "最低 {{count}} 星"
+  minStars: 最低 {{count}} 星
+  minStars_plural: 最低 {{count}} 星
   clearRating: 清除
   typeAll: 全部
   typeMovie: 电影
@@ -132,8 +120,8 @@ library:
   typeTrack: 曲目
   typePhoto: 照片
   typeLabel: 类型
-  genreText: "类型（文本）"
-  genrePlaceholder: "如 动作"
+  genreText: 类型（文本）
+  genrePlaceholder: 如 动作
   genreLabel: 类型
   resolution: 分辨率
   videoCodec: 视频编码
@@ -143,16 +131,13 @@ library:
   addToCollection: 添加到合集
   markUnwatched: 标为未观看
   markWatched: 标为已观看
-  markedUnwatched: 已标为未观看
-  markedWatched: 已标为已观看
 person:
-  filmography: "作品列表"
   unknown: 未知
-  titleCount: "{{count}} 部作品"
-  titleCount_plural: "{{count}} 部作品"
+  titleCount: '{{count}} 部作品'
+  titleCount_plural: '{{count}} 部作品'
   noFilmography: 未找到此人的作品。
   other: 其他
-  asRole: "饰演 {{role}}"
+  asRole: 饰演 {{role}}
   actor: 演员
   director: 导演
   writer: 编剧
@@ -163,33 +148,30 @@ person:
 detail:
   notFound: 未找到媒体项。
   play: 播放
-  resume: 继续播放
-  favorite: 收藏
-  favorited: 已收藏
   markWatched: 标记为已看
   markUnwatched: 标记为未看
   markedWatched: 已标记为已看
   markedUnwatched: 已标记为未看
   addToPlaylist: 添加到播放列表
-  yourRating: "您的评分"
+  yourRating: 您的评分
   editMetadata: 编辑元数据
   cast: 演员
   crew: 剧组
   seasons: 季
-  seasonCount: "{{count}} 季"
-  seasonCount_plural: "{{count}} 季"
+  seasonCount: '{{count}} 季'
+  seasonCount_plural: '{{count}} 季'
   episodes: 集
-  episodeCount: "{{count}} 集"
-  episodeCount_plural: "{{count}} 集"
-  ep: "{{count}} 集"
+  episodeCount: '{{count}} 集'
+  episodeCount_plural: '{{count}} 集'
+  ep: '{{count}} 集'
   similarTitles: 相似作品
   fileInfo: 文件信息
-  director: "导演："
-  writer: "编剧："
-  studio: "制片厂："
+  director: 导演：
+  writer: 编剧：
+  studio: 制片厂：
   trailer: 预告片
-  close: "关闭"
-  unsupportedPlatform: "不支持的平台：{{platform}}"
+  close: 关闭
+  unsupportedPlatform: 不支持的平台：{{platform}}
   artworkUpdated: 封面已更新
   artworkFailed: 更新封面失败
   poster: 海报
@@ -198,23 +180,23 @@ detail:
   originalTitle: 原始标题
   year: 年份
   overview: 简介
-  genresLabel: "类型（逗号分隔）"
+  genresLabel: 类型（逗号分隔）
   rating: 评分
   overridden: 已覆盖
   auto: 自动
   resetToAuto: 恢复自动
-  resetSuccess: "已将 {{field}} 恢复为自动"
+  resetSuccess: 已将 {{field}} 恢复为自动
   resetFailed: 重置失败
   imdbId: IMDB ID
   tmdbId: TMDB ID
   viewOnImdb: 在 IMDB 查看
   viewOnTmdb: 在 TMDB 查看
-  idChangedWarning: "ID 已更改 - 保存将重新从提供商获取元数据"
+  idChangedWarning: ID 已更改 - 保存将重新从提供商获取元数据
   refreshMetadata: 刷新元数据
   resetMetadata: 重置元数据
   rematchMetadata: 重新匹配元数据
   rematchConfirm: 这将移除所有覆盖和提供商 ID,并根据原始文件名重新搜索元数据。是否继续?
-  rematchSuccess: "已重新匹配:{{title}}"
+  rematchSuccess: 已重新匹配:{{title}}
   rematchSuccessFallback: 重新搜索完成
   rematchFailed: 重新匹配元数据失败
   reEnrichedWithNewId: 已使用新 ID 重新获取
@@ -223,10 +205,6 @@ detail:
   failedToSaveDot: 保存失败。
   refreshFailed: 刷新元数据失败
   noProfileSelected: 未选择配置文件
-  alreadyDownloaded: 已下载
-  downloadStarted: 开始下载
-  downloadComplete: 下载完成
-  downloadFailed: 下载失败
   communityRating: 社区：{{average}}/5（{{count}} 条评分）
 certBody:
   FR: CSA
@@ -247,7 +225,7 @@ certBody:
   FI: KAVI
   DK: Medierådet
   SE: SMRC
-  NO: Medietilsynet
+  false: Medietilsynet
   CH: FSK
   AT: FSK
   BE: NICAM
@@ -265,10 +243,10 @@ contextMenu:
   download: 下载
   markWatched: 标记为已看
   markUnwatched: 标记为未看
-  noProfileSelected: No profile selected # TODO: translate
+  noProfileSelected: No profile selected
   markedWatched: 已标记为已看
   markedUnwatched: 已标记为未看
-  markError: "标记为{{status}}失败"
+  markError: 标记为{{status}}失败
 music:
   title: 音乐
   tracks: 曲目
@@ -279,8 +257,8 @@ music:
   emptyPlaylist: 此播放列表为空。
   downloadTrack: 下载曲目
   downloadAlbum: 下载专辑
-  searchPlaceholder: "搜索曲目、艺术家、专辑…"
-  loading: "加载中…"
+  searchPlaceholder: 搜索曲目、艺术家、专辑…
+  loading: 加载中…
   noTracks: 未找到曲目。
   noTracksSearch: 没有匹配的曲目。
   noAlbums: 未找到专辑。
@@ -290,10 +268,10 @@ music:
   failedDeleteTrack: 删除曲目失败
   deleteTrackConfirm: 确定删除此曲目？此操作无法撤销。
   deleteTrack: 删除曲目
-  trackCount: "{{count}} 首曲目"
-  trackCount_plural: "{{count}} 首曲目"
-  albumCount: "{{count}} 张专辑"
-  albumCount_plural: "{{count}} 张专辑"
+  trackCount: '{{count}} 首曲目'
+  trackCount_plural: '{{count}} 首曲目'
+  albumCount: '{{count}} 张专辑'
+  albumCount_plural: '{{count}} 张专辑'
   genre: Genre
   year: Year
   shuffle: 随机播放
@@ -301,7 +279,7 @@ music:
   unmute: 取消静音
   resetFilters: 重置筛选
   addToPlaylist: 添加到播放列表
-  newPlaylist: "新建播放列表…"
+  newPlaylist: 新建播放列表…
   playlistCreated: 播放列表已创建
   addedToPlaylist: 已添加到播放列表
   createPlaylistPrompt: 播放列表名称
@@ -315,18 +293,17 @@ photos:
   noAlbumsDesc: 此媒体库中没有相册。
   noPhotoLibraries: 没有照片媒体库
   noPhotoLibrariesDesc: 请在管理面板中添加照片媒体库以开始使用。
-added: 已添加
 created: 已创建
 updated: 已更新
 syncplay:
   connected: 已连接
-  connecting: "连接中..."
+  connecting: 连接中...
   leave: 离开
   shareLink: 分享链接
   copyCode: 复制代码
   watchTogetherRoom: 一起看房间
-  watchingWith: "正在与 {{names}} 一起观看"
-  watchingWithMore: "正在与 {{names}} +{{count}} 人一起观看"
+  watchingWith: 正在与 {{names}} 一起观看
+  watchingWithMore: 正在与 {{names}} +{{count}} 人一起观看
   title: 一起听
   create: 创建房间
   createRoom: 创建
@@ -335,11 +312,11 @@ syncplay:
   codeLabel: 代码
   members: 成员
   sharedTrack: 共享曲目
-  followingHost: "您已与主持人同步。"
+  followingHost: 您已与主持人同步。
   noTracks: 未找到曲目
-  notMusicRoom: "此房间不是音乐房间。"
-  orPlaylist: "或选择播放列表"
-  queue: "队列"
+  notMusicRoom: 此房间不是音乐房间。
+  orPlaylist: 或选择播放列表
+  queue: 队列
   joinByCode: 用代码加入
 playlist:
   name: 名称
@@ -349,10 +326,10 @@ playlist:
   smart: 智能
   createTitle: 创建播放列表
   createPlaylist: 创建播放列表
-  newPlaylist: "+ 新建播放列表"
+  newPlaylist: + 新建播放列表
   noPlaylists: 暂无播放列表。
   addTitle: 添加到播放列表
-  addSuccess: "已添加到播放列表"
+  addSuccess: 已添加到播放列表
   addError: 添加到播放列表失败
   createSuccess: 播放列表已创建
   createError: 创建播放列表失败
@@ -368,14 +345,14 @@ playlist:
   noItemsManual: 从媒体详情页面添加项目。
   removedFromPlaylist: 已从播放列表移除
   failedRemove: 移除失败
-  deleteConfirm: "确定删除「{{name}}」？"
-  deleted: "已删除「{{name}}」"
+  deleteConfirm: 确定删除「{{name}}」？
+  deleted: 已删除「{{name}}」
   deleteFailed: 删除失败
   deletePlaylist: 删除播放列表
   noPlaylistsDesc: 创建播放列表来整理您的媒体。
   editRules: 编辑规则
   saveRules: 保存规则
-  noRules: "未设置规则。点击「编辑规则」来添加。"
+  noRules: 未设置规则。点击「编辑规则」来添加。
   noRulesYet: 暂无规则。添加至少一条规则来筛选项目。
   rulesSaved: 规则已保存
   rulesSaveFailed: 保存规则失败
@@ -383,32 +360,24 @@ playlist:
   updated: 播放列表已更新
   updateFailed: 更新播放列表失败
   reorderFailed: 重新排序失败
-  confirmDelete: 删除播放列表“{{name}}”？
-  confirmRemoveItem: 从播放列表中移除？
-  create: 创建播放列表
-  deleteError: 删除播放列表失败
-  descriptionPlaceholder: 描述（可选）
-  namePlaceholder: 播放列表名称
   removeRule: 移除规则
   smartRules: 智能规则
-  typeManual: 手动
-  typeSmart: 智能
 search:
-  searching: "搜索中..."
+  searching: 搜索中...
   noResults: 没有结果
-  viewAllResults: "查看全部 {{count}} 个结果"
+  viewAllResults: 查看全部 {{count}} 个结果
   recentSearches: 最近搜索
   clearAll: 全部清除
   searchFailed: 搜索失败
-  placeholder: "搜索电影、剧集…"
+  placeholder: 搜索电影、剧集…
   all: 全部
   movies: 电影
   series: 剧集
-  noResultsFor: "「{{query}}」无结果"
+  noResultsFor: 「{{query}}」无结果
   noResultsDesc: 尝试其他搜索词、检查拼写或更换过滤条件。
-  resultCount: "{{count}} 个结果"
-  resultCount_plural: "{{count}} 个结果"
-  resultFor: "「{{query}}」"
+  resultCount: '{{count}} 个结果'
+  resultCount_plural: '{{count}} 个结果'
+  resultFor: 「{{query}}」
   searchLibrary: 搜索您的媒体库
   searchLibraryDesc: 输入至少 2 个字符以搜索所有电影、剧集等。
   clearSearch: 清除搜索
@@ -422,7 +391,7 @@ search:
   toYear: 至
   sortBy: 排序方式
   relevance: 相关性
-  titleAZ: "标题 A–Z"
+  titleAZ: 标题 A–Z
   yearNewest: 年份（最新）
   dateAdded: 添加日期
 streams:
@@ -436,6 +405,3 @@ rating:
   dislike: 不喜欢
   removeLike: 取消喜欢
   removeDislike: 取消不喜欢
-playlists:
-  notFound: 未找到播放列表
-resume: 继续

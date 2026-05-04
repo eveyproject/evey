@@ -20,7 +20,6 @@ nav:
   activity: Activity
   maintenance: Maintenance
   backupRestore: Database Backup
-
 artworks:
   title: Artworks (local cache)
   subtitle: Download TMDB artwork locally to serve WebP instead of redirecting
@@ -38,7 +37,6 @@ artworks:
   downloadFailed: Failed to start download
   done: Done
   errorsPartial: errors (partial download)
-
 plugin:
   enabled: Enabled
   disabled: Disabled
@@ -54,13 +52,12 @@ plugin:
   configSaveFailed: Failed to save config
   subprocess: Subprocess
   sandboxed: Sandboxed
-  hash: "Hash"
-  hashCopied: "Hash copied"
+  hashCopied: Hash copied
   sandboxedFront: Sandboxed front module
   frontLoadError: Front module failed to load
   state:
     running: Running
-    starting: "Starting..."
+    starting: Starting...
     error: Error
     stopped: Stopped
     installed: Installed
@@ -70,19 +67,18 @@ plugin:
     title: Security notice
     issues: Issues
     urls: External URLs
-
 plugins:
   title: Plugins
   installPlugin: Install Plugin
   uploadFile: Upload File
   fromUrl: From URL
-  chooseFile: "Choose file..."
+  chooseFile: Choose file...
   previewInstall: Preview & Install
   pluginFileZip: Plugin file (.zip)
-  sigFileOptional: "Signature file (.zip.sig, optional)"
+  sigFileOptional: Signature file (.zip.sig, optional)
   sourceUrl: Source URL
   nameOptional: Name (optional)
-  urlSkipPreview: "Note: URL installs skip the preview step."
+  urlSkipPreview: 'Note: URL installs skip the preview step.'
   permissions: Permissions
   capabilities: Capabilities
   staticAnalysis: Static Analysis
@@ -99,9 +95,9 @@ plugins:
   failedDisable: Failed to disable plugin
   failedUninstall: Failed to uninstall plugin
   uninstallTitle: Uninstall Plugin
-  uninstallConfirm: "Uninstall plugin \"{{name}}\"? This cannot be undone."
+  uninstallConfirm: Uninstall plugin "{{name}}"? This cannot be undone.
   selectFileFirst: Select a plugin file first
-  fileMissing: "File missing - select again"
+  fileMissing: File missing - select again
   blockedByAnalysis: Plugin blocked by security analysis
   previewFailed: Preview failed
   installFailed: Install failed
@@ -121,7 +117,6 @@ plugins:
     noData: No security data available.
     signed: Signed
     unsigned: Unsigned
-
 dashboard:
   title: Dashboard
   systemInfo: System Info
@@ -131,39 +126,36 @@ dashboard:
   goVersion: Go Version
   ffmpeg: FFmpeg
   uptime: Uptime
-  autoRefresh: "Updated {{time}} · auto-refreshes every {{interval}}"
-
+  autoRefresh: Updated {{time}} · auto-refreshes every {{interval}}
 users:
   title: Users
   createUser: Create User
   username: Username
   email: Email
   password: Password
-  newPassword: "New password"
+  newPassword: New password
   admin: Admin
   role: Role
   user: User
   userCreated: User created
-  userDeleted: "User \"{{name}}\" deleted"
+  userDeleted: User "{{name}}" deleted
   userDisabled: User disabled
   userEnabled: User enabled
   failedDeleteUser: Failed to delete user
-  failedCreateUser: Failed to create user
   failedUpdateUser: Failed to update user
   userUpdated: User updated
   deleteUserTitle: Delete User
-  deleteUserConfirm: "Delete user \"{{name}}\"? This cannot be undone."
-  libraryAccess: Library Access
-  libraryAccessTitle: "Library Access - {{name}}"
+  deleteUserConfirm: Delete user "{{name}}"? This cannot be undone.
+  libraryAccessTitle: Library Access - {{name}}
   unrestricted: Unrestricted
   unrestrictedDesc: This user can access all libraries (unrestricted).
-  restrictedDesc: "This user can only access {{count}} selected {{libraryWord}}."
+  restrictedDesc: This user can only access {{count}} selected {{libraryWord}}.
   libraryAccessUpdated: Library access updated
   failedLibraryAccess: Failed to update library access
   clearAllUnrestricted: Clear all (unrestricted)
   bitrate: Bitrate
-  maxBitrateTitle: "Max Bitrate - {{name}}"
-  maxBitrateDesc: "Limit the maximum streaming bitrate for this user. 0 = unlimited."
+  maxBitrateTitle: Max Bitrate - {{name}}
+  maxBitrateDesc: Limit the maximum streaming bitrate for this user. 0 = unlimited.
   maxBitrate: Max Bitrate
   bitrateUpdated: Bitrate limit updated
   failedBitrate: Failed to update bitrate limit
@@ -185,26 +177,24 @@ users:
   expiresAtLabel: Expires at (optional)
   inviteIsAdmin: Create as administrator
   inviteLibraries: Accessible libraries
-  inviteLibrariesHelp: "Leave empty to grant access to all libraries."
+  inviteLibrariesHelp: Leave empty to grant access to all libraries.
   noUsers: No users found
   noInvites: No invite links
   editUser: Edit User
-  failedCreateInvite: Failed to create invite link
-  leaveBlank: "Leave blank to keep current"
+  leaveBlank: Leave blank to keep current
   maxProfiles: Max profiles
-  maxProfilesHelp: "Maximum profiles this user can create. 0 = unlimited."
+  maxProfilesHelp: Maximum profiles this user can create. 0 = unlimited.
   maxDevicesPerProfile: Max devices per profile
-  maxDevicesPerProfileHelp: "Maximum devices a profile can register. 0 = unlimited."
+  maxDevicesPerProfileHelp: Maximum devices a profile can register. 0 = unlimited.
   profilesTitle: Profiles
   noProfiles: This user has no profiles yet.
-
 libraries:
   title: Libraries
   addLibrary: Add Library
   createLibrary: Create Library
   libraryCreated: Library created
-  libraryUpdated: "Library \"{{name}}\" updated"
-  libraryDeleted: "Library \"{{name}}\" deleted"
+  libraryUpdated: Library "{{name}}" updated
+  libraryDeleted: Library "{{name}}" deleted
   editLibrary: Edit Library
   failedDelete: Failed to delete library
   scanStarted: Scan started
@@ -212,7 +202,7 @@ libraries:
   refreshMetadata: Refresh metadata
   refreshAllMetadataStarted: Refresh started — titles and posters will update in the background
   deleteTitle: Delete Library
-  deleteConfirm: "Delete library \"{{name}}\"? This cannot be undone."
+  deleteConfirm: Delete library "{{name}}"? This cannot be undone.
   noLibraries: No libraries. Add one to get started.
   tableHeaders:
     name: Name
@@ -231,63 +221,56 @@ libraries:
     library: Library
   scan: Scan
   scanAgain: Scan again
-  scanning: "Scanning..."
+  scanning: Scanning...
   schedule: Schedule
-  scanScheduleTitle: "Scan Schedule - {{name}}"
+  scanScheduleTitle: Scan Schedule - {{name}}
   scanFrequency: Scan frequency
-  selectFrequency: "-- select frequency --"
+  selectFrequency: -- select frequency --
   cronExpression: Cron expression
   scheduleSaved: Schedule saved
   failedSchedule: Failed to save schedule
   scheduleRemoved: Schedule removed
   failedRemoveSchedule: Failed to remove schedule
-  lastRun: "Last run: {{date}}"
-  nextRun: "Next run: {{date}}"
+  lastRun: 'Last run: {{date}}'
+  nextRun: 'Next run: {{date}}'
   presets:
     every6h: Every 6 hours
     every12h: Every 12 hours
     daily3am: Daily (3 AM)
     weekly3am: Weekly (Sunday 3 AM)
-    customCron: "Custom cron..."
-  items: "{{count}} items"
-  "off": "Off"
+    customCron: Custom cron...
+  items: '{{count}} items'
+  'off': 'Off'
   paths: Paths
-  pathsHint: "(enter the full path inside the container, e.g. /media/movies)"
-  selectDirectory: "— select a directory —"
-  enterCustomPath: "Enter custom path..."
-  addPath: "+ Add Path"
+  pathsHint: (enter the full path inside the container, e.g. /media/movies)
+  selectDirectory: — select a directory —
+  enterCustomPath: Enter custom path...
+  addPath: + Add Path
   tvShows: TV Shows
-  lastScan: "Last scan"
-  namePlaceholder: "Library name"
-  pathRequired: "At least one path is required"
-  realtimeMonitoring: "Realtime monitoring"
-  scanFailed: "Scan failed"
-  scanOnStartup: "Scan on startup"
-
+  pathRequired: At least one path is required
 sessions:
   title: Now Playing
   failedLoad: Failed to load sessions
   failedLoadDesc: Could not fetch active sessions. Check your connection and try again.
   noSessions: No active sessions
   noSessionsDesc: When users start streaming, their sessions will appear here.
-  activeCount: "{{count}} active sessions"
-  activeCount_one: "{{count}} active session"
-  activeCount_other: "{{count}} active sessions"
+  activeCount: '{{count}} active sessions'
+  activeCount_one: '{{count}} active session'
+  activeCount_other: '{{count}} active sessions'
   stopSession: Stop session
   stop: Stop
   sessionStopped: Session stopped
   failedStop: Failed to stop session
-  elapsed: "elapsed"
-  video: "Video: {{codec}}"
-  audio: "Audio: {{codec}}"
+  elapsed: elapsed
+  video: 'Video: {{codec}}'
+  audio: 'Audio: {{codec}}'
   directPlay: Direct Play
   directStream: Direct Stream
   transcode: Transcode
-  refreshStatus: "Updated {{time}} - auto-refresh every {{seconds}}s"
+  refreshStatus: Updated {{time}} - auto-refresh every {{seconds}}s
   sendMessage: Send message
   messageSent: Message sent
   messagePlaceholder: Type a message...
-
 backup:
   title: Database Backup & Restore
   createBackup: Create Backup
@@ -307,15 +290,14 @@ backup:
     actions: Actions
   ready: Ready
   restoreBackupTitle: Restore Backup
-  restoreConfirm: "Restore backup from {{date}}? This will overwrite current data and cannot be undone."
+  restoreConfirm: Restore backup from {{date}}? This will overwrite current data and cannot be undone.
   restoreCompleted: Restore completed
   restoreFailed: Restore failed
   deleteBackupTitle: Delete Backup
-  deleteConfirm: "Delete backup from {{date}}? This cannot be undone."
+  deleteConfirm: Delete backup from {{date}}? This cannot be undone.
   restoreFromFileTitle: Restore from File
   restoreFromFileDesc: Upload a backup .tar.gz file to restore. This will overwrite existing data.
   selectFileFirst: Select a backup file first
-
 webhooks:
   title: Webhooks
   createWebhook: Create Webhook
@@ -323,13 +305,12 @@ webhooks:
   webhookCreated: Webhook created
   webhookUpdated: Webhook updated
   webhookDeleted: Webhook deleted
-  failedCreate: Failed to create webhook
   failedDelete: Failed to delete webhook
   failedUpdate: Failed to update webhook
   testPingSent: Test ping sent
   testPingFailed: Test ping failed
   deleteTitle: Delete Webhook
-  deleteConfirm: "Delete <strong>{{name}}</strong>? This cannot be undone."
+  deleteConfirm: Delete <strong>{{name}}</strong>? This cannot be undone.
   noWebhooks: No webhooks configured.
   tableHeaders:
     nameUrl: Name / URL
@@ -345,7 +326,6 @@ webhooks:
     allEvents: All events
     enabled: Enabled
     createWebhook: Create Webhook
-
 analytics:
   title: Analytics
   failedLoad: Failed to load analytics
@@ -363,7 +343,6 @@ analytics:
     user: User
     media: Media
     when: When
-
 activity:
   title: Activity
   tabs:
@@ -376,7 +355,7 @@ activity:
     progress: Progress
     started: Started
   noPlayHistory: No play history
-  totalEntries: "{{count}} total entries"
+  totalEntries: '{{count}} total entries'
   stats:
     totalPlays: Total Plays
     totalUsers: Total Users
@@ -384,8 +363,7 @@ activity:
     bandwidth: Bandwidth
   popularMedia: Popular Media
   mostActiveUsers: Most Active Users
-  plays: "{{count}} plays"
-
+  plays: '{{count}} plays'
 audit:
   title: Audit Log
   tableHeaders:
@@ -396,18 +374,17 @@ audit:
     details: Details
     ip: IP
   noEntries: No entries found
-  entries: "{{count}} entries"
-
+  entries: '{{count}} entries'
 serverConfig:
   title: Server Config
   subtitle: Key-value configuration entries persisted in the database.
   languageRegion: Language & Region
-  languageRegionDesc: "Server language and region settings. Affects default UI language, default classification region and metadata language."
-  serverLanguage: "Server language"
-  serverRegion: "Server region"
+  languageRegionDesc: Server language and region settings. Affects default UI language, default classification region and metadata language.
+  serverLanguage: Server language
+  serverRegion: Server region
   metadataLanguage: Metadata language
-  envDefault: "— env default —"
-  languageUpdated: "Language updated"
+  envDefault: — env default —
+  languageUpdated: Language updated
   configUpdated: Config updated
   failedUpdate: Failed to update config
   configDeleted: Config entry deleted
@@ -422,12 +399,12 @@ serverConfig:
   tlsMode: TLS Mode
   saveSmtp: Save SMTP Settings
   smtpSaved: SMTP settings saved
-  failedSmtp: "Failed to save {{key}}"
+  failedSmtp: Failed to save {{key}}
   trickplayTitle: Trickplay Thumbnails
   trickplayDesc: Auto-generate timeline preview thumbnails for movies and episodes.
   trickplayEnabled: Enable trickplay thumbnails
-  trickplayAdaptiveCpu: "Adaptive CPU"
-  trickplayAdaptiveCpuDesc: "Gentle mode (~25% CPU). Disable for faster generation (~50% CPU)."
+  trickplayAdaptiveCpu: Adaptive CPU
+  trickplayAdaptiveCpuDesc: Gentle mode (~25% CPU). Disable for faster generation (~50% CPU).
   tableHeaders:
     key: Key
     value: Value
@@ -456,13 +433,12 @@ serverConfig:
   introProvidersDesc: Query community databases (TheIntroDB primary, IntroDB fallback) for intro / recap / credits timestamps. Skips local CPU-heavy detection on items they cover.
   introProvidersEnabled: Enable external intro skip providers
   introProvidersRestart: Server restart required after enabling/disabling.
-  introProvidersTidbStatus: "TheIntroDB: "
+  introProvidersTidbStatus: 'TheIntroDB: '
   introProvidersTidbAuthed: authenticated (500 lookups/day)
   introProvidersTidbAnonymous: anonymous (100 lookups/day)
-  introProvidersIntrodbStatus: "IntroDB: anonymous fallback (no key required)"
+  introProvidersIntrodbStatus: 'IntroDB: anonymous fallback (no key required)'
   introProvidersTidbSubmit: Contribute detections back to TheIntroDB
   introProvidersTidbSubmitDesc: When enabled, high-confidence phash detections (>= 95%) are submitted anonymously to TheIntroDB. Requires a valid API key. Opt-in.
-
 remoteAccess:
   title: Remote Access
   enableRemoteAccess: Enable Remote Access
@@ -473,27 +449,25 @@ remoteAccess:
   networkInterfaces: Server Network Interfaces
   interface: Interface
   address: Address
-  usingDefault: "Using default value"
-
+  usingDefault: Using default value
 systemHealth:
   title: System Health
-  autoRefresh: "Updated {{time}} · auto-refreshes every 5s"
+  autoRefresh: Updated {{time}} · auto-refreshes every 5s
   cpuUsage: CPU Usage
   memoryUsage: Memory Usage
   storage: Storage
   activitySection: Activity
   server: Server
   serverInfo: Server Info
-  used: "Used: {{size}}"
-  free: "Free: {{size}}"
-  total: "Total: {{size}}"
+  used: 'Used: {{size}}'
+  free: 'Free: {{size}}'
+  total: 'Total: {{size}}'
   activeStreams: Active Streams
   activeTranscodes: Active Transcodes
   totalMedia: Total Media
   totalUsers: Total Users
   hwAcceleration: HW Acceleration
   serverId: Server ID
-
 transcodeCache:
   title: Transcode Cache
   clearAll: Clear All
@@ -502,22 +476,20 @@ transcodeCache:
   cacheEmpty: Cache is empty
   cacheCleared: Cache cleared
   failedClear: Failed to clear cache
-  deleted: "Deleted {{name}}"
+  deleted: Deleted {{name}}
   failedDeleteFile: Failed to delete file
   clearConfirmTitle: Clear Transcode Cache
-  clearConfirm: "Delete all {{count}} cached files ({{size}})? This cannot be undone."
+  clearConfirm: Delete all {{count}} cached files ({{size}})? This cannot be undone.
   tableHeaders:
     file: File
     size: Size
     modified: Modified
-  hwAccelType: "HW Accel Type"
-  hwDecodeCodecs: "HW Decode Codecs"
-  hwDevices: "HW Devices"
-  maxConcurrent: "Max Concurrent"
-  settingsSaved: "Settings saved"
-  throttle: "Throttle"
-  transcodingSettings: "Transcoding Settings"
-
+  hwAccelType: HW Accel Type
+  hwDecodeCodecs: HW Decode Codecs
+  maxConcurrent: Max Concurrent
+  settingsSaved: Settings saved
+  throttle: Throttle
+  transcodingSettings: Transcoding Settings
 dashboardStats:
   movies: Movies
   series: Series
@@ -535,7 +507,7 @@ dashboardStats:
   recentActivity: Recent Activity
   viewAll: View all
   popularMedia: Popular Media
-  viewers: "{{count}} viewers"
+  viewers: '{{count}} viewers'
   scanStarted: Scan started
   scanFailed: Scan failed
   allScansTriggered: All library scans triggered
@@ -549,7 +521,6 @@ dashboardStats:
   used: Used
   free: Free
   loginFailed: Login failed
-
 serverSettings:
   title: Server Settings
   serverName: Server Name
@@ -558,15 +529,10 @@ serverSettings:
   loginRateLimit: Login Rate Limit (req/min)
   globalRateLimit: Global Rate Limit (req/min)
   saved: Settings saved
-  usingDefault: "Using default:"
+  usingDefault: 'Using default:'
   reset: Reset to default
-
 segments:
   title: Media segments
-  intro: Intro
-  recap: Recap
-  end_credits: End credits
-  studio_logo: Studio logo
   markStart: Mark start here
   markEnd: Mark end here
   save: Save
@@ -574,4 +540,4 @@ segments:
   redetect: Re-run auto detection
   propagate: Apply to season
   lockedHint: This segment is locked manually and will not be overwritten by auto detection.
-  propagateSuccess: "Propagated to {{count}} episode(s)"
+  propagateSuccess: Propagated to {{count}} episode(s)

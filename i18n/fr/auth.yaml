@@ -1,17 +1,17 @@
 setup:
   welcome: Bienvenue sur Evey
-  description: "Configurons votre serveur multimédia. Cela ne prend qu'une minute."
+  description: Configurons votre serveur multimédia. Cela ne prend qu'une minute.
   getStarted: Commencer
-  languageTitle: "Choisissez la langue du serveur"
-  languageHint: "Cette langue devient la langue par défaut pour les nouveaux profils et pour la récupération des métadonnées. Modifiable ensuite dans l admin."
-  stepOf: "Étape {{current}} sur {{total}} - {{name}}"
+  languageTitle: Choisissez la langue du serveur
+  languageHint: Cette langue devient la langue par défaut pour les nouveaux profils et pour la récupération des métadonnées. Modifiable ensuite dans l admin.
+  stepOf: Étape {{current}} sur {{total}} - {{name}}
   steps:
-    language: "Langue"
+    language: Langue
     welcome: Bienvenue
     admin: Compte administrateur
     library: Première bibliothèque
   createAdmin: Créer un compte administrateur
-  username: "Nom d'utilisateur"
+  username: Nom d'utilisateur
   password: Mot de passe
   confirmPassword: Confirmer le mot de passe
   usernameMin: Au moins 3 caractères
@@ -19,7 +19,7 @@ setup:
   passwordMismatch: Les mots de passe ne correspondent pas
   setupFailed: Échec de la configuration
   addLibrary: Ajoutez votre première bibliothèque
-  addLibraryHint: "Vous pourrez ajouter d'autres bibliothèques plus tard depuis le panneau d'administration."
+  addLibraryHint: Vous pourrez ajouter d'autres bibliothèques plus tard depuis le panneau d'administration.
   libraryName: Nom de la bibliothèque
   libraryType: Type de bibliothèque
   libraryNameRequired: Le nom de la bibliothèque est requis
@@ -28,254 +28,210 @@ setup:
     shows: Séries
     music: Musique
     photos: Photos
-signingIn: "Connexion en cours…"
+signingIn: Connexion en cours…
 login:
-  signIn: "Se connecter"
-  signInToAccount: "Connectez-vous à votre compte"
-  username: "Nom d'utilisateur"
-  password: "Mot de passe"
-  invalidCredentials: "Nom d'utilisateur ou mot de passe invalide"
-  passwordTooShort: "Le mot de passe doit contenir au moins 8 caractères"
-  loginFailed: "Échec de la connexion. Veuillez réessayer."
-  recommendedForTV: "Recommandé pour la TV"
-  ssoFailed: "Échec de la connexion SSO. Veuillez réessayer."
-  or: "ou"
-  signInWithSSO: "Se connecter avec SSO"
-  forgotPassword: "Mot de passe oublié ?"
+  signIn: Se connecter
+  signInToAccount: Connectez-vous à votre compte
+  username: Nom d'utilisateur
+  password: Mot de passe
+  invalidCredentials: Nom d'utilisateur ou mot de passe invalide
+  passwordTooShort: Le mot de passe doit contenir au moins 8 caractères
+  loginFailed: Échec de la connexion. Veuillez réessayer.
+  ssoFailed: Échec de la connexion SSO. Veuillez réessayer.
+  or: ou
+  signInWithSSO: Se connecter avec SSO
+  forgotPassword: Mot de passe oublié ?
 forgotPassword:
-  title: "Réinitialiser le mot de passe"
-  description: "Entrez votre adresse email pour recevoir un lien de réinitialisation."
-  email: "Email"
-  submit: "Envoyer le lien"
-  backToLogin: "Retour à la connexion"
-  checkEmail: "Vérifiez votre email"
-  emailSent: "Si un compte existe avec cet email, nous avons envoyé un lien de réinitialisation."
+  title: Réinitialiser le mot de passe
+  description: Entrez votre adresse email pour recevoir un lien de réinitialisation.
+  email: Email
+  submit: Envoyer le lien
+  backToLogin: Retour à la connexion
+  checkEmail: Vérifiez votre email
+  emailSent: Si un compte existe avec cet email, nous avons envoyé un lien de réinitialisation.
 resetPassword:
-  title: "Nouveau mot de passe"
-  description: "Choisissez un nouveau mot de passe."
-  newPassword: "Nouveau mot de passe"
-  confirmPassword: "Confirmer le mot de passe"
-  submit: "Réinitialiser"
-  backToLogin: "Retour à la connexion"
-  invalidLink: "Ce lien est invalide ou manquant."
-  success: "Mot de passe réinitialisé !"
-  successDescription: "Votre mot de passe a été changé. Vous pouvez vous connecter."
-  goToLogin: "Se connecter"
-  tokenExpired: "Ce lien a expiré. Veuillez en demander un nouveau."
-  passwordTooShort: "Le mot de passe doit contenir au moins 8 caractères."
-  mismatch: "Les mots de passe ne correspondent pas."
-  failed: "Échec de la réinitialisation."
+  title: Nouveau mot de passe
+  description: Choisissez un nouveau mot de passe.
+  newPassword: Nouveau mot de passe
+  confirmPassword: Confirmer le mot de passe
+  submit: Réinitialiser
+  backToLogin: Retour à la connexion
+  invalidLink: Ce lien est invalide ou manquant.
+  success: Mot de passe réinitialisé !
+  successDescription: Votre mot de passe a été changé. Vous pouvez vous connecter.
+  goToLogin: Se connecter
+  tokenExpired: Ce lien a expiré. Veuillez en demander un nouveau.
+  passwordTooShort: Le mot de passe doit contenir au moins 8 caractères.
+  mismatch: Les mots de passe ne correspondent pas.
+  failed: Échec de la réinitialisation.
 register:
-  createAccount: "Créer un compte"
-  createAccountBtn: "Créer un compte"
-  invitedMessage: "Vous avez été invité ! Remplissez vos informations ci-dessous."
-  signUpWithInvite: "S'inscrire avec un code d'invitation"
-  inviteCodeLabel: "Code d'invitation :"
-  username: "Nom d'utilisateur"
-  email: "E-mail"
-  password: "Mot de passe"
-  confirmPassword: "Confirmer le mot de passe"
-  inviteCode: "Code d'invitation"
-  passwordMismatch: "Les mots de passe ne correspondent pas"
-  passwordMin: "Le mot de passe doit contenir au moins 8 caractères"
-  registrationFailed: "Échec de l'inscription"
-  alreadyHaveAccount: "Vous avez déjà un compte ?"
-  signIn: "Se connecter"
+  createAccount: Créer un compte
+  createAccountBtn: Créer un compte
+  invitedMessage: Vous avez été invité ! Remplissez vos informations ci-dessous.
+  signUpWithInvite: S'inscrire avec un code d'invitation
+  inviteCodeLabel: 'Code d''invitation :'
+  username: Nom d'utilisateur
+  email: E-mail
+  password: Mot de passe
+  confirmPassword: Confirmer le mot de passe
+  inviteCode: Code d'invitation
+  passwordMismatch: Les mots de passe ne correspondent pas
+  passwordMin: Le mot de passe doit contenir au moins 8 caractères
+  registrationFailed: Échec de l'inscription
+  alreadyHaveAccount: Vous avez déjà un compte ?
+  signIn: Se connecter
 profile:
-  edit: "Modifier"
-  username: "Nom d'utilisateur"
-  email: "E-mail"
-  save: "Enregistrer"
-  cancel: "Annuler"
-  profileUpdated: "Profil mis à jour"
-  failedToUpdate: "Échec de la mise à jour du profil"
-  changeAvatar: "Changer l'avatar"
-  avatarUpdated: "Avatar mis à jour"
-  avatarFailed: "Échec de la mise à jour de l'avatar"
-  created: "Profil créé"
-  updated: "Profil mis à jour"
-  deleted: "Profil supprimé"
-  editProfile: "Modifier le profil"
-  switchFailed: "Impossible de changer de profil"
+  username: Nom d'utilisateur
+  email: E-mail
+  save: Enregistrer
+  cancel: Annuler
+  profileUpdated: Profil mis à jour
+  failedToUpdate: Échec de la mise à jour du profil
+  changeAvatar: Changer l'avatar
+  avatarUpdated: Avatar mis à jour
+  avatarFailed: Échec de la mise à jour de l'avatar
+  created: Profil créé
+  updated: Profil mis à jour
+  deleted: Profil supprimé
+  editProfile: Modifier le profil
+  switchFailed: Impossible de changer de profil
   select:
-    title: "Qui regarde ?"
-    description: "Sélectionnez un profil pour continuer."
-    kidsBadge: "Enfant"
-    manage: "Gérer les profils"
-    pinPromptTitle: "Saisir le code PIN"
-    pinPromptBody: "Saisissez le code PIN pour \"{{name}}\" afin de continuer."
-    pinInvalid: "Le code PIN doit contenir 4 chiffres"
-    pinWrong: "Code PIN incorrect"
+    title: Qui regarde ?
+    description: Sélectionnez un profil pour continuer.
+    kidsBadge: Enfant
+    manage: Gérer les profils
+    pinPromptTitle: Saisir le code PIN
+    pinPromptBody: Saisissez le code PIN pour "{{name}}" afin de continuer.
+    pinInvalid: Le code PIN doit contenir 4 chiffres
+    pinWrong: Code PIN incorrect
   manage:
-    title: "Gérer les profils"
-    description: "Ajouter, modifier ou supprimer des profils. Le profil par défaut ne peut pas être supprimé."
-    createProfile: "Créer un profil"
-    deleteConfirm: "Supprimer le profil \"{{name}}\" ? Cette action est irréversible."
-    defaultProfileBadge: "Par défaut"
-    kidsBadge: "Enfant"
-    cannotDeleteDefault: "Le profil par défaut ne peut pas être supprimé."
+    title: Gérer les profils
+    description: Ajouter, modifier ou supprimer des profils. Le profil par défaut ne peut pas être supprimé.
+    createProfile: Créer un profil
+    deleteConfirm: Supprimer le profil "{{name}}" ? Cette action est irréversible.
+    defaultProfileBadge: Par défaut
+    kidsBadge: Enfant
+    cannotDeleteDefault: Le profil par défaut ne peut pas être supprimé.
   fields:
-    name: "Nom"
-    nameRequired: "Le nom est requis"
-    isKids: "Profil enfant"
-    isKidsHelp: "Marque ce profil comme enfant (active le code PIN lors du changement). Les limites d'âge sont configurées dans les contrôles parentaux."
-    pin: "Code PIN (4 chiffres)"
-    pinRequired: "Un code PIN est requis car un profil enfant existe."
-    pinKeep: "Laisser vide pour conserver le PIN actuel."
-    locale: "Langue"
-    region: "Région"
+    name: Nom
+    nameRequired: Le nom est requis
+    isKids: Profil enfant
+    isKidsHelp: Marque ce profil comme enfant (active le code PIN lors du changement). Les limites d'âge sont configurées dans les contrôles parentaux.
+    pin: Code PIN (4 chiffres)
+    pinRequired: Un code PIN est requis car un profil enfant existe.
+    pinKeep: Laisser vide pour conserver le PIN actuel.
+    locale: Langue
+    region: Région
 settings:
-  title: "Paramètres"
+  title: Paramètres
   tabs:
-    appearance: "Apparence"
-    playback: "Lecture"
-    profiles: "Profils"
-    notifications: "Notifications"
-    account: "Compte"
-    parental: "Contrôle parental"
-    devices: "Appareils"
-    security: "Sécurité"
-    quickConnect: "Connexion rapide"
-  playback:
-    bitrateTitle: "Débit maximum en streaming"
-    bitrateDesc: "Limiter le débit maximum lors du streaming. Des valeurs plus basses consomment moins de bande passante."
-    cellularBitrateTitle: "Débit maximum en mobile"
-    cellularBitrateDesc: "Limite plus basse appliquée en données mobiles."
-    subtitleLanguage: "Langue des sous-titres par défaut"
-    audioLanguage: "Langue audio par défaut"
-    preferredVideoCodec: "Codec vidéo préféré"
-    preferredAudioCodec: "Codec audio préféré"
-    maxAudioChannels: "Canaux audio maximum"
-    codecAuto: "Auto"
-    channelsStereo: "Stéréo (2.0)"
-    channels51: "Surround (5.1)"
-    channels71: "Surround (7.1)"
-    subtitleBurnIn: "Incrustation des sous-titres"
-    subtitleBurnInDesc: "Incruster les sous-titres dans le flux vidéo quand nécessaire."
-    subtitleBurnAuto: "Auto"
-    subtitleBurnAlways: "Toujours incruster"
-    subtitleBurnNever: "Jamais incruster"
-    transcodeTitle: "Transcodage"
-    allowDirectPlay: "Autoriser la lecture directe"
-    allowDirectPlayDesc: "Lire le fichier original si l'appareil le supporte."
-    allowDirectStream: "Autoriser le flux direct"
-    allowDirectStreamDesc: "Remuxer le conteneur sans ré-encoder si possible."
-    allowTranscoding: "Autoriser le transcodage"
-    allowTranscodingDesc: "Transcoder en dernier recours si la lecture/flux direct est impossible."
+    appearance: Apparence
+    profiles: Profils
+    notifications: Notifications
+    parental: Contrôle parental
+    devices: Appareils
+    quickConnect: Connexion rapide
   quickConnect:
-    title: "Connexion rapide"
-    description: "Entrez le code affiché sur l'appareil que vous souhaitez connecter."
-    codeLabel: "Code de l'appareil"
-    authorize: "Autoriser l'appareil"
-    authorized: "Appareil autorisé avec succès"
-    invalidCode: "Code invalide ou expiré"
-    scanQr: Scanner le QR code
-    scanHint: Pointez la caméra vers un QR code Quick Connect
-    cameraPermission: "L'accès à la caméra est nécessaire pour scanner les QR codes Quick Connect."
-    grantPermission: Autoriser l'accès à la caméra
-    scanLabel: "Connexion rapide"
-    scanInstruction: "Scannez avec un appareil connecté pour vous identifier"
-    expiresIn: "Expire dans {{seconds}}s"
+    title: Connexion rapide
+    description: Entrez le code affiché sur l'appareil que vous souhaitez connecter.
+    codeLabel: Code de l'appareil
+    authorize: Autoriser l'appareil
+    authorized: Appareil autorisé avec succès
+    invalidCode: Code invalide ou expiré
+    scanLabel: Connexion rapide
+    scanInstruction: Scannez avec un appareil connecté pour vous identifier
+    expiresIn: Expire dans {{seconds}}s
   account:
-    changePassword: "Changer le mot de passe"
-    changePasswordDesc: "Utilisez un mot de passe fort d'au moins 8 caractères."
-    newPassword: "Nouveau mot de passe"
-    confirmPassword: "Confirmer le mot de passe"
-    passwordMismatch: "Les mots de passe ne correspondent pas"
-    passwordMin: "Le mot de passe doit contenir au moins 8 caractères"
-    profileUpdated: Profil mis à jour
+    changePasswordDesc: Utilisez un mot de passe fort d'au moins 8 caractères.
+    newPassword: Nouveau mot de passe
+    confirmPassword: Confirmer le mot de passe
+    passwordMismatch: Les mots de passe ne correspondent pas
+    passwordMin: Le mot de passe doit contenir au moins 8 caractères
   parental:
-    title: "Contrôle parental"
-    enable: "Activer le contrôle parental"
-    enableDesc: "Filtrer le contenu par classification"
-    maxAge: "Âge maximal"
-    noRestriction: "Aucune restriction"
-    noProfile: "Aucun profil trouvé."
-    failedToUpdate: "Échec de la mise à jour"
+    title: Contrôle parental
+    noProfile: Aucun profil trouvé.
+    failedToUpdate: Échec de la mise à jour
     pin:
-      title: "Définir le PIN"
-      description: "PIN à 4 chiffres pour déverrouiller le contenu restreint."
-      newPin: "Nouveau PIN"
-      confirmPin: "Confirmer le PIN"
-      savePin: "Enregistrer le PIN"
-      saved: "PIN enregistré"
-      mustBe4: "Le PIN doit contenir 4 chiffres"
-      mismatch: "Les PIN ne correspondent pas"
-      passwordReauth: "Mot de passe du compte"
-      passwordRequired: "Mot de passe requis pour définir un PIN la première fois"
+      title: Définir le PIN
+      description: PIN à 4 chiffres pour déverrouiller le contenu restreint.
+      newPin: Nouveau PIN
+      confirmPin: Confirmer le PIN
+      savePin: Enregistrer le PIN
+      saved: PIN enregistré
+      mustBe4: Le PIN doit contenir 4 chiffres
+      mismatch: Les PIN ne correspondent pas
+      passwordReauth: Mot de passe du compte
+      passwordRequired: Mot de passe requis pour définir un PIN la première fois
 apiKeys:
-  title: "Clés API"
-  description: "Créez des clés API pour les intégrations externes."
-  newKeyTitle: "Nouvelle clé API"
-  name: "Nom"
-  namePlaceholder: "Mon intégration"
-  nameRequired: "Le nom est requis"
-  key: "Clé"
-  scopes: "Permissions"
-  scopesAll: "Toutes (legacy)"
-  scopesHint: "Laisser vide pour un accès complet (legacy). Sélectionner des permissions précises pour restreindre."
+  title: Clés API
+  description: Créez des clés API pour les intégrations externes.
+  newKeyTitle: Nouvelle clé API
+  name: Nom
+  namePlaceholder: Mon intégration
+  nameRequired: Le nom est requis
+  key: Clé
+  scopes: Permissions
+  scopesAll: Toutes (legacy)
+  scopesHint: Laisser vide pour un accès complet (legacy). Sélectionner des permissions précises pour restreindre.
   scopeLabels:
-    "media:read": "Lecture métadonnées média"
-    "media:write": "Modification média et scans"
-    "admin:read": "Lecture activité et stats admin"
-    "admin:write": "Modification paramètres admin"
-    "users:read": "Lecture utilisateurs"
-    "users:write": "Modification utilisateurs"
-    "playback:read": "Lecture état et historique"
-    "playback:write": "Contrôle lecture et progression"
-  lastUsed: "Dernière utilisation"
-  created: "Créée"
-  keyCreatedTitle: "Clé API créée"
-  saveWarning: "Enregistrez cette clé maintenant - elle ne sera plus affichée."
-  noKeys: "Aucune clé API"
-  keyCreated: "Clé API créée"
-  createError: "Échec de la création de la clé API"
-  revokeTitle: "Révoquer la clé API"
-  revokeConfirm: "Révoquer cette clé API ? Elle cessera de fonctionner immédiatement."
-  keyRevoked: "Clé API révoquée"
-  revokeError: "Échec de la révocation de la clé API"
-  revoke: Révoquer
+    media:read: Lecture métadonnées média
+    media:write: Modification média et scans
+    admin:read: Lecture activité et stats admin
+    admin:write: Modification paramètres admin
+    users:read: Lecture utilisateurs
+    users:write: Modification utilisateurs
+    playback:read: Lecture état et historique
+    playback:write: Contrôle lecture et progression
+  lastUsed: Dernière utilisation
+  created: Créée
+  keyCreatedTitle: Clé API créée
+  saveWarning: Enregistrez cette clé maintenant - elle ne sera plus affichée.
+  noKeys: Aucune clé API
+  createError: Échec de la création de la clé API
+  revokeTitle: Révoquer la clé API
+  revokeConfirm: Révoquer cette clé API ? Elle cessera de fonctionner immédiatement.
+  keyRevoked: Clé API révoquée
+  revokeError: Échec de la révocation de la clé API
 devices:
-  title: "Appareils"
-  description: "Gérer les appareils de notifications push."
-  platform: "Plateforme"
-  token: "Jeton"
-  registered: "Enregistré"
-  noDevices: "Aucun appareil enregistré"
-  revokeTitle: "Révoquer l'appareil"
-  revokeConfirm: "Révoquer cet appareil ? Il ne recevra plus de notifications."
-  deviceRevoked: "Appareil révoqué"
-  revokeError: "Échec de la suppression de l'appareil"
+  title: Appareils
+  description: Gérer les appareils de notifications push.
+  platform: Plateforme
+  token: Jeton
+  registered: Enregistré
+  noDevices: Aucun appareil enregistré
+  revokeTitle: Révoquer l'appareil
+  revokeConfirm: Révoquer cet appareil ? Il ne recevra plus de notifications.
+  deviceRevoked: Appareil révoqué
+  revokeError: Échec de la suppression de l'appareil
 notificationSettings:
-  pushNotifications: "Notifications push"
-  pushDesc: "Recevoir des notifications push sur cet appareil."
-  pushEnabled: "Notifications push activées"
-  pushDisabled: "Notifications push désactivées"
-  pushError: "Échec de l'activation des notifications push"
-  pushNotConfigured: "Notifications push non configurées sur ce serveur."
-  permissionDenied: "Permission de notification refusée par le navigateur."
-  movies: "Films"
-  series: "Séries"
-  music: "Musique"
-  saved: "Préférences de notification enregistrées"
-  saveError: "Échec de l'enregistrement des préférences de notification"
-  levelDefault: "Par défaut"
-  levelDisabled: "Désactivé"
-  levelAll: "Toutes"
-  levelRelevant: "Pertinentes"
-  levelImportant: "Importantes uniquement"
+  pushNotifications: Notifications push
+  pushDesc: Recevoir des notifications push sur cet appareil.
+  pushEnabled: Notifications push activées
+  pushDisabled: Notifications push désactivées
+  pushError: Échec de l'activation des notifications push
+  pushNotConfigured: Notifications push non configurées sur ce serveur.
+  permissionDenied: Permission de notification refusée par le navigateur.
+  movies: Films
+  series: Séries
+  music: Musique
+  saved: Préférences de notification enregistrées
+  saveError: Échec de l'enregistrement des préférences de notification
+  levelDefault: Par défaut
+  levelDisabled: Désactivé
+  levelAll: Toutes
+  levelRelevant: Pertinentes
+  levelImportant: Importantes uniquement
 watchHistory:
-  today: "Aujourd'hui"
-  yesterday: "Hier"
-  thisWeek: "Cette semaine"
-  thisMonth: "Ce mois-ci"
-  plays: "{{count}} lectures"
-  watched: "Regardé"
-  noHistory: "Aucun historique de lecture"
-  noHistoryDesc: "Commencez à regarder quelque chose pour voir votre historique ici."
-  clearHistory: "Effacer l'historique"
-  clearTitle: "Effacer l'historique de lecture"
-  clearConfirm: "Cela supprimera définitivement tout votre historique de lecture. Cette action est irréversible."
-  clearAll: "Tout effacer"
-  title: Historique de visionnage
+  today: Aujourd'hui
+  yesterday: Hier
+  thisWeek: Cette semaine
+  thisMonth: Ce mois-ci
+  plays: '{{count}} lectures'
+  watched: Regardé
+  noHistory: Aucun historique de lecture
+  noHistoryDesc: Commencez à regarder quelque chose pour voir votre historique ici.
+  clearHistory: Effacer l'historique
+  clearTitle: Effacer l'historique de lecture
+  clearConfirm: Cela supprimera définitivement tout votre historique de lecture. Cette action est irréversible.
+  clearAll: Tout effacer
   openMedia: Ouvrir les détails du média

@@ -1,66 +1,63 @@
-back: "返回"
-save: "保存"
-cancel: "取消"
-create: "创建"
-delete: "删除"
-enable: "启用"
-disable: "禁用"
-enabled: "已启用"
-disabled: "已禁用"
-skip: "跳过"
-continue: "继续"
-loading: "加载中…"
-error: "错误"
-unknown: "未知"
-settings: "设置"
-select: "选择"
-selectAll: "全选"
-deselectAll: "取消全选"
-exit: "退出"
-search: "搜索"
-or: "或"
-previous: "上一个"
-next: "下一个"
-edit: "编辑"
-add: "添加"
-remove: "移除"
-name: "名称"
-"no": "否"
-status: "状态"
-actions: "操作"
-clear: "清除"
-close: "关闭"
-confirm: "确认"
-test: "测试"
-download: "下载"
-restore: "恢复"
-revoke: "撤销"
-refresh: "刷新"
-done: "完成"
-copied: "已复制！"
-seeAll: "查看全部 →"
-scrollLeft: "向左滚动"
-scrollRight: "向右滚动"
-appearance: "外观"
-appearanceDesc: "选择您的主题和语言。"
-theme: "主题"
-language: "语言"
-languageDesc: "选择您的首选语言"
+back: 返回
+save: 保存
+cancel: 取消
+create: 创建
+delete: 删除
+enable: 启用
+disable: 禁用
+enabled: 已启用
+disabled: 已禁用
+skip: 跳过
+continue: 继续
+loading: 加载中…
+error: 错误
+unknown: 未知
+select: 选择
+selectAll: 全选
+deselectAll: 取消全选
+exit: 退出
+search: 搜索
+or: 或
+previous: 上一个
+next: 下一个
+edit: 编辑
+add: 添加
+remove: 移除
+name: 名称
+status: 状态
+actions: 操作
+clear: 清除
+close: 关闭
+confirm: 确认
+test: 测试
+download: 下载
+restore: 恢复
+revoke: 撤销
+refresh: 刷新
+done: 完成
+copied: 已复制！
+seeAll: 查看全部 →
+scrollLeft: 向左滚动
+scrollRight: 向右滚动
+appearance: 外观
+appearanceDesc: 选择您的主题和语言。
+theme: 主题
+language: 语言
+languageDesc: 选择您的首选语言
 region:
-  title: "区域"
-  desc: "用于内容分级和区域偏好。"
-  auto: "自动"
-newKey: "新密钥"
-copyKey: "复制密钥"
-unableToLoadNotifications: "无法加载通知"
-viewAllNotifications: "查看所有通知"
-"yes": "是"
-markAllRead: "全部标记已读"
-noNotifications: "没有通知"
-item_one: "{{count}} 项"
-item_other: "{{count}} 项"
-filtered: "（已过滤）"
-noItemsMatch: "没有匹配当前过滤条件的项目。"
+  title: 区域
+  desc: 用于内容分级和区域偏好。
+  auto: 自动
+newKey: 新密钥
+copyKey: 复制密钥
+unableToLoadNotifications: 无法加载通知
+viewAllNotifications: 查看所有通知
+markAllRead: 全部标记已读
+noNotifications: 没有通知
+item_one: '{{count}} 项'
+item_other: '{{count}} 项'
+filtered: （已过滤）
+noItemsMatch: 没有匹配当前过滤条件的项目。
 errorBoundary:
   title: 出错了
   description: 发生了意外错误。请尝试重新加载页面。如果问题持续存在，请返回首页。
@@ -72,134 +69,114 @@ routeError:
   retry: 重试
   goHome: 返回首页
 aria:
-  closeMenu: "关闭菜单"
-  openMenu: "打开菜单"
-  play: "播放"
-  pause: "暂停"
-  breadcrumb: "面包屑导航"
-  pagination: "分页"
-  previousPage: "上一页"
-  nextPage: "下一页"
-  reloadPage: "重新加载页面"
-  goToHome: "返回首页"
-  dismiss: "关闭"
-  close: "关闭"
-  retryPage: "重试加载页面"
-  goToHomePage: "前往首页"
-  skipToContent: "跳转到内容"
-  expand: "展开"
-  select: "选择"
-  deselect: "取消选择"
+  closeMenu: 关闭菜单
+  openMenu: 打开菜单
+  play: 播放
+  pause: 暂停
+  breadcrumb: 面包屑导航
+  pagination: 分页
+  previousPage: 上一页
+  nextPage: 下一页
+  reloadPage: 重新加载页面
+  goToHome: 返回首页
+  dismiss: 关闭
+  close: 关闭
+  retryPage: 重试加载页面
+  goToHomePage: 前往首页
+  skipToContent: 跳转到内容
+  expand: 展开
+  select: 选择
+  deselect: 取消选择
 notifications:
-  title: "通知"
-  markRead: "标记已读"
-  markAllRead: "全部标记已读"
-  deleteAll: "全部删除"
-  deleteAllTitle: "删除所有通知"
-  deleteAllConfirm: "这将永久删除您的所有通知。此操作无法撤销。"
-  noNotifications: "没有通知"
-  allCaughtUp: "已全部查看。"
-  justNow: "刚刚"
-  minutesAgo: "{{count}}分钟前"
-  hoursAgo: "{{count}}小时前"
-  daysAgo: "{{count}}天前"
-  newMovie: "新电影：{{name}}"
-  newEpisode: "新剧集：{{name}}"
-  newSeason: "新季：{{name}}"
-  newSeries: "新剧：{{name}}"
-  newAlbum: "新专辑：{{name}}"
-  backupFailed: "计划备份失败"
-  clearConfirm: 删除所有通知？
-  clearTitle: 清除通知
+  title: 通知
+  markRead: 标记已读
+  markAllRead: 全部标记已读
+  deleteAll: 全部删除
+  deleteAllTitle: 删除所有通知
+  deleteAllConfirm: 这将永久删除您的所有通知。此操作无法撤销。
+  noNotifications: 没有通知
+  allCaughtUp: 已全部查看。
+  justNow: 刚刚
+  minutesAgo: '{{count}}分钟前'
+  hoursAgo: '{{count}}小时前'
+  daysAgo: '{{count}}天前'
+  newMovie: 新电影：{{name}}
+  newEpisode: 新剧集：{{name}}
+  newSeason: 新季：{{name}}
+  newSeries: 新剧：{{name}}
+  newAlbum: 新专辑：{{name}}
+  backupFailed: 计划备份失败
 watchHistory:
-  title: "观看历史"
+  title: 观看历史
 userStats:
-  title: "我的统计"
-  noData: "暂无观看记录"
-  totalWatchTime: "观看时长"
-  totalPlays: "播放总数"
-  uniqueItems: "独立标题"
-  favoriteGenre: "最爱类型"
-  genreBreakdown: "类型分布"
-  monthlyActivity: "月度活动"
-  mostPlayed: "最常播放"
-  playsLabel: "次播放"
+  title: 我的统计
+  noData: 暂无观看记录
+  totalWatchTime: 观看时长
+  totalPlays: 播放总数
+  uniqueItems: 独立标题
+  favoriteGenre: 最爱类型
+  genreBreakdown: 类型分布
+  monthlyActivity: 月度活动
+  mostPlayed: 最常播放
+  playsLabel: 次播放
 nav:
-  home: "首页"
-  libraries: "媒体库"
-  photos: "照片"
-  favorites: "收藏"
-  search: "搜索"
-  music: "音乐"
-  syncplay: "一起听"
-  admin: "管理"
-  backToApp: "返回应用"
-  settings: "设置"
-  watchHistory: "观看历史"
-  myStats: "我的统计"
-  quickConnect: "快速连接"
-  signOut: "退出登录"
-  expandSidebar: "展开侧栏"
-  collapseSidebar: "收起侧栏"
-  mainNav: "主导航"
-  adminNav: "管理导航"
-  userMenu: "用户菜单"
-  homeFeeds: "首页信息流"
-  switchProfile: "切换个人资料"
-  manageProfiles: "管理个人资料"
+  home: 首页
+  libraries: 媒体库
+  photos: 照片
+  favorites: 收藏
+  music: 音乐
+  syncplay: 一起听
+  admin: 管理
+  backToApp: 返回应用
+  settings: 设置
+  watchHistory: 观看历史
+  myStats: 我的统计
+  quickConnect: 快速连接
+  signOut: 退出登录
+  expandSidebar: 展开侧栏
+  collapseSidebar: 收起侧栏
+  mainNav: 主导航
+  adminNav: 管理导航
+  userMenu: 用户菜单
+  homeFeeds: 首页信息流
+  switchProfile: 切换个人资料
+  manageProfiles: 管理个人资料
 shortcuts:
-  title: "键盘快捷键"
-  focusSearch: "聚焦搜索"
-  closeModal: "关闭弹窗 / 取消聚焦"
-  goHome: "前往首页"
-  toggleHelp: "显示/隐藏帮助"
-  disabledHint: "在输入框中输入时快捷键已禁用。"
+  title: 键盘快捷键
+  focusSearch: 聚焦搜索
+  closeModal: 关闭弹窗 / 取消聚焦
+  goHome: 前往首页
+  toggleHelp: 显示/隐藏帮助
+  disabledHint: 在输入框中输入时快捷键已禁用。
 parental:
-  restrictedContent: "受限内容"
-  pinRequired: "此内容需要家长PIN验证。"
-  pinLabel: "PIN（4位数字）"
-  pinIncorrect: "PIN不正确"
-  validate: "验证"
+  restrictedContent: 受限内容
+  pinRequired: 此内容需要家长PIN验证。
+  pinLabel: PIN（4位数字）
+  pinIncorrect: PIN不正确
+  validate: 验证
 feeds:
-  title: "首页板块"
+  title: 首页板块
   section: 板块
   maxItems: 最大数量
-  saved: "配置已保存"
+  saved: 配置已保存
   customize: 自定义
-  customizeTitle: "自定义首页"
-  resetDefaults: "恢复默认"
+  customizeTitle: 自定义首页
+  resetDefaults: 恢复默认
   labels:
-    resume_playback: "继续播放"
-    next_up: "接下来"
-    recommended: "推荐"
-    most_popular: "最受欢迎"
-    collections: "合集"
-showLess: 收起
-readMore: 阅读更多
-noPoster: 无海报
-noItems: 没有项目
-noCollections: 没有合集
-playlists: 播放列表
-collections: 合集
-loadError: 加载失败
-activity: 活动
+    resume_playback: 继续播放
+    next_up: 接下来
+    recommended: 推荐
+    most_popular: 最受欢迎
+    collections: 合集
 addToPlaylist: 添加到播放列表
 noManualPlaylists: 没有可用的手动播放列表
-noPlaylists: 没有播放列表
-serverVersion: 服务器版本
-retry: 重试
-itemCount_one: "{{count}} 项"
-itemCount_other: "{{count}} 项"
+itemCount_one: '{{count}} 项'
+itemCount_other: '{{count}} 项'
 added: 已添加
-change: 更改
-clearAll: 全部清除
-description: 描述
 export: 导出 JSON
-never: 从不
 pause: 暂停
 play: 播放
 selected: 已选中
-selectedCount: 已选 {{count}} 项
 somethingWentWrong: 出了点问题
 tryAgain: 重试
 unknownError: 未知错误

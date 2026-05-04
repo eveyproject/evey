@@ -9,23 +9,21 @@ enabled: Activé
 disabled: Désactivé
 skip: Passer
 continue: Continuer
-loading: "Chargement…"
+loading: Chargement…
 error: Erreur
 unknown: Inconnu
-settings: Paramètres
-select: "Sélectionner"
-selectAll: "Tout sélectionner"
-deselectAll: "Tout désélectionner"
-exit: "Quitter"
-search: "Rechercher"
-or: "ou"
-previous: "Précédent"
-next: "Suivant"
-edit: "Modifier"
+select: Sélectionner
+selectAll: Tout sélectionner
+deselectAll: Tout désélectionner
+exit: Quitter
+search: Rechercher
+or: ou
+previous: Précédent
+next: Suivant
+edit: Modifier
 add: Ajouter
 remove: Supprimer
 name: Nom
-"no": "Non"
 status: Statut
 actions: Actions
 clear: Effacer
@@ -37,12 +35,12 @@ restore: Restaurer
 revoke: Révoquer
 refresh: Actualiser
 done: Terminé
-copied: "Copié !"
-seeAll: "Tout voir →"
+copied: Copié !
+seeAll: Tout voir →
 scrollLeft: Défiler à gauche
 scrollRight: Défiler à droite
 appearance: Apparence
-appearanceDesc: "Choisissez votre thème et votre langue."
+appearanceDesc: Choisissez votre thème et votre langue.
 theme: Thème
 language: Langue
 languageDesc: Choisissez votre langue préférée
@@ -54,23 +52,22 @@ newKey: Nouvelle clé
 copyKey: Copier la clé
 unableToLoadNotifications: Impossible de charger les notifications
 viewAllNotifications: Voir toutes les notifications
-"yes": "Oui"
 markAllRead: Tout marquer comme lu
 noNotifications: Aucune notification
-item_one: "{{count}} élément"
-item_other: "{{count}} éléments"
-filtered: "(filtré)"
-noItemsMatch: "Aucun élément ne correspond au filtre actuel."
+item_one: '{{count}} élément'
+item_other: '{{count}} éléments'
+filtered: (filtré)
+noItemsMatch: Aucun élément ne correspond au filtre actuel.
 errorBoundary:
-  title: "Une erreur est survenue"
-  description: "Une erreur inattendue s'est produite. Veuillez recharger la page. Si le problème persiste, retournez à l'accueil."
+  title: Une erreur est survenue
+  description: Une erreur inattendue s'est produite. Veuillez recharger la page. Si le problème persiste, retournez à l'accueil.
   tryAgain: Réessayer
-  goHome: "Retour à l'accueil"
+  goHome: Retour à l'accueil
 routeError:
-  title: "Une erreur est survenue"
-  description: "Une erreur est survenue lors du chargement de cette page. Vous pouvez réessayer ou retourner à l'accueil."
+  title: Une erreur est survenue
+  description: Une erreur est survenue lors du chargement de cette page. Vous pouvez réessayer ou retourner à l'accueil.
   retry: Réessayer
-  goHome: "Retour à l'accueil"
+  goHome: Retour à l'accueil
 aria:
   closeMenu: Fermer le menu
   openMenu: Ouvrir le menu
@@ -81,125 +78,105 @@ aria:
   previousPage: Page précédente
   nextPage: Page suivante
   reloadPage: Recharger la page
-  goToHome: "Aller à l'accueil"
+  goToHome: Aller à l'accueil
   dismiss: Fermer
   close: Fermer
-  retryPage: "Réessayer le chargement"
-  goToHomePage: "Aller à l'accueil"
-  skipToContent: "Aller au contenu"
-  expand: "Agrandir"
-  select: "Sélectionner"
-  deselect: "Désélectionner"
+  retryPage: Réessayer le chargement
+  goToHomePage: Aller à l'accueil
+  skipToContent: Aller au contenu
+  expand: Agrandir
+  select: Sélectionner
+  deselect: Désélectionner
 notifications:
-  title: "Notifications"
-  markRead: "Marquer comme lu"
-  markAllRead: "Tout marquer comme lu"
-  deleteAll: "Tout supprimer"
-  deleteAllTitle: "Supprimer toutes les notifications"
-  deleteAllConfirm: "Cela supprimera définitivement toutes vos notifications. Cette action est irréversible."
-  noNotifications: "Aucune notification"
-  allCaughtUp: "Vous êtes à jour."
-  justNow: "À l'instant"
-  minutesAgo: "il y a {{count}}min"
-  hoursAgo: "il y a {{count}}h"
-  daysAgo: "il y a {{count}}j"
-  newMovie: "Nouveau film : {{name}}"
-  newEpisode: "Nouvel épisode : {{name}}"
-  newSeason: "Nouvelle saison : {{name}}"
-  newSeries: "Nouvelle série : {{name}}"
-  newAlbum: "Nouvel album : {{name}}"
-  backupFailed: "Échec de la sauvegarde planifiée"
-  clearConfirm: Supprimer toutes les notifications ?
-  clearTitle: Effacer les notifications
+  title: Notifications
+  markRead: Marquer comme lu
+  markAllRead: Tout marquer comme lu
+  deleteAll: Tout supprimer
+  deleteAllTitle: Supprimer toutes les notifications
+  deleteAllConfirm: Cela supprimera définitivement toutes vos notifications. Cette action est irréversible.
+  noNotifications: Aucune notification
+  allCaughtUp: Vous êtes à jour.
+  justNow: À l'instant
+  minutesAgo: il y a {{count}}min
+  hoursAgo: il y a {{count}}h
+  daysAgo: il y a {{count}}j
+  newMovie: 'Nouveau film : {{name}}'
+  newEpisode: 'Nouvel épisode : {{name}}'
+  newSeason: 'Nouvelle saison : {{name}}'
+  newSeries: 'Nouvelle série : {{name}}'
+  newAlbum: 'Nouvel album : {{name}}'
+  backupFailed: Échec de la sauvegarde planifiée
 watchHistory:
-  title: "Historique de lecture"
+  title: Historique de lecture
 userStats:
-  title: "Mes statistiques"
-  noData: "Aucune activité de lecture"
-  totalWatchTime: "Temps de visionnage"
-  totalPlays: "Lectures totales"
-  uniqueItems: "Titres uniques"
-  favoriteGenre: "Genre favori"
-  genreBreakdown: "Genres"
-  monthlyActivity: "Activité mensuelle"
-  mostPlayed: "Les plus regardés"
-  playsLabel: "lectures"
+  title: Mes statistiques
+  noData: Aucune activité de lecture
+  totalWatchTime: Temps de visionnage
+  totalPlays: Lectures totales
+  uniqueItems: Titres uniques
+  favoriteGenre: Genre favori
+  genreBreakdown: Genres
+  monthlyActivity: Activité mensuelle
+  mostPlayed: Les plus regardés
+  playsLabel: lectures
 nav:
-  home: "Accueil"
-  libraries: "Bibliothèques"
-  photos: "Photos"
-  favorites: "Favoris"
-  search: "Rechercher"
-  music: "Musique"
-  syncplay: "Écoute partagée"
-  admin: "Administration"
-  backToApp: "Retour à l'application"
-  settings: "Paramètres"
-  watchHistory: "Historique de lecture"
-  myStats: "Mes stats"
-  quickConnect: "Connexion rapide"
-  signOut: "Se déconnecter"
-  expandSidebar: "Agrandir la barre latérale"
-  collapseSidebar: "Réduire la barre latérale"
-  mainNav: "Navigation principale"
-  adminNav: "Navigation administration"
-  userMenu: "Menu utilisateur"
-  homeFeeds: "Flux d'accueil"
-  switchProfile: "Changer de profil"
-  manageProfiles: "Gérer les profils"
+  home: Accueil
+  libraries: Bibliothèques
+  photos: Photos
+  favorites: Favoris
+  music: Musique
+  syncplay: Écoute partagée
+  admin: Administration
+  backToApp: Retour à l'application
+  settings: Paramètres
+  watchHistory: Historique de lecture
+  myStats: Mes stats
+  quickConnect: Connexion rapide
+  signOut: Se déconnecter
+  expandSidebar: Agrandir la barre latérale
+  collapseSidebar: Réduire la barre latérale
+  mainNav: Navigation principale
+  adminNav: Navigation administration
+  userMenu: Menu utilisateur
+  homeFeeds: Flux d'accueil
+  switchProfile: Changer de profil
+  manageProfiles: Gérer les profils
 shortcuts:
   title: Raccourcis clavier
   focusSearch: Rechercher
-  closeModal: "Fermer la modale / quitter le champ"
-  goHome: "Aller à l'accueil"
-  toggleHelp: "Afficher/masquer l'aide"
-  disabledHint: "Les raccourcis sont désactivés pendant la saisie dans un champ."
+  closeModal: Fermer la modale / quitter le champ
+  goHome: Aller à l'accueil
+  toggleHelp: Afficher/masquer l'aide
+  disabledHint: Les raccourcis sont désactivés pendant la saisie dans un champ.
 parental:
   restrictedContent: Contenu restreint
-  pinRequired: "Ce contenu nécessite la vérification du PIN parental."
-  pinLabel: "PIN (4 chiffres)"
+  pinRequired: Ce contenu nécessite la vérification du PIN parental.
+  pinLabel: PIN (4 chiffres)
   pinIncorrect: PIN incorrect
   validate: Valider
 feeds:
-  title: "Sections de la page d'accueil"
+  title: Sections de la page d'accueil
   section: Section
   maxItems: Max items
-  saved: "Configuration sauvegardée"
+  saved: Configuration sauvegardée
   customize: Personnaliser
-  customizeTitle: "Personnaliser l'accueil"
-  resetDefaults: "Réinitialiser"
+  customizeTitle: Personnaliser l'accueil
+  resetDefaults: Réinitialiser
   labels:
-    resume_playback: "Reprendre la lecture"
-    next_up: "À suivre"
-    recommended: "Recommandés"
-    most_popular: "Les plus populaires"
+    resume_playback: Reprendre la lecture
+    next_up: À suivre
+    recommended: Recommandés
+    most_popular: Les plus populaires
     collections: Collections
-showLess: Voir moins
-readMore: Lire la suite
-noPoster: Pas d'affiche
-noItems: Aucun élément
-noCollections: Aucune collection
-playlists: Playlists
-collections: Collections
-loadError: Échec du chargement
-activity: Activité
 addToPlaylist: Ajouter à la playlist
 noManualPlaylists: Aucune playlist manuelle disponible
-noPlaylists: Aucune playlist
-serverVersion: Version du serveur
-retry: Réessayer
-itemCount_one: "{{count}} élément"
-itemCount_other: "{{count}} éléments"
+itemCount_one: '{{count}} élément'
+itemCount_other: '{{count}} éléments'
 added: Ajouté
-change: Modifier
-clearAll: Tout effacer
-description: Description
 export: Exporter JSON
-never: Jamais
 pause: Pause
 play: Lecture
 selected: sélectionné
-selectedCount: '{{count}} sélectionné(s)'
 somethingWentWrong: Une erreur est survenue
 tryAgain: Réessayer
 unknownError: Erreur inconnue

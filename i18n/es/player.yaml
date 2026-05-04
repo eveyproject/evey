@@ -5,17 +5,16 @@ controls:
   unmute: Activar sonido
   fullscreen: Pantalla completa
   exitFullscreen: Salir de pantalla completa
-  pip: "Imagen en imagen"
-  exitPip: "Salir de imagen en imagen"
+  pip: Imagen en imagen
+  exitPip: Salir de imagen en imagen
   cast: Transmitir
   stopCast: Detener transmisión
   noDevices: No se encontraron dispositivos
-  castingTo: "Transmitiendo a"
   settings: Ajustes
   episodes: Episodios
   chapters: Capítulos
-  rewind: "Retroceder {{seconds}}s"
-  forward: "Avanzar {{seconds}}s"
+  rewind: Retroceder {{seconds}}s
+  forward: Avanzar {{seconds}}s
   previousEpisode: Episodio anterior
   nextEpisode: Siguiente episodio
   seek: Buscar
@@ -28,8 +27,8 @@ settings:
   speed: Velocidad
   subtitleStyle: Estilo de subtítulos
   normal: Normal
-  uploadSubtitle: "Subir subtítulo…"
-  "off": Desactivado
+  uploadSubtitle: Subir subtítulo…
+  'off': Desactivado
   brightness: Brillo
 subtitleStyle:
   size: Tamaño
@@ -60,39 +59,38 @@ fonts:
 quality:
   original: Original
 nextEpisodeOverlay:
-  upNext: "A continuación"
-  nextIn: "Siguiente en {{seconds}}s"
-  playNow: "Reproducir ahora"
-  episode: "Episodio {{number}}"
-  nextEpisode: "Siguiente episodio"
-skipIntro: "Saltar intro"
-download: "Descargar"
-watchTogether: "Ver juntos"
-buffering: "Cargando…"
-playbackFailed: "Error de reproducción"
-unableToPlayAnyQuality: "No se puede reproducir a ningún nivel de calidad"
-failedToStart: "Error al iniciar la reproducción"
-failedToLoadStream: "Error al cargar el flujo"
-retry: "Reintentar"
-goBack: "Volver"
-shareDesc: "Comparte este enlace con tus amigos para ver juntos:"
-copyLink: "Copiar enlace"
-close: "Cerrar"
+  upNext: A continuación
+  nextIn: Siguiente en {{seconds}}s
+  playNow: Reproducir ahora
+  episode: Episodio {{number}}
+  nextEpisode: Siguiente episodio
+skipIntro: Saltar intro
+download: Descargar
+watchTogether: Ver juntos
+buffering: Cargando…
+playbackFailed: Error de reproducción
+unableToPlayAnyQuality: No se puede reproducir a ningún nivel de calidad
+failedToStart: Error al iniciar la reproducción
+retry: Reintentar
+goBack: Volver
+shareDesc: 'Comparte este enlace con tus amigos para ver juntos:'
+copyLink: Copiar enlace
+close: Cerrar
 shortcuts:
-  title: "Atajos de teclado"
-  playPause: "Reproducir / Pausar"
-  toggleFullscreen: "Alternar pantalla completa"
-  toggleMute: "Alternar silencio"
-  seekBack: "Retroceder {{seconds}}s"
-  seekForward: "Avanzar {{seconds}}s"
-  volumeUp: "Subir volumen"
-  volumeDown: "Bajar volumen"
-  seekPercent: "Ir a 0%–90%"
-  toggleCaptions: "Alternar subtítulos"
-  decreaseSpeed: "Reducir velocidad"
-  increaseSpeed: "Aumentar velocidad"
-  pip: "Imagen en imagen"
-  showShortcuts: "Mostrar atajos"
+  title: Atajos de teclado
+  playPause: Reproducir / Pausar
+  toggleFullscreen: Alternar pantalla completa
+  toggleMute: Alternar silencio
+  seekBack: Retroceder {{seconds}}s
+  seekForward: Avanzar {{seconds}}s
+  volumeUp: Subir volumen
+  volumeDown: Bajar volumen
+  seekPercent: Ir a 0%–90%
+  toggleCaptions: Alternar subtítulos
+  decreaseSpeed: Reducir velocidad
+  increaseSpeed: Aumentar velocidad
+  pip: Imagen en imagen
+  showShortcuts: Mostrar atajos
 nowPlaying: Reproduciendo
 stop: Detener reproducción
 streamInfo:

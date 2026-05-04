@@ -1,205 +1,182 @@
-back: "वापस"
-save: "सहेजें"
-cancel: "रद्द करें"
-create: "बनाएं"
-delete: "मिटाएं"
-enable: "सक्षम करें"
-disable: "अक्षम करें"
-enabled: "सक्षम"
-disabled: "अक्षम"
-skip: "छोड़ें"
-continue: "जारी रखें"
-loading: "लोड हो रहा है…"
-error: "त्रुटि"
-unknown: "अज्ञात"
-settings: "सेटिंग्स"
-select: "चुनें"
-selectAll: "सभी चुनें"
-deselectAll: "सभी अचयनित करें"
-exit: "बाहर निकलें"
-search: "खोजें"
-or: "या"
-previous: "पिछला"
-next: "अगला"
-edit: "संपादित करें"
-add: "जोड़ें"
-remove: "हटाएं"
-name: "नाम"
-"no": "नहीं"
-status: "स्थिति"
-actions: "कार्रवाई"
-clear: "साफ़ करें"
-close: "बंद करें"
-confirm: "पुष्टि करें"
-test: "परीक्षण"
-download: "डाउनलोड"
-restore: "पुनर्स्थापित करें"
-revoke: "रद्द करें"
-refresh: "रिफ़्रेश करें"
-done: "हो गया"
-copied: "कॉपी हो गया!"
-seeAll: "सभी देखें →"
-scrollLeft: "बाएं स्क्रॉल करें"
-scrollRight: "दाएं स्क्रॉल करें"
-appearance: "रूप-रंग"
-appearanceDesc: "अपनी थीम और भाषा चुनें।"
-theme: "थीम"
-language: "भाषा"
-languageDesc: "अपनी पसंदीदा भाषा चुनें"
+back: वापस
+save: सहेजें
+cancel: रद्द करें
+create: बनाएं
+delete: मिटाएं
+enable: सक्षम करें
+disable: अक्षम करें
+enabled: सक्षम
+disabled: अक्षम
+skip: छोड़ें
+continue: जारी रखें
+loading: लोड हो रहा है…
+error: त्रुटि
+unknown: अज्ञात
+select: चुनें
+selectAll: सभी चुनें
+deselectAll: सभी अचयनित करें
+exit: बाहर निकलें
+search: खोजें
+or: या
+previous: पिछला
+next: अगला
+edit: संपादित करें
+add: जोड़ें
+remove: हटाएं
+name: नाम
+status: स्थिति
+actions: कार्रवाई
+clear: साफ़ करें
+close: बंद करें
+confirm: पुष्टि करें
+test: परीक्षण
+download: डाउनलोड
+restore: पुनर्स्थापित करें
+revoke: रद्द करें
+refresh: रिफ़्रेश करें
+done: हो गया
+copied: कॉपी हो गया!
+seeAll: सभी देखें →
+scrollLeft: बाएं स्क्रॉल करें
+scrollRight: दाएं स्क्रॉल करें
+appearance: रूप-रंग
+appearanceDesc: अपनी थीम और भाषा चुनें।
+theme: थीम
+language: भाषा
+languageDesc: अपनी पसंदीदा भाषा चुनें
 region:
-  title: "क्षेत्र"
-  desc: "सामग्री वर्गीकरण और क्षेत्रीय प्राथमिकताओं के लिए उपयोग की जाती है।"
-  auto: "स्वचालित"
-newKey: "नई कुंजी"
-copyKey: "कुंजी कॉपी करें"
-unableToLoadNotifications: "सूचनाएं लोड करने में असमर्थ"
-viewAllNotifications: "सभी सूचनाएं देखें"
-"yes": "हाँ"
-markAllRead: "सभी पढ़ा हुआ चिह्नित करें"
-noNotifications: "कोई सूचना नहीं"
-item_one: "{{count}} आइटम"
-item_other: "{{count}} आइटम"
-filtered: "(फ़िल्टर किया गया)"
-noItemsMatch: "वर्तमान फ़िल्टर से कोई आइटम मेल नहीं खाता।"
+  title: क्षेत्र
+  desc: सामग्री वर्गीकरण और क्षेत्रीय प्राथमिकताओं के लिए उपयोग की जाती है।
+  auto: स्वचालित
+newKey: नई कुंजी
+copyKey: कुंजी कॉपी करें
+unableToLoadNotifications: सूचनाएं लोड करने में असमर्थ
+viewAllNotifications: सभी सूचनाएं देखें
+markAllRead: सभी पढ़ा हुआ चिह्नित करें
+noNotifications: कोई सूचना नहीं
+item_one: '{{count}} आइटम'
+item_other: '{{count}} आइटम'
+filtered: (फ़िल्टर किया गया)
+noItemsMatch: वर्तमान फ़िल्टर से कोई आइटम मेल नहीं खाता।
 errorBoundary:
   title: कुछ गलत हो गया
-  description: "एक अनपेक्षित त्रुटि हुई। कृपया पृष्ठ को पुनः लोड करें। यदि समस्या बनी रहती है, तो होम पेज पर जाएं।"
+  description: एक अनपेक्षित त्रुटि हुई। कृपया पृष्ठ को पुनः लोड करें। यदि समस्या बनी रहती है, तो होम पेज पर जाएं।
   tryAgain: पुनः प्रयास करें
   goHome: होम पर जाएं
 routeError:
   title: कुछ गलत हो गया
-  description: "इस पृष्ठ को लोड करते समय त्रुटि हुई। आप पुनः प्रयास कर सकते हैं या होम पर जा सकते हैं।"
+  description: इस पृष्ठ को लोड करते समय त्रुटि हुई। आप पुनः प्रयास कर सकते हैं या होम पर जा सकते हैं।
   retry: पुनः प्रयास करें
   goHome: होम पर जाएं
 aria:
-  closeMenu: "मेनू बंद करें"
-  openMenu: "मेनू खोलें"
-  play: "चलाएं"
-  pause: "रोकें"
-  breadcrumb: "ब्रेडक्रंब"
-  pagination: "पृष्ठांकन"
-  previousPage: "पिछला पृष्ठ"
-  nextPage: "अगला पृष्ठ"
-  reloadPage: "पृष्ठ पुनः लोड करें"
-  goToHome: "होम पर जाएं"
-  dismiss: "खारिज करें"
-  close: "बंद करें"
-  retryPage: "पृष्ठ पुनः लोड करें"
-  goToHomePage: "होम पेज पर जाएं"
-  skipToContent: "सामग्री पर जाएं"
-  expand: "विस्तार करें"
-  select: "चुनें"
-  deselect: "अचयनित करें"
+  closeMenu: मेनू बंद करें
+  openMenu: मेनू खोलें
+  play: चलाएं
+  pause: रोकें
+  breadcrumb: ब्रेडक्रंब
+  pagination: पृष्ठांकन
+  previousPage: पिछला पृष्ठ
+  nextPage: अगला पृष्ठ
+  reloadPage: पृष्ठ पुनः लोड करें
+  goToHome: होम पर जाएं
+  dismiss: खारिज करें
+  close: बंद करें
+  retryPage: पृष्ठ पुनः लोड करें
+  goToHomePage: होम पेज पर जाएं
+  skipToContent: सामग्री पर जाएं
+  expand: विस्तार करें
+  select: चुनें
+  deselect: अचयनित करें
 notifications:
-  title: "सूचनाएं"
-  markRead: "पढ़ा हुआ चिह्नित करें"
-  markAllRead: "सभी पढ़ा हुआ चिह्नित करें"
-  deleteAll: "सभी मिटाएं"
-  deleteAllTitle: "सभी सूचनाएं मिटाएं"
-  deleteAllConfirm: "यह आपकी सभी सूचनाओं को स्थायी रूप से मिटा देगा। यह क्रिया पूर्ववत नहीं की जा सकती।"
-  noNotifications: "कोई सूचना नहीं"
-  allCaughtUp: "सब देख लिया।"
-  justNow: "अभी"
-  minutesAgo: "{{count}}मि॰ पहले"
-  hoursAgo: "{{count}}घं॰ पहले"
-  daysAgo: "{{count}}दि॰ पहले"
-  newMovie: "नई फ़िल्म: {{name}}"
-  newEpisode: "नया एपिसोड: {{name}}"
-  newSeason: "नया सीज़न: {{name}}"
-  newSeries: "नई सीरीज़: {{name}}"
-  newAlbum: "नया एल्बम: {{name}}"
-  backupFailed: "निर्धारित बैकअप विफल"
-  clearConfirm: सभी सूचनाएं हटाएं?
-  clearTitle: सूचनाएं साफ़ करें
+  title: सूचनाएं
+  markRead: पढ़ा हुआ चिह्नित करें
+  markAllRead: सभी पढ़ा हुआ चिह्नित करें
+  deleteAll: सभी मिटाएं
+  deleteAllTitle: सभी सूचनाएं मिटाएं
+  deleteAllConfirm: यह आपकी सभी सूचनाओं को स्थायी रूप से मिटा देगा। यह क्रिया पूर्ववत नहीं की जा सकती।
+  noNotifications: कोई सूचना नहीं
+  allCaughtUp: सब देख लिया।
+  justNow: अभी
+  minutesAgo: '{{count}}मि॰ पहले'
+  hoursAgo: '{{count}}घं॰ पहले'
+  daysAgo: '{{count}}दि॰ पहले'
+  newMovie: 'नई फ़िल्म: {{name}}'
+  newEpisode: 'नया एपिसोड: {{name}}'
+  newSeason: 'नया सीज़न: {{name}}'
+  newSeries: 'नई सीरीज़: {{name}}'
+  newAlbum: 'नया एल्बम: {{name}}'
+  backupFailed: निर्धारित बैकअप विफल
 watchHistory:
-  title: "देखने का इतिहास"
+  title: देखने का इतिहास
 userStats:
-  title: "मेरे आँकड़े"
-  noData: "अभी तक कोई देखने की गतिविधि नहीं"
-  totalWatchTime: "देखने का समय"
-  totalPlays: "कुल प्ले"
-  uniqueItems: "अद्वितीय शीर्षक"
-  favoriteGenre: "पसंदीदा शैली"
-  genreBreakdown: "शैलियाँ"
-  monthlyActivity: "मासिक गतिविधि"
-  mostPlayed: "सबसे ज़्यादा देखे गए"
-  playsLabel: "प्ले"
+  title: मेरे आँकड़े
+  noData: अभी तक कोई देखने की गतिविधि नहीं
+  totalWatchTime: देखने का समय
+  totalPlays: कुल प्ले
+  uniqueItems: अद्वितीय शीर्षक
+  favoriteGenre: पसंदीदा शैली
+  genreBreakdown: शैलियाँ
+  monthlyActivity: मासिक गतिविधि
+  mostPlayed: सबसे ज़्यादा देखे गए
+  playsLabel: प्ले
 nav:
-  home: "होम"
-  libraries: "लाइब्रेरी"
-  photos: "फ़ोटो"
-  favorites: "पसंदीदा"
-  search: "खोजें"
-  music: "संगीत"
-  syncplay: "साथ सुनें"
-  admin: "एडमिन"
-  backToApp: "ऐप पर वापस"
-  settings: "सेटिंग्स"
-  watchHistory: "देखने का इतिहास"
-  myStats: "मेरे आँकड़े"
-  quickConnect: "क्विक कनेक्ट"
-  signOut: "साइन आउट"
-  expandSidebar: "साइडबार विस्तारित करें"
-  collapseSidebar: "साइडबार संकुचित करें"
-  mainNav: "मुख्य नेविगेशन"
-  adminNav: "एडमिन नेविगेशन"
-  userMenu: "उपयोगकर्ता मेनू"
-  homeFeeds: "होम फ़ीड्स"
-  switchProfile: "प्रोफ़ाइल बदलें"
-  manageProfiles: "प्रोफ़ाइल प्रबंधित करें"
+  home: होम
+  libraries: लाइब्रेरी
+  photos: फ़ोटो
+  favorites: पसंदीदा
+  music: संगीत
+  syncplay: साथ सुनें
+  admin: एडमिन
+  backToApp: ऐप पर वापस
+  settings: सेटिंग्स
+  watchHistory: देखने का इतिहास
+  myStats: मेरे आँकड़े
+  quickConnect: क्विक कनेक्ट
+  signOut: साइन आउट
+  expandSidebar: साइडबार विस्तारित करें
+  collapseSidebar: साइडबार संकुचित करें
+  mainNav: मुख्य नेविगेशन
+  adminNav: एडमिन नेविगेशन
+  userMenu: उपयोगकर्ता मेनू
+  homeFeeds: होम फ़ीड्स
+  switchProfile: प्रोफ़ाइल बदलें
+  manageProfiles: प्रोफ़ाइल प्रबंधित करें
 shortcuts:
-  title: "कीबोर्ड शॉर्टकट"
-  focusSearch: "खोज पर फ़ोकस करें"
-  closeModal: "मोडल बंद करें / इनपुट से बाहर"
-  goHome: "होम पर जाएं"
-  toggleHelp: "यह सहायता दिखाएं/छिपाएं"
-  disabledHint: "इनपुट फ़ील्ड में टाइप करते समय शॉर्टकट अक्षम हैं।"
+  title: कीबोर्ड शॉर्टकट
+  focusSearch: खोज पर फ़ोकस करें
+  closeModal: मोडल बंद करें / इनपुट से बाहर
+  goHome: होम पर जाएं
+  toggleHelp: यह सहायता दिखाएं/छिपाएं
+  disabledHint: इनपुट फ़ील्ड में टाइप करते समय शॉर्टकट अक्षम हैं।
 parental:
-  restrictedContent: "प्रतिबंधित सामग्री"
-  pinRequired: "इस सामग्री के लिए अभिभावकीय PIN सत्यापन आवश्यक है।"
-  pinLabel: "PIN (4 अंक)"
-  pinIncorrect: "गलत PIN"
-  validate: "सत्यापित करें"
+  restrictedContent: प्रतिबंधित सामग्री
+  pinRequired: इस सामग्री के लिए अभिभावकीय PIN सत्यापन आवश्यक है।
+  pinLabel: PIN (4 अंक)
+  pinIncorrect: गलत PIN
+  validate: सत्यापित करें
 feeds:
-  title: "होम पेज अनुभाग"
+  title: होम पेज अनुभाग
   section: अनुभाग
   maxItems: अधिकतम आइटम
-  saved: "कॉन्फ़िग सहेजा गया"
+  saved: कॉन्फ़िग सहेजा गया
   customize: अनुकूलित करें
-  customizeTitle: "होम पेज अनुकूलित करें"
-  resetDefaults: "डिफ़ॉल्ट रीसेट करें"
+  customizeTitle: होम पेज अनुकूलित करें
+  resetDefaults: डिफ़ॉल्ट रीसेट करें
   labels:
-    resume_playback: "प्लेबैक फिर से शुरू करें"
-    next_up: "आगे देखें"
-    recommended: "अनुशंसित"
-    most_popular: "सबसे लोकप्रिय"
-    collections: "संग्रह"
-showLess: कम दिखाएं
-readMore: और पढ़ें
-noPoster: कोई पोस्टर नहीं
-noItems: कोई आइटम नहीं
-noCollections: कोई संग्रह नहीं
-playlists: प्लेलिस्ट
-collections: संग्रह
-loadError: लोड करने में विफल
-activity: गतिविधि
+    resume_playback: प्लेबैक फिर से शुरू करें
+    next_up: आगे देखें
+    recommended: अनुशंसित
+    most_popular: सबसे लोकप्रिय
+    collections: संग्रह
 addToPlaylist: प्लेलिस्ट में जोड़ें
 noManualPlaylists: कोई मैन्युअल प्लेलिस्ट उपलब्ध नहीं
-noPlaylists: कोई प्लेलिस्ट नहीं
-serverVersion: सर्वर संस्करण
-retry: पुनः प्रयास करें
-itemCount_one: "{{count}} आइटम"
-itemCount_other: "{{count}} आइटम"
+itemCount_one: '{{count}} आइटम'
+itemCount_other: '{{count}} आइटम'
 added: जोड़ा गया
-change: बदलें
-clearAll: सब साफ़ करें
-description: विवरण
 export: JSON निर्यात
-never: कभी नहीं
 pause: रोकें
 play: चलाएं
 selected: चयनित
-selectedCount: '{{count}} चयनित'
 somethingWentWrong: कुछ गलत हो गया
 tryAgain: पुनः प्रयास करें
 unknownError: अज्ञात त्रुटि

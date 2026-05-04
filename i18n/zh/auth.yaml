@@ -1,281 +1,237 @@
 setup:
-  welcome: "欢迎使用 Evey"
-  description: "让我们来设置您的媒体服务器。只需一分钟。"
-  getStarted: "开始设置"
-  languageTitle: "选择服务器语言"
-  languageHint: "这将成为新配置文件和元数据查询的默认语言。可在管理面板中更改。"
-  stepOf: "第 {{current}} 步，共 {{total}} 步 - {{name}}"
+  welcome: 欢迎使用 Evey
+  description: 让我们来设置您的媒体服务器。只需一分钟。
+  getStarted: 开始设置
+  languageTitle: 选择服务器语言
+  languageHint: 这将成为新配置文件和元数据查询的默认语言。可在管理面板中更改。
+  stepOf: 第 {{current}} 步，共 {{total}} 步 - {{name}}
   steps:
-    language: "语言"
-    welcome: "欢迎"
-    admin: "管理员账户"
-    library: "第一个媒体库"
-  createAdmin: "创建管理员账户"
-  username: "用户名"
-  password: "密码"
-  confirmPassword: "确认密码"
-  usernameMin: "至少 3 个字符"
-  passwordMin: "至少 8 个字符"
-  passwordMismatch: "密码不匹配"
-  setupFailed: "设置失败"
-  addLibrary: "添加您的第一个媒体库"
-  addLibraryHint: "您可以稍后在管理面板中添加更多媒体库。"
-  libraryName: "媒体库名称"
-  libraryType: "媒体库类型"
-  libraryNameRequired: "媒体库名称不能为空"
+    language: 语言
+    welcome: 欢迎
+    admin: 管理员账户
+    library: 第一个媒体库
+  createAdmin: 创建管理员账户
+  username: 用户名
+  password: 密码
+  confirmPassword: 确认密码
+  usernameMin: 至少 3 个字符
+  passwordMin: 至少 8 个字符
+  passwordMismatch: 密码不匹配
+  setupFailed: 设置失败
+  addLibrary: 添加您的第一个媒体库
+  addLibraryHint: 您可以稍后在管理面板中添加更多媒体库。
+  libraryName: 媒体库名称
+  libraryType: 媒体库类型
+  libraryNameRequired: 媒体库名称不能为空
   libraryTypes:
-    movies: "电影"
-    shows: "电视剧"
-    music: "音乐"
-    photos: "照片"
-signingIn: "登录中…"
+    movies: 电影
+    shows: 电视剧
+    music: 音乐
+    photos: 照片
+signingIn: 登录中…
 login:
-  signIn: "登录"
-  signInToAccount: "登录到您的账户"
-  username: "用户名"
-  password: "密码"
-  invalidCredentials: "用户名或密码无效"
-  passwordTooShort: "密码至少需要 8 个字符"
-  loginFailed: "登录失败，请重试。"
-  recommendedForTV: "推荐用于电视"
-  ssoFailed: "SSO 登录失败，请重试。"
-  or: "或"
-  signInWithSSO: "使用 SSO 登录"
-  forgotPassword: "忘记密码？"
+  signIn: 登录
+  signInToAccount: 登录到您的账户
+  username: 用户名
+  password: 密码
+  invalidCredentials: 用户名或密码无效
+  passwordTooShort: 密码至少需要 8 个字符
+  loginFailed: 登录失败，请重试。
+  ssoFailed: SSO 登录失败，请重试。
+  or: 或
+  signInWithSSO: 使用 SSO 登录
+  forgotPassword: 忘记密码？
 forgotPassword:
-  title: "重置密码"
-  description: "输入您的邮箱地址，我们将发送重置链接。"
-  email: "邮箱"
-  submit: "发送重置链接"
-  backToLogin: "返回登录"
-  checkEmail: "请检查您的邮箱"
-  emailSent: "如果该邮箱存在账户，我们已发送重置链接。"
+  title: 重置密码
+  description: 输入您的邮箱地址，我们将发送重置链接。
+  email: 邮箱
+  submit: 发送重置链接
+  backToLogin: 返回登录
+  checkEmail: 请检查您的邮箱
+  emailSent: 如果该邮箱存在账户，我们已发送重置链接。
 resetPassword:
-  title: "设置新密码"
-  description: "为您的账户选择新密码。"
-  newPassword: "新密码"
-  confirmPassword: "确认密码"
-  submit: "重置密码"
-  backToLogin: "返回登录"
-  invalidLink: "此重置链接无效。"
-  success: "密码已重置！"
-  successDescription: "您的密码已更改，可以登录了。"
-  goToLogin: "去登录"
-  tokenExpired: "此链接已过期，请重新请求。"
-  passwordTooShort: "密码至少需要8个字符。"
-  mismatch: "密码不匹配。"
-  failed: "密码重置失败。"
+  title: 设置新密码
+  description: 为您的账户选择新密码。
+  newPassword: 新密码
+  confirmPassword: 确认密码
+  submit: 重置密码
+  backToLogin: 返回登录
+  invalidLink: 此重置链接无效。
+  success: 密码已重置！
+  successDescription: 您的密码已更改，可以登录了。
+  goToLogin: 去登录
+  tokenExpired: 此链接已过期，请重新请求。
+  passwordTooShort: 密码至少需要8个字符。
+  mismatch: 密码不匹配。
+  failed: 密码重置失败。
 register:
-  createAccount: "创建账户"
-  createAccountBtn: "创建账户"
-  invitedMessage: "您已被邀请！请填写以下信息。"
-  signUpWithInvite: "使用邀请码注册"
-  inviteCodeLabel: "邀请码："
-  username: "用户名"
-  email: "邮箱"
-  password: "密码"
-  confirmPassword: "确认密码"
-  inviteCode: "邀请码"
-  passwordMismatch: "密码不匹配"
-  passwordMin: "密码至少需要 8 个字符"
-  registrationFailed: "注册失败"
-  alreadyHaveAccount: "已有账户？"
-  signIn: "登录"
+  createAccount: 创建账户
+  createAccountBtn: 创建账户
+  invitedMessage: 您已被邀请！请填写以下信息。
+  signUpWithInvite: 使用邀请码注册
+  inviteCodeLabel: 邀请码：
+  username: 用户名
+  email: 邮箱
+  password: 密码
+  confirmPassword: 确认密码
+  inviteCode: 邀请码
+  passwordMismatch: 密码不匹配
+  passwordMin: 密码至少需要 8 个字符
+  registrationFailed: 注册失败
+  alreadyHaveAccount: 已有账户？
+  signIn: 登录
 profile:
-  edit: "编辑"
-  username: "用户名"
-  email: "邮箱"
-  save: "保存"
-  cancel: "取消"
-  profileUpdated: "个人资料已更新"
-  failedToUpdate: "更新个人资料失败"
-  changeAvatar: "更换头像"
-  avatarUpdated: "头像已更新"
-  avatarFailed: "更新头像失败"
-  created: "已创建个人资料"
-  updated: "已更新个人资料"
-  deleted: "已删除个人资料"
-  editProfile: "编辑个人资料"
-  switchFailed: "无法切换个人资料"
+  username: 用户名
+  email: 邮箱
+  save: 保存
+  cancel: 取消
+  profileUpdated: 个人资料已更新
+  failedToUpdate: 更新个人资料失败
+  changeAvatar: 更换头像
+  avatarUpdated: 头像已更新
+  avatarFailed: 更新头像失败
+  created: 已创建个人资料
+  updated: 已更新个人资料
+  deleted: 已删除个人资料
+  editProfile: 编辑个人资料
+  switchFailed: 无法切换个人资料
   select:
-    title: "谁在观看？"
-    description: "选择一个个人资料以继续。"
-    kidsBadge: "儿童"
-    manage: "管理个人资料"
-    pinPromptTitle: "输入 PIN 码"
-    pinPromptBody: "输入 \"{{name}}\" 的 PIN 码以继续。"
-    pinInvalid: "PIN 码必须为 4 位数字"
-    pinWrong: "PIN 码错误"
+    title: 谁在观看？
+    description: 选择一个个人资料以继续。
+    kidsBadge: 儿童
+    manage: 管理个人资料
+    pinPromptTitle: 输入 PIN 码
+    pinPromptBody: 输入 "{{name}}" 的 PIN 码以继续。
+    pinInvalid: PIN 码必须为 4 位数字
+    pinWrong: PIN 码错误
   manage:
-    title: "管理个人资料"
-    description: "添加、编辑或删除个人资料。默认个人资料无法删除。"
-    createProfile: "创建个人资料"
-    deleteConfirm: "删除个人资料 \"{{name}}\"？此操作无法撤消。"
-    defaultProfileBadge: "默认"
-    kidsBadge: "儿童"
-    cannotDeleteDefault: "无法删除默认个人资料。"
+    title: 管理个人资料
+    description: 添加、编辑或删除个人资料。默认个人资料无法删除。
+    createProfile: 创建个人资料
+    deleteConfirm: 删除个人资料 "{{name}}"？此操作无法撤消。
+    defaultProfileBadge: 默认
+    kidsBadge: 儿童
+    cannotDeleteDefault: 无法删除默认个人资料。
   fields:
-    name: "名称"
-    nameRequired: "名称为必填项"
-    isKids: "儿童个人资料"
-    isKidsHelp: "将此个人资料标记为儿童（切换时启用 PIN 码）。年龄限制在家长控制中配置。"
-    pin: "PIN 码（4 位数字）"
-    pinRequired: "由于存在儿童个人资料，需要设置 PIN 码。"
-    pinKeep: "留空以保留当前 PIN 码。"
-    locale: "语言"
-    region: "地区"
+    name: 名称
+    nameRequired: 名称为必填项
+    isKids: 儿童个人资料
+    isKidsHelp: 将此个人资料标记为儿童（切换时启用 PIN 码）。年龄限制在家长控制中配置。
+    pin: PIN 码（4 位数字）
+    pinRequired: 由于存在儿童个人资料，需要设置 PIN 码。
+    pinKeep: 留空以保留当前 PIN 码。
+    locale: 语言
+    region: 地区
 settings:
-  title: "设置"
+  title: 设置
   tabs:
-    appearance: "外观"
-    playback: "播放"
-    profiles: "个人资料"
-    notifications: "通知"
-    account: "账户"
-    parental: "家长控制"
-    devices: "设备"
-    security: "安全"
-    quickConnect: "快速连接"
-  playback:
-    bitrateTitle: "最大流媒体比特率"
-    bitrateDesc: "限制流媒体播放时的最大比特率。较低的值占用更少的带宽。"
-    cellularBitrateTitle: "最大蜂窝数据比特率"
-    cellularBitrateDesc: "使用移动数据时应用的较低上限。"
-    subtitleLanguage: "默认字幕语言"
-    audioLanguage: "默认音频语言"
-    preferredVideoCodec: "首选视频编码"
-    preferredAudioCodec: "首选音频编码"
-    maxAudioChannels: "最大音频声道"
-    codecAuto: "自动"
-    channelsStereo: "立体声 (2.0)"
-    channels51: "环绕声 (5.1)"
-    channels71: "环绕声 (7.1)"
-    subtitleBurnIn: "字幕内嵌"
-    subtitleBurnInDesc: "在需要时将字幕直接内嵌到视频流中。"
-    subtitleBurnAuto: "自动"
-    subtitleBurnAlways: "始终内嵌"
-    subtitleBurnNever: "从不内嵌"
-    transcodeTitle: "转码"
-    allowDirectPlay: "允许直接播放"
-    allowDirectPlayDesc: "当设备支持时播放原始文件。"
-    allowDirectStream: "允许直接流"
-    allowDirectStreamDesc: "在可能时重新封装容器而不重新编码。"
-    allowTranscoding: "允许转码"
-    allowTranscodingDesc: "当直接播放/流不可用时回退到转码。"
+    appearance: 外观
+    profiles: 个人资料
+    notifications: 通知
+    parental: 家长控制
+    devices: 设备
+    quickConnect: 快速连接
   quickConnect:
-    title: "快速连接"
-    description: "输入您要登录的设备上显示的代码。"
-    codeLabel: "设备代码"
-    authorize: "授权设备"
-    authorized: "设备授权成功"
-    invalidCode: "代码无效或已过期"
-    scanQr: "扫描二维码"
-    scanHint: "将摄像头对准快速连接二维码"
-    cameraPermission: "需要摄像头权限来扫描快速连接二维码。"
-    grantPermission: "授予摄像头权限"
-    scanLabel: "快速连接"
-    scanInstruction: "使用已登录的设备扫描以登录"
-    expiresIn: "{{seconds}}秒后过期"
+    title: 快速连接
+    description: 输入您要登录的设备上显示的代码。
+    codeLabel: 设备代码
+    authorize: 授权设备
+    authorized: 设备授权成功
+    invalidCode: 代码无效或已过期
+    scanLabel: 快速连接
+    scanInstruction: 使用已登录的设备扫描以登录
+    expiresIn: '{{seconds}}秒后过期'
   account:
-    changePassword: "修改密码"
-    changePasswordDesc: "请使用至少 8 个字符的强密码。"
-    newPassword: "新密码"
-    confirmPassword: "确认密码"
-    passwordMismatch: "密码不匹配"
-    passwordMin: "密码至少需要 8 个字符"
-    profileUpdated: 个人资料已更新
+    changePasswordDesc: 请使用至少 8 个字符的强密码。
+    newPassword: 新密码
+    confirmPassword: 确认密码
+    passwordMismatch: 密码不匹配
+    passwordMin: 密码至少需要 8 个字符
   parental:
-    title: "家长控制"
-    enable: "启用家长控制"
-    enableDesc: "按分级过滤内容"
-    maxAge: "最大年龄"
-    noRestriction: "无限制"
-    noProfile: "未找到资料。"
-    failedToUpdate: "更新失败"
+    title: 家长控制
+    noProfile: 未找到资料。
+    failedToUpdate: 更新失败
     pin:
-      title: "设置 PIN"
-      description: "4 位数 PIN 码用于解锁受限内容。"
-      newPin: "新 PIN"
-      confirmPin: "确认 PIN"
-      savePin: "保存 PIN"
-      saved: "PIN 已保存"
-      mustBe4: "PIN 必须为 4 位数字"
-      mismatch: "PIN 不匹配"
-      passwordReauth: "账户密码"
-      passwordRequired: "首次设置 PIN 需要密码"
+      title: 设置 PIN
+      description: 4 位数 PIN 码用于解锁受限内容。
+      newPin: 新 PIN
+      confirmPin: 确认 PIN
+      savePin: 保存 PIN
+      saved: PIN 已保存
+      mustBe4: PIN 必须为 4 位数字
+      mismatch: PIN 不匹配
+      passwordReauth: 账户密码
+      passwordRequired: 首次设置 PIN 需要密码
 apiKeys:
-  title: "API 密钥"
-  description: "为外部集成创建 API 密钥。"
-  newKeyTitle: "新建 API 密钥"
-  name: "名称"
-  namePlaceholder: "我的集成"
-  nameRequired: "名称不能为空"
-  key: "密钥"
-  scopes: "权限范围"
-  scopesAll: "全部（旧版）"
-  scopesHint: "留空以授予完全访问权限（旧版）。选择特定权限范围以限制访问。"
+  title: API 密钥
+  description: 为外部集成创建 API 密钥。
+  newKeyTitle: 新建 API 密钥
+  name: 名称
+  namePlaceholder: 我的集成
+  nameRequired: 名称不能为空
+  key: 密钥
+  scopes: 权限范围
+  scopesAll: 全部（旧版）
+  scopesHint: 留空以授予完全访问权限（旧版）。选择特定权限范围以限制访问。
   scopeLabels:
-    "media:read": "读取媒体元数据"
-    "media:write": "修改媒体并触发扫描"
-    "admin:read": "读取管理活动和统计"
-    "admin:write": "修改管理设置"
-    "users:read": "读取用户"
-    "users:write": "修改用户"
-    "playback:read": "读取播放状态和历史"
-    "playback:write": "控制播放和进度"
-  lastUsed: "上次使用"
-  created: "创建时间"
-  keyCreatedTitle: "API 密钥已创建"
-  saveWarning: "请立即保存此密钥——之后将无法再次查看。"
-  noKeys: "暂无 API 密钥"
-  keyCreated: "API 密钥已创建"
-  createError: "创建 API 密钥失败"
-  revokeTitle: "撤销 API 密钥"
-  revokeConfirm: "撤销此 API 密钥？它将立即停止工作。"
-  keyRevoked: "API 密钥已撤销"
-  revokeError: "撤销 API 密钥失败"
-  revoke: 撤销
+    media:read: 读取媒体元数据
+    media:write: 修改媒体并触发扫描
+    admin:read: 读取管理活动和统计
+    admin:write: 修改管理设置
+    users:read: 读取用户
+    users:write: 修改用户
+    playback:read: 读取播放状态和历史
+    playback:write: 控制播放和进度
+  lastUsed: 上次使用
+  created: 创建时间
+  keyCreatedTitle: API 密钥已创建
+  saveWarning: 请立即保存此密钥——之后将无法再次查看。
+  noKeys: 暂无 API 密钥
+  createError: 创建 API 密钥失败
+  revokeTitle: 撤销 API 密钥
+  revokeConfirm: 撤销此 API 密钥？它将立即停止工作。
+  keyRevoked: API 密钥已撤销
+  revokeError: 撤销 API 密钥失败
 devices:
-  title: "设备"
-  description: "管理推送通知设备。"
-  platform: "平台"
-  token: "令牌"
-  registered: "注册时间"
-  noDevices: "没有已注册的设备"
-  revokeTitle: "撤销设备"
-  revokeConfirm: "撤销此设备？它将不再接收通知。"
-  deviceRevoked: "设备已撤销"
-  revokeError: "移除设备失败"
+  title: 设备
+  description: 管理推送通知设备。
+  platform: 平台
+  token: 令牌
+  registered: 注册时间
+  noDevices: 没有已注册的设备
+  revokeTitle: 撤销设备
+  revokeConfirm: 撤销此设备？它将不再接收通知。
+  deviceRevoked: 设备已撤销
+  revokeError: 移除设备失败
 notificationSettings:
-  pushNotifications: "推送通知"
-  pushDesc: "在此设备上接收推送通知。"
-  pushEnabled: "推送通知已启用"
-  pushDisabled: "推送通知已禁用"
-  pushError: "切换推送通知失败"
-  pushNotConfigured: "此服务器未配置推送通知。"
-  permissionDenied: "浏览器拒绝了通知权限。"
-  movies: "电影"
-  series: "剧集"
-  music: "音乐"
-  saved: "通知偏好已保存"
-  saveError: "保存通知偏好失败"
-  levelDefault: "默认"
-  levelDisabled: "已禁用"
-  levelAll: "全部"
-  levelRelevant: "相关"
-  levelImportant: "仅重要"
+  pushNotifications: 推送通知
+  pushDesc: 在此设备上接收推送通知。
+  pushEnabled: 推送通知已启用
+  pushDisabled: 推送通知已禁用
+  pushError: 切换推送通知失败
+  pushNotConfigured: 此服务器未配置推送通知。
+  permissionDenied: 浏览器拒绝了通知权限。
+  movies: 电影
+  series: 剧集
+  music: 音乐
+  saved: 通知偏好已保存
+  saveError: 保存通知偏好失败
+  levelDefault: 默认
+  levelDisabled: 已禁用
+  levelAll: 全部
+  levelRelevant: 相关
+  levelImportant: 仅重要
 watchHistory:
-  today: "今天"
-  yesterday: "昨天"
-  thisWeek: "本周"
-  thisMonth: "本月"
-  plays: "{{count}} 次播放"
-  watched: "已观看"
-  noHistory: "没有观看历史"
-  noHistoryDesc: "开始观看内容后，您的历史记录将在此处显示。"
-  clearHistory: "清除历史"
-  clearTitle: "清除观看历史"
-  clearConfirm: "这将永久删除您的所有观看历史。此操作无法撤销。"
-  clearAll: "全部清除"
-  title: 观看历史
+  today: 今天
+  yesterday: 昨天
+  thisWeek: 本周
+  thisMonth: 本月
+  plays: '{{count}} 次播放'
+  watched: 已观看
+  noHistory: 没有观看历史
+  noHistoryDesc: 开始观看内容后，您的历史记录将在此处显示。
+  clearHistory: 清除历史
+  clearTitle: 清除观看历史
+  clearConfirm: 这将永久删除您的所有观看历史。此操作无法撤销。
+  clearAll: 全部清除
   openMedia: 打开媒体详情

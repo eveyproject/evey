@@ -20,7 +20,6 @@ nav:
   activity: Aktivität
   maintenance: Wartung
   backupRestore: Sicherung & Wiederherstellung
-
 artworks:
   title: Artworks (lokaler Cache)
   subtitle: TMDB-Artworks lokal herunterladen, um WebP statt Weiterleitungen zu liefern
@@ -32,13 +31,12 @@ artworks:
   downloadSection: Fehlende Artworks herunterladen
   downloadDesc: Laedt alle Artworks mit TMDB-URL aber ohne lokale Kopie herunter.
   downloadMissing: Fehlende Artworks herunterladen
-  downloading: "Wird heruntergeladen..."
+  downloading: Wird heruntergeladen...
   downloadAgain: Erneut herunterladen
   downloadComplete: Artwork-Download abgeschlossen
   downloadFailed: Download konnte nicht gestartet werden
   done: Fertig
   errorsPartial: Fehler (teilweiser Download)
-
 plugin:
   enabled: Aktiviert
   disabled: Deaktiviert
@@ -54,13 +52,12 @@ plugin:
   configSaveFailed: Speichern der Konfiguration fehlgeschlagen
   subprocess: Unterprozess
   sandboxed: Sandboxed
-  hash: "Hash"
-  hashCopied: "Hash kopiert"
+  hashCopied: Hash kopiert
   sandboxedFront: Sandboxed-Front-Modul
   frontLoadError: Front-Modul konnte nicht geladen werden
   state:
     running: Läuft
-    starting: "Startet..."
+    starting: Startet...
     error: Fehler
     stopped: Gestoppt
     installed: Installiert
@@ -69,19 +66,18 @@ plugin:
     title: Sicherheitshinweis
     issues: Probleme
     urls: Externe URLs
-
 plugins:
   title: Plugins
   installPlugin: Plugin installieren
   uploadFile: Datei hochladen
   fromUrl: Von URL
-  chooseFile: "Datei auswählen..."
+  chooseFile: Datei auswählen...
   previewInstall: Vorschau & Installieren
   pluginFileZip: Plugin-Datei (.zip)
-  sigFileOptional: "Signaturdatei (.zip.sig, optional)"
+  sigFileOptional: Signaturdatei (.zip.sig, optional)
   sourceUrl: Quell-URL
   nameOptional: Name (optional)
-  urlSkipPreview: "Hinweis: URL-Installationen überspringen die Vorschau."
+  urlSkipPreview: 'Hinweis: URL-Installationen überspringen die Vorschau.'
   permissions: Berechtigungen
   capabilities: Fähigkeiten
   staticAnalysis: Statische Analyse
@@ -98,9 +94,9 @@ plugins:
   failedDisable: Plugin konnte nicht deaktiviert werden
   failedUninstall: Plugin konnte nicht deinstalliert werden
   uninstallTitle: Plugin deinstallieren
-  uninstallConfirm: "Plugin \"{{name}}\" deinstallieren? Dies kann nicht rückgängig gemacht werden."
+  uninstallConfirm: Plugin "{{name}}" deinstallieren? Dies kann nicht rückgängig gemacht werden.
   selectFileFirst: Bitte zuerst eine Plugin-Datei auswählen
-  fileMissing: "Datei fehlt - bitte erneut auswählen"
+  fileMissing: Datei fehlt - bitte erneut auswählen
   blockedByAnalysis: Plugin durch Sicherheitsanalyse blockiert
   previewFailed: Vorschau fehlgeschlagen
   installFailed: Installation fehlgeschlagen
@@ -116,7 +112,6 @@ plugins:
     noData: Keine Sicherheitsdaten verfügbar.
     signed: Signiert
     unsigned: Nicht signiert
-
 dashboard:
   title: Dashboard
   systemInfo: Systeminformationen
@@ -126,39 +121,36 @@ dashboard:
   goVersion: Go-Version
   ffmpeg: FFmpeg
   uptime: Betriebszeit
-  autoRefresh: "Aktualisiert {{time}} · automatische Aktualisierung alle {{interval}}"
-
+  autoRefresh: Aktualisiert {{time}} · automatische Aktualisierung alle {{interval}}
 users:
   title: Benutzer
   createUser: Benutzer erstellen
   username: Benutzername
   email: E-Mail
   password: Passwort
-  newPassword: "Neues Passwort"
+  newPassword: Neues Passwort
   admin: Administrator
   role: Rolle
   user: Benutzer
   userCreated: Benutzer erstellt
-  userDeleted: "Benutzer \"{{name}}\" gelöscht"
+  userDeleted: Benutzer "{{name}}" gelöscht
   userDisabled: Benutzer deaktiviert
   userEnabled: Benutzer aktiviert
   failedDeleteUser: Benutzer konnte nicht gelöscht werden
-  failedCreateUser: Benutzer konnte nicht erstellt werden
   failedUpdateUser: Benutzer konnte nicht aktualisiert werden
   userUpdated: Benutzer aktualisiert
   deleteUserTitle: Benutzer löschen
-  deleteUserConfirm: "Benutzer \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
-  libraryAccess: Bibliothekszugriff
-  libraryAccessTitle: "Bibliothekszugriff - {{name}}"
+  deleteUserConfirm: Benutzer "{{name}}" löschen? Dies kann nicht rückgängig gemacht werden.
+  libraryAccessTitle: Bibliothekszugriff - {{name}}
   unrestricted: Uneingeschränkt
   unrestrictedDesc: Dieser Benutzer hat Zugriff auf alle Bibliotheken (uneingeschränkt).
-  restrictedDesc: "Dieser Benutzer hat nur Zugriff auf {{count}} ausgewählte {{libraryWord}}."
+  restrictedDesc: Dieser Benutzer hat nur Zugriff auf {{count}} ausgewählte {{libraryWord}}.
   libraryAccessUpdated: Bibliothekszugriff aktualisiert
   failedLibraryAccess: Bibliothekszugriff konnte nicht aktualisiert werden
   clearAllUnrestricted: Alle entfernen (uneingeschränkt)
   bitrate: Bitrate
-  maxBitrateTitle: "Maximale Bitrate - {{name}}"
-  maxBitrateDesc: "Maximale Streaming-Bitrate für diesen Benutzer begrenzen. 0 = unbegrenzt."
+  maxBitrateTitle: Maximale Bitrate - {{name}}
+  maxBitrateDesc: Maximale Streaming-Bitrate für diesen Benutzer begrenzen. 0 = unbegrenzt.
   maxBitrate: Maximale Bitrate
   bitrateUpdated: Bitrate-Limit aktualisiert
   failedBitrate: Bitrate-Limit konnte nicht aktualisiert werden
@@ -180,32 +172,30 @@ users:
   expiresAtLabel: Ablaufdatum (optional)
   inviteIsAdmin: Als Administrator anlegen
   inviteLibraries: Zugängliche Bibliotheken
-  inviteLibrariesHelp: "Leer lassen, um Zugriff auf alle Bibliotheken zu gewähren."
+  inviteLibrariesHelp: Leer lassen, um Zugriff auf alle Bibliotheken zu gewähren.
   noUsers: Keine Benutzer gefunden
   noInvites: Keine Einladungslinks
   editUser: Benutzer bearbeiten
-  failedCreateInvite: Einladungslink konnte nicht erstellt werden
-  leaveBlank: "Leer lassen zum Beibehalten"
+  leaveBlank: Leer lassen zum Beibehalten
   maxProfiles: Max. Profile
-  maxProfilesHelp: "Maximale Anzahl Profile, die dieser Benutzer anlegen kann. 0 = unbegrenzt."
+  maxProfilesHelp: Maximale Anzahl Profile, die dieser Benutzer anlegen kann. 0 = unbegrenzt.
   maxDevicesPerProfile: Max. Geräte pro Profil
-  maxDevicesPerProfileHelp: "Maximale Anzahl Geräte pro Profil. 0 = unbegrenzt."
-  profilesTitle: "Profile"
-  noProfiles: "Dieser Benutzer hat noch keine Profile."
-
+  maxDevicesPerProfileHelp: Maximale Anzahl Geräte pro Profil. 0 = unbegrenzt.
+  profilesTitle: Profile
+  noProfiles: Dieser Benutzer hat noch keine Profile.
 libraries:
   title: Bibliotheken
   addLibrary: Bibliothek hinzufügen
   createLibrary: Bibliothek erstellen
   libraryCreated: Bibliothek erstellt
-  libraryUpdated: "Bibliothek \"{{name}}\" aktualisiert"
-  libraryDeleted: "Bibliothek \"{{name}}\" gelöscht"
+  libraryUpdated: Bibliothek "{{name}}" aktualisiert
+  libraryDeleted: Bibliothek "{{name}}" gelöscht
   editLibrary: Bibliothek bearbeiten
   failedDelete: Bibliothek konnte nicht gelöscht werden
   scanStarted: Scan gestartet
   failedScan: Scan konnte nicht gestartet werden
   deleteTitle: Bibliothek löschen
-  deleteConfirm: "Bibliothek \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
+  deleteConfirm: Bibliothek "{{name}}" löschen? Dies kann nicht rückgängig gemacht werden.
   noLibraries: Keine Bibliotheken. Fügen Sie eine hinzu, um zu beginnen.
   tableHeaders:
     name: Name
@@ -224,63 +214,56 @@ libraries:
     library: Bibliothek
   scan: Scannen
   scanAgain: Erneut scannen
-  scanning: "Wird gescannt..."
+  scanning: Wird gescannt...
   schedule: Zeitplan
-  scanScheduleTitle: "Scan-Zeitplan - {{name}}"
+  scanScheduleTitle: Scan-Zeitplan - {{name}}
   scanFrequency: Scan-Häufigkeit
-  selectFrequency: "-- Häufigkeit wählen --"
+  selectFrequency: -- Häufigkeit wählen --
   cronExpression: Cron-Ausdruck
   scheduleSaved: Zeitplan gespeichert
   failedSchedule: Zeitplan konnte nicht gespeichert werden
   scheduleRemoved: Zeitplan entfernt
   failedRemoveSchedule: Zeitplan konnte nicht entfernt werden
-  lastRun: "Letzter Lauf: {{date}}"
-  nextRun: "Nächster Lauf: {{date}}"
+  lastRun: 'Letzter Lauf: {{date}}'
+  nextRun: 'Nächster Lauf: {{date}}'
   presets:
     every6h: Alle 6 Stunden
     every12h: Alle 12 Stunden
     daily3am: Täglich (3 Uhr)
     weekly3am: Wöchentlich (Sonntag 3 Uhr)
-    customCron: "Benutzerdefinierter Cron..."
-  items: "{{count}} Elemente"
-  "off": Aus
+    customCron: Benutzerdefinierter Cron...
+  items: '{{count}} Elemente'
+  'off': Aus
   paths: Pfade
-  pathsHint: "(vollständigen Pfad im Container eingeben, z.B. /media/movies)"
-  selectDirectory: "— Verzeichnis auswählen —"
-  enterCustomPath: "Benutzerdefinierten Pfad eingeben..."
-  addPath: "+ Pfad hinzufügen"
+  pathsHint: (vollständigen Pfad im Container eingeben, z.B. /media/movies)
+  selectDirectory: — Verzeichnis auswählen —
+  enterCustomPath: Benutzerdefinierten Pfad eingeben...
+  addPath: + Pfad hinzufügen
   tvShows: TV-Serien
-  lastScan: "Letzter Scan"
-  namePlaceholder: "Bibliotheksname"
-  pathRequired: "Mindestens ein Pfad ist erforderlich"
-  realtimeMonitoring: "Echtzeit-Überwachung"
-  scanFailed: "Scan fehlgeschlagen"
-  scanOnStartup: "Beim Start scannen"
-
+  pathRequired: Mindestens ein Pfad ist erforderlich
 sessions:
   title: Aktuelle Wiedergabe
   failedLoad: Sitzungen konnten nicht geladen werden
   failedLoadDesc: Aktive Sitzungen konnten nicht abgerufen werden. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.
   noSessions: Keine aktiven Sitzungen
   noSessionsDesc: Wenn Benutzer mit dem Streaming beginnen, werden ihre Sitzungen hier angezeigt.
-  activeCount: "{{count}} aktive Sitzungen"
-  activeCount_one: "{{count}} aktive Sitzung"
-  activeCount_other: "{{count}} aktive Sitzungen"
+  activeCount: '{{count}} aktive Sitzungen'
+  activeCount_one: '{{count}} aktive Sitzung'
+  activeCount_other: '{{count}} aktive Sitzungen'
   stopSession: Sitzung beenden
   stop: Stoppen
   sessionStopped: Sitzung beendet
   failedStop: Sitzung konnte nicht beendet werden
-  elapsed: "vergangen"
-  video: "Video: {{codec}}"
-  audio: "Audio: {{codec}}"
+  elapsed: vergangen
+  video: 'Video: {{codec}}'
+  audio: 'Audio: {{codec}}'
   directPlay: Direktwiedergabe
   directStream: Direkter Stream
   transcode: Transkodierung
-  refreshStatus: "Aktualisiert {{time}} - automatische Aktualisierung alle {{seconds}}s"
+  refreshStatus: Aktualisiert {{time}} - automatische Aktualisierung alle {{seconds}}s
   sendMessage: Nachricht senden
   messageSent: Nachricht gesendet
   messagePlaceholder: Nachricht eingeben...
-
 backup:
   title: Sicherung & Wiederherstellung
   createBackup: Sicherung erstellen
@@ -300,15 +283,14 @@ backup:
     actions: Aktionen
   ready: Bereit
   restoreBackupTitle: Sicherung wiederherstellen
-  restoreConfirm: "Sicherung vom {{date}} wiederherstellen? Dies überschreibt die aktuellen Daten und kann nicht rückgängig gemacht werden."
+  restoreConfirm: Sicherung vom {{date}} wiederherstellen? Dies überschreibt die aktuellen Daten und kann nicht rückgängig gemacht werden.
   restoreCompleted: Wiederherstellung abgeschlossen
   restoreFailed: Wiederherstellung fehlgeschlagen
   deleteBackupTitle: Sicherung löschen
-  deleteConfirm: "Sicherung vom {{date}} löschen? Dies kann nicht rückgängig gemacht werden."
+  deleteConfirm: Sicherung vom {{date}} löschen? Dies kann nicht rückgängig gemacht werden.
   restoreFromFileTitle: Aus Datei wiederherstellen
   restoreFromFileDesc: Laden Sie eine .tar.gz-Sicherungsdatei hoch. Dies überschreibt vorhandene Daten.
   selectFileFirst: Bitte zuerst eine Sicherungsdatei auswählen
-
 webhooks:
   title: Webhooks
   createWebhook: Webhook erstellen
@@ -316,13 +298,12 @@ webhooks:
   webhookCreated: Webhook erstellt
   webhookUpdated: Webhook aktualisiert
   webhookDeleted: Webhook gelöscht
-  failedCreate: Webhook konnte nicht erstellt werden
   failedDelete: Webhook konnte nicht gelöscht werden
   failedUpdate: Webhook konnte nicht aktualisiert werden
   testPingSent: Test-Ping gesendet
   testPingFailed: Test-Ping fehlgeschlagen
   deleteTitle: Webhook löschen
-  deleteConfirm: "<strong>{{name}}</strong> löschen? Dies kann nicht rückgängig gemacht werden."
+  deleteConfirm: <strong>{{name}}</strong> löschen? Dies kann nicht rückgängig gemacht werden.
   noWebhooks: Keine Webhooks konfiguriert.
   tableHeaders:
     nameUrl: Name / URL
@@ -338,7 +319,6 @@ webhooks:
     allEvents: Alle Ereignisse
     enabled: Aktiviert
     createWebhook: Webhook erstellen
-
 analytics:
   title: Analysen
   failedLoad: Analysen konnten nicht geladen werden
@@ -356,7 +336,6 @@ analytics:
     user: Benutzer
     media: Medium
     when: Wann
-
 activity:
   title: Aktivität
   tabs:
@@ -369,7 +348,7 @@ activity:
     progress: Fortschritt
     started: Gestartet
   noPlayHistory: Kein Wiedergabeverlauf
-  totalEntries: "{{count}} Einträge insgesamt"
+  totalEntries: '{{count}} Einträge insgesamt'
   stats:
     totalPlays: Gesamtwiedergaben
     totalUsers: Benutzer gesamt
@@ -377,8 +356,7 @@ activity:
     bandwidth: Bandbreite
   popularMedia: Beliebte Medien
   mostActiveUsers: Aktivste Benutzer
-  plays: "{{count}} Wiedergaben"
-
+  plays: '{{count}} Wiedergaben'
 audit:
   title: Audit-Protokoll
   tableHeaders:
@@ -389,18 +367,17 @@ audit:
     details: Details
     ip: IP
   noEntries: Keine Einträge gefunden
-  entries: "{{count}} Einträge"
-
+  entries: '{{count}} Einträge'
 serverConfig:
   title: Serverkonfiguration
   subtitle: Schlüssel-Wert-Konfigurationseinträge in der Datenbank gespeichert.
   languageRegion: Sprache & Region
-  languageRegionDesc: "Server-Sprach- und Regionseinstellungen. Beeinflusst Standard-UI-Sprache, Standard-Klassifizierungsregion und Metadaten-Sprache."
-  serverLanguage: "Serversprache"
-  serverRegion: "Serverregion"
+  languageRegionDesc: Server-Sprach- und Regionseinstellungen. Beeinflusst Standard-UI-Sprache, Standard-Klassifizierungsregion und Metadaten-Sprache.
+  serverLanguage: Serversprache
+  serverRegion: Serverregion
   metadataLanguage: Metadatensprache
-  envDefault: "— Umgebungsstandard —"
-  languageUpdated: "Sprache aktualisiert - Server neu starten, um auf Metadaten anzuwenden"
+  envDefault: — Umgebungsstandard —
+  languageUpdated: Sprache aktualisiert - Server neu starten, um auf Metadaten anzuwenden
   configUpdated: Konfiguration aktualisiert
   failedUpdate: Konfiguration konnte nicht aktualisiert werden
   configDeleted: Konfigurationseintrag gelöscht
@@ -415,12 +392,12 @@ serverConfig:
   tlsMode: TLS-Modus
   saveSmtp: SMTP-Einstellungen speichern
   smtpSaved: SMTP-Einstellungen gespeichert
-  failedSmtp: "{{key}} konnte nicht gespeichert werden"
+  failedSmtp: '{{key}} konnte nicht gespeichert werden'
   trickplayTitle: Trickplay-Vorschaubilder
   trickplayDesc: Automatisch Zeitleisten-Vorschaubilder für Filme und Episoden generieren.
   trickplayEnabled: Trickplay-Vorschaubilder aktivieren
-  trickplayAdaptiveCpu: "Adaptive CPU"
-  trickplayAdaptiveCpuDesc: "Schonender Modus (~25% CPU). Deaktivieren für schnellere Generierung (~50% CPU)."
+  trickplayAdaptiveCpu: Adaptive CPU
+  trickplayAdaptiveCpuDesc: Schonender Modus (~25% CPU). Deaktivieren für schnellere Generierung (~50% CPU).
   tableHeaders:
     key: Schlüssel
     value: Wert
@@ -443,7 +420,6 @@ serverConfig:
     saved: API-Schlüssel gespeichert
     usingDefault: Verwendet Standardschlüssel
     usingCustom: Verwendet benutzerdefinierten Schlüssel
-
 remoteAccess:
   title: Fernzugriff
   enableRemoteAccess: Fernzugriff aktivieren
@@ -454,27 +430,25 @@ remoteAccess:
   networkInterfaces: Server-Netzwerkschnittstellen
   interface: Schnittstelle
   address: Adresse
-  usingDefault: "Standardwert wird verwendet"
-
+  usingDefault: Standardwert wird verwendet
 systemHealth:
   title: Systemzustand
-  autoRefresh: "Aktualisiert {{time}} · automatische Aktualisierung alle 5s"
+  autoRefresh: Aktualisiert {{time}} · automatische Aktualisierung alle 5s
   cpuUsage: CPU-Auslastung
   memoryUsage: Speicherauslastung
   storage: Speicherplatz
   activitySection: Aktivität
   server: Server
   serverInfo: Serverinformationen
-  used: "Belegt: {{size}}"
-  free: "Frei: {{size}}"
-  total: "Gesamt: {{size}}"
+  used: 'Belegt: {{size}}'
+  free: 'Frei: {{size}}'
+  total: 'Gesamt: {{size}}'
   activeStreams: Aktive Streams
   activeTranscodes: Aktive Transkodierungen
   totalMedia: Medien gesamt
   totalUsers: Benutzer gesamt
   hwAcceleration: HW-Beschleunigung
   serverId: Server-ID
-
 transcodeCache:
   title: Transkodierungs-Cache
   clearAll: Alle leeren
@@ -483,22 +457,20 @@ transcodeCache:
   cacheEmpty: Cache ist leer
   cacheCleared: Cache geleert
   failedClear: Cache konnte nicht geleert werden
-  deleted: "{{name}} gelöscht"
+  deleted: '{{name}} gelöscht'
   failedDeleteFile: Datei konnte nicht gelöscht werden
   clearConfirmTitle: Transkodierungs-Cache leeren
-  clearConfirm: "Alle {{count}} zwischengespeicherten Dateien ({{size}}) löschen? Dies kann nicht rückgängig gemacht werden."
+  clearConfirm: Alle {{count}} zwischengespeicherten Dateien ({{size}}) löschen? Dies kann nicht rückgängig gemacht werden.
   tableHeaders:
     file: Datei
     size: Größe
     modified: Geändert
-  hwAccelType: "HW-Beschleunigungstyp"
-  hwDecodeCodecs: "HW-Decodierungs-Codecs"
-  hwDevices: "HW-Geräte"
-  maxConcurrent: "Max. gleichzeitig"
-  settingsSaved: "Einstellungen gespeichert"
-  throttle: "Drosselung"
-  transcodingSettings: "Transkodierungs-Einstellungen"
-
+  hwAccelType: HW-Beschleunigungstyp
+  hwDecodeCodecs: HW-Decodierungs-Codecs
+  maxConcurrent: Max. gleichzeitig
+  settingsSaved: Einstellungen gespeichert
+  throttle: Drosselung
+  transcodingSettings: Transkodierungs-Einstellungen
 dashboardStats:
   movies: Filme
   series: Serien
@@ -516,7 +488,7 @@ dashboardStats:
   recentActivity: Letzte Aktivität
   viewAll: Alle anzeigen
   popularMedia: Beliebte Medien
-  viewers: "{{count}} Zuschauer"
+  viewers: '{{count}} Zuschauer'
   scanStarted: Scan gestartet
   scanFailed: Scan fehlgeschlagen
   allScansTriggered: Alle Bibliotheksscans ausgelöst
@@ -530,7 +502,6 @@ dashboardStats:
   used: Belegt
   free: Frei
   loginFailed: Anmeldung fehlgeschlagen
-
 serverSettings:
   title: Servereinstellungen
   serverName: Servername
@@ -539,5 +510,5 @@ serverSettings:
   loginRateLimit: Anmelde-Ratenlimit (Anf./Min.)
   globalRateLimit: Globales Ratenlimit (Anf./Min.)
   saved: Einstellungen gespeichert
-  usingDefault: "Standardwert:"
+  usingDefault: 'Standardwert:'
   reset: Auf Standard zurücksetzen

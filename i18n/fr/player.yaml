@@ -5,17 +5,16 @@ controls:
   unmute: Réactiver le son
   fullscreen: Plein écran
   exitFullscreen: Quitter le plein écran
-  pip: "Image dans l'image"
-  exitPip: "Quitter l'image dans l'image"
+  pip: Image dans l'image
+  exitPip: Quitter l'image dans l'image
   cast: Caster
   stopCast: Arrêter la diffusion
   noDevices: Aucun appareil trouvé
-  castingTo: Diffusion sur
   settings: Paramètres
   episodes: Épisodes
   chapters: Chapitres
-  rewind: "Reculer de {{seconds}}s"
-  forward: "Avancer de {{seconds}}s"
+  rewind: Reculer de {{seconds}}s
+  forward: Avancer de {{seconds}}s
   previousEpisode: Épisode précédent
   nextEpisode: Épisode suivant
   seek: Rechercher
@@ -28,8 +27,8 @@ settings:
   speed: Vitesse
   subtitleStyle: Style des sous-titres
   normal: Normal
-  uploadSubtitle: "Téléverser un sous-titre…"
-  "off": Désactivé
+  uploadSubtitle: Téléverser un sous-titre…
+  'off': Désactivé
   brightness: Luminosité
 subtitleStyle:
   size: Taille
@@ -60,39 +59,38 @@ fonts:
 quality:
   original: Original
 nextEpisodeOverlay:
-  upNext: "À suivre"
-  nextIn: "Suivant dans {{seconds}}s"
-  playNow: "Lire maintenant"
-  episode: "Épisode {{number}}"
-  nextEpisode: "Épisode suivant"
-skipIntro: "Passer l'intro"
-download: "Télécharger"
-watchTogether: "Regarder ensemble"
-buffering: "Mise en mémoire tampon…"
-playbackFailed: "Échec de la lecture"
-unableToPlayAnyQuality: "Impossible de lire à quelque qualité que ce soit"
-failedToStart: "Échec du lancement de la lecture"
-failedToLoadStream: "Échec du chargement du flux"
-retry: "Réessayer"
-goBack: "Retour"
-shareDesc: "Partagez ce lien avec vos amis pour regarder ensemble :"
-copyLink: "Copier le lien"
-close: "Fermer"
+  upNext: À suivre
+  nextIn: Suivant dans {{seconds}}s
+  playNow: Lire maintenant
+  episode: Épisode {{number}}
+  nextEpisode: Épisode suivant
+skipIntro: Passer l'intro
+download: Télécharger
+watchTogether: Regarder ensemble
+buffering: Mise en mémoire tampon…
+playbackFailed: Échec de la lecture
+unableToPlayAnyQuality: Impossible de lire à quelque qualité que ce soit
+failedToStart: Échec du lancement de la lecture
+retry: Réessayer
+goBack: Retour
+shareDesc: 'Partagez ce lien avec vos amis pour regarder ensemble :'
+copyLink: Copier le lien
+close: Fermer
 shortcuts:
-  title: "Raccourcis clavier"
-  playPause: "Lecture / Pause"
-  toggleFullscreen: "Basculer en plein écran"
-  toggleMute: "Couper/rétablir le son"
-  seekBack: "Reculer de {{seconds}}s"
-  seekForward: "Avancer de {{seconds}}s"
-  volumeUp: "Augmenter le volume"
-  volumeDown: "Baisser le volume"
-  seekPercent: "Aller à 0%–90%"
-  toggleCaptions: "Basculer les sous-titres"
-  decreaseSpeed: "Réduire la vitesse"
-  increaseSpeed: "Augmenter la vitesse"
-  pip: "Image dans l'image"
-  showShortcuts: "Afficher les raccourcis"
+  title: Raccourcis clavier
+  playPause: Lecture / Pause
+  toggleFullscreen: Basculer en plein écran
+  toggleMute: Couper/rétablir le son
+  seekBack: Reculer de {{seconds}}s
+  seekForward: Avancer de {{seconds}}s
+  volumeUp: Augmenter le volume
+  volumeDown: Baisser le volume
+  seekPercent: Aller à 0%–90%
+  toggleCaptions: Basculer les sous-titres
+  decreaseSpeed: Réduire la vitesse
+  increaseSpeed: Augmenter la vitesse
+  pip: Image dans l'image
+  showShortcuts: Afficher les raccourcis
 nowPlaying: Lecture en cours
 stop: Arrêter la lecture
 streamInfo:

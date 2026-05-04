@@ -10,12 +10,11 @@ controls:
   cast: Streamen
   stopCast: Streaming beenden
   noDevices: Keine Geräte gefunden
-  castingTo: "Streamt auf"
   settings: Einstellungen
   episodes: Folgen
   chapters: Kapitel
-  rewind: "{{seconds}}s zurückspulen"
-  forward: "{{seconds}}s vorspulen"
+  rewind: '{{seconds}}s zurückspulen'
+  forward: '{{seconds}}s vorspulen'
   previousEpisode: Vorherige Folge
   nextEpisode: Nächste Folge
   seek: Suchen
@@ -28,8 +27,8 @@ settings:
   speed: Geschwindigkeit
   subtitleStyle: Untertitel-Stil
   normal: Normal
-  uploadSubtitle: "Untertitel hochladen…"
-  "off": Aus
+  uploadSubtitle: Untertitel hochladen…
+  'off': Aus
   brightness: Helligkeit
 subtitleStyle:
   size: Größe
@@ -61,21 +60,20 @@ quality:
   original: Original
 nextEpisodeOverlay:
   upNext: Als Nächstes
-  nextIn: "Nächste in {{seconds}}s"
+  nextIn: Nächste in {{seconds}}s
   playNow: Jetzt abspielen
-  episode: "Folge {{number}}"
+  episode: Folge {{number}}
   nextEpisode: Nächste Folge
 skipIntro: Intro überspringen
 download: Herunterladen
 watchTogether: Zusammen schauen
-buffering: "Puffern…"
+buffering: Puffern…
 playbackFailed: Wiedergabe fehlgeschlagen
 unableToPlayAnyQuality: Wiedergabe in keiner Qualitätsstufe möglich
 failedToStart: Wiedergabe konnte nicht gestartet werden
-failedToLoadStream: Stream konnte nicht geladen werden
 retry: Erneut versuchen
 goBack: Zurück
-shareDesc: "Teilen Sie diesen Link mit Freunden, um zusammen zu schauen:"
+shareDesc: 'Teilen Sie diesen Link mit Freunden, um zusammen zu schauen:'
 copyLink: Link kopieren
 close: Schließen
 shortcuts:
@@ -83,11 +81,11 @@ shortcuts:
   playPause: Abspielen / Pause
   toggleFullscreen: Vollbild umschalten
   toggleMute: Stummschalten umschalten
-  seekBack: "{{seconds}}s zurückspulen"
-  seekForward: "{{seconds}}s vorspulen"
+  seekBack: '{{seconds}}s zurückspulen'
+  seekForward: '{{seconds}}s vorspulen'
   volumeUp: Lauter
   volumeDown: Leiser
-  seekPercent: "Zu 0%–90% springen"
+  seekPercent: Zu 0%–90% springen
   toggleCaptions: Untertitel umschalten
   decreaseSpeed: Geschwindigkeit verringern
   increaseSpeed: Geschwindigkeit erhöhen
