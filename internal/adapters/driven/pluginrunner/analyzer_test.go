@@ -1892,6 +1892,73 @@ fn("print(1)")
 	}
 }
 
+// TestAnalyze_BlockComment_EvalStripped verifies that a JS file whose only
+// dangerous payload (eval) is wrapped in a /* … */ block comment produces
+// zero findings — the block comment is stripped before analysis.
+func TestAnalyze_BlockComment_EvalStripped(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "plugin.js", `/* eval("rm -rf /") */ console.log("ok")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range report.Findings {
+		if f.Category == "obfuscation" || f.Category == "shell_exec" {
+			t.Errorf("eval inside block comment must produce no finding, got %s at line %d", f.Category, f.Line)
+		}
+	}
+}
+
+// TestAnalyze_BlockComment_MultilineStrippedLineNumbers verifies that a
+// finding on the line AFTER a multi-line block comment reports the correct
+// line number (block-comment newlines are preserved).
+func TestAnalyze_BlockComment_MultilineStrippedLineNumbers(t *testing.T) {
+	dir := t.TempDir()
+	// Line 1: /*
+	// Line 2: eval("rm -rf /")  ← inside comment, must NOT trigger
+	// Line 3: */
+	// Line 4: eval(userInput)   ← active code, MUST trigger on line 4
+	src := "/*\neval(\"rm -rf /\")\n*/\neval(userInput)"
+	writeFile(t, dir, "main.js", src)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "obfuscation" {
+			found = true
+			if f.Line != 4 {
+				t.Errorf("finding must be on line 4 (after block comment), got line %d", f.Line)
+			}
+		}
+	}
+	if !found {
+		t.Error("eval on line 4 (outside comment) must produce an obfuscation finding")
+	}
+}
+
+// TestAnalyze_BlockComment_PythonFileUnaffected verifies that Python files
+// (which do not use /* */ block comments) are not processed by stripBlockComments
+// and that a literal /* in a Python string does not break anything.
+func TestAnalyze_BlockComment_PythonFileUnaffected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "safe.py", `msg = "/* this is a python string */"`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// No dangerous payload → must be safe.
+	for _, f := range report.Findings {
+		if f.Severity == SeverityCritical {
+			t.Errorf("unexpected critical finding for safe Python file: %+v", f)
+		}
+	}
+}
+
 // TestAnalyzerV2_StoredConstructor: F = (fn).constructor; F("...").
 func TestAnalyzerV2_StoredConstructor(t *testing.T) {
 	dir := t.TempDir()

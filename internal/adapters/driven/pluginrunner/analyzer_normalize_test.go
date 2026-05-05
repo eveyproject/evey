@@ -678,6 +678,106 @@ func TestStripLineComments_BacktickPreserved(t *testing.T) {
 	}
 }
 
+// ─── stripBlockComments ──────────────────────────────────────────────────────
+
+// TestStripBlockComments_BasicStrip verifies that a simple /* … */ block is
+// replaced with spaces (preserving length) so downstream line numbers stay
+// accurate.
+func TestStripBlockComments_BasicStrip(t *testing.T) {
+	src := `before /* evil */ after`
+	got := stripBlockComments(src)
+	if strings.Contains(got, "evil") {
+		t.Errorf("block comment content must be stripped, got %q", got)
+	}
+	if !strings.Contains(got, "before") || !strings.Contains(got, "after") {
+		t.Errorf("surrounding code must be preserved, got %q", got)
+	}
+}
+
+// TestStripBlockComments_EvalStripped verifies that eval() inside a block
+// comment is not visible after stripping.
+func TestStripBlockComments_EvalStripped(t *testing.T) {
+	src := "/* eval(dangerousPayload) */\nconsole.log('ok')"
+	got := stripBlockComments(src)
+	if strings.Contains(got, "eval") {
+		t.Errorf("eval inside block comment must be stripped, got %q", got)
+	}
+	if !strings.Contains(got, "console.log") {
+		t.Errorf("code after block comment must be preserved, got %q", got)
+	}
+}
+
+// TestStripBlockComments_InsideStringPreserved verifies that /* inside a string
+// literal is not treated as an opening block comment.
+func TestStripBlockComments_InsideStringPreserved(t *testing.T) {
+	src := `url = "http://example.com/path/* not a comment */"`
+	got := stripBlockComments(src)
+	if got != src {
+		t.Errorf("/* inside string literal must not be stripped; got %q", got)
+	}
+}
+
+// TestStripBlockComments_SingleQuoteStringPreserved verifies single-quoted
+// strings with /* are not treated as comment openers.
+func TestStripBlockComments_SingleQuoteStringPreserved(t *testing.T) {
+	src := `msg = '/* this is a string */'`
+	got := stripBlockComments(src)
+	if got != src {
+		t.Errorf("/* inside single-quoted string must not be stripped; got %q", got)
+	}
+}
+
+// TestStripBlockComments_MultilinePreservesNewlines verifies that newlines
+// inside a block comment are kept so line numbers remain accurate.
+func TestStripBlockComments_MultilinePreservesNewlines(t *testing.T) {
+	src := "line1\n/* comment\nspanning\nthree lines */\nline5"
+	got := stripBlockComments(src)
+	lines := strings.Split(got, "\n")
+	if len(lines) != 5 {
+		t.Errorf("newlines inside block comment must be preserved; got %d lines: %q", len(lines), got)
+	}
+	if strings.Contains(got, "comment") || strings.Contains(got, "spanning") {
+		t.Errorf("comment content must be blanked, got %q", got)
+	}
+	if !strings.Contains(got, "line1") || !strings.Contains(got, "line5") {
+		t.Errorf("surrounding lines must survive, got %q", got)
+	}
+}
+
+// TestStripBlockComments_LineNumbersAccurate verifies that a finding on the
+// line after a multi-line block comment still reports the correct line number.
+// This is a unit-level check of the stripping output — the integration-level
+// check lives in analyzer_test.go.
+func TestStripBlockComments_LineNumbersAccurate(t *testing.T) {
+	// Line 1: comment opens
+	// Lines 2–3: inside comment (newlines preserved → still lines 2 and 3)
+	// Line 4: code that should be on line 4
+	src := "/* block\ncomment\n*/\nactual_code"
+	got := stripBlockComments(src)
+	lines := strings.Split(got, "\n")
+	if len(lines) != 4 {
+		t.Fatalf("expected 4 lines after strip, got %d: %q", len(lines), got)
+	}
+	if !strings.Contains(lines[3], "actual_code") {
+		t.Errorf("actual_code must be on line 4 (index 3), got %q", lines[3])
+	}
+}
+
+// TestStripBlockComments_OnlyFirstStarSlashCloses verifies that only the first
+// */ closes the comment — code on the next line is still active.
+func TestStripBlockComments_OnlyFirstStarSlashCloses(t *testing.T) {
+	// This looks like nested comments but Go/JS/C don't nest them.
+	// The first */ closes the comment opened by /*.
+	src := "/* outer /* inner */ code_after"
+	got := stripBlockComments(src)
+	if !strings.Contains(got, "code_after") {
+		t.Errorf("code after first closing */ must be preserved, got %q", got)
+	}
+	if strings.Contains(got, "outer") || strings.Contains(got, "inner") {
+		t.Errorf("comment body must be stripped, got %q", got)
+	}
+}
+
 // ─── stripTypedArrayConstructor ──────────────────────────────────────────────
 
 func TestStripTypedArrayConstructor_NewArrayConstructorRemoved(t *testing.T) {

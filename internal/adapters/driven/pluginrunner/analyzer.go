@@ -512,6 +512,14 @@ func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
 	// lines so that per-line rules can match patterns like $f = "system"; $f($x).
 	content := resolveSimpleAliases(string(raw))
 
+	// Strip /* … */ block comments for languages that use C-style block
+	// comments. This must happen at the full-file level (before splitting into
+	// lines) because block comments span multiple lines. Newlines inside
+	// comments are preserved so that line-number accounting remains correct.
+	if blockCommentExts[strings.ToLower(filepath.Ext(path))] {
+		content = stripBlockComments(content)
+	}
+
 	var findings []AnalysisFinding
 	var urls []ExtractedURL
 	seen := map[string]bool{}

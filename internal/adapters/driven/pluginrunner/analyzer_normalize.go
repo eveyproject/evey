@@ -750,12 +750,114 @@ func stripTypedArrayConstructor(line string) string {
 	return typedArrayConstructorRe.ReplaceAllString(line, "")
 }
 
+// blockCommentExts is the set of file extensions for which /* … */ block
+// comments are syntactically valid. stripBlockComments is only called for these
+// languages; Python/Ruby/Bash/Lua/Perl do not use C-style block comments.
+var blockCommentExts = map[string]bool{
+	".js":    true,
+	".jsx":   true,
+	".ts":    true,
+	".tsx":   true,
+	".mjs":   true,
+	".cjs":   true,
+	".go":    true,
+	".php":   true,
+	".phtml": true,
+	".java":  true,
+	".c":     true,
+	".cc":    true,
+	".cpp":   true,
+	".h":     true,
+	".hpp":   true,
+	".css":   true,
+}
+
+// stripBlockComments removes /* … */ regions from src, operating on the whole
+// file at once (block comments span lines). Characters inside a comment are
+// replaced with spaces so that subsequent line-number counting stays accurate;
+// newlines inside comments are preserved unchanged.
+//
+// String literals delimited by ", ', or ` are respected: a /* that appears
+// inside a string literal does not open a comment region. The walker uses the
+// same one-char escape lookback as stripLineComments.
+func stripBlockComments(src string) string {
+	out := []byte(src)
+	i := 0
+	n := len(src)
+	var inSingle, inDouble, inBacktick bool
+	for i < n {
+		c := src[i]
+		// Backslash escapes the next char when inside a string.
+		if (inSingle || inDouble || inBacktick) && c == '\\' && i+1 < n {
+			i += 2
+			continue
+		}
+		switch {
+		case inSingle:
+			if c == '\'' {
+				inSingle = false
+			}
+			i++
+		case inDouble:
+			if c == '"' {
+				inDouble = false
+			}
+			i++
+		case inBacktick:
+			if c == '`' {
+				inBacktick = false
+			}
+			i++
+		default:
+			switch c {
+			case '\'':
+				inSingle = true
+				i++
+			case '"':
+				inDouble = true
+				i++
+			case '`':
+				inBacktick = true
+				i++
+			case '/':
+				if i+1 < n && src[i+1] == '*' {
+					// Found the opening /*. Blank out everything until the
+					// matching */ (or end of file). Newlines are kept so that
+					// line numbers downstream remain correct.
+					j := i + 2
+					for j < n {
+						if src[j] == '*' && j+1 < n && src[j+1] == '/' {
+							// Blank the closing */ too.
+							out[j] = ' '
+							out[j+1] = ' '
+							j += 2
+							break
+						}
+						if src[j] != '\n' {
+							out[j] = ' '
+						}
+						j++
+					}
+					// Blank the opening /*
+					out[i] = ' '
+					out[i+1] = ' '
+					i = j
+				} else {
+					i++
+				}
+			default:
+				i++
+			}
+		}
+	}
+	return string(out)
+}
+
 // stripLineComments truncates the line at the first comment marker that lies
 // outside string literals. Recognised markers: `#` (Python/Ruby/Bash/PHP) and
 // `//` (JS/Go/PHP). Block comments (`/* ... */`) are not handled — they span
-// lines and are rare in plugin code; the cost of mis-handling them outweighs
-// the protection (block-comment payload still needs to be paired with active
-// code that survives the line-strip to be exploitable).
+// lines and must be stripped at the file level via stripBlockComments before
+// lines are split.
 //
 // The walker tracks single, double, and backtick strings with a one-char
 // escape lookback so e.g. `"http://x.com"` and `"can't"` survive intact.
