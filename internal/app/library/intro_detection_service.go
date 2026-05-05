@@ -863,6 +863,9 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 // the first studio-logo silence at 0s — that failure mode doesn't apply
 // here because we anchor on the pHash window position.
 func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, filePath string, windows []confirmedWindow) []confirmedWindow {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.refineWithPrecisionPass")
+	defer span.End()
+
 	if filePath == "" || len(windows) == 0 {
 		return windows
 	}
@@ -1308,6 +1311,9 @@ func allCandidatesGapTolerant(introHashes map[uint64]bool, targetHashes []uint64
 // — that guard handles the "fpcalc broken on this episode" edge case
 // without losing detection coverage.
 func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Context, item *domainlibrary.MediaItem, result *pHashResult, cfg introConfig) []confirmedWindow {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.confirmAudioCandidatesChromaprint")
+	defer span.End()
+
 	mediaID := string(item.ID)
 	if s.chromaprinter == nil || item.File == nil || item.File.Path == "" || len(result.siblings) == 0 {
 		return nil
@@ -1478,6 +1484,9 @@ func slidingChromaprint(target, reference []uint32) (offsetFrames int, similarit
 // them tightly. This is what distinguishes a real intro from a recurring
 // landscape/transition shot that happens to share visual hashes.
 func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item *domainlibrary.MediaItem, result *pHashResult, cfg introConfig) []confirmedWindow {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.confirmAudioCandidates")
+	defer span.End()
+
 	mediaID := string(item.ID)
 	if item.File == nil || item.File.Path == "" || len(result.siblings) == 0 {
 		slog.Debug("intro_detection.candidate_evaluated",
