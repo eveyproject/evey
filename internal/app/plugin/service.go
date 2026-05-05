@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const defaultPluginBaseDir = "/data/plugins"
@@ -35,6 +36,9 @@ func NewQueryService(
 }
 
 func (s *QueryService) ListPlugins(ctx context.Context) ([]*plugin.Plugin, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.ListPlugins")
+	defer span.End()
+
 	return s.plugins.List(ctx)
 }
 
@@ -44,6 +48,9 @@ type PluginConfigWithSchema struct {
 }
 
 func (s *QueryService) GetPluginConfig(ctx context.Context, id string) (*PluginConfigWithSchema, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.GetPluginConfig")
+	defer span.End()
+
 	p, err := s.plugins.GetByID(ctx, id)
 	if err != nil {
 		return nil, ErrPluginNotFound
@@ -55,5 +62,8 @@ func (s *QueryService) GetPluginConfig(ctx context.Context, id string) (*PluginC
 }
 
 func (s *QueryService) ListRuntimes(ctx context.Context) ([]*plugin.PluginRuntime, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.ListRuntimes")
+	defer span.End()
+
 	return s.runtimes.List(ctx)
 }

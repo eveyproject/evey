@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const (
@@ -43,6 +45,9 @@ func New(baseURL string) *Service {
 }
 
 func (s *Service) Discover(ctx context.Context) ([]Renderer, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.dlna.Discover")
+	defer span.End()
+
 	s.mu.RLock()
 	if time.Since(s.lastScan) < cacheTTL && len(s.renderers) > 0 {
 		r := make([]Renderer, len(s.renderers))
@@ -230,6 +235,9 @@ func (s *Service) findRenderer(rendererID string) (*Renderer, error) {
 }
 
 func (s *Service) Play(ctx context.Context, rendererID, mediaURL, title string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.dlna.Play")
+	defer span.End()
+
 	r, err := s.findRenderer(rendererID)
 	if err != nil {
 		return err
@@ -253,6 +261,9 @@ func (s *Service) Play(ctx context.Context, rendererID, mediaURL, title string) 
 }
 
 func (s *Service) Stop(ctx context.Context, rendererID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.dlna.Stop")
+	defer span.End()
+
 	r, err := s.findRenderer(rendererID)
 	if err != nil {
 		return err
@@ -266,6 +277,9 @@ func (s *Service) Stop(ctx context.Context, rendererID string) error {
 }
 
 func (s *Service) Pause(ctx context.Context, rendererID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.dlna.Pause")
+	defer span.End()
+
 	r, err := s.findRenderer(rendererID)
 	if err != nil {
 		return err

@@ -9,6 +9,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/subtitle"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type Service struct {
@@ -22,6 +23,9 @@ func NewService(repo subtitle.Repository, provider subtitle.Provider, media subt
 }
 
 func (s *Service) Search(ctx context.Context, mediaItemID, language string) ([]subtitle.SearchResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.subtitle.Search")
+	defer span.End()
+
 	item, err := s.media.GetMediaItem(ctx, mediaItemID)
 	if err != nil {
 		return nil, fmt.Errorf("get media item: %w", err)
@@ -31,6 +35,9 @@ func (s *Service) Search(ctx context.Context, mediaItemID, language string) ([]s
 }
 
 func (s *Service) Download(ctx context.Context, mediaItemID string, fileID int, language, format string) (*subtitle.SubtitleDownload, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.subtitle.Download")
+	defer span.End()
+
 	item, err := s.media.GetMediaItem(ctx, mediaItemID)
 	if err != nil {
 		return nil, fmt.Errorf("get media item: %w", err)
@@ -57,10 +64,16 @@ func (s *Service) Download(ctx context.Context, mediaItemID string, fileID int, 
 }
 
 func (s *Service) List(ctx context.Context, mediaItemID string) ([]*subtitle.SubtitleDownload, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.subtitle.List")
+	defer span.End()
+
 	return s.repo.GetByMediaItem(ctx, mediaItemID)
 }
 
 func (s *Service) Delete(ctx context.Context, subtitleID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.subtitle.Delete")
+	defer span.End()
+
 	return s.repo.Delete(ctx, subtitleID)
 }
 

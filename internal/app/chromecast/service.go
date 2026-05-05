@@ -11,6 +11,7 @@ import (
 	"github.com/vishen/go-chromecast/dns"
 
 	domaincast "github.com/evey-project/evey/internal/domain/chromecast"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const (
@@ -49,6 +50,9 @@ func NewWithPorts(discoverer domaincast.Discoverer, factory domaincast.SessionFa
 }
 
 func (s *Service) Discover(ctx context.Context) ([]Device, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.chromecast.Discover")
+	defer span.End()
+
 	s.mu.RLock()
 	if time.Since(s.lastScan) < cacheTTL && len(s.devices) > 0 {
 		d := make([]Device, len(s.devices))
@@ -105,7 +109,10 @@ func (s *Service) getOrConnect(device *Device) (domaincast.CastSession, error) {
 	return sess, nil
 }
 
-func (s *Service) Play(_ context.Context, uuid, mediaURL, title string, contentType string) error {
+func (s *Service) Play(ctx context.Context, uuid, mediaURL, title string, contentType string) error {
+	_, span := tracing.StartSpan(ctx, "app.chromecast.Play")
+	defer span.End()
+
 	_ = title
 	device, err := s.findDevice(uuid)
 	if err != nil {
@@ -128,7 +135,10 @@ func (s *Service) Play(_ context.Context, uuid, mediaURL, title string, contentT
 	return nil
 }
 
-func (s *Service) Pause(_ context.Context, uuid string) error {
+func (s *Service) Pause(ctx context.Context, uuid string) error {
+	_, span := tracing.StartSpan(ctx, "app.chromecast.Pause")
+	defer span.End()
+
 	device, err := s.findDevice(uuid)
 	if err != nil {
 		return err
@@ -140,7 +150,10 @@ func (s *Service) Pause(_ context.Context, uuid string) error {
 	return sess.Pause()
 }
 
-func (s *Service) Unpause(_ context.Context, uuid string) error {
+func (s *Service) Unpause(ctx context.Context, uuid string) error {
+	_, span := tracing.StartSpan(ctx, "app.chromecast.Unpause")
+	defer span.End()
+
 	device, err := s.findDevice(uuid)
 	if err != nil {
 		return err
@@ -152,7 +165,10 @@ func (s *Service) Unpause(_ context.Context, uuid string) error {
 	return sess.Unpause()
 }
 
-func (s *Service) Stop(_ context.Context, uuid string) error {
+func (s *Service) Stop(ctx context.Context, uuid string) error {
+	_, span := tracing.StartSpan(ctx, "app.chromecast.Stop")
+	defer span.End()
+
 	device, err := s.findDevice(uuid)
 	if err != nil {
 		return err
@@ -174,7 +190,10 @@ func (s *Service) Stop(_ context.Context, uuid string) error {
 	return nil
 }
 
-func (s *Service) Seek(_ context.Context, uuid string, positionSec int) error {
+func (s *Service) Seek(ctx context.Context, uuid string, positionSec int) error {
+	_, span := tracing.StartSpan(ctx, "app.chromecast.Seek")
+	defer span.End()
+
 	device, err := s.findDevice(uuid)
 	if err != nil {
 		return err
@@ -186,7 +205,10 @@ func (s *Service) Seek(_ context.Context, uuid string, positionSec int) error {
 	return sess.SeekToTime(float32(positionSec))
 }
 
-func (s *Service) SetVolume(_ context.Context, uuid string, level float32) error {
+func (s *Service) SetVolume(ctx context.Context, uuid string, level float32) error {
+	_, span := tracing.StartSpan(ctx, "app.chromecast.SetVolume")
+	defer span.End()
+
 	device, err := s.findDevice(uuid)
 	if err != nil {
 		return err
@@ -198,7 +220,10 @@ func (s *Service) SetVolume(_ context.Context, uuid string, level float32) error
 	return sess.SetVolume(level)
 }
 
-func (s *Service) Status(_ context.Context, uuid string) (map[string]any, error) {
+func (s *Service) Status(ctx context.Context, uuid string) (map[string]any, error) {
+	_, span := tracing.StartSpan(ctx, "app.chromecast.Status")
+	defer span.End()
+
 	device, err := s.findDevice(uuid)
 	if err != nil {
 		return nil, err
