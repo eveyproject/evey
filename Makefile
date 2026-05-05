@@ -1,7 +1,7 @@
 .PHONY: proto-gen plugin-sdk plugin-zips build test test-image test-shell lint clean \
 	migrate-up migrate-down setup dev dev-down dev-logs \
 	infra frontend-typecheck \
-	mobile-build mobile-install mobile
+	mobile-build mobile-install mobile mobile-go
 
 BINARY=evey
 DC=docker compose --env-file .env.dev
@@ -130,3 +130,12 @@ mobile-install: $(APK_PATH)
 	$(ADB) shell am start -n com.evey.app/.MainActivity
 
 mobile: mobile-build mobile-install
+
+# Lance l'app Evey via Metro (container evey-mobile) + Expo Go sur l'émulateur
+# courant. Pré-requis : `make dev` up + Expo Go installé sur l'émulateur.
+mobile-go:
+	adb reverse tcp:8081 tcp:8081
+	adb reverse tcp:9091 tcp:9091
+	adb shell am start -a android.intent.action.VIEW -d "exp://127.0.0.1:8081" host.exp.exponent
+	@echo ""
+	@echo "→ In the app, enter server URL: http://localhost:9091"

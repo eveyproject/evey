@@ -78,6 +78,32 @@ services:
       evey:
         condition: service_healthy
 
+  # Expo / Metro bundler for the mobile app. Runs in a container so the
+  # native binaries pnpm installs (lightningcss, etc.) match the runtime
+  # where Metro executes — avoids glibc/musl mismatch when Metro is run
+  # from WSL against a node_modules tree populated by an Alpine container.
+  mobile:
+    container_name: evey-mobile
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web.dev
+    user: "${UID:-1000}:${GID:-1000}"
+    ports:
+      - "${METRO_PORT:-8081}:8081"
+    environment:
+      EXPO_NO_TELEMETRY: "1"
+      # Override CI=true baked into Dockerfile.web.dev — Metro disables watch
+      # mode under CI=true, which kills HMR for live mobile development.
+      CI: "false"
+      REACT_NATIVE_PACKAGER_HOSTNAME: "${METRO_HOST:-localhost}"
+    volumes:
+      - ./frontend:/app
+      - ./gen:/gen:ro
+    command: ["sh", "-c", "CI=true pnpm install && pnpm --filter mobile exec expo start --port 8081"]
+    depends_on:
+      web:
+        condition: service_healthy
+
   # Dev Caddy with local TLS + HMR proxy (overrides prod caddy)
   caddy:
     image: caddy:2.9-alpine
