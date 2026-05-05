@@ -2,7 +2,8 @@ import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setU
 import { useAuthStore, useLocaleStore } from "@evey/store";
 import { router } from "expo-router";
 import { getServerUrl } from "./server-config";
-import { getRefreshToken, setRefreshToken, clearRefreshToken } from "./refresh-token";
+import { clearRefreshToken } from "./refresh-token";
+import { forceRefresh } from "./auth-refresh";
 
 export async function initFetcher() {
   const serverUrl = await getServerUrl();
@@ -19,19 +20,9 @@ export async function initFetcher() {
     router.replace("/login");
   });
 
-  setRefreshHandler(async () => {
-    const refreshToken = await getRefreshToken();
-    if (!refreshToken) return null;
-    const base = await getServerUrl();
-    if (!base) return null;
-    const res = await fetch(`${base}/api/v1/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Persistent-Session": "true" },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { accessToken: string; refreshToken?: string };
-    if (data.refreshToken) await setRefreshToken(data.refreshToken);
-    return { accessToken: data.accessToken };
-  });
+  // Route through forceRefresh so the bootstrap path, the AppState resume,
+  // and 401 retries all coalesce on a single /auth/refresh round-trip.
+  // Concurrent refreshes would trip server-side reuse detection and purge
+  // every session for the user.
+  setRefreshHandler(forceRefresh);
 }

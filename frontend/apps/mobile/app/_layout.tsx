@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
+import { AppState, StatusBar, View } from "react-native";
 import { Stack } from "expo-router";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
 import { setZustandStorage } from "@evey/store";
 import { queryClient } from "../src/lib/query-client";
-import { ThemeProvider } from "../src/providers/ThemeProvider";
+import { ThemeProvider, useTheme } from "../src/providers/ThemeProvider";
 import { ToastContainer } from "../src/components/ToastContainer";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl } from "../src/lib/server-config";
-import { initI18n } from "../src/i18n";
+import { applyServerLanguage, initI18n } from "../src/i18n";
 import { configureAudioSession } from "../src/lib/audio-session";
+import { refreshAccessTokenIfNeeded } from "../src/lib/auth-refresh";
 
 // Wire Zustand persist to expo-secure-store (must run before stores are accessed)
 setZustandStorage({
@@ -28,11 +30,24 @@ export default function RootLayout() {
       await configureAudioSession();
       await initFetcher();
       const serverUrl = await getServerUrl();
-      if (serverUrl) await initI18n(serverUrl);
+      if (serverUrl) {
+        await initI18n(serverUrl);
+        await applyServerLanguage(serverUrl);
+        // Silently refresh a stale access token on cold start so the user
+        // is not bounced to /login when the cached JWT has expired.
+        await refreshAccessTokenIfNeeded();
+      }
     }
     bootstrap()
       .catch((err) => console.error("bootstrap failed:", err))
       .finally(() => setReady(true));
+
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") {
+        void refreshAccessTokenIfNeeded();
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   if (!ready) return null;
@@ -42,11 +57,38 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
           <ThemeProvider>
-            <Stack screenOptions={{ headerShown: false }} />
+            <RootStack />
             <ToastContainer />
           </ThemeProvider>
         </SafeAreaProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );
+}
+
+// Edge-to-edge is enabled on Android (Expo SDK 55 default), so the system
+// status bar overlays the app surface. Native Stack headers in expo-router
+// don't auto-add the inset, so push the whole nav tree down by safeAreaTop
+// to keep headers below the status bar / camera notch.
+function RootStack() {
+  const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  return (
+    <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: theme.colors.bg }}>
+      <StatusBar barStyle={isLightBg(theme.colors.bg) ? "dark-content" : "light-content"} />
+      <Stack screenOptions={{ headerShown: false }} />
+    </View>
+  );
+}
+
+function isLightBg(hex: string): boolean {
+  const m = hex.match(/^#?([0-9a-f]{6})$/i);
+  if (!m) return false;
+  const v = parseInt(m[1], 16);
+  const r = (v >> 16) & 0xff;
+  const g = (v >> 8) & 0xff;
+  const b = v & 0xff;
+  // Perceived luminance (BT.601). Above ~140 is "light enough" that white
+  // status-bar icons would wash out.
+  return r * 0.299 + g * 0.587 + b * 0.114 > 140;
 }
