@@ -1,96 +1,98 @@
 controls:
-  play: चलाएं
-  pause: रोकें
-  mute: म्यूट
-  unmute: अनम्यूट
-  fullscreen: पूर्ण स्क्रीन
-  exitFullscreen: पूर्ण स्क्रीन बंद करें
-  pip: पिक्चर-इन-पिक्चर
-  exitPip: पिक्चर-इन-पिक्चर बंद करें
-  cast: कास्ट करें
-  stopCast: कास्ट बंद करें
-  noDevices: कोई डिवाइस नहीं मिला
-  settings: सेटिंग्स
-  episodes: एपिसोड
-  chapters: अध्याय
-  rewind: '{{seconds}} सेकंड पीछे'
-  forward: '{{seconds}} सेकंड आगे'
-  previousEpisode: पिछला एपिसोड
-  nextEpisode: अगला एपिसोड
-  seek: सीक
-  volume: ध्वनि
+  play: "चलाएं"
+  pause: "रोकें"
+  mute: "म्यूट"
+  unmute: "अनम्यूट"
+  fullscreen: "पूर्ण स्क्रीन"
+  exitFullscreen: "पूर्ण स्क्रीन बंद करें"
+  pip: "पिक्चर-इन-पिक्चर"
+  exitPip: "पिक्चर-इन-पिक्चर बंद करें"
+  cast: "कास्ट करें"
+  stopCast: "कास्ट बंद करें"
+  noDevices: "कोई डिवाइस नहीं मिला"
+  castingTo: "कास्ट कर रहे हैं"
+  settings: "सेटिंग्स"
+  episodes: "एपिसोड"
+  chapters: "अध्याय"
+  rewind: "{{seconds}} सेकंड पीछे"
+  forward: "{{seconds}} सेकंड आगे"
+  previousEpisode: "पिछला एपिसोड"
+  nextEpisode: "अगला एपिसोड"
+  seek: "सीक"
+  volume: "ध्वनि"
 settings:
-  quality: गुणवत्ता
-  auto: स्वचालित
-  audio: ऑडियो
-  subtitles: उपशीर्षक
-  speed: गति
-  subtitleStyle: उपशीर्षक शैली
-  normal: सामान्य
-  uploadSubtitle: उपशीर्षक अपलोड करें…
-  'off': बंद
-  brightness: चमक
+  quality: "गुणवत्ता"
+  auto: "स्वचालित"
+  audio: "ऑडियो"
+  subtitles: "उपशीर्षक"
+  speed: "गति"
+  subtitleStyle: "उपशीर्षक शैली"
+  normal: "सामान्य"
+  uploadSubtitle: "उपशीर्षक अपलोड करें…"
+  "off": "बंद"
+  brightness: "चमक"
 subtitleStyle:
-  size: आकार
-  textColor: टेक्स्ट रंग
-  background: पृष्ठभूमि
-  font: फ़ॉन्ट
-  position: स्थिति
-  top: शीर्ष
-  bottom: नीचे
-  textShadow: टेक्स्ट शैडो
+  size: "आकार"
+  textColor: "टेक्स्ट रंग"
+  background: "पृष्ठभूमि"
+  font: "फ़ॉन्ट"
+  position: "स्थिति"
+  top: "शीर्ष"
+  bottom: "नीचे"
+  textShadow: "टेक्स्ट शैडो"
 colors:
-  white: सफेद
-  yellow: पीला
-  green: हरा
-  cyan: सायन
-  orange: नारंगी
+  white: "सफेद"
+  yellow: "पीला"
+  green: "हरा"
+  cyan: "सायन"
+  orange: "नारंगी"
 bgColors:
-  black: काला
-  darkGrey: गहरा सलेटी
-  navy: नेवी
-  none: कोई नहीं
+  black: "काला"
+  darkGrey: "गहरा सलेटी"
+  navy: "नेवी"
+  none: "कोई नहीं"
 fonts:
-  default: डिफॉल्ट
-  sansSerif: सैन्स-सेरिफ
-  serif: सेरिफ
-  monospace: मोनोस्पेस
-  comicSans: Comic Sans
+  default: "डिफॉल्ट"
+  sansSerif: "सैन्स-सेरिफ"
+  serif: "सेरिफ"
+  monospace: "मोनोस्पेस"
+  comicSans: "Comic Sans"
 quality:
-  original: मूल
+  original: "मूल"
 nextEpisodeOverlay:
-  upNext: आगे आ रहा है
-  nextIn: '{{seconds}} सेकंड में अगला'
-  playNow: अभी चलाएं
-  episode: एपिसोड {{number}}
-  nextEpisode: अगला एपिसोड
-skipIntro: इंट्रो छोड़ें
-download: डाउनलोड
-watchTogether: साथ में देखें
-buffering: बफरिंग…
-playbackFailed: प्लेबैक विफल
-unableToPlayAnyQuality: किसी भी गुणवत्ता स्तर पर चलाने में असमर्थ
-failedToStart: प्लेबैक शुरू करने में विफल
-retry: पुनः प्रयास करें
-goBack: वापस जाएं
-shareDesc: 'साथ में देखने के लिए यह लिंक दोस्तों को भेजें:'
-copyLink: लिंक कॉपी करें
-close: बंद करें
+  upNext: "आगे आ रहा है"
+  nextIn: "{{seconds}} सेकंड में अगला"
+  playNow: "अभी चलाएं"
+  episode: "एपिसोड {{number}}"
+  nextEpisode: "अगला एपिसोड"
+skipIntro: "इंट्रो छोड़ें"
+download: "डाउनलोड"
+watchTogether: "साथ में देखें"
+buffering: "बफरिंग…"
+playbackFailed: "प्लेबैक विफल"
+unableToPlayAnyQuality: "किसी भी गुणवत्ता स्तर पर चलाने में असमर्थ"
+failedToStart: "प्लेबैक शुरू करने में विफल"
+failedToLoadStream: "स्ट्रीम लोड करने में विफल"
+retry: "पुनः प्रयास करें"
+goBack: "वापस जाएं"
+shareDesc: "साथ में देखने के लिए यह लिंक दोस्तों को भेजें:"
+copyLink: "लिंक कॉपी करें"
+close: "बंद करें"
 shortcuts:
-  title: कीबोर्ड शॉर्टकट
-  playPause: चलाएं / रोकें
-  toggleFullscreen: पूर्ण स्क्रीन टॉगल करें
-  toggleMute: म्यूट टॉगल करें
-  seekBack: '{{seconds}} सेकंड पीछे जाएं'
-  seekForward: '{{seconds}} सेकंड आगे जाएं'
-  volumeUp: ध्वनि बढ़ाएं
-  volumeDown: ध्वनि घटाएं
-  seekPercent: 0%–90% पर जाएं
-  toggleCaptions: उपशीर्षक टॉगल करें
-  decreaseSpeed: गति घटाएं
-  increaseSpeed: गति बढ़ाएं
-  pip: पिक्चर-इन-पिक्चर
-  showShortcuts: शॉर्टकट दिखाएं
+  title: "कीबोर्ड शॉर्टकट"
+  playPause: "चलाएं / रोकें"
+  toggleFullscreen: "पूर्ण स्क्रीन टॉगल करें"
+  toggleMute: "म्यूट टॉगल करें"
+  seekBack: "{{seconds}} सेकंड पीछे जाएं"
+  seekForward: "{{seconds}} सेकंड आगे जाएं"
+  volumeUp: "ध्वनि बढ़ाएं"
+  volumeDown: "ध्वनि घटाएं"
+  seekPercent: "0%–90% पर जाएं"
+  toggleCaptions: "उपशीर्षक टॉगल करें"
+  decreaseSpeed: "गति घटाएं"
+  increaseSpeed: "गति बढ़ाएं"
+  pip: "पिक्चर-इन-पिक्चर"
+  showShortcuts: "शॉर्टकट दिखाएं"
 nowPlaying: अभी चल रहा है
 stop: प्लेबैक रोकें
 streamInfo:

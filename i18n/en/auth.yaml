@@ -2,11 +2,11 @@ setup:
   welcome: Welcome to Evey
   description: Let's set up your media server. It only takes a minute.
   getStarted: Get Started
-  languageTitle: Choose your server language
-  languageHint: This becomes the default language for new profiles and metadata lookups. You can change it later from the admin panel.
-  stepOf: Step {{current}} of {{total}} - {{name}}
+  languageTitle: "Choose your server language"
+  languageHint: "This becomes the default language for new profiles and metadata lookups. You can change it later from the admin panel."
+  stepOf: "Step {{current}} of {{total}} - {{name}}"
   steps:
-    language: Language
+    language: "Language"
     welcome: Welcome
     admin: Admin account
     library: First library
@@ -28,7 +28,7 @@ setup:
     shows: Shows
     music: Music
     photos: Photos
-signingIn: Signing in…
+signingIn: "Signing in…"
 login:
   signIn: Sign in
   signInToAccount: Sign in to your account
@@ -37,6 +37,7 @@ login:
   invalidCredentials: Invalid username or password
   passwordTooShort: Password must be at least 8 characters
   loginFailed: Login failed. Please try again.
+  recommendedForTV: Recommended for TV
   ssoFailed: SSO sign-in failed. Please try again.
   or: or
   signInWithSSO: Sign in with SSO
@@ -67,9 +68,9 @@ resetPassword:
 register:
   createAccount: Create Account
   createAccountBtn: Create account
-  invitedMessage: You've been invited! Fill in your details below.
+  invitedMessage: "You've been invited! Fill in your details below."
   signUpWithInvite: Sign up with an invite code
-  inviteCodeLabel: 'Invite code:'
+  inviteCodeLabel: "Invite code:"
   username: Username
   email: Email
   password: Password
@@ -81,6 +82,7 @@ register:
   alreadyHaveAccount: Already have an account?
   signIn: Sign in
 profile:
+  edit: Edit
   username: Username
   email: Email
   save: Save
@@ -101,14 +103,14 @@ profile:
     kidsBadge: Kids
     manage: Manage Profiles
     pinPromptTitle: Enter PIN
-    pinPromptBody: Enter the PIN for "{{name}}" to continue.
+    pinPromptBody: "Enter the PIN for \"{{name}}\" to continue."
     pinInvalid: PIN must be 4 digits
     pinWrong: Incorrect PIN
   manage:
     title: Manage Profiles
-    description: Add, edit, or remove profiles. The default profile cannot be deleted.
+    description: "Add, edit, or remove profiles. The default profile cannot be deleted."
     createProfile: Create Profile
-    deleteConfirm: Delete profile "{{name}}"? This cannot be undone.
+    deleteConfirm: "Delete profile \"{{name}}\"? This cannot be undone."
     defaultProfileBadge: Default
     kidsBadge: Kids
     cannotDeleteDefault: Default profile cannot be deleted.
@@ -116,9 +118,9 @@ profile:
     name: Name
     nameRequired: Name is required
     isKids: Kids profile
-    isKidsHelp: Marks this profile as a kids profile (enables PIN gate on switch). Age restrictions are configured per profile under parental controls.
+    isKidsHelp: "Marks this profile as a kids profile (enables PIN gate on switch). Age restrictions are configured per profile under parental controls."
     pin: PIN (4 digits)
-    pinRequired: A PIN is required because a kids profile exists.
+    pinRequired: "A PIN is required because a kids profile exists."
     pinKeep: Leave blank to keep current PIN.
     locale: Language
     region: Region
@@ -126,11 +128,40 @@ settings:
   title: Settings
   tabs:
     appearance: Appearance
+    playback: Playback
     profiles: Profiles
     notifications: Notifications
+    account: Account
     parental: Parental
     devices: Devices
+    security: Security
     quickConnect: Quick Connect
+  playback:
+    bitrateTitle: Max Streaming Bitrate
+    bitrateDesc: Limit the maximum bitrate when streaming. Lower values use less bandwidth.
+    cellularBitrateTitle: Max Cellular Bitrate
+    cellularBitrateDesc: Lower cap applied when using mobile data.
+    subtitleLanguage: Default Subtitle Language
+    audioLanguage: Default Audio Language
+    preferredVideoCodec: Preferred Video Codec
+    preferredAudioCodec: Preferred Audio Codec
+    maxAudioChannels: Max Audio Channels
+    codecAuto: Auto
+    channelsStereo: Stereo (2.0)
+    channels51: Surround (5.1)
+    channels71: Surround (7.1)
+    subtitleBurnIn: Subtitle Burn-in
+    subtitleBurnInDesc: Burn subtitles directly into the video stream when needed.
+    subtitleBurnAuto: Auto
+    subtitleBurnAlways: Always burn in
+    subtitleBurnNever: Never burn in
+    transcodeTitle: Transcoding
+    allowDirectPlay: Allow direct play
+    allowDirectPlayDesc: Play original file when device supports it.
+    allowDirectStream: Allow direct stream
+    allowDirectStreamDesc: Remux container without re-encoding when possible.
+    allowTranscoding: Allow transcoding
+    allowTranscodingDesc: Fall back to transcoding if direct play/stream is unavailable.
   quickConnect:
     title: Quick Connect
     description: Enter the code displayed on the device you want to sign in to.
@@ -138,17 +169,27 @@ settings:
     authorize: Authorize Device
     authorized: Device authorized successfully
     invalidCode: Invalid or expired code
+    scanQr: Scan QR Code
+    scanHint: Point the camera at a Quick Connect QR code
+    cameraPermission: Camera access is needed to scan Quick Connect QR codes.
+    grantPermission: Grant Camera Access
     scanLabel: Quick Connect
     scanInstruction: Scan with a logged-in device to sign in
-    expiresIn: Expires in {{seconds}}s
+    expiresIn: "Expires in {{seconds}}s"
   account:
+    changePassword: Change Password
     changePasswordDesc: Use a strong password with at least 8 characters.
     newPassword: New password
     confirmPassword: Confirm password
     passwordMismatch: Passwords do not match
     passwordMin: Password must be at least 8 characters
+    profileUpdated: Profile updated
   parental:
     title: Parental Controls
+    enable: Enable parental controls
+    enableDesc: Filter content by rating
+    maxAge: "Max age"
+    noRestriction: "No restriction"
     noProfile: No profile found.
     failedToUpdate: Failed to update
     pin:
@@ -157,7 +198,7 @@ settings:
       newPin: New PIN
       confirmPin: Confirm PIN
       savePin: Save PIN
-      saved: PIN saved
+      saved: "PIN saved"
       mustBe4: PIN must be 4 digits
       mismatch: PINs do not match
       passwordReauth: Account password
@@ -167,31 +208,33 @@ apiKeys:
   description: Create API keys for external integrations.
   newKeyTitle: New API Key
   name: Name
-  namePlaceholder: My integration
+  namePlaceholder: "My integration"
   nameRequired: Name is required
   key: Key
   scopes: Scopes
   scopesAll: All (legacy)
-  scopesHint: Leave empty to grant full access (legacy). Select specific scopes to restrict.
+  scopesHint: "Leave empty to grant full access (legacy). Select specific scopes to restrict."
   scopeLabels:
-    media:read: Read media metadata
-    media:write: Modify media and trigger scans
-    admin:read: Read admin activity and stats
-    admin:write: Modify admin settings
-    users:read: Read users
-    users:write: Modify users
-    playback:read: Read playback state and history
-    playback:write: Control playback and progress
+    "media:read": Read media metadata
+    "media:write": Modify media and trigger scans
+    "admin:read": Read admin activity and stats
+    "admin:write": Modify admin settings
+    "users:read": Read users
+    "users:write": Modify users
+    "playback:read": Read playback state and history
+    "playback:write": Control playback and progress
   lastUsed: Last Used
   created: Created
   keyCreatedTitle: API Key Created
   saveWarning: Save this key now - it won't be shown again.
   noKeys: No API keys yet
+  keyCreated: API key created
   createError: Failed to create API key
   revokeTitle: Revoke API Key
   revokeConfirm: Revoke this API key? It will stop working immediately.
   keyRevoked: API key revoked
   revokeError: Failed to revoke API key
+  revoke: Revoke
 devices:
   title: Devices
   description: Manage push notification devices.
@@ -226,7 +269,7 @@ watchHistory:
   yesterday: Yesterday
   thisWeek: This Week
   thisMonth: This Month
-  plays: '{{count}} plays'
+  plays: "{{count}} plays"
   watched: Watched
   noHistory: No watch history
   noHistoryDesc: Start watching something to see your history here.
@@ -234,4 +277,5 @@ watchHistory:
   clearTitle: Clear Watch History
   clearConfirm: This will permanently delete all your watch history. This action cannot be undone.
   clearAll: Clear all
+  title: Watch history
   openMedia: Open media details

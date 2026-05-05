@@ -10,11 +10,12 @@ controls:
   cast: Cast
   stopCast: Stop casting
   noDevices: No devices found
+  castingTo: Casting to
   settings: Settings
   episodes: Episodes
   chapters: Chapters
-  rewind: Rewind {{seconds}}s
-  forward: Forward {{seconds}}s
+  rewind: "Rewind {{seconds}}s"
+  forward: "Forward {{seconds}}s"
   previousEpisode: Previous episode
   nextEpisode: Next episode
   seek: Seek
@@ -27,8 +28,8 @@ settings:
   speed: Speed
   subtitleStyle: Subtitle Style
   normal: Normal
-  uploadSubtitle: Upload subtitle…
-  'off': 'Off'
+  uploadSubtitle: "Upload subtitle…"
+  "off": "Off"
   brightness: Brightness
 subtitleStyle:
   size: Size
@@ -60,20 +61,21 @@ quality:
   original: Original
 nextEpisodeOverlay:
   upNext: Up Next
-  nextIn: Next in {{seconds}}s
+  nextIn: "Next in {{seconds}}s"
   playNow: Play Now
-  episode: Episode {{number}}
+  episode: "Episode {{number}}"
   nextEpisode: Next Episode
 skipIntro: Skip Intro
 download: Download
 watchTogether: Watch Together
-buffering: Buffering…
+buffering: "Buffering…"
 playbackFailed: Playback failed
 unableToPlayAnyQuality: Unable to play at any quality level
 failedToStart: Failed to start playback
+failedToLoadStream: Failed to load stream
 retry: Retry
 goBack: Go back
-shareDesc: 'Share this link with friends to watch together:'
+shareDesc: "Share this link with friends to watch together:"
 copyLink: Copy link
 close: Close
 shortcuts:
@@ -81,11 +83,11 @@ shortcuts:
   playPause: Play / Pause
   toggleFullscreen: Toggle fullscreen
   toggleMute: Toggle mute
-  seekBack: Seek back {{seconds}}s
-  seekForward: Seek forward {{seconds}}s
+  seekBack: "Seek back {{seconds}}s"
+  seekForward: "Seek forward {{seconds}}s"
   volumeUp: Volume up
   volumeDown: Volume down
-  seekPercent: Seek to 0%–90%
+  seekPercent: "Seek to 0%–90%"
   toggleCaptions: Toggle captions
   decreaseSpeed: Decrease speed
   increaseSpeed: Increase speed

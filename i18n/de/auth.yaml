@@ -2,11 +2,11 @@ setup:
   welcome: Willkommen bei Evey
   description: Richten wir Ihren Medienserver ein. Es dauert nur eine Minute.
   getStarted: Loslegen
-  languageTitle: Wählen Sie die Serversprache
-  languageHint: Dies wird die Standardsprache für neue Profile und Metadatensuchen. Später im Admin-Panel änderbar.
-  stepOf: Schritt {{current}} von {{total}} - {{name}}
+  languageTitle: "Wählen Sie die Serversprache"
+  languageHint: "Dies wird die Standardsprache für neue Profile und Metadatensuchen. Später im Admin-Panel änderbar."
+  stepOf: "Schritt {{current}} von {{total}} - {{name}}"
   steps:
-    language: Sprache
+    language: "Sprache"
     welcome: Willkommen
     admin: Admin-Konto
     library: Erste Bibliothek
@@ -28,7 +28,7 @@ setup:
     shows: Serien
     music: Musik
     photos: Fotos
-signingIn: Anmeldung läuft…
+signingIn: "Anmeldung läuft…"
 login:
   signIn: Anmelden
   signInToAccount: Bei Ihrem Konto anmelden
@@ -37,6 +37,7 @@ login:
   invalidCredentials: Ungültiger Benutzername oder Passwort
   passwordTooShort: Passwort muss mindestens 8 Zeichen lang sein
   loginFailed: Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.
+  recommendedForTV: Empfohlen für TV
   ssoFailed: SSO-Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.
   or: oder
   signInWithSSO: Mit SSO anmelden
@@ -67,9 +68,9 @@ resetPassword:
 register:
   createAccount: Konto erstellen
   createAccountBtn: Konto erstellen
-  invitedMessage: Sie wurden eingeladen! Füllen Sie Ihre Daten unten aus.
+  invitedMessage: "Sie wurden eingeladen! Füllen Sie Ihre Daten unten aus."
   signUpWithInvite: Mit Einladungscode registrieren
-  inviteCodeLabel: 'Einladungscode:'
+  inviteCodeLabel: "Einladungscode:"
   username: Benutzername
   email: E-Mail
   password: Passwort
@@ -81,56 +82,86 @@ register:
   alreadyHaveAccount: Bereits ein Konto?
   signIn: Anmelden
 profile:
+  edit: Bearbeiten
   username: Benutzername
   email: E-Mail
   save: Speichern
   cancel: Abbrechen
   profileUpdated: Profil aktualisiert
   failedToUpdate: Profil konnte nicht aktualisiert werden
-  changeAvatar: Avatar ändern
-  avatarUpdated: Avatar aktualisiert
-  avatarFailed: Avatar konnte nicht aktualisiert werden
-  created: Profil erstellt
-  updated: Profil aktualisiert
-  deleted: Profil gelöscht
-  editProfile: Profil bearbeiten
-  switchFailed: Profil konnte nicht gewechselt werden
+  changeAvatar: "Avatar ändern"
+  avatarUpdated: "Avatar aktualisiert"
+  avatarFailed: "Avatar konnte nicht aktualisiert werden"
+  created: "Profil erstellt"
+  updated: "Profil aktualisiert"
+  deleted: "Profil gelöscht"
+  editProfile: "Profil bearbeiten"
+  switchFailed: "Profil konnte nicht gewechselt werden"
   select:
-    title: Wer schaut zu?
-    description: Wähle ein Profil aus, um fortzufahren.
-    kidsBadge: Kind
-    manage: Profile verwalten
-    pinPromptTitle: PIN eingeben
-    pinPromptBody: PIN für "{{name}}" eingeben, um fortzufahren.
-    pinInvalid: Die PIN muss 4 Ziffern enthalten
-    pinWrong: Falsche PIN
+    title: "Wer schaut zu?"
+    description: "Wähle ein Profil aus, um fortzufahren."
+    kidsBadge: "Kind"
+    manage: "Profile verwalten"
+    pinPromptTitle: "PIN eingeben"
+    pinPromptBody: "PIN für \"{{name}}\" eingeben, um fortzufahren."
+    pinInvalid: "Die PIN muss 4 Ziffern enthalten"
+    pinWrong: "Falsche PIN"
   manage:
-    title: Profile verwalten
-    description: Profile hinzufügen, bearbeiten oder entfernen. Das Standardprofil kann nicht gelöscht werden.
-    createProfile: Profil erstellen
-    deleteConfirm: Profil "{{name}}" löschen? Dies kann nicht rückgängig gemacht werden.
-    defaultProfileBadge: Standard
-    kidsBadge: Kind
-    cannotDeleteDefault: Das Standardprofil kann nicht gelöscht werden.
+    title: "Profile verwalten"
+    description: "Profile hinzufügen, bearbeiten oder entfernen. Das Standardprofil kann nicht gelöscht werden."
+    createProfile: "Profil erstellen"
+    deleteConfirm: "Profil \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
+    defaultProfileBadge: "Standard"
+    kidsBadge: "Kind"
+    cannotDeleteDefault: "Das Standardprofil kann nicht gelöscht werden."
   fields:
-    name: Name
-    nameRequired: Name ist erforderlich
-    isKids: Kinderprofil
-    isKidsHelp: Markiert dieses Profil als Kinderprofil (aktiviert PIN-Abfrage beim Wechsel). Altersbeschränkungen werden über die Kindersicherung konfiguriert.
-    pin: PIN (4 Ziffern)
-    pinRequired: Eine PIN ist erforderlich, da ein Kinderprofil existiert.
-    pinKeep: Leer lassen, um die aktuelle PIN beizubehalten.
-    locale: Sprache
-    region: Region
+    name: "Name"
+    nameRequired: "Name ist erforderlich"
+    isKids: "Kinderprofil"
+    isKidsHelp: "Markiert dieses Profil als Kinderprofil (aktiviert PIN-Abfrage beim Wechsel). Altersbeschränkungen werden über die Kindersicherung konfiguriert."
+    pin: "PIN (4 Ziffern)"
+    pinRequired: "Eine PIN ist erforderlich, da ein Kinderprofil existiert."
+    pinKeep: "Leer lassen, um die aktuelle PIN beizubehalten."
+    locale: "Sprache"
+    region: "Region"
 settings:
   title: Einstellungen
   tabs:
     appearance: Darstellung
+    playback: Wiedergabe
     profiles: Profile
     notifications: Benachrichtigungen
+    account: Konto
     parental: Kindersicherung
     devices: Geräte
+    security: Sicherheit
     quickConnect: Schnellverbindung
+  playback:
+    bitrateTitle: Maximale Streaming-Bitrate
+    bitrateDesc: Maximale Bitrate beim Streaming begrenzen. Niedrigere Werte verbrauchen weniger Bandbreite.
+    cellularBitrateTitle: Maximale Mobilfunk-Bitrate
+    cellularBitrateDesc: Niedrigere Obergrenze bei Nutzung mobiler Daten.
+    subtitleLanguage: Standard-Untertitelsprache
+    audioLanguage: Standard-Audiosprache
+    preferredVideoCodec: Bevorzugter Video-Codec
+    preferredAudioCodec: Bevorzugter Audio-Codec
+    maxAudioChannels: Maximale Audio-Kanäle
+    codecAuto: Auto
+    channelsStereo: Stereo (2.0)
+    channels51: Surround (5.1)
+    channels71: Surround (7.1)
+    subtitleBurnIn: Untertitel einbrennen
+    subtitleBurnInDesc: Untertitel bei Bedarf direkt in den Videostream einbrennen.
+    subtitleBurnAuto: Auto
+    subtitleBurnAlways: Immer einbrennen
+    subtitleBurnNever: Nie einbrennen
+    transcodeTitle: Transkodierung
+    allowDirectPlay: Direktwiedergabe erlauben
+    allowDirectPlayDesc: Originaldatei abspielen, wenn das Gerät sie unterstützt.
+    allowDirectStream: Direkt-Stream erlauben
+    allowDirectStreamDesc: Container ohne Neukodierung remuxen, wenn möglich.
+    allowTranscoding: Transkodierung erlauben
+    allowTranscodingDesc: Auf Transkodierung zurückfallen, wenn Direktwiedergabe/-Stream nicht verfügbar ist.
   quickConnect:
     title: Schnellverbindung
     description: Geben Sie den Code ein, der auf dem Gerät angezeigt wird, das Sie anmelden möchten.
@@ -138,17 +169,27 @@ settings:
     authorize: Gerät autorisieren
     authorized: Gerät erfolgreich autorisiert
     invalidCode: Ungültiger oder abgelaufener Code
+    scanQr: QR-Code scannen
+    scanHint: Kamera auf einen Quick-Connect-QR-Code richten
+    cameraPermission: Kamerazugriff wird benötigt, um Quick-Connect-QR-Codes zu scannen.
+    grantPermission: Kamerazugriff erlauben
     scanLabel: Schnellverbindung
     scanInstruction: Scannen Sie mit einem angemeldeten Gerät, um sich anzumelden
-    expiresIn: Läuft ab in {{seconds}}s
+    expiresIn: "Läuft ab in {{seconds}}s"
   account:
+    changePassword: Passwort ändern
     changePasswordDesc: Verwenden Sie ein starkes Passwort mit mindestens 8 Zeichen.
     newPassword: Neues Passwort
     confirmPassword: Passwort bestätigen
     passwordMismatch: Passwörter stimmen nicht überein
     passwordMin: Passwort muss mindestens 8 Zeichen lang sein
+    profileUpdated: Profil aktualisiert
   parental:
     title: Kindersicherung
+    enable: Kindersicherung aktivieren
+    enableDesc: Inhalte nach Altersfreigabe filtern
+    maxAge: "Höchstalter"
+    noRestriction: "Keine Einschränkung"
     noProfile: Kein Profil gefunden.
     failedToUpdate: Aktualisierung fehlgeschlagen
     pin:
@@ -157,41 +198,43 @@ settings:
       newPin: Neue PIN
       confirmPin: PIN bestätigen
       savePin: PIN speichern
-      saved: PIN gespeichert
+      saved: "PIN gespeichert"
       mustBe4: PIN muss 4 Ziffern haben
       mismatch: PINs stimmen nicht überein
-      passwordReauth: Kontopasswort
-      passwordRequired: Passwort erforderlich, um erstmals eine PIN festzulegen
+      passwordReauth: "Kontopasswort"
+      passwordRequired: "Passwort erforderlich, um erstmals eine PIN festzulegen"
 apiKeys:
   title: API-Schlüssel
   description: API-Schlüssel für externe Integrationen erstellen.
   newKeyTitle: Neuer API-Schlüssel
   name: Name
-  namePlaceholder: Meine Integration
+  namePlaceholder: "Meine Integration"
   nameRequired: Name ist erforderlich
   key: Schlüssel
   scopes: Berechtigungen
   scopesAll: Alle (Legacy)
-  scopesHint: Leer lassen für vollen Zugriff (Legacy). Bestimmte Berechtigungen auswählen, um einzuschränken.
+  scopesHint: "Leer lassen für vollen Zugriff (Legacy). Bestimmte Berechtigungen auswählen, um einzuschränken."
   scopeLabels:
-    media:read: Medien-Metadaten lesen
-    media:write: Medien ändern und Scans auslösen
-    admin:read: Admin-Aktivität und Statistiken lesen
-    admin:write: Admin-Einstellungen ändern
-    users:read: Benutzer lesen
-    users:write: Benutzer ändern
-    playback:read: Wiedergabestatus und Verlauf lesen
-    playback:write: Wiedergabe und Fortschritt steuern
+    "media:read": Medien-Metadaten lesen
+    "media:write": Medien ändern und Scans auslösen
+    "admin:read": Admin-Aktivität und Statistiken lesen
+    "admin:write": Admin-Einstellungen ändern
+    "users:read": Benutzer lesen
+    "users:write": Benutzer ändern
+    "playback:read": Wiedergabestatus und Verlauf lesen
+    "playback:write": Wiedergabe und Fortschritt steuern
   lastUsed: Zuletzt verwendet
   created: Erstellt
   keyCreatedTitle: API-Schlüssel erstellt
   saveWarning: Speichern Sie diesen Schlüssel jetzt - er wird nicht erneut angezeigt.
   noKeys: Noch keine API-Schlüssel
+  keyCreated: API-Schlüssel erstellt
   createError: API-Schlüssel konnte nicht erstellt werden
   revokeTitle: API-Schlüssel widerrufen
   revokeConfirm: Diesen API-Schlüssel widerrufen? Er wird sofort nicht mehr funktionieren.
   keyRevoked: API-Schlüssel widerrufen
   revokeError: API-Schlüssel konnte nicht widerrufen werden
+  revoke: Widerrufen
 devices:
   title: Geräte
   description: Push-Benachrichtigungsgeräte verwalten.
@@ -226,7 +269,7 @@ watchHistory:
   yesterday: Gestern
   thisWeek: Diese Woche
   thisMonth: Dieser Monat
-  plays: '{{count}} Wiedergaben'
+  plays: "{{count}} Wiedergaben"
   watched: Angesehen
   noHistory: Kein Wiedergabeverlauf
   noHistoryDesc: Beginnen Sie etwas anzuschauen, um Ihren Verlauf hier zu sehen.
@@ -234,4 +277,5 @@ watchHistory:
   clearTitle: Wiedergabeverlauf löschen
   clearConfirm: Dies löscht Ihren gesamten Wiedergabeverlauf dauerhaft. Diese Aktion kann nicht rückgängig gemacht werden.
   clearAll: Alles löschen
+  title: Wiedergabeverlauf
   openMedia: Mediendetails öffnen

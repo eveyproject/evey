@@ -12,6 +12,7 @@ continue: Continue
 loading: Loading...
 error: Error
 unknown: Unknown
+settings: Settings
 select: Select
 selectAll: Select all
 deselectAll: Deselect all
@@ -24,6 +25,7 @@ edit: Edit
 add: Add
 remove: Remove
 name: Name
+"no": "No"
 status: Status
 actions: Actions
 clear: Clear
@@ -35,12 +37,12 @@ restore: Restore
 revoke: Revoke
 refresh: Refresh
 done: Done
-copied: Copied!
-seeAll: See all →
+copied: "Copied!"
+seeAll: "See all →"
 scrollLeft: Scroll left
 scrollRight: Scroll right
 appearance: Appearance
-appearanceDesc: Choose your color theme and language.
+appearanceDesc: "Choose your color theme and language."
 theme: Theme
 language: Language
 languageDesc: Choose your preferred language
@@ -52,15 +54,28 @@ newKey: New Key
 copyKey: Copy Key
 unableToLoadNotifications: Unable to load notifications
 viewAllNotifications: View all notifications
+"yes": "Yes"
 markAllRead: Mark all read
-item_one: '{{count}} item'
-item_other: '{{count}} items'
-filtered: (filtered)
+item_one: "{{count}} item"
+item_other: "{{count}} items"
+filtered: "(filtered)"
 noItemsMatch: No items match the current filter.
+showLess: Show less
+readMore: Read more
+noPoster: No poster
+noItems: No items
+noCollections: No collections
+playlists: Playlists
+noPlaylists: No playlists
 addToPlaylist: Add to Playlist
 noManualPlaylists: No manual playlists available
-itemCount_one: '{{count}} item'
-itemCount_other: '{{count}} items'
+collections: Collections
+loadError: Failed to load
+activity: Activity
+serverVersion: Server Version
+retry: Retry
+itemCount_one: "{{count}} item"
+itemCount_other: "{{count}} items"
 errorBoundary:
   title: Something went wrong
   description: An unexpected error occurred. Please try reloading the page. If the problem persists, go back to the home page.
@@ -79,17 +94,19 @@ notifications:
   deleteAllTitle: Delete all notifications
   deleteAllConfirm: This will permanently delete all your notifications. This action cannot be undone.
   noNotifications: No notifications
-  allCaughtUp: You're all caught up.
+  allCaughtUp: "You're all caught up."
   justNow: Just now
-  minutesAgo: '{{count}}m ago'
-  hoursAgo: '{{count}}h ago'
-  daysAgo: '{{count}}d ago'
-  newMovie: 'New Movie: {{name}}'
-  newEpisode: 'New Episode: {{name}}'
-  newSeason: 'New Season: {{name}}'
-  newSeries: 'New Series: {{name}}'
-  newAlbum: 'New Album: {{name}}'
-  backupFailed: Scheduled Backup Failed
+  minutesAgo: "{{count}}m ago"
+  hoursAgo: "{{count}}h ago"
+  daysAgo: "{{count}}d ago"
+  newMovie: "New Movie: {{name}}"
+  newEpisode: "New Episode: {{name}}"
+  newSeason: "New Season: {{name}}"
+  newSeries: "New Series: {{name}}"
+  newAlbum: "New Album: {{name}}"
+  backupFailed: "Scheduled Backup Failed"
+  clearConfirm: Delete all notifications?
+  clearTitle: Clear notifications
 noNotifications: No notifications
 aria:
   closeMenu: Close menu
@@ -128,6 +145,7 @@ nav:
   libraries: Libraries
   photos: Photos
   favorites: Favorites
+  search: Search
   music: Music
   syncplay: Listen Together
   admin: Admin
@@ -155,7 +173,7 @@ shortcuts:
 parental:
   restrictedContent: Restricted Content
   pinRequired: This content requires parental PIN verification.
-  pinLabel: PIN (4 digits)
+  pinLabel: "PIN (4 digits)"
   pinIncorrect: Incorrect PIN
   validate: Validate
 feeds:
@@ -173,10 +191,15 @@ feeds:
     most_popular: Most Popular
     collections: Collections
 added: Added
+change: Change
+clearAll: Clear all
+description: Description
 export: Export JSON
+never: Never
 pause: Pause
 play: Play
 selected: selected
+selectedCount: '{{count}} selected'
 somethingWentWrong: Something went wrong
 tryAgain: Try again
 unknownError: Unknown error

@@ -1,27 +1,32 @@
-season: सीज़न {{number}}
-chapter: अध्याय {{number}}
-track: ट्रैक {{number}}
-burnIn: (बर्न-इन)
+season: "सीज़न {{number}}"
+chapter: "अध्याय {{number}}"
+track: "ट्रैक {{number}}"
+burnIn: "(बर्न-इन)"
 home:
   play: चलाएं
   moreInfo: अधिक जानकारी
+  continueWatching: देखना जारी रखें
   upNext: आगे आ रहा है
+  recentlyAdded: हाल ही में जोड़ा गया
   mostPopular: सबसे लोकप्रिय
   recommendedForYou: आपके लिए अनुशंसित
   collections: संग्रह
+  customize: "कस्टमाइज़"
+  customizeFeed: फ़ीड कस्टमाइज़ करें
   emptyLibrary: आपकी लाइब्रेरी खाली है
-  emptyLibraryDesc: मीडिया फ़ोल्डर जोड़ने के लिए एडमिन → लाइब्रेरी पर जाएं।
+  emptyLibraryDesc: "मीडिया फ़ोल्डर जोड़ने के लिए एडमिन → लाइब्रेरी पर जाएं।"
   goToLibraries: लाइब्रेरी पर जाएं
   library: लाइब्रेरी
 favorites:
   title: पसंदीदा
-  searchPlaceholder: खोजें…
+  empty: "अभी तक कोई पसंदीदा नहीं"
+  searchPlaceholder: "खोजें…"
   all: सभी
   movies: फ़िल्में
   series: सीरीज़
   recentlyAdded: हाल ही में जोड़ा गया
-  titleAZ: शीर्षक A–Z
-  titleZA: शीर्षक Z–A
+  titleAZ: "शीर्षक A–Z"
+  titleZA: "शीर्षक Z–A"
   yearNewest: वर्ष (नवीनतम)
   rating: रेटिंग
   noFavorites: अभी कोई पसंदीदा नहीं
@@ -29,11 +34,14 @@ favorites:
   addToPlaylist: प्लेलिस्ट में जोड़ें
   noPlaylists: अभी कोई प्लेलिस्ट नहीं।
   failedAddPlaylist: प्लेलिस्ट में जोड़ने में विफल
-  itemsAddedToPlaylist: '{{count}} आइटम "{{name}}" में जोड़े गए'
-  markedWatched: '{{count}} आइटम देखा हुआ चिह्नित'
-  markedUnwatched: '{{count}} आइटम न देखा हुआ चिह्नित'
+  itemsAddedToPlaylist: "{{count}} आइटम \"{{name}}\" में जोड़े गए"
+  markedWatched: "{{count}} आइटम देखा हुआ चिह्नित"
+  markedUnwatched: "{{count}} आइटम न देखा हुआ चिह्नित"
   filterByType: प्रकार से फ़िल्टर
   sortBy: क्रमबद्ध करें
+  toggleFavorite: पसंदीदा टॉगल करें
+  toggled: पसंदीदा अपडेट किए गए
+  yearOldest: वर्ष (पुराने)
 collections:
   title: संग्रह
   newSmartCollection: नया स्मार्ट संग्रह
@@ -43,7 +51,7 @@ collections:
   noCollectionsDesc: संग्रह TMDB सागा से स्वचालित रूप से बनते हैं।
   deleteConfirm: यह संग्रह मिटाएं?
   deleteSmartConfirm: यह स्मार्ट संग्रह मिटाएं?
-  browseResults: परिणाम देखें →
+  browseResults: "परिणाम देखें →"
   smart: स्मार्ट
   noItems: कोई आइटम नहीं
   noItemsDesc: इस संग्रह में अभी कोई मीडिया आइटम नहीं है।
@@ -54,9 +62,9 @@ collections:
   smartDeleted: स्मार्ट संग्रह मिटाया गया
   deleteFailed: मिटाने में विफल
   noCollectionsAvailable: कोई संग्रह उपलब्ध नहीं।
-  itemsAdded: '{{count}} आइटम "{{name}}" में जोड़े गए'
+  itemsAdded: "{{count}} आइटम \"{{name}}\" में जोड़े गए"
   addFailed: संग्रह में जोड़ने में विफल
-  adding: जोड़ रहे हैं…
+  adding: "जोड़ रहे हैं…"
   editSmartCollection: स्मार्ट संग्रह संपादित करें
   nameRequired: नाम आवश्यक है
   noRulesYet: अभी कोई नियम नहीं। आइटम फ़िल्टर करने के लिए कम से कम एक नियम जोड़ें।
@@ -69,6 +77,8 @@ collections:
   updated: संग्रह अपडेट किया गया
   updateFailed: संग्रह अपडेट करने में विफल
   deleted: संग्रह मिटाया गया
+  editCollection: संग्रह संपादित करें
+  newCollection: नया संग्रह
 library:
   title: लाइब्रेरी
   libraries: लाइब्रेरी
@@ -79,7 +89,7 @@ library:
   books: किताबें
   noLibraries: कोई लाइब्रेरी कॉन्फ़िगर नहीं है
   noLibrariesDesc: अपनी मीडिया ब्राउज़ करने के लिए एडमिन पैनल में लाइब्रेरी जोड़ें।
-  filterByName: नाम से फ़िल्टर करें...
+  filterByName: "नाम से फ़िल्टर करें..."
   series: सीरीज़
   seasons: सीज़न
   episodes: एपिसोड
@@ -87,6 +97,8 @@ library:
   year: वर्ष
   ratingSort: रेटिंग
   dateAdded: जोड़ने की तिथि
+  ascending: आरोही
+  descending: अवरोही
   noItems: कोई आइटम नहीं मिला
   noItemsFiltered: अपने फ़िल्टर या खोज शब्द समायोजित करें।
   noItemsType: कोई अलग फ़िल्टर आज़माएं, या सामग्री जोड़ने के लिए लाइब्रेरी स्कैन करें।
@@ -94,24 +106,24 @@ library:
   goToAdmin: एडमिन पर जाएं
   selected: चयनित
   addToFavorites: पसंदीदा में जोड़ें
-  addedToFavorites: '{{count}} आइटम पसंदीदा में जोड़े गए'
+  addedToFavorites: "{{count}} आइटम पसंदीदा में जोड़े गए"
   failedFavorites: कुछ आइटम पसंदीदा में जोड़ने में विफल
   duration: अवधि
   type: प्रकार
   addToPlaylist: प्लेलिस्ट में जोड़ें
   noPlaylists: अभी कोई प्लेलिस्ट नहीं।
   failedAddPlaylist: प्लेलिस्ट में जोड़ने में विफल
-  itemsAddedToPlaylist: '{{count}} आइटम "{{name}}" में जोड़े गए'
+  itemsAddedToPlaylist: "{{count}} आइटम \"{{name}}\" में जोड़े गए"
   filters: फ़िल्टर
   clearAll: सब हटाएं
-  resultCount: '{{count}} परिणाम'
-  resultCount_plural: '{{count}} परिणाम'
+  resultCount: "{{count}} परिणाम"
+  resultCount_plural: "{{count}} परिणाम"
   yearLabel: वर्ष
   yearFrom: से
   yearTo: तक
   minRating: न्यूनतम रेटिंग
-  minStars: न्यूनतम {{count}} स्टार
-  minStars_plural: न्यूनतम {{count}} स्टार
+  minStars: "न्यूनतम {{count}} स्टार"
+  minStars_plural: "न्यूनतम {{count}} स्टार"
   clearRating: हटाएं
   typeAll: सभी
   typeMovie: फ़िल्म
@@ -120,8 +132,8 @@ library:
   typeTrack: ट्रैक
   typePhoto: फ़ोटो
   typeLabel: प्रकार
-  genreText: शैली (टेक्स्ट)
-  genrePlaceholder: जैसे एक्शन
+  genreText: "शैली (टेक्स्ट)"
+  genrePlaceholder: "जैसे एक्शन"
   genreLabel: शैली
   resolution: रिज़ॉल्यूशन
   videoCodec: वीडियो कोडेक
@@ -131,13 +143,16 @@ library:
   addToCollection: संग्रह में जोड़ें
   markUnwatched: अदेखा चिह्नित
   markWatched: देखा गया चिह्नित
+  markedUnwatched: अदेखा चिह्नित किया
+  markedWatched: देखा गया चिह्नित किया
 person:
+  filmography: "फ़िल्मोग्राफ़ी"
   unknown: अज्ञात
-  titleCount: '{{count}} शीर्षक'
-  titleCount_plural: '{{count}} शीर्षक'
+  titleCount: "{{count}} शीर्षक"
+  titleCount_plural: "{{count}} शीर्षक"
   noFilmography: इस व्यक्ति की कोई फ़िल्मोग्राफ़ी नहीं मिली।
   other: अन्य
-  asRole: '{{role}} के रूप में'
+  asRole: "{{role}} के रूप में"
   actor: अभिनेता
   director: निर्देशक
   writer: लेखक
@@ -148,30 +163,33 @@ person:
 detail:
   notFound: मीडिया आइटम नहीं मिला।
   play: चलाएं
+  resume: फिर से शुरू करें
+  favorite: पसंदीदा
+  favorited: पसंदीदा में
   markWatched: देखा हुआ चिह्नित करें
   markUnwatched: नहीं देखा चिह्नित करें
   markedWatched: देखा हुआ चिह्नित किया
   markedUnwatched: नहीं देखा चिह्नित किया
   addToPlaylist: प्लेलिस्ट में जोड़ें
-  yourRating: आपकी रेटिंग
+  yourRating: "आपकी रेटिंग"
   editMetadata: मेटाडेटा संपादित करें
   cast: कलाकार
   crew: दल
   seasons: सीज़न
-  seasonCount: '{{count}} सीज़न'
-  seasonCount_plural: '{{count}} सीज़न'
+  seasonCount: "{{count}} सीज़न"
+  seasonCount_plural: "{{count}} सीज़न"
   episodes: एपिसोड
-  episodeCount: '{{count}} एपिसोड'
-  episodeCount_plural: '{{count}} एपिसोड'
-  ep: '{{count}} एप.'
+  episodeCount: "{{count}} एपिसोड"
+  episodeCount_plural: "{{count}} एपिसोड"
+  ep: "{{count}} एप."
   similarTitles: समान शीर्षक
   fileInfo: फ़ाइल जानकारी
-  director: 'निर्देशक: '
-  writer: 'लेखक: '
-  studio: 'स्टूडियो: '
+  director: "निर्देशक: "
+  writer: "लेखक: "
+  studio: "स्टूडियो: "
   trailer: ट्रेलर
-  close: बंद करें
-  unsupportedPlatform: 'असमर्थित प्लेटफ़ॉर्म: {{platform}}'
+  close: "बंद करें"
+  unsupportedPlatform: "असमर्थित प्लेटफ़ॉर्म: {{platform}}"
   artworkUpdated: कलाकृति अपडेट हो गई
   artworkFailed: कलाकृति अपडेट करने में विफल
   poster: पोस्टर
@@ -180,23 +198,23 @@ detail:
   originalTitle: मूल शीर्षक
   year: वर्ष
   overview: सारांश
-  genresLabel: शैलियां (अल्पविराम से अलग)
+  genresLabel: "शैलियां (अल्पविराम से अलग)"
   rating: रेटिंग
   overridden: ओवरराइड किया गया
   auto: स्वचालित
   resetToAuto: स्वचालित पर रीसेट करें
-  resetSuccess: '{{field}} स्वचालित पर रीसेट किया'
+  resetSuccess: "{{field}} स्वचालित पर रीसेट किया"
   resetFailed: रीसेट करने में विफल
   imdbId: IMDB ID
   tmdbId: TMDB ID
   viewOnImdb: IMDB पर देखें
   viewOnTmdb: TMDB पर देखें
-  idChangedWarning: ID बदली - सहेजने पर प्रदाता से मेटाडेटा फिर से प्राप्त होगा
+  idChangedWarning: "ID बदली - सहेजने पर प्रदाता से मेटाडेटा फिर से प्राप्त होगा"
   refreshMetadata: मेटाडेटा रिफ़्रेश करें
   resetMetadata: मेटाडेटा रीसेट करें
   rematchMetadata: मेटाडेटा फिर से मिलाएँ
   rematchConfirm: यह सभी ओवरराइड और प्रदाता ID हटा देगा और मूल फ़ाइल नाम से मेटाडेटा फिर से खोजेगा। जारी रखें?
-  rematchSuccess: 'फिर से मिलाया गया: {{title}}'
+  rematchSuccess: "फिर से मिलाया गया: {{title}}"
   rematchSuccessFallback: पुनः खोज पूर्ण
   rematchFailed: मेटाडेटा फिर से मिलाने में विफल
   reEnrichedWithNewId: नई ID से फिर से प्राप्त किया
@@ -205,6 +223,10 @@ detail:
   failedToSaveDot: सहेजने में विफल।
   refreshFailed: मेटाडेटा रिफ़्रेश करने में विफल
   noProfileSelected: कोई प्रोफ़ाइल चयनित नहीं
+  alreadyDownloaded: पहले से डाउनलोड किया गया
+  downloadStarted: डाउनलोड शुरू हुआ
+  downloadComplete: डाउनलोड पूरा हुआ
+  downloadFailed: डाउनलोड विफल
   communityRating: 'समुदाय: {{average}}/5 ({{count}} रेटिंग)'
 certBody:
   FR: CSA
@@ -225,7 +247,7 @@ certBody:
   FI: KAVI
   DK: Medierådet
   SE: SMRC
-  false: Medietilsynet
+  NO: Medietilsynet
   CH: FSK
   AT: FSK
   BE: NICAM
@@ -243,10 +265,10 @@ contextMenu:
   download: डाउनलोड
   markWatched: देखा हुआ चिह्नित करें
   markUnwatched: नहीं देखा चिह्नित करें
-  noProfileSelected: No profile selected
+  noProfileSelected: No profile selected # TODO: translate
   markedWatched: देखा हुआ चिह्नित किया
   markedUnwatched: नहीं देखा चिह्नित किया
-  markError: '{{status}} चिह्नित करने में विफल'
+  markError: "{{status}} चिह्नित करने में विफल"
 music:
   title: संगीत
   tracks: ट्रैक
@@ -257,8 +279,8 @@ music:
   emptyPlaylist: यह प्लेलिस्ट खाली है।
   downloadTrack: ट्रैक डाउनलोड करें
   downloadAlbum: एल्बम डाउनलोड करें
-  searchPlaceholder: ट्रैक, कलाकार, एल्बम खोजें…
-  loading: लोड हो रहा है…
+  searchPlaceholder: "ट्रैक, कलाकार, एल्बम खोजें…"
+  loading: "लोड हो रहा है…"
   noTracks: कोई ट्रैक नहीं मिला।
   noTracksSearch: आपकी खोज से कोई ट्रैक मेल नहीं खाता।
   noAlbums: कोई एल्बम नहीं मिला।
@@ -268,10 +290,10 @@ music:
   failedDeleteTrack: ट्रैक मिटाने में विफल
   deleteTrackConfirm: यह ट्रैक मिटाएं? यह क्रिया पूर्ववत नहीं की जा सकती।
   deleteTrack: ट्रैक मिटाएं
-  trackCount: '{{count}} ट्रैक'
-  trackCount_plural: '{{count}} ट्रैक'
-  albumCount: '{{count}} एल्बम'
-  albumCount_plural: '{{count}} एल्बम'
+  trackCount: "{{count}} ट्रैक"
+  trackCount_plural: "{{count}} ट्रैक"
+  albumCount: "{{count}} एल्बम"
+  albumCount_plural: "{{count}} एल्बम"
   genre: Genre
   year: Year
   shuffle: शफ़ल
@@ -279,7 +301,7 @@ music:
   unmute: अनम्यूट करें
   resetFilters: फ़िल्टर रीसेट करें
   addToPlaylist: प्लेलिस्ट में जोड़ें
-  newPlaylist: नई प्लेलिस्ट…
+  newPlaylist: "नई प्लेलिस्ट…"
   playlistCreated: प्लेलिस्ट बनाई गई
   addedToPlaylist: प्लेलिस्ट में जोड़ा गया
   createPlaylistPrompt: प्लेलिस्ट का नाम
@@ -293,17 +315,18 @@ photos:
   noAlbumsDesc: इस लाइब्रेरी में कोई एल्बम नहीं मिला।
   noPhotoLibraries: कोई फ़ोटो लाइब्रेरी नहीं
   noPhotoLibrariesDesc: शुरू करने के लिए एडमिन पैनल में फ़ोटो लाइब्रेरी जोड़ें।
+added: जोड़ा गया
 created: बनाया गया
 updated: अपडेट किया गया
 syncplay:
   connected: कनेक्ट हो गया
-  connecting: कनेक्ट हो रहा है...
+  connecting: "कनेक्ट हो रहा है..."
   leave: छोड़ें
   shareLink: लिंक शेयर करें
   copyCode: कोड कॉपी करें
   watchTogetherRoom: साथ में देखें कमरा
-  watchingWith: '{{names}} के साथ देख रहे हैं'
-  watchingWithMore: '{{names}} +{{count}} और के साथ देख रहे हैं'
+  watchingWith: "{{names}} के साथ देख रहे हैं"
+  watchingWithMore: "{{names}} +{{count}} और के साथ देख रहे हैं"
   title: साथ में सुनें
   create: कमरा बनाएं
   createRoom: बनाएं
@@ -312,11 +335,11 @@ syncplay:
   codeLabel: कोड
   members: सदस्य
   sharedTrack: साझा ट्रैक
-  followingHost: आप होस्ट के साथ सिंक हैं।
+  followingHost: "आप होस्ट के साथ सिंक हैं।"
   noTracks: कोई ट्रैक नहीं मिला
-  notMusicRoom: यह कमरा संगीत कमरा नहीं है।
-  orPlaylist: या प्लेलिस्ट चुनें
-  queue: कतार
+  notMusicRoom: "यह कमरा संगीत कमरा नहीं है।"
+  orPlaylist: "या प्लेलिस्ट चुनें"
+  queue: "कतार"
   joinByCode: कोड से जुड़ें
 playlist:
   name: नाम
@@ -326,10 +349,10 @@ playlist:
   smart: स्मार्ट
   createTitle: प्लेलिस्ट बनाएं
   createPlaylist: प्लेलिस्ट बनाएं
-  newPlaylist: + नई प्लेलिस्ट
+  newPlaylist: "+ नई प्लेलिस्ट"
   noPlaylists: अभी कोई प्लेलिस्ट नहीं।
   addTitle: प्लेलिस्ट में जोड़ें
-  addSuccess: प्लेलिस्ट में जोड़ा गया
+  addSuccess: "प्लेलिस्ट में जोड़ा गया"
   addError: प्लेलिस्ट में जोड़ने में विफल
   createSuccess: प्लेलिस्ट बन गई
   createError: प्लेलिस्ट बनाने में विफल
@@ -345,14 +368,14 @@ playlist:
   noItemsManual: मीडिया विवरण पृष्ठ से आइटम जोड़ें।
   removedFromPlaylist: प्लेलिस्ट से हटाया गया
   failedRemove: हटाने में विफल
-  deleteConfirm: '"{{name}}" मिटाएं?'
-  deleted: '"{{name}}" मिटाया गया'
+  deleteConfirm: "\"{{name}}\" मिटाएं?"
+  deleted: "\"{{name}}\" मिटाया गया"
   deleteFailed: मिटाने में विफल
   deletePlaylist: प्लेलिस्ट मिटाएं
   noPlaylistsDesc: अपनी मीडिया व्यवस्थित करने के लिए प्लेलिस्ट बनाएं।
   editRules: नियम संपादित करें
   saveRules: नियम सहेजें
-  noRules: कोई नियम सेट नहीं। नियम जोड़ने के लिए "नियम संपादित करें" पर क्लिक करें।
+  noRules: "कोई नियम सेट नहीं। नियम जोड़ने के लिए \"नियम संपादित करें\" पर क्लिक करें।"
   noRulesYet: अभी कोई नियम नहीं। आइटम फ़िल्टर करने के लिए कम से कम एक नियम जोड़ें।
   rulesSaved: नियम सहेजे गए
   rulesSaveFailed: नियम सहेजने में विफल
@@ -360,24 +383,32 @@ playlist:
   updated: प्लेलिस्ट अपडेट हुई
   updateFailed: प्लेलिस्ट अपडेट करने में विफल
   reorderFailed: पुनर्क्रम में विफल
+  confirmDelete: प्लेलिस्ट '{{name}}' हटाएं?
+  confirmRemoveItem: प्लेलिस्ट से हटाएं?
+  create: प्लेलिस्ट बनाएं
+  deleteError: प्लेलिस्ट हटाने में विफल
+  descriptionPlaceholder: विवरण (वैकल्पिक)
+  namePlaceholder: प्लेलिस्ट का नाम
   removeRule: नियम हटाएं
   smartRules: स्मार्ट नियम
+  typeManual: मैन्युअल
+  typeSmart: स्मार्ट
 search:
-  searching: खोज रहे हैं...
+  searching: "खोज रहे हैं..."
   noResults: कोई परिणाम नहीं
-  viewAllResults: सभी {{count}} परिणाम देखें
+  viewAllResults: "सभी {{count}} परिणाम देखें"
   recentSearches: हाल की खोजें
   clearAll: सब साफ़ करें
   searchFailed: खोज विफल
-  placeholder: फ़िल्में, सीरीज़ खोजें…
+  placeholder: "फ़िल्में, सीरीज़ खोजें…"
   all: सभी
   movies: फ़िल्में
   series: सीरीज़
-  noResultsFor: “{{query}}” के लिए कोई परिणाम नहीं
+  noResultsFor: "“{{query}}” के लिए कोई परिणाम नहीं"
   noResultsDesc: कोई अलग शब्द आज़माएं, वर्तनी जाँचें या फ़िल्टर बदलें।
-  resultCount: '{{count}} परिणाम'
-  resultCount_plural: '{{count}} परिणाम'
-  resultFor: “{{query}}” के लिए
+  resultCount: "{{count}} परिणाम"
+  resultCount_plural: "{{count}} परिणाम"
+  resultFor: "“{{query}}” के लिए"
   searchLibrary: अपनी मीडिया लाइब्रेरी खोजें
   searchLibraryDesc: अपनी फ़िल्मों, सीरीज़ और अन्य में खोजने के लिए कम से कम 2 अक्षर टाइप करें।
   clearSearch: खोज साफ़ करें
@@ -391,7 +422,7 @@ search:
   toYear: तक
   sortBy: क्रमबद्ध करें
   relevance: प्रासंगिकता
-  titleAZ: शीर्षक A–Z
+  titleAZ: "शीर्षक A–Z"
   yearNewest: वर्ष (नवीनतम)
   dateAdded: जोड़ने की तिथि
 streams:
@@ -405,3 +436,6 @@ rating:
   dislike: नापसंद
   removeLike: पसंद हटाएं
   removeDislike: नापसंद हटाएं
+playlists:
+  notFound: प्लेलिस्ट नहीं मिली
+resume: जारी रखें

@@ -1,0 +1,29 @@
+serverConnect:
+  title: 连接到服务器
+  connect: 连接
+  connectionFailed: 连接失败
+  unreachable: 无法连接到服务器
+settings:
+  themeDark: Dark
+  themeLight: Light
+  themeAmoled: AMOLED
+  server: 服务器
+  changeServer: 更换服务器
+  disconnectConfirm: 断开与此服务器的连接？
+  disconnect: 断开连接
+  signOut: 退出登录
+  signOutConfirm: 确定要退出吗？
+  about: 关于
+  appVersion: 应用版本
+  serverVersion: 服务器版本
+  switchProfile: "切换配置文件"
+  biometricLogin: "生物识别登录"
+  themeLightBlue: 浅蓝
+auth:
+  biometricPrompt: "解锁 Evey"
+  unlockBiometric: "使用生物识别解锁"
+  enableBiometric: 启用生物识别登录？
+  enableBiometricDesc: 下次使用生物识别解锁应用。
+  haveInvite: 有邀请？注册
+profileSelect:
+  title: 谁在观看？
