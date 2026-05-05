@@ -77,6 +77,9 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminMediaService/RefreshAllMetadata",
 		"/evey.v1.AdminMediaService/GenerateAllTrickplays",
 		"/evey.v1.AdminMediaService/DeleteMediaItem",
+		// AdminIntroService
+		"/evey.v1.AdminIntroService/BackfillIntroDetection",
+		"/evey.v1.AdminIntroService/InvalidateIntroCache",
 		// WebhookService
 		"/evey.v1.WebhookService/CreateWebhook",
 		"/evey.v1.WebhookService/ListWebhooks",
@@ -105,6 +108,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		// NotificationService
 		"/evey.v1.NotificationService/GetGlobalNotificationSettings",
 		"/evey.v1.NotificationService/UpdateGlobalNotificationSettings",
+		"/evey.v1.NotificationService/ListAdminNotifications",
 		// ActivityService
 		"/evey.v1.ActivityService/GetServerStats",
 		"/evey.v1.ActivityService/ListServerMetrics",
