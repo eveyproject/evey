@@ -12,8 +12,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/cpuutil"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/cpuutil"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // ActiveStreamChecker reports whether any transcode/playback is active.
@@ -96,6 +97,8 @@ func (s *TrickplayService) isAdaptiveCPU(ctx context.Context) bool {
 }
 
 func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GenerateTrickplay")
+	defer span.End()
 	if s.trickplayRepo == nil || s.trickplayGen == nil {
 		return errors.New("trickplay not configured")
 	}
@@ -209,6 +212,8 @@ func readTrickplaySidecar(outputDir string) (*trickplaySidecar, error) {
 }
 
 func (s *TrickplayService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetTrickplayManifest")
+	defer span.End()
 	if s.trickplayRepo == nil {
 		return nil, errors.New("trickplay not configured")
 	}
@@ -216,6 +221,8 @@ func (s *TrickplayService) GetTrickplayManifest(ctx context.Context, mediaItemID
 }
 
 func (s *TrickplayService) GenerateAllMissingTrickplays(ctx context.Context) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GenerateAllMissingTrickplays")
+	defer span.End()
 	if s.trickplayRepo == nil || s.trickplayGen == nil {
 		return 0, errors.New("trickplay not configured")
 	}

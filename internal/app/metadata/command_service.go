@@ -143,6 +143,8 @@ func (s *CommandService) artworkDestPath(rec *metadata.ArtworkRecord) string {
 
 // ArtworkStats returns aggregate coverage statistics.
 func (s *CommandService) ArtworkStats(ctx context.Context) (metadata.ArtworkStats, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.ArtworkStats")
+	defer span.End()
 	return s.artwork.LocalPathStats(ctx)
 }
 
@@ -150,6 +152,8 @@ func (s *CommandService) ArtworkStats(ctx context.Context) (metadata.ArtworkStat
 // that have a SourceURL but no LocalPath. Returns a job ID immediately.
 // Concurrent: at most concurrency downloads at once.
 func (s *CommandService) StartBulkDownload(ctx context.Context, serverCtx context.Context) (string, int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.StartBulkDownload")
+	defer span.End()
 	if s.dataDir == "" {
 		return "", 0, errors.New("dataDir not configured")
 	}
@@ -520,6 +524,8 @@ func (s *CommandService) RemoveOverride(ctx context.Context, id string) error {
 // calls behind a per-library access check without re-implementing the
 // repository hop).
 func (s *CommandService) GetOverride(ctx context.Context, id string) (*metadata.MetadataOverride, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.GetOverride")
+	defer span.End()
 	return s.overrides.Get(ctx, id)
 }
 

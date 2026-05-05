@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type CommandService struct {
@@ -22,6 +23,8 @@ func NewCommandService(cmd library.CollectionCommandRepo, query library.Collecti
 }
 
 func (s *CommandService) Create(ctx context.Context, name string, rules []library.CollectionRule, sortBy string) (*library.Collection, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.Create")
+	defer span.End()
 	now := time.Now()
 	col := &library.Collection{
 		ID:        uuid.New().String(),
@@ -38,6 +41,8 @@ func (s *CommandService) Create(ctx context.Context, name string, rules []librar
 }
 
 func (s *CommandService) Update(ctx context.Context, id, name string, rules []library.CollectionRule, sortBy string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.Update")
+	defer span.End()
 	col, err := s.query.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("collection not found: %w", err)
@@ -50,6 +55,8 @@ func (s *CommandService) Update(ctx context.Context, id, name string, rules []li
 }
 
 func (s *CommandService) Upsert(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*library.Collection, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.Upsert")
+	defer span.End()
 	now := time.Now()
 	col := &library.Collection{
 		ID:          uuid.New().String(),
@@ -68,6 +75,8 @@ func (s *CommandService) Upsert(ctx context.Context, tmdbID int, name, overview,
 }
 
 func (s *CommandService) CreateSmart(ctx context.Context, name string, rules []library.CollectionRule, sortBy string) (*library.Collection, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.CreateSmart")
+	defer span.End()
 	if name == "" {
 		return nil, errors.New("name is required")
 	}
@@ -93,6 +102,8 @@ func (s *CommandService) CreateSmart(ctx context.Context, name string, rules []l
 }
 
 func (s *CommandService) UpdateSmart(ctx context.Context, id, name string, rules []library.CollectionRule, sortBy string) (*library.Collection, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.UpdateSmart")
+	defer span.End()
 	col, err := s.query.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -117,6 +128,8 @@ func (s *CommandService) UpdateSmart(ctx context.Context, id, name string, rules
 }
 
 func (s *CommandService) LinkMediaItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.LinkMediaItem")
+	defer span.End()
 	if _, err := s.query.GetByID(ctx, collectionID); err != nil {
 		return fmt.Errorf("collection not found: %w", err)
 	}
@@ -127,5 +140,7 @@ func (s *CommandService) LinkMediaItem(ctx context.Context, collectionID, mediaI
 }
 
 func (s *CommandService) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.Delete")
+	defer span.End()
 	return s.cmd.Delete(ctx, id)
 }

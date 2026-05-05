@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type QueryService struct {
@@ -16,14 +17,20 @@ func NewQueryService(query library.CollectionQueryRepo, smartQuerier SmartQuerie
 }
 
 func (s *QueryService) GetByID(ctx context.Context, id string) (*library.Collection, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.GetByID")
+	defer span.End()
 	return s.query.GetByID(ctx, id)
 }
 
 func (s *QueryService) List(ctx context.Context) ([]*library.Collection, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.List")
+	defer span.End()
 	return s.query.List(ctx)
 }
 
 func (s *QueryService) GetItems(ctx context.Context, collectionID string, limit, offset int) ([]*library.MediaItem, int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.GetItems")
+	defer span.End()
 	if limit <= 0 {
 		limit = 50
 	}
@@ -68,5 +75,7 @@ func (s *QueryService) GetItems(ctx context.Context, collectionID string, limit,
 }
 
 func (s *QueryService) CountItems(ctx context.Context, collectionID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.CountItems")
+	defer span.End()
 	return s.query.CountItems(ctx, collectionID)
 }
