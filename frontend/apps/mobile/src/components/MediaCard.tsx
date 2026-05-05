@@ -23,7 +23,7 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
   const cardHeight = cardWidth * POSTER_RATIO;
   const serverUrl = useServerUrl();
 
-  const imageUri = serverUrl ? `${serverUrl}/api/v1/media/${item.id}/artwork/poster` : undefined;
+  const imageUri = serverUrl ? `${serverUrl}/api/v1/media/${item.id}/artwork/poster?w=400` : undefined;
   const imageSource = useAuthenticatedImage(imageUri);
 
   return (

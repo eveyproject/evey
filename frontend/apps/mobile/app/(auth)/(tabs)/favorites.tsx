@@ -134,7 +134,7 @@ export default function FavoritesScreen() {
   const renderItem = useCallback(
     ({ item }: { item: FavoriteItem }) => {
       const posterUri = serverUrl
-        ? `${serverUrl}/api/v1/media/${item.mediaItemId}/artwork/poster`
+        ? `${serverUrl}/api/v1/media/${item.mediaItemId}/artwork/poster?w=400`
         : undefined;
       const isSelected = bulkMode && selected.has(item.mediaItemId);
       return (

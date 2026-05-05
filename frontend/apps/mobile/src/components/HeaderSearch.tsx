@@ -77,7 +77,7 @@ export function HeaderSearch() {
           ) : (
             <>
               {results.map((item) => {
-                const posterUrl = `${serverUrl}/api/v1/media/${item.id}/artwork/primary?width=60`;
+                const posterUrl = `${serverUrl}/api/v1/media/${item.id}/artwork/poster?w=120`;
                 return (
                   <Pressable key={item.id} onPress={() => handleSelect(item)} style={styles.resultRow} accessible accessibilityLabel={item.title ?? ""} accessibilityRole="button">
                     <Image

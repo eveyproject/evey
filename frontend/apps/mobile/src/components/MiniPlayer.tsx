@@ -22,7 +22,7 @@ export function MiniPlayer() {
 
   if (!isActive || mode !== "mini" || !mediaId) return null;
 
-  const artworkUri = serverUrl ? `${serverUrl}/api/v1/media/${mediaId}/artwork/poster` : undefined;
+  const artworkUri = serverUrl ? `${serverUrl}/api/v1/media/${mediaId}/artwork/poster?w=120` : undefined;
 
   return (
     <Pressable
