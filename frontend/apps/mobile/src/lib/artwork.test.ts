@@ -31,4 +31,25 @@ describe("artworkUrl", () => {
       "https://evey.test/api/v1/media//artwork/poster",
     );
   });
+
+  it("appends width query param when set", () => {
+    expect(artworkUrl("https://evey.test", "m4", "poster", 200)).toBe(
+      "https://evey.test/api/v1/media/m4/artwork/poster?w=200",
+    );
+  });
+
+  it("appends width on backdrop too", () => {
+    expect(artworkUrl("https://evey.test", "m5", "backdrop", 1280)).toBe(
+      "https://evey.test/api/v1/media/m5/artwork/backdrop?w=1280",
+    );
+  });
+
+  it("ignores width <= 0", () => {
+    expect(artworkUrl("https://evey.test", "m6", "poster", 0)).toBe(
+      "https://evey.test/api/v1/media/m6/artwork/poster",
+    );
+    expect(artworkUrl("https://evey.test", "m7", "poster", -1)).toBe(
+      "https://evey.test/api/v1/media/m7/artwork/poster",
+    );
+  });
 });
