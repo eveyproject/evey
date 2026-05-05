@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type QueryService struct {
@@ -36,6 +37,8 @@ func NewQueryService(repo notification.Repository, settings notification.Setting
 // ends up with hundreds of admin-only events ahead of personal ones, the
 // caller should paginate. Capped at 1000 over-fetch to bound memory.
 func (s *QueryService) List(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.List")
+	defer span.End()
 	want := limit
 	if want <= 0 {
 		want = 50
@@ -69,6 +72,8 @@ func (s *QueryService) List(ctx context.Context, profileID string, unreadOnly bo
 // Caller is responsible for RBAC — this service does no role check; the
 // calling handler must gate by RoleAdmin.
 func (s *QueryService) ListAdminOnly(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.ListAdminOnly")
+	defer span.End()
 	want := limit
 	if want <= 0 {
 		want = 50
@@ -99,6 +104,8 @@ func (s *QueryService) ListAdminOnly(ctx context.Context, profileID string, unre
 // because the rate (~once per page load) and the typical unread count
 // (single-digit to low-hundreds) make the cost negligible.
 func (s *QueryService) UnreadCount(ctx context.Context, profileID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.UnreadCount")
+	defer span.End()
 	raw, err := s.repo.ListByProfile(ctx, profileID, true, 1000, 0)
 	if err != nil {
 		return 0, err
@@ -114,14 +121,20 @@ func (s *QueryService) UnreadCount(ctx context.Context, profileID string) (int, 
 }
 
 func (s *QueryService) GetSettings(ctx context.Context, profileID string) (*notification.Settings, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.GetSettings")
+	defer span.End()
 	return s.settings.GetByProfile(ctx, profileID)
 }
 
 func (s *QueryService) GetGlobalSettings(ctx context.Context) (*notification.Settings, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.GetGlobalSettings")
+	defer span.End()
 	return s.settings.GetGlobalDefaults(ctx)
 }
 
 func (s *QueryService) ListPushSubscriptions(ctx context.Context, userID string) ([]notification.PushSubscription, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.ListPushSubscriptions")
+	defer span.End()
 	if s.subs == nil {
 		return []notification.PushSubscription{}, nil
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type batchEntry struct {
@@ -667,18 +668,26 @@ func (s *CommandService) listAdminTargetProfiles(ctx context.Context) ([]*user.P
 }
 
 func (s *CommandService) MarkRead(ctx context.Context, id, profileID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.MarkRead")
+	defer span.End()
 	return s.repo.MarkRead(ctx, id, profileID)
 }
 
 func (s *CommandService) MarkAllRead(ctx context.Context, profileID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.MarkAllRead")
+	defer span.End()
 	return s.repo.MarkAllRead(ctx, profileID)
 }
 
 func (s *CommandService) DeleteAll(ctx context.Context, profileID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.DeleteAll")
+	defer span.End()
 	return s.repo.DeleteAll(ctx, profileID)
 }
 
 func (s *CommandService) UpdateSettings(ctx context.Context, settings *notification.Settings) error {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.UpdateSettings")
+	defer span.End()
 	if err := settings.Validate(); err != nil {
 		return fmt.Errorf("invalid notification settings: %w", err)
 	}
@@ -686,6 +695,8 @@ func (s *CommandService) UpdateSettings(ctx context.Context, settings *notificat
 }
 
 func (s *CommandService) UpdateGlobalSettings(ctx context.Context, settings *notification.Settings) error {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.UpdateGlobalSettings")
+	defer span.End()
 	if err := settings.Validate(); err != nil {
 		return fmt.Errorf("invalid notification settings: %w", err)
 	}
@@ -693,6 +704,8 @@ func (s *CommandService) UpdateGlobalSettings(ctx context.Context, settings *not
 }
 
 func (s *CommandService) CleanupExpired(ctx context.Context) error {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.CleanupExpired")
+	defer span.End()
 	return s.repo.CleanupExpired(ctx)
 }
 
@@ -722,6 +735,8 @@ func (s *CommandService) StartCleanup(ctx context.Context) {
 }
 
 func (s *CommandService) UpsertPushSubscription(ctx context.Context, userID, profileID, endpoint, p256dh, auth string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.UpsertPushSubscription")
+	defer span.End()
 	if s.subs == nil {
 		return nil
 	}
@@ -729,6 +744,8 @@ func (s *CommandService) UpsertPushSubscription(ctx context.Context, userID, pro
 }
 
 func (s *CommandService) DeletePushByEndpoint(ctx context.Context, userID, endpoint string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.DeletePushByEndpoint")
+	defer span.End()
 	if s.subs == nil {
 		return nil
 	}
@@ -736,6 +753,8 @@ func (s *CommandService) DeletePushByEndpoint(ctx context.Context, userID, endpo
 }
 
 func (s *CommandService) DeletePushByUser(ctx context.Context, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.DeletePushByUser")
+	defer span.End()
 	if s.subs == nil {
 		return nil
 	}
