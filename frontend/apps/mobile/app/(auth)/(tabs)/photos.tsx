@@ -117,7 +117,7 @@ export default function PhotosScreen() {
   const { data: photoDetail } = usePhotoDetail(lightboxPhoto?.ID);
 
   const photoUrl = useCallback(
-    (id: string) => (serverUrl ? `${serverUrl}/api/v1/photos/${id}/original` : undefined),
+    (id: string) => (serverUrl ? `${serverUrl}/api/v1/photos/${id}/serve` : undefined),
     [serverUrl],
   );
 
