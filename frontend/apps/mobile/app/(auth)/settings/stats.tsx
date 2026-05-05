@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet, Dimensions } from "react-native";
-import { router } from "expo-router";
+import { Stack, router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useActivityServiceGetUserStats } from "@evey/api";
 import { useAuthStore } from "@evey/store";
@@ -125,14 +125,14 @@ export default function StatsScreen() {
 
   return (
     <ScrollView style={s.container} contentContainerStyle={{ paddingBottom: theme.spacing.xl }}>
-      {/* Header */}
-      <View style={s.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t("common.back")}>
-          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-        </Pressable>
-        <Text style={s.headerTitle}>{t("common.userStats.title")}</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: t("common.userStats.title"),
+          headerStyle: { backgroundColor: theme.colors.surface },
+          headerTintColor: theme.colors.text,
+        }}
+      />
 
       {/* Stat cards */}
       <View style={s.cardsRow}>
@@ -233,16 +233,6 @@ export default function StatsScreen() {
 const sStyles = (t: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: t.colors.bg },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: t.spacing.md,
-      paddingVertical: t.spacing.sm + 4,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: t.colors.border,
-    },
-    headerTitle: { color: t.colors.text, fontSize: 18, fontWeight: "700" },
     cardsRow: {
       flexDirection: "row",
       gap: t.spacing.sm,

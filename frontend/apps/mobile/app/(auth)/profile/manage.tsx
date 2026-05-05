@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import { Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
@@ -23,14 +24,17 @@ export default function ProfileManageScreen() {
 
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <View style={{ gap: theme.spacing.xs }}>
-        <Text style={[s.title, { color: theme.colors.text }]}>
-          {t("auth.profile.manage.title", "Manage Profiles")}
-        </Text>
-        <Text style={[s.description, { color: theme.colors.textMuted }]}>
-          {t("auth.profile.manage.description", "Add, edit, or remove profiles. The default profile cannot be deleted.")}
-        </Text>
-      </View>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: t("auth.profile.manage.title", "Manage Profiles"),
+          headerStyle: { backgroundColor: theme.colors.surface },
+          headerTintColor: theme.colors.text,
+        }}
+      />
+      <Text style={[s.description, { color: theme.colors.textMuted }]}>
+        {t("auth.profile.manage.description", "Add, edit, or remove profiles. The default profile cannot be deleted.")}
+      </Text>
 
       <Pressable
         onPress={() => setCreating(true)}
@@ -82,10 +86,6 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       padding: t.spacing.md,
       gap: t.spacing.md,
       paddingBottom: t.spacing.xl,
-    },
-    title: {
-      fontSize: 22,
-      fontWeight: "700",
     },
     description: {
       fontSize: 13,

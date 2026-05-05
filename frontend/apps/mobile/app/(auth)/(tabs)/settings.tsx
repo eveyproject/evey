@@ -8,15 +8,13 @@ import Constants from "expo-constants";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, eveyFetch, eveyFetchRaw } from "@evey/api";
-import { useAuthStore, useThemeStore, useLocaleStore, toast } from "@evey/store";
+import { useAuthStore, useLocaleStore, toast } from "@evey/store";
 import { useBiometricAvailable, useBiometricEnabled } from "../../../src/hooks/useBiometric";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { clearServerUrl } from "../../../src/lib/server-config";
 import { supportedLanguages } from "../../../src/i18n";
-
-const THEME_VALUES = ["default", "light-default", "light-blue", "amoled"] as const;
-type ThemeValue = typeof THEME_VALUES[number];
+import { ThemeSelector } from "../../../src/components/ThemeSelector";
 
 function ChevronRight({ color }: { color: string }) {
   return <Text style={{ color, fontSize: 18 }}>{"›"}</Text>;
@@ -28,8 +26,6 @@ export default function SettingsScreen() {
   const qc = useQueryClient();
   const logout = useAuthStore((s) => s.logout);
   const isAdmin = useAuthStore((s) => s.isAdmin);
-  const currentTheme = useThemeStore((s) => s.theme);
-  const setTheme = useThemeStore((s) => s.setTheme);
   const setLocale = useLocaleStore((s) => s.setLocale);
   const serverUrl = useServerUrlNullable();
 
@@ -171,13 +167,6 @@ export default function SettingsScreen() {
     }
   }
 
-  const themeOptions: { label: string; value: ThemeValue }[] = [
-    { label: t("mobile.settings.themeDark"), value: "default" },
-    { label: t("mobile.settings.themeLight"), value: "light-default" },
-    { label: t("mobile.settings.themeLightBlue", "Light Blue"), value: "light-blue" },
-    { label: t("mobile.settings.themeAmoled"), value: "amoled" },
-  ];
-
   const initial = user?.username?.charAt(0).toUpperCase() ?? "U";
   const memberSince = user?.createdAt
     ? new Date(user.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long" })
@@ -296,19 +285,13 @@ export default function SettingsScreen() {
         <Pressable style={s.row} onPress={() => router.push("/settings/stats")} accessible={true} accessibilityLabel={t("common.userStats.title")} accessibilityRole="button"><Text style={s.label}>{t("common.userStats.title")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
         <Pressable style={s.row} onPress={() => router.push("/notifications")} accessible={true} accessibilityLabel={t("common.notifications.title")} accessibilityRole="button"><Text style={s.label}>{t("common.notifications.title")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
         <Pressable style={s.row} onPress={() => router.push("/profile-select")} accessible={true} accessibilityLabel={t("mobile.settings.switchProfile")} accessibilityRole="button"><Text style={s.label}>{t("mobile.settings.switchProfile")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
+        <Pressable style={s.row} onPress={() => router.push("/profile/manage")} accessible={true} accessibilityLabel={t("auth.profile.manage.title", "Manage profiles")} accessibilityRole="button"><Text style={s.label}>{t("auth.profile.manage.title", "Manage profiles")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
         <Pressable style={s.row} onPress={handleSignOut} accessible={true} accessibilityLabel={t("mobile.settings.signOut")} accessibilityRole="button"><Text style={s.labelDestructive}>{t("mobile.settings.signOut")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
 
       {/* Appearance */}
       <Text style={s.sectionTitle}>{t("auth.settings.tabs.appearance")}</Text>
-      <View style={s.section}>
-        {themeOptions.map((opt) => (
-          <Pressable key={opt.value} style={s.row} onPress={() => setTheme(opt.value)} accessible={true} accessibilityLabel={opt.label} accessibilityRole="radio">
-            <Text style={s.label}>{opt.label}</Text>
-            {currentTheme === opt.value && <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{"\u2713"}</Text>}
-          </Pressable>
-        ))}
-      </View>
+      <ThemeSelector />
 
       {/* Language */}
       <Text style={s.sectionTitle}>{t("common.language")}</Text>

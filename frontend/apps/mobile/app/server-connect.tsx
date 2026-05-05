@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { setServerUrl, getServerUrl } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
-import { initI18n } from "../src/i18n";
+import { applyServerLanguage, initI18n } from "../src/i18n";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { scanLocalNetwork } from "../src/lib/network-scan";
 
@@ -67,6 +67,7 @@ export default function ServerConnect() {
       await setServerUrl(trimmed);
       await initFetcher();
       await initI18n(trimmed);
+      await applyServerLanguage(trimmed);
       router.replace("/login");
     } catch (e) {
       Alert.alert(
