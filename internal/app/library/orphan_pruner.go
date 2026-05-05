@@ -8,6 +8,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // OrphanPruner finalizes a scan by removing DB rows whose files no
@@ -37,6 +38,9 @@ func NewOrphanPruner(
 // deleted rows (orphans + pruned containers). Errors are logged, not
 // returned, except a fatal failure to list DB paths up-front.
 func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths map[string]struct{}) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.OrphanPruner.Prune")
+	defer span.End()
+
 	dbPaths, err := p.mediaItems.ListFilePaths(ctx, shared.LibraryID(libraryID))
 	if err != nil {
 		return 0, fmt.Errorf("list file paths: %w", err)
