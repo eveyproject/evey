@@ -47,7 +47,7 @@ export default function SmartFilterScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: CollectionItem }) => {
-      const poster = serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster") : undefined;
+      const poster = serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster", 240) : undefined;
       return (
         <TouchableOpacity
           style={[styles.gridItem, { width: ITEM_WIDTH, marginLeft: SPACING, marginBottom: SPACING }]}

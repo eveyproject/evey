@@ -155,7 +155,7 @@ function CastCard({ person }: { person: V1MediaPerson }) {
 }
 
 function EpisodeRow({ item, serverUrl, theme, authHeaders }: { item: V1MediaItem; serverUrl: string; theme: ReturnType<typeof useTheme>; authHeaders?: { Authorization: string } }) {
-  const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "poster") : undefined;
+  const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "poster", 240) : undefined;
   const { data: progress } = usePlaybackServiceGetWatchProgress(item.id ?? "", undefined, {
     query: { enabled: !!item.id, retry: false },
   });
