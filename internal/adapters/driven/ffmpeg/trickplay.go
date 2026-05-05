@@ -13,6 +13,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/pkg/cpuutil"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // TrickplayWorkers delegates to cpuutil.TrickplayWorkers.
@@ -68,6 +69,8 @@ func (g *TrickplayGenerator) probeDuration(ctx context.Context, filePath string)
 // maxWorkers now caps ffmpeg's internal decode/encode thread count
 // (0 → use cpuutil default; adaptive stays gentle at ~25% of cores).
 func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir string, interval, width, tileWidth, tileHeight, maxWorkers int) (*library.TrickplayResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.trickplay.Generate")
+	defer span.End()
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("create trickplay dir: %w", err)
 	}
@@ -187,6 +190,8 @@ func parseShowinfoTimestamps(stderr string) []int64 {
 // ExtractFrame extracts a single JPEG frame at the given position (seconds).
 // Returns the raw JPEG bytes. Uses -ss before -i for fast seeking.
 func (g *TrickplayGenerator) ExtractFrame(ctx context.Context, filePath string, positionSec float64, width int) ([]byte, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.trickplay.ExtractFrame")
+	defer span.End()
 	ss := fmt.Sprintf("%.3f", positionSec)
 	cmd := exec.CommandContext(ctx, g.binary,
 		"-ss", ss,

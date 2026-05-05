@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strconv"
+
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type ImageConverter struct {
@@ -17,6 +19,8 @@ func NewImageConverter(binary string) *ImageConverter {
 }
 
 func (c *ImageConverter) ConvertToWebP(ctx context.Context, srcPath, dstPath string, quality int) error {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.imgconv.ConvertToWebP")
+	defer span.End()
 	if quality <= 0 {
 		quality = 80
 	}
@@ -36,6 +40,8 @@ func (c *ImageConverter) ConvertToWebP(ctx context.Context, srcPath, dstPath str
 // ResizeAndConvertToWebP scales src to fit width (height auto, ratio preserved)
 // and encodes WebP at quality. width=0 delegates to ConvertToWebP (no scale filter).
 func (c *ImageConverter) ResizeAndConvertToWebP(ctx context.Context, srcPath, dstPath string, width, quality int) error {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.imgconv.ResizeAndConvertToWebP")
+	defer span.End()
 	if width <= 0 {
 		return c.ConvertToWebP(ctx, srcPath, dstPath, quality)
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // PhotoTranscoder resizes/reformats photos via ffmpeg for thumbnail serving.
@@ -22,6 +24,8 @@ func NewPhotoTranscoder(binary string) *PhotoTranscoder {
 // If format == "webp", encodes via libwebp. Otherwise keeps source codec (mjpeg).
 // width <= 0 means no resize.
 func (p *PhotoTranscoder) Transcode(ctx context.Context, srcPath, dstPath string, width int, format string) error {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.photo.Transcode")
+	defer span.End()
 	args := []string{"-y", "-i", srcPath}
 	if width > 0 {
 		args = append(args, "-vf", fmt.Sprintf("scale='min(%d,iw)':-1", width))

@@ -14,6 +14,8 @@ import (
 	"strings"
 
 	"golang.org/x/image/webp"
+
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // IntroDetector performs pHash-based intro detection and FFmpeg audio/black passes.
@@ -64,6 +66,8 @@ func (d *IntroDetector) ExtractTileHashes(spritePath string, tileWidth, tileHeig
 // Returns refined (startMs, endMs). Falls back to (startMs_in, endMs_in) when FFmpeg
 // finds nothing useful.
 func (d *IntroDetector) PrecisionPass(ctx context.Context, filePath string, startSec, endSec, padSec float64) (startMs, endMs int64, err error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.PrecisionPass")
+	defer span.End()
 	begin := math.Max(0, startSec-padSec)
 	duration := endSec + padSec - begin
 
@@ -82,6 +86,8 @@ func (d *IntroDetector) PrecisionPass(ctx context.Context, filePath string, star
 // AudioFallback runs silencedetect+blackdetect on the first maxSec of the file.
 // Returns (startMs, endMs, true) if a consistent transition is found.
 func (d *IntroDetector) AudioFallback(ctx context.Context, filePath string, maxSec float64) (startMs, endMs int64, found bool, err error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.AudioFallback")
+	defer span.End()
 	silences, blacks, runErr := d.runDetect(ctx, filePath, 0, maxSec)
 	if runErr != nil {
 		return 0, 0, false, runErr
@@ -239,6 +245,8 @@ var (
 // roll is detected (sustained black region in the last 10% / max 10min window).
 // Returns (0, 0, false, nil) when nothing useful is found — caller skips.
 func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, durationSec float64) (startMs, endMs int64, found bool, err error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.DetectEndCredits")
+	defer span.End()
 	if durationSec < 60 {
 		return 0, 0, false, nil
 	}
@@ -318,6 +326,8 @@ var _ = grayscaleLuminance
 // Returns nil + error on decode failure. Returns an empty slice without error
 // if the segment is shorter than one bin.
 func (d *IntroDetector) AudioRMSProfile(ctx context.Context, filePath string, startSec, durationSec float64, binMs int) ([]float64, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.AudioRMSProfile")
+	defer span.End()
 	if binMs <= 0 {
 		binMs = 250
 	}
@@ -383,6 +393,8 @@ func (d *IntroDetector) AudioRMSProfile(ctx context.Context, filePath string, st
 // channel changes RMS but the band ratios still reflect the music's spectral
 // structure.
 func (d *IntroDetector) AudioBandedFingerprint(ctx context.Context, filePath string, startSec, durationSec float64, binMs int) ([]float64, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.AudioBandedFingerprint")
+	defer span.End()
 	if binMs <= 0 {
 		binMs = 250
 	}

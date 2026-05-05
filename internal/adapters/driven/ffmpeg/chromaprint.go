@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // Chromaprinter is the port for fpcalc.
@@ -35,6 +37,8 @@ func NewChromaprinter(binary string) *Chromaprinter {
 // detection pipeline; absence is a soft failure (fallback to pHash + audio
 // banded confirmation).
 func (c *Chromaprinter) Available(ctx context.Context) error {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.chromaprint.Available")
+	defer span.End()
 	cmd := exec.CommandContext(ctx, c.binary, "-version")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("fpcalc -version: %w", err)
@@ -54,6 +58,8 @@ func (c *Chromaprinter) Available(ctx context.Context) error {
 // Returns the underlying []uint32 (typed alias) so the app-layer port can
 // declare its dependency without importing this adapter package.
 func (c *Chromaprinter) Compute(ctx context.Context, filePath string, startSec, lengthSec float64) ([]uint32, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.chromaprint.Compute")
+	defer span.End()
 	if filePath == "" {
 		return nil, errors.New("empty file path")
 	}

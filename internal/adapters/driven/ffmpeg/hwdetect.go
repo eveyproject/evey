@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type HWDetector struct {
@@ -22,6 +23,8 @@ func NewHWDetector(ffmpegPath string) *HWDetector {
 }
 
 func (d *HWDetector) DetectDevices(ctx context.Context) ([]transcoding.HWDevice, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.hwdetect.DetectDevices")
+	defer span.End()
 	var devices []transcoding.HWDevice
 
 	if dev := detectVAAPI(ctx, d.ffmpegPath); dev != nil {
@@ -38,6 +41,8 @@ func (d *HWDetector) DetectDevices(ctx context.Context) ([]transcoding.HWDevice,
 }
 
 func (d *HWDetector) SupportsCodec(ctx context.Context, deviceType, codec string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.hwdetect.SupportsCodec")
+	defer span.End()
 	encoder := resolveHWEncoder(deviceType, codec)
 	if encoder == "" {
 		return false, nil

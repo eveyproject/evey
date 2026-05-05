@@ -9,8 +9,10 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type Prober struct {
@@ -58,6 +60,8 @@ type ffprobeDisposition struct {
 }
 
 func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.ProbeResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.prober.ProbeStreams")
+	defer span.End()
 	cmd := exec.CommandContext(ctx, p.binary,
 		"-v", "quiet",
 		"-print_format", "json",
