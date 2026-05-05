@@ -218,6 +218,8 @@ func (s *ScanService) publishScanStarted(ctx context.Context, libraryID string) 
 }
 
 func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*scanindex.Index, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.scan.loadScanIndex")
+	defer span.End()
 	summaries, err := s.mediaItems.ListScanSummaries(ctx, shared.LibraryID(libraryID))
 	if err != nil {
 		return nil, fmt.Errorf("list existing items: %w", err)
@@ -236,6 +238,8 @@ func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*sca
 }
 
 func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library, idx *scanindex.Index) (seenPaths map[string]struct{}, toProcess []scanWork, added, updated int, err error) {
+	ctx, span := tracing.StartSpan(ctx, "app.scan.scanDirectories")
+	defer span.End()
 	seenPaths = make(map[string]struct{})
 
 	for _, path := range lib.Paths {
@@ -304,6 +308,8 @@ func (s *ScanService) detectChanges(ctx context.Context, files []library.Scanned
 }
 
 func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toProcess []scanWork) (added, updated int) {
+	ctx, span := tracing.StartSpan(ctx, "app.scan.processNewItems")
+	defer span.End()
 	// 5min accommodates ffprobe + extractChapters + meili index on 4K 40GB+
 	// files; 30s was sufficient for 1080p but timed out on UHD content,
 	// starving the final Update of its budget.
@@ -339,6 +345,9 @@ func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toP
 }
 
 func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, libraryID string, added, updated, removed int) {
+	ctx, span := tracing.StartSpan(ctx, "app.scan.finalizeScan")
+	defer span.End()
+
 	now := time.Now()
 	lib.LastScannedAt = &now
 	if err := s.libraries.Update(ctx, lib); err != nil {
