@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/webhook"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"github.com/evey-project/evey/internal/pkg/urlvalidator"
 )
 
@@ -167,6 +168,8 @@ func sign(secret string, body []byte) string {
 }
 
 func (s *Service) Create(ctx context.Context, cfg *webhook.Config) error {
+	ctx, span := tracing.StartSpan(ctx, "app.webhook.Create")
+	defer span.End()
 	cfg.ID = uuid.New().String()
 	cfg.CreatedAt = time.Now()
 	if err := cfg.Validate(); err != nil {
@@ -179,10 +182,14 @@ func (s *Service) Create(ctx context.Context, cfg *webhook.Config) error {
 }
 
 func (s *Service) List(ctx context.Context) ([]*webhook.Config, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.webhook.List")
+	defer span.End()
 	return s.repo.List(ctx)
 }
 
 func (s *Service) Update(ctx context.Context, cfg *webhook.Config) error {
+	ctx, span := tracing.StartSpan(ctx, "app.webhook.Update")
+	defer span.End()
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("invalid webhook: %w", err)
 	}
@@ -193,9 +200,13 @@ func (s *Service) Update(ctx context.Context, cfg *webhook.Config) error {
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.webhook.Delete")
+	defer span.End()
 	return s.repo.Delete(ctx, id)
 }
 
 func (s *Service) ListDeliveries(ctx context.Context, webhookID string, limit int) ([]*webhook.Delivery, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.webhook.ListDeliveries")
+	defer span.End()
 	return s.deliveries.ListByWebhook(ctx, webhookID, limit)
 }
