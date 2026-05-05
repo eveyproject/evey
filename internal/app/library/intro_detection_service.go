@@ -357,6 +357,9 @@ func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID s
 // override) since `upsertSegmentRespectingManual` would no-op anyway and we
 // don't want to waste the audio extraction.
 func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID string) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.detectSeason")
+	defer span.End()
+
 	episodeType := string(domainlibrary.Episode)
 	siblings, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
 		ParentID: &parentID,
@@ -749,6 +752,9 @@ func validateSegmentInput(segType string, startMs, endMs int64) error {
 // frames inside an episode can outscore the real intro when intro frames are
 // fragmented by unique transition frames.
 func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlibrary.MediaItem) ([]domainlibrary.MediaSegment, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.runPipeline")
+	defer span.End()
+
 	mediaItemID := string(item.ID)
 	cfg := loadIntroConfig(ctx, s.configRepo)
 
@@ -928,6 +934,9 @@ func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, fil
 //     Heuristic: if "Intro End" is found and no plain "Intro" chapter
 //     exists, treat the previous chapter's start (or 0) as the intro start.
 func (s *IntroDetectionService) chapterPass(ctx context.Context, item *domainlibrary.MediaItem) []domainlibrary.MediaSegment {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.chapterPass")
+	defer span.End()
+
 	if s.chapterRepo == nil {
 		return nil
 	}
@@ -1101,6 +1110,9 @@ func classifyConfirmed(windows []confirmedWindow, cfg introConfig) []domainlibra
 // windows (gap-tolerant, ≥2 matched frames) along with the sibling MediaItems
 // needed for the audio-confirmation stage.
 func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibrary.MediaItem, cfg introConfig) (*pHashResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.pHashPass")
+	defer span.End()
+
 	mediaID := shared.MediaItemID(item.ID)
 
 	manifest, err := s.waitForManifest(ctx, mediaID)
