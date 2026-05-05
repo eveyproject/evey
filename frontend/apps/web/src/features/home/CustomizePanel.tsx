@@ -77,6 +77,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
 
   useEffect(() => {
     if (!data?.configs) return;
+    const installedPluginIds = new Set(homePlugins.map((p) => p.id));
     const configured = data.configs
       .map((c) => ({
         feedType: c.feedType ?? "",
@@ -86,19 +87,26 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
       // Drop feed types that have no renderable section on the home page
       // (e.g. legacy `continue_watching`, `recently_added`, `next_episode`).
       // Keep `library:*`, `plugin:*` and the canonical KNOWN_FEED_TYPES.
-      .filter((c) => isKnownFeedType(c.feedType) || c.feedType.startsWith("library:") || isPluginFeedType(c.feedType));
+      .filter((c) => isKnownFeedType(c.feedType) || c.feedType.startsWith("library:") || isPluginFeedType(c.feedType))
+      // Drop orphan plugin rows: configs persisted for a plugin id that is
+      // no longer installed (uninstalled, or reinstalled under a new id).
+      // Without this filter the user sees both the live plugin label AND a
+      // ghost "Plugin <stale-id>" row pointing at nothing.
+      .filter((c) => !isPluginFeedType(c.feedType) || installedPluginIds.has(pluginIdFromFeedType(c.feedType)));
 
-    // Append home-section plugins that aren't in the user's config yet
-    // (newly installed). Default enabled=true, displayOrder past the end
-    // so they land at the bottom and the user can drag them up.
+    // Prepend home-section plugins that aren't in the user's config yet
+    // (newly installed). They impact the page layout, so default to the
+    // top — the user can still drag them down later. Negative orders are
+    // safe: setRows then sorts ascending and the save handler renormalises
+    // to contiguous integers before persisting.
     const haveAlready = new Set(configured.map((r) => r.feedType));
-    const maxOrder = configured.reduce((m, r) => Math.max(m, r.displayOrder), -1);
+    const minOrder = configured.reduce((m, r) => Math.min(m, r.displayOrder), 0);
     const newPlugins = homePlugins
       .filter((p) => !haveAlready.has(pluginFeedType(p.id)))
       .map((p, i) => ({
         feedType: pluginFeedType(p.id),
         enabled: true,
-        displayOrder: maxOrder + 1 + i,
+        displayOrder: minOrder - homePlugins.length + i,
       }));
 
     setRows([...configured, ...newPlugins].sort((a, b) => a.displayOrder - b.displayOrder));
@@ -127,12 +135,16 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
   const toggle = (i: number) => {
     setRows((prev) => {
       const next = [...prev];
-      next[i] = { ...next[i], enabled: !next[i].enabled };
+      next[i] = { ...next[i], enabled: !next[i].enabled, displayOrder: i };
       return next;
     });
     const row = rows[i];
+    // Persist using the rendered index `i` rather than row.displayOrder so
+    // freshly-added plugin rows (which start at a negative order to land at
+    // the top) get a clean 0..N-1 value in the DB the first time the user
+    // interacts with them.
     updateMutation.mutate(
-      { feedType: row.feedType, data: { enabled: !row.enabled, displayOrder: row.displayOrder } },
+      { feedType: row.feedType, data: { enabled: !row.enabled, displayOrder: i } },
       { onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] }) },
     );
   };
