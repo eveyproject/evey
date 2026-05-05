@@ -12,6 +12,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const (
@@ -150,6 +151,8 @@ func sanitizeNumeric(v string) string {
 }
 
 func (a *SearchAdapter) HealthCheck(ctx context.Context) error {
+	ctx, span := tracing.StartSpan(ctx, "meilisearch.HealthCheck")
+	defer span.End()
 	_, err := a.index.GetStatsWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("meilisearch health: %w", err)
@@ -158,6 +161,8 @@ func (a *SearchAdapter) HealthCheck(ctx context.Context) error {
 }
 
 func (a *SearchAdapter) DocumentCount(ctx context.Context) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "meilisearch.DocumentCount")
+	defer span.End()
 	stats, err := a.index.GetStatsWithContext(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("get index stats: %w", err)
@@ -166,6 +171,8 @@ func (a *SearchAdapter) DocumentCount(ctx context.Context) (int64, error) {
 }
 
 func (a *SearchAdapter) IndexMediaItem(ctx context.Context, item *library.MediaItem, castNames []string) error {
+	ctx, span := tracing.StartSpan(ctx, "meilisearch.IndexMediaItem")
+	defer span.End()
 	doc := ToDocument(item, castNames)
 	_, err := a.index.AddDocumentsWithContext(ctx, []mediaDocument{doc}, nil)
 	if err != nil {
@@ -175,6 +182,8 @@ func (a *SearchAdapter) IndexMediaItem(ctx context.Context, item *library.MediaI
 }
 
 func (a *SearchAdapter) IndexMediaItemsBatch(ctx context.Context, items []*library.MediaItem) error {
+	ctx, span := tracing.StartSpan(ctx, "meilisearch.IndexMediaItemsBatch")
+	defer span.End()
 	if len(items) == 0 {
 		return nil
 	}
@@ -190,6 +199,8 @@ func (a *SearchAdapter) IndexMediaItemsBatch(ctx context.Context, items []*libra
 }
 
 func (a *SearchAdapter) RemoveMediaItem(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "meilisearch.RemoveMediaItem")
+	defer span.End()
 	_, err := a.index.DeleteDocumentWithContext(ctx, id, nil)
 	if err != nil {
 		return fmt.Errorf("remove media item: %w", err)
@@ -198,6 +209,8 @@ func (a *SearchAdapter) RemoveMediaItem(ctx context.Context, id string) error {
 }
 
 func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "meilisearch.Search")
+	defer span.End()
 	if limit <= 0 {
 		limit = 20
 	}

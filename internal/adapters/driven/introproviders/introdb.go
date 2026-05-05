@@ -12,6 +12,7 @@ import (
 	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // IntroDBClient is an HTTP client for introdb.app. It only exposes a TV
@@ -78,6 +79,9 @@ type introDBSegmentsResponse struct {
 // Fetch performs GET /segments with imdb_id+season+episode. Returns
 // nil, nil for movies (no movie endpoint), missing imdb_id, or 404.
 func (c *IntroDBClient) Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.MediaSegment, error) {
+	ctx, span := tracing.StartSpan(ctx, "introproviders.introdb.Fetch")
+	defer span.End()
+
 	if lookup.IsMovie {
 		return nil, nil
 	}

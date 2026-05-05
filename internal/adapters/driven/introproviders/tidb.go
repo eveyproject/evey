@@ -14,6 +14,7 @@ import (
 	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // TIDBClient is an HTTP client for theintrodb.org's `/v2/media` endpoint.
@@ -91,6 +92,9 @@ type tidbMediaResponse struct {
 // — chain continues). 429 returns a typed error (the caller backs off
 // for the rest of the run).
 func (c *TIDBClient) Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.MediaSegment, error) {
+	ctx, span := tracing.StartSpan(ctx, "introproviders.tidb.Fetch")
+	defer span.End()
+
 	if lookup.TmdbID == 0 {
 		// TIDB requires tmdb_id for canonical lookups; the imdb_id fallback
 		// adds latency and unreliable mapping per the OpenAPI doc — skip

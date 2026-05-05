@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // ChainedProvider implements domainlibrary.IntroMetadataProvider by
@@ -49,6 +50,9 @@ func (p *ChainedProvider) WithCooldown(d time.Duration) *ChainedProvider {
 // doesn't poison the chain. Rate-limited sources are skipped until
 // their cooldown expires.
 func (p *ChainedProvider) GetSegments(ctx context.Context, item *domainlibrary.MediaItem) ([]domainlibrary.MediaSegment, error) {
+	ctx, span := tracing.StartSpan(ctx, "introproviders.chain.GetSegments")
+	defer span.End()
+
 	lookup, err := p.resolver.Resolve(ctx, item)
 	if err != nil {
 		if errors.Is(err, ErrLookupUnresolvable) {

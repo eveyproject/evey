@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // CacheRepo is the read/write port for the postgres-backed cache. The
@@ -60,6 +61,9 @@ func (c *Cached) WithNegativeTTL(d time.Duration) *Cached {
 // persists whatever came back (including empty results, see negative
 // caching note above).
 func (c *Cached) GetSegments(ctx context.Context, item *domainlibrary.MediaItem) ([]domainlibrary.MediaSegment, error) {
+	ctx, span := tracing.StartSpan(ctx, "introproviders.cache.GetSegments")
+	defer span.End()
+
 	lookup, err := c.resolver.Resolve(ctx, item)
 	if err != nil {
 		if errors.Is(err, ErrLookupUnresolvable) {

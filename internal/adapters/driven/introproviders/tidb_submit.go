@@ -12,6 +12,7 @@ import (
 	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // TIDBSubmitter posts community-validated segments back to TheIntroDB so
@@ -54,6 +55,9 @@ type tidbSubmitRequest struct {
 // Submit sends one segment to TIDB POST /v2/submit. Returns nil immediately
 // on skip conditions (no key, preview type) so callers need no prechecks.
 func (s *TIDBSubmitter) Submit(ctx context.Context, segType string, lookup Lookup, startMs, endMs int64) error {
+	ctx, span := tracing.StartSpan(ctx, "introproviders.tidb.Submit")
+	defer span.End()
+
 	if s.apiKey == "" {
 		return nil // anonymous submissions are not supported by the API
 	}
@@ -124,6 +128,9 @@ func NewTIDBContributor(submitter *TIDBSubmitter, resolver *AncestorResolver) *T
 // Contribute implements domainlibrary.SegmentContributor. It resolves the
 // episode's series tmdb_id and posts the segment to TIDB.
 func (c *TIDBContributor) Contribute(ctx context.Context, item *domainlibrary.MediaItem, seg domainlibrary.MediaSegment) error {
+	ctx, span := tracing.StartSpan(ctx, "introproviders.tidb.Contribute")
+	defer span.End()
+
 	lookup, err := c.resolver.Resolve(ctx, item)
 	if err != nil {
 		if isUnresolvable(err) {

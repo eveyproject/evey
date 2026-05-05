@@ -13,6 +13,7 @@ import (
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // Lookup is the resolved set of identifiers needed to query the upstream
@@ -61,6 +62,9 @@ var ErrLookupUnresolvable = errors.New("introproviders: media has no usable TMDB
 // returns the canonical Lookup. Errors short-circuit the providers; the
 // caller falls back to chapter pass / heuristics.
 func (r *AncestorResolver) Resolve(ctx context.Context, item *domainlibrary.MediaItem) (Lookup, error) {
+	ctx, span := tracing.StartSpan(ctx, "introproviders.lookup.Resolve")
+	defer span.End()
+
 	if item == nil {
 		return Lookup{}, ErrLookupUnresolvable
 	}
