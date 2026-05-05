@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // CachingPersonRepo wraps a PersonRepository with a read-through cache that
@@ -35,6 +36,8 @@ func NewCachingPersonRepo(
 }
 
 func (r *CachingPersonRepo) GetByID(ctx context.Context, id string) (*library.Person, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.CachingPersonRepo.GetByID")
+	defer span.End()
 	person, err := r.PersonRepository.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
