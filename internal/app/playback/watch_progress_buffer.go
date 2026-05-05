@@ -8,6 +8,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/playback"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // watchProgressKey identifies a buffered progress entry. Per the backlog,
@@ -96,6 +97,8 @@ func (b *WatchProgressBuffer) snapshot() []*playback.WatchProgress {
 // dropped (the next tick will re-enqueue a fresher position). Returns the
 // number of entries successfully persisted.
 func (b *WatchProgressBuffer) Flush(ctx context.Context) int {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.WatchProgressBuffer.Flush")
+	defer span.End()
 	entries := b.snapshot()
 	if len(entries) == 0 {
 		return 0
