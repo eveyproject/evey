@@ -290,14 +290,22 @@ function FeedCustomizeModal({
 
   useEffect(() => {
     if (visible) {
-      const sorted = [...configs].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+      // Drop orphan library: rows whose library was deleted — without this the
+      // user sees a row labelled with a raw UUID and can't dismiss it. Mirrors
+      // the web fix in 928a9b9d6.
+      const filtered = configs.filter((c) => {
+        const ft = c.feedType ?? "";
+        if (!ft.startsWith("library:")) return true;
+        return !!libraryNames[ft.replace("library:", "")];
+      });
+      const sorted = [...filtered].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
       if (sorted.length === 0) {
         setLocal(FEED_TYPES.map((ft, i) => ({ feedType: ft, enabled: true, displayOrder: i })));
       } else {
         setLocal(sorted);
       }
     }
-  }, [visible, configs]);
+  }, [visible, configs, libraryNames]);
 
   const persist = useCallback(async (updated: FeedConfig[]) => {
     for (const c of updated) {
