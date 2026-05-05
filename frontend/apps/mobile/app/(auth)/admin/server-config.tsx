@@ -26,7 +26,20 @@ interface ServerSettings {
   globalRateLimit: SettingValue<number>;
 }
 
+interface ConfigEntry {
+  key: string;
+  value: string;
+}
+
 const SETTINGS_KEY = ["admin", "server-settings"];
+const SERVER_CONFIG_ENTRIES_KEY = ["admin", "server-config-entries"];
+
+const API_KEY_FIELDS = [
+  { dbKey: "api.tmdb_key", labelKey: "admin.serverConfig.apiKeys.tmdb", labelFallback: "TMDB Key" },
+  { dbKey: "api.omdb_key", labelKey: "admin.serverConfig.apiKeys.omdb", labelFallback: "OMDb Key" },
+  { dbKey: "api.opensubtitles_key", labelKey: "admin.serverConfig.apiKeys.opensubtitles", labelFallback: "OpenSubtitles Key" },
+  { dbKey: "api.tidb_key", labelKey: "admin.serverConfig.apiKeys.tidb", labelFallback: "TIDB Key" },
+] as const;
 
 export default function AdminServerConfigScreen() {
   const theme = useTheme();
@@ -114,11 +127,49 @@ export default function AdminServerConfigScreen() {
     } catch (err) { console.warn("caught", err); }
   }, [maxTranscodes, hwAccel, loginRate, globalRate, saveMutation]);
 
+  const { data: configEntries, refetch: refetchEntries } = useQuery<ConfigEntry[]>({
+    queryKey: SERVER_CONFIG_ENTRIES_KEY,
+    queryFn: async () => {
+      const res = await eveyFetch<{ entries: ConfigEntry[] }>({ url: "/api/v1/admin/server-config", method: "GET" });
+      return res.entries ?? [];
+    },
+  });
+
+  function getEntryValue(key: string): string {
+    return configEntries?.find((e) => e.key === key)?.value ?? "";
+  }
+
+  const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<string, string>>({});
+
+  const saveConfigEntry = useMutation({
+    mutationFn: ({ key, value }: { key: string; value: string }) =>
+      eveyFetch({ url: `/api/v1/admin/server-config/${key}`, method: "PUT", data: { value } }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: SERVER_CONFIG_ENTRIES_KEY });
+      toast.success(t("admin.serverConfig.configUpdated", "Config saved"));
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const deleteConfigEntry = useMutation({
+    mutationFn: (key: string) =>
+      eveyFetch({ url: `/api/v1/admin/server-config/${key}`, method: "DELETE" }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: SERVER_CONFIG_ENTRIES_KEY });
+      toast.success(t("admin.serverConfig.configUpdated", "Config saved"));
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const introEnabled = getEntryValue("intro_providers.enabled") === "true";
+  const tidbKey = getEntryValue("api.tidb_key");
+  const tidbSubmitEnabled = getEntryValue("intro_providers.tidb_submit_enabled") === "true";
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetch(), qc.invalidateQueries({ queryKey: getAdminSystemServiceGetServerConfigQueryKey() })]);
+    await Promise.all([refetch(), refetchEntries(), qc.invalidateQueries({ queryKey: getAdminSystemServiceGetServerConfigQueryKey() })]);
     setRefreshing(false);
-  }, [refetch, qc]);
+  }, [refetch, refetchEntries, qc]);
 
   function DefaultHint({ setting, field }: { setting: SettingValue<unknown>; field: string }) {
     if (setting.source === "default") {
@@ -175,6 +226,89 @@ export default function AdminServerConfigScreen() {
           >
             <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>
           </Pressable>
+
+          {/* API Keys section */}
+          <>
+            <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
+            <Text style={s.sectionTitle}>{t("admin.serverConfig.apiKeys.title", "API Keys")}</Text>
+
+            {API_KEY_FIELDS.map((field) => {
+              const current = getEntryValue(field.dbKey);
+              const draft = apiKeyDrafts[field.dbKey] ?? current;
+              return (
+                <View key={field.dbKey}>
+                  <Text style={s.label}>{t(field.labelKey, field.labelFallback)}</Text>
+                  <TextInput
+                    value={draft}
+                    onChangeText={(v) => setApiKeyDrafts((p) => ({ ...p, [field.dbKey]: v }))}
+                    style={s.input}
+                    placeholderTextColor={theme.colors.textMuted}
+                    placeholder={field.labelFallback}
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                    <Pressable
+                      onPress={() => saveConfigEntry.mutate({ key: field.dbKey, value: draft })}
+                      disabled={saveConfigEntry.isPending}
+                      style={[s.saveBtn, { flex: 1, marginTop: 0, opacity: saveConfigEntry.isPending ? 0.5 : 1 }]}
+                    >
+                      <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{t("common.save")}</Text>
+                    </Pressable>
+                    {current && (
+                      <Pressable
+                        onPress={() => {
+                          deleteConfigEntry.mutate(field.dbKey);
+                          setApiKeyDrafts((p) => ({ ...p, [field.dbKey]: "" }));
+                        }}
+                        disabled={deleteConfigEntry.isPending}
+                        style={[s.saveBtn, { flex: 1, marginTop: 0, backgroundColor: theme.colors.border, opacity: deleteConfigEntry.isPending ? 0.5 : 1 }]}
+                      >
+                        <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: 14 }}>{t("admin.serverSettings.reset", "Reset")}</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </>
+
+          {/* Intro Providers section */}
+          <>
+            <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
+            <Text style={s.sectionTitle}>{t("admin.intro.providersTitle", "Intro Providers")}</Text>
+
+            <View style={staticStyles.switchRow}>
+              <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
+                {t("admin.intro.enabled", "Enable community intro/recap providers")}
+              </Text>
+              <Switch
+                value={introEnabled}
+                onValueChange={(v) => saveConfigEntry.mutate({ key: "intro_providers.enabled", value: v ? "true" : "false" })}
+                trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                disabled={saveConfigEntry.isPending}
+              />
+            </View>
+
+            {introEnabled && tidbKey ? (
+              <View style={staticStyles.switchRow}>
+                <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1, marginRight: 12 }}>
+                  {t("admin.intro.tidbSubmit", "Submit detected segments to TIDB")}
+                </Text>
+                <Switch
+                  value={tidbSubmitEnabled}
+                  onValueChange={(v) => saveConfigEntry.mutate({ key: "intro_providers.tidb_submit_enabled", value: v ? "true" : "false" })}
+                  trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                  disabled={saveConfigEntry.isPending}
+                />
+              </View>
+            ) : null}
+
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 8 }}>
+              {t("admin.intro.restartHint", "Restart server for changes to take effect.")}
+            </Text>
+          </>
 
           {settings ? (
             <>
