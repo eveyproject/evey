@@ -8,6 +8,7 @@ import (
 
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // pluginSecurityDashboardProvider is the minimal service interface the handler needs.
@@ -20,6 +21,9 @@ type pluginSecurityDashboardProvider interface {
 func registerPluginSecurityDashboardRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginSecurityDashboardProvider) {
 	admin := httpAdminMiddleware(tokenGen)
 	mux.HandleFunc("GET /api/v1/admin/plugins/security-dashboard", admin(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.adminpluginsec.GetSecurityDashboard")
+		defer span.End()
+		r = r.WithContext(ctx)
 		snapshots, err := svc.GetSecurityDashboard(r.Context())
 		if err != nil {
 			slog.Error("plugin security dashboard", slog.Any("err", err))

@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // introDetectionHandler handles POST /api/v1/admin/media/{id}/detect-segments.
@@ -12,6 +14,9 @@ import (
 func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger) http.HandlerFunc {
 	admin := httpAdminMiddleware(tokenGen)
 	return admin(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.intro.DetectSegments")
+		defer span.End()
+		r = r.WithContext(ctx)
 		mediaID := r.PathValue("id")
 		if mediaID == "" {
 			http.Error(w, `{"message":"missing media id"}`, http.StatusBadRequest)
