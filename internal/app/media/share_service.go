@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // Sentinel errors exposed for handlers to map with errors.Is instead of
@@ -41,6 +42,8 @@ func NewShareService(repo shared.ShareLinkRepository, opts ...ShareOption) *Shar
 }
 
 func (s *ShareService) Create(ctx context.Context, mediaItemID, createdBy string, duration time.Duration, maxViews *int) (*shared.ShareLink, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.share.Create")
+	defer span.End()
 	if duration <= 0 || duration > 72*time.Hour {
 		return nil, ErrShareDurationRange
 	}
@@ -62,10 +65,14 @@ func (s *ShareService) Create(ctx context.Context, mediaItemID, createdBy string
 }
 
 func (s *ShareService) GetByID(ctx context.Context, id string) (*shared.ShareLink, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.share.GetByID")
+	defer span.End()
 	return s.repo.GetByID(ctx, id)
 }
 
 func (s *ShareService) Validate(ctx context.Context, token string) (*shared.ShareLink, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.share.Validate")
+	defer span.End()
 	link, err := s.repo.GetByToken(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("share link not found: %w", err)
@@ -97,17 +104,25 @@ func (s *ShareService) Validate(ctx context.Context, token string) (*shared.Shar
 }
 
 func (s *ShareService) List(ctx context.Context, userID string) ([]*shared.ShareLink, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.share.List")
+	defer span.End()
 	return s.repo.ListByUser(ctx, userID)
 }
 
 func (s *ShareService) ListAll(ctx context.Context) ([]*shared.ShareLink, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.share.ListAll")
+	defer span.End()
 	return s.repo.ListAll(ctx)
 }
 
 func (s *ShareService) Revoke(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.share.Revoke")
+	defer span.End()
 	return s.repo.Delete(ctx, id)
 }
 
 func (s *ShareService) CleanupExpired(ctx context.Context) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.share.CleanupExpired")
+	defer span.End()
 	return s.repo.DeleteExpired(ctx)
 }
