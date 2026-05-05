@@ -35,6 +35,7 @@ vi.mock("lucide-react", () => {
     Sliders: Icon,
     Rows3: Icon,
     Key: Icon,
+    Image: Icon,
   };
 });
 
