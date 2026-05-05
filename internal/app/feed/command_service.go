@@ -9,6 +9,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type CommandServiceOption func(*CommandService)
@@ -61,6 +62,8 @@ func (s *CommandService) publish(ctx context.Context, ev shared.Event) {
 }
 
 func (s *CommandService) UpdateAdminConfig(ctx context.Context, cfg *feed.AdminConfig) error {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.UpdateAdminConfig")
+	defer span.End()
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("invalid admin feed config: %w", err)
 	}
@@ -72,6 +75,8 @@ func (s *CommandService) UpdateAdminConfig(ctx context.Context, cfg *feed.AdminC
 }
 
 func (s *CommandService) BatchUpdateAdminConfigs(ctx context.Context, cfgs []*feed.AdminConfig) error {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.BatchUpdateAdminConfigs")
+	defer span.End()
 	for _, cfg := range cfgs {
 		if err := cfg.Validate(); err != nil {
 			return fmt.Errorf("invalid admin feed config %q: %w", cfg.FeedType, err)
@@ -88,6 +93,8 @@ func (s *CommandService) BatchUpdateAdminConfigs(ctx context.Context, cfgs []*fe
 }
 
 func (s *CommandService) UpdateProfileConfig(ctx context.Context, cfg *feed.ProfileConfig) error {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.UpdateProfileConfig")
+	defer span.End()
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("invalid profile feed config: %w", err)
 	}
@@ -99,6 +106,8 @@ func (s *CommandService) UpdateProfileConfig(ctx context.Context, cfg *feed.Prof
 }
 
 func (s *CommandService) ResetProfileConfig(ctx context.Context, profileID string, feedType feed.Type) error {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.ResetProfileConfig")
+	defer span.End()
 	if err := s.commands.DeleteProfileConfig(ctx, profileID, feedType); err != nil {
 		return fmt.Errorf("CommandService.ResetProfileConfig: %w", err)
 	}
@@ -107,6 +116,8 @@ func (s *CommandService) ResetProfileConfig(ctx context.Context, profileID strin
 }
 
 func (s *CommandService) EnsureLibraryFeedConfig(ctx context.Context, libraryID shared.LibraryID, name string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.EnsureLibraryFeedConfig")
+	defer span.End()
 	existing, err := s.queries.GetAdminConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("CommandService.EnsureLibraryFeedConfig: %w", err)
@@ -138,6 +149,8 @@ func (s *CommandService) EnsureLibraryFeedConfig(ctx context.Context, libraryID 
 }
 
 func (s *CommandService) DeleteLibraryFeedConfig(ctx context.Context, libraryID shared.LibraryID) error {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.DeleteLibraryFeedConfig")
+	defer span.End()
 	ft := feed.LibraryType(string(libraryID))
 	if err := s.commands.DeleteAdminConfigByType(ctx, ft); err != nil {
 		return fmt.Errorf("CommandService.DeleteLibraryFeedConfig: %w", err)

@@ -5,6 +5,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type QueryService struct {
@@ -22,6 +23,8 @@ func NewQueryService(
 }
 
 func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([]*feed.MergedConfig, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.GetMergedConfig")
+	defer span.End()
 	admins, err := s.configs.GetAdminConfig(ctx)
 	if err != nil {
 		return nil, err
@@ -95,26 +98,38 @@ func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([
 }
 
 func (s *QueryService) GetAdminConfigs(ctx context.Context) ([]*feed.AdminConfig, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.GetAdminConfigs")
+	defer span.End()
 	return s.configs.GetAdminConfig(ctx)
 }
 
 func (s *QueryService) ContinueWatching(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.ContinueWatching")
+	defer span.End()
 	return s.querier.ContinueWatching(ctx, profileID, limit)
 }
 
 func (s *QueryService) ResumePlayback(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.ResumePlayback")
+	defer span.End()
 	return s.querier.ResumePlayback(ctx, profileID, limit)
 }
 
 func (s *QueryService) NextEpisode(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.NextEpisode")
+	defer span.End()
 	return s.querier.NextEpisode(ctx, profileID, limit)
 }
 
 func (s *QueryService) RecentlyAdded(ctx context.Context, daysWindow, limit int) ([]*feed.FeedItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.RecentlyAdded")
+	defer span.End()
 	return s.querier.RecentlyAdded(ctx, daysWindow, limit)
 }
 
 func (s *QueryService) Recommended(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.Recommended")
+	defer span.End()
 	genres, err := s.analyzer.GetFavoriteGenres(ctx, profileID, 3)
 	if err != nil {
 		return nil, err
@@ -123,5 +138,7 @@ func (s *QueryService) Recommended(ctx context.Context, profileID string, limit 
 }
 
 func (s *QueryService) SimilarItems(ctx context.Context, mediaItemID, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.feed.SimilarItems")
+	defer span.End()
 	return s.querier.SimilarItems(ctx, mediaItemID, profileID, limit)
 }
