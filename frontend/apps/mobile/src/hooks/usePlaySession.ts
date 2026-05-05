@@ -115,7 +115,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             networkType: NETWORK_TYPE,
           }),
           eveyFetch<V1WatchProgress>({
-            url: `/api/v1/playback/progress/${mediaId}`,
+            url: `/api/v1/playback/${mediaId}/progress`,
             method: "GET",
           }).catch(() => null),
         ]);
