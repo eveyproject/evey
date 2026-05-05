@@ -17,6 +17,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/backup"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 var BackupTables = []string{
@@ -71,6 +72,9 @@ func NewService(store backup.BackupStore, dumper backup.DatabaseDumper, version 
 }
 
 func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.backup.CreateBackup")
+	defer span.End()
+
 	data, err := s.dumper.DumpTables(ctx, BackupTables)
 	if err != nil {
 		return nil, fmt.Errorf("Service.CreateBackup: %w", err)
@@ -105,14 +109,23 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 }
 
 func (s *Service) ListBackups(ctx context.Context) ([]*backup.BackupManifest, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.backup.ListBackups")
+	defer span.End()
+
 	return s.store.List(ctx)
 }
 
 func (s *Service) GetBackup(ctx context.Context, backupID string) (*backup.BackupManifest, io.ReadCloser, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.backup.GetBackup")
+	defer span.End()
+
 	return s.store.Get(ctx, backupID)
 }
 
 func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
+	ctx, span := tracing.StartSpan(ctx, "app.backup.RestoreBackup")
+	defer span.End()
+
 	archive, extractErr := extractTarGz(data)
 	if extractErr != nil {
 		return fmt.Errorf("restore: %w", extractErr)
@@ -135,6 +148,9 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 }
 
 func (s *Service) DeleteBackup(ctx context.Context, backupID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.backup.DeleteBackup")
+	defer span.End()
+
 	return s.store.Delete(ctx, backupID)
 }
 
@@ -181,6 +197,9 @@ func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDa
 }
 
 func (s *Service) CleanupOldBackups(ctx context.Context, retentionDays int) error {
+	ctx, span := tracing.StartSpan(ctx, "app.backup.CleanupOldBackups")
+	defer span.End()
+
 	if retentionDays <= 0 {
 		return nil
 	}
