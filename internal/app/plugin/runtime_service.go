@@ -9,6 +9,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type RuntimeService struct {
@@ -59,6 +60,8 @@ func NewRuntimeService(
 }
 
 func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.StartPlugin")
+	defer span.End()
 	p, err := s.plugins.GetByID(ctx, id)
 	if err != nil {
 		return ErrPluginNotFound
@@ -98,6 +101,8 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 }
 
 func (s *RuntimeService) StopPlugin(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.StopPlugin")
+	defer span.End()
 	p, err := s.plugins.GetByID(ctx, id)
 	if err != nil {
 		return ErrPluginNotFound
@@ -126,6 +131,8 @@ func (s *RuntimeService) StopPlugin(ctx context.Context, id string) error {
 // the runner. Without the runner.Start call the plugin remained Stopped after
 // re-enabling — matching DB state but not actually serving traffic.
 func (s *RuntimeService) EnablePlugin(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.EnablePlugin")
+	defer span.End()
 	p, err := s.plugins.GetByID(ctx, id)
 	if err != nil {
 		return ErrPluginNotFound
@@ -149,6 +156,8 @@ func (s *RuntimeService) EnablePlugin(ctx context.Context, id string) error {
 }
 
 func (s *RuntimeService) DisablePlugin(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.DisablePlugin")
+	defer span.End()
 	p, err := s.plugins.GetByID(ctx, id)
 	if err != nil {
 		return ErrPluginNotFound
@@ -209,6 +218,8 @@ func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 }
 
 func (s *RuntimeService) UpdatePluginConfig(ctx context.Context, id string, config map[string]any) error {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.UpdatePluginConfig")
+	defer span.End()
 	p, err := s.plugins.GetByID(ctx, id)
 	if err != nil {
 		return ErrPluginNotFound
@@ -243,9 +254,13 @@ func (s *RuntimeService) HandleIPCResult(pluginID string, ipcErr error) {
 }
 
 func (s *RuntimeService) AddRuntime(ctx context.Context, rt *plugin.PluginRuntime) error {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.AddRuntime")
+	defer span.End()
 	return s.runtimes.Create(ctx, rt)
 }
 
 func (s *RuntimeService) RemoveRuntime(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.RemoveRuntime")
+	defer span.End()
 	return s.runtimes.Delete(ctx, id)
 }

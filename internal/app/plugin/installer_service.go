@@ -21,6 +21,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/id"
 	"github.com/evey-project/evey/internal/pkg/themejs"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // uninstallRetryDelays are the back-off intervals used between RemoveAll
@@ -255,6 +256,8 @@ type PluginUpdatePreview struct {
 }
 
 func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*plugin.Plugin, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.InstallPlugin")
+	defer span.End()
 	s.installMu.Lock()
 	defer s.installMu.Unlock()
 
@@ -493,6 +496,8 @@ func (s *InstallerService) PreviewPlugin(_ context.Context, zipPath string) (*Pl
 // SourceHash must be echoed back in ApplyUpdate as AcknowledgedHash to
 // prevent TOCTOU attacks.
 func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source string) (*PluginUpdatePreview, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.PreviewUpdate")
+	defer span.End()
 	existing, err := s.plugins.GetByID(ctx, pluginID)
 	if err != nil {
 		return nil, ErrPluginNotFound
@@ -574,6 +579,8 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 // preventing TOCTOU. After hash verification it delegates to InstallPlugin with
 // WithAllowPermissionEscalation so the admin's explicit ack is honoured.
 func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, acknowledgedHash string) (*plugin.Plugin, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.ApplyUpdate")
+	defer span.End()
 	// Verify the plugin exists before going further.
 	if _, err := s.plugins.GetByID(ctx, pluginID); err != nil {
 		return nil, ErrPluginNotFound
@@ -608,6 +615,8 @@ func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, ac
 // id is unknown — the admin must never see "uninstall failed" because the
 // runner refused to die or a file was momentarily locked.
 func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.UninstallPlugin")
+	defer span.End()
 	p, err := s.plugins.GetByID(ctx, id)
 	if err != nil {
 		return ErrPluginNotFound
@@ -688,6 +697,8 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 // Best-effort: errors are logged, never returned. Returns the number of
 // dirs that were removed.
 func (s *InstallerService) CleanupOrphans(ctx context.Context) int {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.CleanupOrphans")
+	defer span.End()
 	if s.fs == nil || s.pluginDir == "" {
 		return 0
 	}
