@@ -7,6 +7,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type cacheEntry struct {
@@ -43,6 +44,8 @@ func (c *CachedMediaItemQueryRepo) Stop() {
 }
 
 func (c *CachedMediaItemQueryRepo) GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.CachedMediaItemQueryRepo.GetByID")
+	defer span.End()
 	c.mu.RLock()
 	if e, ok := c.items[id]; ok && time.Now().Before(e.expiresAt) {
 		c.mu.RUnlock()
