@@ -9,6 +9,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // listByLibraryIDMaxRows caps the non-paginated library-wide list so an
@@ -16,6 +17,8 @@ import (
 const listByLibraryIDMaxRows = 10000
 
 func (r *MediaItemRepository) GetByID(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.GetByID")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
@@ -23,6 +26,8 @@ func (r *MediaItemRepository) GetByID(ctx context.Context, id shared.MediaItemID
 }
 
 func (r *MediaItemRepository) GetByFilePath(ctx context.Context, path string) (*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.GetByFilePath")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
@@ -30,6 +35,8 @@ func (r *MediaItemRepository) GetByFilePath(ctx context.Context, path string) (*
 }
 
 func (r *MediaItemRepository) GetByFileFingerprint(ctx context.Context, fingerprint string) (*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.GetByFileFingerprint")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
@@ -37,6 +44,8 @@ func (r *MediaItemRepository) GetByFileFingerprint(ctx context.Context, fingerpr
 }
 
 func (r *MediaItemRepository) GetByLibraryTypeTitle(ctx context.Context, libraryID shared.LibraryID, itemType, title, parentID string) (*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.GetByLibraryTypeTitle")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
@@ -152,6 +161,8 @@ func whereAnd(where, predicate string) string {
 }
 
 func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItemsFilter) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.Count")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	where, args := r.buildWhereClause(f)
@@ -164,6 +175,8 @@ func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItem
 }
 
 func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.List")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	where, args := r.buildWhereClause(f)
@@ -234,6 +247,8 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 }
 
 func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID shared.LibraryID) (map[string]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.ListFilePaths")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -262,6 +277,8 @@ func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID share
 }
 
 func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID shared.LibraryID) ([]*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.ListByLibraryID")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
@@ -286,6 +303,8 @@ func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID sha
 }
 
 func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID shared.LibraryID) ([]library.MediaItemScanRow, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.ListScanSummaries")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	const batchSize = 5000
@@ -336,6 +355,8 @@ func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, librar
 // recursive CTE and sums the runtime of every episode it finds. Joined
 // with media_files since duration_ms now lives there.
 func (r *MediaItemRepository) SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.SeriesAggregate")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var agg library.SeriesAggregate
@@ -366,6 +387,8 @@ func (r *MediaItemRepository) SeriesAggregate(ctx context.Context, seriesID shar
 }
 
 func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID shared.LibraryID) ([]library.MediaItemContainerRow, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.ListContainerInfo")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	const batchSize = 5000
