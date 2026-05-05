@@ -116,7 +116,7 @@ function HeroBanner() {
         <View style={heroStyles.buttons}>
           <Pressable
             style={[heroStyles.playBtn, { backgroundColor: "#fff" }]}
-            onPress={() => activeId && router.push(`/media/${activeId}`)}
+            onPress={() => activeId && router.push(`/player/${activeId}`)}
             accessible
             accessibilityRole="button"
             accessibilityLabel={t("media.detail.play")}
