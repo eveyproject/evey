@@ -14,6 +14,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	plugindomain "github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
@@ -284,6 +285,8 @@ func CtxWithPluginID(ctx context.Context, pluginID string) context.Context {
 func pluginIDFromCtx(ctx context.Context) string { return PluginIDFromCtx(ctx) }
 
 func (h *HostServer) GetMediaItem(ctx context.Context, req *pluginv1.GetMediaItemRequest) (*pluginv1.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "pluginhost.GetMediaItem")
+	defer span.End()
 	if req.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "id required")
 	}
@@ -295,6 +298,8 @@ func (h *HostServer) GetMediaItem(ctx context.Context, req *pluginv1.GetMediaIte
 }
 
 func (h *HostServer) ListMediaItems(ctx context.Context, req *pluginv1.ListMediaItemsRequest) (*pluginv1.ListMediaItemsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "pluginhost.ListMediaItems")
+	defer span.End()
 	filter := library.ListMediaItemsFilter{}
 	if req.LibraryId != "" {
 		libID := shared.LibraryID(req.LibraryId)
@@ -338,6 +343,8 @@ func (h *HostServer) GetUserPreferences(_ context.Context, _ *pluginv1.GetUserPr
 }
 
 func (h *HostServer) EmitEvent(ctx context.Context, req *pluginv1.EmitEventRequest) (*pluginv1.EmitEventResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "pluginhost.EmitEvent")
+	defer span.End()
 	pluginID := pluginIDFromCtx(ctx)
 
 	payload := make(map[string]any)
@@ -357,6 +364,8 @@ func (h *HostServer) EmitEvent(ctx context.Context, req *pluginv1.EmitEventReque
 }
 
 func (h *HostServer) Log(ctx context.Context, req *pluginv1.LogRequest) (*pluginv1.LogResponse, error) {
+	_, span := tracing.StartSpan(ctx, "pluginhost.Log")
+	defer span.End()
 	pluginID := pluginIDFromCtx(ctx)
 	level := strings.ToUpper(req.Level.String())
 	if level == "LOG_LEVEL_UNSPECIFIED" {
@@ -379,6 +388,8 @@ func (h *HostServer) Log(ctx context.Context, req *pluginv1.LogRequest) (*plugin
 }
 
 func (h *HostServer) GetConfig(ctx context.Context, req *pluginv1.GetConfigRequest) (*pluginv1.GetConfigResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "pluginhost.GetConfig")
+	defer span.End()
 	pluginID := pluginIDFromCtx(ctx)
 	p, err := h.plugins.GetByID(ctx, pluginID)
 	if err != nil {
@@ -392,6 +403,8 @@ func (h *HostServer) GetConfig(ctx context.Context, req *pluginv1.GetConfigReque
 }
 
 func (h *HostServer) SetConfig(ctx context.Context, req *pluginv1.SetConfigRequest) (*pluginv1.SetConfigResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "pluginhost.SetConfig")
+	defer span.End()
 	pluginID := pluginIDFromCtx(ctx)
 	p, err := h.plugins.GetByID(ctx, pluginID)
 	if err != nil {
