@@ -1,5 +1,5 @@
-import { useCallback } from "react";
-import { View, Text, FlatList, Pressable, Switch, Alert, ActivityIndicator, StyleSheet } from "react-native";
+import { useCallback, useState } from "react";
+import { View, Text, FlatList, Pressable, Switch, Alert, ActivityIndicator, Modal, TextInput, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -9,6 +9,7 @@ import {
   useAdminPluginServiceEnablePlugin,
   useAdminPluginServiceDisablePlugin,
   useAdminPluginServiceUninstallPlugin,
+  useAdminPluginServiceInstallPlugin,
   getAdminPluginServiceListPluginsQueryKey,
 } from "@evey/api";
 import { toast } from "@evey/store";
@@ -40,6 +41,20 @@ export default function AdminPluginsScreen() {
   const uninstallPlugin = useAdminPluginServiceUninstallPlugin({
     mutation: { onSuccess: () => { toast.success(t("admin.plugins.pluginUninstalled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
   });
+  const installPlugin = useAdminPluginServiceInstallPlugin({
+    mutation: {
+      onSuccess: () => {
+        toast.success(t("admin.plugins.pluginInstalled", "Plugin installed"));
+        qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() });
+        setInstallOpen(false);
+        setInstallSource("");
+      },
+      onError: (err: Error) => toast.error(err.message || t("admin.plugins.installFailed", "Install failed")),
+    },
+  });
+
+  const [installOpen, setInstallOpen] = useState(false);
+  const [installSource, setInstallSource] = useState("");
 
   const handleToggle = useCallback((plugin: Plugin) => {
     if (plugin.enabled) {
@@ -88,6 +103,17 @@ export default function AdminPluginsScreen() {
         title: t("admin.plugins.title"),
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
+        headerRight: () => (
+          <Pressable
+            onPress={() => setInstallOpen(true)}
+            style={{ paddingHorizontal: 12, paddingVertical: 6 }}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={t("admin.plugins.installFromUrl", "Install from URL")}
+          >
+            <Ionicons name="add" size={24} color={theme.colors.accent} />
+          </Pressable>
+        ),
       }} />
       {isLoading ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -109,6 +135,73 @@ export default function AdminPluginsScreen() {
           }
         />
       )}
+
+      <Modal visible={installOpen} transparent animationType="fade" onRequestClose={() => setInstallOpen(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }} onPress={() => setInstallOpen(false)} />
+        <View style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: theme.colors.surface,
+          borderTopLeftRadius: theme.radii.lg,
+          borderTopRightRadius: theme.radii.lg,
+          padding: theme.spacing.md,
+          paddingBottom: theme.spacing.xl,
+          gap: theme.spacing.sm,
+        }}>
+          <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "700" }}>
+            {t("admin.plugins.installFromUrl", "Install from URL")}
+          </Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>
+            {t("admin.plugins.installFromUrlHint", "Paste a plugin .zip URL — optionally append #sha256:<hash> to verify the download.")}
+          </Text>
+          <TextInput
+            value={installSource}
+            onChangeText={setInstallSource}
+            placeholder="https://example.com/plugin.zip"
+            placeholderTextColor={theme.colors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            style={{
+              backgroundColor: theme.colors.bg,
+              color: theme.colors.text,
+              borderRadius: theme.radii.md,
+              padding: theme.spacing.sm + 2,
+              borderWidth: 1,
+              borderColor: theme.colors.border,
+              fontSize: 14,
+            }}
+          />
+          <View style={{ flexDirection: "row", gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
+            <Pressable
+              onPress={() => setInstallOpen(false)}
+              style={{ flex: 1, alignItems: "center", paddingVertical: theme.spacing.sm + 2, borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.border }}
+            >
+              <Text style={{ color: theme.colors.text, fontWeight: "600" }}>{t("common.cancel")}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => installSource.trim() && installPlugin.mutate({ data: { source: installSource.trim() } })}
+              disabled={!installSource.trim() || installPlugin.isPending}
+              style={{
+                flex: 1,
+                alignItems: "center",
+                paddingVertical: theme.spacing.sm + 2,
+                borderRadius: theme.radii.md,
+                backgroundColor: theme.colors.accent,
+                opacity: !installSource.trim() || installPlugin.isPending ? 0.5 : 1,
+              }}
+            >
+              {installPlugin.isPending ? (
+                <ActivityIndicator color={theme.colors.onAccent} size="small" />
+              ) : (
+                <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>{t("admin.plugins.install", "Install")}</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
