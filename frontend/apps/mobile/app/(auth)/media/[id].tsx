@@ -409,6 +409,7 @@ export default function MediaDetailScreen() {
     query: { enabled: !!id, retry: false },
   });
   const profileId = useAuthStore((s) => s.profileId);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const qc = useQueryClient();
 
   const { data: isFavorite } = useIsFavorite(id);
@@ -823,6 +824,27 @@ export default function MediaDetailScreen() {
               <Ionicons name="download-outline" size={20} color={theme.colors.text} />
               <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
                 {t("common.download") || "Download"}
+              </Text>
+            </Pressable>
+          )}
+          {isAdmin && id && (
+            <Pressable
+              onPress={() => router.push(`/admin/media/${id}` as never)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: theme.colors.surface,
+                borderRadius: theme.radii.md,
+                paddingVertical: theme.spacing.sm,
+                paddingHorizontal: theme.spacing.md,
+              }}
+              accessible={true}
+              accessibilityLabel={t("admin.segments.title", "Edit segments")}
+              accessibilityRole="button"
+            >
+              <Ionicons name="settings-outline" size={20} color={theme.colors.text} />
+              <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
+                {t("admin.segments.title", "Edit segments")}
               </Text>
             </Pressable>
           )}
