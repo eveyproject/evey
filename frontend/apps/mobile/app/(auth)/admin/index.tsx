@@ -55,6 +55,7 @@ export default function AdminDashboard() {
     { label: t("admin.serverConfig.title", "Server Config"), icon: "server-outline", path: "/admin/server-config" },
     { label: t("admin.systemHealth.title"), icon: "pulse-outline", path: "/admin/system-health" },
     { label: t("admin.transcodeCache.title", "Transcode Cache"), icon: "film-outline", path: "/admin/transcode-cache" },
+    { label: t("admin.artworks.title", "Artworks"), icon: "image-outline", path: "/admin/artworks" },
     { label: t("common.feeds.title"), icon: "grid-outline", path: "/admin/feeds" },
     { label: t("admin.remoteAccess.title"), icon: "globe-outline", path: "/admin/remote-access" },
     { label: t("admin.analytics.title"), icon: "bar-chart-outline", path: "/admin/analytics" },
