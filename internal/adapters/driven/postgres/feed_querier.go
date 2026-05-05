@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/feed"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type FeedQuerier struct {
@@ -28,6 +29,8 @@ func clampFeedLimit(limit int) int {
 
 // ContinueWatching returns in-progress films and the next episode to watch per series.
 func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed.ContinueWatching")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	limit = clampFeedLimit(limit)
@@ -96,6 +99,8 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 
 // ResumePlayback returns in-progress media AND next episodes per series, sorted by last user interaction.
 func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed.ResumePlayback")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	limit = clampFeedLimit(limit)
@@ -152,6 +157,8 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 
 // NextEpisode returns the next unwatched episode per series where the user completed at least one episode.
 func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed.NextEpisode")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	limit = clampFeedLimit(limit)
@@ -189,6 +196,8 @@ func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit i
 
 // RecentlyAdded returns media items added within daysWindow days, most recent first.
 func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) ([]*feed.FeedItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed.RecentlyAdded")
+	defer span.End()
 	if daysWindow <= 0 {
 		daysWindow = 30
 	}
@@ -229,6 +238,8 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) 
 // watched-badge carry the UX and trust the user to decide whether they want
 // to re-watch.
 func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres []string, limit int) ([]*feed.FeedItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed.Recommended")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(genres) == 0 {
@@ -285,6 +296,8 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 
 // SimilarItems returns unwatched items with similar genres/director to the given item.
 func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.feed.SimilarItems")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := q.db.QueryContext(ctx, `

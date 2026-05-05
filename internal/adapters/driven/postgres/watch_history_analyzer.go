@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // WatchHistoryAnalyzer implements notification.WatchHistoryAnalyzer using PostgreSQL.
@@ -20,6 +21,8 @@ func NewWatchHistoryAnalyzer(db *sql.DB) *WatchHistoryAnalyzer {
 
 // GetFavoriteGenres returns genres the profile has watched at least minCount times.
 func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID string, minCount int) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchhistory.GetFavoriteGenres")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := a.db.QueryContext(ctx, `
@@ -59,6 +62,8 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID 
 
 // GetFavoriteGenresBatch returns favorite genres for multiple profiles in a single query.
 func (a *WatchHistoryAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profileIDs []string, minCount int) (map[string][]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchhistory.GetFavoriteGenresBatch")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(profileIDs) == 0 {
@@ -106,6 +111,8 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profi
 
 // HasWatchedSeries returns true if the profile has any completed episodes in the series.
 func (a *WatchHistoryAnalyzer) HasWatchedSeries(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchhistory.HasWatchedSeries")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
@@ -124,6 +131,8 @@ func (a *WatchHistoryAnalyzer) HasWatchedSeries(ctx context.Context, profileID, 
 
 // IsCurrentlyWatchingSeries returns true if the profile has an in-progress episode in the series.
 func (a *WatchHistoryAnalyzer) IsCurrentlyWatchingSeries(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchhistory.IsCurrentlyWatchingSeries")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
@@ -143,6 +152,8 @@ func (a *WatchHistoryAnalyzer) IsCurrentlyWatchingSeries(ctx context.Context, pr
 
 // CalculateRelevanceScore counts how many of the profile's favorite genres match the given genres.
 func (a *WatchHistoryAnalyzer) CalculateRelevanceScore(ctx context.Context, profileID string, genres []string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchhistory.CalculateRelevanceScore")
+	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(genres) == 0 {
