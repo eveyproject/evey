@@ -12,6 +12,7 @@ import (
 	"time"
 
 	domain "github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const omdbBaseURL = "https://www.omdbapi.com"
@@ -36,6 +37,9 @@ func NewOMDbProvider(apiKey string, httpClient *http.Client) *OMDbProvider {
 func (p *OMDbProvider) Name() string { return "omdb" }
 
 func (p *OMDbProvider) Search(ctx context.Context, query string, year *int, mediaType string) ([]domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.omdb.Search")
+	defer span.End()
+
 	if p.apiKey == "" {
 		return nil, nil
 	}
@@ -91,6 +95,9 @@ func (p *OMDbProvider) Search(ctx context.Context, query string, year *int, medi
 }
 
 func (p *OMDbProvider) GetByProviderID(ctx context.Context, providerID string, mediaType string) (*domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.omdb.GetByProviderID")
+	defer span.End()
+
 	if p.apiKey == "" {
 		return nil, nil
 	}

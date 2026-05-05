@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type TMDBPersonFetcher struct {
@@ -19,6 +20,9 @@ func NewTMDBPersonFetcher(tmdb *TMDBProvider) *TMDBPersonFetcher {
 }
 
 func (f *TMDBPersonFetcher) GetPersonDetails(ctx context.Context, name string) (*domainlibrary.PersonDetailsResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.person.GetPersonDetails")
+	defer span.End()
+
 	details, err := f.tmdb.GetPersonDetails(ctx, name)
 	if err != nil || details == nil {
 		return nil, err
@@ -35,6 +39,9 @@ func (f *TMDBPersonFetcher) GetPersonDetails(ctx context.Context, name string) (
 
 // FetchPersonTranslations searches TMDB for a person by name, then fetches biography in each locale.
 func (f *TMDBPersonFetcher) FetchPersonTranslations(ctx context.Context, name string, locales []string) (map[string]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.person.FetchPersonTranslations")
+	defer span.End()
+
 	searchURL := fmt.Sprintf("%s/search/person?query=%s&language=%s", f.tmdb.baseURL, url.QueryEscape(name), f.tmdb.language())
 	body, err := f.tmdb.doRequestWithRetry(ctx, searchURL)
 	if err != nil {

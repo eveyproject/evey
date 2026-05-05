@@ -5,6 +5,7 @@ import (
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/subtitle"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type libraryQuerySvc interface {
@@ -21,6 +22,9 @@ func NewLibraryMediaGetter(q libraryQuerySvc) subtitle.MediaItemGetter {
 }
 
 func (g *LibraryMediaGetter) GetMediaItem(ctx context.Context, id string) (*subtitle.MediaItemInfo, error) {
+	ctx, span := tracing.StartSpan(ctx, "opensubtitles.mediagetter.GetMediaItem")
+	defer span.End()
+
 	item, err := g.q.GetMediaItem(ctx, id)
 	if err != nil {
 		return nil, err

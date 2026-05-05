@@ -13,6 +13,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/photo"
 	"github.com/evey-project/evey/internal/pkg/filehash"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 var imageExts = map[string]string{
@@ -34,6 +35,9 @@ func NewPhotoScanner() *PhotoScanner {
 }
 
 func (s *PhotoScanner) WalkImageFiles(ctx context.Context, dir string, fn func(photo.ScannedImageFile) error) error {
+	ctx, span := tracing.StartSpan(ctx, "filesystem.photoscanner.WalkImageFiles")
+	defer span.End()
+
 	return filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			slog.Warn("photo walk error", slog.String("path", path), slog.Any("err", walkErr))

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/pkg/ssrf"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const (
@@ -41,6 +42,9 @@ type searchResponse struct {
 // Fetch queries iTunes for (artist, album) and returns the JPEG bytes of the
 // 600x600 artwork. Returns (nil, "", os.ErrNotExist) if no result.
 func (f *AlbumArtFetcher) Fetch(ctx context.Context, artist, album string) ([]byte, string, error) {
+	ctx, span := tracing.StartSpan(ctx, "itunes.albumart.Fetch")
+	defer span.End()
+
 	if artist == "" || album == "" {
 		return nil, "", os.ErrNotExist
 	}

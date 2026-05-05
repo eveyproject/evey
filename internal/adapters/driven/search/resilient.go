@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type ResilientSearch struct {
@@ -17,6 +18,9 @@ func NewResilient(primary, fallback library.SearchIndex) *ResilientSearch {
 }
 
 func (r *ResilientSearch) IndexMediaItem(ctx context.Context, item *library.MediaItem, castNames []string) error {
+	ctx, span := tracing.StartSpan(ctx, "search.resilient.IndexMediaItem")
+	defer span.End()
+
 	if r.primary == nil {
 		return nil
 	}
@@ -27,6 +31,9 @@ func (r *ResilientSearch) IndexMediaItem(ctx context.Context, item *library.Medi
 }
 
 func (r *ResilientSearch) IndexMediaItemsBatch(ctx context.Context, items []*library.MediaItem) error {
+	ctx, span := tracing.StartSpan(ctx, "search.resilient.IndexMediaItemsBatch")
+	defer span.End()
+
 	if r.primary == nil {
 		return nil
 	}
@@ -37,6 +44,9 @@ func (r *ResilientSearch) IndexMediaItemsBatch(ctx context.Context, items []*lib
 }
 
 func (r *ResilientSearch) RemoveMediaItem(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx, "search.resilient.RemoveMediaItem")
+	defer span.End()
+
 	if r.primary == nil {
 		return nil
 	}
@@ -49,6 +59,9 @@ func (r *ResilientSearch) RemoveMediaItem(ctx context.Context, id string) error 
 func (r *ResilientSearch) Primary() library.SearchIndex { return r.primary }
 
 func (r *ResilientSearch) Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "search.resilient.Search")
+	defer span.End()
+
 	if r.primary != nil {
 		hits, total, err := r.primary.Search(ctx, query, filters, sort, limit)
 		if err == nil {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	domain "github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const imdbAPIBaseURL = "https://api.imdbapi.dev"
@@ -33,6 +34,9 @@ func (p *IMDBAPIProvider) Name() string { return "imdbapi" }
 
 // Search queries imdbapi.dev /search/titles, filtering results by mediaType.
 func (p *IMDBAPIProvider) Search(ctx context.Context, query string, _ *int, mediaType string) ([]domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.imdb.Search")
+	defer span.End()
+
 	params := url.Values{"query": {query}, "limit": {"10"}}
 	u := fmt.Sprintf("%s/search/titles?%s", p.baseURL, params.Encode())
 
@@ -70,6 +74,9 @@ func imdbTypeMatches(imdbType, mediaType string) bool {
 
 // GetByProviderID fetches a title by IMDB ID (e.g. "tt0111161").
 func (p *IMDBAPIProvider) GetByProviderID(ctx context.Context, providerID string, mediaType string) (*domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.imdb.GetByProviderID")
+	defer span.End()
+
 	u := fmt.Sprintf("%s/titles/%s", p.baseURL, providerID)
 
 	body, err := p.doRequest(ctx, u)

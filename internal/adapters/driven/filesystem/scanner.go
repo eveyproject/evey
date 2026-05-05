@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 var videoExtensions = map[string]bool{
@@ -48,6 +49,9 @@ func NewScanner() *Scanner {
 }
 
 func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile, error) {
+	ctx, span := tracing.StartSpan(ctx, "filesystem.scanner.Scan")
+	defer span.End()
+
 	var files []library.ScannedFile
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {

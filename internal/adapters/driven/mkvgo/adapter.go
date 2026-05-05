@@ -14,6 +14,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type Adapter struct{}
@@ -39,6 +40,9 @@ func IsEBMLContainer(path string) bool {
 // --- ContainerReader ---
 
 func (a *Adapter) Open(ctx context.Context, path string) (*mkv.Container, error) {
+	ctx, span := tracing.StartSpan(ctx, "mkvgo.Open")
+	defer span.End()
+
 	if !IsEBMLContainer(path) {
 		return &mkv.Container{Path: path}, nil
 	}
@@ -50,6 +54,9 @@ func (a *Adapter) Open(ctx context.Context, path string) (*mkv.Container, error)
 }
 
 func (a *Adapter) ReadTracks(ctx context.Context, path string) ([]mkv.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "mkvgo.ReadTracks")
+	defer span.End()
+
 	c, err := a.Open(ctx, path)
 	if err != nil {
 		return nil, err
@@ -58,6 +65,9 @@ func (a *Adapter) ReadTracks(ctx context.Context, path string) ([]mkv.Track, err
 }
 
 func (a *Adapter) ReadChapters(ctx context.Context, path string) ([]mkv.Chapter, error) {
+	ctx, span := tracing.StartSpan(ctx, "mkvgo.ReadChapters")
+	defer span.End()
+
 	c, err := a.Open(ctx, path)
 	if err != nil {
 		return nil, err
@@ -66,6 +76,9 @@ func (a *Adapter) ReadChapters(ctx context.Context, path string) ([]mkv.Chapter,
 }
 
 func (a *Adapter) ReadAttachments(ctx context.Context, path string) ([]mkv.Attachment, error) {
+	ctx, span := tracing.StartSpan(ctx, "mkvgo.ReadAttachments")
+	defer span.End()
+
 	c, err := a.Open(ctx, path)
 	if err != nil {
 		return nil, err
@@ -74,6 +87,9 @@ func (a *Adapter) ReadAttachments(ctx context.Context, path string) ([]mkv.Attac
 }
 
 func (a *Adapter) ReadTags(ctx context.Context, path string) ([]mkv.Tag, error) {
+	ctx, span := tracing.StartSpan(ctx, "mkvgo.ReadTags")
+	defer span.End()
+
 	c, err := a.Open(ctx, path)
 	if err != nil {
 		return nil, err
@@ -84,6 +100,9 @@ func (a *Adapter) ReadTags(ctx context.Context, path string) ([]mkv.Tag, error) 
 // --- ContainerWriter ---
 
 func (a *Adapter) Mux(ctx context.Context, opts mkv.MuxOptions) error {
+	ctx, span := tracing.StartSpan(ctx, "mkvgo.Mux")
+	defer span.End()
+
 	extOpts := extmkv.MuxOptions{
 		OutputPath: opts.OutputPath,
 	}
@@ -94,6 +113,9 @@ func (a *Adapter) Mux(ctx context.Context, opts mkv.MuxOptions) error {
 }
 
 func (a *Adapter) Demux(ctx context.Context, path string, opts mkv.DemuxOptions) error {
+	ctx, span := tracing.StartSpan(ctx, "mkvgo.Demux")
+	defer span.End()
+
 	extOpts := extmkv.DemuxOptions{
 		SourcePath: path,
 		OutputDir:  opts.OutputDir,
@@ -103,6 +125,9 @@ func (a *Adapter) Demux(ctx context.Context, path string, opts mkv.DemuxOptions)
 }
 
 func (a *Adapter) AddTrack(ctx context.Context, containerPath string, input mkv.TrackInput) error {
+	ctx, span := tracing.StartSpan(ctx, "mkvgo.AddTrack")
+	defer span.End()
+
 	tmpOut := containerPath + ".tmp.mkv"
 	if err := ops.AddTrack(ctx, containerPath, tmpOut, toExtTrackInput(input)); err != nil {
 		return fmt.Errorf("mkvgo add track: %w", err)
@@ -111,6 +136,9 @@ func (a *Adapter) AddTrack(ctx context.Context, containerPath string, input mkv.
 }
 
 func (a *Adapter) RemoveTrack(ctx context.Context, containerPath string, trackID uint64) error {
+	ctx, span := tracing.StartSpan(ctx, "mkvgo.RemoveTrack")
+	defer span.End()
+
 	tmpOut := containerPath + ".tmp.mkv"
 	if err := ops.RemoveTrack(ctx, containerPath, tmpOut, []uint64{trackID}); err != nil {
 		return fmt.Errorf("mkvgo remove track: %w", err)
@@ -119,6 +147,9 @@ func (a *Adapter) RemoveTrack(ctx context.Context, containerPath string, trackID
 }
 
 func (a *Adapter) ExtractAttachment(ctx context.Context, containerPath string, attachmentID uint64, destPath string) error {
+	ctx, span := tracing.StartSpan(ctx, "mkvgo.ExtractAttachment")
+	defer span.End()
+
 	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
 		return err
 	}

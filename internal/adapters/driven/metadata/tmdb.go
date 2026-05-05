@@ -13,6 +13,7 @@ import (
 
 	"github.com/evey-project/evey/internal/pkg/cache"
 	domain "github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type TMDBProvider struct {
@@ -68,6 +69,9 @@ func NewTMDBProvider(apiKey string, language string, httpClient *http.Client) *T
 func (p *TMDBProvider) Name() string { return "tmdb" }
 
 func (p *TMDBProvider) Search(ctx context.Context, query string, year *int, mediaType string) ([]domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.Search")
+	defer span.End()
+
 	endpoint, err := searchEndpoint(mediaType)
 	if err != nil {
 		return nil, err
@@ -143,6 +147,9 @@ func (p *TMDBProvider) searchPages(ctx context.Context, endpoint, query string, 
 
 // GetEpisodeDetails fetches title, overview and still image for a specific episode.
 func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, seasonNum, episodeNum int) (*domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.GetEpisodeDetails")
+	defer span.End()
+
 	u := fmt.Sprintf("%s/tv/%s/season/%d/episode/%d?language=%s&append_to_response=images",
 		p.baseURL, seriesID, seasonNum, episodeNum, p.language())
 	body, err := p.doRequestWithRetry(ctx, u)
@@ -187,6 +194,9 @@ func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, s
 
 // GetSeasonDetails fetches metadata for a specific season of a TV series.
 func (p *TMDBProvider) GetSeasonDetails(ctx context.Context, seriesID string, seasonNum int) (*domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.GetSeasonDetails")
+	defer span.End()
+
 	u := fmt.Sprintf("%s/tv/%s/season/%d?language=%s&append_to_response=images",
 		p.baseURL, seriesID, seasonNum, p.language())
 	body, err := p.doRequestWithRetry(ctx, u)
@@ -227,6 +237,9 @@ func (p *TMDBProvider) GetSeasonDetails(ctx context.Context, seriesID string, se
 }
 
 func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, mediaType string) (*domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.GetByProviderID")
+	defer span.End()
+
 	cacheKey := "tmdb:detail:" + mediaType + ":" + providerID
 	if cached, ok := p.detailCache.Get(cacheKey); ok {
 		return &cached, nil
@@ -266,6 +279,9 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 // admin "change IMDB ID" flow, which otherwise leaves the stale TMDB ID
 // on the item and fetches translations for the wrong title.
 func (p *TMDBProvider) LookupByExternalID(ctx context.Context, providerName, externalID string) (*domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.LookupByExternalID")
+	defer span.End()
+
 	if providerName != "imdb" || externalID == "" {
 		return nil, nil
 	}
@@ -305,6 +321,9 @@ func (p *TMDBProvider) LookupByExternalID(ctx context.Context, providerName, ext
 
 // FetchTranslations fetches title/overview/tagline in each locale, skipping the provider's default language.
 func (p *TMDBProvider) FetchTranslations(ctx context.Context, providerID string, mediaType string, locales []string) (map[string]domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.FetchTranslations")
+	defer span.End()
+
 	results := make(map[string]domain.MetadataResult)
 	for _, locale := range locales {
 		if locale == p.language() {
@@ -342,6 +361,9 @@ func (p *TMDBProvider) FetchTranslations(ctx context.Context, providerID string,
 
 // FetchPersonTranslations fetches biography in each locale for a person by TMDB ID.
 func (p *TMDBProvider) FetchPersonTranslations(ctx context.Context, personID string, locales []string) (map[string]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.FetchPersonTranslations")
+	defer span.End()
+
 	results := make(map[string]string)
 	for _, locale := range locales {
 		if locale == p.language() {
@@ -365,6 +387,9 @@ func (p *TMDBProvider) FetchPersonTranslations(ctx context.Context, personID str
 
 // GetPersonDetails searches TMDB for a person by name and returns biographical info.
 func (p *TMDBProvider) GetPersonDetails(ctx context.Context, name string) (*PersonDetails, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.GetPersonDetails")
+	defer span.End()
+
 	searchURL := fmt.Sprintf("%s/search/person?query=%s&language=%s", p.baseURL, url.QueryEscape(name), p.language())
 	body, err := p.doRequestWithRetry(ctx, searchURL)
 	if err != nil {

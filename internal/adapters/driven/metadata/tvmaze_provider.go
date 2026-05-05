@@ -13,6 +13,7 @@ import (
 	"time"
 
 	domain "github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 	"golang.org/x/time/rate"
 )
 
@@ -40,6 +41,9 @@ func NewTVMazeProvider(httpClient *http.Client) *TVMazeProvider {
 func (p *TVMazeProvider) Name() string { return "tvmaze" }
 
 func (p *TVMazeProvider) Search(ctx context.Context, query string, _ *int, mediaType string) ([]domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tvmaze.Search")
+	defer span.End()
+
 	if mediaType == "movie" {
 		return nil, nil
 	}
@@ -65,6 +69,9 @@ func (p *TVMazeProvider) Search(ctx context.Context, query string, _ *int, media
 }
 
 func (p *TVMazeProvider) GetByProviderID(ctx context.Context, providerID string, mediaType string) (*domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tvmaze.GetByProviderID")
+	defer span.End()
+
 	if mediaType == "movie" {
 		return nil, nil
 	}
@@ -102,6 +109,9 @@ func (p *TVMazeProvider) GetByProviderID(ctx context.Context, providerID string,
 }
 
 func (p *TVMazeProvider) GetEpisodeDetails(ctx context.Context, seriesID string, seasonNum, episodeNum int) (*domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tvmaze.GetEpisodeDetails")
+	defer span.End()
+
 	u := fmt.Sprintf("%s/shows/%s/episodebynumber?season=%d&number=%d", p.baseURL, seriesID, seasonNum, episodeNum)
 	body, err := p.doRequest(ctx, u)
 	if err != nil {
@@ -139,6 +149,9 @@ func (p *TVMazeProvider) GetEpisodeDetails(ctx context.Context, seriesID string,
 }
 
 func (p *TVMazeProvider) LookupByExternalID(ctx context.Context, providerName, externalID string) (*domain.MetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tvmaze.LookupByExternalID")
+	defer span.End()
+
 	var param string
 	switch providerName {
 	case "imdb":

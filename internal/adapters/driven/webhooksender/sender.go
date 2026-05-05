@@ -10,6 +10,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/webhook"
 	"github.com/evey-project/evey/internal/pkg/ssrf"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 var _ webhook.Sender = (*HTTPSender)(nil)
@@ -34,6 +35,9 @@ func NewWithClient(c *http.Client) *HTTPSender {
 }
 
 func (s *HTTPSender) Send(ctx context.Context, url string, headers map[string]string, body []byte) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "webhooksender.Send")
+	defer span.End()
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return 0, fmt.Errorf("build request: %w", err)

@@ -17,6 +17,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/subtitle"
 	"github.com/evey-project/evey/internal/pkg/ssrf"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const (
@@ -127,6 +128,9 @@ type searchResponse struct {
 }
 
 func (c *Client) Search(ctx context.Context, hash, title, language string) ([]subtitle.SearchResult, error) {
+	ctx, span := tracing.StartSpan(ctx, "opensubtitles.Search")
+	defer span.End()
+
 	params := url.Values{}
 	if hash != "" {
 		params.Set("moviehash", hash)
@@ -193,6 +197,9 @@ type downloadResponse struct {
 }
 
 func (c *Client) Download(ctx context.Context, fileID int, destPath string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx, "opensubtitles.Download")
+	defer span.End()
+
 	if err := c.ensureAuth(ctx); err != nil {
 		return "", err
 	}

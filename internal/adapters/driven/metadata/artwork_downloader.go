@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/pkg/ssrf"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type ArtworkHTTPDownloader struct {
@@ -25,6 +26,9 @@ func NewArtworkHTTPDownloader(httpClient *http.Client) *ArtworkHTTPDownloader {
 }
 
 func (d *ArtworkHTTPDownloader) Download(ctx context.Context, url, destPath string) error {
+	ctx, span := tracing.StartSpan(ctx, "metadata.artwork.Download")
+	defer span.End()
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("create download request: %w", err)

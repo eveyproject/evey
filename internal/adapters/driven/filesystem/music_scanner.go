@@ -9,6 +9,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/music"
 	"github.com/evey-project/evey/internal/pkg/filehash"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 var audioExts = map[string]string{
@@ -28,6 +29,9 @@ func NewMusicScanner() *MusicScanner {
 }
 
 func (s *MusicScanner) WalkAudioFiles(ctx context.Context, dir string, fn func(music.ScannedAudioFile) error) error {
+	ctx, span := tracing.StartSpan(ctx, "filesystem.musicscanner.WalkAudioFiles")
+	defer span.End()
+
 	return filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			slog.Warn("music scan: walk error", slog.String("path", path), slog.Any("err", walkErr))
