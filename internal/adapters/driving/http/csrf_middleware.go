@@ -30,15 +30,17 @@ func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
-			header := r.Header.Get(csrfHeaderName)
-
-			// Browser session is identified by the refresh-token cookie. If present,
-			// CSRF enforcement is mandatory; if absent, the caller is Bearer-only
-			// (mobile/API) and immune to CSRF.
-			if _, err := r.Cookie(refreshCookieName); err != nil {
+			// CSRF is a browser-only threat. Detect browsers via headers they
+			// always send (Sec-Fetch-Site: Chrome 76+, FF 90+, Safari 16.4+;
+			// Origin: every browser on cross-origin and same-origin POST).
+			// Native clients (React Native, Expo, CLI, server-to-server) send
+			// neither, so they get a Bearer/API path and bypass CSRF — even if
+			// a stale refresh-token cookie is still attached to the request.
+			if r.Header.Get("Sec-Fetch-Site") == "" && r.Header.Get("Origin") == "" {
 				break
 			}
 
+			header := r.Header.Get(csrfHeaderName)
 			if header == "" {
 				slog.Warn("csrf header missing on session request", slog.String("path", r.URL.Path))
 				http.Error(w, `{"message":"csrf token missing"}`, http.StatusForbidden)

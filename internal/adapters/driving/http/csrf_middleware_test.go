@@ -101,6 +101,7 @@ func TestCSRFMiddleware_POST_MismatchHeader_Forbidden(t *testing.T) {
 	})
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
 	req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "rt-xyz"})
 	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: "abc123"})
 	req.Header.Set(csrfHeaderName, "wrong-value")
@@ -118,6 +119,7 @@ func TestCSRFMiddleware_POST_SessionNoHeader_Forbidden(t *testing.T) {
 	})
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/something", nil)
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
 	req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "rt-xyz"})
 	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: "abc123"})
 	// no X-CSRF-Token header
@@ -135,6 +137,7 @@ func TestCSRFMiddleware_POST_SessionMissingCsrfCookie_Forbidden(t *testing.T) {
 	})
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/something", nil)
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
 	req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "rt-xyz"})
 	req.Header.Set(csrfHeaderName, "some-header")
 	w := httptest.NewRecorder()
@@ -248,6 +251,7 @@ func TestCSRFMiddleware_POST_EmptyCookieValue_WithHeader_Forbidden(t *testing.T)
 	})
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
 	req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "rt-xyz"})
 	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: ""})
 	req.Header.Set(csrfHeaderName, "some-token")
@@ -256,6 +260,32 @@ func TestCSRFMiddleware_POST_EmptyCookieValue_WithHeader_Forbidden(t *testing.T)
 
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", w.Code)
+	}
+}
+
+// Mobile clients (React Native, Expo) sometimes carry a stale refresh-token
+// cookie in their fetch jar after a forced logout. They never set Sec-Fetch-*
+// or Origin headers, so they must bypass CSRF — otherwise login is impossible
+// until the cookie naturally expires.
+func TestCSRFMiddleware_POST_StaleRefreshCookie_NoBrowserHeaders_SkipCSRF(t *testing.T) {
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+	h := csrfMiddleware(false, next)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "rt-stale"})
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: "abc123"})
+	// no Sec-Fetch-Site, no Origin → not a browser
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 (native client without browser headers), got %d", w.Code)
+	}
+	if !called {
+		t.Error("next should be called for native client even with stale refresh cookie")
 	}
 }
 
