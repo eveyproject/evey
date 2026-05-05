@@ -18,6 +18,7 @@ import (
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // IntroDetector is the port for the FFmpeg intro-detection adapter.
@@ -303,6 +304,8 @@ func (s *IntroDetectionService) backfillMissingSeasons(ctx context.Context) {
 // Returns the number of seasons that were scheduled (i.e. passed to
 // detectSeason, not necessarily found new segments).
 func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.BackfillLibrary")
+	defer span.End()
 	var parentIDs []string
 	if libraryID == "" {
 		// No filter: use the same missing-segments query as the boot sweep.
@@ -416,6 +419,8 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 // of admin /detect-segments triggers (or worker auto-runs) don't pile up
 // ffmpeg processes that thrash the host.
 func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.DetectIntro")
+	defer span.End()
 	if s.concurrencyLimiter != nil {
 		select {
 		case s.concurrencyLimiter <- struct{}{}:
@@ -520,6 +525,8 @@ func (s *IntroDetectionService) upsertSegmentRespectingManual(ctx context.Contex
 // This is the operator-driven override path. The (media_item_id, type) DB unique
 // constraint makes this idempotent: posting the same type updates start/end.
 func (s *IntroDetectionService) SetManualSegment(ctx context.Context, mediaItemID, segType string, startMs, endMs int64) error {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.SetManualSegment")
+	defer span.End()
 	if err := validateSegmentInput(segType, startMs, endMs); err != nil {
 		return err
 	}
@@ -547,6 +554,8 @@ func (s *IntroDetectionService) SetManualSegment(ctx context.Context, mediaItemI
 
 // DeleteSegment removes a segment of the given type for the given media item.
 func (s *IntroDetectionService) DeleteSegment(ctx context.Context, mediaItemID, segType string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.DeleteSegment")
+	defer span.End()
 	return s.segmentRepo.DeleteByMediaItemIDAndType(ctx, shared.MediaItemID(mediaItemID), segType)
 }
 
@@ -558,6 +567,8 @@ func (s *IntroDetectionService) DeleteSegment(ctx context.Context, mediaItemID, 
 //
 // Only works on episodes; films return an error.
 func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaItemID, segType string) (propagatedTo []string, err error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.PropagateSegment")
+	defer span.End()
 	refItem, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(refMediaItemID))
 	if err != nil {
 		return nil, fmt.Errorf("get reference item: %w", err)

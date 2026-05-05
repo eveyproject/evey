@@ -12,6 +12,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type Scheduler struct {
@@ -54,6 +55,8 @@ func NewSchedulerWithClock(
 }
 
 func (s *Scheduler) SetSchedule(ctx context.Context, libraryID, cronExpr string, enabled bool) (*library.ScanSchedule, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.scheduler.SetSchedule")
+	defer span.End()
 	nextRun, err := NextCronTime(cronExpr, time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("invalid cron: %w", err)
@@ -71,14 +74,20 @@ func (s *Scheduler) SetSchedule(ctx context.Context, libraryID, cronExpr string,
 }
 
 func (s *Scheduler) GetSchedule(ctx context.Context, libraryID string) (*library.ScanSchedule, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.scheduler.GetSchedule")
+	defer span.End()
 	return s.schedules.GetByLibraryID(ctx, libraryID)
 }
 
 func (s *Scheduler) DeleteSchedule(ctx context.Context, libraryID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.library.scheduler.DeleteSchedule")
+	defer span.End()
 	return s.schedules.Delete(ctx, libraryID)
 }
 
 func (s *Scheduler) ListSchedules(ctx context.Context) ([]*library.ScanSchedule, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.scheduler.ListSchedules")
+	defer span.End()
 	return s.schedules.List(ctx)
 }
 
