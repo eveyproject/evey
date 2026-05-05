@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/backup"
+	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 var (
@@ -48,6 +49,8 @@ func (d *DatabaseDumper) pgEnv() []string {
 }
 
 func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.Reader, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.backup.DumpTables")
+	defer span.End()
 	args := []string{
 		"-h", d.host,
 		"-p", strconv.Itoa(d.port),
@@ -100,6 +103,8 @@ func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.Re
 }
 
 func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.backup.RestoreTables")
+	defer span.End()
 	validated, err := d.validateBackup(data)
 	if err != nil {
 		return err
