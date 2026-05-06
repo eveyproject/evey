@@ -31,6 +31,7 @@ import { MediaRow } from "../../../src/components/MediaRow";
 import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
 import { CollectionRow } from "../../../src/components/CollectionRow";
+import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 
@@ -300,11 +301,8 @@ function FeedCustomizeModal({
         if (knownTypes.has(ft)) return true;
         // 2. library:<id> — keep only if the library still exists.
         if (ft.startsWith("library:")) return !!libraryNames[ft.replace("library:", "")];
-        // 3. plugin:<id> — mobile doesn't surface plugin home sections (no
-        //    PluginSlot port yet), so a plugin row here can't render and
-        //    would just show "plugin:foo" — drop it. The row stays in the
-        //    DB and reappears once mobile gains plugin support.
-        if (ft.startsWith("plugin:")) return false;
+        // 3. plugin:<id> — render via PluginSlot in a WebView; keep the row.
+        if (ft.startsWith("plugin:")) return true;
         // 4. Anything else is an unknown stale type — drop.
         return false;
       });
@@ -516,6 +514,14 @@ export default function HomeScreen() {
           const lib = (librariesData?.libraries ?? []).find((l) => l.id === libId);
           if (!lib) return null;
           return <LibraryFeedRow key={feedType} libraryId={libId} name={lib.name ?? ""} libraryType={lib.type} onItemPress={handleItemPress} />;
+        }
+        if (feedType.startsWith("plugin:")) {
+          const pluginId = feedType.replace("plugin:", "");
+          return (
+            <View key={feedType} style={{ marginVertical: theme.spacing.sm, marginHorizontal: theme.spacing.md }}>
+              <PluginSlot name="home.section" pluginId={pluginId} />
+            </View>
+          );
         }
         return null;
     }
