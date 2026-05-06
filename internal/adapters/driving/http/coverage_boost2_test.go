@@ -8,6 +8,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1105,6 +1107,82 @@ func TestListThemes_NoAuth_401(t *testing.T) {
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestListThemes_IncludesParsedTokens(t *testing.T) {
+	mux, token, repo, dir := setupPluginAssetTest(t)
+	_ = repo.Create(context.Background(), &plugin.Plugin{
+		ID: "themeWithCSS", Name: "Mid Theme", Kind: plugin.KindTheme, Enabled: true,
+	})
+	themeDir := filepath.Join(dir, "themeWithCSS")
+	if err := os.MkdirAll(themeDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	css := []byte("/* hi */\n:root {\n  --bg: #112233;\n  --accent: #ff00ff;\n  --text: #eee;\n}\n")
+	if err := os.WriteFile(filepath.Join(themeDir, "theme.css"), css, 0o644); err != nil {
+		t.Fatalf("write theme.css: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/themes", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	for _, want := range []string{`"--bg":"#112233"`, `"--accent":"#ff00ff"`, `"--text":"#eee"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("response missing %q: %s", want, body)
+		}
+	}
+}
+
+func TestParseRootCSSVars(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want map[string]string
+	}{
+		{
+			name: "basic",
+			in:   ":root { --a: red; --b: #fff; }",
+			want: map[string]string{"--a": "red", "--b": "#fff"},
+		},
+		{
+			name: "with comments",
+			in:   "/* skip */ :root { /* inner */ --x: blue; }",
+			want: map[string]string{"--x": "blue"},
+		},
+		{
+			name: "ignores non-vars",
+			in:   ":root { color: red; --keep: yellow; }",
+			want: map[string]string{"--keep": "yellow"},
+		},
+		{
+			name: "no root block",
+			in:   "body { color: red; }",
+			want: nil,
+		},
+		{
+			name: "rgba value preserved",
+			in:   ":root { --shadow: rgba(0, 0, 0, 0.4); }",
+			want: map[string]string{"--shadow": "rgba(0, 0, 0, 0.4)"},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := parseRootCSSVars([]byte(c.in))
+			if len(got) != len(c.want) {
+				t.Fatalf("got %d entries, want %d: %v", len(got), len(c.want), got)
+			}
+			for k, v := range c.want {
+				if got[k] != v {
+					t.Errorf("key %s: got %q want %q", k, got[k], v)
+				}
+			}
+		})
 	}
 }
 

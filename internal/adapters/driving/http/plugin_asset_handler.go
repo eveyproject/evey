@@ -240,23 +240,91 @@ func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Req
 	}
 
 	type themeEntry struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
+		ID     string            `json:"id"`
+		Name   string            `json:"name"`
+		Tokens map[string]string `json:"tokens,omitempty"`
 	}
 	var result []themeEntry
 	for _, p := range plugins {
-		if !p.Enabled {
+		if !p.Enabled || !p.IsTheme() {
 			continue
 		}
-		if p.IsTheme() {
-			result = append(result, themeEntry{ID: p.ID, Name: p.Name})
+		entry := themeEntry{ID: p.ID, Name: p.Name}
+		// Parse :root { --X: Y; ... } from theme.css so mobile clients (which
+		// can't apply CSS) get a JSON token map to feed their native theme
+		// provider. Web ignores this field and keeps loading theme.css.
+		if cssBytes, readErr := os.ReadFile(filepath.Join(h.pluginDir, p.ID, "theme.css")); readErr == nil {
+			if vars := parseRootCSSVars(cssBytes); len(vars) > 0 {
+				entry.Tokens = vars
+			}
 		}
+		result = append(result, entry)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if encErr := json.NewEncoder(w).Encode(map[string]any{"themes": result}); encErr != nil {
 		slog.Warn("encode themes", slog.Any("err", encErr))
 	}
+}
+
+// parseRootCSSVars extracts `--name: value;` declarations from the first
+// `:root { ... }` block in a CSS file. Comments are stripped first; values
+// are trimmed but otherwise returned verbatim (the client decides what to
+// do with rgba(), hex, etc.). Only the first :root block is read — themes
+// don't ship multiple, and this keeps parsing predictable.
+func parseRootCSSVars(css []byte) map[string]string {
+	src := stripCSSComments(string(css))
+	rootIdx := strings.Index(src, ":root")
+	if rootIdx < 0 {
+		return nil
+	}
+	open := strings.Index(src[rootIdx:], "{")
+	if open < 0 {
+		return nil
+	}
+	open += rootIdx
+	close := strings.Index(src[open:], "}")
+	if close < 0 {
+		return nil
+	}
+	body := src[open+1 : open+close]
+	out := make(map[string]string)
+	for decl := range strings.SplitSeq(body, ";") {
+		decl = strings.TrimSpace(decl)
+		if !strings.HasPrefix(decl, "--") {
+			continue
+		}
+		colon := strings.Index(decl, ":")
+		if colon < 0 {
+			continue
+		}
+		name := strings.TrimSpace(decl[:colon])
+		value := strings.TrimSpace(decl[colon+1:])
+		if name == "" || value == "" {
+			continue
+		}
+		out[name] = value
+	}
+	return out
+}
+
+func stripCSSComments(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	i := 0
+	for i < len(s) {
+		if i+1 < len(s) && s[i] == '/' && s[i+1] == '*' {
+			end := strings.Index(s[i+2:], "*/")
+			if end < 0 {
+				break
+			}
+			i += end + 4
+			continue
+		}
+		b.WriteByte(s[i])
+		i++
+	}
+	return b.String()
 }
 
 func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginManager, writeRL *ratelimit.Limiter) {
