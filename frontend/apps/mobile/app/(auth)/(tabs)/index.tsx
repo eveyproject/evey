@@ -304,18 +304,34 @@ function FeedCustomizeModal({
       const knownTypes = new Set<string>(FEED_TYPES);
       const filtered = configs.filter((c) => {
         const ft = c.feedType ?? "";
-        // 1. Built-in feed types (resume_playback, etc.) — always keep.
         if (knownTypes.has(ft)) return true;
-        // 2. library:<id> — keep only if the library still exists.
         if (ft.startsWith("library:")) return !!libraryNames[ft.replace("library:", "")];
-        // 3. plugin:<id> — keep only if the plugin still exists. Stale rows
-        //    pointing at uninstalled plugins would surface as "plg-abc123…"
-        //    raw IDs with no way to dismiss them.
         if (ft.startsWith("plugin:")) return !!pluginNames[ft.replace("plugin:", "")];
-        // 4. Anything else is an unknown stale type — drop.
         return false;
       });
-      const sorted = [...filtered].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+
+      // Prepend installed home.section plugins that are not yet in the
+      // feed config. Negative displayOrder puts them at the top so the user
+      // sees newly-installed plugins immediately; the persist step
+      // renumbers contiguously when they reorder. Mirrors web behaviour.
+      const haveAlready = new Set(filtered.map((c) => c.feedType));
+      const minOrder = filtered.reduce(
+        (m, c) => Math.min(m, c.displayOrder ?? 0),
+        0,
+      );
+      const installedHomeSlots = Object.keys(pluginNames);
+      const newPlugins: FeedConfig[] = installedHomeSlots
+        .filter((id) => !haveAlready.has("plugin:" + id))
+        .map((id, i) => ({
+          feedType: "plugin:" + id,
+          enabled: true,
+          displayOrder: minOrder - installedHomeSlots.length + i,
+        }));
+
+      const merged = [...newPlugins, ...filtered];
+      const sorted = [...merged].sort(
+        (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0),
+      );
       if (sorted.length === 0) {
         setLocal(FEED_TYPES.map((ft, i) => ({ feedType: ft, enabled: true, displayOrder: i })));
       } else {
@@ -436,10 +452,17 @@ export default function HomeScreen() {
     return map;
   }, [librariesData]);
 
-  // List of currently-installed plugins, used by the customize panel to (a)
-  // drop stale plugin: rows that point at deleted plugins, and (b) display a
+  // List of currently-installed plugins that ship a `home.section` frontend
+  // module (anything else can't render in the home feed). Used by the
+  // customize panel to (a) auto-prepend newly-installed plugins, (b) drop
+  // stale plugin: rows whose plugin was uninstalled, and (c) show a
   // human-readable name instead of the raw plg-* id.
-  const { data: pluginsData } = useQuery<{ plugins?: { id?: string; name?: string }[] }>({
+  type PluginEntry = {
+    id?: string;
+    name?: string;
+    frontend?: { slot?: string }[];
+  };
+  const { data: pluginsData } = useQuery<{ plugins?: PluginEntry[] }>({
     queryKey: ["/api/v1/plugins"],
     queryFn: () => eveyFetch({ url: "/api/v1/plugins", method: "GET" }),
     staleTime: 60_000,
@@ -447,7 +470,9 @@ export default function HomeScreen() {
   const pluginNames = useMemo(() => {
     const map: Record<string, string> = {};
     for (const p of pluginsData?.plugins ?? []) {
-      if (p.id && p.name) map[p.id] = p.name;
+      if (!p.id || !p.name) continue;
+      if (!(p.frontend ?? []).some((m) => m.slot === "home.section")) continue;
+      map[p.id] = p.name;
     }
     return map;
   }, [pluginsData]);
