@@ -101,15 +101,24 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         const serverUrl = serverUrlRef.current || ((await getServerUrl()) ?? "");
         serverUrlRef.current = serverUrl;
         const screen = Dimensions.get("screen");
-        const screenH = Math.round(screen.height * (screen.scale ?? 1));
+        // Video plays rotated to landscape, so the long screen edge ends up
+        // along the video's width. Send (long, short) as (maxWidth, maxHeight)
+        // — otherwise the server sees source.width=1920 > client.maxWidth=1080
+        // (portrait short edge), triggers resolution_exceeded, and transcodes
+        // a 1080p source down to 1080p again with quality loss.
+        const w = Math.round(screen.width * (screen.scale ?? 1));
+        const h = Math.round(screen.height * (screen.scale ?? 1));
+        const longEdge = Math.max(w, h);
+        const shortEdge = Math.min(w, h);
+        const cappedMaxHeight = maxHeight && maxHeight > 0 ? Math.min(maxHeight, shortEdge) : shortEdge;
 
         const [info, wp] = await Promise.all([
           playbackServiceGetStreamInfo(mediaId, {
             supportedCodecs: VIDEO_CODECS,
             supportedAudioCodecs: AUDIO_CODECS,
             supportedContainers: CONTAINERS,
-            maxWidth: Math.round(screen.width * (screen.scale ?? 1)),
-            maxHeight: maxHeight && maxHeight > 0 ? Math.min(maxHeight, screenH) : screenH,
+            maxWidth: longEdge,
+            maxHeight: cappedMaxHeight,
             audioStreamIndex,
             subtitleStreamIndex,
             networkType: NETWORK_TYPE,
