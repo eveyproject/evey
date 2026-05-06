@@ -301,14 +301,27 @@ export default function PlayerScreen() {
     }
   }, [castConnected, unmuteLocalPlayer]);
 
+  // Open in whatever orientation the user is currently holding the device in.
+  // The user toggles fullscreen (== lock to landscape) explicitly via the
+  // bottom bar button. Restore the OS default lock when leaving the screen.
   useEffect(() => {
-    // Auto-rotate to landscape on entry (Netflix / YouTube / Plex behaviour).
-    // Use LANDSCAPE (not LANDSCAPE_LEFT) so the OS picks the orientation that
-    // matches how the user is holding the device — both landscape sides work.
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+    ScreenOrientation.unlockAsync();
     return () => {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.DEFAULT);
     };
+  }, []);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen((prev) => {
+      const next = !prev;
+      if (next) {
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+      } else {
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      }
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -904,6 +917,16 @@ export default function PlayerScreen() {
                     </Pressable>
                   </>
                 )}
+                <Pressable
+                  onPress={toggleFullscreen}
+                  hitSlop={8}
+                  style={styles.trackButton}
+                  accessible={true}
+                  accessibilityLabel={isFullscreen ? t("player.controls.exitFullscreen", "Exit fullscreen") : t("player.controls.fullscreen", "Fullscreen")}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name={isFullscreen ? "contract-outline" : "expand-outline"} size={18} color="#fff" />
+                </Pressable>
               </View>
             </View>
           </View>
