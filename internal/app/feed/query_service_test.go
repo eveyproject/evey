@@ -135,7 +135,7 @@ func TestQueryService_RecentlyAdded(t *testing.T) {
 	}
 
 	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
-	items, err := svc.RecentlyAdded(context.Background(), 30, 10)
+	items, err := svc.RecentlyAdded(context.Background(), "p1", 30, 10)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
 	assert.Equal(t, shared.MediaItemID("m2"), items[0].MediaItemID)
@@ -191,7 +191,7 @@ func TestQueryService_RecentlyAdded_Empty(t *testing.T) {
 	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
 
 	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
-	items, err := svc.RecentlyAdded(context.Background(), 7, 10)
+	items, err := svc.RecentlyAdded(context.Background(), "p1", 7, 10)
 	require.NoError(t, err)
 	assert.Empty(t, items)
 }

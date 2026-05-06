@@ -179,7 +179,12 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 	return &cached, nil
 }
 
-func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, limit int) ([]activity.MediaPlayCount, error) {
+// GetMostPopular returns the top-N most-played items in the last 90 days.
+// When profileID is non-empty, items the profile has fully watched are
+// filtered out (movies via wp.completed; series only when EVERY current
+// episode has a completed wp row — a freshly-added unwatched episode
+// re-surfaces the series). Pass an empty profileID for unfiltered output.
+func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, profileID string, limit int) ([]activity.MediaPlayCount, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.play_session_stats.GetMostPopular")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
@@ -190,9 +195,29 @@ func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, limit int) 
 		 INNER JOIN media_items mi ON mi.id = ps.media_item_id
 		 WHERE mi.type IN ('movie', 'series')
 		   AND ps.started_at >= NOW() - INTERVAL '90 days'
+		   AND (
+			$2 = ''
+			OR (mi.type = 'movie' AND NOT COALESCE(
+				(SELECT completed FROM watch_progress wp WHERE wp.media_item_id = mi.id AND wp.profile_id = $2 LIMIT 1),
+				FALSE
+			))
+			OR (mi.type = 'series' AND EXISTS (
+				SELECT 1
+				FROM media_items se
+				JOIN media_items ep ON ep.parent_id = se.id
+				WHERE se.parent_id = mi.id
+				  AND ep.type = 'episode'
+				  AND NOT EXISTS (
+					SELECT 1 FROM watch_progress wp
+					WHERE wp.media_item_id = ep.id
+					  AND wp.profile_id = $2
+					  AND wp.completed = TRUE
+				  )
+			))
+		   )
 		 GROUP BY ps.media_item_id, mi.title
 		 ORDER BY play_count DESC
-		 LIMIT $1`, limit)
+		 LIMIT $1`, limit, profileID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

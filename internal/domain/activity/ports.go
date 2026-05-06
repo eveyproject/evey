@@ -45,7 +45,7 @@ type AuditLogRepository interface {
 type PlaySessionStatsReader interface {
 	GetUserStats(ctx context.Context, profileID shared.ProfileID) (*UserStats, error)
 	GetServerStats(ctx context.Context) (*ServerStatsResult, error)
-	GetMostPopular(ctx context.Context, limit int) ([]MediaPlayCount, error)
+	GetMostPopular(ctx context.Context, profileID string, limit int) ([]MediaPlayCount, error)
 }
 
 // PlayHistoryCursor keysets by (started_at, id) DESC. Same shape as

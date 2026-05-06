@@ -225,7 +225,7 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 	if limit <= 0 {
 		limit = 20
 	}
-	popular, err := h.svc.GetMostPopular(ctx, limit)
+	popular, err := h.svc.GetMostPopular(ctx, claims.ProfileID, limit)
 	if err != nil {
 		return nil, internalError("get popular", err)
 	}

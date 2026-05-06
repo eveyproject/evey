@@ -17,7 +17,7 @@ type FeedQuerier interface {
 	ContinueWatching(ctx context.Context, profileID string, limit int) ([]*FeedItem, error)
 	ResumePlayback(ctx context.Context, profileID string, limit int) ([]*FeedItem, error)
 	NextEpisode(ctx context.Context, profileID string, limit int) ([]*FeedItem, error)
-	RecentlyAdded(ctx context.Context, daysWindow, limit int) ([]*FeedItem, error)
+	RecentlyAdded(ctx context.Context, profileID string, daysWindow, limit int) ([]*FeedItem, error)
 	Recommended(ctx context.Context, profileID string, genres []string, limit int) ([]*FeedItem, error)
 	SimilarItems(ctx context.Context, mediaItemID, profileID string, limit int) ([]*FeedItem, error)
 }

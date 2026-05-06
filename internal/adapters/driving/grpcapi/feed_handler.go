@@ -170,7 +170,14 @@ func (h *feedHandler) ContinueWatching(ctx context.Context, req *eveyv1.Continue
 func (h *feedHandler) RecentlyAdded(ctx context.Context, req *eveyv1.RecentlyAddedRequest) (*eveyv1.FeedResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.feed.RecentlyAdded")
 	defer span.End()
-	items, err := h.queries.RecentlyAdded(ctx, int(req.DaysWindow), int(req.Limit))
+	// Resolve the caller's profile ID so the querier can hide items the
+	// profile has fully watched. Anonymous/admin contexts get an empty
+	// profileID, which the querier treats as "no watched filter".
+	profileID := ""
+	if claims, err := requireClaims(ctx); err == nil {
+		profileID = claims.ProfileID
+	}
+	items, err := h.queries.RecentlyAdded(ctx, profileID, int(req.DaysWindow), int(req.Limit))
 	if err != nil {
 		return nil, internalError("recently added", err)
 	}

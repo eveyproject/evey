@@ -426,7 +426,15 @@ export default function MediaDetailScreen() {
   const invalidateWatched = useCallback(() => {
     if (id) void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${id}/progress`] });
     void qc.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
-    void qc.invalidateQueries({ queryKey: ["/api/v1/feeds/resume-playback"] });
+    // All home feeds filter watched items server-side; refresh the lot so
+    // the just-marked item disappears from the homepage immediately.
+    void qc.invalidateQueries({
+      predicate: (q) => {
+        const k = q.queryKey?.[0];
+        if (typeof k !== "string") return false;
+        return k.startsWith("/api/v1/feeds/") || k === "/api/v1/activity/popular-media";
+      },
+    });
   }, [id, qc]);
 
   const markWatched = usePlaybackServiceMarkAsWatched({

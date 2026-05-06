@@ -41,7 +41,7 @@ func (q *FakeFeedQuerier) NextEpisode(_ context.Context, _ string, _ int) ([]*fe
 	return q.NextEpisodeItems, nil
 }
 
-func (q *FakeFeedQuerier) RecentlyAdded(_ context.Context, _, _ int) ([]*feed.FeedItem, error) {
+func (q *FakeFeedQuerier) RecentlyAdded(_ context.Context, _ string, _, _ int) ([]*feed.FeedItem, error) {
 	if q.Err != nil {
 		return nil, q.Err
 	}

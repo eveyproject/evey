@@ -87,10 +87,10 @@ func (s *QueryService) GetPlayHistory(ctx context.Context, filter activity.PlayH
 	return s.playHistory.List(ctx, filter)
 }
 
-func (s *QueryService) GetMostPopular(ctx context.Context, limit int) ([]activity.MediaPlayCount, error) {
+func (s *QueryService) GetMostPopular(ctx context.Context, profileID string, limit int) ([]activity.MediaPlayCount, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.activity.GetMostPopular")
 	defer span.End()
-	return s.statsReader.GetMostPopular(ctx, limit)
+	return s.statsReader.GetMostPopular(ctx, profileID, limit)
 }
 
 func (s *QueryService) GetAnalytics(ctx context.Context) (*activity.AnalyticsData, error) {

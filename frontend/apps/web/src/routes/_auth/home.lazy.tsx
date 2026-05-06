@@ -22,6 +22,7 @@ import { slugify } from "@/utils/slugify";
 import { useCollections } from "../../features/collection/api";
 import { CollectionCard } from "../../features/collection/CollectionCard";
 import { useMostPopular } from "@/hooks/usePopular";
+import { useWatchedMap } from "@/hooks/useWatchedMap";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { CustomizePanel } from "@/features/home/CustomizePanel";
 import { NextUpRow } from "@/features/home/NextUpRow";
@@ -277,15 +278,23 @@ const MediaItemsLibrarySlider = memo(function MediaItemsLibrarySlider({ libraryI
     : libraryType === "LIBRARY_TYPE_MOVIES"
       ? "MEDIA_ITEM_TYPE_MOVIE"
       : undefined;
+  // Page over-fetched: server-side library lists don't filter by watched
+  // state (that would change the lib page semantics), but home sliders
+  // should hide items the active profile has marked watched. Pull a wider
+  // window so the visible row stays full after watched items are filtered.
   const { data, isLoading } = useLibraryServiceListMediaItems({
     libraryId,
     ...(typeFilter ? { type: typeFilter as never } : {}),
-    "pagination.pageSize": 20,
+    "pagination.pageSize": 40,
     sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
     sortOrder: "SORT_ORDER_DESC",
   });
 
-  const items = data?.items ?? [];
+  const watchedMap = useWatchedMap();
+  const items = useMemo(() => {
+    const all = data?.items ?? [];
+    return all.filter((it) => !it.id || !watchedMap.get(it.id)).slice(0, 20);
+  }, [data, watchedMap]);
   if (!isLoading && items.length === 0) return null;
 
   return (
@@ -446,6 +455,17 @@ function HomePage() {
           />
         ) : (
           <>
+            {/* Newly-installed home.section plugins not yet in the user's
+                feed config render at the TOP — matches CustomizePanel,
+                which prepends them with a negative displayOrder. Once the
+                user saves a position, the entry persists and is rendered
+                inline below at its sorted slot. */}
+            <PluginSlot name="home.section" excludeRegistered={
+              new Set(allSections
+                .map((s) => s.feedType ?? "")
+                .filter((ft) => ft.startsWith("plugin:"))
+                .map((ft) => ft.slice("plugin:".length)))
+            } />
             {sections.map((cfg) => {
               const ft = cfg.feedType ?? "";
               if (ft.startsWith("library:")) {
@@ -465,16 +485,6 @@ function HomePage() {
               const Component = SECTION_REGISTRY[ft];
               return Component ? <Component key={ft} /> : null;
             })}
-            {/* Fallback for plugins that haven't been registered in the
-                feed config yet (newly installed): render them once below
-                the configured sections so they're visible immediately,
-                until the next CustomizePanel open writes their entry. */}
-            <PluginSlot name="home.section" excludeRegistered={
-              new Set(allSections
-                .map((s) => s.feedType ?? "")
-                .filter((ft) => ft.startsWith("plugin:"))
-                .map((ft) => ft.slice("plugin:".length)))
-            } />
 
             {libraries
               .filter((lib) => lib.id && !allSections.some((s) => s.feedType === `library:${lib.id}`))

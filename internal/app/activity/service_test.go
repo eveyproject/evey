@@ -320,7 +320,7 @@ func TestGetMostPopular(t *testing.T) {
 				statsReader.MostPopular = tc.popular
 			}
 
-			result, err := querySvc.GetMostPopular(context.Background(), tc.limit)
+			result, err := querySvc.GetMostPopular(context.Background(), "", tc.limit)
 			if tc.wantErr {
 				require.Error(t, err)
 				return

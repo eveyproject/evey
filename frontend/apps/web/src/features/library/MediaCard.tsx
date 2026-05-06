@@ -79,8 +79,18 @@ export const MediaCard = memo(function MediaCard({
   const qc = useQueryClient();
   const invalidateItem = () => {
     if (item.id) void qc.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
-    void qc.invalidateQueries({ queryKey: ["/api/v1/feeds/resume-playback"] });
+    // Refresh playback history so useWatchedMap picks up the new state and
+    // home library sliders (which filter via watchedMap) drop the item.
     void qc.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
+    // All home feeds filter watched items server-side; invalidate them so
+    // the just-marked item disappears from the homepage immediately.
+    void qc.invalidateQueries({
+      predicate: (q) => {
+        const k = q.queryKey?.[0];
+        if (typeof k !== "string") return false;
+        return k.startsWith("/api/v1/feeds/") || k === "/api/v1/activity/popular-media";
+      },
+    });
   };
   const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => { setWatchedLocal(true); toast.success(t("media.contextMenu.markedWatched")); invalidateItem(); } } });
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => { setWatchedLocal(false); toast.success(t("media.contextMenu.markedUnwatched")); invalidateItem(); } } });

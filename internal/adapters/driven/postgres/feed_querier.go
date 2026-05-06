@@ -194,8 +194,13 @@ func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit i
 	return scanFeedItems(rows)
 }
 
-// RecentlyAdded returns media items added within daysWindow days, most recent first.
-func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) ([]*feed.FeedItem, error) {
+// RecentlyAdded returns media items added within daysWindow days, most recent
+// first. When profileID is non-empty, items the profile has fully watched are
+// filtered out (movies via wp.completed; series when every episode has
+// wp.completed). This matches the homepage UX: clicking the watched badge
+// makes the item leave the home immediately. Pass an empty profileID to
+// disable filtering (admin tooling, audits, etc.).
+func (q *FeedQuerier) RecentlyAdded(ctx context.Context, profileID string, daysWindow, limit int) ([]*feed.FeedItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.feed.RecentlyAdded")
 	defer span.End()
 	if daysWindow <= 0 {
@@ -204,7 +209,7 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) 
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := q.db.QueryContext(ctx, `
-		SELECT id, COALESCE(parent_id,''), title, type, 0, effective_added::text, NULL::int, NULL::int
+		SELECT sub.id, COALESCE(sub.parent_id,''), sub.title, sub.type, 0, sub.effective_added::text, NULL::int, NULL::int
 		FROM (
 			SELECT m.id, m.parent_id, m.title, m.type,
 				CASE WHEN m.type = 'series'
@@ -221,10 +226,35 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) 
 			) ep_max ON m.type = 'series' AND ep_max.series_id = m.id
 			WHERE m.type IN ('movie', 'series', 'album')
 		) sub
-		WHERE effective_added > NOW() - ($1 || ' days')::interval
-		ORDER BY effective_added DESC
+		LEFT JOIN LATERAL (
+			SELECT CASE
+				WHEN $3 = '' THEN FALSE
+				WHEN sub.type = 'movie' THEN
+					COALESCE((SELECT completed FROM watch_progress wp WHERE wp.media_item_id = sub.id AND wp.profile_id = $3 LIMIT 1), FALSE)
+				WHEN sub.type = 'series' THEN
+					-- A series is "fully watched" only when EVERY current episode
+					-- has a completed wp row. A newly-added episode without any
+					-- wp row makes the series re-surface on the home page.
+					NOT EXISTS (
+						SELECT 1
+						FROM media_items se
+						JOIN media_items ep ON ep.parent_id = se.id
+						WHERE se.parent_id = sub.id
+						  AND ep.type = 'episode'
+						  AND NOT EXISTS (
+							SELECT 1 FROM watch_progress wp
+							WHERE wp.media_item_id = ep.id
+							  AND wp.profile_id = $3
+							  AND wp.completed = TRUE
+						  )
+					)
+				ELSE FALSE END AS completed
+		) w ON TRUE
+		WHERE sub.effective_added > NOW() - ($1 || ' days')::interval
+		  AND w.completed = FALSE
+		ORDER BY sub.effective_added DESC
 		LIMIT $2
-	`, daysWindow, limit)
+	`, daysWindow, limit, profileID)
 	if err != nil {
 		return nil, err
 	}
@@ -233,10 +263,10 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) 
 }
 
 // Recommended returns items matching the given genres, scored by match count.
-// Watched items are kept in the list — the user complained that marking an
-// item "watched" made it vanish from the home page, so we let the MediaCard
-// watched-badge carry the UX and trust the user to decide whether they want
-// to re-watch.
+// Items the profile has fully watched are filtered out so clicking the
+// watched badge on a card removes it from the home immediately. (Earlier
+// behaviour kept watched items at the bottom of the list — the explicit
+// click is now treated as a hide-from-home signal.)
 func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres []string, limit int) ([]*feed.FeedItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.feed.Recommended")
 	defer span.End()
@@ -257,10 +287,10 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 	args = append(args, limit)
 	limitIdx := len(args)
 
-	// Rank unwatched items ahead of completed ones so freshly-marked-watched
-	// titles drop to the bottom instead of disappearing. For series, "completed"
+	// Filter out items the profile has fully watched. For series, "completed"
 	// means every episode has wp.completed=TRUE; for movies it's the item's
-	// own wp row being completed.
+	// own wp row being completed. Movies/series with NO wp row for the profile
+	// are unwatched (COALESCE FALSE).
 	q2 := fmt.Sprintf(`
 		SELECT mi.id, COALESCE(mi.parent_id,''), mi.title, mi.type, 0, '', (%s) AS score
 		FROM media_items mi
@@ -271,18 +301,28 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 				WHEN mi.type = 'movie' THEN
 					COALESCE((SELECT completed FROM watch_progress wp WHERE wp.media_item_id = mi.id AND wp.profile_id = $1 LIMIT 1), FALSE)
 				WHEN mi.type = 'series' THEN
-					COALESCE((
-						SELECT bool_and(wp.completed)
+					-- A series is "fully watched" only when EVERY current episode
+					-- has a completed wp row. A newly-added episode without any
+					-- wp row makes the series re-appear in recommendations.
+					NOT EXISTS (
+						SELECT 1
 						FROM media_items se
 						JOIN media_items ep ON ep.parent_id = se.id
-						JOIN watch_progress wp ON wp.media_item_id = ep.id AND wp.profile_id = $1
-						WHERE se.parent_id = mi.id AND ep.type = 'episode'
-					), FALSE)
+						WHERE se.parent_id = mi.id
+						  AND ep.type = 'episode'
+						  AND NOT EXISTS (
+							SELECT 1 FROM watch_progress wp
+							WHERE wp.media_item_id = ep.id
+							  AND wp.profile_id = $1
+							  AND wp.completed = TRUE
+						  )
+					)
 				ELSE FALSE END AS completed
 		) w ON TRUE
 		WHERE mi.type IN ('movie', 'series')
 		  AND (%s) >= 1
-		ORDER BY w.completed ASC, score DESC, mcl.community_rating DESC NULLS LAST
+		  AND w.completed = FALSE
+		ORDER BY score DESC, mcl.community_rating DESC NULLS LAST
 		LIMIT $%d
 	`, scoreExpr, scoreExpr, limitIdx)
 

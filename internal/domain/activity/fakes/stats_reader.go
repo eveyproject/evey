@@ -35,7 +35,7 @@ func (r *FakePlaySessionStatsReader) GetServerStats(_ context.Context) (*activit
 	return r.ServerStatsResult, nil
 }
 
-func (r *FakePlaySessionStatsReader) GetMostPopular(_ context.Context, limit int) ([]activity.MediaPlayCount, error) {
+func (r *FakePlaySessionStatsReader) GetMostPopular(_ context.Context, _ string, limit int) ([]activity.MediaPlayCount, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}

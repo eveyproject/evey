@@ -78,7 +78,7 @@ func TestPlaySessionStatsRepo_GetMostPopular_Empty(t *testing.T) {
 	repo := postgres.NewPlaySessionStatsReader(db)
 	ctx := context.Background()
 
-	result, err := repo.GetMostPopular(ctx, 10)
+	result, err := repo.GetMostPopular(ctx, "", 10)
 	require.NoError(t, err)
 	assert.Empty(t, result)
 }

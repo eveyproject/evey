@@ -121,10 +121,10 @@ func (s *QueryService) NextEpisode(ctx context.Context, profileID string, limit 
 	return s.querier.NextEpisode(ctx, profileID, limit)
 }
 
-func (s *QueryService) RecentlyAdded(ctx context.Context, daysWindow, limit int) ([]*feed.FeedItem, error) {
+func (s *QueryService) RecentlyAdded(ctx context.Context, profileID string, daysWindow, limit int) ([]*feed.FeedItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.feed.RecentlyAdded")
 	defer span.End()
-	return s.querier.RecentlyAdded(ctx, daysWindow, limit)
+	return s.querier.RecentlyAdded(ctx, profileID, daysWindow, limit)
 }
 
 func (s *QueryService) Recommended(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
