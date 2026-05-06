@@ -20,6 +20,8 @@ vi.mock("@evey/api", () => ({
   useLibraryAccessServiceRevokeAllUserLibraryAccess: () => ({ mutateAsync: revokeAccessMutateAsync, isPending: false }),
   getLibraryAccessServiceGetUserLibraryAccessQueryKey: (id: string) => ["library-access", id],
   getUserServiceListProfilesQueryKey: (id: string) => ["profiles", id],
+  getUserServiceListUsersQueryKey: () => ["/api/v1/users"],
+  getUserServiceListInviteLinksQueryKey: () => ["/api/v1/invites"],
 }));
 
 vi.mock("@evey/store", () => ({

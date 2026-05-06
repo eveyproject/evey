@@ -1,5 +1,14 @@
-export const USERS_QUERY_KEY = ["/api/v1/admin/users"];
-export const INVITES_QUERY_KEY = ["/api/v1/invites"];
+// Source these from the generated hooks so invalidateQueries actually
+// matches what the orval-generated query helpers register. Hardcoding
+// `/api/v1/admin/users` here previously made every CreateUser / EditUser /
+// disable / delete mutation a no-op for the cache and forced an F5.
+import {
+  getUserServiceListUsersQueryKey,
+  getUserServiceListInviteLinksQueryKey,
+} from "@evey/api";
+
+export const USERS_QUERY_KEY = getUserServiceListUsersQueryKey();
+export const INVITES_QUERY_KEY = getUserServiceListInviteLinksQueryKey();
 
 export interface LibraryInfo {
   id: string;
