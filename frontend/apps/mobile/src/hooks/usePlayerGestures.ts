@@ -3,8 +3,12 @@ import { PanResponder, Dimensions } from "react-native";
 import type { GestureResponderEvent, PanResponderGestureState } from "react-native";
 
 const DOUBLE_TAP_DELAY = 300;
-const SWIPE_THRESHOLD = 15;
-const SENSITIVITY = 0.004;
+// Lower threshold + tighter Y-vs-X ratio so vertical swipes are detected
+// quickly, even when the user starts with a slight diagonal motion. Higher
+// sensitivity makes 0..1 reachable with a half-screen swipe instead of
+// requiring a full-screen drag.
+const SWIPE_THRESHOLD = 8;
+const SENSITIVITY = 0.0025;
 const LEFT_ZONE = 0.35;
 const RIGHT_ZONE = 0.65;
 
@@ -54,7 +58,7 @@ export function usePlayerGestures({
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: (_, gs) =>
-          Math.abs(gs.dy) > SWIPE_THRESHOLD && Math.abs(gs.dy) > Math.abs(gs.dx),
+          Math.abs(gs.dy) > SWIPE_THRESHOLD && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.2,
 
         onPanResponderGrant: () => {
           swipeActiveRef.current = null;
@@ -63,15 +67,27 @@ export function usePlayerGestures({
         },
 
         onPanResponderMove: (evt: GestureResponderEvent, gs: PanResponderGestureState) => {
-          const { width } = Dimensions.get("screen");
-          const relX = evt.nativeEvent.pageX / width;
+          const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+          // Pan handler attaches to the player view which fills the whole
+          // window, so window width matches the visible touch surface in
+          // both portrait and landscape (Dimensions.screen included system
+          // bars and gave a wrong relX after the fullscreen lock).
+          const longEdge = Math.max(screenWidth, screenHeight);
+          const shortEdge = Math.min(screenWidth, screenHeight);
+          // In landscape the X axis is the long edge; in portrait it's the
+          // short edge. relX stays a 0..1 ratio either way.
+          const xExtent = screenWidth >= screenHeight ? longEdge : shortEdge;
+          const relX = Math.max(0, Math.min(1, evt.nativeEvent.pageX / xExtent));
 
           if (!swipeActiveRef.current) {
             if (Math.abs(gs.dy) < SWIPE_THRESHOLD) return;
             if (Math.abs(gs.dx) > Math.abs(gs.dy)) return;
-            if (relX > 0.6) {
+            // Split the screen 50/50: right half = volume, left half =
+            // brightness. The previous 0.4/0.6 dead-zone in the middle
+            // ate too many genuinely centered swipes.
+            if (relX >= 0.5) {
               swipeActiveRef.current = "volume";
-            } else if (relX < 0.4) {
+            } else {
               swipeActiveRef.current = "brightness";
             }
             return;
@@ -102,7 +118,7 @@ export function usePlayerGestures({
           const isSmallMove = Math.abs(gs.dx) < 20 && Math.abs(gs.dy) < 20;
           if (!isSmallMove) return;
 
-          const { width } = Dimensions.get("screen");
+          const { width } = Dimensions.get("window");
           const tapX = evt.nativeEvent.pageX;
           const relX = tapX / width;
           const now = Date.now();

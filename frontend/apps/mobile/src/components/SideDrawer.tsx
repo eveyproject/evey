@@ -1,8 +1,7 @@
-import { View, Text, Pressable, StyleSheet, Animated, Modal } from "react-native";
+import { Text, Pressable, StyleSheet, Animated, Modal, ScrollView } from "react-native";
 import { router, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
 import { useDrawer } from "../providers/DrawerProvider";
@@ -30,9 +29,7 @@ export function SideDrawer() {
   const { t } = useTranslation();
   const { isOpen, close, translateX } = useDrawer();
   const pathname = usePathname();
-  const { data: currentUser } = useUserServiceGetCurrentUser();
   const isAdmin = useAuthStore((s) => s.isAdmin);
-  const logout = useAuthStore((s) => s.logout);
 
   if (!isOpen) return null;
 
@@ -41,19 +38,10 @@ export function SideDrawer() {
     setTimeout(() => router.push(href as never), 50);
   }
 
-  function handleLogout() {
-    close();
-    logout();
-    void eveyFetch<void>({ url: "/api/v1/auth/logout", method: "POST", data: {} }).catch((err) => console.warn("caught", err));
-    setTimeout(() => router.replace("/login"), 50);
-  }
-
   const isActive = (href: string) => {
     if (href === "/(auth)/(tabs)/") return pathname === "/" || pathname.endsWith("/index") || pathname === "/(auth)/(tabs)/";
     return pathname.includes(href.replace("/(auth)/(tabs)", ""));
   };
-
-  const initial = currentUser?.username?.charAt(0).toUpperCase() ?? "U";
 
   return (
     <Modal transparent animationType="none" visible={isOpen} onRequestClose={close}>
@@ -74,8 +62,9 @@ export function SideDrawer() {
           <Text style={[styles.logo, { color: theme.colors.accent }]}>Evey</Text>
         </Pressable>
 
-        {/* Nav items */}
-        <View style={styles.nav}>
+        {/* Nav items — scrollable so they survive landscape's compressed
+            height. The user/logout entries live in the topbar UserMenu now. */}
+        <ScrollView style={styles.nav} contentContainerStyle={styles.navContent} showsVerticalScrollIndicator={false}>
           {NAV_ITEMS.map((item) => {
             const active = isActive(item.href);
             return (
@@ -126,29 +115,7 @@ export function SideDrawer() {
               </Text>
             </Pressable>
           )}
-        </View>
-
-        {/* User section at bottom */}
-        <View style={[styles.userSection, { borderTopColor: theme.colors.border }]}>
-          <Pressable onPress={() => navigate("/(auth)/(tabs)/settings")} style={styles.userRow} accessible={true} accessibilityLabel={currentUser?.username ?? "Settings"} accessibilityRole="button">
-            <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
-              <Text style={[styles.avatarText, { color: theme.colors.text }]}>{initial}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.username, { color: theme.colors.text }]} numberOfLines={1}>
-                {currentUser?.username ?? "…"}
-              </Text>
-              {isAdmin && (
-                <Text style={[styles.adminBadge, { color: theme.colors.accent }]}>Admin</Text>
-              )}
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
-          </Pressable>
-          <Pressable onPress={handleLogout} style={styles.logoutRow} accessible={true} accessibilityLabel={t("common.nav.signOut", "Sign out")} accessibilityRole="button">
-            <Ionicons name="log-out-outline" size={18} color={theme.colors.error} />
-            <Text style={[styles.navLabel, { color: theme.colors.error }]}>{t("common.nav.signOut", "Sign out")}</Text>
-          </Pressable>
-        </View>
+        </ScrollView>
       </Animated.View>
     </Modal>
   );
@@ -178,7 +145,10 @@ const styles = StyleSheet.create({
   },
   nav: {
     flex: 1,
+  },
+  navContent: {
     paddingHorizontal: 8,
+    paddingBottom: 24,
   },
   navItem: {
     flexDirection: "row",
@@ -193,38 +163,5 @@ const styles = StyleSheet.create({
   navLabel: {
     fontSize: 14,
     fontWeight: "500",
-  },
-  userSection: {
-    borderTopWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    paddingBottom: 24,
-  },
-  userRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { fontSize: 14, fontWeight: "600" },
-  username: { fontSize: 14, fontWeight: "500" },
-  adminBadge: { fontSize: 11, fontWeight: "600", marginTop: 1 },
-  logoutRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginTop: 2,
   },
 });
