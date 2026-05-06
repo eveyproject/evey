@@ -104,14 +104,14 @@ export const lightDefaultTheme: ThemeTokens = {
 
 export const darkRedTheme: ThemeTokens = {
   colors: {
-    bg:           "#0a0a0a",
-    surface:      "#161616",
-    surfaceRaised:"#222222",
-    accent:       "#e50914",
-    accentHover:  "#b81d24",
+    bg:           "#000000",
+    surface:      "#0d0d0d",
+    surfaceRaised:"#181818",
+    accent:       "#b81d24",
+    accentHover:  "#e50914",
     text:         "#f5f5f5",
-    textMuted:    "#9a9a9a",
-    border:       "#2a2a2a",
+    textMuted:    "#8c8c8c",
+    border:       "#1f1f1f",
     error:        "#f87171",
     danger:       "#b81d24",
     dangerHover:  "#831010",
