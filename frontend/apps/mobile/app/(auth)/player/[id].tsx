@@ -17,7 +17,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { getCastBaseUrl } from "../../../src/lib/server-config";
 import { useTranslation } from "react-i18next";
-import { useLibraryServiceGetMediaItem } from "@evey/api";
+import { useLibraryServiceGetMediaItem, useLibraryServiceListMediaItems } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
@@ -63,6 +63,28 @@ export default function PlayerScreen() {
   const mediaId = id ?? "";
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
+  // Series and seasons have no underlying file, so the streaming endpoints 404.
+  // Resolve to a playable child (season → episode → episode) so the home hero
+  // and any "Play" button on a series detail Just Work. Two redirects max:
+  //   /player/<seriesId>  → /player/<season1Id>
+  //   /player/<season1Id> → /player/<episode1Id>
+  const isSeriesOrSeason =
+    media?.type === "MEDIA_ITEM_TYPE_SERIES" || media?.type === "MEDIA_ITEM_TYPE_SEASON";
+  const { data: childrenData } = useLibraryServiceListMediaItems(
+    { parentId: mediaId, "pagination.pageSize": 500 } as never,
+    { query: { enabled: !!mediaId && isSeriesOrSeason } } as never,
+  );
+  useEffect(() => {
+    if (!isSeriesOrSeason) return;
+    const items = childrenData?.items;
+    if (!items || items.length === 0) return;
+    const sorted = [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+    const target = sorted[0];
+    if (target?.id && target.id !== mediaId) {
+      router.replace(`/player/${target.id}` as never);
+    }
+  }, [isSeriesOrSeason, childrenData?.items, mediaId]);
+
   const isEpisode = media?.type === "MEDIA_ITEM_TYPE_EPISODE";
   const { data: parentItem } = useLibraryServiceGetMediaItem(
     media?.parentId ?? "",
@@ -77,8 +99,12 @@ export default function PlayerScreen() {
     return null;
   }, [isEpisode, parentItem?.indexNumber, media?.indexNumber]);
   const playerTitle = episodeLabel ? `${episodeLabel} - ${media?.title ?? ""}` : (media?.title ?? "");
+  // Don't open a play session for a series/season — the redirect above will
+  // remount us on a real episode in a tick. Passing "" makes usePlaySession
+  // hold its initial loading state instead of hitting /transcode and 404'ing.
+  const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
   const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress } =
-    usePlaySession(mediaId);
+    usePlaySession(sessionMediaId);
 
   const { data: chapters = [] } = useChapters(mediaId);
   const videoViewRef = useRef<VideoView>(null);

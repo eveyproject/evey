@@ -151,7 +151,8 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             setSessionId(session.id);
           }
         }
-      } catch {
+      } catch (err) {
+        console.warn("[player] startStream failed:", err);
         setIsError(true);
       } finally {
         setIsLoading(false);
