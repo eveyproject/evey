@@ -8,6 +8,7 @@ import { pluginThemeName } from "./theme-utils";
 const builtInLabels: Record<ThemeName, string> = {
   default: "Dark",
   amoled: "AMOLED",
+  "dark-red": "Dark Red",
   "light-default": "Light",
   "light-blue": "Light Blue",
 };

@@ -102,6 +102,31 @@ export const lightDefaultTheme: ThemeTokens = {
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
 };
 
+export const darkRedTheme: ThemeTokens = {
+  colors: {
+    bg:           "#0a0303",
+    surface:      "#160808",
+    surfaceRaised:"#221010",
+    accent:       "#ef4444",
+    accentHover:  "#dc2626",
+    text:         "#f5f5f5",
+    textMuted:    "#a08c8c",
+    border:       "#2a1414",
+    error:        "#f87171",
+    danger:       "#dc2626",
+    dangerHover:  "#b91c1c",
+    onAccent:     "#ffffff",
+    overlay:      "rgba(0,0,0,0.6)",
+    divider:      "rgba(255,255,255,0.06)",
+    shadow:       "#000",
+    success:      "#22c55e",
+    warning:      "#f59e0b",
+    info:         "#ef4444",
+  },
+  radii:   { sm: 6, md: 12, lg: 20 },
+  spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
+};
+
 export const lightBlueTheme: ThemeTokens = {
   colors: {
     bg:           "#f0f4f8",
@@ -130,6 +155,7 @@ export const lightBlueTheme: ThemeTokens = {
 export const themes = {
   default:        defaultTheme,
   amoled:         amoledTheme,
+  "dark-red":     darkRedTheme,
   "light-default": lightDefaultTheme,
   "light-blue":    lightBlueTheme,
 } as const;

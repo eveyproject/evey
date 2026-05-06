@@ -1,0 +1,55 @@
+/* Evey — Dark Red theme */
+:root {
+  --bg:            #0a0303;
+  --surface:       #160808;
+  --surface-raised:#221010;
+  --accent:        #ef4444;
+  --accent-hover:  #dc2626;
+  --text:          #f5f5f5;
+  --text-secondary:#c4b8b8;
+  --text-muted:    #a08c8c;
+  --border:        #2a1414;
+  --radius-sm:     4px;
+  --radius-md:     8px;
+  --radius-lg:     16px;
+
+  --badge-success-bg: rgba(6,78,59,0.5);
+  --badge-success-text: #6ee7b7;
+  --badge-warning-bg: rgba(113,63,18,0.5);
+  --badge-warning-text: #fde047;
+  --badge-error-bg: rgba(127,29,29,0.5);
+  --badge-error-text: #fca5a5;
+  --badge-info-bg: rgba(30,58,95,0.5);
+  --badge-info-text: #93c5fd;
+  --badge-hdr-bg: #f59e0b;
+  --badge-hdr-text: #000000;
+  --badge-imdb-bg: #f5c518;
+  --badge-imdb-text: #000000;
+  --badge-tmdb-bg: #01b4e4;
+  --badge-tmdb-text: #ffffff;
+
+  --toast-success-bg: rgba(6,78,59,0.5);
+  --toast-success-border: rgba(21,128,61,0.5);
+  --toast-error-bg: rgba(127,29,29,0.5);
+  --toast-error-border: rgba(185,28,28,0.5);
+  --toast-info-bg: rgba(30,58,95,0.5);
+  --toast-info-border: rgba(29,78,216,0.5);
+  --toast-warning-bg: rgba(113,63,18,0.5);
+  --toast-warning-border: rgba(161,98,7,0.5);
+  --toast-success-icon: #16a34a;
+  --toast-error-icon: #dc2626;
+  --toast-warning-icon: #ca8a04;
+
+  --color-success: #22c55e;
+  --color-warning: #f97316;
+  --color-danger:  #ef4444;
+
+  --danger-bg: #dc2626;
+  --danger-hover: #b91c1c;
+
+  --bg-gradient-mid: #1a0808;
+
+  --overlay-gradient: rgba(0,0,0,0.7);
+
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}

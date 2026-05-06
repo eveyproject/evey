@@ -16,6 +16,7 @@ interface PluginThemeInfo {
 const builtInLabels: Record<string, string> = {
   default: "Dark",
   amoled: "AMOLED",
+  "dark-red": "Dark Red",
   "light-default": "Light",
   "light-blue": "Light Blue",
 };
@@ -23,6 +24,7 @@ const builtInLabels: Record<string, string> = {
 const builtInI18nKeys: Record<string, string> = {
   default: "mobile.settings.themeDark",
   amoled: "mobile.settings.themeAmoled",
+  "dark-red": "mobile.settings.themeDarkRed",
   "light-default": "mobile.settings.themeLight",
   "light-blue": "mobile.settings.themeLightBlue",
 };
