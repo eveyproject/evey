@@ -6,7 +6,7 @@ import { Skeleton } from "../../../src/components/Skeleton";
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   usePlaybackServiceGetResumeItems,
   usePlaybackServiceGetNextUp,
@@ -17,6 +17,7 @@ import {
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
   getLibraryServiceGetMediaItemQueryOptions,
+  eveyFetch,
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 
@@ -279,12 +280,14 @@ function FeedCustomizeModal({
   configs,
   profileId,
   libraryNames,
+  pluginNames,
 }: {
   visible: boolean;
   onClose: () => void;
   configs: FeedConfig[];
   profileId: string;
   libraryNames: Record<string, string>;
+  pluginNames: Record<string, string>;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -305,8 +308,10 @@ function FeedCustomizeModal({
         if (knownTypes.has(ft)) return true;
         // 2. library:<id> — keep only if the library still exists.
         if (ft.startsWith("library:")) return !!libraryNames[ft.replace("library:", "")];
-        // 3. plugin:<id> — render via PluginSlot in a WebView; keep the row.
-        if (ft.startsWith("plugin:")) return true;
+        // 3. plugin:<id> — keep only if the plugin still exists. Stale rows
+        //    pointing at uninstalled plugins would surface as "plg-abc123…"
+        //    raw IDs with no way to dismiss them.
+        if (ft.startsWith("plugin:")) return !!pluginNames[ft.replace("plugin:", "")];
         // 4. Anything else is an unknown stale type — drop.
         return false;
       });
@@ -317,7 +322,7 @@ function FeedCustomizeModal({
         setLocal(sorted);
       }
     }
-  }, [visible, configs, libraryNames]);
+  }, [visible, configs, libraryNames, pluginNames]);
 
   const persist = useCallback(async (updated: FeedConfig[]) => {
     for (const c of updated) {
@@ -354,6 +359,10 @@ function FeedCustomizeModal({
     if (feedType.startsWith("library:")) {
       const libId = feedType.replace("library:", "");
       return libraryNames[libId] || libId;
+    }
+    if (feedType.startsWith("plugin:")) {
+      const pluginId = feedType.replace("plugin:", "");
+      return pluginNames[pluginId] || pluginId;
     }
     return t(FEED_LABELS[feedType] ?? feedType);
   };
@@ -426,6 +435,22 @@ export default function HomeScreen() {
     }
     return map;
   }, [librariesData]);
+
+  // List of currently-installed plugins, used by the customize panel to (a)
+  // drop stale plugin: rows that point at deleted plugins, and (b) display a
+  // human-readable name instead of the raw plg-* id.
+  const { data: pluginsData } = useQuery<{ plugins?: { id?: string; name?: string }[] }>({
+    queryKey: ["/api/v1/plugins"],
+    queryFn: () => eveyFetch({ url: "/api/v1/plugins", method: "GET" }),
+    staleTime: 60_000,
+  });
+  const pluginNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of pluginsData?.plugins ?? []) {
+      if (p.id && p.name) map[p.id] = p.name;
+    }
+    return map;
+  }, [pluginsData]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [showCustomize, setShowCustomize] = useState(false);
@@ -586,6 +611,7 @@ export default function HomeScreen() {
         configs={feedConfigData?.configs ?? []}
         profileId={profileId}
         libraryNames={libraryNames}
+        pluginNames={pluginNames}
       />
     </View>
   );
