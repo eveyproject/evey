@@ -50,8 +50,9 @@ export default function DevicesScreen() {
   const revokeMutation = useMutation({
     mutationFn: (token: string) =>
       eveyFetch({
-        url: `/api/v1/push/devices/${encodeURIComponent(token)}`,
+        url: "/api/v1/push/unregister",
         method: "DELETE",
+        data: { token },
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: DEVICES_QUERY_KEY });
