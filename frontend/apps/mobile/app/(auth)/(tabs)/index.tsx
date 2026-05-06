@@ -290,13 +290,23 @@ function FeedCustomizeModal({
 
   useEffect(() => {
     if (visible) {
-      // Drop orphan library: rows whose library was deleted — without this the
-      // user sees a row labelled with a raw UUID and can't dismiss it. Mirrors
-      // the web fix in 928a9b9d6.
+      // Drop orphan rows the user can no longer act on — without this filter
+      // the customize panel surfaces stale feed types as raw UUIDs/IDs with
+      // no way to dismiss them. Mirrors the web fix in 928a9b9d6.
+      const knownTypes = new Set<string>(FEED_TYPES);
       const filtered = configs.filter((c) => {
         const ft = c.feedType ?? "";
-        if (!ft.startsWith("library:")) return true;
-        return !!libraryNames[ft.replace("library:", "")];
+        // 1. Built-in feed types (resume_playback, etc.) — always keep.
+        if (knownTypes.has(ft)) return true;
+        // 2. library:<id> — keep only if the library still exists.
+        if (ft.startsWith("library:")) return !!libraryNames[ft.replace("library:", "")];
+        // 3. plugin:<id> — mobile doesn't surface plugin home sections (no
+        //    PluginSlot port yet), so a plugin row here can't render and
+        //    would just show "plugin:foo" — drop it. The row stays in the
+        //    DB and reappears once mobile gains plugin support.
+        if (ft.startsWith("plugin:")) return false;
+        // 4. Anything else is an unknown stale type — drop.
+        return false;
       });
       const sorted = [...filtered].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
       if (sorted.length === 0) {
