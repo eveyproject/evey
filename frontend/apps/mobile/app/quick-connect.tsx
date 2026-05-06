@@ -3,7 +3,7 @@ import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceInitiateQuickConnect } from "@evey/api";
+import { useUserServiceInitiateQuickConnect, userServiceCheckQuickConnect } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../src/hooks/useServerUrl";
@@ -58,46 +58,35 @@ export default function QuickConnectScreen() {
     return () => clearInterval(id);
   }, []);
 
-  // SSE: wait for authorization (with exponential backoff reconnect)
+  // Poll for authorization. Web uses Server-Sent Events here, but
+  // EventSource isn't a React Native global and Expo Go ships no SSE
+  // polyfill — polling on the existing CheckQuickConnect REST endpoint
+  // is good enough for a 2-minute code (avg ~1.5s extra latency over SSE).
   useEffect(() => {
-    if (!code || !serverUrl) return;
-    let retries = 0;
-    const MAX_RETRIES = 3;
-    let es: EventSource | null = null;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (!code) return;
     let cancelled = false;
 
-    function connect() {
-      if (cancelled) return;
-      const url = `${serverUrl}/api/v1/auth/quick-connect/${code}/events`;
-      es = new EventSource(url);
-      es.onmessage = (e: MessageEvent) => {
-        const data = JSON.parse(e.data) as { event: string; accessToken?: string };
-        if (data.event === "authorized" && data.accessToken) {
-          setTokens(data.accessToken);
-          es?.close();
+    async function tick() {
+      if (cancelled || !code) return;
+      try {
+        const resp = await userServiceCheckQuickConnect(code);
+        if (cancelled) return;
+        if (resp.authorized && resp.auth?.accessToken) {
+          setTokens(resp.auth.accessToken);
           router.replace("/(auth)/(tabs)");
-        } else if (data.event === "expired" || data.event === "error") {
-          es?.close();
         }
-      };
-      es.onerror = () => {
-        es?.close();
-        if (!cancelled && retries < MAX_RETRIES) {
-          const delay = 1000 * Math.pow(2, retries);
-          retries++;
-          timer = setTimeout(connect, delay);
-        }
-      };
+      } catch {
+        // Network blip — keep polling, the next tick retries.
+      }
     }
 
-    connect();
+    const id = setInterval(tick, 1500);
+    void tick(); // first poll immediately so authorize-then-tab is snappy
     return () => {
       cancelled = true;
-      es?.close();
-      if (timer) clearTimeout(timer);
+      clearInterval(id);
     };
-  }, [code, serverUrl, setTokens]);
+  }, [code, setTokens]);
 
   const displayCode = code ? code.slice(-6).toUpperCase() : null;
   const qrValue = code && serverUrl ? `${serverUrl}/quickconnect?code=${code}` : null;
