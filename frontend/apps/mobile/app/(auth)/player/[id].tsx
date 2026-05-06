@@ -709,111 +709,6 @@ export default function PlayerScreen() {
               <Text style={styles.title} numberOfLines={1}>
                 {playerTitle}
               </Text>
-              <View style={styles.topBarRight}>
-                <Pressable
-                  onPress={() => setShowStreamInfo(true)}
-                  hitSlop={8}
-                  style={styles.trackButton}
-                  accessible={true}
-                  accessibilityLabel={t("player.streamInfo.title", "Stream Info")}
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="information-circle-outline" size={18} color="#fff" />
-                </Pressable>
-                <Pressable
-                  onPress={cycleSpeed}
-                  hitSlop={8}
-                  style={styles.trackButton}
-                  accessible={true}
-                  accessibilityLabel={t("player.settings.speed")}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.speedButtonText}>{playbackSpeed}x</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setShowQualityPicker(true)}
-                  hitSlop={8}
-                  style={styles.trackButton}
-                  accessible={true}
-                  accessibilityLabel={t("player.settings.quality")}
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="settings-sharp" size={18} color="#fff" />
-                </Pressable>
-                {chapters.length > 0 && (
-                  <Pressable
-                    onPress={() => setShowChaptersPicker(true)}
-                    hitSlop={8}
-                    style={styles.trackButton}
-                    accessible={true}
-                    accessibilityLabel={t("player.controls.chapters")}
-                    accessibilityRole="button"
-                  >
-                    <Ionicons name="book-outline" size={18} color="#fff" />
-                  </Pressable>
-                )}
-                {audioStreams.length > 1 && (
-                  <Pressable
-                    onPress={() => setShowAudioPicker(true)}
-                    hitSlop={8}
-                    style={styles.trackButton}
-                    accessible={true}
-                    accessibilityLabel={t("player.settings.audio")}
-                    accessibilityRole="button"
-                  >
-                    <Ionicons name="volume-high" size={18} color="#fff" />
-                  </Pressable>
-                )}
-                {subtitleStreams.length > 0 && (
-                  <Pressable
-                    onPress={() => setShowSubtitlePicker(true)}
-                    hitSlop={8}
-                    style={styles.trackButton}
-                    accessible={true}
-                    accessibilityLabel={t("player.settings.subtitles")}
-                    accessibilityRole="button"
-                  >
-                    <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
-                  </Pressable>
-                )}
-                {pipSupported && (
-                  <Pressable
-                    onPress={handlePip}
-                    hitSlop={8}
-                    style={styles.trackButton}
-                    accessible={true}
-                    accessibilityLabel={t("player.controls.pip")}
-                    accessibilityRole="button"
-                  >
-                    <Ionicons name="albums-outline" size={18} color="#fff" />
-                  </Pressable>
-                )}
-                <Pressable
-                  onPress={() => syncPlay.state.connected ? syncPlay.leaveRoom() : setShowSyncPlay(true)}
-                  hitSlop={8}
-                  style={styles.trackButton}
-                  accessible={true}
-                  accessibilityLabel={syncPlay.state.connected ? t("media.syncplay.leave", "Leave") : t("media.syncplay.title", "Watch Together")}
-                  accessibilityRole="button"
-                >
-                  <Ionicons name="people" size={18} color={syncPlay.state.connected ? theme.colors.accent : "#fff"} />
-                </Pressable>
-                {CastContext && (
-                  <>
-                    {CastButtonNative && <CastButtonNative style={{ width: 0, height: 0, opacity: 0 }} />}
-                    <Pressable
-                      onPress={handleCast}
-                      hitSlop={8}
-                      style={styles.trackButton}
-                      accessible={true}
-                      accessibilityLabel={castConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
-                      accessibilityRole="button"
-                    >
-                      <Ionicons name="tv-outline" size={18} color={castConnected ? theme.colors.accent : "#fff"} />
-                    </Pressable>
-                  </>
-                )}
-              </View>
             </View>
 
             <View style={[styles.bottomControls, { paddingBottom: Math.max(20, insets.bottom), paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
@@ -863,7 +758,8 @@ export default function PlayerScreen() {
                 })}
               </View>
 
-              {/* Controls row */}
+              {/* Controls row — playback transport on the left, settings/track
+                  pickers/cast on the right (matches the web player layout). */}
               <View style={[styles.controlsRow, { marginTop: 4 }]}>
                 <Pressable onPress={() => seekBy(-10)} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={t("player.controls.rewind", { seconds: 10 })} accessibilityRole="button">
                   <Ionicons name="play-back" size={20} color="#fff" />
@@ -876,6 +772,109 @@ export default function PlayerScreen() {
                 </Pressable>
                 <Text style={styles.timeText}>{formatTime(currentTime)} / {formatTime(effectiveDuration)}</Text>
                 <View style={{ flex: 1 }} />
+                {chapters.length > 0 && (
+                  <Pressable
+                    onPress={() => setShowChaptersPicker(true)}
+                    hitSlop={8}
+                    style={styles.trackButton}
+                    accessible={true}
+                    accessibilityLabel={t("player.controls.chapters")}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="book-outline" size={18} color="#fff" />
+                  </Pressable>
+                )}
+                {audioStreams.length > 1 && (
+                  <Pressable
+                    onPress={() => setShowAudioPicker(true)}
+                    hitSlop={8}
+                    style={styles.trackButton}
+                    accessible={true}
+                    accessibilityLabel={t("player.settings.audio")}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="volume-high" size={18} color="#fff" />
+                  </Pressable>
+                )}
+                {subtitleStreams.length > 0 && (
+                  <Pressable
+                    onPress={() => setShowSubtitlePicker(true)}
+                    hitSlop={8}
+                    style={styles.trackButton}
+                    accessible={true}
+                    accessibilityLabel={t("player.settings.subtitles")}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={() => setShowStreamInfo(true)}
+                  hitSlop={8}
+                  style={styles.trackButton}
+                  accessible={true}
+                  accessibilityLabel={t("player.streamInfo.title", "Stream Info")}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="information-circle-outline" size={18} color="#fff" />
+                </Pressable>
+                <Pressable
+                  onPress={cycleSpeed}
+                  hitSlop={8}
+                  style={styles.trackButton}
+                  accessible={true}
+                  accessibilityLabel={t("player.settings.speed")}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.speedButtonText}>{playbackSpeed}x</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setShowQualityPicker(true)}
+                  hitSlop={8}
+                  style={styles.trackButton}
+                  accessible={true}
+                  accessibilityLabel={t("player.settings.quality")}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="settings-sharp" size={18} color="#fff" />
+                </Pressable>
+                {pipSupported && (
+                  <Pressable
+                    onPress={handlePip}
+                    hitSlop={8}
+                    style={styles.trackButton}
+                    accessible={true}
+                    accessibilityLabel={t("player.controls.pip")}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="albums-outline" size={18} color="#fff" />
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={() => syncPlay.state.connected ? syncPlay.leaveRoom() : setShowSyncPlay(true)}
+                  hitSlop={8}
+                  style={styles.trackButton}
+                  accessible={true}
+                  accessibilityLabel={syncPlay.state.connected ? t("media.syncplay.leave", "Leave") : t("media.syncplay.title", "Watch Together")}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="people" size={18} color={syncPlay.state.connected ? theme.colors.accent : "#fff"} />
+                </Pressable>
+                {CastContext && (
+                  <>
+                    {CastButtonNative && <CastButtonNative style={{ width: 0, height: 0, opacity: 0 }} />}
+                    <Pressable
+                      onPress={handleCast}
+                      hitSlop={8}
+                      style={styles.trackButton}
+                      accessible={true}
+                      accessibilityLabel={castConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="tv-outline" size={18} color={castConnected ? theme.colors.accent : "#fff"} />
+                    </Pressable>
+                  </>
+                )}
               </View>
             </View>
           </View>
@@ -1015,7 +1014,9 @@ const styles = StyleSheet.create({
   controlsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    flexWrap: "wrap",
+    rowGap: 8,
+    columnGap: 12,
   },
   controlBtn: {
     padding: 4,
@@ -1190,13 +1191,6 @@ const styles = StyleSheet.create({
   nextEpProgressFill: {
     height: "100%",
     borderRadius: 2,
-  },
-  topBarRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    minWidth: 40,
-    justifyContent: "flex-end",
   },
   trackButton: {
     width: 36,
