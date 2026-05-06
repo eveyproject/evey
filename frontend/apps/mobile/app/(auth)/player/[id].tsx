@@ -302,7 +302,10 @@ export default function PlayerScreen() {
   }, [castConnected, unmuteLocalPlayer]);
 
   useEffect(() => {
-    ScreenOrientation.unlockAsync();
+    // Auto-rotate to landscape on entry (Netflix / YouTube / Plex behaviour).
+    // Use LANDSCAPE (not LANDSCAPE_LEFT) so the OS picks the orientation that
+    // matches how the user is holding the device — both landscape sides work.
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
     return () => {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.DEFAULT);
     };
