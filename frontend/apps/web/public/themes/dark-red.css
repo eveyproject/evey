@@ -1,14 +1,14 @@
 /* Evey — Dark Red theme */
 :root {
-  --bg:            #0a0303;
-  --surface:       #160808;
-  --surface-raised:#221010;
-  --accent:        #ef4444;
-  --accent-hover:  #dc2626;
+  --bg:            #0a0a0a;
+  --surface:       #161616;
+  --surface-raised:#222222;
+  --accent:        #e50914;
+  --accent-hover:  #b81d24;
   --text:          #f5f5f5;
-  --text-secondary:#c4b8b8;
-  --text-muted:    #a08c8c;
-  --border:        #2a1414;
+  --text-secondary:#b8b8b8;
+  --text-muted:    #9a9a9a;
+  --border:        #2a2a2a;
   --radius-sm:     4px;
   --radius-md:     8px;
   --radius-lg:     16px;
@@ -42,12 +42,12 @@
 
   --color-success: #22c55e;
   --color-warning: #f97316;
-  --color-danger:  #ef4444;
+  --color-danger:  #e50914;
 
-  --danger-bg: #dc2626;
-  --danger-hover: #b91c1c;
+  --danger-bg: #b81d24;
+  --danger-hover: #831010;
 
-  --bg-gradient-mid: #1a0808;
+  --bg-gradient-mid: #141414;
 
   --overlay-gradient: rgba(0,0,0,0.7);
 
