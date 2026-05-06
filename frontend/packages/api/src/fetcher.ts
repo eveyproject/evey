@@ -63,7 +63,10 @@ function isJwtExpired(token: string): boolean {
   try {
     const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
-    const json = typeof atob === "function" ? atob(padded) : Buffer.from(padded, "base64").toString("binary");
+    // atob is available in browsers, RN Hermes, and Node ≥ 18. Buffer is
+    // Node-only and missing from TS 6's default lib for browser/RN targets,
+    // so don't reference it — every runtime we ship to has atob.
+    const json = atob(padded);
     const claims = JSON.parse(json) as { exp?: number };
     if (typeof claims.exp !== "number") return false;
     const nowSeconds = Math.floor(Date.now() / 1000);

@@ -20,11 +20,29 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ["react", "react-dom", "@tanstack/react-query", "@tanstack/react-router"],
-          hls: ["hls.js"],
-          i18n: ["i18next", "react-i18next", "i18next-http-backend", "i18next-browser-languagedetector"],
-          charts: ["react-gifted-charts"],
+        // Vite 8 swapped rollup for rolldown, which exposes manualChunks
+        // only as a function (the object form is silently dropped). Function
+        // form works in both bundlers, so this stays compatible if Vite
+        // ever rolls back.
+        manualChunks(id: string) {
+          if (id.includes("/hls.js/")) return "hls";
+          if (id.includes("/react-gifted-charts/") || id.includes("/gifted-charts-core/")) return "charts";
+          if (
+            id.includes("/i18next/") ||
+            id.includes("/react-i18next/") ||
+            id.includes("/i18next-http-backend/") ||
+            id.includes("/i18next-browser-languagedetector/")
+          ) {
+            return "i18n";
+          }
+          if (
+            id.includes("/node_modules/react/") ||
+            id.includes("/node_modules/react-dom/") ||
+            id.includes("/@tanstack/react-query/") ||
+            id.includes("/@tanstack/react-router/")
+          ) {
+            return "vendor";
+          }
         },
       },
     },

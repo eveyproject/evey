@@ -50,12 +50,16 @@ function HeroBanner() {
   const candidates = (data?.items ?? []).filter((i) => !!i.mediaItemId).slice(0, HERO_COUNT);
   const heroIds = candidates.map((c) => c.mediaItemId!);
 
+  // @tanstack/react-query 5.100 narrows the mapped tuple type so the
+  // generic union of `data` is `unknown` unless we widen the input. The
+  // returned shape is the same; this cast just keeps `detail.title` etc.
+  // accessible without per-call type assertions.
   const details = useQueries({
     queries: heroIds.map((id) => ({
       ...getLibraryServiceGetMediaItemQueryOptions(id),
       staleTime: 5 * 60_000,
-    })),
-  });
+    })) as never,
+  }) as { data?: V1MediaItem }[];
 
   const [activeIndex, setActiveIndex] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
