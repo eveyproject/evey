@@ -29,6 +29,7 @@
     "expo-local-authentication": "55.0.13",
     "expo-localization": "55.0.13",
     "expo-navigation-bar": "55.0.12",
+    "expo-network": "55.0.13",
     "expo-router": "55.0.14",
     "expo-screen-orientation": "55.0.14",
     "expo-secure-store": "55.0.13",

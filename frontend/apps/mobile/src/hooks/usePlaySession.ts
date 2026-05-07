@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Dimensions } from "react-native";
+import * as Network from "expo-network";
 import {
   playbackServiceGetStreamInfo,
   playbackServiceStartStream,
@@ -16,11 +17,18 @@ const VIDEO_CODECS = ["h264", "hevc", "vp9"];
 const AUDIO_CODECS = ["aac", "mp3", "opus", "flac", "ac3", "eac3"];
 const CONTAINERS = ["mp4", "hls"];
 
-// TODO: detect actual network state via @react-native-community/netinfo or
-// expo-network (neither currently in deps). When added, replace the constant
-// with a runtime check: NetInfo.fetch().then(s => s.type === "cellular" ? "cellular" : "wifi").
-// Until then we default to "wifi" (no cellular cap applied).
-const NETWORK_TYPE: "wifi" | "cellular" = "wifi";
+// Probe the connection state via expo-network so the server can apply the
+// per-profile max_bitrate_cellular_kbps cap when relevant. Anything that
+// isn't explicitly cellular is reported as "wifi" — wired/ethernet/unknown
+// don't deserve the cap, and the API only has those two values.
+async function detectNetworkType(): Promise<"wifi" | "cellular"> {
+  try {
+    const state = await Network.getNetworkStateAsync();
+    return state.type === Network.NetworkStateType.CELLULAR ? "cellular" : "wifi";
+  } catch {
+    return "wifi";
+  }
+}
 
 interface StreamTokenResponse {
   token: string;
@@ -111,6 +119,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         const longEdge = Math.max(w, h);
         const shortEdge = Math.min(w, h);
         const cappedMaxHeight = maxHeight && maxHeight > 0 ? Math.min(maxHeight, shortEdge) : shortEdge;
+        const networkType = await detectNetworkType();
 
         const [info, wp] = await Promise.all([
           playbackServiceGetStreamInfo(mediaId, {
@@ -121,7 +130,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             maxHeight: cappedMaxHeight,
             audioStreamIndex,
             subtitleStreamIndex,
-            networkType: NETWORK_TYPE,
+            networkType,
           }),
           eveyFetch<V1WatchProgress>({
             url: `/api/v1/playback/${mediaId}/progress`,
