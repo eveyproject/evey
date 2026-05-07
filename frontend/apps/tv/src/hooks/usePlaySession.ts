@@ -171,6 +171,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         sessionIdRef.current = null;
       }
       stoppedRef.current = false;
+      setIsError(false);
       setIsLoading(true);
       startStream(audioIndex, subtitleIndex, maxHeight);
     },
@@ -189,6 +190,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       }
       stoppedRef.current = false;
       setStreamUrl(null);
+      setIsError(false);
       setIsLoading(true);
       startStream(undefined, undefined, undefined, positionSec);
     },
