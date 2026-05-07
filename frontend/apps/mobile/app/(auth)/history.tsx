@@ -11,6 +11,7 @@ import {
   getPlaybackServiceGetWatchHistoryQueryKey,
 } from "@evey/api";
 import type { V1WatchProgress } from "@evey/api";
+import { toast } from "@evey/store";
 import { useTheme } from "../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../src/hooks/useServerUrl";
 import { useAuthenticatedImage } from "../../src/hooks/useAuthenticatedImage";
@@ -147,6 +148,7 @@ export default function HistoryScreen() {
       onSuccess: () => {
         void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
       },
+      onError: () => toast.error(t("media.history.removeFailed", "Failed to remove from history")),
     },
   });
 

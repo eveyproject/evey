@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { View, Text, ScrollView, Pressable, Alert, TextInput, Switch, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -64,12 +64,18 @@ export default function SettingsScreen() {
     },
   });
 
+  const qcSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (qcSuccessTimerRef.current) clearTimeout(qcSuccessTimerRef.current);
+  }, []);
+
   const authorizeQc = useUserServiceAuthorizeQuickConnect({
     mutation: {
       onSuccess: () => {
         setQcSuccess(true);
         setQcCode("");
-        setTimeout(() => setQcSuccess(false), 3000);
+        if (qcSuccessTimerRef.current) clearTimeout(qcSuccessTimerRef.current);
+        qcSuccessTimerRef.current = setTimeout(() => setQcSuccess(false), 3000);
       },
       onError: () => Alert.alert(t("auth.settings.quickConnect.invalidCode")),
     },

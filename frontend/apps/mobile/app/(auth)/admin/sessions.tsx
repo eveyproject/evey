@@ -246,6 +246,7 @@ export default function AdminSessionsScreen() {
       toast.success(t("admin.sessions.sessionStopped", "Session stopped"));
       await qc.invalidateQueries({ queryKey: QUERY_KEY });
     },
+    onError: () => toast.error(t("admin.sessions.stopFailed", "Failed to stop session")),
   });
 
   const sendCommand = useMutation({
@@ -259,6 +260,7 @@ export default function AdminSessionsScreen() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: QUERY_KEY });
     },
+    onError: () => toast.error(t("admin.sessions.commandFailed", "Failed to send command")),
   });
 
   const handleKill = useCallback((session: ActiveSession) => {

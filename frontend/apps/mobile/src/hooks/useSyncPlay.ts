@@ -181,7 +181,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
       });
       queue = info.queue ?? [];
       trackIndex = info.trackIndex ?? 0;
-    } catch (err) { console.warn("caught", err); }
+    } catch {}
     setState({ roomId: data.id, roomCode: data.code, members: [], connected: false, isHost: true, queue, trackIndex });
     connect(data.id);
     return data.id;
@@ -202,7 +202,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
       });
       queue = info.queue ?? [];
       trackIndex = info.trackIndex ?? 0;
-    } catch (err) { console.warn("caught", err); }
+    } catch {}
     setState({ roomId: data.roomId, roomCode: null, members: [], connected: false, isHost: false, queue, trackIndex });
     connect(data.roomId);
     return { roomId: data.roomId, mediaId: data.mediaId };
@@ -220,7 +220,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
     if (roomId) {
       try {
         await eveyFetch<void>({ url: `/api/v1/syncplay/rooms/${roomId}/leave`, method: "DELETE" });
-      } catch (err) { console.warn("caught", err); }
+      } catch {}
     }
   }, [state.roomId]);
 

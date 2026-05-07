@@ -13,6 +13,7 @@ import {
   getNotificationServiceGetUnreadCountQueryKey,
 } from "@evey/api";
 import type { V1Notification } from "@evey/api";
+import { toast } from "@evey/store";
 import { useTheme } from "../../src/providers/ThemeProvider";
 
 const TITLE_KEYS: Record<string, string> = {
@@ -170,7 +171,10 @@ export default function NotificationsScreen() {
   });
 
   const deleteAll = useNotificationServiceDeleteAllNotifications({
-    mutation: { onSuccess: invalidateAll },
+    mutation: {
+      onSuccess: invalidateAll,
+      onError: () => toast.error(t("common.notifications.clearFailed", "Failed to clear notifications")),
+    },
   });
 
   const handleTap = useCallback((n: V1Notification) => {

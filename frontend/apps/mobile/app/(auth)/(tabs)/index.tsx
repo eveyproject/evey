@@ -26,7 +26,7 @@ interface FeedConfig {
   enabled?: boolean;
   displayOrder?: number;
 }
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { MediaRow } from "../../../src/components/MediaRow";
 import { useCollections } from "../../../src/api/collections";
@@ -347,15 +347,19 @@ function FeedCustomizeModal({
   }, [visible, configs, libraryNames, pluginNames]);
 
   const persist = useCallback(async (updated: FeedConfig[]) => {
+    let failed = 0;
     for (const c of updated) {
       if (!c.feedType) continue;
-      await updateFeed.mutateAsync({
-        feedType: c.feedType,
-        data: { profileId, enabled: c.enabled, displayOrder: c.displayOrder },
-      }).catch((err) => console.warn("caught", err));
+      try {
+        await updateFeed.mutateAsync({
+          feedType: c.feedType,
+          data: { profileId, enabled: c.enabled, displayOrder: c.displayOrder },
+        });
+      } catch { failed++; }
     }
     await qc.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] });
-  }, [updateFeed, profileId, qc]);
+    if (failed > 0) toast.error(t("media.home.customizeSaveFailed", "Failed to save some changes"));
+  }, [updateFeed, profileId, qc, t]);
 
   const toggle = (idx: number) => {
     setLocal((prev) => {
