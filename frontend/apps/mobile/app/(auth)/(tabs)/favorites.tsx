@@ -75,14 +75,24 @@ export default function FavoritesScreen() {
   const exitBulk = useCallback(() => { setBulkMode(false); setSelected(new Set()); }, []);
 
   const bulkMarkWatched = useCallback(async () => {
-    for (const id of selected) { try { await markWatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch (err) { console.warn("caught", err); } }
+    let failed = 0;
+    for (const id of selected) {
+      try { await markWatched.mutateAsync({ mediaItemId: id, params: { profileId } }); }
+      catch { failed++; }
+    }
+    if (failed > 0) toast.error(t("media.library.bulkPartialFailure", { count: failed, defaultValue: "{{count}} items failed" }));
     exitBulk();
-  }, [selected, markWatched, profileId, exitBulk]);
+  }, [selected, markWatched, profileId, exitBulk, t]);
 
   const bulkMarkUnwatched = useCallback(async () => {
-    for (const id of selected) { try { await markUnwatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch (err) { console.warn("caught", err); } }
+    let failed = 0;
+    for (const id of selected) {
+      try { await markUnwatched.mutateAsync({ mediaItemId: id, params: { profileId } }); }
+      catch { failed++; }
+    }
+    if (failed > 0) toast.error(t("media.library.bulkPartialFailure", { count: failed, defaultValue: "{{count}} items failed" }));
     exitBulk();
-  }, [selected, markUnwatched, profileId, exitBulk]);
+  }, [selected, markUnwatched, profileId, exitBulk, t]);
 
   const sortOptions: Array<{ key: SortKey; label: string }> = [
     { key: "addedAt", label: t("media.search.dateAdded") || "Date added" },

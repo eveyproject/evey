@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, Modal, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -75,8 +75,12 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
     onClose();
   }, [local, onSave, onClose]);
 
-  // Reset local when opening
-  useState(() => { setLocal(rules); });
+  // Sync local edits when the parent's rules change (e.g. modal re-opens
+  // with a different playlist). Without this, the editor stays stuck on the
+  // previously edited rules even after the parent updates `rules`.
+  useEffect(() => {
+    if (visible) setLocal(rules);
+  }, [visible, rules]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>

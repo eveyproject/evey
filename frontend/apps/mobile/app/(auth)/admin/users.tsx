@@ -174,14 +174,14 @@ function InviteLinksSection({ theme }: { theme: ReturnType<typeof useTheme> }) {
           maxUses: maxUses ? parseInt(maxUses) : undefined,
         },
       });
-    } catch (err) { console.warn("caught", err); }
+    } catch {}
   }, [maxUses, createInvite]);
 
   const handleShare = useCallback(async (link: V1InviteLink) => {
     const url = `${serverUrl}/register?invite=${link.code}`;
     try {
       await Share.share({ message: url });
-    } catch (err) { console.warn("caught", err); }
+    } catch {}
   }, [serverUrl]);
 
   const handleRevoke = useCallback((link: V1InviteLink) => {
@@ -353,7 +353,7 @@ export default function AdminUsersScreen() {
       await createUser.mutateAsync({
         data: { username: newUsername.trim(), email: newEmail.trim() || undefined, password: newPassword.trim(), isAdmin: newIsAdmin },
       });
-    } catch (err) { console.warn("caught", err); }
+    } catch {}
   }, [newUsername, newEmail, newPassword, newIsAdmin, newSelectedLibs, createUser]);
 
   const handleDelete = useCallback((user: V1User) => {

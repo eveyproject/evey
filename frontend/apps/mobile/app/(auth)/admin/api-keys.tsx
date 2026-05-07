@@ -76,7 +76,7 @@ export default function AdminAPIKeysScreen() {
       await createKey.mutateAsync({ data: { name: keyName.trim(), scopes: Array.from(selectedScopes) } });
       resetForm();
       setShowCreate(false);
-    } catch (err) { console.warn("caught", err); }
+    } catch {}
   }, [keyName, selectedScopes, createKey, resetForm]);
 
   const handleRevoke = useCallback((keyId: string, name: string) => {

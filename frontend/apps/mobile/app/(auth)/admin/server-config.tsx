@@ -71,7 +71,7 @@ export default function AdminServerConfigScreen() {
   const handleSaveBasic = useCallback(async () => {
     try {
       await updateConfig.mutateAsync({ data: { values: { server_name: serverName.trim(), base_url: baseUrl.trim() } } });
-    } catch (err) { console.warn("caught", err); }
+    } catch {}
   }, [serverName, baseUrl, updateConfig]);
 
   const { data: settings, isLoading: settingsLoading, refetch } = useQuery<ServerSettings>({
@@ -124,7 +124,7 @@ export default function AdminServerConfigScreen() {
       if (loginRate) body.loginRateLimit = parseInt(loginRate, 10);
       if (globalRate) body.globalRateLimit = parseInt(globalRate, 10);
       await saveMutation.mutateAsync(body);
-    } catch (err) { console.warn("caught", err); }
+    } catch {}
   }, [maxTranscodes, hwAccel, loginRate, globalRate, saveMutation]);
 
   const { data: configEntries, refetch: refetchEntries } = useQuery<ConfigEntry[]>({

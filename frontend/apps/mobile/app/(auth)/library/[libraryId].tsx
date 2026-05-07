@@ -145,26 +145,34 @@ export default function LibraryDetailScreen() {
   }, []);
 
   const bulkMarkWatched = useCallback(async () => {
+    let failed = 0;
     for (const id of selected) {
-      try { await markWatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch (err) { console.warn("caught", err); }
+      try { await markWatched.mutateAsync({ mediaItemId: id, params: { profileId } }); }
+      catch { failed++; }
     }
+    if (failed > 0) toast.error(t("media.library.bulkPartialFailure", { count: failed, defaultValue: "{{count}} items failed" }));
     exitBulk();
-  }, [selected, markWatched, profileId, exitBulk]);
+  }, [selected, markWatched, profileId, exitBulk, t]);
 
   const bulkMarkUnwatched = useCallback(async () => {
+    let failed = 0;
     for (const id of selected) {
-      try { await markUnwatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch (err) { console.warn("caught", err); }
+      try { await markUnwatched.mutateAsync({ mediaItemId: id, params: { profileId } }); }
+      catch { failed++; }
     }
+    if (failed > 0) toast.error(t("media.library.bulkPartialFailure", { count: failed, defaultValue: "{{count}} items failed" }));
     exitBulk();
-  }, [selected, markUnwatched, profileId, exitBulk]);
+  }, [selected, markUnwatched, profileId, exitBulk, t]);
 
   const bulkToggleFavorite = useCallback(async () => {
     try {
       await bulkFavorite.mutateAsync(Array.from(selected));
       toast.success(t("media.favorites.toggled", "Favorites toggled"));
-    } catch (err) { console.warn("caught", err); }
+    } catch {
+      toast.error(t("media.favorites.bulkFailed", "Failed to toggle favorites"));
+    }
     exitBulk();
-  }, [selected, bulkFavorite, exitBulk]);
+  }, [selected, bulkFavorite, exitBulk, t]);
 
   const authHeaders = useAuthHeaders();
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");

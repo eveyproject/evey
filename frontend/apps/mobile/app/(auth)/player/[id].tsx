@@ -17,6 +17,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { getCastBaseUrl } from "../../../src/lib/server-config";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { useLibraryServiceGetMediaItem, useLibraryServiceListMediaItems } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
@@ -996,14 +997,18 @@ export default function PlayerScreen() {
           try {
             await syncPlay.createRoom(mediaId);
             setShowSyncPlay(false);
-          } catch (err) { console.warn("caught", err); } finally { setSyncCreating(false); }
+          } catch {
+            toast.error(t("media.syncplay.createFailed", "Failed to create room"));
+          } finally { setSyncCreating(false); }
         }}
         onJoinRoom={async (code) => {
           setSyncJoining(true);
           try {
             await syncPlay.joinByCode(code);
             setShowSyncPlay(false);
-          } catch (err) { console.warn("caught", err); } finally { setSyncJoining(false); }
+          } catch {
+            toast.error(t("media.syncplay.joinFailed", "Failed to join room"));
+          } finally { setSyncJoining(false); }
         }}
       />
 
