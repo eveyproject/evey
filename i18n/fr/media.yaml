@@ -287,7 +287,8 @@ music:
   noArtists: Aucun artiste trouvé.
   noLibraries: "Aucune bibliothèque musicale trouvée. Ajoutez-en une dans le panneau d'administration."
   noMusicLibraries: Aucune bibliothèque musicale
-  queueEmpty: File d'attente vide
+  queue: "File d'attente"
+  queueEmpty: "File d'attente vide"
   trackDeleted: Piste supprimée
   failedDeleteTrack: Échec de la suppression de la piste
   deleteTrackConfirm: Supprimer cette piste ? Cette action est irréversible.
