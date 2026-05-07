@@ -7,6 +7,7 @@ import * as SecureStore from "expo-secure-store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { userServiceRefreshToken, userServiceLogout } from "@evey/api";
+import { clearRefreshToken } from "../../lib/refresh-token";
 import type { V1Profile } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
@@ -88,7 +89,11 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
     setMenuOpen(false);
     qc.clear();
     logout();
-    void userServiceLogout({}).catch((err) => console.warn("logout failed", err));
+    // Best-effort revoke server-side; never block the UI on it.
+    void userServiceLogout({}).catch(() => {});
+    // Drop the persisted refresh token so the bootstrap refresh on cold
+    // start doesn't silently re-authenticate the user.
+    void clearRefreshToken().catch(() => {});
     setTimeout(() => router.replace("/login"), 50);
   }, [qc, logout]);
 

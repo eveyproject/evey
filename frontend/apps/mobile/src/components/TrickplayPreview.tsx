@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useTheme } from "../providers/ThemeProvider";
@@ -81,13 +81,25 @@ export function TrickplayPreview({ mediaId, currentTime, visible }: Props) {
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
   const [cues, setCues] = useState<TrickplayCue[]>(() => memCache.get(mediaId) ?? []);
-  const fetched = useRef(false);
 
+  // Re-fetch when mediaId changes (e.g. next episode in the player). The
+  // memCache + on-disk cache short-circuits repeat fetches so this stays
+  // cheap. The previous `fetched` ref was set on first mount and never
+  // reset, so navigating to a sibling episode left cues empty for the rest
+  // of the player session.
   useEffect(() => {
-    if (!mediaId || fetched.current) return;
-    fetched.current = true;
+    if (!mediaId) return;
+    const cachedSync = memCache.get(mediaId);
+    if (cachedSync) {
+      setCues(cachedSync);
+      if (cachedSync.length > 0) return;
+    } else {
+      setCues([]);
+    }
+    let cancelled = false;
     (async () => {
       const cached = memCache.get(mediaId) ?? await readCachedCues(mediaId);
+      if (cancelled) return;
       if (cached && cached.length > 0) {
         memCache.set(mediaId, cached);
         setCues(cached);
@@ -96,6 +108,7 @@ export function TrickplayPreview({ mediaId, currentTime, visible }: Props) {
       try {
         const res = await eveyFetchRaw({ url: `/api/v1/media/${mediaId}/trickplay`, method: "GET" });
         const text = await res.text();
+        if (cancelled) return;
         const parsed = parseVTT(text);
         memCache.set(mediaId, parsed);
         setCues(parsed);
@@ -104,6 +117,7 @@ export function TrickplayPreview({ mediaId, currentTime, visible }: Props) {
         memCache.set(mediaId, []);
       }
     })();
+    return () => { cancelled = true; };
   }, [mediaId]);
 
   if (!visible || cues.length === 0) return null;

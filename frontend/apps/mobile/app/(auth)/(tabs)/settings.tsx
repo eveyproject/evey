@@ -7,7 +7,8 @@ import { router } from "expo-router";
 import Constants from "expo-constants";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, eveyFetch, eveyFetchRaw } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, useUserServiceLogout, eveyFetch, eveyFetchRaw } from "@evey/api";
+import { clearRefreshToken } from "../../../src/lib/refresh-token";
 import { useAuthStore, useLocaleStore, useServerListStore, toast } from "@evey/store";
 import { useBiometricAvailable, useBiometricEnabled } from "../../../src/hooks/useBiometric";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -151,10 +152,23 @@ export default function SettingsScreen() {
     router.push("/(auth)/manage-servers");
   }
 
+  const logoutMutation = useUserServiceLogout();
   async function handleSignOut() {
     Alert.alert(t("mobile.settings.signOut"), t("mobile.settings.signOutConfirm"), [
       { text: t("common.cancel"), style: "cancel" },
-      { text: t("mobile.settings.signOut"), style: "destructive", onPress: () => { logout(); router.replace("/login"); } },
+      {
+        text: t("mobile.settings.signOut"),
+        style: "destructive",
+        onPress: async () => {
+          // Best-effort revoke server-side; never block the UI on it.
+          logoutMutation.mutate({ data: {} });
+          // Drop the persisted refresh token so a cold-start refresh on
+          // bootstrap doesn't silently re-authenticate the user.
+          await clearRefreshToken().catch(() => {});
+          logout();
+          router.replace("/login");
+        },
+      },
     ]);
   }
 
