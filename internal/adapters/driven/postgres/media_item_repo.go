@@ -240,14 +240,16 @@ func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) err
 // bumpSeriesLatestChildAddedAt keeps media_items.latest_child_added_at in
 // sync on the grandparent series when an episode is created or touched.
 // Best-effort — failure is logged but not propagated.
+//
+// IMPORTANT: only AddedAt is propagated. Folding in UpdatedAt would let any
+// metadata refresh (cover art, retitle, etc.) move the series to the top of
+// "Recently Added" — a full re-scan in the morning would shuffle the entire
+// library to today, masking actual new content.
 func (r *MediaItemRepository) bumpSeriesLatestChildAddedAt(ctx context.Context, item *library.MediaItem) {
 	if item == nil || item.Type != library.Episode || item.ParentID == "" {
 		return
 	}
 	when := item.AddedAt
-	if item.UpdatedAt.After(when) {
-		when = item.UpdatedAt
-	}
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE media_items
 		SET latest_child_added_at = $1
