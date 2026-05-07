@@ -17,14 +17,20 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { getCastBaseUrl } from "../../../src/lib/server-config";
 import { useTranslation } from "react-i18next";
-import { toast } from "@evey/store";
-import { useLibraryServiceGetMediaItem, useLibraryServiceListMediaItems } from "@evey/api";
+import { toast, useAuthStore } from "@evey/store";
+import {
+  useLibraryServiceGetMediaItem,
+  useLibraryServiceListMediaItems,
+  usePlaybackServiceMarkAsWatched,
+} from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
 import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
 import { useChapters } from "../../../src/hooks/useChapters";
+import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
+import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { AudioTrackPicker, type AudioStream } from "../../../src/components/AudioTrackPicker";
 import { SubtitlePicker, type SubtitleStream } from "../../../src/components/SubtitlePicker";
 import { QualityPicker } from "../../../src/components/QualityPicker";
@@ -172,6 +178,13 @@ export default function PlayerScreen() {
   const [showSyncPlay, setShowSyncPlay] = useState(false);
   const [syncCreating, setSyncCreating] = useState(false);
   const [syncJoining, setSyncJoining] = useState(false);
+  const [showSleepTimer, setShowSleepTimer] = useState(false);
+  const sleepTimer = useSleepTimer({
+    onMinutesFire: () => {
+      try { player?.pause(); } catch { /* released */ }
+      toast.info(t("player.sleepTimer.fired", "Sleep timer ended"));
+    },
+  });
   const syncPlayRef = useRef<{ player: typeof player } | null>(null);
 
   const syncPlay = useSyncPlay({
@@ -374,6 +387,25 @@ export default function PlayerScreen() {
   const knownDuration = media?.durationMs ? Number(media.durationMs) / 1000 : 0;
   const effectiveDuration = knownDuration > 0 ? knownDuration : duration;
 
+  // Mirror Jellyfin's behaviour: mark the item as watched once playback
+  // crosses the MaxResumePct threshold (90%). The server only marks
+  // Completed=true on explicit MarkAsWatched calls — without this the user
+  // had to manually toggle "watched" after every episode.
+  const profileId = useAuthStore((s) => s.profileId) ?? "";
+  const markAsWatchedMut = usePlaybackServiceMarkAsWatched();
+  const autoMarkedRef = useRef(false);
+  useEffect(() => { autoMarkedRef.current = false; }, [mediaId]);
+  useEffect(() => {
+    if (autoMarkedRef.current) return;
+    if (progress?.played) { autoMarkedRef.current = true; return; }
+    if (!profileId || !mediaId) return;
+    if (effectiveDuration <= 0 || currentTime <= 0) return;
+    if (currentTime / effectiveDuration >= 0.9) {
+      autoMarkedRef.current = true;
+      markAsWatchedMut.mutate({ mediaItemId: mediaId, params: { profileId } });
+    }
+  }, [currentTime, effectiveDuration, progress?.played, profileId, mediaId, markAsWatchedMut]);
+
   const isTranscode = streamInfo?.playMethod === "PLAY_METHOD_TRANSCODE";
 
   const seekPreview = useCallback(
@@ -471,6 +503,19 @@ export default function PlayerScreen() {
     duration: effectiveDuration,
     onNavigate: handleNavigateEpisode,
   });
+
+  // End-of-episode sleep timer: when the user picked "stop after this episode",
+  // intercept videoEnded BEFORE useNextEpisode auto-navigates. Pause the player
+  // and clear the timer so the user lands on the next-episode countdown but with
+  // the auto-advance cancelled.
+  useEffect(() => {
+    if (sleepTimer.state?.kind !== "endOfEpisode") return;
+    if (!nextEp.ended) return;
+    try { player?.pause(); } catch { /* released */ }
+    nextEp.cancel();
+    sleepTimer.cancel();
+    toast.info(t("player.sleepTimer.fired", "Sleep timer ended"));
+  }, [sleepTimer, nextEp, player, t]);
 
   const getPositionMs = useCallback(() => {
     if (!mountedRef.current) return 0;
@@ -872,6 +917,25 @@ export default function PlayerScreen() {
                   <Text style={styles.speedButtonText}>{playbackSpeed}x</Text>
                 </Pressable>
                 <Pressable
+                  onPress={() => setShowSleepTimer(true)}
+                  hitSlop={8}
+                  style={styles.trackButton}
+                  accessible={true}
+                  accessibilityLabel={t("player.settings.sleepTimer", "Sleep timer")}
+                  accessibilityRole="button"
+                >
+                  <Ionicons
+                    name={sleepTimer.state ? "moon" : "moon-outline"}
+                    size={18}
+                    color={sleepTimer.state ? theme.colors.accent : "#fff"}
+                  />
+                  {sleepTimer.state?.kind === "minutes" && sleepTimer.state.minutesLeft !== null && (
+                    <Text style={[styles.speedButtonText, { color: theme.colors.accent, marginLeft: 4 }]}>
+                      {sleepTimer.state.minutesLeft}
+                    </Text>
+                  )}
+                </Pressable>
+                <Pressable
                   onPress={() => setShowQualityPicker(true)}
                   hitSlop={8}
                   style={styles.trackButton}
@@ -985,6 +1049,15 @@ export default function PlayerScreen() {
         visible={showStreamInfo}
         onClose={() => setShowStreamInfo(false)}
         streamInfo={streamInfo}
+      />
+
+      <SleepTimerPicker
+        visible={showSleepTimer}
+        onClose={() => setShowSleepTimer(false)}
+        state={sleepTimer.state}
+        onPickMinutes={(m) => sleepTimer.setMinutes(m)}
+        onPickEndOfEpisode={() => sleepTimer.setEndOfEpisode()}
+        onCancel={() => sleepTimer.cancel()}
       />
 
       <SyncPlayModal
