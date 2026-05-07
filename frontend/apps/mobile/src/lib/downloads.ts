@@ -61,7 +61,11 @@ export async function startDownload(
     destPath,
     {},
     (downloadProgress) => {
-      const pct = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+      const expected = downloadProgress.totalBytesExpectedToWrite;
+      // Servers that omit Content-Length report `expected = 0` here — yield
+      // an indeterminate progress (NaN flips the UI bar to a striped state)
+      // rather than poisoning the consumer with NaN.
+      const pct = expected > 0 ? downloadProgress.totalBytesWritten / expected : NaN;
       onProgress?.(pct);
     },
   );

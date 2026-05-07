@@ -426,6 +426,9 @@ export default function MediaDetailScreen() {
   const { needsPin, profileId: gateProfileId } = useParentalGate(media?.officialRating);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pendingPlayTarget, setPendingPlayTarget] = useState<string | null>(null);
+  // null = idle, 0..1 = downloading with known total, NaN = downloading
+  // with unknown total (server omits Content-Length).
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
 
   const invalidateWatched = useCallback(() => {
     if (id) void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${id}/progress`] });
@@ -816,29 +819,58 @@ export default function MediaDetailScreen() {
             <Pressable
               onPress={async () => {
                 if (!id || !media?.title) return;
+                if (downloadProgress !== null) return;
                 const existing = await getDownloadPath(id);
                 if (existing) { toast.info(t("media.detail.alreadyDownloaded")); return; }
+                setDownloadProgress(NaN);
                 toast.info(t("media.detail.downloadStarted"));
                 try {
-                  await startDownload(id, media.title);
+                  await startDownload(id, media.title, (p) => setDownloadProgress(p));
                   toast.success(t("media.detail.downloadComplete"));
-                } catch { toast.error(t("media.detail.downloadFailed")); }
+                } catch {
+                  toast.error(t("media.detail.downloadFailed"));
+                } finally {
+                  setDownloadProgress(null);
+                }
               }}
+              disabled={downloadProgress !== null}
               style={{
+                position: "relative",
                 flexDirection: "row",
                 alignItems: "center",
                 backgroundColor: theme.colors.surface,
                 borderRadius: theme.radii.md,
                 paddingVertical: theme.spacing.sm,
                 paddingHorizontal: theme.spacing.md,
+                overflow: "hidden",
+                opacity: downloadProgress !== null ? 0.85 : 1,
               }}
               accessible={true}
               accessibilityLabel={t("common.download") || "Download"}
               accessibilityRole="button"
             >
-              <Ionicons name="download-outline" size={20} color={theme.colors.text} />
+              {downloadProgress !== null && Number.isFinite(downloadProgress) && (
+                <View style={{
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: `${Math.max(2, Math.min(100, downloadProgress * 100))}%`,
+                  backgroundColor: theme.colors.accent,
+                  opacity: 0.25,
+                }} />
+              )}
+              <Ionicons
+                name={downloadProgress !== null ? "cloud-download" : "download-outline"}
+                size={20}
+                color={theme.colors.text}
+              />
               <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
-                {t("common.download") || "Download"}
+                {downloadProgress !== null && Number.isFinite(downloadProgress)
+                  ? `${Math.round(downloadProgress * 100)}%`
+                  : downloadProgress !== null
+                    ? "…"
+                    : t("common.download") || "Download"}
               </Text>
             </Pressable>
           )}
