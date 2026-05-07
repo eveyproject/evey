@@ -8,11 +8,10 @@ import Constants from "expo-constants";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, eveyFetch, eveyFetchRaw } from "@evey/api";
-import { useAuthStore, useLocaleStore, toast } from "@evey/store";
+import { useAuthStore, useLocaleStore, useServerListStore, toast } from "@evey/store";
 import { useBiometricAvailable, useBiometricEnabled } from "../../../src/hooks/useBiometric";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
-import { clearServerUrl } from "../../../src/lib/server-config";
 import { supportedLanguages } from "../../../src/i18n";
 import { ThemeSelector } from "../../../src/components/ThemeSelector";
 
@@ -28,6 +27,7 @@ export default function SettingsScreen() {
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const setLocale = useLocaleStore((s) => s.setLocale);
   const serverUrl = useServerUrlNullable();
+  const serverCount = useServerListStore((s) => Object.keys(s.servers).length);
 
   const [qcCode, setQcCode] = useState("");
   const [qcSuccess, setQcSuccess] = useState(false);
@@ -141,11 +141,8 @@ export default function SettingsScreen() {
     authorizeQc.mutate({ data: { code: trimmed } });
   }
 
-  async function handleChangeServer() {
-    Alert.alert(t("mobile.settings.changeServer"), t("mobile.settings.disconnectConfirm"), [
-      { text: t("common.cancel"), style: "cancel" },
-      { text: t("mobile.settings.disconnect"), style: "destructive", onPress: async () => { logout(); await clearServerUrl(); router.replace("/server-connect"); } },
-    ]);
+  function handleManageServers() {
+    router.push("/(auth)/manage-servers");
   }
 
   async function handleSignOut() {
@@ -399,7 +396,13 @@ export default function SettingsScreen() {
       <View style={s.section}>
         <View style={s.row}><Text style={s.label}>URL</Text><Text style={s.value} numberOfLines={1}>{serverUrl ?? "..."}</Text></View>
         <View style={s.row}><Text style={s.label}>{t("mobile.settings.serverVersion")}</Text><Text style={s.value}>{systemInfo?.version ?? "\u2014"}</Text></View>
-        <Pressable style={s.row} onPress={handleChangeServer} accessible={true} accessibilityLabel={t("mobile.settings.changeServer")} accessibilityRole="button"><Text style={s.labelDestructive}>{t("mobile.settings.changeServer")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
+        <Pressable style={s.row} onPress={handleManageServers} accessible={true} accessibilityLabel={t("mobile.servers.title", "Servers")} accessibilityRole="button">
+          <Text style={s.label}>{t("mobile.servers.title", "Servers")}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={s.value}>{t("mobile.servers.manageSubtitle", "{{count}} saved", { count: serverCount })}</Text>
+            <ChevronRight color={theme.colors.textMuted} />
+          </View>
+        </Pressable>
       </View>
 
       {/* About */}

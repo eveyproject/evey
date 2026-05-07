@@ -27,3 +27,19 @@ auth:
   haveInvite: ¿Tienes una invitación? Regístrate
 profileSelect:
   title: ¿Quién está viendo?
+servers:
+  title: Servidores
+  manageTitle: Administrar servidores
+  manageSubtitle: "{{count}} guardado(s)"
+  addServer: Agregar servidor
+  addAnother: Agregar otro servidor
+  noServers: No hay servidores guardados
+  current: Actual
+  active: Activo
+  rename: Renombrar
+  renamePlaceholder: Nombre del servidor
+  delete: Eliminar
+  deleteConfirmTitle: Eliminar servidor?
+  deleteConfirmMessage: "{{name}} sera eliminado de tus servidores guardados. Los tokens de inicio de sesion para este servidor tambien se eliminaran."
+  cantDeleteOnlyServer: No se puede eliminar el unico servidor guardado
+  switchedTo: "Cambiado a {{name}}"

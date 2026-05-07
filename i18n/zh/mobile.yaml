@@ -27,3 +27,19 @@ auth:
   haveInvite: 有邀请？注册
 profileSelect:
   title: 谁在观看？
+servers:
+  title: 服务器
+  manageTitle: 管理服务器
+  manageSubtitle: "已保存 {{count}} 个"
+  addServer: 添加服务器
+  addAnother: 添加其他服务器
+  noServers: 尚无已保存的服务器
+  current: 当前
+  active: 活跃
+  rename: 重命名
+  renamePlaceholder: 服务器名称
+  delete: 删除
+  deleteConfirmTitle: 删除服务器?
+  deleteConfirmMessage: "{{name}} 将从您保存的服务器中删除。此服务器的登录令牌也将被清除。"
+  cantDeleteOnlyServer: 无法删除唯一保存的服务器
+  switchedTo: "已切换到 {{name}}"

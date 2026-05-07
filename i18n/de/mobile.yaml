@@ -27,3 +27,19 @@ auth:
   haveInvite: Einladung erhalten? Registrieren
 profileSelect:
   title: Wer schaut?
+servers:
+  title: Server
+  manageTitle: Server verwalten
+  manageSubtitle: "{{count}} gespeichert"
+  addServer: Server hinzufugen
+  addAnother: Weiteren Server hinzufugen
+  noServers: Noch keine gespeicherten Server
+  current: Aktuell
+  active: Aktiv
+  rename: Umbenennen
+  renamePlaceholder: Servername
+  delete: Loschen
+  deleteConfirmTitle: Server loschen?
+  deleteConfirmMessage: "{{name}} wird aus Ihren gespeicherten Servern entfernt. Anmelde-Tokens fur diesen Server werden ebenfalls geloscht."
+  cantDeleteOnlyServer: Der einzige gespeicherte Server kann nicht geloscht werden
+  switchedTo: "Zu {{name}} gewechselt"

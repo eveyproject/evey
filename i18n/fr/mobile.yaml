@@ -27,3 +27,19 @@ auth:
   haveInvite: Vous avez une invitation ? Inscrivez-vous
 profileSelect:
   title: Qui regarde ?
+servers:
+  title: Serveurs
+  manageTitle: Gerer les serveurs
+  manageSubtitle: "{{count}} enregistre(s)"
+  addServer: Ajouter un serveur
+  addAnother: Ajouter un autre serveur
+  noServers: Aucun serveur enregistre
+  current: Actuel
+  active: Actif
+  rename: Renommer
+  renamePlaceholder: Nom du serveur
+  delete: Supprimer
+  deleteConfirmTitle: Supprimer le serveur ?
+  deleteConfirmMessage: "{{name}} sera retire de vos serveurs enregistres. Les jetons de connexion pour ce serveur seront aussi supprimes."
+  cantDeleteOnlyServer: Impossible de supprimer le seul serveur enregistre
+  switchedTo: "Passe sur {{name}}"

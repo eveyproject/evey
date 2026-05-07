@@ -27,3 +27,19 @@ auth:
   haveInvite: निमंत्रण है? साइन अप करें
 profileSelect:
   title: कौन देख रहा है?
+servers:
+  title: सर्वर
+  manageTitle: सर्वर प्रबंधित करें
+  manageSubtitle: "{{count}} सहेजा गया"
+  addServer: सर्वर जोड़ें
+  addAnother: दूसरा सर्वर जोड़ें
+  noServers: कोई सहेजा हुआ सर्वर नहीं
+  current: वर्तमान
+  active: सक्रिय
+  rename: नाम बदलें
+  renamePlaceholder: सर्वर का नाम
+  delete: हटाएं
+  deleteConfirmTitle: सर्वर हटाएं?
+  deleteConfirmMessage: "{{name}} आपके सहेजे गए सर्वरों से हटा दिया जाएगा। इस सर्वर के लिए साइन-इन टोकन भी साफ कर दिए जाएंगे।"
+  cantDeleteOnlyServer: एकमात्र सहेजे गए सर्वर को हटाया नहीं जा सकता
+  switchedTo: "{{name}} पर स्विच किया"

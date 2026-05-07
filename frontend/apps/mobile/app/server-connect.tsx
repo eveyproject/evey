@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet } from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
+import { setBaseURL } from "@evey/api";
+import { useAuthStore, useServerListStore } from "@evey/store";
 import { setServerUrl, getServerUrl } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { applyServerLanguage, initI18n } from "../src/i18n";
@@ -10,14 +13,29 @@ import { scanLocalNetwork } from "../src/lib/network-scan";
 
 export default function ServerConnect() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [discovered, setDiscovered] = useState<{ url: string; version?: string }[]>([]);
 
+  const servers = useServerListStore((s) => s.servers);
+  const activeServerId = useServerListStore((s) => s.activeServerId);
+  const addServer = useServerListStore((s) => s.addServer);
+  const setActiveServer = useServerListStore((s) => s.setActiveServer);
+
+  const serverList = useMemo(
+    () => Object.values(servers).sort((a, b) => b.lastUsedAt - a.lastUsedAt),
+    [servers],
+  );
+  const hasServers = serverList.length > 0;
+
   useEffect(() => {
-    getServerUrl().then((saved) => { if (saved) setUrl(saved); });
-  }, []);
+    // Pre-fill URL input from legacy storage (first-run or migration fallback).
+    if (!hasServers) {
+      getServerUrl().then((saved) => { if (saved) setUrl(saved); });
+    }
+  }, [hasServers]);
 
   const handleScan = useCallback(async () => {
     setScanning(true);
@@ -32,30 +50,24 @@ export default function ServerConnect() {
     setScanning(false);
   }, []);
 
-  const inputStyle = useMemo(() => ({
-    backgroundColor: theme.colors.surface,
-    color: theme.colors.text,
-    borderRadius: theme.radii.md,
-    padding: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: theme.spacing.md,
-  }), [theme]);
+  // Switch to an existing saved server.
+  const handleSelectServer = useCallback(async (serverId: string) => {
+    const server = servers[serverId];
+    if (!server) return;
+    setActiveServer(serverId);
+    setBaseURL(server.url);
+    await setServerUrl(server.url);
+    await initFetcher();
+    // Tokens for this server are rehydrated by the store; check now.
+    const token = useAuthStore.getState().accessToken;
+    if (token) {
+      router.replace("/(auth)/(tabs)");
+    } else {
+      router.replace("/login");
+    }
+  }, [servers, setActiveServer]);
 
-  const containerStyle = useMemo(() => ({
-    flex: 1,
-    justifyContent: "center" as const,
-    padding: theme.spacing.xl,
-    backgroundColor: theme.colors.bg,
-  }), [theme]);
-
-  const buttonStyle = useMemo(() => ({
-    backgroundColor: theme.colors.accent,
-    borderRadius: theme.radii.md,
-    padding: theme.spacing.md,
-    alignItems: "center" as const,
-  }), [theme]);
-
+  // Submit a new server URL.
   async function handleConnect() {
     const trimmed = url.trim().replace(/\/+$/, "");
     if (!trimmed) return;
@@ -68,28 +80,90 @@ export default function ServerConnect() {
       await initFetcher();
       await initI18n(trimmed);
       await applyServerLanguage(trimmed);
+      const saved = addServer(trimmed);
+      setActiveServer(saved.id);
+      setBaseURL(trimmed);
       router.replace("/login");
     } catch (e) {
       Alert.alert(
-        "Connection failed",
-        e instanceof Error ? e.message : "Unable to reach server",
+        t("mobile.serverConnect.connectionFailed", "Connection failed"),
+        e instanceof Error ? e.message : t("mobile.serverConnect.unreachable", "Unable to reach server"),
       );
     } finally {
       setLoading(false);
     }
   }
 
+  const inputStyle = useMemo(() => ({
+    backgroundColor: theme.colors.surface,
+    color: theme.colors.text,
+    borderRadius: theme.radii.md,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.md,
+  }), [theme]);
+
+  const s = scStyles(theme);
+
   return (
-    <View style={containerStyle}>
-      <Text style={{ fontSize: 36, fontWeight: "800", color: theme.colors.accent, marginBottom: 8, letterSpacing: -1 }}>
-        Evey
+    <ScrollView style={s.scroll} contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
+      <Text style={s.brand}>Evey</Text>
+      <Text style={s.heading}>{t("mobile.serverConnect.title", "Connect to your server")}</Text>
+
+      {/* Saved servers list */}
+      {hasServers && (
+        <View style={s.listSection}>
+          {serverList.map((server) => {
+            const isActive = server.id === activeServerId;
+            return (
+              <Pressable
+                key={server.id}
+                onPress={() => handleSelectServer(server.id)}
+                style={[s.serverRow, { backgroundColor: theme.colors.surface }]}
+                accessible={true}
+                accessibilityLabel={server.label ?? server.url}
+                accessibilityRole="button"
+              >
+                <Ionicons
+                  name="server-outline"
+                  size={20}
+                  color={isActive ? theme.colors.accent : theme.colors.textMuted}
+                  style={{ marginRight: theme.spacing.sm }}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.serverLabel, { color: theme.colors.text }]} numberOfLines={1}>
+                    {server.label ?? server.url}
+                  </Text>
+                  {server.label && (
+                    <Text style={[s.serverSub, { color: theme.colors.textMuted }]} numberOfLines={1}>
+                      {server.url}
+                    </Text>
+                  )}
+                </View>
+                {isActive && (
+                  <View style={[s.badge, { backgroundColor: theme.colors.accent }]}>
+                    <Text style={s.badgeText}>{t("mobile.servers.current", "Current")}</Text>
+                  </View>
+                )}
+                <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} style={{ marginLeft: 4 }} />
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Add new server section */}
+      <Text style={[s.sectionLabel, { color: theme.colors.textMuted, marginTop: hasServers ? theme.spacing.lg : 0 }]}>
+        {hasServers
+          ? t("mobile.servers.addAnother", "Add another server")
+          : t("mobile.serverConnect.title", "Connect to your server")}
       </Text>
-      <Text style={[scStyles.heading, { color: theme.colors.text, marginBottom: 4, fontSize: 18 }]}>
-        Connect to your server
-      </Text>
-      <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.lg }}>
-        Enter the URL of your self-hosted Evey instance
-      </Text>
+      {!hasServers && (
+        <Text style={[s.hint, { color: theme.colors.textMuted }]}>
+          Enter the URL of your self-hosted Evey instance
+        </Text>
+      )}
       <TextInput
         placeholder="https://your-server.com"
         placeholderTextColor={theme.colors.textMuted}
@@ -106,28 +180,28 @@ export default function ServerConnect() {
         onPress={handleConnect}
         disabled={loading}
         accessible={true}
-        accessibilityLabel="Connect to server"
+        accessibilityLabel={t("mobile.serverConnect.connect", "Connect")}
         accessibilityRole="button"
-        style={buttonStyle}
+        style={[s.connectBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md }]}
       >
         {loading ? (
           <ActivityIndicator color={theme.colors.text} />
         ) : (
-          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>Connect</Text>
+          <Text style={s.connectBtnText}>{t("mobile.serverConnect.connect", "Connect")}</Text>
         )}
       </Pressable>
 
       <Pressable
         onPress={handleScan}
         disabled={scanning}
-        style={{ marginTop: theme.spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}
+        style={s.scanBtn}
       >
         {scanning ? (
           <ActivityIndicator color={theme.colors.accent} size="small" />
         ) : (
           <Ionicons name="wifi-outline" size={16} color={theme.colors.accent} />
         )}
-        <Text style={{ color: theme.colors.accent, fontSize: 14 }}>
+        <Text style={[s.scanText, { color: theme.colors.accent }]}>
           {scanning ? "Scanning..." : "Scan local network"}
         </Text>
       </Pressable>
@@ -137,10 +211,10 @@ export default function ServerConnect() {
           <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: theme.spacing.sm }}>
             {discovered.length} server{discovered.length > 1 ? "s" : ""} found
           </Text>
-          {discovered.map((s) => (
+          {discovered.map((sv) => (
             <Pressable
-              key={s.url}
-              onPress={() => setUrl(s.url)}
+              key={sv.url}
+              onPress={() => setUrl(sv.url)}
               style={{
                 flexDirection: "row",
                 alignItems: "center",
@@ -152,16 +226,53 @@ export default function ServerConnect() {
               }}
             >
               <Ionicons name="server-outline" size={16} color={theme.colors.accent} />
-              <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>{s.url}</Text>
-              {s.version && <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>v{s.version}</Text>}
+              <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>{sv.url}</Text>
+              {sv.version && <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>v{sv.version}</Text>}
             </Pressable>
           ))}
         </View>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
-const scStyles = StyleSheet.create({
-  heading: { fontSize: 24, fontWeight: "bold" },
+const scStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
+  scroll: { flex: 1, backgroundColor: theme.colors.bg },
+  container: {
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: theme.spacing.xl,
+    paddingBottom: theme.spacing.xl * 2,
+  },
+  brand: { fontSize: 36, fontWeight: "800", color: theme.colors.accent, marginBottom: 8, letterSpacing: -1 },
+  heading: { fontSize: 18, fontWeight: "bold", color: theme.colors.text, marginBottom: theme.spacing.lg },
+  hint: { fontSize: 13, marginBottom: theme.spacing.lg },
+  listSection: {
+    borderRadius: theme.radii.md,
+    overflow: "hidden",
+    marginBottom: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  serverRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: theme.spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.border,
+  },
+  serverLabel: { fontSize: 15, fontWeight: "600" },
+  serverSub: { fontSize: 12, marginTop: 2 },
+  badge: {
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: theme.spacing.sm,
+  },
+  badgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  sectionLabel: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", marginBottom: theme.spacing.sm },
+  connectBtn: { padding: theme.spacing.md, alignItems: "center" },
+  connectBtnText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  scanBtn: { marginTop: theme.spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  scanText: { fontSize: 14 },
 });

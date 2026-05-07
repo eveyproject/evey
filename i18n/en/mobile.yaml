@@ -27,3 +27,19 @@ auth:
   haveInvite: Have an invite? Sign up
 profileSelect:
   title: Who's watching?
+servers:
+  title: Servers
+  manageTitle: Manage Servers
+  manageSubtitle: "{{count}} saved"
+  addServer: Add server
+  addAnother: Add another server
+  noServers: No saved servers yet
+  current: Current
+  active: Active
+  rename: Rename
+  renamePlaceholder: Server name
+  delete: Delete
+  deleteConfirmTitle: Delete server?
+  deleteConfirmMessage: "{{name}} will be removed from your saved servers. Sign-in tokens for this server will also be cleared."
+  cantDeleteOnlyServer: "Can't delete the only saved server"
+  switchedTo: "Switched to {{name}}"

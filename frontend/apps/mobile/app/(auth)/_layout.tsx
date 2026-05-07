@@ -31,6 +31,7 @@ export default function AuthLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="profile/manage" options={{ headerShown: true, title: "" }} />
         <Stack.Screen name="profile/settings" options={{ headerShown: true, title: "" }} />
+        <Stack.Screen name="manage-servers" options={{ headerShown: true, title: "" }} />
       </Stack>
       <SideDrawer />
       <MiniPlayer />
