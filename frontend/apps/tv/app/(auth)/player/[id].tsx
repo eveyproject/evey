@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { View, Text, Pressable, ActivityIndicator, Dimensions, StyleSheet } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useLibraryServiceGetMediaItem } from "@evey/api";
+import { useLibraryServiceGetMediaItem, usePlaybackServiceMarkAsWatched, usePlaybackServiceGetWatchProgress } from "@evey/api";
+import { useAuthStore } from "@evey/store";
 
 // react-native-tvos replaces react-native at runtime and exports useTVEventHandler
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -82,6 +83,30 @@ export default function PlayerScreen() {
   useEffect(() => {
     return () => stopSession();
   }, [stopSession]);
+
+  // Mirror Jellyfin's MaxResumePct=90: trigger MarkAsWatched once
+  // playback crosses 90%. The server's ReportProgressBySession path
+  // hardcodes Completed=false so without this fix the user has to
+  // manually toggle "watched" after every episode.
+  const profileId = useAuthStore((s) => s.profileId) ?? "";
+  const { data: serverProgress } = usePlaybackServiceGetWatchProgress(
+    mediaId,
+    { profileId },
+    { query: { enabled: !!mediaId && !!profileId } } as never,
+  );
+  const markAsWatchedMut = usePlaybackServiceMarkAsWatched();
+  const autoMarkedRef = useRef(false);
+  useEffect(() => { autoMarkedRef.current = false; }, [mediaId]);
+  useEffect(() => {
+    if (autoMarkedRef.current) return;
+    if (serverProgress?.played) { autoMarkedRef.current = true; return; }
+    if (!profileId || !mediaId) return;
+    if (duration <= 0 || currentTime <= 0) return;
+    if (currentTime / duration >= 0.9) {
+      autoMarkedRef.current = true;
+      markAsWatchedMut.mutate({ mediaItemId: mediaId, params: { profileId } });
+    }
+  }, [currentTime, duration, serverProgress?.played, profileId, mediaId, markAsWatchedMut]);
 
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
