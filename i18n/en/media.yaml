@@ -17,6 +17,7 @@ home:
   emptyLibraryDesc: "Go to Admin → Libraries to add a media folder."
   goToLibraries: Go to Libraries
   library: Library
+  customizeSaveFailed: "Failed to save some changes"
 favorites:
   title: Favorites
   empty: No favorites yet
@@ -41,6 +42,7 @@ favorites:
   sortBy: Sort by
   toggleFavorite: Toggle favorite
   toggled: Favorites updated
+  bulkFailed: "Failed to toggle favorites"
   yearOldest: Year (oldest)
 collections:
   title: Collections
@@ -145,6 +147,7 @@ library:
   markWatched: Mark watched
   markedUnwatched: Marked unwatched
   markedWatched: Marked watched
+  bulkPartialFailure: "{{count}} item(s) failed"
 person:
   filmography: Filmography
   unknown: Unknown
@@ -344,6 +347,8 @@ syncplay:
   orPlaylist: "Or pick a playlist"
   queue: "Queue"
   joinByCode: Join with code
+  createFailed: "Failed to create room"
+  joinFailed: "Failed to join room"
 playlist:
   name: Name
   description: Description
@@ -396,6 +401,8 @@ playlist:
   smartRules: Smart rules
   typeManual: Manual
   typeSmart: Smart
+history:
+  removeFailed: "Failed to remove from history"
 search:
   searching: "Searching..."
   noResults: No results

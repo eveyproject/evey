@@ -276,6 +276,7 @@ sessions:
   stop: "Arrêter"
   sessionStopped: "Session arrêtée"
   failedStop: "Échec de l'arrêt de la session"
+  commandFailed: "Échec de la commande"
   elapsed: "écoulé"
   video: "Vidéo : {{codec}}"
   audio: "Audio : {{codec}}"

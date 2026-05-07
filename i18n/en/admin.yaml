@@ -277,6 +277,7 @@ sessions:
   stop: Stop
   sessionStopped: Session stopped
   failedStop: Failed to stop session
+  commandFailed: Failed to send command
   elapsed: "elapsed"
   video: "Video: {{codec}}"
   audio: "Audio: {{codec}}"

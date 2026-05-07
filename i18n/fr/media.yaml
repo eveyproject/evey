@@ -17,6 +17,7 @@ home:
   emptyLibraryDesc: "Allez dans Administration → Bibliothèques pour ajouter un dossier multimédia."
   goToLibraries: Aller aux bibliothèques
   library: Bibliothèque
+  customizeSaveFailed: "Échec de la sauvegarde de certaines modifications"
 favorites:
   title: Favoris
   empty: "Pas encore de favoris"
@@ -41,6 +42,7 @@ favorites:
   sortBy: Trier par
   toggleFavorite: Basculer favori
   toggled: Favoris mis à jour
+  bulkFailed: "Échec de mise à jour des favoris"
   yearOldest: Année (anciennes)
 collections:
   title: Collections
@@ -145,6 +147,7 @@ library:
   markWatched: Marquer vu
   markedUnwatched: Marqué non vu
   markedWatched: Marqué vu
+  bulkPartialFailure: "{{count}} élément(s) en échec"
 person:
   filmography: Filmographie
   unknown: Inconnu
@@ -344,6 +347,8 @@ syncplay:
   orPlaylist: "Ou choisir une playlist"
   queue: "File d'attente"
   joinByCode: Rejoindre avec un code
+  createFailed: "Échec de création de la salle"
+  joinFailed: "Échec de connexion à la salle"
 playlist:
   name: Nom
   description: Description
@@ -396,6 +401,8 @@ playlist:
   smartRules: Règles intelligentes
   typeManual: Manuelle
   typeSmart: Intelligente
+history:
+  removeFailed: "Échec de suppression de l'historique"
 search:
   searching: "Recherche..."
   noResults: Aucun résultat

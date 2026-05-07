@@ -107,6 +107,9 @@ notifications:
   backupFailed: "Scheduled Backup Failed"
   clearConfirm: Delete all notifications?
   clearTitle: Clear notifications
+  clearFailed: Failed to clear notifications
+offline:
+  title: Offline
 noNotifications: No notifications
 aria:
   closeMenu: Close menu

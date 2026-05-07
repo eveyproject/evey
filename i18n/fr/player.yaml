@@ -26,11 +26,18 @@ settings:
   audio: Audio
   subtitles: Sous-titres
   speed: Vitesse
+  sleepTimer: "Minuteur de veille"
   subtitleStyle: Style des sous-titres
   normal: Normal
   uploadSubtitle: "Téléverser un sous-titre…"
   "off": Désactivé
   brightness: Luminosité
+sleepTimer:
+  minutes_one: "{{count}} min"
+  minutes_other: "{{count}} min"
+  endOfEpisode: "Fin de l'épisode"
+  cancel: "Annuler le minuteur"
+  fired: "Minuteur de veille terminé"
 subtitleStyle:
   size: Taille
   textColor: Couleur du texte

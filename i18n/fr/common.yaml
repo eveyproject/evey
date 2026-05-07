@@ -111,6 +111,9 @@ notifications:
   backupFailed: "Échec de la sauvegarde planifiée"
   clearConfirm: Supprimer toutes les notifications ?
   clearTitle: Effacer les notifications
+  clearFailed: "Échec de la suppression"
+offline:
+  title: "Hors ligne"
 watchHistory:
   title: "Historique de lecture"
 userStats:

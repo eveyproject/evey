@@ -26,11 +26,18 @@ settings:
   audio: Audio
   subtitles: Subtitles
   speed: Speed
+  sleepTimer: Sleep timer
   subtitleStyle: Subtitle Style
   normal: Normal
   uploadSubtitle: "Upload subtitle…"
   "off": "Off"
   brightness: Brightness
+sleepTimer:
+  minutes_one: "{{count}} min"
+  minutes_other: "{{count}} min"
+  endOfEpisode: End of episode
+  cancel: Cancel timer
+  fired: Sleep timer ended
 subtitleStyle:
   size: Size
   textColor: Text Color
