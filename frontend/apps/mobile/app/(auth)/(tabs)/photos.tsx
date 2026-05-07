@@ -176,7 +176,7 @@ export default function PhotosScreen() {
   if (libLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-        <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.md }]}>Photos</Text>
+        <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.md }]}>{t("media.photos.title")}</Text>
         <View style={styles.skeletonGrid}>
           {Array.from({ length: 9 }).map((_, i) => (
             <Skeleton key={i} width={PHOTO_SIZE} height={PHOTO_SIZE} borderRadius={0} style={{ margin: SPACING / 2 }} />
@@ -198,7 +198,7 @@ export default function PhotosScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <ScrollView>
-        <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.md }]}>Photos</Text>
+        <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.md }]}>{t("media.photos.title")}</Text>
 
         {/* Library picker */}
         {libraries.length > 1 && (
@@ -227,7 +227,7 @@ export default function PhotosScreen() {
 
         {/* Albums section */}
         <View style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Albums</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.photos.albums")}</Text>
           {albumsLoading ? (
             <View style={styles.albumGrid}>
               {Array.from({ length: 4 }).map((_, i) => (
@@ -250,7 +250,7 @@ export default function PhotosScreen() {
 
         {/* All photos section */}
         <View style={{ marginTop: theme.spacing.md }}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text, paddingHorizontal: theme.spacing.md }]}>All Photos</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text, paddingHorizontal: theme.spacing.md }]}>{t("media.photos.allPhotos")}</Text>
           {photosLoading ? (
             <View style={styles.skeletonGrid}>
               {Array.from({ length: 12 }).map((_, i) => (

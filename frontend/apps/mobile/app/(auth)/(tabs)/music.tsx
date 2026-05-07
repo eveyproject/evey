@@ -215,7 +215,7 @@ export default function MusicScreen() {
   if (libLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-        <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.md }]}>Music</Text>
+        <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.md }]}>{t("media.music.title")}</Text>
         <View style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }}>
           {Array.from({ length: 6 }).map((_, i) => (
             <View key={i} style={{ marginBottom: 12 }}>
@@ -260,7 +260,7 @@ export default function MusicScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.md }]}>Music</Text>
+      <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl, paddingHorizontal: theme.spacing.md }]}>{t("media.music.title")}</Text>
 
       {/* Library picker */}
       {libraries.length > 1 && (
@@ -316,7 +316,7 @@ export default function MusicScreen() {
           style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: theme.spacing.md, paddingVertical: 6 }}
         >
           <Ionicons name="list" size={16} color={theme.colors.accent} />
-          <Text style={{ color: theme.colors.accent, fontSize: 13 }}>Queue ({queue.length})</Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 13 }}>{t("media.music.queue", "Queue")} ({queue.length})</Text>
         </Pressable>
       )}
 
@@ -387,7 +387,7 @@ export default function MusicScreen() {
       <Modal visible={showQueue} transparent animationType="slide" onRequestClose={() => setShowQueue(false)}>
         <Pressable style={styles.queueBackdrop} onPress={() => setShowQueue(false)} />
         <View style={[styles.queueSheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
-          <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 12 }}>Queue</Text>
+          <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 12 }}>{t("media.music.queue", "Queue")}</Text>
           <FlatList
             data={queue}
             keyExtractor={(item, i) => `${item.id}-${i}`}
