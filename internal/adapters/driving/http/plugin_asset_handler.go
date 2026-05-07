@@ -190,6 +190,22 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 	if ext == ".js" || ext == ".mjs" {
 		ct = "application/javascript; charset=utf-8"
 	}
+	// Some runtimes ship a mime DB without font types — pin them explicitly
+	// so plugin-shipped fonts always advertise as font/* (the asset test
+	// suite asserts this) and downstream caches can choose to compress
+	// based on type.
+	switch ext {
+	case ".woff2":
+		ct = "font/woff2"
+	case ".woff":
+		ct = "font/woff"
+	case ".ttf":
+		ct = "font/ttf"
+	case ".otf":
+		ct = "font/otf"
+	case ".eot":
+		ct = "application/vnd.ms-fontobject"
+	}
 
 	// (8) CSS sanitizer — pass any CSS asset through the same sanitizer
 	// that runs on theme.css at install time, so a plugin-shipped stylesheet
