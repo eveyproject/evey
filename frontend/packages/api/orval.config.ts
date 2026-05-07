@@ -7,7 +7,7 @@ const services = [
   "metadata", "admin_media", "admin_plugin", "admin_session", "admin_system", "admin_task",
   "activity", "notification", "feed", "webhook",
   "favorite", "rating", "parental", "playback_settings", "remote_access",
-  "server_config", "backup", "push", "transcode_cache", "share",
+  "server_config", "backup", "backup_schedule", "push", "transcode_cache", "share",
   "library_access", "collection", "music", "photo", "playlist", "syncplay",
 ];
 
