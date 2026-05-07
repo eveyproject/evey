@@ -355,6 +355,17 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         scrollEnabled={false}
         showsHorizontalScrollIndicator={false}
         showsVerticalScrollIndicator={false}
+        // Hardware layer + GPU process so WebGL contexts (three.js / Babylon
+        // / canvas 3D) actually have a backing renderer. Without these
+        // Android falls back to software rendering and the canvas is silently
+        // empty — the weather plugin's 3D background was a black void.
+        androidLayerType="hardware"
+        // Required so https://api.open-meteo.com fetches resolve over the
+        // app's https origin (mixed-content default = NEVER_ALLOW).
+        mixedContentMode="always"
+        // Required for animated content + plays-inline media inside the iframe.
+        mediaPlaybackRequiresUserAction={false}
+        allowsInlineMediaPlayback
         style={{ backgroundColor: "transparent", flex: 1 }}
         // Prevent the WebView from navigating away if a plugin link is clicked
         // — host-side router.push is the only allowed navigation surface.
