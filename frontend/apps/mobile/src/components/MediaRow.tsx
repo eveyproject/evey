@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
+import { useWatchedMap } from "../hooks/useWatchedMap";
 import { MediaCard } from "./MediaCard";
 
 const CARD_WIDTH = Dimensions.get("window").width * 0.35;
@@ -26,6 +27,7 @@ const getItemLayout = (_: unknown, index: number) => ({
 export function MediaRow({ title, seeAllHref, items, onItemPress, watchPercents }: MediaRowProps) {
   const theme = useTheme();
   const { t } = useTranslation();
+  const watchedMap = useWatchedMap();
 
   const titleStyle = useMemo(() => ({
     color: theme.colors.text,
@@ -43,9 +45,10 @@ export function MediaRow({ title, seeAllHref, items, onItemPress, watchPercents 
         item={item}
         onPress={() => onItemPress?.(item)}
         watchPercent={watchPercents?.[item.id ?? ""]}
+        watched={item.id ? watchedMap.get(item.id) === true : false}
       />
     ),
-    [onItemPress, watchPercents],
+    [onItemPress, watchPercents, watchedMap],
   );
 
   if (!items.length) return null;
