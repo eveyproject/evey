@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Animated } from "react-native";
 
 interface DrawerContextValue {
@@ -14,6 +14,13 @@ const DrawerContext = createContext<DrawerContextValue | null>(null);
 export function DrawerProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const translateX = useRef(new Animated.Value(-280)).current;
+
+  // Stop any in-flight spring on unmount so a rapidly-mounted next provider
+  // doesn't inherit half a transition or fire callbacks against a torn-down
+  // tree.
+  useEffect(() => {
+    return () => translateX.stopAnimation();
+  }, [translateX]);
 
   const open = useCallback(() => {
     setIsOpen(true);
