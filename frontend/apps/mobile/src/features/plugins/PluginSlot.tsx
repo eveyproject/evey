@@ -337,14 +337,14 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
 
   if (!html) {
     return (
-      <View style={[styles.loading, { height }]} onLayout={handleLayout}>
+      <View style={[styles.loading, { height, width: "100%" }]} onLayout={handleLayout}>
         <ActivityIndicator size="small" color={theme.colors.accent} />
       </View>
     );
   }
 
   return (
-    <View style={{ height }} onLayout={handleLayout}>
+    <View style={{ height, width: "100%" }} onLayout={handleLayout}>
       <WebView
         ref={webviewRef}
         originWhitelist={["*"]}
