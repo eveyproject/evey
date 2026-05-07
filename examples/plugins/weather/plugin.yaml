@@ -1,6 +1,6 @@
 name: weather
 kind: plugin
-version: 1.0.0
+version: 1.0.1
 description: Displays current weather for a configurable location on the home page
 author: evey-examples
 language: nodejs

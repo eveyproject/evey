@@ -37,7 +37,7 @@ export function App({ params, city, temp, units, error, locale }: AppProps) {
     >
       <Canvas
         camera={{ position: [0, 0, 4], fov: 40, near: 0.1, far: 50 }}
-        dpr={[1, 1.5]}
+        dpr={1}
         gl={{
           antialias: true,
           alpha: true,
