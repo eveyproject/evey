@@ -146,7 +146,13 @@ function HeroBanner() {
       {heroIds.length > 1 && (
         <View style={heroStyles.dots}>
           {heroIds.map((_, i) => (
-            <Pressable key={i} onPress={() => setActiveIndex(i)}>
+            <Pressable
+              key={i}
+              onPress={() => setActiveIndex(i)}
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel={t("media.home.heroDotLabel", "Hero slide {{n}}", { n: i + 1 })}
+            >
               <View style={[
                 heroStyles.dot,
                 i === activeIndex ? { backgroundColor: "#fff", width: 16 } : { backgroundColor: "rgba(255,255,255,0.4)" },
@@ -394,10 +400,24 @@ function FeedCustomizeModal({
             {local.map((c, i) => (
               <View key={c.feedType} style={[feedStyles.row, { borderBottomColor: theme.colors.border }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Pressable onPress={() => move(i, -1)} disabled={i === 0} hitSlop={8}>
+                  <Pressable
+                    onPress={() => move(i, -1)}
+                    disabled={i === 0}
+                    hitSlop={8}
+                    accessible
+                    accessibilityRole="button"
+                    accessibilityLabel={t("common.feeds.moveUp", "Move section up")}
+                  >
                     <Ionicons name="chevron-up" size={18} color={i === 0 ? theme.colors.border : theme.colors.textMuted} />
                   </Pressable>
-                  <Pressable onPress={() => move(i, 1)} disabled={i === local.length - 1} hitSlop={8}>
+                  <Pressable
+                    onPress={() => move(i, 1)}
+                    disabled={i === local.length - 1}
+                    hitSlop={8}
+                    accessible
+                    accessibilityRole="button"
+                    accessibilityLabel={t("common.feeds.moveDown", "Move section down")}
+                  >
                     <Ionicons name="chevron-down" size={18} color={i === local.length - 1 ? theme.colors.border : theme.colors.textMuted} />
                   </Pressable>
                 </View>
@@ -412,7 +432,13 @@ function FeedCustomizeModal({
               </View>
             ))}
           </ScrollView>
-          <Pressable onPress={onClose} style={[feedStyles.cancelBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md, marginTop: 16 }]}>
+          <Pressable
+            onPress={onClose}
+            style={[feedStyles.cancelBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md, marginTop: 16 }]}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={t("common.close") || "Close"}
+          >
             <Text style={{ color: theme.colors.text, fontWeight: "500", fontSize: 15 }}>{t("common.close") || "Close"}</Text>
           </Pressable>
         </View>
@@ -618,6 +644,9 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => setShowCustomize(true)}
             style={{ alignSelf: "flex-end", marginRight: theme.spacing.md, marginBottom: theme.spacing.sm, flexDirection: "row", alignItems: "center", gap: 4 }}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={t("common.feeds.customize")}
           >
             <Ionicons name="options-outline" size={16} color={theme.colors.textMuted} />
             <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("media.home.customize") || "Customize"}</Text>
