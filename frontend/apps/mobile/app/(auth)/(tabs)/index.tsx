@@ -388,7 +388,12 @@ function FeedCustomizeModal({
     }
     if (feedType.startsWith("plugin:")) {
       const pluginId = feedType.replace("plugin:", "");
-      return pluginNames[pluginId] || pluginId;
+      const raw = pluginNames[pluginId] || pluginId;
+      // Plugin manifests don't ship a separate display name yet, so the
+      // raw `name` field bleeds through into the UI ("weather" → "Weather").
+      // Title-case it client-side so the customize panel doesn't show
+      // lower-case identifiers next to nicely formatted shelf labels.
+      return raw.charAt(0).toUpperCase() + raw.slice(1);
     }
     return t(FEED_LABELS[feedType] ?? feedType);
   };

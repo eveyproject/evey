@@ -30,7 +30,11 @@ function feedLabel(t: (k: string) => string, feedType: string, libraryNames: Map
   }
   if (isPluginFeedType(feedType)) {
     const pid = pluginIdFromFeedType(feedType);
-    return pluginNames.get(pid) ?? `Plugin ${pid}`;
+    const raw = pluginNames.get(pid) ?? `Plugin ${pid}`;
+    // Plugin manifests don't yet ship a separate display name — title-case
+    // the raw `name` field so identifiers like "weather" don't sit next to
+    // properly formatted shelf labels.
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
   }
   return isKnownFeedType(feedType) ? t(FEED_LABEL_KEYS[feedType]) : feedType;
 }
