@@ -98,6 +98,10 @@ vi.mock("./ProgressReporter", () => ({
   ProgressReporter: () => null,
 }));
 
+vi.mock("./AutoMarkWatched", () => ({
+  AutoMarkWatched: () => null,
+}));
+
 vi.mock("./NextEpisodeOverlay", () => ({
   NextEpisodeOverlay: () => null,
 }));

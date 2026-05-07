@@ -9,6 +9,7 @@ import { PlayerControls } from "./PlayerControls";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerControls";
 import { PlayerProvider } from "./PlayerContext";
 import { ProgressReporter } from "./ProgressReporter";
+import { AutoMarkWatched } from "./AutoMarkWatched";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
@@ -434,6 +435,11 @@ export function HLSPlayer({
         </div>
       )}
       <ProgressReporter sessionId={sessionId} videoRef={videoRef} transcodeOffsetRef={transcodeOffsetRef} onRemoteStop={onClose} />
+      <AutoMarkWatched
+        mediaId={mediaId}
+        videoRef={videoRef}
+        knownDurationSec={knownDurationMs ? knownDurationMs / 1000 : undefined}
+      />
       <SkipIntroButton
         mediaId={mediaId}
         filePath={filePath}
