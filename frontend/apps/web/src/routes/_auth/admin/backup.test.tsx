@@ -24,6 +24,10 @@ vi.mock("@evey/api", () => ({
   backupServiceCreateBackup: vi.fn(),
   backupServiceDeleteBackup: vi.fn(),
   getBackupServiceListBackupsQueryKey: () => ["backups"],
+  backupScheduleServiceGetBackupSchedule: vi.fn(),
+  getBackupScheduleServiceGetBackupScheduleQueryKey: () => ["backup-schedule"],
+  backupScheduleServiceUpdateBackupSchedule: vi.fn(),
+  backupScheduleServiceRunBackupNow: vi.fn(),
 }));
 
 vi.mock("@evey/store", () => ({

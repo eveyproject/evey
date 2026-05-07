@@ -308,6 +308,29 @@ backup:
   restoreFromFileTitle: Aus Datei wiederherstellen
   restoreFromFileDesc: Laden Sie eine .tar.gz-Sicherungsdatei hoch. Dies überschreibt vorhandene Daten.
   selectFileFirst: Bitte zuerst eine Sicherungsdatei auswählen
+  schedule:
+    title: Zeitplan
+    description: Automatische Datenbanksicherungen mit einem Cron-Ausdruck konfigurieren.
+    cronLabel: Cron-Ausdruck
+    cronHelp: "Format: Minute Stunde Tag Monat Wochentag (z.B. '0 3 * * *' = täglich um 3 Uhr)"
+    cronInvalid: Ungültiger Cron-Ausdruck
+    retentionLabel: Aufbewahrung (Tage)
+    retentionHelp: Sicherungen, die älter sind, werden nach jedem geplanten Lauf automatisch gelöscht.
+    enabledLabel: Aktiviert
+    save: Speichern
+    saved: Zeitplan gespeichert
+    saveFailed: Zeitplan konnte nicht gespeichert werden
+    runNow: Jetzt ausführen
+    runStarted: Sicherung gestartet
+    runFailed: Sicherung konnte nicht gestartet werden
+    lastRun: "Letzter Lauf: {{time}}"
+    lastRunNever: "Letzter Lauf: nie"
+    nextRun: "Nächster Lauf: {{time}}"
+    nextRunNotScheduled: "Nächster Lauf: nicht geplant"
+    statusSuccess: Erfolgreich
+    statusFailed: Fehlgeschlagen
+    statusUnknown: "-"
+    lastError: "Letzter Fehler: {{message}}"
 
 webhooks:
   title: Webhooks

@@ -308,6 +308,29 @@ backup:
   restoreFromFileTitle: "फ़ाइल से पुनर्स्थापित करें"
   restoreFromFileDesc: "पुनर्स्थापित करने के लिए बैकअप .tar.gz फ़ाइल अपलोड करें। यह मौजूदा डेटा को ओवरराइट करेगा।"
   selectFileFirst: "पहले बैकअप फ़ाइल चुनें"
+  schedule:
+    title: शेड्यूल
+    description: क्रॉन एक्सप्रेशन का उपयोग करके स्वचालित डेटाबेस बैकअप कॉन्फ़िगर करें।
+    cronLabel: क्रॉन एक्सप्रेशन
+    cronHelp: "फॉर्मेट: मिनट घंटा दिन महीना सप्ताहदिन (उदा. '0 3 * * *' = रोज़ 3 बजे)"
+    cronInvalid: अमान्य क्रॉन एक्सप्रेशन
+    retentionLabel: प्रतिधारण (दिन)
+    retentionHelp: इससे पुराने बैकअप प्रत्येक शेड्यूल्ड रन के बाद स्वतः मिटा दिए जाते हैं।
+    enabledLabel: सक्षम
+    save: सहेजें
+    saved: शेड्यूल सहेजा गया
+    saveFailed: शेड्यूल सहेजने में विफल
+    runNow: अभी चलाएं
+    runStarted: बैकअप शुरू हुआ
+    runFailed: बैकअप शुरू करने में विफल
+    lastRun: "अंतिम रन: {{time}}"
+    lastRunNever: "अंतिम रन: कभी नहीं"
+    nextRun: "अगला रन: {{time}}"
+    nextRunNotScheduled: "अगला रन: शेड्यूल नहीं"
+    statusSuccess: सफल
+    statusFailed: विफल
+    statusUnknown: "-"
+    lastError: "अंतिम त्रुटि: {{message}}"
 
 webhooks:
   title: Webhooks

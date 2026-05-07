@@ -315,6 +315,29 @@ backup:
   restoreFromFileTitle: Restore from File
   restoreFromFileDesc: Upload a backup .tar.gz file to restore. This will overwrite existing data.
   selectFileFirst: Select a backup file first
+  schedule:
+    title: Schedule
+    description: Configure automatic database backups using a cron expression.
+    cronLabel: Cron expression
+    cronHelp: "Format: minute hour day month day-of-week (e.g., '0 3 * * *' = daily at 3 AM)"
+    cronInvalid: Invalid cron expression
+    retentionLabel: Retention (days)
+    retentionHelp: Backups older than this are deleted automatically after each scheduled run.
+    enabledLabel: Enabled
+    save: Save
+    saved: Schedule saved
+    saveFailed: Failed to save schedule
+    runNow: Run now
+    runStarted: Backup started
+    runFailed: Failed to start backup
+    lastRun: "Last run: {{time}}"
+    lastRunNever: "Last run: never"
+    nextRun: "Next run: {{time}}"
+    nextRunNotScheduled: "Next run: not scheduled"
+    statusSuccess: Success
+    statusFailed: Failed
+    statusUnknown: "-"
+    lastError: "Last error: {{message}}"
 
 webhooks:
   title: Webhooks

@@ -314,6 +314,29 @@ backup:
   restoreFromFileTitle: "Restaurer depuis un fichier"
   restoreFromFileDesc: "Téléversez un fichier .tar.gz de sauvegarde pour restaurer. Cela écrasera les données existantes."
   selectFileFirst: "Sélectionnez d'abord un fichier de sauvegarde"
+  schedule:
+    title: Planification
+    description: "Configurer les sauvegardes automatiques de la base de données avec une expression cron."
+    cronLabel: Expression cron
+    cronHelp: "Format : minute heure jour mois jour-semaine (ex : '0 3 * * *' = tous les jours à 3h)"
+    cronInvalid: Expression cron invalide
+    retentionLabel: "Rétention (jours)"
+    retentionHelp: "Les sauvegardes plus anciennes sont supprimées automatiquement après chaque exécution planifiée."
+    enabledLabel: "Activé"
+    save: Enregistrer
+    saved: Planification enregistrée
+    saveFailed: "Échec de l'enregistrement"
+    runNow: Lancer maintenant
+    runStarted: "Sauvegarde démarrée"
+    runFailed: "Échec du démarrage"
+    lastRun: "Dernière exécution : {{time}}"
+    lastRunNever: "Dernière exécution : jamais"
+    nextRun: "Prochaine exécution : {{time}}"
+    nextRunNotScheduled: "Prochaine exécution : non planifiée"
+    statusSuccess: "Succès"
+    statusFailed: "Échec"
+    statusUnknown: "-"
+    lastError: "Dernière erreur : {{message}}"
 
 webhooks:
   title: Webhooks

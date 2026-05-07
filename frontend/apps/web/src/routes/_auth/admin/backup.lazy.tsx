@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Folder } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useAuthStore, toast } from "@evey/store";
 import {
@@ -10,11 +10,18 @@ import {
   backupServiceCreateBackup,
   backupServiceDeleteBackup,
   getBackupServiceListBackupsQueryKey,
+  backupScheduleServiceGetBackupSchedule,
+  getBackupScheduleServiceGetBackupScheduleQueryKey,
+  backupScheduleServiceUpdateBackupSchedule,
+  backupScheduleServiceRunBackupNow,
 } from "@evey/api";
-import type { V1BackupManifest } from "@evey/api";
+import type { V1BackupManifest, V1BackupSchedule } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
@@ -26,6 +33,157 @@ export const Route = createLazyFileRoute("/_auth/admin/backup")({
 type Backup = V1BackupManifest;
 
 const BACKUPS_QUERY_KEY = getBackupServiceListBackupsQueryKey();
+const SCHEDULE_QUERY_KEY = getBackupScheduleServiceGetBackupScheduleQueryKey();
+
+function isValidCron(expr: string): boolean {
+  const parts = expr.trim().split(/\s+/);
+  return parts.length === 5;
+}
+
+function formatRunTime(iso: string | undefined, t: (k: string, opts?: Record<string, unknown>) => string, neverKey: string, timeKey: string): string {
+  if (!iso) return t(neverKey);
+  return t(timeKey, { time: new Date(iso).toLocaleString() });
+}
+
+function ScheduleSection() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+
+  const { data: schedule, isLoading } = useQuery({
+    queryKey: SCHEDULE_QUERY_KEY,
+    queryFn: ({ signal }) => backupScheduleServiceGetBackupSchedule(signal),
+  });
+
+  const [cron, setCron] = useState<string | undefined>(undefined);
+  const [retention, setRetention] = useState<number | undefined>(undefined);
+  const [enabled, setEnabled] = useState<boolean | undefined>(undefined);
+
+  // Initialize local state from server data once loaded, only if user hasn't touched them yet
+  const effectiveCron = cron ?? schedule?.cronExpression ?? "";
+  const effectiveRetention = retention ?? schedule?.retentionDays ?? 7;
+  const effectiveEnabled = enabled ?? schedule?.enabled ?? false;
+
+  const dirty =
+    cron !== undefined ||
+    retention !== undefined ||
+    enabled !== undefined;
+
+  const cronError = effectiveCron && !isValidCron(effectiveCron)
+    ? t("admin.backup.schedule.cronInvalid")
+    : undefined;
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      backupScheduleServiceUpdateBackupSchedule({
+        cronExpression: effectiveCron,
+        retentionDays: effectiveRetention,
+        enabled: effectiveEnabled,
+      }),
+    onSuccess: (data: V1BackupSchedule) => {
+      queryClient.setQueryData(SCHEDULE_QUERY_KEY, data);
+      setCron(undefined);
+      setRetention(undefined);
+      setEnabled(undefined);
+      toast.success(t("admin.backup.schedule.saved"));
+    },
+    onError: (err: Error) =>
+      toast.error(err.message || t("admin.backup.schedule.saveFailed")),
+  });
+
+  const runMutation = useMutation({
+    mutationFn: () => backupScheduleServiceRunBackupNow({}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: SCHEDULE_QUERY_KEY });
+      toast.success(t("admin.backup.schedule.runStarted"));
+    },
+    onError: (err: Error) =>
+      toast.error(err.message || t("admin.backup.schedule.runFailed")),
+  });
+
+  const lastStatus = schedule?.lastStatus ?? "";
+  const statusBadge =
+    lastStatus === "success" ? (
+      <Badge variant="success">{t("admin.backup.schedule.statusSuccess")}</Badge>
+    ) : lastStatus === "failed" ? (
+      <span title={schedule?.lastError ? t("admin.backup.schedule.lastError", { message: schedule.lastError }) : undefined}>
+        <Badge variant="error">{t("admin.backup.schedule.statusFailed")}</Badge>
+      </span>
+    ) : (
+      <span className="text-xs text-[var(--text-muted)]">{t("admin.backup.schedule.statusUnknown")}</span>
+    );
+
+  return (
+    <Card>
+      <div className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-[var(--text)]">{t("admin.backup.schedule.title")}</h2>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">{t("admin.backup.schedule.description")}</p>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-6">
+            <Spinner size="sm" />
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1">
+                <Input
+                  label={t("admin.backup.schedule.cronLabel")}
+                  value={effectiveCron}
+                  onChange={(e) => setCron(e.target.value)}
+                  placeholder="0 3 * * *"
+                  error={cronError}
+                />
+                <span className="text-xs text-[var(--text-muted)]">{t("admin.backup.schedule.cronHelp")}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <Input
+                  label={t("admin.backup.schedule.retentionLabel")}
+                  type="number"
+                  min={1}
+                  value={effectiveRetention}
+                  onChange={(e) => setRetention(Number(e.target.value))}
+                />
+                <span className="text-xs text-[var(--text-muted)]">{t("admin.backup.schedule.retentionHelp")}</span>
+              </div>
+            </div>
+
+            <Checkbox
+              label={t("admin.backup.schedule.enabledLabel")}
+              checked={effectiveEnabled}
+              onChange={(v) => setEnabled(v)}
+            />
+
+            <div className="flex flex-wrap items-center gap-4 text-sm text-[var(--text-muted)]">
+              <span>{formatRunTime(schedule?.lastRunAt, t, "admin.backup.schedule.lastRunNever", "admin.backup.schedule.lastRun")}</span>
+              <span>{formatRunTime(schedule?.nextRunAt, t, "admin.backup.schedule.nextRunNotScheduled", "admin.backup.schedule.nextRun")}</span>
+              <span className="flex items-center gap-1.5">{statusBadge}</span>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                loading={saveMutation.isPending}
+                disabled={!dirty || !!cronError}
+                onClick={() => saveMutation.mutate()}
+              >
+                {t("admin.backup.schedule.save")}
+              </Button>
+              <Button
+                variant="secondary"
+                loading={runMutation.isPending}
+                onClick={() => runMutation.mutate()}
+              >
+                {t("admin.backup.schedule.runNow")}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </Card>
+  );
+}
 
 function formatSize(bytes: number): string {
   if (!bytes) return "0 B";
@@ -271,6 +429,8 @@ function BackupPage() {
           </Button>
         </div>
       } />
+
+      <ScheduleSection />
 
       {isLoading ? (
         <div className="flex justify-center py-16">

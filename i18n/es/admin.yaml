@@ -308,6 +308,29 @@ backup:
   restoreFromFileTitle: "Restaurar desde archivo"
   restoreFromFileDesc: "Sube un archivo .tar.gz de copia de seguridad para restaurar. Esto sobrescribirá los datos existentes."
   selectFileFirst: "Selecciona un archivo de copia de seguridad primero"
+  schedule:
+    title: Programación
+    description: Configura las copias de seguridad automáticas de la base de datos usando una expresión cron.
+    cronLabel: Expresión cron
+    cronHelp: "Formato: minuto hora día mes día-semana (ej. '0 3 * * *' = diariamente a las 3h)"
+    cronInvalid: Expresión cron inválida
+    retentionLabel: Retención (días)
+    retentionHelp: Las copias más antiguas se eliminan automáticamente después de cada ejecución programada.
+    enabledLabel: Habilitado
+    save: Guardar
+    saved: Programación guardada
+    saveFailed: Error al guardar la programación
+    runNow: Ejecutar ahora
+    runStarted: Copia de seguridad iniciada
+    runFailed: Error al iniciar la copia de seguridad
+    lastRun: "Última ejecución: {{time}}"
+    lastRunNever: "Última ejecución: nunca"
+    nextRun: "Próxima ejecución: {{time}}"
+    nextRunNotScheduled: "Próxima ejecución: no programada"
+    statusSuccess: Éxito
+    statusFailed: Fallido
+    statusUnknown: "-"
+    lastError: "Último error: {{message}}"
 
 webhooks:
   title: Webhooks
