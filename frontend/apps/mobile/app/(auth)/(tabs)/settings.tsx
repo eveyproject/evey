@@ -408,7 +408,7 @@ const sStyles = (t: ReturnType<typeof useTheme>) =>
     profileCard: { padding: t.spacing.md },
     avatar: { width: 56, height: 56, borderRadius: 28, justifyContent: "center", alignItems: "center" },
     avatarText: { color: "#fff", fontSize: 24, fontWeight: "700" },
-    avatarOverlay: { position: "absolute", bottom: 0, right: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" } as any,
+    avatarOverlay: { position: "absolute" as const, bottom: 0, right: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" },
     editInput: {
       backgroundColor: t.colors.bg,
       color: t.colors.text,

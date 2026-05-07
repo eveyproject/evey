@@ -214,7 +214,7 @@ export default function StatsScreen() {
           {mostPlayed.map((m, i) => (
             <Pressable
               key={m.mediaItemId ?? i}
-              onPress={() => { if (m.mediaItemId) router.push(`/media/${m.mediaItemId}` as any); }}
+              onPress={() => { if (m.mediaItemId) router.push(`/media/${m.mediaItemId}` as never); }}
               style={s.mostPlayedRow}
               accessibilityRole="button"
             >

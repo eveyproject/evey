@@ -171,7 +171,7 @@ export default function PlayerScreen() {
   const [showSyncPlay, setShowSyncPlay] = useState(false);
   const [syncCreating, setSyncCreating] = useState(false);
   const [syncJoining, setSyncJoining] = useState(false);
-  const syncPlayRef = useRef<{ player: typeof player }>(null);
+  const syncPlayRef = useRef<{ player: typeof player } | null>(null);
 
   const syncPlay = useSyncPlay({
     onPlay: (posMs) => { if (syncPlayRef.current?.player) { syncPlayRef.current.player.currentTime = posMs / 1000; syncPlayRef.current.player.play(); } },
@@ -202,7 +202,7 @@ export default function PlayerScreen() {
     p.play();
   });
 
-  useEffect(() => { syncPlayRef.current = { player } as any; }, [player]);
+  useEffect(() => { syncPlayRef.current = { player }; }, [player]);
 
   useEffect(() => {
     if (!player) return;
