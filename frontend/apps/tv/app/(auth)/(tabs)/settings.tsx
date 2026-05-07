@@ -41,7 +41,10 @@ export default function SettingsScreen() {
         await updateProfile.mutateAsync({ id: defaultProfile.id, data: { locale: code } });
         const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
         if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
-      } catch (err) { console.warn("caught", err); }
+      } catch {
+        // The locale was already applied in-app; the server-side persist
+        // failure is best-effort and surfaces on next refresh.
+      }
     }
   }
 
