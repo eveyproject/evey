@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -128,12 +128,12 @@ export default function SearchScreen() {
     saveSearchHistory([]);
   }, []);
 
-  // Save to history when results load
-  const prevDebouncedRef = useRef("");
-  if (debouncedQuery.length > 1 && debouncedQuery !== prevDebouncedRef.current) {
-    prevDebouncedRef.current = debouncedQuery;
-    addToHistory(debouncedQuery);
-  }
+  // Save to history when the debounced query stabilizes. Using useEffect
+  // (rather than calling setSearchHistory inline during render) keeps React
+  // happy and avoids "Cannot update a component while rendering" warnings.
+  useEffect(() => {
+    if (debouncedQuery.length > 1) addToHistory(debouncedQuery);
+  }, [debouncedQuery, addToHistory]);
 
   const { data, isLoading, isError, refetch } = useLibraryServiceSearchMedia(
     {
