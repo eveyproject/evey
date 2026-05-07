@@ -9,6 +9,7 @@ import {
   useUserServiceUpdateProfile,
   getUserServiceListProfilesQueryKey,
 } from "@evey/api";
+import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
 // Fallback list used when Hermes/JSC doesn't expose Intl.supportedValuesOf.
@@ -54,7 +55,11 @@ export default function RegionScreen() {
   const { data: user } = useUserServiceGetCurrentUser();
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } } as never);
   const defaultProfile = profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0];
-  const updateProfile = useUserServiceUpdateProfile();
+  const updateProfile = useUserServiceUpdateProfile({
+    mutation: {
+      onError: () => toast.error(t("common.region.updateFailed", "Failed to update region")),
+    },
+  });
 
   const [query, setQuery] = useState("");
   const options = useMemo(() => regionOptions(i18n.language), [i18n.language]);
@@ -71,8 +76,8 @@ export default function RegionScreen() {
     try {
       await updateProfile.mutateAsync({ id: defaultProfile.id, data: { region: code } });
       if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
-    } catch (err) {
-      console.warn("region update failed", err);
+    } catch {
+      // mutation onError already toasts
     }
   }
 
