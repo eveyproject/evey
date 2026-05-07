@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, ActivityIndicator, Text, StyleSheet } from "react-native";
+import { View, ActivityIndicator, Text, StyleSheet, InteractionManager } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
+import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -9,6 +10,41 @@ import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useServerUrl } from "../../hooks/useServerUrl";
 import { PLUGIN_BRIDGE_SCRIPT } from "./pluginBridge";
+
+// Persistent cache for plugin bundles. The Weather plugin bundle is 1.3 MB
+// (it ships react-three/fiber + postprocessing + three for the animated 3D
+// background). Without a cache the user pays that download on every cold
+// start. The cache key includes the plugin id (which changes on update) so
+// new bundles invalidate cleanly.
+const CACHE_DIR =
+  ((FileSystem as unknown as { cacheDirectory?: string }).cacheDirectory ?? "") + "evey-plugins/";
+
+async function readBundleCache(pluginId: string, entryPath: string): Promise<string | null> {
+  if (!CACHE_DIR.startsWith("file:")) return null;
+  const path = `${CACHE_DIR}${pluginId}_${entryPath.replace(/\//g, "_")}`;
+  try {
+    const info = await FileSystem.getInfoAsync(path);
+    if (!info.exists) return null;
+    return await FileSystem.readAsStringAsync(path);
+  } catch {
+    return null;
+  }
+}
+
+async function writeBundleCache(pluginId: string, entryPath: string, code: string): Promise<void> {
+  if (!CACHE_DIR.startsWith("file:")) return;
+  try {
+    await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
+  } catch {
+    // already exists, fine
+  }
+  const path = `${CACHE_DIR}${pluginId}_${entryPath.replace(/\//g, "_")}`;
+  try {
+    await FileSystem.writeAsStringAsync(path, code);
+  } catch {
+    // disk full / cache evicted — non-fatal, just means slower next launch
+  }
+}
 
 interface FrontModule {
   slot: string;
@@ -125,19 +161,28 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   const [pluginConfig, setPluginConfig] = useState<Record<string, unknown>>({});
   const [height, setHeight] = useState(120);
   const [error, setError] = useState(false);
-  // Defer the bundle fetch + WebView mount until the home page has painted
-  // its primary content, otherwise a fat plugin bundle (Weather is 1.3 MB
-  // including its bundled React) blocks the JS thread on first frame and
-  // surfaces as an Android "system not responding" ANR. 250ms is short
-  // enough that the user doesn't notice but long enough for InteractionManager
-  // to drain.
-  const [armed, setArmed] = useState(false);
+  // Three-stage gate before we mount the WebView and download a bundle that
+  // can run into 1+ MB on plugins that ship a 3D engine:
+  //   1. `interactionsDone` — wait for any in-flight RN animation/transition
+  //      to settle (InteractionManager).
+  //   2. `inViewport` — wait until the host laid out our container (height>0
+  //      means the parent scroll/list resolved our position). Keeps a plugin
+  //      below the fold from running until the user scrolls there.
+  //   3. `cacheHit` — if a cached bundle is on disk, skip the network
+  //      altogether and feed it straight to the WebView.
+  const [interactionsDone, setInteractionsDone] = useState(false);
+  const [inViewport, setInViewport] = useState(false);
+  const armed = interactionsDone && inViewport;
   const toastTimestamps = useRef<number[]>([]);
   const initSent = useRef(false);
 
   useEffect(() => {
-    const id = setTimeout(() => setArmed(true), 250);
-    return () => clearTimeout(id);
+    const handle = InteractionManager.runAfterInteractions(() => setInteractionsDone(true));
+    return () => handle.cancel();
+  }, []);
+
+  const handleLayout = useCallback((e: { nativeEvent: { layout: { height: number } } }) => {
+    if (e.nativeEvent.layout.height > 0) setInViewport(true);
   }, []);
 
   // Fetch the plugin's saved config; same shape and endpoint as web.
@@ -153,12 +198,21 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
     return () => { cancelled = true; };
   }, [pluginId, accessToken, armed]);
 
-  // Fetch the bundle as text — Authorization header keeps the plugin token
-  // out of any URL. The bundle is then inlined into the WebView's HTML.
+  // Read disk cache first, fall back to network. Authorization header keeps
+  // the plugin token out of any URL. The bundle is then inlined into the
+  // WebView's HTML.
   useEffect(() => {
     if (!accessToken || !serverUrl || !armed) return;
     let cancelled = false;
     (async () => {
+      // 1. Try cache — instant on warm starts.
+      const cached = await readBundleCache(pluginId, entryPath);
+      if (cancelled) return;
+      if (cached) {
+        setBundleCode(cached);
+        return;
+      }
+      // 2. Cache miss — download and persist for next time.
       try {
         const url = `${serverUrl}/api/v1/plugins/${encodeURIComponent(pluginId)}/assets/${entryPath}`;
         const res = await fetch(url, {
@@ -166,7 +220,10 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         });
         if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
         const text = await res.text();
-        if (!cancelled) setBundleCode(text);
+        if (cancelled) return;
+        setBundleCode(text);
+        // Best-effort write — don't await, don't fail the render path.
+        void writeBundleCache(pluginId, entryPath, text);
       } catch {
         if (!cancelled) setError(true);
       }
@@ -270,7 +327,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
 
   if (error) {
     return (
-      <View style={styles.error}>
+      <View style={styles.error} onLayout={handleLayout}>
         <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>
           {t("admin.plugin.frontLoadError", "Failed to load plugin")}
         </Text>
@@ -280,14 +337,14 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
 
   if (!html) {
     return (
-      <View style={[styles.loading, { height }]}>
+      <View style={[styles.loading, { height }]} onLayout={handleLayout}>
         <ActivityIndicator size="small" color={theme.colors.accent} />
       </View>
     );
   }
 
   return (
-    <View style={{ height }}>
+    <View style={{ height }} onLayout={handleLayout}>
       <WebView
         ref={webviewRef}
         originWhitelist={["*"]}
