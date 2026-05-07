@@ -6,6 +6,18 @@ import (
 	"time"
 )
 
+// BackupSchedule is the singleton row that drives the cron-based backup scheduler.
+type BackupSchedule struct {
+	CronExpression string
+	Enabled        bool
+	RetentionDays  int
+	LastRunAt      *time.Time
+	NextRunAt      *time.Time
+	LastStatus     string // "success" | "failed"
+	LastError      string
+	UpdatedAt      time.Time
+}
+
 type BackupManifest struct {
 	ID         string    `json:"id"`
 	CreatedAt  time.Time `json:"created_at"`

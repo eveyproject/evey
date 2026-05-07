@@ -47,6 +47,7 @@ type Repos struct {
 	IntroFingerprintCache *IntroFingerprintCacheRepository
 	IntroMetadataCache    *IntroMetadataCacheRepository
 	ScanSchedule         *ScanScheduleRepository
+	BackupSchedule       *BackupScheduleRepository
 	LibraryAccess        *LibraryAccessRepository
 	Collection           *CollectionRepository
 	Favorite             *FavoriteRepository
@@ -109,6 +110,7 @@ func NewRepos(db *sql.DB) *Repos {
 		IntroFingerprintCache: NewIntroFingerprintCacheRepository(db),
 		IntroMetadataCache:    NewIntroMetadataCacheRepository(db),
 		ScanSchedule:         NewScanScheduleRepository(db),
+		BackupSchedule:       NewBackupScheduleRepository(db),
 		LibraryAccess:        NewLibraryAccessRepository(db),
 		Collection:           NewCollectionRepository(db),
 		Favorite:             NewFavoriteRepository(db),

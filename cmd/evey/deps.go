@@ -131,7 +131,8 @@ type appDeps struct {
 	bus            *eventbus.InMemoryEventBus
 	cfgStore       *httpapi.ServerConfigStore
 	serverCfgSvc   *appconfig.Service
-	backupSvc      *appbackup.Service
+	backupSvc       *appbackup.Service
+	backupScheduler *appbackup.Scheduler
 	translator     *eveyi18n.Translator
 	searchHealth   httpapi.SearchHealthChecker
 	imageConverter httpapi.ImageConverter

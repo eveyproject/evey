@@ -55,6 +55,7 @@ func registerGateway(grpcAddr string) (http.Handler, *grpc.ClientConn) {
 		eveyv1.RegisterFavoriteServiceHandler,
 		eveyv1.RegisterTranscodeCacheServiceHandler,
 		eveyv1.RegisterBackupServiceHandler,
+		eveyv1.RegisterBackupScheduleServiceHandler,
 		eveyv1.RegisterRemoteAccessServiceHandler,
 		eveyv1.RegisterPlaybackSettingsServiceHandler,
 		eveyv1.RegisterLibraryAccessServiceHandler,

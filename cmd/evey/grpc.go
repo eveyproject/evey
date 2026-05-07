@@ -54,6 +54,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		Playlist:        deps.content.playlistSvc,
 		Favorite:        deps.content.favoriteSvc,
 		Backup:          deps.backupSvc,
+		BackupScheduler: deps.backupScheduler,
 		Cfg:             cfg,
 		CfgStore:        deps.cfgStore,
 		Version:         version,

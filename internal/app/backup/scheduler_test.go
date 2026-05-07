@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -252,4 +253,257 @@ func TestStartScheduler_PublishError(t *testing.T) {
 			_ = svc.events.Publish(ctx, evt)
 		}
 	}
+}
+
+// ---- Tests for the DB-driven backup Scheduler ----
+
+type fakeScheduleRepo struct {
+	mu    sync.Mutex
+	sched backupmodel.BackupSchedule
+	err   error
+}
+
+func newFakeScheduleRepo() *fakeScheduleRepo {
+	return &fakeScheduleRepo{
+		sched: backupmodel.BackupSchedule{
+			CronExpression: "0 3 * * *",
+			Enabled:        false,
+			RetentionDays:  30,
+		},
+	}
+}
+
+func (r *fakeScheduleRepo) Get(_ context.Context) (*backupmodel.BackupSchedule, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.err != nil {
+		return nil, r.err
+	}
+	cp := r.sched
+	return &cp, nil
+}
+
+func (r *fakeScheduleRepo) Update(_ context.Context, s *backupmodel.BackupSchedule) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.err != nil {
+		return r.err
+	}
+	r.sched.CronExpression = s.CronExpression
+	r.sched.Enabled = s.Enabled
+	r.sched.RetentionDays = s.RetentionDays
+	r.sched.NextRunAt = s.NextRunAt
+	return nil
+}
+
+func (r *fakeScheduleRepo) UpdateAfterRun(_ context.Context, lastRun, nextRun time.Time, status, errMsg string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.err != nil {
+		return r.err
+	}
+	r.sched.LastRunAt = &lastRun
+	r.sched.NextRunAt = &nextRun
+	r.sched.LastStatus = status
+	r.sched.LastError = errMsg
+	return nil
+}
+
+type fakeBackupRunner struct {
+	mu           sync.Mutex
+	createCalls  int
+	cleanupCalls int
+	createErr    error
+	manifest     *backupmodel.BackupManifest
+}
+
+func newFakeBackupRunner() *fakeBackupRunner {
+	m, _ := backupmodel.NewBackupManifest("bk-test", "dev", []string{"users"})
+	return &fakeBackupRunner{manifest: m}
+}
+
+func (f *fakeBackupRunner) CreateBackup(_ context.Context) (*backupmodel.BackupManifest, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.createCalls++
+	return f.manifest, f.createErr
+}
+
+func (f *fakeBackupRunner) CleanupOldBackups(_ context.Context, _ int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cleanupCalls++
+	return nil
+}
+
+func (f *fakeBackupRunner) getCreateCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.createCalls
+}
+
+func TestNewScheduler_GetSchedule(t *testing.T) {
+	repo := newFakeScheduleRepo()
+	runner := newFakeBackupRunner()
+	sched := NewSchedulerForTest(repo, runner, slogDefault(), time.Now)
+
+	got, err := sched.GetSchedule(context.Background())
+	if err != nil {
+		t.Fatalf("GetSchedule: %v", err)
+	}
+	if got.CronExpression != "0 3 * * *" {
+		t.Errorf("expected '0 3 * * *', got %q", got.CronExpression)
+	}
+}
+
+func TestNewScheduler_UpdateSchedule_Valid(t *testing.T) {
+	repo := newFakeScheduleRepo()
+	runner := newFakeBackupRunner()
+	sched := NewSchedulerForTest(repo, runner, slogDefault(), time.Now)
+
+	updated, err := sched.UpdateSchedule(context.Background(), "0 */6 * * *", true, 14)
+	if err != nil {
+		t.Fatalf("UpdateSchedule: %v", err)
+	}
+	if updated.CronExpression != "0 */6 * * *" {
+		t.Errorf("cron mismatch")
+	}
+	if !updated.Enabled {
+		t.Error("expected enabled=true")
+	}
+	if updated.RetentionDays != 14 {
+		t.Errorf("retention_days mismatch")
+	}
+	if updated.NextRunAt == nil {
+		t.Error("expected next_run_at to be set")
+	}
+}
+
+func TestNewScheduler_UpdateSchedule_InvalidCron(t *testing.T) {
+	repo := newFakeScheduleRepo()
+	runner := newFakeBackupRunner()
+	sched := NewSchedulerForTest(repo, runner, slogDefault(), time.Now)
+
+	_, err := sched.UpdateSchedule(context.Background(), "not-a-cron", true, 7)
+	if err == nil {
+		t.Error("expected error for invalid cron")
+	}
+}
+
+func TestNewScheduler_UpdateSchedule_InvalidRetention(t *testing.T) {
+	repo := newFakeScheduleRepo()
+	runner := newFakeBackupRunner()
+	sched := NewSchedulerForTest(repo, runner, slogDefault(), time.Now)
+
+	_, err := sched.UpdateSchedule(context.Background(), "0 3 * * *", true, 0)
+	if err == nil {
+		t.Error("expected error for retention_days=0")
+	}
+}
+
+func TestNewScheduler_RunNow(t *testing.T) {
+	repo := newFakeScheduleRepo()
+	runner := newFakeBackupRunner()
+	sched := NewSchedulerForTest(repo, runner, slogDefault(), time.Now)
+
+	m, err := sched.RunNow(context.Background())
+	if err != nil {
+		t.Fatalf("RunNow: %v", err)
+	}
+	if m == nil {
+		t.Error("expected non-nil manifest")
+	}
+	if runner.getCreateCalls() != 1 {
+		t.Errorf("expected 1 create call, got %d", runner.getCreateCalls())
+	}
+	got, _ := repo.Get(context.Background())
+	if got.LastStatus != "success" {
+		t.Errorf("expected last_status=success, got %q", got.LastStatus)
+	}
+}
+
+func TestNewScheduler_RunNow_Fails(t *testing.T) {
+	repo := newFakeScheduleRepo()
+	runner := newFakeBackupRunner()
+	runner.createErr = errors.New("disk full")
+	sched := NewSchedulerForTest(repo, runner, slogDefault(), time.Now)
+
+	_, err := sched.RunNow(context.Background())
+	if err == nil {
+		t.Error("expected error from RunNow")
+	}
+	got, _ := repo.Get(context.Background())
+	if got.LastStatus != "failed" {
+		t.Errorf("expected last_status=failed, got %q", got.LastStatus)
+	}
+}
+
+func TestNewScheduler_Tick_Disabled(t *testing.T) {
+	repo := newFakeScheduleRepo()
+	runner := newFakeBackupRunner()
+	sched := NewSchedulerForTest(repo, runner, slogDefault(), time.Now)
+
+	sched.Tick(context.Background())
+	sched.WaitForRuns()
+	if runner.getCreateCalls() != 0 {
+		t.Errorf("expected 0 creates, got %d", runner.getCreateCalls())
+	}
+}
+
+func TestNewScheduler_Tick_Enabled_Overdue(t *testing.T) {
+	repo := newFakeScheduleRepo()
+	past := time.Now().Add(-time.Minute)
+	repo.sched.Enabled = true
+	repo.sched.NextRunAt = &past
+
+	runner := newFakeBackupRunner()
+	frozen := time.Now()
+	sched := NewSchedulerForTest(repo, runner, slogDefault(), func() time.Time { return frozen })
+
+	sched.Tick(context.Background())
+	sched.WaitForRuns()
+
+	if runner.getCreateCalls() != 1 {
+		t.Errorf("expected 1 create, got %d", runner.getCreateCalls())
+	}
+}
+
+func TestNewScheduler_Tick_Enabled_NotYetDue(t *testing.T) {
+	repo := newFakeScheduleRepo()
+	future := time.Now().Add(time.Hour)
+	repo.sched.Enabled = true
+	repo.sched.NextRunAt = &future
+
+	runner := newFakeBackupRunner()
+	sched := NewSchedulerForTest(repo, runner, slogDefault(), time.Now)
+
+	sched.Tick(context.Background())
+	sched.WaitForRuns()
+
+	if runner.getCreateCalls() != 0 {
+		t.Errorf("expected 0 creates, got %d", runner.getCreateCalls())
+	}
+}
+
+func TestNewScheduler_Run_StopsOnCancel(t *testing.T) {
+	repo := newFakeScheduleRepo()
+	runner := newFakeBackupRunner()
+	sched := NewSchedulerForTest(repo, runner, slogDefault(), time.Now)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		sched.Run(ctx)
+		close(done)
+	}()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Run did not stop after context cancel")
+	}
+}
+
+func slogDefault() *slog.Logger {
+	return slog.Default()
 }

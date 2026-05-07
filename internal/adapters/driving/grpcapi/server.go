@@ -64,6 +64,7 @@ type GRPCServerDeps struct {
 	Playlist        *appplaylist.Service
 	Favorite        *appfavorite.Service
 	Backup          *appbackup.Service
+	BackupScheduler *appbackup.Scheduler
 	Cfg             *config.Config
 	CfgStore        remoteAccessConfigStore
 	Version         string
@@ -166,6 +167,9 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: d.Favorite})
 	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: d.Transcoding})
 	eveyv1.RegisterBackupServiceServer(s.server, &backupHandler{svc: d.Backup})
+	if d.BackupScheduler != nil {
+		eveyv1.RegisterBackupScheduleServiceServer(s.server, &backupScheduleHandler{scheduler: d.BackupScheduler})
+	}
 	eveyv1.RegisterRemoteAccessServiceServer(s.server, &remoteAccessHandler{cfg: d.Cfg, store: d.CfgStore})
 	pbh := &playbackSettingsHandler{cfg: d.Cfg, configSvc: d.ServerCfgSvc, translator: d.Translator}
 	pbh.initFromDB(d.ServerCtx)

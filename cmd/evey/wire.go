@@ -489,6 +489,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	backupSvc := appbackup.NewService(filesystem.NewBackupStore(cfg.Backup.Dir),
 		postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode),
 		version, appbackup.WithEventBus(bus))
+	backupSchedulerLog := eveylogger.NewWith(rootLog, "backup-scheduler")
+	backupScheduler := appbackup.NewScheduler(r.BackupSchedule, backupSvc, backupSchedulerLog)
 
 	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db))
 	streamTokenStore := appmedia.NewStreamTokenStore(appmedia.DefaultStreamTokenTTL)
@@ -679,7 +681,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		},
 		cfgStore:       httpapi.NewServerConfigStore(r.ServerCfg),
 		serverCfgSvc:   serverCfgSvc,
-		backupSvc:      backupSvc,
+		backupSvc:       backupSvc,
+		backupScheduler: backupScheduler,
 		translator:     infra.translator,
 		searchHealth:   infra.searchHealth,
 		imageConverter: infra.imageConverter,

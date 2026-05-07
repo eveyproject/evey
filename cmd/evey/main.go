@@ -143,7 +143,10 @@ func run() error {
 	deps.user.authSvc.StartCleanup(ctx)
 	deps.media.playbackSvc.CommandService().StartCleanup(ctx)
 	deps.media.playbackSvc.CommandService().StartProgressFlusher(ctx)
+	// env-var-based fallback scheduler (used when DB row has enabled=false and EVEY_BACKUP_INTERVAL_HOURS>0)
 	deps.backupSvc.StartScheduler(ctx, cfg.Backup.IntervalHours, cfg.Backup.RetentionDays)
+	// DB-driven cron scheduler (admin-configurable via /api/v1/admin/backup-schedule)
+	go deps.backupScheduler.Run(ctx)
 	go deps.library.scheduler.Run(ctx)
 
 	// Plugin subsystem is gated by EVEY_PLUGINS_ENABLED. When false the
