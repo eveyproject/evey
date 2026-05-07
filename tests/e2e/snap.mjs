@@ -1,0 +1,13 @@
+import { chromium } from "playwright";
+const browser = await chromium.launch({ headless: true });
+const ctx = await browser.newContext({ viewport: { width: 414, height: 896 } });
+const page = await ctx.newPage();
+await page.goto("http://localhost:5173/login");
+await page.fill('input[type="text"]', "gravity");
+await page.fill('input[type="password"]', "***REMOVED***");
+await page.click('button[type="submit"]');
+await page.waitForURL(/home|^http:\/\/localhost:5173\/?$/, { timeout: 15000 });
+await page.waitForTimeout(4500);
+await page.screenshot({ path: "/tmp/web.png", fullPage: false });
+console.log("OK", await page.title());
+await browser.close();

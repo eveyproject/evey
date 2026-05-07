@@ -264,7 +264,11 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   <base href="${baseHref}">
   <style>
     *,*::before,*::after{box-sizing:border-box;}
-    html,body{margin:0;padding:0;background:transparent;color:${theme.colors.text};font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;}
+    /* Force the document and body to fill the WebView. Without explicit
+     * width:100%, the body collapses to the natural width of its largest
+     * child, and a plugin's "width:100%" container then resolves against
+     * that collapsed body — Three.js canvases ended up at ~80px wide. */
+    html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;color:${theme.colors.text};font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;}
   </style>
   <script>${PLUGIN_BRIDGE_SCRIPT}<\/script>
 </head>
