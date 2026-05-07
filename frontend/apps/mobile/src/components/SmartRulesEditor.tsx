@@ -177,10 +177,10 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
 
         <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
           <Pressable onPress={handleSave} style={[styles.saveBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, flex: 1 }]}>
-            <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>Save</Text>
+            <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>
           </Pressable>
           <Pressable onPress={onClose} style={[styles.cancelBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md, flex: 1 }]}>
-            <Text style={{ color: theme.colors.text, fontWeight: "500", fontSize: 15 }}>Cancel</Text>
+            <Text style={{ color: theme.colors.text, fontWeight: "500", fontSize: 15 }}>{t("common.cancel")}</Text>
           </Pressable>
         </View>
       </View>
