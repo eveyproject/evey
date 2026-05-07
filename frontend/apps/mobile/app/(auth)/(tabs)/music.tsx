@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { Skeleton } from "../../../src/components/Skeleton";
@@ -104,6 +105,7 @@ function useMusicArtists(libraryID: string | undefined) {
 
 export default function MusicScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
 
@@ -229,7 +231,7 @@ export default function MusicScreen() {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
         <Text style={{ fontSize: 32, marginBottom: 12 }}>🎵</Text>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>No music libraries</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>{t("media.music.noMusicLibraries", "No music libraries")}</Text>
       </View>
     );
   }
@@ -347,7 +349,7 @@ export default function MusicScreen() {
           removeClippedSubviews={true}
           ListEmptyComponent={
             <View style={[styles.center, { paddingTop: 60 }]}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>No tracks</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>{t("media.music.noTracks")}</Text>
             </View>
           }
         />
@@ -361,7 +363,7 @@ export default function MusicScreen() {
           columnWrapperStyle={{ gap: 16 }}
           ListEmptyComponent={
             <View style={[styles.center, { paddingTop: 60 }]}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>No albums</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>{t("media.music.noAlbums")}</Text>
             </View>
           }
         />
@@ -375,7 +377,7 @@ export default function MusicScreen() {
           columnWrapperStyle={{ gap: 16 }}
           ListEmptyComponent={
             <View style={[styles.center, { paddingTop: 60 }]}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>No artists</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>{t("media.music.noArtists")}</Text>
             </View>
           }
         />
@@ -406,7 +408,7 @@ export default function MusicScreen() {
                 </Pressable>
               </Pressable>
             )}
-            ListEmptyComponent={<Text style={{ color: theme.colors.textMuted, textAlign: "center", paddingVertical: 24 }}>Queue empty</Text>}
+            ListEmptyComponent={<Text style={{ color: theme.colors.textMuted, textAlign: "center", paddingVertical: 24 }}>{t("media.music.queueEmpty", "Queue empty")}</Text>}
           />
         </View>
       </Modal>

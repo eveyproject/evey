@@ -141,7 +141,7 @@ export default function AdminFeedsScreen() {
       ) : rows.length === 0 ? (
         <View style={{ alignItems: "center", paddingTop: 60 }}>
           <Ionicons name="grid-outline" size={48} color={theme.colors.textMuted} />
-          <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>No feed sections configured</Text>
+          <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>{t("admin.feeds.noSections", "No feed sections configured")}</Text>
         </View>
       ) : (
         <View style={{ padding: 16, gap: 8 }}>

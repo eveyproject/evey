@@ -375,6 +375,7 @@ activity:
     progress: "Progression"
     started: "Début"
   noPlayHistory: "Aucun historique de lecture"
+  noAuditEntries: "Aucune entrée du journal d'audit"
   totalEntries: "{{count}} entrées au total"
   stats:
     totalPlays: "Total de lectures"
@@ -384,6 +385,9 @@ activity:
   popularMedia: "Médias populaires"
   mostActiveUsers: "Utilisateurs les plus actifs"
   plays: "{{count}} lectures"
+
+feeds:
+  noSections: "Aucune section de flux configurée"
 
 audit:
   title: "Journal d'audit"

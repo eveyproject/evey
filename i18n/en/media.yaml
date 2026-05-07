@@ -286,6 +286,8 @@ music:
   noAlbums: No albums found.
   noArtists: No artists found.
   noLibraries: No music libraries found. Add one in the Admin panel.
+  noMusicLibraries: No music libraries
+  queueEmpty: Queue empty
   trackDeleted: Track deleted
   failedDeleteTrack: Failed to delete track
   deleteTrackConfirm: Delete this track? This cannot be undone.

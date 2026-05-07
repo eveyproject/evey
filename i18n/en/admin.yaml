@@ -376,6 +376,7 @@ activity:
     progress: Progress
     started: Started
   noPlayHistory: No play history
+  noAuditEntries: No audit log entries
   totalEntries: "{{count}} total entries"
   stats:
     totalPlays: Total Plays
@@ -385,6 +386,9 @@ activity:
   popularMedia: Popular Media
   mostActiveUsers: Most Active Users
   plays: "{{count}} plays"
+
+feeds:
+  noSections: No feed sections configured
 
 audit:
   title: Audit Log

@@ -128,6 +128,7 @@ function PlayHistoryTab() {
 
 function AuditLogTab() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(0);
 
@@ -177,7 +178,7 @@ function AuditLogTab() {
         isLoading ? null : (
           <View style={{ alignItems: "center", paddingTop: 60 }}>
             <Ionicons name="document-text-outline" size={48} color={theme.colors.textMuted} />
-            <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>No audit log entries</Text>
+            <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>{t("admin.activity.noAuditEntries", "No audit log entries")}</Text>
           </View>
         )
       }

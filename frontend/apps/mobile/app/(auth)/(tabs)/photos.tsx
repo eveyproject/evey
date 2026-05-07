@@ -12,6 +12,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { Skeleton } from "../../../src/components/Skeleton";
@@ -104,6 +105,7 @@ function usePhotos(libraryID: string | undefined) {
 
 export default function PhotosScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
 
@@ -188,7 +190,7 @@ export default function PhotosScreen() {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
         <Text style={{ fontSize: 32, marginBottom: 12 }}>📷</Text>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>No photo libraries</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>{t("media.photos.noPhotoLibraries")}</Text>
       </View>
     );
   }
@@ -233,7 +235,7 @@ export default function PhotosScreen() {
               ))}
             </View>
           ) : !albums || albums.length === 0 ? (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.md }}>No albums</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.md }}>{t("media.photos.noAlbums")}</Text>
           ) : (
             <FlatList
               data={albums}
@@ -256,7 +258,7 @@ export default function PhotosScreen() {
               ))}
             </View>
           ) : !photos || photos.length === 0 ? (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 13, paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.lg }}>No photos</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13, paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.lg }}>{t("media.photos.noPhotos")}</Text>
           ) : (
             <FlatList
               data={photos}
