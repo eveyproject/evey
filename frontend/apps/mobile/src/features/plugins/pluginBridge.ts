@@ -54,9 +54,6 @@ export const PLUGIN_BRIDGE_SCRIPT = `
   function nudgeResize() {
     try { window.dispatchEvent(new Event("resize")); } catch (_) {}
   }
-  // Two passes — first after the bundle has run synchronously, second
-  // after the next animation frame so any framework-internal scheduler
-  // gets a chance to settle in between.
   setTimeout(nudgeResize, 60);
   setTimeout(nudgeResize, 240);
 })();
