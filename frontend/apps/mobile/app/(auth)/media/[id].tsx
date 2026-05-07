@@ -49,6 +49,7 @@ const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
 function formatRuntime(ms?: string): string {
   if (!ms) return "";
   const totalMin = Math.floor(Number(ms) / 60000);
+  if (totalMin <= 0) return "";
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
@@ -193,11 +194,14 @@ function EpisodeRow({ item, serverUrl, theme, authHeaders }: { item: V1MediaItem
         <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
           {item.indexNumber != null ? `${item.indexNumber}. ` : ""}{item.title}
         </Text>
-        {item.durationMs ? (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }}>
-            {formatRuntime(item.durationMs)}
-          </Text>
-        ) : null}
+        {(() => {
+          const runtime = formatRuntime(item.durationMs);
+          return runtime ? (
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }}>
+              {runtime}
+            </Text>
+          ) : null;
+        })()}
         {item.overview ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={2}>
             {item.overview}
@@ -335,7 +339,7 @@ function FileInfoSection({ item }: { item: V1MediaItem }) {
             {item.fileSize ? <InfoBadge label={formatFileSize(item.fileSize)} /> : null}
             {item.containerFormat ? <InfoBadge label={item.containerFormat.toUpperCase()} /> : null}
             {item.bitrate ? <InfoBadge label={`${Math.round(parseInt(item.bitrate) / 1000)} kbps`} /> : null}
-            {item.durationMs ? <InfoBadge label={formatRuntime(item.durationMs)} /> : null}
+            {(() => { const r = formatRuntime(item.durationMs); return r ? <InfoBadge label={r} /> : null; })()}
           </View>
           {item.streams && item.streams.length > 0 ? (
             <View style={{ gap: 4, marginTop: 4 }}>
@@ -625,9 +629,12 @@ export default function MediaDetailScreen() {
               {media.year ? (
                 <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{media.year}</Text>
               ) : null}
-              {media.durationMs ? (
-                <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{formatRuntime(media.durationMs)}</Text>
-              ) : null}
+              {(() => {
+                const runtime = formatRuntime(media.durationMs);
+                return runtime
+                  ? <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{runtime}</Text>
+                  : null;
+              })()}
               {(() => {
                 const info = certInfoForLocale(media.certificationsByCountry, i18n.language, media.officialRating, profileRegion);
                 if (!info) return null;
