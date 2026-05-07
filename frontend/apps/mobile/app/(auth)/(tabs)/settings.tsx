@@ -103,7 +103,10 @@ export default function SettingsScreen() {
     }
     try {
       await updateUser.mutateAsync({ id: user.id, data });
-    } catch (err) { console.warn("caught", err); }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("auth.settings.account.updateFailed", "Update failed");
+      toast.error(msg);
+    }
   }, [user, editUsername, editEmail, newPassword, confirmPassword, updateUser, t]);
 
   const handleAvatarPick = useCallback(async () => {
@@ -163,7 +166,13 @@ export default function SettingsScreen() {
         // 3. Refresh JWT to get new locale claim
         const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
         if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
-      } catch (err) { console.warn("caught", err); }
+      } catch (err) {
+        // UI is already updated locally; warn the user that the server side
+        // didn't pick up the change so they don't get a silent revert next
+        // login.
+        const msg = err instanceof Error ? err.message : t("common.languageSyncFailed", "Language saved locally but couldn't sync to server");
+        toast.error(msg);
+      }
     }
   }
 
