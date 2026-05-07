@@ -133,6 +133,10 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.BackupService/CreateBackup",
 		"/evey.v1.BackupService/ListBackups",
 		"/evey.v1.BackupService/DeleteBackup",
+		// BackupScheduleService
+		"/evey.v1.BackupScheduleService/GetBackupSchedule",
+		"/evey.v1.BackupScheduleService/UpdateBackupSchedule",
+		"/evey.v1.BackupScheduleService/RunBackupNow",
 		// RemoteAccessService
 		"/evey.v1.RemoteAccessService/GetRemoteAccess",
 		"/evey.v1.RemoteAccessService/UpdateRemoteAccess",
@@ -211,6 +215,7 @@ func TestDefaultRBACConfig_ServiceCoverage(t *testing.T) {
 		"TranscodingService",
 		"TranscodeCacheService",
 		"BackupService",
+		"BackupScheduleService",
 		"RemoteAccessService",
 		"PlaybackSettingsService",
 		"LibraryAccessService",
