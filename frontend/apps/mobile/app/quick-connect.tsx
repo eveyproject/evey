@@ -80,7 +80,11 @@ export default function QuickConnectScreen() {
       }
     }
 
-    const id = setInterval(tick, 1500);
+    // 3s matches Jellyfin's mobile clients — short enough for snappy
+    // authorize→tab handoff, long enough not to hammer the server when 50
+    // devices are sitting on the screen. Web uses SSE so it's instant; we
+    // can't on mobile.
+    const id = setInterval(tick, 3000);
     void tick(); // first poll immediately so authorize-then-tab is snappy
     return () => {
       cancelled = true;
