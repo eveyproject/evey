@@ -125,12 +125,24 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   const [pluginConfig, setPluginConfig] = useState<Record<string, unknown>>({});
   const [height, setHeight] = useState(120);
   const [error, setError] = useState(false);
+  // Defer the bundle fetch + WebView mount until the home page has painted
+  // its primary content, otherwise a fat plugin bundle (Weather is 1.3 MB
+  // including its bundled React) blocks the JS thread on first frame and
+  // surfaces as an Android "system not responding" ANR. 250ms is short
+  // enough that the user doesn't notice but long enough for InteractionManager
+  // to drain.
+  const [armed, setArmed] = useState(false);
   const toastTimestamps = useRef<number[]>([]);
   const initSent = useRef(false);
 
+  useEffect(() => {
+    const id = setTimeout(() => setArmed(true), 250);
+    return () => clearTimeout(id);
+  }, []);
+
   // Fetch the plugin's saved config; same shape and endpoint as web.
   useEffect(() => {
-    if (!accessToken) return;
+    if (!accessToken || !armed) return;
     let cancelled = false;
     eveyFetch<{ values?: Record<string, unknown> }>({
       url: `/api/v1/plugins/${encodeURIComponent(pluginId)}/config`,
@@ -139,12 +151,12 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
       .then((r) => { if (!cancelled) setPluginConfig(r.values ?? {}); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [pluginId, accessToken]);
+  }, [pluginId, accessToken, armed]);
 
   // Fetch the bundle as text — Authorization header keeps the plugin token
   // out of any URL. The bundle is then inlined into the WebView's HTML.
   useEffect(() => {
-    if (!accessToken || !serverUrl) return;
+    if (!accessToken || !serverUrl || !armed) return;
     let cancelled = false;
     (async () => {
       try {
@@ -160,7 +172,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
       }
     })();
     return () => { cancelled = true; };
-  }, [pluginId, entryPath, accessToken, serverUrl]);
+  }, [pluginId, entryPath, accessToken, serverUrl, armed]);
 
   const isLightTheme = useMemo(() => {
     const bg = theme.colors.bg.replace("#", "");
