@@ -11,6 +11,7 @@ import { ToastContainer } from "../src/components/ToastContainer";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl } from "../src/lib/server-config";
+import { migrateFromSingleServer, useServerListStore } from "@evey/store";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { configureAudioSession } from "../src/lib/audio-session";
 import { refreshAccessTokenIfNeeded } from "../src/lib/auth-refresh";
@@ -28,8 +29,15 @@ export default function RootLayout() {
   useEffect(() => {
     async function bootstrap() {
       await configureAudioSession();
+      // Migrate single-server users to the multi-server store (idempotent)
+      try {
+        await migrateFromSingleServer({ readLegacyServerUrl: getServerUrl });
+      } catch (err) {
+        console.error("server migration failed:", err);
+      }
       await initFetcher();
-      const serverUrl = await getServerUrl();
+      const serverUrl =
+        useServerListStore.getState().getActiveServer()?.url ?? await getServerUrl();
       if (serverUrl) {
         await initI18n(serverUrl);
         await applyServerLanguage(serverUrl);

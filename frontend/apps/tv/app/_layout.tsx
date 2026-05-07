@@ -10,6 +10,7 @@ import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl } from "../src/lib/server-config";
 import { initI18n } from "../src/i18n";
+import { migrateFromSingleServer, useServerListStore } from "@evey/store";
 
 // Wire Zustand persist to expo-secure-store (must run before stores are accessed)
 setZustandStorage({
@@ -23,8 +24,15 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function bootstrap() {
+      // Migrate single-server users to the multi-server store (idempotent)
+      try {
+        await migrateFromSingleServer({ readLegacyServerUrl: getServerUrl });
+      } catch (err) {
+        console.error("server migration failed:", err);
+      }
       await initFetcher();
-      const serverUrl = await getServerUrl();
+      const serverUrl =
+        useServerListStore.getState().getActiveServer()?.url ?? await getServerUrl();
       if (serverUrl) await initI18n(serverUrl);
     }
     bootstrap()

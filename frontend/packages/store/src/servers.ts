@@ -1,0 +1,115 @@
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { getZustandStorage } from "./storage";
+
+export interface SavedServer {
+  id: string;
+  url: string;        // normalized: trailing slash stripped
+  label?: string;
+  lastUsedAt: number; // epoch ms
+}
+
+interface ServerListState {
+  servers: Record<string, SavedServer>;
+  activeServerId: string | null;
+  addServer: (url: string, label?: string) => SavedServer;
+  removeServer: (id: string) => void;
+  setActiveServer: (id: string | null) => void;
+  renameServer: (id: string, label: string) => void;
+  getActiveServer: () => SavedServer | null;
+  /** Internal: assign tokens for a server from the auth store migration path */
+  _syncActiveToAuth: (() => void) | null;
+}
+
+function generateId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+/** Strip trailing slash and lowercase scheme+host, same as server-connect.tsx does */
+export function normalizeServerUrl(raw: string): string {
+  const trimmed = raw.trim().replace(/\/+$/, "");
+  try {
+    const u = new URL(trimmed);
+    // lowercase scheme and host only; preserve path casing
+    return `${u.protocol.toLowerCase()}//${u.hostname.toLowerCase()}${u.port ? `:${u.port}` : ""}${u.pathname === "/" ? "" : u.pathname}`;
+  } catch {
+    // not a valid URL — return as-is after trailing-slash strip
+    return trimmed;
+  }
+}
+
+export const useServerListStore = create<ServerListState>()(
+  persist(
+    (set, get) => ({
+      servers: {},
+      activeServerId: null,
+      _syncActiveToAuth: null,
+
+      addServer: (url: string, label?: string): SavedServer => {
+        const normalized = normalizeServerUrl(url);
+        const existing = Object.values(get().servers).find((s) => s.url === normalized);
+        if (existing) return existing;
+
+        const id = generateId();
+        const server: SavedServer = {
+          id,
+          url: normalized,
+          label,
+          lastUsedAt: Date.now(),
+        };
+        set((state) => ({ servers: { ...state.servers, [id]: server } }));
+        return server;
+      },
+
+      removeServer: (id: string) => {
+        const { servers, activeServerId } = get();
+        const remaining = Object.keys(servers).filter((k) => k !== id);
+        // Refuse to remove the only server unless there is no active server
+        if (remaining.length === 0 && activeServerId !== null) return;
+        const next = { ...servers };
+        delete next[id];
+        set({ servers: next, activeServerId: activeServerId === id ? null : activeServerId });
+      },
+
+      setActiveServer: (id: string | null) => {
+        set((state) => {
+          if (id === null) return { activeServerId: null };
+          const server = state.servers[id];
+          if (!server) return {};
+          const updated: SavedServer = { ...server, lastUsedAt: Date.now() };
+          return {
+            activeServerId: id,
+            servers: { ...state.servers, [id]: updated },
+          };
+        });
+        // Notify auth store to sync shadow fields
+        get()._syncActiveToAuth?.();
+      },
+
+      renameServer: (id: string, label: string) => {
+        set((state) => {
+          const server = state.servers[id];
+          if (!server) return {};
+          return { servers: { ...state.servers, [id]: { ...server, label } } };
+        });
+      },
+
+      getActiveServer: (): SavedServer | null => {
+        const { servers, activeServerId } = get();
+        if (!activeServerId) return null;
+        return servers[activeServerId] ?? null;
+      },
+    }),
+    {
+      name: "evey-servers",
+      storage: createJSONStorage(() => getZustandStorage()),
+      partialize: (state) => ({
+        servers: state.servers,
+        activeServerId: state.activeServerId,
+      }),
+    }
+  )
+);
