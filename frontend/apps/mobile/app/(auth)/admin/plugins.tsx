@@ -33,13 +33,22 @@ export default function AdminPluginsScreen() {
   const plugins: Plugin[] = (data?.plugins ?? []) as Plugin[];
 
   const enablePlugin = useAdminPluginServiceEnablePlugin({
-    mutation: { onSuccess: () => { toast.success(t("admin.plugins.pluginEnabled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
+    mutation: {
+      onSuccess: () => { toast.success(t("admin.plugins.pluginEnabled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); },
+      onError: (err: Error) => toast.error(err.message || t("admin.plugins.toggleFailed", "Failed to enable plugin")),
+    },
   });
   const disablePlugin = useAdminPluginServiceDisablePlugin({
-    mutation: { onSuccess: () => { toast.success(t("admin.plugins.pluginDisabled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
+    mutation: {
+      onSuccess: () => { toast.success(t("admin.plugins.pluginDisabled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); },
+      onError: (err: Error) => toast.error(err.message || t("admin.plugins.toggleFailed", "Failed to disable plugin")),
+    },
   });
   const uninstallPlugin = useAdminPluginServiceUninstallPlugin({
-    mutation: { onSuccess: () => { toast.success(t("admin.plugins.pluginUninstalled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
+    mutation: {
+      onSuccess: () => { toast.success(t("admin.plugins.pluginUninstalled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); },
+      onError: (err: Error) => toast.error(err.message || t("admin.plugins.uninstallFailed", "Failed to uninstall plugin")),
+    },
   });
   const installPlugin = useAdminPluginServiceInstallPlugin({
     mutation: {
