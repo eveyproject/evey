@@ -1255,45 +1255,6 @@ func TestHandleCallback_NewUserCreatedEventError_Continues(t *testing.T) {
 	}
 }
 
-// L330: refresh DeleteByUserID errors -> slog.Warn, callback still succeeds via Create
-func TestHandleCallback_RefreshPurgeError_Continues(t *testing.T) {
-	sub := "sub-purge"
-	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
-		"sub":                sub,
-		"email":              "u@example.com",
-		"preferred_username": "u",
-	})
-	defer oidcSrv.close()
-
-	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
-	issuer := oidcSrv.issuer
-	userRepo.Create(context.Background(), &domainuser.User{
-		ID: "usr-purge", Username: "u", Enabled: true,
-		OIDCSubject: &sub, OIDCIssuer: &issuer,
-	})
-	svc.refreshTkns = &errRefreshRepo{
-		RefreshTokenRepository: svc.refreshTkns,
-		deleteByUserErr:        errors.New("purge boom"),
-	}
-
-	var (
-		refreshTk string
-		err       error
-	)
-	logs := captureSlogDuring(t, func() {
-		_, refreshTk, _, err = svc.HandleCallback(context.Background(), "auth-code")
-	})
-	if err != nil {
-		t.Fatalf("expected success, got %v", err)
-	}
-	if refreshTk == "" {
-		t.Error("expected refresh token")
-	}
-	if !strings.Contains(logs, "oidc: purge old refresh tokens") {
-		t.Errorf("expected purge warning, got: %s", logs)
-	}
-}
-
 // L216: defaultProfileID != "" true branch -> Locale propagates into access token claims.
 func TestHandleCallback_LocaleFromDefaultProfile(t *testing.T) {
 	sub := "sub-locale"

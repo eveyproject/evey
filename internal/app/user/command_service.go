@@ -400,6 +400,15 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}
 
+	// Drop the just-claimed (Used) row now that its replacement is in place.
+	// Keeping it would only delay the eventual DeleteExpired sweep and let
+	// stale rows accumulate; deleting earlier collapses the reuse-detection
+	// window to "token not found" which is functionally equivalent (still
+	// ErrInvalidCredentials) without the all-sessions purge.
+	if delErr := s.refreshTkns.DeleteByID(ctx, rt.ID); delErr != nil {
+		slog.Warn("cleanup claimed refresh token", slog.String("tokenID", rt.ID), slog.Any("err", delErr))
+	}
+
 	return accessToken, newRefresh, nil
 }
 
@@ -518,9 +527,6 @@ func (s *CommandService) Logout(ctx context.Context, userID string) error {
 const maxRefreshTokenRetries = 3
 
 func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userID string, ttlOverride ...time.Duration) (string, error) {
-	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
-		slog.Warn("cleanup old refresh tokens", slog.String("userID", userID), slog.Any("err", err))
-	}
 	ttl := s.refreshTokenTTL
 	if len(ttlOverride) > 0 && ttlOverride[0] > 0 {
 		ttl = ttlOverride[0]

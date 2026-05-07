@@ -19,8 +19,9 @@ function isAccessExpired(token: string | null): boolean {
 }
 
 // Single in-flight refresh. The server rotates and single-uses refresh
-// tokens — two concurrent calls trigger reuse detection and PURGE every
-// session for the user. Coalesce all refresh callers (bootstrap, AppState
+// tokens — two concurrent calls on the same token trigger reuse detection
+// (the second one finds the row gone after the first claim+delete) and the
+// caller is logged out. Coalesce all refresh callers (bootstrap, AppState
 // resume, 401 fetch retry) onto the same promise so only one /auth/refresh
 // hits the wire per refresh window.
 let inFlight: Promise<boolean> | null = null;
