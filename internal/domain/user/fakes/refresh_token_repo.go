@@ -51,7 +51,12 @@ func (r *FakeRefreshTokenRepository) GetByTokenHash(_ context.Context, hash stri
 	}
 	for _, t := range r.items {
 		if t.TokenHash == hash {
-			return t, nil
+			// Return a defensive copy so concurrent callers don't observe
+			// in-flight Used=true writes from MarkUsedIfNotUsed (the real
+			// Postgres adapter materializes a fresh struct per query, so
+			// production has no such race; the fake only exposed it).
+			cloned := *t
+			return &cloned, nil
 		}
 	}
 	return nil, ErrNotFound
