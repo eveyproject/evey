@@ -28,28 +28,34 @@ interface LibraryItem {
   type: string;
 }
 
+// Field names match the JSON the gRPC gateway emits — protojson serializes
+// proto field `track_number` as `trackNumber`, `id` as `id`, etc. The web app
+// maps these to its own PascalCase domain types in a select(); we just read
+// the wire shape directly here.
 interface Track {
-  ID: string;
-  Title: string;
-  Artist: string;
-  Album: string;
-  Duration: number;
-  TrackNumber: number;
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  duration: number;
+  trackNumber: number;
+  coverArtUrl?: string;
 }
 
 interface MusicAlbum {
-  ID: string;
-  Title: string;
-  Artist: string;
-  Year: number;
-  TrackCount: number;
+  id: string;
+  title: string;
+  artist: string;
+  year: number;
+  trackCount: number;
+  coverArtUrl?: string;
 }
 
 interface MusicArtist {
-  ID: string;
-  Name: string;
-  TrackCount: number;
-  AlbumCount: number;
+  id: string;
+  name: string;
+  trackCount: number;
+  albumCount: number;
 }
 
 type Tab = "tracks" | "albums" | "artists";
@@ -128,11 +134,11 @@ export default function MusicScreen() {
 
   const handlePlayTrack = useCallback((index: number) => {
     const allTracks = (tracks ?? []).map((t): QueueTrack => ({
-      id: t.ID,
-      title: t.Title,
-      artist: t.Artist,
-      album: t.Album,
-      duration: t.Duration,
+      id: t.id,
+      title: t.title,
+      artist: t.artist,
+      album: t.album,
+      duration: t.duration,
     }));
     setQueue(allTracks, index);
   }, [tracks, setQueue]);
@@ -152,21 +158,21 @@ export default function MusicScreen() {
         style={[styles.trackRow, { borderBottomColor: theme.colors.surface, backgroundColor: isCurrentTrack ? theme.colors.surface : "transparent" }]}
       >
         <View style={styles.trackIndex}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{item.TrackNumber || index + 1}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{item.trackNumber || index + 1}</Text>
         </View>
         <View style={styles.trackInfo}>
-          <Text style={[styles.trackTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.Title || "—"}</Text>
+          <Text style={[styles.trackTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.title || "—"}</Text>
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={1}>
-            {[item.Artist, item.Album].filter(Boolean).join(" · ") || "—"}
+            {[item.artist, item.album].filter(Boolean).join(" · ") || "—"}
           </Text>
         </View>
-        {item.Duration > 0 && (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{formatDuration(item.Duration)}</Text>
+        {item.duration > 0 && (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{formatDuration(item.duration)}</Text>
         )}
         <Pressable
           onPress={(e) => {
             e.stopPropagation();
-            setPlaylistTrackId(item.ID);
+            setPlaylistTrackId(item.id);
           }}
           hitSlop={8}
           style={styles.addBtn}
@@ -181,7 +187,14 @@ export default function MusicScreen() {
 
   const renderAlbum = useCallback(
     ({ item }: { item: MusicAlbum }) => {
-      const uri = albumArtUri(item.ID);
+      // Prefer the per-track cover URL the server already attached to the
+      // album row; fall back to the album-level artwork endpoint. Resolve
+      // relative paths against the active server (expo-image refuses
+      // relative URIs, unlike browser <img>).
+      const cover = item.coverArtUrl;
+      const uri = cover
+        ? (/^https?:/i.test(cover) ? cover : `${serverUrl ?? ""}${cover}`)
+        : albumArtUri(item.id);
       return (
         <TouchableOpacity
           activeOpacity={0.7}
@@ -200,16 +213,16 @@ export default function MusicScreen() {
             </View>
           )}
           <View style={{ padding: 8 }}>
-            <Text style={[styles.albumTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.Title || "—"}</Text>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>{item.Artist || "—"}</Text>
-            {item.Year > 0 && (
-              <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.Year} · {item.TrackCount} track{item.TrackCount !== 1 ? "s" : ""}</Text>
+            <Text style={[styles.albumTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.title || "—"}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>{item.artist || "—"}</Text>
+            {item.year > 0 && (
+              <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.year} · {item.trackCount} track{item.trackCount !== 1 ? "s" : ""}</Text>
             )}
           </View>
         </TouchableOpacity>
       );
     },
-    [albumArtUri, authHeaders, theme],
+    [albumArtUri, authHeaders, theme, serverUrl],
   );
 
   // Hooks must run on every render in the same order — keep all useCallback
@@ -225,12 +238,12 @@ export default function MusicScreen() {
       >
         <View style={[styles.artistAvatar, { width: ALBUM_ART_SIZE * 0.6, height: ALBUM_ART_SIZE * 0.6, backgroundColor: theme.colors.surfaceRaised }]}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 24, fontWeight: "700" }}>
-            {item.Name?.[0]?.toUpperCase() ?? "?"}
+            {item.name?.[0]?.toUpperCase() ?? "?"}
           </Text>
         </View>
-        <Text style={[styles.artistName, { color: theme.colors.text }]} numberOfLines={2}>{item.Name || "—"}</Text>
+        <Text style={[styles.artistName, { color: theme.colors.text }]} numberOfLines={2}>{item.name || "—"}</Text>
         <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-          {item.AlbumCount} album{item.AlbumCount !== 1 ? "s" : ""} · {item.TrackCount} track{item.TrackCount !== 1 ? "s" : ""}
+          {item.albumCount} album{item.albumCount !== 1 ? "s" : ""} · {item.trackCount} track{item.trackCount !== 1 ? "s" : ""}
         </Text>
       </TouchableOpacity>
     ),
@@ -345,7 +358,7 @@ export default function MusicScreen() {
       ) : tab === "tracks" ? (
         <FlatList
           data={tracks ?? []}
-          keyExtractor={(item) => item.ID}
+          keyExtractor={(item) => item.id}
           renderItem={renderTrack}
           contentContainerStyle={{ paddingBottom: 32 }}
           initialNumToRender={20}
@@ -361,7 +374,7 @@ export default function MusicScreen() {
       ) : tab === "albums" ? (
         <FlatList
           data={albums ?? []}
-          keyExtractor={(item) => item.ID}
+          keyExtractor={(item) => item.id}
           renderItem={renderAlbum}
           numColumns={NUM_ALBUM_COLS}
           contentContainerStyle={{ padding: 16, gap: 16 }}
@@ -375,7 +388,7 @@ export default function MusicScreen() {
       ) : (
         <FlatList
           data={artists ?? []}
-          keyExtractor={(item) => item.ID}
+          keyExtractor={(item) => item.id}
           renderItem={renderArtist}
           numColumns={NUM_ALBUM_COLS}
           contentContainerStyle={{ padding: 16, gap: 16 }}

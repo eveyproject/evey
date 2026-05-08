@@ -3,6 +3,7 @@ import { useAuthStore } from "@evey/store";
 import { DrawerProvider } from "../../src/providers/DrawerProvider";
 import { SideDrawer } from "../../src/components/SideDrawer";
 import { MiniPlayer } from "../../src/components/MiniPlayer";
+import { MusicMiniPlayer } from "../../src/components/MusicMiniPlayer";
 import { OfflineBanner } from "../../src/components/OfflineBanner";
 
 function isTokenExpired(token: string): boolean {
@@ -36,6 +37,7 @@ export default function AuthLayout() {
       </Stack>
       <SideDrawer />
       <MiniPlayer />
+      <MusicMiniPlayer />
       <OfflineBanner />
     </DrawerProvider>
   );
