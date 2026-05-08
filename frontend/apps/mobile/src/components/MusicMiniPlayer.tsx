@@ -1,62 +1,20 @@
-// Globally-mounted music player. Subscribes to useMusicQueueStore and uses
-// expo-av's Audio.Sound to play the current track. configureAudioSession
-// (called at app boot from RootLayout) sets staysActiveInBackground=true so
-// the audio keeps playing once the user locks the screen or switches apps.
+// Globally-mounted music player. Subscribes to useMusicQueueStore and
+// drives an expo-audio AudioPlayer for the active track. Background
+// playback comes from the audio session configured at boot
+// (configureAudioSession + iOS UIBackgroundModes:["audio"]).
 //
-// Web has GlobalAudioPlayer.tsx; this is the RN equivalent. Native modules
-// only — Expo Go on Android plays audio while the app is in the background
-// out of the box once the audio session is configured.
-import { useCallback, useEffect, useRef, useState } from "react";
+// Web has GlobalAudioPlayer.tsx; this is the RN equivalent. expo-av's
+// ExponentAV native module is gone from Expo Go on SDK 55, so we use
+// expo-audio's hook-based API instead.
+import { useCallback, useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useAuthStore } from "@evey/store";
 import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
-
-interface AudioModule {
-  Sound: {
-    createAsync: (
-      source: { uri: string },
-      initial?: { shouldPlay?: boolean; volume?: number },
-      onStatus?: (status: PlaybackStatus) => void,
-    ) => Promise<{ sound: Sound }>;
-  };
-}
-
-interface PlaybackStatus {
-  isLoaded?: boolean;
-  isPlaying?: boolean;
-  didJustFinish?: boolean;
-  positionMillis?: number;
-  durationMillis?: number;
-  error?: string;
-}
-
-interface Sound {
-  unloadAsync: () => Promise<void>;
-  playAsync: () => Promise<void>;
-  pauseAsync: () => Promise<void>;
-  setStatusAsync: (status: { positionMillis?: number; volume?: number; shouldPlay?: boolean }) => Promise<void>;
-  setOnPlaybackStatusUpdate: (cb: (status: PlaybackStatus) => void) => void;
-}
-
-let cachedAudio: AudioModule | null = null;
-function loadAudio(): AudioModule | null {
-  if (cachedAudio) return cachedAudio;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const mod = require("expo-av") as { Audio?: AudioModule };
-    if (mod.Audio) {
-      cachedAudio = mod.Audio;
-      return cachedAudio;
-    }
-  } catch {
-    // not installed (test env)
-  }
-  return null;
-}
 
 export function MusicMiniPlayer() {
   const theme = useTheme();
@@ -71,97 +29,78 @@ export function MusicMiniPlayer() {
   const previous = useMusicQueueStore((s) => s.previous);
   const clear = useMusicQueueStore((s) => s.clear);
 
-  const soundRef = useRef<Sound | null>(null);
-  const trackIdRef = useRef<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
-
   const track = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
 
-  // Load + play whenever the active track changes.
+  // Build the streaming URI for the active track. Token is appended as a
+  // query param because the audio fetch path doesn't carry our Authorization
+  // header through to ffmpeg/the streamer.
+  const streamUri = (track && serverUrl && accessToken)
+    ? `${serverUrl}/api/v1/music/tracks/${track.id}/stream?token=${encodeURIComponent(accessToken)}`
+    : null;
+
+  // Single AudioPlayer for the entire queue lifetime. We swap its source via
+  // .replace() on track change; creating a new player per track would
+  // tear down the audio session and clobber the iOS now-playing card.
+  const player = useAudioPlayer(streamUri ?? undefined, { updateInterval: 500 });
+  const status = useAudioPlayerStatus(player);
+
+  // Track which URL is currently loaded so we don't redundantly call replace.
+  const loadedUriRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!track || !serverUrl || !accessToken) return;
-    if (trackIdRef.current === track.id) return;
-    trackIdRef.current = track.id;
-    const Audio = loadAudio();
-    if (!Audio) return;
+    if (!streamUri) return;
+    if (loadedUriRef.current === streamUri) return;
+    loadedUriRef.current = streamUri;
+    try {
+      player.replace(streamUri);
+      if (isPlayingState) player.play();
+    } catch {
+      // Player not ready yet — the next render will retry.
+    }
+  }, [streamUri, player, isPlayingState]);
 
-    let cancelled = false;
-    setLoading(true);
-    setPosition(0);
-    setDuration((track.duration ?? 0) * 1000);
-
-    (async () => {
-      try {
-        if (soundRef.current) {
-          try { await soundRef.current.unloadAsync(); } catch { /* ignore */ }
-          soundRef.current = null;
-        }
-        const tokenParam = `?token=${encodeURIComponent(accessToken)}`;
-        const uri = `${serverUrl}/api/v1/music/tracks/${track.id}/stream${tokenParam}`;
-        const { sound } = await Audio.Sound.createAsync(
-          { uri },
-          { shouldPlay: true, volume: 1 },
-        );
-        if (cancelled) {
-          try { await sound.unloadAsync(); } catch { /* ignore */ }
-          return;
-        }
-        soundRef.current = sound;
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (!status.isLoaded) return;
-          if (typeof status.positionMillis === "number") setPosition(status.positionMillis);
-          if (typeof status.durationMillis === "number" && status.durationMillis > 0) {
-            setDuration(status.durationMillis);
-          }
-          if (status.didJustFinish) next();
-        });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [track, serverUrl, accessToken, next]);
-
-  // Mirror isPlaying state changes onto the sound.
+  // Mirror queue store play/pause onto the player.
   useEffect(() => {
-    const sound = soundRef.current;
-    if (!sound) return;
-    (async () => {
-      try {
-        if (isPlayingState) await sound.playAsync();
-        else await sound.pauseAsync();
-      } catch { /* sound unloaded — next track-change effect will replace it */ }
-    })();
-  }, [isPlayingState]);
+    if (!streamUri) return;
+    try {
+      if (isPlayingState) player.play();
+      else player.pause();
+    } catch { /* released */ }
+  }, [isPlayingState, player, streamUri]);
 
-  // Unload on unmount.
+  // Auto-advance when the current track ends.
+  const lastDidFinishRef = useRef(false);
   useEffect(() => {
-    return () => {
-      const sound = soundRef.current;
-      if (sound) { sound.unloadAsync().catch(() => undefined); }
-      soundRef.current = null;
-    };
-  }, []);
+    const finished = !!status.didJustFinish;
+    if (finished && !lastDidFinishRef.current) {
+      lastDidFinishRef.current = true;
+      next();
+    } else if (!finished) {
+      lastDidFinishRef.current = false;
+    }
+  }, [status.didJustFinish, next]);
 
   const onClose = useCallback(() => {
-    const sound = soundRef.current;
-    if (sound) { sound.unloadAsync().catch(() => undefined); }
-    soundRef.current = null;
-    trackIdRef.current = null;
+    try { player.pause(); } catch { /* released */ }
+    loadedUriRef.current = null;
     clear();
-  }, [clear]);
+  }, [clear, player]);
 
   if (!track) return null;
+
+  const duration = (status.duration ?? track.duration ?? 0);
+  const position = status.currentTime ?? 0;
   const progress = duration > 0 ? position / duration : 0;
+  const loading = !status.isLoaded && !!streamUri;
   const artUri = serverUrl
     ? `${serverUrl}/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(accessToken ?? "")}`
     : undefined;
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]} accessibilityLabel="Music player">
+    <View
+      style={[styles.root, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}
+      accessibilityLabel="Music player"
+    >
       <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
         <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(100, progress * 100))}%`, backgroundColor: theme.colors.accent }]} />
       </View>
@@ -182,7 +121,13 @@ export function MusicMiniPlayer() {
         <Pressable onPress={previous} hitSlop={8} accessibilityLabel="Previous track" accessibilityRole="button">
           <Ionicons name="play-skip-back" size={22} color={theme.colors.text} />
         </Pressable>
-        <Pressable onPress={togglePlay} hitSlop={8} accessibilityLabel={isPlayingState ? "Pause" : "Play"} accessibilityRole="button" style={{ marginHorizontal: 10 }}>
+        <Pressable
+          onPress={togglePlay}
+          hitSlop={8}
+          accessibilityLabel={isPlayingState ? "Pause" : "Play"}
+          accessibilityRole="button"
+          style={{ marginHorizontal: 10 }}
+        >
           {loading ? (
             <ActivityIndicator size="small" color={theme.colors.text} />
           ) : (
