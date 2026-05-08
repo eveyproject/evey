@@ -357,6 +357,10 @@ export default function MusicScreen() {
         </View>
       ) : tab === "tracks" ? (
         <FlatList
+          // Force a fresh FlatList per tab — RN's reconciler keeps the same
+          // instance across the ternary branches and crashes on the
+          // numColumns difference (1 ↔ NUM_ALBUM_COLS) otherwise.
+          key="tracks"
           data={tracks ?? []}
           keyExtractor={(item) => item.id}
           renderItem={renderTrack}
@@ -373,6 +377,7 @@ export default function MusicScreen() {
         />
       ) : tab === "albums" ? (
         <FlatList
+          key="albums"
           data={albums ?? []}
           keyExtractor={(item) => item.id}
           renderItem={renderAlbum}
@@ -387,6 +392,7 @@ export default function MusicScreen() {
         />
       ) : (
         <FlatList
+          key="artists"
           data={artists ?? []}
           keyExtractor={(item) => item.id}
           renderItem={renderArtist}
