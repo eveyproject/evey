@@ -7,7 +7,7 @@
 // ExponentAV native module is gone from Expo Go on SDK 55, so we use
 // expo-audio's hook-based API instead.
 import { useCallback, useEffect, useRef } from "react";
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
@@ -91,7 +91,6 @@ export function MusicMiniPlayer() {
   const duration = (status.duration ?? track.duration ?? 0);
   const position = status.currentTime ?? 0;
   const progress = duration > 0 ? position / duration : 0;
-  const loading = !status.isLoaded && !!streamUri;
   const artUri = serverUrl
     ? `${serverUrl}/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(accessToken ?? "")}`
     : undefined;
@@ -128,11 +127,7 @@ export function MusicMiniPlayer() {
           accessibilityRole="button"
           style={{ marginHorizontal: 10 }}
         >
-          {loading ? (
-            <ActivityIndicator size="small" color={theme.colors.text} />
-          ) : (
-            <Ionicons name={isPlayingState ? "pause" : "play"} size={26} color={theme.colors.text} />
-          )}
+          <Ionicons name={isPlayingState ? "pause" : "play"} size={26} color={theme.colors.text} />
         </Pressable>
         <Pressable onPress={next} hitSlop={8} accessibilityLabel="Next track" accessibilityRole="button">
           <Ionicons name="play-skip-forward" size={22} color={theme.colors.text} />
