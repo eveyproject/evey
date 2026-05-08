@@ -30,12 +30,23 @@ func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
-			// CSRF is a browser-only threat. Detect browsers via headers they
-			// always send (Sec-Fetch-Site: Chrome 76+, FF 90+, Safari 16.4+;
-			// Origin: every browser on cross-origin and same-origin POST).
-			// Native clients (React Native, Expo, CLI, server-to-server) send
-			// neither, so they get a Bearer/API path and bypass CSRF — even if
-			// a stale refresh-token cookie is still attached to the request.
+			// CSRF is a browser-only threat: it relies on the browser
+			// auto-submitting cookies on cross-origin requests. A client that
+			// did NOT send our _csrf cookie cannot be tricked into doing so,
+			// so it cannot be a CSRF victim. This catches every native client
+			// (React Native, Expo, CLI, curl, server-to-server) plus a fresh
+			// browser session that hasn't yet seen its first response.
+			//
+			// React Native's fetch sometimes sets an `Origin` header that
+			// passes the older Sec-Fetch-Site/Origin sniff but never carries
+			// the cookie jar — relying on those headers alone would 403 the
+			// mobile /auth/refresh and bounce the user to /login on every
+			// access-token rotation. The cookie test is the load-bearing
+			// signal here; the Sec-Fetch sniff is kept as a redundant guard
+			// for environments that strip cookies but still look browser-y.
+			if c, err := r.Cookie(csrfCookieName); err != nil || c.Value == "" {
+				break
+			}
 			if r.Header.Get("Sec-Fetch-Site") == "" && r.Header.Get("Origin") == "" {
 				break
 			}

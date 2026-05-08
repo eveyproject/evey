@@ -131,10 +131,14 @@ func TestCSRFMiddleware_POST_SessionNoHeader_Forbidden(t *testing.T) {
 	}
 }
 
-func TestCSRFMiddleware_POST_SessionMissingCsrfCookie_Forbidden(t *testing.T) {
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("next should not be called")
-	})
+func TestCSRFMiddleware_POST_NoCsrfCookie_Bypassed(t *testing.T) {
+	// A client that does NOT carry our _csrf cookie cannot be a browser
+	// CSRF target — browsers auto-attach our cookies on cross-origin POST,
+	// so the absence of the cookie means there is no session to forge
+	// against. Bypass and let the request through, regardless of any
+	// Sec-Fetch-Site or Origin header the client may have set on its own.
+	called := false
+	next := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) { called = true })
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/something", nil)
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
@@ -143,8 +147,8 @@ func TestCSRFMiddleware_POST_SessionMissingCsrfCookie_Forbidden(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403 (session + header but no _csrf cookie), got %d", w.Code)
+	if !called {
+		t.Fatalf("expected next to run (no _csrf cookie = native client), got code %d", w.Code)
 	}
 }
 
@@ -245,10 +249,11 @@ func TestCSRFMiddleware_GET_ExistingCookie_NoNewCookie(t *testing.T) {
 	}
 }
 
-func TestCSRFMiddleware_POST_EmptyCookieValue_WithHeader_Forbidden(t *testing.T) {
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("next should not be called")
-	})
+func TestCSRFMiddleware_POST_EmptyCookieValue_Bypassed(t *testing.T) {
+	// An empty _csrf cookie is functionally indistinguishable from no
+	// cookie at all — same conclusion: not a browser session, bypass.
+	called := false
+	next := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) { called = true })
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
@@ -258,8 +263,8 @@ func TestCSRFMiddleware_POST_EmptyCookieValue_WithHeader_Forbidden(t *testing.T)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", w.Code)
+	if !called {
+		t.Fatalf("expected next to run (empty _csrf cookie = native client), got %d", w.Code)
 	}
 }
 
