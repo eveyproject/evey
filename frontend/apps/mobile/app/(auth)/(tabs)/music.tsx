@@ -212,6 +212,31 @@ export default function MusicScreen() {
     [albumArtUri, authHeaders, theme],
   );
 
+  // Hooks must run on every render in the same order — keep all useCallback
+  // calls above the loading / empty early returns below. A previous version
+  // declared renderArtist after the early returns, which crashed the screen
+  // with "Rendered more hooks than during the previous render" once the
+  // libraries query resolved.
+  const renderArtist = useCallback(
+    ({ item }: { item: MusicArtist }) => (
+      <TouchableOpacity
+        activeOpacity={0.7}
+        style={[styles.artistCard, { width: ALBUM_ART_SIZE, backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+      >
+        <View style={[styles.artistAvatar, { width: ALBUM_ART_SIZE * 0.6, height: ALBUM_ART_SIZE * 0.6, backgroundColor: theme.colors.surfaceRaised }]}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 24, fontWeight: "700" }}>
+            {item.Name?.[0]?.toUpperCase() ?? "?"}
+          </Text>
+        </View>
+        <Text style={[styles.artistName, { color: theme.colors.text }]} numberOfLines={2}>{item.Name || "—"}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+          {item.AlbumCount} album{item.AlbumCount !== 1 ? "s" : ""} · {item.TrackCount} track{item.TrackCount !== 1 ? "s" : ""}
+        </Text>
+      </TouchableOpacity>
+    ),
+    [theme],
+  );
+
   if (libLoading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -235,26 +260,6 @@ export default function MusicScreen() {
       </View>
     );
   }
-
-  const renderArtist = useCallback(
-    ({ item }: { item: MusicArtist }) => (
-      <TouchableOpacity
-        activeOpacity={0.7}
-        style={[styles.artistCard, { width: ALBUM_ART_SIZE, backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
-      >
-        <View style={[styles.artistAvatar, { width: ALBUM_ART_SIZE * 0.6, height: ALBUM_ART_SIZE * 0.6, backgroundColor: theme.colors.surfaceRaised }]}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 24, fontWeight: "700" }}>
-            {item.Name?.[0]?.toUpperCase() ?? "?"}
-          </Text>
-        </View>
-        <Text style={[styles.artistName, { color: theme.colors.text }]} numberOfLines={2}>{item.Name || "—"}</Text>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-          {item.AlbumCount} album{item.AlbumCount !== 1 ? "s" : ""} · {item.TrackCount} track{item.TrackCount !== 1 ? "s" : ""}
-        </Text>
-      </TouchableOpacity>
-    ),
-    [theme],
-  );
 
   const isLoading = tab === "tracks" ? tracksLoading : tab === "albums" ? albumsLoading : artistsLoading;
 
