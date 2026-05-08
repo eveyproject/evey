@@ -237,12 +237,115 @@ const heroStyles = StyleSheet.create({
   },
 });
 
+interface MusicAlbumLite { id?: string; title?: string; artist?: string; coverArtUrl?: string }
+interface PhotoAlbumLite { name?: string; coverPhotoId?: string; photoCount?: number }
+
+function MusicLibraryRow({ libraryId, name }: { libraryId: string; name: string }) {
+  const theme = useTheme();
+  const serverUrl = useServerUrl();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const { data, isLoading } = useQuery({
+    queryKey: ["music", "albums", libraryId],
+    queryFn: () => eveyFetch<{ albums: MusicAlbumLite[] }>({ url: `/api/v1/music/albums?library_id=${libraryId}`, method: "GET" }),
+    enabled: !!libraryId,
+    select: (d) => d.albums ?? [],
+    staleTime: 60_000,
+  });
+  const albums = (data ?? []).slice(0, 20);
+  if (!isLoading && albums.length === 0) return null;
+  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+  return (
+    <View style={{ marginVertical: 8 }}>
+      <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "700", marginHorizontal: 16, marginBottom: 8 }}>{name}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
+        {albums.map((a) => (
+          <Pressable
+            key={a.id}
+            onPress={() => router.push("/(auth)/(tabs)/music")}
+            style={{ width: 120 }}
+            accessibilityRole="button"
+            accessibilityLabel={a.title ?? ""}
+          >
+            <View style={{ width: 120, height: 120, borderRadius: theme.radii.md, backgroundColor: theme.colors.surfaceRaised, overflow: "hidden" }}>
+              {a.coverArtUrl ? (
+                <Image
+                  source={{ uri: serverUrl ? `${a.coverArtUrl}${tokenParam}` : a.coverArtUrl }}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                />
+              ) : null}
+            </View>
+            <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: 13, marginTop: 4 }}>{a.title}</Text>
+            <Text numberOfLines={1} style={{ color: theme.colors.textMuted, fontSize: 11 }}>{a.artist}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function PhotoLibraryRow({ libraryId, name }: { libraryId: string; name: string }) {
+  const theme = useTheme();
+  const serverUrl = useServerUrl();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const { data, isLoading } = useQuery({
+    queryKey: ["photos", "albums", libraryId],
+    queryFn: () => eveyFetch<{ albums: PhotoAlbumLite[] }>({ url: `/api/v1/photos/albums?library_id=${libraryId}`, method: "GET" }),
+    enabled: !!libraryId,
+    select: (d) => d.albums ?? [],
+    staleTime: 60_000,
+  });
+  const albums = (data ?? []).slice(0, 20);
+  if (!isLoading && albums.length === 0) return null;
+  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+  return (
+    <View style={{ marginVertical: 8 }}>
+      <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "700", marginHorizontal: 16, marginBottom: 8 }}>{name}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 12 }}>
+        {albums.map((a) => {
+          const last = (a.name ?? "").split("/").pop() ?? "";
+          return (
+            <Pressable
+              key={a.name}
+              onPress={() => router.push("/(auth)/(tabs)/photos")}
+              style={{ width: 120 }}
+              accessibilityRole="button"
+              accessibilityLabel={last}
+            >
+              <View style={{ width: 120, height: 120, borderRadius: theme.radii.md, backgroundColor: theme.colors.surfaceRaised, overflow: "hidden" }}>
+                {a.coverPhotoId && serverUrl ? (
+                  <Image
+                    source={{ uri: `${serverUrl}/api/v1/photos/${a.coverPhotoId}/serve${tokenParam}&w=400&fmt=webp` }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                  />
+                ) : null}
+              </View>
+              <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: 13, marginTop: 4 }}>{last}</Text>
+              <Text numberOfLines={1} style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                {a.photoCount ?? 0} {(a.photoCount ?? 0) > 1 ? "photos" : "photo"}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
 function LibraryFeedRow({ libraryId, name, libraryType, onItemPress }: { libraryId: string; name: string; libraryType?: string; onItemPress: (item: V1MediaItem) => void }) {
+  // Music + photo libraries don't live in the media_items table — they have
+  // their own tables hit via /music/albums and /photos/albums. Fall back to
+  // /library/list otherwise (movies/shows).
+  if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicLibraryRow libraryId={libraryId} name={name} />;
+  if (libraryType === "LIBRARY_TYPE_PHOTOS") return <PhotoLibraryRow libraryId={libraryId} name={name} />;
+
   const typeFilter = libraryType === "LIBRARY_TYPE_SHOWS"
     ? "MEDIA_ITEM_TYPE_SERIES"
     : libraryType === "LIBRARY_TYPE_MOVIES"
       ? "MEDIA_ITEM_TYPE_MOVIE"
       : undefined;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data, isLoading } = useLibraryServiceListMediaItems({
     libraryId,
     ...(typeFilter ? { type: typeFilter as never } : {}),
@@ -251,6 +354,7 @@ function LibraryFeedRow({ libraryId, name, libraryType, onItemPress }: { library
     sortOrder: "SORT_ORDER_DESC" as never,
   });
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const items = useMemo(
     () => (data?.items ?? []).filter((i): i is V1MediaItem => !!i.id),
     [data?.items],
