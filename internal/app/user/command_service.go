@@ -414,8 +414,11 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 
 // claimRefreshToken performs the full hash-lookup + reuse/expiry gating +
 // atomic claim (MarkUsedIfNotUsed). Any failure path returns
-// ErrInvalidCredentials; reuse and concurrent-claim races purge all tokens
-// for the owning user to limit blast radius.
+// ErrInvalidCredentials. Replay (token already Used) still purges every
+// token of the owning user — that's the only path that legitimately points
+// at a compromised credential. Concurrent-claim races are NOT replays; the
+// loser just lost the optimistic race against the winner and rejecting it
+// is enough.
 func (s *CommandService) claimRefreshToken(ctx context.Context, token string) (*user.RefreshToken, error) {
 	h := sha256.Sum256([]byte(token))
 	hash := hex.EncodeToString(h[:])
@@ -452,12 +455,16 @@ func (s *CommandService) claimRefreshToken(ctx context.Context, token string) (*
 		return nil, fmt.Errorf("CommandService.RefreshToken: %w", markErr)
 	}
 	if !claimed {
-		slog.Warn("refresh rejected: concurrent claim race, purging all user tokens",
+		// Two devices (e.g. web + mobile) both fired /auth/refresh with the
+		// same not-yet-rotated token; one of them won MarkUsedIfNotUsed and
+		// the other landed here. The loser is NOT a replayed attacker — it
+		// is one of the user's own clients that simply lost the optimistic
+		// race. Reject it, but DO NOT purge the user's other sessions; the
+		// in-flight refresh on the other client (or the next AppState resume
+		// retry) will use the new token and succeed.
+		slog.Info("refresh rejected: concurrent claim race",
 			slog.String("userID", string(rt.UserID)),
 			slog.String("tokenID", rt.ID))
-		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
-			slog.Warn("delete refresh tokens by user failed", slog.String("userID", string(rt.UserID)), slog.Any("err", delErr))
-		}
 		return nil, ErrInvalidCredentials
 	}
 	return rt, nil
