@@ -269,7 +269,15 @@ function MusicLibraryRow({ libraryId, name }: { libraryId: string; name: string 
             <View style={{ width: 120, height: 120, borderRadius: theme.radii.md, backgroundColor: theme.colors.surfaceRaised, overflow: "hidden" }}>
               {a.coverArtUrl ? (
                 <Image
-                  source={{ uri: serverUrl ? `${a.coverArtUrl}${tokenParam}` : a.coverArtUrl }}
+                  // The server returns a relative path like /api/v1/...; web's
+                  // CSS background-url resolves that against the current origin
+                  // automatically but expo-image refuses relative URIs, so we
+                  // have to prefix the active server explicitly.
+                  source={{
+                    uri: /^https?:/i.test(a.coverArtUrl)
+                      ? `${a.coverArtUrl}${tokenParam}`
+                      : `${serverUrl ?? ""}${a.coverArtUrl}${tokenParam}`,
+                  }}
                   style={{ width: "100%", height: "100%" }}
                   contentFit="cover"
                 />
