@@ -15,10 +15,13 @@ beforeEach(() => {
 });
 
 describe("useServerUrl", () => {
-  it("starts with empty string before resolving", () => {
+  it("starts with empty string before resolving", async () => {
     getServerUrlMock.mockResolvedValue("http://myserver:9091");
     const { result } = renderHook(() => useServerUrl());
     expect(result.current).toBe("");
+    // Flush the pending resolution inside an act() boundary so React doesn't
+    // emit a "not wrapped in act(…)" warning when the test exits.
+    await act(async () => {});
   });
 
   it("resolves to server URL", async () => {
@@ -37,10 +40,11 @@ describe("useServerUrl", () => {
 });
 
 describe("useServerUrlNullable", () => {
-  it("starts as undefined before resolving", () => {
+  it("starts as undefined before resolving", async () => {
     getServerUrlMock.mockResolvedValue("http://srv:8096");
     const { result } = renderHook(() => useServerUrlNullable());
     expect(result.current).toBeUndefined();
+    await act(async () => {});
   });
 
   it("resolves to null when no server configured", async () => {
