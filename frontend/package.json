@@ -11,7 +11,7 @@
   },
   "devDependencies": {
     "turbo": "2.5.4",
-    "typescript": "5.7.3"
+    "typescript": "5.9.3"
   },
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
@@ -19,6 +19,7 @@
       "esbuild"
     ],
     "overrides": {
+      "@tanstack/react-query": "5.100.9",
       "@types/react": "19.2.14",
       "react": "19.2.0",
       "react-dom": "19.2.0",
