@@ -62,7 +62,7 @@ function appendCodecParams(params: URLSearchParams): void {
   params.set("containers", CONTAINERS.join(","));
 }
 
-function buildStreamUrl(
+export function buildStreamUrl(
   serverUrl: string,
   mediaId: string,
   streamInfo: V1StreamInfo,

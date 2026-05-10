@@ -30,43 +30,50 @@ beforeEach(() => {
   stopStreamMock.mockReset();
 });
 
-describe("buildStreamUrl (via module internals)", () => {
-  // We test buildStreamUrl indirectly by importing the module and checking streamUrl output.
-  // But since buildStreamUrl is not exported, we re-implement the logic as a unit test.
-
-  function buildStreamUrl(
-    serverUrl: string,
-    mediaId: string,
-    playMethod: string,
-    token: string,
-  ): string {
-    if (playMethod === "PLAY_METHOD_DIRECT_PLAY") {
-      return `${serverUrl}/api/v1/media/${mediaId}/stream?token=${token}`;
-    }
-    if (playMethod === "PLAY_METHOD_DIRECT_STREAM") {
-      return `${serverUrl}/api/v1/media/${mediaId}/transcode?token=${token}&remux=1`;
-    }
-    return `${serverUrl}/api/v1/media/${mediaId}/hls/master.m3u8?token=${token}`;
-  }
-
-  it("returns direct stream URL for PLAY_METHOD_DIRECT_PLAY", () => {
-    const url = buildStreamUrl("http://srv", "m1", "PLAY_METHOD_DIRECT_PLAY", "tok");
+describe("buildStreamUrl", () => {
+  it("returns direct stream URL for PLAY_METHOD_DIRECT_PLAY (no codec params)", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_DIRECT_PLAY" }, "tok");
     expect(url).toBe("http://srv/api/v1/media/m1/stream?token=tok");
   });
 
-  it("returns remux URL for PLAY_METHOD_DIRECT_STREAM", () => {
-    const url = buildStreamUrl("http://srv", "m1", "PLAY_METHOD_DIRECT_STREAM", "tok");
-    expect(url).toBe("http://srv/api/v1/media/m1/transcode?token=tok&remux=1");
+  it("returns remux URL for PLAY_METHOD_DIRECT_STREAM with codec params", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_DIRECT_STREAM" }, "tok");
+    expect(url).toMatch(/^http:\/\/srv\/api\/v1\/media\/m1\/transcode\?/);
+    expect(url).toContain("token=tok");
+    expect(url).toContain("remux=1");
+    expect(url).toContain("videoCodecs=");
+    expect(url).toContain("audioCodecs=");
+    expect(url).toContain("containers=");
   });
 
-  it("returns HLS URL for PLAY_METHOD_TRANSCODE", () => {
-    const url = buildStreamUrl("http://srv", "m1", "PLAY_METHOD_TRANSCODE", "tok");
-    expect(url).toBe("http://srv/api/v1/media/m1/hls/master.m3u8?token=tok");
+  it("returns HLS URL for PLAY_METHOD_TRANSCODE with codec params", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok");
+    expect(url).toMatch(/^http:\/\/srv\/api\/v1\/media\/m1\/hls\/master\.m3u8\?/);
+    expect(url).toContain("token=tok");
+    expect(url).toContain("videoCodecs=");
   });
 
-  it("returns HLS URL for unknown play method", () => {
-    const url = buildStreamUrl("http://srv", "m1", "WHATEVER", "tok");
-    expect(url).toBe("http://srv/api/v1/media/m1/hls/master.m3u8?token=tok");
+  it("includes startSec when > 0 on HLS URL", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", 42.7);
+    expect(url).toContain("startSec=42");
+  });
+
+  it("omits startSec when 0 or undefined", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const a = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", 0);
+    const b = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok");
+    expect(a).not.toContain("startSec");
+    expect(b).not.toContain("startSec");
+  });
+
+  it("falls back to HLS URL for unknown play method", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "WHATEVER" }, "tok");
+    expect(url).toMatch(/^http:\/\/srv\/api\/v1\/media\/m1\/hls\/master\.m3u8\?/);
   });
 });
 
