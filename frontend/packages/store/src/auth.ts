@@ -2,11 +2,14 @@
 //
 // Design (Option A from spec):
 //   - `tokensByServer` stores tokens keyed by serverId.
-//   - Shadow fields (`accessToken`, `refreshToken`, `profileId`, `isAdmin`) mirror
+//   - Shadow fields (`accessToken`, `profileId`, `isAdmin`) mirror
 //     the active server's entry so existing call sites need no changes.
 //   - Every setter writes to BOTH the shadow field and `tokensByServer[activeServerId]`.
 //   - `syncFromServer(id)` is called by `useServerListStore.setActiveServer` to update
 //     the shadow fields when the active server changes.
+//
+// Refresh tokens are NOT held in this store — web uses HttpOnly cookies, mobile
+// uses expo-secure-store via auth-refresh.ts.
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
@@ -26,14 +29,12 @@ function parseJwtPayload(token: string): Record<string, unknown> | null {
 
 interface ServerTokens {
   accessToken: string | null;
-  refreshToken: string | null;
   profileId: string | null;
   isAdmin: boolean;
 }
 
 const EMPTY_TOKENS: ServerTokens = {
   accessToken: null,
-  refreshToken: null,
   profileId: null,
   isAdmin: false,
 };
@@ -44,12 +45,11 @@ interface AuthState {
 
   // Backward-compat shadow fields — always reflect the active server's tokens
   accessToken: string | null;
-  refreshToken: string | null;
   profileId: string | null;
   isAdmin: boolean;
 
   // Setters — write to shadow fields AND to tokensByServer[activeServerId]
-  setTokens: (access: string, refresh?: string) => void;
+  setTokens: (access: string) => void;
   setProfile: (profileId: string) => void;
   logout: () => void;
   logoutAll: () => void;
@@ -67,7 +67,6 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       tokensByServer: {},
       accessToken: null,
-      refreshToken: null,
       profileId: null,
       isAdmin: false,
 
@@ -82,29 +81,21 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      setTokens: (access: string, refresh?: string) => {
+      setTokens: (access: string) => {
         const claims = parseJwtPayload(access);
         const activeId = get()._getActiveServerId();
 
-        const incoming: Partial<ServerTokens> = {
+        const incoming: ServerTokens = {
           accessToken: access,
           isAdmin: claims?.is_admin === true,
           profileId: typeof claims?.profile_id === "string" ? claims.profile_id : null,
         };
-        if (refresh !== undefined) incoming.refreshToken = refresh;
-
-        const shadow: Partial<AuthState> = {
-          accessToken: incoming.accessToken,
-          isAdmin: incoming.isAdmin,
-          profileId: incoming.profileId,
-        };
-        if (refresh !== undefined) shadow.refreshToken = refresh;
 
         set((state) => {
           const prev = activeId ? (state.tokensByServer[activeId] ?? EMPTY_TOKENS) : EMPTY_TOKENS;
           const next: ServerTokens = { ...prev, ...incoming };
           return {
-            ...shadow,
+            ...incoming,
             tokensByServer: activeId
               ? { ...state.tokensByServer, [activeId]: next }
               : state.tokensByServer,
@@ -157,7 +148,6 @@ export const useAuthStore = create<AuthState>()(
         tokensByServer: state.tokensByServer,
         profileId: state.profileId,
         accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
         isAdmin: state.isAdmin,
       }),
     }

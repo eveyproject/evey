@@ -12,7 +12,6 @@ function resetStores() {
   useAuthStore.setState({
     tokensByServer: {},
     accessToken: null,
-    refreshToken: null,
     profileId: null,
     isAdmin: false,
   });
@@ -48,7 +47,6 @@ describe("migrateFromSingleServer", () => {
     // Pre-populate auth store with flat tokens (simulates existing single-server user)
     useAuthStore.setState({
       accessToken: "tok-access",
-      refreshToken: "tok-refresh",
       profileId: "p-1",
       isAdmin: false,
     });
@@ -61,7 +59,6 @@ describe("migrateFromSingleServer", () => {
     const serverId = result.serverId!;
     const byServer = useAuthStore.getState().tokensByServer[serverId];
     expect(byServer.accessToken).toBe("tok-access");
-    expect(byServer.refreshToken).toBe("tok-refresh");
     expect(byServer.profileId).toBe("p-1");
   });
 

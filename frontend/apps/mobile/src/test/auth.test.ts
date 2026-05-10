@@ -14,7 +14,7 @@ const USER_TOKEN =
 const MALFORMED_TOKEN = "not.a.jwt";
 
 function reset() {
-  useAuthStore.setState({ accessToken: null, refreshToken: null, profileId: null, isAdmin: false });
+  useAuthStore.setState({ accessToken: null, profileId: null, isAdmin: false });
 }
 
 describe("useAuthStore", () => {
@@ -23,7 +23,6 @@ describe("useAuthStore", () => {
   it("starts unauthenticated", () => {
     const s = useAuthStore.getState();
     expect(s.accessToken).toBeNull();
-    expect(s.refreshToken).toBeNull();
     expect(s.profileId).toBeNull();
     expect(s.isAdmin).toBe(false);
   });
@@ -49,17 +48,6 @@ describe("useAuthStore", () => {
       expect(useAuthStore.getState().profileId).toBe("p-admin");
     });
 
-    it("stores refresh token when provided", () => {
-      useAuthStore.getState().setTokens(ADMIN_TOKEN, "refresh-tok");
-      expect(useAuthStore.getState().refreshToken).toBe("refresh-tok");
-    });
-
-    it("does not overwrite refresh token when omitted", () => {
-      useAuthStore.getState().setTokens(ADMIN_TOKEN, "refresh-tok");
-      useAuthStore.getState().setTokens(USER_TOKEN);
-      expect(useAuthStore.getState().refreshToken).toBe("refresh-tok");
-    });
-
     it("handles malformed JWT gracefully (no crash, isAdmin=false)", () => {
       useAuthStore.getState().setTokens(MALFORMED_TOKEN);
       const s = useAuthStore.getState();
@@ -75,12 +63,11 @@ describe("useAuthStore", () => {
   });
 
   describe("logout", () => {
-    it("clears access and refresh tokens", () => {
-      useAuthStore.getState().setTokens(ADMIN_TOKEN, "refresh-tok");
+    it("clears access token", () => {
+      useAuthStore.getState().setTokens(ADMIN_TOKEN);
       useAuthStore.getState().logout();
       const s = useAuthStore.getState();
       expect(s.accessToken).toBeNull();
-      expect(s.refreshToken).toBeNull();
     });
 
     it("resets isAdmin and profileId", () => {

@@ -15,7 +15,7 @@ function makeJwt(expSeconds: number) {
 
 beforeEach(() => {
   // reset both stores between tests
-  useAuthStore.setState({ accessToken: null, refreshToken: null });
+  useAuthStore.setState({ accessToken: null });
   useMusicPlayerStore.setState({
     playing: null,
     queue: [],

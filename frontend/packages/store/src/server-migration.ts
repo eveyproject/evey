@@ -50,12 +50,11 @@ export async function migrateFromSingleServer(
   const authState = useAuthStore.getState();
   const existingTokens = {
     accessToken: authState.accessToken,
-    refreshToken: authState.refreshToken,
     profileId: authState.profileId,
     isAdmin: authState.isAdmin,
   };
 
-  if (existingTokens.accessToken || existingTokens.refreshToken) {
+  if (existingTokens.accessToken) {
     useAuthStore.setState((state) => ({
       tokensByServer: {
         ...state.tokensByServer,
