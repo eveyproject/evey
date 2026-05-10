@@ -40,6 +40,7 @@ func newTestInstallerService() (*appplugin.InstallerService, *plgfakes.FakePlugi
 		appplugin.InstallerWithAnalyzer(analyzer),
 		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
 		appplugin.InstallerWithFileSystem(pluginFS),
+		appplugin.InstallerWithHTTPClient(http.DefaultClient),
 	)
 
 	return svc, pluginRepo, runner, parser, installer, analyzer

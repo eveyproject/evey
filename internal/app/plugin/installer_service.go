@@ -20,6 +20,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/ssrf"
 	"github.com/evey-project/evey/internal/pkg/themejs"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -33,7 +34,7 @@ var uninstallRetryDelays = [2]time.Duration{500 * time.Millisecond, 2 * time.Sec
 // The fragment "#sha256:<hex>" is parsed as the expected hash if present and
 // stripped from the URL before the download.
 // For local paths, returns source unchanged + noop cleanup + "" hash.
-func downloadIfURL(ctx context.Context, source string) (localPath, expectedHash string, cleanup func(), err error) {
+func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (localPath, expectedHash string, cleanup func(), err error) {
 	cleanup = func() {}
 
 	// Parse optional "#sha256:<hex>" fragment.
@@ -55,7 +56,7 @@ func downloadIfURL(ctx context.Context, source string) (localPath, expectedHash 
 	}
 	req.Header.Set("User-Agent", "evey-plugin-installer/1.0")
 
-	resp, doErr := http.DefaultClient.Do(req)
+	resp, doErr := s.httpClient.Do(req)
 	if doErr != nil {
 		err = fmt.Errorf("download plugin: %w", doErr)
 		return
@@ -137,6 +138,10 @@ type InstallerService struct {
 	permChecker  *PermissionChecker
 	pluginDir    string
 	installMu    sync.Mutex
+	// httpClient downloads remote plugin ZIPs. Defaults to an ssrf-safe
+	// client; tests inject http.DefaultClient via InstallerWithHTTPClient
+	// to hit loopback (httptest.Server) without the SSRF guard firing.
+	httpClient *http.Client
 	// listDirsFn lists names of plg-* subdirectories under a base dir.
 	// Defaults to an os.ReadDir-based implementation; injectable for tests.
 	listDirsFn func(baseDir string) ([]string, error)
@@ -178,6 +183,13 @@ func InstallerWithListDirsFn(fn func(baseDir string) ([]string, error)) Installe
 	return func(s *InstallerService) { s.listDirsFn = fn }
 }
 
+// InstallerWithHTTPClient replaces the default ssrf-safe HTTP client used
+// to fetch remote plugin ZIPs. Intended for tests that need to download
+// from a loopback httptest server — production should not bypass SSRF.
+func InstallerWithHTTPClient(c *http.Client) InstallerOption {
+	return func(s *InstallerService) { s.httpClient = c }
+}
+
 // defaultListDirs is the production implementation of listDirsFn — backed
 // by os.ReadDir, returns only the names of subdirectories.
 func defaultListDirs(baseDir string) ([]string, error) {
@@ -210,6 +222,9 @@ func NewInstallerService(
 	}
 	for _, opt := range opts {
 		opt(s)
+	}
+	if s.httpClient == nil {
+		s.httpClient = ssrf.SafeHTTPClient(5 * time.Minute)
 	}
 	return s
 }
@@ -261,7 +276,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	s.installMu.Lock()
 	defer s.installMu.Unlock()
 
-	localPath, expectedHash, cleanupDL, dlErr := downloadIfURL(ctx, source)
+	localPath, expectedHash, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {
 		return nil, fmt.Errorf("resolve plugin source: %w", dlErr)
@@ -503,7 +518,7 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 		return nil, ErrPluginNotFound
 	}
 
-	localPath, _, cleanupDL, dlErr := downloadIfURL(ctx, source)
+	localPath, _, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {
 		return nil, fmt.Errorf("resolve plugin source: %w", dlErr)
@@ -587,7 +602,7 @@ func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, ac
 	}
 
 	// Re-download/re-read candidate to compute fresh hash (TOCTOU guard).
-	localPath, _, cleanupDL, dlErr := downloadIfURL(ctx, source)
+	localPath, _, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
 	defer cleanupDL()
 	if dlErr != nil {
 		return nil, fmt.Errorf("resolve plugin source: %w", dlErr)
