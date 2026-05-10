@@ -41,6 +41,15 @@ function setCache(lng: string, data: Record<string, string>) {
   }
 }
 
+// Keep <html lang> in sync with the active language so screen readers and
+// browser tooling pick up the right locale. Runs in both fresh-init and
+// already-initialized cases (test setup also benefits).
+if (typeof document !== "undefined") {
+  i18n.on("languageChanged", (lng) => {
+    document.documentElement.lang = lng;
+  });
+}
+
 // Skip if already initialized (e.g., test setup inits with static translations)
 if (!i18n.isInitialized) {
 void i18n

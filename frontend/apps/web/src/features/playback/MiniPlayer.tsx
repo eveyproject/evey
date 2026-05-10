@@ -130,7 +130,7 @@ export function MiniPlayer() {
         onClick={() => { if (!wasDrag.current) expand(); }}
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => { if (e.key === "Enter") expand(); }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); expand(); } }}
       />
 
       {/* Controls bar */}
