@@ -41,6 +41,7 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			       NULL::int AS season_number, NULL::int AS episode_number
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
+			LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 			WHERE wp.profile_id = $1
 			  AND mi.type = 'movie'
 			  AND wp.position_ms > 0
@@ -48,8 +49,8 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			  -- Mirror Jellyfin's MinResumePct=5: don't surface a film the user
 			  -- only sampled for a few seconds. Items with unknown duration
 			  -- bypass the gate so we don't silently drop legitimate progress.
-			  AND (mi.duration_ms IS NULL OR mi.duration_ms = 0
-			       OR wp.position_ms * 100 >= mi.duration_ms * 5)
+			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
+			       OR wp.position_ms * 100 >= mf.duration_ms * 5)
 		),
 		series_list AS (
 			SELECT DISTINCT mi.parent_id AS season_id, s.parent_id AS series_id
@@ -66,12 +67,13 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
 			INNER JOIN media_items s ON s.id = mi.parent_id
+			LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 			WHERE wp.profile_id = $1
 			  AND mi.type = 'episode'
 			  AND wp.position_ms > 0
 			  AND wp.completed = FALSE
-			  AND (mi.duration_ms IS NULL OR mi.duration_ms = 0
-			       OR wp.position_ms * 100 >= mi.duration_ms * 5)
+			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
+			       OR wp.position_ms * 100 >= mf.duration_ms * 5)
 		),
 		next_unwatched AS (
 			SELECT DISTINCT ON (s.parent_id)
@@ -119,12 +121,13 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
 			LEFT JOIN media_items sea ON mi.type = 'episode' AND sea.id = mi.parent_id
+			LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 			WHERE wp.profile_id = $1
 			  AND wp.position_ms > 0
 			  AND wp.completed = FALSE
 			  -- Mirror Jellyfin's MinResumePct=5: don't surface zaps.
-			  AND (mi.duration_ms IS NULL OR mi.duration_ms = 0
-			       OR wp.position_ms * 100 >= mi.duration_ms * 5)
+			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
+			       OR wp.position_ms * 100 >= mf.duration_ms * 5)
 		),
 		watched_series AS (
 			SELECT DISTINCT s.parent_id AS series_id,
