@@ -9,7 +9,8 @@ vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
   useUserServiceGetCurrentUser: () => ({ data: { id: "u1", username: "test" } }),
   useUserServiceListProfiles: () => ({ data: { profiles: [{ id: "p1", isDefault: true }] } }),
-  useUserServiceUpdateProfile: () => ({ mutate: vi.fn() }),
+  useUserServiceUpdateProfile: () => ({ mutateAsync: vi.fn().mockResolvedValue(undefined) }),
+  userServiceRefreshToken: vi.fn().mockResolvedValue({ accessToken: "" }),
   getUserServiceListProfilesQueryKey: () => ["profiles"],
 }));
 
