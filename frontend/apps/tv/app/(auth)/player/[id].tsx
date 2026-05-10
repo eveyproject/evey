@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { View, Text, Pressable, ActivityIndicator, Dimensions, StyleSheet } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useLibraryServiceGetMediaItem, usePlaybackServiceMarkAsWatched, usePlaybackServiceGetWatchProgress } from "@evey/api";
@@ -17,7 +17,6 @@ import { QualityPicker } from "../../../src/components/QualityPicker";
 
 const CONTROLS_TIMEOUT = 4000;
 const SEEK_STEP = 10;
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("screen");
 
 function formatTime(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -32,6 +31,7 @@ export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const mediaId = id ?? "";
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
   const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset } =
@@ -222,7 +222,7 @@ export default function PlayerScreen() {
     <View style={[styles.container, { backgroundColor: "#000" }]}>
       <VideoView
         player={player}
-        style={styles.video}
+        style={[styles.video, { width: screenWidth, height: screenHeight }]}
         nativeControls={false}
         contentFit="contain"
       />
@@ -287,10 +287,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  video: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
-  },
+  video: {},
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.4)",
