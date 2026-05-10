@@ -9,6 +9,7 @@ import {
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { Images, ChevronLeft, ChevronRight, X, RotateCcw, RotateCw } from "lucide-react";
 
 export const Route = createLazyFileRoute("/_auth/photos/")({
@@ -117,6 +118,9 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
   const accessToken = useAuthStore((s) => s.accessToken);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   const [rotation, setRotation] = useState(0);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(dialogRef, Boolean(photo));
 
   useEffect(() => { setRotation(0); }, [index]);
 
@@ -136,7 +140,9 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
 
   return (
     <div
-      className="fixed inset-0 z-overlay flex items-center justify-center bg-black/90"
+      ref={dialogRef}
+      tabIndex={-1}
+      className="fixed inset-0 z-overlay flex items-center justify-center bg-black/90 outline-none"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
