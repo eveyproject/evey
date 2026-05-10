@@ -23,7 +23,7 @@
       "package": "com.evey.app",
       "adaptiveIcon": {
         "backgroundColor": "#111827"
-      },
+      }
     },
     "plugins": [
       "./plugins/withCleartextTraffic",
