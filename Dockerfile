@@ -64,6 +64,9 @@ RUN mkdir -p /data/media /data/transcoding /data/logs /data/plugins /data/keys /
 
 COPY --from=builder /evey /evey
 COPY --from=builder /libevey-sandbox.so /app/libevey-sandbox.so
+COPY --from=builder /src/i18n /i18n
+COPY --from=builder /src/sdk /app/sdk
+COPY --from=builder /src/docker/seccomp-evey.json /etc/evey/seccomp.json
 COPY --from=frontend /app/apps/web/dist /srv
 
 EXPOSE 9091
