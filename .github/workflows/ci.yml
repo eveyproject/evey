@@ -2,7 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - master
+      # Beta/alpha test branches publish their own image tag (named after
+      # the branch, e.g. gravityz/evey:beta-0.0.1). `latest` stays gated on
+      # semver tags below — beta builds never touch it.
+      - 'beta-*'
+      - 'alpha-*'
     # Release tags also trigger publish (vX.Y.Z → latest alias + semver tags).
     tags: ['v*.*.*']
   pull_request:
