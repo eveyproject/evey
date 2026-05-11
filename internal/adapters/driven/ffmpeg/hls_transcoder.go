@@ -26,11 +26,23 @@ func NewHLSTranscoder() *HLSTranscoder {
 
 func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOpts) (transcoding.HLSProcessHandle, error) {
 	args := BuildFFmpegArgs(opts)
-	slog.Debug("hls: ffmpeg", slog.String("args", strings.Join(args, " ")))
+	slog.Info("hls: ffmpeg start",
+		slog.String("media_path", opts.FilePath),
+		slog.String("video_decision", opts.VideoDecision),
+		slog.String("audio_decision", opts.AudioDecision),
+		slog.String("audio_codec", opts.AudioCodec),
+		slog.Int("audio_track", opts.AudioTrackIndex),
+		slog.String("args", strings.Join(args, " ")))
 
 	processCtx, cancel := context.WithCancel(ctx)
 	cmd := exec.CommandContext(processCtx, "ffmpeg", args...)
-	cmd.Stderr = nil
+	// Capture stderr in a ring buffer so we can surface real ffmpeg errors
+	// (codec mismatch, channel layout, missing audio encoder, etc.). Without
+	// this the audio-only-failure cases are invisible — ffmpeg writes a
+	// fatal error on stderr and we'd otherwise just see the consumer's
+	// generic 5xx with no clue why.
+	stderr := newRingBuffer(8 * 1024)
+	cmd.Stderr = stderr
 
 	h := &hlsHandle{
 		opts:   opts,
@@ -38,6 +50,7 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 		cancel: cancel,
 		ready:  make(chan struct{}),
 		done:   make(chan struct{}),
+		stderr: stderr,
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -57,6 +70,7 @@ type hlsHandle struct {
 	ready  chan struct{}
 	done   chan struct{}
 	err    error
+	stderr *ringBuffer
 }
 
 func (h *hlsHandle) run(ctx context.Context) {
@@ -104,8 +118,53 @@ func (h *hlsHandle) run(ctx context.Context) {
 	close(h.ready)
 
 	if err := h.cmd.Wait(); err != nil && ctx.Err() == nil {
-		slog.Warn("hls: ffmpeg exited with error", slog.Any("err", err))
+		slog.Warn("hls: ffmpeg exited with error",
+			slog.Any("err", err),
+			slog.String("stderr_tail", h.stderr.String()))
 	}
+}
+
+// ringBuffer keeps the last N bytes written to it. We use it to capture
+// ffmpeg's stderr tail without unbounded memory growth: ffmpeg can spam
+// MBs of progress lines, we only care about the last few KB which carry
+// the fatal error message on exit.
+type ringBuffer struct {
+	mu   sync.Mutex
+	buf  []byte
+	size int
+	full bool
+	pos  int
+}
+
+func newRingBuffer(size int) *ringBuffer {
+	return &ringBuffer{buf: make([]byte, size), size: size}
+}
+
+func (r *ringBuffer) Write(p []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := len(p)
+	for _, b := range p {
+		r.buf[r.pos] = b
+		r.pos++
+		if r.pos >= r.size {
+			r.pos = 0
+			r.full = true
+		}
+	}
+	return n, nil
+}
+
+func (r *ringBuffer) String() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.full {
+		return string(r.buf[:r.pos])
+	}
+	out := make([]byte, 0, r.size)
+	out = append(out, r.buf[r.pos:]...)
+	out = append(out, r.buf[:r.pos]...)
+	return string(out)
 }
 
 func (h *hlsHandle) WaitReady(ctx context.Context) error {
