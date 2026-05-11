@@ -575,6 +575,15 @@ func resolveParentalFilterFromUserQuery(ctx context.Context, userQuery *appuser.
 	if claims == nil || claims.ProfileID == "" {
 		return parentalFilter{maxAge: -1}
 	}
+	// Admins manage parental settings on other profiles; they must not be
+	// subject to one themselves, even when their own profile somehow ended
+	// up with IsKids=true (UI typo, migration default flip, single-user
+	// servers reusing the admin profile for kids browsing, etc.). Bypassing
+	// the filter here is the right layer: SQL pre-filter and post-pagination
+	// strict check both consult this resolver.
+	if claims.IsAdmin {
+		return parentalFilter{maxAge: -1}
+	}
 	profile, err := userQuery.GetProfileByID(ctx, claims.ProfileID)
 	if err != nil {
 		return parentalFilter{maxAge: -1}
