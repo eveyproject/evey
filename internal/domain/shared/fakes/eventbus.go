@@ -11,6 +11,7 @@ import (
 type FakeEventBus struct {
 	mu         sync.RWMutex
 	events     []shared.Event
+	publishCtx []context.Context
 	handlers   map[string][]subEntry
 	nextID     int
 	PublishErr error
@@ -33,6 +34,7 @@ func (b *FakeEventBus) Publish(ctx context.Context, event shared.Event) error {
 	}
 	b.mu.Lock()
 	b.events = append(b.events, event)
+	b.publishCtx = append(b.publishCtx, ctx)
 	var entries []subEntry
 	entries = append(entries, b.handlers[event.EventName()]...)
 	entries = append(entries, b.handlers["*"]...)
@@ -41,6 +43,17 @@ func (b *FakeEventBus) Publish(ctx context.Context, event shared.Event) error {
 		e.handler(ctx, event)
 	}
 	return nil
+}
+
+// PublishContexts returns a snapshot of the contexts captured at each
+// Publish call. Tests assert on these to verify the production code
+// detaches publication from caller cancellation when needed.
+func (b *FakeEventBus) PublishContexts() []context.Context {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	out := make([]context.Context, len(b.publishCtx))
+	copy(out, b.publishCtx)
+	return out
 }
 
 func (b *FakeEventBus) Subscribe(eventName string, handler func(ctx context.Context, event shared.Event)) string {

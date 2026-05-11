@@ -28,6 +28,19 @@ import (
 // to a user-friendly 409/FailedPrecondition response.
 var ErrScanInProgress = errors.New("scan already in progress")
 
+// publish emits an event to the bus while detaching the publication from the
+// caller's cancellation/deadline. Without this, an upstream timeout (e.g.
+// Meilisearch index call) expires the scan ctx, the subsequent Publish sees
+// ctx.Err() != nil, InMemoryEventBus drops the event before enqueueing, and
+// downstream subscribers (trickplay, intro detection, metadata enricher,
+// artwork downloader) never run for that media item. context.WithoutCancel
+// preserves trace/values for observability while removing the cancel chain.
+func (s *ScanService) publish(ctx context.Context, evt shared.Event) {
+	if err := s.events.Publish(context.WithoutCancel(ctx), evt); err != nil {
+		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
+}
+
 func catalogGenres(item *library.MediaItem) []string {
 	if item == nil || item.Catalog == nil {
 		return nil
@@ -208,13 +221,10 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 }
 
 func (s *ScanService) publishScanStarted(ctx context.Context, libraryID string) {
-	evt := library.LibraryScanStarted{
+	s.publish(ctx, library.LibraryScanStarted{
 		LibraryID:  shared.LibraryID(libraryID),
 		OccurredAt: time.Now(),
-	}
-	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
-	}
+	})
 }
 
 func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*scanindex.Index, error) {
@@ -354,16 +364,13 @@ func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, li
 		slog.Warn("update library last scanned failed", slog.String("libraryID", libraryID), slog.Any("err", err))
 	}
 
-	evt := library.LibraryScanCompleted{
+	s.publish(ctx, library.LibraryScanCompleted{
 		LibraryID:    shared.LibraryID(libraryID),
 		ItemsAdded:   added,
 		ItemsUpdated: updated,
 		ItemsRemoved: removed,
 		OccurredAt:   now,
-	}
-	if err := s.events.Publish(ctx, evt); err != nil {
-		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
-	}
+	})
 }
 
 func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, seriesTitle ...string) (added, updated int, err error) {
@@ -450,7 +457,7 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 			slog.Warn("index media item failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
 		}
 	}
-	evtAdded := library.MediaItemAdded{
+	s.publish(ctx, library.MediaItemAdded{
 		MediaItemID: item.ID,
 		LibraryID:   shared.LibraryID(libraryID),
 		Title:       item.Title,
@@ -458,10 +465,7 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 		Type:        string(item.Type),
 		Genres:      catalogGenres(item),
 		OccurredAt:  time.Now(),
-	}
-	if err := s.events.Publish(ctx, evtAdded); err != nil {
-		slog.Warn("publish event", slog.String("event", evtAdded.EventName()), slog.Any("err", err))
-	}
+	})
 	return nil
 }
 
@@ -524,7 +528,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		}
 	}
 	if existing.Overview == "" {
-		evtReAdded := library.MediaItemAdded{
+		s.publish(ctx, library.MediaItemAdded{
 			MediaItemID: existing.ID,
 			LibraryID:   existing.LibraryID,
 			Title:       existing.Title,
@@ -532,10 +536,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 			Type:        string(existing.Type),
 			Genres:      catalogGenres(existing),
 			OccurredAt:  time.Now(),
-		}
-		if err := s.events.Publish(ctx, evtReAdded); err != nil {
-			slog.Warn("publish event", slog.String("event", evtReAdded.EventName()), slog.Any("err", err))
-		}
+		})
 	}
 }
 

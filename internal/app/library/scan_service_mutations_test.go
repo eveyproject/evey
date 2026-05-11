@@ -792,3 +792,38 @@ func TestScanService_NewItem_TVShowHasSeriesTitle(t *testing.T) {
 	}
 	assert.True(t, saw)
 }
+
+// --- scan_service: Publish must detach from caller ctx cancellation ---
+//
+// Repro: Meilisearch (or any inline scan step) saturates and the scan ctx
+// expires. The subsequent events.Publish would receive that cancelled ctx,
+// and InMemoryEventBus drops the event before enqueueing it. Downstream
+// subscribers (trickplay, intro detection, metadata enricher, artwork
+// downloader, search re-index) then NEVER run for that media item, leaving
+// the library half-enriched with no failure surfaced to the user. Guard:
+// every events.Publish in the scan pipeline must see ctx.Err() == nil even
+// when the scan-level ctx is already cancelled at publish time.
+func TestScanService_Publish_DetachedFromScanCtx(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.scanner.Results["/m"] = []library.ScannedFile{
+		{Path: "/m/a.mkv", Size: 100, Fingerprint: "fp", Type: library.MovieItem, Title: "A"},
+	}
+
+	// Hard worst case: the caller-supplied ctx is already cancelled when the
+	// scan starts. Production fakes ignore ctx so the body still reaches each
+	// Publish — we then assert each Publish receives a non-cancelled ctx.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, _, _ = h.svc.ScanLibrary(ctx, "lib-1")
+
+	ctxs := h.bus.PublishContexts()
+	require.NotEmpty(t, ctxs, "scan must reach at least one events.Publish call")
+	for i, c := range ctxs {
+		assert.NoError(t, c.Err(),
+			"Publish #%d (event %s) leaked the cancelled scan ctx — bus would drop it in prod",
+			i, h.bus.PublishedEvents()[i].EventName())
+	}
+}

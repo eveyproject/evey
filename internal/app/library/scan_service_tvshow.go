@@ -97,17 +97,14 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 				return 0, 0, fmt.Errorf("create series %q: %w", showTitle, createErr)
 			}
 			if created {
-				evtSeriesAdded := library.MediaItemAdded{
+				s.publish(ctx, library.MediaItemAdded{
 					MediaItemID: seriesItem.ID,
 					LibraryID:   shared.LibraryID(libraryID),
 					Title:       seriesItem.Title,
 					Type:        string(seriesItem.Type),
 					Genres:      catalogGenres(seriesItem),
 					OccurredAt:  time.Now(),
-				}
-				if err := s.events.Publish(ctx, evtSeriesAdded); err != nil {
-					slog.Warn("publish event", slog.String("event", evtSeriesAdded.EventName()), slog.Any("err", err))
-				}
+				})
 				added++
 			}
 			seriesID = string(seriesItem.ID)
