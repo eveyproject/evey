@@ -4,15 +4,83 @@ Self-hosted media server for movies, TV shows, music, and photos.
 
 ## Install
 
+Create a directory for Evey (`mkdir evey && cd evey`), drop these two files in it, then `docker compose up -d`.
+
+**`docker-compose.yml`** (paste as-is):
+```yaml
+services:
+  evey:
+    image: gravityz/evey:${EVEY_VERSION:-latest}
+    container_name: evey
+    ports:
+      - "9091:9091"
+    environment:
+      EVEY_DB_HOST: postgres
+      EVEY_MEILI_URL: http://meilisearch:7700
+      EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
+      EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
+      EVEY_TRICKPLAY_CACHE_DIR: /data/trickplay
+      EVEY_LOG_DIR: /data/logs
+      EVEY_BACKUP_DIR: /data/backups
+    env_file: .env
+    volumes:
+      - ./evey-data:/data
+      - evey-cache:/cache
+      - ${MEDIA_DIR}:/media:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      meilisearch: { condition: service_healthy }
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: evey-postgres
+    environment:
+      POSTGRES_DB: ${EVEY_DB_NAME:-evey}
+      POSTGRES_USER: ${EVEY_DB_USER:-evey}
+      POSTGRES_PASSWORD: ${EVEY_DB_PASSWORD:?EVEY_DB_PASSWORD must be set in .env}
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${EVEY_DB_USER:-evey}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: evey-meilisearch
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - ./meili-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  evey-cache:
+```
+
+**`.env`** (edit the three values):
+```env
+EVEY_DB_PASSWORD=<strong-password>
+MEILI_MASTER_KEY=<run: openssl rand -hex 16>
+MEDIA_DIR=/path/to/your/media
+# EVEY_VERSION=latest   # pin a specific tag (e.g. v0.1.0, beta-0.0.1)
+```
+
+Then:
 ```bash
-cp .env.example .env
-# Edit .env — set your database password, search key, and media path
 docker compose up -d
 ```
 
-Open `http://<your-ip>:9091`, create your account, add a library. That's it.
-
-Migrations run automatically. A JWT signing key is generated on first start in the `evey-data` volume — keep that volume safe.
+Open `http://<your-ip>:9091`, create your account, add a library. The image serves both the API and the web UI on the same port. Migrations run automatically. A JWT signing key is generated on first start in `./evey-data` — keep that directory safe.
 
 ## Update
 
@@ -20,10 +88,7 @@ Migrations run automatically. A JWT signing key is generated on first start in t
 docker compose pull && docker compose up -d
 ```
 
-Pin a specific version if you want:
-```env
-EVEY_VERSION=v0.1.0-beta.1
-```
+Pin a specific version by setting `EVEY_VERSION` in `.env` (e.g. `v0.1.0-beta.1`, `beta-0.0.1`).
 
 ## HTTPS
 
