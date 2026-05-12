@@ -13,6 +13,7 @@ import (
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appbackup "github.com/evey-project/evey/internal/app/backup"
 	appcollection "github.com/evey-project/evey/internal/app/collection"
+	appconfig "github.com/evey-project/evey/internal/app/config"
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmedia "github.com/evey-project/evey/internal/app/media"
@@ -328,7 +329,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL, s.ServerCtx, s.ActivityCmdSvc)
 	}
 	if s.MetadataCmdSvc != nil {
-		registerArtworkAdminRoutes(mux, s.MetadataCmdSvc, s.TokenGen, s.ServerCtx, s.DataDir)
+		var cfgSvc *appconfig.Service
+		if s.ServerCfgRepo != nil {
+			cfgSvc = appconfig.NewService(s.ServerCfgRepo)
+		}
+		registerArtworkAdminRoutes(mux, s.MetadataCmdSvc, s.TokenGen, s.ServerCtx, s.DataDir, cfgSvc)
 	}
 	if s.MetadataCmdSvc != nil {
 		mux.HandleFunc("POST /api/v1/admin/translations/refresh-all", admin(func(w http.ResponseWriter, r *http.Request) {

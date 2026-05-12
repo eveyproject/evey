@@ -43,7 +43,7 @@ func newArtworkAdminMux(t *testing.T) *artworkAdminFixture {
 
 	dataDir := t.TempDir()
 	mux := http.NewServeMux()
-	registerArtworkAdminRoutes(mux, metaCmd, gen, context.Background(), dataDir)
+	registerArtworkAdminRoutes(mux, metaCmd, gen, context.Background(), dataDir, nil)
 
 	return &artworkAdminFixture{
 		mux: mux, adminTok: adminTok, userTok: userTok,

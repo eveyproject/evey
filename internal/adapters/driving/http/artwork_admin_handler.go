@@ -3,13 +3,46 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 
+	appconfig "github.com/evey-project/evey/internal/app/config"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 )
+
+// configKeyArtworkAutoDownload toggles fire-and-forget artwork download on
+// scan-time metadata enrichment. Default is ON — without this 99% of users
+// see broken posters after a scan because the metadata enricher creates
+// artwork rows with external source URLs but never fetches them, and the
+// browser refuses to display cross-origin images via Opaque Response
+// Blocking. Power users wanting to save API quota / bandwidth can flip the
+// key to "false" via the server-config endpoint and restart.
+const configKeyArtworkAutoDownload = "artwork.auto_download"
+
+// resolveAutoDownloadDefault reads the server-config toggle. Absent key →
+// true (the new default). Explicit "false" → false. Anything else → true
+// (conservative parse: don't silently fall through if the admin set
+// something non-bool).
+func resolveAutoDownloadDefault(ctx context.Context, cfg *appconfig.Service) bool {
+	if cfg == nil {
+		return true
+	}
+	entry, err := cfg.Get(ctx, configKeyArtworkAutoDownload)
+	if err != nil {
+		if !errors.Is(err, shared.ErrNotFound) {
+			slog.Warn("read artwork.auto_download config", slog.Any("err", err))
+		}
+		return true
+	}
+	if entry == nil {
+		return true
+	}
+	return entry.Value != "false"
+}
 
 // registerArtworkAdminRoutes mounts the three artwork-cache admin endpoints:
 //
@@ -25,12 +58,13 @@ func registerArtworkAdminRoutes(
 	tokenGen TokenVerifier,
 	serverCtx context.Context,
 	dataDir string,
+	configSvc *appconfig.Service,
 ) {
-	// Ensure the CommandService knows where to store artworks.
-	// auto-download on scan is disabled by default; the toggle is surfaced via
-	// the server-config endpoint rather than wired here.
+	// Ensure the CommandService knows where to store artworks. Default ON
+	// (see configKeyArtworkAutoDownload). Admins can override via the
+	// server-config endpoint; takes effect on next restart.
 	if dataDir != "" {
-		metaCmd.SetAutoDownload(dataDir, false)
+		metaCmd.SetAutoDownload(dataDir, resolveAutoDownloadDefault(serverCtx, configSvc))
 	}
 	admin := httpAdminMiddleware(tokenGen)
 
