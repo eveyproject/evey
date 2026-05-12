@@ -78,6 +78,12 @@ var (
 	reCodec      = regexp.MustCompile(`(?i)\b(x264|x265|h\.?264|h\.?265|hevc|avc|av1|vp9|mpeg[24]|xvid|divx)\b`)
 	reAudio      = regexp.MustCompile(`(?i)\b(aac|dts-hd\.?ma|dts-hd|dts|truehd|atmos|flac|ac3|eac3|dd5\.?1|dd7\.?1|dd2\.?0|opus|pcm|mp3|lpcm)\b`)
 	reGroup      = regexp.MustCompile(`-([A-Za-z][A-Za-z0-9]{1,15})$`)
+	// reSEDelimited collapses `S03 E17`, `S03.E17`, `S03_E17` into a single
+	// token before split. Real-world Dr House rips ship with a space between
+	// the season and episode markers, which made the parser leave the SxxExx
+	// in the title — and the TV scan service then created one orphan SERIES
+	// per file instead of grouping them under "Dr House".
+	reSEDelimited = regexp.MustCompile(`(?i)([sS]\d{1,2})[ ._-]+([eE]\d{1,3})`)
 )
 
 type ParsedInfo struct {
@@ -114,6 +120,11 @@ func ParseFilename(filename string) ParsedInfo {
 	base := filepath.Base(filename)
 	ext := filepath.Ext(base)
 	name := strings.TrimSuffix(base, ext)
+	// Collapse `S03 E17` / `S03.E17` / `S03_E17` into the canonical `S03E17`
+	// so tokenisation produces a single SxxExx token that reSeriesPart can
+	// match. Without this step the season+episode markers leak into the
+	// title and the TV scan service treats every file as its own SERIES.
+	name = reSEDelimited.ReplaceAllString(name, "$1$2")
 
 	parts := filterEmpty(SplitFilename(name))
 

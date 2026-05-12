@@ -106,6 +106,13 @@ func TestParse_SE_Normalized(t *testing.T) {
 		{"Series.S12E100.mkv", "S12E100", 12, 100},
 		{"Series.1x05.mkv", "S01E05", 1, 5},
 		{"Series.03x10.mkv", "S03E10", 3, 10},
+		// Space-separated SxxExx (real-world: `Dr House S03 E17.avi`).
+		// Without normalization the parser saw two unrelated tokens
+		// "S03" + "E17" and fell back to movie type, causing one orphan
+		// SERIES row per episode in the prod DB.
+		{"Dr House S03 E17.avi", "S03E17", 3, 17},
+		{"Show.Name.S1.E5.mkv", "S01E05", 1, 5},
+		{"Show Name S12 E100 1080p.mkv", "S12E100", 12, 100},
 	}
 	for _, tt := range tests {
 		t.Run(tt.se, func(t *testing.T) {
