@@ -1,10 +1,26 @@
-import React, { useMemo, type ReactNode } from "react";
+import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import { VirtuosoGrid } from "react-virtuoso";
 
 interface MediaGridProps {
   children: ReactNode;
   isLoading?: boolean;
   onEndReached?: () => void;
+}
+
+// AuthLayout puts <main id="main-content"> as the scrollable region
+// (overflow-y-auto) because the body itself is locked to viewport
+// (h-screen overflow-hidden). VirtuosoGrid's useWindowScroll mode
+// expects the window to scroll — which can never happen here. We hand
+// it the actual scroll parent instead so endReached fires properly and
+// all virtualized cards become reachable. Lookup is done client-side
+// post-mount; null during SSR / first paint, which falls back to
+// VirtuosoGrid's default behavior (graceful).
+function useMainScrollParent(): HTMLElement | null {
+  const [el, setEl] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setEl(document.getElementById("main-content"));
+  }, []);
+  return el;
 }
 
 function SkeletonCard() {
@@ -39,6 +55,7 @@ export function MediaGrid({ children, isLoading, onEndReached }: MediaGridProps)
     () => (Array.isArray(children) ? children : children ? [children] : []),
     [children],
   );
+  const scrollParent = useMainScrollParent();
 
   if (isLoading) {
     return (
@@ -52,7 +69,7 @@ export function MediaGrid({ children, isLoading, onEndReached }: MediaGridProps)
 
   return (
     <VirtuosoGrid
-      useWindowScroll
+      customScrollParent={scrollParent ?? undefined}
       totalCount={items.length}
       overscan={200}
       components={gridComponents}
