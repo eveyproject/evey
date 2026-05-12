@@ -230,6 +230,111 @@ func (s *CommandService) GetDownloadJob(jobID string) *DownloadJob {
 	return s.jobs[jobID]
 }
 
+// RetryMissingArtworks downloads every artwork record that has a SourceURL
+// but no LocalPath. Idempotent: items already on disk are reconciled with
+// their DB row without re-downloading. Best-effort: per-record failures
+// (transient HTTP 5xx, dead CDN, etc.) are logged and the loop continues
+// so a single broken URL doesn't block the rest of the catalogue.
+//
+// Returns (succeeded, failed) for telemetry.
+func (s *CommandService) RetryMissingArtworks(ctx context.Context) (succeeded, failed int) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.RetryMissingArtworks")
+	defer span.End()
+	if s.dataDir == "" {
+		return 0, 0
+	}
+	records, err := s.artwork.ListMissingLocalPath(ctx)
+	if err != nil {
+		slog.Warn("retry missing artworks: list", slog.Any("err", err))
+		return 0, 0
+	}
+	if len(records) == 0 {
+		return 0, 0
+	}
+	const maxConcurrent = 4
+	sem := make(chan struct{}, maxConcurrent)
+	var wg sync.WaitGroup
+	var sucAtomic, failAtomic atomic.Int64
+	for _, rec := range records {
+		rec := rec
+		select {
+		case <-ctx.Done():
+			wg.Wait()
+			return int(sucAtomic.Load()), int(failAtomic.Load())
+		case sem <- struct{}{}:
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			destPath := s.artworkDestPath(rec)
+			// Already on disk (caller previously downloaded outside the
+			// pipeline, server crashed after fs write before DB update, etc.).
+			// Just reconcile the DB row and count as a success.
+			if _, err := os.Stat(destPath); err == nil {
+				if err2 := s.artwork.UpdateLocalPath(ctx, rec.ID, destPath); err2 != nil {
+					slog.Warn("retry missing artworks: reconcile present file",
+						slog.String("id", rec.ID), slog.Any("err", err2))
+					failAtomic.Add(1)
+					return
+				}
+				sucAtomic.Add(1)
+				return
+			}
+			if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+				slog.Warn("retry missing artworks: mkdir",
+					slog.String("id", rec.ID), slog.Any("err", err))
+				failAtomic.Add(1)
+				return
+			}
+			if err := s.DownloadArtwork(ctx, rec, destPath); err != nil {
+				slog.Debug("retry missing artworks: download still failing",
+					slog.String("id", rec.ID), slog.Any("err", err))
+				failAtomic.Add(1)
+				return
+			}
+			if err := s.artwork.UpdateLocalPath(ctx, rec.ID, destPath); err != nil {
+				slog.Warn("retry missing artworks: save local path",
+					slog.String("id", rec.ID), slog.Any("err", err))
+				failAtomic.Add(1)
+				return
+			}
+			sucAtomic.Add(1)
+		}()
+	}
+	wg.Wait()
+	succeeded = int(sucAtomic.Load())
+	failed = int(failAtomic.Load())
+	if succeeded > 0 || failed > 0 {
+		slog.Info("retry missing artworks: pass complete",
+			slog.Int("succeeded", succeeded),
+			slog.Int("failed", failed),
+			slog.Int("total", len(records)))
+	}
+	return succeeded, failed
+}
+
+// RetryMissingArtworksLoop runs RetryMissingArtworks periodically until
+// ctx is cancelled. Intended to be launched as a goroutine at startup.
+// Wired so a transient CDN/network outage during the initial enrichment
+// burst is self-healing within the next interval — admin doesn't need
+// to remember to hit "Download missing" by hand.
+func (s *CommandService) RetryMissingArtworksLoop(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		interval = time.Hour
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.RetryMissingArtworks(ctx)
+		}
+	}
+}
+
 // maybeAutoDownload triggers an automatic download when auto-download is enabled.
 // It is best-effort: errors are only logged.
 func (s *CommandService) maybeAutoDownload(ctx context.Context, rec *metadata.ArtworkRecord) {

@@ -702,6 +702,12 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 	if infra.tmdbKey != "" {
 		deps.content.metadataCmdSvc.StartEnrichmentWorker(ctx)
 	}
+	// Periodic reconciliation of artwork records that have a SourceURL but
+	// no local file on disk — heals transient CDN/network failures from
+	// the initial enrichment burst without admin intervention. Runs
+	// regardless of provider keys: catches up records inserted by any
+	// metadata path (TMDB, OMDb, manual override).
+	go deps.content.metadataCmdSvc.RetryMissingArtworksLoop(ctx, time.Hour)
 	deps.library.cmdSvc.StartTrickplayWorker(ctx)
 	deps.library.cmdSvc.StartBackgroundGeneration(ctx)
 	if deps.library.introDetectionSvc != nil {
