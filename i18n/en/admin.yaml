@@ -456,6 +456,10 @@ serverConfig:
   trickplayEnabled: Enable trickplay thumbnails
   trickplayAdaptiveCpu: "Adaptive CPU"
   trickplayAdaptiveCpuDesc: "Gentle mode (~25% CPU). Disable for faster generation (~50% CPU)."
+  artworkTitle: "Artwork Downloads"
+  artworkDesc: "Cache posters, backdrops and other artwork locally on the server. When off, the frontend depends on external CDN URLs that some browsers block (Firefox Opaque Response Blocking)."
+  artworkAutoDownload: "Auto-download artwork on scan"
+  artworkRestart: "Changes apply on next server restart."
   tableHeaders:
     key: Key
     value: Value

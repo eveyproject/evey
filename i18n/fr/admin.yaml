@@ -455,6 +455,10 @@ serverConfig:
   trickplayEnabled: "Activer les miniatures trickplay"
   trickplayAdaptiveCpu: "CPU adaptatif"
   trickplayAdaptiveCpuDesc: "Mode doux (~25% CPU). Désactiver pour une génération plus rapide (~50% CPU)."
+  artworkTitle: "Téléchargement des artworks"
+  artworkDesc: "Mettre en cache les affiches, fonds et autres artworks localement. Quand désactivé, le frontend dépend d'URLs CDN externes que certains navigateurs bloquent (Opaque Response Blocking sur Firefox)."
+  artworkAutoDownload: "Téléchargement automatique à chaque scan"
+  artworkRestart: "Les changements s'appliquent au prochain redémarrage du serveur."
   tableHeaders:
     key: "Clé"
     value: "Valeur"

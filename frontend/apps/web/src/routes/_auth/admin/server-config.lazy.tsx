@@ -513,6 +513,46 @@ const TRICKPLAY_KEY = "trickplay.enabled";
 const TRICKPLAY_CPU_KEY = "trickplay.adaptive_cpu";
 const INTRO_PROVIDERS_KEY = "intro_providers.enabled";
 const INTRO_TIDB_SUBMIT_KEY = "intro_providers.tidb_submit_enabled";
+const ARTWORK_AUTO_DOWNLOAD_KEY = "artwork.auto_download";
+
+// Surfaces the runtime toggle for fire-and-forget artwork download on scan.
+// Default ON — without local caching the frontend depends on external CDN
+// URLs (Amazon for OMDb), some of which Firefox blocks under Opaque Response
+// Blocking. Admins who want to save bandwidth/API quota can flip it off
+// here. Server reads this at startup; takes effect on next restart.
+function ArtworkSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
+  const { t } = useTranslation();
+  const setEntry = useSetConfigEntry();
+  // Default-true semantics: only "false" disables. Missing key or any other
+  // value resolves to true to match the server's resolveAutoDownloadDefault.
+  const stored = entries?.find((e) => e.key === ARTWORK_AUTO_DOWNLOAD_KEY)?.value;
+  const enabled = stored !== "false";
+
+  return (
+    <div className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]">
+      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
+        {t("admin.serverConfig.artworkTitle")}
+      </h2>
+      <p className="text-sm mb-4 text-[var(--text-muted)]">
+        {t("admin.serverConfig.artworkDesc")}
+      </p>
+      <div className="flex flex-col gap-3">
+        <Checkbox
+          label={t("admin.serverConfig.artworkAutoDownload")}
+          checked={enabled}
+          onChange={(v) =>
+            setEntry.mutate({ key: ARTWORK_AUTO_DOWNLOAD_KEY, value: v ? "true" : "false" })
+          }
+          disabled={setEntry.isPending}
+        />
+        <p className="text-xs text-[var(--text-muted)]">
+          {t("admin.serverConfig.artworkRestart")}
+        </p>
+        {setEntry.isPending && <Spinner size="sm" />}
+      </div>
+    </div>
+  );
+}
 
 // IntroDetectionSettingsCard surfaces the runtime knobs of the external
 // intro/recap/credits providers (TIDB + IntroDB). The TIDB Bearer token
@@ -750,6 +790,8 @@ function ServerConfigPage() {
       <SmtpSettingsCard entries={entries} />
 
       <TrickplaySettingsCard entries={entries} />
+
+      <ArtworkSettingsCard entries={entries} />
 
       <IntroDetectionSettingsCard entries={entries} />
 
