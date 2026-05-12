@@ -2,10 +2,12 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Folder, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
-  useLibraryServiceFilterMediaItems,
+  libraryServiceListMediaItems,
+  libraryServiceFilterMediaItems,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
 } from "@evey/api";
@@ -73,7 +75,6 @@ function LibraryPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
 
-  const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -92,7 +93,8 @@ function LibraryPage() {
         search: { ...search, ...patch },
         replace: true,
       });
-      setPage(1);
+      // No setPage(1) needed: infinite query keys include filter/sort/type,
+      // so changing any of them naturally starts a fresh paged sequence.
     },
     [navigate, search, slug],
   );
@@ -179,46 +181,101 @@ function LibraryPage() {
     (search.minRating != null && search.minRating > 0),
   );
 
-  const params = {
-    libraryId,
-    ...(typeFilter ? { type: typeFilter } : {}),
-    ...(genreFilter ? { genre: genreFilter } : {}),
-    sortField,
-    sortOrder,
-    "pagination.page": 1,
-    "pagination.pageSize": page * PAGE_SIZE,
-  };
-
-  const { data: regularData, isLoading: regularLoading } = useLibraryServiceListMediaItems(params, {
-    query: { enabled: !hasServerFilters && !!libraryId },
+  // Regular list path uses keyset pagination (opaque cursor returned by the
+  // server). useInfiniteQuery appends pages instead of refetching everything
+  // with a growing pageSize, so scroll position is preserved and bandwidth
+  // is O(n) instead of O(n²).
+  const regularKey = useMemo(
+    () => ["lib-infinite", libraryId, typeFilter ?? "", genreFilter, sortField, sortOrder] as const,
+    [libraryId, typeFilter, genreFilter, sortField, sortOrder],
+  );
+  const regularQuery = useInfiniteQuery({
+    queryKey: regularKey,
+    enabled: !hasServerFilters && !!libraryId,
+    initialPageParam: "" as string,
+    queryFn: ({ pageParam, signal }) =>
+      libraryServiceListMediaItems(
+        {
+          libraryId,
+          ...(typeFilter ? { type: typeFilter } : {}),
+          ...(genreFilter ? { genre: genreFilter } : {}),
+          sortField,
+          sortOrder,
+          "pagination.pageSize": PAGE_SIZE,
+          ...(pageParam ? { "pagination.cursor": pageParam } : {}),
+        },
+        signal,
+      ),
+    getNextPageParam: (last, allPages) => {
+      const cursor = last.pagination?.nextCursor;
+      if (cursor) return cursor;
+      // Server falls back to offset when cursor isn't available — stop when
+      // the last page wasn't a full slice (no more rows beyond it).
+      const got = last.items?.length ?? 0;
+      if (got < PAGE_SIZE) return undefined;
+      const total = last.pagination?.totalItems ?? 0;
+      const fetched = allPages.reduce((n, p) => n + (p.items?.length ?? 0), 0);
+      return fetched < total ? String(fetched) : undefined;
+    },
   });
 
-  const filterParams = {
-    libraryId,
-    ...(typeFilter ? { type: typeFilter } : {}),
-    ...(genreFilter ? { genre: genreFilter } : {}),
-    ...(search.yearFrom != null ? { yearFrom: search.yearFrom } : {}),
-    ...(search.yearTo != null ? { yearTo: search.yearTo } : {}),
-    ...(search.minRating != null && search.minRating > 0 ? { minRating: search.minRating } : {}),
-    sortField,
-    sortOrder,
-    limit: page * PAGE_SIZE,
-    offset: 0,
-  };
-
-  const { data: filterData, isLoading: filterLoading } = useLibraryServiceFilterMediaItems(filterParams, {
-    query: { enabled: hasServerFilters && !!libraryId },
+  // Filter endpoint uses offset/limit (no cursor support yet); we page by
+  // offset = sum(items fetched so far). Same UX as the regular path.
+  const filterKey = useMemo(
+    () =>
+      [
+        "lib-infinite-filter",
+        libraryId,
+        typeFilter ?? "",
+        genreFilter,
+        search.yearFrom ?? null,
+        search.yearTo ?? null,
+        search.minRating ?? null,
+        sortField,
+        sortOrder,
+      ] as const,
+    [libraryId, typeFilter, genreFilter, search.yearFrom, search.yearTo, search.minRating, sortField, sortOrder],
+  );
+  const filterQuery = useInfiniteQuery({
+    queryKey: filterKey,
+    enabled: hasServerFilters && !!libraryId,
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) =>
+      libraryServiceFilterMediaItems(
+        {
+          libraryId,
+          ...(typeFilter ? { type: typeFilter } : {}),
+          ...(genreFilter ? { genre: genreFilter } : {}),
+          ...(search.yearFrom != null ? { yearFrom: search.yearFrom } : {}),
+          ...(search.yearTo != null ? { yearTo: search.yearTo } : {}),
+          ...(search.minRating != null && search.minRating > 0 ? { minRating: search.minRating } : {}),
+          sortField,
+          sortOrder,
+          limit: PAGE_SIZE,
+          offset: pageParam as number,
+        },
+        signal,
+      ),
+    getNextPageParam: (last, allPages) => {
+      const fetched = allPages.reduce((n, p) => n + (p.items?.length ?? 0), 0);
+      const total = last.total ?? 0;
+      const got = last.items?.length ?? 0;
+      if (got < PAGE_SIZE || fetched >= total) return undefined;
+      return fetched;
+    },
   });
 
-  const isLoading = hasServerFilters ? filterLoading : regularLoading;
+  const activeQuery = hasServerFilters ? filterQuery : regularQuery;
+  const isLoading = activeQuery.isLoading;
 
-  const items: V1MediaItem[] = hasServerFilters
-    ? (filterData?.items ?? [])
-    : (regularData?.items ?? []);
+  const items: V1MediaItem[] = useMemo(
+    () => activeQuery.data?.pages.flatMap((p) => p.items ?? []) ?? [],
+    [activeQuery.data],
+  );
   const totalItems = hasServerFilters
-    ? (filterData?.total ?? 0)
-    : (regularData?.pagination?.totalItems ?? 0);
-  const hasMore = items.length < totalItems && !hasServerFilters;
+    ? (filterQuery.data?.pages[0]?.total ?? 0)
+    : (regularQuery.data?.pages[0]?.pagination?.totalItems ?? 0);
+  const hasMore = activeQuery.hasNextPage ?? false;
 
   const { data: metaData } = useLibraryServiceListMediaItems({
     libraryId,
@@ -439,7 +496,13 @@ function LibraryPage() {
           {isLoading && items.length === 0 ? (
             <MediaGridSkeleton />
           ) : viewMode === "grid" ? (
-            <MediaGrid onEndReached={hasMore && !hasActiveFilters ? () => setPage((p) => p + 1) : undefined}>
+            <MediaGrid
+              onEndReached={
+                hasMore && !hasLocalFilters && !activeQuery.isFetchingNextPage
+                  ? () => void activeQuery.fetchNextPage()
+                  : undefined
+              }
+            >
               {displayItems.map((item) => (
                 <MediaCard
                   key={item.id}
@@ -477,7 +540,7 @@ function LibraryPage() {
             </div>
           )}
 
-          {isLoading && items.length > 0 && (
+          {activeQuery.isFetchingNextPage && (
             <div className="mt-8">
               <MediaGridSkeleton count={6} />
             </div>
