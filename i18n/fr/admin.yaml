@@ -458,7 +458,9 @@ serverConfig:
   artworkTitle: "Téléchargement des artworks"
   artworkDesc: "Mettre en cache les affiches, fonds et autres artworks localement. Quand désactivé, le frontend dépend d'URLs CDN externes que certains navigateurs bloquent (Opaque Response Blocking sur Firefox)."
   artworkAutoDownload: "Téléchargement automatique à chaque scan"
-  artworkRestart: "Les changements s'appliquent au prochain redémarrage du serveur."
+  artworkRetryNow: "Réessayer les artworks manquants"
+  artworkRetryDesc: "Rattrape les artworks dont le fichier local est manquant. Lancé toutes les heures en arrière-plan."
+  artworkRetryDone: "Rattrapage terminé : {{succeeded}} réussis, {{failed}} échoués."
   tableHeaders:
     key: "Clé"
     value: "Valeur"

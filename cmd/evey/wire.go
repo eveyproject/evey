@@ -484,7 +484,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		rootLog.Info("opensubtitles integration enabled")
 	}
 
-	serverCfgSvc := appconfig.NewService(r.ServerCfg)
+	serverCfgSvc := appconfig.NewService(r.ServerCfg, appconfig.WithEventBus(bus))
 
 	backupSvc := appbackup.NewService(filesystem.NewBackupStore(cfg.Backup.Dir),
 		postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode),
@@ -708,6 +708,21 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 	// regardless of provider keys: catches up records inserted by any
 	// metadata path (TMDB, OMDb, manual override).
 	go deps.content.metadataCmdSvc.RetryMissingArtworksLoop(ctx, time.Hour)
+
+	// Live-reload the artwork auto-download flag on server-config change.
+	// Without this the admin toggle would only take effect on next server
+	// restart — defeats the point of having a UI switch.
+	bus.Subscribe(shared.ServerConfigChanged{}.EventName(), func(_ context.Context, e shared.Event) {
+		ev, ok := e.(shared.ServerConfigChanged)
+		if !ok || ev.Key != "artwork.auto_download" {
+			return
+		}
+		// Deletion / empty value falls back to the default (true), matching
+		// resolveAutoDownloadDefault's semantics on cold start.
+		enabled := ev.Deleted || ev.Value != "false"
+		deps.content.metadataCmdSvc.SetAutoDownload("/data", enabled)
+		slog.Info("artwork auto-download toggled via config", slog.Bool("enabled", enabled))
+	})
 	deps.library.cmdSvc.StartTrickplayWorker(ctx)
 	deps.library.cmdSvc.StartBackgroundGeneration(ctx)
 	if deps.library.introDetectionSvc != nil {

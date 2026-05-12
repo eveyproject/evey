@@ -11,6 +11,7 @@ import (
 	"time"
 
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
+	"github.com/evey-project/evey/internal/domain/metadata"
 	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
@@ -146,6 +147,61 @@ func TestArtworkAdmin_DownloadAllStatus_NotFound_404(t *testing.T) {
 	f.mux.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
+// --- POST /api/v1/admin/artworks/retry-missing ---
+
+func TestArtworkAdmin_RetryMissing_NoAuth_401(t *testing.T) {
+	f := newArtworkAdminMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artworks/retry-missing", nil)
+	w := httptest.NewRecorder()
+	f.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestArtworkAdmin_RetryMissing_NonAdmin_403(t *testing.T) {
+	f := newArtworkAdminMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artworks/retry-missing", nil)
+	req.Header.Set("Authorization", "Bearer "+f.userTok)
+	w := httptest.NewRecorder()
+	f.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+// Happy path: a record with source_url but no local_path gets downloaded
+// and reconciled. Mirrors the unit test in metadata/retry_missing_artworks_test
+// but through the HTTP surface, so we know the route is wired right.
+func TestArtworkAdmin_RetryMissing_Admin_200_DownloadsMissing(t *testing.T) {
+	f := newArtworkAdminMux(t)
+	src := "https://example.com/poster.jpg"
+	if err := f.artworkRep.Create(context.Background(), &metadata.ArtworkRecord{
+		ID: "art-1", MediaItemID: "m1", Type: "poster", Provider: "tmdb",
+		SourceURL: &src,
+	}); err != nil {
+		t.Fatalf("seed artwork: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artworks/retry-missing", nil)
+	req.Header.Set("Authorization", "Bearer "+f.adminTok)
+	w := httptest.NewRecorder()
+	f.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp struct{ Succeeded, Failed int }
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Succeeded != 1 {
+		t.Errorf("expected 1 succeeded, got %d", resp.Succeeded)
+	}
+	if resp.Failed != 0 {
+		t.Errorf("expected 0 failed, got %d", resp.Failed)
 	}
 }
 

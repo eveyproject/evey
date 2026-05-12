@@ -459,7 +459,9 @@ serverConfig:
   artworkTitle: "Artwork Downloads"
   artworkDesc: "Cache posters, backdrops and other artwork locally on the server. When off, the frontend depends on external CDN URLs that some browsers block (Firefox Opaque Response Blocking)."
   artworkAutoDownload: "Auto-download artwork on scan"
-  artworkRestart: "Changes apply on next server restart."
+  artworkRetryNow: "Retry missing artwork now"
+  artworkRetryDesc: "Backfill any artwork rows still missing a local file. Runs hourly in the background too."
+  artworkRetryDone: "Retry finished: {{succeeded}} succeeded, {{failed}} failed."
   tableHeaders:
     key: Key
     value: Value

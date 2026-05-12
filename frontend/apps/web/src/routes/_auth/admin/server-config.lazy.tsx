@@ -515,11 +515,11 @@ const INTRO_PROVIDERS_KEY = "intro_providers.enabled";
 const INTRO_TIDB_SUBMIT_KEY = "intro_providers.tidb_submit_enabled";
 const ARTWORK_AUTO_DOWNLOAD_KEY = "artwork.auto_download";
 
-// Surfaces the runtime toggle for fire-and-forget artwork download on scan.
-// Default ON — without local caching the frontend depends on external CDN
-// URLs (Amazon for OMDb), some of which Firefox blocks under Opaque Response
-// Blocking. Admins who want to save bandwidth/API quota can flip it off
-// here. Server reads this at startup; takes effect on next restart.
+// Surfaces the runtime toggle for fire-and-forget artwork download on scan,
+// plus a one-shot "retry now" button that backfills any rows still missing
+// their local copy. Default ON — without local caching the frontend depends
+// on external CDN URLs (Amazon for OMDb), some of which Firefox blocks under
+// Opaque Response Blocking.
 function ArtworkSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   const { t } = useTranslation();
   const setEntry = useSetConfigEntry();
@@ -527,6 +527,22 @@ function ArtworkSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }
   // value resolves to true to match the server's resolveAutoDownloadDefault.
   const stored = entries?.find((e) => e.key === ARTWORK_AUTO_DOWNLOAD_KEY)?.value;
   const enabled = stored !== "false";
+
+  const retry = useMutation({
+    mutationFn: () =>
+      eveyFetch<{ succeeded: number; failed: number }>({
+        url: "/api/v1/admin/artworks/retry-missing",
+        method: "POST",
+      }),
+    onSuccess: (res) =>
+      toast.success(
+        t("admin.serverConfig.artworkRetryDone", {
+          succeeded: res.succeeded,
+          failed: res.failed,
+        }),
+      ),
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   return (
     <div className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]">
@@ -545,9 +561,19 @@ function ArtworkSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }
           }
           disabled={setEntry.isPending}
         />
-        <p className="text-xs text-[var(--text-muted)]">
-          {t("admin.serverConfig.artworkRestart")}
-        </p>
+        <div className="flex items-center gap-3 mt-1">
+          <Button
+            variant="secondary"
+            onClick={() => retry.mutate()}
+            loading={retry.isPending}
+            className="text-xs"
+          >
+            {t("admin.serverConfig.artworkRetryNow")}
+          </Button>
+          <span className="text-xs text-[var(--text-muted)]">
+            {t("admin.serverConfig.artworkRetryDesc")}
+          </span>
+        </div>
         {setEntry.isPending && <Spinner size="sm" />}
       </div>
     </div>

@@ -118,6 +118,27 @@ func registerArtworkAdminRoutes(
 		}
 	}))
 
+	// POST /api/v1/admin/artworks/retry-missing — one-shot best-effort retry
+	// of artwork rows that still don't have a LocalPath. Same logic as the
+	// hourly RetryMissingArtworksLoop, exposed as an explicit admin button
+	// for when an operator just toggled auto-download back on or fixed a
+	// broken provider key and wants the cache populated now rather than
+	// waiting for the next tick.
+	mux.HandleFunc("POST /api/v1/admin/artworks/retry-missing", admin(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkRetryMissing")
+		defer span.End()
+
+		succeeded, failed := metaCmd.RetryMissingArtworks(ctx)
+		resp := map[string]any{
+			"succeeded": succeeded,
+			"failed":    failed,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			slog.Warn("artwork retry-missing: json encode", slog.Any("err", err))
+		}
+	}))
+
 	// GET /api/v1/admin/artworks/download-all/{jobId} — poll job progress.
 	mux.HandleFunc("GET /api/v1/admin/artworks/download-all/{jobId}", admin(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkDownloadAllStatus")
