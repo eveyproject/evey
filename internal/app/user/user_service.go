@@ -322,12 +322,20 @@ func (s *UserService) SetDefaultProfile(ctx context.Context, profileID shared.Pr
 // isUpdate skips the profile-count check (updating an existing profile
 // doesn't increase the count).
 func (s *UserService) checkProfileInvariants(ctx context.Context, p *user.Profile, isUpdate bool) error {
-	// Load user opportunistically to read MaxProfiles. Missing user is not
-	// fatal here (FK will reject the insert downstream); we just skip the
-	// cap check — useful for test scaffolds that don't seed users.
+	// Load user opportunistically to read MaxProfiles + IsAdmin. Missing
+	// user is not fatal for the cap check (FK will reject the insert
+	// downstream), but the admin/kids invariant is conditional on the
+	// lookup succeeding — without the user we can't tell.
 	var maxProfiles *int
 	if u, err := s.users.GetByID(ctx, p.UserID); err == nil && u != nil {
 		maxProfiles = u.MaxProfiles
+		// Invariant: an admin owner cannot have a kids profile. Filtering
+		// would otherwise gate the admin's own library, which is
+		// semantically incoherent on single-user servers and a
+		// foot-gun on multi-user ones.
+		if u.IsAdmin && p.IsKids {
+			return ErrAdminCannotBeKids
+		}
 	}
 	existing, err := s.profiles.GetByUserID(ctx, p.UserID)
 	if err != nil {

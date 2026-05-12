@@ -1030,3 +1030,45 @@ func TestDeleteProfile_PublishError_EmitsWarning(t *testing.T) {
 		t.Fatalf("expected publish warning, got: %q", read())
 	}
 }
+
+// Invariant: an admin user's profile cannot be marked IsKids=true. Without
+// this guard a single-user server (admin = only user) can end up with a
+// kids profile filtering its own library — semantically incoherent.
+func TestCreateProfile_AdminCannotBeKids(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	_ = d.users.Create(ctx, &user.User{ID: "u1", Username: "boss", IsAdmin: true})
+
+	err := d.svc.CreateProfile(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Solo", IsKids: true})
+	if !errors.Is(err, ErrAdminCannotBeKids) {
+		t.Fatalf("got %v, want ErrAdminCannotBeKids", err)
+	}
+}
+
+func TestUpdateProfile_AdminCannotFlipToKids(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	_ = d.users.Create(ctx, &user.User{ID: "u1", Username: "boss", IsAdmin: true})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Solo"})
+
+	err := d.svc.UpdateProfile(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Solo", IsKids: true})
+	if !errors.Is(err, ErrAdminCannotBeKids) {
+		t.Fatalf("got %v, want ErrAdminCannotBeKids", err)
+	}
+}
+
+// Conversely, non-admins keep their existing IsKids freedom (subject to
+// the existing kids/PIN invariants). We pin the orthogonality explicitly
+// so a future refactor doesn't accidentally apply the admin rule to all.
+func TestCreateProfile_NonAdminCanBeKids(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	_ = d.users.Create(ctx, &user.User{ID: "u1", Username: "regular"})
+	// Need a PIN-protected sibling so the kids-sibling invariant passes.
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p0", UserID: "u1", Name: "Adult", Parental: &user.ParentalSettings{PINHash: "h"}})
+
+	err := d.svc.CreateProfile(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Kid", IsKids: true})
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+}

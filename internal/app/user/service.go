@@ -17,4 +17,5 @@ var (
 	ErrKidsRequiresPIN          = errors.New("non-kids profile must have a PIN when a kids profile exists")
 	ErrCannotDeleteDefault      = errors.New("cannot delete the default profile")
 	ErrInvalidPINFormat         = errors.New("PIN must be exactly 4 digits")
+	ErrAdminCannotBeKids        = errors.New("an admin user's profile cannot be a kids profile")
 )
