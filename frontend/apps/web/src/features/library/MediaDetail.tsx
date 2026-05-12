@@ -54,10 +54,11 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const librarySlug = library ? slugify(library.name ?? "") : null;
 
   const artTokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
-  const backdropUrl = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_BACKDROP")?.url
-    ?? (item.id ? `/api/v1/media/${item.id}/artwork/backdrop${artTokenParam}` : undefined);
-  const posterUrl = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url
-    ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster${artTokenParam}` : undefined);
+  // Always route through backend endpoint — see MediaCard for the ORB rationale.
+  // The raw item.artwork[].url is the external provider URL (Amazon CDN for
+  // OMDb, etc.) which Firefox blocks under Opaque Response Blocking.
+  const backdropUrl = item.id ? `/api/v1/media/${item.id}/artwork/backdrop${artTokenParam}` : undefined;
+  const posterUrl = item.id ? `/api/v1/media/${item.id}/artwork/poster${artTokenParam}` : undefined;
 
   const posterSrcSet = useMemo(() => {
     if (!posterUrl) return undefined;

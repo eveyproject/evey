@@ -96,13 +96,15 @@ export const MediaCard = memo(function MediaCard({
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => { setWatchedLocal(false); toast.success(t("media.contextMenu.markedUnwatched")); invalidateItem(); } } });
 
   const poster = useMemo(() => {
-    const artworkPosterUrl = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url ?? null;
-    return (
-      posterSrc
-      ?? artworkPosterUrl
-      ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster` : null)
-    );
-  }, [posterSrc, item.artwork, item.id]);
+    // Always route through the backend endpoint when we know the media id —
+    // it serves the local file when present, falls back to a 302 to the
+    // external source only when local is missing. Using item.artwork[].url
+    // directly leaks the raw provider URL (Amazon CDN for OMDb), which
+    // Firefox's Opaque Response Blocking refuses to render as <img> due to
+    // cross-origin opacity. The backend endpoint is same-origin, no ORB.
+    return posterSrc
+      ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster` : null);
+  }, [posterSrc, item.id]);
 
   const posterSrcSet = useMemo(() => {
     if (!poster) return undefined;
