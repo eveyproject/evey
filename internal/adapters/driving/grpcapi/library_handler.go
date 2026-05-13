@@ -715,10 +715,12 @@ func nextMediaItemsCursor(items []*library.MediaItem, filter library.ListMediaIt
 func mediaItemSortValue(m *library.MediaItem, sortKey string) string {
 	switch sortKey {
 	case "title", "sort_title":
-		if m.SortTitle != "" {
-			return m.SortTitle
-		}
-		return m.Title
+		// Mirror the SQL comparison column exactly. Falling back to
+		// m.Title here would make the cursor's SortValue diverge from
+		// what the SQL keyset clause sees in `mi.sort_title`, breaking
+		// pagination on every row where sort_title is empty (NULL-ish
+		// rows from older scans before scan-title was populated).
+		return m.SortTitle
 	case "added_at", "date_added":
 		return m.AddedAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
 	case "year":
