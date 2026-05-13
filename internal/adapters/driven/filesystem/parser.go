@@ -160,7 +160,11 @@ func detectMetadata(info *ParsedInfo, parts []string) int {
 		if info.Season == nil && tryExtractEpisode(info, raw, i, &firstMetaIdx) {
 			continue
 		}
-		if info.Year == nil && tryExtractYear(info, raw, i, &firstMetaIdx) {
+		// No `info.Year == nil` guard: a later year token in the filename
+		// is more likely the release year than a leading one that's part
+		// of the title (e.g. `1917.2019.1080p` → title=1917, year=2019).
+		// tryExtractYear handles the overwrite.
+		if tryExtractYear(info, raw, i, &firstMetaIdx) {
 			continue
 		}
 		if info.Language == "" && tryExtractLanguage(info, lower, i, &firstMetaIdx) {
@@ -195,7 +199,12 @@ func tryExtractYear(info *ParsedInfo, raw string, idx int, firstMeta *int) bool 
 	if m := reYear.FindStringSubmatch(raw); len(m) == 2 {
 		y, _ := strconv.Atoi(m[1])
 		info.Year = &y
-		if idx < *firstMeta {
+		// A year at position 0 is almost always part of the title itself
+		// ("2001 A Space Odyssey", "300", "1917"). Anchoring firstMeta=0
+		// here would truncate the title to just that token and feed bogus
+		// queries to TMDB. Only treat a year as a metadata boundary when
+		// some content precedes it.
+		if idx > 0 && idx < *firstMeta {
 			*firstMeta = idx
 		}
 		return true

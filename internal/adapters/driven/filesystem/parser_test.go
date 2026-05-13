@@ -213,6 +213,27 @@ func TestParse_TitleIsYear_Serie1883(t *testing.T) {
 	assert.Equal(t, "fr", info.Language)
 }
 
+// Real-world regression: a year token at the very start of the filename
+// must NOT be treated as a metadata boundary when more title words follow.
+// Otherwise the parser drops the rest of the title and TMDB matches the
+// wrong movie ("2001 L'odyssée De L'espace" → "Master Q 2001").
+func TestParse_LeadingYearKeepsTitle(t *testing.T) {
+	info := ParseFilename("2001 L'odyssée De L'espace - 1080p.mkv")
+	assert.Equal(t, "movie", info.Type)
+	assert.Equal(t, "2001 L'odyssée De L'espace", info.Title)
+	require.NotNil(t, info.Year)
+	assert.Equal(t, 2001, *info.Year)
+}
+
+// Inverse case: when the title-like leading year is followed by an actual
+// release year, the later year wins and the title sticks to the lead token.
+func TestParse_LeadingYearOverwrittenByLater(t *testing.T) {
+	info := ParseFilename("1999.2024.1080p.mkv")
+	assert.Equal(t, "1999", info.Title)
+	require.NotNil(t, info.Year)
+	assert.Equal(t, 2024, *info.Year)
+}
+
 // --- Audio ---
 
 func TestParse_AudioFormats(t *testing.T) {
