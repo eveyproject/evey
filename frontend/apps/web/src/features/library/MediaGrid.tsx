@@ -67,11 +67,26 @@ export function MediaGrid({ children, isLoading, onEndReached }: MediaGridProps)
     );
   }
 
+  // Defer mount until scrollParent is resolved. Mounting VirtuosoGrid
+  // with customScrollParent=undefined then swapping to the real element
+  // leaves react-virtuoso's internal scroller stale (endReached stops
+  // firing, items get clipped). A skeleton placeholder covers the
+  // single-tick delay before AuthLayout's main-content ref resolves.
+  if (!scrollParent) {
+    return (
+      <div className={GRID_CLASS}>
+        {Array.from({ length: 12 }).map((_, i) => (
+          <SkeletonCard key={i} />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <VirtuosoGrid
-      customScrollParent={scrollParent ?? undefined}
+      customScrollParent={scrollParent}
       totalCount={items.length}
-      overscan={200}
+      overscan={600}
       components={gridComponents}
       itemContent={(index) => items[index]}
       endReached={onEndReached}

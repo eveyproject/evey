@@ -497,11 +497,14 @@ function LibraryPage() {
             <MediaGridSkeleton />
           ) : viewMode === "grid" ? (
             <MediaGrid
-              onEndReached={
-                hasMore && !hasLocalFilters && !activeQuery.isFetchingNextPage
-                  ? () => void activeQuery.fetchNextPage()
-                  : undefined
-              }
+              onEndReached={() => {
+                // Stable callback (always defined). Gating inside the body
+                // avoids react-virtuoso losing the prop reference mid-fetch,
+                // which used to leave the user stuck on page 1.
+                if (hasMore && !hasLocalFilters && !activeQuery.isFetchingNextPage) {
+                  void activeQuery.fetchNextPage();
+                }
+              }}
             >
               {displayItems.map((item) => (
                 <MediaCard
