@@ -1,6 +1,7 @@
 package library
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -98,4 +99,41 @@ func TestNormalizeSortTitle_KeysetOrdering(t *testing.T) {
 		}
 	}
 	assert.Equal(t, expected, sorted)
+}
+
+// Concurrent callers must produce identical, correct results. Regression
+// guard for the data race that landed in CI when `transform.Chain` was
+// stored at package scope (NFD/NFC chain holds mutable buffers). Run
+// with `-race` to fail loudly if the stripDiacritics chain ever leaks
+// back to a shared instance.
+func TestNormalizeSortTitle_ConcurrentSafe(t *testing.T) {
+	t.Parallel()
+
+	type pair struct{ in, want string }
+	cases := []pair{
+		{"Les Âmes Vagabondes", "ames vagabondes"},
+		{"L'Odyssée", "odyssee"},
+		{"The Matrix", "matrix"},
+		{"2001: A Space Odyssey", "002001: a space odyssey"},
+		{"Der Untergang", "untergang"},
+		{"Naïveté", "naivete"},
+	}
+
+	const workers = 32
+	const iters = 200
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func() {
+			defer wg.Done()
+			for i := 0; i < iters; i++ {
+				c := cases[i%len(cases)]
+				if got := NormalizeSortTitle(c.in); got != c.want {
+					t.Errorf("NormalizeSortTitle(%q) = %q, want %q", c.in, got, c.want)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }

@@ -41,13 +41,18 @@ var leadingNumberRe = regexp.MustCompile(`^(\d{1,6})`)
 // removal upstream.
 var whitespaceRe = regexp.MustCompile(`\s+`)
 
-// stripDiacritics removes combining marks via NFD decomposition, so
-// "L'Odyssée" → "L'Odyssee". Unicode-aware; doesn't touch base letters.
-var stripDiacritics = transform.Chain(
-	norm.NFD,
-	runes.Remove(runes.In(unicode.Mn)),
-	norm.NFC,
-)
+// newDiacriticsStripper builds a fresh transform chain (NFD → drop
+// combining marks → NFC). The chain holds mutable state across Reset/
+// Transform calls inside transform.String, so a package-level instance
+// would race under concurrent use. Allocate per call — cheap, and only
+// runs on title insert/update or backfill batches.
+func newDiacriticsStripper() transform.Transformer {
+	return transform.Chain(
+		norm.NFD,
+		runes.Remove(runes.In(unicode.Mn)),
+		norm.NFC,
+	)
+}
 
 // NormalizeSortTitle derives the sortable key from a display title. Aim:
 // alphabetical browsing matches user expectations — "The Matrix" lands
@@ -68,7 +73,7 @@ func NormalizeSortTitle(title string) string {
 	if t == "" {
 		return ""
 	}
-	if normalized, _, err := transform.String(stripDiacritics, t); err == nil {
+	if normalized, _, err := transform.String(newDiacriticsStripper(), t); err == nil {
 		t = normalized
 	}
 	t = strings.ToLower(t)
