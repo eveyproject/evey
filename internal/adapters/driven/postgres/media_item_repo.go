@@ -79,6 +79,14 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 	if scanTitle == "" {
 		scanTitle = item.Title
 	}
+	// sort_title drives alphabetical browsing and the keyset cursor.
+	// Derive from Title whenever the caller didn't provide one — most
+	// scan/enrich call sites still leave it empty, which used to make
+	// the whole library sort by UUID order and broke pagination.
+	sortTitle := item.SortTitle
+	if sortTitle == "" {
+		sortTitle = library.NormalizeSortTitle(item.Title)
+	}
 	var parentID *string
 	if item.ParentID != "" {
 		parentID = &item.ParentID
@@ -90,7 +98,7 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 			 overview, tagline, index_number, added_at, updated_at)
 			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
 			item.ID, item.LibraryID, parentID, item.Type, item.Title, scanTitle,
-			item.SortTitle, item.OriginalTitle, item.Overview, item.Tagline,
+			sortTitle, item.OriginalTitle, item.Overview, item.Tagline,
 			item.IndexNumber, item.AddedAt, item.UpdatedAt,
 		); err != nil {
 			return fmt.Errorf("insert media_items: %w", err)
@@ -128,13 +136,21 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	if item.ParentID != "" {
 		parentID = &item.ParentID
 	}
+	// Refresh sort_title from Title when the caller didn't override it.
+	// Enrichment renames titles (TMDB FR translation, etc.), so the
+	// sort key must follow — otherwise we lock in the original filename
+	// derived title forever.
+	sortTitle := item.SortTitle
+	if sortTitle == "" {
+		sortTitle = library.NormalizeSortTitle(item.Title)
+	}
 
 	err := r.withMediaItemTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
 			`UPDATE media_items SET library_id=$1, parent_id=$2, type=$3, title=$4, sort_title=$5,
 			 original_title=$6, overview=$7, tagline=$8, index_number=$9, updated_at=$10
 			 WHERE id=$11`,
-			item.LibraryID, parentID, item.Type, item.Title, item.SortTitle, item.OriginalTitle,
+			item.LibraryID, parentID, item.Type, item.Title, sortTitle, item.OriginalTitle,
 			item.Overview, item.Tagline, item.IndexNumber, item.UpdatedAt, item.ID,
 		)
 		if err != nil {
@@ -279,6 +295,78 @@ func (r *MediaItemRepository) recomputeSeriesLatestChildAddedAtFromSeason(ctx co
 		return fmt.Errorf("recompute series latest_child_added_at: %w", err)
 	}
 	return nil
+}
+
+// BackfillEmptySortTitles fills the sort_title column for every row where
+// it is currently empty, computing the value from the existing title via
+// library.NormalizeSortTitle. Returns the number of rows touched.
+//
+// Existed because pre-fix scans inserted media_items with sort_title='' —
+// the alphabetical sort and the keyset cursor both rely on this column,
+// so an empty value silently broke pagination on production libraries.
+// Idempotent: once a row has a non-empty sort_title, this is a no-op.
+func (r *MediaItemRepository) BackfillEmptySortTitles(ctx context.Context) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.BackfillEmptySortTitles")
+	defer span.End()
+
+	const batchSize = 500
+	var totalUpdated int
+
+	for {
+		rows, err := r.db.QueryContext(ctx,
+			`SELECT id, title FROM media_items WHERE sort_title = '' AND title <> '' LIMIT $1`,
+			batchSize,
+		)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return totalUpdated, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles select: %w", err)
+		}
+
+		type pair struct{ id, sortTitle string }
+		var batch []pair
+		for rows.Next() {
+			var id, title string
+			if err := rows.Scan(&id, &title); err != nil {
+				rows.Close()
+				return totalUpdated, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles scan: %w", err)
+			}
+			batch = append(batch, pair{id: id, sortTitle: library.NormalizeSortTitle(title)})
+		}
+		if err := rows.Close(); err != nil {
+			return totalUpdated, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles close: %w", err)
+		}
+		if len(batch) == 0 {
+			break
+		}
+
+		// Single bulk UPDATE per batch via UNNEST + FROM. Cheaper than
+		// N round-trips and stays within one transaction for atomicity
+		// of the batch.
+		ids := make([]string, len(batch))
+		sorts := make([]string, len(batch))
+		for i, p := range batch {
+			ids[i] = p.id
+			sorts[i] = p.sortTitle
+		}
+		res, err := r.db.ExecContext(ctx,
+			`UPDATE media_items SET sort_title = data.sort_title
+			 FROM (SELECT UNNEST($1::text[]) AS id, UNNEST($2::text[]) AS sort_title) AS data
+			 WHERE media_items.id = data.id AND media_items.sort_title = ''`,
+			pq.Array(ids), pq.Array(sorts),
+		)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return totalUpdated, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles update: %w", err)
+		}
+		n, _ := res.RowsAffected()
+		totalUpdated += int(n)
+		if len(batch) < batchSize {
+			break
+		}
+	}
+	return totalUpdated, nil
 }
 
 var _ library.MediaItemRepository = (*MediaItemRepository)(nil)

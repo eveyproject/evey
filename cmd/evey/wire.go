@@ -699,6 +699,27 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 
 	rootLog.Info("periodic scan started for all libraries", slog.Duration("interval", cfg.Library.PeriodicScanInterval))
 	deps.library.cmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval, nil)
+
+	// One-shot async backfill of media_items.sort_title for rows scanned
+	// before the column was populated. Idempotent — exits cheaply once
+	// every row has a non-empty value. Async so we never block boot on
+	// it; the only consumer (the lib listing keyset cursor) tolerates
+	// a brief window of UUID-sorted results.
+	go func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				rootLog.Error("sort_title backfill panic", slog.Any("error", rec))
+			}
+		}()
+		n, err := r.MediaItem.BackfillEmptySortTitles(ctx)
+		if err != nil {
+			rootLog.Warn("sort_title backfill", slog.Any("err", err))
+			return
+		}
+		if n > 0 {
+			rootLog.Info("sort_title backfill complete", slog.Int("rows_updated", n))
+		}
+	}()
 	if infra.tmdbKey != "" {
 		deps.content.metadataCmdSvc.StartEnrichmentWorker(ctx)
 	}
