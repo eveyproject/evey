@@ -132,6 +132,12 @@ export function HLSPlayer({
       url = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, 0);
     }
     if (import.meta.env.DEV) console.log("[Cast] handleCastToggle — url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
+    // Remember the exact negotiated URL so handleCastSeek can reload at a
+    // new startSec without reconstructing it (the server picks /transcode
+    // vs /hls/master.m3u8 + codec params during negotiation — rebuilding
+    // by hand would diverge).
+    castBaseUrlRef.current = url;
+    castTranscodeOffsetRef.current = 0;
     startCast(url, title);
   }, [castConnected, stopCast, startCast, streamInfo.directPlayUrl, title, mediaId, currentTrackIndex]);
 
@@ -176,6 +182,9 @@ export function HLSPlayer({
   // built at startSec=X, so the device's reported currentTime is local to
   // that stream and the absolute position is castTranscodeOffset + it.
   const castTranscodeOffsetRef = useRef(0);
+  // The exact URL handed to the cast device, captured at cast start so a
+  // seek can reload it at a new startSec without re-deriving the endpoint.
+  const castBaseUrlRef = useRef("");
 
   const isDirectPlay = streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY";
   const isDirectStream = streamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM";
@@ -235,23 +244,27 @@ export function HLSPlayer({
   seekRef.current = handleSeekRequest;
 
   // Cast seek. Direct-play casts stream a complete file the device can
-  // seek natively. HLS casts (transcode or direct-stream remux) play a
-  // progressively-built manifest, so seeking outside its window means
-  // rebuilding the URL at startSec=target and reloading the media on the
-  // device — same idea as setTranscodeStartTime for the local player.
-  // Returns false so PlayerControls falls back to a local seek when there
-  // is no live cast session to reload onto.
+  // seek natively. HLS / remux casts play a progressively-built manifest,
+  // so seeking outside its window means reloading the stream at
+  // startSec=target on the device — same idea as setTranscodeStartTime
+  // for the local player. We reuse the exact negotiated cast URL and only
+  // overwrite startSec, so the endpoint (/transcode vs /hls/master.m3u8)
+  // and codec params stay whatever the server picked.
   const handleCastSeek = useCallback((absoluteTimeSec: number): boolean => {
     if (isDirectPlay) {
       return castSeek(absoluteTimeSec);
     }
-    const url = buildTranscodeHlsUrl(
-      mediaId, streamTokenRef.current, currentTrackIndex, selectedBurnInTrack, absoluteTimeSec,
-    );
+    const base = castBaseUrlRef.current;
+    if (!base) {
+      // No captured URL (shouldn't happen once casting) — best effort.
+      return castSeek(absoluteTimeSec);
+    }
+    const u = new URL(base, window.location.origin);
+    u.searchParams.set("startSec", String(Math.floor(absoluteTimeSec)));
     castTranscodeOffsetRef.current = absoluteTimeSec;
-    void castReload(url, title);
+    void castReload(`${u.pathname}?${u.searchParams.toString()}`, title);
     return true;
-  }, [isDirectPlay, castSeek, castReload, mediaId, currentTrackIndex, selectedBurnInTrack, title]);
+  }, [isDirectPlay, castSeek, castReload, title]);
 
   usePlayerKeyboard({
     videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef,
