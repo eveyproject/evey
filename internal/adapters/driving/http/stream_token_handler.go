@@ -35,7 +35,16 @@ func streamTokenHandler(tokenGen *auth.JWTGenerator, store *appmedia.StreamToken
 			return
 		}
 
-		token := store.Create(claims.UserID, mediaID)
+		// Cast playback gets a long-lived token: the Chromecast fetches
+		// segments itself and can't re-validate the short sliding token
+		// the way the local player's xhrSetup does, so the 5-minute
+		// default expires during its buffer-quiet stretches.
+		var token string
+		if r.URL.Query().Get("purpose") == "cast" {
+			token = store.CreateWithTTL(claims.UserID, mediaID, appmedia.CastStreamTokenTTL)
+		} else {
+			token = store.Create(claims.UserID, mediaID)
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]string{

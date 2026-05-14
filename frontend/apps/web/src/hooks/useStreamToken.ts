@@ -8,7 +8,10 @@ interface StreamTokenResponse {
 
 export interface StreamTokenResult {
   streamToken: string | null;
-  fetchStreamToken: (mediaId: string) => Promise<string>;
+  // opts.cast requests a long-lived token for Chromecast playback — the
+  // device fetches segments on its own and can't refresh the short
+  // sliding token the way the local player's xhrSetup does.
+  fetchStreamToken: (mediaId: string, opts?: { cast?: boolean }) => Promise<string>;
   isLoading: boolean;
 }
 
@@ -17,15 +20,19 @@ export function useStreamToken(): StreamTokenResult {
   const [isLoading, setIsLoading] = useState(false);
   const tokenRef = useRef<string | null>(null);
 
-  const fetchStreamToken = useCallback(async (mediaId: string): Promise<string> => {
+  const fetchStreamToken = useCallback(async (mediaId: string, opts?: { cast?: boolean }): Promise<string> => {
     setIsLoading(true);
     try {
       const res = await eveyFetch<StreamTokenResponse>({
-        url: `/api/v1/media/${mediaId}/stream-token`,
+        url: `/api/v1/media/${mediaId}/stream-token${opts?.cast ? "?purpose=cast" : ""}`,
         method: "POST",
       });
-      tokenRef.current = res.token;
-      setStreamToken(res.token);
+      // A cast token is a parallel, longer-lived token — don't clobber
+      // the local player's streamToken state with it.
+      if (!opts?.cast) {
+        tokenRef.current = res.token;
+        setStreamToken(res.token);
+      }
       return res.token;
     } finally {
       setIsLoading(false);

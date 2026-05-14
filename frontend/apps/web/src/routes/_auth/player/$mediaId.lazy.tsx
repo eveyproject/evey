@@ -122,6 +122,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   }, [stopSession]);
 
   const handleStreamTokenRefresh = useCallback(() => fetchStreamToken(mediaId), [fetchStreamToken, mediaId]);
+  const handleCastTokenRequest = useCallback(() => fetchStreamToken(mediaId, { cast: true }), [fetchStreamToken, mediaId]);
 
   const [syncState, syncControls] = useSyncPlay({
     onPlay: (positionMs) => {
@@ -316,6 +317,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             sessionId={sessionId}
             streamToken={streamToken}
             onStreamTokenRefresh={handleStreamTokenRefresh}
+            onCastTokenRequest={handleCastTokenRequest}
             mediaId={mediaId}
             mediaType={mediaItem?.type}
             startPositionMs={startPositionMs}

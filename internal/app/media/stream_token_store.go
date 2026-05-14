@@ -12,6 +12,13 @@ import (
 const (
 	DefaultStreamTokenTTL = 5 * time.Minute
 	cleanupInterval       = 1 * time.Minute
+	// CastStreamTokenTTL is the renewal window for tokens handed to a
+	// Chromecast. The device fetches HLS segments on its own and buffers
+	// minutes ahead, then goes quiet — with the 5-minute default it would
+	// expire mid-film during a buffer-quiet stretch (the local player
+	// dodges this by re-validating on every xhr, the cast can't). 12h
+	// comfortably covers any single playback session.
+	CastStreamTokenTTL = 12 * time.Hour
 )
 
 type StreamTokenStore struct {
@@ -33,13 +40,24 @@ func NewStreamTokenStore(ttl time.Duration) *StreamTokenStore {
 }
 
 func (s *StreamTokenStore) Create(userID, mediaItemID string) string {
+	return s.CreateWithTTL(userID, mediaItemID, s.ttl)
+}
+
+// CreateWithTTL mints a token with an explicit sliding TTL. Used for cast
+// playback, where the short default would expire during the Chromecast's
+// buffer-quiet stretches.
+func (s *StreamTokenStore) CreateWithTTL(userID, mediaItemID string, ttl time.Duration) string {
+	if ttl <= 0 {
+		ttl = s.ttl
+	}
 	token := uuid.New().String()
 	s.tokens.Store(token, &shared.StreamToken{
 		Token:       token,
 		UserID:      shared.UserID(userID),
 		MediaItemID: shared.MediaItemID(mediaItemID),
 		Scope:       "stream",
-		ExpiresAt:   time.Now().Add(s.ttl),
+		ExpiresAt:   time.Now().Add(ttl),
+		TTL:         ttl,
 	})
 	return token
 }
@@ -59,7 +77,14 @@ func (s *StreamTokenStore) Validate(token, mediaItemID string) (*shared.StreamTo
 	if mediaItemID != "" && st.MediaItemID != shared.MediaItemID(mediaItemID) {
 		return nil, false
 	}
-	st.ExpiresAt = time.Now().Add(s.ttl)
+	// Slide by the token's own TTL, not the store default — otherwise a
+	// long-lived cast token would be downgraded to the 5-minute window
+	// on its first segment fetch.
+	ttl := st.TTL
+	if ttl <= 0 {
+		ttl = s.ttl
+	}
+	st.ExpiresAt = time.Now().Add(ttl)
 	return st, true
 }
 

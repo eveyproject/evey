@@ -44,6 +44,10 @@ interface HLSPlayerProps {
   mediaType?: string;
   streamToken: string;
   onStreamTokenRefresh: () => Promise<string>;
+  // Mints a long-lived token for Chromecast playback (the device can't
+  // re-validate the short sliding token mid-stream). Optional — without
+  // it the cast falls back to the regular session token.
+  onCastTokenRequest?: () => Promise<string>;
   startPositionMs?: number;
   knownDurationMs?: number;
   filePath?: string;
@@ -70,6 +74,7 @@ export function HLSPlayer({
   mediaType,
   streamToken,
   onStreamTokenRefresh,
+  onCastTokenRequest,
   startPositionMs = 0,
   knownDurationMs,
   filePath,
@@ -116,7 +121,7 @@ export function HLSPlayer({
     castPlayback, startCast, stopCast, castPlayPause, castSeek, castReload, castSetVolume, castSetMuted,
   } = useDLNA();
 
-  const handleCastToggle = useCallback(() => {
+  const handleCastToggle = useCallback(async () => {
     if (castConnected) {
       stopCast();
       return;
@@ -131,6 +136,21 @@ export function HLSPlayer({
       // Transcode — use HLS master playlist
       url = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, 0);
     }
+    // Swap in a long-lived cast token. The Chromecast fetches segments on
+    // its own and buffers minutes ahead, then goes quiet — the regular
+    // 5-minute sliding token expires during those quiet stretches and the
+    // cast drops mid-film. The local player dodges this via xhrSetup; the
+    // device can't, so it needs a token that outlives the whole session.
+    if (onCastTokenRequest) {
+      try {
+        const castTok = await onCastTokenRequest();
+        const u = new URL(url, window.location.origin);
+        u.searchParams.set("token", castTok);
+        url = `${u.pathname}?${u.searchParams.toString()}`;
+      } catch (err) {
+        console.warn("[Cast] cast token request failed, using session token:", err);
+      }
+    }
     if (import.meta.env.DEV) console.log("[Cast] handleCastToggle — url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
     // Remember the exact negotiated URL so handleCastSeek can reload at a
     // new startSec without reconstructing it (the server picks /transcode
@@ -139,7 +159,7 @@ export function HLSPlayer({
     castBaseUrlRef.current = url;
     castTranscodeOffsetRef.current = 0;
     startCast(url, title);
-  }, [castConnected, stopCast, startCast, streamInfo.directPlayUrl, title, mediaId, currentTrackIndex]);
+  }, [castConnected, stopCast, startCast, streamInfo.directPlayUrl, title, mediaId, currentTrackIndex, onCastTokenRequest]);
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const anyPanelOpenRef = useRef(false);

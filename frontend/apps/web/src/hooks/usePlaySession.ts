@@ -15,7 +15,7 @@ export interface PlaySessionResult {
   streamInfo: V1StreamInfo | null;
   sessionId: string | null;
   streamToken: string | null;
-  fetchStreamToken: (mediaId: string) => Promise<string>;
+  fetchStreamToken: (mediaId: string, opts?: { cast?: boolean }) => Promise<string>;
   isLoading: boolean;
   isError: boolean;
   progress: V1WatchProgress | null;
