@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { eveyFetch } from "@evey/api";
+import { toast } from "@evey/store";
+import i18n from "@/i18n";
 
 const CAST_APP_ID = "CC1AD845";
 const TAG = "[Cast]";
@@ -125,6 +127,10 @@ export function useDLNA() {
   const chromecastReady = useRef(false);
   const controllerRef = useRef<any>(null);
   const remotePlayerRef = useRef<any>(null);
+  // Whether the Google Cast sender SDK actually initialized. False on
+  // Firefox/Safari/mobile (no SDK) — the UI uses this to hide the cast
+  // button for users who have no working native-cast path.
+  const [castSdkReady, setCastSdkReady] = useState(sdkReady);
 
   useEffect(() => {
     ensureCastSdk();
@@ -138,6 +144,7 @@ export function useDLNA() {
 
     const onReady = () => {
       chromecastReady.current = true;
+      setCastSdkReady(true);
       const ctx = window.cast?.framework?.CastContext?.getInstance();
       if (!ctx) return;
       ctxRef = ctx;
@@ -329,7 +336,14 @@ export function useDLNA() {
         url: "/api/v1/dlna/renderers",
         method: "GET",
       })) ?? [];
-      if (renderers.length === 0) return;
+      if (renderers.length === 0) {
+        // Server-side discovery found nothing on the server's LAN. Tell
+        // the user instead of failing silently — the most common cause
+        // is the evey container being on a Docker bridge network where
+        // mDNS/SSDP multicast can't reach the LAN.
+        toast.error(i18n.t("player.cast.noDevices"));
+        return;
+      }
       const renderer = renderers[0];
       await eveyFetch({
         url: "/api/v1/dlna/play",
@@ -472,6 +486,7 @@ export function useDLNA() {
 
   return {
     ...state,
+    castSdkReady,
     castPlayback: playback,
     startCast,
     stopCast,

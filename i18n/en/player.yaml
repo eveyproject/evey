@@ -121,3 +121,5 @@ streamInfo:
   language: Language
   sampleRate: Sample rate
   transcodeReasons: Transcode reasons
+cast:
+  noDevices: No cast devices found on the server's network.

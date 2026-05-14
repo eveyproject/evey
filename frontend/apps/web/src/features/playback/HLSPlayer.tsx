@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@evey/store";
 import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun } from "lucide-react";
 import Hls from "hls.js";
 import type { V1StreamInfo } from "@evey/api";
@@ -117,9 +118,16 @@ export function HLSPlayer({
 
   const selectedBurnInTrack = getSelectedBurnInTrack(currentSubtitle, subtitleStreams);
   const {
-    available: castAvailable, connected: castConnected, deviceName: castDeviceName,
+    castSdkReady, connected: castConnected, deviceName: castDeviceName,
     castPlayback, startCast, stopCast, castPlayPause, castSeek, castReload, castSetVolume, castSetMuted,
   } = useDLNA();
+  // Cast button visibility. The native Google Cast SDK (castSdkReady)
+  // works for any user on Chrome/Chromium. The server-side DLNA/cast
+  // path only discovers devices on the *server's* LAN, so it's only
+  // meaningful for the admin (the operator, guaranteed-local) — exposing
+  // it to remote users just yields a confusing empty device list.
+  const isAdmin = useAuthStore((s) => s.isAdmin);
+  const castAvailable = castSdkReady || isAdmin;
 
   const handleCastToggle = useCallback(async () => {
     if (castConnected) {
