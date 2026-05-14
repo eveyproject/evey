@@ -383,15 +383,22 @@ export function useDLNA() {
     controllerRef.current?.playOrPause();
   }, []);
 
-  const castSeek = useCallback((timeSec: number) => {
+  // Returns true only when the seek was actually handed to a live cast
+  // session. A false return lets the caller fall back to the local
+  // player — critical when a cast session dies uncleanly (no
+  // SESSION_ENDED event) and leaves `connected`/`isMediaLoaded` stuck
+  // true: without the fallback every local seek is silently swallowed
+  // by this dead RemotePlayer.
+  const castSeek = useCallback((timeSec: number): boolean => {
     const rp = remotePlayerRef.current;
     console.log(TAG, "castSeek:", timeSec, "canSeek:", rp?.canSeek, "currentTime:", rp?.currentTime, "duration:", rp?.duration);
     if (rp && rp.canSeek) {
       rp.currentTime = timeSec;
       controllerRef.current?.seek();
-    } else {
-      console.warn(TAG, "castSeek: cannot seek — canSeek:", rp?.canSeek);
+      return true;
     }
+    console.warn(TAG, "castSeek: cannot seek — canSeek:", rp?.canSeek);
+    return false;
   }, []);
 
   const castSetVolume = useCallback((level: number) => {

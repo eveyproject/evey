@@ -36,7 +36,7 @@ interface PlayerControlsProps {
   castPlayback?: { playerState: string | null; currentTime: number; duration: number; isPaused: boolean; isMediaLoaded: boolean; volume: number; isMuted: boolean };
   onCastToggle?: () => void;
   onCastPlayPause?: () => void;
-  onCastSeek?: (timeSec: number) => void;
+  onCastSeek?: (timeSec: number) => boolean;
   onCastSetVolume?: (level: number) => void;
   onCastSetMuted?: (muted: boolean) => void;
 }
@@ -157,11 +157,13 @@ export function PlayerControls({
     else video.pause();
   }
 
-  function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
-    const targetAbsolute = Number(e.target.value);
-    if (isCasting && onCastSeek) {
-      onCastSeek(targetAbsolute);
-    } else if (onSeekRequest) {
+  // onCastSeek returns false when the cast session can't actually seek
+  // (dead/stale session). In that case we must fall through to the
+  // local player — otherwise a Chromecast that bugged out leaves every
+  // seek silently swallowed.
+  function seekTo(targetAbsolute: number) {
+    if (isCasting && onCastSeek && onCastSeek(targetAbsolute)) return;
+    if (onSeekRequest) {
       onSeekRequest(targetAbsolute);
     } else {
       const video = videoRef.current;
@@ -169,18 +171,16 @@ export function PlayerControls({
     }
   }
 
+  function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
+    seekTo(Number(e.target.value));
+  }
+
   function skipForward() {
-    const target = Math.min(effectiveDuration, absoluteTime + skipForwardSeconds);
-    if (isCasting && onCastSeek) onCastSeek(target);
-    else if (onSeekRequest) onSeekRequest(target);
-    else if (videoRef.current) videoRef.current.currentTime += skipForwardSeconds;
+    seekTo(Math.min(effectiveDuration, absoluteTime + skipForwardSeconds));
   }
 
   function skipBackward() {
-    const target = Math.max(0, absoluteTime - skipBackwardSeconds);
-    if (isCasting && onCastSeek) onCastSeek(target);
-    else if (onSeekRequest) onSeekRequest(target);
-    else if (videoRef.current) videoRef.current.currentTime -= skipBackwardSeconds;
+    seekTo(Math.max(0, absoluteTime - skipBackwardSeconds));
   }
 
   const prevEpisode = (() => {
