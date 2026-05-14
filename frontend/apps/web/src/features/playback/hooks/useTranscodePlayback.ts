@@ -118,6 +118,16 @@ export function useTranscodePlayback({
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       setHlsLevels(hls.levels.map((l) => l.height));
+      // Pin the playhead to local 0 = absolute transcodeOffset. The server
+      // already transcodes from `offset`, so the stream's t=0 IS the seek
+      // target. Without this, a backward seek that restarts the transcode
+      // leaves the <video> element holding its previous (forward) local
+      // currentTime — hls.js only honours startPosition when currentTime
+      // is ~0, so it keeps the stale value and the playhead jumps forward
+      // into already-transcoded content instead of landing on the seek.
+      if (video.currentTime !== 0) {
+        video.currentTime = 0;
+      }
       // Browsers block unmuted autoplay until the user has interacted with
       // the page. Fall back to a muted start so playback begins; the player
       // UI surfaces the muted state and the user unmutes with one click.
