@@ -4,6 +4,24 @@ import { eveyFetch } from "@evey/api";
 const CAST_APP_ID = "CC1AD845";
 const TAG = "[Cast]";
 
+// loadChromecastMedia builds a MediaInfo + LoadRequest and hands it to an
+// existing Cast session. Shared by the initial startCast and by castReload
+// (the seek-by-reload path) so the HLS/mp4 content-type handling stays in
+// one place.
+async function loadChromecastMedia(session: cast.framework.CastSession, absoluteUrl: string, title?: string): Promise<void> {
+  const chrome = window.chrome;
+  const isHls = absoluteUrl.includes("m3u8");
+  const contentType = isHls ? "application/x-mpegurl" : "video/mp4";
+  const mediaInfo = new chrome.cast.media.MediaInfo(absoluteUrl, contentType);
+  mediaInfo.streamType = chrome.cast.media.StreamType.BUFFERED;
+  if (isHls) mediaInfo.hlsSegmentFormat = chrome.cast.media.HlsSegmentFormat.TS;
+  mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
+  mediaInfo.metadata.title = title ?? "";
+  const loadRequest = new chrome.cast.media.LoadRequest(mediaInfo);
+  loadRequest.autoplay = true;
+  await session.loadMedia(loadRequest);
+}
+
 interface DLNARenderer {
   id: string;
   name: string;
@@ -243,7 +261,6 @@ export function useDLNA() {
     if (chromecastReady.current) {
       try {
         const cast = window.cast;
-        const chrome = window.chrome;
         const ctx = cast.framework.CastContext.getInstance();
 
         let session = ctx.getCurrentSession();
@@ -259,19 +276,8 @@ export function useDLNA() {
         const device = session.getCastDevice();
         console.log(TAG, "Connected to:", device?.friendlyName);
 
-        const isHls = absoluteUrl.includes("m3u8");
-        const contentType = isHls ? "application/x-mpegurl" : "video/mp4";
-        const mediaInfo = new chrome.cast.media.MediaInfo(absoluteUrl, contentType);
-        mediaInfo.streamType = chrome.cast.media.StreamType.BUFFERED;
-        if (isHls) mediaInfo.hlsSegmentFormat = chrome.cast.media.HlsSegmentFormat.TS;
-        mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
-        mediaInfo.metadata.title = title ?? "";
-
-        const loadRequest = new chrome.cast.media.LoadRequest(mediaInfo);
-        loadRequest.autoplay = true;
-        console.log(TAG, "Loading media...", { url: absoluteUrl, contentType });
-
-        await session.loadMedia(loadRequest);
+        console.log(TAG, "Loading media...", { url: absoluteUrl });
+        await loadChromecastMedia(session, absoluteUrl, title);
         console.log(TAG, "Media loaded on Chromecast");
 
         setState((prev) => ({
@@ -383,6 +389,53 @@ export function useDLNA() {
     controllerRef.current?.playOrPause();
   }, []);
 
+  // castReload swaps the media playing on the *current* cast session to a
+  // new URL. It's the cast-side equivalent of the local player's
+  // setTranscodeStartTime: an HLS cast plays a progressively-generated
+  // manifest, so the only way to reach a position outside that window is
+  // to rebuild the URL at startSec=target and reload. Dispatches by mode —
+  // the Chrome path uses the JS Cast SDK (session.loadMedia), the
+  // server-side path (Firefox, no JS SDK) re-issues /api/v1/cast/play.
+  // Returns false when there's no live session to reload onto.
+  const castReload = useCallback(async (streamUrl: string, title?: string): Promise<boolean> => {
+    const origin = localStorage.getItem("cast_base_url") || window.location.origin;
+    const absoluteUrl = streamUrl.startsWith("http") ? streamUrl : `${origin}${streamUrl}`;
+    if (state.mode === "chromecast") {
+      const ctx = window.cast?.framework?.CastContext?.getInstance();
+      const session = ctx?.getCurrentSession();
+      if (!session) {
+        console.warn(TAG, "castReload: no chromecast session");
+        return false;
+      }
+      try {
+        await loadChromecastMedia(session, absoluteUrl, title);
+        return true;
+      } catch (err) {
+        console.error(TAG, "castReload chromecast failed:", err);
+        return false;
+      }
+    }
+    if (state.mode === "cast" && activeRenderer.current) {
+      try {
+        await eveyFetch({
+          url: "/api/v1/cast/play",
+          method: "POST",
+          data: {
+            deviceUuid: activeRenderer.current,
+            mediaUrl: absoluteUrl,
+            title: title ?? "",
+            contentType: absoluteUrl.includes("m3u8") ? "application/x-mpegurl" : "video/mp4",
+          },
+        });
+        return true;
+      } catch (err) {
+        console.error(TAG, "castReload server-side failed:", err);
+        return false;
+      }
+    }
+    return false;
+  }, [state.mode]);
+
   // Returns true only when the seek was actually handed to a live cast
   // session. A false return lets the caller fall back to the local
   // player — critical when a cast session dies uncleanly (no
@@ -424,6 +477,7 @@ export function useDLNA() {
     stopCast,
     castPlayPause,
     castSeek,
+    castReload,
     castSetVolume,
     castSetMuted,
   };

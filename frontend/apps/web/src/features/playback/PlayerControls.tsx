@@ -34,6 +34,10 @@ interface PlayerControlsProps {
   castConnected?: boolean;
   castDeviceName?: string | null;
   castPlayback?: { playerState: string | null; currentTime: number; duration: number; isPaused: boolean; isMediaLoaded: boolean; volume: number; isMuted: boolean };
+  // Absolute offset the current cast HLS stream was built at (startSec).
+  // The device reports currentTime local to that stream, so the absolute
+  // position is castTranscodeOffset + castPlayback.currentTime.
+  castTranscodeOffset?: number;
   onCastToggle?: () => void;
   onCastPlayPause?: () => void;
   onCastSeek?: (timeSec: number) => boolean;
@@ -62,6 +66,7 @@ export function PlayerControls({
   castConnected,
   castDeviceName,
   castPlayback,
+  castTranscodeOffset = 0,
   onCastToggle,
   onCastPlayPause,
   onCastSeek,
@@ -80,10 +85,13 @@ export function PlayerControls({
     seasons, currentSeasonId, episodes, currentEpisodeId, subtitleStyle,
   } = ctx;
 
-  // When casting, use cast playback state instead of local video state
+  // When casting, use cast playback state instead of local video state.
+  // The device's currentTime is local to the HLS stream it was handed
+  // (built at startSec=castTranscodeOffset), so add the offset back to
+  // get the absolute position the seek bar / time display expect.
   const isCasting = castConnected && castPlayback?.isMediaLoaded;
   const playing = isCasting ? !castPlayback.isPaused : localPlaying;
-  const absoluteTime = isCasting ? castPlayback.currentTime : localTime;
+  const absoluteTime = isCasting ? castTranscodeOffset + castPlayback.currentTime : localTime;
   const effectiveDuration = localDuration;
   const volume = isCasting ? (castPlayback.volume ?? 1) : localVolume;
   const muted = isCasting ? (castPlayback.isMuted ?? false) : localMuted;

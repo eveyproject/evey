@@ -113,7 +113,7 @@ export function HLSPlayer({
   const selectedBurnInTrack = getSelectedBurnInTrack(currentSubtitle, subtitleStreams);
   const {
     available: castAvailable, connected: castConnected, deviceName: castDeviceName,
-    castPlayback, startCast, stopCast, castPlayPause, castSeek, castSetVolume, castSetMuted,
+    castPlayback, startCast, stopCast, castPlayPause, castSeek, castReload, castSetVolume, castSetMuted,
   } = useDLNA();
 
   const handleCastToggle = useCallback(() => {
@@ -172,6 +172,10 @@ export function HLSPlayer({
   const skipBwdRef = useRef(skipBwd);
   skipBwdRef.current = skipBwd;
   const transcodeOffsetRef = useRef(0);
+  // Cast-side mirror of transcodeOffsetRef: an HLS cast plays a manifest
+  // built at startSec=X, so the device's reported currentTime is local to
+  // that stream and the absolute position is castTranscodeOffset + it.
+  const castTranscodeOffsetRef = useRef(0);
 
   const isDirectPlay = streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY";
   const isDirectStream = streamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM";
@@ -229,6 +233,25 @@ export function HLSPlayer({
 
   const seekRef = useRef(handleSeekRequest);
   seekRef.current = handleSeekRequest;
+
+  // Cast seek. Direct-play casts stream a complete file the device can
+  // seek natively. HLS casts (transcode or direct-stream remux) play a
+  // progressively-built manifest, so seeking outside its window means
+  // rebuilding the URL at startSec=target and reloading the media on the
+  // device — same idea as setTranscodeStartTime for the local player.
+  // Returns false so PlayerControls falls back to a local seek when there
+  // is no live cast session to reload onto.
+  const handleCastSeek = useCallback((absoluteTimeSec: number): boolean => {
+    if (isDirectPlay) {
+      return castSeek(absoluteTimeSec);
+    }
+    const url = buildTranscodeHlsUrl(
+      mediaId, streamTokenRef.current, currentTrackIndex, selectedBurnInTrack, absoluteTimeSec,
+    );
+    castTranscodeOffsetRef.current = absoluteTimeSec;
+    void castReload(url, title);
+    return true;
+  }, [isDirectPlay, castSeek, castReload, mediaId, currentTrackIndex, selectedBurnInTrack, title]);
 
   usePlayerKeyboard({
     videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef,
@@ -532,9 +555,10 @@ export function HLSPlayer({
           castConnected={castConnected}
           castDeviceName={castDeviceName}
           castPlayback={castPlayback}
+          castTranscodeOffset={castTranscodeOffsetRef.current}
           onCastToggle={handleCastToggle}
           onCastPlayPause={castPlayPause}
-          onCastSeek={castSeek}
+          onCastSeek={handleCastSeek}
           onCastSetVolume={castSetVolume}
           onCastSetMuted={castSetMuted}
         />
