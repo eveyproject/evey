@@ -59,7 +59,13 @@ function PlayerPage() {
         {profileId && (
           <ParentalPINDialog
             open
-            onClose={() => router.history.back()}
+            onClose={() => {
+              if (router.history.canGoBack()) {
+                router.history.back();
+              } else {
+                void router.navigate({ to: "/media/$mediaId", params: { mediaId } });
+              }
+            }}
             onVerified={() => {
               if (profileId) markUnlocked(profileId);
               setPinVerified(true);
@@ -155,8 +161,17 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
 
   const handleClose = useCallback(() => {
     usePlayerStore.getState().stop();
-    router.history.back();
-  }, [router]);
+    // router.history.back() is a no-op when the player was reached via a
+    // deep link, a hard refresh, or any path that left the SPA history
+    // empty — which is exactly when users complain "back does nothing".
+    // Fall back to the media detail page of whatever is playing so the
+    // close button always lands somewhere sane.
+    if (router.history.canGoBack()) {
+      router.history.back();
+    } else {
+      void router.navigate({ to: "/media/$mediaId", params: { mediaId } });
+    }
+  }, [router, mediaId]);
 
   const audioStreams: AudioStream[] =
     streamInfo?.mediaStreams
