@@ -493,6 +493,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	backupScheduler := appbackup.NewScheduler(r.BackupSchedule, backupSvc, backupSchedulerLog)
 
 	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db))
+	deviceRegistry := appsyncplay.NewDeviceRegistry()
 	streamTokenStore := appmedia.NewStreamTokenStore(appmedia.DefaultStreamTokenTTL)
 	shareLinkRepo := postgres.NewShareLinkRepo(db)
 	shareSvc := appmedia.NewShareService(shareLinkRepo)
@@ -634,6 +635,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			photoTranscoder:  ffmpeg.NewPhotoTranscoder("ffmpeg"),
 			subtitleSvc:      subtitleSvc,
 			syncPlayHub:      syncPlayHub,
+			deviceRegistry:   deviceRegistry,
 			streamTokenStore: streamTokenStore,
 			shareSvc:         shareSvc,
 		},

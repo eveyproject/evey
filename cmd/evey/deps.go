@@ -65,6 +65,7 @@ type mediaDeps struct {
 	photoTranscoder *ffmpeg.PhotoTranscoder
 	subtitleSvc    *appsubtitle.Service
 	syncPlayHub      *appsyncplay.Hub
+	deviceRegistry   *appsyncplay.DeviceRegistry
 	streamTokenStore *appmedia.StreamTokenStore
 	shareSvc         *appmedia.ShareService
 }

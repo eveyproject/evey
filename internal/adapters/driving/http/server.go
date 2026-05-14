@@ -113,6 +113,9 @@ type HTTPServer struct {
 	// SyncPlay
 	SyncPlayHub *appsyncplay.Hub
 
+	// Play On — registry of first-party clients controllable via the server
+	DeviceRegistry *appsyncplay.DeviceRegistry
+
 	// Subtitle (optional)
 	SubtitleSvc *appsubtitle.Service
 
@@ -317,6 +320,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// JSON CRUD → gRPC: favorites, playlists, metadata overrides, transcode cache/profiles, library access, admin
 	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx, s.PhotoTranscoder, s.PhotoCacheDir) // binary: photo/serve
 	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo) // binary: WebSocket
+	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                                   // Play On: WebSocket + REST
 	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL) // binary: download/restore
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
 	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, s.HLSManager, s.LoginRL, s.GlobalRL, s.AdminWriteRL)
