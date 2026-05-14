@@ -38,6 +38,10 @@ services:
     # No capability is added, no privileged mode, no seccomp=unconfined.
     security_opt:
       - seccomp=./docker/seccomp-evey.json
+    # Hardware-accelerated transcoding is opt-in via an overlay file so the
+    # base stack stays `up`-able on hosts without a GPU:
+    #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+    # See docker-compose.gpu.yml.
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:${EVEY_HTTP_PORT:-9091}/healthz"]
       interval: 10s

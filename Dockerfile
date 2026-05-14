@@ -52,7 +52,18 @@ RUN gcc -shared -fPIC -nostartfiles -o /libevey-sandbox.so sandbox/sandbox.c
 # ── Stage 5: Runtime ──
 FROM alpine:3.21.3
 
-RUN apk add --no-cache bubblewrap ca-certificates curl ffmpeg chromaprint postgresql-client unzip
+# Base runtime deps + the full open VAAPI driver set so hardware transcode
+# works on whatever GPU the host has, with no image rebuild per machine:
+#   - libva / libva-utils : VAAPI core + `vainfo` for diagnostics
+#   - intel-media-driver   : iHD — Intel Broadwell (Gen8) and newer
+#   - libva-intel-driver   : i965 — Intel old iGPU (Gen7.5) and older
+#   - mesa-va-gallium      : AMD VAAPI
+# libva auto-selects the right driver from the GPU's PCI ID at runtime —
+# LIBVA_DRIVER_NAME is intentionally NOT forced. Alpine's ffmpeg ships with
+# --enable-vaapi, so `-hwaccel vaapi` covers Intel QuickSync and AMD alike;
+# NVENC needs the host NVIDIA driver via nvidia-container-toolkit (separate).
+RUN apk add --no-cache bubblewrap ca-certificates curl ffmpeg chromaprint postgresql-client unzip \
+    libva libva-utils intel-media-driver libva-intel-driver mesa-va-gallium
 
 RUN adduser -D -u 1000 evey \
     && adduser -D -u 1001 -G evey evey-plugin

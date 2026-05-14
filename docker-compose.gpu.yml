@@ -1,0 +1,27 @@
+# GPU passthrough overlay for hardware-accelerated transcoding (VAAPI).
+#
+# Opt-in — the base docker-compose.yml stays runnable on hosts with no GPU.
+# Enable with:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+# Covers Intel QuickSync (iHD / i965) and AMD via VAAPI. The evey runtime
+# image already bundles the open VAAPI driver set, so no host driver setup
+# is needed — just the device node + group access below.
+#
+# NVIDIA NVENC is NOT covered here: it needs the host NVIDIA driver via
+# nvidia-container-toolkit, which is a different mechanism.
+#
+# group_add must match the host's `render` group GID. Find it with:
+#   getent group render
+# then set EVEY_RENDER_GID in .env (defaults to 104, the common Debian GID).
+# A wrong GID just means no GPU access — evey falls back to software
+# transcode, nothing breaks.
+#
+# After enabling, flip hwAccelEnabled on in /admin server settings and
+# verify inside the container with: docker compose exec evey vainfo
+services:
+  evey:
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "${EVEY_RENDER_GID:-104}"
