@@ -32,6 +32,16 @@ export function PlayerProgressBar({
   const seekBarRef = useRef<HTMLDivElement | null>(null);
   const [seekHoverPos, setSeekHoverPos] = useState<number | null>(null);
   const [seekHoverX, setSeekHoverX] = useState(0);
+  // Local drag value so the thumb tracks the cursor smoothly during a
+  // scrub. With `value={absoluteTime}` and a synchronous onSeek that
+  // fires per drag tick, an expensive seek (transcode restart) would
+  // tug the thumb back to the still-old absoluteTime mid-drag → the
+  // user sees the timeline "snap back" and feels broken. Commit the
+  // seek only on pointerup / touchend / keyup so the transcode restarts
+  // once per scrub, not per pixel.
+  const [dragValue, setDragValue] = useState<number | null>(null);
+  const dragValueRef = useRef<number | null>(null);
+  dragValueRef.current = dragValue;
 
   function handleSeekHover(e: React.MouseEvent) {
     const bar = seekBarRef.current;
@@ -96,8 +106,29 @@ export function PlayerProgressBar({
         min={0}
         max={effectiveDuration || 0}
         step={0.5}
-        value={absoluteTime}
-        onChange={onSeek}
+        value={dragValue ?? absoluteTime}
+        onChange={(e) => setDragValue(Number(e.target.value))}
+        onMouseUp={() => {
+          const v = dragValueRef.current;
+          if (v !== null) {
+            onSeek({ target: { value: String(v) } } as React.ChangeEvent<HTMLInputElement>);
+            setDragValue(null);
+          }
+        }}
+        onTouchEnd={() => {
+          const v = dragValueRef.current;
+          if (v !== null) {
+            onSeek({ target: { value: String(v) } } as React.ChangeEvent<HTMLInputElement>);
+            setDragValue(null);
+          }
+        }}
+        onKeyUp={() => {
+          const v = dragValueRef.current;
+          if (v !== null) {
+            onSeek({ target: { value: String(v) } } as React.ChangeEvent<HTMLInputElement>);
+            setDragValue(null);
+          }
+        }}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-raised"
         aria-label={t("player.controls.seek")}
       />
