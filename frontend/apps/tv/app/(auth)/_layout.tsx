@@ -1,5 +1,6 @@
 import { Redirect, Stack } from "expo-router";
 import { useAuthStore } from "@evey/store";
+import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
 
 function isTokenExpired(token: string): boolean {
   try {
@@ -16,6 +17,10 @@ export default function AuthLayout() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const profileId = useAuthStore((s) => s.profileId);
   const logout = useAuthStore((s) => s.logout);
+  // Register this client as a Play On target. No-ops when not
+  // authenticated (the hook bails if accessToken/serverUrl are absent),
+  // so calling it before the redirect-on-no-auth guard is safe.
+  useDeviceRegistration();
 
   if (!accessToken || isTokenExpired(accessToken)) {
     if (accessToken) logout();
