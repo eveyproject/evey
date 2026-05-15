@@ -123,3 +123,9 @@ streamInfo:
   transcodeReasons: Raisons du transcodage
 cast:
   noDevices: Aucun appareil de diffusion trouvé sur le réseau du serveur.
+playOn:
+  button: Lire sur un autre appareil
+  title: Lire sur
+  sent: "Envoyé à {{name}}"
+  failed: Échec — l'appareil s'est peut-être déconnecté
+  empty: Aucun appareil connecté. Ouvre l'app Evey sur ta TV ou ton tél pour qu'il apparaisse ici.

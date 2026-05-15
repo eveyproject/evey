@@ -123,3 +123,9 @@ streamInfo:
   transcodeReasons: Transcode reasons
 cast:
   noDevices: No cast devices found on the server's network.
+playOn:
+  button: Play on another device
+  title: Play on
+  sent: "Sent to {{name}}"
+  failed: Failed to send — the device may have disconnected
+  empty: No connected devices. Open the Evey app on your TV / phone to make it available here.

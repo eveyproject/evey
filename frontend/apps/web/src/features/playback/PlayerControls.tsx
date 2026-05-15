@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast, Cast } from "lucide-react";
+import { PlayOnPicker } from "./PlayOnPicker";
 import { useTranslation } from "react-i18next";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import { formatTime } from "./playerUtils";
@@ -513,6 +514,13 @@ export function PlayerControls({
             onBrightnessChange={onBrightnessChange}
             availableQualities={availableQualities}
           />
+
+          {/* Play On — server-brokered remote control of first-party
+              clients (TV app, mobile). Works for any browser, any
+              network — no Chromecast SDK required. */}
+          {mediaId && (
+            <PlayOnPicker mediaId={mediaId} positionMs={Math.floor(absoluteTime * 1000)} />
+          )}
 
           {/* Cast */}
           {castAvailable && onCastToggle && (
