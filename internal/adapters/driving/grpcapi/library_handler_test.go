@@ -11,10 +11,10 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
 	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
 	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
 	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
@@ -24,7 +24,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func newTestLibraryHandler() (*libraryHandler, *libfakes.FakeLibraryQueryRepo, *libfakes.FakeMediaItemQueryRepo, *libfakes.FakeSearchIndex, *userfakes.FakeLibraryAccessRepository, *userfakes.FakeProfileRepository) {
+func newTestLibraryHandler() (*libraryHandler, *libfakes.FakeLibraryQueryRepo, *libfakes.FakeMediaItemQueryRepo, *libfakes.FakeSearchIndex, *userfakes.FakeLibraryAccessRepository, *userfakes.FakeProfileRepository, *libfakes.FakeMediaStreamRepository) {
 	libCmdRepo := libfakes.NewFakeLibraryCommandRepo()
 	libQueryRepo := libfakes.NewFakeLibraryQueryRepo()
 	mediaCmdRepo := libfakes.NewFakeMediaItemCommandRepo()
@@ -65,7 +65,7 @@ func newTestLibraryHandler() (*libraryHandler, *libfakes.FakeLibraryQueryRepo, *
 		userAccess: userAccess,
 		userQuery:  userQuery,
 	}
-	return h, libQueryRepo, mediaQueryRepo, searchIdx, libraryAccess, profiles
+	return h, libQueryRepo, mediaQueryRepo, searchIdx, libraryAccess, profiles, streamRepo
 }
 
 func adminCtx() context.Context {
@@ -87,7 +87,7 @@ func userCtx(userID, profileID string) context.Context {
 }
 
 func TestLibraryHandler_CreateLibrary(t *testing.T) {
-	h, _, _, _, _, _ := newTestLibraryHandler()
+	h, _, _, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
 
 	resp, err := h.CreateLibrary(ctx, &eveyv1.CreateLibraryRequest{
@@ -104,7 +104,7 @@ func TestLibraryHandler_CreateLibrary(t *testing.T) {
 }
 
 func TestLibraryHandler_GetLibrary_Success(t *testing.T) {
-	h, libQuery, _, _, _, _ := newTestLibraryHandler()
+	h, libQuery, _, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
 
 	libQuery.Seed(&library.Library{ID: "lib-1", Name: "TV Shows", Type: "tvshow", Paths: []string{"/media/tv"}})
@@ -117,7 +117,7 @@ func TestLibraryHandler_GetLibrary_Success(t *testing.T) {
 }
 
 func TestLibraryHandler_GetLibrary_NotFound(t *testing.T) {
-	h, _, _, _, _, _ := newTestLibraryHandler()
+	h, _, _, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
 
 	_, err := h.GetLibrary(ctx, &eveyv1.GetLibraryRequest{Id: "nonexistent"})
@@ -127,7 +127,7 @@ func TestLibraryHandler_GetLibrary_NotFound(t *testing.T) {
 }
 
 func TestLibraryHandler_GetLibrary_NoAccess(t *testing.T) {
-	h, libQuery, _, _, libraryAccess, _ := newTestLibraryHandler()
+	h, libQuery, _, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/media/movies"}})
 	libraryAccess.Grant(context.Background(), "user-2", "lib-99")
@@ -140,7 +140,7 @@ func TestLibraryHandler_GetLibrary_NoAccess(t *testing.T) {
 }
 
 func TestLibraryHandler_GetLibrary_AdminBypassAccess(t *testing.T) {
-	h, libQuery, _, _, libraryAccess, _ := newTestLibraryHandler()
+	h, libQuery, _, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/media/movies"}})
 	libraryAccess.Grant(context.Background(), "user-2", "lib-99")
@@ -153,7 +153,7 @@ func TestLibraryHandler_GetLibrary_AdminBypassAccess(t *testing.T) {
 }
 
 func TestLibraryHandler_ListLibraries(t *testing.T) {
-	h, libQuery, _, _, _, _ := newTestLibraryHandler()
+	h, libQuery, _, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
 
 	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
@@ -166,7 +166,7 @@ func TestLibraryHandler_ListLibraries(t *testing.T) {
 }
 
 func TestLibraryHandler_ListLibraries_FilteredByAccess(t *testing.T) {
-	h, libQuery, _, _, libraryAccess, _ := newTestLibraryHandler()
+	h, libQuery, _, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
 	libQuery.Seed(&library.Library{ID: "lib-2", Name: "TV Shows", Type: "tvshow"})
@@ -190,7 +190,7 @@ func TestLibraryHandler_ListLibraries_FilteredByAccess(t *testing.T) {
 }
 
 func TestLibraryHandler_DeleteLibrary(t *testing.T) {
-	h, _, _, _, _, _ := newTestLibraryHandler()
+	h, _, _, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
 
 	createResp, err := h.CreateLibrary(ctx, &eveyv1.CreateLibraryRequest{
@@ -205,7 +205,7 @@ func TestLibraryHandler_DeleteLibrary(t *testing.T) {
 }
 
 func TestLibraryHandler_GetMediaItem_Success(t *testing.T) {
-	h, _, mediaQuery, _, _, _ := newTestLibraryHandler()
+	h, _, mediaQuery, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
 
 	mediaQuery.Seed(&library.MediaItem{
@@ -224,7 +224,7 @@ func TestLibraryHandler_GetMediaItem_Success(t *testing.T) {
 }
 
 func TestLibraryHandler_GetMediaItem_NotFound(t *testing.T) {
-	h, _, _, _, _, _ := newTestLibraryHandler()
+	h, _, _, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
 
 	_, err := h.GetMediaItem(ctx, &eveyv1.GetMediaItemRequest{Id: "nonexistent"})
@@ -233,8 +233,33 @@ func TestLibraryHandler_GetMediaItem_NotFound(t *testing.T) {
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
+func TestLibraryHandler_GetMediaItem_HydratesStreams(t *testing.T) {
+	h, _, mediaQuery, _, _, _, streamRepo := newTestLibraryHandler()
+	ctx := adminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{
+		ID:        "mi-2",
+		LibraryID: "lib-1",
+		Title:     "Inception",
+		Type:      "movie",
+	})
+	require.NoError(t, streamRepo.ReplaceBatch(ctx, "mi-2", []*library.MediaStream{
+		{ID: "st-1", MediaItemID: "mi-2", StreamIndex: 0, StreamType: library.StreamTypeVideo, Codec: "h264", Language: "eng"},
+		{ID: "st-2", MediaItemID: "mi-2", StreamIndex: 1, StreamType: library.StreamTypeAudio, Codec: "aac", Language: "fre"},
+	}))
+
+	resp, err := h.GetMediaItem(ctx, &eveyv1.GetMediaItemRequest{Id: "mi-2"})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Streams, 2)
+	assert.Equal(t, eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_VIDEO, resp.Streams[0].Type)
+	assert.Equal(t, "h264", resp.Streams[0].Codec)
+	assert.Equal(t, eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_AUDIO, resp.Streams[1].Type)
+	assert.Equal(t, "aac", resp.Streams[1].Codec)
+}
+
 func TestLibraryHandler_ListMediaItems_WithPagination(t *testing.T) {
-	h, _, mediaQuery, _, _, _ := newTestLibraryHandler()
+	h, _, mediaQuery, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
 
 	for i := range 5 {
@@ -258,7 +283,7 @@ func TestLibraryHandler_ListMediaItems_WithPagination(t *testing.T) {
 }
 
 func TestLibraryHandler_SearchMedia(t *testing.T) {
-	h, _, _, searchIdx, _, _ := newTestLibraryHandler()
+	h, _, _, searchIdx, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
 
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
@@ -340,7 +365,7 @@ func TestApplyOverridesToItem_NilOverrides(t *testing.T) {
 // --- IDOR / authorization tests ---
 
 func TestLibraryHandler_GetLibrary_AccessDenied(t *testing.T) {
-	h, libQuery, _, _, libraryAccess, _ := newTestLibraryHandler()
+	h, libQuery, _, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
 	libQuery.Seed(&library.Library{ID: "lib-2", Name: "Private", Type: "movie"})
@@ -356,7 +381,7 @@ func TestLibraryHandler_GetLibrary_AccessDenied(t *testing.T) {
 }
 
 func TestLibraryHandler_GetMediaItem_IDOR_Denied(t *testing.T) {
-	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-secret", Title: "Secret Movie", Type: "movie"})
 
@@ -370,7 +395,7 @@ func TestLibraryHandler_GetMediaItem_IDOR_Denied(t *testing.T) {
 }
 
 func TestLibraryHandler_GetMediaItem_IDOR_Allowed(t *testing.T) {
-	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Allowed Movie", Type: "movie"})
 
@@ -383,7 +408,7 @@ func TestLibraryHandler_GetMediaItem_IDOR_Allowed(t *testing.T) {
 }
 
 func TestLibraryHandler_GetMediaItem_AdminBypassesAccess(t *testing.T) {
-	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-secret", Title: "Secret", Type: "movie"})
 
@@ -396,7 +421,7 @@ func TestLibraryHandler_GetMediaItem_AdminBypassesAccess(t *testing.T) {
 }
 
 func TestLibraryHandler_ListMediaItems_IDOR_Denied(t *testing.T) {
-	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-secret", Title: "Secret", Type: "movie"})
 
@@ -412,7 +437,7 @@ func TestLibraryHandler_ListMediaItems_IDOR_Denied(t *testing.T) {
 }
 
 func TestLibraryHandler_ListMediaItems_IDOR_Allowed(t *testing.T) {
-	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Allowed", Type: "movie"})
 
@@ -429,7 +454,7 @@ func TestLibraryHandler_ListMediaItems_IDOR_Allowed(t *testing.T) {
 }
 
 func TestLibraryHandler_ListMediaItems_NoLibraryID_FiltersAccess(t *testing.T) {
-	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Visible", Type: "movie"})
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-2", LibraryID: "lib-secret", Title: "Hidden", Type: "movie"})
@@ -447,7 +472,7 @@ func TestLibraryHandler_ListMediaItems_NoLibraryID_FiltersAccess(t *testing.T) {
 }
 
 func TestLibraryHandler_SearchMedia_IDOR_FiltersAccess(t *testing.T) {
-	h, _, _, searchIdx, libraryAccess, _ := newTestLibraryHandler()
+	h, _, _, searchIdx, libraryAccess, _, _ := newTestLibraryHandler()
 	ctx := context.Background()
 
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
@@ -467,7 +492,7 @@ func TestLibraryHandler_SearchMedia_IDOR_FiltersAccess(t *testing.T) {
 }
 
 func TestLibraryHandler_FilterMediaItems_IDOR_Denied(t *testing.T) {
-	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-secret", Title: "Secret", Type: "movie"})
 
@@ -483,7 +508,7 @@ func TestLibraryHandler_FilterMediaItems_IDOR_Denied(t *testing.T) {
 }
 
 func TestLibraryHandler_FilterMediaItems_IDOR_Allowed(t *testing.T) {
-	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Allowed", Type: "movie"})
 
@@ -499,7 +524,7 @@ func TestLibraryHandler_FilterMediaItems_IDOR_Allowed(t *testing.T) {
 }
 
 func TestLibraryHandler_GetMediaItem_WithOverrides(t *testing.T) {
-	h, _, mediaQuery, _, _, _ := newTestLibraryHandler()
+	h, _, mediaQuery, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
 
 	mediaQuery.Seed(&library.MediaItem{
@@ -528,7 +553,7 @@ func TestLibraryHandler_GetMediaItem_WithOverrides(t *testing.T) {
 // access to the target library, even though RBAC already gates this RPC to
 // admins. Guards against future RBAC misconfiguration.
 func TestLibraryHandler_UpdateLibrary_IDOR_DeniesNonAdminWithoutAccess(t *testing.T) {
-	h, libQuery, _, _, libraryAccess, _ := newTestLibraryHandler()
+	h, libQuery, _, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/media/movies"}})
 	libraryAccess.Grant(context.Background(), "user-2", "lib-99")
@@ -545,7 +570,7 @@ func TestLibraryHandler_UpdateLibrary_IDOR_DeniesNonAdminWithoutAccess(t *testin
 // access to the target library, even though RBAC already gates this RPC to
 // admins.
 func TestLibraryHandler_DeleteLibrary_IDOR_DeniesNonAdminWithoutAccess(t *testing.T) {
-	h, libQuery, _, _, libraryAccess, _ := newTestLibraryHandler()
+	h, libQuery, _, _, libraryAccess, _, _ := newTestLibraryHandler()
 
 	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/media/movies"}})
 	libraryAccess.Grant(context.Background(), "user-2", "lib-99")

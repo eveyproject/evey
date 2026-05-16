@@ -10,10 +10,10 @@ import (
 	"strings"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/evey-project/evey/internal/domain/library"
 	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -29,13 +29,13 @@ import (
 
 type libraryHandler struct {
 	eveyv1.UnimplementedLibraryServiceServer
-	cmd           *applibrary.CommandService
-	query         *applibrary.QueryService
-	metadataSvc   *appmetadata.QueryService
-	userAccess    *appuser.AccessService
-	userQuery     *appuser.QueryService
-	translator    *eveyi18n.Translator
-	scheduler     *applibrary.Scheduler
+	cmd         *applibrary.CommandService
+	query       *applibrary.QueryService
+	metadataSvc *appmetadata.QueryService
+	userAccess  *appuser.AccessService
+	userQuery   *appuser.QueryService
+	translator  *eveyi18n.Translator
+	scheduler   *applibrary.Scheduler
 }
 
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
@@ -259,6 +259,11 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 	if cast, err := h.query.GetCast(ctx, req.Id); err == nil {
 		for _, cm := range cast {
 			pb.People = append(pb.People, castMemberToProto(cm))
+		}
+	}
+	if streams, err := h.query.GetMediaStreams(ctx, req.Id); err == nil {
+		for _, s := range streams {
+			pb.Streams = append(pb.Streams, mediaStreamToProto(s))
 		}
 	}
 	return pb, nil
@@ -555,7 +560,7 @@ type parentalFilter struct {
 	maxAge         int      // -1 = no age filter
 	region         string   // profile's resolved region for per-country cert lookup
 	blockedTags    []string
-	locale         string   // profile locale, used to resolve region when not set
+	locale         string // profile locale, used to resolve region when not set
 }
 
 func (h *libraryHandler) resolveParentalFilter(ctx context.Context) parentalFilter {
@@ -614,9 +619,9 @@ func resolveParentalFilterFromUserQuery(ctx context.Context, userQuery *appuser.
 // the global ratings.IsAllowedByAge defaults to permissive.
 //
 // We pick the worst-case (highest) age cap across:
-//   1. the profile's region cert (if present)
-//   2. the OfficialRating field
-//   3. every other country cert we can map
+//  1. the profile's region cert (if present)
+//  2. the OfficialRating field
+//  3. every other country cert we can map
 //
 // If none of those map to a known min-age, we fail closed for the kids
 // profile.
@@ -1004,4 +1009,3 @@ func applyOverridesToItem(item *library.MediaItem, overrides []*domainmetadata.M
 		}
 	}
 }
-
