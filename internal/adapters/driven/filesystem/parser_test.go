@@ -296,10 +296,69 @@ func TestParse_Quality(t *testing.T) {
 		{"Movie.HDTV.mkv", "hdtv"},
 		{"Movie.REMUX.mkv", "remux"},
 		{"Movie.NoQuality.mkv", ""},
+		// Bare-number resolutions (no `p` suffix). Some upstream renamers
+		// omit the `p` — without these, the digits leak into the title.
+		{"Movie.2160.mkv", "2160"},
+		{"Movie.1080.mkv", "1080"},
+		{"Movie.720.mkv", "720"},
+		// Bogus 4-digit + P that aren't canonical (real-world: prod orphans
+		// shipped with "2016P" / "2017P", probably renamer typos for 2160P).
+		// Treat as quality so they don't pollute the title.
+		{"Movie.2016P.mkv", "2016p"},
+		{"Movie.2017P.mkv", "2017p"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.quality, func(t *testing.T) {
 			assert.Equal(t, tt.quality, ParseFilename(tt.filename).Quality)
+		})
+	}
+}
+
+func TestParse_EditionSuffixStripped(t *testing.T) {
+	tests := []struct {
+		filename  string
+		wantTitle string
+	}{
+		{"Danse avec les loups - version longue.mkv", "Danse avec les loups"},
+		{"L'effet papillon - director's cut.mkv", "L'effet papillon"},
+		{"L'effet papillon directors cut.mkv", "L'effet papillon"},
+		{"Movie - Extended Cut - 1080p.mkv", "Movie"},
+		{"Apocalypse Now Redux.mkv", "Apocalypse Now"},
+		{"Blade Runner Final Cut.mkv", "Blade Runner"},
+		{"Movie - Theatrical Cut.mkv", "Movie"},
+		{"Movie Special Edition.mkv", "Movie"},
+		{"Movie Remastered.mkv", "Movie"},
+		// Title that legitimately contains "uncut" word stays unaffected
+		// only if it's not a standalone token — here it is, so it's
+		// stripped. Documents intentional risk.
+		{"Some Movie Uncut.mkv", "Some Movie"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.filename, func(t *testing.T) {
+			assert.Equal(t, tt.wantTitle, ParseFilename(tt.filename).Title)
+		})
+	}
+}
+
+func TestParse_TitleNotPollutedByOrphanResolution(t *testing.T) {
+	// Regression: "Mr Wolf - 1080p.mkv" used to land as title "Mr Wolf",
+	// but "Mr Wolf - 1080.mkv" (no `p`) was leaking "1080" into the title
+	// and TMDB then matched the animated title "The Trial of Mr. Wolf" instead.
+	tests := []struct {
+		filename  string
+		wantTitle string
+	}{
+		{"Mr Wolf - 1080p.mkv", "Mr Wolf"},
+		{"Mr Wolf - 1080.mkv", "Mr Wolf"},
+		{"Mr Wolf 1080.mkv", "Mr Wolf"},
+		{"American Ultra - 1080.mkv", "American Ultra"},
+		{"American Ultra 1080.mkv", "American Ultra"},
+		{"Die hard 2 - 2016P.mkv", "Die hard 2"},
+		{"Die hard 2 2016P.mkv", "Die hard 2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.filename, func(t *testing.T) {
+			assert.Equal(t, tt.wantTitle, ParseFilename(tt.filename).Title)
 		})
 	}
 }

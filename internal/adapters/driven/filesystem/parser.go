@@ -60,9 +60,16 @@ var weakLanguageTags = map[string]string{
 }
 
 // knownQualities for part-based detection (lowercase).
+// Includes the bare-number resolutions (no `p` suffix) because some upstream
+// renamers omit the `p` — without these entries, a token like `1080` leaks
+// into the title and TMDB then matches on a polluted query (e.g. "Mr Wolf
+// 1080" → no match, "American Ultra 1080" → no match).
 var knownQualities = map[string]bool{
-	"2160p": true, "4k": true, "uhd": true, "8k": true,
-	"1080p": true, "720p": true, "480p": true, "360p": true,
+	"2160p": true, "2160": true, "4k": true, "uhd": true, "8k": true,
+	"1080p": true, "1080": true,
+	"720p": true, "720": true,
+	"480p": true, "480": true,
+	"360p": true, "360": true,
 	"bluray": true, "bdrip": true, "brrip": true,
 	"remux": true,
 	"webrip": true, "webdl": true, "web": true,
@@ -70,6 +77,11 @@ var knownQualities = map[string]bool{
 	"dvdrip": true, "dvdscr": true, "dvd": true,
 	"cam": true, "hdcam": true, "ts": true, "telesync": true, "screener": true,
 }
+
+// reBogusResolution matches 4-digit + P/p tokens that the standard quality
+// set doesn't cover (e.g. "2016P" — likely a typo for 2160P from some
+// renaming tool). Filtering these out keeps them from polluting the title.
+var reBogusResolution = regexp.MustCompile(`^\d{3,4}[pP]$`)
 
 var (
 	reSeriesPart = regexp.MustCompile(`(?i)^[sS](\d{1,2})[eE](\d{1,3})$`)
@@ -84,6 +96,13 @@ var (
 	// in the title — and the TV scan service then created one orphan SERIES
 	// per file instead of grouping them under "Dr House".
 	reSEDelimited = regexp.MustCompile(`(?i)([sS]\d{1,2})[ ._-]+([eE]\d{1,3})`)
+	// reEditionSuffix strips editorial cut tags that would otherwise leak
+	// into the title and break the TMDB exact-match shortcut. Covers FR
+	// ("version longue") and EN ("director's cut", "extended cut", etc.)
+	// variants. Stripped during pre-tokenisation so the resulting title is
+	// what the user wanted to search ("Danse avec les loups" instead of
+	// "Danse avec les loups version longue").
+	reEditionSuffix = regexp.MustCompile(`(?i)\b(director(?:'s|s)?[ ._-]?cut|version[ ._-]longue|extended[ ._-](?:cut|edition)|theatrical[ ._-]cut|final[ ._-]cut|special[ ._-]edition|criterion(?:[ ._-](?:collection|edition))?|remastered|uncut|unrated|redux)\b`)
 )
 
 type ParsedInfo struct {
@@ -125,6 +144,11 @@ func ParseFilename(filename string) ParsedInfo {
 	// match. Without this step the season+episode markers leak into the
 	// title and the TV scan service treats every file as its own SERIES.
 	name = reSEDelimited.ReplaceAllString(name, "$1$2")
+	// Strip editorial cut suffixes ("director's cut", "version longue",
+	// etc.) before tokenisation. Without this they end up tacked onto the
+	// title (e.g. "Danse avec les loups version longue") and the TMDB exact
+	// title shortcut never fires.
+	name = reEditionSuffix.ReplaceAllString(name, " ")
 
 	parts := filterEmpty(SplitFilename(name))
 
@@ -234,6 +258,17 @@ func tryExtractLanguage(info *ParsedInfo, lower string, idx int, firstMeta *int)
 
 func tryExtractQuality(info *ParsedInfo, lower string, idx int, firstMeta *int) bool {
 	if knownQualities[lower] {
+		info.Quality = lower
+		if idx < *firstMeta {
+			*firstMeta = idx
+		}
+		return true
+	}
+	// Catch `2016P`, `2017P`, etc. — these look like resolutions but aren't
+	// in the canonical set. They show up in misconfigured renamer output;
+	// the safe move is to drop them rather than leak them into the title.
+	// Already-classified years are handled by tryExtractYear before this.
+	if reBogusResolution.MatchString(lower) {
 		info.Quality = lower
 		if idx < *firstMeta {
 			*firstMeta = idx
