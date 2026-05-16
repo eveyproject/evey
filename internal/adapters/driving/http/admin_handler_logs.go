@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,40 @@ import (
 
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
+
+// currentLogPath resolves the active log file produced by the rotating writer
+// in internal/pkg/logger (files are named evey-YYYY-MM-DD[-HH].log). Returns
+// the most recently modified evey-*.log so admin tail/stream picks up the
+// hourly rotation too.
+func currentLogPath(dir string) (string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", err
+	}
+	var newestPath string
+	var newestMtime time.Time
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasPrefix(name, "evey-") || !strings.HasSuffix(name, ".log") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if newestPath == "" || info.ModTime().After(newestMtime) {
+			newestPath = filepath.Join(dir, name)
+			newestMtime = info.ModTime()
+		}
+	}
+	if newestPath == "" {
+		return "", os.ErrNotExist
+	}
+	return newestPath, nil
+}
 
 func parseLineCount(r *http.Request, defaultN, maxN int) int {
 	v := r.URL.Query().Get("lines")
@@ -75,7 +110,13 @@ func (h *adminHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 		lines = 200
 	}
 
-	logPath := h.logDir + "/evey.log"
+	logPath, err := currentLogPath(h.logDir)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "log file not found")
+		http.Error(w, `{"message":"log file not found"}`, http.StatusNotFound)
+		return
+	}
 	data, err := tailFile(logPath, lines)
 	if err != nil {
 		span.RecordError(err)
@@ -107,7 +148,13 @@ func (h *adminHandler) handleStreamLogs(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Connection", "keep-alive")
 
 	lines := parseLineCount(r, 200, 2000)
-	logPath := h.logDir + "/evey.log"
+	logPath, err := currentLogPath(h.logDir)
+	if err != nil {
+		// No log file yet — degrade to ping-only follow so the client stays
+		// connected and we'll start sending as soon as one appears.
+		h.followLog(w, flusher, r, "", 0)
+		return
+	}
 
 	lastSize := initialFileSize(logPath)
 
@@ -152,6 +199,12 @@ func (h *adminHandler) followLog(w http.ResponseWriter, flusher http.Flusher, r 
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
+			// Re-resolve the active log file each tick so we follow hourly/daily
+			// rotation without dropping the SSE connection.
+			if active, err := currentLogPath(h.logDir); err == nil && active != logPath {
+				logPath = active
+				lastSize = 0
+			}
 			buf, newLastSize, err := readNewLogBytes(logPath, lastSize, maxBytesPerTick)
 			lastSize = newLastSize
 			if err != nil {

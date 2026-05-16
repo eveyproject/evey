@@ -19,6 +19,53 @@ func TestParseLineCount_DefaultWhenMissing(t *testing.T) {
 	}
 }
 
+func TestCurrentLogPath_PicksNewestEveyLog(t *testing.T) {
+	dir := t.TempDir()
+	older := filepath.Join(dir, "evey-2026-05-15.log")
+	newer := filepath.Join(dir, "evey-2026-05-16-10.log")
+	if err := os.WriteFile(older, []byte("o"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(newer, []byte("n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(older, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := currentLogPath(dir)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if got != newer {
+		t.Fatalf("want %s, got %s", newer, got)
+	}
+}
+
+func TestCurrentLogPath_IgnoresNonEveyAndDirs(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "other.log"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "evey-2026-05-16.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "evey-fake.log"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := currentLogPath(dir); err == nil {
+		t.Fatal("expected ErrNotExist when no matching file")
+	}
+}
+
+func TestCurrentLogPath_MissingDir(t *testing.T) {
+	if _, err := currentLogPath("/nonexistent/log/dir"); err == nil {
+		t.Fatal("expected error for missing dir")
+	}
+}
+
 func TestParseLineCount_DefaultOnInvalid(t *testing.T) {
 	for _, q := range []string{"abc", "-1", "99999"} {
 		req := httptest.NewRequest(http.MethodGet, "/x?lines="+q, nil)
@@ -119,7 +166,7 @@ func TestHandleGetLogs_FileMissing(t *testing.T) {
 
 func TestHandleGetLogs_ReturnsLines(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "evey.log"), []byte("alpha\nbeta\ngamma\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "evey-2026-05-16.log"), []byte("alpha\nbeta\ngamma\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	h := &adminHandler{logDir: dir}
@@ -159,7 +206,7 @@ func TestHandleStreamLogs_StreamingUnsupported(t *testing.T) {
 
 func TestHandleStreamLogs_InitialLinesAndContextCancel(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "evey.log")
+	path := filepath.Join(dir, "evey-2026-05-16.log")
 	if err := os.WriteFile(path, []byte("one\ntwo\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
