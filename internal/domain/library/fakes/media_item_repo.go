@@ -152,6 +152,15 @@ func (r *FakeMediaItemRepository) Count(_ context.Context, filter library.ListMe
 		if filter.ParentID != nil && item.ParentID != *filter.ParentID {
 			continue
 		}
+		if filter.MissingProviderIDs != nil {
+			hasPIDs := item.Catalog != nil && len(item.Catalog.ProviderIDs) > 0
+			if *filter.MissingProviderIDs && hasPIDs {
+				continue
+			}
+			if !*filter.MissingProviderIDs && !hasPIDs {
+				continue
+			}
+		}
 		count++
 	}
 	return count, nil

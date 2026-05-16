@@ -327,12 +327,16 @@ func TestWaitWorkers_NoWorkersReturnsImmediately(t *testing.T) {
 
 // fakeOrphanBulkEnricher records every batch enrich call without doing the actual
 // TMDB work. Satisfies BulkItemEnricher and the base ItemEnricher contract.
+// finishedCh is closed exactly once, on the first AutoEnrichAll return — the
+// drainer may call AutoEnrichAll multiple times so a per-call close would
+// panic.
 type fakeOrphanBulkEnricher struct {
-	mu          sync.Mutex
-	called      bool
-	itemsSeen   []string
-	releaseCh   chan struct{} // when non-nil, AutoEnrichAll blocks on it
-	finishedCh  chan struct{} // closed on AutoEnrichAll return
+	mu         sync.Mutex
+	called     bool
+	itemsSeen  []string
+	releaseCh  chan struct{} // when non-nil, AutoEnrichAll blocks on it
+	finishedCh chan struct{} // closed once on the first AutoEnrichAll return
+	closeOnce  sync.Once
 }
 
 func (f *fakeOrphanBulkEnricher) EnrichItem(_ context.Context, _ *library.MediaItem, _ *metadata.MetadataResult) error {
@@ -355,8 +359,41 @@ func (f *fakeOrphanBulkEnricher) AutoEnrichAll(_ context.Context, items []*libra
 		<-rc
 	}
 	if fc != nil {
-		close(fc)
+		f.closeOnce.Do(func() { close(fc) })
 	}
+}
+
+// fakeMatchingBulkEnricher simulates a working enricher: it writes a synthetic
+// ProviderIDs map onto each item via the underlying repo so the drainer's
+// stall detector sees progress and exits on an empty remainder.
+type fakeMatchingBulkEnricher struct {
+	mu        sync.Mutex
+	repo      *libfakes.FakeMediaItemRepository
+	itemsSeen []string
+	doneCh    chan struct{}
+	closeOnce sync.Once
+}
+
+func (f *fakeMatchingBulkEnricher) EnrichItem(_ context.Context, _ *library.MediaItem, _ *metadata.MetadataResult) error {
+	return nil
+}
+
+func (f *fakeMatchingBulkEnricher) EnrichTranslationsForItem(_ context.Context, _ *library.MediaItem, _, _ string) {
+}
+
+func (f *fakeMatchingBulkEnricher) AutoEnrichAll(ctx context.Context, items []*library.MediaItem, _ *slog.Logger) {
+	for _, it := range items {
+		f.mu.Lock()
+		f.itemsSeen = append(f.itemsSeen, string(it.ID))
+		f.mu.Unlock()
+		stored, err := f.repo.GetByID(ctx, it.ID)
+		if err != nil {
+			continue
+		}
+		stored.Catalog = &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "matched"}}
+		_ = f.repo.Update(ctx, stored)
+	}
+	f.closeOnce.Do(func() { close(f.doneCh) })
 }
 
 func TestMatchOrphansInLibrary_NoEnricher(t *testing.T) {
@@ -369,7 +406,10 @@ func TestMatchOrphansInLibrary_NoEnricher(t *testing.T) {
 func TestMatchOrphansInLibrary_SelectsOnlyOrphansInLibrary(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	enricher := &fakeOrphanBulkEnricher{finishedCh: make(chan struct{})}
+	// Enricher that "matches" each orphan by writing back ProviderIDs.
+	// This is what makes the drainer's stall detector see progress and
+	// eventually exit on an empty remainder.
+	enricher := &fakeMatchingBulkEnricher{repo: mediaRepo, doneCh: make(chan struct{})}
 	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
@@ -392,20 +432,56 @@ func TestMatchOrphansInLibrary_SelectsOnlyOrphansInLibrary(t *testing.T) {
 		ID: "m4", LibraryID: "lib-2", Type: library.MovieItem, Title: "Other lib orphan",
 	}))
 
-	queued, err := cmdSvc.MatchOrphansInLibrary(ctx, "lib-1")
+	total, err := cmdSvc.MatchOrphansInLibrary(ctx, "lib-1")
 	require.NoError(t, err)
-	assert.Equal(t, 2, queued)
+	assert.Equal(t, 2, total, "should count only lib-1 orphans")
 
-	// AutoEnrichAll runs in a detached goroutine — wait for it.
+	// Drainer runs in a detached goroutine — wait for completion.
 	select {
-	case <-enricher.finishedCh:
+	case <-enricher.doneCh:
 	case <-time.After(2 * time.Second):
-		t.Fatal("AutoEnrichAll never completed")
+		t.Fatal("drainer never completed")
 	}
 	enricher.mu.Lock()
 	defer enricher.mu.Unlock()
-	assert.True(t, enricher.called)
 	assert.ElementsMatch(t, []string{"m1", "m2"}, enricher.itemsSeen)
+	// The other-library orphan must be untouched.
+	assert.NotContains(t, enricher.itemsSeen, "m4")
+}
+
+func TestMatchOrphansInLibrary_StopsOnStall(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	// Enricher that does NOT write back ProviderIDs — orphan count stays
+	// constant → drainer must detect the stall and exit.
+	enricher := &fakeOrphanBulkEnricher{finishedCh: make(chan struct{})}
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "m1", LibraryID: "lib-1", Type: library.MovieItem, Title: "Stuck orphan",
+	}))
+
+	total, err := cmdSvc.MatchOrphansInLibrary(ctx, "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+
+	// Wait for the first AutoEnrichAll call — drainer should then detect
+	// the stall (Count unchanged) and exit instead of looping forever.
+	select {
+	case <-enricher.finishedCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("drainer never invoked enricher")
+	}
+
+	// Sleep enough for a second drainer iteration if the stall guard misfires.
+	time.Sleep(200 * time.Millisecond)
+	enricher.mu.Lock()
+	called := enricher.called
+	itemsCount := len(enricher.itemsSeen)
+	enricher.mu.Unlock()
+	assert.True(t, called)
+	assert.Equal(t, 1, itemsCount, "stall guard must stop after one iteration")
 }
 
 func TestMatchOrphansInLibrary_NoOrphansShortCircuits(t *testing.T) {

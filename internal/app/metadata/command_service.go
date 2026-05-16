@@ -964,10 +964,13 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 // matched leave the orphan set, so re-running the action just picks up
 // what remains.
 //
-// Unlike AutoRefreshAllItems, this one runs asynchronously and returns
-// immediately with the count of items queued — the underlying enricher
-// pool (max 3 concurrent + provider-side rate limit) drains them in the
-// background. Progress can be polled by re-listing orphans.
+// Unlike AutoRefreshAllItems, this one returns immediately with the total
+// count of orphans detected; the actual enrichment happens in a detached
+// goroutine that paginates through the orphan set (the postgres adapter
+// caps each List at DefaultListLimit=500). The underlying enricher pool
+// (max 3 concurrent + provider-side rate limit) drains each batch before
+// the next page is fetched. Two safety stops: zero orphans remaining, or
+// no progress between iterations (e.g. provider unreachable).
 func (s *CommandService) MatchOrphansInLibrary(ctx context.Context, libraryID string) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.MatchOrphansInLibrary")
 	defer span.End()
@@ -985,21 +988,71 @@ func (s *CommandService) MatchOrphansInLibrary(ctx context.Context, libraryID st
 		libID := shared.LibraryID(libraryID)
 		filter.LibraryID = &libID
 	}
-	items, err := s.mediaItems.List(ctx, filter)
+	total, err := s.mediaItems.Count(ctx, filter)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return 0, fmt.Errorf("list orphans: %w", err)
+		return 0, fmt.Errorf("count orphans: %w", err)
 	}
-	span.SetAttributes(attribute.Int("orphans.count", len(items)))
-	if len(items) == 0 {
+	span.SetAttributes(attribute.Int("orphans.total", total))
+	if total == 0 {
 		return 0, nil
 	}
-	// Detach from the request context — the HTTP/gRPC client will see the
-	// 200 immediately, and we don't want their disconnect to cancel a
-	// minutes-to-hours background enrichment.
-	go be.AutoEnrichAll(context.Background(), items, slog.Default())
-	return len(items), nil
+	// Drain in background — paginated, with stall detection so a downstream
+	// provider outage doesn't burn CPU on the same 500 items forever.
+	go s.drainOrphans(libraryID, filter, total, be)
+	return total, nil
+}
+
+// drainOrphans is the background enrichment loop for MatchOrphansInLibrary.
+// Detached from any request context (HTTP/gRPC) so caller disconnect or
+// the openresty 90s gateway timeout do not cancel a minutes-to-hours job.
+// Stops on empty remainder (drain complete), Count stall (no progress),
+// List failure, or the safety iteration cap.
+func (s *CommandService) drainOrphans(libraryID string, filter library.ListMediaItemsFilter, total int, be BulkItemEnricher) {
+	const (
+		pageSize      = 500 // matches postgres DefaultListLimit
+		maxIterations = 500 // safety cap: ≥ 250k items per invocation
+	)
+	log := slog.Default()
+	lastCount := total
+	for i := 0; i < maxIterations; i++ {
+		f := filter
+		f.Limit = pageSize
+		items, err := s.mediaItems.List(context.Background(), f)
+		if err != nil {
+			log.Warn("match orphans: list page failed",
+				slog.String("library_id", libraryID),
+				slog.Any("err", err))
+			return
+		}
+		if len(items) == 0 {
+			log.Info("match orphans: drain complete",
+				slog.String("library_id", libraryID),
+				slog.Int("total_processed", total),
+				slog.Int("iterations", i))
+			return
+		}
+		be.AutoEnrichAll(context.Background(), items, log)
+		current, err := s.mediaItems.Count(context.Background(), f)
+		if err != nil {
+			log.Warn("match orphans: recount failed",
+				slog.String("library_id", libraryID),
+				slog.Any("err", err))
+			return
+		}
+		if current >= lastCount {
+			log.Warn("match orphans: no progress between iterations, stopping",
+				slog.String("library_id", libraryID),
+				slog.Int("remaining", current),
+				slog.Int("iterations", i+1))
+			return
+		}
+		lastCount = current
+	}
+	log.Warn("match orphans: hit safety iteration cap",
+		slog.String("library_id", libraryID),
+		slog.Int("remaining", lastCount))
 }
 
 // AutoRefreshAllItems auto-searches and enriches all media items using the
