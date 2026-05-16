@@ -323,6 +323,139 @@ func TestWaitWorkers_NoWorkersReturnsImmediately(t *testing.T) {
 	}
 }
 
+// --- MatchOrphansInLibrary ---
+
+// fakeOrphanBulkEnricher records every batch enrich call without doing the actual
+// TMDB work. Satisfies BulkItemEnricher and the base ItemEnricher contract.
+type fakeOrphanBulkEnricher struct {
+	mu          sync.Mutex
+	called      bool
+	itemsSeen   []string
+	releaseCh   chan struct{} // when non-nil, AutoEnrichAll blocks on it
+	finishedCh  chan struct{} // closed on AutoEnrichAll return
+}
+
+func (f *fakeOrphanBulkEnricher) EnrichItem(_ context.Context, _ *library.MediaItem, _ *metadata.MetadataResult) error {
+	return nil
+}
+
+func (f *fakeOrphanBulkEnricher) EnrichTranslationsForItem(_ context.Context, _ *library.MediaItem, _, _ string) {
+}
+
+func (f *fakeOrphanBulkEnricher) AutoEnrichAll(_ context.Context, items []*library.MediaItem, _ *slog.Logger) {
+	f.mu.Lock()
+	f.called = true
+	for _, it := range items {
+		f.itemsSeen = append(f.itemsSeen, string(it.ID))
+	}
+	rc := f.releaseCh
+	fc := f.finishedCh
+	f.mu.Unlock()
+	if rc != nil {
+		<-rc
+	}
+	if fc != nil {
+		close(fc)
+	}
+}
+
+func TestMatchOrphansInLibrary_NoEnricher(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	_, err := cmdSvc.MatchOrphansInLibrary(context.Background(), "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not support bulk refresh")
+}
+
+func TestMatchOrphansInLibrary_SelectsOnlyOrphansInLibrary(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeOrphanBulkEnricher{finishedCh: make(chan struct{})}
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	// orphan in target library
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "m1", LibraryID: "lib-1", Type: library.MovieItem, Title: "Orphan 1",
+	}))
+	// orphan with empty pid map in target library
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "m2", LibraryID: "lib-1", Type: library.MovieItem, Title: "Orphan 2",
+		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{}},
+	}))
+	// matched item in target library — must be skipped
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "m3", LibraryID: "lib-1", Type: library.MovieItem, Title: "Matched",
+		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "42"}},
+	}))
+	// orphan in OTHER library — must be skipped
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "m4", LibraryID: "lib-2", Type: library.MovieItem, Title: "Other lib orphan",
+	}))
+
+	queued, err := cmdSvc.MatchOrphansInLibrary(ctx, "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, 2, queued)
+
+	// AutoEnrichAll runs in a detached goroutine — wait for it.
+	select {
+	case <-enricher.finishedCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("AutoEnrichAll never completed")
+	}
+	enricher.mu.Lock()
+	defer enricher.mu.Unlock()
+	assert.True(t, enricher.called)
+	assert.ElementsMatch(t, []string{"m1", "m2"}, enricher.itemsSeen)
+}
+
+func TestMatchOrphansInLibrary_NoOrphansShortCircuits(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeOrphanBulkEnricher{}
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "m1", LibraryID: "lib-1", Type: library.MovieItem,
+		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "42"}},
+	}))
+
+	queued, err := cmdSvc.MatchOrphansInLibrary(ctx, "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, 0, queued)
+	enricher.mu.Lock()
+	defer enricher.mu.Unlock()
+	assert.False(t, enricher.called, "enricher must not be called when no orphans")
+}
+
+func TestMatchOrphansInLibrary_DetachesFromCallerContext(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	release := make(chan struct{})
+	enricher := &fakeOrphanBulkEnricher{releaseCh: release, finishedCh: make(chan struct{})}
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+
+	require.NoError(t, mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "m1", LibraryID: "lib-1", Type: library.MovieItem, Title: "Orphan",
+	}))
+
+	callerCtx, cancel := context.WithCancel(context.Background())
+	queued, err := cmdSvc.MatchOrphansInLibrary(callerCtx, "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, queued)
+
+	cancel() // simulate HTTP client disconnect
+
+	// The detached goroutine must still be alive — release it and confirm it
+	// completes, proving cancellation of the caller ctx did not propagate.
+	close(release)
+	select {
+	case <-enricher.finishedCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("detached enricher was cancelled by caller ctx — regression")
+	}
+}
+
 // --- ResearchMetadata ---
 
 // fakeForceEnricher implements ForceSingleItemEnricher and writes a known

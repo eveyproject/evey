@@ -125,6 +125,13 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 		args = append(args, *f.PersonID)
 		argIdx++
 	}
+	if f.MissingProviderIDs != nil {
+		if *f.MissingProviderIDs {
+			conditions = append(conditions, "(mc.provider_ids IS NULL OR mc.provider_ids = '{}'::jsonb)")
+		} else {
+			conditions = append(conditions, "mc.provider_ids IS NOT NULL AND mc.provider_ids != '{}'::jsonb")
+		}
+	}
 	if f.AfterID != "" {
 		conditions = append(conditions, fmt.Sprintf("mi.id > $%d", argIdx))
 		args = append(args, f.AfterID)

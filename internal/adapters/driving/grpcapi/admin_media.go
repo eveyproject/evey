@@ -58,6 +58,22 @@ func (d *adminMediaHandler) RefreshAllMetadata(ctx context.Context, req *eveyv1.
 	return &eveyv1.RefreshAllMetadataResponse{}, nil
 }
 
+func (d *adminMediaHandler) MatchOrphansInLibrary(ctx context.Context, req *eveyv1.MatchOrphansInLibraryRequest) (*eveyv1.MatchOrphansInLibraryResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.MatchOrphansInLibrary")
+	defer span.End()
+	if d.metadataCmd == nil {
+		span.SetStatus(otelcodes.Error, "service not configured")
+		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
+	}
+	queued, err := d.metadataCmd.MatchOrphansInLibrary(ctx, req.GetLibraryId())
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, internalError("match orphans", err)
+	}
+	return &eveyv1.MatchOrphansInLibraryResponse{Queued: int32(queued)}, nil
+}
+
 func (d *adminMediaHandler) GenerateAllTrickplays(ctx context.Context, _ *eveyv1.GenerateAllTrickplaysRequest) (*eveyv1.GenerateAllTrickplaysResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.GenerateAllTrickplays")
 	defer span.End()

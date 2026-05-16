@@ -957,6 +957,51 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 	return &ResearchMetadataResult{Item: final, Matched: matched, NewTitle: final.Title}, nil
 }
 
+// MatchOrphansInLibrary auto-searches and enriches *only* the items in the
+// library whose Catalog.ProviderIDs is effectively empty — i.e. items the
+// initial scan failed to match against any provider (typically TMDB rate
+// limit or network blip during bulk import). Idempotent: items that get
+// matched leave the orphan set, so re-running the action just picks up
+// what remains.
+//
+// Unlike AutoRefreshAllItems, this one runs asynchronously and returns
+// immediately with the count of items queued — the underlying enricher
+// pool (max 3 concurrent + provider-side rate limit) drains them in the
+// background. Progress can be polled by re-listing orphans.
+func (s *CommandService) MatchOrphansInLibrary(ctx context.Context, libraryID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.MatchOrphansInLibrary")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", libraryID))
+	be, ok := s.enricher.(BulkItemEnricher)
+	if !ok {
+		err := errors.New("enricher does not support bulk refresh")
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return 0, err
+	}
+	missing := true
+	filter := library.ListMediaItemsFilter{MissingProviderIDs: &missing}
+	if libraryID != "" {
+		libID := shared.LibraryID(libraryID)
+		filter.LibraryID = &libID
+	}
+	items, err := s.mediaItems.List(ctx, filter)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return 0, fmt.Errorf("list orphans: %w", err)
+	}
+	span.SetAttributes(attribute.Int("orphans.count", len(items)))
+	if len(items) == 0 {
+		return 0, nil
+	}
+	// Detach from the request context — the HTTP/gRPC client will see the
+	// 200 immediately, and we don't want their disconnect to cancel a
+	// minutes-to-hours background enrichment.
+	go be.AutoEnrichAll(context.Background(), items, slog.Default())
+	return len(items), nil
+}
+
 // AutoRefreshAllItems auto-searches and enriches all media items using the
 // enricher. This is the admin-triggered "Refresh all metadata" entry point —
 // it bypasses the "already has overview" short-circuit so past bad TMDB

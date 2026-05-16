@@ -56,9 +56,10 @@ func DefaultRBACConfig() RBACConfig {
 			// it resolves to the default RoleUser since iframe plugin consumers
 			// (any authenticated user) need to mint tokens. Scopes are filtered
 			// via FilterPluginScopes in the service layer (admin/system stripped).
-			"/evey.v1.AdminMediaService/RefreshAllMetadata":     RoleAdmin,
-			"/evey.v1.AdminMediaService/GenerateAllTrickplays":  RoleAdmin,
-			"/evey.v1.AdminMediaService/DeleteMediaItem":        RoleAdmin,
+			"/evey.v1.AdminMediaService/RefreshAllMetadata":    RoleAdmin,
+			"/evey.v1.AdminMediaService/MatchOrphansInLibrary": RoleAdmin,
+			"/evey.v1.AdminMediaService/GenerateAllTrickplays": RoleAdmin,
+			"/evey.v1.AdminMediaService/DeleteMediaItem":       RoleAdmin,
 			"/evey.v1.WebhookService/CreateWebhook":                         RoleAdmin,
 			"/evey.v1.WebhookService/ListWebhooks":                          RoleAdmin,
 			"/evey.v1.WebhookService/UpdateWebhook":                         RoleAdmin,

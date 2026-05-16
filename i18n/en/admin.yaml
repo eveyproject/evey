@@ -209,8 +209,13 @@ libraries:
   failedDelete: Failed to delete library
   scanStarted: Scan started
   failedScan: Failed to start scan
-  refreshMetadata: Refresh metadata
-  refreshAllMetadataStarted: Refresh started — titles and posters will update in the background
+  refreshMetadata: Re-match all from TMDB
+  refreshMetadataTooltip: Re-runs the TMDB search on every item — slow, but corrects past wrong matches. Use this after large rename batches.
+  refreshAllMetadataStarted: Re-match started — titles and posters will update in the background
+  matchOrphans: Match orphans only
+  matchOrphansTooltip: Targets only items that never matched TMDB at scan time (provider IDs empty). Fast, runs in the background.
+  matchOrphansStarted: "Queued {{count}} orphan(s) for matching — they'll appear with poster/overview as TMDB responds"
+  matchOrphansEmpty: No orphans to match in this library — all items already have provider IDs
   deleteTitle: Delete Library
   deleteConfirm: "Delete library \"{{name}}\"? This cannot be undone."
   noLibraries: No libraries. Add one to get started.

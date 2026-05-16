@@ -13,6 +13,19 @@ service AdminMediaService {
     };
   }
 
+  // MatchOrphansInLibrary targets only items missing provider IDs (TMDB
+  // never matched them at scan time) and queues an async re-enrichment.
+  // Returns immediately with the count of queued items; the enricher
+  // pool drains them in the background under its existing concurrency
+  // and rate-limit caps. Idempotent — re-run to pick up the still-
+  // orphaned remainder once any rate limits clear.
+  rpc MatchOrphansInLibrary(MatchOrphansInLibraryRequest) returns (MatchOrphansInLibraryResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/match-orphans"
+      body: "*"
+    };
+  }
+
   rpc GenerateAllTrickplays(GenerateAllTrickplaysRequest) returns (GenerateAllTrickplaysResponse) {
     option (google.api.http) = {
       post: "/api/v1/admin/trickplay/generate-all"
@@ -34,6 +47,19 @@ message RefreshAllMetadataRequest {
 
 message RefreshAllMetadataResponse {
   int32 refreshed = 1;
+}
+
+message MatchOrphansInLibraryRequest {
+  // Optional: when set, only orphans of this library are queued.
+  // Empty (default) targets orphans in every library.
+  string library_id = 1;
+}
+
+message MatchOrphansInLibraryResponse {
+  // Number of orphaned items queued for enrichment. The job runs async;
+  // the actual matched count is observable by re-listing items with
+  // empty providerIds.
+  int32 queued = 1;
 }
 
 message GenerateAllTrickplaysRequest {}

@@ -119,6 +119,15 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 				continue
 			}
 		}
+		if filter.MissingProviderIDs != nil {
+			hasPIDs := item.Catalog != nil && len(item.Catalog.ProviderIDs) > 0
+			if *filter.MissingProviderIDs && hasPIDs {
+				continue
+			}
+			if !*filter.MissingProviderIDs && !hasPIDs {
+				continue
+			}
+		}
 		result = append(result, item)
 	}
 	sortKey := filter.SortField

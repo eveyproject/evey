@@ -44,6 +44,12 @@ type ListMediaItemsFilter struct {
 	Cursor         shared.Cursor
 	AllowedRatings []string // parental control: if set, only items with official_rating in this list (or empty rating) are returned
 	PersonID       *string  // filter to items featuring this person
+	// MissingProviderIDs filters by whether the item's Catalog.ProviderIDs is
+	// effectively empty (NULL row in media_catalog or provider_ids = '{}').
+	// nil = no filter; true = only orphans; false = only matched items.
+	// Used by the admin "Match orphans" action to target enrichment at items
+	// that never matched a provider during initial scan.
+	MissingProviderIDs *bool
 }
 
 type MediaItemRepository interface {

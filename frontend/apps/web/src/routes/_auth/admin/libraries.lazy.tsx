@@ -255,6 +255,24 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const matchOrphans = useMutation<{ queued?: number }, Error>({
+    mutationFn: () =>
+      eveyFetch({
+        url: "/api/v1/admin/media/match-orphans",
+        method: "POST",
+        data: { libraryId: library.id },
+      }),
+    onSuccess: (resp) => {
+      const queued = resp?.queued ?? 0;
+      if (queued === 0) {
+        toast.info(t("admin.libraries.matchOrphansEmpty"));
+      } else {
+        toast.success(t("admin.libraries.matchOrphansStarted", { count: queued }));
+      }
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const libStat = stats.find((s) => s.id === library.id);
   const totalItems = libStat?.itemCount;
 
@@ -307,8 +325,18 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
           </Button>
           <Button
             variant="secondary"
+            loading={matchOrphans.isPending}
+            onClick={() => matchOrphans.mutate()}
+            title={t("admin.libraries.matchOrphansTooltip")}
+            data-testid="match-orphans-btn"
+          >
+            {t("admin.libraries.matchOrphans")}
+          </Button>
+          <Button
+            variant="secondary"
             loading={refreshMetadata.isPending}
             onClick={() => refreshMetadata.mutate()}
+            title={t("admin.libraries.refreshMetadataTooltip")}
             data-testid="refresh-library-metadata-btn"
           >
             {t("admin.libraries.refreshMetadata")}
