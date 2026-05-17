@@ -291,9 +291,20 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	claims := HTTPClaimsFromContext(r.Context())
 	userID := claims.UserID
 
+	slog.Info("hls: master playlist requested",
+		slog.String("media_id", mediaID),
+		slog.String("user_id", userID),
+		slog.String("user_agent", r.UserAgent()),
+		slog.String("query", r.URL.RawQuery))
+
 	if st, ok := StreamTokenFromContext(r.Context()); ok {
 		if st.MediaItemID != shared.MediaItemID(mediaID) {
 			span.SetStatus(codes.Error, "stream token media mismatch")
+			slog.Warn("hls: master 403 — stream token media mismatch",
+				slog.String("media_id", mediaID),
+				slog.String("token_media_id", string(st.MediaItemID)),
+				slog.String("user_id", userID),
+				slog.String("user_agent", r.UserAgent()))
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -548,7 +559,7 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 		}
 
 		if s, ok := hlsManager.GetSession(mediaID); ok {
-			s.MarkAccess()
+			s.MarkAccess(r.UserAgent())
 		}
 
 		setCORSHeaders(w, r, "")

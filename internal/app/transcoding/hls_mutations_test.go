@@ -201,7 +201,7 @@ func TestCleanupStale_EqualIdleNotCleaned(t *testing.T) {
 	require.NoError(t, err)
 
 	// Very recent access (idle ~ 0) — well below any positive threshold.
-	sess.MarkAccess()
+	sess.MarkAccess("")
 	m.CleanupStale(1 * time.Hour)
 
 	_, ok := m.GetSession("boundary-test")

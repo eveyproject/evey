@@ -183,7 +183,7 @@ func TestSessionMarkAccess(t *testing.T) {
 
 	before := sess.LastAccess
 	time.Sleep(5 * time.Millisecond)
-	sess.MarkAccess()
+	sess.MarkAccess("test/1.0")
 	assert.True(t, sess.LastAccess.After(before))
 }
 

@@ -50,6 +50,8 @@ type HLSSession struct {
 	streams          []*library.MediaStream
 	StartedAt        time.Time
 	LastAccess       time.Time
+	LastUserAgent    string // captured on each MarkAccess, "" until first handler call
+	warnedIdle       bool   // gated so the "approaching idle kill" log fires at most once per session
 	mu               sync.Mutex
 	handle           transcoding.HLSProcessHandle // nil when serving cached transcode
 	ready            chan struct{}
@@ -84,9 +86,17 @@ func (s *HLSSession) IsSingleStream() bool {
 	return s.VideoDecision == "copy"
 }
 
-func (s *HLSSession) MarkAccess() {
+// MarkAccess refreshes LastAccess and optionally captures the caller's
+// user-agent. Internal callers pass "" (no UA context); the HTTP segment
+// handler passes r.UserAgent() so forensic logs on session death know
+// which client was last on the line (Chromecast UAs start with "CrKey/").
+func (s *HLSSession) MarkAccess(userAgent string) {
 	s.mu.Lock()
 	s.LastAccess = time.Now()
+	if userAgent != "" {
+		s.LastUserAgent = userAgent
+	}
+	s.warnedIdle = false
 	s.mu.Unlock()
 }
 
@@ -109,12 +119,20 @@ func (s *HLSSession) WaitReady(ctx context.Context) error {
 		if s.err != nil {
 			span.RecordError(s.err)
 			span.SetStatus(otelcodes.Error, s.err.Error())
+			slog.Warn("hls: WaitReady — session start failed",
+				slog.String("media_id", string(s.MediaItemID)),
+				slog.String("user_id", string(s.UserID)),
+				slog.Any("err", s.err))
 		}
 		return s.err
 	case <-ctx.Done():
 		err := ctx.Err()
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		slog.Warn("hls: WaitReady — ctx cancelled before session ready",
+			slog.String("media_id", string(s.MediaItemID)),
+			slog.String("user_id", string(s.UserID)),
+			slog.Any("err", err))
 		return err
 	}
 }
@@ -122,7 +140,15 @@ func (s *HLSSession) WaitReady(ctx context.Context) error {
 func (s *HLSSession) stop() {
 	s.mu.Lock()
 	h := s.handle
+	ua := s.LastUserAgent
+	uptime := time.Since(s.StartedAt)
 	s.mu.Unlock()
+	slog.Info("hls: session stopping",
+		slog.String("media_id", string(s.MediaItemID)),
+		slog.String("user_id", string(s.UserID)),
+		slog.String("output_dir", s.OutputDir),
+		slog.String("last_user_agent", ua),
+		slog.Float64("uptime_seconds", uptime.Seconds()))
 	if h != nil {
 		if err := h.Stop(); err != nil {
 			slog.Warn("hls: stop handle failed", slog.String("media_id", string(s.MediaItemID)), slog.Any("err", err))
@@ -283,13 +309,20 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 	m.mu.Lock()
 	if session, ok := m.sessions[mediaItemID]; ok {
 		if session.VideoDecision == videoDecision && session.AudioDecision == audioDecision {
-			session.MarkAccess()
+			session.MarkAccess("")
 			m.mu.Unlock()
 			return session, nil
 		}
 		old := session
 		m.detachSessionLocked(old)
 		m.mu.Unlock()
+		slog.Info("hls: session replaced — decisions changed",
+			slog.String("media_id", mediaItemID),
+			slog.String("user_id", userID),
+			slog.String("old_video", old.VideoDecision),
+			slog.String("new_video", videoDecision),
+			slog.String("old_audio", old.AudioDecision),
+			slog.String("new_audio", audioDecision))
 		old.stop()
 		m.removeSessionDir(string(old.MediaItemID))
 	} else {
@@ -316,7 +349,7 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 	m.mu.Lock()
 	if session, ok := m.sessions[mediaItemID]; ok {
 		if session.VideoDecision == videoDecision && session.AudioDecision == audioDecision {
-			session.MarkAccess()
+			session.MarkAccess("")
 			m.mu.Unlock()
 			m.releaseSemaphore()
 			return session, nil
@@ -324,6 +357,13 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 		old := session
 		m.detachSessionLocked(old)
 		m.mu.Unlock()
+		slog.Info("hls: session replaced — decisions changed (race)",
+			slog.String("media_id", mediaItemID),
+			slog.String("user_id", userID),
+			slog.String("old_video", old.VideoDecision),
+			slog.String("new_video", videoDecision),
+			slog.String("old_audio", old.AudioDecision),
+			slog.String("new_audio", audioDecision))
 		old.stop()
 		m.removeSessionDir(string(old.MediaItemID))
 		m.mu.Lock()
@@ -387,6 +427,16 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 		writeCachedDecision(outputDir, videoDecision, audioDecision)
 		go m.startSession(session, filePath)
 	}
+	slog.Info("hls: session created",
+		slog.String("media_id", mediaItemID),
+		slog.String("user_id", userID),
+		slog.String("video_decision", videoDecision),
+		slog.String("audio_decision", audioDecision),
+		slog.Int("audio_track", audioTrackIndex),
+		slog.Int("subtitle_track", subtitleTrackIndex),
+		slog.Float64("start_sec", startSec),
+		slog.Int("profiles", len(profiles)),
+		slog.Bool("hdr", hdrSupported))
 	return session, nil
 }
 
@@ -481,6 +531,11 @@ func (m *HLSManager) RestartFromPosition(userID, mediaItemID, filePath string, s
 			delete(m.userSessions, string(old.UserID))
 		}
 		m.mu.Unlock()
+		slog.Info("hls: restarting session from new position",
+			slog.String("media_id", mediaItemID),
+			slog.String("user_id", userID),
+			slog.Float64("start_sec", startSec),
+			slog.Float64("old_start_sec", old.StartSec))
 		old.stop()
 		m.releaseSemaphore()
 	} else {
@@ -557,34 +612,78 @@ func (m *HLSManager) cleanupLoop() {
 }
 
 func (m *HLSManager) cleanupStale(maxIdle time.Duration) {
+	// Warn-only threshold: when a session crosses 70% of maxIdle without a
+	// hit, log once so we can correlate the upcoming kill with whatever the
+	// receiver was doing (cast paused, network glitch, transcode stalled).
+	// The flag resets on the next MarkAccess so a recovering session can
+	// warn again later in its life.
+	warnIdle := time.Duration(float64(maxIdle) * 0.7)
 	m.mu.Lock()
 	var toStop []*HLSSession
 	type killed struct {
-		id       string
-		idleSecs float64
+		id         string
+		userID     string
+		userAgent  string
+		idleSecs   float64
+		uptimeSecs float64
+	}
+	type warned struct {
+		id         string
+		userID     string
+		userAgent  string
+		idleSecs   float64
+		uptimeSecs float64
 	}
 	var killedSessions []killed
+	var warnedSessions []warned
 	now := time.Now()
 	for id, session := range m.sessions {
 		session.mu.Lock()
 		idle := now.Sub(session.LastAccess)
+		uptime := now.Sub(session.StartedAt)
+		ua := session.LastUserAgent
+		alreadyWarned := session.warnedIdle
+		if idle > warnIdle && !alreadyWarned && idle <= maxIdle {
+			session.warnedIdle = true
+		}
 		session.mu.Unlock()
 		if idle > maxIdle {
-			killedSessions = append(killedSessions, killed{id: id, idleSecs: idle.Seconds()})
+			killedSessions = append(killedSessions, killed{
+				id: id, userID: string(session.UserID), userAgent: ua,
+				idleSecs: idle.Seconds(), uptimeSecs: uptime.Seconds(),
+			})
 			toStop = append(toStop, session)
 			delete(m.sessions, id)
 			m.userSessions[string(session.UserID)]--
 			if m.userSessions[string(session.UserID)] <= 0 {
 				delete(m.userSessions, string(session.UserID))
 			}
+		} else if idle > warnIdle && !alreadyWarned {
+			warnedSessions = append(warnedSessions, warned{
+				id: id, userID: string(session.UserID), userAgent: ua,
+				idleSecs: idle.Seconds(), uptimeSecs: uptime.Seconds(),
+			})
 		}
 	}
 	m.mu.Unlock()
+	for _, w := range warnedSessions {
+		slog.Warn("hls: session idle approaching kill threshold",
+			slog.String("media_id", w.id),
+			slog.String("user_id", w.userID),
+			slog.String("last_user_agent", w.userAgent),
+			slog.Float64("idle_seconds", w.idleSecs),
+			slog.Float64("warn_threshold_seconds", warnIdle.Seconds()),
+			slog.Float64("max_idle_seconds", maxIdle.Seconds()),
+			slog.Float64("uptime_seconds", w.uptimeSecs))
+	}
 	for _, k := range killedSessions {
 		slog.Info("hls: cleaning stale session",
 			slog.String("media_id", k.id),
+			slog.String("user_id", k.userID),
+			slog.String("last_user_agent", k.userAgent),
 			slog.Float64("idle_seconds", k.idleSecs),
-			slog.Float64("max_idle_seconds", maxIdle.Seconds()))
+			slog.Float64("max_idle_seconds", maxIdle.Seconds()),
+			slog.Float64("uptime_seconds", k.uptimeSecs))
 	}
 	for _, s := range toStop {
 		s.stop()

@@ -157,8 +157,16 @@ func tokenRedactMiddleware(store streamTokenValidator, next http.Handler) http.H
 						r.Header.Set("Authorization", "Bearer "+t)
 						ctx := context.WithValue(r.Context(), streamTokenCtxKey, st)
 						r = r.WithContext(ctx)
+					} else {
+						// opaque token invalid/expired: don't set as Bearer, handler returns 401.
+						// Logged so a Chromecast disconnect caused by a vanished token (server
+						// restart wiped the in-memory store; token actually expired) is visible
+						// instead of being silently spanned away.
+						slog.Warn("stream token: opaque token validation failed",
+							slog.String("path", r.URL.Path),
+							slog.String("user_agent", r.UserAgent()),
+							slog.Int("token_len", len(t)))
 					}
-					// opaque token invalid/expired: don't set as Bearer, handler returns 401
 				} else {
 					// JWT or no store: set as Bearer, handlers validate
 					r.Header.Set("Authorization", "Bearer "+t)
