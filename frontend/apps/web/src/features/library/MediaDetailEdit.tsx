@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
+import { IdentifyMetadataModal } from "./IdentifyMetadataModal";
 
 interface EditForm {
   title: string;
@@ -157,6 +158,7 @@ export function MetadataEditPanel({
   const [refreshStatus, setRefreshStatus] = useState<"idle" | "running" | "done" | "error">("idle");
   const [rematchOpen, setRematchOpen] = useState(false);
   const [rematching, setRematching] = useState(false);
+  const [identifyOpen, setIdentifyOpen] = useState(false);
   const canSave =
     form.title.trim() !== "" ||
     form.originalTitle.trim() !== "" ||
@@ -381,9 +383,24 @@ export function MetadataEditPanel({
         <Button type="button" variant="danger" onClick={() => setRematchOpen(true)} data-testid="media-edit-rematch-btn">
           {t("media.detail.rematchMetadata")}
         </Button>
+        {item.id && (
+          <Button type="button" variant="secondary" onClick={() => setIdentifyOpen(true)} data-testid="media-edit-identify-btn">
+            {t("media.detail.identify.openButton", "Identify on TMDB")}
+          </Button>
+        )}
         <Button type="button" variant="secondary" onClick={onCancel} data-testid="media-edit-cancel-btn">{t("common.cancel")}</Button>
       </div>
       {setOverride.isError && <p className="text-sm text-[var(--color-danger)]">{t("media.detail.failedToSaveDot")}</p>}
+      {item.id && (
+        <IdentifyMetadataModal
+          open={identifyOpen}
+          onClose={() => setIdentifyOpen(false)}
+          mediaItemId={item.id}
+          initialQuery={(item.title ?? "").replace(/\s*\d{3,4}p?\s*$/i, "").trim()}
+          mediaType={mediaType}
+          onApplied={() => onSave()}
+        />
+      )}
       <Modal open={rematchOpen} onClose={() => !rematching && setRematchOpen(false)} title={t("media.detail.rematchMetadata")} size="sm">
         <div className="flex flex-col gap-4">
           <p className="text-sm text-[var(--text-muted)]">{t("media.detail.rematchConfirm")}</p>
