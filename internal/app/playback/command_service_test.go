@@ -377,6 +377,35 @@ func TestReportProgressBySession_GetterError_DegradesGracefully(t *testing.T) {
 	assert.False(t, wp.Completed)
 }
 
+func TestReportProgress_AutoCompletesAt90Percent(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, ur, pfr := setupCmdWithDurations(map[string]int64{"m1": 100_000})
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	// Caller sends completed=false but the position crosses the threshold —
+	// the server-side getter promotes it to true. Matches the BySession
+	// path so CLI / non-web clients get parity with mobile/web.
+	require.NoError(t, cmd.ReportProgress(ctx, "p1", "m1", 95_000, false))
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, wp.Completed)
+}
+
+func TestReportProgress_ExplicitCompletedAlwaysWins(t *testing.T) {
+	t.Parallel()
+	// Even when position is below the auto-complete threshold, an explicit
+	// completed=true from the caller still flips the flag (caller intent).
+	cmd, pr, _, ur, pfr := setupCmdWithDurations(map[string]int64{"m1": 100_000})
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.ReportProgress(ctx, "p1", "m1", 1_000, true))
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, wp.Completed)
+}
+
 func TestMarkAsWatched_StaysStickyAgainstSubsequentProgressTick(t *testing.T) {
 	t.Parallel()
 	// Regression: the historical hardcoded Completed=false in

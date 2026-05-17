@@ -106,6 +106,28 @@ func (s *CommandService) validateProfile(ctx context.Context, profileID shared.P
 	return nil
 }
 
+// shouldAutoComplete returns true when the (mediaItem, positionMs) crosses
+// the 90% completion threshold AND a duration source is wired. Best-effort:
+// the lookup error is logged at Debug and falls back to false so progress
+// writes are never blocked by an enrichment dependency.
+func (s *CommandService) shouldAutoComplete(ctx context.Context, mediaItemID string, positionMs int64) bool {
+	if s.durations == nil || positionMs <= 0 {
+		return false
+	}
+	durMs, err := s.durations.GetMediaItemDurationMs(ctx, mediaItemID)
+	if err != nil {
+		slog.Debug("auto-complete: duration lookup failed",
+			slog.String("mediaItemID", mediaItemID),
+			slog.Any("err", err))
+		return false
+	}
+	if durMs <= 0 {
+		return false
+	}
+	// Integer threshold check: positionMs / durMs >= 9/10  ⇔  positionMs*10 >= durMs*9
+	return positionMs*int64(CompletedThresholdDenominator) >= durMs*int64(CompletedThresholdNumerator)
+}
+
 func (s *CommandService) StartStream(ctx context.Context, session *playback.PlaySession, userID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.StartStream")
 	defer span.End()
@@ -216,20 +238,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	// Upsert is sticky-true on conflict, so once we flip it the flag
 	// survives any subsequent tick that drops below 90% (a user seeking
 	// back). Skipped when the getter is absent or duration is unknown.
-	completed := false
-	if s.durations != nil && positionMs > 0 {
-		if durMs, durErr := s.durations.GetMediaItemDurationMs(ctx, string(session.MediaItemID)); durErr == nil && durMs > 0 {
-			// Integer threshold check: positionMs / durMs >= 9/10  ⇔  positionMs*10 >= durMs*9
-			if positionMs*int64(CompletedThresholdDenominator) >= durMs*int64(CompletedThresholdNumerator) {
-				completed = true
-			}
-		} else if durErr != nil {
-			slog.Debug("report progress: duration lookup failed",
-				slog.String("sessionID", sessionID),
-				slog.String("mediaItemID", string(session.MediaItemID)),
-				slog.Any("err", durErr))
-		}
-	}
+	completed := s.shouldAutoComplete(ctx, string(session.MediaItemID), positionMs)
 	// WatchProgress.Position is non-negative by construction; on a corrupt
 	// input we already logged above and pos is zero — keep buffering forward
 	// so the player UI can still record "session is alive" via IsPaused.
@@ -264,6 +273,14 @@ func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaIte
 	pos, dErr := shared.NewDurationMs(positionMs)
 	if dErr != nil {
 		slog.Warn("invalid report progress position", slog.String("profileID", profileID), slog.Int64("ms", positionMs), slog.Any("err", dErr))
+	}
+	// Caller-supplied completed is taken as-is when true (explicit
+	// MarkAsWatched-style intent). When the caller says false we still
+	// auto-complete at 90% via the duration getter, so CLI/non-web clients
+	// that just stream raw position get the same Completed semantics as
+	// the web/mobile players which compute completion client-side.
+	if !completed {
+		completed = s.shouldAutoComplete(ctx, mediaItemID, positionMs)
 	}
 	wp := &playback.WatchProgress{
 		ID:           id.New("wp-"),
