@@ -150,7 +150,7 @@ func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, s
 	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.GetEpisodeDetails")
 	defer span.End()
 
-	u := fmt.Sprintf("%s/tv/%s/season/%d/episode/%d?language=%s&append_to_response=images",
+	u := fmt.Sprintf("%s/tv/%s/season/%d/episode/%d?language=%s&append_to_response=images,external_ids",
 		p.baseURL, seriesID, seasonNum, episodeNum, p.language())
 	body, err := p.doRequestWithRetry(ctx, u)
 	if err != nil {
@@ -163,6 +163,11 @@ func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, s
 		StillPath   string  `json:"still_path"`
 		VoteAverage float64 `json:"vote_average"`
 		AirDate     string  `json:"air_date"`
+		// external_ids appended via append_to_response saves a second
+		// round-trip (the alternative was calling /tv/{id}/season/{n}/
+		// episode/{e}/external_ids separately). Fields documented at
+		// https://developers.themoviedb.org/3/tv-episodes/get-tv-episode-external-ids
+		ExternalIDs *tmdbExternalIDs `json:"external_ids"`
 	}
 	if err := json.Unmarshal(body, &ep); err != nil {
 		return nil, fmt.Errorf("tmdb episode unmarshal: %w", err)
@@ -174,11 +179,14 @@ func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, s
 		Title:    ep.Name,
 		Overview: ep.Overview,
 	}
-	// Persist the episode's own TMDB ID so the row leaves the orphan set
-	// (provider_ids = {} makes match-orphans pick it up forever otherwise).
+	// Persist the episode's own TMDB ID so the row leaves the orphan set,
+	// plus IMDB/TVDB IDs if TMDB knows them — saves the admin a manual
+	// "Identify on IMDB" round-trip later.
+	result.ProviderIDs = map[string]string{}
 	if ep.ID > 0 {
-		result.ProviderIDs = map[string]string{"tmdb": strconv.Itoa(ep.ID)}
+		result.ProviderIDs["tmdb"] = strconv.Itoa(ep.ID)
 	}
+	mapDetailExternalIDs(result, ep.ExternalIDs)
 	if ep.VoteAverage > 0 {
 		r := ep.VoteAverage
 		result.CommunityRating = &r
@@ -203,19 +211,20 @@ func (p *TMDBProvider) GetSeasonDetails(ctx context.Context, seriesID string, se
 	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.GetSeasonDetails")
 	defer span.End()
 
-	u := fmt.Sprintf("%s/tv/%s/season/%d?language=%s&append_to_response=images",
+	u := fmt.Sprintf("%s/tv/%s/season/%d?language=%s&append_to_response=images,external_ids",
 		p.baseURL, seriesID, seasonNum, p.language())
 	body, err := p.doRequestWithRetry(ctx, u)
 	if err != nil {
 		return nil, fmt.Errorf("tmdb season request: %w", err)
 	}
 	var s struct {
-		ID          int     `json:"id"`
-		Name        string  `json:"name"`
-		Overview    string  `json:"overview"`
-		PosterPath  string  `json:"poster_path"`
-		AirDate     string  `json:"air_date"`
-		VoteAverage float64 `json:"vote_average"`
+		ID          int              `json:"id"`
+		Name        string           `json:"name"`
+		Overview    string           `json:"overview"`
+		PosterPath  string           `json:"poster_path"`
+		AirDate     string           `json:"air_date"`
+		VoteAverage float64          `json:"vote_average"`
+		ExternalIDs *tmdbExternalIDs `json:"external_ids"`
 	}
 	if err := json.Unmarshal(body, &s); err != nil {
 		return nil, fmt.Errorf("tmdb season unmarshal: %w", err)
@@ -224,10 +233,11 @@ func (p *TMDBProvider) GetSeasonDetails(ctx context.Context, seriesID string, se
 		Title:    s.Name,
 		Overview: s.Overview,
 	}
-	// Persist the season's own TMDB ID so the row leaves the orphan set.
+	result.ProviderIDs = map[string]string{}
 	if s.ID > 0 {
-		result.ProviderIDs = map[string]string{"tmdb": strconv.Itoa(s.ID)}
+		result.ProviderIDs["tmdb"] = strconv.Itoa(s.ID)
 	}
+	mapDetailExternalIDs(result, s.ExternalIDs)
 	if s.VoteAverage > 0 {
 		r := s.VoteAverage
 		result.CommunityRating = &r
