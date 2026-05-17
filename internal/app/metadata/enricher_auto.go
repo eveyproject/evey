@@ -591,8 +591,20 @@ func (e *Enricher) autoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 	sem := make(chan struct{}, 3)
 	var wg sync.WaitGroup
 	for _, item := range items {
+		// Mirror the autoEnrichItem split: a matched item's overrides are
+		// display intent (skip), but an orphan's overrides are the admin's
+		// "match-me" signal — let autoEnrichItem run, it will harvest the
+		// title/originalTitle overrides into the search query. Without this
+		// split, match-orphans → drainOrphans → AutoEnrichAll dropped every
+		// orphan-with-override at the bulk gate and the drainer's stall
+		// detector exited immediately every single iteration (pré-prod
+		// regression: 7700+ orphans frozen because the admin had cleaned
+		// their titles via the UI).
 		if overridden[string(item.ID)] {
-			continue
+			isOrphan := item.Catalog == nil || len(item.Catalog.ProviderIDs) == 0
+			if !isOrphan {
+				continue
+			}
 		}
 		if !force && item.Overview != "" && len(item.Trailers) > 0 {
 			continue

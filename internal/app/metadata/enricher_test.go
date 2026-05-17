@@ -666,6 +666,65 @@ func TestAutoEnrichItem_OrphanWithTitleOverride_UsesOverrideForSearch(t *testing
 	assert.Equal(t, "Documentaire santé.", item.Overview, "orphan with title override must still enrich")
 }
 
+func TestAutoEnrichAll_OrphanWithOverride_NotSkipped(t *testing.T) {
+	// Bulk path mirror of TestAutoEnrichItem_OrphanWithTitleOverride_UsesOverrideForSearch.
+	// drainOrphans → AutoEnrichAll(items, ...) had its own override-skip at
+	// the bulk gate; without it, the single-item fix never gets reached.
+	primary := &fakeProvider{
+		name: "tmdb",
+		searchResults: []domain.MetadataResult{
+			{Title: "Quand l'hôpital retient son souffle", ProviderIDs: map[string]string{"tmdb": "999"}},
+		},
+		detailResult: &domain.MetadataResult{
+			Title:       "Quand l'hôpital retient son souffle",
+			Overview:    "Documentaire santé.",
+			ProviderIDs: map[string]string{"tmdb": "999"},
+		},
+	}
+	e, _, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	EnricherWithOverrides(overrideRepo)(e)
+
+	item := &domainlib.MediaItem{ID: "orphan-bulk", Title: "Quand l'hôpital retient son souffle 720", Type: "movie"}
+	require.NoError(t, miRepo.Create(context.Background(), item))
+
+	ov, err := domain.NewMetadataOverride("mo-bulk", "orphan-bulk", "title",
+		domain.WithOverrideValue("Quand l'hôpital retient son souffle"))
+	require.NoError(t, err)
+	require.NoError(t, overrideRepo.Set(context.Background(), ov))
+
+	e.AutoEnrichAll(context.Background(), []*domainlib.MediaItem{item}, slog.Default())
+	stored, err := miRepo.GetByID(context.Background(), "orphan-bulk")
+	require.NoError(t, err)
+	assert.Equal(t, "Documentaire santé.", stored.Overview, "bulk path must NOT skip orphan with override")
+}
+
+func TestAutoEnrichAll_MatchedItemWithOverride_StillSkipped(t *testing.T) {
+	primary := &fakeProvider{
+		name: "tmdb",
+		detailResult: &domain.MetadataResult{Overview: "REPLACED"},
+	}
+	e, _, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	EnricherWithOverrides(overrideRepo)(e)
+
+	item := &domainlib.MediaItem{
+		ID: "matched-bulk", Title: "Matrix", Type: "movie",
+		Catalog: &domainlib.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "603"}},
+	}
+	require.NoError(t, miRepo.Create(context.Background(), item))
+
+	ov, err := domain.NewMetadataOverride("mo-bulk2", "matched-bulk", "title",
+		domain.WithOverrideValue("Custom"))
+	require.NoError(t, err)
+	require.NoError(t, overrideRepo.Set(context.Background(), ov))
+
+	e.AutoEnrichAll(context.Background(), []*domainlib.MediaItem{item}, slog.Default())
+	stored, err := miRepo.GetByID(context.Background(), "matched-bulk")
+	require.NoError(t, err)
+	assert.Empty(t, stored.Overview, "bulk path matched-with-override stays skipped")
+}
+
 func TestAutoEnrichItem_MatchedItemWithOverride_StillSkips(t *testing.T) {
 	// Matched item's overrides are display preferences — must not retrigger
 	// a TMDB search that would overwrite them. Asserts the historical
