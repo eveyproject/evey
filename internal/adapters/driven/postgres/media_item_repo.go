@@ -144,13 +144,26 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	if sortTitle == "" {
 		sortTitle = library.NormalizeSortTitle(item.Title)
 	}
+	// scan_title was historically treated as immutable post-create (the
+	// "stable filesystem-derived" comment in mediaItemColumns). That
+	// breaks the orphan title-heal pass: when the parser improves,
+	// healOrphanTitles rewrites Title+ScanTitle in memory, calls Update,
+	// and previously only Title landed in the DB row. ResearchMetadata
+	// (which resets Title := ScanTitle from the stale DB value) then
+	// silently undid the heal on the next call. Persist whatever the
+	// caller passed — heal updates it, vanilla scan keeps it equal to the
+	// freshly-parsed Title so no behavior change.
+	scanTitle := item.ScanTitle
+	if scanTitle == "" {
+		scanTitle = item.Title
+	}
 
 	err := r.withMediaItemTx(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx,
-			`UPDATE media_items SET library_id=$1, parent_id=$2, type=$3, title=$4, sort_title=$5,
-			 original_title=$6, overview=$7, tagline=$8, index_number=$9, updated_at=$10
-			 WHERE id=$11`,
-			item.LibraryID, parentID, item.Type, item.Title, sortTitle, item.OriginalTitle,
+			`UPDATE media_items SET library_id=$1, parent_id=$2, type=$3, title=$4, scan_title=$5,
+			 sort_title=$6, original_title=$7, overview=$8, tagline=$9, index_number=$10, updated_at=$11
+			 WHERE id=$12`,
+			item.LibraryID, parentID, item.Type, item.Title, scanTitle, sortTitle, item.OriginalTitle,
 			item.Overview, item.Tagline, item.IndexNumber, item.UpdatedAt, item.ID,
 		)
 		if err != nil {
