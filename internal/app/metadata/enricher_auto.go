@@ -73,13 +73,16 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 				}
 				return
 			}
-			// Orphan: extract title/originalTitle overrides for the search query.
+			// Orphan: extract title/original_title overrides for the search
+			// query. Field names match what MediaDetailEdit writes (the web
+			// FIELD_MAP uses snake_case for original_title — see
+			// library_handler.go:986 for the matching read side).
 			for _, ov := range overrides {
 				if s, ok := ov.CustomValue.(string); ok && s != "" {
 					switch ov.FieldName {
 					case "title":
 						titleOverride = s
-					case "originalTitle":
+					case "original_title":
 						originalTitleOverride = s
 					}
 				}

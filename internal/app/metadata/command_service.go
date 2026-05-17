@@ -628,9 +628,11 @@ func (s *CommandService) propagateTitleOverrideForOrphan(ctx context.Context, ov
 	if s.mediaItems == nil || s.enricher == nil {
 		return
 	}
-	// Only the title (or originalTitle as a fallback) is search-relevant.
+	// Only the title (or original_title as a fallback) is search-relevant.
 	// Other fields (overview, tagline, year) don't change TMDB match outcomes.
-	if override.FieldName != "title" && override.FieldName != "originalTitle" {
+	// Field names match what MediaDetailEdit writes (snake_case for
+	// original_title — see frontend FIELD_MAP and library_handler.go:986).
+	if override.FieldName != "title" && override.FieldName != "original_title" {
 		return
 	}
 	// CustomValue is any so the same override row can carry numerics,
@@ -649,12 +651,13 @@ func (s *CommandService) propagateTitleOverrideForOrphan(ctx context.Context, ov
 	if item.Catalog != nil && len(item.Catalog.ProviderIDs) > 0 {
 		return
 	}
-	if override.FieldName == "title" {
+	switch override.FieldName {
+	case "title":
 		if item.Title == val {
 			return // already aligned, nothing to do
 		}
 		item.Title = val
-	} else {
+	case "original_title":
 		if item.OriginalTitle == val {
 			return
 		}
