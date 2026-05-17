@@ -239,6 +239,14 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	// survives any subsequent tick that drops below 90% (a user seeking
 	// back). Skipped when the getter is absent or duration is unknown.
 	completed := s.shouldAutoComplete(ctx, string(session.MediaItemID), positionMs)
+	// First-time completion seeds play_count=1. On INSERT (no prior row)
+	// the value is used directly; on ON CONFLICT the SQL's transition
+	// branch handles the actual increment from the previous play_count,
+	// so this seed only matters for the fresh-insert path.
+	playCount := 0
+	if completed {
+		playCount = 1
+	}
 	// WatchProgress.Position is non-negative by construction; on a corrupt
 	// input we already logged above and pos is zero — keep buffering forward
 	// so the player UI can still record "session is alive" via IsPaused.
@@ -248,6 +256,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 		MediaItemID:  session.MediaItemID,
 		Position:     pos,
 		Completed:    completed,
+		PlayCount:    playCount,
 		LastPlayedAt: time.Now(),
 	}
 	// Buffer-mode keeps the player tick off the DB hot path; the periodic
@@ -282,12 +291,17 @@ func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaIte
 	if !completed {
 		completed = s.shouldAutoComplete(ctx, mediaItemID, positionMs)
 	}
+	playCount := 0
+	if completed {
+		playCount = 1
+	}
 	wp := &playback.WatchProgress{
 		ID:           id.New("wp-"),
 		ProfileID:    shared.ProfileID(profileID),
 		MediaItemID:  shared.MediaItemID(mediaItemID),
 		Position:     pos,
 		Completed:    completed,
+		PlayCount:    playCount,
 		LastPlayedAt: time.Now(),
 	}
 	if err := s.progress.Upsert(ctx, wp); err != nil {

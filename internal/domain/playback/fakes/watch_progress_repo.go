@@ -34,11 +34,20 @@ func (r *FakeWatchProgressRepository) Upsert(_ context.Context, wp *playback.Wat
 	if r.Err != nil {
 		return r.Err
 	}
-	// Mirror the postgres adapter: completed is sticky-true on conflict so
-	// the fake honours the same invariant unit tests rely on.
+	// Mirror the postgres adapter: completed is sticky-true on conflict;
+	// play_count increments on false→true transition, otherwise takes max
+	// so progress ticks that pass PlayCount=0 don't regress the counter.
 	k := key(string(wp.ProfileID), string(wp.MediaItemID))
-	if prev, ok := r.items[k]; ok && prev.Completed {
-		wp.Completed = true
+	if prev, ok := r.items[k]; ok {
+		switch {
+		case wp.Completed && !prev.Completed:
+			wp.PlayCount = prev.PlayCount + 1
+		case prev.PlayCount > wp.PlayCount:
+			wp.PlayCount = prev.PlayCount
+		}
+		if prev.Completed {
+			wp.Completed = true
+		}
 	}
 	r.items[k] = wp
 	return nil

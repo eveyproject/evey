@@ -406,6 +406,54 @@ func TestReportProgress_ExplicitCompletedAlwaysWins(t *testing.T) {
 	assert.True(t, wp.Completed)
 }
 
+func TestReportProgressBySession_PlayCountIncrementsOnFirstCompletion(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, ur, pfr := setupCmdWithDurations(map[string]int64{"m1": 100_000})
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+
+	// First crossing of the threshold: play_count bumps from 0 to 1.
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 92_000, false))
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, wp.Completed)
+	assert.Equal(t, 1, wp.PlayCount, "first completion must bump play_count to 1")
+
+	// Subsequent ticks while still completed must NOT keep bumping the
+	// counter — the sticky-true gate keeps EXCLUDED.completed=true but
+	// the previous row already has completed=true, so the transition
+	// branch doesn't fire. Re-watching from scratch is a separate flow
+	// (Delete via MarkAsUnwatched, then new completion).
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 98_000, false))
+	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, wp.PlayCount, "follow-up ticks past 90% must NOT keep incrementing")
+}
+
+func TestReportProgressBySession_PlayCountPreservedBetweenSessions(t *testing.T) {
+	t.Parallel()
+	// Regression: the pre-fix Upsert wrote PlayCount=0 on every tick,
+	// overwriting MarkAsWatched's PlayCount=1 silently. Sticky-max +
+	// transition-bump fixes it.
+	cmd, pr, _, ur, pfr := setupCmdWithDurations(map[string]int64{"m1": 100_000})
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "m1"))
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, wp.PlayCount)
+
+	// Mid-stream progress tick at 20% — must NOT regress PlayCount to 0.
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 20_000, false))
+	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, wp.PlayCount, "progress tick must NOT regress play_count from MarkAsWatched")
+}
+
 func TestMarkAsWatched_StaysStickyAgainstSubsequentProgressTick(t *testing.T) {
 	t.Parallel()
 	// Regression: the historical hardcoded Completed=false in

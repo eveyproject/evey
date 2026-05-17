@@ -50,13 +50,24 @@ func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.Watch
 	// background progress tick can't undo an explicit MarkAsWatched or a
 	// previous auto-completion at 90%. MarkAsUnwatched goes through Delete,
 	// not Upsert, when it needs to clear the flag.
+	//
+	// PlayCount semantic: increments only on the false→true completion
+	// transition (so re-watching a finished episode bumps the count). For
+	// any other update (mid-stream progress tick that doesn't flip the
+	// flag), it takes max(existing, incoming) so callers passing
+	// PlayCount=0 (the common ReportProgress* path) never regress the
+	// counter. Callers wanting to set an absolute value still can — the
+	// incoming PlayCount wins when it's higher.
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO watch_progress (id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7)
 		 ON CONFLICT (profile_id, media_item_id) DO UPDATE SET
 		   position_ms = EXCLUDED.position_ms,
 		   completed = (watch_progress.completed OR EXCLUDED.completed),
-		   play_count = EXCLUDED.play_count,
+		   play_count = CASE
+		     WHEN EXCLUDED.completed AND NOT watch_progress.completed THEN watch_progress.play_count + 1
+		     ELSE GREATEST(watch_progress.play_count, EXCLUDED.play_count)
+		   END,
 		   last_played_at = EXCLUDED.last_played_at`,
 		wp.ID, wp.ProfileID, wp.MediaItemID, wp.Position.Milliseconds(), wp.Completed, wp.PlayCount, wp.LastPlayedAt,
 	)
