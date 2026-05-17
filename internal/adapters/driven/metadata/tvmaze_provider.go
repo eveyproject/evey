@@ -127,6 +127,11 @@ func (p *TVMazeProvider) GetEpisodeDetails(ctx context.Context, seriesID string,
 		Title:    ep.Name,
 		Overview: stripHTML(ep.Summary),
 	}
+	// Persist the tvmaze episode ID — without it the orphan filter keeps
+	// flagging the row even though enrichment ran (provider_ids stays {}).
+	if ep.ID > 0 {
+		result.ProviderIDs = map[string]string{"tvmaze": strconv.Itoa(ep.ID)}
+	}
 	if ep.Rating.Average > 0 {
 		r := ep.Rating.Average
 		result.CommunityRating = &r

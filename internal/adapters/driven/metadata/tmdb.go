@@ -157,11 +157,12 @@ func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, s
 		return nil, fmt.Errorf("tmdb episode request: %w", err)
 	}
 	var ep struct {
-		Name     string  `json:"name"`
-		Overview string  `json:"overview"`
-		StillPath string `json:"still_path"`
+		ID          int     `json:"id"`
+		Name        string  `json:"name"`
+		Overview    string  `json:"overview"`
+		StillPath   string  `json:"still_path"`
 		VoteAverage float64 `json:"vote_average"`
-		AirDate  string  `json:"air_date"`
+		AirDate     string  `json:"air_date"`
 	}
 	if err := json.Unmarshal(body, &ep); err != nil {
 		return nil, fmt.Errorf("tmdb episode unmarshal: %w", err)
@@ -172,6 +173,11 @@ func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, s
 	result := &domain.MetadataResult{
 		Title:    ep.Name,
 		Overview: ep.Overview,
+	}
+	// Persist the episode's own TMDB ID so the row leaves the orphan set
+	// (provider_ids = {} makes match-orphans pick it up forever otherwise).
+	if ep.ID > 0 {
+		result.ProviderIDs = map[string]string{"tmdb": strconv.Itoa(ep.ID)}
 	}
 	if ep.VoteAverage > 0 {
 		r := ep.VoteAverage
@@ -204,6 +210,7 @@ func (p *TMDBProvider) GetSeasonDetails(ctx context.Context, seriesID string, se
 		return nil, fmt.Errorf("tmdb season request: %w", err)
 	}
 	var s struct {
+		ID          int     `json:"id"`
 		Name        string  `json:"name"`
 		Overview    string  `json:"overview"`
 		PosterPath  string  `json:"poster_path"`
@@ -216,6 +223,10 @@ func (p *TMDBProvider) GetSeasonDetails(ctx context.Context, seriesID string, se
 	result := &domain.MetadataResult{
 		Title:    s.Name,
 		Overview: s.Overview,
+	}
+	// Persist the season's own TMDB ID so the row leaves the orphan set.
+	if s.ID > 0 {
+		result.ProviderIDs = map[string]string{"tmdb": strconv.Itoa(s.ID)}
 	}
 	if s.VoteAverage > 0 {
 		r := s.VoteAverage
