@@ -306,6 +306,10 @@ func TestParse_Quality(t *testing.T) {
 		// Treat as quality so they don't pollute the title.
 		{"Movie.2016P.mkv", "2016p"},
 		{"Movie.2017P.mkv", "2017p"},
+		// Production gaps surfaced on pré-prod orphans: HDRIP/HDR not in
+		// the original map left "Spectral HDRIP" stranded forever.
+		{"Movie.HDRIP.mkv", "hdrip"},
+		{"Movie.HDR.mkv", "hdr"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.quality, func(t *testing.T) {
@@ -332,6 +336,14 @@ func TestParse_EditionSuffixStripped(t *testing.T) {
 		// only if it's not a standalone token — here it is, so it's
 		// stripped. Documents intentional risk.
 		{"Some Movie Uncut.mkv", "Some Movie"},
+		// Production gaps surfaced on pré-prod Saw + Léon orphans: "dc"
+		// (director's cut abbreviation), "extreme" (alt edition tag), and
+		// "extended" standalone (without an explicit "cut"/"edition"
+		// follow-up token).
+		{"Saw iv dc.mkv", "Saw iv"},
+		{"Saw iii dc extreme.mkv", "Saw iii"},
+		{"Léon remastered extended.mkv", "Léon"},
+		{"Léon extended.mkv", "Léon"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.filename, func(t *testing.T) {

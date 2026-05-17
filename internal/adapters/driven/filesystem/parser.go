@@ -72,8 +72,8 @@ var knownQualities = map[string]bool{
 	"360p": true, "360": true,
 	"bluray": true, "bdrip": true, "brrip": true,
 	"remux": true,
-	"webrip": true, "webdl": true, "web": true,
-	"hdtv": true,
+	"webrip": true, "webdl": true, "web": true, "web-dl": true,
+	"hdtv": true, "hdrip": true, "hdr": true,
 	"dvdrip": true, "dvdscr": true, "dvd": true,
 	"cam": true, "hdcam": true, "ts": true, "telesync": true, "screener": true,
 }
@@ -102,7 +102,7 @@ var (
 	// variants. Stripped during pre-tokenisation so the resulting title is
 	// what the user wanted to search ("Danse avec les loups" instead of
 	// "Danse avec les loups version longue").
-	reEditionSuffix = regexp.MustCompile(`(?i)\b(director(?:'s|s)?[ ._-]?cut|version[ ._-]longue|extended[ ._-](?:cut|edition)|theatrical[ ._-]cut|final[ ._-]cut|special[ ._-]edition|criterion(?:[ ._-](?:collection|edition))?|remastered|uncut|unrated|redux)\b`)
+	reEditionSuffix = regexp.MustCompile(`(?i)\b(director(?:'s|s)?[ ._-]?cut|version[ ._-]longue|extended(?:[ ._-](?:cut|edition))?|theatrical[ ._-]cut|final[ ._-]cut|special[ ._-]edition|criterion(?:[ ._-](?:collection|edition))?|remastered|uncut|unrated|redux|extreme[ ._-]edition|extreme|dc)\b`)
 )
 
 type ParsedInfo struct {
