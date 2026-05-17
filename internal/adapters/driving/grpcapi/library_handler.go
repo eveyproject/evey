@@ -458,6 +458,15 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	if req.YearMax > 0 {
 		filters["year_max"] = fmt.Sprintf("%d", req.YearMax)
 	}
+	// Scope to a single library when the caller is on a library page.
+	// Meilisearch + SQL fallback both filter on library_id natively, so
+	// this turns the previously cosmetic library search into a real
+	// server-side query. Library access is still re-enforced below via
+	// allowedIDs — passing an unauthorised library_id can't widen
+	// results, only narrow them.
+	if req.LibraryId != "" {
+		filters["library_id"] = req.LibraryId
+	}
 	var sort []string
 	if req.SortField != eveyv1.MediaSortField_MEDIA_SORT_FIELD_UNSPECIFIED {
 		dir := "asc"

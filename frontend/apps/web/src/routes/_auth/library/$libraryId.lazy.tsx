@@ -2,18 +2,20 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Folder, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
   libraryServiceListMediaItems,
   libraryServiceFilterMediaItems,
+  libraryServiceSearchMedia,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
 } from "@evey/api";
 import type {
   LibraryServiceListMediaItemsType,
   LibraryServiceListMediaItemsSortField,
+  LibraryServiceSearchMediaType,
   V1MediaItem,
 } from "@evey/api";
 import { Button } from "@/components/ui/Button";
@@ -265,17 +267,45 @@ function LibraryPage() {
     },
   });
 
-  const activeQuery = hasServerFilters ? filterQuery : regularQuery;
-  const isLoading = activeQuery.isLoading;
+  // Server-side title search when the input is non-empty. Replaces the
+  // previously cosmetic client-side filter that only matched items already
+  // paginated into memory — typing "Matrix" in a 5k-item library returned
+  // nothing because Matrix wasn't in the loaded slice. Server search hits
+  // Meilisearch (or the SQL fallback) with library_id scoping.
+  const trimmedSearch = searchTerm.trim();
+  const searchActive = trimmedSearch.length > 0;
+  const searchQuery = useQuery({
+    queryKey: ["lib-search", libraryId, trimmedSearch, typeFilter ?? "", genreFilter, search.yearFrom ?? null, search.yearTo ?? null],
+    enabled: searchActive && !!libraryId,
+    queryFn: ({ signal }) =>
+      libraryServiceSearchMedia(
+        {
+          libraryId,
+          query: trimmedSearch,
+          ...(typeFilter ? { type: typeFilter as unknown as LibraryServiceSearchMediaType } : {}),
+          ...(genreFilter ? { genre: genreFilter } : {}),
+          ...(search.yearFrom != null ? { yearMin: search.yearFrom } : {}),
+          ...(search.yearTo != null ? { yearMax: search.yearTo } : {}),
+          limit: 120,
+        },
+        signal,
+      ),
+  });
 
-  const items: V1MediaItem[] = useMemo(
-    () => activeQuery.data?.pages.flatMap((p) => p.items ?? []) ?? [],
-    [activeQuery.data],
-  );
-  const totalItems = hasServerFilters
-    ? (filterQuery.data?.pages[0]?.total ?? 0)
-    : (regularQuery.data?.pages[0]?.pagination?.totalItems ?? 0);
-  const hasMore = activeQuery.hasNextPage ?? false;
+  const activeQuery = hasServerFilters ? filterQuery : regularQuery;
+  const isLoading = searchActive ? searchQuery.isLoading : activeQuery.isLoading;
+
+  const items: V1MediaItem[] = useMemo(() => {
+    if (searchActive) return searchQuery.data?.items ?? [];
+    return activeQuery.data?.pages.flatMap((p) => p.items ?? []) ?? [];
+  }, [searchActive, searchQuery.data, activeQuery.data]);
+  const totalItems = searchActive
+    ? (searchQuery.data?.totalHits ?? 0)
+    : hasServerFilters
+      ? (filterQuery.data?.pages[0]?.total ?? 0)
+      : (regularQuery.data?.pages[0]?.pagination?.totalItems ?? 0);
+  // Search returns top-N in a single response, no infinite scroll.
+  const hasMore = searchActive ? false : (activeQuery.hasNextPage ?? false);
 
   const { data: metaData } = useLibraryServiceListMediaItems({
     libraryId,
@@ -298,23 +328,21 @@ function LibraryPage() {
   );
 
   const localFiltered = useMemo(() => {
-    let result = items;
-    if (searchTerm.trim()) {
-      const lower = searchTerm.toLowerCase();
-      result = result.filter((item) => item.title?.toLowerCase().includes(lower));
-    }
-    result = applyLocalFilters(result, {
+    // Title-based search runs server-side via searchQuery now — no client
+    // re-filter needed here, and it would actually narrow results since
+    // searchQuery's top-N may include items whose title contains the term
+    // via the search index's looser matching (synonyms, accent folding).
+    return applyLocalFilters(items, {
       genres: search.genres,
       resolutions: search.resolutions,
       codecs: search.codecs,
       audioLangs: search.audioLangs,
       subLangs: search.subLangs,
-      yearFrom: hasServerFilters ? undefined : search.yearFrom,
-      yearTo: hasServerFilters ? undefined : search.yearTo,
+      yearFrom: hasServerFilters || searchActive ? undefined : search.yearFrom,
+      yearTo: hasServerFilters || searchActive ? undefined : search.yearTo,
       minRating: hasServerFilters ? undefined : search.minRating,
     });
-    return result;
-  }, [items, searchTerm, search.genres, search.resolutions, search.codecs, search.audioLangs, search.subLangs, search.yearFrom, search.yearTo, search.minRating, hasServerFilters]);
+  }, [items, search.genres, search.resolutions, search.codecs, search.audioLangs, search.subLangs, search.yearFrom, search.yearTo, search.minRating, hasServerFilters, searchActive]);
 
   const hasLocalFilters = Boolean(
     searchTerm.trim() ||

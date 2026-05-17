@@ -390,6 +390,12 @@ message SearchMediaRequest {
   int32 year_max = 6;
   MediaSortField sort_field = 7;
   SortOrder sort_order = 8;
+  // Scope the search to a single library. Empty = global. Wired by the
+  // library page so its search box stops behaving like a client-side
+  // filter on already-loaded items — the backend now actually limits
+  // results to the library. Meilisearch + SQL fallback both filter on
+  // library_id natively.
+  string library_id = 9;
 }
 
 message SearchMediaResponse {
