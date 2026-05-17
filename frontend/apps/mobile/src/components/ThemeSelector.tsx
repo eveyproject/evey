@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ScrollView, View, Pressable, Text, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -36,7 +37,7 @@ interface Pill {
   pluginId?: string;
 }
 
-export function ThemeSelector() {
+function ThemeSelectorImpl() {
   const { t } = useTranslation();
   const tk = useTheme();
   const themeName = useThemeStore((s) => s.theme);
@@ -101,6 +102,10 @@ export function ThemeSelector() {
     </ScrollView>
   );
 }
+
+// memo: no props; ThemeStore + plugin themes query gate re-renders.
+// Parent re-renders (settings screen state changes) become free.
+export const ThemeSelector = memo(ThemeSelectorImpl);
 
 function makeStyles(tk: ReturnType<typeof useTheme>) {
   return StyleSheet.create({

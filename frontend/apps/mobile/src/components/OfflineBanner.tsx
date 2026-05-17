@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -12,7 +13,7 @@ import { useOnlineStatus } from "../hooks/useOnlineStatus";
  * understands why content stops updating instead of staring at empty
  * skeletons.
  */
-export function OfflineBanner() {
+function OfflineBannerImpl() {
   const online = useOnlineStatus();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -39,6 +40,11 @@ export function OfflineBanner() {
     </View>
   );
 }
+
+// memo: no props; re-renders only when its own hooks (online status, theme,
+// i18n) change. Parent re-renders (every navigation, every state mutation
+// in the root layout) become free for this banner.
+export const OfflineBanner = memo(OfflineBannerImpl);
 
 const styles = StyleSheet.create({
   banner: {

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { View } from "react-native";
 import { useTheme } from "../providers/ThemeProvider";
 
@@ -6,7 +7,7 @@ interface ProgressBarProps {
   color?: string;
 }
 
-export function ProgressBar({ percent, color }: ProgressBarProps) {
+function ProgressBarImpl({ percent, color }: ProgressBarProps) {
   const theme = useTheme();
   const barColor = color ?? theme.colors.accent;
   const clamped = Math.min(100, Math.max(0, percent));
@@ -17,3 +18,7 @@ export function ProgressBar({ percent, color }: ProgressBarProps) {
     </View>
   );
 }
+
+// memo: primitive props (percent number, optional color string); rendered
+// in every media card row, so the list-scroll path benefits the most.
+export const ProgressBar = memo(ProgressBarImpl);

@@ -6,7 +6,7 @@
 // Web has GlobalAudioPlayer.tsx; this is the RN equivalent. expo-av's
 // ExponentAV native module is gone from Expo Go on SDK 55, so we use
 // expo-audio's hook-based API instead.
-import { useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,7 +16,7 @@ import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
 
-export function MusicMiniPlayer() {
+function MusicMiniPlayerImpl() {
   const theme = useTheme();
   const serverUrl = useServerUrl();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -139,6 +139,11 @@ export function MusicMiniPlayer() {
     </View>
   );
 }
+
+// memo: no props; subscribes to music queue store via selectors which
+// already gate renders. Memo guards against root-layout re-renders
+// from unrelated state changes elsewhere.
+export const MusicMiniPlayer = memo(MusicMiniPlayerImpl);
 
 const styles = StyleSheet.create({
   root: {

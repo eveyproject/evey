@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { Animated, type ViewStyle } from "react-native";
 import { useTheme } from "../providers/ThemeProvider";
 
@@ -9,7 +9,7 @@ interface SkeletonProps {
   style?: ViewStyle;
 }
 
-export function Skeleton({ width, height, borderRadius = 4, style }: SkeletonProps) {
+function SkeletonImpl({ width, height, borderRadius = 4, style }: SkeletonProps) {
   const theme = useTheme();
   const opacity = useRef(new Animated.Value(0.3)).current;
 
@@ -39,3 +39,7 @@ export function Skeleton({ width, height, borderRadius = 4, style }: SkeletonPro
     />
   );
 }
+
+// memo: lists of skeletons render dozens at once during initial load.
+// Stable primitive props (width/height/borderRadius) make this a clean win.
+export const Skeleton = memo(SkeletonImpl);

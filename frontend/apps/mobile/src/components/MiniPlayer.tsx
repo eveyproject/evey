@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,7 +9,7 @@ import { useTheme } from "../providers/ThemeProvider";
 import { useAuthHeaders } from "../hooks/useAuthenticatedImage";
 import { useServerUrl } from "../hooks/useServerUrl";
 
-export function MiniPlayer() {
+function MiniPlayerImpl() {
   const { t } = useTranslation();
   const theme = useTheme();
   const authHeaders = useAuthHeaders();
@@ -54,6 +55,12 @@ export function MiniPlayer() {
     </Pressable>
   );
 }
+
+// memo: no props; reacts only to the player store + theme + auth headers.
+// Sits in the root layout so every screen navigation re-renders the parent
+// — without memo each navigation re-rendered the mini-player and its
+// expo-image source needlessly.
+export const MiniPlayer = memo(MiniPlayerImpl);
 
 const styles = StyleSheet.create({
   container: {

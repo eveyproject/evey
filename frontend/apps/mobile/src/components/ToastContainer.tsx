@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -18,7 +18,10 @@ const ICON_MAP: Record<ToastType, keyof typeof Ionicons.glyphMap> = {
   warning: "warning",
 };
 
-function ToastItem({ toast }: { toast: Toast }) {
+// memo: each toast is keyed and stable; re-mounts only when the toast
+// array splices. Animations live in refs so per-frame ticks don't trigger
+// re-renders.
+const ToastItem = memo(function ToastItem({ toast }: { toast: Toast }) {
   const { t } = useTranslation();
   const theme = useTheme();
   const remove = useToastStore((s) => s.removeToast);
@@ -72,9 +75,9 @@ function ToastItem({ toast }: { toast: Toast }) {
       </Pressable>
     </Animated.View>
   );
-}
+});
 
-export function ToastContainer() {
+function ToastContainerImpl() {
   const toasts = useToastStore((s) => s.toasts);
   const visible = toasts.slice(-3);
 
@@ -88,6 +91,10 @@ export function ToastContainer() {
     </View>
   );
 }
+
+// memo: no props; reacts to toast store via selector. Mounted in the
+// root layout — keeps the toast overlay free from every parent re-render.
+export const ToastContainer = memo(ToastContainerImpl);
 
 const styles = StyleSheet.create({
   container: {
