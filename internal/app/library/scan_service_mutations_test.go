@@ -917,6 +917,38 @@ func TestScanService_HealOrphanTitles_SkipsUserEditedOrphan(t *testing.T) {
 	assert.Equal(t, "User's Custom Cleanup", got.Title, "user-edited orphan must not regress")
 }
 
+// Recovery from the previous-pass bug: scan_title wasn't being persisted
+// by MediaItemRepo.Update, so an earlier heal left rows with Title clean
+// but ScanTitle still dirty. The heal pass must recognise this and finish
+// the job instead of skipping (Title != ScanTitle would otherwise look
+// like a user/TMDB edit). Distinguishing signal: Title == current parser
+// output already.
+func TestScanService_HealOrphanTitles_FinishesHalfHealedRow(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	now := time.Now()
+	h.media.Create(context.Background(), &library.MediaItem{
+		ID:        "half-1",
+		LibraryID: "lib-1",
+		Title:     "Die hard 2",        // already healed
+		ScanTitle: "Die hard 2 2016P",  // stuck because Update didn't persist
+		File:      &library.MediaFile{Path: "/m/dh2.mkv", Size: 100, Fingerprint: "fp", ModTime: now},
+	})
+	h.scanner.ParsedTitles["/m/dh2.mkv"] = "Die hard 2"
+	h.scanner.Results["/m"] = []library.ScannedFile{
+		{Path: "/m/dh2.mkv", Size: 100, Fingerprint: "fp", ModTime: now,
+			Title: "Die hard 2", Type: library.MovieItem},
+	}
+
+	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	got, err := h.media.GetByID(context.Background(), "half-1")
+	require.NoError(t, err)
+	assert.Equal(t, "Die hard 2", got.Title)
+	assert.Equal(t, "Die hard 2", got.ScanTitle, "half-healed row must converge on the new parser output")
+}
+
 // Drift-only update: if parser produces the same title that's already
 // stored, no Update is issued (idempotent).
 func TestScanService_HealOrphanTitles_NoDriftNoUpdate(t *testing.T) {

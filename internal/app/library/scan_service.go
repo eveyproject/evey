@@ -263,15 +263,24 @@ func (s *ScanService) healOrphanTitles(ctx context.Context, libraryID string) in
 		if it.Catalog != nil && len(it.Catalog.ProviderIDs) > 0 {
 			continue
 		}
-		// Skip items whose title has moved away from ScanTitle: those were
-		// touched by TMDB enrichment or by the override-propagation hook
-		// (commit 10). The caller's intent must win over a stale parser
-		// comparison.
-		if it.Title != it.ScanTitle {
+		fresh := s.scanner.ParseTitle(it.File.Path)
+		if fresh == "" {
 			continue
 		}
-		fresh := s.scanner.ParseTitle(it.File.Path)
-		if fresh == "" || fresh == it.ScanTitle {
+		// Three exit cases ordered by likelihood:
+		// 1. ScanTitle already aligned with the current parser → no-op.
+		// 2. Title diverges from ScanTitle and from the parser output →
+		//    the user (override-propagation hook) or TMDB enrichment
+		//    rewrote Title; their intent wins, leave both alone.
+		// 3. Otherwise we either have a fresh drift to heal (Title ==
+		//    ScanTitle but parser improved) or a half-healed row from
+		//    before scan_title became mutable in Update (Title already
+		//    equals the parser output, ScanTitle still holds the dirty
+		//    original — happens once per row recovering from that bug).
+		if fresh == it.ScanTitle {
+			continue
+		}
+		if it.Title != it.ScanTitle && it.Title != fresh {
 			continue
 		}
 		it.Title = fresh
