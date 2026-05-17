@@ -209,6 +209,15 @@ type ScannedFile struct {
 
 type FileScanner interface {
 	Scan(ctx context.Context, path string) ([]ScannedFile, error)
+	// ParseTitle re-runs the filename parser on a known file path and
+	// returns the title token (without quality/edition/year noise). Used
+	// by the orphan title-heal pass to rebuild media_items.title with the
+	// current parser when an old polluted scan needs cleaning up — the
+	// regular Scan path only emits this for fresh discoveries, but the
+	// heal pass needs it for items already in DB whose files haven't moved
+	// on disk (so detectChanges short-circuits before ever calling Scan
+	// downstream of them).
+	ParseTitle(path string) string
 }
 
 type ProbeResult struct {

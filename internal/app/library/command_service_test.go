@@ -251,6 +251,7 @@ func (s *blockingFileScanner) Scan(_ context.Context, _ string) ([]library.Scann
 	<-s.block
 	return nil, nil
 }
+func (s *blockingFileScanner) ParseTitle(_ string) string { return "" }
 
 func TestScanLibrary_ScannerError_Propagates(t *testing.T) {
 	t.Parallel()

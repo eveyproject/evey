@@ -8,11 +8,19 @@ import (
 
 type FakeFileScanner struct {
 	Results map[string][]library.ScannedFile
-	Err     error
+	// ParsedTitles lets a test pre-seed the title the scanner would
+	// derive from a given file path — used by the orphan title-heal pass.
+	// Keys are file paths, values are the parsed title. Missing keys fall
+	// back to "" (which the heal pass treats as "no signal, skip item").
+	ParsedTitles map[string]string
+	Err          error
 }
 
 func NewFakeFileScanner() *FakeFileScanner {
-	return &FakeFileScanner{Results: make(map[string][]library.ScannedFile)}
+	return &FakeFileScanner{
+		Results:      make(map[string][]library.ScannedFile),
+		ParsedTitles: make(map[string]string),
+	}
 }
 
 func (s *FakeFileScanner) Scan(_ context.Context, path string) ([]library.ScannedFile, error) {
@@ -20,4 +28,8 @@ func (s *FakeFileScanner) Scan(_ context.Context, path string) ([]library.Scanne
 		return nil, s.Err
 	}
 	return s.Results[path], nil
+}
+
+func (s *FakeFileScanner) ParseTitle(path string) string {
+	return s.ParsedTitles[path]
 }

@@ -216,8 +216,79 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 		slog.Warn("orphan cleanup failed", slog.String("libraryID", libraryID), slog.Any("err", pruneErr))
 	}
 
+	// Heal parser-pollution on existing orphans before finalising. The
+	// regular scan path (detectChanges) short-circuits any file whose
+	// size+mtime+fingerprint match the cached index, so a parser fix only
+	// reaches newly-discovered files. The orphans the heal pass targets
+	// have been on disk untouched since they were originally scanned —
+	// without this they would stay frozen on titles written by the
+	// pre-fix parser ("Die hard 2 2016P", "Léon remastered extended", …)
+	// and match-orphans would loop forever on the same stall.
+	healedTitles := s.healOrphanTitles(ctx, libraryID)
+	updated += healedTitles
+
 	s.finalizeScan(ctx, lib, libraryID, added, updated, removed)
 	return added, updated, nil
+}
+
+// healOrphanTitles re-parses media_items.title for every orphan in the
+// library whose stored Title still matches its ScanTitle (= untouched by
+// TMDB enrichment or by a manual edit propagated via the override hook).
+// When the current parser produces a different output for the same file
+// path, the row is updated in place. Returns the count of items rewritten.
+//
+// Iterates ListByLibraryID and filters orphans client-side (CommandRepo
+// has no orphan-aware list method; cost is one extra full library load
+// per scan, which is acceptable at scan cadence). Idempotent — drift-only
+// updates, no-op when the parser output matches the stored title.
+func (s *ScanService) healOrphanTitles(ctx context.Context, libraryID string) int {
+	ctx, span := tracing.StartSpan(ctx, "app.scan.healOrphanTitles")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", libraryID))
+	if s.scanner == nil || s.mediaItems == nil {
+		return 0
+	}
+	items, err := s.mediaItems.ListByLibraryID(ctx, shared.LibraryID(libraryID))
+	if err != nil {
+		slog.Warn("heal orphan titles: list library failed",
+			slog.String("library_id", libraryID), slog.Any("err", err))
+		return 0
+	}
+	healed := 0
+	for _, it := range items {
+		if it.File == nil || it.File.Path == "" {
+			continue
+		}
+		// Orphan filter: no provider IDs yet.
+		if it.Catalog != nil && len(it.Catalog.ProviderIDs) > 0 {
+			continue
+		}
+		// Skip items whose title has moved away from ScanTitle: those were
+		// touched by TMDB enrichment or by the override-propagation hook
+		// (commit 10). The caller's intent must win over a stale parser
+		// comparison.
+		if it.Title != it.ScanTitle {
+			continue
+		}
+		fresh := s.scanner.ParseTitle(it.File.Path)
+		if fresh == "" || fresh == it.ScanTitle {
+			continue
+		}
+		it.Title = fresh
+		it.ScanTitle = fresh
+		it.UpdatedAt = time.Now()
+		if err := s.mediaItems.Update(ctx, it); err != nil {
+			slog.Warn("heal orphan title: update failed",
+				slog.String("media_item.id", string(it.ID)), slog.Any("err", err))
+			continue
+		}
+		healed++
+	}
+	if healed > 0 {
+		slog.Info("heal orphan titles: rewrote stale parser output",
+			slog.String("library_id", libraryID), slog.Int("healed", healed))
+	}
+	return healed
 }
 
 func (s *ScanService) publishScanStarted(ctx context.Context, libraryID string) {

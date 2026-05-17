@@ -827,3 +827,121 @@ func TestScanService_Publish_DetachedFromScanCtx(t *testing.T) {
 			i, h.bus.PublishedEvents()[i].EventName())
 	}
 }
+
+// --- healOrphanTitles: rewrites stale parser output on orphans ---
+
+// Scenario: orphan was scanned with old parser (left "1080" in title).
+// File hasn't moved since, so detectChanges short-circuits the regular
+// path. healOrphanTitles must catch and rewrite it.
+func TestScanService_HealOrphanTitles_RewritesDirtyOrphan(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	now := time.Now()
+	h.media.Create(context.Background(), &library.MediaItem{
+		ID:        "orph-1",
+		LibraryID: "lib-1",
+		Title:     "Movie 1080",
+		ScanTitle: "Movie 1080",
+		// Catalog absent → orphan (no provider IDs).
+		File: &library.MediaFile{Path: "/m/file.mkv", Size: 100, Fingerprint: "fp", ModTime: now},
+	})
+	// Same file on disk (unchanged), but the parser now strips "1080".
+	h.scanner.Results["/m"] = []library.ScannedFile{
+		{Path: "/m/file.mkv", Size: 100, Fingerprint: "fp", ModTime: now,
+			Title: "Movie", Type: library.MovieItem},
+	}
+	h.scanner.ParsedTitles["/m/file.mkv"] = "Movie"
+
+	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	got, err := h.media.GetByID(context.Background(), "orph-1")
+	require.NoError(t, err)
+	assert.Equal(t, "Movie", got.Title, "orphan Title must heal to fresh parser output")
+	assert.Equal(t, "Movie", got.ScanTitle, "orphan ScanTitle must heal too")
+}
+
+// Guard: TMDB-matched item (has provider IDs) must NOT be processed by
+// the heal pass — the MissingProviderIDs filter must hold.
+func TestScanService_HealOrphanTitles_SkipsMatchedItem(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	now := time.Now()
+	h.media.Create(context.Background(), &library.MediaItem{
+		ID:        "matched-1",
+		LibraryID: "lib-1",
+		Title:     "Die Hard 2: Die Harder",
+		ScanTitle: "Die hard 2 2016P",
+		Catalog:   &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "1573"}},
+		File:      &library.MediaFile{Path: "/m/diehard.mkv", Size: 100, Fingerprint: "fp", ModTime: now},
+	})
+	h.scanner.ParsedTitles["/m/diehard.mkv"] = "Die hard 2"
+	h.scanner.Results["/m"] = []library.ScannedFile{
+		{Path: "/m/diehard.mkv", Size: 100, Fingerprint: "fp", ModTime: now,
+			Title: "Die hard 2", Type: library.MovieItem},
+	}
+
+	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	got, err := h.media.GetByID(context.Background(), "matched-1")
+	require.NoError(t, err)
+	assert.Equal(t, "Die Hard 2: Die Harder", got.Title, "matched item must not be touched by the heal pass")
+}
+
+// Guard: orphan whose Title was edited via SetMetadataOverride propagation
+// (Title != ScanTitle, no provider IDs yet) must also be skipped — the
+// user's manual cleanup wins over a parser re-derivation.
+func TestScanService_HealOrphanTitles_SkipsUserEditedOrphan(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	now := time.Now()
+	h.media.Create(context.Background(), &library.MediaItem{
+		ID:        "orph-2",
+		LibraryID: "lib-1",
+		Title:     "User's Custom Cleanup",      // propagated via override hook
+		ScanTitle: "Original Polluted Title 720", // pristine parser-pollution
+		File:      &library.MediaFile{Path: "/m/edit.mkv", Size: 100, Fingerprint: "fp", ModTime: now},
+	})
+	h.scanner.ParsedTitles["/m/edit.mkv"] = "Original Polluted Title"
+	h.scanner.Results["/m"] = []library.ScannedFile{
+		{Path: "/m/edit.mkv", Size: 100, Fingerprint: "fp", ModTime: now,
+			Title: "Original Polluted Title", Type: library.MovieItem},
+	}
+
+	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	got, err := h.media.GetByID(context.Background(), "orph-2")
+	require.NoError(t, err)
+	assert.Equal(t, "User's Custom Cleanup", got.Title, "user-edited orphan must not regress")
+}
+
+// Drift-only update: if parser produces the same title that's already
+// stored, no Update is issued (idempotent).
+func TestScanService_HealOrphanTitles_NoDriftNoUpdate(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	now := time.Now()
+	h.media.Create(context.Background(), &library.MediaItem{
+		ID:        "orph-3",
+		LibraryID: "lib-1",
+		Title:     "Clean Title",
+		ScanTitle: "Clean Title",
+		File:      &library.MediaFile{Path: "/m/clean.mkv", Size: 100, Fingerprint: "fp", ModTime: now},
+	})
+	h.scanner.ParsedTitles["/m/clean.mkv"] = "Clean Title"
+	h.scanner.Results["/m"] = []library.ScannedFile{
+		{Path: "/m/clean.mkv", Size: 100, Fingerprint: "fp", ModTime: now,
+			Title: "Clean Title", Type: library.MovieItem},
+	}
+
+	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	got, err := h.media.GetByID(context.Background(), "orph-3")
+	require.NoError(t, err)
+	assert.Equal(t, "Clean Title", got.Title)
+}
+
+
