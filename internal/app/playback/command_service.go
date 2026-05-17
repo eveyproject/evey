@@ -39,6 +39,15 @@ const (
 	CompletedThresholdDenominator = 10
 )
 
+// MinAutoResumeDurationMs is the floor below which a mid-stream progress
+// report is not persisted. Items shorter than 5 minutes (trailers, music
+// videos, intros, sound effects) flooding "Continue Watching" with a few
+// seconds of progress is noise, not signal — Jellyfin uses the same
+// threshold (MinResumeDurationSec=300). Completion at 90% still writes
+// through (so the row exists and "watched" counts), only intermediate
+// position updates are dropped for short items.
+const MinAutoResumeDurationMs int64 = 300_000
+
 type CommandService struct {
 	progress         playback.ProgressCommandRepo
 	progressBuffer   *WatchProgressBuffer
@@ -106,26 +115,48 @@ func (s *CommandService) validateProfile(ctx context.Context, profileID shared.P
 	return nil
 }
 
-// shouldAutoComplete returns true when the (mediaItem, positionMs) crosses
-// the 90% completion threshold AND a duration source is wired. Best-effort:
-// the lookup error is logged at Debug and falls back to false so progress
-// writes are never blocked by an enrichment dependency.
-func (s *CommandService) shouldAutoComplete(ctx context.Context, mediaItemID string, positionMs int64) bool {
+// progressDecision bundles the per-tick judgments derived from the media
+// duration: whether to flip Completed and whether the mid-stream tick
+// should be persisted at all. Both fields are best-effort — the absence of
+// a duration source defaults to "no completion, persist always" so the
+// historical behaviour is preserved.
+type progressDecision struct {
+	completed bool
+	// skipPersist is true when the media is too short to warrant a resume
+	// entry (MinAutoResumeDurationMs floor). Completion still writes
+	// through; only the "user paused at 0:15 of a 90s trailer" entries
+	// are dropped to keep "Continue Watching" focused.
+	skipPersist bool
+}
+
+// classifyProgress derives both decisions from a single duration lookup,
+// avoiding two round-trips for what's a hot per-tick path.
+func (s *CommandService) classifyProgress(ctx context.Context, mediaItemID string, positionMs int64) progressDecision {
 	if s.durations == nil || positionMs <= 0 {
-		return false
+		return progressDecision{}
 	}
 	durMs, err := s.durations.GetMediaItemDurationMs(ctx, mediaItemID)
 	if err != nil {
 		slog.Debug("auto-complete: duration lookup failed",
 			slog.String("mediaItemID", mediaItemID),
 			slog.Any("err", err))
-		return false
+		return progressDecision{}
 	}
 	if durMs <= 0 {
-		return false
+		return progressDecision{}
 	}
 	// Integer threshold check: positionMs / durMs >= 9/10  ⇔  positionMs*10 >= durMs*9
-	return positionMs*int64(CompletedThresholdDenominator) >= durMs*int64(CompletedThresholdNumerator)
+	completed := positionMs*int64(CompletedThresholdDenominator) >= durMs*int64(CompletedThresholdNumerator)
+	return progressDecision{
+		completed:   completed,
+		skipPersist: !completed && durMs < MinAutoResumeDurationMs,
+	}
+}
+
+// shouldAutoComplete is the legacy entrypoint kept for call sites that
+// only need the completion flag. Internally it just unwraps classifyProgress.
+func (s *CommandService) shouldAutoComplete(ctx context.Context, mediaItemID string, positionMs int64) bool {
+	return s.classifyProgress(ctx, mediaItemID, positionMs).completed
 }
 
 func (s *CommandService) StartStream(ctx context.Context, session *playback.PlaySession, userID string) error {
@@ -238,7 +269,15 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	// Upsert is sticky-true on conflict, so once we flip it the flag
 	// survives any subsequent tick that drops below 90% (a user seeking
 	// back). Skipped when the getter is absent or duration is unknown.
-	completed := s.shouldAutoComplete(ctx, string(session.MediaItemID), positionMs)
+	decision := s.classifyProgress(ctx, string(session.MediaItemID), positionMs)
+	completed := decision.completed
+	// Short items (< 5 min) skip mid-stream progress writes — Continue
+	// Watching should not surface a trailer at 0:15. Session position was
+	// already updated above so the live UI still gets its tick; we just
+	// don't materialise a watch_progress row until completion.
+	if decision.skipPersist {
+		return nil
+	}
 	// First-time completion seeds play_count=1. On INSERT (no prior row)
 	// the value is used directly; on ON CONFLICT the SQL's transition
 	// branch handles the actual increment from the previous play_count,
@@ -289,7 +328,12 @@ func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaIte
 	// that just stream raw position get the same Completed semantics as
 	// the web/mobile players which compute completion client-side.
 	if !completed {
-		completed = s.shouldAutoComplete(ctx, mediaItemID, positionMs)
+		decision := s.classifyProgress(ctx, mediaItemID, positionMs)
+		completed = decision.completed
+		// Short items don't get a mid-stream progress row (Jellyfin parity).
+		if decision.skipPersist {
+			return nil
+		}
 	}
 	playCount := 0
 	if completed {
