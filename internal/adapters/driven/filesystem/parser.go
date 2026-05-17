@@ -6,7 +6,70 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+// extraTokensMu protects the admin-configurable extension of the static
+// knownQualities map and reEditionSuffix regex. Defaults stay hardcoded
+// (knownQualities + reEditionSuffix below) so the parser always has a
+// sensible baseline; admins extend at runtime via SetExtraParserTokens
+// (called from the app layer on boot and on server_config update).
+var (
+	extraTokensMu     sync.RWMutex
+	extraQualities    = map[string]bool{}
+	extraEditionRe    *regexp.Regexp // nil = no extra suffix patterns wired
+)
+
+// SetExtraParserTokens replaces the runtime token extensions. Pass nil or
+// empty slices to clear. Tokens are lowercased here (the lookup path also
+// lowercases) so callers can pass either case. Edition suffixes are joined
+// into a single alternation regex so they're applied in one regex pass
+// alongside the static reEditionSuffix.
+func SetExtraParserTokens(qualities, editionSuffixes []string) {
+	qs := make(map[string]bool, len(qualities))
+	for _, q := range qualities {
+		q = strings.TrimSpace(strings.ToLower(q))
+		if q != "" {
+			qs[q] = true
+		}
+	}
+	var re *regexp.Regexp
+	parts := make([]string, 0, len(editionSuffixes))
+	for _, s := range editionSuffixes {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		parts = append(parts, regexp.QuoteMeta(s))
+	}
+	if len(parts) > 0 {
+		// (?i) for case-insensitive, \b word boundaries so "dc" doesn't
+		// match inside "advance" or "redcoat".
+		re = regexp.MustCompile(`(?i)\b(?:` + strings.Join(parts, "|") + `)\b`)
+	}
+	extraTokensMu.Lock()
+	extraQualities = qs
+	extraEditionRe = re
+	extraTokensMu.Unlock()
+}
+
+// extraQualityMatch is the runtime-config lookup used by tryExtractQuality.
+// Returns false for the empty/no-extras case so the static map remains
+// authoritative when the admin hasn't configured anything.
+func extraQualityMatch(lower string) bool {
+	extraTokensMu.RLock()
+	defer extraTokensMu.RUnlock()
+	return extraQualities[lower]
+}
+
+// extraEditionRegex returns the current admin-configured edition suffix
+// regex (or nil). Read-locked so concurrent Parse calls see a consistent
+// snapshot.
+func extraEditionRegex() *regexp.Regexp {
+	extraTokensMu.RLock()
+	defer extraTokensMu.RUnlock()
+	return extraEditionRe
+}
 
 // strongLanguageTags maps unambiguous filename tokens to ISO 639-1 codes.
 // These always anchor the title end when they appear in a filename —
@@ -149,6 +212,14 @@ func ParseFilename(filename string) ParsedInfo {
 	// title (e.g. "Danse avec les loups version longue") and the TMDB exact
 	// title shortcut never fires.
 	name = reEditionSuffix.ReplaceAllString(name, " ")
+	// Admin-configured extra edition suffixes (set via the admin server-
+	// config UI / parser.config server_config key) — applied after the
+	// static regex so admins can add patterns without having to wait for
+	// a release. A common case: distributor-specific edition names not
+	// covered by the baseline list ("dc", "extreme", "imax", …).
+	if re := extraEditionRegex(); re != nil {
+		name = re.ReplaceAllString(name, " ")
+	}
 
 	parts := filterEmpty(SplitFilename(name))
 
@@ -257,7 +328,7 @@ func tryExtractLanguage(info *ParsedInfo, lower string, idx int, firstMeta *int)
 }
 
 func tryExtractQuality(info *ParsedInfo, lower string, idx int, firstMeta *int) bool {
-	if knownQualities[lower] {
+	if knownQualities[lower] || extraQualityMatch(lower) {
 		info.Quality = lower
 		if idx < *firstMeta {
 			*firstMeta = idx

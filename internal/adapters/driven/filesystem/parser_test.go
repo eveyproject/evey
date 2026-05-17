@@ -542,3 +542,52 @@ func TestParse_NormalizeVideoSeries(t *testing.T) {
 		})
 	}
 }
+
+func TestSetExtraParserTokens_QualityAndEdition(t *testing.T) {
+	// Admin extends the baseline maps at runtime via the parser_config
+	// server_config row → SetExtraParserTokens. Verify both axes (quality
+	// + edition suffix) flow through ParseFilename. Cleanup resets the
+	// globals so other tests in this package see a clean baseline.
+	t.Cleanup(func() { SetExtraParserTokens(nil, nil) })
+
+	// Quality tokens must be single-word (the parser splits on . _ - SPACE).
+	// Edition suffixes go through a regex pre-tokenisation so they CAN span
+	// multiple words.
+	SetExtraParserTokens(
+		[]string{"customquality", "WEIRDTAG"},
+		[]string{"distributor cut", "anniversary"},
+	)
+	tests := []struct {
+		filename  string
+		wantTitle string
+		wantQual  string
+	}{
+		// Extra quality token is recognised (case-insensitive).
+		{"Movie.CustomQuality.mkv", "Movie", "customquality"},
+		{"Movie.WEIRDTAG.mkv", "Movie", "weirdtag"},
+		// Extra edition suffix is stripped from the title (multi-word OK
+		// because the regex runs before tokenisation).
+		{"Movie - distributor cut.mkv", "Movie", ""},
+		{"Movie Anniversary.mkv", "Movie", ""},
+		// Baseline still works alongside the extras.
+		{"Movie.1080p.mkv", "Movie", "1080p"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.filename, func(t *testing.T) {
+			info := ParseFilename(tt.filename)
+			assert.Equal(t, tt.wantTitle, info.Title, "title")
+			assert.Equal(t, tt.wantQual, info.Quality, "quality")
+		})
+	}
+}
+
+func TestSetExtraParserTokens_NilClears(t *testing.T) {
+	// Round-trip: setting tokens then clearing them returns the parser to
+	// its baseline behaviour.
+	SetExtraParserTokens([]string{"foo"}, []string{"bar"})
+	assert.Equal(t, "foo", ParseFilename("Movie.foo.mkv").Quality)
+	SetExtraParserTokens(nil, nil)
+	got := ParseFilename("Movie.foo.mkv")
+	assert.Equal(t, "", got.Quality, "extras must be cleared")
+	assert.Equal(t, "Movie foo", got.Title, "foo leaks back into title once cleared")
+}
