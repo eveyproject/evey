@@ -609,7 +609,82 @@ func (s *CommandService) SetOverride(ctx context.Context, override *metadata.Met
 	if err := s.events.Publish(ctx, evtOverride); err != nil {
 		slog.Warn("publish event", slog.String("event", evtOverride.EventName()), slog.Any("err", err))
 	}
+	// When an admin edits the title on an orphan item (no TMDB/IMDB IDs yet),
+	// the intent is "this is the correct title — please match it now". The
+	// enricher reads media_items.title for its search query, so propagate
+	// the override into the raw title and kick a background auto-enrich.
+	// Without this hook, fixing a parser-polluted title (e.g. stripping
+	// "720" or "arte") via the UI only updated the display layer; match-
+	// orphans kept failing because the search used the still-dirty title.
+	s.propagateTitleOverrideForOrphan(ctx, override)
 	return nil
+}
+
+// propagateTitleOverrideForOrphan is the orphan-recovery path for title
+// edits. Best-effort: every step that fails just logs and bails — the
+// override write itself succeeded above, so we never want to return an
+// error from this side-effect.
+func (s *CommandService) propagateTitleOverrideForOrphan(ctx context.Context, override *metadata.MetadataOverride) {
+	if s.mediaItems == nil || s.enricher == nil {
+		return
+	}
+	// Only the title (or originalTitle as a fallback) is search-relevant.
+	// Other fields (overview, tagline, year) don't change TMDB match outcomes.
+	if override.FieldName != "title" && override.FieldName != "originalTitle" {
+		return
+	}
+	// CustomValue is any so the same override row can carry numerics,
+	// dates, etc. for other fields — but title/originalTitle must be a
+	// non-empty string for the propagation path to make sense.
+	val, ok := override.CustomValue.(string)
+	if !ok || val == "" {
+		return
+	}
+	item, err := s.mediaItems.GetByID(ctx, override.MediaItemID)
+	if err != nil || item == nil {
+		return
+	}
+	// Only propagate for orphans — a matched item's title edit is
+	// presentation-only and must not retrigger TMDB lookups.
+	if item.Catalog != nil && len(item.Catalog.ProviderIDs) > 0 {
+		return
+	}
+	if override.FieldName == "title" {
+		if item.Title == val {
+			return // already aligned, nothing to do
+		}
+		item.Title = val
+	} else {
+		if item.OriginalTitle == val {
+			return
+		}
+		item.OriginalTitle = val
+	}
+	item.UpdatedAt = time.Now()
+	if err := s.mediaItems.Update(ctx, item); err != nil {
+		slog.Warn("propagate title override to media_items failed",
+			slog.String("media_item.id", string(item.ID)),
+			slog.Any("err", err))
+		return
+	}
+	se, ok := s.enricher.(SingleItemEnricher)
+	if !ok {
+		return
+	}
+	// Detached context with a generous timeout so a TMDB rate-limit retry
+	// chain doesn't burn the goroutine forever.
+	go func(it *library.MediaItem) {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in title-override auto-enrich",
+					slog.Any("recover", r),
+					slog.String("media_item.id", string(it.ID)))
+			}
+		}()
+		enrichCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		se.AutoEnrichItem(enrichCtx, it, slog.Default())
+	}(item)
 }
 
 func (s *CommandService) RemoveOverride(ctx context.Context, id string) error {

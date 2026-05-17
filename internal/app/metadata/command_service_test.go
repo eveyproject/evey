@@ -698,3 +698,103 @@ func TestStartEnrichmentWorker_WaitWorkersCompletesAfterCancel(t *testing.T) {
 		t.Fatal("workers did not exit after ctx cancel")
 	}
 }
+
+// --- SetOverride: title-on-orphan propagation + auto-enrich trigger ---
+
+func TestSetOverride_TitleOnOrphan_PropagatesAndTriggersEnrich(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeTranslationsEnricher{}
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "m1", LibraryID: "lib-1", Type: library.MovieItem,
+		Title: "Quand l'hôpital retient son souffle 720", // parser-polluted
+	}))
+
+	override, err := metadata.NewMetadataOverride("mo-1", "m1", "title",
+		metadata.WithOverrideValue("Quand l'hôpital retient son souffle"))
+	require.NoError(t, err)
+	require.NoError(t, cmdSvc.SetOverride(ctx, override))
+
+	// media_items.title should now hold the cleaned override value so the
+	// background enricher's TMDB search uses the corrected query.
+	updated, err := mediaRepo.GetByID(ctx, "m1")
+	require.NoError(t, err)
+	assert.Equal(t, "Quand l'hôpital retient son souffle", updated.Title)
+
+	// Auto-enrich runs in a goroutine — give it a moment to fire.
+	assert.Eventually(t, func() bool {
+		return enricher.singleN.Load() == 1
+	}, 2*time.Second, 20*time.Millisecond, "auto-enrich was not triggered")
+}
+
+func TestSetOverride_TitleOnMatched_DoesNotPropagate(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeTranslationsEnricher{}
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "m1", LibraryID: "lib-1", Type: library.MovieItem,
+		Title:   "Matrix",
+		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "603"}},
+	}))
+
+	override, err := metadata.NewMetadataOverride("mo-1", "m1", "title",
+		metadata.WithOverrideValue("Custom display title"))
+	require.NoError(t, err)
+	require.NoError(t, cmdSvc.SetOverride(ctx, override))
+
+	// Matched item: title in DB stays, no re-enrich (override is purely
+	// presentation for the display layer in GetMediaItem).
+	updated, err := mediaRepo.GetByID(ctx, "m1")
+	require.NoError(t, err)
+	assert.Equal(t, "Matrix", updated.Title, "matched item title must NOT be overwritten")
+
+	time.Sleep(150 * time.Millisecond) // give any errant goroutine a chance to fire
+	assert.Equal(t, int32(0), enricher.singleN.Load(), "auto-enrich must NOT fire for matched items")
+}
+
+func TestSetOverride_NonTitleField_NoPropagation(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeTranslationsEnricher{}
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "m1", LibraryID: "lib-1", Type: library.MovieItem, Title: "Orphan",
+	}))
+
+	override, err := metadata.NewMetadataOverride("mo-1", "m1", "overview",
+		metadata.WithOverrideValue("New overview"))
+	require.NoError(t, err)
+	require.NoError(t, cmdSvc.SetOverride(ctx, override))
+
+	time.Sleep(150 * time.Millisecond)
+	assert.Equal(t, int32(0), enricher.singleN.Load(), "non-title fields don't drive TMDB matching, must NOT enrich")
+}
+
+func TestSetOverride_TitleAlreadyAligned_NoEnrich(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeTranslationsEnricher{}
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "m1", LibraryID: "lib-1", Type: library.MovieItem,
+		Title: "Quand l'hôpital retient son souffle",
+	}))
+
+	override, err := metadata.NewMetadataOverride("mo-1", "m1", "title",
+		metadata.WithOverrideValue("Quand l'hôpital retient son souffle"))
+	require.NoError(t, err)
+	require.NoError(t, cmdSvc.SetOverride(ctx, override))
+
+	time.Sleep(150 * time.Millisecond)
+	assert.Equal(t, int32(0), enricher.singleN.Load(), "no-op title override must NOT re-enrich")
+}
