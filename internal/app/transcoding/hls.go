@@ -545,7 +545,13 @@ func (m *HLSManager) cleanupLoop() {
 		case <-m.stopCleanup:
 			return
 		case <-ticker.C:
-			m.cleanupStale(10 * time.Minute)
+			// Bumped from 10m to 30m: Chromecast receivers can sit on a deep
+			// receiver-side buffer (pause, ad break, slow segment fetch) for
+			// several minutes without hitting the server, then a wakeup fetch
+			// would 404 because the session — and the output dir — were gone.
+			// The cast token already lives 12h (CastStreamTokenTTL); the LRU
+			// disk evictor and CacheMaxGB cap bound the disk-usage cost.
+			m.cleanupStale(30 * time.Minute)
 		}
 	}
 }
@@ -553,13 +559,18 @@ func (m *HLSManager) cleanupLoop() {
 func (m *HLSManager) cleanupStale(maxIdle time.Duration) {
 	m.mu.Lock()
 	var toStop []*HLSSession
+	type killed struct {
+		id       string
+		idleSecs float64
+	}
+	var killedSessions []killed
 	now := time.Now()
 	for id, session := range m.sessions {
 		session.mu.Lock()
 		idle := now.Sub(session.LastAccess)
 		session.mu.Unlock()
 		if idle > maxIdle {
-			slog.Info("hls: cleaning stale session", slog.String("media_id", id))
+			killedSessions = append(killedSessions, killed{id: id, idleSecs: idle.Seconds()})
 			toStop = append(toStop, session)
 			delete(m.sessions, id)
 			m.userSessions[string(session.UserID)]--
@@ -569,6 +580,12 @@ func (m *HLSManager) cleanupStale(maxIdle time.Duration) {
 		}
 	}
 	m.mu.Unlock()
+	for _, k := range killedSessions {
+		slog.Info("hls: cleaning stale session",
+			slog.String("media_id", k.id),
+			slog.Float64("idle_seconds", k.idleSecs),
+			slog.Float64("max_idle_seconds", maxIdle.Seconds()))
+	}
 	for _, s := range toStop {
 		s.stop()
 		m.releaseSemaphore()

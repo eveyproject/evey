@@ -502,11 +502,22 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 		session, ok := hlsManager.GetSession(mediaID)
 		if !ok {
 			span.SetStatus(codes.Error, "session expired")
+			slog.Warn("hls: segment 404 — session expired",
+				slog.String("media_id", mediaID),
+				slog.String("file", file),
+				slog.String("user_id", sessionUserID),
+				slog.String("user_agent", r.UserAgent()))
 			http.Error(w, `{"message":"session expired, refresh playlist"}`, http.StatusNotFound)
 			return
 		}
 		if sessionUserID != string(session.UserID) {
 			span.SetStatus(codes.Error, "session user mismatch")
+			slog.Warn("hls: segment 403 — session user mismatch",
+				slog.String("media_id", mediaID),
+				slog.String("file", file),
+				slog.String("session_user_id", string(session.UserID)),
+				slog.String("request_user_id", sessionUserID),
+				slog.String("user_agent", r.UserAgent()))
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -527,6 +538,11 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 		}
 		if _, err := os.Stat(filePath); err != nil {
 			span.SetStatus(codes.Error, "segment file missing")
+			slog.Warn("hls: segment 404 — file missing on disk",
+				slog.String("media_id", mediaID),
+				slog.String("file", file),
+				slog.String("user_id", sessionUserID),
+				slog.String("user_agent", r.UserAgent()))
 			http.Error(w, `{"message":"segment not found"}`, http.StatusNotFound)
 			return
 		}
