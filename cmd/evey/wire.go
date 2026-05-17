@@ -343,10 +343,16 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// crash up to one flush interval of progress is lost — acceptable for a
 	// self-hosted single instance per the backlog tradeoff.
 	progressBuffer := appplayback.NewWatchProgressBuffer(r.WatchProgress, appplayback.DefaultWatchProgressFlushInterval)
+	// Wire the cached media-item lookup into ReportProgressBySession so it
+	// can auto-mark items as completed at 90% without round-tripping
+	// client-side state. The mediaItemCache is in-memory (30s TTL) and
+	// drops the per-tick cost to a map lookup after the first hit.
+	durationGetter := mediaItemDurationGetter{cache: mediaItemCache}
 	playbackSvc := appplayback.NewService(
 		r.WatchProgress, r.WatchProgress, r.PlaySession, r.PlaySession, r.User, r.Profile, bus,
 		appplayback.WithUnitOfWork(postgres.NewTxUnit(db)),
 		appplayback.WithWatchProgressBuffer(progressBuffer),
+		appplayback.WithMediaItemDurationGetter(durationGetter),
 	)
 
 	transcodingSvc := apptranscoding.NewService(
@@ -923,4 +929,20 @@ func (a musicTrackCheckerAdapter) Exists(ctx context.Context, id string) (bool, 
 		return false, err
 	}
 	return t != nil, nil
+}
+
+// mediaItemDurationGetter adapts the cached MediaItem query repo to the
+// playback.MediaItemDurationGetter port. Returns 0 when the item has no
+// file (container types) or the file probe never recorded a duration —
+// the playback command service skips auto-completion in that case.
+type mediaItemDurationGetter struct {
+	cache *applibrary.CachedMediaItemQueryRepo
+}
+
+func (g mediaItemDurationGetter) GetMediaItemDurationMs(ctx context.Context, mediaItemID string) (int64, error) {
+	item, err := g.cache.GetByID(ctx, shared.MediaItemID(mediaItemID))
+	if err != nil || item == nil || item.File == nil {
+		return 0, err
+	}
+	return item.File.Duration.Milliseconds(), nil
 }

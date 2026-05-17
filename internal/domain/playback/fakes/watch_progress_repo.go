@@ -34,7 +34,26 @@ func (r *FakeWatchProgressRepository) Upsert(_ context.Context, wp *playback.Wat
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[key(string(wp.ProfileID), string(wp.MediaItemID))] = wp
+	// Mirror the postgres adapter: completed is sticky-true on conflict so
+	// the fake honours the same invariant unit tests rely on.
+	k := key(string(wp.ProfileID), string(wp.MediaItemID))
+	if prev, ok := r.items[k]; ok && prev.Completed {
+		wp.Completed = true
+	}
+	r.items[k] = wp
+	return nil
+}
+
+func (r *FakeWatchProgressRepository) Delete(_ context.Context, profileID, mediaItemID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
+	delete(r.items, key(profileID, mediaItemID))
 	return nil
 }
 

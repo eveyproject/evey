@@ -20,6 +20,25 @@ var (
 	ErrProfileNotFound = errors.New("profile not found")
 )
 
+// MediaItemDurationGetter returns the total duration of a media item in
+// milliseconds. Wired from the library QueryService so the playback
+// command service can auto-mark items as completed once playback crosses
+// 90% without round-tripping client-side state — used by
+// ReportProgressBySession. Returns (0, nil) when the duration is unknown
+// (parent containers, songs scanned without probe data); the caller skips
+// the auto-complete in that case.
+type MediaItemDurationGetter interface {
+	GetMediaItemDurationMs(ctx context.Context, mediaItemID string) (int64, error)
+}
+
+// CompletedThresholdNumerator/Denominator define the watched fraction at
+// which a media item flips to completed=true. 9/10 = 90%, matching the
+// Jellyfin default and the watch_history analyzer's existing assumption.
+const (
+	CompletedThresholdNumerator   = 9
+	CompletedThresholdDenominator = 10
+)
+
 type CommandService struct {
 	progress         playback.ProgressCommandRepo
 	progressBuffer   *WatchProgressBuffer
@@ -29,6 +48,7 @@ type CommandService struct {
 	profiles         user.ProfileRepository
 	events           shared.EventBus
 	uow              shared.TransactionalUnit
+	durations        MediaItemDurationGetter
 }
 
 type CommandServiceOption func(*CommandService)
@@ -45,6 +65,15 @@ func WithUnitOfWork(uow shared.TransactionalUnit) CommandServiceOption {
 // upserts the DB directly. Pass nil to keep the synchronous path (tests).
 func WithWatchProgressBuffer(buf *WatchProgressBuffer) CommandServiceOption {
 	return func(s *CommandService) { s.progressBuffer = buf }
+}
+
+// WithMediaItemDurationGetter enables auto-completion at 90% inside
+// ReportProgressBySession. Without it, the call falls back to writing
+// Completed=false on every tick (the historical behaviour — completion
+// still happens via MarkAsWatched or the sticky-true Upsert semantic
+// once any caller has set it).
+func WithMediaItemDurationGetter(g MediaItemDurationGetter) CommandServiceOption {
+	return func(s *CommandService) { s.durations = g }
 }
 
 func NewCommandService(
@@ -182,6 +211,25 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	if err := s.sessions.Update(ctx, session); err != nil {
 		return fmt.Errorf("update session position: %w", err)
 	}
+	// Auto-completion: when a duration source is wired and the position
+	// crosses 90% of the media duration, flip Completed=true. The repo's
+	// Upsert is sticky-true on conflict, so once we flip it the flag
+	// survives any subsequent tick that drops below 90% (a user seeking
+	// back). Skipped when the getter is absent or duration is unknown.
+	completed := false
+	if s.durations != nil && positionMs > 0 {
+		if durMs, durErr := s.durations.GetMediaItemDurationMs(ctx, string(session.MediaItemID)); durErr == nil && durMs > 0 {
+			// Integer threshold check: positionMs / durMs >= 9/10  ⇔  positionMs*10 >= durMs*9
+			if positionMs*int64(CompletedThresholdDenominator) >= durMs*int64(CompletedThresholdNumerator) {
+				completed = true
+			}
+		} else if durErr != nil {
+			slog.Debug("report progress: duration lookup failed",
+				slog.String("sessionID", sessionID),
+				slog.String("mediaItemID", string(session.MediaItemID)),
+				slog.Any("err", durErr))
+		}
+	}
 	// WatchProgress.Position is non-negative by construction; on a corrupt
 	// input we already logged above and pos is zero — keep buffering forward
 	// so the player UI can still record "session is alive" via IsPaused.
@@ -190,7 +238,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 		ProfileID:    session.ProfileID,
 		MediaItemID:  session.MediaItemID,
 		Position:     pos,
-		Completed:    false,
+		Completed:    completed,
 		LastPlayedAt: time.Now(),
 	}
 	// Buffer-mode keeps the player tick off the DB hot path; the periodic
@@ -340,15 +388,11 @@ func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaIt
 	if err := s.validateProfile(ctx, shared.ProfileID(profileID)); err != nil {
 		return err
 	}
-	wp := &playback.WatchProgress{
-		ID:           id.New("wp-"),
-		ProfileID:    shared.ProfileID(profileID),
-		MediaItemID:  shared.MediaItemID(mediaItemID),
-		Completed:    false,
-		PlayCount:    0,
-		LastPlayedAt: time.Now(),
-	}
-	if err := s.progress.Upsert(ctx, wp); err != nil {
+	// Delete instead of upsert because Upsert keeps completed sticky-true:
+	// writing a Completed=false row would not actually flip the flag back.
+	// Deleting the row makes the item appear never-watched, matching the
+	// Jellyfin semantics callers expect.
+	if err := s.progress.Delete(ctx, profileID, mediaItemID); err != nil {
 		return fmt.Errorf("CommandService.MarkAsUnwatched: %w", err)
 	}
 	return nil

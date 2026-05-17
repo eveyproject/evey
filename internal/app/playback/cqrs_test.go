@@ -76,10 +76,10 @@ func TestCommandService_MarkAsUnwatched(t *testing.T) {
 	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "m1"))
 	require.NoError(t, cmd.MarkAsUnwatched(ctx, "p1", "m1"))
 
-	wp, err := q.GetWatchProgress(ctx, "p1", "m1")
-	require.NoError(t, err)
-	assert.False(t, wp.Completed)
-	assert.Equal(t, int64(0), wp.Position.Milliseconds())
+	// MarkAsUnwatched deletes the progress row; the query path surfaces
+	// shared.ErrNotFound (the gRPC handler maps it to an empty proto).
+	_, err := q.GetWatchProgress(ctx, "p1", "m1")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestCommandService_StartStream_MaxStreams(t *testing.T) {

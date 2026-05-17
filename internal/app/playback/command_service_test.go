@@ -252,6 +252,151 @@ func TestReportProgressBySession_UpdatesSessionPosition(t *testing.T) {
 	assert.False(t, wp.Completed)
 }
 
+// fakeDurationGetter satisfies appplayback.MediaItemDurationGetter so the
+// auto-complete-at-90% path can be exercised without dragging the library
+// query service into the playback test setup.
+type fakeDurationGetter struct {
+	durations map[string]int64
+	err       error
+}
+
+func (f *fakeDurationGetter) GetMediaItemDurationMs(_ context.Context, mediaItemID string) (int64, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
+	return f.durations[mediaItemID], nil
+}
+
+func setupCmdWithDurations(durations map[string]int64) (
+	*appplayback.CommandService,
+	*pbfakes.FakeWatchProgressRepository,
+	*pbfakes.FakePlaySessionRepository,
+	*userfakes.FakeUserRepository,
+	*userfakes.FakeProfileRepository,
+) {
+	pr := pbfakes.NewFakeWatchProgressRepository()
+	sr := pbfakes.NewFakePlaySessionRepository()
+	ur := userfakes.NewFakeUserRepository()
+	pfr := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	getter := &fakeDurationGetter{durations: durations}
+	cmd := appplayback.NewCommandService(pr, sr, sr, ur, pfr, bus, appplayback.WithMediaItemDurationGetter(getter))
+	return cmd, pr, sr, ur, pfr
+}
+
+func TestReportProgressBySession_AutoCompletesAt90Percent(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, ur, pfr := setupCmdWithDurations(map[string]int64{"m1": 100_000})
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+
+	// 89% — must NOT auto-complete (just under the 90% threshold).
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 89_000, false))
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.False(t, wp.Completed, "position 89%% must stay incomplete")
+
+	// 90% exactly — flips the flag.
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 90_000, false))
+	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, wp.Completed, "position 90%% must auto-complete")
+}
+
+func TestReportProgressBySession_CompletedStickyAcrossSeekBack(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, ur, pfr := setupCmdWithDurations(map[string]int64{"m1": 100_000})
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+
+	// Cross threshold so Completed becomes true.
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 95_000, false))
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, wp.Completed)
+
+	// User seeks back to 20% — repo's sticky-true semantic keeps Completed.
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 20_000, false))
+	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, wp.Completed, "seek-back must NOT regress completed=true")
+	assert.Equal(t, int64(20_000), wp.Position.Milliseconds())
+}
+
+func TestReportProgressBySession_NoGetter_NoAutoComplete(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, ur, pfr, _ := setupCmd() // no duration getter wired
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 999_999_999, false))
+
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.False(t, wp.Completed, "without a duration source the legacy behaviour stays")
+}
+
+func TestReportProgressBySession_GetterReturnsZero_NoAutoComplete(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, ur, pfr := setupCmdWithDurations(map[string]int64{"m1": 0})
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 60_000, false))
+
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.False(t, wp.Completed, "duration=0 means unknown, never auto-complete")
+}
+
+func TestReportProgressBySession_GetterError_DegradesGracefully(t *testing.T) {
+	t.Parallel()
+	pr := pbfakes.NewFakeWatchProgressRepository()
+	sr := pbfakes.NewFakePlaySessionRepository()
+	ur := userfakes.NewFakeUserRepository()
+	pfr := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	getter := &fakeDurationGetter{err: errors.New("db blip")}
+	cmd := appplayback.NewCommandService(pr, sr, sr, ur, pfr, bus, appplayback.WithMediaItemDurationGetter(getter))
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+	// Must succeed even when the duration lookup errors — auto-complete is
+	// best-effort, never blocks the progress write.
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 95_000, false))
+
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.False(t, wp.Completed)
+}
+
+func TestMarkAsWatched_StaysStickyAgainstSubsequentProgressTick(t *testing.T) {
+	t.Parallel()
+	// Regression: the historical hardcoded Completed=false in
+	// ReportProgressBySession used to silently undo MarkAsWatched on the
+	// very next player tick. Sticky-true Upsert + per-position computation
+	// fix it. This test guards against re-introducing the bug.
+	cmd, pr, _, ur, pfr := setupCmdWithDurations(map[string]int64{"m1": 100_000})
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "m1"))
+
+	// Next tick lands well below 90% — must NOT regress to false.
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 10_000, false))
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, wp.Completed, "MarkAsWatched must survive a subsequent progress tick at <90%%")
+}
+
 func TestGetSession(t *testing.T) {
 	t.Parallel()
 	cmd, _, _, ur, pfr, _ := setupCmd()
@@ -318,7 +463,7 @@ func TestMarkAsWatched_SetsCompleted(t *testing.T) {
 	assert.True(t, found)
 }
 
-func TestMarkAsUnwatched_ResetsProgress(t *testing.T) {
+func TestMarkAsUnwatched_DeletesProgressRow(t *testing.T) {
 	t.Parallel()
 	cmd, pr, _, _, pfr, _ := setupCmd()
 	ctx := context.Background()
@@ -327,11 +472,11 @@ func TestMarkAsUnwatched_ResetsProgress(t *testing.T) {
 	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "m1"))
 	require.NoError(t, cmd.MarkAsUnwatched(ctx, "p1", "m1"))
 
-	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
-	require.NoError(t, err)
-	assert.False(t, wp.Completed)
-	assert.Equal(t, int64(0), wp.Position.Milliseconds())
-	assert.Equal(t, 0, wp.PlayCount)
+	// MarkAsUnwatched deletes the row entirely — the item appears
+	// never-watched again, matching the Jellyfin semantics the gRPC
+	// handler relies on (NotFound → empty WatchProgress).
+	_, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestMarkAsUnwatched_ProfileNotFound(t *testing.T) {

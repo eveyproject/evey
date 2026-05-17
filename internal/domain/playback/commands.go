@@ -6,7 +6,16 @@ import (
 )
 
 type ProgressCommandRepo interface {
+	// Upsert writes the progress entry. Completed is sticky on conflict: a
+	// row already marked completed=true cannot regress to false via Upsert —
+	// only Delete (used by MarkAsUnwatched) clears the row. This protects
+	// auto-completion at 90% and explicit MarkAsWatched from being undone
+	// by a subsequent ReportProgressBySession tick.
 	Upsert(ctx context.Context, wp *WatchProgress) error
+	// Delete removes the (profile, media) progress entry entirely, so the
+	// item appears never-watched again. Used by MarkAsUnwatched. No-op
+	// when no row exists.
+	Delete(ctx context.Context, profileID, mediaItemID string) error
 }
 
 type SessionCommandRepo interface {

@@ -46,12 +46,16 @@ func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.Watch
 	)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// Completed is monotonic-true on conflict (OR with existing) so a
+	// background progress tick can't undo an explicit MarkAsWatched or a
+	// previous auto-completion at 90%. MarkAsUnwatched goes through Delete,
+	// not Upsert, when it needs to clear the flag.
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO watch_progress (id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7)
 		 ON CONFLICT (profile_id, media_item_id) DO UPDATE SET
 		   position_ms = EXCLUDED.position_ms,
-		   completed = EXCLUDED.completed,
+		   completed = (watch_progress.completed OR EXCLUDED.completed),
 		   play_count = EXCLUDED.play_count,
 		   last_played_at = EXCLUDED.last_played_at`,
 		wp.ID, wp.ProfileID, wp.MediaItemID, wp.Position.Milliseconds(), wp.Completed, wp.PlayCount, wp.LastPlayedAt,
@@ -60,6 +64,26 @@ func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.Watch
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("WatchProgressRepo.Upsert: %w", err)
+	}
+	return nil
+}
+
+func (r *WatchProgressRepository) Delete(ctx context.Context, profileID, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.Delete")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("profile.id", profileID),
+		attribute.String("media_item.id", mediaItemID),
+	)
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if _, err := r.db.ExecContext(ctx,
+		`DELETE FROM watch_progress WHERE profile_id = $1 AND media_item_id = $2`,
+		profileID, mediaItemID,
+	); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("WatchProgressRepo.Delete: %w", err)
 	}
 	return nil
 }
