@@ -629,6 +629,73 @@ func TestAutoEnrichItem_AlreadyEnriched(t *testing.T) {
 	assert.Equal(t, "Already there", item.Overview)
 }
 
+// TestAutoEnrichItem_OrphanWithTitleOverride_UsesOverrideForSearch is the
+// pré-prod regression: an admin manually cleans a parser-polluted title via
+// MediaDetailEdit, expecting the next match-orphans sweep to pick it up.
+// Before the fix, the enricher early-returned on "item has overrides" and
+// the orphan stayed orphan forever. After the fix, an orphan's overrides
+// are NOT a skip signal — they're additional input for the search query.
+func TestAutoEnrichItem_OrphanWithTitleOverride_UsesOverrideForSearch(t *testing.T) {
+	primary := &fakeProvider{
+		name: "tmdb",
+		searchResults: []domain.MetadataResult{
+			{Title: "Quand l'hôpital retient son souffle", ProviderIDs: map[string]string{"tmdb": "999"}},
+		},
+		detailResult: &domain.MetadataResult{
+			Title:       "Quand l'hôpital retient son souffle",
+			Overview:    "Documentaire santé.",
+			ProviderIDs: map[string]string{"tmdb": "999"},
+		},
+	}
+	e, _, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	EnricherWithOverrides(overrideRepo)(e)
+
+	// Orphan: media_items.title still holds the parser-polluted form,
+	// Catalog is nil → no provider IDs yet.
+	item := &domainlib.MediaItem{ID: "item-orphan", Title: "Quand l'hôpital retient son souffle 720", Type: "movie"}
+	require.NoError(t, miRepo.Create(context.Background(), item))
+
+	// Admin cleaned the title via UI — override row exists.
+	ov, err := domain.NewMetadataOverride("mo-1", "item-orphan", "title",
+		domain.WithOverrideValue("Quand l'hôpital retient son souffle"))
+	require.NoError(t, err)
+	require.NoError(t, overrideRepo.Set(context.Background(), ov))
+
+	e.AutoEnrichItem(context.Background(), item, slog.Default())
+	assert.Equal(t, "Documentaire santé.", item.Overview, "orphan with title override must still enrich")
+}
+
+func TestAutoEnrichItem_MatchedItemWithOverride_StillSkips(t *testing.T) {
+	// Matched item's overrides are display preferences — must not retrigger
+	// a TMDB search that would overwrite them. Asserts the historical
+	// behaviour stays for the non-orphan case.
+	primary := &fakeProvider{
+		name: "tmdb",
+		detailResult: &domain.MetadataResult{
+			Overview: "REPLACED",
+		},
+	}
+	e, _, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	EnricherWithOverrides(overrideRepo)(e)
+
+	// Matched item: has provider IDs.
+	item := &domainlib.MediaItem{
+		ID: "item-matched", Title: "Matrix", Type: "movie",
+		Catalog: &domainlib.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "603"}},
+	}
+	require.NoError(t, miRepo.Create(context.Background(), item))
+
+	ov, err := domain.NewMetadataOverride("mo-2", "item-matched", "title",
+		domain.WithOverrideValue("Custom Display Title"))
+	require.NoError(t, err)
+	require.NoError(t, overrideRepo.Set(context.Background(), ov))
+
+	e.AutoEnrichItem(context.Background(), item, slog.Default())
+	assert.Empty(t, item.Overview, "matched item with override must NOT be re-enriched")
+}
+
 func TestAutoEnrichItem_Movie(t *testing.T) {
 	primary := &fakeProvider{
 		name: "tmdb",

@@ -57,15 +57,33 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		return
 	}
 
-	// Respect admin intent: manual field edits win, even under force refresh.
-	// Force only bypasses the automatic "already has overview" skip, not the
-	// explicit admin override protection.
+	// Respect admin intent: manual field edits win, even under force refresh —
+	// EXCEPT for orphan items (no TMDB/IMDB match yet). For orphans, the user
+	// editing the title IS the request to find a match (otherwise their edit
+	// just rots in the override table forever). Matched items continue to be
+	// protected: their overrides are deliberate display preferences that
+	// must not bounce back against the provider chain.
+	isOrphan := item.Catalog == nil || len(item.Catalog.ProviderIDs) == 0
+	var titleOverride, originalTitleOverride string
 	if e.overrides != nil {
 		if overrides, err := e.overrides.GetByMediaItem(ctx, string(item.ID)); err == nil && len(overrides) > 0 {
-			if log != nil {
-				log.Debug("skip auto-enrich: item has admin overrides", slog.String("id", string(item.ID)), slog.Int("overrides", len(overrides)))
+			if !isOrphan {
+				if log != nil {
+					log.Debug("skip auto-enrich: matched item has admin overrides", slog.String("id", string(item.ID)), slog.Int("overrides", len(overrides)))
+				}
+				return
 			}
-			return
+			// Orphan: extract title/originalTitle overrides for the search query.
+			for _, ov := range overrides {
+				if s, ok := ov.CustomValue.(string); ok && s != "" {
+					switch ov.FieldName {
+					case "title":
+						titleOverride = s
+					case "originalTitle":
+						originalTitleOverride = s
+					}
+				}
+			}
 		}
 	}
 
@@ -80,10 +98,20 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		diskS01Episodes = e.countDiskEpisodesForSeason(ctx, string(item.ID), 1)
 	}
 
-	// ScanTitle is the stable filesystem-derived title; Title may have been
-	// overwritten by a past (possibly wrong) TMDB match. Always search against
-	// the scan title so a bad match can be corrected on re-enrichment.
-	searchTitle := item.ScanTitle
+	// Search-title precedence for orphans:
+	//   1. title override (user's manual correction — strongest signal)
+	//   2. originalTitle override (fallback if user only edited that)
+	//   3. ScanTitle (stable filesystem-derived, survives bad matches)
+	//   4. Title (last resort, possibly polluted by old parser)
+	// For matched items the override branch returned above, so this falls
+	// through to the historical ScanTitle || Title pair.
+	searchTitle := titleOverride
+	if searchTitle == "" {
+		searchTitle = originalTitleOverride
+	}
+	if searchTitle == "" {
+		searchTitle = item.ScanTitle
+	}
 	if searchTitle == "" {
 		searchTitle = item.Title
 	}
