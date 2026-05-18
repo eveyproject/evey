@@ -188,8 +188,9 @@ func TestCleanOldLogs_SkipsNonLogFiles(t *testing.T) {
 	os.Mkdir(filepath.Join(dir, "subdir"), 0o755)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	logger.StartCleanup(ctx, dir, 1)
-	time.Sleep(100 * time.Millisecond)
+	initDone := make(chan struct{})
+	logger.StartCleanup(ctx, dir, 1, initDone)
+	<-initDone
 	cancel()
 
 	// Non-log file should still exist
@@ -207,8 +208,9 @@ func TestStartCleanup_DefaultRetention(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "evey-"+old+".log"), []byte("old"), 0o644)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	logger.StartCleanup(ctx, dir, 0)
-	time.Sleep(100 * time.Millisecond)
+	initDone := make(chan struct{})
+	logger.StartCleanup(ctx, dir, 0, initDone)
+	<-initDone
 	cancel()
 
 	if _, err := os.Stat(filepath.Join(dir, "evey-"+old+".log")); !os.IsNotExist(err) {
@@ -259,8 +261,9 @@ func TestCleanOldLogs_HourlyRotatedFile(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "evey-"+old+"-14.log"), []byte("old hourly"), 0o644)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	logger.StartCleanup(ctx, dir, 30)
-	time.Sleep(100 * time.Millisecond)
+	initDone := make(chan struct{})
+	logger.StartCleanup(ctx, dir, 30, initDone)
+	<-initDone
 	cancel()
 
 	if _, err := os.Stat(filepath.Join(dir, "evey-"+old+"-14.log")); !os.IsNotExist(err) {
@@ -280,8 +283,9 @@ func TestStartCleanup_RemovesOldLogs(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	logger.StartCleanup(ctx, dir, 30)
-	time.Sleep(100 * time.Millisecond)
+	initDone := make(chan struct{})
+	logger.StartCleanup(ctx, dir, 30, initDone)
+	<-initDone
 	cancel()
 
 	if _, err := os.Stat(filepath.Join(dir, "evey-"+old+".log")); !os.IsNotExist(err) {

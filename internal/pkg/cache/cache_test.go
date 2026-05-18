@@ -73,12 +73,12 @@ func TestOverwrite(t *testing.T) {
 func TestMaxSize_EvictsOldest(t *testing.T) {
 	c, stop := cache.NewWithMaxSize[int](0, 3)
 	defer stop()
+	// LRU is position-based via container/list — Set inserts to the front
+	// and over-capacity removes from the back. No sleeps needed to
+	// distinguish entries.
 	c.Set("a", 1, time.Minute)
-	time.Sleep(time.Millisecond)
 	c.Set("b", 2, time.Minute)
-	time.Sleep(time.Millisecond)
 	c.Set("c", 3, time.Minute)
-	time.Sleep(time.Millisecond)
 	c.Set("d", 4, time.Minute)
 
 	if _, ok := c.Get("a"); ok {
