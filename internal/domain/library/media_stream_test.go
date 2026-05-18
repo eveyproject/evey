@@ -1,6 +1,7 @@
 package library_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -50,6 +51,41 @@ func TestStreamType_IsValidStrict(t *testing.T) {
 			t.Parallel()
 			if got := c.typ.IsValidStrict(); got != c.want {
 				t.Errorf("StreamType(%q).IsValidStrict() = %v, want %v", c.typ, got, c.want)
+			}
+		})
+	}
+}
+
+func TestMediaStream_Validate(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		typ       library.StreamType
+		expectErr bool
+	}{
+		{"video valid", library.StreamTypeVideo, false},
+		{"audio valid", library.StreamTypeAudio, false},
+		{"subtitle valid", library.StreamTypeSubtitle, false},
+		{"attachment valid", library.StreamTypeAttachment, false},
+		{"empty rejected", library.StreamType(""), true},
+		{"garbage rejected", library.StreamType("data"), true},
+	}
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			s := &library.MediaStream{StreamType: c.typ}
+			err := s.Validate()
+			if c.expectErr {
+				if err == nil {
+					t.Errorf("expected error for %q, got nil", c.typ)
+				}
+				if !errors.Is(err, library.ErrInvalidStreamType) {
+					t.Errorf("expected ErrInvalidStreamType, got %v", err)
+				}
+			} else if err != nil {
+				t.Errorf("expected no error for %q, got %v", c.typ, err)
 			}
 		})
 	}

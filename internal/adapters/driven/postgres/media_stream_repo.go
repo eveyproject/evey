@@ -31,6 +31,13 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 	if len(streams) == 0 {
 		return nil
 	}
+	for _, s := range streams {
+		if err := s.Validate(); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
+		}
+	}
 
 	var b strings.Builder
 	b.WriteString(`INSERT INTO media_streams (id, media_item_id, stream_index, stream_type, codec, codec_long_name,
@@ -91,6 +98,14 @@ func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID sh
 			return err
 		}
 		return nil
+	}
+
+	for _, s := range streams {
+		if err := s.Validate(); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
+		}
 	}
 
 	var b strings.Builder

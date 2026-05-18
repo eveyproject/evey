@@ -1,5 +1,7 @@
 package library
 
+import "fmt"
+
 // Strict enum for MediaStream.StreamType. The underlying StreamType type and
 // the legacy short-form constants (Video, Audio, Subtitle) live in model.go
 // for historical reasons; this file augments the enum with the canonical
@@ -45,4 +47,19 @@ func (t StreamType) IsValidStrict() bool {
 		return true
 	}
 	return false
+}
+
+// ErrInvalidStreamType signals a MediaStream whose StreamType is not one of
+// the four valid values. Surfaced from Validate() so the postgres adapter
+// can reject the row before it hits the database — a defense-in-depth net
+// against future call sites bypassing codecTypeToStreamType.
+var ErrInvalidStreamType = fmt.Errorf("media stream: invalid StreamType")
+
+// Validate enforces strict invariants on a MediaStream before persistence.
+// Currently checks only the StreamType enum; extend here as fields are added.
+func (s *MediaStream) Validate() error {
+	if !s.StreamType.IsValidStrict() {
+		return fmt.Errorf("%w: %q", ErrInvalidStreamType, s.StreamType)
+	}
+	return nil
 }
