@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/Input";
 
 interface IdentifyResult {
   tmdb_id?: string;
+  imdb_id?: string;
+  /** "tmdb" | "imdb" | "" — populated by the admin handler for clarity */
+  provider?: string;
   title: string;
   year?: number;
   overview: string;
@@ -67,13 +70,20 @@ export function IdentifyMetadataModal({ open, onClose, mediaItemId, initialQuery
   }
 
   async function handleApply(result: IdentifyResult) {
-    if (!result.tmdb_id || !mediaItemId) return;
-    setApplyingId(result.tmdb_id);
+    // Backend accepts either tmdb_id or imdb_id (RefreshItemMetadataByIMDB
+    // is the fallback path). Prefer tmdb when both are present — it gives
+    // a richer enrichment chain (translations, artwork, etc.).
+    const applyId = result.tmdb_id || result.imdb_id;
+    if (!applyId || !mediaItemId) return;
+    setApplyingId(applyId);
     try {
+      const payload: Record<string, string> = { media_type: mediaType };
+      if (result.tmdb_id) payload.tmdb_id = result.tmdb_id;
+      else if (result.imdb_id) payload.imdb_id = result.imdb_id;
       await eveyFetch<void>({
         url: `/api/v1/admin/media/${mediaItemId}/refresh-metadata`,
         method: "POST",
-        data: { tmdb_id: result.tmdb_id, media_type: mediaType },
+        data: payload,
       });
       // Invalidate so MediaDetailEdit + parent list refetch the item with
       // its new provider IDs / TMDB-sourced title / overview.
@@ -175,6 +185,19 @@ export function IdentifyMetadataModal({ open, onClose, mediaItemId, initialQuery
                         TMDB
                       </a>
                     )}
+                    {r.imdb_id && (
+                      <a
+                        href={`https://www.imdb.com/title/${r.imdb_id}/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs underline text-[var(--accent)]"
+                      >
+                        IMDB
+                      </a>
+                    )}
+                    {r.provider && !r.tmdb_id && !r.imdb_id && (
+                      <span className="text-xs italic text-[var(--text-muted)]">{r.provider}</span>
+                    )}
                   </div>
                   {r.overview && (
                     <p className="text-xs text-[var(--text-muted)] mt-1 line-clamp-3">{r.overview}</p>
@@ -183,9 +206,9 @@ export function IdentifyMetadataModal({ open, onClose, mediaItemId, initialQuery
                     <Button
                       type="button"
                       onClick={() => handleApply(r)}
-                      loading={applyingId === r.tmdb_id}
-                      disabled={!r.tmdb_id || applyingId !== null}
-                      data-testid={`identify-apply-${r.tmdb_id ?? "noid"}`}
+                      loading={applyingId === (r.tmdb_id || r.imdb_id)}
+                      disabled={(!r.tmdb_id && !r.imdb_id) || applyingId !== null}
+                      data-testid={`identify-apply-${r.tmdb_id ?? r.imdb_id ?? "noid"}`}
                     >
                       {t("media.detail.identify.useThis", "Use this match")}
                     </Button>

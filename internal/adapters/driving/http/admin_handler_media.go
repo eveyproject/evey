@@ -91,7 +91,9 @@ func (h *adminHandler) handleSearchMetadata(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	type searchResult struct {
-		TmdbID    string `json:"tmdb_id"`
+		TmdbID    string `json:"tmdb_id,omitempty"`
+		ImdbID    string `json:"imdb_id,omitempty"`
+		Provider  string `json:"provider"`
 		Title     string `json:"title"`
 		Year      *int   `json:"year,omitempty"`
 		Overview  string `json:"overview"`
@@ -104,8 +106,21 @@ func (h *adminHandler) handleSearchMetadata(w http.ResponseWriter, r *http.Reque
 			Year:     r.Year,
 			Overview: r.Overview,
 		}
+		// SearchMetadata fans out across TMDB + OMDB + TVMaze + iTunes +
+		// IMDb. Non-TMDB providers don't carry a tmdb_id but do expose
+		// imdb_id; the admin refresh-metadata endpoint accepts either,
+		// so surface both to the Identify UI for a richer pick list.
 		if tmdbID, ok := r.ProviderIDs["tmdb"]; ok {
 			sr.TmdbID = tmdbID
+		}
+		if imdbID, ok := r.ProviderIDs["imdb"]; ok {
+			sr.ImdbID = imdbID
+		}
+		switch {
+		case sr.TmdbID != "":
+			sr.Provider = "tmdb"
+		case sr.ImdbID != "":
+			sr.Provider = "imdb"
 		}
 		for _, art := range r.Artwork {
 			if art.Type == "poster" {
