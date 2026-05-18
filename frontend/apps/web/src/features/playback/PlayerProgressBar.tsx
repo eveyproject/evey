@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Chapter } from "@/hooks/useChapters";
 import { TrickplayPreview } from "./TrickplayPreview";
@@ -36,12 +36,24 @@ export function PlayerProgressBar({
   // scrub. With `value={absoluteTime}` and a synchronous onSeek that
   // fires per drag tick, an expensive seek (transcode restart) would
   // tug the thumb back to the still-old absoluteTime mid-drag → the
-  // user sees the timeline "snap back" and feels broken. Commit the
-  // seek only on pointerup / touchend / keyup so the transcode restarts
-  // once per scrub, not per pixel.
+  // user sees the timeline "snap back" and feels broken.
+  //
+  // We commit the seek 200ms after the last onChange instead of on
+  // pointerup: it's robust to drag-release-outside-input, never gets
+  // stuck on a missed mouseup/touchend, and the 200ms delay is
+  // imperceptible compared to the transcode restart itself (seconds).
   const [dragValue, setDragValue] = useState<number | null>(null);
-  const dragValueRef = useRef<number | null>(null);
-  dragValueRef.current = dragValue;
+  const debounceRef = useRef<number | null>(null);
+  const onSeekRef = useRef(onSeek);
+  onSeekRef.current = onSeek;
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current !== null) {
+        window.clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
 
   function handleSeekHover(e: React.MouseEvent) {
     const bar = seekBarRef.current;
@@ -107,27 +119,17 @@ export function PlayerProgressBar({
         max={effectiveDuration || 0}
         step={0.5}
         value={dragValue ?? absoluteTime}
-        onChange={(e) => setDragValue(Number(e.target.value))}
-        onMouseUp={() => {
-          const v = dragValueRef.current;
-          if (v !== null) {
-            onSeek({ target: { value: String(v) } } as React.ChangeEvent<HTMLInputElement>);
-            setDragValue(null);
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          setDragValue(v);
+          if (debounceRef.current !== null) {
+            window.clearTimeout(debounceRef.current);
           }
-        }}
-        onTouchEnd={() => {
-          const v = dragValueRef.current;
-          if (v !== null) {
-            onSeek({ target: { value: String(v) } } as React.ChangeEvent<HTMLInputElement>);
+          debounceRef.current = window.setTimeout(() => {
+            onSeekRef.current({ target: { value: String(v) } } as React.ChangeEvent<HTMLInputElement>);
             setDragValue(null);
-          }
-        }}
-        onKeyUp={() => {
-          const v = dragValueRef.current;
-          if (v !== null) {
-            onSeek({ target: { value: String(v) } } as React.ChangeEvent<HTMLInputElement>);
-            setDragValue(null);
-          }
+            debounceRef.current = null;
+          }, 200);
         }}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-raised"
         aria-label={t("player.controls.seek")}
