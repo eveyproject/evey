@@ -15,9 +15,10 @@ import (
 )
 
 var (
-	ErrMaxStreams      = errors.New("max concurrent streams reached")
-	ErrSessionNotFound = errors.New("session not found")
-	ErrProfileNotFound = errors.New("profile not found")
+	ErrMaxStreams           = errors.New("max concurrent streams reached")
+	ErrMaxDevicesPerProfile = errors.New("max concurrent devices per profile reached")
+	ErrSessionNotFound      = errors.New("session not found")
+	ErrProfileNotFound      = errors.New("profile not found")
 )
 
 // MediaItemDurationGetter returns the total duration of a media item in
@@ -186,6 +187,15 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 			}
 			if u.StreamQuotaExceeded(count) {
 				return ErrMaxStreams
+			}
+		}
+		if u.HasDeviceLimit() {
+			active, err := s.sessionQueries.GetActiveByProfile(ctx, string(session.ProfileID))
+			if err != nil {
+				return fmt.Errorf("list active by profile: %w", err)
+			}
+			if u.DeviceQuotaExceeded(len(active)) {
+				return ErrMaxDevicesPerProfile
 			}
 		}
 		if err := s.sessions.Create(ctx, session); err != nil {

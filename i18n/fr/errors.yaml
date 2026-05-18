@@ -27,6 +27,7 @@ playback:
   cannot_report_other_session: "Impossible de signaler la progression de la session d'un autre utilisateur"
   session_not_found: "Session introuvable"
   max_streams_reached: "Vous avez atteint la limite de lectures simultanées"
+  max_devices_reached: "Limite d'appareils atteinte pour ce profil. Arrêtez la lecture sur un autre appareil d'abord."
 
 activity:
   cannot_access_other_history: "Impossible d'accéder à l'historique de connexion d'un autre utilisateur"

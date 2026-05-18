@@ -158,6 +158,36 @@ func TestStartStream_ExactlyAtMax_Allowed(t *testing.T) {
 	assert.ErrorIs(t, err, appplayback.ErrMaxStreams)
 }
 
+func TestStartStream_MaxDevicesPerProfile_Enforced(t *testing.T) {
+	t.Parallel()
+	cmd, _, _, ur, pfr, _ := setupCmd()
+	ctx := context.Background()
+	limit := 2
+	ur.Create(ctx, &user.User{ID: "u1", Username: "alice", Enabled: true, MaxDevicesPerProfile: &limit})
+	pfr.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s2", ProfileID: "p1", MediaItemID: "m2"}, "u1"))
+
+	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s3", ProfileID: "p1", MediaItemID: "m3"}, "u1")
+	assert.ErrorIs(t, err, appplayback.ErrMaxDevicesPerProfile)
+}
+
+func TestStartStream_MaxDevicesNil_NoLimit(t *testing.T) {
+	t.Parallel()
+	cmd, _, _, ur, pfr, _ := setupCmd()
+	ctx := context.Background()
+	ur.Create(ctx, &user.User{ID: "u1", Username: "alice", Enabled: true})
+	pfr.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+
+	for i := range 5 {
+		err := cmd.StartStream(ctx, &playback.PlaySession{
+			ID: "s" + string(rune('0'+i)), ProfileID: "p1", MediaItemID: "m1",
+		}, "u1")
+		require.NoError(t, err)
+	}
+}
+
 func TestStartStream_SetsStartedAt(t *testing.T) {
 	t.Parallel()
 	cmd, _, sr, ur, pfr, _ := setupCmd()

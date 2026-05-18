@@ -27,6 +27,7 @@ playback:
   cannot_report_other_session: "No se puede reportar progreso de la sesión de otro usuario"
   session_not_found: "Sesión no encontrada"
   max_streams_reached: "Has alcanzado el número máximo de reproducciones simultáneas"
+  max_devices_reached: "Límite de dispositivos alcanzado para este perfil. Detén la reproducción en otro dispositivo primero."
 
 activity:
   cannot_access_other_history: "No se puede acceder al historial de inicio de sesión de otro usuario"

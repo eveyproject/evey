@@ -27,6 +27,7 @@ playback:
   cannot_report_other_session: "Fortschritt für die Sitzung eines anderen Benutzers kann nicht gemeldet werden"
   session_not_found: "Sitzung nicht gefunden"
   max_streams_reached: "Maximale Anzahl gleichzeitiger Wiedergaben erreicht"
+  max_devices_reached: "Gerätelimit für dieses Profil erreicht. Beenden Sie zuerst die Wiedergabe auf einem anderen Gerät."
 
 activity:
   cannot_access_other_history: "Anmeldeverlauf eines anderen Benutzers kann nicht aufgerufen werden"

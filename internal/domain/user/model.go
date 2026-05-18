@@ -392,6 +392,17 @@ func (u *User) StreamQuotaExceeded(activeCount int) bool {
 	return u.HasStreamsLimit() && activeCount >= *u.MaxStreams
 }
 
+func (u *User) HasDeviceLimit() bool {
+	return u.MaxDevicesPerProfile != nil && *u.MaxDevicesPerProfile > 0
+}
+
+// DeviceQuotaExceeded reports whether starting another session for a profile
+// would exceed the user's per-profile concurrent-device quota. Each active
+// PlaySession counts as one device.
+func (u *User) DeviceQuotaExceeded(activeCount int) bool {
+	return u.HasDeviceLimit() && activeCount >= *u.MaxDevicesPerProfile
+}
+
 func (u *User) CanLogin() bool {
 	return u.Enabled
 }

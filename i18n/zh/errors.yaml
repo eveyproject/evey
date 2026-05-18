@@ -27,6 +27,7 @@ playback:
   cannot_report_other_session: "无法为其他用户的会话报告进度"
   session_not_found: "会话未找到"
   max_streams_reached: "您已达到并发播放数上限"
+  max_devices_reached: "此配置文件已达到设备上限。请先在其他设备上停止播放。"
 
 activity:
   cannot_access_other_history: "无法访问其他用户的登录历史"

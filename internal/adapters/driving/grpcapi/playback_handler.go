@@ -216,6 +216,11 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 			span.SetStatus(otelcodes.Error, tErr.Error())
 			return nil, tErr
 		}
+		if errors.Is(err, appplayback.ErrMaxDevicesPerProfile) {
+			tErr := h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.playback.max_devices_reached")
+			span.SetStatus(otelcodes.Error, tErr.Error())
+			return nil, tErr
+		}
 		span.SetStatus(otelcodes.Error, err.Error())
 		slog.Error("start stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
