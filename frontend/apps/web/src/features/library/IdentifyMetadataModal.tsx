@@ -46,8 +46,7 @@ export function IdentifyMetadataModal({ open, onClose, mediaItemId, initialQuery
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSearch() {
     const q = query.trim();
     if (q === "" || !mediaItemId) return;
     setSearching(true);
@@ -101,18 +100,32 @@ export function IdentifyMetadataModal({ open, onClose, mediaItemId, initialQuery
 
   return (
     <Modal open={open} onClose={handleClose} title={t("media.detail.identify.title", "Identify on TMDB")} size="md">
-      <form onSubmit={handleSearch} className="flex flex-col gap-3">
+      {/*
+       * No <form> here: React replays form-submit events across portals,
+       * so a submit inside this nested modal would bubble up to the parent
+       * MediaDetailEdit's <form onSubmit={handleSave}> and silently save +
+       * close the edit modal. Use a plain div + onClick on the Search
+       * button instead, plus Enter-key handling on the Input.
+       */}
+      <div className="flex flex-col gap-3">
         <div className="flex gap-2 items-end">
           <div className="flex-1">
             <Input
               label={t("media.detail.identify.queryLabel", "Search title")}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void handleSearch();
+                }
+              }}
               placeholder={t("media.detail.identify.queryPlaceholder", "e.g. Greyhound")}
               data-testid="identify-query-input"
             />
           </div>
-          <Button type="submit" loading={searching} disabled={!query.trim()} data-testid="identify-search-btn">
+          <Button type="button" loading={searching} disabled={!query.trim()} onClick={() => void handleSearch()} data-testid="identify-search-btn">
             {t("media.detail.identify.search", "Search")}
           </Button>
         </div>
@@ -188,7 +201,7 @@ export function IdentifyMetadataModal({ open, onClose, mediaItemId, initialQuery
             {t("common.close", "Close")}
           </Button>
         </div>
-      </form>
+      </div>
     </Modal>
   );
 }
