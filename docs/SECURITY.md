@@ -125,7 +125,7 @@ The notification service subscribes and pages the admin via the configured chann
 |---|---|---|---|
 | Network egress unrestricted | exfiltration possible | static analyzer flags `requests.*` patterns; admin reviews URL list at preview | bubblewrap `--unshare-net` opt-in (v1.x) |
 | Filesystem unconfined within UID 1001 | sibling plugin reads | install dirs chmod 0750 + analyzer flags `/etc/passwd` patterns | bubblewrap `--ro-bind /` + writable `--bind <plugin_dir>` only |
-| All plugins share UID 1001 | a malicious plugin can send signals to siblings, read their `/proc/<pid>/environ` | `PR_SET_DUMPABLE=0` in sandbox lib (TODO) | per-plugin user namespace via bubblewrap |
+| All plugins share UID 1001 | a malicious plugin can send signals to siblings | `PR_SET_DUMPABLE=0` in sandbox lib closes `/proc/<pid>/{environ,mem,maps,fd}` reads from same-UID siblings; signals still possible but blast radius limited | per-plugin user namespace via bubblewrap |
 | Seccomp = denylist (~38 syscalls) | plugin can `open`/`socket`/`connect` freely; exec, ptrace, mount, bpf, kexec, module load, setuid-family, keyring blocked — see [§4](#4-seccomp-filter-ld_preload) | `subprocess` permission gate; native-binary BLOCK | bubblewrap seccomp policy + allowlist mode for `strict` plugins |
 | Static binary skips LD_PRELOAD | seccomp inactive | analyzer flags + native-binary opt-in BLOCKS install by default | seccomp applied at exec time via `bwrap --seccomp` (kernel-level, no library required) |
 | Regex analyzer is bypassable by obfuscation | motivated attacker can hide patterns | admin Preview + permission review | server-side risk-scoring + reputation check on plugin author |

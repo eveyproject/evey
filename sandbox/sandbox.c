@@ -137,5 +137,14 @@ static struct sock_fprog prog = {
 __attribute__((constructor))
 static void sandbox_init(void) {
     prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+    /*
+     * PR_SET_DUMPABLE=0 makes /proc/PID/{environ,mem,maps,fd,...} owned by
+     * root and unreadable by same-UID siblings. With seccomp already blocking
+     * ptrace this is mainly about passive /proc reads — a co-resident plugin
+     * cannot scrape another plugin's environment variables or memory maps
+     * via the filesystem. Also disables coredumps (which could leak memory
+     * to disk on a crash).
+     */
+    prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
     prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
 }
