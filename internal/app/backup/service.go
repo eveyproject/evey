@@ -154,7 +154,11 @@ func (s *Service) DeleteBackup(ctx context.Context, backupID string) error {
 	return s.store.Delete(ctx, backupID)
 }
 
-func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDays int) {
+// StartScheduler runs an initial CleanupOldBackups then enters the periodic
+// loop. The optional `initDone` channel is closed once the initial cleanup
+// has returned — tests pass it to deterministically wait for the goroutine
+// to make progress instead of sleeping.
+func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDays int, initDone ...chan<- struct{}) {
 	if intervalHours <= 0 {
 		return
 	}
@@ -166,6 +170,11 @@ func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDa
 		}()
 		if err := s.CleanupOldBackups(ctx, retentionDays); err != nil {
 			slog.Warn("backup retention cleanup", slog.Any("err", err))
+		}
+		for _, ch := range initDone {
+			if ch != nil {
+				close(ch)
+			}
 		}
 		ticker := time.NewTicker(time.Duration(intervalHours) * time.Hour)
 		defer ticker.Stop()

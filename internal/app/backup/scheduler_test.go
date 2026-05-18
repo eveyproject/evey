@@ -71,8 +71,9 @@ func TestStartScheduler_RunsInitialCleanup(t *testing.T) {
 	store.SetCreatedAt(old.ID, time.Now().UTC().AddDate(0, 0, -31))
 	_, _ = svc.CreateBackup(ctx) // recent
 
-	svc.StartScheduler(ctx, 24, 30)
-	time.Sleep(50 * time.Millisecond) // let goroutine run initial cleanup
+	initDone := make(chan struct{})
+	svc.StartScheduler(ctx, 24, 30, initDone)
+	<-initDone
 	cancel()
 
 	list, _ := svc.ListBackups(context.Background())
@@ -85,8 +86,9 @@ func TestStartScheduler_ContextCancel(t *testing.T) {
 	svc, _, _ := setup()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	svc.StartScheduler(ctx, 24, 30)
-	time.Sleep(20 * time.Millisecond)
+	initDone := make(chan struct{})
+	svc.StartScheduler(ctx, 24, 30, initDone)
+	<-initDone
 	cancel()
 	// goroutine should exit cleanly; no way to observe directly but no panic = pass
 }
@@ -101,8 +103,9 @@ func TestStartScheduler_InitialCleanupError(t *testing.T) {
 	// Create a backup, then make store error for List (used by CleanupOldBackups)
 	store.Err = errors.New("list broken")
 
-	svc.StartScheduler(ctx, 24, 30)
-	time.Sleep(50 * time.Millisecond)
+	initDone := make(chan struct{})
+	svc.StartScheduler(ctx, 24, 30, initDone)
+	<-initDone
 	cancel()
 	// should not panic, just log warning
 }
