@@ -220,6 +220,17 @@ detail:
   rematchSuccess: "Re-match : {{title}}"
   rematchSuccessFallback: recherche terminée
   rematchFailed: Échec de la re-recherche de métadonnées
+  identify:
+    openButton: Identifier sur TMDB
+    title: Identifier sur TMDB
+    queryLabel: Rechercher un titre
+    queryPlaceholder: ex. Greyhound
+    search: Rechercher
+    noResults: "Aucun résultat TMDB. Essaie une requête plus courte ou une orthographe différente."
+    useThis: Choisir ce résultat
+    searchFailed: Échec de la recherche
+    appliedTo: "Identifié comme {{title}}"
+    applyFailed: Échec de l'identification
   reEnrichedWithNewId: Ré-enrichi avec le nouvel ID
   metadataSaved: Métadonnées enregistrées
   failedToSave: "Échec de l'enregistrement"

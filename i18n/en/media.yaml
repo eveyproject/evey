@@ -220,6 +220,17 @@ detail:
   rematchSuccess: "Re-matched: {{title}}"
   rematchSuccessFallback: re-search complete
   rematchFailed: Failed to re-match metadata
+  identify:
+    openButton: Identify on TMDB
+    title: Identify on TMDB
+    queryLabel: Search title
+    queryPlaceholder: e.g. Greyhound
+    search: Search
+    noResults: No TMDB matches. Try a shorter or differently spelled query.
+    useThis: Use this match
+    searchFailed: Search failed
+    appliedTo: "Identified as {{title}}"
+    applyFailed: Identify failed
   reEnrichedWithNewId: Re-enriched with new ID
   metadataSaved: Metadata saved
   failedToSave: Failed to save
