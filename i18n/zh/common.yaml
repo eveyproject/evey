@@ -38,6 +38,7 @@ revoke: "撤销"
 refresh: "刷新"
 done: "完成"
 copied: "已复制！"
+clipboardFailed: "复制到剪贴板失败"
 seeAll: "查看全部 →"
 scrollLeft: "向左滚动"
 scrollRight: "向右滚动"
@@ -111,6 +112,9 @@ notifications:
   backupFailed: "计划备份失败"
   clearConfirm: 删除所有通知？
   clearTitle: 清除通知
+  clearFailed: 清除通知失败
+offline:
+  title: "离线"
 watchHistory:
   title: "观看历史"
 userStats:

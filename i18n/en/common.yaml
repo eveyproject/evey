@@ -38,6 +38,7 @@ revoke: Revoke
 refresh: Refresh
 done: Done
 copied: "Copied!"
+clipboardFailed: Copy to clipboard failed
 seeAll: "See all →"
 scrollLeft: Scroll left
 scrollRight: Scroll right

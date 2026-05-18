@@ -26,11 +26,18 @@ settings:
   audio: Audio
   subtitles: Subtítulos
   speed: Velocidad
+  sleepTimer: "Temporizador de suspensión"
   subtitleStyle: Estilo de subtítulos
   normal: Normal
   uploadSubtitle: "Subir subtítulo…"
   "off": Desactivado
   brightness: Brillo
+sleepTimer:
+  minutes_one: "{{count}} min"
+  minutes_other: "{{count}} min"
+  endOfEpisode: "Fin del episodio"
+  cancel: "Cancelar temporizador"
+  fired: "Temporizador de suspensión finalizado"
 subtitleStyle:
   size: Tamaño
   textColor: Color del texto
@@ -114,3 +121,11 @@ streamInfo:
   language: Idioma
   sampleRate: Frecuencia de muestreo
   transcodeReasons: Razones de transcodificación
+cast:
+  noDevices: No se encontraron dispositivos de cast en la red del servidor.
+playOn:
+  button: Reproducir en otro dispositivo
+  title: Reproducir en
+  sent: "Enviado a {{name}}"
+  failed: Error al enviar — el dispositivo puede haberse desconectado
+  empty: Sin dispositivos conectados. Abre la app Evey en tu TV o teléfono para que aparezca aquí.

@@ -1,5 +1,6 @@
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import type { SyncPlayMember } from "./useSyncPlay";
 
 interface SyncPlayBarProps {
@@ -19,18 +20,24 @@ export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost,
   const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
 
   function handleCopy() {
-    void navigator.clipboard.writeText(shareUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard.writeText(shareUrl).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      () => toast.error(t("common.clipboardFailed")),
+    );
   }
 
   function handleCopyCode() {
     if (!roomCode) return;
-    void navigator.clipboard.writeText(roomCode).then(() => {
-      setCodeCopied(true);
-      setTimeout(() => setCodeCopied(false), 2000);
-    });
+    navigator.clipboard.writeText(roomCode).then(
+      () => {
+        setCodeCopied(true);
+        setTimeout(() => setCodeCopied(false), 2000);
+      },
+      () => toast.error(t("common.clipboardFailed")),
+    );
   }
 
   const displayNames = members.slice(0, 3).map((m) => m.username);

@@ -65,6 +65,7 @@ plugin:
     stopped: Gestoppt
     installed: Installiert
     unknown: Unbekannt
+  errorDetails: Fehlerdetails
   analysisReport:
     title: Sicherheitshinweis
     issues: Probleme
@@ -104,6 +105,10 @@ plugins:
   blockedByAnalysis: Plugin durch Sicherheitsanalyse blockiert
   previewFailed: Vorschau fehlgeschlagen
   installFailed: Installation fehlgeschlagen
+  permissionEscalation:
+    title: Diese Aktualisierung beantragt neue Berechtigungen
+    description: Das Plugin-Update erweitert seine Berechtigungen, Fähigkeiten, Frontend-Slots oder externe Fetch-Hosts. Überprüfen Sie die Änderungen und bestätigen Sie nur, wenn Sie den neuen Anforderungen vertrauen.
+    confirm: Genehmigen und installieren
   availableRuntimes: Verfügbare Laufzeiten
   security:
     title: Sicherheits-Dashboard
@@ -204,6 +209,13 @@ libraries:
   failedDelete: Bibliothek konnte nicht gelöscht werden
   scanStarted: Scan gestartet
   failedScan: Scan konnte nicht gestartet werden
+  refreshMetadata: Alle erneut mit TMDB abgleichen
+  refreshMetadataTooltip: "Führt die TMDB-Suche für jedes Element neu aus — langsam, korrigiert aber frühere falsche Zuordnungen. Verwenden Sie dies nach großen Umbenennungs-Batches."
+  refreshAllMetadataStarted: "Erneuter Abgleich gestartet — Titel und Poster werden im Hintergrund aktualisiert"
+  matchOrphans: Nur Waisen abgleichen
+  matchOrphansTooltip: "Zielt nur auf Elemente ab, die beim Scan nie mit TMDB übereinstimmten (Anbieter-IDs leer). Schnell, läuft im Hintergrund."
+  matchOrphansStarted: "{{count}} Waise(n) für Abgleich eingereiht — sie erscheinen mit Poster/Übersicht, sobald TMDB antwortet"
+  matchOrphansEmpty: "Keine Waisen in dieser Bibliothek zum Abgleichen — alle Elemente haben bereits Anbieter-IDs"
   deleteTitle: Bibliothek löschen
   deleteConfirm: "Bibliothek \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
   noLibraries: Keine Bibliotheken. Fügen Sie eine hinzu, um zu beginnen.
@@ -270,6 +282,7 @@ sessions:
   stop: Stoppen
   sessionStopped: Sitzung beendet
   failedStop: Sitzung konnte nicht beendet werden
+  commandFailed: Befehl konnte nicht gesendet werden
   elapsed: "vergangen"
   video: "Video: {{codec}}"
   audio: "Audio: {{codec}}"
@@ -392,6 +405,7 @@ activity:
     progress: Fortschritt
     started: Gestartet
   noPlayHistory: Kein Wiedergabeverlauf
+  noAuditEntries: Keine Audit-Protokolleinträge
   totalEntries: "{{count}} Einträge insgesamt"
   stats:
     totalPlays: Gesamtwiedergaben
@@ -401,6 +415,9 @@ activity:
   popularMedia: Beliebte Medien
   mostActiveUsers: Aktivste Benutzer
   plays: "{{count}} Wiedergaben"
+
+feeds:
+  noSections: Keine Feed-Abschnitte konfiguriert
 
 audit:
   title: Audit-Protokoll
@@ -462,10 +479,28 @@ serverConfig:
     omdbLink: Kostenlosen Schlüssel auf omdbapi.com erhalten
     opensubtitles: OpenSubtitles API-Schlüssel
     opensubtitlesLink: Schlüssel auf opensubtitles.com erhalten
+    tidb: TheIntroDB API-Schlüssel
+    tidbLink: Kostenlosen Schlüssel auf theintrodb.org erhalten
     resetToDefault: Auf Standard zurücksetzen
     saved: API-Schlüssel gespeichert
     usingDefault: Verwendet Standardschlüssel
     usingCustom: Verwendet benutzerdefinierten Schlüssel
+  introProvidersTitle: Intro-Skip-Anbieter
+  introProvidersDesc: Gemeinschaftsdatenbanken (TheIntroDB primär, IntroDB Fallback) für Intro-/Recap-/Abspann-Zeitstempel abfragen. Überspringt die lokale CPU-intensive Erkennung für abgedeckte Elemente.
+  introProvidersEnabled: Externe Intro-Skip-Anbieter aktivieren
+  introProvidersRestart: Serverneustart nach Aktivieren/Deaktivieren erforderlich.
+  introProvidersTidbStatus: "TheIntroDB: "
+  introProvidersTidbAuthed: authentifiziert (500 Abfragen/Tag)
+  introProvidersTidbAnonymous: anonym (100 Abfragen/Tag)
+  introProvidersIntrodbStatus: "IntroDB: anonymer Fallback (kein Schlüssel erforderlich)"
+  introProvidersTidbSubmit: Erkennungen an TheIntroDB beitragen
+  introProvidersTidbSubmitDesc: Wenn aktiviert, werden hochzuverlässige phash-Erkennungen (>= 95%) anonym an TheIntroDB übermittelt. Erfordert einen gültigen API-Schlüssel. Opt-in.
+  artworkTitle: Artwork-Cache
+  artworkDesc: TMDB-Artworks lokal herunterladen, um WebP statt Weiterleitungen zu liefern.
+  artworkAutoDownload: Artworks automatisch herunterladen
+  artworkRetryDesc: Artworks mit TMDB-Quell-URL aber ohne lokale Kopie erneut herunterladen.
+  artworkRetryNow: Jetzt erneut herunterladen
+  artworkRetryDone: Erneuter Download abgeschlossen
 
 remoteAccess:
   title: Fernzugriff
@@ -564,3 +599,18 @@ serverSettings:
   saved: Einstellungen gespeichert
   usingDefault: "Standardwert:"
   reset: Auf Standard zurücksetzen
+
+segments:
+  title: Mediensegmente
+  intro: Intro
+  recap: Rückblick
+  end_credits: Abspann
+  studio_logo: Studio-Logo
+  markStart: Startpunkt hier setzen
+  markEnd: Endpunkt hier setzen
+  save: Speichern
+  delete: Löschen
+  redetect: Automatische Erkennung neu starten
+  propagate: Auf Staffel anwenden
+  lockedHint: Dieses Segment ist manuell gesperrt und wird durch die automatische Erkennung nicht überschrieben.
+  propagateSuccess: "Auf {{count}} Folge(n) übertragen"

@@ -38,6 +38,7 @@ revoke: "रद्द करें"
 refresh: "रिफ़्रेश करें"
 done: "हो गया"
 copied: "कॉपी हो गया!"
+clipboardFailed: "क्लिपबोर्ड पर कॉपी विफल"
 seeAll: "सभी देखें →"
 scrollLeft: "बाएं स्क्रॉल करें"
 scrollRight: "दाएं स्क्रॉल करें"
@@ -111,6 +112,9 @@ notifications:
   backupFailed: "निर्धारित बैकअप विफल"
   clearConfirm: सभी सूचनाएं हटाएं?
   clearTitle: सूचनाएं साफ़ करें
+  clearFailed: सूचनाएं साफ़ करने में विफल
+offline:
+  title: "ऑफ़लाइन"
 watchHistory:
   title: "देखने का इतिहास"
 userStats:

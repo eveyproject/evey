@@ -17,6 +17,7 @@ home:
   emptyLibraryDesc: "前往管理 → 媒体库添加媒体文件夹。"
   goToLibraries: 前往媒体库
   library: 媒体库
+  customizeSaveFailed: "部分更改保存失败"
 favorites:
   title: 收藏
   empty: "暂无收藏"
@@ -41,6 +42,7 @@ favorites:
   sortBy: 排序
   toggleFavorite: 切换收藏
   toggled: 收藏已更新
+  bulkFailed: "切换收藏失败"
   yearOldest: 年份（最早）
 collections:
   title: 合集
@@ -145,6 +147,7 @@ library:
   markWatched: 标为已观看
   markedUnwatched: 已标为未观看
   markedWatched: 已标为已观看
+  bulkPartialFailure: "{{count}} 项失败"
 person:
   filmography: "作品列表"
   unknown: 未知
@@ -228,6 +231,17 @@ detail:
   downloadComplete: 下载完成
   downloadFailed: 下载失败
   communityRating: 社区：{{average}}/5（{{count}} 条评分）
+  identify:
+    title: "在 TMDB 上识别"
+    openButton: "在 TMDB 上识别"
+    queryLabel: "搜索"
+    queryPlaceholder: "标题、年份…"
+    search: "搜索"
+    noResults: "未找到结果"
+    useThis: "使用此项"
+    appliedTo: "已应用元数据：{{title}}"
+    applyFailed: "应用元数据失败"
+    searchFailed: "搜索失败"
 certBody:
   FR: CSA
   US: MPAA
@@ -286,6 +300,9 @@ music:
   noAlbums: 未找到专辑。
   noArtists: 未找到艺术家。
   noLibraries: 未找到音乐媒体库。请在管理面板中添加。
+  noMusicLibraries: "没有音乐媒体库"
+  queue: "队列"
+  queueEmpty: "队列为空"
   trackDeleted: 曲目已删除
   failedDeleteTrack: 删除曲目失败
   deleteTrackConfirm: 确定删除此曲目？此操作无法撤销。
@@ -299,6 +316,8 @@ music:
   shuffle: 随机播放
   mute: 静音
   unmute: 取消静音
+  seekPosition: 播放位置
+  volume: 音量
   resetFilters: 重置筛选
   addToPlaylist: 添加到播放列表
   newPlaylist: "新建播放列表…"
@@ -341,6 +360,8 @@ syncplay:
   orPlaylist: "或选择播放列表"
   queue: "队列"
   joinByCode: 用代码加入
+  createFailed: "创建房间失败"
+  joinFailed: "加入房间失败"
 playlist:
   name: 名称
   description: 描述
@@ -393,6 +414,8 @@ playlist:
   smartRules: 智能规则
   typeManual: 手动
   typeSmart: 智能
+history:
+  removeFailed: "从历史记录中移除失败"
 search:
   searching: "搜索中..."
   noResults: 没有结果

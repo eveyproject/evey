@@ -17,6 +17,7 @@ home:
   emptyLibraryDesc: "Gehen Sie zu Verwaltung → Bibliotheken, um einen Medienordner hinzuzufügen."
   goToLibraries: Zu den Bibliotheken
   library: Bibliothek
+  customizeSaveFailed: "Einige Änderungen konnten nicht gespeichert werden"
 favorites:
   title: Favoriten
   empty: Noch keine Favoriten
@@ -41,6 +42,7 @@ favorites:
   sortBy: Sortieren nach
   toggleFavorite: Favorit umschalten
   toggled: Favoriten aktualisiert
+  bulkFailed: "Favoriten konnten nicht umgeschaltet werden"
   yearOldest: Jahr (älteste)
 collections:
   title: Sammlungen
@@ -145,6 +147,7 @@ library:
   markWatched: Als gesehen markieren
   markedUnwatched: Als ungesehen markiert
   markedWatched: Als gesehen markiert
+  bulkPartialFailure: "{{count}} Element(e) fehlgeschlagen"
 person:
   filmography: Filmografie
   unknown: Unbekannt
@@ -228,6 +231,17 @@ detail:
   downloadComplete: Download abgeschlossen
   downloadFailed: Download fehlgeschlagen
   communityRating: 'Community: {{average}}/5 ({{count}} Bewertungen)'
+  identify:
+    title: Auf TMDB identifizieren
+    openButton: Auf TMDB identifizieren
+    queryLabel: Suche
+    queryPlaceholder: Titel, Jahr…
+    search: Suchen
+    noResults: Keine Ergebnisse gefunden
+    useThis: Dieses verwenden
+    appliedTo: "Metadaten übernommen: {{title}}"
+    applyFailed: Metadaten konnten nicht übernommen werden
+    searchFailed: Suche fehlgeschlagen
 certBody:
   FR: CSA
   US: MPAA
@@ -286,6 +300,9 @@ music:
   noAlbums: Keine Alben gefunden.
   noArtists: Keine Künstler gefunden.
   noLibraries: Keine Musikbibliotheken gefunden. Fügen Sie eine im Admin-Panel hinzu.
+  noMusicLibraries: Keine Musikbibliotheken
+  queue: Warteschlange
+  queueEmpty: Warteschlange leer
   trackDeleted: Titel gelöscht
   failedDeleteTrack: Titel konnte nicht gelöscht werden
   deleteTrackConfirm: Diesen Titel löschen? Dies kann nicht rückgängig gemacht werden.
@@ -299,6 +316,8 @@ music:
   shuffle: Zufall
   mute: Stummschalten
   unmute: Ton wiederherstellen
+  seekPosition: Wiedergabeposition
+  volume: Lautstärke
   resetFilters: Filter zurücksetzen
   addToPlaylist: Zur Playlist hinzufügen
   newPlaylist: "Neue Playlist…"
@@ -341,6 +360,8 @@ syncplay:
   orPlaylist: "Oder eine Playlist auswählen"
   queue: "Warteschlange"
   joinByCode: Mit Code beitreten
+  createFailed: "Raum konnte nicht erstellt werden"
+  joinFailed: "Raum konnte nicht beigetreten werden"
 playlist:
   name: Name
   description: Beschreibung
@@ -393,6 +414,8 @@ playlist:
   smartRules: Smart-Regeln
   typeManual: Manuell
   typeSmart: Smart
+history:
+  removeFailed: "Aus Verlauf entfernen fehlgeschlagen"
 search:
   searching: "Suche..."
   noResults: Keine Ergebnisse

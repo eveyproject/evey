@@ -65,6 +65,7 @@ plugin:
     stopped: "रुका हुआ"
     installed: "स्थापित"
     unknown: "अज्ञात"
+  errorDetails: "त्रुटि विवरण"
   analysisReport:
     title: "सुरक्षा नोटिस"
     issues: "समस्याएँ"
@@ -104,6 +105,10 @@ plugins:
   blockedByAnalysis: "सुरक्षा विश्लेषण द्वारा प्लगइन अवरुद्ध"
   previewFailed: "पूर्वावलोकन विफल"
   installFailed: "इंस्टॉल विफल"
+  permissionEscalation:
+    title: "यह अपडेट नई अनुमतियाँ माँग रहा है"
+    description: "प्लगइन अपडेट अपनी अनुमतियाँ, क्षमताएं, फ्रंटएंड स्लॉट या बाहरी फ़ेच होस्ट बढ़ा रहा है। परिवर्तनों की समीक्षा करें और केवल तभी पुष्टि करें जब आप नई आवश्यकताओं पर भरोसा करते हों।"
+    confirm: "स्वीकृति दें और इंस्टॉल करें"
   availableRuntimes: "उपलब्ध रनटाइम"
   security:
     title: सुरक्षा डैशबोर्ड
@@ -204,6 +209,13 @@ libraries:
   failedDelete: "लाइब्रेरी मिटाने में विफल"
   scanStarted: "स्कैन शुरू हुआ"
   failedScan: "स्कैन शुरू करने में विफल"
+  refreshMetadata: "TMDB से सभी फिर से मिलाएँ"
+  refreshMetadataTooltip: "प्रत्येक आइटम के लिए TMDB खोज फिर से चलाता है — धीमा, लेकिन पुराने गलत मिलान सुधारता है। बड़े रीनेम बैच के बाद इसका उपयोग करें।"
+  refreshAllMetadataStarted: "पुनः मिलान शुरू हुआ — शीर्षक और पोस्टर पृष्ठभूमि में अपडेट होंगे"
+  matchOrphans: "केवल अनाथ आइटम मिलाएँ"
+  matchOrphansTooltip: "केवल उन आइटमों को लक्षित करता है जो स्कैन के समय TMDB से कभी मेल नहीं खाते (प्रदाता ID खाली)। तेज़, पृष्ठभूमि में चलता है।"
+  matchOrphansStarted: "{{count}} अनाथ आइटम मिलान के लिए कतार में — TMDB के जवाब देने पर वे पोस्टर/सारांश के साथ दिखेंगे"
+  matchOrphansEmpty: "इस लाइब्रेरी में मिलान के लिए कोई अनाथ नहीं — सभी आइटमों में पहले से प्रदाता ID हैं"
   deleteTitle: "लाइब्रेरी मिटाएं"
   deleteConfirm: "लाइब्रेरी \"{{name}}\" मिटाएं? यह क्रिया पूर्ववत नहीं की जा सकती।"
   noLibraries: "कोई लाइब्रेरी नहीं। शुरू करने के लिए एक जोड़ें।"
@@ -270,6 +282,7 @@ sessions:
   stop: "रोकें"
   sessionStopped: "सत्र रोका गया"
   failedStop: "सत्र रोकने में विफल"
+  commandFailed: "कमांड भेजने में विफल"
   elapsed: "बीता हुआ"
   video: "वीडियो: {{codec}}"
   audio: "ऑडियो: {{codec}}"
@@ -392,6 +405,7 @@ activity:
     progress: "प्रगति"
     started: "शुरू हुआ"
   noPlayHistory: "कोई प्ले इतिहास नहीं"
+  noAuditEntries: "कोई ऑडिट लॉग प्रविष्टियां नहीं"
   totalEntries: "कुल {{count}} प्रविष्टियां"
   stats:
     totalPlays: "कुल प्ले"
@@ -401,6 +415,9 @@ activity:
   popularMedia: "लोकप्रिय मीडिया"
   mostActiveUsers: "सबसे सक्रिय उपयोगकर्ता"
   plays: "{{count}} प्ले"
+
+feeds:
+  noSections: "कोई फ़ीड अनुभाग कॉन्फ़िगर नहीं है"
 
 audit:
   title: "ऑडिट लॉग"
@@ -444,6 +461,12 @@ serverConfig:
   trickplayEnabled: "Trickplay थंबनेल सक्षम करें"
   trickplayAdaptiveCpu: "अनुकूली CPU"
   trickplayAdaptiveCpuDesc: "हल्का मोड (~25% CPU)। तेज़ जनरेशन (~50% CPU) के लिए अक्षम करें।"
+  artworkTitle: "आर्टवर्क डाउनलोड"
+  artworkDesc: "पोस्टर, बैकड्रॉप और अन्य आर्टवर्क सर्वर पर स्थानीय रूप से कैश करें। बंद होने पर, फ्रंटएंड बाहरी CDN URL पर निर्भर करता है जिन्हें कुछ ब्राउज़र ब्लॉक करते हैं (Firefox Opaque Response Blocking)।"
+  artworkAutoDownload: "स्कैन पर आर्टवर्क स्वचालित डाउनलोड करें"
+  artworkRetryNow: "अभी गायब आर्टवर्क पुनः प्राप्त करें"
+  artworkRetryDesc: "उन आर्टवर्क पंक्तियों को बैकफिल करें जिनमें अभी भी स्थानीय फ़ाइल नहीं है। पृष्ठभूमि में हर घंटे भी चलता है।"
+  artworkRetryDone: "पुनः प्रयास पूर्ण: {{succeeded}} सफल, {{failed}} विफल।"
   tableHeaders:
     key: "कुंजी"
     value: "मान"
@@ -462,10 +485,22 @@ serverConfig:
     omdbLink: "omdbapi.com पर मुफ्त कुंजी प्राप्त करें"
     opensubtitles: "OpenSubtitles API कुंजी"
     opensubtitlesLink: "opensubtitles.com पर कुंजी प्राप्त करें"
+    tidb: "TheIntroDB API कुंजी"
+    tidbLink: "theintrodb.org पर मुफ्त कुंजी प्राप्त करें"
     resetToDefault: "डिफ़ॉल्ट पर रीसेट करें"
     saved: "API कुंजी सहेजी गई"
     usingDefault: "डिफ़ॉल्ट कुंजी का उपयोग"
     usingCustom: "कस्टम कुंजी का उपयोग"
+  introProvidersTitle: "इंट्रो स्किप प्रदाता"
+  introProvidersDesc: "इंट्रो/रिकैप/क्रेडिट टाइमस्टैम्प के लिए समुदाय डेटाबेस (TheIntroDB प्राथमिक, IntroDB फ़ॉलबैक) क्वेरी करें। कवर किए गए आइटम पर स्थानीय CPU-भारी पहचान छोड़ता है।"
+  introProvidersEnabled: "बाहरी इंट्रो स्किप प्रदाता सक्षम करें"
+  introProvidersRestart: "सक्षम/अक्षम करने के बाद सर्वर पुनरारंभ आवश्यक है।"
+  introProvidersTidbStatus: "TheIntroDB: "
+  introProvidersTidbAuthed: "प्रमाणित (500 क्वेरी/दिन)"
+  introProvidersTidbAnonymous: "अनाम (100 क्वेरी/दिन)"
+  introProvidersIntrodbStatus: "IntroDB: अनाम फ़ॉलबैक (कोई कुंजी आवश्यक नहीं)"
+  introProvidersTidbSubmit: "TheIntroDB में पहचान योगदान करें"
+  introProvidersTidbSubmitDesc: "सक्षम होने पर, उच्च-विश्वास phash पहचान (>= 95%) अनाम रूप से TheIntroDB को भेजी जाती हैं। वैध API कुंजी आवश्यक है। Opt-in।"
 
 remoteAccess:
   title: "रिमोट एक्सेस"
@@ -564,3 +599,18 @@ serverSettings:
   saved: "सेटिंग्स सहेजी गईं"
   usingDefault: "डिफ़ॉल्ट मान:"
   reset: "डिफ़ॉल्ट पर रीसेट करें"
+
+segments:
+  title: "मीडिया सेगमेंट"
+  intro: "इंट्रो"
+  recap: "रिकैप"
+  end_credits: "एंड क्रेडिट"
+  studio_logo: "स्टूडियो लोगो"
+  markStart: "यहाँ शुरुआत चिह्नित करें"
+  markEnd: "यहाँ अंत चिह्नित करें"
+  save: "सहेजें"
+  delete: "मिटाएं"
+  redetect: "स्वचालित पहचान फिर से चलाएं"
+  propagate: "सीज़न पर लागू करें"
+  lockedHint: "यह सेगमेंट मैन्युअल रूप से लॉक है और स्वचालित पहचान द्वारा अधिलेखित नहीं होगा।"
+  propagateSuccess: "{{count}} एपिसोड में प्रचारित"

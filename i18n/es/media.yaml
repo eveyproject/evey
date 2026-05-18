@@ -17,6 +17,7 @@ home:
   emptyLibraryDesc: "Ve a Administración → Bibliotecas para añadir una carpeta multimedia."
   goToLibraries: Ir a Bibliotecas
   library: Biblioteca
+  customizeSaveFailed: "Error al guardar algunos cambios"
 favorites:
   title: Favoritos
   empty: "Aún no hay favoritos"
@@ -41,6 +42,7 @@ favorites:
   sortBy: Ordenar por
   toggleFavorite: Alternar favorito
   toggled: Favoritos actualizados
+  bulkFailed: "Error al alternar favoritos"
   yearOldest: Año (más antiguos)
 collections:
   title: Colecciones
@@ -145,6 +147,7 @@ library:
   markWatched: Marcar como visto
   markedUnwatched: Marcado como no visto
   markedWatched: Marcado como visto
+  bulkPartialFailure: "{{count}} elemento(s) fallido(s)"
 person:
   filmography: Filmografía
   unknown: Desconocido
@@ -228,6 +231,17 @@ detail:
   downloadComplete: Descarga completada
   downloadFailed: Error en la descarga
   communityRating: 'Comunidad: {{average}}/5 ({{count}} valoraciones)'
+  identify:
+    title: "Identificar en TMDB"
+    openButton: "Identificar en TMDB"
+    queryLabel: "Búsqueda"
+    queryPlaceholder: "Título, año…"
+    search: "Buscar"
+    noResults: "Sin resultados"
+    useThis: "Usar este"
+    appliedTo: "Metadatos aplicados: {{title}}"
+    applyFailed: "Error al aplicar los metadatos"
+    searchFailed: "Error en la búsqueda"
 certBody:
   FR: CSA
   US: MPAA
@@ -286,6 +300,9 @@ music:
   noAlbums: No se encontraron álbumes.
   noArtists: No se encontraron artistas.
   noLibraries: No se encontraron bibliotecas de música. Añade una en el panel de administración.
+  noMusicLibraries: "Sin bibliotecas de música"
+  queue: "Cola"
+  queueEmpty: "Cola vacía"
   trackDeleted: Pista eliminada
   failedDeleteTrack: Error al eliminar la pista
   deleteTrackConfirm: ¿Eliminar esta pista? Esta acción no se puede deshacer.
@@ -299,6 +316,8 @@ music:
   shuffle: Aleatorio
   mute: Silenciar
   unmute: Activar sonido
+  seekPosition: Posición de reproducción
+  volume: Volumen
   resetFilters: Restablecer filtros
   addToPlaylist: Añadir a la lista
   newPlaylist: "Nueva lista…"
@@ -341,6 +360,8 @@ syncplay:
   orPlaylist: "O elige una lista"
   queue: "Cola"
   joinByCode: Unirse con código
+  createFailed: "Error al crear la sala"
+  joinFailed: "Error al unirse a la sala"
 playlist:
   name: Nombre
   description: Descripción
@@ -393,6 +414,8 @@ playlist:
   smartRules: Reglas inteligentes
   typeManual: Manual
   typeSmart: Inteligente
+history:
+  removeFailed: "Error al eliminar del historial"
 search:
   searching: "Buscando..."
   noResults: Sin resultados

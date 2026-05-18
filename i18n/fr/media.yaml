@@ -316,6 +316,8 @@ music:
   shuffle: Aléatoire
   mute: Couper le son
   unmute: Rétablir le son
+  seekPosition: Position de lecture
+  volume: Volume
   resetFilters: Réinitialiser les filtres
   addToPlaylist: Ajouter à la playlist
   newPlaylist: "Nouvelle playlist…"

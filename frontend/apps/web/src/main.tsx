@@ -26,7 +26,7 @@ useLocaleStore.subscribe((state) => {
   }
 });
 
-// Logout on 401 and redirect to login (queryClient cleared lazily — defined below)
+// Logout on 401 and redirect to login (queryClient + router refs filled in below)
 window.addEventListener("evey:unauthorized", () => {
   // Guard against feedback loop on already-logged-out pages: if no token,
   // a 401 just means the page made an unnecessary auth call — don't clear
@@ -36,10 +36,15 @@ window.addEventListener("evey:unauthorized", () => {
   useAuthStore.getState().logout();
   localStorage.removeItem("evey-recent-searches");
   if (window.location.pathname !== "/login") {
-    window.location.href = "/login";
+    if (routerRef) {
+      void routerRef.navigate({ to: "/login" });
+    } else {
+      window.location.href = "/login";
+    }
   }
 });
 let queryClientRef: QueryClient | null = null;
+let routerRef: ReturnType<typeof createRouter> | null = null;
 
 // Proactive token refresh — refresh a bit before expiry to avoid 401 retries.
 // Jitter + Web Locks serialize refreshes across tabs so two timers firing at
@@ -170,7 +175,7 @@ function RouterErrorFallback({ error, reset }: { error: Error; reset: () => void
   );
 }
 
-const router = createRouter({
+const router = routerRef = createRouter({
   routeTree,
   context: { queryClient },
   defaultErrorComponent: RouterErrorFallback,

@@ -38,6 +38,7 @@ revoke: Révoquer
 refresh: Actualiser
 done: Terminé
 copied: "Copié !"
+clipboardFailed: "Échec de la copie dans le presse-papiers"
 seeAll: "Tout voir →"
 scrollLeft: Défiler à gauche
 scrollRight: Défiler à droite

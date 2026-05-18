@@ -181,7 +181,7 @@ export function GlobalAudioPlayer() {
         </div>
         <div className="flex items-center gap-2 w-full max-w-[200px] sm:max-w-[400px]">
           <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8 text-right">{formatDuration(currentTime)}</span>
-          <input type="range" min={0} max={duration || 0} step={1} value={currentTime} onChange={seek} className="flex-1 accent-[var(--accent)]" />
+          <input type="range" min={0} max={duration || 0} step={1} value={currentTime} onChange={seek} aria-label={t("media.music.seekPosition")} className="flex-1 accent-[var(--accent)]" />
           <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8">{duration > 0 ? formatDuration(duration) : "—"}</span>
         </div>
       </div>
@@ -195,7 +195,7 @@ export function GlobalAudioPlayer() {
         >
           {muted || volume === 0 ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
         </button>
-        <input type="range" min={0} max={1} step={0.02} value={volume} onChange={(e) => setVolume(Number(e.target.value))} className="w-[72px] accent-[var(--accent)]" />
+        <input type="range" min={0} max={1} step={0.02} value={volume} onChange={(e) => setVolume(Number(e.target.value))} aria-label={t("media.music.volume")} className="w-[72px] accent-[var(--accent)]" />
       </div>
       <button onClick={close} className="text-[var(--text-muted)] bg-transparent border-none cursor-pointer" aria-label="Close player" title="Close">
         <X size={18} aria-hidden="true" />

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -79,7 +80,7 @@ func StartShared() func() {
 	return func() {
 		db.Close()
 		if termErr := container.Terminate(ctx); termErr != nil {
-			fmt.Printf("terminate shared container: %v\n", termErr)
+			slog.Warn("terminate shared container", "err", termErr)
 		}
 	}
 }

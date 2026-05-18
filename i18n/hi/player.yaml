@@ -26,11 +26,18 @@ settings:
   audio: "ऑडियो"
   subtitles: "उपशीर्षक"
   speed: "गति"
+  sleepTimer: "स्लीप टाइमर"
   subtitleStyle: "उपशीर्षक शैली"
   normal: "सामान्य"
   uploadSubtitle: "उपशीर्षक अपलोड करें…"
   "off": "बंद"
   brightness: "चमक"
+sleepTimer:
+  minutes_one: "{{count}} मिनट"
+  minutes_other: "{{count}} मिनट"
+  endOfEpisode: "एपिसोड का अंत"
+  cancel: "टाइमर रद्द करें"
+  fired: "स्लीप टाइमर समाप्त"
 subtitleStyle:
   size: "आकार"
   textColor: "टेक्स्ट रंग"
@@ -114,3 +121,11 @@ streamInfo:
   language: भाषा
   sampleRate: नमूना दर
   transcodeReasons: ट्रांसकोड कारण
+cast:
+  noDevices: सर्वर के नेटवर्क पर कोई कास्ट डिवाइस नहीं मिला।
+playOn:
+  button: किसी अन्य डिवाइस पर चलाएं
+  title: इस पर चलाएं
+  sent: "{{name}} पर भेजा गया"
+  failed: भेजने में विफल — डिवाइस डिस्कनेक्ट हो सकता है
+  empty: कोई कनेक्टेड डिवाइस नहीं। यहां उपलब्ध कराने के लिए अपने TV या फ़ोन पर Evey ऐप खोलें।

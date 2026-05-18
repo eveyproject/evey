@@ -103,10 +103,13 @@ export function APIKeySettings() {
 
   function handleCopy() {
     if (!createdKey) return;
-    void navigator.clipboard.writeText(createdKey.key).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard.writeText(createdKey.key).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      () => toast.error(t("common.clipboardFailed")),
+    );
   }
 
   return (

@@ -65,6 +65,7 @@ plugin:
     stopped: Detenido
     installed: Instalado
     unknown: Desconocido
+  errorDetails: "Detalles del error"
   analysisReport:
     title: "Aviso de seguridad"
     issues: "Problemas"
@@ -104,6 +105,10 @@ plugins:
   blockedByAnalysis: "Plugin bloqueado por el análisis de seguridad"
   previewFailed: "Error en la vista previa"
   installFailed: "Error en la instalación"
+  permissionEscalation:
+    title: "Esta actualización solicita nuevos permisos"
+    description: "La actualización del plugin amplía sus permisos, capacidades, slots de frontend o hosts de external_fetch. Revisa los cambios y confirma solo si confías en los nuevos requisitos."
+    confirm: "Aprobar e instalar"
   availableRuntimes: "Entornos de ejecución disponibles"
   security:
     title: Panel de seguridad
@@ -204,6 +209,13 @@ libraries:
   failedDelete: "Error al eliminar la biblioteca"
   scanStarted: "Escaneo iniciado"
   failedScan: "Error al iniciar el escaneo"
+  refreshMetadata: "Volver a vincular todo con TMDB"
+  refreshMetadataTooltip: "Vuelve a ejecutar la búsqueda en TMDB para cada elemento — lento, pero corrige coincidencias erróneas anteriores. Úsalo después de grandes lotes de renombrado."
+  refreshAllMetadataStarted: "Revinculación iniciada — los títulos y pósters se actualizarán en segundo plano"
+  matchOrphans: "Vincular solo huérfanos"
+  matchOrphansTooltip: "Apunta solo a elementos que nunca coincidieron con TMDB en el escaneo (IDs de proveedor vacíos). Rápido, se ejecuta en segundo plano."
+  matchOrphansStarted: "{{count}} huérfano(s) en cola para vincular — aparecerán con póster/sinopsis a medida que TMDB responda"
+  matchOrphansEmpty: "No hay huérfanos para vincular en esta biblioteca — todos los elementos ya tienen IDs de proveedor"
   deleteTitle: "Eliminar biblioteca"
   deleteConfirm: "¿Eliminar la biblioteca \"{{name}}\"? Esta acción no se puede deshacer."
   noLibraries: "No hay bibliotecas. Añade una para comenzar."
@@ -270,6 +282,7 @@ sessions:
   stop: "Detener"
   sessionStopped: "Sesión detenida"
   failedStop: "Error al detener la sesión"
+  commandFailed: "Error al enviar el comando"
   elapsed: "transcurrido"
   video: "Video: {{codec}}"
   audio: "Audio: {{codec}}"
@@ -392,6 +405,7 @@ activity:
     progress: "Progreso"
     started: "Inicio"
   noPlayHistory: "Sin historial de reproducción"
+  noAuditEntries: "Sin entradas de auditoría"
   totalEntries: "{{count}} registros totales"
   stats:
     totalPlays: "Total de reproducciones"
@@ -401,6 +415,9 @@ activity:
   popularMedia: "Medios populares"
   mostActiveUsers: "Usuarios más activos"
   plays: "{{count}} reproducciones"
+
+feeds:
+  noSections: "Sin secciones de feed configuradas"
 
 audit:
   title: "Registro de auditoría"
@@ -444,6 +461,12 @@ serverConfig:
   trickplayEnabled: "Activar miniaturas trickplay"
   trickplayAdaptiveCpu: "CPU adaptativo"
   trickplayAdaptiveCpuDesc: "Modo suave (~25% CPU). Desactivar para generación más rápida (~50% CPU)."
+  artworkTitle: "Descarga de carátulas"
+  artworkDesc: "Almacena pósters, fondos y otras carátulas localmente en el servidor. Cuando está desactivado, el frontend depende de URLs CDN externas que algunos navegadores bloquean (Firefox Opaque Response Blocking)."
+  artworkAutoDownload: "Descargar carátulas automáticamente al escanear"
+  artworkRetryNow: "Reintentar carátulas faltantes ahora"
+  artworkRetryDesc: "Rellena las filas de carátulas que aún carecen de archivo local. También se ejecuta cada hora en segundo plano."
+  artworkRetryDone: "Reintento completado: {{succeeded}} exitosas, {{failed}} fallidas."
   tableHeaders:
     key: "Clave"
     value: "Valor"
@@ -462,10 +485,22 @@ serverConfig:
     omdbLink: "Obtener una clave gratuita en omdbapi.com"
     opensubtitles: "Clave API de OpenSubtitles"
     opensubtitlesLink: "Obtener una clave en opensubtitles.com"
+    tidb: "Clave API de TheIntroDB"
+    tidbLink: "Obtener una clave gratuita en theintrodb.org"
     resetToDefault: "Restablecer valor predeterminado"
     saved: "Clave API guardada"
     usingDefault: "Usando clave predeterminada"
     usingCustom: "Usando clave personalizada"
+  introProvidersTitle: "Proveedores de salto de intro"
+  introProvidersDesc: "Consulta bases de datos comunitarias (TheIntroDB primaria, IntroDB alternativa) para marcas de tiempo de intro/recap/créditos. Evita la detección local intensiva en CPU para los elementos que cubren."
+  introProvidersEnabled: "Activar proveedores externos de salto de intro"
+  introProvidersRestart: "Se requiere reiniciar el servidor tras activar/desactivar."
+  introProvidersTidbStatus: "TheIntroDB: "
+  introProvidersTidbAuthed: "autenticado (500 consultas/día)"
+  introProvidersTidbAnonymous: "anónimo (100 consultas/día)"
+  introProvidersIntrodbStatus: "IntroDB: alternativa anónima (sin clave requerida)"
+  introProvidersTidbSubmit: "Contribuir detecciones a TheIntroDB"
+  introProvidersTidbSubmitDesc: "Cuando está activado, las detecciones phash de alta confianza (>= 95%) se envían anónimamente a TheIntroDB. Requiere una clave API válida. Opt-in."
 
 remoteAccess:
   title: "Acceso remoto"
@@ -564,3 +599,18 @@ serverSettings:
   saved: "Configuracion guardada"
   usingDefault: "Valor predeterminado:"
   reset: "Restablecer valor predeterminado"
+
+segments:
+  title: "Segmentos de medios"
+  intro: "Intro"
+  recap: "Resumen"
+  end_credits: "Créditos finales"
+  studio_logo: "Logo del estudio"
+  markStart: "Marcar inicio aquí"
+  markEnd: "Marcar fin aquí"
+  save: "Guardar"
+  delete: "Eliminar"
+  redetect: "Volver a ejecutar detección automática"
+  propagate: "Aplicar a la temporada"
+  lockedHint: "Este segmento está bloqueado manualmente y no será sobreescrito por la detección automática."
+  propagateSuccess: "Propagado a {{count}} episodio(s)"

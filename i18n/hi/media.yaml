@@ -17,6 +17,7 @@ home:
   emptyLibraryDesc: "मीडिया फ़ोल्डर जोड़ने के लिए एडमिन → लाइब्रेरी पर जाएं।"
   goToLibraries: लाइब्रेरी पर जाएं
   library: लाइब्रेरी
+  customizeSaveFailed: "कुछ बदलाव सहेजने में विफल"
 favorites:
   title: पसंदीदा
   empty: "अभी तक कोई पसंदीदा नहीं"
@@ -41,6 +42,7 @@ favorites:
   sortBy: क्रमबद्ध करें
   toggleFavorite: पसंदीदा टॉगल करें
   toggled: पसंदीदा अपडेट किए गए
+  bulkFailed: "पसंदीदा टॉगल करने में विफल"
   yearOldest: वर्ष (पुराने)
 collections:
   title: संग्रह
@@ -145,6 +147,7 @@ library:
   markWatched: देखा गया चिह्नित
   markedUnwatched: अदेखा चिह्नित किया
   markedWatched: देखा गया चिह्नित किया
+  bulkPartialFailure: "{{count}} आइटम विफल"
 person:
   filmography: "फ़िल्मोग्राफ़ी"
   unknown: अज्ञात
@@ -228,6 +231,17 @@ detail:
   downloadComplete: डाउनलोड पूरा हुआ
   downloadFailed: डाउनलोड विफल
   communityRating: 'समुदाय: {{average}}/5 ({{count}} रेटिंग)'
+  identify:
+    title: "TMDB पर पहचानें"
+    openButton: "TMDB पर पहचानें"
+    queryLabel: "खोज"
+    queryPlaceholder: "शीर्षक, वर्ष…"
+    search: "खोजें"
+    noResults: "कोई परिणाम नहीं मिला"
+    useThis: "इसे उपयोग करें"
+    appliedTo: "मेटाडेटा लागू: {{title}}"
+    applyFailed: "मेटाडेटा लागू करने में विफल"
+    searchFailed: "खोज विफल"
 certBody:
   FR: CSA
   US: MPAA
@@ -286,6 +300,9 @@ music:
   noAlbums: कोई एल्बम नहीं मिला।
   noArtists: कोई कलाकार नहीं मिला।
   noLibraries: कोई संगीत लाइब्रेरी नहीं मिली। एडमिन पैनल में एक जोड़ें।
+  noMusicLibraries: "कोई संगीत लाइब्रेरी नहीं"
+  queue: "कतार"
+  queueEmpty: "कतार खाली है"
   trackDeleted: ट्रैक मिटाया गया
   failedDeleteTrack: ट्रैक मिटाने में विफल
   deleteTrackConfirm: यह ट्रैक मिटाएं? यह क्रिया पूर्ववत नहीं की जा सकती।
@@ -299,6 +316,8 @@ music:
   shuffle: शफ़ल
   mute: म्यूट करें
   unmute: अनम्यूट करें
+  seekPosition: प्लेबैक स्थिति
+  volume: वॉल्यूम
   resetFilters: फ़िल्टर रीसेट करें
   addToPlaylist: प्लेलिस्ट में जोड़ें
   newPlaylist: "नई प्लेलिस्ट…"
@@ -341,6 +360,8 @@ syncplay:
   orPlaylist: "या प्लेलिस्ट चुनें"
   queue: "कतार"
   joinByCode: कोड से जुड़ें
+  createFailed: "कमरा बनाने में विफल"
+  joinFailed: "कमरे में शामिल होने में विफल"
 playlist:
   name: नाम
   description: विवरण
@@ -393,6 +414,8 @@ playlist:
   smartRules: स्मार्ट नियम
   typeManual: मैन्युअल
   typeSmart: स्मार्ट
+history:
+  removeFailed: "इतिहास से हटाने में विफल"
 search:
   searching: "खोज रहे हैं..."
   noResults: कोई परिणाम नहीं

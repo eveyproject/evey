@@ -26,11 +26,18 @@ settings:
   audio: Audio
   subtitles: Untertitel
   speed: Geschwindigkeit
+  sleepTimer: Schlaf-Timer
   subtitleStyle: Untertitel-Stil
   normal: Normal
   uploadSubtitle: "Untertitel hochladen…"
   "off": Aus
   brightness: Helligkeit
+sleepTimer:
+  minutes_one: "{{count}} Min."
+  minutes_other: "{{count}} Min."
+  endOfEpisode: Ende der Folge
+  cancel: Timer abbrechen
+  fired: Schlaf-Timer abgelaufen
 subtitleStyle:
   size: Größe
   textColor: Textfarbe
@@ -114,3 +121,11 @@ streamInfo:
   language: Sprache
   sampleRate: Abtastrate
   transcodeReasons: Transcodierungsgründe
+cast:
+  noDevices: Keine Cast-Geräte im Netzwerk des Servers gefunden.
+playOn:
+  button: Auf einem anderen Gerät abspielen
+  title: Abspielen auf
+  sent: "An {{name}} gesendet"
+  failed: Senden fehlgeschlagen — das Gerät ist möglicherweise getrennt
+  empty: Keine verbundenen Geräte. Öffnen Sie die Evey-App auf Ihrem TV oder Smartphone, um es hier verfügbar zu machen.

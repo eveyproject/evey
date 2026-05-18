@@ -6,6 +6,11 @@ import i18n from "@/i18n";
 const CAST_APP_ID = "CC1AD845";
 const TAG = "[Cast]";
 
+const DEV = import.meta.env.DEV;
+const log: typeof console.log = DEV ? console.log.bind(console) : () => {};
+const warn: typeof console.warn = DEV ? console.warn.bind(console) : () => {};
+const error: typeof console.error = DEV ? console.error.bind(console) : () => {};
+
 // loadChromecastMedia builds a MediaInfo + LoadRequest and hands it to an
 // existing Cast session. Shared by the initial startCast and by castReload
 // (the seek-by-reload path) so the HLS/mp4 content-type handling stays in
@@ -66,21 +71,21 @@ function ensureCastSdk() {
   sdkLoaded = true;
 
   if (isMobileBrowser) {
-    console.log(TAG, "Mobile browser detected — skipping Cast SDK (unsupported)");
+    log(TAG, "Mobile browser detected — skipping Cast SDK (unsupported)");
     return;
   }
-  console.log(TAG, "Injecting Cast sender SDK script...");
+  log(TAG, "Injecting Cast sender SDK script...");
 
   window.__onGCastApiAvailable = (isAvailable: boolean) => {
-    console.log(TAG, "__onGCastApiAvailable:", isAvailable);
+    log(TAG, "__onGCastApiAvailable:", isAvailable);
     if (!isAvailable) {
-      console.warn(TAG, "Cast SDK not available (requires Chrome/Chromium)");
+      warn(TAG, "Cast SDK not available (requires Chrome/Chromium)");
       return;
     }
     const cast = window.cast;
     const chrome = window.chrome;
     if (!cast?.framework || !chrome?.cast) {
-      console.error(TAG, "Cast framework missing despite isAvailable=true");
+      error(TAG, "Cast framework missing despite isAvailable=true");
       return;
     }
 
@@ -89,9 +94,9 @@ function ensureCastSdk() {
         receiverApplicationId: CAST_APP_ID,
         autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
       });
-      console.log(TAG, "CastContext initialized — appId:", CAST_APP_ID);
+      log(TAG, "CastContext initialized — appId:", CAST_APP_ID);
     } catch (err) {
-      console.error(TAG, "Failed to initialize CastContext:", err);
+      error(TAG, "Failed to initialize CastContext:", err);
       return;
     }
 
@@ -103,7 +108,7 @@ function ensureCastSdk() {
   const script = document.createElement("script");
   script.src = "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1";
   script.async = true;
-  script.onerror = (e) => console.error(TAG, "cast_sender.js FAILED to load:", e);
+  script.onerror = (e) => error(TAG, "cast_sender.js FAILED to load:", e);
   document.head.appendChild(script);
 }
 
@@ -151,7 +156,7 @@ export function useDLNA() {
       castFw = window.cast.framework;
 
       const onCastStateChanged = (e: any) => {
-        console.log(TAG, "CAST_STATE_CHANGED:", e.castState);
+        log(TAG, "CAST_STATE_CHANGED:", e.castState);
         if (e.castState === "NOT_CONNECTED" || e.castState === "NO_DEVICES_AVAILABLE") {
           setState((prev) => {
             if (prev.mode === "chromecast" && prev.connected) {
@@ -166,7 +171,7 @@ export function useDLNA() {
       ctxHandlers.push([castFw.CastContextEventType.CAST_STATE_CHANGED, onCastStateChanged]);
 
       const onSessionStateChanged = (e: any) => {
-        console.log(TAG, "SESSION_STATE_CHANGED:", e.sessionState);
+        log(TAG, "SESSION_STATE_CHANGED:", e.sessionState);
         const session = ctx.getCurrentSession();
         if (e.sessionState === "SESSION_STARTED" || e.sessionState === "SESSION_RESUMED") {
           setState((prev) => ({
@@ -191,7 +196,7 @@ export function useDLNA() {
       const ev = castFw.RemotePlayerEventType;
 
       const onPlayerState = () => {
-        console.log(TAG, "PLAYER_STATE:", rp.playerState);
+        log(TAG, "PLAYER_STATE:", rp.playerState);
         setPlayback((prev) => ({ ...prev, playerState: rp.playerState, isPaused: rp.isPaused }));
       };
       rc.addEventListener(ev.PLAYER_STATE_CHANGED, onPlayerState);
@@ -202,7 +207,7 @@ export function useDLNA() {
         setPlayback((prev) => ({ ...prev, currentTime: rp.currentTime }));
         if (Math.floor(rp.currentTime) % 30 === 0 && Math.floor(rp.currentTime) !== lastLoggedTime) {
           lastLoggedTime = Math.floor(rp.currentTime);
-          console.log(TAG, "CURRENT_TIME:", rp.currentTime);
+          log(TAG, "CURRENT_TIME:", rp.currentTime);
         }
       };
       rc.addEventListener(ev.CURRENT_TIME_CHANGED, onCurrentTime);
@@ -213,7 +218,7 @@ export function useDLNA() {
       rcHandlers.push([ev.DURATION_CHANGED, onDuration]);
 
       const onMediaLoaded = () => {
-        console.log(TAG, "IS_MEDIA_LOADED:", rp.isMediaLoaded, "duration:", rp.duration);
+        log(TAG, "IS_MEDIA_LOADED:", rp.isMediaLoaded, "duration:", rp.duration);
         setPlayback((prev) => ({ ...prev, isMediaLoaded: rp.isMediaLoaded, duration: rp.duration }));
       };
       rc.addEventListener(ev.IS_MEDIA_LOADED_CHANGED, onMediaLoaded);
@@ -257,13 +262,13 @@ export function useDLNA() {
   }, []);
 
   const startCast = useCallback(async (streamUrl: string, title?: string) => {
-    console.log(TAG, "startCast — url:", streamUrl, "title:", title);
+    log(TAG, "startCast — url:", streamUrl, "title:", title);
 
     const origin = localStorage.getItem("cast_base_url") || window.location.origin;
     const absoluteUrl = streamUrl.startsWith("http")
       ? streamUrl
       : `${origin}${streamUrl}`;
-    console.log(TAG, "Absolute URL:", absoluteUrl);
+    log(TAG, "Absolute URL:", absoluteUrl);
 
     if (chromecastReady.current) {
       try {
@@ -276,16 +281,16 @@ export function useDLNA() {
           session = ctx.getCurrentSession();
         }
         if (!session) {
-          console.warn(TAG, "No session — user cancelled");
+          warn(TAG, "No session — user cancelled");
           return;
         }
 
         const device = session.getCastDevice();
-        console.log(TAG, "Connected to:", device?.friendlyName);
+        log(TAG, "Connected to:", device?.friendlyName);
 
-        console.log(TAG, "Loading media...", { url: absoluteUrl });
+        log(TAG, "Loading media...", { url: absoluteUrl });
         await loadChromecastMedia(session, absoluteUrl, title);
-        console.log(TAG, "Media loaded on Chromecast");
+        log(TAG, "Media loaded on Chromecast");
 
         setState((prev) => ({
           ...prev,
@@ -296,7 +301,7 @@ export function useDLNA() {
         return;
       } catch (err: unknown) {
         const e = err as { code?: string; description?: string };
-        console.error(TAG, "Chromecast failed:", e.code, e.description);
+        error(TAG, "Chromecast failed:", e.code, e.description);
         if (e.code === "cancel") return;
       }
     }
@@ -358,18 +363,18 @@ export function useDLNA() {
         mode: "dlna",
       }));
     } catch (err) {
-      console.error(TAG, "Cast/DLNA fallback failed:", err);
+      error(TAG, "Cast/DLNA fallback failed:", err);
     }
   }, []);
 
   const stopCast = useCallback(async () => {
-    console.log(TAG, "stopCast — mode:", state.mode);
+    log(TAG, "stopCast — mode:", state.mode);
     if (state.mode === "chromecast") {
       try {
         const ctx = window.cast?.framework?.CastContext?.getInstance();
         ctx?.getCurrentSession()?.endSession(true);
       } catch (err) {
-        console.error(TAG, "Error ending session:", err);
+        error(TAG, "Error ending session:", err);
       }
     } else if (state.mode === "cast" && activeRenderer.current) {
       try {
@@ -379,7 +384,7 @@ export function useDLNA() {
           data: { deviceUuid: activeRenderer.current },
         });
       } catch (err) {
-        console.error(TAG, "Cast stop failed:", err);
+        error(TAG, "Cast stop failed:", err);
       }
       activeRenderer.current = null;
     } else if (state.mode === "dlna" && activeRenderer.current) {
@@ -390,7 +395,7 @@ export function useDLNA() {
           data: { rendererId: activeRenderer.current },
         });
       } catch (err) {
-        console.error(TAG, "DLNA stop failed:", err);
+        error(TAG, "DLNA stop failed:", err);
       }
       activeRenderer.current = null;
     }
@@ -418,14 +423,14 @@ export function useDLNA() {
       const ctx = window.cast?.framework?.CastContext?.getInstance();
       const session = ctx?.getCurrentSession();
       if (!session) {
-        console.warn(TAG, "castReload: no chromecast session");
+        warn(TAG, "castReload: no chromecast session");
         return false;
       }
       try {
         await loadChromecastMedia(session, absoluteUrl, title);
         return true;
       } catch (err) {
-        console.error(TAG, "castReload chromecast failed:", err);
+        error(TAG, "castReload chromecast failed:", err);
         return false;
       }
     }
@@ -443,7 +448,7 @@ export function useDLNA() {
         });
         return true;
       } catch (err) {
-        console.error(TAG, "castReload server-side failed:", err);
+        error(TAG, "castReload server-side failed:", err);
         return false;
       }
     }
@@ -458,13 +463,13 @@ export function useDLNA() {
   // by this dead RemotePlayer.
   const castSeek = useCallback((timeSec: number): boolean => {
     const rp = remotePlayerRef.current;
-    console.log(TAG, "castSeek:", timeSec, "canSeek:", rp?.canSeek, "currentTime:", rp?.currentTime, "duration:", rp?.duration);
+    log(TAG, "castSeek:", timeSec, "canSeek:", rp?.canSeek, "currentTime:", rp?.currentTime, "duration:", rp?.duration);
     if (rp && rp.canSeek) {
       rp.currentTime = timeSec;
       controllerRef.current?.seek();
       return true;
     }
-    console.warn(TAG, "castSeek: cannot seek — canSeek:", rp?.canSeek);
+    warn(TAG, "castSeek: cannot seek — canSeek:", rp?.canSeek);
     return false;
   }, []);
 

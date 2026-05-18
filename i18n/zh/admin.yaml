@@ -65,6 +65,7 @@ plugin:
     stopped: "已停止"
     installed: "已安装"
     unknown: "未知"
+  errorDetails: "错误详情"
   analysisReport:
     title: "安全提示"
     issues: "问题"
@@ -104,6 +105,10 @@ plugins:
   blockedByAnalysis: "插件被安全分析拦截"
   previewFailed: "预览失败"
   installFailed: "安装失败"
+  permissionEscalation:
+    title: "此更新请求新权限"
+    description: "插件更新扩展了其权限、功能、前端插槽或外部获取主机。请查看下方差异，仅在信任新要求时确认。"
+    confirm: "批准并安装"
   availableRuntimes: "可用运行时"
   security:
     title: 安全仪表板
@@ -204,6 +209,13 @@ libraries:
   failedDelete: "删除媒体库失败"
   scanStarted: "扫描已开始"
   failedScan: "启动扫描失败"
+  refreshMetadata: "从 TMDB 重新匹配全部"
+  refreshMetadataTooltip: "对每个项目重新运行 TMDB 搜索 — 较慢，但可纠正过去的错误匹配。在大批量重命名后使用。"
+  refreshAllMetadataStarted: "重新匹配已开始 — 标题和海报将在后台更新"
+  matchOrphans: "仅匹配孤立项"
+  matchOrphansTooltip: "仅针对扫描时未匹配 TMDB 的项目（提供者 ID 为空）。速度快，在后台运行。"
+  matchOrphansStarted: "已将 {{count}} 个孤立项加入匹配队列 — 它们将随着 TMDB 响应显示海报/简介"
+  matchOrphansEmpty: "此媒体库中无孤立项可匹配 — 所有项目均已有提供者 ID"
   deleteTitle: "删除媒体库"
   deleteConfirm: "确定删除媒体库「{{name}}」？此操作无法撤销。"
   noLibraries: "没有媒体库。添加一个以开始使用。"
@@ -270,6 +282,7 @@ sessions:
   stop: "停止"
   sessionStopped: "会话已停止"
   failedStop: "停止会话失败"
+  commandFailed: "发送命令失败"
   elapsed: "已播放"
   video: "视频：{{codec}}"
   audio: "音频：{{codec}}"
@@ -392,6 +405,7 @@ activity:
     progress: "进度"
     started: "开始时间"
   noPlayHistory: "没有播放历史"
+  noAuditEntries: "暂无审计日志记录"
   totalEntries: "共 {{count}} 条记录"
   stats:
     totalPlays: "总播放次数"
@@ -401,6 +415,9 @@ activity:
   popularMedia: "热门媒体"
   mostActiveUsers: "最活跃用户"
   plays: "{{count}} 次播放"
+
+feeds:
+  noSections: "未配置任何信息流分区"
 
 audit:
   title: "审计日志"
@@ -444,6 +461,12 @@ serverConfig:
   trickplayEnabled: "启用 Trickplay 缩略图"
   trickplayAdaptiveCpu: "自适应 CPU"
   trickplayAdaptiveCpuDesc: "轻量模式 (~25% CPU)。禁用后使用更快的生成速度 (~50% CPU)。"
+  artworkTitle: "封面下载"
+  artworkDesc: "将海报、背景图和其他封面缓存到服务器本地。关闭时，前端依赖于某些浏览器会拦截的外部 CDN URL（Firefox Opaque Response Blocking）。"
+  artworkAutoDownload: "扫描时自动下载封面"
+  artworkRetryNow: "立即重试缺失的封面"
+  artworkRetryDesc: "回填仍缺少本地文件的封面记录。也会在后台每小时运行一次。"
+  artworkRetryDone: "重试完成：{{succeeded}} 成功，{{failed}} 失败。"
   tableHeaders:
     key: "键"
     value: "值"
@@ -462,10 +485,22 @@ serverConfig:
     omdbLink: "在 omdbapi.com 获取免费密钥"
     opensubtitles: "OpenSubtitles API 密钥"
     opensubtitlesLink: "在 opensubtitles.com 获取密钥"
+    tidb: "TheIntroDB API 密钥"
+    tidbLink: "在 theintrodb.org 获取免费密钥"
     resetToDefault: "重置为默认值"
     saved: "API 密钥已保存"
     usingDefault: "使用默认密钥"
     usingCustom: "使用自定义密钥"
+  introProvidersTitle: "片头跳过提供商"
+  introProvidersDesc: "查询社区数据库（TheIntroDB 为主，IntroDB 为备选）以获取片头/回顾/片尾时间戳。对已覆盖的项目跳过本地 CPU 密集型检测。"
+  introProvidersEnabled: "启用外部片头跳过提供商"
+  introProvidersRestart: "启用/禁用后需要重启服务器。"
+  introProvidersTidbStatus: "TheIntroDB: "
+  introProvidersTidbAuthed: "已认证（每天 500 次查询）"
+  introProvidersTidbAnonymous: "匿名（每天 100 次查询）"
+  introProvidersIntrodbStatus: "IntroDB: 匿名备选（无需密钥）"
+  introProvidersTidbSubmit: "向 TheIntroDB 贡献检测结果"
+  introProvidersTidbSubmitDesc: "启用后，高置信度的 phash 检测结果（>= 95%）将匿名提交至 TheIntroDB。需要有效的 API 密钥。选择性参与。"
 
 remoteAccess:
   title: "远程访问"
@@ -564,3 +599,18 @@ serverSettings:
   saved: "设置已保存"
   usingDefault: "默认值："
   reset: "重置为默认值"
+
+segments:
+  title: "媒体片段"
+  intro: "片头"
+  recap: "前情回顾"
+  end_credits: "片尾字幕"
+  studio_logo: "制片公司 Logo"
+  markStart: "在此标记起始点"
+  markEnd: "在此标记结束点"
+  save: "保存"
+  delete: "删除"
+  redetect: "重新运行自动检测"
+  propagate: "应用到整季"
+  lockedHint: "此片段已手动锁定，不会被自动检测覆盖。"
+  propagateSuccess: "已传播到 {{count}} 集"

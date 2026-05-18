@@ -26,11 +26,18 @@ settings:
   audio: "音频"
   subtitles: "字幕"
   speed: "速度"
+  sleepTimer: "睡眠定时器"
   subtitleStyle: "字幕样式"
   normal: "正常"
   uploadSubtitle: "上传字幕…"
   "off": "关闭"
   brightness: "亮度"
+sleepTimer:
+  minutes_one: "{{count}} 分钟"
+  minutes_other: "{{count}} 分钟"
+  endOfEpisode: "集末"
+  cancel: "取消定时器"
+  fired: "睡眠定时器已结束"
 subtitleStyle:
   size: "大小"
   textColor: "文字颜色"
@@ -114,3 +121,11 @@ streamInfo:
   language: 语言
   sampleRate: 采样率
   transcodeReasons: 转码原因
+cast:
+  noDevices: 在服务器网络中未找到投屏设备。
+playOn:
+  button: 在其他设备上播放
+  title: 播放到
+  sent: "已发送到 {{name}}"
+  failed: 发送失败 — 设备可能已断开连接
+  empty: 没有已连接的设备。在你的电视或手机上打开 Evey 应用以使其在此处可用。

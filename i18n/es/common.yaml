@@ -38,6 +38,7 @@ revoke: "Revocar"
 refresh: "Actualizar"
 done: "Listo"
 copied: "¡Copiado!"
+clipboardFailed: "Error al copiar al portapapeles"
 seeAll: "Ver todo →"
 scrollLeft: "Desplazar a la izquierda"
 scrollRight: "Desplazar a la derecha"
@@ -111,6 +112,9 @@ notifications:
   backupFailed: "Fallo en la copia de seguridad programada"
   clearConfirm: ¿Eliminar todas las notificaciones?
   clearTitle: Borrar notificaciones
+  clearFailed: Error al borrar las notificaciones
+offline:
+  title: "Sin conexión"
 watchHistory:
   title: "Historial de reproducción"
 userStats:

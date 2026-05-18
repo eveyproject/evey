@@ -45,8 +45,8 @@ const TAB_LABELS: Record<TabKey, string> = {
 
 function severityColor(severity?: string): string {
   switch ((severity ?? "").toLowerCase()) {
-    case "critical": return "var(--badge-error-text, #fca5a5)";
-    case "warning":  return "var(--badge-warning-text, #fde047)";
+    case "critical": return "var(--badge-error-text)";
+    case "warning":  return "var(--badge-warning-text)";
     default:         return "var(--text-muted)";
   }
 }
@@ -70,12 +70,12 @@ function DiffList({
         <li key={`add-${item}`} className="flex items-center gap-2">
           <span
             className="font-semibold"
-            style={{ color: "var(--badge-error-text, #fca5a5)" }}
+            style={{ color: "var(--badge-error-text)" }}
             data-testid="permission-added"
           >
             +
           </span>
-          <span style={{ color: "var(--badge-error-text, #fca5a5)" }}>{item}</span>
+          <span style={{ color: "var(--badge-error-text)" }}>{item}</span>
         </li>
       ))}
       {(removed ?? []).map((item) => (
@@ -183,9 +183,9 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
             <div
               className="rounded border px-3 py-2 text-sm font-semibold"
               style={{
-                borderColor: "var(--color-danger, #7f1d1d)",
+                borderColor: "var(--color-danger)",
                 background: "var(--badge-error-bg, rgba(127,29,29,0.15))",
-                color: "var(--badge-error-text, #fca5a5)",
+                color: "var(--badge-error-text)",
               }}
               data-testid="banner-requires-ack"
             >
@@ -195,9 +195,9 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
             <div
               className="rounded border px-3 py-2 text-sm font-semibold"
               style={{
-                borderColor: "var(--color-success, #14532d)",
+                borderColor: "var(--color-success)",
                 background: "var(--badge-success-bg, rgba(20,83,45,0.15))",
-                color: "var(--badge-success-text, #86efac)",
+                color: "var(--badge-success-text)",
               }}
               data-testid="banner-safe"
             >
@@ -308,7 +308,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
             <p
               className="text-sm rounded px-3 py-2"
               style={{
-                color: "var(--badge-error-text, #fca5a5)",
+                color: "var(--badge-error-text)",
                 background: "var(--badge-error-bg, rgba(127,29,29,0.15))",
               }}
               data-testid="error-message"
@@ -324,7 +324,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
           <p
             className="text-sm rounded px-3 py-2"
             style={{
-              color: "var(--badge-error-text, #fca5a5)",
+              color: "var(--badge-error-text)",
               background: "var(--badge-error-bg, rgba(127,29,29,0.15))",
             }}
             data-testid="error-message"

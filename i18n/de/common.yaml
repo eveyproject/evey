@@ -38,6 +38,7 @@ revoke: Widerrufen
 refresh: Aktualisieren
 done: Fertig
 copied: "Kopiert!"
+clipboardFailed: "Kopieren in die Zwischenablage fehlgeschlagen"
 seeAll: "Alle anzeigen →"
 scrollLeft: Nach links scrollen
 scrollRight: Nach rechts scrollen
@@ -107,6 +108,9 @@ notifications:
   backupFailed: "Geplante Sicherung fehlgeschlagen"
   clearConfirm: Alle Benachrichtigungen löschen?
   clearTitle: Benachrichtigungen löschen
+  clearFailed: Benachrichtigungen konnten nicht gelöscht werden
+offline:
+  title: Offline
 noNotifications: Keine Benachrichtigungen
 aria:
   closeMenu: Menü schließen
