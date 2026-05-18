@@ -102,6 +102,20 @@ func TestStreamTokenStore_UniqueTokens(t *testing.T) {
 	assert.NotEqual(t, t1, t2, "each call should generate a unique token")
 }
 
+// Validate(token, "") must accept any media — middleware path that has no
+// mediaItemID context. Anti-regression for the `mediaItemID != ""` short-
+// circuit: a mutation to `==` would reject every middleware lookup.
+func TestStreamTokenStore_ValidateEmptyMediaAccepts(t *testing.T) {
+	store := media.NewStreamTokenStore(5 * time.Minute)
+	defer store.Stop()
+
+	token := store.Create("user-1", "media-1")
+
+	st, ok := store.Validate(token, "")
+	require.True(t, ok, "empty mediaItemID should be accepted")
+	assert.Equal(t, shared.MediaItemID("media-1"), st.MediaItemID)
+}
+
 func TestStreamTokenStore_MultipleMedias(t *testing.T) {
 	store := media.NewStreamTokenStore(5 * time.Minute)
 	defer store.Stop()

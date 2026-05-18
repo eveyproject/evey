@@ -36,6 +36,19 @@ func TestCheckPermission_UnknownPlugin(t *testing.T) {
 	assert.ErrorIs(t, err, appplugin.ErrPermissionDenied)
 }
 
+// A plugin loaded with an empty permission list must still deny — distinct
+// from "unknown plugin". Anti-regression for the cache zero-value mutation:
+// if `perms[requiredPerm]` were flipped to `!perms[requiredPerm]`, an
+// empty cache entry would erroneously allow every permission.
+func TestCheckPermission_EmptyPermsList(t *testing.T) {
+	repo := plgfakes.NewFakePluginRepository()
+	checker := appplugin.NewPermissionChecker(repo)
+	checker.LoadPermissions("plg-1", []string{})
+
+	err := checker.CheckPermission("plg-1", "api.library")
+	assert.ErrorIs(t, err, appplugin.ErrPermissionDenied)
+}
+
 func TestCheckAnyPermission_OneMatch(t *testing.T) {
 	repo := plgfakes.NewFakePluginRepository()
 	checker := appplugin.NewPermissionChecker(repo)
