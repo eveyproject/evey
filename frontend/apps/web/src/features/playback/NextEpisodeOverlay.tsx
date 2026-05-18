@@ -29,9 +29,13 @@ export function NextEpisodeOverlay({
     duration > 0 && currentTime > 0 && duration - currentTime <= CREDITS_THRESHOLD_SEC;
   const videoEnded = duration > 0 && currentTime >= duration - 0.5;
 
+  // Sync the `ended` flag with videoEnded so a backward seek after the
+  // video reached the end (or auto-advance was cancelled and then the
+  // user scrubbed back) clears the countdown UI — otherwise it would
+  // pop up again mid-episode despite the playhead being far from the end.
   useEffect(() => {
-    if (videoEnded && !ended) setEnded(true);
-  }, [videoEnded, ended]);
+    setEnded(videoEnded);
+  }, [videoEnded]);
 
   const visible = nextEpisode && !cancelled && (isInCredits || ended);
 

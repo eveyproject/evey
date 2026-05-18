@@ -76,4 +76,29 @@ describe("NextEpisodeOverlay", () => {
 
     expect(screen.getByText("Up Next")).toBeInTheDocument();
   });
+
+  // Anti-regression: when the user seeks backward after the video ended,
+  // the overlay should disappear from the mid-episode position. Previously
+  // `ended` latched to true permanently, so the countdown UI stuck around
+  // even after a backward scrub.
+  it("clears the overlay when user seeks backward after video ended", () => {
+    const props = {
+      nextEpisode,
+      onPlayNow: vi.fn(),
+      onCancel: vi.fn(),
+    };
+    const { rerender } = render(
+      <NextEpisodeOverlay {...props} currentTime={3599.9} duration={3600} />,
+    );
+    // At end-of-video the overlay is visible (label depends on whether
+    // `ended` effect has flushed; either label is fine here).
+    expect(
+      screen.queryByText("Up Next") || screen.queryByText(/Next in/),
+    ).not.toBeNull();
+
+    // User scrubs back to mid-episode — neither label should appear now.
+    rerender(<NextEpisodeOverlay {...props} currentTime={1800} duration={3600} />);
+    expect(screen.queryByText(/Next in/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Up Next")).not.toBeInTheDocument();
+  });
 });

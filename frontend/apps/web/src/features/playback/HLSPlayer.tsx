@@ -503,6 +503,7 @@ export function HLSPlayer({
         mediaId={mediaId}
         videoRef={videoRef}
         knownDurationSec={knownDurationMs ? knownDurationMs / 1000 : undefined}
+        transcodeOffsetRef={transcodeOffsetRef}
       />
       <SkipIntroButton
         mediaId={mediaId}

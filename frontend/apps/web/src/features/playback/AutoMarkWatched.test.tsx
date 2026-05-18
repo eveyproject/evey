@@ -102,4 +102,34 @@ describe("AutoMarkWatched", () => {
     fireTick(video);
     expect(mockMutate).not.toHaveBeenCalled();
   });
+
+  // Anti-regression: with transcode mode, video.currentTime is local to the
+  // current stream (resets to ~0 on every seek-restart). The auto-mark
+  // threshold must compare against absolute position = transcodeOffset +
+  // currentTime, otherwise a user who seeks to 80% and plays 12% locally
+  // (= 92% absolute) never trips the threshold.
+  it("uses transcodeOffsetRef to compute absolute position", () => {
+    const video = makeVideo(100, 12); // local time 12s
+    function H() {
+      const ref = useRef(video);
+      const offsetRef = useRef(80); // started transcoding at 80s
+      return <AutoMarkWatched mediaId="m-1" videoRef={ref} transcodeOffsetRef={offsetRef} />;
+    }
+    render(<H />);
+    fireTick(video);
+    // absolute = 80 + 12 = 92, threshold = 100 * 0.9 = 90 → fires.
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("transcode local time below absolute threshold does not fire", () => {
+    const video = makeVideo(100, 5); // local time 5s
+    function H() {
+      const ref = useRef(video);
+      const offsetRef = useRef(80); // absolute = 85, below 90
+      return <AutoMarkWatched mediaId="m-1" videoRef={ref} transcodeOffsetRef={offsetRef} />;
+    }
+    render(<H />);
+    fireTick(video);
+    expect(mockMutate).not.toHaveBeenCalled();
+  });
 });

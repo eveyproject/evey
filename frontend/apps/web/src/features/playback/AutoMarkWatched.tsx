@@ -7,6 +7,15 @@ interface AutoMarkWatchedProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   /** Optional override when the video element only sees a transcoded duration. */
   knownDurationSec?: number;
+  /**
+   * In transcode mode the `<video>` element's currentTime is local to the
+   * current transcode segment (starts at 0 after every seek-restart). The
+   * absolute playhead position the server cares about is `transcodeOffset
+   * + video.currentTime`. Pass the offset ref so the 90% check uses the
+   * absolute position; otherwise a user who seeks to 80% then plays 5min
+   * never trips the threshold (5min / fullDuration is far from 90%).
+   */
+  transcodeOffsetRef?: React.RefObject<number>;
 }
 
 const THRESHOLD = 0.9;
@@ -19,7 +28,7 @@ const THRESHOLD = 0.9;
  *
  * The component is render-less; mount alongside the player.
  */
-export function AutoMarkWatched({ mediaId, videoRef, knownDurationSec }: AutoMarkWatchedProps) {
+export function AutoMarkWatched({ mediaId, videoRef, knownDurationSec, transcodeOffsetRef }: AutoMarkWatchedProps) {
   const profileId = useAuthStore((s) => s.profileId) ?? "";
   const { data: progress } = usePlaybackServiceGetWatchProgress(
     mediaId,
@@ -46,7 +55,7 @@ export function AutoMarkWatched({ mediaId, videoRef, knownDurationSec }: AutoMar
       if (firedRef.current) return;
       const dur = knownDurationSec && knownDurationSec > 0 ? knownDurationSec : video.duration;
       if (!Number.isFinite(dur) || dur <= 0) return;
-      const cur = video.currentTime;
+      const cur = (transcodeOffsetRef?.current ?? 0) + video.currentTime;
       if (cur <= 0) return;
       if (cur / dur >= THRESHOLD) {
         firedRef.current = true;
@@ -56,7 +65,7 @@ export function AutoMarkWatched({ mediaId, videoRef, knownDurationSec }: AutoMar
 
     video.addEventListener("timeupdate", tick);
     return () => video.removeEventListener("timeupdate", tick);
-  }, [mediaId, profileId, videoRef, knownDurationSec, mutate]);
+  }, [mediaId, profileId, videoRef, knownDurationSec, transcodeOffsetRef, mutate]);
 
   return null;
 }

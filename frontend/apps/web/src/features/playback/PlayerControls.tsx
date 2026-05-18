@@ -136,8 +136,13 @@ export function PlayerControls({
 
   const resetHideTimer = useCallback(() => {
     setVisible(true);
-    if (!settingsOpen) scheduleHide();
-  }, [settingsOpen, scheduleHide]);
+    // Don't auto-hide while ANY side panel is open — previously only the
+    // settings panel was guarded, so a hover over the controls with the
+    // episodes/chapters panel open would queue a hide that fired 3s
+    // later and caused a brief flicker before the panel-open effect
+    // forced visibility back to true.
+    if (openPanel === null) scheduleHide();
+  }, [openPanel, scheduleHide]);
 
   useEffect(() => {
     if (settingsOpen || episodesOpen || chaptersOpen) {
