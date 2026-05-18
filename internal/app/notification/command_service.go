@@ -709,7 +709,10 @@ func (s *CommandService) CleanupExpired(ctx context.Context) error {
 	return s.repo.CleanupExpired(ctx)
 }
 
-func (s *CommandService) StartCleanup(ctx context.Context) {
+// StartCleanup runs an initial CleanupExpired then enters the periodic loop.
+// The optional initDone channel(s) are closed after the first cleanup pass —
+// tests pass one to wait deterministically instead of sleeping.
+func (s *CommandService) StartCleanup(ctx context.Context, initDone ...chan<- struct{}) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -718,6 +721,11 @@ func (s *CommandService) StartCleanup(ctx context.Context) {
 		}()
 		if err := s.repo.CleanupExpired(ctx); err != nil {
 			slog.Warn("notification cleanup", slog.Any("err", err))
+		}
+		for _, ch := range initDone {
+			if ch != nil {
+				close(ch)
+			}
 		}
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()

@@ -3,7 +3,6 @@ package playback_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	playbackfakes "github.com/evey-project/evey/internal/domain/playback/fakes"
@@ -45,10 +44,14 @@ func TestCommandService_StartCleanup_RespectsContextCancel(t *testing.T) {
 	svc := newRemoteCmdSvc()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	svc.StartCleanup(ctx)
-	time.Sleep(30 * time.Millisecond)
+	initDone := make(chan struct{})
+	svc.StartCleanup(ctx, initDone)
+	<-initDone
 	cancel()
-	// A second call with an already-cancelled ctx also exits cleanly.
-	svc.StartCleanup(ctx)
-	time.Sleep(10 * time.Millisecond)
+	// A second call with an already-cancelled ctx also exits cleanly —
+	// the goroutine runs the initial cleanup before checking ctx in the
+	// loop, so initDone fires once even on a pre-cancelled ctx.
+	initDone2 := make(chan struct{})
+	svc.StartCleanup(ctx, initDone2)
+	<-initDone2
 }

@@ -1081,10 +1081,9 @@ func TestNotificationService_StartCleanup(t *testing.T) {
 	_ = repo.Create(ctx, &notifdom.Notification{ID: "valid", ProfileID: "p1", Title: "New", ExpiresAt: &future, CreatedAt: time.Now()})
 
 	ctx2, cancel := context.WithCancel(ctx)
-	cmdSvc.StartCleanup(ctx2)
-
-	// Give goroutine time to run initial cleanup
-	time.Sleep(50 * time.Millisecond)
+	initDone := make(chan struct{})
+	cmdSvc.StartCleanup(ctx2, initDone)
+	<-initDone
 	cancel()
 
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)

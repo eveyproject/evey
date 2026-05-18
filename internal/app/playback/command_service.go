@@ -416,8 +416,10 @@ func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.D
 	return s.sessions.CloseStale(ctx, maxAge)
 }
 
-func (s *CommandService) StartCleanup(ctx context.Context) {
-	s.StartCleanupWithInterval(ctx, 2*time.Minute, 5*time.Minute)
+// StartCleanup runs the stale-session cleanup loop with default parameters.
+// The optional initDone channel(s) are closed after the first cleanup pass.
+func (s *CommandService) StartCleanup(ctx context.Context, initDone ...chan<- struct{}) {
+	s.StartCleanupWithInterval(ctx, 2*time.Minute, 5*time.Minute, initDone...)
 }
 
 // StartProgressFlusher launches the watch-progress flusher when one is wired.
@@ -438,7 +440,7 @@ func (s *CommandService) StopProgressFlusher() {
 	s.progressBuffer.Stop()
 }
 
-func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval, maxAge time.Duration) {
+func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval, maxAge time.Duration, initDone ...chan<- struct{}) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -446,6 +448,11 @@ func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval,
 			}
 		}()
 		s.runCleanup(ctx, maxAge)
+		for _, ch := range initDone {
+			if ch != nil {
+				close(ch)
+			}
+		}
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
