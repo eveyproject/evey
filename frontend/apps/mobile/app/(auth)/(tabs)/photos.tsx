@@ -41,6 +41,8 @@ interface Photo {
   id: string;
   title: string;
   album: string;
+  // Empty for files ingested before migration 000096 or undecodable codecs.
+  blurhash?: string;
 }
 
 interface PhotoDetail {
@@ -142,6 +144,8 @@ export default function PhotosScreen() {
               style={{ width: PHOTO_SIZE, height: PHOTO_SIZE }}
               contentFit="cover"
               transition={150}
+              placeholder={item.blurhash ? { blurhash: item.blurhash } : undefined}
+              placeholderContentFit="cover"
             />
           ) : (
             <View style={[styles.placeholder, { backgroundColor: theme.colors.surfaceRaised, width: PHOTO_SIZE, height: PHOTO_SIZE }]} />
