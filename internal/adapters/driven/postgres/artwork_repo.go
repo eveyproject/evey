@@ -168,6 +168,29 @@ func (r *ArtworkRepository) UpdateSortOrder(ctx context.Context, id string, sort
 	return nil
 }
 
+func (r *ArtworkRepository) ListMissingBlurhash(ctx context.Context) ([]*metadata.ArtworkRecord, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.ListMissingBlurhash")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, 2*defaultQueryTimeout)
+	defer cancel()
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash
+		 FROM artwork WHERE local_path IS NOT NULL AND local_path <> '' AND blurhash IS NULL ORDER BY id`)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	result, err := r.scanArtworkRows(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
+}
+
 func (r *ArtworkRepository) ListMissingLocalPath(ctx context.Context) ([]*metadata.ArtworkRecord, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.ListMissingLocalPath")
 	defer span.End()

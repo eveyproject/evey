@@ -249,3 +249,48 @@ func TestArtworkAdmin_DownloadAll_Lifecycle(t *testing.T) {
 		t.Errorf("expected status done, got %v", statusResp["status"])
 	}
 }
+
+
+// --- POST /api/v1/admin/artworks/backfill-blurhashes ---
+
+func TestArtworkAdmin_BackfillBlurhashes_NoAuth_401(t *testing.T) {
+	f := newArtworkAdminMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artworks/backfill-blurhashes", nil)
+	w := httptest.NewRecorder()
+	f.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestArtworkAdmin_BackfillBlurhashes_NonAdmin_403(t *testing.T) {
+	f := newArtworkAdminMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artworks/backfill-blurhashes", nil)
+	req.Header.Set("Authorization", "Bearer "+f.userTok)
+	w := httptest.NewRecorder()
+	f.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestArtworkAdmin_BackfillBlurhashes_EmptyRepo_OK(t *testing.T) {
+	f := newArtworkAdminMux(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/artworks/backfill-blurhashes", nil)
+	req.Header.Set("Authorization", "Bearer "+f.adminTok)
+	w := httptest.NewRecorder()
+	f.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp struct {
+		Succeeded int `json:"succeeded"`
+		Failed    int `json:"failed"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Succeeded != 0 || resp.Failed != 0 {
+		t.Errorf("empty repo: expected 0/0, got %d/%d", resp.Succeeded, resp.Failed)
+	}
+}

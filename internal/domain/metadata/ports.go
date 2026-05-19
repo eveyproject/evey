@@ -41,6 +41,10 @@ type ArtworkRepository interface {
 	// ListMissingLocalPath returns records that have a SourceURL but no LocalPath,
 	// ordered by id. Used by the bulk-download admin job.
 	ListMissingLocalPath(ctx context.Context) ([]*ArtworkRecord, error)
+	// ListMissingBlurhash returns records that have a LocalPath on disk but no
+	// blurhash. Used by the backfill admin job to retro-fit hashes onto
+	// artworks that pre-date the blurhash column (migration 000095).
+	ListMissingBlurhash(ctx context.Context) ([]*ArtworkRecord, error)
 	// LocalPathStats returns aggregate coverage statistics.
 	LocalPathStats(ctx context.Context) (ArtworkStats, error)
 	// UpdateLocalPath persists the local file path after a successful download.

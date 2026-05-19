@@ -112,6 +112,21 @@ func (r *FakeArtworkRepository) ListMissingLocalPath(_ context.Context) ([]*meta
 	return result, nil
 }
 
+func (r *FakeArtworkRepository) ListMissingBlurhash(_ context.Context) ([]*metadata.ArtworkRecord, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*metadata.ArtworkRecord
+	for _, a := range r.items {
+		if a.LocalPath != nil && *a.LocalPath != "" && a.Blurhash == nil {
+			result = append(result, a)
+		}
+	}
+	return result, nil
+}
+
 func (r *FakeArtworkRepository) LocalPathStats(_ context.Context) (metadata.ArtworkStats, error) {
 	if r.Err != nil {
 		return metadata.ArtworkStats{}, r.Err

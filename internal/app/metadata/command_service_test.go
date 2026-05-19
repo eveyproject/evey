@@ -3,7 +3,11 @@ package metadata_test
 import (
 	"context"
 	"errors"
+	"image"
+	"image/color"
+	"image/png"
 	"log/slog"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -19,6 +23,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// writeSolidPNG writes a tiny 32×32 magenta PNG to path. The blurhash
+// encoder needs a real image; this is the smallest one that decodes cleanly
+// via image/png without pulling in a fixture file.
+func writeSolidPNG(t *testing.T, path string) {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 32, 32))
+	c := color.RGBA{R: 220, G: 50, B: 180, A: 255}
+	for y := 0; y < 32; y++ {
+		for x := 0; x < 32; x++ {
+			img.Set(x, y, c)
+		}
+	}
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	defer f.Close()
+	require.NoError(t, png.Encode(f, img))
+}
 
 // fakeTranslationsEnricher records EnrichTranslationsForItem calls.
 type fakeTranslationsEnricher struct {
@@ -797,4 +819,101 @@ func TestSetOverride_TitleAlreadyAligned_NoEnrich(t *testing.T) {
 
 	time.Sleep(150 * time.Millisecond)
 	assert.Equal(t, int32(0), enricher.singleN.Load(), "no-op title override must NOT re-enrich")
+}
+
+// --- BackfillBlurhashes ---
+
+func TestBackfillBlurhashes_EmptyRepo(t *testing.T) {
+	cmdSvc := newCmdSvcNoEnricher()
+	succ, fail := cmdSvc.BackfillBlurhashes(context.Background())
+	assert.Equal(t, 0, succ)
+	assert.Equal(t, 0, fail)
+}
+
+func TestBackfillBlurhashes_DecodesAndPersists(t *testing.T) {
+	// Build a fake repo with a real PNG on disk so computeBlurhash succeeds.
+	artRepo := metafakes.NewFakeArtworkRepository()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		artRepo,
+		metafakes.NewFakeArtworkDownloader(),
+		sharedfakes.NewFakeEventBus(),
+		nil,
+	)
+
+	dir := t.TempDir()
+	pngPath := dir + "/poster.png"
+	writeSolidPNG(t, pngPath)
+
+	id := "art-1"
+	lp := pngPath
+	require.NoError(t, artRepo.Create(context.Background(), &metadata.ArtworkRecord{
+		ID:          id,
+		MediaItemID: "m1",
+		Type:        "poster",
+		Provider:    "tmdb",
+		LocalPath:   &lp,
+	}))
+
+	succ, fail := cmdSvc.BackfillBlurhashes(context.Background())
+	assert.Equal(t, 1, succ)
+	assert.Equal(t, 0, fail)
+
+	got, err := artRepo.GetByMediaItem(context.Background(), "m1")
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0].Blurhash)
+	assert.NotEmpty(t, *got[0].Blurhash)
+}
+
+func TestBackfillBlurhashes_SkipsAlreadyHashed(t *testing.T) {
+	artRepo := metafakes.NewFakeArtworkRepository()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		artRepo,
+		metafakes.NewFakeArtworkDownloader(),
+		sharedfakes.NewFakeEventBus(),
+		nil,
+	)
+
+	already := "L9Pj0^IU00%M~qWBM{j["
+	lp := "/some/path.jpg"
+	require.NoError(t, artRepo.Create(context.Background(), &metadata.ArtworkRecord{
+		ID:          "art-already",
+		MediaItemID: "m1",
+		Type:        "poster",
+		Provider:    "tmdb",
+		LocalPath:   &lp,
+		Blurhash:    &already,
+	}))
+
+	succ, fail := cmdSvc.BackfillBlurhashes(context.Background())
+	// already-hashed row is filtered by the repo query → not even processed.
+	assert.Equal(t, 0, succ)
+	assert.Equal(t, 0, fail)
+}
+
+func TestBackfillBlurhashes_CountsDecodeFailures(t *testing.T) {
+	artRepo := metafakes.NewFakeArtworkRepository()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		artRepo,
+		metafakes.NewFakeArtworkDownloader(),
+		sharedfakes.NewFakeEventBus(),
+		nil,
+	)
+
+	// Point LocalPath at a non-existent file so computeBlurhash errors.
+	lp := t.TempDir() + "/missing.png"
+	require.NoError(t, artRepo.Create(context.Background(), &metadata.ArtworkRecord{
+		ID:          "art-broken",
+		MediaItemID: "m2",
+		Type:        "poster",
+		Provider:    "tmdb",
+		LocalPath:   &lp,
+	}))
+
+	succ, fail := cmdSvc.BackfillBlurhashes(context.Background())
+	assert.Equal(t, 0, succ)
+	assert.Equal(t, 1, fail)
 }

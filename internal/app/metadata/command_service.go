@@ -326,6 +326,81 @@ func (s *CommandService) RetryMissingArtworks(ctx context.Context) (succeeded, f
 	return succeeded, failed
 }
 
+// BackfillBlurhashes re-hashes every artwork row that has a LocalPath on
+// disk but no blurhash. Retro-fits placeholders onto artworks ingested
+// before migration 000095 (when the column was added). Idempotent — rows
+// that already have a hash are filtered out by the repository query.
+//
+// Best-effort: per-record decode failures are logged at debug and the loop
+// continues. Returns (succeeded, failed) for the admin UI.
+func (s *CommandService) BackfillBlurhashes(ctx context.Context) (succeeded, failed int) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.BackfillBlurhashes")
+	defer span.End()
+	records, err := s.artwork.ListMissingBlurhash(ctx)
+	if err != nil {
+		slog.Warn("backfill blurhash: list", slog.Any("err", err))
+		return 0, 0
+	}
+	if len(records) == 0 {
+		return 0, 0
+	}
+	// Lower concurrency than RetryMissingArtworks (which is network-bound):
+	// decoding is CPU-bound, more parallelism mostly adds context-switching
+	// overhead. 2 workers keeps the catalogue scan from saturating the box
+	// while still finishing a 10k-row backfill in a few minutes.
+	const maxConcurrent = 2
+	sem := make(chan struct{}, maxConcurrent)
+	var wg sync.WaitGroup
+	var sucAtomic, failAtomic atomic.Int64
+	for _, rec := range records {
+		rec := rec
+		select {
+		case <-ctx.Done():
+			wg.Wait()
+			return int(sucAtomic.Load()), int(failAtomic.Load())
+		case sem <- struct{}{}:
+		}
+		wg.Add(1)
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic in backfill blurhash",
+						slog.Any("recover", r), slog.String("id", rec.ID))
+				}
+			}()
+			defer wg.Done()
+			defer func() { <-sem }()
+			if rec.LocalPath == nil {
+				return
+			}
+			hash, hashErr := computeBlurhash(*rec.LocalPath)
+			if hashErr != nil {
+				slog.Debug("backfill blurhash: decode skipped",
+					slog.String("id", rec.ID), slog.Any("err", hashErr))
+				failAtomic.Add(1)
+				return
+			}
+			if err := s.artwork.UpdateBlurhash(ctx, rec.ID, hash); err != nil {
+				slog.Warn("backfill blurhash: persist",
+					slog.String("id", rec.ID), slog.Any("err", err))
+				failAtomic.Add(1)
+				return
+			}
+			sucAtomic.Add(1)
+		}()
+	}
+	wg.Wait()
+	succeeded = int(sucAtomic.Load())
+	failed = int(failAtomic.Load())
+	if succeeded > 0 || failed > 0 {
+		slog.Info("backfill blurhash: pass complete",
+			slog.Int("succeeded", succeeded),
+			slog.Int("failed", failed),
+			slog.Int("total", len(records)))
+	}
+	return succeeded, failed
+}
+
 // RetryMissingArtworksLoop runs RetryMissingArtworks periodically until
 // ctx is cancelled. Intended to be launched as a goroutine at startup.
 // Wired so a transient CDN/network outage during the initial enrichment

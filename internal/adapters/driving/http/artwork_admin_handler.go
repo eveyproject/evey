@@ -139,6 +139,27 @@ func registerArtworkAdminRoutes(
 		}
 	}))
 
+	// POST /api/v1/admin/artworks/backfill-blurhashes — recompute placeholder
+	// hashes for every artwork row that has a LocalPath on disk but no
+	// blurhash. Lets admins retro-fit the field onto artworks ingested before
+	// migration 000095 without re-downloading. Runs synchronously: decode is
+	// CPU-bound at ~50 ms per image with 2 workers, so a 10k-row catalogue
+	// finishes in ~5 minutes; same shape as retry-missing for symmetry.
+	mux.HandleFunc("POST /api/v1/admin/artworks/backfill-blurhashes", admin(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkBackfillBlurhashes")
+		defer span.End()
+
+		succeeded, failed := metaCmd.BackfillBlurhashes(ctx)
+		resp := map[string]any{
+			"succeeded": succeeded,
+			"failed":    failed,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			slog.Warn("artwork backfill-blurhashes: json encode", slog.Any("err", err))
+		}
+	}))
+
 	// GET /api/v1/admin/artworks/download-all/{jobId} — poll job progress.
 	mux.HandleFunc("GET /api/v1/admin/artworks/download-all/{jobId}", admin(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkDownloadAllStatus")
