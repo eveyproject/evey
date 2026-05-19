@@ -70,7 +70,12 @@ export function useTranscodePlayback({
           void video.play().catch(() => { /* user gesture required */ });
         });
       }
-      function onTimeUpdate() { positionRef.current = video!.currentTime; }
+      // Native-HLS path (Safari/iOS, where Hls.isSupported() is false). The
+      // stream is transcoded starting at `offset`, so video.currentTime is
+      // local to the restarted segment — positionRef must hold the ABSOLUTE
+      // position (offset + local) like the Hls.js path does, otherwise every
+      // seek after an out-of-buffer restart on Safari lands offset seconds off.
+      function onTimeUpdate() { positionRef.current = transcodeOffsetRef.current + video!.currentTime; }
       function handleEnded() { onEnded?.(); }
       video.addEventListener("timeupdate", onTimeUpdate);
       video.addEventListener("ended", handleEnded);
