@@ -136,13 +136,19 @@ export function HLSPlayer({
     }
     // Build a URL the Chromecast can fetch independently (absolute, with token)
     let url: string;
+    // Resume the cast at the local player's current ABSOLUTE position rather
+    // than restarting from 0. Only applies to transcode (the server bakes the
+    // start offset into the HLS stream); direct play hands the receiver the
+    // full file, which it can seek on its own.
+    let castStartSec = 0;
     if (streamInfo.directPlayUrl) {
       // Direct play — append token if not already present
       const hasToken = streamInfo.directPlayUrl.includes("token=");
       url = hasToken ? streamInfo.directPlayUrl : `${streamInfo.directPlayUrl}${streamInfo.directPlayUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(streamTokenRef.current)}`;
     } else {
-      // Transcode — use HLS master playlist
-      url = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, 0);
+      // Transcode — HLS master playlist, started at the current position.
+      castStartSec = positionRef.current > 0 ? Math.floor(positionRef.current) : 0;
+      url = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, castStartSec);
     }
     // Swap in a long-lived cast token. The Chromecast fetches segments on
     // its own and buffers minutes ahead, then goes quiet — the regular
@@ -165,7 +171,7 @@ export function HLSPlayer({
     // vs /hls/master.m3u8 + codec params during negotiation — rebuilding
     // by hand would diverge).
     castBaseUrlRef.current = url;
-    castTranscodeOffsetRef.current = 0;
+    castTranscodeOffsetRef.current = castStartSec;
     startCast(url, title);
   }, [castConnected, stopCast, startCast, streamInfo.directPlayUrl, title, mediaId, currentTrackIndex, onCastTokenRequest]);
 
