@@ -114,6 +114,9 @@ profile:
     defaultProfileBadge: "默认"
     kidsBadge: "儿童"
     cannotDeleteDefault: "无法删除默认个人资料。"
+    defaultUpdated: "默认配置文件已更新"
+    setDefault: "设为默认"
+    newProfile: "新建配置文件"
   fields:
     name: "名称"
     nameRequired: "名称为必填项"

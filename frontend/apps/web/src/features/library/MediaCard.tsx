@@ -386,7 +386,7 @@ export const MediaCard = memo(function MediaCard({
               style={{
                 backgroundColor: "var(--accent)",
                 width: `${pct}%`,
-                borderRadius: "0 2px 2px 0",
+                borderRadius: "0 var(--radius-sm) var(--radius-sm) 0",
                 boxShadow: "0 0 8px var(--accent)",
               }}
             />

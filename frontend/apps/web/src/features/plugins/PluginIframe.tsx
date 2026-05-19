@@ -280,7 +280,7 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
 
   if (error) {
     return (
-      <div style={{ color: "var(--text-muted)", padding: "8px 0", fontSize: "0.875rem" }}>
+      <div className="text-sm py-2" style={{ color: "var(--text-muted)" }}>
         {t("admin.plugin.frontLoadError")}
       </div>
     );

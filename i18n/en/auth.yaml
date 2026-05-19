@@ -114,6 +114,9 @@ profile:
     defaultProfileBadge: Default
     kidsBadge: Kids
     cannotDeleteDefault: Default profile cannot be deleted.
+    defaultUpdated: Default profile updated
+    setDefault: Set as default
+    newProfile: New profile
   fields:
     name: Name
     nameRequired: Name is required

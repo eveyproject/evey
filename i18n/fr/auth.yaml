@@ -114,6 +114,9 @@ profile:
     defaultProfileBadge: "Par défaut"
     kidsBadge: "Enfant"
     cannotDeleteDefault: "Le profil par défaut ne peut pas être supprimé."
+    defaultUpdated: "Profil par défaut mis à jour"
+    setDefault: "Définir par défaut"
+    newProfile: "Nouveau profil"
   fields:
     name: "Nom"
     nameRequired: "Le nom est requis"

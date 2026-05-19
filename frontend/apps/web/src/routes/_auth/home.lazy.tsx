@@ -434,6 +434,19 @@ function HomePage() {
 
   const sections = useMemo(() => allSections.filter((c) => c.enabled), [allSections]);
 
+  // Stabilize the Set passed to PluginSlot — otherwise a new Set identity
+  // every render forces the slot to re-evaluate its registered list each time
+  // the parent re-renders for unrelated reasons.
+  const excludeRegisteredPluginIDs = useMemo(
+    () => new Set(
+      allSections
+        .map((s) => s.feedType ?? "")
+        .filter((ft) => ft.startsWith("plugin:"))
+        .map((ft) => ft.slice("plugin:".length)),
+    ),
+    [allSections],
+  );
+
   return (
     <div className="animate-fade-in" data-testid="home-page">
       <HeroBanner />
@@ -465,12 +478,7 @@ function HomePage() {
                 which prepends them with a negative displayOrder. Once the
                 user saves a position, the entry persists and is rendered
                 inline below at its sorted slot. */}
-            <PluginSlot name="home.section" excludeRegistered={
-              new Set(allSections
-                .map((s) => s.feedType ?? "")
-                .filter((ft) => ft.startsWith("plugin:"))
-                .map((ft) => ft.slice("plugin:".length)))
-            } />
+            <PluginSlot name="home.section" excludeRegistered={excludeRegisteredPluginIDs} />
             {sections.map((cfg) => {
               const ft = cfg.feedType ?? "";
               if (ft.startsWith("library:")) {

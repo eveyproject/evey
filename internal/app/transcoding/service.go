@@ -238,7 +238,7 @@ func (s *Service) CreateProfile(ctx context.Context, p *transcoding.TranscodePro
 	if err := s.profiles.Create(ctx, p); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return err
+		return fmt.Errorf("create transcode profile %q: %w", p.ID, err)
 	}
 	return nil
 }
@@ -255,7 +255,7 @@ func (s *Service) UpdateProfile(ctx context.Context, p *transcoding.TranscodePro
 	if err := s.profiles.Update(ctx, p); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return err
+		return fmt.Errorf("update transcode profile %q: %w", p.ID, err)
 	}
 	return nil
 }
@@ -267,7 +267,7 @@ func (s *Service) DeleteProfile(ctx context.Context, id string) error {
 	if err := s.profiles.Delete(ctx, id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return err
+		return fmt.Errorf("delete transcode profile %q: %w", id, err)
 	}
 	return nil
 }

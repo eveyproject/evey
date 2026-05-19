@@ -26,7 +26,12 @@ func registerPluginSecurityDashboardRoute(mux *http.ServeMux, tokenGen *auth.JWT
 		r = r.WithContext(ctx)
 		snapshots, err := svc.GetSecurityDashboard(r.Context())
 		if err != nil {
-			slog.Error("plugin security dashboard", slog.Any("err", err))
+			claims := HTTPClaimsFromContext(r.Context())
+			userID := ""
+			if claims != nil {
+				userID = claims.UserID
+			}
+			slog.Error("plugin security dashboard", slog.String("user_id", userID), slog.Any("err", err))
 			http.Error(w, `{"message":"internal server error"}`, http.StatusInternalServerError)
 			return
 		}
