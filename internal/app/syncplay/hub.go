@@ -165,6 +165,23 @@ func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string
 
 	room, err := h.repo.Get(ctx, roomID)
 	if err != nil {
+		// Get failed *after* we registered the connection and added the room
+		// member. Roll both back: the ws handler returns before arming its
+		// defer DisconnectMember, so without this the dead connection lingers
+		// in h.conns forever (every future broadcast retries a send to it) and
+		// the room keeps a phantom member.
+		h.mu.Lock()
+		if m := h.conns[roomID]; m != nil {
+			delete(m, userID)
+			if len(m) == 0 {
+				delete(h.conns, roomID)
+			}
+		}
+		h.mu.Unlock()
+		if rmErr := h.repo.RemoveMember(ctx, roomID, userID); rmErr != nil {
+			slog.Warn("syncplay: rollback RemoveMember after Get failure",
+				slog.String("roomID", roomID), slog.String("userID", userID), slog.Any("err", rmErr))
+		}
 		return nil, err
 	}
 

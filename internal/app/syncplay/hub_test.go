@@ -739,6 +739,52 @@ func TestHub_ConnectMember_NonexistentRoom(t *testing.T) {
 	}
 }
 
+// getFailRepo delegates everything to a real fakeRoomRepo but forces Get to
+// fail, exercising ConnectMember's rollback path (Get fails after the member
+// and connection have already been registered).
+type getFailRepo struct {
+	*fakeRoomRepo
+}
+
+func (r *getFailRepo) Get(context.Context, string) (*syncplay.Room, error) {
+	return nil, errors.New("transient repo failure")
+}
+
+func TestHub_ConnectMember_GetFailure_RollsBack(t *testing.T) {
+	t.Parallel()
+	base := newFakeRoomRepo()
+	h := NewHub(&getFailRepo{base})
+	ctx := context.Background()
+
+	room, err := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+
+	if _, err := h.ConnectMember(ctx, room.ID, "user-2", "Alice", fakes.NewFakeMessageSender()); err == nil {
+		t.Fatal("expected ConnectMember to fail when Get fails")
+	}
+
+	// Connection must not be left dangling in the hub.
+	h.mu.RLock()
+	leaked := len(h.conns[room.ID])
+	h.mu.RUnlock()
+	if leaked != 0 {
+		t.Errorf("h.conns leaked %d entries for room after failed connect, want 0", leaked)
+	}
+
+	// The phantom room member must have been removed.
+	stored, ok := base.rooms[room.ID]
+	if !ok {
+		t.Fatal("room missing from repo")
+	}
+	for _, m := range stored.Members {
+		if string(m.UserID) == "user-2" {
+			t.Error("user-2 still a room member after failed connect; rollback did not remove it")
+		}
+	}
+}
+
 // --- DisconnectMember tests ---
 
 func TestHub_DisconnectMember_Success(t *testing.T) {
