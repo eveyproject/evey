@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, libraryServiceGetMediaItem } from "@evey/api";
 import type { V1Artwork } from "@evey/api";
+import { Blurhash } from "react-blurhash";
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
 import { StarRatingBadge } from "./StarRating";
@@ -105,6 +106,18 @@ export const MediaCard = memo(function MediaCard({
     return posterSrc
       ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster` : null);
   }, [posterSrc, item.id]);
+
+  // Pull the primary artwork's blurhash (if any) for the placeholder. We
+  // fall back to backdrop hash when primary is missing — better than a flat
+  // background, and the type ordering in artwork list already prefers
+  // primary first. Empty string when neither is present.
+  const posterBlurhash = useMemo(() => {
+    const arts = (item.artwork ?? []) as V1Artwork[];
+    const primary = arts.find((a) => a.type === "ARTWORK_TYPE_PRIMARY");
+    if (primary?.blurhash) return primary.blurhash;
+    const backdrop = arts.find((a) => a.type === "ARTWORK_TYPE_BACKDROP");
+    return backdrop?.blurhash ?? "";
+  }, [item.artwork]);
 
   const posterSrcSet = useMemo(() => {
     if (!poster) return undefined;
@@ -218,23 +231,37 @@ export const MediaCard = memo(function MediaCard({
         className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-[1.03] group-focus-within:scale-[1.03] aspect-[2/3] rounded-[var(--radius-md)] shadow-[var(--shadow-md)]"
       >
         {poster ? (
-          <img
-            src={poster}
-            srcSet={posterSrcSet}
-            sizes="(max-width: 640px) 185px, (max-width: 1024px) 342px, 500px"
-            alt={item.title ?? ""}
-            loading="lazy"
-            decoding="async"
-            className="w-full h-full object-cover transition-opacity-fast duration-300"
-            style={{ opacity: imgLoaded ? 1 : 0 }}
-            onLoad={() => setImgLoaded(true)}
-            onError={(e) => {
-              const t = e.currentTarget;
-              t.style.display = "none";
-              const fb = t.nextElementSibling as HTMLElement | null;
-              if (fb) fb.style.display = "flex";
-            }}
-          />
+          <>
+            {posterBlurhash && !imgLoaded ? (
+              <div className="absolute inset-0">
+                <Blurhash
+                  hash={posterBlurhash}
+                  width="100%"
+                  height="100%"
+                  resolutionX={32}
+                  resolutionY={32}
+                  punch={1}
+                />
+              </div>
+            ) : null}
+            <img
+              src={poster}
+              srcSet={posterSrcSet}
+              sizes="(max-width: 640px) 185px, (max-width: 1024px) 342px, 500px"
+              alt={item.title ?? ""}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover transition-opacity-fast duration-300 relative"
+              style={{ opacity: imgLoaded ? 1 : 0 }}
+              onLoad={() => setImgLoaded(true)}
+              onError={(e) => {
+                const t = e.currentTarget;
+                t.style.display = "none";
+                const fb = t.nextElementSibling as HTMLElement | null;
+                if (fb) fb.style.display = "flex";
+              }}
+            />
+          </>
         ) : null}
         <div
           role="img"

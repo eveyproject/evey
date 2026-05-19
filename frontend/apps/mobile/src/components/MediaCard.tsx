@@ -1,8 +1,8 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, Pressable, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import type { V1MediaItem } from "@evey/api";
+import type { V1MediaItem, V1Artwork } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { useAuthenticatedImage } from "../hooks/useAuthenticatedImage";
@@ -29,6 +29,17 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
   const imageUri = serverUrl ? `${serverUrl}/api/v1/media/${item.id}/artwork/poster?w=400` : undefined;
   const imageSource = useAuthenticatedImage(imageUri);
 
+  // Primary blurhash drives the expo-image placeholder; falls back to
+  // backdrop hash, then the surface colour. Empty placeholder = expo-image
+  // shows surfaceColor while loading, which is the pre-feature baseline.
+  const blurhash = useMemo(() => {
+    const arts = (item.artwork ?? []) as V1Artwork[];
+    const primary = arts.find((a) => a.type === "ARTWORK_TYPE_PRIMARY");
+    if (primary?.blurhash) return primary.blurhash;
+    const backdrop = arts.find((a) => a.type === "ARTWORK_TYPE_BACKDROP");
+    return backdrop?.blurhash ?? "";
+  }, [item.artwork]);
+
   return (
     <Pressable onPress={onPress} style={{ width: cardWidth, marginRight: theme.spacing.sm }} accessible={true} accessibilityLabel={item.title} accessibilityRole="button">
       <View style={{
@@ -44,6 +55,8 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
             style={{ width: cardWidth, height: cardHeight }}
             contentFit="cover"
             transition={200}
+            placeholder={blurhash ? { blurhash } : undefined}
+            placeholderContentFit="cover"
           />
         )}
         {watchPercent != null && watchPercent > 0 && (
