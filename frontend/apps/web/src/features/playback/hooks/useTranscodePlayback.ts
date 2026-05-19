@@ -158,6 +158,11 @@ export function useTranscodePlayback({
             try {
               const newToken = await onStreamTokenRefreshRef.current();
               streamTokenRef.current = newToken;
+              // The token refresh is async; if the effect re-ran meanwhile
+              // (audio/subtitle/quality switch destroyed this instance and
+              // built a new one), don't drive the dead instance — the live
+              // one in hlsRef is already loading.
+              if (hls !== hlsRef.current) return;
               // For manifest/level failures, hls.js holds a stale URL with the
               // expired token. xhrSetup rewrites the token on every request,
               // but loadSource is needed to retry the manifest itself; for
@@ -198,7 +203,7 @@ export function useTranscodePlayback({
           return;
         }
         const delay = Math.min(2000 * Math.pow(1.5, retries - 1), 15000);
-        setTimeout(() => hls.startLoad(), delay);
+        setTimeout(() => { if (hls === hlsRef.current) hls.startLoad(); }, delay);
       } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
         hls.recoverMediaError();
       } else {
