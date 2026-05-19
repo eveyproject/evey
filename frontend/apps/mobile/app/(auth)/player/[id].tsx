@@ -436,11 +436,19 @@ export default function PlayerScreen() {
 
   const seekBy = useCallback(
     (seconds: number) => {
-      if (!player) return;
-      player.seekBy(seconds);
+      // On a transcode stream the server only produces media from the current
+      // offset forward, so seeking with the local player past the buffered
+      // window stalls. Restart the transcode at the absolute target instead.
+      if (isTranscode) {
+        const d = knownDuration > 0 ? knownDuration : duration;
+        const target = (player?.currentTime ?? 0) + transcodeOffset + seconds;
+        restartAtPosition(d > 0 ? Math.max(0, Math.min(d, target)) : Math.max(0, target));
+      } else if (player) {
+        player.seekBy(seconds);
+      }
       resetHideTimer();
     },
-    [player, resetHideTimer],
+    [player, isTranscode, restartAtPosition, transcodeOffset, knownDuration, duration, resetHideTimer],
   );
 
   const handleVolumeChange = useCallback(
@@ -579,19 +587,28 @@ export default function PlayerScreen() {
 
   const handleChapterSeek = useCallback(
     (timeSec: number) => {
-      if (!player) return;
-      player.currentTime = timeSec;
+      // timeSec is absolute; on transcode it must restart the session (see seekBy).
+      if (isTranscode) {
+        restartAtPosition(timeSec);
+      } else if (player) {
+        player.currentTime = timeSec;
+      }
       resetHideTimer();
     },
-    [player, resetHideTimer],
+    [player, isTranscode, restartAtPosition, resetHideTimer],
   );
 
   const handleSkipIntro = useCallback(
     (toSec: number) => {
-      if (!player) return;
-      player.currentTime = toSec;
+      // toSec is the absolute segment end; on transcode it must restart the
+      // session rather than seek into the unbuffered region (see seekBy).
+      if (isTranscode) {
+        restartAtPosition(toSec);
+      } else if (player) {
+        player.currentTime = toSec;
+      }
     },
-    [player],
+    [player, isTranscode, restartAtPosition],
   );
 
   const handlePip = useCallback(async () => {
