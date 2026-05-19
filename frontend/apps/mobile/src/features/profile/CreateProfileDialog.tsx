@@ -106,6 +106,7 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: P
                 onChangeText={setName}
                 placeholder={t("auth.profile.fields.name", "Name")}
                 placeholderTextColor={theme.colors.textMuted}
+                accessibilityLabel={t("auth.profile.fields.name", "Name")}
                 style={[s.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderColor: theme.colors.border, borderRadius: theme.radii.md }]}
                 autoCapitalize="words"
               />
@@ -180,6 +181,7 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: P
                   secureTextEntry
                   keyboardType="number-pad"
                   maxLength={4}
+                  accessibilityLabel={t("auth.profile.fields.pin", "PIN (4 digits)")}
                   style={[s.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderColor: theme.colors.border, borderRadius: theme.radii.md }]}
                 />
                 <Text style={[s.rowHelp, { color: theme.colors.textMuted, marginTop: 4 }]}>

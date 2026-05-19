@@ -130,6 +130,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                     placeholderTextColor={theme.colors.textMuted}
                     keyboardType="number-pad"
                     maxLength={4}
+                    accessibilityLabel={t("media.playlist.fields.year", "Year")}
                     style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.sm, flex: 1 }]}
                   />
                 ) : rule.field === "type" ? (
@@ -162,6 +163,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                     onChangeText={(v) => updateRule(idx, { ...rule, value: v })}
                     placeholder="Value"
                     placeholderTextColor={theme.colors.textMuted}
+                    accessibilityLabel={t("media.playlist.fields.ruleValue", "Rule value")}
                     style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.sm, flex: 1 }]}
                   />
                 )}

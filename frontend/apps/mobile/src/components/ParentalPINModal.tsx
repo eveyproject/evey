@@ -89,6 +89,7 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
             placeholder="----"
             placeholderTextColor={theme.colors.textMuted}
             autoComplete="off"
+            accessibilityLabel={t("common.parental.pinRequired", "Parental PIN")}
           />
 
           {error && <Text style={[styles.error, { color: theme.colors.error }]}>{error}</Text>}

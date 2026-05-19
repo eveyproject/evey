@@ -121,6 +121,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, mediaType, onClose }:
                 placeholder={t("media.music.createPlaylistPrompt")}
                 placeholderTextColor={theme.colors.textMuted}
                 autoFocus
+                accessibilityLabel={t("media.music.createPlaylistPrompt")}
                 style={[
                   styles.input,
                   { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceRaised },

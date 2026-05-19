@@ -100,6 +100,7 @@ export function SyncPlayModal({ visible, onClose, onCreateRoom, onJoinRoom, onCr
             placeholderTextColor={theme.colors.textMuted}
             keyboardType="number-pad"
             maxLength={5}
+            accessibilityLabel={t("media.syncplay.joinByCode", "Join with code")}
             style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderColor: theme.colors.border, flex: 1 }]}
           />
           <Pressable
