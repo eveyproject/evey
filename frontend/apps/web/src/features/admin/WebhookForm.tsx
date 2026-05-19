@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useWebhookServiceCreateWebhook, useWebhookServiceUpdateWebhook } from "@evey/api";
 import type { V1WebhookConfig } from "@evey/api";
+import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
@@ -41,8 +42,14 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
     !existing || (existing.events?.length === 1 && existing.events[0] === "*"),
   );
 
-  const createWebhook = useWebhookServiceCreateWebhook({ mutation: { onSuccess } });
-  const updateWebhook = useWebhookServiceUpdateWebhook({ mutation: { onSuccess } });
+  // onError surfaces a toast — without it a rejected save (e.g. the server's
+  // SSRF URL validation refusing a private-IP webhook) failed silently.
+  const createWebhook = useWebhookServiceCreateWebhook({
+    mutation: { onSuccess, onError: (err: Error) => toast.error(err?.message || t("admin.webhooks.failedCreate")) },
+  });
+  const updateWebhook = useWebhookServiceUpdateWebhook({
+    mutation: { onSuccess, onError: (err: Error) => toast.error(err?.message || t("admin.webhooks.failedUpdate")) },
+  });
 
   const isPending = createWebhook.isPending || updateWebhook.isPending;
 
