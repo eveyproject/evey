@@ -167,6 +167,13 @@ func (s *CommandService) processOnePhoto(ctx context.Context, libraryID string, 
 
 	width, height := s.scanner.ImageDimensions(j.path)
 
+	// Compute a blurhash placeholder so the gallery grid renders a coloured
+	// preview before the full image streams in. Best-effort: an unsupported
+	// codec (e.g. HEIC without lib support) returns an error and we just
+	// skip the field — the row still ingests, the gallery falls back to
+	// the surface background.
+	blurhash, _ := computePhotoBlurhash(j.path)
+
 	p, err := photo.NewPhoto(
 		shared.LibraryID(libraryID), j.path, j.size, j.modTime,
 		photo.WithTitle(title),
@@ -176,6 +183,7 @@ func (s *CommandService) processOnePhoto(ctx context.Context, libraryID string, 
 		photo.WithAlbum(album),
 		photo.WithTakenAt(takenAt),
 		photo.WithCameraModel(cameraModel),
+		photo.WithBlurhash(blurhash),
 	)
 	if err != nil {
 		slog.Warn("photo scan: NewPhoto failed", slog.String("path", j.path), slog.Any("err", err))

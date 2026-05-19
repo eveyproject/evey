@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { Images, ChevronLeft, ChevronRight, X, RotateCcw, RotateCw } from "lucide-react";
+import { Blurhash } from "react-blurhash";
 
 export const Route = createLazyFileRoute("/_auth/photos/")({
   component: PhotosPage,
@@ -30,6 +31,9 @@ interface Photo {
   TakenAt?: string;
   Album: string;
   CreatedAt: string;
+  // Optional: empty for files ingested before migration 000096 or whose
+  // codec the encoder couldn't decode (e.g. HEIC, RAW).
+  Blurhash?: string;
 }
 
 interface Album {
@@ -93,6 +97,7 @@ function usePhotos(libraryID: string | undefined, album?: string, limit = 5000, 
             TakenAt: p.takenAt,
             Album: p.album ?? "",
             CreatedAt: p.createdAt ?? "",
+            Blurhash: p.blurhash ?? "",
           })),
           total: d.total ?? 0,
         }),
@@ -213,6 +218,43 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
 
 // ---- Photo grid ----
 
+// PhotoCell renders one tile with a blurhash-driven placeholder visible
+// until the thumbnail finishes loading. Each tile owns its loaded state so
+// the cells in the same row don't flash collectively when one image
+// resolves before its neighbours.
+function PhotoCell({ photo, thumbParam, onClick }: { photo: Photo; thumbParam: string; onClick: () => void }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      className="group relative aspect-square overflow-hidden rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] cursor-pointer bg-[var(--surface-raised)]"
+      aria-label={photo.Title}
+    >
+      {photo.Blurhash && !loaded ? (
+        <div className="absolute inset-0">
+          <Blurhash
+            hash={photo.Blurhash}
+            width="100%"
+            height="100%"
+            resolutionX={32}
+            resolutionY={32}
+            punch={1}
+          />
+        </div>
+      ) : null}
+      <img
+        src={`/api/v1/photos/${photo.ID}/serve${thumbParam}`}
+        alt={photo.Title}
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105 relative"
+        style={{ opacity: loaded ? 1 : 0 }}
+      />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors-fast duration-200" />
+    </button>
+  );
+}
+
 interface PhotoGridProps {
   photos: Photo[];
   onPhotoClick: (index: number) => void;
@@ -308,20 +350,12 @@ function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
             {rows[vRow.index].map((photo, colIdx) => {
               const globalIdx = vRow.index * cols + colIdx;
               return (
-                <button
+                <PhotoCell
                   key={photo.ID}
+                  photo={photo}
+                  thumbParam={thumbParam}
                   onClick={() => onPhotoClick(globalIdx)}
-                  className="group relative aspect-square overflow-hidden rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] cursor-pointer bg-[var(--surface-raised)]"
-                  aria-label={photo.Title}
-                >
-                  <img
-                    src={`/api/v1/photos/${photo.ID}/serve${thumbParam}`}
-                    alt={photo.Title}
-                    loading="lazy"
-                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors-fast duration-200" />
-                </button>
+                />
               );
             })}
           </div>

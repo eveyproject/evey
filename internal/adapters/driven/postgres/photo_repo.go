@@ -28,10 +28,18 @@ func (r *PhotoRepository) Upsert(ctx context.Context, p photo.Photo) error {
 	span.SetAttributes(attribute.String("photo.id", p.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// blurhash is nullable in the DB but a plain `string` on the domain
+	// (empty = absent). NullIfEmpty preserves the existing NULL when the
+	// scanner skipped the encode, instead of pushing an empty string that
+	// would be hard to distinguish from "never computed".
+	var blurhash sql.NullString
+	if p.Blurhash != "" {
+		blurhash = sql.NullString{String: p.Blurhash, Valid: true}
+	}
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO photos (id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
-		                    taken_at, latitude, longitude, camera_model, album, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+		                    taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
 		ON CONFLICT (file_path) DO UPDATE SET
 		    library_id   = EXCLUDED.library_id,
 		    title        = EXCLUDED.title,
@@ -46,10 +54,11 @@ func (r *PhotoRepository) Upsert(ctx context.Context, p photo.Photo) error {
 		    longitude    = EXCLUDED.longitude,
 		    camera_model = EXCLUDED.camera_model,
 		    album        = EXCLUDED.album,
+		    blurhash     = COALESCE(EXCLUDED.blurhash, photos.blurhash),
 		    updated_at   = EXCLUDED.updated_at`,
 		p.ID, p.LibraryID, p.Title, p.FilePath, p.FileSize, p.FileHash, p.ModTime, p.MimeType,
 		p.Width, p.Height, p.TakenAt, p.Latitude, p.Longitude,
-		p.CameraModel, p.Album, p.CreatedAt, p.UpdatedAt,
+		p.CameraModel, p.Album, blurhash, p.CreatedAt, p.UpdatedAt,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -65,15 +74,17 @@ func (r *PhotoRepository) GetByID(ctx context.Context, id string) (*photo.Photo,
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	p := &photo.Photo{}
+	var blurhash sql.NullString
 	err := r.db.QueryRowContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
-		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at
+		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at
 		FROM photos WHERE id = $1`, id,
 	).Scan(
 		&p.ID, &p.LibraryID, &p.Title, &p.FilePath, &p.FileSize, &p.FileHash, &p.ModTime, &p.MimeType,
 		&p.Width, &p.Height, &p.TakenAt, &p.Latitude, &p.Longitude,
-		&p.CameraModel, &p.Album, &p.CreatedAt, &p.UpdatedAt,
+		&p.CameraModel, &p.Album, &blurhash, &p.CreatedAt, &p.UpdatedAt,
 	)
+	p.Blurhash = blurhash.String
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, shared.ErrNotFound
 	}
@@ -113,7 +124,7 @@ func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID shared.Li
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
-		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at,
+		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at,
 		       COUNT(*) OVER() AS total
 		FROM photos WHERE library_id = $1
 		ORDER BY taken_at DESC NULLS LAST, created_at DESC
@@ -141,7 +152,7 @@ func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID shared.Libr
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
-		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at,
+		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at,
 		       COUNT(*) OVER() AS total
 		FROM photos WHERE library_id = $1 AND album = $2
 		ORDER BY taken_at DESC NULLS LAST, created_at DESC
@@ -206,7 +217,7 @@ func (r *PhotoRepository) Search(ctx context.Context, libraryID shared.LibraryID
 	pattern := "%" + likeEscape(query) + "%"
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
-		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at
+		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at
 		FROM photos WHERE library_id = $1 AND (title ILIKE $2 ESCAPE '\' OR album ILIKE $2 ESCAPE '\')
 		ORDER BY taken_at DESC NULLS LAST
 		LIMIT $3`, libraryID, pattern, limit,
@@ -240,7 +251,7 @@ func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID shared
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
-		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at
+		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at
 		FROM photos WHERE library_id = $1`, libraryID,
 	)
 	if err != nil {
@@ -277,13 +288,15 @@ func scanPhotos(rows *sql.Rows) ([]photo.Photo, error) {
 	var photos []photo.Photo
 	for rows.Next() {
 		var p photo.Photo
+		var blurhash sql.NullString
 		if err := rows.Scan(
 			&p.ID, &p.LibraryID, &p.Title, &p.FilePath, &p.FileSize, &p.FileHash, &p.ModTime, &p.MimeType,
 			&p.Width, &p.Height, &p.TakenAt, &p.Latitude, &p.Longitude,
-			&p.CameraModel, &p.Album, &p.CreatedAt, &p.UpdatedAt,
+			&p.CameraModel, &p.Album, &blurhash, &p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
+		p.Blurhash = blurhash.String
 		photos = append(photos, p)
 	}
 	return photos, rows.Err()
@@ -294,14 +307,16 @@ func scanPhotosWithTotal(rows *sql.Rows) ([]photo.Photo, int, error) {
 	var total int
 	for rows.Next() {
 		var p photo.Photo
+		var blurhash sql.NullString
 		if err := rows.Scan(
 			&p.ID, &p.LibraryID, &p.Title, &p.FilePath, &p.FileSize, &p.FileHash, &p.ModTime, &p.MimeType,
 			&p.Width, &p.Height, &p.TakenAt, &p.Latitude, &p.Longitude,
-			&p.CameraModel, &p.Album, &p.CreatedAt, &p.UpdatedAt,
+			&p.CameraModel, &p.Album, &blurhash, &p.CreatedAt, &p.UpdatedAt,
 			&total,
 		); err != nil {
 			return nil, 0, err
 		}
+		p.Blurhash = blurhash.String
 		photos = append(photos, p)
 	}
 	return photos, total, rows.Err()

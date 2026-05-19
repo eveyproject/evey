@@ -24,6 +24,11 @@ type Photo struct {
 	Longitude   *float64
 	CameraModel string
 	Album       string
+	// Blurhash is a compact (~30-char) placeholder computed at scan time.
+	// Empty when the file pre-dates migration 000096 or the encoder
+	// couldn't decode it. Clients show a coloured preview while the full
+	// image loads (Wolt blurhash spec).
+	Blurhash    string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -68,6 +73,8 @@ func WithAlbum(album string) Option            { return func(p *Photo) { p.Album
 func WithGeo(lat, lng *float64) Option {
 	return func(p *Photo) { p.Latitude, p.Longitude = lat, lng }
 }
+
+func WithBlurhash(hash string) Option { return func(p *Photo) { p.Blurhash = hash } }
 
 func (p *Photo) Validate() error {
 	if p.LibraryID == "" {

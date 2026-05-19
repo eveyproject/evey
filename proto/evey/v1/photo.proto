@@ -61,6 +61,11 @@ message Photo {
   string camera_model = 11;
   google.protobuf.Timestamp created_at = 12;
   google.protobuf.Timestamp updated_at = 13;
+  // Compact (~30-char) blurhash placeholder computed at scan time. Empty
+  // when the file pre-dates migration 000096 or the encoder couldn't
+  // decode the image (HEIC, RAW, etc.). Clients show a coloured preview
+  // while the full photo streams in.
+  string blurhash = 14;
 }
 
 message PhotoAlbum {

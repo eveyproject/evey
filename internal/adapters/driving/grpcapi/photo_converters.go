@@ -18,6 +18,7 @@ func photoToProto(p photo.Photo) *eveyv1.Photo {
 		Album:       p.Album,
 		TakenAt:     toTimestamppbPtr(p.TakenAt),
 		CameraModel: p.CameraModel,
+		Blurhash:    p.Blurhash,
 		CreatedAt:   toTimestamppb(p.CreatedAt),
 		UpdatedAt:   toTimestamppb(p.UpdatedAt),
 	}
