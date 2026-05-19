@@ -229,6 +229,40 @@ func TestTrickplay_GenerateAllMissingTrickplays_ContinuesAfterItemError(t *testi
 	time.Sleep(50 * time.Millisecond)
 }
 
+// --- GenerateTrickplay concurrency ---
+
+func TestTrickplay_GenerateTrickplay_DedupsConcurrent(t *testing.T) {
+	t.Parallel()
+	repo := libfakes.NewFakeTrickplayRepository()
+	// delay keeps the first generation "running" (holding the per-media claim)
+	// long enough for the second concurrent call to observe it.
+	gen := &countingGen{delay: 300 * time.Millisecond}
+	media := libfakes.NewFakeMediaItemCommandRepo()
+	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
+		ID: "m1", File: &library.MediaFile{Path: "/movies/a.mkv"}, Title: "A",
+	}))
+	bus := sharedfakes.NewFakeEventBus()
+	svc := applib.NewTrickplayService(repo, gen, t.TempDir(), media, bus, nil)
+
+	// A holds the generation claim through its delayed Generate.
+	doneA := make(chan struct{})
+	go func() { _ = svc.GenerateTrickplay(context.Background(), "m1"); close(doneA) }()
+
+	require.Eventually(t, func() bool {
+		return atomic.LoadInt32(&gen.callCount) >= 1
+	}, 2*time.Second, 10*time.Millisecond, "first generation must start")
+
+	// B: a concurrent request for the same item must be skipped — two ffmpeg
+	// runs writing the same sprite dir would corrupt each other's output.
+	_ = svc.GenerateTrickplay(context.Background(), "m1")
+	assert.Equal(t, int32(1), atomic.LoadInt32(&gen.callCount), "concurrent generation should be deduped")
+
+	<-doneA
+	// After the first finishes, the claim is released: a later call generates again.
+	_ = svc.GenerateTrickplay(context.Background(), "m1")
+	assert.Equal(t, int32(2), atomic.LoadInt32(&gen.callCount), "after release a new generation runs")
+}
+
 // --- StartTrickplayWorker ---
 
 func TestTrickplay_StartTrickplayWorker_NilRepoShortCircuits(t *testing.T) {

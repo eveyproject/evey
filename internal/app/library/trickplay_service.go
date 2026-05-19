@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,6 +32,35 @@ type TrickplayService struct {
 	configRepo        shared.ServerConfigRepository
 	activeStreams      ActiveStreamChecker
 	shutdownCtx       context.Context
+
+	// genMu guards inProgress, the set of media item IDs currently being
+	// generated. Two concurrent generations for the same item write the same
+	// sprite directory and corrupt each other's output, so a second request
+	// for an already-running item is skipped (generation is idempotent).
+	genMu      sync.Mutex
+	inProgress map[string]struct{}
+}
+
+// claimGeneration marks mediaItemID as generating and returns true. It returns
+// false if a generation for the same item is already in progress, in which case
+// the caller must skip to avoid corrupting the shared sprite directory.
+func (s *TrickplayService) claimGeneration(mediaItemID string) bool {
+	s.genMu.Lock()
+	defer s.genMu.Unlock()
+	if s.inProgress == nil {
+		s.inProgress = make(map[string]struct{})
+	}
+	if _, running := s.inProgress[mediaItemID]; running {
+		return false
+	}
+	s.inProgress[mediaItemID] = struct{}{}
+	return true
+}
+
+func (s *TrickplayService) releaseGeneration(mediaItemID string) {
+	s.genMu.Lock()
+	delete(s.inProgress, mediaItemID)
+	s.genMu.Unlock()
 }
 
 func NewTrickplayService(
@@ -105,6 +135,11 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 	if !s.isTrickplayEnabled(ctx) {
 		return nil
 	}
+	if !s.claimGeneration(mediaItemID) {
+		slog.Debug("trickplay generation already in progress, skipping", slog.String("media_item_id", mediaItemID))
+		return nil
+	}
+	defer s.releaseGeneration(mediaItemID)
 	s.waitForIdleStreams(ctx)
 
 	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
