@@ -75,12 +75,30 @@ export function GlobalAudioPlayer() {
   volumeRef.current = volume;
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
+  // Mirror so the track-change effect can read the latest paused intent
+  // without listing externallyPaused as a dep (which would re-fire play()).
+  const externallyPausedRef = useRef(externallyPaused);
+  externallyPausedRef.current = externallyPaused;
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !playing) return;
+    // The <audio> element is keyed by track id, so on a track change it has
+    // remounted with currentTime=0 / duration=NaN. Reset the mirrored state
+    // immediately so the seek bar doesn't briefly show the previous track's
+    // length (letting the user drag past the new track's end) before
+    // onLoadedMetadata fires.
+    setCurrentTime(0);
+    setDuration(0);
     audio.volume = volumeRef.current;
     audio.muted = mutedRef.current;
+    // Respect an active external pause (e.g. a trailer modal): don't start
+    // playback that the externally-paused effect would immediately stop —
+    // that race produced a brief blip of audio.
+    if (externallyPausedRef.current) {
+      setIsPlaying(false);
+      return;
+    }
     (async () => {
       try {
         await audio.play();
@@ -134,7 +152,9 @@ export function GlobalAudioPlayer() {
     if (!audio) return;
     const val = Number(e.target.value);
     audio.currentTime = val;
-    setCurrentTime(val);
+    // Read back: the browser clamps to the real duration, so reflect the
+    // actual position rather than the raw slider value.
+    setCurrentTime(audio.currentTime);
   }
 
   const currentIndex = queue.findIndex((q) => q.ID === playing.ID);
