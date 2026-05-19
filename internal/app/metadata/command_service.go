@@ -190,6 +190,12 @@ func (s *CommandService) runBulkDownload(ctx context.Context, job *DownloadJob, 
 		}
 		wg.Add(1)
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic in artwork bulk download",
+						slog.Any("recover", r), slog.String("id", rec.ID))
+				}
+			}()
 			defer wg.Done()
 			defer func() { <-sem }()
 			destPath := s.artworkDestPath(rec)
@@ -265,6 +271,12 @@ func (s *CommandService) RetryMissingArtworks(ctx context.Context) (succeeded, f
 		}
 		wg.Add(1)
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic in retry missing artworks",
+						slog.Any("recover", r), slog.String("id", rec.ID))
+				}
+			}()
 			defer wg.Done()
 			defer func() { <-sem }()
 			destPath := s.artworkDestPath(rec)

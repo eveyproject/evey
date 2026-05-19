@@ -189,12 +189,17 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   useEffect(() => {
     if (!accessToken || !armed) return;
     let cancelled = false;
-    eveyFetch<{ values?: Record<string, unknown> }>({
-      url: `/api/v1/plugins/${encodeURIComponent(pluginId)}/config`,
-      method: "GET",
-    })
-      .then((r) => { if (!cancelled) setPluginConfig(r.values ?? {}); })
-      .catch(() => {});
+    (async () => {
+      try {
+        const r = await eveyFetch<{ values?: Record<string, unknown> }>({
+          url: `/api/v1/plugins/${encodeURIComponent(pluginId)}/config`,
+          method: "GET",
+        });
+        if (!cancelled) setPluginConfig(r.values ?? {});
+      } catch (err) {
+        if (process.env.NODE_ENV !== "production") console.warn("PluginSlot config fetch failed", err);
+      }
+    })();
     return () => { cancelled = true; };
   }, [pluginId, accessToken, armed]);
 
@@ -204,6 +209,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   useEffect(() => {
     if (!accessToken || !serverUrl || !armed) return;
     let cancelled = false;
+    const controller = new AbortController();
     (async () => {
       // 1. Try cache — instant on warm starts.
       const cached = await readBundleCache(pluginId, entryPath);
@@ -217,6 +223,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         const url = `${serverUrl}/api/v1/plugins/${encodeURIComponent(pluginId)}/assets/${entryPath}`;
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${accessToken}` },
+          signal: controller.signal,
         });
         if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
         const text = await res.text();
@@ -224,11 +231,12 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         setBundleCode(text);
         // Best-effort write — don't await, don't fail the render path.
         void writeBundleCache(pluginId, entryPath, text);
-      } catch {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") return;
         if (!cancelled) setError(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [pluginId, entryPath, accessToken, serverUrl, armed]);
 
   const isLightTheme = useMemo(() => {
