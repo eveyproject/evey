@@ -73,6 +73,8 @@ nextEpisodeOverlay:
   episode: "第 {{number}} 集"
   nextEpisode: "下一集"
 skipIntro: "跳过片头"
+skipRecap: "跳过前情提要"
+skipCredits: "跳过片尾"
 download: "下载"
 watchTogether: "一起看"
 buffering: "缓冲中…"

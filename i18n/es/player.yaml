@@ -73,6 +73,8 @@ nextEpisodeOverlay:
   episode: "Episodio {{number}}"
   nextEpisode: "Siguiente episodio"
 skipIntro: "Saltar intro"
+skipRecap: "Saltar resumen"
+skipCredits: "Saltar créditos"
 download: "Descargar"
 watchTogether: "Ver juntos"
 buffering: "Cargando…"

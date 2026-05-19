@@ -1330,6 +1330,8 @@
   "player.shortcuts.volumeDown": "Volume down",
   "player.shortcuts.volumeUp": "Volume up",
   "player.skipIntro": "Skip Intro",
+  "player.skipRecap": "Skip Recap",
+  "player.skipCredits": "Skip Credits",
   "player.subtitleStyle.background": "Background",
   "player.subtitleStyle.bottom": "Bottom",
   "player.subtitleStyle.font": "Font",

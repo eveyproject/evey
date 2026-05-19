@@ -73,6 +73,8 @@ nextEpisodeOverlay:
   episode: "Folge {{number}}"
   nextEpisode: Nächste Folge
 skipIntro: Intro überspringen
+skipRecap: Rückblick überspringen
+skipCredits: Abspann überspringen
 download: Herunterladen
 watchTogether: Zusammen schauen
 buffering: "Puffern…"

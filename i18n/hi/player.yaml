@@ -73,6 +73,8 @@ nextEpisodeOverlay:
   episode: "एपिसोड {{number}}"
   nextEpisode: "अगला एपिसोड"
 skipIntro: "इंट्रो छोड़ें"
+skipRecap: "रीकैप छोड़ें"
+skipCredits: "क्रेडिट्स छोड़ें"
 download: "डाउनलोड"
 watchTogether: "साथ में देखें"
 buffering: "बफरिंग…"

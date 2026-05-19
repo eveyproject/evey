@@ -209,4 +209,62 @@ describe("SkipIntroButton", () => {
     );
     expect(container.firstChild).toBeNull();
   });
+
+  // --- recap + end_credits (generalized skip) ---
+
+  const recapSegment: MediaSegment = { type: "recap", startMs: 0, endMs: 30000, confidence: 0.9, source: "audio" };
+  const creditsSegment: MediaSegment = { type: "end_credits", startMs: 1800000, endMs: 1860000, confidence: 0.9, source: "audio" };
+
+  it("renders Skip Recap when the playhead is inside a recap segment", () => {
+    mockUseMediaSegments.mockReturnValue({ data: [recapSegment] });
+    mockUseQuery.mockReturnValue({ data: { chapters: [] } });
+    render(<SkipIntroButton mediaId="m1" currentTime={10} onSkip={vi.fn()} />);
+    expect(screen.getByText("Skip Recap")).toBeInTheDocument();
+  });
+
+  it("renders Skip Credits when the playhead is inside an end_credits segment", () => {
+    mockUseMediaSegments.mockReturnValue({ data: [creditsSegment] });
+    mockUseQuery.mockReturnValue({ data: { chapters: [] } });
+    render(<SkipIntroButton mediaId="m1" currentTime={1810} onSkip={vi.fn()} />);
+    expect(screen.getByText("Skip Credits")).toBeInTheDocument();
+  });
+
+  it("picks the segment the playhead is inside, not just the first (intro shadow bug)", () => {
+    // intro at the start + end_credits at the end. Playhead is in credits.
+    // The old find(first skippable) resolved intro, then the currentTime
+    // guard hid the button entirely — credits were never skippable.
+    mockUseMediaSegments.mockReturnValue({ data: [introSegment, creditsSegment] });
+    mockUseQuery.mockReturnValue({ data: { chapters: [] } });
+    render(<SkipIntroButton mediaId="m1" currentTime={1810} onSkip={vi.fn()} />);
+    expect(screen.getByText("Skip Credits")).toBeInTheDocument();
+    expect(screen.queryByText("Skip Intro")).not.toBeInTheDocument();
+  });
+
+  it("skips to the active segment end on click (credits)", async () => {
+    const user = userEvent.setup();
+    const onSkip = vi.fn();
+    mockUseMediaSegments.mockReturnValue({ data: [creditsSegment] });
+    mockUseQuery.mockReturnValue({ data: { chapters: [] } });
+    render(<SkipIntroButton mediaId="m1" currentTime={1810} onSkip={onSkip} />);
+    await user.click(screen.getByText("Skip Credits"));
+    expect(onSkip).toHaveBeenCalledWith(1860); // endMs 1860000 → 1860s
+  });
+
+  it("recognizes a recap chapter via the MKV fallback", () => {
+    mockUseMediaSegments.mockReturnValue({ data: [] });
+    mockUseQuery.mockReturnValue({
+      data: { chapters: [{ title: "Previously on...", startMs: "0", endMs: "30000" }] },
+    });
+    render(<SkipIntroButton filePath="/media/ep1.mkv" currentTime={10} onSkip={vi.fn()} />);
+    expect(screen.getByText("Skip Recap")).toBeInTheDocument();
+  });
+
+  it("recognizes an end-credits chapter via the MKV fallback", () => {
+    mockUseMediaSegments.mockReturnValue({ data: [] });
+    mockUseQuery.mockReturnValue({
+      data: { chapters: [{ title: "End Credits", startMs: "1800000", endMs: "1860000" }] },
+    });
+    render(<SkipIntroButton filePath="/media/ep1.mkv" currentTime={1810} onSkip={vi.fn()} />);
+    expect(screen.getByText("Skip Credits")).toBeInTheDocument();
+  });
 });
