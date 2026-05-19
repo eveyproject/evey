@@ -133,6 +133,7 @@ type InstallerService struct {
 	installer    plugin.PluginInstaller
 	analyzer     plugin.PluginAnalyzer
 	sigVerifier  plugin.SignatureVerifier
+	runtimes     plugin.RuntimeAvailabilityChecker
 	fs           plugin.PluginFileSystem
 	cssSanitizer plugin.CSSSanitizer
 	permChecker  *PermissionChecker
@@ -175,6 +176,15 @@ func InstallerWithCSSSanitizer(cs plugin.CSSSanitizer) InstallerOption {
 
 func InstallerWithSignatureVerifier(v plugin.SignatureVerifier) InstallerOption {
 	return func(s *InstallerService) { s.sigVerifier = v }
+}
+
+// InstallerWithRuntimeChecker wires a host-runtime detector. When set, the
+// installer refuses any plugin whose declared language is not available
+// on the host, with an actionable message naming the supported runtimes.
+// When unset (nil), the check is skipped (preserves existing behaviour for
+// tests + callers that opt out).
+func InstallerWithRuntimeChecker(c plugin.RuntimeAvailabilityChecker) InstallerOption {
+	return func(s *InstallerService) { s.runtimes = c }
 }
 
 // InstallerWithListDirsFn replaces the default os.ReadDir-based directory
@@ -289,6 +299,18 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	}
 	if err := manifest.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid manifest: %w", err)
+	}
+
+	// Fail fast if the host image lacks the declared runtime. Themes have no
+	// backend language and bypass this check. The checker is optional —
+	// callers that don't wire it (legacy tests) keep the previous behaviour.
+	if s.runtimes != nil && manifest.Kind != plugin.KindTheme && manifest.Language != "" {
+		if !s.runtimes.IsAvailable(manifest.Language) {
+			return nil, fmt.Errorf(
+				"plugin requires %q runtime which is not installed in this image; available runtimes: %v — install the matching image variant (e.g. evey:beta-nodejs for node, evey:beta-full for all runtimes)",
+				manifest.Language, s.runtimes.Available(),
+			)
+		}
 	}
 
 	existing, getErr := s.plugins.GetByName(ctx, manifest.Name)

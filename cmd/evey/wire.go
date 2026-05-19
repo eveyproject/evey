@@ -416,6 +416,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	permChecker := appplugin.NewPermissionChecker(r.Plugin)
 	pluginFS := filesystem.NewPluginFileSystem()
 	cssSanitizer := pluginrunner.NewCSSSanitizer()
+	runtimeChecker := pluginrunner.NewRuntimeAvailability()
+	slog.Info("plugin runtimes detected", slog.Any("available", runtimeChecker.Available()))
 	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, infra.pluginRunner, infra.manifestParser, bus,
 		appplugin.InstallerWithInstaller(infra.pluginInstaller),
 		appplugin.InstallerWithAnalyzer(infra.pluginAnalyzer),
@@ -423,6 +425,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appplugin.InstallerWithPermissionChecker(permChecker),
 		appplugin.InstallerWithFileSystem(pluginFS),
 		appplugin.InstallerWithCSSSanitizer(cssSanitizer),
+		appplugin.InstallerWithRuntimeChecker(runtimeChecker),
 	)
 	// Reap any plugin install dirs left behind by uninstalls that crashed
 	// before the FS removal succeeded. Async so it never blocks startup.

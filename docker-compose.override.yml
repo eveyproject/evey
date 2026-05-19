@@ -5,9 +5,25 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
 
+  # Standalone Meilisearch container for dev — easier to attach the Meili
+  # UI / curl directly on :7700 than to tunnel into the evey container.
+  # Prod runs Meili embedded inside evey (see entrypoint.sh + base compose).
   meilisearch:
+    container_name: evey-meilisearch
+    image: getmeili/meilisearch:v1.12
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
+      MEILI_NO_ANALYTICS: "true"
     ports:
       - "${MEILI_PORT:-7700}:7700"
+    volumes:
+      - ./meili-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
 
   mailcatcher:
     container_name: evey-mailcatcher
@@ -31,6 +47,13 @@ services:
       EVEY_LOG_LEVEL: debug
       EVEY_RATELIMIT_LOGIN_MAX: "1000"
       EVEY_RATELIMIT_GLOBAL_MAX: "10000"
+      # Dev points at the standalone meili container above, NOT the embedded
+      # one in the evey image — keeps Meili UI accessible on :7700 and lets
+      # `docker compose restart meilisearch` reset just the index without
+      # restarting the app.
+      EVEY_EMBEDDED_MEILI: "false"
+      EVEY_MEILI_URL: http://meilisearch:7700
+      # MEILI_MASTER_KEY is already inherited from the project .env file.
     # bwrap needs CAP_SYS_ADMIN to create user/pid/net namespaces. Docker
     # drops it by default (kernel.unprivileged_userns_clone=0 inside the
     # container), so plugin sandbox setup fails with "No permissions to
@@ -49,6 +72,14 @@ services:
     healthcheck:
       start_period: 60s
       retries: 10
+    # Override base depends_on so the dev evey waits on the standalone meili
+    # container too (base only depends on postgres now that prod ships meili
+    # embedded inside the image).
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
 
   # Vite dev server with HMR
   web:

@@ -936,3 +936,106 @@ func TestApplyUpdate_PluginNotFound(t *testing.T) {
 	_, err := svc.ApplyUpdate(context.Background(), "plg-ghost", tmpZip(t, "v1"), strings.Repeat("0", 64))
 	assert.ErrorIs(t, err, appplugin.ErrPluginNotFound)
 }
+
+// --- RuntimeChecker integration ---
+
+func TestInstallPlugin_RuntimeMissing_Refused(t *testing.T) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	installer := plgfakes.NewFakePluginInstaller()
+	analyzer := plgfakes.NewFakePluginAnalyzer()
+	pluginFS := plgfakes.NewFakePluginFileSystem()
+	// Host only has python — installing a node plugin must fail with a hint.
+	checker := plgfakes.NewRuntimeChecker("python", "go")
+
+	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus,
+		appplugin.InstallerWithInstaller(installer),
+		appplugin.InstallerWithAnalyzer(analyzer),
+		appplugin.InstallerWithPluginDir(t.TempDir()),
+		appplugin.InstallerWithFileSystem(pluginFS),
+		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithRuntimeChecker(checker),
+	)
+
+	parser.Result = &plugindomain.PluginManifest{
+		Name:       "needs-node",
+		Kind:       plugindomain.KindPlugin,
+		Version:    "1.0.0",
+		Language:   "nodejs",
+		Entrypoint: "node main.js",
+	}
+
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"nodejs"`)
+	assert.Contains(t, err.Error(), "evey:beta") // hint at image variants
+	// repo must remain empty — install must not have any side effect.
+	all, _ := pluginRepo.List(context.Background())
+	assert.Empty(t, all)
+}
+
+func TestInstallPlugin_RuntimeAvailable_Allowed(t *testing.T) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	installer := plgfakes.NewFakePluginInstaller()
+	analyzer := plgfakes.NewFakePluginAnalyzer()
+	pluginFS := plgfakes.NewFakePluginFileSystem()
+	checker := plgfakes.NewRuntimeChecker("python", "go", "nodejs")
+
+	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus,
+		appplugin.InstallerWithInstaller(installer),
+		appplugin.InstallerWithAnalyzer(analyzer),
+		appplugin.InstallerWithPluginDir(t.TempDir()),
+		appplugin.InstallerWithFileSystem(pluginFS),
+		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithRuntimeChecker(checker),
+	)
+
+	parser.Result = &plugindomain.PluginManifest{
+		Name:       "node-ok",
+		Kind:       plugindomain.KindPlugin,
+		Version:    "1.0.0",
+		Language:   "nodejs",
+		Entrypoint: "node main.js",
+	}
+
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
+	require.NoError(t, err)
+	assert.Equal(t, "node-ok", p.Name)
+}
+
+func TestInstallPlugin_ThemeSkipsRuntimeCheck(t *testing.T) {
+	// Themes have no backend runtime; checker must not gate them even when
+	// the host is bare.
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	installer := plgfakes.NewFakePluginInstaller()
+	analyzer := plgfakes.NewFakePluginAnalyzer()
+	pluginFS := plgfakes.NewFakePluginFileSystem()
+	checker := plgfakes.NewRuntimeChecker() // empty: nothing available
+
+	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus,
+		appplugin.InstallerWithInstaller(installer),
+		appplugin.InstallerWithAnalyzer(analyzer),
+		appplugin.InstallerWithPluginDir(t.TempDir()),
+		appplugin.InstallerWithFileSystem(pluginFS),
+		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+		appplugin.InstallerWithRuntimeChecker(checker),
+	)
+
+	parser.Result = &plugindomain.PluginManifest{
+		Kind:    plugindomain.KindTheme,
+		Name:    "bare-theme",
+		Version: "1.0.0",
+	}
+
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
+	require.NoError(t, err)
+	assert.Equal(t, "bare-theme", p.Name)
+}

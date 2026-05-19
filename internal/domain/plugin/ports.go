@@ -79,3 +79,16 @@ type PluginFileSystem interface {
 type SignatureVerifier interface {
 	VerifySignature(ctx context.Context, zipPath, sigPath string) (*SignatureStatus, error)
 }
+
+// RuntimeAvailabilityChecker reports which plugin runtime languages the
+// host image actually supports. Used at install time to fail fast with an
+// actionable message instead of letting the plugin crash at exec.
+//
+// IsAvailable returns true for languages with a usable interpreter on PATH
+// (or compiled-only languages like "go" that need no runtime). Available
+// returns the sorted list of supported languages so the installer can
+// surface them in the error message ("install evey:beta-full to get php").
+type RuntimeAvailabilityChecker interface {
+	IsAvailable(language string) bool
+	Available() []string
+}

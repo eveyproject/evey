@@ -119,7 +119,7 @@ jobs:
         run: pnpm run build
 
   docker:
-    name: Docker — build & push (Docker Hub + GHCR)
+    name: Docker — build & push (${{ matrix.runtime.name }})
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     # Only publish on push events (branch push or release tag) — never on PRs.
@@ -129,6 +129,18 @@ jobs:
     permissions:
       contents: read
       packages: write # required to push to ghcr.io
+    strategy:
+      fail-fast: false
+      # Three image variants are published in parallel. The `lean` variant is
+      # the default tag (no suffix) — python3 only. `-nodejs` adds node for
+      # JS plugins, `-full` adds php + ruby + lua too. The Dockerfile's
+      # RUNTIMES build-arg drives which apk packages are layered in.
+      # See Dockerfile stage 5 + docker/entrypoint.sh.
+      matrix:
+        runtime:
+          - { name: lean,   suffix: ''        }
+          - { name: nodejs, suffix: '-nodejs' }
+          - { name: full,   suffix: '-full'   }
     steps:
       - uses: actions/checkout@v5
 
@@ -141,6 +153,12 @@ jobs:
       # - push git tag vX.Y.Z       → `X.Y.Z`   + `X.Y` + `X` + `latest` + `sha-<short>`
       # `latest` is gated on vX.Y.Z tags only so it always means "latest
       # semver release", never "last commit on master that happened to build".
+      #
+      # The matrix variant suffix (`-nodejs`, `-full`) is applied to every
+      # tag via `flavor.suffix` so each variant gets a parallel set:
+      #   beta-0.0.1, beta-0.0.1-nodejs, beta-0.0.1-full
+      #   v1.2.3,     v1.2.3-nodejs,     v1.2.3-full
+      #   latest,     latest-nodejs,     latest-full   (release only)
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
@@ -155,6 +173,8 @@ jobs:
             type=semver,pattern={{major}}
             type=sha,prefix=sha-,format=short
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+          flavor: |
+            suffix=${{ matrix.runtime.suffix }},onlatest=true
 
       - uses: docker/setup-buildx-action@v3
 
@@ -179,6 +199,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            RUNTIMES=${{ matrix.runtime.name }}
+          # Scope the GHA cache per variant so a `full` build never overwrites
+          # the `lean` cache and vice versa — buildx layers diverge only in the
+          # apk layer but the cache key needs to reflect that to stay correct.
+          cache-from: type=gha,scope=docker-${{ matrix.runtime.name }}
+          cache-to: type=gha,mode=max,scope=docker-${{ matrix.runtime.name }}
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
