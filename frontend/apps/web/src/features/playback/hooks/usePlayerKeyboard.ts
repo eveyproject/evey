@@ -53,6 +53,17 @@ export function usePlayerKeyboard({
       const video = videoRef.current;
       if (!video) return;
 
+      // Don't hijack typing: if focus is in a text field (search box,
+      // settings input, contentEditable), let the keystroke through instead
+      // of treating "k"/"l"/"j"/space as player shortcuts.
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable) {
+          return;
+        }
+      }
+
       switch (e.key) {
         case "Escape":
           e.preventDefault();
@@ -82,7 +93,12 @@ export function usePlayerKeyboard({
         case "l": {
           e.preventDefault();
           const dur = knownDurationSecRef.current > 0 ? knownDurationSecRef.current : (video.duration && isFinite(video.duration)) ? video.duration : 0;
-          seekRef.current(Math.min(dur || video.currentTime + skipFwdRef.current, positionRef.current + skipFwdRef.current));
+          // Target is the ABSOLUTE position + skip; clamp to duration only
+          // when it's known. The previous `dur || (currentTime + skip)`
+          // fallback used a LOCAL value as the ceiling, which in transcode
+          // mode (positionRef absolute > local) seeked backwards.
+          const fwdTarget = positionRef.current + skipFwdRef.current;
+          seekRef.current(dur > 0 ? Math.min(dur, fwdTarget) : fwdTarget);
           break;
         }
         case "ArrowUp":

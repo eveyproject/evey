@@ -156,9 +156,12 @@ export function useTouchGestures({
         const video = videoRef.current;
         if (!video) return;
         const dur = knownDurationSecRef.current > 0 ? knownDurationSecRef.current : (video.duration && isFinite(video.duration)) ? video.duration : 0;
+        const fwdTarget = pos + skipFwdRef.current;
         const target = isLeft
           ? Math.max(0, pos - skipBwdRef.current)
-          : Math.min(dur || pos + skipFwdRef.current, pos + skipFwdRef.current);
+          // Clamp forward to duration only when known; the old `dur || ...`
+          // fallback never clamped (and used a local-ish ceiling).
+          : (dur > 0 ? Math.min(dur, fwdTarget) : fwdTarget);
         seekRef.current(target);
         setSeekFlash(isLeft ? "left" : "right");
         if (seekFlashTimerRef.current) clearTimeout(seekFlashTimerRef.current);
