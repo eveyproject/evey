@@ -15,7 +15,6 @@ func TestEventNames(t *testing.T) {
 	}{
 		{playback.PlaybackStarted{}, "playback.started"},
 		{playback.PlaybackStopped{}, "playback.stopped"},
-		{playback.PlaybackProgressReported{}, "playback.progress.reported"},
 		{playback.MediaMarkedWatched{}, "media.marked.watched"},
 	}
 

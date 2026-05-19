@@ -20,21 +20,10 @@ type PlaybackStopped struct {
 	SessionID   string
 	ProfileID   shared.ProfileID
 	MediaItemID shared.MediaItemID
-	PositionMs  int64
 	OccurredAt  time.Time
 }
 
 func (e PlaybackStopped) EventName() string { return "playback.stopped" }
-
-type PlaybackProgressReported struct {
-	SessionID   string
-	ProfileID   shared.ProfileID
-	MediaItemID shared.MediaItemID
-	PositionMs  int64
-	OccurredAt  time.Time
-}
-
-func (e PlaybackProgressReported) EventName() string { return "playback.progress.reported" }
 
 type MediaMarkedWatched struct {
 	ProfileID   shared.ProfileID
