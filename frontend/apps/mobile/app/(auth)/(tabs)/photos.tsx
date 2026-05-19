@@ -26,30 +26,34 @@ interface LibraryItem {
   type: string;
 }
 
+// Field names are lowerCamelCase because /api/v1/photos* is served by the
+// grpc-gateway (protojson), not a custom PascalCase HTTP handler. Reading
+// PascalCase here previously yielded `undefined` for every field — the
+// grid 404'd on /photos/undefined/serve and albums showed blank.
 interface Album {
-  Name: string;
-  LibraryID: string;
-  PhotoCount: number;
-  CoverPhotoID: string;
+  name: string;
+  libraryId: string;
+  photoCount: number;
+  coverPhotoId: string;
 }
 
 interface Photo {
-  ID: string;
-  Title: string;
-  Album: string;
+  id: string;
+  title: string;
+  album: string;
 }
 
 interface PhotoDetail {
-  ID: string;
-  Title: string;
-  FilePath: string;
-  FileSize: number;
-  MimeType: string;
-  Width: number;
-  Height: number;
-  TakenAt: string;
-  CameraModel: string;
-  Album: string;
+  id: string;
+  title: string;
+  filePath: string;
+  fileSize: number;
+  mimeType: string;
+  width: number;
+  height: number;
+  takenAt: string;
+  cameraModel: string;
+  album: string;
 }
 
 const NUM_PHOTO_COLS = 3;
@@ -116,7 +120,7 @@ export default function PhotosScreen() {
   const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
   const { data: albums, isLoading: albumsLoading } = useAlbums(activeLibraryID);
   const { data: photos, isLoading: photosLoading } = usePhotos(activeLibraryID);
-  const { data: photoDetail } = usePhotoDetail(lightboxPhoto?.ID);
+  const { data: photoDetail } = usePhotoDetail(lightboxPhoto?.id);
 
   const photoUrl = useCallback(
     (id: string) => (serverUrl ? `${serverUrl}/api/v1/photos/${id}/serve` : undefined),
@@ -125,7 +129,7 @@ export default function PhotosScreen() {
 
   const renderPhoto = useCallback(
     ({ item }: { item: Photo }) => {
-      const uri = photoUrl(item.ID);
+      const uri = photoUrl(item.id);
       return (
         <TouchableOpacity
           activeOpacity={0.85}
@@ -150,7 +154,7 @@ export default function PhotosScreen() {
 
   const renderAlbum = useCallback(
     ({ item }: { item: Album }) => {
-      const coverUri = item.CoverPhotoID ? photoUrl(item.CoverPhotoID) : undefined;
+      const coverUri = item.coverPhotoId ? photoUrl(item.coverPhotoId) : undefined;
       return (
         <View style={[styles.albumCard, { width: ALBUM_SIZE, backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
           {coverUri ? (
@@ -165,8 +169,8 @@ export default function PhotosScreen() {
               <Text style={{ fontSize: 32 }}>📷</Text>
             </View>
           )}
-          <Text style={[styles.albumTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.Name}</Text>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.PhotoCount} photo{item.PhotoCount !== 1 ? "s" : ""}</Text>
+          <Text style={[styles.albumTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.photoCount} photo{item.photoCount !== 1 ? "s" : ""}</Text>
         </View>
       );
     },
@@ -239,7 +243,7 @@ export default function PhotosScreen() {
           ) : (
             <FlatList
               data={albums}
-              keyExtractor={(item) => item.Name}
+              keyExtractor={(item) => item.name}
               renderItem={renderAlbum}
               numColumns={NUM_ALBUM_COLS}
               scrollEnabled={false}
@@ -262,7 +266,7 @@ export default function PhotosScreen() {
           ) : (
             <FlatList
               data={photos}
-              keyExtractor={(item) => item.ID}
+              keyExtractor={(item) => item.id}
               renderItem={renderPhoto}
               numColumns={NUM_PHOTO_COLS}
               scrollEnabled={false}
@@ -277,27 +281,27 @@ export default function PhotosScreen() {
         <Pressable style={styles.lightboxBg} onPress={() => setLightboxPhoto(null)}>
           {lightboxPhoto && serverUrl && (
             <Image
-              source={{ uri: photoUrl(lightboxPhoto.ID), headers: authHeaders }}
+              source={{ uri: photoUrl(lightboxPhoto.id), headers: authHeaders }}
               style={styles.lightboxImage}
               contentFit="contain"
             />
           )}
           {lightboxPhoto && (
             <View style={styles.lightboxMeta}>
-              <Text style={styles.lightboxTitle} numberOfLines={1}>{lightboxPhoto.Title || lightboxPhoto.Album || ""}</Text>
+              <Text style={styles.lightboxTitle} numberOfLines={1}>{lightboxPhoto.title || lightboxPhoto.album || ""}</Text>
               {photoDetail && (
                 <View style={{ gap: 2, marginTop: 6, alignItems: "center" }}>
-                  {photoDetail.Width > 0 && photoDetail.Height > 0 && (
-                    <Text style={styles.lightboxInfo}>{photoDetail.Width} x {photoDetail.Height}</Text>
+                  {photoDetail.width > 0 && photoDetail.height > 0 && (
+                    <Text style={styles.lightboxInfo}>{photoDetail.width} x {photoDetail.height}</Text>
                   )}
-                  {photoDetail.FileSize > 0 && (
-                    <Text style={styles.lightboxInfo}>{formatFileSize(photoDetail.FileSize)}</Text>
+                  {photoDetail.fileSize > 0 && (
+                    <Text style={styles.lightboxInfo}>{formatFileSize(photoDetail.fileSize)}</Text>
                   )}
-                  {photoDetail.TakenAt && (
-                    <Text style={styles.lightboxInfo}>{new Date(photoDetail.TakenAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+                  {photoDetail.takenAt && (
+                    <Text style={styles.lightboxInfo}>{new Date(photoDetail.takenAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
                   )}
-                  {photoDetail.CameraModel && (
-                    <Text style={styles.lightboxInfo}>{photoDetail.CameraModel}</Text>
+                  {photoDetail.cameraModel && (
+                    <Text style={styles.lightboxInfo}>{photoDetail.cameraModel}</Text>
                   )}
                 </View>
               )}
