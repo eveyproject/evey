@@ -16,6 +16,8 @@ import type {
   LibraryServiceListMediaItemsType,
   LibraryServiceListMediaItemsSortField,
   LibraryServiceSearchMediaType,
+  LibraryServiceSearchMediaSortField,
+  LibraryServiceSearchMediaSortOrder,
   V1MediaItem,
 } from "@evey/api";
 import { Button } from "@/components/ui/Button";
@@ -275,7 +277,7 @@ function LibraryPage() {
   const trimmedSearch = searchTerm.trim();
   const searchActive = trimmedSearch.length > 0;
   const searchQuery = useQuery({
-    queryKey: ["lib-search", libraryId, trimmedSearch, typeFilter ?? "", genreFilter, search.yearFrom ?? null, search.yearTo ?? null],
+    queryKey: ["lib-search", libraryId, trimmedSearch, typeFilter ?? "", genreFilter, search.yearFrom ?? null, search.yearTo ?? null, sortField, sortOrder],
     enabled: searchActive && !!libraryId,
     queryFn: ({ signal }) =>
       libraryServiceSearchMedia(
@@ -286,6 +288,11 @@ function LibraryPage() {
           ...(genreFilter ? { genre: genreFilter } : {}),
           ...(search.yearFrom != null ? { yearMin: search.yearFrom } : {}),
           ...(search.yearTo != null ? { yearMax: search.yearTo } : {}),
+          // Honor the toolbar sort while searching (the API supports it);
+          // without this the query key also ignored sort, so changing sort
+          // mid-search returned stale cached results.
+          sortField: sortField as unknown as LibraryServiceSearchMediaSortField,
+          sortOrder: sortOrder as unknown as LibraryServiceSearchMediaSortOrder,
           limit: 120,
         },
         signal,
