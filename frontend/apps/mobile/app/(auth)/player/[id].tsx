@@ -748,6 +748,7 @@ export default function PlayerScreen() {
 
         {/* Skip intro */}
         <SkipIntroOverlay
+          mediaId={mediaId}
           filePath={media?.filePath}
           currentTime={currentTime}
           onSkip={handleSkipIntro}
