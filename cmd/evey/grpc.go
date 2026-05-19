@@ -85,6 +85,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 	grpcSrv := grpcapi.NewGRPCServer(grpcDeps,
 		grpc.MaxRecvMsgSize(16*1024*1024),
 		grpc.ChainUnaryInterceptor(
+			interceptors.RecoveryUnary(),
 			interceptors.ErrorSanitizerUnary(),
 			interceptors.LocaleUnary(),
 			interceptors.ClientInfoUnary(),
@@ -94,6 +95,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 			authInterceptor.Unary(),
 		),
 		grpc.ChainStreamInterceptor(
+			interceptors.RecoveryStream(),
 			interceptors.ErrorSanitizerStream(),
 			interceptors.LocaleStream(),
 			interceptors.ClientInfoStream(),
