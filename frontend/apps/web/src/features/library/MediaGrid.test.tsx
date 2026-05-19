@@ -1,7 +1,7 @@
 import React from "react";
 import { renderWithQueryClient } from "@/test/test-utils";
-import { screen } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { MediaGrid } from "./MediaGrid";
 
 vi.mock("react-virtuoso", () => ({
@@ -22,8 +22,22 @@ vi.mock("react-virtuoso", () => ({
   },
 }));
 
+// MediaGrid defers VirtuosoGrid mount until `#main-content` (AuthLayout's
+// scrollable region) resolves on the client. JSDOM doesn't render
+// AuthLayout, so the test must add the element before mounting or the
+// component renders 12 skeleton cards instead of the children.
 describe("MediaGrid", () => {
-  it("renders grid of children", () => {
+  let mainContent: HTMLElement;
+  beforeEach(() => {
+    mainContent = document.createElement("main");
+    mainContent.id = "main-content";
+    document.body.appendChild(mainContent);
+  });
+  afterEach(() => {
+    document.body.removeChild(mainContent);
+  });
+
+  it("renders grid of children", async () => {
     renderWithQueryClient(
       <MediaGrid>
         <div data-testid="card-1">Card 1</div>
@@ -31,7 +45,9 @@ describe("MediaGrid", () => {
         <div data-testid="card-3">Card 3</div>
       </MediaGrid>,
     );
-    expect(screen.getByTestId("card-1")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId("card-1")).toBeInTheDocument();
+    });
     expect(screen.getByTestId("card-2")).toBeInTheDocument();
     expect(screen.getByTestId("card-3")).toBeInTheDocument();
   });

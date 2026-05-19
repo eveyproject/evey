@@ -110,10 +110,16 @@ describe("ServerConfigPage", () => {
     mockUseQuery.mockReturnValue({ data: mockEntries, isLoading: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    // The page already renders several Save buttons (SMTP form, locale
+    // form, …) before any row enters edit mode. Count them, then click
+    // Edit on the first config row and assert one extra Save (the row's
+    // inline editor) appeared. Cancel is also unique to the inline row.
+    const saveBefore = screen.getAllByRole("button", { name: /^Save$/i }).length;
+    const cancelBefore = screen.queryAllByRole("button", { name: /^Cancel$/i }).length;
     fireEvent.click(screen.getAllByRole("button", { name: /^Edit$/i })[0]);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /^Save$/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /^Cancel$/i })).toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: /^Save$/i }).length).toBe(saveBefore + 1);
+      expect(screen.getAllByRole("button", { name: /^Cancel$/i }).length).toBe(cancelBefore + 1);
     });
   });
 
