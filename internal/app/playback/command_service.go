@@ -330,7 +330,11 @@ func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaIte
 	}
 	pos, dErr := shared.NewDurationMs(positionMs)
 	if dErr != nil {
+		// Drop a malformed (e.g. negative) position rather than persisting a
+		// zero-valued Duration, which would silently reset the user's resume
+		// point to the start. ReportProgressBySession guards this the same way.
 		slog.Warn("invalid report progress position", slog.String("profileID", profileID), slog.Int64("ms", positionMs), slog.Any("err", dErr))
+		return nil
 	}
 	// Caller-supplied completed is taken as-is when true (explicit
 	// MarkAsWatched-style intent). When the caller says false we still
