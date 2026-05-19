@@ -37,18 +37,23 @@ const HERO_INTERVAL = 8000;
 const HeroBanner = memo(function HeroBanner() {
   const { t } = useTranslation();
   const { data, isLoading } = useFeedServiceRecentlyAdded(undefined, { query: { staleTime: 5 * 60_000 } });
-  const items = data?.items ?? [];
 
-  const candidates = items.filter((i) => !!i.mediaItemId).slice(0, HERO_COUNT);
-  const heroIds = candidates.map((c) => c.mediaItemId!);
+  const candidates = useMemo(
+    () => (data?.items ?? []).filter((i) => !!i.mediaItemId).slice(0, HERO_COUNT),
+    [data],
+  );
+  const heroIds = useMemo(() => candidates.map((c) => c.mediaItemId!), [candidates]);
 
   const details = useQueries({
-    queries: heroIds.map((id) => ({
-      queryKey: [`/api/v1/media/${id}`],
-      queryFn: ({ signal }: { signal: AbortSignal }) => libraryServiceGetMediaItem(id, signal),
-      enabled: !!id,
-      staleTime: 5 * 60_000,
-    })),
+    queries: useMemo(
+      () => heroIds.map((id) => ({
+        queryKey: [`/api/v1/media/${id}`],
+        queryFn: ({ signal }: { signal: AbortSignal }) => libraryServiceGetMediaItem(id, signal),
+        enabled: !!id,
+        staleTime: 5 * 60_000,
+      })),
+      [heroIds],
+    ),
   });
 
   const [activeIndex, setActiveIndex] = useState(0);
@@ -199,9 +204,9 @@ const HeroBanner = memo(function HeroBanner() {
 
       {heroIds.length > 1 && (
         <div className="absolute bottom-4 right-6 flex gap-2 z-raised">
-          {heroIds.map((_, idx) => (
+          {heroIds.map((id, idx) => (
             <button
-              key={idx}
+              key={id}
               onClick={() => goToSlide(idx)}
               className="w-2 h-2 rounded-full transition-all duration-300"
               style={{

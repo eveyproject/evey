@@ -183,6 +183,17 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
   background: linear-gradient(135deg, var(--bg) 0%, var(--bg-gradient-mid) 50%, var(--bg) 100%);
 }
 
+/* TopBar scroll-driven glass — toggled by data-scrolled attribute, no JS re-render */
+.topbar-glass {
+  background-color: var(--surface);
+  border-color: var(--border);
+}
+.topbar-glass[data-scrolled="true"] {
+  background-color: var(--glass-bg);
+  border-color: var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+}
+
 @utility scrollbar-none {
   scrollbar-width: none;
 }

@@ -16,22 +16,30 @@ export function TopBar() {
   const navigate = useNavigate();
   const { location } = useRouterState();
   const inputRef = useRef<HTMLInputElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
   const [searchValue, setSearchValue] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const debouncedSearch = useDebounce(searchValue.trim(), 200);
-  const [scrolled, setScrolled] = useState(false);
 
+  // Scroll-driven glass effect: drive directly via DOM data attribute to avoid
+  // a React re-render on every scroll frame. CSS rules below pick up [data-scrolled].
   useEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
     let raf = 0;
+    let last = false;
     const handler = () => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
-        setScrolled(main.scrollTop > 8);
+        const next = main.scrollTop > 8;
+        if (next !== last && headerRef.current) {
+          headerRef.current.dataset.scrolled = next ? "true" : "false";
+          last = next;
+        }
         raf = 0;
       });
     };
+    handler();
     main.addEventListener("scroll", handler, { passive: true });
     return () => {
       main.removeEventListener("scroll", handler);
@@ -95,12 +103,9 @@ export function TopBar() {
 
   return (
     <header
-      className="h-14 flex items-center justify-between px-3 sm:px-6 border-b shrink-0 transition-all duration-200"
-      style={{
-        backgroundColor: scrolled ? "var(--glass-bg)" : "var(--surface)",
-        backdropFilter: scrolled ? `blur(var(--glass-blur))` : "none",
-        borderColor: scrolled ? "var(--glass-border)" : "var(--border)",
-      }}
+      ref={headerRef}
+      data-scrolled="false"
+      className="topbar-glass h-14 flex items-center justify-between px-3 sm:px-6 border-b shrink-0 transition-all duration-200"
     >
       <div className="flex-1">
         <div className="relative w-full max-w-[60vw] sm:max-w-80">
