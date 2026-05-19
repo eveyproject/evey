@@ -38,6 +38,7 @@ vi.mock("@kesha-antonov/react-native-background-downloader", () => ({
       progress: vi.fn((cb: TaskHandlers["progress"]) => { handlers.progress = cb; return task; }),
       done: vi.fn((cb: TaskHandlers["done"]) => { handlers.done = cb; return task; }),
       error: vi.fn((cb: TaskHandlers["error"]) => { handlers.error = cb; return task; }),
+      start: vi.fn(),
       stop: vi.fn(),
     };
     return task;
@@ -133,6 +134,11 @@ describe("startDownload", () => {
       destination: expect.stringContaining("evey-m3.mp4"),
       metadata: { title: "Movie 3" },
     }));
+    // task.start() must be invoked after handlers are chained — without it
+    // createDownloadTask only registers the task, it doesn't kick the OS
+    // download (see DownloadTask.ts `start()` in the lib).
+    const taskMock = createDownloadTaskMock.mock.results.at(-1)?.value;
+    expect(taskMock?.start).toHaveBeenCalled();
 
     handlers.begin?.({ expectedBytes: 5000, headers: {} });
     handlers.done?.({ id: "m3" });

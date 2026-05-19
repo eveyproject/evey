@@ -50,7 +50,11 @@ export default function RootLayout() {
       // app kill — the native foreground service kept them alive, but JS
       // has no memory of them after a fresh process start. Without this,
       // the index never gets updated when those downloads finish.
-      await rehydrateBackgroundDownloads();
+      //
+      // Fire-and-forget: this only re-wires existing tasks (it doesn't start
+      // anything new) and we don't want to block the splash screen on the
+      // native module's lookup.
+      void rehydrateBackgroundDownloads();
     }
     bootstrap()
       .catch((err) => console.error("bootstrap failed:", err))
