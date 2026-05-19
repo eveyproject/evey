@@ -15,6 +15,7 @@ import { migrateFromSingleServer, useServerListStore } from "@evey/store";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { configureAudioSession } from "../src/lib/audio-session";
 import { refreshAccessTokenIfNeeded } from "../src/lib/auth-refresh";
+import { rehydrateBackgroundDownloads } from "../src/lib/downloads";
 
 // Wire Zustand persist to expo-secure-store (must run before stores are accessed)
 setZustandStorage({
@@ -45,6 +46,11 @@ export default function RootLayout() {
         // is not bounced to /login when the cached JWT has expired.
         await refreshAccessTokenIfNeeded();
       }
+      // Re-attach JS callbacks to any background downloads that survived an
+      // app kill — the native foreground service kept them alive, but JS
+      // has no memory of them after a fresh process start. Without this,
+      // the index never gets updated when those downloads finish.
+      await rehydrateBackgroundDownloads();
     }
     bootstrap()
       .catch((err) => console.error("bootstrap failed:", err))

@@ -43,7 +43,8 @@
         }
       ],
       "expo-localization",
-      "react-native-google-cast"
+      "react-native-google-cast",
+      "@kesha-antonov/react-native-background-downloader"
     ]
   }
 }

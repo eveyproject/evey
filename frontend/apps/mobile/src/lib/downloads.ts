@@ -1,7 +1,17 @@
 import * as FileSystem from "expo-file-system";
+import {
+  createDownloadTask,
+  getExistingDownloadTasks,
+  completeHandler,
+  directories,
+} from "@kesha-antonov/react-native-background-downloader";
 import { eveyFetch } from "@evey/api";
 import { getServerUrl } from "./server-config";
 
+// Persistent download index: same path as before so existing offline files
+// remain visible after the background-downloader migration. The lib writes
+// the actual media file under directories.documents (system-managed); we
+// keep an app-level JSON index to map mediaItemId → filePath + metadata.
 const docDir = (FileSystem as any).documentDirectory ?? (FileSystem as any).default?.documentDirectory ?? "";
 const DOWNLOAD_DIR = `${docDir}downloads/`;
 
@@ -14,6 +24,12 @@ export interface DownloadedMedia {
 }
 
 const INDEX_FILE = `${DOWNLOAD_DIR}index.json`;
+
+// Track in-flight downloads in memory so the UI can subscribe to progress
+// updates without re-binding callbacks on every render. Cleared on done/error.
+type ProgressListener = (pct: number) => void;
+const progressListeners = new Map<string, Set<ProgressListener>>();
+const inFlight = new Map<string, { totalBytes: number; downloadedBytes: number }>();
 
 async function ensureDir() {
   const info = await FileSystem.getInfoAsync(DOWNLOAD_DIR);
@@ -40,6 +56,54 @@ export async function getDownloads(): Promise<DownloadedMedia[]> {
   return readIndex();
 }
 
+// destPath under directories.documents (system-managed by the native module).
+// Keep the .mp4 extension so Android's MediaScanner indexes the file and the
+// system player can open it from the downloads folder if needed.
+function destPathFor(mediaItemId: string): string {
+  return `${directories.documents}/evey-${mediaItemId}.mp4`;
+}
+
+function notifyProgress(id: string, pct: number) {
+  const listeners = progressListeners.get(id);
+  if (!listeners) return;
+  listeners.forEach((cb) => { try { cb(pct); } catch { /* silent */ } });
+}
+
+export function subscribeToProgress(mediaItemId: string, cb: ProgressListener): () => void {
+  let set = progressListeners.get(mediaItemId);
+  if (!set) {
+    set = new Set();
+    progressListeners.set(mediaItemId, set);
+  }
+  set.add(cb);
+  return () => {
+    set?.delete(cb);
+    if (set && set.size === 0) progressListeners.delete(mediaItemId);
+  };
+}
+
+export function getInFlightProgress(mediaItemId: string): number | null {
+  const state = inFlight.get(mediaItemId);
+  if (!state) return null;
+  if (state.totalBytes <= 0) return NaN;
+  return state.downloadedBytes / state.totalBytes;
+}
+
+async function persistDownloaded(mediaItemId: string, title: string, destPath: string, totalBytes: number) {
+  const index = await readIndex();
+  // Replace any existing entry with the same id so retry-after-failure keeps
+  // a single row instead of accumulating duplicates.
+  const without = index.filter((i) => i.mediaItemId !== mediaItemId);
+  without.push({
+    mediaItemId,
+    title,
+    filePath: destPath,
+    fileSize: totalBytes,
+    downloadedAt: new Date().toISOString(),
+  });
+  await writeIndex(without);
+}
+
 export async function startDownload(
   mediaItemId: string,
   title: string,
@@ -54,36 +118,94 @@ export async function startDownload(
     method: "POST",
   });
   const streamUrl = `${serverUrl}/api/v1/media/${mediaItemId}/download?token=${token}`;
-  const destPath = `${DOWNLOAD_DIR}${mediaItemId}.mp4`;
+  const destPath = destPathFor(mediaItemId);
 
-  const downloadResumable = FileSystem.createDownloadResumable(
-    streamUrl,
-    destPath,
-    {},
-    (downloadProgress) => {
-      const expected = downloadProgress.totalBytesExpectedToWrite;
-      // Servers that omit Content-Length report `expected = 0` here — yield
-      // an indeterminate progress (NaN flips the UI bar to a striped state)
-      // rather than poisoning the consumer with NaN.
-      const pct = expected > 0 ? downloadProgress.totalBytesWritten / expected : NaN;
-      onProgress?.(pct);
-    },
-  );
+  if (onProgress) subscribeToProgress(mediaItemId, onProgress);
+  inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
 
-  const result = await downloadResumable.downloadAsync();
-  if (!result) throw new Error("Download failed");
+  return new Promise<string>((resolve, reject) => {
+    const task = createDownloadTask({
+      id: mediaItemId,
+      url: streamUrl,
+      destination: destPath,
+      metadata: { title },
+    });
 
-  const index = await readIndex();
-  index.push({
-    mediaItemId,
-    title,
-    filePath: destPath,
-    fileSize: result.headers?.["content-length"] ? parseInt(result.headers["content-length"]) : 0,
-    downloadedAt: new Date().toISOString(),
+    task
+      .begin(({ expectedBytes }) => {
+        const state = inFlight.get(mediaItemId);
+        if (state) state.totalBytes = expectedBytes ?? 0;
+      })
+      .progress(({ bytesDownloaded, bytesTotal }) => {
+        const state = inFlight.get(mediaItemId);
+        if (state) {
+          state.downloadedBytes = bytesDownloaded;
+          if (bytesTotal > 0) state.totalBytes = bytesTotal;
+        }
+        const pct = bytesTotal > 0 ? bytesDownloaded / bytesTotal : NaN;
+        notifyProgress(mediaItemId, pct);
+      })
+      .done(async () => {
+        const state = inFlight.get(mediaItemId);
+        const totalBytes = state?.totalBytes ?? 0;
+        try {
+          await persistDownloaded(mediaItemId, title, destPath, totalBytes);
+        } catch (err) {
+          if (process.env.NODE_ENV !== "production") console.warn("persist download index", err);
+        }
+        inFlight.delete(mediaItemId);
+        completeHandler(mediaItemId);
+        resolve(destPath);
+      })
+      .error(({ error }) => {
+        inFlight.delete(mediaItemId);
+        completeHandler(mediaItemId);
+        reject(new Error(error || "Download failed"));
+      });
   });
-  await writeIndex(index);
+}
 
-  return destPath;
+// rehydrateBackgroundDownloads must be called once at app startup. It picks
+// up downloads that were running when the app was killed (foreground service
+// kept them alive at the OS level) and re-attaches our JS callbacks so the
+// UI can track them again. Without this, an in-progress download finishes
+// silently and the index never gets updated.
+export async function rehydrateBackgroundDownloads(): Promise<void> {
+  let tasks: Awaited<ReturnType<typeof getExistingDownloadTasks>>;
+  try {
+    tasks = await getExistingDownloadTasks();
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") console.warn("rehydrate downloads", err);
+    return;
+  }
+  for (const task of tasks) {
+    const mediaItemId = task.id;
+    const title = (task.metadata as { title?: string })?.title ?? mediaItemId;
+    const destPath = destPathFor(mediaItemId);
+    inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
+    task
+      .progress(({ bytesDownloaded, bytesTotal }) => {
+        const state = inFlight.get(mediaItemId);
+        if (state) {
+          state.downloadedBytes = bytesDownloaded;
+          if (bytesTotal > 0) state.totalBytes = bytesTotal;
+        }
+        const pct = bytesTotal > 0 ? bytesDownloaded / bytesTotal : NaN;
+        notifyProgress(mediaItemId, pct);
+      })
+      .done(async () => {
+        const state = inFlight.get(mediaItemId);
+        try {
+          await persistDownloaded(mediaItemId, title, destPath, state?.totalBytes ?? 0);
+        } catch { /* silent */ }
+        inFlight.delete(mediaItemId);
+        completeHandler(mediaItemId);
+      })
+      .error(() => {
+        inFlight.delete(mediaItemId);
+        completeHandler(mediaItemId);
+      });
+  }
 }
 
 export async function deleteDownload(mediaItemId: string): Promise<void> {
