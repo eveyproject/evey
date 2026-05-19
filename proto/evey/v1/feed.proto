@@ -95,6 +95,10 @@ message FeedItem {
   // "S{season}E{episode} - {title}" without another roundtrip.
   int32 season_number = 8;
   int32 episode_number = 9;
+  // Primary artwork blurhash placeholder. Empty when the item has no
+  // primary artwork or pre-dates the blurhash field. Lets home/library
+  // grids render a coloured preview before the poster image loads.
+  string primary_blurhash = 10;
 }
 
 message MergedFeedConfig {

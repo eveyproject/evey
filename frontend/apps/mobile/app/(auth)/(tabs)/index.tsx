@@ -666,11 +666,20 @@ export default function HomeScreen() {
     return map;
   }, [resume.data?.progress]);
 
+  // Synthesize a minimal artwork[] from the FeedItem.primaryBlurhash so the
+  // MediaCard placeholder path (which reads item.artwork) works without the
+  // mobile MediaRow having to grow a parallel blurhash prop. The card's
+  // hash extractor is already tolerant of unknown fields on artwork.
   const recentItems = useMemo(
     () =>
       (recentlyAdded.data?.items ?? [])
         .filter((i) => !!i.mediaItemId)
-        .map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem),
+        .map((i) => ({
+          id: i.mediaItemId,
+          title: i.title,
+          type: i.type,
+          artwork: i.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: i.primaryBlurhash }] : undefined,
+        }) as V1MediaItem),
     [recentlyAdded.data?.items],
   );
 
@@ -678,7 +687,12 @@ export default function HomeScreen() {
     () =>
       (recommended.data?.items ?? [])
         .filter((i) => !!i.mediaItemId)
-        .map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem),
+        .map((i) => ({
+          id: i.mediaItemId,
+          title: i.title,
+          type: i.type,
+          artwork: i.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: i.primaryBlurhash }] : undefined,
+        }) as V1MediaItem),
     [recommended.data?.items],
   );
 

@@ -404,7 +404,7 @@ func (h *feedHandler) BatchUpdateAdminFeedConfigs(ctx context.Context, req *evey
 }
 
 func feedItemToProto(item *feed.FeedItem) *eveyv1.FeedItem {
-	return &eveyv1.FeedItem{
+	pb := &eveyv1.FeedItem{
 		MediaItemId:   string(item.MediaItemID),
 		ParentId:      item.ParentID,
 		Title:         item.Title,
@@ -415,6 +415,10 @@ func feedItemToProto(item *feed.FeedItem) *eveyv1.FeedItem {
 		SeasonNumber:  int32(item.SeasonNumber),
 		EpisodeNumber: int32(item.EpisodeNumber),
 	}
+	if item.PrimaryBlurhash != nil {
+		pb.PrimaryBlurhash = *item.PrimaryBlurhash
+	}
+	return pb
 }
 
 func feedItemsToResponse(items []*feed.FeedItem) *eveyv1.FeedResponse {

@@ -34,6 +34,13 @@ export interface MediaCardProps {
   item: MediaCardItem;
   href?: string;
   posterSrc?: string;
+  /**
+   * Explicit blurhash for the poster placeholder. Used by feed sliders that
+   * receive a FeedItem (which carries primaryBlurhash inline) instead of a
+   * full MediaItem with its artwork array. When omitted, the card falls
+   * back to the primary/backdrop hash on item.artwork.
+   */
+  posterBlurhash?: string;
   showProgress?: boolean;
   progressPercent?: number;
   showYear?: boolean;
@@ -58,6 +65,7 @@ export const MediaCard = memo(function MediaCard({
   item,
   href,
   posterSrc,
+  posterBlurhash: posterBlurhashProp,
   showProgress,
   progressPercent,
   showYear = true,
@@ -107,17 +115,18 @@ export const MediaCard = memo(function MediaCard({
       ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster` : null);
   }, [posterSrc, item.id]);
 
-  // Pull the primary artwork's blurhash (if any) for the placeholder. We
-  // fall back to backdrop hash when primary is missing — better than a flat
-  // background, and the type ordering in artwork list already prefers
-  // primary first. Empty string when neither is present.
+  // Pull the primary artwork's blurhash (if any) for the placeholder. The
+  // explicit posterBlurhashProp from a caller (e.g. feed slider) wins; we
+  // fall back to primary → backdrop on item.artwork for detail pages with
+  // a full MediaItem. Empty string when neither is present.
   const posterBlurhash = useMemo(() => {
+    if (posterBlurhashProp) return posterBlurhashProp;
     const arts = (item.artwork ?? []) as V1Artwork[];
     const primary = arts.find((a) => a.type === "ARTWORK_TYPE_PRIMARY");
     if (primary?.blurhash) return primary.blurhash;
     const backdrop = arts.find((a) => a.type === "ARTWORK_TYPE_BACKDROP");
     return backdrop?.blurhash ?? "";
-  }, [item.artwork]);
+  }, [item.artwork, posterBlurhashProp]);
 
   const posterSrcSet = useMemo(() => {
     if (!poster) return undefined;

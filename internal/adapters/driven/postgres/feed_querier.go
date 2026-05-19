@@ -4,7 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
+
+	"github.com/lib/pq"
 
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -103,7 +106,12 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 		return nil, err
 	}
 	defer rows.Close()
-	return scanFeedItems(rows)
+	items, err := scanFeedItems(rows)
+	if err != nil {
+		return nil, err
+	}
+	q.fillPrimaryBlurhashes(ctx, items)
+	return items, nil
 }
 
 // ResumePlayback returns in-progress media AND next episodes per series, sorted by last user interaction.
@@ -165,7 +173,12 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 		return nil, err
 	}
 	defer rows.Close()
-	return scanFeedItems(rows)
+	items, err := scanFeedItems(rows)
+	if err != nil {
+		return nil, err
+	}
+	q.fillPrimaryBlurhashes(ctx, items)
+	return items, nil
 }
 
 // NextEpisode returns the next unwatched episode per series where the user completed at least one episode.
@@ -204,7 +217,12 @@ func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit i
 		return nil, err
 	}
 	defer rows.Close()
-	return scanFeedItems(rows)
+	items, err := scanFeedItems(rows)
+	if err != nil {
+		return nil, err
+	}
+	q.fillPrimaryBlurhashes(ctx, items)
+	return items, nil
 }
 
 // RecentlyAdded returns media items added within daysWindow days, most recent
@@ -272,7 +290,12 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, profileID string, daysW
 		return nil, err
 	}
 	defer rows.Close()
-	return scanFeedItems(rows)
+	items, err := scanFeedItems(rows)
+	if err != nil {
+		return nil, err
+	}
+	q.fillPrimaryBlurhashes(ctx, items)
+	return items, nil
 }
 
 // Recommended returns items matching the given genres, scored by match count.
@@ -344,7 +367,12 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 		return nil, err
 	}
 	defer rows.Close()
-	return scanFeedItemsWithScore(rows)
+	items, err := scanFeedItemsWithScore(rows)
+	if err != nil {
+		return nil, err
+	}
+	q.fillPrimaryBlurhashes(ctx, items)
+	return items, nil
 }
 
 // SimilarItems returns unwatched items with similar genres/director to the given item.
@@ -383,7 +411,56 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 		return nil, err
 	}
 	defer rows.Close()
-	return scanFeedItemsWithScore(rows)
+	items, err := scanFeedItemsWithScore(rows)
+	if err != nil {
+		return nil, err
+	}
+	q.fillPrimaryBlurhashes(ctx, items)
+	return items, nil
+}
+
+// fillPrimaryBlurhashes batch-resolves the primary-artwork blurhash for the
+// given items and stamps it on each FeedItem in place. Best-effort: a query
+// failure is logged and the items return without the placeholder hint —
+// missing hashes degrade gracefully on the client (solid background).
+func (q *FeedQuerier) fillPrimaryBlurhashes(ctx context.Context, items []*feed.FeedItem) {
+	if len(items) == 0 {
+		return
+	}
+	ids := make([]string, len(items))
+	for i, it := range items {
+		ids[i] = string(it.MediaItemID)
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := q.db.QueryContext(ctx,
+		`SELECT media_item_id, blurhash FROM artwork
+		 WHERE media_item_id = ANY($1) AND type = 'poster' AND blurhash IS NOT NULL`,
+		pq.Array(ids))
+	if err != nil {
+		slog.Debug("feed: fetch blurhashes failed", slog.Any("err", err))
+		return
+	}
+	defer rows.Close()
+	hashes := make(map[string]string, len(items))
+	for rows.Next() {
+		var mediaID, hash string
+		if err := rows.Scan(&mediaID, &hash); err != nil {
+			slog.Debug("feed: scan blurhash row failed", slog.Any("err", err))
+			return
+		}
+		// First hit wins — sort_order on the artwork side means the
+		// most-preferred poster is returned first.
+		if _, exists := hashes[mediaID]; !exists {
+			hashes[mediaID] = hash
+		}
+	}
+	for _, it := range items {
+		if h, ok := hashes[string(it.MediaItemID)]; ok {
+			h := h
+			it.PrimaryBlurhash = &h
+		}
+	}
 }
 
 func scanFeedItems(rows *sql.Rows) ([]*feed.FeedItem, error) {

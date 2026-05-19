@@ -329,6 +329,7 @@ const ResumePlaybackSlider = memo(function ResumePlaybackSlider() {
           <MediaCard
             key={item.mediaItemId}
             item={{ id: item.mediaItemId, title, type: item.type }}
+            posterBlurhash={item.primaryBlurhash}
             showYear={false}
             showProgress={!!item.positionMs}
             lite
@@ -371,6 +372,7 @@ const RecommendedSlider = memo(function RecommendedSlider() {
         <MediaCard
           key={item.mediaItemId}
           item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+          posterBlurhash={item.primaryBlurhash}
           showType
           lite
         />

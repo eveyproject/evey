@@ -15,12 +15,18 @@ interface MediaCardProps {
   watchPercent?: number;
   /** When true, render the "watched" check badge in the bottom-right corner. */
   watched?: boolean;
+  /**
+   * Explicit blurhash placeholder used when the caller has a FeedItem (which
+   * carries primaryBlurhash inline) rather than a full MediaItem with its
+   * artwork array. Falls back to item.artwork lookup when omitted.
+   */
+  posterBlurhash?: string;
 }
 
 const POSTER_RATIO = 1.5;
 const DEFAULT_WIDTH = Dimensions.get("window").width * 0.35;
 
-export const MediaCard = React.memo(function MediaCard({ item, onPress, width, watchPercent, watched }: MediaCardProps) {
+export const MediaCard = React.memo(function MediaCard({ item, onPress, width, watchPercent, watched, posterBlurhash: posterBlurhashProp }: MediaCardProps) {
   const theme = useTheme();
   const cardWidth = width ?? DEFAULT_WIDTH;
   const cardHeight = cardWidth * POSTER_RATIO;
@@ -29,16 +35,18 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
   const imageUri = serverUrl ? `${serverUrl}/api/v1/media/${item.id}/artwork/poster?w=400` : undefined;
   const imageSource = useAuthenticatedImage(imageUri);
 
-  // Primary blurhash drives the expo-image placeholder; falls back to
-  // backdrop hash, then the surface colour. Empty placeholder = expo-image
-  // shows surfaceColor while loading, which is the pre-feature baseline.
+  // Primary blurhash drives the expo-image placeholder; the explicit prop
+  // (passed by feed sliders carrying FeedItem.primaryBlurhash) wins. Falls
+  // back to primary → backdrop on item.artwork for detail pages. Empty hash
+  // = expo-image shows surfaceColor while loading (pre-feature baseline).
   const blurhash = useMemo(() => {
+    if (posterBlurhashProp) return posterBlurhashProp;
     const arts = (item.artwork ?? []) as V1Artwork[];
     const primary = arts.find((a) => a.type === "ARTWORK_TYPE_PRIMARY");
     if (primary?.blurhash) return primary.blurhash;
     const backdrop = arts.find((a) => a.type === "ARTWORK_TYPE_BACKDROP");
     return backdrop?.blurhash ?? "";
-  }, [item.artwork]);
+  }, [item.artwork, posterBlurhashProp]);
 
   return (
     <Pressable onPress={onPress} style={{ width: cardWidth, marginRight: theme.spacing.sm }} accessible={true} accessibilityLabel={item.title} accessibilityRole="button">

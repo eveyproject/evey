@@ -206,4 +206,8 @@ type FeedItem struct {
 	Score         int
 	SeasonNumber  int // episodes have both set; zero for other types
 	EpisodeNumber int
+	// PrimaryBlurhash is the encoded placeholder for the item's primary
+	// artwork. Populated by the postgres adapter after the main feed query;
+	// nil when no primary artwork exists or it pre-dates the blurhash field.
+	PrimaryBlurhash *string
 }
