@@ -38,6 +38,12 @@ artworks:
   downloadFailed: Error al iniciar la descarga
   done: Listo
   errorsPartial: errores (descarga parcial)
+  backfillBlurhashesSection: Recalcular placeholders blurhash
+  backfillBlurhashesDesc: "Genera placeholders blurhash para las imágenes anteriores a la funcionalidad. Ejecución sincrónica: aproximadamente 1 minuto por 2000 imágenes. Las imágenes que ya tienen placeholder se omiten."
+  backfillBlurhashesRun: Recalcular blurhashes
+  backfillBlurhashesRunning: Calculando...
+  backfillBlurhashesDone: "{{succeeded}} placeholder(s) generado(s), {{failed}} con error."
+  backfillBlurhashesFailed: No se pudo recalcular los blurhashes
 
 plugin:
   enabled: Activado

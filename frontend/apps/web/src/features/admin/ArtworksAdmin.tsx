@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Download, CheckCircle, RefreshCw } from "lucide-react";
+import { Download, CheckCircle, RefreshCw, Image as ImageIcon } from "lucide-react";
 import { eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
@@ -47,6 +47,22 @@ function useStartDownload() {
   });
 }
 
+// useBackfillBlurhashes drives POST /api/v1/admin/artworks/backfill-blurhashes.
+// The server runs synchronously: decode is ~50 ms per image with 2 workers,
+// so a 10k-row catalogue finishes in roughly 5 minutes. The HTTP client
+// timeout is generous enough to swallow that; if it isn't (very large
+// libraries) we'd have to flip the endpoint to async + job polling like
+// the download-all flow above. Empty response payload = {succeeded, failed}.
+function useBackfillBlurhashes() {
+  return useMutation<{ succeeded: number; failed: number }, Error>({
+    mutationFn: () =>
+      eveyFetch<{ succeeded: number; failed: number }>({
+        url: "/api/v1/admin/artworks/backfill-blurhashes",
+        method: "POST",
+      }),
+  });
+}
+
 function useJobStatus(jobId: string | null) {
   return useQuery<JobStatus>({
     queryKey: ["admin", "artworks", "job", jobId],
@@ -77,7 +93,21 @@ export function ArtworksAdmin() {
 
   const { data: stats, isLoading: statsLoading } = useArtworkStats();
   const startDownload = useStartDownload();
+  const backfillBlurhashes = useBackfillBlurhashes();
   const { data: job } = useJobStatus(jobId);
+
+  function handleBackfillBlurhashes() {
+    backfillBlurhashes.mutate(undefined, {
+      onSuccess: ({ succeeded, failed }) => {
+        toast.success(
+          t("admin.artworks.backfillBlurhashesDone", { succeeded, failed }),
+        );
+      },
+      onError: () => {
+        toast.error(t("admin.artworks.backfillBlurhashesFailed"));
+      },
+    });
+  }
 
   // When job completes, refresh stats and notify
   useEffect(() => {
@@ -237,6 +267,33 @@ export function ArtworksAdmin() {
             )}
           </div>
         )}
+      </Card>
+
+      {/* Blurhash backfill — retro-fits the placeholder hash onto artworks
+          ingested before the blurhash column existed. Sync call; the button
+          stays disabled while the request is in flight, and the toast names
+          succeeded/failed so the admin can verify the pass landed. */}
+      <Card className="p-5 mt-6">
+        <h2 className="font-semibold text-[var(--text)] mb-2">
+          {t("admin.artworks.backfillBlurhashesSection")}
+        </h2>
+        <p className="text-sm text-[var(--text-muted)] mb-4">
+          {t("admin.artworks.backfillBlurhashesDesc")}
+        </p>
+        <Button
+          onClick={handleBackfillBlurhashes}
+          disabled={backfillBlurhashes.isPending}
+          className="flex items-center gap-2"
+        >
+          {backfillBlurhashes.isPending ? (
+            <RefreshCw size={16} className="animate-spin" />
+          ) : (
+            <ImageIcon size={16} />
+          )}
+          {backfillBlurhashes.isPending
+            ? t("admin.artworks.backfillBlurhashesRunning")
+            : t("admin.artworks.backfillBlurhashesRun")}
+        </Button>
       </Card>
     </div>
   );

@@ -38,6 +38,12 @@ artworks:
   downloadFailed: "डाउनलोड शुरू करने में विफल"
   done: "हो गया"
   errorsPartial: "त्रुटियाँ (आंशिक डाउनलोड)"
+  backfillBlurhashesSection: "ब्लरहैश प्लेसहोल्डर पुनः जेनरेट करें"
+  backfillBlurhashesDesc: "उन आर्टवर्क के लिए ब्लरहैश प्लेसहोल्डर जेनरेट करता है जो इस फीचर से पहले इंजेस्ट हुए थे। सिंक्रोनस रन: लगभग 2000 आर्टवर्क प्रति 1 मिनट। पहले से हैश किए गए आर्टवर्क छोड़ दिए जाते हैं।"
+  backfillBlurhashesRun: "ब्लरहैश पुनः जेनरेट करें"
+  backfillBlurhashesRunning: "गणना चल रही है..."
+  backfillBlurhashesDone: "{{succeeded}} प्लेसहोल्डर जेनरेट किए गए, {{failed}} विफल।"
+  backfillBlurhashesFailed: "ब्लरहैश पुनः जेनरेट करने में विफल"
 
 plugin:
   enabled: "सक्षम"

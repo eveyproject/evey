@@ -38,6 +38,12 @@ artworks:
   downloadFailed: "Echec du lancement du téléchargement"
   done: "Terminé"
   errorsPartial: "erreurs (téléchargement partiel)"
+  backfillBlurhashesSection: "Recalculer les placeholders blurhash"
+  backfillBlurhashesDesc: "Génère les placeholders blurhash pour les artworks ingérés avant l'introduction du champ. Exécution synchrone : ~1 minute pour 2 000 artworks. Les artworks déjà hashés sont ignorés."
+  backfillBlurhashesRun: "Recalculer les blurhashes"
+  backfillBlurhashesRunning: "Calcul en cours..."
+  backfillBlurhashesDone: "{{succeeded}} placeholder(s) recalculé(s), {{failed}} en échec."
+  backfillBlurhashesFailed: "Échec du recalcul des blurhashes"
 plugin:
   enabled: Activé
   disabled: Désactivé

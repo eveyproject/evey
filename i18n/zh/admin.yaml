@@ -38,6 +38,12 @@ artworks:
   downloadFailed: "启动下载失败"
   done: "完成"
   errorsPartial: "错误（部分下载）"
+  backfillBlurhashesSection: "回填 blurhash 占位符"
+  backfillBlurhashesDesc: "为该功能上线前导入的封面生成 blurhash 占位符。同步执行：约 2000 张封面/分钟。已生成占位符的封面会被跳过。"
+  backfillBlurhashesRun: "回填 blurhash"
+  backfillBlurhashesRunning: "正在生成..."
+  backfillBlurhashesDone: "已生成 {{succeeded}} 个占位符，{{failed}} 个失败。"
+  backfillBlurhashesFailed: "回填 blurhash 失败"
 
 plugin:
   enabled: "已启用"

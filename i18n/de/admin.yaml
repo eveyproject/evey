@@ -38,6 +38,12 @@ artworks:
   downloadFailed: Download konnte nicht gestartet werden
   done: Fertig
   errorsPartial: Fehler (teilweiser Download)
+  backfillBlurhashesSection: Blurhash-Platzhalter nachberechnen
+  backfillBlurhashesDesc: "Berechnet Blurhash-Platzhalter für Artworks, die vor Einführung des Features hochgeladen wurden. Synchroner Lauf: rund 1 Minute pro 2000 Artworks. Bereits berechnete Platzhalter werden übersprungen."
+  backfillBlurhashesRun: Blurhashes nachberechnen
+  backfillBlurhashesRunning: Berechnung läuft...
+  backfillBlurhashesDone: "{{succeeded}} Platzhalter berechnet, {{failed}} fehlgeschlagen."
+  backfillBlurhashesFailed: Nachberechnung der Blurhashes fehlgeschlagen
 
 plugin:
   enabled: Aktiviert

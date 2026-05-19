@@ -38,6 +38,12 @@ artworks:
   downloadFailed: Failed to start download
   done: Done
   errorsPartial: errors (partial download)
+  backfillBlurhashesSection: Backfill blurhash placeholders
+  backfillBlurhashesDesc: "Generate blurhash placeholders for artworks that pre-date the feature. Runs synchronously: roughly 1 minute per 2000 artworks. Existing placeholders are skipped."
+  backfillBlurhashesRun: Backfill blurhashes
+  backfillBlurhashesRunning: Backfilling...
+  backfillBlurhashesDone: "Backfilled {{succeeded}} placeholder(s), {{failed}} failed."
+  backfillBlurhashesFailed: Failed to backfill blurhashes
 
 plugin:
   enabled: Enabled
