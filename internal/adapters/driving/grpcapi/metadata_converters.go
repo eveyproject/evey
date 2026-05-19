@@ -64,5 +64,8 @@ func artworkRecordToProto(a *domainmetadata.ArtworkRecord) *eveyv1.Artwork {
 	if a.Language != nil {
 		pb.Language = *a.Language
 	}
+	if a.Blurhash != nil {
+		pb.Blurhash = *a.Blurhash
+	}
 	return pb
 }

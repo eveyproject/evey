@@ -96,6 +96,11 @@ type ArtworkRecord struct {
 	Height      *int
 	Language    *string
 	SortOrder   int
+	// Blurhash is a compact (~30-char) representation of the image's
+	// low-frequency content. Populated at download time and used as an
+	// instant placeholder by clients while the full image is still loading.
+	// Nil when generation failed or pre-dates the feature.
+	Blurhash *string
 }
 
 func (o *MetadataOverride) Validate() error {

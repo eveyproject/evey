@@ -903,6 +903,16 @@ func (s *CommandService) DownloadArtwork(ctx context.Context, record *metadata.A
 		return fmt.Errorf("download artwork: %w", err)
 	}
 	record.LocalPath = &destPath
+	// Compute and persist the blurhash placeholder. Best-effort: a hash
+	// failure (unsupported format, corrupt file) must not block ingestion.
+	if hash, hashErr := computeBlurhash(destPath); hashErr != nil {
+		slog.Debug("blurhash encode skipped", slog.String("artwork.id", record.ID), slog.Any("err", hashErr))
+	} else {
+		record.Blurhash = &hash
+		if err := s.artwork.UpdateBlurhash(ctx, record.ID, hash); err != nil {
+			slog.Warn("persist blurhash", slog.String("artwork.id", record.ID), slog.Any("err", err))
+		}
+	}
 	// Log-only: notification event — file already downloaded to destPath above
 	evtArtwork := metadata.ArtworkDownloaded{MediaItemID: record.MediaItemID, Type: record.Type, LocalPath: destPath, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtArtwork); err != nil {

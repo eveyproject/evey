@@ -250,6 +250,10 @@ message Artwork {
   int32 width = 6;
   int32 height = 7;
   bool is_selected = 8;
+  // Compact (~30-char) blurhash placeholder. Empty when the source predates
+  // the feature or encoding failed. Clients decode it to show a coloured
+  // preview while the full image is still loading (Wolt blurhash spec).
+  string blurhash = 9;
 }
 
 enum ArtworkType {

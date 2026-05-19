@@ -46,6 +46,10 @@ type ArtworkRepository interface {
 	// UpdateLocalPath persists the local file path after a successful download.
 	UpdateLocalPath(ctx context.Context, id string, localPath string) error
 	UpdateWebPPath(ctx context.Context, id string, webpPath string) error
+	// UpdateBlurhash persists the encoded blurhash placeholder after image
+	// download. Best-effort: the caller logs and swallows errors so a hash
+	// failure never blocks the artwork pipeline.
+	UpdateBlurhash(ctx context.Context, id string, blurhash string) error
 	Delete(ctx context.Context, id string) error
 	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
 }

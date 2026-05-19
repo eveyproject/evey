@@ -156,6 +156,20 @@ func (r *FakeArtworkRepository) UpdateWebPPath(_ context.Context, id string, web
 	return nil
 }
 
+func (r *FakeArtworkRepository) UpdateBlurhash(_ context.Context, id string, blurhash string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	a, ok := r.items[id]
+	if !ok {
+		return ErrNotFound
+	}
+	a.Blurhash = &blurhash
+	return nil
+}
+
 func (r *FakeArtworkRepository) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err

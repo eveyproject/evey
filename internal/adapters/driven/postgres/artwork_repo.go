@@ -30,9 +30,9 @@ func (r *ArtworkRepository) Create(ctx context.Context, a *metadata.ArtworkRecor
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-		a.ID, a.MediaItemID, a.PersonID, a.Type, a.Provider, a.SourceURL, a.LocalPath, a.WebPPath, a.Width, a.Height, a.Language, a.SortOrder,
+		`INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+		a.ID, a.MediaItemID, a.PersonID, a.Type, a.Provider, a.SourceURL, a.LocalPath, a.WebPPath, a.Width, a.Height, a.Language, a.SortOrder, a.Blurhash,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -52,14 +52,14 @@ func (r *ArtworkRepository) CreateBatch(ctx context.Context, records []*metadata
 		return nil
 	}
 	vals := make([]string, 0, len(records))
-	args := make([]any, 0, len(records)*12)
+	args := make([]any, 0, len(records)*13)
 	for i, a := range records {
-		base := i * 12
-		vals = append(vals, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10, base+11, base+12))
-		args = append(args, a.ID, a.MediaItemID, a.PersonID, a.Type, a.Provider, a.SourceURL, a.LocalPath, a.WebPPath, a.Width, a.Height, a.Language, a.SortOrder)
+		base := i * 13
+		vals = append(vals, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10, base+11, base+12, base+13))
+		args = append(args, a.ID, a.MediaItemID, a.PersonID, a.Type, a.Provider, a.SourceURL, a.LocalPath, a.WebPPath, a.Width, a.Height, a.Language, a.SortOrder, a.Blurhash)
 	}
-	q := `INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order) VALUES ` + strings.Join(vals, ",")
+	q := `INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash) VALUES ` + strings.Join(vals, ",")
 	_, err := r.db.ExecContext(ctx, q, args...)
 	if err != nil {
 		span.RecordError(err)
@@ -76,7 +76,7 @@ func (r *ArtworkRepository) GetByMediaItem(ctx context.Context, mediaItemID stri
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
+		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash
 		 FROM artwork WHERE media_item_id = $1 ORDER BY sort_order`, mediaItemID)
 	if err != nil {
 		span.RecordError(err)
@@ -103,7 +103,7 @@ func (r *ArtworkRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []
 		return map[string][]*metadata.ArtworkRecord{}, nil
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
+		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash
 		 FROM artwork WHERE media_item_id = ANY($1) ORDER BY media_item_id, sort_order`, pq.Array(mediaItemIDs))
 	if err != nil {
 		span.RecordError(err)
@@ -131,7 +131,7 @@ func (r *ArtworkRepository) GetByPerson(ctx context.Context, personID string) ([
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
+		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash
 		 FROM artwork WHERE person_id = $1 ORDER BY sort_order`, personID)
 	if err != nil {
 		span.RecordError(err)
@@ -174,7 +174,7 @@ func (r *ArtworkRepository) ListMissingLocalPath(ctx context.Context) ([]*metada
 	ctx, cancel := withTimeout(ctx, 2*defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
+		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash
 		 FROM artwork WHERE source_url IS NOT NULL AND (local_path IS NULL OR local_path = '') ORDER BY id`)
 	if err != nil {
 		span.RecordError(err)
@@ -253,6 +253,26 @@ func (r *ArtworkRepository) UpdateWebPPath(ctx context.Context, id string, webpP
 	return nil
 }
 
+func (r *ArtworkRepository) UpdateBlurhash(ctx context.Context, id string, blurhash string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.UpdateBlurhash")
+	defer span.End()
+	span.SetAttributes(attribute.String("artwork.id", id))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := r.db.ExecContext(ctx, `UPDATE artwork SET blurhash = $1 WHERE id = $2`, blurhash, id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		span.RecordError(shared.ErrNotFound)
+		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
 func (r *ArtworkRepository) Delete(ctx context.Context, id string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.artwork.Delete")
 	defer span.End()
@@ -293,7 +313,7 @@ func (r *ArtworkRepository) scanArtworkRows(rows *sql.Rows) ([]*metadata.Artwork
 	for rows.Next() {
 		a := &metadata.ArtworkRecord{}
 		if err := rows.Scan(&a.ID, &a.MediaItemID, &a.PersonID, &a.Type, &a.Provider,
-			&a.SourceURL, &a.LocalPath, &a.WebPPath, &a.Width, &a.Height, &a.Language, &a.SortOrder); err != nil {
+			&a.SourceURL, &a.LocalPath, &a.WebPPath, &a.Width, &a.Height, &a.Language, &a.SortOrder, &a.Blurhash); err != nil {
 			return nil, err
 		}
 		result = append(result, a)
