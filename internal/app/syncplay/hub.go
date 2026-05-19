@@ -223,6 +223,17 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 
 	switch cmd.Type {
 	case "play", "pause", "seek":
+		room, err := h.repo.Get(ctx, roomID)
+		if err != nil || room == nil {
+			return cmd, fmt.Errorf("get room: %w", err)
+		}
+		// Host-only: playback control (play/pause/seek) is driven by the host
+		// so a guest can't desync or grief the watch party. The frontend
+		// already hides these controls for non-hosts; this is the server-side
+		// enforcement (a raw WebSocket client could otherwise send them).
+		if string(room.HostID) != userID {
+			return cmd, nil
+		}
 		state := syncplay.PlaybackState{
 			Playing:    cmd.Type == "play",
 			PositionMs: cmd.PositionMs,
@@ -233,9 +244,7 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 			state.Playing = false
 		}
 		if cmd.Type == "seek" {
-			if existing, err := h.repo.Get(ctx, roomID); err == nil {
-				state.Playing = existing.State.Playing
-			}
+			state.Playing = room.State.Playing
 		}
 		if err := h.repo.UpdateState(ctx, roomID, state); err != nil {
 			return cmd, fmt.Errorf("update room state: %w", err)

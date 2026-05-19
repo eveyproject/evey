@@ -507,7 +507,7 @@ func TestHub_HandleCommand_Pause(t *testing.T) {
 		Type: "play", PositionMs: 1000,
 	})
 
-	cmd, err := h.HandleCommand(ctx, room.ID, "user-2", "Bob", syncplay.SyncCommand{
+	cmd, err := h.HandleCommand(ctx, room.ID, "host-1", "Alice", syncplay.SyncCommand{
 		Type: "pause", PositionMs: 3000,
 	})
 	if err != nil {
@@ -594,6 +594,57 @@ func TestHub_HandleCommand_UnknownType_NoStateChange(t *testing.T) {
 	fetched, _ := h.GetRoom(ctx, room.ID)
 	if fetched.State.Playing {
 		t.Error("unknown command should not change state")
+	}
+}
+
+func TestHub_HandleCommand_NonHost_PlayRejected(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	_ = h.JoinRoom(ctx, room.ID, "guest-2", "Bob")
+
+	// A guest sending play must NOT change room state (host-only control).
+	_, err := h.HandleCommand(ctx, room.ID, "guest-2", "Bob", syncplay.SyncCommand{
+		Type: "play", PositionMs: 99000,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommand (guest play) should be a silent no-op, got err: %v", err)
+	}
+
+	fetched, _ := h.GetRoom(ctx, room.ID)
+	if fetched.State.Playing {
+		t.Error("guest play must not start playback")
+	}
+	if fetched.State.PositionMs == 99000 {
+		t.Error("guest play must not write its position to room state")
+	}
+}
+
+func TestHub_HandleCommand_NonHost_SeekRejected(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	_ = h.JoinRoom(ctx, room.ID, "guest-2", "Bob")
+	// Host sets a known position first.
+	_, _ = h.HandleCommand(ctx, room.ID, "host-1", "Alice", syncplay.SyncCommand{
+		Type: "seek", PositionMs: 10000,
+	})
+
+	// Guest seek must be ignored, leaving the host's position intact.
+	_, err := h.HandleCommand(ctx, room.ID, "guest-2", "Bob", syncplay.SyncCommand{
+		Type: "seek", PositionMs: 777000,
+	})
+	if err != nil {
+		t.Fatalf("guest seek should be a silent no-op, got err: %v", err)
+	}
+
+	fetched, _ := h.GetRoom(ctx, room.ID)
+	if fetched.State.PositionMs != 10000 {
+		t.Errorf("guest seek must not move position; got %d want 10000", fetched.State.PositionMs)
 	}
 }
 
