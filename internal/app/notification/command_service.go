@@ -560,9 +560,19 @@ func (s *CommandService) sendPush(ctx context.Context, profileID, title, message
 		return
 	}
 	for _, sub := range subs {
-		if sendErr := s.push.Send(ctx, sub, title, message, nil); sendErr != nil {
-			slog.Warn("webpush: send failed", slog.String("profileID", profileID), slog.String("endpoint", sub.Endpoint), slog.Any("err", sendErr))
+		sendErr := s.push.Send(ctx, sub, title, message, nil)
+		if sendErr == nil {
+			continue
 		}
+		if errors.Is(sendErr, notification.ErrSubscriptionGone) {
+			// The endpoint is permanently dead (410); prune it so we stop
+			// retrying it on every future notification.
+			if delErr := s.subs.DeleteByEndpoint(ctx, string(sub.UserID), sub.Endpoint); delErr != nil {
+				slog.Warn("webpush: delete gone subscription failed", slog.String("endpoint", sub.Endpoint), slog.Any("err", delErr))
+			}
+			continue
+		}
+		slog.Warn("webpush: send failed", slog.String("profileID", profileID), slog.String("endpoint", sub.Endpoint), slog.Any("err", sendErr))
 	}
 }
 

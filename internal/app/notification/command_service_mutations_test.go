@@ -122,6 +122,35 @@ func TestNotificationService_PushSendError_LogsWarning(t *testing.T) {
 	assert.Contains(t, buf.String(), "webpush: send failed")
 }
 
+// TestNotificationService_PushGone410_PrunesSubscription covers sendPush's 410
+// cleanup: a permanently-gone endpoint is deleted, not retried on every push.
+func TestNotificationService_PushGone410_PrunesSubscription(t *testing.T) {
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	pushSender := notiffakes.NewFakePushSender()
+	pushSender.Err = notifdom.ErrSubscriptionGone
+	subRepo := notiffakes.NewFakePushSubscriptionRepository()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+	_ = subRepo.Upsert(ctx, "u1", "p1", "https://push.example.com/1", "k", "a")
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	appnotification.WithPush(pushSender, subRepo)(svc)
+	svc.Register()
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "m1", LibraryID: "lib1", Title: "Inception", Type: "movie", OccurredAt: time.Now(),
+	})
+
+	got, err := subRepo.GetByProfile(ctx, "p1")
+	require.NoError(t, err)
+	assert.Empty(t, got, "a 410 Gone subscription should have been pruned")
+}
+
 // TestPushGetSubsError_LogsWarning covers get subscriptions error path.
 func TestNotificationService_PushGetSubsError_LogsWarning(t *testing.T) {
 	buf, restore := captureSlogBuffer(t)

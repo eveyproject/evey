@@ -7,6 +7,11 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
+// ErrSubscriptionGone signals that a push provider reported the subscription is
+// permanently gone (HTTP 410). Callers should delete the subscription rather
+// than retry it on every future notification.
+var ErrSubscriptionGone = errors.New("push subscription gone (410)")
+
 type PushSubscription struct {
 	ID        string
 	UserID    shared.UserID

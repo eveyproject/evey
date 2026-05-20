@@ -58,8 +58,7 @@ func TestSend_WithData(t *testing.T) {
 func TestSend_Gone410(t *testing.T) {
 	s, sub := newTestSender(t, http.StatusGone)
 	err := s.Send(context.Background(), *sub, "title", "body", nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "410 Gone")
+	require.ErrorIs(t, err, notification.ErrSubscriptionGone)
 }
 
 func TestSend_ServerError(t *testing.T) {

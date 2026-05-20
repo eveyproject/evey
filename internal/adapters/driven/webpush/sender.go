@@ -3,7 +3,6 @@ package webpush
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -74,7 +73,7 @@ func (s *Sender) Send(_ context.Context, sub notification.PushSubscription, titl
 	}()
 
 	if resp.StatusCode == http.StatusGone {
-		return errors.New("subscription expired (410 Gone)")
+		return notification.ErrSubscriptionGone
 	}
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("webpush send: status %d", resp.StatusCode)
