@@ -60,13 +60,19 @@ func (h *shareHandler) CreateShareLink(ctx context.Context, req *eveyv1.CreateSh
 		Token:     link.Token,
 		MediaId:   string(link.MediaItemID),
 		ExpiresAt: toTimestamppb(link.ExpiresAt),
-		Url:       "/share/" + link.Token,
+		Url:       shareDownloadURL(link.Token),
 	}
 	if link.MaxViews != nil {
 		v := int32(*link.MaxViews)
 		resp.MaxViews = &v
 	}
 	return resp, nil
+}
+
+// shareDownloadURL is the public, unauthenticated download path a share link
+// resolves to. Served by the HTTP layer (shareDownloadHandler).
+func shareDownloadURL(token string) string {
+	return "/api/v1/share/" + token + "/download"
 }
 
 func (h *shareHandler) ListShareLinks(ctx context.Context, _ *eveyv1.ListShareLinksRequest) (*eveyv1.ListShareLinksResponse, error) {
@@ -95,7 +101,7 @@ func (h *shareHandler) ListShareLinks(ctx context.Context, _ *eveyv1.ListShareLi
 			CreatedBy:   string(l.CreatedBy),
 			ExpiresAt:   toTimestamppb(l.ExpiresAt),
 			ViewCount:   int32(l.ViewCount),
-			Url:         "/share/" + l.Token,
+			Url:         shareDownloadURL(l.Token),
 		}
 		if l.MaxViews != nil {
 			v := int32(*l.MaxViews)
@@ -153,7 +159,9 @@ func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.Valida
 		Title:      item.Title,
 		MediaType:  string(item.Type),
 		DurationMs: durationMs,
-		StreamUrl:  "/api/v1/media/" + string(item.ID) + "/stream",
+		// Share links resolve to a public download (no auth), not a stream:
+		// the old /media/{id}/stream URL required a login the recipient lacks.
+		StreamUrl:  shareDownloadURL(req.Token),
 	}, nil
 }
 

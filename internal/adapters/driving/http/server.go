@@ -69,6 +69,7 @@ type HTTPServer struct {
 	TokenGen         *auth.JWTGenerator
 	Cfg              *config.Config
 	StreamTokenStore *appmedia.StreamTokenStore
+	ShareSvc         *appmedia.ShareService
 
 	// Library
 	LibCmdSvc   *applibrary.CommandService
@@ -214,6 +215,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("POST /api/v1/media/{id}/stream", auth(mh))
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", auth(downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo)))
+	// Public share download: no auth — the uuid token is the capability.
+	// Admin-only to CREATE (RBAC), but the resulting link must resolve without
+	// a login. Rate-limited per-IP as defence-in-depth (the uuid entropy is the
+	// real guard against token guessing).
+	if s.ShareSvc != nil {
+		mux.HandleFunc("GET /api/v1/share/{token}/download", ratelimit.MiddlewareFunc(s.GlobalRL, shareDownloadHandler(s.ShareSvc, s.LibQuerySvc, s.BaseURL())))
+	}
 	mux.HandleFunc("POST /api/v1/media/{id}/stream-token", auth(streamTokenHandler(s.TokenGen, s.StreamTokenStore, s.LibraryAccessRepo, s.LibQuerySvc)))
 
 	transcodeThrottle := apptranscoding.NewTranscodeThrottle()

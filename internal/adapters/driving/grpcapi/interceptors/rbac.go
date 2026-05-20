@@ -105,6 +105,13 @@ func DefaultRBACConfig() RBACConfig {
 			// skip-intro fallback calls it for regular users.
 			"/evey.v1.MKVService/ListAttachments":                          RoleAdmin,
 			"/evey.v1.MKVService/ExtractAttachment":                        RoleAdmin,
+			// Share links generate a PUBLIC (unauthenticated) download URL, so
+			// only admins may create/list/revoke them. ValidateShareLink stays
+			// non-admin (harmless metadata); the public download itself is an
+			// unauthenticated HTTP route guarded by the uuid token.
+			"/evey.v1.ShareService/CreateShareLink":                        RoleAdmin,
+			"/evey.v1.ShareService/ListShareLinks":                         RoleAdmin,
+			"/evey.v1.ShareService/RevokeShareLink":                        RoleAdmin,
 			"/evey.v1.TranscodingService/StopTranscode":                     RoleAdmin,
 			"/evey.v1.TranscodingService/ListActiveTranscodes":              RoleAdmin,
 			"/evey.v1.TranscodeCacheService/GetTranscodeCache":              RoleAdmin,

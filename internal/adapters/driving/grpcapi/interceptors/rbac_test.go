@@ -125,6 +125,9 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.MKVService/RemoveTrack",
 		"/evey.v1.MKVService/ListAttachments",
 		"/evey.v1.MKVService/ExtractAttachment",
+		"/evey.v1.ShareService/CreateShareLink",
+		"/evey.v1.ShareService/ListShareLinks",
+		"/evey.v1.ShareService/RevokeShareLink",
 		// TranscodingService
 		"/evey.v1.TranscodingService/StopTranscode",
 		"/evey.v1.TranscodingService/ListActiveTranscodes",
