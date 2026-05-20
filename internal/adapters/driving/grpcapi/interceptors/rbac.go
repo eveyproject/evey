@@ -98,6 +98,13 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.MKVService/DemuxContainer":                            RoleAdmin,
 			"/evey.v1.MKVService/AddTrack":                                  RoleAdmin,
 			"/evey.v1.MKVService/RemoveTrack":                               RoleAdmin,
+			// ListAttachments reads arbitrary filesystem paths; ExtractAttachment
+			// also WRITES the attachment to a caller-supplied OutputPath (arbitrary
+			// file write). Neither is used by the player, so gate both to admin.
+			// ListChapters is intentionally NOT here: the player's MKV chapter /
+			// skip-intro fallback calls it for regular users.
+			"/evey.v1.MKVService/ListAttachments":                          RoleAdmin,
+			"/evey.v1.MKVService/ExtractAttachment":                        RoleAdmin,
 			"/evey.v1.TranscodingService/StopTranscode":                     RoleAdmin,
 			"/evey.v1.TranscodingService/ListActiveTranscodes":              RoleAdmin,
 			"/evey.v1.TranscodeCacheService/GetTranscodeCache":              RoleAdmin,

@@ -123,6 +123,8 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.MKVService/DemuxContainer",
 		"/evey.v1.MKVService/AddTrack",
 		"/evey.v1.MKVService/RemoveTrack",
+		"/evey.v1.MKVService/ListAttachments",
+		"/evey.v1.MKVService/ExtractAttachment",
 		// TranscodingService
 		"/evey.v1.TranscodingService/StopTranscode",
 		"/evey.v1.TranscodingService/ListActiveTranscodes",
