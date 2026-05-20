@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Linking,
   Dimensions,
+  Share,
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,6 +28,7 @@ import {
   useFeedServiceSimilarItems,
   useUserServiceGetCurrentUser,
   useUserServiceListProfiles,
+  useShareServiceCreateShareLink,
 } from "@evey/api";
 import type { V1MediaItem, V1MediaPerson, V1Trailer } from "@evey/api";
 import { useAuthStore } from "@evey/store";
@@ -414,6 +416,24 @@ export default function MediaDetailScreen() {
   });
   const profileId = useAuthStore((s) => s.profileId);
   const isAdmin = useAuthStore((s) => s.isAdmin);
+  // Admin-only: mint a PUBLIC download link and open the native share sheet.
+  const createShareLink = useShareServiceCreateShareLink({
+    mutation: {
+      onSuccess: async (res) => {
+        const url = res?.url ? `${serverUrl}${res.url}` : "";
+        if (!url) {
+          toast.error(t("media.detail.shareFailed"));
+          return;
+        }
+        try {
+          await Share.share({ message: url });
+        } catch {
+          // user dismissed the share sheet
+        }
+      },
+      onError: (err: Error) => toast.error(err?.message || t("media.detail.shareFailed")),
+    },
+  });
   const qc = useQueryClient();
 
   const { data: isFavorite } = useIsFavorite(id);
@@ -871,6 +891,29 @@ export default function MediaDetailScreen() {
                   : downloadProgress !== null
                     ? "…"
                     : t("common.download") || "Download"}
+              </Text>
+            </Pressable>
+          )}
+          {isAdmin && id && !isSeries && !isSeason && (
+            <Pressable
+              onPress={() => createShareLink.mutate({ mediaItemId: id, data: { durationHours: 48 } })}
+              disabled={createShareLink.isPending}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: theme.colors.surface,
+                borderRadius: theme.radii.md,
+                paddingVertical: theme.spacing.sm,
+                paddingHorizontal: theme.spacing.md,
+                opacity: createShareLink.isPending ? 0.6 : 1,
+              }}
+              accessible={true}
+              accessibilityLabel={t("media.detail.shareLink")}
+              accessibilityRole="button"
+            >
+              <Ionicons name="share-social-outline" size={20} color={theme.colors.text} />
+              <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
+                {t("media.detail.shareLink")}
               </Text>
             </Pressable>
           )}
