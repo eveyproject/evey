@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	wp "github.com/SherClockHolmes/webpush-go"
 	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/pkg/ssrf"
 )
 
 type Sender struct {
@@ -24,6 +26,12 @@ func NewSender(publicKey, privateKey, subject string) *Sender {
 		vapidPublicKey:  publicKey,
 		vapidPrivateKey: privateKey,
 		vapidSubject:    subject,
+		// The push endpoint URL is supplied by the client when it registers a
+		// subscription, so delivery must go through the SSRF-safe client: it
+		// blocks dialing private/reserved IPs, preventing a malicious client
+		// from registering endpoint=http://169.254.169.254/... and turning the
+		// server into an internal-network request proxy.
+		httpClient: ssrf.SafeHTTPClient(30 * time.Second),
 	}
 }
 
