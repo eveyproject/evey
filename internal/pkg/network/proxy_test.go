@@ -164,6 +164,49 @@ func TestMiddleware_ReplacesRemoteAddr(t *testing.T) {
 	}
 }
 
+func TestMiddleware_CollapsesForwardedForToResolvedIP(t *testing.T) {
+	// Trusted proxy peer forwarding a real client behind a spoofed leftmost
+	// entry: the header must be rewritten to the single resolved client IP so
+	// the grpc-gateway re-forwards only that into gRPC metadata.
+	pt := mustProxyTrust(t, []string{"127.0.0.1/32"}, "X-Forwarded-For", false)
+
+	var captured string
+	handler := pt.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		captured = r.Header.Get("X-Forwarded-For")
+	}))
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.RemoteAddr = "127.0.0.1:8080"
+	r.Header.Set("X-Forwarded-For", "1.2.3.4, 203.0.113.10")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+
+	if captured != "203.0.113.10" {
+		t.Errorf("expected X-Forwarded-For collapsed to 203.0.113.10, got %q", captured)
+	}
+}
+
+func TestMiddleware_DropsSpoofedForwardedForFromUntrustedPeer(t *testing.T) {
+	// Untrusted direct client injecting a fake XFF: the header must be
+	// overwritten with the peer IP, dropping the spoofed chain entirely.
+	pt := mustProxyTrust(t, []string{"127.0.0.1/32"}, "X-Forwarded-For", false)
+
+	var captured string
+	handler := pt.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		captured = r.Header.Get("X-Forwarded-For")
+	}))
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.RemoteAddr = "203.0.113.99:5555"
+	r.Header.Set("X-Forwarded-For", "10.0.0.1, 192.168.1.1")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+
+	if captured != "203.0.113.99" {
+		t.Errorf("expected X-Forwarded-For overwritten to peer 203.0.113.99, got %q", captured)
+	}
+}
+
 func TestMiddleware_ForwardedProto(t *testing.T) {
 	pt := mustProxyTrust(t, []string{"127.0.0.1/32"}, "X-Forwarded-For", true)
 
