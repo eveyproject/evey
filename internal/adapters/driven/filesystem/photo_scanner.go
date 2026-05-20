@@ -6,6 +6,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -68,8 +69,21 @@ func (s *PhotoScanner) WalkImageFiles(ctx context.Context, dir string, fn func(p
 	})
 }
 
+// maxExifReadBytes caps how much of a photo is pulled into memory for EXIF
+// extraction. EXIF (the JPEG APP1 segment) sits at the start of the file, so
+// the header is enough; reading whole files would risk OOM during a scan
+// (each of NumCPU workers allocating a full multi-GB file at once).
+const maxExifReadBytes = 2 << 20 // 2 MiB
+
+// ReadFile returns the leading bytes of path for metadata (EXIF) extraction,
+// bounded to maxExifReadBytes. It is not a whole-file read.
 func (s *PhotoScanner) ReadFile(path string) ([]byte, error) {
-	return os.ReadFile(path)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(io.LimitReader(f, maxExifReadBytes))
 }
 
 func (s *PhotoScanner) ImageDimensions(path string) (int, int) {
