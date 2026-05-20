@@ -143,6 +143,9 @@ library:
   subtitleLanguage: उपशीर्षक भाषा
   noFilterOptions: इस लाइब्रेरी के लिए अभी कोई फ़िल्टर विकल्प उपलब्ध नहीं है।
   addToCollection: संग्रह में जोड़ें
+  shareLink: सार्वजनिक डाउनलोड लिंक
+  shareLinkCopied: सार्वजनिक डाउनलोड लिंक कॉपी किया गया
+  shareFailed: लिंक नहीं बनाया जा सका
   markUnwatched: अदेखा चिह्नित
   markWatched: देखा गया चिह्नित
   markedUnwatched: अदेखा चिह्नित किया

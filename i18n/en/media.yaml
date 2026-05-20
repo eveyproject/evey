@@ -143,6 +143,9 @@ library:
   subtitleLanguage: Subtitle Language
   noFilterOptions: No filter options available for this library yet.
   addToCollection: Add to collection
+  shareLink: Public download link
+  shareLinkCopied: Public download link copied to clipboard
+  shareFailed: Couldn't create the share link
   markUnwatched: Mark unwatched
   markWatched: Mark watched
   markedUnwatched: Marked unwatched

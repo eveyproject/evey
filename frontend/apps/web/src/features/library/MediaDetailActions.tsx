@@ -15,6 +15,7 @@ import { useParentalGate, markUnlocked } from "@/hooks/useParentalGate";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { DownloadButton } from "../playback/DownloadButton";
+import { ShareLinkButton } from "./ShareLinkButton";
 import { FavoriteButton } from "./FavoriteButton";
 import { RatingButtons } from "./RatingButtons";
 import { StarRating } from "./StarRating";
@@ -52,6 +53,7 @@ export function MediaDetailActions({
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
   const profileId = useAuthStore((s) => s.profileId);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { needsPin } = useParentalGate(item.officialRating);
@@ -171,6 +173,7 @@ export function MediaDetailActions({
         {item.id && item.filePath && streamToken && (
           <DownloadButton mediaId={item.id} title={item.title} streamToken={streamToken} />
         )}
+        {item.id && item.filePath && isAdmin && <ShareLinkButton mediaId={item.id} />}
         {item.id && <FavoriteButton mediaId={item.id} size="md" />}
         {item.id && <RatingButtons mediaId={item.id} />}
         {item.id && <StarRating mediaId={item.id} />}
