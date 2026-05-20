@@ -16,6 +16,15 @@ import (
 // last listed devices.
 var ErrDeviceNotConnected = errors.New("device not connected")
 
+// ErrTooManyDevices is returned by Register when a user already holds the
+// maximum number of registered devices and tries to add a *new* one.
+var ErrTooManyDevices = errors.New("too many registered devices for user")
+
+// MaxDevicesPerUser caps the live device entries (each = one WebSocket
+// sender held in memory) a single user can register, bounding the memory a
+// misbehaving or malicious authenticated client can pin.
+const MaxDevicesPerUser = 50
+
 type deviceEntry struct {
 	device syncplay.Device
 	sender syncplay.MessageSender
@@ -40,7 +49,7 @@ func NewDeviceRegistry() *DeviceRegistry {
 // Register adds (or replaces, on reconnect) a controllable device for a
 // user. deviceID is client-generated and stable per install, so a
 // reconnect with the same ID cleanly supersedes the stale connection.
-func (r *DeviceRegistry) Register(userID, deviceID, name, deviceType string, sender syncplay.MessageSender) syncplay.Device {
+func (r *DeviceRegistry) Register(userID, deviceID, name, deviceType string, sender syncplay.MessageSender) (syncplay.Device, error) {
 	dev := syncplay.Device{
 		ID:          deviceID,
 		UserID:      userID,
@@ -49,12 +58,20 @@ func (r *DeviceRegistry) Register(userID, deviceID, name, deviceType string, sen
 		ConnectedAt: time.Now().UTC(),
 	}
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.devices[userID] == nil {
 		r.devices[userID] = make(map[string]*deviceEntry)
 	}
-	r.devices[userID][deviceID] = &deviceEntry{device: dev, sender: sender}
-	r.mu.Unlock()
-	return dev
+	byUser := r.devices[userID]
+	// A reconnect reuses an existing deviceID: it replaces the stale entry in
+	// place and never grows the count, so it's always allowed even at the
+	// cap. Only a brand-new deviceID past the cap is rejected. The check and
+	// the insert share the lock so the count can't be raced past the cap.
+	if _, exists := byUser[deviceID]; !exists && len(byUser) >= MaxDevicesPerUser {
+		return syncplay.Device{}, ErrTooManyDevices
+	}
+	byUser[deviceID] = &deviceEntry{device: dev, sender: sender}
+	return dev, nil
 }
 
 // Unregister removes a device. Safe to call for an unknown device. Only

@@ -49,10 +49,10 @@ func TestDevices_List_NoAuth_401(t *testing.T) {
 
 func TestDevices_List_OnlyOwnDevices(t *testing.T) {
 	f := newDevicesFixture(t)
-	f.registry.Register("user-1", "dev-tv", "Living room TV", domainsyncplay.DeviceTypeTV, syncplayfakes.NewFakeMessageSender())
-	f.registry.Register("user-1", "dev-phone", "Pixel", domainsyncplay.DeviceTypeMobile, syncplayfakes.NewFakeMessageSender())
+	_, _ = f.registry.Register("user-1", "dev-tv", "Living room TV", domainsyncplay.DeviceTypeTV, syncplayfakes.NewFakeMessageSender())
+	_, _ = f.registry.Register("user-1", "dev-phone", "Pixel", domainsyncplay.DeviceTypeMobile, syncplayfakes.NewFakeMessageSender())
 	// user-2's device must never appear in user-1's list.
-	f.registry.Register("user-2", "dev-other", "Other", domainsyncplay.DeviceTypeWeb, syncplayfakes.NewFakeMessageSender())
+	_, _ = f.registry.Register("user-2", "dev-other", "Other", domainsyncplay.DeviceTypeWeb, syncplayfakes.NewFakeMessageSender())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/devices", nil)
 	req.Header.Set("Authorization", "Bearer "+f.userTok)
@@ -81,7 +81,7 @@ func TestDevices_List_OnlyOwnDevices(t *testing.T) {
 func TestDevices_Command_ReachesDevice(t *testing.T) {
 	f := newDevicesFixture(t)
 	sender := syncplayfakes.NewFakeMessageSender()
-	f.registry.Register("user-1", "dev-tv", "TV", domainsyncplay.DeviceTypeTV, sender)
+	_, _ = f.registry.Register("user-1", "dev-tv", "TV", domainsyncplay.DeviceTypeTV, sender)
 
 	body := `{"type":"loadAndPlay","mediaId":"media-42","positionMs":90000}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/dev-tv/command", strings.NewReader(body))
@@ -106,7 +106,7 @@ func TestDevices_Command_ReachesDevice(t *testing.T) {
 
 func TestDevices_Command_UnknownDevice_404(t *testing.T) {
 	f := newDevicesFixture(t)
-	f.registry.Register("user-1", "dev-tv", "TV", domainsyncplay.DeviceTypeTV, syncplayfakes.NewFakeMessageSender())
+	_, _ = f.registry.Register("user-1", "dev-tv", "TV", domainsyncplay.DeviceTypeTV, syncplayfakes.NewFakeMessageSender())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/dev-missing/command",
 		strings.NewReader(`{"type":"pause"}`))
@@ -122,7 +122,7 @@ func TestDevices_Command_UnknownDevice_404(t *testing.T) {
 // registry is per-user, so user-2 addressing user-1's device gets a 404.
 func TestDevices_Command_OtherUsersDevice_404(t *testing.T) {
 	f := newDevicesFixture(t)
-	f.registry.Register("user-1", "dev-tv", "TV", domainsyncplay.DeviceTypeTV, syncplayfakes.NewFakeMessageSender())
+	_, _ = f.registry.Register("user-1", "dev-tv", "TV", domainsyncplay.DeviceTypeTV, syncplayfakes.NewFakeMessageSender())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/dev-tv/command",
 		strings.NewReader(`{"type":"pause"}`))
@@ -136,7 +136,7 @@ func TestDevices_Command_OtherUsersDevice_404(t *testing.T) {
 
 func TestDevices_Command_BadBody_400(t *testing.T) {
 	f := newDevicesFixture(t)
-	f.registry.Register("user-1", "dev-tv", "TV", domainsyncplay.DeviceTypeTV, syncplayfakes.NewFakeMessageSender())
+	_, _ = f.registry.Register("user-1", "dev-tv", "TV", domainsyncplay.DeviceTypeTV, syncplayfakes.NewFakeMessageSender())
 
 	for _, body := range []string{`not json`, `{}`, `{"mediaId":"x"}`} {
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/dev-tv/command", strings.NewReader(body))

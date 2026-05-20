@@ -144,7 +144,13 @@ func (h *devicesHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		h.registry.Register(userID, reg.DeviceID, reg.Name, reg.DeviceType, sender)
+		if _, err := h.registry.Register(userID, reg.DeviceID, reg.Name, reg.DeviceType, sender); err != nil {
+			// Past the per-user cap: the socket is already upgraded (HTTP 101),
+			// so there's no status code to return — closing the connection is
+			// the rejection. The client can retry after dropping a device.
+			slog.Warn("devices ws: register rejected", slog.String("user", userID), slog.Any("err", err))
+			return
+		}
 		defer h.registry.Unregister(userID, reg.DeviceID, sender)
 
 		// Keep the connection alive to receive pushed commands. Future

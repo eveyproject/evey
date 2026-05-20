@@ -3,6 +3,7 @@ package syncplay
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -17,10 +18,10 @@ func TestDeviceRegistry_RegisterAndList(t *testing.T) {
 	s1 := fakes.NewFakeMessageSender()
 	s2 := fakes.NewFakeMessageSender()
 
-	r.Register("user-1", "dev-tv", "Living room TV", syncplay.DeviceTypeTV, s1)
-	r.Register("user-1", "dev-phone", "Pixel", syncplay.DeviceTypeMobile, s2)
+	_, _ = r.Register("user-1", "dev-tv", "Living room TV", syncplay.DeviceTypeTV, s1)
+	_, _ = r.Register("user-1", "dev-phone", "Pixel", syncplay.DeviceTypeMobile, s2)
 	// A different user's device must not leak into user-1's list.
-	r.Register("user-2", "dev-other", "Someone else", syncplay.DeviceTypeWeb, fakes.NewFakeMessageSender())
+	_, _ = r.Register("user-2", "dev-other", "Someone else", syncplay.DeviceTypeWeb, fakes.NewFakeMessageSender())
 
 	devs := r.List("user-1")
 	require.Len(t, devs, 2)
@@ -39,10 +40,10 @@ func TestDeviceRegistry_ReconnectReplaces(t *testing.T) {
 	old := fakes.NewFakeMessageSender()
 	fresh := fakes.NewFakeMessageSender()
 
-	r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, old)
+	_, _ = r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, old)
 	// Same deviceID reconnecting (app restarted) must supersede the stale
 	// connection, not create a duplicate.
-	r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, fresh)
+	_, _ = r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, fresh)
 
 	require.Len(t, r.List("user-1"), 1)
 
@@ -55,7 +56,7 @@ func TestDeviceRegistry_ReconnectReplaces(t *testing.T) {
 func TestDeviceRegistry_Unregister(t *testing.T) {
 	r := NewDeviceRegistry()
 	s := fakes.NewFakeMessageSender()
-	r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, s)
+	_, _ = r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, s)
 
 	r.Unregister("user-1", "dev-tv", s)
 	assert.Empty(t, r.List("user-1"))
@@ -71,8 +72,8 @@ func TestDeviceRegistry_UnregisterStaleSenderNoOp(t *testing.T) {
 	stale := fakes.NewFakeMessageSender()
 	fresh := fakes.NewFakeMessageSender()
 
-	r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, stale)
-	r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, fresh) // reconnect
+	_, _ = r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, stale)
+	_, _ = r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, fresh) // reconnect
 
 	// The stale connection's defer fires late — it must not remove the
 	// fresh entry.
@@ -86,7 +87,7 @@ func TestDeviceRegistry_UnregisterStaleSenderNoOp(t *testing.T) {
 func TestDeviceRegistry_SendCommand(t *testing.T) {
 	r := NewDeviceRegistry()
 	s := fakes.NewFakeMessageSender()
-	r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, s)
+	_, _ = r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, s)
 
 	cmd := syncplay.DeviceCommand{
 		Type:       syncplay.DeviceCmdLoadAndPlay,
@@ -104,7 +105,7 @@ func TestDeviceRegistry_SendCommand(t *testing.T) {
 
 func TestDeviceRegistry_SendCommand_NotConnected(t *testing.T) {
 	r := NewDeviceRegistry()
-	r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, fakes.NewFakeMessageSender())
+	_, _ = r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, fakes.NewFakeMessageSender())
 
 	// Wrong device, wrong user, and a user with no devices at all.
 	assert.ErrorIs(t, r.SendCommand("user-1", "dev-missing", syncplay.DeviceCommand{Type: "play"}), ErrDeviceNotConnected)
@@ -115,11 +116,61 @@ func TestDeviceRegistry_SendCommand_SenderError(t *testing.T) {
 	r := NewDeviceRegistry()
 	s := fakes.NewFakeMessageSender()
 	s.Err = errors.New("socket closed")
-	r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, s)
+	_, _ = r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, s)
 
 	err := r.SendCommand("user-1", "dev-tv", syncplay.DeviceCommand{Type: "pause"})
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrDeviceNotConnected, "a send failure is distinct from not-connected")
+}
+
+func TestDeviceRegistry_QuotaRejectsNewDevicePastCap(t *testing.T) {
+	r := NewDeviceRegistry()
+	for i := 0; i < MaxDevicesPerUser; i++ {
+		dev, err := r.Register("user-1", fmt.Sprintf("dev-%d", i), "D", syncplay.DeviceTypeTV, fakes.NewFakeMessageSender())
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("dev-%d", i), dev.ID)
+	}
+	require.Len(t, r.List("user-1"), MaxDevicesPerUser)
+
+	// A brand-new deviceID past the cap is rejected and never stored.
+	_, err := r.Register("user-1", "dev-overflow", "D", syncplay.DeviceTypeTV, fakes.NewFakeMessageSender())
+	require.ErrorIs(t, err, ErrTooManyDevices)
+	assert.Len(t, r.List("user-1"), MaxDevicesPerUser, "rejected device must not be stored")
+
+	// The cap is per-user: another user is unaffected.
+	_, err = r.Register("user-2", "dev-x", "D", syncplay.DeviceTypeTV, fakes.NewFakeMessageSender())
+	require.NoError(t, err)
+}
+
+func TestDeviceRegistry_QuotaAllowsReconnectAtCap(t *testing.T) {
+	r := NewDeviceRegistry()
+	var lastID string
+	for i := 0; i < MaxDevicesPerUser; i++ {
+		lastID = fmt.Sprintf("dev-%d", i)
+		_, err := r.Register("user-1", lastID, "D", syncplay.DeviceTypeTV, fakes.NewFakeMessageSender())
+		require.NoError(t, err)
+	}
+	// Reconnecting an EXISTING deviceID at the cap must succeed (it replaces
+	// the entry in place) rather than being rejected as overflow.
+	fresh := fakes.NewFakeMessageSender()
+	_, err := r.Register("user-1", lastID, "D", syncplay.DeviceTypeTV, fresh)
+	require.NoError(t, err)
+	require.Len(t, r.List("user-1"), MaxDevicesPerUser)
+	require.NoError(t, r.SendCommand("user-1", lastID, syncplay.DeviceCommand{Type: syncplay.DeviceCmdPause}))
+	assert.Len(t, fresh.Received(), 1, "reconnect replaced the sender")
+}
+
+func TestDeviceRegistry_QuotaFreedAfterUnregister(t *testing.T) {
+	r := NewDeviceRegistry()
+	for i := 0; i < MaxDevicesPerUser; i++ {
+		_, err := r.Register("user-1", fmt.Sprintf("dev-%d", i), "D", syncplay.DeviceTypeTV, fakes.NewFakeMessageSender())
+		require.NoError(t, err)
+	}
+	// Freeing a slot lets a new device register again.
+	r.Unregister("user-1", "dev-0", nil)
+	_, err := r.Register("user-1", "dev-new", "D", syncplay.DeviceTypeTV, fakes.NewFakeMessageSender())
+	require.NoError(t, err)
+	assert.Len(t, r.List("user-1"), MaxDevicesPerUser)
 }
 
 // The registry is hit concurrently by many WebSocket goroutines (each
@@ -138,7 +189,7 @@ func TestDeviceRegistry_ConcurrentSafe(t *testing.T) {
 			did := "dev-" + string(rune('A'+w))
 			for i := 0; i < iters; i++ {
 				s := fakes.NewFakeMessageSender()
-				r.Register(uid, did, "D", syncplay.DeviceTypeTV, s)
+				_, _ = r.Register(uid, did, "D", syncplay.DeviceTypeTV, s)
 				_ = r.SendCommand(uid, did, syncplay.DeviceCommand{Type: "play"})
 				_ = r.List(uid)
 				r.Unregister(uid, did, s)
