@@ -317,7 +317,8 @@ func TestShareHandler_ValidateShareLink_Success(t *testing.T) {
 	assert.Equal(t, "Test Movie", valResp.Title)
 	assert.Equal(t, "movie", valResp.MediaType)
 	assert.Equal(t, int64(7200000), valResp.DurationMs)
-	assert.Contains(t, valResp.StreamUrl, "/api/v1/media/media-1/stream")
+	// Share links now resolve to the public download route, not /stream.
+	assert.Equal(t, "/api/v1/share/"+createResp.Token+"/download", valResp.StreamUrl)
 }
 
 func TestShareHandler_ValidateShareLink_InvalidToken(t *testing.T) {
