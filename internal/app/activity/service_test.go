@@ -127,6 +127,41 @@ func TestPurgeOldMetrics(t *testing.T) {
 	assert.Equal(t, "new", metrics[0].ID)
 }
 
+func TestPurgeOldAuditLogs(t *testing.T) {
+	t.Parallel()
+	cmdSvc, querySvc, _, _, auditRepo, _, _ := newTestServices()
+
+	base := time.Now()
+	// Insert via the repo directly: CreateAuditEntry stamps CreatedAt=now,
+	// which would defeat an "old entry" fixture.
+	_ = auditRepo.Create(context.Background(), &activity.AuditLogEntry{ID: "old", Action: "login", CreatedAt: base.Add(-48 * time.Hour)})
+	_ = auditRepo.Create(context.Background(), &activity.AuditLogEntry{ID: "new", Action: "login", CreatedAt: base})
+
+	removed, err := cmdSvc.PurgeOldAuditLogs(context.Background(), base.Add(-24*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), removed)
+
+	got, err := querySvc.GetAuditLog(context.Background(), activity.AuditLogFilter{})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "new", got[0].ID)
+}
+
+func TestStartRetentionPurge_DisabledIsNoop(t *testing.T) {
+	t.Parallel()
+	cmdSvc, querySvc, _, _, auditRepo, _, _ := newTestServices()
+	_ = auditRepo.Create(context.Background(), &activity.AuditLogEntry{ID: "keep", Action: "login", CreatedAt: time.Now().Add(-1000 * time.Hour)})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// Both retentions disabled (<= 0) → no goroutine, nothing purged.
+	cmdSvc.StartRetentionPurge(ctx, 0, 0)
+
+	got, err := querySvc.GetAuditLog(context.Background(), activity.AuditLogFilter{})
+	require.NoError(t, err)
+	assert.Len(t, got, 1, "disabled retention must not purge any entry")
+}
+
 func TestCreateAuditEntry_GeneratesID(t *testing.T) {
 	t.Parallel()
 	cmdSvc, _, _, _, _, _, _ := newTestServices()

@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/activity"
 )
@@ -61,4 +62,23 @@ func (r *FakeAuditLogRepository) List(_ context.Context, filter activity.AuditLo
 		result = result[:filter.Limit]
 	}
 	return result, nil
+}
+
+func (r *FakeAuditLogRepository) Purge(_ context.Context, before time.Time) (int64, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	kept := make([]*activity.AuditLogEntry, 0, len(r.items))
+	var removed int64
+	for _, e := range r.items {
+		if e.CreatedAt.Before(before) {
+			removed++
+			continue
+		}
+		kept = append(kept, e)
+	}
+	r.items = kept
+	return removed, nil
 }

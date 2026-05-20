@@ -145,6 +145,7 @@ type LogConfig struct {
 	MaxSizeMB           int
 	RetentionDays       int
 	PluginRetentionDays int
+	AuditRetentionDays  int // DB audit_log table; 0 = keep forever (append-only)
 	DevMode             bool
 	PluginDebug         bool
 }
@@ -450,6 +451,7 @@ func Load() (*Config, error) {
 			MaxSizeMB:           envInt("EVEY_LOG_MAX_SIZE_MB", 50),
 			RetentionDays:       envInt("EVEY_LOG_RETENTION_DAYS", 90),
 			PluginRetentionDays: envInt("EVEY_LOG_PLUGIN_RETENTION_DAYS", 10),
+			AuditRetentionDays:  envInt("EVEY_AUDIT_LOG_RETENTION_DAYS", 0),
 			DevMode:             envBool("EVEY_LOG_DEV_MODE", false),
 			PluginDebug:         envBool("EVEY_PLUGIN_DEBUG", false),
 		},

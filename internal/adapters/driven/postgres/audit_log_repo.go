@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -140,6 +141,21 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 		return nil, err
 	}
 	return result, nil
+}
+
+func (r *AuditLogRepository) Purge(ctx context.Context, before time.Time) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.audit_log.Purge")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := r.db.ExecContext(ctx, `DELETE FROM audit_log WHERE created_at < $1`, before)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 var _ activity.AuditLogRepository = (*AuditLogRepository)(nil)

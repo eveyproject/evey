@@ -40,6 +40,9 @@ type AuditLogFilter struct {
 type AuditLogRepository interface {
 	Create(ctx context.Context, entry *AuditLogEntry) error
 	List(ctx context.Context, filter AuditLogFilter) ([]*AuditLogEntry, error)
+	// Purge deletes entries strictly older than before. Returns the number
+	// of rows removed so a retention runner can log/observe its work.
+	Purge(ctx context.Context, before time.Time) (int64, error)
 }
 
 type PlaySessionStatsReader interface {

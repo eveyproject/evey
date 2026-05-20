@@ -143,6 +143,11 @@ func run() error {
 	deps.user.authSvc.StartCleanup(ctx)
 	deps.media.playbackSvc.CommandService().StartCleanup(ctx)
 	deps.media.playbackSvc.CommandService().StartProgressFlusher(ctx)
+	// Daily retention sweep for the audit_log + server_metric tables.
+	// audit_log is opt-in (EVEY_AUDIT_LOG_RETENTION_DAYS, default 0 = keep
+	// forever) so an existing deployment never silently loses history;
+	// server_metric rides its long-standing EVEY_METRICS_RETENTION_DAYS.
+	deps.engagement.activityCmdSvc.StartRetentionPurge(ctx, cfg.Log.AuditRetentionDays, cfg.Metrics.RetentionDays)
 	// env-var-based fallback scheduler (used when DB row has enabled=false and EVEY_BACKUP_INTERVAL_HOURS>0)
 	deps.backupSvc.StartScheduler(ctx, cfg.Backup.IntervalHours, cfg.Backup.RetentionDays)
 	// DB-driven cron scheduler (admin-configurable via /api/v1/admin/backup-schedule)
