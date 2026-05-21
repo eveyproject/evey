@@ -46,7 +46,7 @@ func TestScanTVShow_TitleMatch_UpdatesStaleFingerprint(t *testing.T) {
 	require.Len(t, series, 1)
 	assert.Equal(t, shared.MediaItemID("series-existing"), series[0].ID)
 	require.NotNil(t, series[0].File)
-	assert.Equal(t, "series:lib-tv:Show", series[0].File.Fingerprint,
+	assert.Equal(t, "series:lib-tv:show", series[0].File.Fingerprint,
 		"title-matched series must have fingerprint refreshed via Update")
 }
 
@@ -64,11 +64,12 @@ func TestScanTVShow_FingerprintHit_ReusesExistingSeriesDespiteTitleDiff(t *testi
 		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
 	})
 
-	// canonical fingerprint for "Show" in lib-tv; we store it under a renamed title.
+	// canonical fingerprint for "Show" in lib-tv (title part lower-cased); we
+	// store it under a renamed title.
 	require.NoError(t, mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID: "series-existing", LibraryID: "lib-tv", Type: "series",
 		Title: "OldTitle",
-		File:  &library.MediaFile{Fingerprint: "series:lib-tv:Show"},
+		File:  &library.MediaFile{Fingerprint: "series:lib-tv:show"},
 	}))
 
 	scanner.Results["/tv"] = []library.ScannedFile{

@@ -4,12 +4,24 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
+
+// normShowKey is the case-insensitive grouping key for a show/season title.
+// Show titles are parsed from the FILENAME (not the folder), and renamers are
+// inconsistent about casing ("The Boys S02E01" vs "The boys S05E08"), so a
+// case-sensitive key splits the same show into two SERIES rows whose seasons
+// then live under different parents. Lower-casing + trimming collapses every
+// casing of one show onto a single series. The display Title / ScanTitle keep
+// their original case (and get overwritten by metadata enrichment anyway).
+func normShowKey(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
 
 func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, files []library.ScannedFile) (added, updated int, err error) {
 	existing, err := s.mediaItems.ListByLibraryID(ctx, shared.LibraryID(libraryID))
@@ -34,9 +46,9 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 	}
 	scanKey := func(m *library.MediaItem) string {
 		if m.ScanTitle != "" {
-			return m.ScanTitle
+			return normShowKey(m.ScanTitle)
 		}
-		return m.Title
+		return normShowKey(m.Title)
 	}
 	for _, item := range existing {
 		if fp := itemFP(item); fp != "" {
@@ -75,14 +87,19 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 
 	for _, f := range files {
 		showTitle := f.Title
+		// showKey groups all casings of one show. Used for the per-scan maps
+		// and the synthetic fingerprints so they stay stable regardless of how
+		// each episode file happens to be cased; showTitle keeps its case for
+		// the display Title.
+		showKey := normShowKey(showTitle)
 		seasonNum := 0
 		if f.Season != nil {
 			seasonNum = *f.Season
 		}
 
-		seriesID, ok := seriesIDs[showTitle]
+		seriesID, ok := seriesIDs[showKey]
 		if !ok {
-			fp := fmt.Sprintf("series:%s:%s", libraryID, showTitle)
+			fp := fmt.Sprintf("series:%s:%s", libraryID, showKey)
 			seriesItem, created, createErr := lookupOrCreate(&library.MediaItem{
 				ID:        shared.MediaItemID(uuid.New().String()),
 				LibraryID: shared.LibraryID(libraryID),
@@ -108,13 +125,13 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 				added++
 			}
 			seriesID = string(seriesItem.ID)
-			seriesIDs[showTitle] = seriesID
+			seriesIDs[showKey] = seriesID
 		}
 
-		seasonKey := fmt.Sprintf("%s:%d", showTitle, seasonNum)
+		seasonKey := fmt.Sprintf("%s:%d", showKey, seasonNum)
 		seasonID, ok := seasonIDs[seasonKey]
 		if !ok {
-			fp := fmt.Sprintf("season:%s:%s:%d", libraryID, showTitle, seasonNum)
+			fp := fmt.Sprintf("season:%s:%s:%d", libraryID, showKey, seasonNum)
 			n := seasonNum
 			// ScanTitle stays "Season N" (the FS-derived label). Display
 			// title gets localized/enriched later; the dedup key in
