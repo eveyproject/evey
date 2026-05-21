@@ -191,6 +191,9 @@ type HTTPServer struct {
 // gwMux is the grpc-gateway handler (may be nil if gateway failed).
 func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	auth := httpAuthMiddleware(s.TokenGen)
+	// streamAuth additionally accepts opaque stream tokens (?token=) — apply ONLY
+	// to /api/v1/media/{id}/* playback routes the player loads as raw URLs.
+	streamAuth := httpStreamAuthMiddleware(s.TokenGen)
 	admin := httpAdminMiddleware(s.TokenGen)
 
 	mux.HandleFunc("GET /metrics", admin(func(w http.ResponseWriter, r *http.Request) {
@@ -209,12 +212,12 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mhOpts = append(mhOpts, withImageConverter(s.ImageConverter, s.ArtworkRepo))
 	}
 	mh := mediaHandler(s.TokenGen, s.LibQuerySvc, s.ArtworkRepo, s.BaseURL(), s.LibraryAccessRepo, mhOpts...)
-	mux.HandleFunc("GET /api/v1/media/{id}/stream", auth(mh))
+	mux.HandleFunc("GET /api/v1/media/{id}/stream", streamAuth(mh))
 	// Artwork is public (non-sensitive): no auth required.
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
-	mux.HandleFunc("POST /api/v1/media/{id}/stream", auth(mh))
+	mux.HandleFunc("POST /api/v1/media/{id}/stream", streamAuth(mh))
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
-	mux.HandleFunc("GET /api/v1/media/{id}/download", auth(downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo)))
+	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo)))
 	// Public share download: no auth — the uuid token is the capability.
 	// Admin-only to CREATE (RBAC), but the resulting link must resolve without
 	// a login. Rate-limited per-IP as defence-in-depth (the uuid entropy is the
@@ -225,17 +228,17 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("POST /api/v1/media/{id}/stream-token", auth(streamTokenHandler(s.TokenGen, s.StreamTokenStore, s.LibraryAccessRepo, s.LibQuerySvc)))
 
 	transcodeThrottle := apptranscoding.NewTranscodeThrottle()
-	mux.HandleFunc("GET /api/v1/media/{id}/transcode", auth(transcodeHandler(transcodeServe{
+	mux.HandleFunc("GET /api/v1/media/{id}/transcode", streamAuth(transcodeHandler(transcodeServe{
 		tokens: s.TokenGen, libSvc: s.LibQuerySvc, baseURL: s.BaseURL(),
 		libraryAccess: s.LibraryAccessRepo, throttle: transcodeThrottle, userMaxStreams: s.UserMaxStreams,
 	})))
-	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", auth(subtitleHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo)))
-	mux.HandleFunc("GET /api/v1/media/{id}/chapters", auth(chaptersHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc)))
-	mux.HandleFunc("GET /api/v1/media/{id}/segments", auth(segmentsHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc)))
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", streamAuth(subtitleHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo)))
+	mux.HandleFunc("GET /api/v1/media/{id}/chapters", streamAuth(chaptersHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc)))
+	mux.HandleFunc("GET /api/v1/media/{id}/segments", streamAuth(segmentsHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc)))
 	// Trickplay (manifest + sprite images) is public (non-sensitive): no auth required.
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc))
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc))
-	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", auth(snapshotHandler(s.TokenGen, s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL())))
+	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", streamAuth(snapshotHandler(s.TokenGen, s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL())))
 	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.TokenGen, s.LibCmdSvc, s.ServerCtx))))
 	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
 	mux.HandleFunc("POST /api/v1/admin/search/reindex", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, searchReindexHandler(s.LibQuerySvc, s.ServerCtx))))
@@ -245,8 +248,8 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("DELETE /api/v1/admin/media/{id}/segments", deleteSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/segments/propagate", propagateSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 	}
-	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", auth(playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs)))
-	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", auth(hlsMasterHandler(hlsMasterServe{
+	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs)))
+	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", streamAuth(hlsMasterHandler(hlsMasterServe{
 		tokens: s.TokenGen, libSvc: s.LibQuerySvc, hlsManager: s.HLSManager,
 		libraryAccess: s.LibraryAccessRepo, userMaxStreams: s.UserMaxStreams,
 		audioNormalizeGetter: s.AudioNormalizeGetter, bitrateGetter: s.UserBitrate,
@@ -254,7 +257,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	})))
 	hlsMediaCache := NewCachedMediaItemGetter(s.LibQuerySvc)
 	hlsAccessCache := NewCachedLibraryAccessChecker(s.LibraryAccessRepo)
-	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", auth(hlsSegmentHandler(s.TokenGen, hlsMediaCache, s.HLSManager, hlsAccessCache)))
+	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(hlsSegmentHandler(s.TokenGen, hlsMediaCache, s.HLSManager, hlsAccessCache)))
 	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.TokenGen, s.LibQuerySvc, NewLibraryItemCounter(s.LibQuerySvc, s.MusicSvc, s.PhotoSvc))))
 
 	// DLNA

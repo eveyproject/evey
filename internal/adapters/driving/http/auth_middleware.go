@@ -16,17 +16,16 @@ func HTTPClaimsFromContext(ctx context.Context) *domainuser.Claims {
 }
 
 // httpAuthMiddleware validates JWT bearer tokens and injects claims into context.
-// For opaque stream tokens (already resolved by TokenRedactMiddleware), it creates
-// limited claims from the stream token.
+//
+// It deliberately does NOT accept opaque stream tokens: a stream token is a
+// narrowly-scoped capability (one media item, short-lived) that travels in URLs
+// (history, proxy logs, referer, Chromecast handoff), so it must not authenticate
+// generic endpoints. Routes where a stream token IS a legitimate credential (the
+// raw-URL media streaming routes the player can't attach a Bearer header to) use
+// httpStreamAuthMiddleware instead.
 func httpAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
-			if st, ok := StreamTokenFromContext(r.Context()); ok {
-				claims := &domainuser.Claims{UserID: string(st.UserID)}
-				ctx := context.WithValue(r.Context(), httpClaimsCtxKey{}, claims)
-				next(w, r.WithContext(ctx))
-				return
-			}
 			token := extractBearerToken(r)
 			if token == "" {
 				http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
@@ -39,6 +38,30 @@ func httpAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.Hand
 			}
 			ctx := context.WithValue(r.Context(), httpClaimsCtxKey{}, claims)
 			next(w, r.WithContext(ctx))
+		}
+	}
+}
+
+// httpStreamAuthMiddleware authenticates the media streaming routes the player
+// loads as raw URLs (<video src>, hls.js XHR, download anchor) where a Bearer
+// header cannot be attached. It accepts EITHER an opaque stream token (resolved
+// by TokenRedactMiddlewareWithStore into the request context) OR a JWT. The
+// synthesized stream-token claims carry only UserID (never IsAdmin), and each
+// handler additionally enforces st.MediaItemID == {id}, so the token stays
+// scoped to its one media item. Apply ONLY to /api/v1/media/{id}/* play routes,
+// never to generic user/admin endpoints (those use httpAuthMiddleware).
+func httpStreamAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.HandlerFunc {
+	authMw := httpAuthMiddleware(verifier)
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		jwtPath := authMw(next)
+		return func(w http.ResponseWriter, r *http.Request) {
+			if st, ok := StreamTokenFromContext(r.Context()); ok {
+				claims := &domainuser.Claims{UserID: string(st.UserID)}
+				ctx := context.WithValue(r.Context(), httpClaimsCtxKey{}, claims)
+				next(w, r.WithContext(ctx))
+				return
+			}
+			jwtPath(w, r)
 		}
 	}
 }
