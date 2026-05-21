@@ -114,6 +114,12 @@ func (s *QueryService) GetMediaItem(ctx context.Context, id string) (*library.Me
 	return s.mediaItems.GetByID(ctx, shared.MediaItemID(id))
 }
 
+func (s *QueryService) GetMediaItemByFilePath(ctx context.Context, path string) (*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetMediaItemByFilePath")
+	defer span.End()
+	return s.mediaItems.GetByFilePath(ctx, path)
+}
+
 func (s *QueryService) GetMediaItemsByIDs(ctx context.Context, ids []string) ([]*library.MediaItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.GetMediaItemsByIDs")
 	defer span.End()

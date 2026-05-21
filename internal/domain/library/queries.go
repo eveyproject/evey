@@ -23,6 +23,10 @@ type CastMember struct {
 type MediaItemQueryRepo interface {
 	GetByID(ctx context.Context, id shared.MediaItemID) (*MediaItem, error)
 	GetByIDs(ctx context.Context, ids []shared.MediaItemID) ([]*MediaItem, error)
+	// GetByFilePath resolves the media item whose underlying file lives at path.
+	// Read path used to gate filesystem-path operations (e.g. MKV chapter
+	// lookup) by library access. Returns shared.ErrNotFound when no item matches.
+	GetByFilePath(ctx context.Context, path string) (*MediaItem, error)
 	List(ctx context.Context, filter ListMediaItemsFilter) ([]*MediaItem, error)
 	Count(ctx context.Context, filter ListMediaItemsFilter) (int, error)
 	GetCastByMediaItem(ctx context.Context, mediaItemID shared.MediaItemID) ([]CastMember, error)

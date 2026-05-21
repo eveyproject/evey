@@ -4,14 +4,46 @@ import (
 	"context"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmkv "github.com/evey-project/evey/internal/app/mkv"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type mkvHandler struct {
 	eveyv1.UnimplementedMKVServiceServer
-	svc *appmkv.Service
+	svc        *appmkv.Service
+	libQuery   *applibrary.QueryService
+	userAccess *appuser.AccessService
+}
+
+// checkPathAccess gates filesystem-path operations that are exposed to regular
+// users (ListChapters, used by the player's skip-intro fallback) so a non-admin
+// cannot read MKV metadata for files outside the libraries they have access to.
+// The path must resolve to a known media item the caller can see; admins bypass.
+// No-op when the access deps are unwired (keeps unit tests that build the
+// handler with only svc working). Mirrors metadataHandler.checkMediaItemAccess.
+func (h *mkvHandler) checkPathAccess(ctx context.Context, path string) error {
+	if h.userAccess == nil || h.libQuery == nil {
+		return nil
+	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil || claims.IsAdmin {
+		return nil
+	}
+	item, err := h.libQuery.GetMediaItemByFilePath(ctx, path)
+	if err != nil || item == nil {
+		return status.Error(codes.NotFound, "not found")
+	}
+	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
+	if accessErr != nil || !ok {
+		return status.Error(codes.NotFound, "not found")
+	}
+	return nil
 }
 
 func (h *mkvHandler) GetContainerInfo(ctx context.Context, req *eveyv1.GetContainerInfoRequest) (*eveyv1.Container, error) {
@@ -41,6 +73,9 @@ func (h *mkvHandler) ListTracks(ctx context.Context, req *eveyv1.ListMkvTracksRe
 func (h *mkvHandler) ListChapters(ctx context.Context, req *eveyv1.ListChaptersRequest) (*eveyv1.ListChaptersResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.mkv.ListChapters")
 	defer span.End()
+	if err := h.checkPathAccess(ctx, req.Path); err != nil {
+		return nil, err
+	}
 	chapters, err := h.svc.ListChapters(ctx, req.Path)
 	if err != nil {
 		return nil, internalError("list chapters", err)

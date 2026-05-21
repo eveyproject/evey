@@ -102,7 +102,9 @@ func DefaultRBACConfig() RBACConfig {
 			// also WRITES the attachment to a caller-supplied OutputPath (arbitrary
 			// file write). Neither is used by the player, so gate both to admin.
 			// ListChapters is intentionally NOT here: the player's MKV chapter /
-			// skip-intro fallback calls it for regular users.
+			// skip-intro fallback calls it for regular users. It is instead gated
+			// in-handler (mkvHandler.checkPathAccess) so a non-admin can only read
+			// chapters for files in libraries they have access to.
 			"/evey.v1.MKVService/ListAttachments":                          RoleAdmin,
 			"/evey.v1.MKVService/ExtractAttachment":                        RoleAdmin,
 			// Share links generate a PUBLIC (unauthenticated) download URL, so

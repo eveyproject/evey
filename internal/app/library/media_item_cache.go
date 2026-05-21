@@ -87,6 +87,13 @@ func (c *CachedMediaItemQueryRepo) GetByIDs(ctx context.Context, ids []shared.Me
 	return c.inner.GetByIDs(ctx, ids)
 }
 
+// GetByFilePath is not cached by path: it's only hit on the rare MKV chapter
+// skip-intro fallback (once per playback, staleTime:Infinity client-side), so a
+// per-path cache would add invalidation surface for no real benefit.
+func (c *CachedMediaItemQueryRepo) GetByFilePath(ctx context.Context, path string) (*library.MediaItem, error) {
+	return c.inner.GetByFilePath(ctx, path)
+}
+
 func (c *CachedMediaItemQueryRepo) List(ctx context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
 	return c.inner.List(ctx, filter)
 }
