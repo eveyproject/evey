@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -40,14 +41,30 @@ const (
 )
 
 type processEntry struct {
-	cmd           *exec.Cmd
-	cancel        context.CancelFunc
-	sockPath      string
-	pluginID      string
-	ipc           *ipcClient
-	done          chan struct{} // closed when cmd.Wait() returns in Start goroutine
-	cgroupPath    string        // empty when cgroup v2 is unavailable
-	hostsCleanup  func()        // removes the temp /etc/hosts file; nil if not built
+	cmd          *exec.Cmd
+	cancel       context.CancelFunc
+	sockPath     string
+	pluginID     string
+	ipc          *ipcClient
+	done         chan struct{} // closed when cmd.Wait() returns in Start goroutine
+	cgroupPath   string        // empty when cgroup v2 is unavailable
+	hostsCleanup func()        // removes the temp /etc/hosts file; nil if not built
+	tail         *tailBuffer   // last bytes of the process stdout/stderr (crash diagnostics)
+
+	crashMu     sync.Mutex
+	crashReason string // set by trackLifecycle on abnormal exit, read by connectIPC
+}
+
+func (e *processEntry) setCrashReason(s string) {
+	e.crashMu.Lock()
+	e.crashReason = s
+	e.crashMu.Unlock()
+}
+
+func (e *processEntry) getCrashReason() string {
+	e.crashMu.Lock()
+	defer e.crashMu.Unlock()
+	return e.crashReason
 }
 
 // OnIPCResult is called after IPC Initialize completes (success or failure).
@@ -292,13 +309,18 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		}
 	}()
 
+	// Tee stdout/stderr through a bounded tail buffer so an abnormal exit can
+	// surface the real cause. Use ONE writer instance for both streams: os/exec
+	// then serialises writes (no interleave race) when Stdout == Stderr.
+	tail := newTailBuffer(4096)
+	var out io.Writer
 	if r.logger != nil {
-		cmd.Stdout = r.logger.Writer(p.ID)
-		cmd.Stderr = r.logger.Writer(p.ID)
+		out = io.MultiWriter(r.logger.Writer(p.ID), tail)
 	} else {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		out = io.MultiWriter(os.Stdout, tail)
 	}
+	cmd.Stdout = out
+	cmd.Stderr = out
 	sysProcAttr := pluginSysProcAttr()
 	cmd.SysProcAttr = sysProcAttr
 
@@ -371,6 +393,7 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		done:         make(chan struct{}),
 		cgroupPath:   cgroupPath,
 		hostsCleanup: hostsCleanup,
+		tail:         tail,
 	}
 	hostsCleanedUp = true // ownership handed to entry; trackLifecycle/Stop will call it
 	go r.connectIPC(ctx, entry, p)
@@ -639,6 +662,18 @@ func (r *Runner) trackLifecycle(entry *processEntry, cancel context.CancelFunc, 
 	}
 	if err != nil {
 		msg := classifyExitError(err, entry.cgroupPath != "")
+		if entry.tail != nil {
+			if out := strings.TrimSpace(entry.tail.String()); out != "" {
+				const maxTail = 600
+				if len(out) > maxTail {
+					out = "…" + out[len(out)-maxTail:]
+				}
+				msg += " — plugin output: " + out
+			}
+		}
+		// Record before publishing so connectIPC (still waiting on the socket)
+		// can surface this exact reason instead of a generic socket timeout.
+		entry.setCrashReason(msg)
 		slog.Warn("plugin process crashed", slog.String("plugin", p.ID), slog.String("classification", msg), slog.Any("err", err))
 		r.publishPluginError(context.Background(), p.ID, msg)
 	} else {
@@ -675,6 +710,17 @@ func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *p
 	}()
 	client, err := newIPCClient(entry.sockPath)
 	if err != nil {
+		// The socket never came up. The process has very likely already
+		// crashed — its exit reason (with captured output) is far more useful
+		// than a bare "socket timeout". Wait briefly for trackLifecycle to
+		// record it, then prefer it.
+		select {
+		case <-entry.done:
+		case <-time.After(500 * time.Millisecond):
+		}
+		if cr := entry.getCrashReason(); cr != "" {
+			err = fmt.Errorf("plugin exited before becoming ready: %s", cr)
+		}
 		slog.Warn("plugin IPC connect failed", slog.String("pluginID", p.ID), slog.Any("err", err))
 		if r.onIPCResult != nil {
 			r.onIPCResult(p.ID, err)
