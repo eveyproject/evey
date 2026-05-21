@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
 	"github.com/evey-project/evey/internal/config"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
@@ -158,6 +159,17 @@ func run() error {
 	// host socket and auto-start are skipped — a plugin enabled in DB
 	// from a previous run will stay dormant until the flag is flipped.
 	if cfg.Server.PluginsEnabled {
+		// Preflight the sandbox once so a host that can't run bwrap (Docker's
+		// default seccomp blocks unshare/mount) yields an actionable message
+		// instead of every plugin crashing later with a cryptic socket timeout.
+		if perr := pluginrunner.ProbeSandbox(cfg.Plugins.SandboxMode); perr != nil {
+			rootLog.Warn("plugin sandbox preflight FAILED — plugins will crash at startup until this is fixed. "+
+				"Apply the bundled seccomp profile to the evey container (security_opt: seccomp=.../seccomp-evey.json), "+
+				"or set EVEY_PLUGINS_SANDBOX_MODE=basic to run without bubblewrap (weaker isolation).",
+				slog.String("sandbox_mode", cfg.Plugins.SandboxMode), slog.Any("err", perr))
+		} else {
+			rootLog.Info("plugin sandbox preflight ok", slog.String("sandbox_mode", cfg.Plugins.SandboxMode))
+		}
 		if err := deps.engagement.pluginHostServer.Start(); err != nil {
 			rootLog.Warn("plugin host server start failed", slog.Any("err", err))
 		} else {
