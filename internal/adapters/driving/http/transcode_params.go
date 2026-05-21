@@ -57,6 +57,29 @@ func (h *transcodeServe) parseParams(r *http.Request) transcodeParams {
 	return p
 }
 
+// clampAudioTrack bounds a requested audio track index to the audio streams
+// actually present in the media. The index is emitted verbatim as ffmpeg
+// "-map 0:a:N"; an out-of-range value (from a buggy or malicious client) would
+// make ffmpeg fail with "matches no streams" and abort the whole transcode with
+// a 500. We fall back to the first audio track instead. In-range indices are
+// returned unchanged, so legitimate track selection (indices derived from the
+// client's streamInfo) is never affected.
+func clampAudioTrack(idx int, streams []*domainlibrary.MediaStream) int {
+	if idx <= 0 {
+		return 0
+	}
+	audioCount := 0
+	for _, s := range streams {
+		if s.StreamType == "audio" {
+			audioCount++
+		}
+	}
+	if idx >= audioCount {
+		return 0
+	}
+	return idx
+}
+
 func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, remuxOnly bool, client domaintranscoding.ClientProfile, subtitleTrack int) transcodeAnalysis {
 	a := transcodeAnalysis{needsAudioTranscode: true}
 

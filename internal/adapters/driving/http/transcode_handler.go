@@ -340,6 +340,7 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			audioTrackIndex = n
 		}
 	}
+	audioTrackIndex = clampAudioTrack(audioTrackIndex, mediaStreams)
 
 	hdrSupported := r.URL.Query().Get("hdr") == "1"
 	audioNormalize := h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context())
@@ -656,6 +657,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	clientSupportsHDR := r.URL.Query().Get("hdr") == "true"
 	client := parseClientCapabilities(r, clientSupportsHDR)
 	analysis := h.analyzeStreams(r.Context(), mediaID, params.remuxOnly, client, params.subtitleTrack)
+	params.audioTrack = clampAudioTrack(params.audioTrack, analysis.streams)
 
 	slog.Debug("transcode: decision", slog.String("media_id", mediaID), slog.Bool("needsVideoTranscode", analysis.needsVideoTranscode), slog.Bool("needsAudioTranscode", analysis.needsAudioTranscode), slog.Bool("remuxOnly", params.remuxOnly), slog.Bool("needsToneMap", analysis.needsToneMap))
 
