@@ -136,6 +136,13 @@ func (s *QueryService) CountMediaItems(ctx context.Context, filter library.ListM
 	return s.mediaItems.Count(ctx, filter)
 }
 
+// ReindexSearch rebuilds the search index from the database for the given
+// library (empty = all libraries), without contacting metadata providers.
+// Backs POST /api/v1/admin/search/reindex.
+func (s *QueryService) ReindexSearch(ctx context.Context, libraryID string, onProgress func(done, total int)) (int, error) {
+	return ReindexSearchIndex(ctx, s.mediaItems, s.search, libraryID, onProgress)
+}
+
 func (s *QueryService) GetCast(ctx context.Context, mediaItemID string) ([]library.CastMember, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.GetCast")
 	defer span.End()

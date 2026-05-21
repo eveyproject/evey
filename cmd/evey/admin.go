@@ -16,7 +16,9 @@ import (
 
 	_ "github.com/lib/pq"
 
+	"github.com/evey-project/evey/internal/adapters/driven/meilisearch"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/pkg/auth"
 )
@@ -36,6 +38,8 @@ func runAdmin(args []string) error {
 		return adminRotateJWTKey(args[1:])
 	case "restore-backup":
 		return adminRestoreBackup(args[1:])
+	case "reindex-search":
+		return adminReindexSearch(args[1:])
 	case "-h", "--help", "help":
 		_ = adminUsage()
 		return nil
@@ -52,6 +56,7 @@ Recovery subcommands:
   reset-password --user <email>     Generate a new password for the user, print it once.
   rotate-jwt-key                    Regenerate the JWT signing key. Invalidates ALL active sessions.
   restore-backup <path>             Restore the database from a pg_dump.gz file.
+  reindex-search [--library <id>]   Rebuild the Meilisearch index from the database (no metadata fetch).
 
 Configuration is read from EVEY_* env vars (same as the server).
 See docs/runbooks/recovery.md for full procedures.
@@ -253,5 +258,40 @@ func generateRandomPassword(byteLen int) (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// adminReindexSearch rebuilds the Meilisearch index from the database without
+// the server running — for when the index was lost/migrated (e.g. embedded↔
+// external switch, version bump, or a DB restore that doesn't carry the
+// index). Reads straight from Postgres, no metadata-provider calls.
+func adminReindexSearch(args []string) error {
+	fs := flag.NewFlagSet("reindex-search", flag.ExitOnError)
+	libraryID := fs.String("library", "", "library ID to reindex (default: all libraries)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	cfg, db, cleanup, err := openAdminDB()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	search, err := meilisearch.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
+	if err != nil {
+		return fmt.Errorf("connect meilisearch (%s): %w", cfg.Meilisearch.URL, err)
+	}
+	items := postgres.NewMediaItemQueryRepoAdapter(db)
+
+	fmt.Printf("Reindexing media items into Meilisearch at %s ...\n", cfg.Meilisearch.URL)
+	n, err := applibrary.ReindexSearchIndex(context.Background(), items, search, *libraryID, func(done, total int) {
+		fmt.Printf("\r  %d/%d", done, total)
+	})
+	fmt.Println()
+	if err != nil {
+		return fmt.Errorf("reindex: %w", err)
+	}
+	fmt.Printf("Done. Indexed %d media items.\n", n)
+	return nil
 }
 

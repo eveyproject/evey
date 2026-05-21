@@ -43,6 +43,14 @@ func (s *FakeSearchIndex) IndexMediaItemsBatch(_ context.Context, items []*libra
 	return nil
 }
 
+// Indexed returns how many distinct media items are currently in the index —
+// a test accessor for asserting reindex/index behaviour.
+func (s *FakeSearchIndex) Indexed() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.items)
+}
+
 func (s *FakeSearchIndex) RemoveMediaItem(_ context.Context, id string) error {
 	if s.Err != nil {
 		return s.Err
