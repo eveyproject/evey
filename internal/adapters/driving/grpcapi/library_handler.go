@@ -249,19 +249,30 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 		}
 	}
 	pb := mediaItemToProto(item)
+	// Artwork/cast/streams are best-effort enrichments: a failure on one must
+	// not fail the whole detail response. But the errors were being swallowed
+	// silently, which hides real problems (e.g. streams empty in the DB or a
+	// failing query looks identical to "no data"). Log them so they're
+	// diagnosable instead of invisible.
 	if h.metadataSvc != nil {
-		if artworks, err := h.metadataSvc.GetArtwork(ctx, req.Id); err == nil {
+		if artworks, err := h.metadataSvc.GetArtwork(ctx, req.Id); err != nil {
+			slog.Warn("media detail: load artwork failed", slog.String("media_item_id", req.Id), slog.Any("err", err))
+		} else {
 			for _, a := range artworks {
 				pb.Artwork = append(pb.Artwork, artworkRecordToProto(a))
 			}
 		}
 	}
-	if cast, err := h.query.GetCast(ctx, req.Id); err == nil {
+	if cast, err := h.query.GetCast(ctx, req.Id); err != nil {
+		slog.Warn("media detail: load cast failed", slog.String("media_item_id", req.Id), slog.Any("err", err))
+	} else {
 		for _, cm := range cast {
 			pb.People = append(pb.People, castMemberToProto(cm))
 		}
 	}
-	if streams, err := h.query.GetMediaStreams(ctx, req.Id); err == nil {
+	if streams, err := h.query.GetMediaStreams(ctx, req.Id); err != nil {
+		slog.Warn("media detail: load streams failed", slog.String("media_item_id", req.Id), slog.Any("err", err))
+	} else {
 		for _, s := range streams {
 			pb.Streams = append(pb.Streams, mediaStreamToProto(s))
 		}
