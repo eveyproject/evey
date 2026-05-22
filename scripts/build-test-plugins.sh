@@ -44,6 +44,20 @@ for dir in "$src"/*/; do
     fi
     echo "  $name: pruning to runtime deps..."
     (cd "$dir" && npm prune --omit=dev --silent)
+    # Trim non-runtime cruft from the vendored deps: test fixtures, docs, type
+    # defs, source maps and CLI shims aren't needed at runtime. Keeps the zip
+    # small AND avoids shipping innocuous-but-highly-compressible test data that
+    # could trip a strict installer zip-bomb guard.
+    if [ -d "$dir/node_modules" ]; then
+      find "$dir/node_modules" -type d \( \
+        -iname test -o -iname tests -o -iname __tests__ -o -iname doc -o \
+        -iname docs -o -iname example -o -iname examples -o -iname .github -o -iname .bin \
+      \) -prune -exec rm -rf {} + 2>/dev/null || true
+      find "$dir/node_modules" -type f \( \
+        -name '*.md' -o -name '*.markdown' -o -name '*.map' -o -name '*.d.ts' -o \
+        -name '*.ts' -o -name '.npmignore' -o -name '.eslintrc*' \
+      \) -delete 2>/dev/null || true
+    fi
   fi
 
   rm -f "$zip_path"
