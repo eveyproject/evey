@@ -26,21 +26,30 @@ for dir in "$src"/*/; do
   name=$(basename "$dir")
   zip_path="$out/$name.zip"
 
-  # If the plugin has a package.json with a build script (front bundle),
-  # install deps + run build to populate dist/. Skip if dist is fresh.
-  if [ -f "$dir/package.json" ] && grep -q '"build"' "$dir/package.json"; then
-    if [ ! -d "$dir/node_modules" ]; then
-      echo "  $name: installing deps (first run)..."
-      (cd "$dir" && npm install --silent)
+  # For a JS plugin: install all deps (the front build needs the
+  # devDependencies), run the build script to populate dist/, then prune to
+  # RUNTIME deps only. A nodejs backend (main.js) needs its runtime deps (e.g.
+  # @grpc/grpc-js) in the shipped node_modules or it crashes at startup with
+  # "Cannot find module"; front-end libs are devDependencies (esbuild bundles
+  # them into dist/) and must NOT bloat the zip. After the prune, node_modules
+  # holds only what the backend needs at runtime.
+  # (Side effect: the source tree's node_modules is left pruned; a later local
+  #  `npm install` restores the devDeps.)
+  if [ -f "$dir/package.json" ]; then
+    echo "  $name: installing deps..."
+    (cd "$dir" && npm install --silent)
+    if grep -q '"build"' "$dir/package.json"; then
+      echo "  $name: building front bundle..."
+      (cd "$dir" && npm run build --silent)
     fi
-    echo "  $name: building front bundle..."
-    (cd "$dir" && npm run build --silent)
+    echo "  $name: pruning to runtime deps..."
+    (cd "$dir" && npm prune --omit=dev --silent)
   fi
 
   rm -f "$zip_path"
-  # Exclude dev artefacts that don't belong in the runtime zip.
+  # node_modules now holds runtime deps only (post-prune), so it ships; exclude
+  # sources and dev config.
   (cd "$dir" && zip -q -X -r "$zip_path" . \
-    -x "node_modules/*" \
     -x "src/*" \
     -x "tsconfig.json" \
     -x ".gitignore")
