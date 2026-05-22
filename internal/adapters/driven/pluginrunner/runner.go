@@ -33,11 +33,13 @@ const (
 	subprocessPerm    = "subprocess"
 
 	// Sandbox modes for WithSandboxMode.
-	sandboxModeBasic      = "basic"      // LD_PRELOAD + UID drop (default)
-	sandboxModeBubblewrap = "bubblewrap" // bwrap namespace isolation
+	sandboxModeBasic      = "basic"      // LD_PRELOAD + UID drop (legacy/weak fallback)
+	sandboxModeBubblewrap = "bubblewrap" // bwrap namespace isolation (needs mount; bare-metal only)
 	sandboxModeStrict     = "strict"     // bubblewrap + LD_PRELOAD seccomp
+	sandboxModeLandlock   = "landlock"   // Landlock LSM self-confinement (no mount; runs under default Docker security)
+	sandboxModeAuto       = "auto"       // detect best available at boot: bubblewrap > landlock > basic
 
-	defaultSandboxMode = sandboxModeBubblewrap
+	defaultSandboxMode = sandboxModeAuto
 )
 
 type processEntry struct {
@@ -100,6 +102,8 @@ type Runner struct {
 	eventBus            EventBus
 	hostRegistry        HostRegistry
 	sandboxMode         string
+	autoResolveOnce     sync.Once // resolves sandboxModeAuto to a concrete mode once
+	autoResolved        string
 	cgroupCfg           cgroupConfig
 	cgroupWarnOnce      sync.Once
 }
@@ -166,17 +170,27 @@ func (r *Runner) WithHostRegistry(reg HostRegistry) *Runner {
 }
 
 // WithSandboxMode sets the isolation strategy used when launching plugins.
-// Valid values: "bubblewrap" (default), "strict", "basic".
+// Valid values: "auto" (default), "landlock", "bubblewrap", "strict", "basic".
+//   - "auto"       — detect the best available at boot: bubblewrap (if it runs
+//     under the host security) > landlock > basic. Recommended for the official
+//     image: works out-of-the-box on any host with the strongest isolation the
+//     kernel permits.
+//   - "landlock"   — Landlock LSM self-confinement (filesystem allowlist). Needs
+//     no mount/unshare, so it runs under Docker's default seccomp+AppArmor. Needs
+//     kernel ≥5.13 with Landlock in the active LSM list. Refuses to start a
+//     plugin if Landlock cannot be enforced (fail closed).
 //   - "bubblewrap" — bwrap namespace isolation (user/pid/uts/ipc/net). Requires
-//     the bwrap binary in $PATH (Alpine: apk add bubblewrap).
+//     the bwrap binary AND the mount syscall, so inside Docker it only works
+//     with relaxed security; effectively bare-metal only.
 //   - "strict"     — bubblewrap namespaces AND LD_PRELOAD seccomp lib.
-//   - "basic"      — LD_PRELOAD seccomp lib + UID drop only (legacy).
+//   - "basic"      — LD_PRELOAD seccomp lib + UID drop only (no per-path FS
+//     isolation; last-resort fallback for locked-down old kernels).
 //
 // Any unrecognised value (including empty string) is silently mapped to
-// defaultSandboxMode ("bubblewrap") — callers should validate upstream.
+// defaultSandboxMode ("auto") — callers should validate upstream.
 func (r *Runner) WithSandboxMode(mode string) *Runner {
 	switch mode {
-	case sandboxModeBasic, sandboxModeBubblewrap, sandboxModeStrict:
+	case sandboxModeBasic, sandboxModeBubblewrap, sandboxModeStrict, sandboxModeLandlock, sandboxModeAuto:
 		r.sandboxMode = mode
 	default:
 		// Empty string or any unknown value → default mode.
@@ -516,17 +530,33 @@ func buildPluginEnv(pluginID, sock, hostSock string) []string {
 //   - "strict": bubblewrap namespaces AND LD_PRELOAD seccomp lib.
 //   - "basic": LD_PRELOAD seccomp lib + UID drop only (legacy/test fallback).
 func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) (func(), error) {
+	switch mode := r.effectiveMode(); mode {
+	case sandboxModeBubblewrap, sandboxModeStrict:
+		return r.applyBwrapSandbox(parentCtx, p, cmd, mode)
+	case sandboxModeLandlock:
+		return r.applyLandlockSandbox(parentCtx, p, cmd)
+	default:
+		return nil, r.applyBasicSandbox(parentCtx, p, cmd)
+	}
+}
+
+// effectiveMode returns the concrete sandbox mode to apply. "auto" is resolved
+// once (memoised) by probing the host; the empty string keeps the historical
+// test fallback to "basic".
+func (r *Runner) effectiveMode() string {
 	mode := r.sandboxMode
 	if mode == "" {
 		mode = sandboxModeBasic // internal fallback for tests; prod always calls WithSandboxMode
 	}
-
-	switch mode {
-	case sandboxModeBubblewrap, sandboxModeStrict:
-		return r.applyBwrapSandbox(parentCtx, p, cmd, mode)
-	default:
-		return nil, r.applyBasicSandbox(parentCtx, p, cmd)
+	if mode != sandboxModeAuto {
+		return mode
 	}
+	r.autoResolveOnce.Do(func() {
+		r.autoResolved = resolveAutoMode()
+		slog.Info("plugin sandbox auto-detection complete",
+			slog.String("selected_mode", r.autoResolved))
+	})
+	return r.autoResolved
 }
 
 // applyBasicSandbox is the original LD_PRELOAD + UID-drop sandbox path.

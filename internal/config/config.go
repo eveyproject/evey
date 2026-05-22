@@ -62,9 +62,16 @@ type Config struct {
 // PluginsConfig holds configuration for the third-party plugin subsystem.
 type PluginsConfig struct {
 	// SandboxMode controls the isolation level applied to plugin processes.
-	// Valid values: "basic" (LD_PRELOAD seccomp + UID drop),
-	// "bubblewrap" (bwrap namespace isolation), "strict" (bwrap + strict seccomp).
-	// Defaults to "bubblewrap" when unset or empty.
+	// Valid values:
+	//   "auto"       detect the strongest isolation the host supports at boot
+	//                (bubblewrap > landlock > basic) — recommended, works OOTB.
+	//   "landlock"   Landlock LSM filesystem allowlist; no mount/unshare, so it
+	//                runs under Docker's default seccomp+AppArmor. Fail-closed.
+	//   "bubblewrap" bwrap namespace isolation (needs the mount syscall, so it
+	//                only works on bare-metal / relaxed-security hosts).
+	//   "strict"     bubblewrap + LD_PRELOAD seccomp.
+	//   "basic"      LD_PRELOAD seccomp + UID drop only (no per-path FS isolation).
+	// Defaults to "auto" when unset or empty.
 	// EVEY_PLUGINS_SANDBOX_MODE
 	SandboxMode string
 
@@ -319,10 +326,10 @@ func (c *Config) WarnValidate() error {
 	}
 
 	switch c.Plugins.SandboxMode {
-	case "basic", "bubblewrap", "strict":
+	case "auto", "landlock", "basic", "bubblewrap", "strict":
 		// valid
 	default:
-		errs = append(errs, fmt.Sprintf("cfg.Plugins.SandboxMode: invalid value %q (expected basic|bubblewrap|strict)", c.Plugins.SandboxMode))
+		errs = append(errs, fmt.Sprintf("cfg.Plugins.SandboxMode: invalid value %q (expected auto|landlock|basic|bubblewrap|strict)", c.Plugins.SandboxMode))
 	}
 	if c.Plugins.SandboxMode == "bubblewrap" || c.Plugins.SandboxMode == "strict" {
 		if _, err := exec.LookPath("bwrap"); err != nil {
@@ -484,7 +491,7 @@ func Load() (*Config, error) {
 			SampleRatio:  envFloat("EVEY_TRACING_SAMPLE_RATIO", 0),
 		},
 		Plugins: PluginsConfig{
-			SandboxMode:     envPluginSandboxMode("EVEY_PLUGINS_SANDBOX_MODE", "bubblewrap"),
+			SandboxMode:     envPluginSandboxMode("EVEY_PLUGINS_SANDBOX_MODE", "auto"),
 			MemoryMB:        int64(envInt("EVEY_PLUGINS_MEMORY_MB", 256)),
 			CPUPercent:      envInt("EVEY_PLUGINS_CPU_PERCENT", 50),
 			PIDsMax:         envInt("EVEY_PLUGINS_PIDS_MAX", 64),

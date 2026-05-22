@@ -1,0 +1,77 @@
+package pluginrunner
+
+import (
+	"context"
+	"os/exec"
+	"testing"
+
+	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestApplyLandlockSandbox_BuildsArgv(t *testing.T) {
+	// /bin/true is a real executable so launcherPath() resolves the override.
+	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/bin/true")
+
+	r := NewRunner().WithSandboxMode(sandboxModeLandlock)
+	p := &plugin.Plugin{
+		ID:          "weather",
+		InstallDir:  "/data/plugins/weather",
+		Permissions: []string{"network"},
+	}
+	cmd := exec.Command("/usr/bin/node", "/data/plugins/weather/main.js")
+	cmd.Env = []string{"HOME=/tmp", "TMPDIR=/tmp", "EVEY_PLUGIN_ID=weather"}
+
+	cleanup, err := r.applyLandlockSandbox(context.Background(), p, cmd)
+	require.NoError(t, err)
+	if cleanup != nil {
+		cleanup()
+	}
+
+	assert.Equal(t, "/bin/true", cmd.Path, "cmd.Path must be the launcher")
+	assert.Equal(t, "/bin/true", cmd.Args[0], "argv[0] must be the launcher")
+
+	// The system dirs are allowlisted read-only and the plugin dirs read-write.
+	assert.Contains(t, cmd.Args, "-ro")
+	assert.Contains(t, cmd.Args, "/usr")
+	assert.Contains(t, cmd.Args, "-rw")
+	assert.Contains(t, cmd.Args, "/data/plugins/weather")
+	assert.Contains(t, cmd.Args, "/tmp/evey/plugins/weather")
+	assert.Contains(t, cmd.Args, "-require-landlock")
+	assert.Contains(t, cmd.Args, "--")
+
+	// The original command is preserved at the tail, after the "--".
+	assert.Equal(t, "/usr/bin/node", cmd.Args[len(cmd.Args)-2])
+	assert.Equal(t, "/data/plugins/weather/main.js", cmd.Args[len(cmd.Args)-1])
+
+	// HOME/TMPDIR are repointed to the (writable) plugin dir, not /tmp.
+	assert.Contains(t, cmd.Env, "HOME=/data/plugins/weather")
+	assert.Contains(t, cmd.Env, "TMPDIR=/data/plugins/weather")
+	assert.Contains(t, cmd.Env, "EVEY_PLUGIN_ID=weather", "unrelated env preserved")
+}
+
+func TestApplyLandlockSandbox_MissingLauncherFailsClosed(t *testing.T) {
+	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/nonexistent/evey-plugin-launcher")
+
+	r := NewRunner().WithSandboxMode(sandboxModeLandlock)
+	p := &plugin.Plugin{ID: "x", InstallDir: "/data/plugins/x"}
+	cmd := exec.Command("/usr/bin/node", "/data/plugins/x/main.js")
+
+	_, err := r.applyLandlockSandbox(context.Background(), p, cmd)
+	require.Error(t, err, "a missing launcher must refuse to start the plugin")
+}
+
+func TestOverrideEnv(t *testing.T) {
+	in := []string{"HOME=/tmp", "PATH=/usr/bin", "TMPDIR=/tmp"}
+	out := overrideEnv(in, map[string]string{"HOME": "/data/x", "TMPDIR": "/data/x"})
+	assert.Contains(t, out, "HOME=/data/x")
+	assert.Contains(t, out, "TMPDIR=/data/x")
+	assert.Contains(t, out, "PATH=/usr/bin", "unrelated keys untouched")
+	assert.NotContains(t, out, "HOME=/tmp", "old value replaced in place, not duplicated")
+
+	// Absent key gets appended.
+	out2 := overrideEnv([]string{"PATH=/usr/bin"}, map[string]string{"HOME": "/data/x"})
+	assert.Contains(t, out2, "HOME=/data/x")
+	assert.Contains(t, out2, "PATH=/usr/bin")
+}

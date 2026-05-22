@@ -47,6 +47,9 @@ ARG VERSION=dev
 COPY . .
 COPY --from=protogen /src/gen/ gen/
 RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o /evey ./cmd/evey
+# Landlock pre-exec shim used by sandbox_mode=landlock (and auto). Pure Go,
+# CGO-free; lives next to /evey so the runner finds it via os.Executable().
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /evey-plugin-launcher ./cmd/evey-plugin-launcher
 RUN gcc -shared -fPIC -nostartfiles -o /libevey-sandbox.so sandbox/sandbox.c
 
 # ── Stage 5: Runtime ──
@@ -101,6 +104,7 @@ RUN mkdir -p /data/media /data/transcoding /data/logs /data/plugins /data/keys /
     && chmod 750 /data/plugins
 
 COPY --from=builder /evey /evey
+COPY --from=builder /evey-plugin-launcher /evey-plugin-launcher
 COPY --from=builder /libevey-sandbox.so /app/libevey-sandbox.so
 COPY --from=builder /src/i18n /i18n
 COPY --from=builder /src/sdk /app/sdk

@@ -95,7 +95,7 @@ func TestLoad_Defaults(t *testing.T) {
 	// finding when key is configured). Without a key the verifier degrades to
 	// a no-op so plugin developers see no behaviour change vs the previous
 	// "off" default — only admins who configure a key get verification.
-	assert.Equal(t, "bubblewrap", cfg.Plugins.SandboxMode)
+	assert.Equal(t, "auto", cfg.Plugins.SandboxMode)
 	assert.Equal(t, "warn", cfg.Plugins.CosignPolicy)
 	assert.Empty(t, cfg.Plugins.CosignPublicKey)
 	assert.Equal(t, int64(256), cfg.Plugins.MemoryMB)
@@ -291,7 +291,7 @@ func TestLoad_PluginsSandboxModeDefault(t *testing.T) {
 	t.Parallel()
 	cfg, err := Load()
 	require.NoError(t, err)
-	assert.Equal(t, "bubblewrap", cfg.Plugins.SandboxMode)
+	assert.Equal(t, "auto", cfg.Plugins.SandboxMode)
 }
 
 func TestLoad_PluginsSandboxModeEnvOverride(t *testing.T) {
@@ -302,9 +302,12 @@ func TestLoad_PluginsSandboxModeEnvOverride(t *testing.T) {
 		{"basic", "basic"},
 		{"bubblewrap", "bubblewrap"},
 		{"strict", "strict"},
+		{"landlock", "landlock"},
+		{"auto", "auto"},
 		// whitespace/case tolerance
 		{"  STRICT  ", "strict"},
 		{"Bubblewrap", "bubblewrap"},
+		{"  Landlock ", "landlock"},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -321,12 +324,12 @@ func TestLoad_PluginsSandboxModeEmptyFallsToDefault(t *testing.T) {
 	t.Setenv("EVEY_PLUGINS_SANDBOX_MODE", "")
 	cfg, err := Load()
 	require.NoError(t, err)
-	assert.Equal(t, "bubblewrap", cfg.Plugins.SandboxMode)
+	assert.Equal(t, "auto", cfg.Plugins.SandboxMode)
 }
 
 func TestWarnValidate_SandboxModeValid(t *testing.T) {
 	t.Parallel()
-	for _, mode := range []string{"basic", "bubblewrap", "strict"} {
+	for _, mode := range []string{"auto", "landlock", "basic", "bubblewrap", "strict"} {
 		mode := mode
 		t.Run(mode, func(t *testing.T) {
 			t.Parallel()

@@ -18,11 +18,24 @@ import (
 //
 // Returns nil when bwrap can build its sandbox (even if the trivial payload
 // then fails to exec — that proves setup worked), or a descriptive error when
-// the SETUP itself is denied. For basic mode there is nothing to probe (nil).
+// the SETUP itself is denied. basic/auto never hard-fail; landlock fails when
+// the kernel does not enforce Landlock.
 func ProbeSandbox(mode string) error {
-	if mode == sandboxModeBasic {
+	switch mode {
+	case sandboxModeBasic:
+		return nil
+	case sandboxModeLandlock:
+		if !landlockAvailable() {
+			return fmt.Errorf("Landlock is not enforced on this host (kernel <5.13, or Landlock absent from the active LSM list); " +
+				"set EVEY_PLUGINS_SANDBOX_MODE=auto to fall back to the best available isolation")
+		}
+		return nil
+	case sandboxModeAuto:
+		// auto never hard-fails: resolveAutoMode always selects something. The
+		// runner logs the resolved mode at the first plugin start.
 		return nil
 	}
+	// bubblewrap / strict: verify the host actually permits the bwrap setup.
 	if _, err := exec.LookPath("bwrap"); err != nil {
 		return fmt.Errorf("bwrap binary not found in $PATH: %w", err)
 	}
