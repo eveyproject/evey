@@ -106,6 +106,7 @@ type Runner struct {
 	autoResolved        string
 	cgroupCfg           cgroupConfig
 	cgroupWarnOnce      sync.Once
+	cgroupDelegateOnce  sync.Once // runs cgroup v2 delegation setup at most once
 }
 
 // ErrSandboxUnavailable is returned by Start when a plugin without the
@@ -337,6 +338,16 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	cmd.Stderr = out
 	sysProcAttr := pluginSysProcAttr()
 	cmd.SysProcAttr = sysProcAttr
+
+	// Opt-in: set up cgroup v2 delegation once (relocate the container's own
+	// processes to a leaf, delegate controllers to evey-plugins) so the
+	// per-plugin limits below actually materialise. No-op unless
+	// EVEY_PLUGINS_CGROUP_DELEGATE is set; fail-soft otherwise.
+	r.cgroupDelegateOnce.Do(func() {
+		if cgroupDelegationEnabled() {
+			setupCgroupDelegation()
+		}
+	})
 
 	// Prepare cgroup v2 limits before spawning. Failure is non-fatal:
 	// we warn once and proceed without limits (fail-soft).

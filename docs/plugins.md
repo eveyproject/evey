@@ -323,6 +323,38 @@ security_opt:
   - seccomp=./docker/seccomp-evey.json   # Docker default + mount/unshare re-opened
 ```
 
+### Advanced: per-plugin resource limits (cgroup delegation)
+
+Per-plugin CPU/RAM/PIDs caps require the container to create cgroup v2 leaves
+under its own cgroup. Docker does not allow this by default, so it is **opt-in**:
+
+```yaml
+evey:
+  environment:
+    EVEY_PLUGINS_CGROUP_DELEGATE: "true"   # enable per-plugin cgroup leaves
+  volumes:
+    - /sys/fs/cgroup:/sys/fs/cgroup:rw     # let the server manage its cgroup subtree
+```
+
+On the first plugin start the runner then: relocates the container's own
+processes into an `evey-init` leaf (cgroup v2's "no internal processes" rule
+forbids delegating from a cgroup that holds processes), enables the
+memory/cpu/pids controllers, and creates a leaf per plugin under `evey-plugins`.
+A plugin that breaches its limit is OOM-killed in its own leaf; the host, the
+server and sibling plugins are unaffected. Every step is **fail-soft** — on any
+error the runner logs the precise reason and runs without limits, never breaking
+the server.
+
+**Security note.** The `:rw` cgroup mount is only writable by the *server*; the
+untrusted *plugins* are walled off from `/sys/fs/cgroup` by Landlock (it is not
+in their allowlist), so this mount grants them nothing. The only residual is
+that a compromised *server* could touch the host cgroup tree — already moot,
+since a server compromise is total. This is a filesystem mount, not a
+relaxation of the container's seccomp/AppArmor/capability baseline.
+
+Defaults (per plugin): `EVEY_PLUGINS_MEMORY_MB=256`, `EVEY_PLUGINS_CPU_PERCENT=50`,
+`EVEY_PLUGINS_PIDS_MAX=64`.
+
 ### Permission model
 
 Permissions are declared in the manifest and enforced at runtime via a gRPC interceptor on the HostService. Each RPC method maps to one or more required permissions. The `PermissionChecker` caches permissions in memory and verifies them on every call.
@@ -394,7 +426,7 @@ The sandbox is defense-in-depth, not a hard security boundary. Each layer is byp
 - **Process group / `Pdeathsig`** -- cleanup, not confinement. It prevents zombie processes, not exfiltration or resource abuse during the plugin's lifetime.
 - **Permission checker (gRPC interceptor)** -- only gates HostService RPCs. A plugin granted `network` can contact any external host; there is no egress filter. A plugin without `network` can still read anything the host provides via RPC (respecting declared permissions).
 - **Network egress is port-based, not host-based** -- under `landlock` on Landlock ABI v4 (kernel ≥6.7), TCP is denied by default: a plugin without the `network` permission cannot `connect()` at all, and one with it may only connect to ports 80/443 plus any explicit `:port` in its `external_fetch` list (it can never `bind`/listen). Landlock filters by **port, not host**, so the per-host `external_fetch` allowlist is *not* enforced by this layer (a `network` plugin can still reach any host on an allowed port); host filtering would need a DNS/proxy layer. On kernels below v4 the TCP filter silently degrades to a no-op (filesystem confinement still applies). UDP is not covered.
-- **Resource limits are best-effort** -- per-plugin CPU/RAM/PIDs are capped via cgroup v2 when the host exposes a writable cgroup tree (default 256 MiB / 50% CPU / 64 PIDs); when cgroup v2 is unavailable the runner warns and runs without limits.
+- **Resource limits need cgroup delegation** -- per-plugin CPU/RAM/PIDs caps (default 256 MiB / 50% CPU / 64 PIDs) are enforced via a cgroup v2 leaf per plugin, so a plugin breaching its limit is OOM-killed in its own cgroup — never touching the host, the server or sibling plugins. This requires the container to manage its own cgroup subtree, which Docker does not allow by default (`/sys/fs/cgroup` is mounted read-only and the server lives in the container cgroup root, which cgroup v2's "no internal processes" rule forbids from delegating). See *Enabling per-plugin resource limits* below. When delegation is not enabled the runner warns and runs **without** limits (a malicious plugin can then exhaust host resources).
 - **CSS sanitizer** -- conservative, but browsers evolve. New CSS features and URL schemes may slip through until the sanitizer is updated.
 - **iframe sandbox (`allow-scripts`)** -- same-origin is disabled, but the iframe shares the browser process with the host page on some engines; speculative-execution side channels are not mitigated.
 
