@@ -60,6 +60,26 @@ func readWriteAccess(abi int) uint64 {
 	return supportedFSAccess(abi)
 }
 
+// LANDLOCK_RULE_NET_PORT and the net-port rule attribute are part of Landlock
+// ABI v4 but are not yet exported by x/sys/unix v0.45.0, so we declare them
+// here. The struct layout mirrors the kernel's `struct landlock_net_port_attr`.
+const ruleTypeNetPort = 0x2
+
+type landlockNetPortAttr struct {
+	AllowedAccess uint64
+	Port          uint64
+}
+
+// supportedNetAccess returns the handled_access_net mask for the given ABI.
+// Network access control landed in ABI v4 (kernel ≥6.7); earlier kernels return
+// 0, so callers must skip net restriction (best-effort degrade).
+func supportedNetAccess(abi int) uint64 {
+	if abi >= 4 {
+		return uint64(unix.LANDLOCK_ACCESS_NET_BIND_TCP | unix.LANDLOCK_ACCESS_NET_CONNECT_TCP)
+	}
+	return 0
+}
+
 // landlockABI queries the kernel's supported Landlock ABI version. Returns an
 // error when Landlock is absent (ENOSYS) or disabled in the active LSM list
 // (EOPNOTSUPP) — the caller decides whether that is fatal.
@@ -72,7 +92,7 @@ func landlockABI() (int, error) {
 }
 
 func applyLandlock(cfg config) error {
-	if len(cfg.roPaths) == 0 && len(cfg.rwPaths) == 0 {
+	if len(cfg.roPaths) == 0 && len(cfg.rwPaths) == 0 && !cfg.restrictNet {
 		return nil // nothing requested; caller asked for no confinement
 	}
 
@@ -85,7 +105,14 @@ func applyLandlock(cfg config) error {
 	}
 
 	handled := supportedFSAccess(abi)
-	attr := unix.LandlockRulesetAttr{Access_fs: handled}
+	// Govern TCP access too when asked AND the kernel supports it (ABI v4+).
+	// On older kernels handledNet stays 0: filesystem confinement still applies,
+	// network filtering silently degrades to a no-op (best effort).
+	var handledNet uint64
+	if cfg.restrictNet {
+		handledNet = supportedNetAccess(abi)
+	}
+	attr := unix.LandlockRulesetAttr{Access_fs: handled, Access_net: handledNet}
 	rulesetFD, _, errno := unix.Syscall(unix.SYS_LANDLOCK_CREATE_RULESET,
 		uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr), 0)
 	if errno != 0 {
@@ -127,6 +154,22 @@ func applyLandlock(cfg config) error {
 	for _, p := range cfg.rwPaths {
 		if err := addRule(p, readWriteAccess(abi)); err != nil {
 			return err
+		}
+	}
+
+	// Network: with handledNet set, every TCP bind/connect is denied unless a
+	// rule below allows it. We only ever allow connect() to the listed ports
+	// (never bind), so a plugin can reach its declared egress ports but cannot
+	// listen, and a plugin with no allowed ports is fully cut off from TCP.
+	if handledNet != 0 {
+		connectAccess := uint64(unix.LANDLOCK_ACCESS_NET_CONNECT_TCP) & handledNet
+		for _, port := range cfg.netConnectPorts {
+			np := landlockNetPortAttr{AllowedAccess: connectAccess, Port: port}
+			if _, _, e := unix.Syscall6(unix.SYS_LANDLOCK_ADD_RULE,
+				rulesetFD, ruleTypeNetPort,
+				uintptr(unsafe.Pointer(&np)), 0, 0, 0); e != 0 {
+				return fmt.Errorf("landlock_add_rule net connect port %d: %w", port, e)
+			}
 		}
 	}
 

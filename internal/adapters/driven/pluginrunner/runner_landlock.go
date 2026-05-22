@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
@@ -40,12 +43,25 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 	}
 	pluginSockDir := filepath.Join(sockDir, p.ID)
 
-	args := make([]string, 0, len(systemReadOnlyDirs)*2+8+len(cmd.Args))
+	args := make([]string, 0, len(systemReadOnlyDirs)*2+12+len(cmd.Args))
 	args = append(args, launcher)
 	for _, d := range systemReadOnlyDirs {
 		args = append(args, "-ro", d)
 	}
-	args = append(args, "-rw", pluginDir, "-rw", pluginSockDir, "-require-landlock", "--")
+	args = append(args, "-rw", pluginDir, "-rw", pluginSockDir)
+
+	// TCP egress: deny by default (-restrict-net). A plugin holding the
+	// "network" permission may connect to standard HTTP(S) ports plus any
+	// explicit port in its external_fetch list; one without it is cut off from
+	// TCP entirely (enforced on Landlock ABI v4+; a no-op on older kernels).
+	args = append(args, "-restrict-net")
+	if slices.Contains(p.Permissions, networkPerm) {
+		for _, port := range landlockConnectPorts(p.ExternalFetch) {
+			args = append(args, "-net-connect", strconv.Itoa(port))
+		}
+	}
+
+	args = append(args, "-require-landlock", "--")
 	args = append(args, cmd.Args...) // original argv: interpreter + script (+ extra args)
 
 	cmd.Path = launcher
@@ -61,6 +77,25 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 		slog.String("sandbox_mode", sandboxModeLandlock),
 		slog.String("plugin_dir", pluginDir))
 	return nil, nil
+}
+
+// landlockConnectPorts returns the TCP ports a network-permitted plugin may
+// connect to: the standard HTTP/HTTPS ports plus any explicit ":port" declared
+// in its external_fetch list. Landlock filters by port, not host, so the
+// per-host DNS whitelist (external_fetch) remains enforced elsewhere; this only
+// narrows which TCP ports are reachable at all.
+func landlockConnectPorts(externalFetch []string) []int {
+	ports := []int{80, 443}
+	seen := map[int]bool{80: true, 443: true}
+	for _, entry := range externalFetch {
+		if _, portStr, err := net.SplitHostPort(strings.TrimSpace(entry)); err == nil {
+			if n, perr := strconv.Atoi(portStr); perr == nil && n > 0 && n <= 65535 && !seen[n] {
+				ports = append(ports, n)
+				seen[n] = true
+			}
+		}
+	}
+	return ports
 }
 
 // resolveAutoMode picks the strongest sandbox the current host actually

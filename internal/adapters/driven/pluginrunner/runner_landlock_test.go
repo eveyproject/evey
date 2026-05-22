@@ -41,6 +41,12 @@ func TestApplyLandlockSandbox_BuildsArgv(t *testing.T) {
 	assert.Contains(t, cmd.Args, "-require-landlock")
 	assert.Contains(t, cmd.Args, "--")
 
+	// network permission → TCP egress restricted but HTTP(S) ports allowed.
+	assert.Contains(t, cmd.Args, "-restrict-net")
+	assert.Contains(t, cmd.Args, "-net-connect")
+	assert.Contains(t, cmd.Args, "80")
+	assert.Contains(t, cmd.Args, "443")
+
 	// The original command is preserved at the tail, after the "--".
 	assert.Equal(t, "/usr/bin/node", cmd.Args[len(cmd.Args)-2])
 	assert.Equal(t, "/data/plugins/weather/main.js", cmd.Args[len(cmd.Args)-1])
@@ -49,6 +55,31 @@ func TestApplyLandlockSandbox_BuildsArgv(t *testing.T) {
 	assert.Contains(t, cmd.Env, "HOME=/data/plugins/weather")
 	assert.Contains(t, cmd.Env, "TMPDIR=/data/plugins/weather")
 	assert.Contains(t, cmd.Env, "EVEY_PLUGIN_ID=weather", "unrelated env preserved")
+}
+
+func TestApplyLandlockSandbox_NoNetworkPerm_CutsOffTCP(t *testing.T) {
+	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/bin/true")
+
+	r := NewRunner().WithSandboxMode(sandboxModeLandlock)
+	p := &plugin.Plugin{ID: "themer", InstallDir: "/data/plugins/themer"} // no permissions
+	cmd := exec.Command("/usr/bin/node", "/data/plugins/themer/main.js")
+
+	_, err := r.applyLandlockSandbox(context.Background(), p, cmd)
+	require.NoError(t, err)
+
+	// restrict-net is always set; with no network permission there must be no
+	// -net-connect, so the launcher denies all TCP.
+	assert.Contains(t, cmd.Args, "-restrict-net")
+	assert.NotContains(t, cmd.Args, "-net-connect")
+}
+
+func TestLandlockConnectPorts(t *testing.T) {
+	// Defaults: HTTP + HTTPS only.
+	assert.Equal(t, []int{80, 443}, landlockConnectPorts(nil))
+	assert.Equal(t, []int{80, 443}, landlockConnectPorts([]string{"api.open-meteo.com", "example.com"}))
+	// Explicit ":port" entries are added (deduped, 80/443 kept first).
+	got := landlockConnectPorts([]string{"api.example.com:8443", "other.com:443", " host.io:9000 "})
+	assert.Equal(t, []int{80, 443, 8443, 9000}, got)
 }
 
 func TestApplyLandlockSandbox_MissingLauncherFailsClosed(t *testing.T) {

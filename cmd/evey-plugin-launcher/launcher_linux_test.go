@@ -3,9 +3,11 @@
 package main
 
 import (
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -121,6 +123,76 @@ func TestLandlock_EndToEnd(t *testing.T) {
 		out, err := reexec(t, "echo written > "+filepath.Join(allowed, "new.txt"))
 		if err != nil {
 			t.Fatalf("expected write success, got err=%v output=%q", err, out)
+		}
+	})
+}
+
+func TestSupportedNetAccess_PerABI(t *testing.T) {
+	for abi := 1; abi <= 3; abi++ {
+		if supportedNetAccess(abi) != 0 {
+			t.Errorf("abi %d: network access landed in v4, must be 0", abi)
+		}
+	}
+	want := uint64(unix.LANDLOCK_ACCESS_NET_BIND_TCP | unix.LANDLOCK_ACCESS_NET_CONNECT_TCP)
+	if supportedNetAccess(4) != want {
+		t.Errorf("abi 4: got %#x want %#x", supportedNetAccess(4), want)
+	}
+}
+
+// TestLandlock_NetEgress verifies real TCP egress filtering. Needs Landlock ABI
+// v4 (kernel ≥6.7) and python3, so it skips on older kernels (e.g. a v3 dev box)
+// and runs on the deploy host.
+func TestLandlock_NetEgress(t *testing.T) {
+	if abi, err := landlockABI(); err != nil || abi < 4 {
+		t.Skipf("Landlock network control needs ABI v4 (abi=%d err=%v)", abi, err)
+	}
+	py, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 not available")
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, aerr := ln.Accept()
+			if aerr != nil {
+				return
+			}
+			c.Close()
+		}
+	}()
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	sysRO := []string{"-ro", "/usr", "-ro", "/bin", "-ro", "/lib", "-ro", "/lib64", "-ro", "/etc"}
+	pyConnect := "import socket,sys; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1'," +
+		strconv.Itoa(port) + ")); s.close()"
+
+	reexec := func(extra ...string) (string, error) {
+		args := append([]string{}, sysRO...)
+		args = append(args, "-rw", t.TempDir(), "-restrict-net")
+		args = append(args, extra...)
+		args = append(args, "-require-landlock", "--", py, "-c", pyConnect)
+		cmd := exec.Command(os.Args[0], args...)
+		cmd.Env = append(os.Environ(), "EVEY_LAUNCHER_REEXEC=1")
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+
+	t.Run("denies connect when port not allowed", func(t *testing.T) {
+		out, err := reexec()
+		if err == nil {
+			t.Fatalf("expected connect to be denied, got success; output=%q", out)
+		}
+	})
+
+	t.Run("allows connect to whitelisted port", func(t *testing.T) {
+		out, err := reexec("-net-connect", strconv.Itoa(port))
+		if err != nil {
+			t.Fatalf("expected connect to succeed on allowed port, got err=%v output=%q", err, out)
 		}
 	})
 }

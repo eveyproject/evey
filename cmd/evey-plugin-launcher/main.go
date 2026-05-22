@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -35,6 +36,24 @@ func (s *stringList) Set(v string) error {
 	return nil
 }
 
+type portList []uint64
+
+func (p *portList) String() string {
+	parts := make([]string, len(*p))
+	for i, v := range *p {
+		parts[i] = strconv.FormatUint(v, 10)
+	}
+	return strings.Join(parts, ",")
+}
+func (p *portList) Set(v string) error {
+	n, err := strconv.ParseUint(v, 10, 16)
+	if err != nil || n == 0 {
+		return fmt.Errorf("invalid TCP port %q", v)
+	}
+	*p = append(*p, n)
+	return nil
+}
+
 type config struct {
 	roPaths         []string
 	rwPaths         []string
@@ -43,6 +62,9 @@ type config struct {
 	rlimitCPU       uint64 // RLIMIT_CPU seconds
 	rlimitNOFILE    uint64 // RLIMIT_NOFILE open fds
 	requireLandlock bool   // fail closed if Landlock cannot be enforced
+
+	restrictNet     bool     // govern TCP access (Landlock ABI v4+); deny-by-default
+	netConnectPorts []uint64 // TCP ports the plugin may connect() to; empty = none
 }
 
 func main() {
@@ -69,9 +91,12 @@ func run(argv []string) int {
 	}
 
 	var ro, rw stringList
+	var netConnect portList
 	fs := flag.NewFlagSet("evey-plugin-launcher", flag.ContinueOnError)
 	fs.Var(&ro, "ro", "directory to allow read+execute (repeatable)")
 	fs.Var(&rw, "rw", "directory to allow read+write+create (repeatable)")
+	fs.Var(&netConnect, "net-connect", "TCP port the plugin may connect to (repeatable; implies -restrict-net)")
+	restrictNet := fs.Bool("restrict-net", false, "govern TCP access via Landlock v4: deny every bind/connect except the -net-connect ports")
 	asLimit := fs.Uint64("rlimit-as", 0, "RLIMIT_AS bytes (0=unset)")
 	nprocLimit := fs.Uint64("rlimit-nproc", 0, "RLIMIT_NPROC (0=unset)")
 	cpuLimit := fs.Uint64("rlimit-cpu", 0, "RLIMIT_CPU seconds (0=unset)")
@@ -89,6 +114,8 @@ func run(argv []string) int {
 		rlimitCPU:       *cpuLimit,
 		rlimitNOFILE:    *nofileLimit,
 		requireLandlock: *require,
+		restrictNet:     *restrictNet || len(netConnect) > 0,
+		netConnectPorts: netConnect,
 	}
 
 	// Resource caps first (best effort; failures are warnings, not fatal).
