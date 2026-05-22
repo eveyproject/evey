@@ -414,11 +414,12 @@ These are implemented by the plugin and called by the host:
 
 ### Enabling the plugin subsystem
 
-The plugin system is **off by default** in 1.x. Set
-`EVEY_PLUGINS_ENABLED=true` to activate. Until then, all
-`AdminPluginService` RPCs return `FailedPrecondition` and the runner is
-not constructed — there's no ambient attack surface if you don't use
-plugins. Flip it on only on hosts where you intend to install plugins.
+The plugin system is **on by default**. Plugins always run inside the
+bubblewrap sandbox — or refuse to start; there is no unsandboxed fallback, and
+installing is admin-only and gated by the static analyzer, cosign and a
+permission-diff acknowledgement. To turn the subsystem off entirely, set
+`EVEY_PLUGINS_ENABLED=false` — then all `AdminPluginService` RPCs return
+`FailedPrecondition` and the runner is not constructed (no ambient surface).
 
 ### Upload via admin UI
 

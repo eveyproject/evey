@@ -161,9 +161,13 @@ type ServerConfig struct {
 	LoginRateLimitMax  int
 	GlobalRateLimitMax int
 	// PluginsEnabled gates the entire third-party plugin subsystem.
-	// Defaults to false for closed-beta installs: the admin RPCs return
-	// FailedPrecondition and AutoStartPlugins is skipped at boot. Flip
-	// to true once the plugin sandbox + permission model is field-tested.
+	// Defaults to true: plugins are a first-class feature and always run inside
+	// the bubblewrap sandbox — or refuse to start. There is no unsandboxed
+	// fallback (a host where bwrap can't run yields a boot warning + failing
+	// plugins, never plugins running unconfined). Installing remains admin-only
+	// and gated by the analyzer + cosign + permission ack. Set
+	// EVEY_PLUGINS_ENABLED=false to disable the subsystem entirely (admin RPCs
+	// return FailedPrecondition, the runner is not constructed).
 	PluginsEnabled bool
 }
 
@@ -384,7 +388,7 @@ func Load() (*Config, error) {
 			ForwardedProto:    envBool("EVEY_FORWARDED_PROTO", false),
 			LoginRateLimitMax:  envInt("EVEY_RATELIMIT_LOGIN_MAX", 10),
 			GlobalRateLimitMax: envInt("EVEY_RATELIMIT_GLOBAL_MAX", 300),
-			PluginsEnabled:     envBool("EVEY_PLUGINS_ENABLED", false),
+			PluginsEnabled:     envBool("EVEY_PLUGINS_ENABLED", true),
 		},
 		DB: DBConfig{
 			Host:         envStr("EVEY_DB_HOST", "localhost"),
