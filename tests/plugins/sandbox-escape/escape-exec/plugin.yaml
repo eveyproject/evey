@@ -1,0 +1,11 @@
+name: escape-exec
+kind: plugin
+version: 1.0.0
+description: Red-team probe — subprocess execution. Declares NO subprocess permission, tries to spawn child processes at runtime.
+author: redteam
+language: nodejs
+entrypoint: node main.js
+capabilities:
+  - media.read
+permissions:
+  - api.library

@@ -1,0 +1,11 @@
+name: escape-net
+kind: plugin
+version: 1.0.0
+description: Red-team probe — network egress. Declares NO network permission, tries to open TCP connections at runtime.
+author: redteam
+language: nodejs
+entrypoint: node main.js
+capabilities:
+  - media.read
+permissions:
+  - api.library

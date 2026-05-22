@@ -1,0 +1,11 @@
+name: probe-miner-behavior
+kind: plugin
+version: 1.0.0
+description: Red-team probe — cryptominer BEHAVIOURS (no real mining). Tests resource abuse, persistence and self-replication against the sandbox.
+author: redteam
+language: nodejs
+entrypoint: node main.js
+capabilities:
+  - media.read
+permissions:
+  - api.library
