@@ -14,6 +14,7 @@ const (
 	maxZipFiles         = 5000               // entry count cap
 	maxZipTotalBytes    = 500 * 1024 * 1024  // 500 MB cumulated uncompressed
 	maxCompressionRatio = 100                // compressed:uncompressed — detect zip-bombs
+	ratioCheckMinBytes  = 1 << 20            // only enforce the ratio above 1 MB uncompressed
 	safeFileModeMask    = os.FileMode(0o755) // strip setuid/setgid/sticky
 )
 
@@ -69,8 +70,16 @@ func extractZipFile(f *zip.File, destDir string, totalBytes *uint64) error {
 		return fmt.Errorf("file %s exceeds max size (%d bytes)", f.Name, maxZipFileSize)
 	}
 
-	// zip-bomb: compression ratio > maxCompressionRatio triggers refusal.
-	if f.CompressedSize64 > 0 && f.UncompressedSize64/f.CompressedSize64 > maxCompressionRatio {
+	// zip-bomb: a high compression ratio only matters for files large enough to
+	// be a decompression bomb. A small but highly-compressible file (e.g. a
+	// repetitive text fixture vendored inside a dependency such as
+	// @protobufjs/utf8/tests/...) is harmless, and the per-file (maxZipFileSize)
+	// and cumulative (maxZipTotalBytes) caps already bound the real risk — so we
+	// only enforce the ratio above a meaningful uncompressed size. Without this,
+	// bundling node_modules made Extract abort on innocuous test data and left
+	// the plugin half-extracted ("script not found: main.js").
+	if f.CompressedSize64 > 0 && f.UncompressedSize64 > ratioCheckMinBytes &&
+		f.UncompressedSize64/f.CompressedSize64 > maxCompressionRatio {
 		return fmt.Errorf("file %s suspicious compression ratio: %d:1", f.Name, f.UncompressedSize64/f.CompressedSize64)
 	}
 
