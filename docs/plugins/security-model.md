@@ -126,7 +126,14 @@ Applied to `theme.css` at install time. See [`docs/themes/security-model.md`](..
 
 Applied to `theme.js` at install time. A pattern that matches causes install to be refused. See [`docs/themes/security-model.md`](../themes/security-model.md) for the blocked pattern list.
 
-### 7. Runtime sandbox (bubblewrap + cgroups)
+### 7. Runtime sandbox (Landlock / bubblewrap + seccomp + cgroups)
+
+> **Default is now `landlock`** (`sandbox_mode=auto` resolves to it on the
+> official Docker image): a Landlock LSM filesystem allowlist + Landlock v4 TCP
+> egress filter + the `LD_PRELOAD` seccomp denylist, all under Docker's default
+> seccomp+AppArmor. See [`docs/plugins.md`](../plugins.md#backend-process-isolation)
+> for the current model and the per-mode table. The bubblewrap details below
+> apply when `sandbox_mode` is set to `bubblewrap`/`strict` (advanced/bare-metal).
 
 When `sandbox_mode` is `bubblewrap` or `strict` (opt-in via `evey.yaml`), each plugin process runs inside a bubblewrap namespace with:
 
