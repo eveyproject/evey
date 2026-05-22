@@ -259,6 +259,20 @@ Upload a ZIP with the **same `name`** and a **higher semver version**. The insta
 
 ### Backend process isolation
 
+The isolation strategy is selected by `EVEY_PLUGINS_SANDBOX_MODE` (default `auto`):
+
+| Mode | Filesystem isolation | Needs | Where it fits |
+|------|----------------------|-------|---------------|
+| `auto` | best available | — | **default**: probes at boot and picks `bubblewrap` > `landlock` > `basic` |
+| `landlock` | Landlock LSM allowlist | kernel ≥5.13 with Landlock in the active LSM list | the official Docker image: runs under Docker's **default** seccomp+AppArmor, no host changes |
+| `bubblewrap` | mount-namespace pivot | `bwrap` binary + the `mount` syscall | _advanced_ — bare-metal / relaxed-security hosts (see below) |
+| `strict` | bubblewrap + `LD_PRELOAD` seccomp | as bubblewrap | _advanced_ — hardened bare-metal |
+| `basic` | none (per-path) | — | last-resort fallback for old locked-down kernels |
+
+In practice, every official deployment is the prebuilt Docker image, where `auto` resolves to `landlock`. The `bubblewrap`/`strict` modes are kept for advanced/bare-metal setups (see *Advanced: bubblewrap mode* below); `auto` selects bubblewrap automatically **only** if a throwaway sandbox actually builds on the host (it never does under Docker's default AppArmor, so it falls through to Landlock).
+
+0. **Landlock filesystem allowlist** (modes `landlock`/`auto`) -- a tiny pre-exec shim, `evey-plugin-launcher`, applies a [Landlock](https://docs.kernel.org/userspace-api/landlock.html) ruleset before exec'ing the plugin: read+execute on system directories (`/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`), read+write on the plugin's own directory and its socket directory, and **everything else denied** -- `/data` (media, JWT key, DB socket) and sibling plugin directories are unreachable. Landlock is enforced by the kernel *before* DAC, so it confines the plugin even when it shares the server's UID. It needs no mount/unshare, so it works under Docker's baseline container security with no relaxed seccomp profile, no added capability, and no privileged mode. The launcher refuses to start (`-require-landlock`) rather than run a plugin unconfined.
+
 1. **Seccomp BPF** -- A shared library (`libevey-sandbox.so`) is injected via `LD_PRELOAD`. The BPF filter blocks `execve` and `execveat` syscalls, returning `EPERM`. This prevents plugins from spawning child processes. Plugins with the `subprocess` permission skip this filter.
 
 2. **Privilege dropping** -- When Evey runs as root, plugin processes are started as `evey-plugin` (UID/GID 1001) via `SysProcAttr.Credential`. The `PR_SET_NO_NEW_PRIVS` flag prevents privilege escalation.
@@ -269,7 +283,45 @@ Upload a ZIP with the **same `name`** and a **higher semver version**. The insta
 
 5. **Entrypoint validation** -- Resolved via `EvalSymlinks`, checked against allowed plugin directories, must be a file with execute permission, path traversal (`..`) is rejected.
 
-6. **Minimal environment** -- Plugins receive a stripped `PATH`, `HOME=/tmp`, and only Evey-specific env vars (`EVEY_PLUGIN_ID`, `EVEY_PLUGIN_SOCK`, `EVEY_HOST_SOCK`).
+6. **Minimal environment** -- Plugins receive a stripped `PATH` and only Evey-specific env vars (`EVEY_PLUGIN_ID`, `EVEY_PLUGIN_SOCK`, `EVEY_HOST_SOCK`). `HOME`/`TMPDIR` point at `/tmp` for namespace modes, or at the plugin's own directory under `landlock` (the only writable location on the allowlist).
+
+### Advanced: bubblewrap mode
+
+`bubblewrap` (and `strict`) wrap the plugin in full Linux namespaces (user, pid,
+uts, ipc, net, mount) via a `pivot_root` into a private filesystem view — a
+stronger, "see nothing" form of isolation than Landlock's "see-but-deny". It is
+**not** the default and most operators never need it; Landlock already confines
+filesystem access on any modern kernel with no host changes. Reach for it only
+if you run the server **bare-metal from source** (not the Docker image) on a
+host where unprivileged user namespaces are enabled, and you want namespace-level
+isolation (separate PID/network views).
+
+Requirements and trade-offs:
+
+- The `bwrap` binary must be in `$PATH` (the image bundles it; bare-metal:
+  `apt install bubblewrap` / `apk add bubblewrap`).
+- bwrap needs the `mount`/`pivot_root` syscalls. **Inside Docker these are
+  blocked by the default AppArmor profile** (`docker-default`). Making bwrap work
+  in a container therefore requires the bundled relaxed seccomp profile, which
+  re-opens `mount`/`unshare` — a deliberate **relaxation of Docker's baseline
+  container security**. This is exactly what `landlock` avoids; do not enable it
+  unless you understand and accept that trade-off.
+
+To opt in bare-metal:
+
+```bash
+EVEY_PLUGINS_SANDBOX_MODE=bubblewrap   # or "strict" to add the LD_PRELOAD seccomp filter
+```
+
+To opt in inside Docker (relaxes container security — not recommended):
+
+```yaml
+# docker-compose.yml, under the evey service:
+environment:
+  EVEY_PLUGINS_SANDBOX_MODE: bubblewrap
+security_opt:
+  - seccomp=./docker/seccomp-evey.json   # Docker default + mount/unshare re-opened
+```
 
 ### Permission model
 
@@ -337,11 +389,12 @@ The sandbox is defense-in-depth, not a hard security boundary. Each layer is byp
 - **Static analyzer (regex-based)** -- pattern matching on source text. Bypassable by obfuscation: string concatenation (`"o"+"s"+".system"`), `getattr(__builtins__, "e"+"xec")`, base64/hex-encoded payloads decoded at runtime, unicode homoglyphs, bytecode loaded via `marshal`/`dis`, or code fetched from the network after install (when `network` permission is granted).
 - **Seccomp BPF filter** -- blocklist, not allowlist. It blocks `execve`/`execveat` only. Other syscalls (including `ptrace`, `clone`, raw socket ops, filesystem writes in the plugin dir) pass through. It does **not** contain a compromised process that stays within allowed syscalls.
 - **`LD_PRELOAD` injection** -- only effective against dynamically-linked interpreters (Python, Node). A statically-linked Go or Rust binary, or any process ignoring `LD_PRELOAD` (via `musl` static build, or re-exec without the env var), is **not** subject to the seccomp filter even without the `subprocess` permission.
-- **UID drop (`evey-plugin`, UID 1001)** -- effective against host-FS writes outside the plugin dir, but the plugin user still has read access to anything world-readable in the container, and can interact freely with anything the `evey-plugin` UID owns.
+- **UID drop (`evey-plugin`, UID 1001)** -- effective against host-FS writes outside the plugin dir, but only applies when Evey runs as root. Note that under `landlock` mode the filesystem allowlist denies everything outside the plugin's directory regardless of UID or world-readability, so it does not rely on UID separation.
+- **Landlock filesystem allowlist** -- strong on kernels that enforce it, but it is a *filesystem* boundary only: it does not restrict syscalls (that's the seccomp layer), nor network, nor inter-process visibility within a shared PID namespace. It also requires kernel ≥5.13 with Landlock in the active LSM list; older hosts fall back to weaker modes (which `auto` logs at boot).
 - **Process group / `Pdeathsig`** -- cleanup, not confinement. It prevents zombie processes, not exfiltration or resource abuse during the plugin's lifetime.
 - **Permission checker (gRPC interceptor)** -- only gates HostService RPCs. A plugin granted `network` can contact any external host; there is no egress filter. A plugin without `network` can still read anything the host provides via RPC (respecting declared permissions).
-- **No network sandbox** -- there is no per-plugin firewall or DNS filter. `network` is a single boolean.
-- **No resource limits** -- CPU, RAM, disk, file-descriptor quotas are **not** enforced per plugin. A buggy or malicious plugin can exhaust host resources.
+- **No network egress filter** -- there is no per-plugin firewall or DNS/host filter; `network` is a single boolean. Landlock v4 (kernel ≥6.7) can restrict TCP connect by *port* (not by host), which would let a `network`-less plugin be cut off from TCP entirely; this is planned but not yet wired.
+- **Resource limits are best-effort** -- per-plugin CPU/RAM/PIDs are capped via cgroup v2 when the host exposes a writable cgroup tree (default 256 MiB / 50% CPU / 64 PIDs); when cgroup v2 is unavailable the runner warns and runs without limits.
 - **CSS sanitizer** -- conservative, but browsers evolve. New CSS features and URL schemes may slip through until the sanitizer is updated.
 - **iframe sandbox (`allow-scripts`)** -- same-origin is disabled, but the iframe shares the browser process with the host page on some engines; speculative-execution side channels are not mitigated.
 
@@ -414,10 +467,11 @@ These are implemented by the plugin and called by the host:
 
 ### Enabling the plugin subsystem
 
-The plugin system is **on by default**. Plugins always run inside the
-bubblewrap sandbox — or refuse to start; there is no unsandboxed fallback, and
-installing is admin-only and gated by the static analyzer, cosign and a
-permission-diff acknowledgement. To turn the subsystem off entirely, set
+The plugin system is **on by default**. Plugins always run inside a sandbox
+(by default `auto`, which selects the strongest the host supports -- see
+*Backend process isolation* above) and installing is admin-only and gated by
+the static analyzer, cosign and a permission-diff acknowledgement. To turn the
+subsystem off entirely, set
 `EVEY_PLUGINS_ENABLED=false` — then all `AdminPluginService` RPCs return
 `FailedPrecondition` and the runner is not constructed (no ambient surface).
 

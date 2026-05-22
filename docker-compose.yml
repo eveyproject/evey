@@ -36,13 +36,17 @@ services:
       - ./evey-data/plugins:/data/plugins # plugin files
       - evey-cache:/cache           # transcode + trickplay cache (expendable)
       - ${MEDIA_DIR:-/media}:/media:ro
-    # Custom seccomp profile = Docker default with two surgical relaxations
-    # so bwrap can build the plugin sandbox: clone3 allowed (default denies),
-    # unshare allowed without CAP_SYS_ADMIN (default gates it on the cap,
-    # which the container drops). Everything else stays at Docker defaults.
-    # No capability is added, no privileged mode, no seccomp=unconfined.
-    security_opt:
-      - seccomp=./docker/seccomp-evey.json
+    # No security_opt overrides: the plugin sandbox uses Landlock (sandbox_mode
+    # auto/landlock), which self-confines the plugin's filesystem access from
+    # *inside* the process and needs no mount/unshare. It therefore runs under
+    # Docker's DEFAULT seccomp + AppArmor — the baseline container security
+    # stays fully intact (no relaxed profile, no added capability, no
+    # privileged mode). On a kernel without Landlock, auto falls back to the
+    # best isolation the host allows.
+    # Advanced (bare-metal namespace isolation): bubblewrap mode is available but
+    # needs the mount syscall, which the default AppArmor blocks inside Docker —
+    # enabling it in a container requires a relaxed seccomp profile (a security
+    # downgrade). See "Advanced: bubblewrap mode" in docs/plugins.md.
     # Hardware-accelerated transcoding is opt-in via an overlay file so the
     # base stack stays `up`-able on hosts without a GPU:
     #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
