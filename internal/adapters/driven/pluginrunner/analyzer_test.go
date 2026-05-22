@@ -204,6 +204,27 @@ sudo chmod u+s /usr/bin/something
 	}
 }
 
+func TestAnalyzePlugin_SignalPID1_Obfuscated(t *testing.T) {
+	cases := map[string]string{
+		"direct":            `process.kill(1, 0)`,
+		"bracket":           `process["kill"](1, 0)`,
+		"concat_in_bracket": `process["ki" + "ll"](1, 0)`, // normalizer folds the concat → process["kill"](1
+	}
+	for name, src := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "main.js", src)
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Safe {
+				t.Errorf("expected unsafe — %q should be flagged as signalling PID 1", src)
+			}
+		})
+	}
+}
+
 func TestAnalyzePlugin_SkipsNodeModules(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "index.js", `console.log("clean")`)

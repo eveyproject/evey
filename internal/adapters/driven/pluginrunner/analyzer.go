@@ -115,6 +115,8 @@ var analyzerRules = []analyzerRule{
 	{regexp.MustCompile(`(?i)require\s*\(\s*\[[^\]]+\]\s*\.\s*(?:join|reduce)\s*\(`), SeverityCritical, "obfuscation", "dynamic require with array.join evasion", nil},
 	{regexp.MustCompile(`(?i)["']child_["']\s*\+|["']sub["']\s*\+\s*["']process`), SeverityCritical, "obfuscation", "obfuscated child_process/subprocess import", nil},
 	{regexp.MustCompile(`(?i)["']pass["']\s*\+\s*["']wd|["']shad["']\s*\+\s*["']ow`), SeverityCritical, "obfuscation", "obfuscated sensitive file path construction", nil},
+	// Assembling "kill" from fragments to evade the process.kill detector below.
+	{regexp.MustCompile(`(?i)["']ki["']\s*\+\s*["']ll|["']kil["']\s*\+\s*["']l["']`), SeverityCritical, "obfuscation", "obfuscated kill() construction", nil},
 	// JavaScript String.fromCharCode payload assembly (3+ codepoints).
 	// Threshold of 3 args avoids hits on legitimate `String.fromCharCode(0xfeff)`
 	// or single-char emit; obfuscators always produce long lists.
@@ -127,8 +129,9 @@ var analyzerRules = []analyzerRule{
 	{regexp.MustCompile(`(?i)/data/jwt\.key|jwt[._-]key|private[._-]key`), SeverityWarning, "filesystem", "reference to JWT/private key file", nil},
 	{regexp.MustCompile(`(?i)\.env\.dev|\.env\.local|\.env\.prod`), SeverityWarning, "filesystem", "reference to environment config file", nil},
 
-	// Process signals
+	// Process signals — direct call, plus bracket-notation evasion process["kill"](1
 	{regexp.MustCompile(`(?i)process\.kill\s*\(\s*1[,)]|os\.kill\s*\(\s*1[,)]`), SeverityCritical, "privilege", "attempt to signal PID 1 (server process)", nil},
+	{regexp.MustCompile(`(?i)process\s*\[\s*["']kill["']\s*\]\s*\(\s*1[,)]`), SeverityCritical, "privilege", "attempt to signal PID 1 via bracket-notation process[\"kill\"]", nil},
 
 	// Python — unsafe deserialization (arbitrary code exec)
 	{regexp.MustCompile(`(?i)(pickle\.loads?|pickle\.load\s*\(|marshal\.loads?|marshal\.load\s*\()`), SeverityCritical, "deserialization", "unsafe deserialization (pickle/marshal can execute arbitrary code)", nil},
