@@ -22,6 +22,14 @@ const launcherBinaryName = "evey-plugin-launcher"
 // JWT key, DB socket) and sibling plugin directories — is denied by Landlock.
 var systemReadOnlyDirs = []string{"/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc"}
 
+// devDir exposes the container's pseudo-devices (/dev/null, /dev/zero,
+// /dev/random, /dev/urandom, /dev/tty…). Many runtimes and libraries open
+// /dev/null and /dev/urandom, so a deny-by-default allowlist would break them.
+// It is read-write because /dev/null is written to; this is safe because a
+// default Docker container's /dev holds no disk/memory devices, and DAC still
+// guards the root-owned nodes against an unprivileged plugin.
+const devDir = "/dev"
+
 // applyLandlockSandbox wraps cmd with the evey-plugin-launcher shim, which
 // applies a Landlock filesystem allowlist (system dirs read-only; the plugin's
 // own dir and socket dir read-write) before exec'ing the plugin. Unlike
@@ -48,7 +56,7 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 	for _, d := range systemReadOnlyDirs {
 		args = append(args, "-ro", d)
 	}
-	args = append(args, "-rw", pluginDir, "-rw", pluginSockDir)
+	args = append(args, "-rw", pluginDir, "-rw", pluginSockDir, "-rw", devDir)
 
 	// TCP egress: deny by default (-restrict-net). A plugin holding the
 	// "network" permission may connect to standard HTTP(S) ports plus any

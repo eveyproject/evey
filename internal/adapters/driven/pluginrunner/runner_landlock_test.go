@@ -38,6 +38,7 @@ func TestApplyLandlockSandbox_BuildsArgv(t *testing.T) {
 	assert.Contains(t, cmd.Args, "-rw")
 	assert.Contains(t, cmd.Args, "/data/plugins/weather")
 	assert.Contains(t, cmd.Args, "/tmp/evey/plugins/weather")
+	assert.Contains(t, cmd.Args, "/dev", "pseudo-devices must be on the allowlist (/dev/null, /dev/urandom)")
 	assert.Contains(t, cmd.Args, "-require-landlock")
 	assert.Contains(t, cmd.Args, "--")
 
