@@ -264,7 +264,7 @@ The isolation strategy is selected by `EVEY_PLUGINS_SANDBOX_MODE` (default `auto
 | Mode | Filesystem isolation | Needs | Where it fits |
 |------|----------------------|-------|---------------|
 | `auto` | best available | — | **default**: probes at boot and picks `bubblewrap` > `landlock` > `basic` |
-| `landlock` | Landlock LSM allowlist | kernel ≥5.13 with Landlock in the active LSM list | the official Docker image: runs under Docker's **default** seccomp+AppArmor, no host changes |
+| `landlock` | Landlock LSM allowlist + `LD_PRELOAD` seccomp | kernel ≥5.13 with Landlock in the active LSM list | the official Docker image: runs under Docker's **default** seccomp+AppArmor, no host changes |
 | `bubblewrap` | mount-namespace pivot | `bwrap` binary + the `mount` syscall | _advanced_ — bare-metal / relaxed-security hosts (see below) |
 | `strict` | bubblewrap + `LD_PRELOAD` seccomp | as bubblewrap | _advanced_ — hardened bare-metal |
 | `basic` | none (per-path) | — | last-resort fallback for old locked-down kernels |
@@ -273,7 +273,7 @@ In practice, every official deployment is the prebuilt Docker image, where `auto
 
 0. **Landlock filesystem allowlist** (modes `landlock`/`auto`) -- a tiny pre-exec shim, `evey-plugin-launcher`, applies a [Landlock](https://docs.kernel.org/userspace-api/landlock.html) ruleset before exec'ing the plugin: read+execute on system directories (`/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`), read+write on the plugin's own directory, its socket directory and the container's pseudo-devices (`/dev` — `/dev/null`, `/dev/urandom`…), and **everything else denied** -- `/data` (media, JWT key, DB socket) and sibling plugin directories are unreachable. Landlock is enforced by the kernel *before* DAC, so it confines the plugin even when it shares the server's UID. On Landlock ABI v4 (kernel ≥6.7) the launcher also governs **TCP egress**: a plugin without the `network` permission is denied all TCP connect/bind, and one with it may connect only to ports 80/443 plus any explicit `:port` in `external_fetch` (filtered by port, not host). It needs no mount/unshare, so it works under Docker's baseline container security with no relaxed seccomp profile, no added capability, and no privileged mode. The launcher refuses to start (`-require-landlock`) rather than run a plugin unconfined.
 
-1. **Seccomp BPF** -- A shared library (`libevey-sandbox.so`) is injected via `LD_PRELOAD`. The BPF filter blocks `execve` and `execveat` syscalls, returning `EPERM`. This prevents plugins from spawning child processes. Plugins with the `subprocess` permission skip this filter.
+1. **Seccomp BPF** -- A shared library (`libevey-sandbox.so`) is injected via `LD_PRELOAD`. The BPF filter blocks `execve`/`execveat` (no child processes) plus `setns`, `bpf`, `kexec_*`, `finit_module`, `keyctl`, `add_key`, `process_vm_readv`/`writev` and `perf_event_open`, returning `EPERM`. It is applied in `basic`, `strict` **and `landlock`** modes (Landlock confines the filesystem/network; this denylist closes the syscall/process-escape vectors Landlock does not cover). Plugins with the `subprocess` permission skip this filter.
 
 2. **Privilege dropping** -- When Evey runs as root, plugin processes are started as `evey-plugin` (UID/GID 1001) via `SysProcAttr.Credential`. The `PR_SET_NO_NEW_PRIVS` flag prevents privilege escalation.
 

@@ -20,7 +20,10 @@ const launcherBinaryName = "evey-plugin-launcher"
 // systemReadOnlyDirs are the host paths a plugin needs to read/execute its
 // interpreter and shared libraries. Everything else — notably /data (media,
 // JWT key, DB socket) and sibling plugin directories — is denied by Landlock.
-var systemReadOnlyDirs = []string{"/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc"}
+// /app is included so the dynamic linker can load the LD_PRELOAD seccomp lib
+// (/app/libevey-sandbox.so); /app holds no secrets (just the open-source
+// binaries, the SDK and the seccomp profile).
+var systemReadOnlyDirs = []string{"/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc", "/app"}
 
 // devDir exposes the container's pseudo-devices (/dev/null, /dev/zero,
 // /dev/random, /dev/urandom, /dev/tty…). Many runtimes and libraries open
@@ -79,6 +82,28 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 	// so point HOME/TMPDIR there. A plugin writing scratch to $HOME=/tmp would
 	// otherwise hit a Landlock denial.
 	cmd.Env = overrideEnv(cmd.Env, map[string]string{"HOME": pluginDir, "TMPDIR": pluginDir})
+
+	// Layer the LD_PRELOAD seccomp filter (libevey-sandbox.so) on top of
+	// Landlock. Landlock confines the filesystem and network; this denylist
+	// blocks dangerous syscalls — execve/execveat (so a plugin without the
+	// "subprocess" permission cannot spawn children), plus setns, bpf, kexec,
+	// keyctl, finit_module, process_vm_readv/writev, perf_event_open. Plugins
+	// that declare "subprocess" skip the filter (they are allowed to spawn).
+	if !slices.Contains(p.Permissions, subprocessPerm) {
+		libPath := r.ensureSandboxLib()
+		switch {
+		case libPath != "":
+			cmd.Env = append(cmd.Env, "LD_PRELOAD="+libPath)
+		case !r.allowMissingSandbox:
+			slog.Error("refusing to start plugin without seccomp lib (landlock mode)",
+				slog.String("plugin_id", p.ID), slog.String("sandbox_lib", sandboxLibPath))
+			r.publishPluginError(parentCtx, p.ID, "sandbox library unavailable; plugin refused start")
+			return nil, fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
+		default:
+			slog.Warn("landlock mode without seccomp lib (dev override)",
+				slog.String("plugin_id", p.ID))
+		}
+	}
 
 	slog.Info("plugin sandbox applied",
 		slog.String("plugin_id", p.ID),

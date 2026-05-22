@@ -14,7 +14,7 @@ func TestApplyLandlockSandbox_BuildsArgv(t *testing.T) {
 	// /bin/true is a real executable so launcherPath() resolves the override.
 	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/bin/true")
 
-	r := NewRunner().WithSandboxMode(sandboxModeLandlock)
+	r := NewRunner().WithSandboxMode(sandboxModeLandlock).WithAllowMissingSandbox(true)
 	p := &plugin.Plugin{
 		ID:          "weather",
 		InstallDir:  "/data/plugins/weather",
@@ -61,7 +61,7 @@ func TestApplyLandlockSandbox_BuildsArgv(t *testing.T) {
 func TestApplyLandlockSandbox_NoNetworkPerm_CutsOffTCP(t *testing.T) {
 	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/bin/true")
 
-	r := NewRunner().WithSandboxMode(sandboxModeLandlock)
+	r := NewRunner().WithSandboxMode(sandboxModeLandlock).WithAllowMissingSandbox(true)
 	p := &plugin.Plugin{ID: "themer", InstallDir: "/data/plugins/themer"} // no permissions
 	cmd := exec.Command("/usr/bin/node", "/data/plugins/themer/main.js")
 
@@ -72,6 +72,33 @@ func TestApplyLandlockSandbox_NoNetworkPerm_CutsOffTCP(t *testing.T) {
 	// -net-connect, so the launcher denies all TCP.
 	assert.Contains(t, cmd.Args, "-restrict-net")
 	assert.NotContains(t, cmd.Args, "-net-connect")
+}
+
+func TestApplyLandlockSandbox_NoSubprocessPerm_RequiresSeccompLib(t *testing.T) {
+	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/bin/true")
+	// allowMissingSandbox defaults to false → fail-closed when the lib is absent
+	// (it is, on the test box: /app/libevey-sandbox.so does not exist).
+	r := NewRunner().WithSandboxMode(sandboxModeLandlock)
+	p := &plugin.Plugin{ID: "x", InstallDir: "/data/plugins/x"} // no subprocess permission
+	cmd := exec.Command("/usr/bin/node", "/data/plugins/x/main.js")
+
+	_, err := r.applyLandlockSandbox(context.Background(), p, cmd)
+	require.ErrorIs(t, err, ErrSandboxUnavailable, "a plugin without 'subprocess' must be refused when the seccomp lib is missing")
+}
+
+func TestApplyLandlockSandbox_SubprocessPerm_SkipsSeccompLib(t *testing.T) {
+	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/bin/true")
+	// A plugin that declares "subprocess" is allowed to spawn → the seccomp lib
+	// is skipped, so a missing lib must NOT block it even with fail-closed on.
+	r := NewRunner().WithSandboxMode(sandboxModeLandlock)
+	p := &plugin.Plugin{ID: "x", InstallDir: "/data/plugins/x", Permissions: []string{subprocessPerm}}
+	cmd := exec.Command("/usr/bin/node", "/data/plugins/x/main.js")
+
+	_, err := r.applyLandlockSandbox(context.Background(), p, cmd)
+	require.NoError(t, err)
+	for _, e := range cmd.Env {
+		assert.NotContains(t, e, "LD_PRELOAD", "subprocess plugins must not get the execve-blocking filter")
+	}
 }
 
 func TestLandlockConnectPorts(t *testing.T) {
@@ -86,7 +113,7 @@ func TestLandlockConnectPorts(t *testing.T) {
 func TestApplyLandlockSandbox_MissingLauncherFailsClosed(t *testing.T) {
 	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/nonexistent/evey-plugin-launcher")
 
-	r := NewRunner().WithSandboxMode(sandboxModeLandlock)
+	r := NewRunner().WithSandboxMode(sandboxModeLandlock).WithAllowMissingSandbox(true)
 	p := &plugin.Plugin{ID: "x", InstallDir: "/data/plugins/x"}
 	cmd := exec.Command("/usr/bin/node", "/data/plugins/x/main.js")
 
