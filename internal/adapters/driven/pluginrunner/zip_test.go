@@ -196,8 +196,9 @@ func TestZipExtract_ZipBomb_Fails(t *testing.T) {
 	require.NoError(t, err)
 
 	w := zip.NewWriter(f)
-	// 1 MB of zeros — high compression ratio
-	payload := make([]byte, 1*1024*1024)
+	// 4 MB of zeros — high ratio AND large enough to be a real decompression
+	// bomb (the ratio guard only fires above 1 MB uncompressed).
+	payload := make([]byte, 4*1024*1024)
 	fw, err := w.CreateHeader(&zip.FileHeader{Name: "zeros.bin", Method: zip.Deflate})
 	require.NoError(t, err)
 	_, err = fw.Write(payload)
@@ -210,6 +211,30 @@ func TestZipExtract_ZipBomb_Fails(t *testing.T) {
 	err = installer.Extract(zipPath, dest)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "compression ratio")
+}
+
+// A small but highly-compressible file (a repetitive test fixture vendored
+// inside a dependency) is NOT a decompression bomb and must extract — the ratio
+// guard only applies above 1 MB uncompressed. Regression for the weather plugin
+// install failure ("script not found: main.js").
+func TestZipExtract_SmallHighRatioFile_OK(t *testing.T) {
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "small.zip")
+	f, err := os.Create(zipPath)
+	require.NoError(t, err)
+	w := zip.NewWriter(f)
+	payload := make([]byte, 200*1024) // 200 KB of zeros: high ratio, tiny size
+	fw, err := w.CreateHeader(&zip.FileHeader{Name: "fixture.txt", Method: zip.Deflate})
+	require.NoError(t, err)
+	_, err = fw.Write(payload)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+	require.NoError(t, f.Close())
+
+	dest := t.TempDir()
+	require.NoError(t, NewZipInstaller().Extract(zipPath, dest))
+	_, statErr := os.Stat(filepath.Join(dest, "fixture.txt"))
+	require.NoError(t, statErr, "small high-ratio file should extract")
 }
 
 func TestZipExtract_StripsSetuid(t *testing.T) {
