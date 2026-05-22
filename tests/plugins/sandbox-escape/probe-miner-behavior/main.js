@@ -47,12 +47,16 @@ const tEnd = Date.now() + 4000; let acc = 0;
 while (Date.now() < tEnd) { acc += Math.sqrt(acc + 1) | 0; }
 report("resource_cpu_burn", true, "pegged CPU ~4s (acc=" + acc + ") — check docker stats for the cgroup ceiling");
 
-// 5. RESOURCE ABUSE (memory) — grow toward 512MB. If the cgroup memory cap
-//    SIGKILLs us here, that IS the cap working (the lines above are flushed).
+// 5. RESOURCE ABUSE (memory) — grow toward a SAFE 128MB ceiling. Capped low on
+//    purpose: where the per-plugin cgroup memory limit is NOT enforced, a large
+//    balloon would pressure the *host* and OOM-kill innocent plugins (which is
+//    exactly the gap — but we don't want this probe to actually do it). With a
+//    working cgroup cap below 128MB, the process is SIGKILLed here, which is the
+//    cap working; the lines above are already flushed.
 const held = []; let mb = 0;
 try {
-  for (; mb < 512; mb += 64) { held.push(Buffer.alloc(64 * 1024 * 1024, 1)); }
-  report("resource_mem_balloon", true, "allocated " + mb + "MB uncapped");
+  for (; mb < 128; mb += 32) { held.push(Buffer.alloc(32 * 1024 * 1024, 1)); }
+  report("resource_mem_balloon", true, "allocated " + mb + "MB (capped low for safety; raise EVEY_PLUGINS_MEMORY_MB test separately)");
 } catch (e) { report("resource_mem_balloon", false, "stopped near " + mb + "MB: " + (e.code || e.message)); }
 
 report("DONE", true, "miner-behaviour probes complete");
