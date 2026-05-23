@@ -14,6 +14,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	plugindomain "github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -56,10 +57,16 @@ type HostServer struct {
 	events          shared.EventBus
 	logger          plugindomain.PluginLogger
 	permInterceptor grpc.UnaryServerInterceptor
+	rpcLimiter      *ratelimit.Limiter // per-plugin HostService RPC rate limit (anti-flood)
 
 	mu       sync.RWMutex
 	registry map[string]*pluginEntry
 }
+
+// pluginRPCRatePerMin caps each plugin's HostService RPC rate. Lenient on
+// purpose: a legitimate plugin makes occasional calls, so this only trips on a
+// flood (a misbehaving plugin spamming RPCs to load the server).
+const pluginRPCRatePerMin = 600
 
 type pluginEntry struct {
 	pluginID    string
@@ -82,7 +89,20 @@ func NewHostServer(
 		events:          events,
 		logger:          logger,
 		permInterceptor: permInterceptor,
+		rpcLimiter:      ratelimit.New(pluginRPCRatePerMin),
 		registry:        make(map[string]*pluginEntry),
+	}
+}
+
+// makeRateLimitInterceptor caps a plugin's HostService RPC rate (keyed by
+// plugin ID). On overrun it returns ResourceExhausted rather than letting a
+// flood load the server.
+func (h *HostServer) makeRateLimitInterceptor(entry *pluginEntry) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if h.rpcLimiter != nil && !h.rpcLimiter.Allow(entry.pluginID) {
+			return nil, status.Error(codes.ResourceExhausted, "plugin RPC rate limit exceeded")
+		}
+		return handler(ctx, req)
 	}
 }
 
@@ -160,7 +180,10 @@ func (h *HostServer) RegisterPlugin(pluginID string) (string, error) {
 		listener: lis,
 	}
 
-	interceptors := []grpc.UnaryServerInterceptor{h.makePluginAuthInterceptor(entry)}
+	interceptors := []grpc.UnaryServerInterceptor{
+		h.makePluginAuthInterceptor(entry),
+		h.makeRateLimitInterceptor(entry),
+	}
 	if h.permInterceptor != nil {
 		interceptors = append(interceptors, h.permInterceptor)
 	}
