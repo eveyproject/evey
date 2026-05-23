@@ -1,0 +1,10 @@
+{
+  "name": "evey-plugin-data-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Evey example plugin demonstrating the per-plugin data store + grantable capabilities",
+  "dependencies": {
+    "@grpc/grpc-js": "^1.10.0",
+    "@grpc/proto-loader": "^0.7.0"
+  }
+}

@@ -54,7 +54,7 @@ If `make dev` fails on `bwrap`:
 
 ## 3. Scaffold your first plugin
 
-Examples live in `examples/plugins/` and `examples/themes/`. Pick the closest one to your use case (TMDB enricher, Discord notifier, Spotify now-playing, weather, dark theme, etc.) and copy it into a working directory:
+Examples live in `examples/plugins/` and `examples/themes/`. Pick the closest one to your use case (TMDB enricher, Discord notifier, Spotify now-playing, weather, dark theme, etc.) and copy it into a working directory. For the persistence + capability features, see **`examples/plugins/data-demo`** — it uses the per-plugin data store and requests the `public` / `prefs` capabilities + the `admin.nav` slot.
 
 ```sh
 cp -r examples/plugins/discord-notify ~/my-first-plugin

@@ -1,0 +1,19 @@
+name: data-demo
+kind: plugin
+version: 1.0.0
+description: "Demonstrates the per-plugin data store and the new grantable capabilities (public, prefs, admin.nav)."
+author: evey-examples
+language: nodejs
+entrypoint: node main.js
+# No permission is needed for the plugin's OWN data store (GetData/SetData/...).
+# These two are GRANTABLE capabilities the admin consents to at install:
+#   public — read-only access to non-sensitive media (title/poster) from the iframe
+#   prefs  — read/write the current user's preferences in this plugin's namespace
+permissions:
+  - public
+  - prefs
+web_root: dist
+frontend:
+  # A single admin menu entry opening this plugin's own sandboxed page.
+  - slot: admin.nav
+    src: dist/admin.js

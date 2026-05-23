@@ -38,6 +38,22 @@ func TestFilterPluginScopes_WhitelistAndForbidden(t *testing.T) {
 	}, out)
 }
 
+// TestFilterPluginScopes_GrantableAndHardLocked pins the boundary for the
+// capabilities added with the permission-model work: `public` and `prefs` are
+// grantable; admin/auth/system and generic write scopes are stripped even if a
+// manifest tries to declare them (non-bypassable hard lock at the token layer).
+func TestFilterPluginScopes_GrantableAndHardLocked(t *testing.T) {
+	t.Parallel()
+	in := []string{
+		"public", "prefs", // grantable
+		"admin.fullaccess", "auth.session", "system.config", // hard-locked prefixes
+		"user.write", "library.write", // hard-locked exact
+		"prefs.admin", // not whitelisted (only bare "prefs" is)
+	}
+	out := auth.FilterPluginScopes(in)
+	assert.Equal(t, []string{"public", "prefs"}, out)
+}
+
 func TestGenerateAndParsePluginToken_Roundtrip(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
