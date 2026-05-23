@@ -1,6 +1,9 @@
 package plugin
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type PluginRepository interface {
 	Create(ctx context.Context, p *Plugin) error
@@ -9,6 +12,28 @@ type PluginRepository interface {
 	List(ctx context.Context) ([]*Plugin, error)
 	Update(ctx context.Context, p *Plugin) error
 	Delete(ctx context.Context, id string) error
+}
+
+// PluginDataEntry is one row of a plugin's own key/value store. UserID is the
+// empty string for plugin-global data and a user id for per-user data (e.g.
+// plugin-namespaced preferences).
+type PluginDataEntry struct {
+	PluginID  string
+	UserID    string
+	Key       string
+	Value     string
+	UpdatedAt time.Time
+}
+
+// PluginDataRepository is a plugin's own persistence: a key/value store
+// namespaced per plugin (and optionally per user). Rows cascade-delete with the
+// plugin (on uninstall) and with the user, so a plugin never leaks data past
+// its own lifecycle. userID == "" addresses the plugin-global scope.
+type PluginDataRepository interface {
+	Get(ctx context.Context, pluginID, userID, key string) (*PluginDataEntry, error)
+	Set(ctx context.Context, pluginID, userID, key, value string) error
+	Delete(ctx context.Context, pluginID, userID, key string) error
+	List(ctx context.Context, pluginID, userID string) ([]*PluginDataEntry, error)
 }
 
 type PluginRuntimeRepository interface {

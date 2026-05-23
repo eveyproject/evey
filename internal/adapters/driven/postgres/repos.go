@@ -26,6 +26,7 @@ type Repos struct {
 	TranscodeProfile     *TranscodeProfileRepository
 	Plugin               *PluginRepository
 	PluginRuntime        *PluginRuntimeRepository
+	PluginData           *PluginDataRepository
 	MetadataOverride     *MetadataOverrideRepository
 	Artwork              *ArtworkRepository
 	LoginHistory         *LoginHistoryRepository
@@ -89,6 +90,7 @@ func NewRepos(db *sql.DB) *Repos {
 		TranscodeProfile:     NewTranscodeProfileRepository(db),
 		Plugin:               NewPluginRepository(db),
 		PluginRuntime:        NewPluginRuntimeRepository(db),
+		PluginData:           NewPluginDataRepository(db),
 		MetadataOverride:     NewMetadataOverrideRepository(db),
 		Artwork:              NewArtworkRepository(db),
 		LoginHistory:         NewLoginHistoryRepository(db),
