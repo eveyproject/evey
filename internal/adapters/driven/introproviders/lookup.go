@@ -24,11 +24,16 @@ import (
 //     = 1-indexed numbers, IsMovie = false.
 type Lookup struct {
 	TmdbID    int    // TIDB primary key for both movies and TV series
-	ImdbID    string // optional, may be ""; IntroDB primary key
+	ImdbID    string // optional, may be ""; IntroDB primary key + TIDB v3 fallback
 	Season    int    // 0 for movies
 	Episode   int    // 0 for movies
 	IsMovie   bool   // true → movie endpoint shape; false → TV episode shape
-	MediaItem *domainlibrary.MediaItem
+	// DurationMs is the item's runtime in milliseconds (0 = unknown). Sent
+	// to TIDB v3 as duration_ms to pick the matching release cut, and used
+	// to close open-ended credits/preview segments (end_ms == null = "to end
+	// of media") against a concrete end time.
+	DurationMs int64
+	MediaItem  *domainlibrary.MediaItem
 }
 
 // MediaAncestorRepo is the read-only slice of MediaItemRepository the
@@ -76,10 +81,11 @@ func (r *AncestorResolver) Resolve(ctx context.Context, item *domainlibrary.Medi
 			return Lookup{}, ErrLookupUnresolvable
 		}
 		return Lookup{
-			TmdbID:    tmdbID,
-			ImdbID:    ids["imdb"],
-			IsMovie:   true,
-			MediaItem: item,
+			TmdbID:     tmdbID,
+			ImdbID:     ids["imdb"],
+			IsMovie:    true,
+			DurationMs: itemDurationMs(item),
+			MediaItem:  item,
 		}, nil
 	case domainlibrary.Episode:
 		if item.IndexNumber == nil || *item.IndexNumber == 0 {
@@ -101,17 +107,29 @@ func (r *AncestorResolver) Resolve(ctx context.Context, item *domainlibrary.Medi
 			return Lookup{}, ErrLookupUnresolvable
 		}
 		return Lookup{
-			TmdbID:    tmdbID,
-			ImdbID:    ids["imdb"],
-			Season:    *season.IndexNumber,
-			Episode:   ep,
-			IsMovie:   false,
-			MediaItem: item,
+			TmdbID:     tmdbID,
+			ImdbID:     ids["imdb"],
+			Season:     *season.IndexNumber,
+			Episode:    ep,
+			IsMovie:    false,
+			DurationMs: itemDurationMs(item),
+			MediaItem:  item,
 		}, nil
 	default:
 		// Series / Season / Album / Track / Photo: no per-item segment data.
 		return Lookup{}, ErrLookupUnresolvable
 	}
+}
+
+// itemDurationMs returns the item's on-disk runtime in milliseconds, or 0
+// when no file is loaded (container types, or a repo that didn't JOIN
+// media_files). 0 is a safe sentinel: the providers omit duration_ms and
+// fall back to dropping open-ended segments.
+func itemDurationMs(item *domainlibrary.MediaItem) int64 {
+	if item == nil || item.File == nil {
+		return 0
+	}
+	return item.File.Duration.Milliseconds()
 }
 
 func providerIDs(item *domainlibrary.MediaItem) map[string]string {

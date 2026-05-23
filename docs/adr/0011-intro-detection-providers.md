@@ -55,6 +55,19 @@ CPU budget: the same `cpuutil.TrickplayWorkers(adaptive)` cap that gates trickpl
 - Submission is **opt-in** by design. We don't want a flood of low-confidence submissions degrading the community DB; only `phash` segments with `Confidence ≥ 0.95` are sent.
 - Tests stay fast: every adapter takes a `WithBaseURL` option pointing at a `httptest` server; the rate-limiter takes injectable `nowFunc` / `sleepFunc` so pacing tests don't actually sleep.
 
+## Update 2026-05-23 — TIDB API v3
+
+TheIntroDB shipped a v3 API (npm `theintrodb@3.0.0`, 2026-05-19; the official Jellyfin plugin pins `/v3`). v2 still serves identical-shaped responses, so the migration is non-breaking. `TIDBClient` now targets `https://api.theintrodb.org/v3`. Changes adopted on the **read** path (`Fetch`):
+
+- **imdb_id fallback** — v3 accepts `imdb_id` directly (movies and series), so `TIDBClient` queries by `imdb_id` when no `tmdb_id` is resolvable instead of bailing straight to `IntroDBClient`. The IntroDB (`introdb.app`) adapter stays as a secondary fallback but is now partly redundant.
+- **`duration_ms`** — forwarded from the item runtime (`Lookup.DurationMs`, sourced from `MediaItem.File.Duration`). Lets the server match the right release cut and resolve open-ended segments.
+- **Open-ended credits/preview kept** — `end_ms == null` (= "to end of media") is now closed against `Lookup.DurationMs` instead of being dropped. intro/recap still require an explicit end. Previously every null-end credit was silently discarded.
+- **Confidence** — v3 may attach per-segment `confidence`/`submission_count`; `Fetch` uses `confidence` when present (clamped 0..1), else the 0.97 floor.
+- **Rate-limit tiers** — v3 exposes three buckets: `X-RateLimit-*` (30/10s burst, paced proactively), `X-UsageLimit-*` (100/500 per day), `X-UsageLimit-SpecificMedia-*` (~1000/media). `parseRetryAfter` now returns the longest of `Retry-After` / `X-UsageLimit-Reset` / `X-RateLimit-Reset` so a daily-cap 429 isn't retried inside the burst window. The daily/per-media tiers are not paced proactively (reset windows can be hours); a cap 429 terminates the run and resumes next cycle.
+- **User-Agent** — requests now send a named UA (`tidbUserAgent`).
+
+**Submission (`/submit`) deliberately left on the v2 path and unchanged.** The v3 submit schema differs (`segment`/`start_ms`/`end_ms`/`type`, segment vocab `intro|recap|credits|preview` with no `outro`; our payload sends `segment_type`/`start_sec`/`end_sec`/`outro` and omits `type`). Migrating the submit path is deferred until we revisit community contribution.
+
 ## References
 
 - `internal/domain/library/ports.go` — `IntroMetadataProvider`, `SegmentContributor`

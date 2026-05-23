@@ -17,17 +17,31 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-// TIDBClient is an HTTP client for theintrodb.org's `/v2/media` endpoint.
+// tidbUserAgent identifies Evey to the upstream so anonymous traffic is
+// attributable and not lumped in with generic bots. Mirrors the official
+// Jellyfin plugin's habit of sending a named UA.
+const tidbUserAgent = "Evey/intro-detection (+https://github.com/evey-project/evey)"
+
+// TIDBClient is an HTTP client for theintrodb.org's `/v3/media` endpoint.
 //
-// The API documents per-source rate limits we honour conservatively:
-//   - 30 req / 10s burst on /media → the headerRateLimiter observes the
-//     X-RateLimit-Remaining / X-RateLimit-Reset headers and proactively
-//     pauses before the next request when Remaining < 3, avoiding 429s.
-//   - 100/day anonymous, 500/day with Bearer auth → emit a metric on 429.
+// v3 keeps the v2 response shape (tmdb_id/type/season/episode + intro/recap/
+// credits/preview arrays of {start_ms,end_ms}) and adds: a first-class
+// imdb_id query fallback, an optional duration_ms hint, and optional per-
+// segment confidence/submission_count. It is queried by tmdb_id when known,
+// else by imdb_id.
 //
-// On 429 we honour Retry-After when present; otherwise back off with the
-// X-RateLimit-Reset header. No automatic retry — caller can retry next
-// cycle. Shielding the daily quota matters more than the burst.
+// The API exposes three independent rate-limit tiers via response headers:
+//   - X-RateLimit-* — 30 req / 10s burst. The headerRateLimiter observes
+//     Remaining/Reset and proactively pauses before the next request when
+//     Remaining < 3, avoiding 429s on bulk scans.
+//   - X-UsageLimit-* — 100/day anonymous, 500/day with Bearer auth. Not
+//     paced proactively (the reset window can be hours); we let a daily-cap
+//     429 terminate the run and resume next cycle, shielded by the cache.
+//   - X-UsageLimit-SpecificMedia-* — per-media cap (~1000). Same treatment.
+//
+// On 429 we honour the longest of Retry-After / X-UsageLimit-Reset /
+// X-RateLimit-Reset (parseRetryAfter) so we never retry inside a still-open
+// window. No automatic retry — the caller resumes next cycle.
 type TIDBClient struct {
 	baseURL    string
 	apiKey     string
@@ -53,7 +67,7 @@ func WithTIDBBaseURL(u string) TIDBOption {
 // empty (anonymous mode, lower daily quota).
 func NewTIDBClient(apiKey string, opts ...TIDBOption) *TIDBClient {
 	c := &TIDBClient{
-		baseURL:    "https://api.theintrodb.org/v2",
+		baseURL:    "https://api.theintrodb.org/v3",
 		apiKey:     apiKey,
 		httpClient: &http.Client{Timeout: 8 * time.Second},
 		rl:         newHeaderRateLimiter(),
@@ -68,12 +82,16 @@ func NewTIDBClient(apiKey string, opts ...TIDBOption) *TIDBClient {
 // audit which provider produced each segment.
 func (c *TIDBClient) Source() string { return "tidb" }
 
-// tidbSegment matches the API's segment shape — start/end are nullable
-// per the OpenAPI: intro start may be null when "< 5s threshold", etc.
-// The doc says start_ms/end_ms are integers in ms.
+// tidbSegment matches the API's segment shape — start/end are nullable.
+// For intro/recap a null start means "starts at 0"; for credits/preview a
+// null end means "runs to end of media". Confidence/SubmissionCount are v3
+// additions, optional and frequently absent (the official client ignores
+// them); we use Confidence when present and fall back to a fixed floor.
 type tidbSegment struct {
-	StartMs *int64 `json:"start_ms"`
-	EndMs   *int64 `json:"end_ms"`
+	StartMs         *int64   `json:"start_ms"`
+	EndMs           *int64   `json:"end_ms"`
+	Confidence      *float64 `json:"confidence,omitempty"`
+	SubmissionCount *int     `json:"submission_count,omitempty"`
 }
 
 type tidbMediaResponse struct {
@@ -95,17 +113,28 @@ func (c *TIDBClient) Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.
 	ctx, span := tracing.StartSpan(ctx, "introproviders.tidb.Fetch")
 	defer span.End()
 
-	if lookup.TmdbID == 0 {
-		// TIDB requires tmdb_id for canonical lookups; the imdb_id fallback
-		// adds latency and unreliable mapping per the OpenAPI doc — skip
-		// and let IntroDB handle imdb-only items.
-		return nil, nil
-	}
 	q := url.Values{}
-	q.Set("tmdb_id", strconv.Itoa(lookup.TmdbID))
+	switch {
+	case lookup.TmdbID != 0:
+		q.Set("tmdb_id", strconv.Itoa(lookup.TmdbID))
+	case lookup.ImdbID != "":
+		// v3 accepts imdb_id directly (movies and series), so TIDB now covers
+		// the imdb-only items that previously fell straight through to IntroDB.
+		q.Set("imdb_id", lookup.ImdbID)
+	default:
+		return nil, nil // no canonical identifier — nothing to query
+	}
 	if !lookup.IsMovie {
+		if lookup.Season == 0 || lookup.Episode == 0 {
+			return nil, nil // TV item without a resolvable season/episode
+		}
 		q.Set("season", strconv.Itoa(lookup.Season))
 		q.Set("episode", strconv.Itoa(lookup.Episode))
+	}
+	if lookup.DurationMs > 0 {
+		// Helps the server pick the matching release cut and lets it resolve
+		// open-ended credits server-side. Safe to omit when unknown.
+		q.Set("duration_ms", strconv.FormatInt(lookup.DurationMs, 10))
 	}
 	reqURL := c.baseURL + "/media?" + q.Encode()
 
@@ -118,6 +147,7 @@ func (c *TIDBClient) Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.
 		return nil, fmt.Errorf("tidb: build request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", tidbUserAgent)
 	if c.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	}
@@ -153,12 +183,15 @@ func (c *TIDBClient) Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.
 	}
 
 	segs := make([]domainlibrary.MediaSegment, 0, 4)
-	segs = appendTIDBSegments(segs, payload.Intro, "intro", c.Source())
-	segs = appendTIDBSegments(segs, payload.Recap, "recap", c.Source())
-	segs = appendTIDBSegments(segs, payload.Credits, "end_credits", c.Source())
+	// intro/recap require an explicit end (null end is meaningless). credits/
+	// preview may carry a null end meaning "to end of media" — resolved
+	// against lookup.DurationMs when known.
+	segs = appendTIDBSegments(segs, payload.Intro, "intro", c.Source(), true, lookup.DurationMs)
+	segs = appendTIDBSegments(segs, payload.Recap, "recap", c.Source(), true, lookup.DurationMs)
+	segs = appendTIDBSegments(segs, payload.Credits, "end_credits", c.Source(), false, lookup.DurationMs)
 	// preview = next-episode preview reel; surface as "preview" so the
 	// player can offer Skip Preview (admin can hide the type if unwanted).
-	segs = appendTIDBSegments(segs, payload.Preview, "preview", c.Source())
+	segs = appendTIDBSegments(segs, payload.Preview, "preview", c.Source(), false, lookup.DurationMs)
 
 	if len(segs) == 0 {
 		// 200 with empty arrays → service knew the item but has no
@@ -168,36 +201,59 @@ func (c *TIDBClient) Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.
 	return segs, nil
 }
 
-func appendTIDBSegments(out []domainlibrary.MediaSegment, raw []tidbSegment, segType, source string) []domainlibrary.MediaSegment {
+// appendTIDBSegments maps raw upstream segments to domain segments.
+//
+// endRequired distinguishes the two segment families: intro/recap (true)
+// must carry an explicit end_ms; credits/preview (false) may carry end_ms
+// == null meaning "to the end of media", which we close against durationMs
+// (the item's runtime). When the end is open and durationMs is unknown the
+// segment is dropped — a half-open range can't be rendered as a skip CTA.
+func appendTIDBSegments(out []domainlibrary.MediaSegment, raw []tidbSegment, segType, source string, endRequired bool, durationMs int64) []domainlibrary.MediaSegment {
 	for _, s := range raw {
-		// Per the OpenAPI: a nil start means "starts at 0" (< 5s threshold
-		// collapse) — clamp to 0 so the player can render the segment from
-		// the very beginning.
+		// A nil start means "starts at 0" — clamp so the player renders the
+		// segment from the very beginning.
 		var startMs int64
 		if s.StartMs != nil {
 			startMs = *s.StartMs
 		}
-		// nil end_ms is intentionally rejected: a half-open segment can't be
-		// rendered as a skip CTA. Movies' credits often carry end=null
-		// ("until end of file"); the player would need media.duration to
-		// resolve it, which the cache layer doesn't carry. Defer to local
-		// detection in that case.
-		if s.EndMs == nil {
-			slog.Debug("tidb: dropping segment with null end_ms", slog.String("type", segType))
+
+		var endMs int64
+		switch {
+		case s.EndMs != nil:
+			endMs = *s.EndMs
+		case !endRequired && durationMs > 0:
+			endMs = durationMs // open-ended credits/preview → run to media end
+		default:
+			slog.Debug("tidb: dropping segment with unresolvable end_ms",
+				slog.String("type", segType), slog.Bool("end_required", endRequired))
 			continue
 		}
-		if startMs < 0 || *s.EndMs <= startMs {
+
+		if startMs < 0 || endMs <= startMs {
 			continue
 		}
 		out = append(out, domainlibrary.MediaSegment{
 			Type:       segType,
 			StartMs:    startMs,
-			EndMs:      *s.EndMs,
+			EndMs:      endMs,
 			Source:     source,
-			Confidence: 0.97, // upstream is community-validated; matches our pHash+Chromaprint primary
+			Confidence: tidbConfidence(s),
 		})
 	}
 	return out
+}
+
+// tidbConfidence uses the upstream per-segment confidence when present
+// (clamped to 0..1), else a 0.97 floor — community-validated data should
+// stay competitive with our pHash+Chromaprint primary.
+func tidbConfidence(s tidbSegment) float64 {
+	if s.Confidence != nil && *s.Confidence > 0 {
+		if *s.Confidence > 1 {
+			return 1
+		}
+		return *s.Confidence
+	}
+	return 0.97
 }
 
 // ErrRateLimited is returned by upstream clients when they hit a 429.
@@ -221,16 +277,19 @@ func IsRateLimited(err error) bool {
 	return errors.As(err, &rl)
 }
 
+// parseRetryAfter returns the longest reset window advertised by the
+// response. A 429 may be a burst hit (short X-RateLimit-Reset) or a daily/
+// per-media cap hit (long X-UsageLimit-Reset); taking the max means we never
+// retry inside a window that is still closed. IntroDB sends none of these,
+// so it falls back to 0.
 func parseRetryAfter(h http.Header) time.Duration {
-	if v := h.Get("Retry-After"); v != "" {
-		if secs, err := strconv.Atoi(v); err == nil && secs > 0 {
-			return time.Duration(secs) * time.Second
+	var maxSecs int
+	for _, name := range []string{"Retry-After", "X-UsageLimit-Reset", "X-RateLimit-Reset"} {
+		if v := h.Get(name); v != "" {
+			if secs, err := strconv.Atoi(v); err == nil && secs > maxSecs {
+				maxSecs = secs
+			}
 		}
 	}
-	if v := h.Get("X-RateLimit-Reset"); v != "" {
-		if secs, err := strconv.Atoi(v); err == nil && secs > 0 {
-			return time.Duration(secs) * time.Second
-		}
-	}
-	return 0
+	return time.Duration(maxSecs) * time.Second
 }
