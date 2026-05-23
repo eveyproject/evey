@@ -60,8 +60,11 @@ Rewriting every caller in one commit produced merge conflicts across the pluginr
 
 ## References
 
-- `internal/domain/library/ports.go` — `LibraryRepository` as embedded union (Deprecated)
 - `internal/domain/library/queries.go` — `LibraryQueryRepo`
 - `internal/domain/library/commands.go` — `LibraryCommandRepo`
 - `internal/app/library/watcher.go` — first narrow-port caller (read-only)
 - Commit 2026-04-20: `refactor(library): LibraryRepository is now an embed of Command+Query repos`
+
+## Amendment (2026-05-23)
+
+For `library`, migration is **complete**: the transitional `LibraryRepository` union interface has been removed from `ports.go` (the postgres adapter and `FakeLibraryRepository` satisfy `LibraryCommandRepo` + `LibraryQueryRepo` directly). The "Applied scope" notes above describe the mid-migration state; the union no longer exists. `MediaItemRepository` is still a god-interface (its split remains in the backlog) — that part stands.

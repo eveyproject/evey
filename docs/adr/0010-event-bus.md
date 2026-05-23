@@ -98,9 +98,13 @@ The test is mechanical: `go doc` on an event struct should work across domain li
 
 ## References
 
-- `internal/domain/shared/event_bus.go` — the `EventBus` + `Event` interfaces
-- `internal/adapters/driven/eventbus/inmemory.go` — the only implementation
+- `internal/domain/shared/event.go` — the `EventBus` + `Event` interfaces
+- `internal/pkg/eventbus/eventbus.go` — the implementation (`eventbus.New`, wired in `cmd/evey/wire.go`)
 - `internal/domain/*/events.go` — domain event structs
 - `internal/app/notification/command_service.go` — subscriber with recover + detached ctx
 - [ADR-0001](0001-hexagonal-architecture.md) — domain boundary rules
 - [ADR-0007](0007-fire-and-forget-context.md) — subscriber context lifecycle
+
+## Amendment (2026-05-23)
+
+Reference paths corrected: the interfaces live in `internal/domain/shared/event.go` (not `event_bus.go`), and the implementation moved out of `internal/adapters/driven/eventbus/` to `internal/pkg/eventbus/eventbus.go`. The design (typed events, per-subscriber recover, detached ctx, no persistence) is unchanged.

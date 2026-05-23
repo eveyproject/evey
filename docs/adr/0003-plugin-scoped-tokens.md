@@ -39,3 +39,12 @@ Any token carrying a forbidden scope is rejected both at mint and at verificatio
 - `internal/pkg/auth/plugin_jwt.go`
 - `internal/app/plugin/token_service.go`
 - [ADR-0001](0001-hexagonal-architecture.md)
+
+## Amendment (2026-05-23)
+
+Implementation drifted from this 2026-02 record; the decision (short-lived, scope-filtered, RS256, 5-min TTL) stands, but the specifics below are corrected:
+
+- **Scope notation is dot-based**, not colon-based: `media.read`, `library.write`, `notification.sender`, `api.library`, … The forbidden set is the prefixes `admin.` / `auth.` / `system.` plus the exact scopes `user.write` and `library.write` (`pkg/auth.forbiddenPrefix` + the forbidden-exact set in `plugin_jwt.go`).
+- The live allow-list is `pkg/auth.AllowedPluginScopes` (`plugin_jwt.go`), which is broader than this ADR's original read-only list (it includes e.g. `media.write`, `api.*`, `notification.sender`, and the later `public` / `prefs` capabilities).
+- Method names: minting is `TokenService.IssueToken` (not `Mint`); verification is `JWTGenerator.ParsePluginToken` (there is no `PluginJWTVerifier`).
+- Enforcement is no longer "filter at mint and trust thereafter": it is **deny-by-default at the interceptor** — see [ADR-0012](0012-plugin-token-deny-by-default.md).

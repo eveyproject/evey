@@ -99,7 +99,18 @@ docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" -c "
 
 **Behavior**: Evey has a resilient fallback — search keeps working via SQL (`cmd/evey/wire.go` wires a resilient search adapter that logs `meilisearch unavailable, using SQL search fallback` when Meili is unreachable). No user action needed to stay online; only ranking quality degrades.
 
-**Diagnose + fix**:
+**Note on deployment mode**: The default `docker-compose.yml` runs Meilisearch **embedded inside the `evey-server` container** (`EVEY_EMBEDDED_MEILI: "true"`). A standalone `evey-meilisearch` container only exists in the dev override (`docker-compose.override.yml`). In embedded mode, "Meilisearch down" means the evey-server process is unhealthy — there is no separate container to restart.
+
+**Diagnose + fix (embedded, default)**:
+```sh
+docker ps --filter name=evey-server
+curl -sf http://localhost:7700/health          # port forwarded from inside evey-server
+docker logs --tail=200 evey-server | grep -i meili
+```
+- Server unhealthy → `docker compose restart evey-server`.
+- Index corruption → stop evey-server, backup `./evey-data/meili-data/`, wipe, restart, trigger a full re-index from the admin panel.
+
+**Diagnose + fix (standalone dev override only)**:
 ```sh
 docker ps --filter name=evey-meilisearch
 curl -sf http://localhost:7700/health
@@ -194,9 +205,9 @@ Symptom: admin sees an unexpected device in **Now Playing** (admin panel), or a 
      ORDER BY started_at DESC LIMIT 20;"
    ```
 2. Kill from admin UI: **Admin → Activity → Now Playing → ⋯ → Kill session**, or via gRPC `AdminSessionService/KillSession` with the `session_id`. The session is terminated 5s later so the player can receive the stop command.
-3. If the session is unresponsive, force-delete the HLS session:
+3. If the session is unresponsive, force-delete the HLS session (directory is `<cacheDir>/<mediaItemID>`, default `/cache/transcode/<mediaItemID>`):
    ```sh
-   docker exec evey-server rm -rf /data/transcoding/<session_id>/
+   docker exec evey-server rm -rf /cache/transcode/<media_item_id>/
    ```
 4. If the refresh token should also be revoked (suspected password compromise):
    ```sh

@@ -46,7 +46,7 @@ Twenty contexts live under `internal/domain/` and `internal/app/`. Most are inde
 
 ### Relations
 
-- `library` → emits `MediaIndexed`; `metadata`, `feed`, `search` consume.
+- `library` → emits `MediaItemAdded` / `MediaItemUpdated` / `MediaItemRemoved`; `metadata`, `feed`, `search` consume.
 - `playback` → emits `PlaybackStarted/Stopped`; `activity`, `notification`, `syncplay` consume.
 - `user` → emits `UserCreated`; `favorite`, `playlist`, `notification` bootstrap per-user state.
 - `plugin` → consumes domain events through a scoped bus bridge (see ADR-0003).
@@ -56,9 +56,9 @@ No context imports another context's domain package directly. Cross-context read
 
 ## Typical data flow — "user plays a media"
 
-1. Mobile/web client calls `POST /v1/playback/sessions` (grpc-gateway route).
+1. Mobile/web client calls `POST /api/v1/playback/start` (grpc-gateway route).
 2. `internal/adapters/driving/http` runs `HTTPAuthMiddleware`, extracts session.
-3. `internal/adapters/driving/grpcapi/playback` handler validates proto, calls `app/playback.Service.StartSession`.
+3. `internal/adapters/driving/grpcapi` (`playback_handler.go`) validates proto, calls `app/playback.Service.StartSession`.
 4. `app/playback.Service` calls domain ports: `MediaRepo.Get`, `SessionRepo.Create`, `EventBus.Publish(PlaybackStarted)`.
 5. Driven adapters execute: `postgres` persists the session inside a `shared.TransactionalUnit.Do` scope; `eventbus` dispatches asynchronously.
 6. Consumers (`activity`, `notification`, `syncplay`) react via their own subscribers, each in its own transaction.
@@ -66,7 +66,7 @@ No context imports another context's domain package directly. Cross-context read
 
 ## Composition root
 
-Wire graphs live in `cmd/server/wire.go` (and friends). Tests bypass adapters by injecting fakes that implement the same domain ports — see [ADR-0001](adr/0001-hexagonal-architecture.md).
+Wire graphs live in `cmd/evey/wire.go` (and friends). Tests bypass adapters by injecting fakes that implement the same domain ports — see [ADR-0001](adr/0001-hexagonal-architecture.md).
 
 ## Further reading
 
@@ -219,7 +219,7 @@ flowchart LR
 ```
 
 Goroutine notes:
-- gRPC server (`grpc.Server.Serve`) and HTTP server (gateway + static) each run in their own goroutines off the main wire-up in `cmd/server`.
+- gRPC server (`grpc.Server.Serve`) and HTTP server (gateway + static) each run in their own goroutines off the main wire-up in `cmd/evey`.
 - `app/library` scan jobs run on a worker pool (one goroutine per active library scan, see `library.ScanService`).
 - `app/transcoding` ffmpeg jobs are supervised by a per-session goroutine that pipes ffmpeg stdout/stderr.
 - `shared.EventBus` dispatches subscribers asynchronously: each subscriber runs in its own goroutine + transaction so a slow consumer never blocks publishers.
@@ -272,11 +272,11 @@ flowchart LR
     repo --> pgrepo
     svc --> bus
     bus --> searchidx
-    bus -. MediaIndexed .-> meta
-    bus -. MediaIndexed .-> trick
-    bus -. MediaIndexed .-> feed
-    bus -. MediaIndexed .-> notif
-    bus -. MediaIndexed .-> wh
+    bus -. MediaItemAdded .-> meta
+    bus -. MediaItemAdded .-> trick
+    bus -. MediaItemAdded .-> feed
+    bus -. MediaItemAdded .-> notif
+    bus -. MediaItemAdded .-> wh
     meta --> repo
     trick --> ffstore[(evey-cache<br/>trickplay sprites)]
 ```

@@ -89,9 +89,9 @@ config_schema:
     description: Enable response caching
     default: true
 
-ui_widgets:
+frontend:
   - slot: media.detail.sidebar
-    src: widget.bundle.js
+    src: detail.bundle.js
 ```
 
 ### Required fields
@@ -113,7 +113,7 @@ ui_widgets:
 | `capabilities` | List of declared capabilities |
 | `permissions` | List of required permissions |
 | `config_schema` | Map of config field definitions |
-| `ui_widgets` | List of UI widget declarations |
+| `frontend` | List of frontend module declarations (iframe slots) |
 
 ### Supported Languages
 
@@ -145,17 +145,17 @@ the `native-binary` permission (see below).
 
 All types support: `description`, `required`, `default`.
 
-### UI Widgets
+### Frontend modules
 
-Widgets are JavaScript bundles rendered inside sandboxed iframes. Declare them in `ui_widgets`:
+Frontend modules are JavaScript bundles rendered inside sandboxed iframes. Declare them in `frontend`, each mounted in an allowed slot (see the slot whitelist in [plugins/security-model.md](plugins/security-model.md)):
 
 ```yaml
-ui_widgets:
+frontend:
   - slot: home.section
-    src: widget.bundle.js
+    src: home.bundle.js
 ```
 
-The widget JS is served at `GET /api/v1/plugins/{id}/widget.js` (requires auth). Inside the iframe, the `window.evey` bridge is injected automatically.
+Plugin frontend assets are served at `GET /api/v1/plugins/{id}/assets/<file>` (requires auth). Inside the iframe, the `window.evey` bridge is injected automatically.
 
 ### CSS Themes
 

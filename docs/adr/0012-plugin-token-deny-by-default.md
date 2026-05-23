@@ -31,7 +31,7 @@ Narrow, read- or self-oriented. Surfaced to the admin at install; enforced at th
 
 ### Hard-locked (never grantable, never bypassable)
 
-`admin:*`, `auth:*`, `system:*`, `user:write`, `library:write`. Requested in a manifest ⇒ install rejected. Present in a token ⇒ rejected at the floor.
+Scopes use **dot notation** (`media.read`, `library.write`, …), not colons. Any scope under the prefixes `admin.`, `auth.`, `system.` (prefix-matched in `pkg/auth.forbiddenPrefix`), plus the exact scopes `user.write` and `library.write`, is hard-locked: requested in a manifest ⇒ install rejected; present in a token ⇒ rejected at mint, and the admin method floor (step 1) rejects admin RPCs independently of any scope.
 
 ### Bridge model — the token never enters the sandbox
 

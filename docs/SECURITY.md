@@ -135,21 +135,24 @@ The notification service subscribes and pages the admin via the configured chann
 Configurable via `evey.yaml` (or `EVEY_PLUGINS_SANDBOX_MODE` env var):
 
 ```yaml
-sandbox_mode: bubblewrap  # default since 2026-04-26 — full namespace isolation
-# sandbox_mode: basic       # legacy LD_PRELOAD seccomp + UID drop (dev only)
+sandbox_mode: auto   # default — picks the best available backend (normally landlock)
+# sandbox_mode: landlock    # Landlock LSM allowlist + TCP egress filter + LD_PRELOAD seccomp
+# sandbox_mode: basic       # legacy LD_PRELOAD seccomp + UID drop (dev/debug only)
+# sandbox_mode: bubblewrap  # full bwrap namespace isolation
 # sandbox_mode: strict      # bubblewrap + seccomp allowlist (locked-down API)
 ```
 
 Mapping per mode:
 
-| Layer | basic | bubblewrap | strict |
-|---|---|---|---|
-| UID drop | yes (1001) | per-plugin uid map | per-plugin uid map |
-| Seccomp | denylist (LD_PRELOAD) | denylist (kernel-applied) | allowlist |
-| Mount ns | none | `--ro-bind /` + writable plugin dir | same |
-| Network ns | none | `--unshare-net` unless `network` perm | same |
-| User ns | none | `--unshare-user` | same |
-| PID ns | none | `--unshare-pid` | same |
+| Layer | auto | landlock | basic | bubblewrap | strict |
+|---|---|---|---|---|---|
+| UID drop | yes (1001) | yes (1001) | yes (1001) | per-plugin uid map | per-plugin uid map |
+| Seccomp | denylist (LD_PRELOAD) | denylist (LD_PRELOAD) | denylist (LD_PRELOAD) | denylist (kernel-applied) | allowlist |
+| Filesystem | resolves to best available (normally Landlock allowlist) | Landlock LSM allowlist | none (UID 1001 only) | `--ro-bind /` + writable plugin dir | same |
+| Network | Landlock v4 TCP egress filter (if available) | Landlock v4 TCP egress filter | none | `--unshare-net` unless `network` perm | same |
+| Mount ns | none | none | none | `--ro-bind /` | same |
+| User ns | none | none | none | `--unshare-user` | same |
+| PID ns | none | none | none | `--unshare-pid` | same |
 
 Implementation deps:
 

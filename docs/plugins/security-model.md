@@ -85,9 +85,9 @@ The analyzer is regex- and pattern-based. It defuses well-known obfuscation clas
 
 Each bypass class has a permanent regression test in `tests/fixtures/plugins/malicious/`. Adding a new class requires: (1) fixture committed, (2) analyzer rule or normalize-pass extended, (3) `installer_security_test.go` flips `workerANeeded:true → false` once detection is in.
 
-**Out of scope (sandbox enforces):** AST-level dynamic transforms — `strrev("metsys")`, `base64.b64decode(...)`, `eval(open("/encoded").read())`, runtime regex.replace. The regex analyzer cannot resolve these; the bwrap mount whitelist + cgroups + IPC peer-cred guarantee the plugin cannot escape, exfiltrate `/data`, or escalate beyond declared permissions.
+**Out of scope (sandbox enforces):** AST-level dynamic transforms — `strrev("metsys")`, `base64.b64decode(...)`, `eval(open("/encoded").read())`, runtime regex.replace. The regex analyzer cannot resolve these; the bwrap mount whitelist + userspace resource monitor + IPC peer-cred guarantee the plugin cannot escape, exfiltrate `/data`, or escalate beyond declared permissions.
 
-**Known false positives:** the analyzer matches inside source comments and docstrings. A `# pip install foo` line in a comment will trip the `runtime_install` rule. Acceptable: instructing operators to strip such comments before publishing is cheaper than per-language comment stripping in the regex analyzer; the bwrap mount whitelist + cgroups make the runtime block independent.
+**Known false positives:** the analyzer matches inside source comments and docstrings. A `# pip install foo` line in a comment will trip the `runtime_install` rule. Acceptable: instructing operators to strip such comments before publishing is cheaper than per-language comment stripping in the regex analyzer; the bwrap mount whitelist + userspace resource monitor make the runtime block independent.
 
 #### Empirical runtime confirmation
 
@@ -104,7 +104,7 @@ STAT_BLOCKED /etc/passwd, /etc/shadow, /data/jwt.key (all ENOENT)
 
 Re-run the canary after any change to `runner_bwrap.go` to confirm the mount layout still blocks.
 
-**Enforcement boundary is the bwrap sandbox + cgroups + IPC peer-cred (layers 6-7), not the analyzer.** A plugin that slips a CRITICAL pattern past the analyzer still cannot read `/data`, fork-bomb past `pids.max`, or call gRPC methods it has no permission for. The analyzer is one layer in defense-in-depth, useful to surface obvious malicious code at preview time and reduce the bwrap attack surface — not the perimeter.
+**Enforcement boundary is the bwrap sandbox + userspace resource monitor + IPC peer-cred (layers 6-7), not the analyzer.** A plugin that slips a CRITICAL pattern past the analyzer still cannot read `/data`, fork-bomb past `pids.max`, or call gRPC methods it has no permission for. The analyzer is one layer in defense-in-depth, useful to surface obvious malicious code at preview time and reduce the bwrap attack surface — not the perimeter.
 
 ### 4. Cosign signature verification
 
@@ -160,12 +160,20 @@ The sandbox exposes read-only system paths needed for runtime (libraries, SSL, D
 
 Paths **not** mounted: `/data`, `/var`, `/home`, other plugins' directories.
 
-**cgroups v2 limits** (per plugin):
-- Memory limit
-- CPU quota
-- PID count limit
+**Userspace resource monitor** (per plugin):
 
-Source: `internal/adapters/driven/pluginrunner/runner_bwrap.go`, `runner_cgroups.go`.
+Resource limits are enforced by a userspace sweeper (not cgroups, which are unusable in a non-privileged Docker container). The monitor polls `/proc/<pid>/{statm,status,stat}` every ~2 s and kills the plugin if any cap is exceeded. `nice` is applied at spawn so a plugin never starves the server of CPU.
+
+- Memory cap (RSS, default 256 MiB) — via `/proc/<pid>/statm`
+- PID/thread count cap (default 64) — via `/proc/<pid>/status`
+- CPU priority — via `nice` (default 10)
+- Disk cap (install dir, default 100 MiB) — via recursive `filepath.Walk` every ~30 s
+
+See [ADR-0013](../adr/0013-userspace-plugin-resource-monitor.md) for the rationale behind the cgroups abandonment.
+
+Note: `--unshare-cgroup` in the bwrap namespace list below creates an isolated cgroup _namespace_ (the plugin sees a fresh cgroup hierarchy) but does **not** impose resource limits; those come from the userspace monitor above.
+
+Source: `internal/adapters/driven/pluginrunner/runner_bwrap.go`, `runner_resmon.go`.
 
 ### 8. DNS whitelist (V1, best-effort)
 
@@ -272,7 +280,7 @@ Source: `internal/domain/plugin/slots.go`.
 
 | Limit | Impact | Mitigation today |
 |---|---|---|
-| `sandbox_mode: basic` (default) | No namespace isolation; seccomp is denylist via LD_PRELOAD only; static binaries bypass LD_PRELOAD | `compiled_binary` category blocks install unless `native-binary` is declared |
+| `sandbox_mode: auto` (default — resolves to `landlock` on the official image) | `auto` picks the best available backend; on bare-metal without Landlock kernel support it may fall back to `basic` (no namespace isolation, LD_PRELOAD seccomp only) | Verify with `EVEY_PLUGINS_SANDBOX_MODE=auto` at startup; the log line reports the resolved mode |
 | All plugins share UID 1001 in basic mode | A malicious plugin can read siblings' `/proc/<pid>/environ` | `--unshare-user` in bubblewrap mode; `PR_SET_DUMPABLE=0` (TODO) |
 | DNS whitelist V1 does not block IP literals | Plugin can connect directly to IP addresses | V2: per-namespace nftables egress filter |
 | Regex analyzer bypassable by advanced obfuscation | Motivated attacker can hide patterns | Admin Preview + permission review; analyzer is updated as new patterns emerge |

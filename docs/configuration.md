@@ -21,7 +21,8 @@ EVEY_TMDB_API_KEY=<your-tmdb-key>               # better metadata (free at themo
 
 ### Server
 ```env
-EVEY_HTTP_PORT=9091                    # HTTP API port
+EVEY_SERVER_PORT=9090                  # gRPC listen port (default 9090); HTTP API binds at SERVER_PORT+1 = 9091
+EVEY_HTTP_PORT=9091                    # compose-only: host port exposed by Docker for the HTTP gateway (not read by the server binary)
 EVEY_SERVER_NAME=Evey                  # display name
 EVEY_VERSION=latest                    # Docker image tag (latest, v0.1.0-beta.1, etc.)
 ```
@@ -46,7 +47,7 @@ EVEY_RATELIMIT_LOGIN_MAX=10            # per IP per minute
 
 ### Libraries
 ```env
-EVEY_LIBRARY_SCAN_INTERVAL=6h          # rescan interval
+EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL=2m # fallback polling interval when inotify misses events (default 2m); admin-editable via Admin → Server Config
 EVEY_LIBRARY_WATCHER_ENABLED=true      # realtime file watching
 ```
 

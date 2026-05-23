@@ -169,7 +169,7 @@ Defaults applied to every plugin process:
 
 | Env var | Default | Effect |
 |---|---|---|
-| `EVEY_PLUGINS_SANDBOX_MODE` | `bubblewrap` | `basic` = fork only (debug). `bubblewrap` = full namespace + bind-mount root readonly + `--unshare-net` unless `network` permission. `strict` = adds seccomp profile. |
+| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto` = picks best available (normally `landlock`). `landlock` = Landlock LSM allowlist + TCP egress filter + LD_PRELOAD seccomp. `basic` = LD_PRELOAD seccomp + UID drop only (debug). `bubblewrap` = full namespace + bind-mount root readonly + `--unshare-net` unless `network` permission. `strict` = bubblewrap + seccomp allowlist. |
 | `EVEY_PLUGINS_MEMORY_MB` | 256 | Max RSS. The resource monitor polls `/proc` and stops the plugin past this. `0` disables. |
 | `EVEY_PLUGINS_CPU_NICE` | 10 | `nice` value (0-19) applied at spawn so a plugin can never starve the server of CPU. |
 | `EVEY_PLUGINS_PIDS_MAX` | 64 | Max thread/process count. Prevents fork bombs. `0` disables. |

@@ -66,3 +66,10 @@ If step 3 times out, next scan loses the duration refresh or the meili reindex �
 - `internal/app/music/command_service.go` — mirrors the contract
 - `internal/app/library/scan_service_test.go` — `TestScanLibrary_ExistingFile_NoDuplicate`
 - Commits 2026-04-20: `fix(scan): ±1µs tolerance`, `fix(scan): persist File.ModTime`, `fix(scan): persist fingerprint BEFORE ffprobe`
+
+## Amendment (2026-05-23)
+
+The change-detection **rules** above still hold, but two Consequences claims were undone:
+
+- The "inline `sameMtime` duplicated across three packages is intentional, a shared helper would sit in an odd layer" rationale was **reversed**. The helper was extracted to a shared package, `internal/pkg/scanindex.SameMtime`, now used by the library, photo, and music scanners. The odd-layer concern was resolved by putting it in `pkg/`, not `domain/`.
+- `cmd/photo-diag` was never shipped; disregard that reference.
