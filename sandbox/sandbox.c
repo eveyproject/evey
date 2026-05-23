@@ -46,6 +46,15 @@
 #ifndef __NR_keyctl
 #define __NR_keyctl 250
 #endif
+#ifndef __NR_kill
+#define __NR_kill 62
+#endif
+#ifndef __NR_tkill
+#define __NR_tkill 200
+#endif
+#ifndef __NR_tgkill
+#define __NR_tgkill 234
+#endif
 
 /*
  * Denylist — syscalls with no legitimate use in a plugin context, grouped by
@@ -53,80 +62,105 @@
  * bpf+perf / hw I/O / swap / system control / kexec / setuid family /
  * capabilities / keyring.
  *
- * Pattern: all BPF_JEQ jumps forward to the final RET_ERRNO; false branch
- * falls through.  RET_ALLOW sits just before RET_ERRNO.
- * Each JEQ at 0-based index i (range 1..N) uses jt = N+1-i to reach RET_ERRNO.
- * N = 38 JEQ instructions → RET_ALLOW at [39], RET_ERRNO at [40].
+ * Pattern: the DENY(nr) macro emits a self-contained 2-instruction block —
+ * "if syscall == nr return EPERM, else skip to the next check". There are NO
+ * hand-computed jump offsets, so adding or removing a syscall is a one-line
+ * change that cannot desync the filter. Anything not denied falls through to
+ * the final RET_ALLOW.
  */
+
+/* DENY(nr): match → fall through to the RET_ERRNO right after; no match →
+ * jump over it (jf=1) to the next check. */
+#define DENY(nr) \
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, (nr), 0, 1), \
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA))
+
 static struct sock_filter filter[] = {
-    /* [0] */ BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+
+    /* Signals targeting PID/TID 1 (the server runs as PID 1 in the container).
+     * A plugin shares the server's UID, so it could otherwise kill(1)/tkill(1)/
+     * tgkill(1,...) to DoS it. We deny tkill/tgkill ONLY when args[0]==1, and
+     * deny kill outright below — this still allows raise()/abort() and pthread
+     * self-signaling (a plugin's own tid is never 1, since it is a child PID).
+     * Offsets are local to this 6-instruction prelude and never need to change
+     * when the denylist below grows. */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_tkill,  1, 0),                       /* [1] tkill?  → [3] */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_tgkill, 0, 3),                       /* [2] tgkill? → [3]; else → [6] */
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),   /* [3] A = target (low 32) */
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 1, 0, 1),                                 /* [4] ==1? → [5]; else → [6] */
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA)),    /* [5] deny */
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),        /* [6] reload nr */
 
     /* exec */
-    /* [1]  */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_execve,           38, 0),
-    /* [2]  */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_execveat,         37, 0),
+    DENY(__NR_execve),
+    DENY(__NR_execveat),
 
-    /* process control / debug */
-    /* [3]  */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_ptrace,           36, 0),
-    /* [4]  */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_process_vm_readv, 35, 0),
-    /* [5]  */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_process_vm_writev,34, 0),
+    /* process control / debug — trace or read another process's memory */
+    DENY(__NR_ptrace),
+    DENY(__NR_process_vm_readv),
+    DENY(__NR_process_vm_writev),
+
+    /* process signals — kill (any target) has no legitimate plugin use; tkill/
+     * tgkill to PID 1 are already denied by the prelude above. */
+    DENY(__NR_kill),
 
     /* filesystem mount */
-    /* [6]  */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_mount,            33, 0),
-    /* [7]  */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_umount2,          32, 0),
-    /* [8]  */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_pivot_root,       31, 0),
-    /* [9]  */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_chroot,           30, 0),
+    DENY(__NR_mount),
+    DENY(__NR_umount2),
+    DENY(__NR_pivot_root),
+    DENY(__NR_chroot),
 
     /* namespaces */
-    /* [10] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_unshare,          29, 0),
-    /* [11] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setns,            28, 0),
+    DENY(__NR_unshare),
+    DENY(__NR_setns),
 
     /* kernel modules */
-    /* [12] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_init_module,      27, 0),
-    /* [13] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_finit_module,     26, 0),
-    /* [14] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_delete_module,    25, 0),
+    DENY(__NR_init_module),
+    DENY(__NR_finit_module),
+    DENY(__NR_delete_module),
 
     /* BPF / perf */
-    /* [15] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_bpf,              24, 0),
-    /* [16] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_perf_event_open,  23, 0),
+    DENY(__NR_bpf),
+    DENY(__NR_perf_event_open),
 
     /* hardware I/O */
-    /* [17] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_ioperm,           22, 0),
-    /* [18] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_iopl,             21, 0),
+    DENY(__NR_ioperm),
+    DENY(__NR_iopl),
 
     /* swap / memory mgmt */
-    /* [19] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_swapon,           20, 0),
-    /* [20] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_swapoff,          19, 0),
+    DENY(__NR_swapon),
+    DENY(__NR_swapoff),
 
     /* system control */
-    /* [21] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_syslog,           18, 0),
-    /* [22] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_reboot,           17, 0),
-    /* [23] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_settimeofday,     16, 0),
-    /* [24] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_clock_settime,    15, 0),
-    /* [25] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_clock_adjtime,    14, 0),
-    /* [26] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_adjtimex,         13, 0),
+    DENY(__NR_syslog),
+    DENY(__NR_reboot),
+    DENY(__NR_settimeofday),
+    DENY(__NR_clock_settime),
+    DENY(__NR_clock_adjtime),
+    DENY(__NR_adjtimex),
 
     /* kexec */
-    /* [27] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_kexec_load,       12, 0),
-    /* [28] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_kexec_file_load,  11, 0),
+    DENY(__NR_kexec_load),
+    DENY(__NR_kexec_file_load),
 
-    /* setuid family (plugin runs as UID 1001 — escalation forbidden) */
-    /* [29] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setuid,           10, 0),
-    /* [30] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setgid,            9, 0),
-    /* [31] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setreuid,          8, 0),
-    /* [32] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setregid,          7, 0),
-    /* [33] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setresuid,         6, 0),
-    /* [34] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setresgid,         5, 0),
+    /* setuid family (escalation forbidden) */
+    DENY(__NR_setuid),
+    DENY(__NR_setgid),
+    DENY(__NR_setreuid),
+    DENY(__NR_setregid),
+    DENY(__NR_setresuid),
+    DENY(__NR_setresgid),
 
     /* capabilities */
-    /* [35] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_capset,            4, 0),
+    DENY(__NR_capset),
 
     /* keyring */
-    /* [36] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_add_key,           3, 0),
-    /* [37] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_request_key,       2, 0),
-    /* [38] */ BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_keyctl,            1, 0),
+    DENY(__NR_add_key),
+    DENY(__NR_request_key),
+    DENY(__NR_keyctl),
 
-    /* [39] */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-    /* [40] */ BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | (EPERM & SECCOMP_RET_DATA)),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
 };
 
 static struct sock_fprog prog = {
