@@ -80,6 +80,12 @@ func PluginClaimsFromContext(ctx context.Context) *authpkg.PluginClaims {
 	return v
 }
 
+// ContextWithPluginClaims stores scoped plugin claims in ctx. Used by tests and
+// wiring; the interceptor sets these from a validated plugin token at runtime.
+func ContextWithPluginClaims(ctx context.Context, claims *authpkg.PluginClaims) context.Context {
+	return context.WithValue(ctx, pluginClaimsKey{}, claims)
+}
+
 // ScopeFromCtx returns the scopes granted by a scoped plugin token in ctx, if any.
 func ScopeFromCtx(ctx context.Context) ([]string, bool) {
 	c := PluginClaimsFromContext(ctx)

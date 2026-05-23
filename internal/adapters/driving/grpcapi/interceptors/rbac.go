@@ -161,6 +161,10 @@ func DefaultRBACConfig() RBACConfig {
 		PluginMethodScopes: map[string]string{
 			"/evey.v1.LibraryService/GetPublicMediaItem":   "public",
 			"/evey.v1.LibraryService/ListPublicMediaItems": "public",
+			"/evey.v1.PluginUserDataService/GetPref":       "prefs",
+			"/evey.v1.PluginUserDataService/SetPref":       "prefs",
+			"/evey.v1.PluginUserDataService/DeletePref":    "prefs",
+			"/evey.v1.PluginUserDataService/ListPrefs":     "prefs",
 		},
 	}
 }

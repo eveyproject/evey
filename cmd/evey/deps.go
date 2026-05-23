@@ -117,6 +117,7 @@ type repoDeps struct {
 	userRepo          domainuser.UserRepository
 	apiKeyRepo        domainuser.APIKeyRepository
 	pluginRepo        domainplugin.PluginRepository
+	pluginDataRepo    domainplugin.PluginDataRepository
 	quickConnectRepo  domainuser.QuickConnectRepository
 	introMetaCache    grpcapi.IntroCacheInvalidator
 }

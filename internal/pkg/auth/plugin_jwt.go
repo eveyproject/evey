@@ -31,6 +31,9 @@ var AllowedPluginScopes = map[string]bool{
 	// public: read-only access to non-sensitive surface (server branding is
 	// already public; public media projection exposes title/poster/year only).
 	"public": true,
+	// prefs: read/write the CURRENT user's preferences in the plugin's own
+	// namespace (never identity/security fields).
+	"prefs": true,
 }
 
 // ForbiddenPluginScopePrefixes: scopes starting with any of these are rejected even

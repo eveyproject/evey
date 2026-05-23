@@ -716,6 +716,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			userRepo:          r.User,
 			apiKeyRepo:        r.APIKey,
 			pluginRepo:        r.Plugin,
+			pluginDataRepo:    r.PluginData,
 			quickConnectRepo:  r.QuickConnect,
 			introMetaCache:    r.IntroMetadataCache,
 		},

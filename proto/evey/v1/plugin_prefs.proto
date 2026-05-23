@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/evey-project/evey/gen/evey/v1;eveyv1";
+
+// PluginUserDataService is the iframe-facing surface for a plugin to read and
+// write the CURRENT user's preferences in the plugin's own namespace. The
+// plugin id and user id are taken from the scoped plugin token, never from the
+// request, so a plugin can only ever touch (its-own-plugin, the-current-user)
+// data. Requires the `prefs` scope; rows live in plugin_data (user-scoped) and
+// cascade-delete with the plugin or the user.
+service PluginUserDataService {
+  rpc GetPref(GetPrefRequest) returns (GetPrefResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/plugin-prefs/{key}"
+    };
+  }
+  rpc SetPref(SetPrefRequest) returns (SetPrefResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/plugin-prefs/{key}"
+      body: "*"
+    };
+  }
+  rpc DeletePref(DeletePrefRequest) returns (DeletePrefResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/plugin-prefs/{key}"
+    };
+  }
+  rpc ListPrefs(ListPrefsRequest) returns (ListPrefsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/plugin-prefs"
+    };
+  }
+}
+
+message GetPrefRequest {
+  string key = 1;
+}
+
+message GetPrefResponse {
+  string value = 1;
+  bool found = 2;
+}
+
+message SetPrefRequest {
+  string key = 1;
+  string value = 2;
+}
+
+message SetPrefResponse {}
+
+message DeletePrefRequest {
+  string key = 1;
+}
+
+message DeletePrefResponse {}
+
+message ListPrefsRequest {}
+
+message PluginPref {
+  string key = 1;
+  string value = 2;
+}
+
+message ListPrefsResponse {
+  repeated PluginPref prefs = 1;
+}

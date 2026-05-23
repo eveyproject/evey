@@ -30,6 +30,7 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
 	"github.com/evey-project/evey/internal/config"
+	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
@@ -56,6 +57,8 @@ type GRPCServerDeps struct {
 	// Holds *pluginrunner.Runner; nil when the plugin system is disabled.
 	PluginRunner           pluginResourceController
 	PluginResourceDefaults appplugin.ResourceDefaults
+	// PluginData backs the iframe-facing plugin preference RPCs.
+	PluginData plugin.PluginDataRepository
 	MetadataCmd     *appmetadata.CommandService
 	MetadataQuery   *appmetadata.QueryService
 	ActivityCmd     *appactivity.CommandService
@@ -152,6 +155,7 @@ func (s *GRPCServer) RegisterServices() {
 		resDefaults:     d.PluginResourceDefaults,
 		enabled:         d.Cfg != nil && d.Cfg.Server.PluginsEnabled,
 	})
+	eveyv1.RegisterPluginUserDataServiceServer(s.server, newPluginUserDataHandler(d.PluginData))
 	eveyv1.RegisterAdminTaskServiceServer(s.server, &adminTaskHandler{
 		scheduler:  d.Scheduler,
 		libScanner: d.LibCmd,

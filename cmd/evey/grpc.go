@@ -43,6 +43,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		PluginToken:            deps.engagement.pluginTokenSvc,
 		PluginRunner:           deps.pluginRunner,
 		PluginResourceDefaults: deps.pluginResDefaults,
+		PluginData:             deps.repos.pluginDataRepo,
 		MetadataCmd:            deps.content.metadataCmdSvc,
 		MetadataQuery:          deps.content.metadataQuerySvc,
 		ActivityCmd:            deps.engagement.activityCmdSvc,
