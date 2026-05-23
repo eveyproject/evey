@@ -72,6 +72,17 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 		}
 	}
 
+	// Kernel seccomp denylist installed by the launcher right before exec, so it
+	// also constrains static/compiled plugin binaries (which never load the
+	// LD_PRELOAD libevey-sandbox.so and would otherwise bypass that layer
+	// entirely). -deny-inet adds socket(AF_INET/AF_INET6) denial for plugins
+	// without the network permission — a kernel-enforced no-IP-egress that holds
+	// even on Landlock ABI <4 where -restrict-net is a no-op.
+	args = append(args, "-seccomp")
+	if !slices.Contains(p.Permissions, networkPerm) {
+		args = append(args, "-deny-inet")
+	}
+
 	args = append(args, "-require-landlock", "--")
 	args = append(args, cmd.Args...) // original argv: interpreter + script (+ extra args)
 

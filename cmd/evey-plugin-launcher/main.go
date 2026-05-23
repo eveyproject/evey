@@ -65,6 +65,9 @@ type config struct {
 
 	restrictNet     bool     // govern TCP access (Landlock ABI v4+); deny-by-default
 	netConnectPorts []uint64 // TCP ports the plugin may connect() to; empty = none
+
+	seccomp  bool // install the kernel seccomp denylist before exec
+	denyInet bool // also EPERM socket(AF_INET/AF_INET6) — no TCP/UDP egress
 }
 
 func main() {
@@ -102,6 +105,8 @@ func run(argv []string) int {
 	cpuLimit := fs.Uint64("rlimit-cpu", 0, "RLIMIT_CPU seconds (0=unset)")
 	nofileLimit := fs.Uint64("rlimit-nofile", 0, "RLIMIT_NOFILE (0=unset)")
 	require := fs.Bool("require-landlock", false, "exit non-zero if Landlock cannot be enforced (fail closed)")
+	seccompFlag := fs.Bool("seccomp", false, "install a kernel seccomp denylist (ptrace/mount/unshare/kill/…) before exec")
+	denyInetFlag := fs.Bool("deny-inet", false, "also EPERM socket(AF_INET/AF_INET6): block all TCP/UDP egress (no network permission)")
 	if err := fs.Parse(flagArgs); err != nil {
 		return 2
 	}
@@ -116,6 +121,8 @@ func run(argv []string) int {
 		requireLandlock: *require,
 		restrictNet:     *restrictNet || len(netConnect) > 0,
 		netConnectPorts: netConnect,
+		seccomp:         *seccompFlag,
+		denyInet:        *denyInetFlag,
 	}
 
 	// Resource caps first (best effort; failures are warnings, not fatal).
@@ -137,6 +144,17 @@ func run(argv []string) int {
 			bin = p
 		}
 	}
+
+	// Syscall confinement, installed LAST (after path lookup, right before exec)
+	// so it can't interfere with the launcher's own setup. Best-effort: a kernel
+	// without seccomp degrades to Landlock + the LD_PRELOAD shim rather than
+	// refusing to run. The filter is inherited across execve into the plugin.
+	if cfg.seccomp {
+		if err := applySeccomp(cfg.denyInet); err != nil {
+			fmt.Fprintf(os.Stderr, "evey-plugin-launcher: WARNING seccomp filter not installed: %v\n", err)
+		}
+	}
+
 	// syscall.Exec runs on the current (Landlock-restricted, OS-locked) thread;
 	// execve replaces the image and the new program inherits the Landlock domain.
 	if err := syscall.Exec(bin, cmdArgs, os.Environ()); err != nil {

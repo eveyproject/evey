@@ -38,6 +38,7 @@ func main() {
 }
 
 func run() error {
+	hardenProcess() // mark non-dumpable so same-uid plugins can't read /proc/<srv>/{mem,environ}
 	startTime := time.Now()
 	cfg, err := config.Load()
 	if err != nil {
