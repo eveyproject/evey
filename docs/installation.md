@@ -6,7 +6,9 @@ with `docker compose` (e.g. on a NAS). The container runs **non-root** and needs
 (see [adr/0013-userspace-plugin-resource-monitor.md](adr/0013-userspace-plugin-resource-monitor.md)).
 
 For the bare two-file quick-start see the [README](../README.md). This page
-covers the same install plus updates, backups, and day-2 operations.
+covers the same install plus updates, backups, and day-2 operations. To run
+Evey **outside Docker** (systemd / bare metal), see
+[deployment-bare-metal.md](deployment-bare-metal.md).
 
 ## Prerequisites
 
@@ -111,6 +113,47 @@ paths, `EVEY_JWT_PRIVATE_KEY_PATH`, `EVEY_SERVER_BASE_URL`,
 > the `meilisearch` service and its `EVEY_MEILI_URL`. The standalone service above
 > is the clearer default for ops (separate lifecycle, separate volume). Either
 > way `MEILI_MASTER_KEY` is required.
+
+### Plugin sandbox & hardening (what the image ships)
+
+Plugins are third-party code that run as separate processes. The official image
+is hardened so this stays the recommended containerised posture — **no
+`--privileged`, no extra Docker security flags**:
+
+- **Sandbox defaults to Landlock.** `EVEY_PLUGINS_SANDBOX_MODE=auto` (the
+  default) resolves to **`landlock` whenever the kernel supports it**, which is
+  the case on a default modern Docker host. `auto` resolves in the order
+  **landlock → bubblewrap → basic**, picking the strongest backend the host
+  allows. Landlock is the right posture for the container: it needs no
+  privilege, runs under Docker's default seccomp + AppArmor with zero host
+  configuration, applies a per-path filesystem allowlist (plugins see only their
+  own directory, never `/data`), and is fail-closed — once applied it cannot be
+  relaxed. (bubblewrap needs the `mount` syscall, which Docker's default seccomp
+  blocks, so `auto` only picks it on bare metal; basic is a last-resort
+  fallback.)
+- **Server runs non-root** (UID 1000, `USER evey` in the image) and is marked
+  **non-dumpable** (`PR_SET_DUMPABLE=0`) so a co-resident plugin can't scrape
+  the server's `/proc/<pid>/{mem,environ}`.
+- **Kernel seccomp on every plugin** — a denylist (ptrace, mount, unshare,
+  kernel-module, kexec, setuid-family, keyring, … syscalls) is installed right
+  before the plugin `execve`, so it constrains even static/compiled plugins.
+  Non-network plugins additionally get `socket(AF_INET/AF_INET6)` denied.
+- **Plugin UID separation without root.** The server drops each plugin to the
+  unprivileged `evey-plugin` user (UID 1001) so a plugin can't read the server's
+  secrets (e.g. `jwt.key`) by plain filesystem permissions — important on
+  kernels without Landlock. The image grants the server binary
+  `cap_setuid,cap_setgid+ep` via **file capabilities**: this is **not root** and
+  needs **no `--privileged`** — it's a narrow capability that lets the non-root
+  server change a child's UID, and the plugin loses it on `execve`.
+- **Per-plugin resource caps** (memory / PID / disk / CPU nice) enforced by a
+  userspace monitor — **no cgroup / `mem_limit` / `cpus` settings needed** — and
+  all **admin-editable at runtime** from Admin → Server Config.
+
+Full threat model and per-layer detail: [plugins/security-model.md](plugins/security-model.md).
+You can keep the default `auto` (recommended) or pin `EVEY_PLUGINS_SANDBOX_MODE:
+landlock` in compose to be explicit and fail-closed (`landlock` refuses to start
+a plugin if Landlock can't be enforced). Both give the same posture on a modern
+kernel.
 
 ## 2. First launch
 

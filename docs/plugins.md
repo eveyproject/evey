@@ -12,7 +12,7 @@ This page is a map. The detail lives in three focused documents:
 |---|---|
 | **[plugins/dev-setup.md](plugins/dev-setup.md)** | Writing your first plugin: prerequisites, scaffold, the install/iterate loop, signing, submitting to the catalog, troubleshooting. **Start here.** |
 | **[plugins/api-reference.md](plugins/api-reference.md)** | The contract: manifest schema, backend IPC + data store, the `evey.*` frontend bridge, the slot list, and every capability (`metadata.provider`, `media.read/write`, `notification.sender`, `webhook.receiver`, `public`, `prefs`). |
-| **[plugins/security-model.md](plugins/security-model.md)** | Threat model and defense layers: process isolation, the sandbox (`auto`→landlock, bubblewrap, strict), the userspace resource monitor, static analysis, the CSS sanitizer, signing/versioning, the slot whitelist, and known limits. |
+| **[plugins/security-model.md](plugins/security-model.md)** | Threat model and defense layers: UID separation, the kernel + LD_PRELOAD seccomp denylist, the sandbox modes (`auto` resolves landlock → bubblewrap → basic; `strict` adds the LD_PRELOAD lib to bubblewrap), the userspace resource monitor, static analysis, the CSS sanitizer, signing/versioning, the slot whitelist, and known limits. |
 
 For the authorization model behind plugin tokens (deny-by-default, hard-locked
 scopes, the token-never-in-iframe bridge) see

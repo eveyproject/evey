@@ -85,7 +85,7 @@ The analyzer is regex- and pattern-based. It defuses well-known obfuscation clas
 
 Each bypass class has a permanent regression test in `tests/fixtures/plugins/malicious/`. Adding a new class requires: (1) fixture committed, (2) analyzer rule or normalize-pass extended, (3) `installer_security_test.go` flips `workerANeeded:true → false` once detection is in.
 
-**Out of scope (sandbox enforces):** AST-level dynamic transforms — `strrev("metsys")`, `base64.b64decode(...)`, `eval(open("/encoded").read())`, runtime regex.replace. The regex analyzer cannot resolve these; the bwrap mount whitelist + userspace resource monitor + IPC peer-cred guarantee the plugin cannot escape, exfiltrate `/data`, or escalate beyond declared permissions.
+**Out of scope (sandbox enforces):** AST-level dynamic transforms — `strrev("metsys")`, `base64.b64decode(...)`, `eval(open("/encoded").read())`, runtime regex.replace. The regex analyzer cannot resolve these; the runtime sandbox (the Landlock allowlist or the bwrap mount whitelist, plus the kernel seccomp denylist) + userspace resource monitor + IPC peer-cred guarantee the plugin cannot escape, exfiltrate `/data`, or escalate beyond declared permissions.
 
 **Known false positives:** the analyzer matches inside source comments and docstrings. A `# pip install foo` line in a comment will trip the `runtime_install` rule. Acceptable: instructing operators to strip such comments before publishing is cheaper than per-language comment stripping in the regex analyzer; the bwrap mount whitelist + userspace resource monitor make the runtime block independent.
 
@@ -104,7 +104,7 @@ STAT_BLOCKED /etc/passwd, /etc/shadow, /data/jwt.key (all ENOENT)
 
 Re-run the canary after any change to `runner_bwrap.go` to confirm the mount layout still blocks.
 
-**Enforcement boundary is the bwrap sandbox + userspace resource monitor + IPC peer-cred (layers 6-7), not the analyzer.** A plugin that slips a CRITICAL pattern past the analyzer still cannot read `/data`, fork-bomb past `pids.max`, or call gRPC methods it has no permission for. The analyzer is one layer in defense-in-depth, useful to surface obvious malicious code at preview time and reduce the bwrap attack surface — not the perimeter.
+**Enforcement boundary is the runtime sandbox (Landlock or bubblewrap) + kernel seccomp + userspace resource monitor + IPC peer-cred, not the analyzer.** A plugin that slips a CRITICAL pattern past the analyzer still cannot read `/data` (Landlock denies it / bwrap never mounts it), call a denied syscall, fork-bomb past the PID cap, or invoke gRPC methods it has no permission for. The analyzer is one layer in defense-in-depth, useful to surface obvious malicious code at preview time and reduce the runtime attack surface — not the perimeter.
 
 ### 4. Cosign signature verification
 
@@ -126,14 +126,55 @@ Applied to `theme.css` at install time. See [`docs/themes/security-model.md`](..
 
 Applied to `theme.js` at install time. A pattern that matches causes install to be refused. See [`docs/themes/security-model.md`](../themes/security-model.md) for the blocked pattern list.
 
-### 7. Runtime sandbox (Landlock / bubblewrap + seccomp + cgroups)
+### 7. Runtime sandbox (Landlock / bubblewrap + seccomp + userspace resource monitor)
 
-> **Default is now `landlock`** (`sandbox_mode=auto` resolves to it on the
-> official Docker image): a Landlock LSM filesystem allowlist + Landlock v4 TCP
-> egress filter + the `LD_PRELOAD` seccomp denylist, all under Docker's default
-> seccomp+AppArmor. See [`docs/plugins.md`](../plugins.md#backend-process-isolation)
-> for the current model and the per-mode table. The bubblewrap details below
-> apply when `sandbox_mode` is set to `bubblewrap`/`strict` (advanced/bare-metal).
+> **Default is `landlock`** (`sandbox_mode=auto` resolves to it on the official
+> Docker image): a Landlock LSM filesystem allowlist + Landlock v4 TCP egress
+> filter + the kernel + `LD_PRELOAD` seccomp denylist + `-deny-inet`, all under
+> Docker's default seccomp+AppArmor with zero host changes. See
+> [`docs/plugins.md`](../plugins.md) for the map and
+> [`docs/SECURITY.md`](../SECURITY.md#sandbox-modes) for the full per-mode table.
+
+The confinement layers that apply across **every** mode (subject to host
+capability):
+
+- **UID separation** — each plugin drops to uid/gid 1001 (`evey-plugin`),
+  distinct from the server's uid 1000, via `setcap cap_setuid,cap_setgid+ep`
+  on the (non-root) server. `jwt.key` (`0600`) and `/data/{keys,logs,backups}`
+  (`chmod 700`) are then DAC-unreadable to a plugin even without Landlock.
+- **Kernel seccomp denylist** — installed by `evey-plugin-launcher` per build
+  arch, pre-`execve`, so it constrains **static/compiled plugin binaries too**
+  (which never load `libevey-sandbox.so`). Blocks `ptrace`, `mount`, `unshare`,
+  `setns`, `bpf`, `kexec`, module load, the setuid family, `capset`, keyring,
+  signalling PID 1, etc. Inherited across `execve` into the plugin and its
+  children. The `LD_PRELOAD` `libevey-sandbox.so` shim applies the same denylist
+  (plus `execve`/`execveat`, so a non-`subprocess` interpreted plugin cannot
+  spawn children) to dynamic plugins as belt-and-suspenders.
+- **`-deny-inet`** — for plugins **without** the `network` permission the
+  launcher EPERMs `socket(AF_INET/AF_INET6)` at the kernel: no IP egress, holding
+  even on Landlock ABI <4. `AF_UNIX` stays allowed for the HostService gRPC
+  socket.
+- **Server `PR_SET_DUMPABLE=0`** — the server marks itself non-dumpable at
+  startup, so a same-uid plugin cannot read `/proc/<server>/{mem,environ,maps}`
+  (the in-memory JWT key, `DB_PASSWORD`, `MEILI_MASTER_KEY`).
+- **Userspace resource monitor** — see below; cgroups are not used.
+
+What the **filesystem/network backend** adds depends on the mode:
+
+| Mode | FS confinement | Network | Selected when |
+|---|---|---|---|
+| `landlock` | Landlock LSM allowlist (system dirs ro; plugin dir + sock dir rw; `/data` & siblings denied) | Landlock v4 TCP filter (declared ports only) + `-deny-inet` | `sandbox_mode=landlock` (fails closed if absent); `auto` on a Landlock kernel — the official image's normal case |
+| `bubblewrap` | mount whitelist in unshared namespaces (see below) | `--unshare-net` unless `network` perm | `sandbox_mode=bubblewrap`; `auto` where Landlock is absent but the bwrap probe passes (bare-metal / privileged) |
+| `strict` | same as `bubblewrap` + LD_PRELOAD seccomp | same as `bubblewrap` | `sandbox_mode=strict` |
+| `basic` | none (DAC-only; `auto`'s last resort) | `-deny-inet` only | `sandbox_mode=basic`; `auto` when neither Landlock nor bubblewrap is usable |
+
+`auto` resolves **landlock → bubblewrap → basic** once at first plugin start and
+logs the chosen mode. `basic` is **not** "no isolation": it still applies UID
+separation, the kernel + LD_PRELOAD seccomp, `-deny-inet`, best-effort Landlock,
+and the resource monitor — it only loses *per-path FS confinement* when the
+kernel has no Landlock (a plugin can then read non-sensitive world-readable
+files, and `/proc` process *listing* is visible; `/proc/<server>/{mem,environ}`
+stay protected).
 
 When `sandbox_mode` is `bubblewrap` or `strict` (opt-in via `evey.yaml`), each plugin process runs inside a bubblewrap namespace with:
 
@@ -173,7 +214,7 @@ See [ADR-0013](../adr/0013-userspace-plugin-resource-monitor.md) for the rationa
 
 Note: `--unshare-cgroup` in the bwrap namespace list below creates an isolated cgroup _namespace_ (the plugin sees a fresh cgroup hierarchy) but does **not** impose resource limits; those come from the userspace monitor above.
 
-Source: `internal/adapters/driven/pluginrunner/runner_bwrap.go`, `runner_resmon.go`.
+Source: `internal/adapters/driven/pluginrunner/runner_landlock.go`, `runner_bwrap.go`, `runner_resmon.go`, `runner_caps_linux.go`; `cmd/evey-plugin-launcher/{main.go,seccomp_linux.go,landlock_linux.go}`; `cmd/evey/hardening_linux.go`; `sandbox/sandbox.c`.
 
 ### 8. DNS whitelist (V1, best-effort)
 
@@ -217,7 +258,7 @@ Plugin frontend modules run inside an `<iframe>` with:
 | Permission | What it grants |
 |---|---|
 | `network` | Plugin may make outbound network connections. **Must** be combined with a non-empty `external_fetch` list — refused at install without it. |
-| `subprocess` | Plugin may spawn child processes. Without this permission, the seccomp filter (LD_PRELOAD) blocks `execve`/`execveat`. |
+| `subprocess` | Plugin may spawn child processes. Without it, the LD_PRELOAD seccomp shim blocks `execve`/`execveat` for interpreted plugins. (The launcher's kernel seccomp does not deny `execve` — it must exec the plugin — but any child inherits the kernel filter + the Landlock domain.) |
 | `native-binary` | Plugin may ship `.so`/`.dll`/`.exe`/`.wasm`/`.jar` or embedded archives. Admin sees and must accept the opaque code at install preview. |
 | `filesystem` | Declared intent to access the filesystem beyond the plugin's own directory. Enforced at audit; not yet a hard sandbox rule (see Known limits). |
 | `media.read` | Plugin may call `MediaRead` RPCs: read media file metadata and stream access. |
@@ -280,10 +321,11 @@ Source: `internal/domain/plugin/slots.go`.
 
 | Limit | Impact | Mitigation today |
 |---|---|---|
-| `sandbox_mode: auto` (default — resolves to `landlock` on the official image) | `auto` picks the best available backend; on bare-metal without Landlock kernel support it may fall back to `basic` (no namespace isolation, LD_PRELOAD seccomp only) | Verify with `EVEY_PLUGINS_SANDBOX_MODE=auto` at startup; the log line reports the resolved mode |
-| All plugins share UID 1001 in basic mode | A malicious plugin can read siblings' `/proc/<pid>/environ` | `--unshare-user` in bubblewrap mode; `PR_SET_DUMPABLE=0` (TODO) |
+| `auto` may resolve to `basic` on a host without Landlock and without usable bubblewrap | No **per-path** FS confinement: a plugin can read non-sensitive world-readable files, and `/proc` process listing is visible | Server secrets stay protected (UID separation + `PR_SET_DUMPABLE=0`); kernel seccomp (incl. static binaries) + `-deny-inet` still apply; the resolved mode is logged at first plugin start |
+| All plugins share UID 1001 | A malicious plugin could signal siblings (signalling PID 1 / the server is seccomp-blocked) | `PR_SET_DUMPABLE=0` blocks cross-process `/proc/<pid>/{environ,mem,maps,fd}` reads; Landlock / bubblewrap fully isolate plugin directories from each other |
+| Landlock TCP filter is per-port, not per-host | A network plugin can reach any host on an allowed port | Per-host `external_fetch` allow-list enforced at the HTTP layer; non-network plugins get no IP socket (`-deny-inet`) |
 | DNS whitelist V1 does not block IP literals | Plugin can connect directly to IP addresses | V2: per-namespace nftables egress filter |
-| Regex analyzer bypassable by advanced obfuscation | Motivated attacker can hide patterns | Admin Preview + permission review; analyzer is updated as new patterns emerge |
+| Regex analyzer bypassable by advanced obfuscation | Motivated attacker can hide patterns | Admin Preview + permission review; enforcement boundary is the sandbox + resource monitor + IPC peer-cred, not the analyzer |
 
 ## What V2 will add
 
