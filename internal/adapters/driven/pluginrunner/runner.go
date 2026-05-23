@@ -17,7 +17,6 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -372,24 +371,14 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		})
 	}
 
-	// H1: Pre-exec cgroup attach via clone3 (Linux 5.7+, CgroupFD feature).
-	// When supported, the kernel places the child in the cgroup atomically
-	// before the first instruction executes, closing the race window between
-	// cmd.Start and the post-Start attachToCgroup write.
+	// Attach the plugin to its cgroup AFTER fork (post-start, below). The atomic
+	// clone3 CLONE_INTO_CGROUP path is intentionally NOT used: Docker's default
+	// seccomp profile returns ENOSYS for clone3, which makes fork/exec fail
+	// outright. The post-start attach migrates the plugin within the evey-owned
+	// evey-plugins subtree (the server itself runs in evey-plugins/server), a
+	// move an unprivileged server is permitted to do. The race window before the
+	// attach is microseconds and the plugin does nothing exploitable in it.
 	cgroupAttachedPreExec := false
-	if cgroupPath != "" {
-		if fd, ok := cgroupFDIfSupported(cgroupPath); ok {
-			sysProcAttr.UseCgroupFD = true
-			sysProcAttr.CgroupFD = fd
-			defer unix.Close(fd)
-			cgroupAttachedPreExec = true
-		} else {
-			r.cgroupWarnOnce.Do(func() {
-				slog.Warn("kernel <5.7 or cgroup fd unavailable: post-start cgroup attach (race window open)",
-					slog.String("plugin", p.ID))
-			})
-		}
-	}
 
 	if err := cmd.Start(); err != nil {
 		cleanupCgroup(cgroupPath)

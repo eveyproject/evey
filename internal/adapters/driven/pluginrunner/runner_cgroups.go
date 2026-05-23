@@ -146,6 +146,11 @@ func cleanupCgroup(cgroupPath string) {
 // cgroup via clone3 (requires Linux 5.7+ / cgroup_fd feature). The caller
 // MUST close the fd when done (defer unix.Close(fd)).
 //
+// NOTE: it is intentionally NOT wired into Start anymore. Docker's default
+// seccomp profile returns ENOSYS for clone3, so CLONE_INTO_CGROUP makes
+// fork/exec fail outright; the runner attaches the plugin to its cgroup
+// post-fork instead. Retained (and tested) for a future non-Docker path.
+//
 // Returns (-1, false) when the path is empty, when the open fails (e.g. kernel
 // < 5.7 that does not expose the directory, or cgroups v2 unavailable), or
 // when running in a test environment with a synthetic cgroup root that doesn't
