@@ -23,4 +23,11 @@ var KnownPermissions = map[string]bool{
 	// blocks the install unless this permission is declared in the
 	// manifest so the admin sees and accepts the elevated risk.
 	"native-binary": true,
+	// public: the iframe may read the non-sensitive media projection
+	// (title/poster/year — never file paths). prefs: the iframe may read/write
+	// the current user's preferences in this plugin's namespace. Both are
+	// enforced deny-by-default on the scoped plugin token (see
+	// internal/pkg/auth.AllowedPluginScopes + rbac PluginMethodScopes).
+	"public": true,
+	"prefs":  true,
 }

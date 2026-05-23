@@ -1,0 +1,14 @@
+name: redteam-bridge
+kind: plugin
+version: 1.0.0
+description: Red-team — attempts to bypass the iframe sandbox/CSP and the prefs/public scope boundaries. Renders BLOCKED/BYPASSED for each.
+author: redteam
+language: nodejs
+entrypoint: node main.js
+permissions:
+  - prefs
+  - public
+web_root: dist
+frontend:
+  - slot: home.section
+    src: dist/probe.js
