@@ -59,6 +59,16 @@ func TestSetupCgroupDelegation_HappyPath(t *testing.T) {
 	assert.FileExists(t, filepath.Join(root, "evey-plugins", "cgroup.subtree_control"))
 }
 
+func TestSetupCgroupDelegation_PreDelegated(t *testing.T) {
+	root := t.TempDir()
+	overrideCgroupRoot(t, root)
+	// Simulate the entrypoint having created + chowned evey-plugins (writable).
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "evey-plugins"), 0o755))
+	// No cgroup.controllers file: the pre-delegated path must short-circuit
+	// before any privileged step.
+	assert.True(t, setupCgroupDelegation(), "must use the entrypoint-delegated evey-plugins")
+}
+
 func TestSetupCgroupDelegation_NoCgroupV2(t *testing.T) {
 	overrideCgroupRoot(t, t.TempDir()) // empty: no cgroup.controllers
 	assert.False(t, setupCgroupDelegation(), "must fail-soft when cgroup v2 is absent")

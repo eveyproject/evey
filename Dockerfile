@@ -79,7 +79,7 @@ ARG RUNTIMES=lean
 # python3 is bundled in every variant: the majority of community plugins use
 # it, and the install error message points users to `evey:beta-nodejs` /
 # `evey:beta-full` if they need something heavier.
-RUN apk add --no-cache bubblewrap ca-certificates curl ffmpeg chromaprint postgresql-client unzip wget \
+RUN apk add --no-cache bubblewrap ca-certificates curl ffmpeg chromaprint postgresql-client unzip wget su-exec \
     libva libva-utils intel-media-driver libva-intel-driver mesa-va-gallium \
     python3 \
     && if [ "$RUNTIMES" = "nodejs" ] || [ "$RUNTIMES" = "full" ]; then \

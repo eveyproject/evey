@@ -14,6 +14,56 @@
 
 set -eu
 
+# ── Privileged init phase (only when started as root via compose user: "0:0")──
+# Perform the ONE privileged step — cgroup v2 delegation for per-plugin limits
+# — then immediately drop to the unprivileged 'evey' user for EVERYTHING else
+# (Meilisearch and the server). The server therefore never runs as root while
+# it handles requests/plugins: a server compromise lands as UID 1000, not root.
+# When the container starts as 'evey' (the image default), this block is skipped
+# and behaviour is unchanged.
+setup_cgroup_delegation() {
+    CG=/sys/fs/cgroup
+    [ -f "$CG/cgroup.controllers" ] || { echo "evey: cgroup v2 unavailable; per-plugin limits disabled" >&2; return 0; }
+    _ctrls=$(cat "$CG/cgroup.controllers")
+    case " $_ctrls " in *" memory "*) ;; *) echo "evey: cgroup memory controller not delegated; per-plugin limits disabled" >&2; return 0 ;; esac
+    if ! mkdir -p "$CG/evey-plugins" "$CG/evey-init" 2>/dev/null; then
+        echo "evey: /sys/fs/cgroup is read-only (add a rw mount); per-plugin limits disabled" >&2
+        return 0
+    fi
+    # Move the container's own processes into a leaf so the root cgroup can
+    # delegate controllers (cgroup v2 forbids enabling controllers on a cgroup
+    # that holds processes directly).
+    if [ -f "$CG/cgroup.procs" ]; then
+        while read -r _pid; do
+            [ -n "$_pid" ] && { echo "$_pid" > "$CG/evey-init/cgroup.procs" 2>/dev/null || true; }
+        done < "$CG/cgroup.procs"
+    fi
+    for _c in memory cpu pids io; do
+        case " $_ctrls " in *" $_c "*) echo "+$_c" > "$CG/cgroup.subtree_control" 2>/dev/null || true ;; esac
+    done
+    for _c in memory cpu pids io; do
+        case " $_ctrls " in *" $_c "*) echo "+$_c" > "$CG/evey-plugins/cgroup.subtree_control" 2>/dev/null || true ;; esac
+    done
+    # Hand the evey-plugins subtree to the unprivileged server so it can create
+    # one cgroup leaf per plugin.
+    chown -R evey:evey "$CG/evey-plugins" 2>/dev/null || true
+    echo "evey: cgroup delegation ready — per-plugin resource limits active"
+}
+
+if [ "$(id -u)" = "0" ]; then
+    if [ "${EVEY_PLUGINS_CGROUP_DELEGATE:-}" = "true" ]; then
+        setup_cgroup_delegation
+    fi
+    if ! command -v su-exec >/dev/null 2>&1; then
+        echo "evey: su-exec missing — refusing to run the server as root" >&2
+        exit 1
+    fi
+    # Re-exec this script as 'evey'; the re-exec'd run has id -u != 0 and skips
+    # this block, continuing to Meilisearch + the server as UID 1000.
+    exec su-exec evey:evey "$0" "$@"
+fi
+# ── From here we run as the unprivileged 'evey' user ─────────────────────────
+
 EVEY_EMBEDDED_MEILI="${EVEY_EMBEDDED_MEILI:-true}"
 
 if [ "$EVEY_EMBEDDED_MEILI" = "true" ]; then

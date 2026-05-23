@@ -41,6 +41,14 @@ func cgroupDelegationEnabled() bool {
 func setupCgroupDelegation() bool {
 	root := cgroupRoot
 
+	// Pre-delegated path (option 2: the server runs unprivileged as UID 1000):
+	// the entrypoint already created, delegated and chowned evey-plugins. If we
+	// can write it, the privileged setup below is unnecessary — just use it.
+	if dirWritable(filepath.Join(root, "evey-plugins")) {
+		slog.Info("cgroup delegation: using evey-plugins delegated by the entrypoint — per-plugin limits active")
+		return true
+	}
+
 	avail, err := os.ReadFile(filepath.Join(root, "cgroup.controllers"))
 	if err != nil {
 		slog.Warn("cgroup delegation: cgroup v2 unavailable (cannot read cgroup.controllers) — per-plugin limits disabled",
@@ -109,6 +117,17 @@ func availableControllers(controllers string) []string {
 		}
 	}
 	return out
+}
+
+// dirWritable reports whether dir exists and the current user can create
+// entries in it (probes by creating then removing a temp subdirectory).
+func dirWritable(dir string) bool {
+	probe := filepath.Join(dir, ".evey-cgroup-probe")
+	if err := os.Mkdir(probe, 0o755); err != nil {
+		return false
+	}
+	_ = os.Remove(probe)
+	return true
 }
 
 // containsAll reports whether every want item is present in have.
