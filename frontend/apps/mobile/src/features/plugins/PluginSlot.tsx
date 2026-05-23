@@ -5,7 +5,7 @@ import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, adminPluginServiceIssuePluginToken } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useServerUrl } from "../../hooks/useServerUrl";
@@ -176,6 +176,60 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   const toastTimestamps = useRef<number[]>([]);
   const initSent = useRef(false);
 
+  // Scoped plugin token used to proxy the WebView's prefs/public RPCs. Held by
+  // the host (never exposed to the WebView JS); the server enforces the
+  // plugin's granted scopes deny-by-default. Mirrors the web PluginIframe.
+  const pluginTokenRef = useRef<string | null>(null);
+  const ensurePluginToken = useCallback(async (): Promise<string | null> => {
+    if (pluginTokenRef.current) return pluginTokenRef.current;
+    try {
+      const r = await adminPluginServiceIssuePluginToken(pluginId, {});
+      pluginTokenRef.current = r.token ?? null;
+    } catch {
+      pluginTokenRef.current = null;
+    }
+    return pluginTokenRef.current;
+  }, [pluginId]);
+
+  const callPluginEndpoint = useCallback((method: string, args: Record<string, unknown>, token: string): Promise<Response> => {
+    const enc = encodeURIComponent;
+    const h = { Authorization: `Bearer ${token}` };
+    switch (method) {
+      case "prefs.get":
+        return fetch(`${serverUrl}/api/v1/plugin-prefs/${enc(String(args.key ?? ""))}`, { headers: h });
+      case "prefs.set":
+        return fetch(`${serverUrl}/api/v1/plugin-prefs/${enc(String(args.key ?? ""))}`, { method: "PUT", headers: { ...h, "Content-Type": "application/json" }, body: JSON.stringify({ value: String(args.value ?? "") }) });
+      case "prefs.delete":
+        return fetch(`${serverUrl}/api/v1/plugin-prefs/${enc(String(args.key ?? ""))}`, { method: "DELETE", headers: h });
+      case "prefs.list":
+        return fetch(`${serverUrl}/api/v1/plugin-prefs`, { headers: h });
+      case "media.get":
+        return fetch(`${serverUrl}/api/v1/public/media/${enc(String(args.id ?? ""))}`, { headers: h });
+      case "media.list":
+        return fetch(`${serverUrl}/api/v1/public/media${args.libraryId ? `?libraryId=${enc(String(args.libraryId))}` : ""}`, { headers: h });
+      default:
+        return Promise.reject(new Error(`method not permitted: ${method}`));
+    }
+  }, [serverUrl]);
+
+  const pluginRpcCall = useCallback(async (method: string, args: Record<string, unknown>): Promise<unknown> => {
+    let token = await ensurePluginToken();
+    if (!token) throw new Error("plugin token unavailable");
+    let res = await callPluginEndpoint(method, args, token);
+    if (res.status === 401) {
+      pluginTokenRef.current = null;
+      token = await ensurePluginToken();
+      if (token) res = await callPluginEndpoint(method, args, token);
+    }
+    if (!res.ok) {
+      let m = String(res.status);
+      try { const b = (await res.json()) as { message?: string }; if (b.message) m = b.message; } catch { /* ignore */ }
+      throw new Error(m);
+    }
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
+  }, [ensurePluginToken, callPluginEndpoint]);
+
   useEffect(() => {
     const handle = InteractionManager.runAfterInteractions(() => setInteractionsDone(true));
     return () => handle.cancel();
@@ -333,7 +387,18 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
       setHeight(Math.max(60, Math.min(800, msg.height)));
       return;
     }
-  }, [context, pluginConfig, i18n.language, isLightTheme]);
+    if (type === "rpc") {
+      const id = msg.id;
+      const method = typeof msg.method === "string" ? msg.method : "";
+      const args = (msg.args as Record<string, unknown>) ?? {};
+      const reply = (payload: Record<string, unknown>) =>
+        webviewRef.current?.injectJavaScript(`window.postMessage(${JSON.stringify(payload)}, "*"); true;`);
+      pluginRpcCall(method, args)
+        .then((data) => reply({ type: "rpc-result", id, ok: true, data }))
+        .catch((err: Error) => reply({ type: "rpc-result", id, ok: false, error: err.message }));
+      return;
+    }
+  }, [context, pluginConfig, i18n.language, isLightTheme, pluginRpcCall]);
 
   if (!accessToken) return null;
 

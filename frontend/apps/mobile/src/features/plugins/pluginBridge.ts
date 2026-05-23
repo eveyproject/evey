@@ -12,15 +12,34 @@ export const PLUGIN_BRIDGE_SCRIPT = `
 (function() {
   var initCallbacks = [];
   var initData = null;
+  var rpcSeq = 0;
+  var rpcPending = {};
   function send(msg) {
     if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
       window.ReactNativeWebView.postMessage(JSON.stringify(msg));
     }
   }
+  function rpc(method, args) {
+    return new Promise(function(resolve, reject) {
+      var id = ++rpcSeq;
+      rpcPending[id] = { resolve: resolve, reject: reject };
+      send({ type: "rpc", id: id, method: method, args: args || {} });
+    });
+  }
   window.evey = {
     navigate: function(path) { send({ type: "navigate", path: path }); },
     toast: function(level, message) { send({ type: "toast", level: level, message: message }); },
     resize: function(height) { send({ type: "resize", height: height }); },
+    prefs: {
+      get: function(key) { return rpc("prefs.get", { key: key }); },
+      set: function(key, value) { return rpc("prefs.set", { key: key, value: value }); },
+      delete: function(key) { return rpc("prefs.delete", { key: key }); },
+      list: function() { return rpc("prefs.list", {}); }
+    },
+    media: {
+      get: function(id) { return rpc("media.get", { id: id }); },
+      list: function(opts) { return rpc("media.list", opts || {}); }
+    },
     onInit: function(cb) {
       initCallbacks.push(cb);
       if (initData) {
@@ -38,6 +57,13 @@ export const PLUGIN_BRIDGE_SCRIPT = `
       initData = data;
       for (var i = 0; i < initCallbacks.length; i++) {
         try { initCallbacks[i](data); } catch(err) { console.error("[evey-front]", err); }
+      }
+    } else if (data && data.type === "rpc-result") {
+      var p = rpcPending[data.id];
+      if (p) {
+        delete rpcPending[data.id];
+        if (data.ok) p.resolve(data.data);
+        else p.reject(new Error(data.error || "rpc error"));
       }
     }
   });
