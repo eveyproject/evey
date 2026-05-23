@@ -8,6 +8,7 @@ import {
   useAdminSystemServiceGetSystemInfo,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 
 function StatCard({ label, value, icon, theme }: { label: string; value: string | number; icon: string; theme: ReturnType<typeof useTheme> }) {
   return (
@@ -135,6 +136,11 @@ export default function AdminDashboard() {
           </Pressable>
         ))}
       </View>
+
+      {/* Plugin-contributed admin entries (slot admin.nav) — parity with web,
+          so plugins can add an admin menu entry on mobile too. Renders nothing
+          when no granted plugin uses the slot. */}
+      <PluginSlot name="admin.nav" />
     </ScrollView>
   );
 }
