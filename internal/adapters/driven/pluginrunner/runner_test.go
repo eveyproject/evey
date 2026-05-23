@@ -300,31 +300,24 @@ func TestWithSandboxMode_StoresBasic(t *testing.T) {
 }
 
 // TestClassifyExitError_OOMHints pins the human-readable classification of
-// SIGKILL crashes: with no cgroup limits, hint host OOM-killer; with limits,
-// hint memory.max. Anything else falls through to the raw error string.
+// SIGKILL crashes: hint the per-plugin memory cap / host OOM-killer. Anything
+// else falls through to the raw error string.
 func TestClassifyExitError_OOMHints(t *testing.T) {
 	t.Run("nil error → empty", func(t *testing.T) {
-		assert.Equal(t, "", classifyExitError(nil, false))
+		assert.Equal(t, "", classifyExitError(nil))
 	})
 
 	t.Run("non-exit error falls through", func(t *testing.T) {
-		got := classifyExitError(os.ErrPermission, true)
+		got := classifyExitError(os.ErrPermission)
 		assert.Contains(t, got, "process crashed:")
 		assert.Contains(t, got, "permission denied")
 	})
 
-	t.Run("SIGKILL without cgroup → host OOM hint", func(t *testing.T) {
+	t.Run("SIGKILL → memory cap / OOM hint", func(t *testing.T) {
 		err := killSelfAndWait(t)
-		got := classifyExitError(err, false)
-		assert.Contains(t, got, "host OOM-killer")
-		assert.Contains(t, got, "EVEY_PLUGINS_ENABLED")
-	})
-
-	t.Run("SIGKILL with cgroup → memory.max hint", func(t *testing.T) {
-		err := killSelfAndWait(t)
-		got := classifyExitError(err, true)
-		assert.Contains(t, got, "cgroup memory.max")
+		got := classifyExitError(err)
 		assert.Contains(t, got, "EVEY_PLUGINS_MEMORY_MB")
+		assert.Contains(t, got, "OOM-killer")
 	})
 }
 

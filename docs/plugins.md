@@ -323,47 +323,43 @@ security_opt:
   - seccomp=./docker/seccomp-evey.json   # Docker default + mount/unshare re-opened
 ```
 
-### Advanced: per-plugin resource limits (cgroup delegation)
+### Per-plugin resource limits
 
-Per-plugin CPU/RAM/PIDs/IO caps require the container to create cgroup v2 leaves
-under its own cgroup. Docker does not allow this by default (the cgroup mount is
-read-only and the server, as an unprivileged user, cannot write it), so it is
-**opt-in** — and the container must start as root *only to perform that one
-setup step*, then drop to the unprivileged `evey` user:
+Per-plugin memory/PID/disk caps are enforced **in userspace**, with no special
+Docker configuration. The original design used a cgroup v2 leaf per plugin, but
+that is unachievable in a standard (non-privileged, `cgroupns=private`) Docker
+container: the namespaced cgroup the container sees is read-only, and bind-mounting
+the host's `/sys/fs/cgroup` puts the runner and the plugin processes in *different*
+cgroup trees. Rather than weaken the container's baseline (privileged / host
+manipulation) to work around that, the runner enforces caps itself.
 
-```yaml
-evey:
-  user: "0:0"                              # start as root for the cgroup setup, then drop to evey
-  environment:
-    EVEY_PLUGINS_CGROUP_DELEGATE: "true"   # enable per-plugin cgroup leaves
-  volumes:
-    - /sys/fs/cgroup:/sys/fs/cgroup:rw     # let the entrypoint delegate the cgroup subtree
-```
+A single background **resource monitor** (one goroutine for the whole server)
+sweeps every running plugin every 2s and reads its accounting straight from
+`/proc`:
 
-The entrypoint (running as root) relocates the container's own processes into an
-`evey-init` leaf (cgroup v2's "no internal processes" rule forbids delegating
-from a cgroup that holds processes), enables memory/cpu/pids/io in the root
-`subtree_control`, creates `evey-plugins` and chowns it to `evey`, then **re-execs
-itself as `evey` via `su-exec`**. The server (and Meilisearch) therefore run as
-UID 1000 — *a server compromise lands unprivileged, not root* — while the runner,
-as `evey`, creates one cgroup leaf per plugin under the delegated `evey-plugins`.
-A plugin that breaches its limit is OOM-killed in its own leaf; the host, the
-server and sibling plugins are unaffected. Every step is **fail-soft** — on any
-error it logs the precise reason and runs without limits, never breaking startup.
+- **Memory** — RSS from `/proc/<pid>/statm`; over `EVEY_PLUGINS_MEMORY_MB` (256
+  MiB default) the plugin is stopped and a security finding is published.
+- **PIDs/threads** — thread count from `/proc/<pid>/status`; over
+  `EVEY_PLUGINS_PIDS_MAX` (64 default) the plugin is stopped (fork-bomb guard).
+- **Disk** — the install directory is measured every ~30s (heavier, so not every
+  sweep); over `EVEY_PLUGINS_DISK_MAX_MB` (100 default) the plugin is stopped.
+- **CPU** — starvation is prevented *up front* by `nice`ing each plugin at spawn
+  (`EVEY_PLUGINS_CPU_NICE`, default 10) so it can never crowd out the server under
+  contention. The monitor additionally *detects* sustained CPU pegging (a
+  cryptominer signature) from `/proc/<pid>/stat` and logs a warning.
 
-**Security note.** Root exists only for the millisecond setup phase before the
-server starts; it runs fixed code (no plugin input) and then drops. The `:rw`
-cgroup mount is writable only by the *server*; untrusted *plugins* are walled off
-from `/sys/fs/cgroup` by Landlock. This is a filesystem mount + a brief init-time
-privilege, not a relaxation of the container's seccomp/AppArmor/capability
-baseline, and the server never runs as root while handling requests or plugins.
+Reading `/proc` is an in-memory operation, so a sweep over a handful of plugin
+PIDs is negligible. A plugin breaching a cap is contained — stopped without
+touching the host, the server or sibling plugins. HostService RPCs are also
+rate-limited per plugin (600/min) to stop a flood loading the server.
 
-Defaults (per plugin): `EVEY_PLUGINS_MEMORY_MB=256`, `EVEY_PLUGINS_CPU_PERCENT=50`,
-`EVEY_PLUGINS_PIDS_MAX=64`. Disk space is capped separately via
-`EVEY_PLUGINS_DISK_MAX_MB` (default 100) — the runner measures each plugin's
-install directory every 30s and stops a plugin that grows past it (cgroups do
-not bound disk space). IO bandwidth is deprioritised via `io.weight`. HostService
-RPCs are rate-limited per plugin (600/min) to stop a flood loading the server.
+The server runs as the unprivileged `evey` user (UID 1000) throughout — a plugin
+or server compromise lands unprivileged, never as root, and no host directory is
+mounted writable. If you additionally want a hard ceiling on the *whole* Evey
+container, set Docker's own `mem_limit` / `cpus` on the service; that is the
+admin's choice and is not set in the default compose.
+
+Set any cap to `0` to disable that check.
 
 ### Permission model
 
@@ -436,7 +432,7 @@ The sandbox is defense-in-depth, not a hard security boundary. Each layer is byp
 - **Process group / `Pdeathsig`** -- cleanup, not confinement. It prevents zombie processes, not exfiltration or resource abuse during the plugin's lifetime.
 - **Permission checker (gRPC interceptor)** -- only gates HostService RPCs. A plugin granted `network` can contact any external host; there is no egress filter. A plugin without `network` can still read anything the host provides via RPC (respecting declared permissions).
 - **Network egress is port-based, not host-based** -- under `landlock` on Landlock ABI v4 (kernel ≥6.7), TCP is denied by default: a plugin without the `network` permission cannot `connect()` at all, and one with it may only connect to ports 80/443 plus any explicit `:port` in its `external_fetch` list (it can never `bind`/listen). Landlock filters by **port, not host**, so the per-host `external_fetch` allowlist is *not* enforced by this layer (a `network` plugin can still reach any host on an allowed port); host filtering would need a DNS/proxy layer. On kernels below v4 the TCP filter silently degrades to a no-op (filesystem confinement still applies). UDP is not covered.
-- **Resource limits need cgroup delegation (opt-in)** -- per-plugin CPU/RAM/PIDs/IO caps are enforced via a cgroup v2 leaf per plugin, plus a disk-space monitor and a per-plugin HostService RPC rate limit, so a plugin breaching a limit is contained (OOM-killed / throttled / stopped) without touching the host, the server or siblings. This requires cgroup delegation, which Docker does not allow by default; it is **opt-in** (`user: "0:0"` + `EVEY_PLUGINS_CGROUP_DELEGATE` + a rw cgroup mount — see *Advanced: per-plugin resource limits*). When delegation is not enabled the runner warns and runs **without** the cgroup caps (a malicious plugin could then exhaust CPU/RAM); the disk monitor and RPC rate limit still apply.
+- **Per-plugin resource limits (always on)** -- a background resource monitor polls `/proc` for every plugin and enforces memory, PID/thread and disk caps in userspace, stopping a plugin that breaches one; CPU starvation is prevented by `nice`ing each plugin at spawn, and a per-plugin HostService RPC rate limit (600/min) stops a flood loading the server. So a plugin breaching a limit is contained without touching the host, the server or siblings — and it needs **no** privileged Docker configuration (cgroups are unusable in a standard non-privileged container; see *Per-plugin resource limits*). Caps are tunable via `EVEY_PLUGINS_MEMORY_MB` / `EVEY_PLUGINS_PIDS_MAX` / `EVEY_PLUGINS_DISK_MAX_MB` / `EVEY_PLUGINS_CPU_NICE`.
 - **CSS sanitizer** -- conservative, but browsers evolve. New CSS features and URL schemes may slip through until the sanitizer is updated.
 - **iframe sandbox (`allow-scripts`)** -- same-origin is disabled, but the iframe shares the browser process with the host page on some engines; speculative-execution side channels are not mitigated.
 

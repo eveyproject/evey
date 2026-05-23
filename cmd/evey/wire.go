@@ -193,18 +193,12 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 			"DevMode=true must NEVER be set in production; " +
 			"plugins without the 'subprocess' permission will start unsandboxed")
 	}
-	// Convert CPUPercent (1-100) to cgroup v2 cpu.max values:
-	//   quota  = percent * 1000 µs  (per 100 ms period)
-	//   period = 100 000 µs
-	cpuQuotaUS := cfg.Plugins.CPUPercent * 1000
-	if cpuQuotaUS <= 0 {
-		cpuQuotaUS = 50000 // 50% default
-	}
 	pluginRunner := pluginrunner.NewRunner().
 		WithLogger(pluginLogger).
 		WithAllowMissingSandbox(cfg.Log.DevMode).
 		WithSandboxMode(cfg.Plugins.SandboxMode).
-		WithResourceLimits(cfg.Plugins.MemoryMB*1024*1024, cpuQuotaUS, 100000, cfg.Plugins.PIDsMax).
+		WithResourceLimits(cfg.Plugins.MemoryMB*1024*1024, cfg.Plugins.PIDsMax).
+		WithCPUNice(cfg.Plugins.CPUNice).
 		WithDiskQuota(int64(cfg.Plugins.DiskMaxMB)*1024*1024).
 		WithEventBus(bus)
 	manifestParser := pluginrunner.NewManifestParser()

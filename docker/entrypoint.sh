@@ -14,61 +14,11 @@
 
 set -eu
 
-# ── Privileged init phase (only when started as root via compose user: "0:0")──
-# Perform the ONE privileged step — cgroup v2 delegation for per-plugin limits
-# — then immediately drop to the unprivileged 'evey' user for EVERYTHING else
-# (Meilisearch and the server). The server therefore never runs as root while
-# it handles requests/plugins: a server compromise lands as UID 1000, not root.
-# When the container starts as 'evey' (the image default), this block is skipped
-# and behaviour is unchanged.
-setup_cgroup_delegation() {
-    CG=/sys/fs/cgroup
-    [ -f "$CG/cgroup.controllers" ] || { echo "evey: cgroup v2 unavailable; per-plugin limits disabled" >&2; return 0; }
-    _ctrls=$(cat "$CG/cgroup.controllers")
-    case " $_ctrls " in *" memory "*) ;; *) echo "evey: cgroup memory controller not delegated; per-plugin limits disabled" >&2; return 0 ;; esac
-    # evey-plugins is the delegated parent. The container's own processes go in
-    # evey-plugins/server (a sibling leaf UNDER it) so the unprivileged server
-    # can later migrate each plugin into evey-plugins/<id> WITHOUT crossing the
-    # root cgroup — cgroup v2 only lets a delegatee move processes within the
-    # subtree whose common ancestor it owns (here, evey-plugins).
-    if ! mkdir -p "$CG/evey-plugins/server" 2>/dev/null; then
-        echo "evey: /sys/fs/cgroup is read-only (add a rw mount); per-plugin limits disabled" >&2
-        return 0
-    fi
-    # Move the container's processes into evey-plugins/server so root and
-    # evey-plugins hold no processes directly and can delegate controllers
-    # (cgroup v2 forbids enabling controllers on a cgroup that holds processes).
-    if [ -f "$CG/cgroup.procs" ]; then
-        while read -r _pid; do
-            [ -n "$_pid" ] && { echo "$_pid" > "$CG/evey-plugins/server/cgroup.procs" 2>/dev/null || true; }
-        done < "$CG/cgroup.procs"
-    fi
-    for _c in memory cpu pids io; do
-        case " $_ctrls " in *" $_c "*) echo "+$_c" > "$CG/cgroup.subtree_control" 2>/dev/null || true ;; esac
-    done
-    for _c in memory cpu pids io; do
-        case " $_ctrls " in *" $_c "*) echo "+$_c" > "$CG/evey-plugins/cgroup.subtree_control" 2>/dev/null || true ;; esac
-    done
-    # Hand the whole evey-plugins subtree to the server so it can create one
-    # leaf per plugin AND migrate plugins within the subtree (needs write on
-    # evey-plugins/cgroup.procs, the common ancestor).
-    chown -R evey:evey "$CG/evey-plugins" 2>/dev/null || true
-    echo "evey: cgroup delegation ready — per-plugin resource limits active"
-}
-
-if [ "$(id -u)" = "0" ]; then
-    if [ "${EVEY_PLUGINS_CGROUP_DELEGATE:-}" = "true" ]; then
-        setup_cgroup_delegation
-    fi
-    if ! command -v su-exec >/dev/null 2>&1; then
-        echo "evey: su-exec missing — refusing to run the server as root" >&2
-        exit 1
-    fi
-    # Re-exec this script as 'evey'; the re-exec'd run has id -u != 0 and skips
-    # this block, continuing to Meilisearch + the server as UID 1000.
-    exec su-exec evey:evey "$0" "$@"
-fi
-# ── From here we run as the unprivileged 'evey' user ─────────────────────────
+# The image runs as the unprivileged 'evey' user (Dockerfile USER evey, UID
+# 1000) — the server never runs as root. Per-plugin resource caps are enforced
+# in userspace by the runner's resource monitor (it polls /proc and stops a
+# plugin that exceeds its memory/PID/disk caps), so no cgroup delegation and no
+# privileged init step is needed. A plugin compromise lands as UID 1000.
 
 EVEY_EMBEDDED_MEILI="${EVEY_EMBEDDED_MEILI:-true}"
 

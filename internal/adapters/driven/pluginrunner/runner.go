@@ -48,7 +48,7 @@ type processEntry struct {
 	pluginID     string
 	ipc          *ipcClient
 	done         chan struct{} // closed when cmd.Wait() returns in Start goroutine
-	cgroupPath   string        // empty when cgroup v2 is unavailable
+	installDir   string        // plugin install dir, for the resource monitor's disk check
 	hostsCleanup func()        // removes the temp /etc/hosts file; nil if not built
 	tail         *tailBuffer   // last bytes of the process stdout/stderr (crash diagnostics)
 
@@ -103,10 +103,10 @@ type Runner struct {
 	sandboxMode         string
 	autoResolveOnce     sync.Once // resolves sandboxModeAuto to a concrete mode once
 	autoResolved        string
-	cgroupCfg           cgroupConfig
-	cgroupWarnOnce      sync.Once
-	cgroupDelegateOnce  sync.Once // runs cgroup v2 delegation setup at most once
+	resLimits           resourceLimits
+	cpuNice             int       // scheduling nice applied to plugins (0 = leave default)
 	diskMaxBytes        int64     // per-plugin disk quota; 0 = disabled
+	resMonOnce          sync.Once // starts the resource-monitor sweeper at most once
 }
 
 // ErrSandboxUnavailable is returned by Start when a plugin without the
@@ -200,23 +200,26 @@ func (r *Runner) WithSandboxMode(mode string) *Runner {
 	return r
 }
 
-// WithResourceLimits configures cgroup v2 resource limits applied to each
-// plugin process. Pass 0 for any value to use the package default
-// (256 MiB memory, 50% CPU, 64 PIDs). Has no effect when cgroup v2 is
-// unavailable; a warning is emitted once at the first Start call.
-func (r *Runner) WithResourceLimits(memBytes int64, cpuQuotaUS, cpuPeriodUS, pidsMax int) *Runner {
-	r.cgroupCfg = cgroupConfig{
-		memBytes:  memBytes,
-		cpuQuota:  cpuQuotaUS,
-		cpuPeriod: cpuPeriodUS,
-		pidsMax:   pidsMax,
-	}
+// WithResourceLimits sets the per-plugin memory and PID caps the resource
+// monitor enforces (it polls /proc and kills a plugin that exceeds them —
+// cgroups are unusable in a non-privileged Docker container). Pass 0 for either
+// value to use the package default (256 MiB / 64 PIDs).
+func (r *Runner) WithResourceLimits(memBytes int64, pidsMax int) *Runner {
+	r.resLimits = resourceLimits{memBytes: memBytes, pidsMax: pidsMax}
 	return r
 }
 
-// WithDiskQuota caps each plugin's install-directory size. cgroups bound
-// CPU/RAM/PIDs but not disk space; a goroutine measures the directory and
-// stops the plugin if it grows past maxBytes. Pass 0 to disable.
+// WithCPUNice sets the scheduling nice value applied to each plugin at spawn so
+// a plugin cannot starve the server's CPU under contention. Pass 0 to leave the
+// default priority.
+func (r *Runner) WithCPUNice(nice int) *Runner {
+	r.cpuNice = nice
+	return r
+}
+
+// WithDiskQuota caps each plugin's install-directory size; the resource monitor
+// measures the directory periodically and stops a plugin that grows past
+// maxBytes. Pass 0 to disable.
 func (r *Runner) WithDiskQuota(maxBytes int64) *Runner {
 	r.diskMaxBytes = maxBytes
 	return r
@@ -347,61 +350,25 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	sysProcAttr := pluginSysProcAttr()
 	cmd.SysProcAttr = sysProcAttr
 
-	// Opt-in: set up cgroup v2 delegation once (relocate the container's own
-	// processes to a leaf, delegate controllers to evey-plugins) so the
-	// per-plugin limits below actually materialise. No-op unless
-	// EVEY_PLUGINS_CGROUP_DELEGATE is set; fail-soft otherwise.
-	r.cgroupDelegateOnce.Do(func() {
-		if cgroupDelegationEnabled() {
-			setupCgroupDelegation()
-		}
-	})
-
-	// Prepare cgroup v2 limits before spawning. Failure is non-fatal:
-	// we warn once and proceed without limits (fail-soft).
-	cgroupPath, cgroupErr := prepareCgroup(p.ID, r.cgroupCfg)
-	if cgroupErr != nil {
-		r.cgroupWarnOnce.Do(func() {
-			slog.Warn("cgroup v2 resource limits unavailable, running without limits — host OOM-killer may SIGKILL plugins under memory pressure. To fix in dev: mount /sys/fs/cgroup rw in docker-compose, or set EVEY_PLUGINS_ENABLED=false.",
-				slog.String("plugin", p.ID), slog.Any("err", cgroupErr))
-		})
-	} else if cgroupPath == "" {
-		r.cgroupWarnOnce.Do(func() {
-			slog.Warn("cgroup v2 not available on this host, resource limits disabled — host OOM-killer may SIGKILL plugins under memory pressure")
-		})
-	}
-
-	// Attach the plugin to its cgroup AFTER fork (post-start, below). The atomic
-	// clone3 CLONE_INTO_CGROUP path is intentionally NOT used: Docker's default
-	// seccomp profile returns ENOSYS for clone3, which makes fork/exec fail
-	// outright. The post-start attach migrates the plugin within the evey-owned
-	// evey-plugins subtree (the server itself runs in evey-plugins/server), a
-	// move an unprivileged server is permitted to do. The race window before the
-	// attach is microseconds and the plugin does nothing exploitable in it.
-	cgroupAttachedPreExec := false
+	// Resource limits without cgroups (unusable in a non-privileged Docker
+	// container): a background sweeper polls /proc and enforces per-plugin
+	// memory/PID/disk caps; the low nice below prevents CPU starvation.
+	r.startResourceMonitor()
 
 	if err := cmd.Start(); err != nil {
-		cleanupCgroup(cgroupPath)
 		r.rollbackStart(cancel, pluginSockDir, p.ID, true)
 		return fmt.Errorf("start plugin %s: %w", p.ID, err)
 	}
+
+	// Lower the plugin's scheduling priority so it cannot starve the server of
+	// CPU under contention (preventive; the monitor only flags sustained pegging).
+	r.applyNice(cmd.Process.Pid)
 
 	// Arm PID-based authentication on the host socket. From this point
 	// on, only RPCs originating from cmd.Process.Pid will be accepted —
 	// SO_PEERCRED is filled in by the kernel and cannot be spoofed.
 	if r.hostRegistry != nil {
 		r.hostRegistry.SetExpectedPID(p.ID, int32(cmd.Process.Pid))
-	}
-
-	// Fallback: attach the process to its cgroup after the PID is known.
-	// Only reached when the pre-exec CgroupFD path was unavailable.
-	if !cgroupAttachedPreExec {
-		if attachErr := attachToCgroup(cgroupPath, cmd.Process.Pid); attachErr != nil {
-			slog.Warn("attach plugin to cgroup failed, running without limits",
-				slog.String("plugin", p.ID), slog.Any("err", attachErr))
-			cleanupCgroup(cgroupPath)
-			cgroupPath = ""
-		}
 	}
 
 	if r.logger != nil {
@@ -414,7 +381,7 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		sockPath:     sock,
 		pluginID:     p.ID,
 		done:         make(chan struct{}),
-		cgroupPath:   cgroupPath,
+		installDir:   p.InstallDir,
 		hostsCleanup: hostsCleanup,
 		tail:         tail,
 	}
@@ -426,7 +393,6 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	r.mu.Unlock()
 
 	go r.trackLifecycle(entry, cancel, sock, p)
-	go r.watchDiskQuota(entry, p)
 	return nil
 }
 
@@ -696,12 +662,11 @@ func (r *Runner) trackLifecycle(entry *processEntry, cancel context.CancelFunc, 
 	if entry.hostsCleanup != nil {
 		entry.hostsCleanup()
 	}
-	cleanupCgroup(entry.cgroupPath)
 	if r.hostRegistry != nil {
 		r.hostRegistry.UnregisterPlugin(p.ID)
 	}
 	if err != nil {
-		msg := classifyExitError(err, entry.cgroupPath != "")
+		msg := classifyExitError(err)
 		if entry.tail != nil {
 			if out := strings.TrimSpace(entry.tail.String()); out != "" {
 				const maxTail = 600
@@ -722,10 +687,10 @@ func (r *Runner) trackLifecycle(entry *processEntry, cancel context.CancelFunc, 
 }
 
 // classifyExitError turns the raw exec.Cmd.Wait error into an admin-readable
-// reason. SIGKILL on a plugin with no cgroup limits is almost always the host
-// OOM-killer firing — surface the actionable hint instead of a cryptic
-// "signal: killed".
-func classifyExitError(err error, hadCgroupLimits bool) string {
+// reason. A SIGKILL is usually either the resource monitor stopping a plugin
+// that breached its memory/PID cap, or the host/container OOM-killer under
+// memory pressure — surface an actionable hint instead of "signal: killed".
+func classifyExitError(err error) string {
 	if err == nil {
 		return ""
 	}
@@ -733,10 +698,7 @@ func classifyExitError(err error, hadCgroupLimits bool) string {
 	if errors.As(err, &exitErr) {
 		ws, ok := exitErr.Sys().(syscall.WaitStatus)
 		if ok && ws.Signaled() && ws.Signal() == syscall.SIGKILL {
-			if !hadCgroupLimits {
-				return "process killed by host OOM-killer (cgroup v2 limits unavailable; mount /sys/fs/cgroup rw, set EVEY_PLUGINS_MEMORY_MB lower, or disable EVEY_PLUGINS_ENABLED in dev)"
-			}
-			return "process killed by cgroup memory.max — raise EVEY_PLUGINS_MEMORY_MB or fix the plugin's working set"
+			return "process SIGKILLed — exceeded its memory cap (EVEY_PLUGINS_MEMORY_MB), or the host/container OOM-killer fired under memory pressure"
 		}
 	}
 	return "process crashed: " + err.Error()
@@ -845,8 +807,6 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 	if entry.hostsCleanup != nil {
 		entry.hostsCleanup()
 	}
-	cleanupCgroup(entry.cgroupPath)
-
 	if r.hostRegistry != nil {
 		r.hostRegistry.UnregisterPlugin(pluginID)
 	}
@@ -899,7 +859,6 @@ func (r *Runner) Kill(pluginID string) error {
 	if entry.hostsCleanup != nil {
 		entry.hostsCleanup()
 	}
-	cleanupCgroup(entry.cgroupPath)
 	if r.hostRegistry != nil {
 		r.hostRegistry.UnregisterPlugin(pluginID)
 	}

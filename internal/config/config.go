@@ -75,17 +75,21 @@ type PluginsConfig struct {
 	// EVEY_PLUGINS_SANDBOX_MODE
 	SandboxMode string
 
-	// Resource limits applied via cgroup v2 per plugin process.
-	// Zero values use the runner package defaults (256 MiB, 50% CPU, 64 PIDs).
+	// Per-plugin resource caps enforced in userspace by the runner's resource
+	// monitor (cgroups are unusable in a non-privileged Docker container, so a
+	// background sweeper polls /proc and stops a plugin that exceeds its caps).
+	// Zero values use the runner package defaults (256 MiB, 64 PIDs).
 	// EVEY_PLUGINS_MEMORY_MB — max RSS in MiB, default 256.
 	MemoryMB int64
-	// EVEY_PLUGINS_CPU_PERCENT — CPU share in percent (1-100), default 50.
-	CPUPercent int
+	// EVEY_PLUGINS_CPU_NICE — nice value (0-19) applied to each plugin process at
+	// spawn so it can never starve the server of CPU under contention, default 10.
+	// 0 leaves the OS-default priority untouched.
+	CPUNice int
 	// EVEY_PLUGINS_PIDS_MAX — max process/thread count per plugin, default 64.
 	PIDsMax int
 	// EVEY_PLUGINS_DISK_MAX_MB — max install-directory size per plugin in MiB,
-	// default 100. cgroups don't cap disk space; the runner measures the dir and
-	// stops a plugin that grows past this. 0 disables the check.
+	// default 100. The runner measures the dir and stops a plugin that grows past
+	// this. 0 disables the check.
 	DiskMaxMB int
 
 	// CosignPolicy controls whether plugin ZIPs must carry a cosign signature.
@@ -363,8 +367,8 @@ func (c *Config) WarnValidate() error {
 			}
 		}
 	}
-	if p := c.Plugins.CPUPercent; p < 0 || p > 100 {
-		errs = append(errs, fmt.Sprintf("cfg.Plugins.CPUPercent: value %d out of range (1-100)", p))
+	if n := c.Plugins.CPUNice; n < 0 || n > 19 {
+		errs = append(errs, fmt.Sprintf("cfg.Plugins.CPUNice: value %d out of range (0-19)", n))
 	}
 	if m := c.Plugins.MemoryMB; m < 0 {
 		errs = append(errs, fmt.Sprintf("cfg.Plugins.MemoryMB: value %d must be >= 0 (0 = use default)", m))
@@ -501,7 +505,7 @@ func Load() (*Config, error) {
 			SandboxMode:     envPluginSandboxMode("EVEY_PLUGINS_SANDBOX_MODE", "auto"),
 			MemoryMB:        int64(envInt("EVEY_PLUGINS_MEMORY_MB", 256)),
 			DiskMaxMB:       envInt("EVEY_PLUGINS_DISK_MAX_MB", 100),
-			CPUPercent:      envInt("EVEY_PLUGINS_CPU_PERCENT", 50),
+			CPUNice:         envInt("EVEY_PLUGINS_CPU_NICE", 10),
 			PIDsMax:         envInt("EVEY_PLUGINS_PIDS_MAX", 64),
 			CosignPolicy:    strings.ToLower(strings.TrimSpace(envStr("EVEY_PLUGINS_COSIGN_POLICY", "warn"))),
 			CosignPublicKey: envStr("EVEY_PLUGINS_COSIGN_PUBLIC_KEY", ""),

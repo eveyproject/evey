@@ -99,7 +99,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "warn", cfg.Plugins.CosignPolicy)
 	assert.Empty(t, cfg.Plugins.CosignPublicKey)
 	assert.Equal(t, int64(256), cfg.Plugins.MemoryMB)
-	assert.Equal(t, 50, cfg.Plugins.CPUPercent)
+	assert.Equal(t, 10, cfg.Plugins.CPUNice)
 	assert.Equal(t, 64, cfg.Plugins.PIDsMax)
 }
 
@@ -387,12 +387,12 @@ func TestWarnValidate_PluginsResourceLimitsRejectNegative(t *testing.T) {
 			wantField: "cfg.Plugins.PIDsMax",
 		},
 		{
-			name: "CPUPercent negative",
+			name: "CPUNice out of range",
 			cfg: PluginsConfig{
 				SandboxMode: "basic", CosignPolicy: "off",
-				CPUPercent: -1,
+				CPUNice: 25,
 			},
-			wantField: "cfg.Plugins.CPUPercent",
+			wantField: "cfg.Plugins.CPUNice",
 		},
 	}
 	for _, tc := range cases {
@@ -510,7 +510,7 @@ func TestWarnValidate_PluginsResourceLimitsZeroAccepted(t *testing.T) {
 		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
 		Plugins: PluginsConfig{
 			SandboxMode: "basic", CosignPolicy: "off",
-			MemoryMB: 0, PIDsMax: 0, CPUPercent: 0,
+			MemoryMB: 0, PIDsMax: 0, CPUNice: 0,
 		},
 	}
 	err := cfg.WarnValidate()

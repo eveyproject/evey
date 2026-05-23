@@ -163,9 +163,10 @@ Defaults applied to every plugin process:
 | Env var | Default | Effect |
 |---|---|---|
 | `EVEY_PLUGINS_SANDBOX_MODE` | `bubblewrap` | `basic` = fork only (debug). `bubblewrap` = full namespace + bind-mount root readonly + `--unshare-net` unless `network` permission. `strict` = adds seccomp profile. |
-| `EVEY_PLUGINS_MEMORY_MB` | 256 | Hard cgroup memory cap. Plugin gets OOM-killed past this. |
-| `EVEY_PLUGINS_CPU_PERCENT` | 50 | cgroup CPU quota (fraction of one core). |
-| `EVEY_PLUGINS_PIDS_MAX` | 64 | Max process count (cgroup pids controller). Prevents fork bombs. |
+| `EVEY_PLUGINS_MEMORY_MB` | 256 | Max RSS. The resource monitor polls `/proc` and stops the plugin past this. `0` disables. |
+| `EVEY_PLUGINS_CPU_NICE` | 10 | `nice` value (0-19) applied at spawn so a plugin can never starve the server of CPU. |
+| `EVEY_PLUGINS_PIDS_MAX` | 64 | Max thread/process count. Prevents fork bombs. `0` disables. |
+| `EVEY_PLUGINS_DISK_MAX_MB` | 100 | Max install-directory size; the monitor measures it every ~30s and stops a plugin past it. `0` disables. |
 
 A plugin that talks to the network needs both `permissions: [network]` and `external_fetch: [<host>...]`. Hosts not in the whitelist NXDOMAIN inside the plugin's namespace; literal IP connect bypasses the DNS layer (V1 limitation, fixed in V2 with nftables).
 
