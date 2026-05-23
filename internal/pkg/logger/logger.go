@@ -44,6 +44,14 @@ func parseLevel(s string) slog.Level {
 	}
 }
 
+// globalLevel is the live log level shared by every handler the system logger
+// builds, so SetLevel can raise/lower verbosity at runtime (e.g. an admin
+// flips to debug without a restart) and it takes effect immediately.
+var globalLevel = new(slog.LevelVar)
+
+// SetLevel changes the system log level at runtime. Unknown values map to info.
+func SetLevel(s string) { globalLevel.Set(parseLevel(s)) }
+
 // rotatingWriter writes to date-stamped log files with size rotation.
 type rotatingWriter struct {
 	mu      sync.Mutex
@@ -125,13 +133,14 @@ func newFileHandler(dir string, cfg Config) slog.Handler {
 	}
 	w := newRotatingWriter(dir, "evey", cfg.MaxSizeMB)
 	return slog.NewJSONHandler(w, &slog.HandlerOptions{
-		Level:     parseLevel(cfg.Level),
+		Level:     globalLevel, // live level (see SetLevel)
 		AddSource: false,
 	})
 }
 
 // New builds the system logger. JSON → file always; colorized text → stderr in dev mode.
 func New(cfg Config) *slog.Logger {
+	globalLevel.Set(parseLevel(cfg.Level))
 	fileH := newFileHandler(cfg.Dir, cfg)
 
 	if !cfg.DevMode {
@@ -140,10 +149,7 @@ func New(cfg Config) *slog.Logger {
 
 	multiH := &multiHandler{handlers: []slog.Handler{
 		fileH,
-		&devHandler{
-			w:     os.Stderr,
-			level: parseLevel(cfg.Level),
-		},
+		&devHandler{w: os.Stderr},
 	}}
 	return slog.New(multiH)
 }
@@ -270,13 +276,12 @@ const (
 
 type devHandler struct {
 	w     io.Writer
-	level slog.Level
 	attrs []slog.Attr
 	group string
 }
 
 func (h *devHandler) Enabled(_ context.Context, level slog.Level) bool {
-	return level >= h.level
+	return level >= globalLevel.Level()
 }
 
 func (h *devHandler) Handle(_ context.Context, r slog.Record) error {
@@ -324,9 +329,9 @@ func (h *devHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	merged := make([]slog.Attr, len(h.attrs)+len(attrs))
 	copy(merged, h.attrs)
 	copy(merged[len(h.attrs):], attrs)
-	return &devHandler{w: h.w, level: h.level, attrs: merged, group: h.group}
+	return &devHandler{w: h.w, attrs: merged, group: h.group}
 }
 
 func (h *devHandler) WithGroup(name string) slog.Handler {
-	return &devHandler{w: h.w, level: h.level, attrs: h.attrs, group: name}
+	return &devHandler{w: h.w, attrs: h.attrs, group: name}
 }

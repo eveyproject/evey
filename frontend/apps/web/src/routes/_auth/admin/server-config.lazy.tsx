@@ -824,8 +824,10 @@ interface ServerSettings {
   hwAccelEnabled: SettingValue<boolean>;
   loginRateLimit: SettingValue<number>;
   globalRateLimit: SettingValue<number>;
+  logLevel: SettingValue<string>;
 }
 const SETTINGS_KEY = ["/api/v1/admin/server-settings"];
+const LOG_LEVELS = ["debug", "info", "warn", "error"];
 
 function ServerSettingsCard() {
   const { t } = useTranslation();
@@ -839,6 +841,7 @@ function ServerSettingsCard() {
   const [hwAccel, setHwAccel] = useState(false);
   const [loginRate, setLoginRate] = useState("");
   const [globalRate, setGlobalRate] = useState("");
+  const [logLevel, setLogLevel] = useState("");
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -848,6 +851,7 @@ function ServerSettingsCard() {
       setHwAccel(data.hwAccelEnabled.value);
       setLoginRate(data.loginRateLimit.source === "override" ? String(data.loginRateLimit.value) : "");
       setGlobalRate(data.globalRateLimit.source === "override" ? String(data.globalRateLimit.value) : "");
+      setLogLevel(data.logLevel.source === "override" ? String(data.logLevel.value) : "");
     }
   }, [data]);
 
@@ -872,6 +876,7 @@ function ServerSettingsCard() {
     body.hwAccelEnabled = hwAccel;
     if (loginRate) body.loginRateLimit = parseInt(loginRate, 10);
     if (globalRate) body.globalRateLimit = parseInt(globalRate, 10);
+    if (logLevel) body.logLevel = logLevel;
     saveMutation.mutate(body);
   }
 
@@ -913,6 +918,16 @@ function ServerSettingsCard() {
           <div className="flex flex-col gap-1">
             <Input label={t("admin.serverSettings.globalRateLimit")} type="number" min={0} placeholder={String(data.globalRateLimit.default ?? 300)} value={globalRate} onChange={(e) => { setGlobalRate(e.target.value); setDirty(true); }} />
             <ResetBtn setting={data.globalRateLimit} field="globalRateLimit" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Select
+              label={t("admin.serverSettings.logLevel")}
+              data-testid="log-level-select"
+              value={logLevel}
+              onChange={(v) => { setLogLevel(v); setDirty(true); }}
+              options={[{ label: `${t("admin.serverConfig.envDefault")} (${data.logLevel.default ?? "info"})`, value: "" }, ...LOG_LEVELS.map((l) => ({ label: l, value: l }))]}
+            />
+            <ResetBtn setting={data.logLevel} field="logLevel" />
           </div>
           <div className="flex justify-end pt-2">
             <Button onClick={handleSave} loading={saveMutation.isPending} disabled={!dirty} data-testid="server-config-save-btn">{t("common.save")}</Button>

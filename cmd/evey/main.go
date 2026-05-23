@@ -114,6 +114,8 @@ func run() error {
 	loadOverride(ctx, deps.cfgStore, "transcoding.hw_accel_enabled", parseBool, &cfg.Transcoding.HWAccelEnabled)
 	loadOverride(ctx, deps.cfgStore, "ratelimit.login_max", parseInt, &cfg.Server.LoginRateLimitMax)
 	loadOverride(ctx, deps.cfgStore, "ratelimit.global_max", parseInt, &cfg.Server.GlobalRateLimitMax)
+	loadOverride(ctx, deps.cfgStore, "log.level", parseStr, &cfg.Log.Level)
+	eveylogger.SetLevel(cfg.Log.Level) // apply any DB override to the live logger
 
 	startMetricsCollector(ctx, db, deps.media.hlsManager, deps.repos.mediaItemRepo)
 

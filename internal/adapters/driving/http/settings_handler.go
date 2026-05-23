@@ -11,17 +11,21 @@ import (
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	"github.com/evey-project/evey/internal/config"
+	"github.com/evey-project/evey/internal/pkg/logger"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 const (
-	cfgKeyServerName          = "server.name"
-	cfgKeyTranscodeMaxConc    = "transcoding.max_concurrent"
-	cfgKeyTranscodeHWAccel    = "transcoding.hw_accel_enabled"
-	cfgKeyRateLimitLogin      = "ratelimit.login_max"
-	cfgKeyRateLimitGlobal     = "ratelimit.global_max"
+	cfgKeyServerName       = "server.name"
+	cfgKeyTranscodeMaxConc = "transcoding.max_concurrent"
+	cfgKeyTranscodeHWAccel = "transcoding.hw_accel_enabled"
+	cfgKeyRateLimitLogin   = "ratelimit.login_max"
+	cfgKeyRateLimitGlobal  = "ratelimit.global_max"
+	cfgKeyLogLevel         = "log.level"
 )
+
+var validLogLevels = map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
 
 type settingValue struct {
 	Value   any    `json:"value"`
@@ -72,6 +76,8 @@ func registerServerSettingsRoutes(
 			getter: func() any { return cfg.Server.LoginRateLimitMax }},
 		{jsonKey: "globalRateLimit", cfgKey: cfgKeyRateLimitGlobal, defaultVal: 300,
 			getter: func() any { return cfg.Server.GlobalRateLimitMax }},
+		{jsonKey: "logLevel", cfgKey: cfgKeyLogLevel, defaultVal: "info",
+			getter: func() any { return cfg.Log.Level }},
 	}
 
 	buildResponse := func() map[string]settingValue {
@@ -105,6 +111,7 @@ func registerServerSettingsRoutes(
 			HWAccelEnabled          *bool   `json:"hwAccelEnabled"`
 			LoginRateLimit          *int    `json:"loginRateLimit"`
 			GlobalRateLimit         *int    `json:"globalRateLimit"`
+			LogLevel                *string `json:"logLevel"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			span.RecordError(err)
@@ -170,6 +177,19 @@ func registerServerSettingsRoutes(
 				sideEffect: func() {
 					if globalRL != nil {
 						globalRL.SetLimit(*body.GlobalRateLimit)
+					}
+				}},
+			{cfgKey: cfgKeyLogLevel,
+				apply: func() string {
+					if body.LogLevel == nil || !validLogLevels[*body.LogLevel] {
+						return "" // unknown level → ignore (keep current)
+					}
+					cfg.Log.Level = *body.LogLevel
+					return *body.LogLevel
+				},
+				sideEffect: func() {
+					if body.LogLevel != nil {
+						logger.SetLevel(*body.LogLevel)
 					}
 				}},
 		}

@@ -613,6 +613,7 @@ serverSettings:
   hwAccelEnabled: Hardware Acceleration
   loginRateLimit: Login Rate Limit (req/min)
   globalRateLimit: Global Rate Limit (req/min)
+  logLevel: Log Level
   saved: Settings saved
   usingDefault: "Using default:"
   reset: Reset to default
