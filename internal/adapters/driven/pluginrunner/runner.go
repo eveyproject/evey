@@ -107,6 +107,7 @@ type Runner struct {
 	cgroupCfg           cgroupConfig
 	cgroupWarnOnce      sync.Once
 	cgroupDelegateOnce  sync.Once // runs cgroup v2 delegation setup at most once
+	diskMaxBytes        int64     // per-plugin disk quota; 0 = disabled
 }
 
 // ErrSandboxUnavailable is returned by Start when a plugin without the
@@ -211,6 +212,14 @@ func (r *Runner) WithResourceLimits(memBytes int64, cpuQuotaUS, cpuPeriodUS, pid
 		cpuPeriod: cpuPeriodUS,
 		pidsMax:   pidsMax,
 	}
+	return r
+}
+
+// WithDiskQuota caps each plugin's install-directory size. cgroups bound
+// CPU/RAM/PIDs but not disk space; a goroutine measures the directory and
+// stops the plugin if it grows past maxBytes. Pass 0 to disable.
+func (r *Runner) WithDiskQuota(maxBytes int64) *Runner {
+	r.diskMaxBytes = maxBytes
 	return r
 }
 
@@ -428,6 +437,7 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	r.mu.Unlock()
 
 	go r.trackLifecycle(entry, cancel, sock, p)
+	go r.watchDiskQuota(entry, p)
 	return nil
 }
 

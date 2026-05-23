@@ -83,6 +83,10 @@ type PluginsConfig struct {
 	CPUPercent int
 	// EVEY_PLUGINS_PIDS_MAX — max process/thread count per plugin, default 64.
 	PIDsMax int
+	// EVEY_PLUGINS_DISK_MAX_MB — max install-directory size per plugin in MiB,
+	// default 100. cgroups don't cap disk space; the runner measures the dir and
+	// stops a plugin that grows past this. 0 disables the check.
+	DiskMaxMB int
 
 	// CosignPolicy controls whether plugin ZIPs must carry a cosign signature.
 	// Values: "off" (no verification), "warn" (default — install proceeds but
@@ -368,6 +372,9 @@ func (c *Config) WarnValidate() error {
 	if p := c.Plugins.PIDsMax; p < 0 {
 		errs = append(errs, fmt.Sprintf("cfg.Plugins.PIDsMax: value %d must be >= 0 (0 = use default)", p))
 	}
+	if d := c.Plugins.DiskMaxMB; d < 0 {
+		errs = append(errs, fmt.Sprintf("cfg.Plugins.DiskMaxMB: value %d must be >= 0 (0 = disabled)", d))
+	}
 
 	if len(errs) > 0 {
 		return fmt.Errorf("config validation failed: %s", strings.Join(errs, "; "))
@@ -493,6 +500,7 @@ func Load() (*Config, error) {
 		Plugins: PluginsConfig{
 			SandboxMode:     envPluginSandboxMode("EVEY_PLUGINS_SANDBOX_MODE", "auto"),
 			MemoryMB:        int64(envInt("EVEY_PLUGINS_MEMORY_MB", 256)),
+			DiskMaxMB:       envInt("EVEY_PLUGINS_DISK_MAX_MB", 100),
 			CPUPercent:      envInt("EVEY_PLUGINS_CPU_PERCENT", 50),
 			PIDsMax:         envInt("EVEY_PLUGINS_PIDS_MAX", 64),
 			CosignPolicy:    strings.ToLower(strings.TrimSpace(envStr("EVEY_PLUGINS_COSIGN_POLICY", "warn"))),

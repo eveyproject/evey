@@ -205,6 +205,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		WithAllowMissingSandbox(cfg.Log.DevMode).
 		WithSandboxMode(cfg.Plugins.SandboxMode).
 		WithResourceLimits(cfg.Plugins.MemoryMB*1024*1024, cpuQuotaUS, 100000, cfg.Plugins.PIDsMax).
+		WithDiskQuota(int64(cfg.Plugins.DiskMaxMB)*1024*1024).
 		WithEventBus(bus)
 	manifestParser := pluginrunner.NewManifestParser()
 	pluginInstaller := pluginrunner.NewZipInstaller()
