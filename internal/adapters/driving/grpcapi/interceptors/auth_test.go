@@ -547,34 +547,59 @@ func (s stubPluginParser) ParsePluginToken(string) (*auth.PluginClaims, error) {
 	return s.claims, nil
 }
 
-// TestAuthInterceptor_PluginTokenDeniedOnAdminMethod proves a scoped plugin
-// token (mintable by any authenticated user via IssuePluginToken) cannot reach
-// a RoleAdmin method: the interceptor fails closed. A non-admin method still
-// passes through, preserving the iframe's legitimate read access.
-func TestAuthInterceptor_PluginTokenDeniedOnAdminMethod(t *testing.T) {
+// runPluginToken chains the plugin-token interceptor (which sets the claims)
+// into the auth interceptor, exactly as the public server does.
+func runPluginToken(rbac interceptors.RBACConfig, claims *auth.PluginClaims, method string) (any, error) {
 	ai, _ := setupInterceptor()
-	authUnary := ai.WithRBAC(interceptors.DefaultRBACConfig()).Unary()
-	ptUnary := interceptors.NewPluginTokenInterceptor(stubPluginParser{
-		claims: &auth.PluginClaims{PluginID: "p1", UserID: "u1", TokenType: "plugin"},
-	}).Unary()
-	ctx := ctxWithToken("any-plugin-token")
+	authUnary := ai.WithRBAC(rbac).Unary()
+	ptUnary := interceptors.NewPluginTokenInterceptor(stubPluginParser{claims: claims}).Unary()
+	info := &grpc.UnaryServerInfo{FullMethod: method}
+	return ptUnary(ctxWithToken("any-plugin-token"), nil, info, func(c context.Context, r any) (any, error) {
+		return authUnary(c, r, info, nopHandler)
+	})
+}
 
-	// pt sets the plugin claims into ctx, then delegates to auth (the real chain).
-	run := func(method string) (any, error) {
-		info := &grpc.UnaryServerInfo{FullMethod: method}
-		return ptUnary(ctx, nil, info, func(c context.Context, r any) (any, error) {
-			return authUnary(c, r, info, nopHandler)
-		})
-	}
+// TestAuthInterceptor_PluginTokenDenyByDefault proves the boundary for scoped
+// plugin tokens (mintable by any authenticated user via IssuePluginToken):
+// deny-by-default on the public API. They cannot reach admin methods, cannot
+// reach any method absent from the plugin allowlist, and on allowlisted methods
+// must carry the required scope.
+func TestAuthInterceptor_PluginTokenDenyByDefault(t *testing.T) {
+	claims := &auth.PluginClaims{PluginID: "p1", UserID: "u1", TokenType: "plugin", Scopes: []string{"media.read"}}
 
 	t.Run("admin method denied", func(t *testing.T) {
-		_, err := run("/evey.v1.AdminPluginService/UpdatePluginResourceLimits")
+		_, err := runPluginToken(interceptors.DefaultRBACConfig(), claims, "/evey.v1.AdminPluginService/UpdatePluginResourceLimits")
 		require.Error(t, err)
 		assert.Equal(t, codes.PermissionDenied, status.Code(err))
 	})
 
-	t.Run("non-admin method allowed", func(t *testing.T) {
-		resp, err := run("/evey.v1.LibraryService/ListLibraries")
+	t.Run("non-allowlisted method denied (deny-by-default)", func(t *testing.T) {
+		_, err := runPluginToken(interceptors.DefaultRBACConfig(), claims, "/evey.v1.LibraryService/ListLibraries")
+		require.Error(t, err)
+		assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	})
+
+	rbac := interceptors.DefaultRBACConfig()
+	rbac.PluginMethodScopes = map[string]string{
+		"/test/PluginRead": "media.read", // requires a scope
+		"/test/PluginOpen": "",           // allowlisted, any plugin token
+	}
+
+	t.Run("allowlisted method with required scope allowed", func(t *testing.T) {
+		resp, err := runPluginToken(rbac, claims, "/test/PluginRead")
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("allowlisted method missing scope denied", func(t *testing.T) {
+		noScope := &auth.PluginClaims{PluginID: "p1", UserID: "u1", TokenType: "plugin"}
+		_, err := runPluginToken(rbac, noScope, "/test/PluginRead")
+		require.Error(t, err)
+		assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	})
+
+	t.Run("allowlisted method without scope requirement allowed", func(t *testing.T) {
+		resp, err := runPluginToken(rbac, claims, "/test/PluginOpen")
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 	})

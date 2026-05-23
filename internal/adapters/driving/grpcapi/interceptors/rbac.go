@@ -12,6 +12,14 @@ const (
 type RBACConfig struct {
 	PublicMethods map[string]bool
 	MethodRoles   map[string]Role
+	// PluginMethodScopes is the ALLOWLIST of public-API methods a scoped plugin
+	// token may call, mapping each to the plugin scope required (empty string =
+	// allowed for any plugin token). It is enforced DENY-BY-DEFAULT: a plugin
+	// token calling any method NOT in this map is rejected. This is what makes a
+	// granted permission actually enforced (the manifest/consent is otherwise
+	// cosmetic on the public API). Starts empty — plugins reach no public-API
+	// method until a grantable capability adds an explicit entry.
+	PluginMethodScopes map[string]string
 }
 
 // DefaultRBACConfig returns the built-in RBAC policy.
@@ -146,5 +154,8 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.AdminIntroService/InvalidateIntroCache":               RoleAdmin,
 			"/evey.v1.AdminIntroService/BackfillIntroDetection":             RoleAdmin,
 		},
+		// Empty = a scoped plugin token can call NO public-API method (deny-by-
+		// default). Grantable plugin capabilities add explicit entries here.
+		PluginMethodScopes: map[string]string{},
 	}
 }

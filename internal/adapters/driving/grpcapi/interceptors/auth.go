@@ -54,14 +54,9 @@ func (i *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
 		if i.rbac.PublicMethods[info.FullMethod] {
 			return handler(ctx, req)
 		}
-		if PluginClaimsFromContext(ctx) != nil {
-			// Authenticated via scoped plugin token — skip user-auth (per-RPC
-			// scope enforcement applies). But a plugin token (mintable by any
-			// authenticated user via IssuePluginToken) must NEVER satisfy an
-			// admin requirement: deny RoleAdmin methods fail-closed so a plugin
-			// cannot escalate to admin operations.
-			if i.isAdminMethod(info.FullMethod) {
-				return nil, i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
+		if claims := PluginClaimsFromContext(ctx); claims != nil {
+			if err := i.authorizePluginToken(ctx, claims, info.FullMethod); err != nil {
+				return nil, err
 			}
 			return handler(ctx, req)
 		}
@@ -81,9 +76,9 @@ func (i *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 		if i.rbac.PublicMethods[info.FullMethod] {
 			return handler(srv, ss)
 		}
-		if PluginClaimsFromContext(ss.Context()) != nil {
-			if i.isAdminMethod(info.FullMethod) {
-				return i.translatedErr(ss.Context(), codes.PermissionDenied, "errors.auth.admin_access_required")
+		if claims := PluginClaimsFromContext(ss.Context()); claims != nil {
+			if err := i.authorizePluginToken(ss.Context(), claims, info.FullMethod); err != nil {
+				return err
 			}
 			return handler(srv, ss)
 		}
@@ -99,11 +94,29 @@ func (i *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 	}
 }
 
-// isAdminMethod reports whether the method requires the admin role per the RBAC
-// table. Used to fail-closed for scoped plugin tokens, which bypass enforceRBAC.
-func (i *AuthInterceptor) isAdminMethod(method string) bool {
-	role, ok := i.rbac.MethodRoles[method]
-	return ok && role == RoleAdmin
+// authorizePluginToken enforces what a scoped plugin token may call on the
+// public API. It is DENY-BY-DEFAULT: a plugin token may only reach a method
+// explicitly listed in PluginMethodScopes, and only if it carries the required
+// scope. Admin methods are rejected up front as an explicit floor (defense in
+// depth — they must never be in the allowlist either). A plugin token is
+// mintable by any authenticated user, so this is the boundary that makes a
+// granted plugin permission actually enforced rather than cosmetic.
+func (i *AuthInterceptor) authorizePluginToken(ctx context.Context, claims *authpkg.PluginClaims, method string) error {
+	if role, ok := i.rbac.MethodRoles[method]; ok && role == RoleAdmin {
+		return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
+	}
+	scope, allowed := i.rbac.PluginMethodScopes[method]
+	if !allowed {
+		slog.Warn("plugin token denied: method not in plugin allowlist",
+			slog.String("method", method), slog.String("plugin", claims.PluginID))
+		return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.insufficient_permissions")
+	}
+	if scope != "" && !claims.HasScope(scope) {
+		slog.Warn("plugin token denied: missing scope",
+			slog.String("method", method), slog.String("required_scope", scope), slog.String("plugin", claims.PluginID))
+		return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.insufficient_permissions")
+	}
+	return nil
 }
 
 func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error {
