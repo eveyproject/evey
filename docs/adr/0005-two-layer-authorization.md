@@ -1,6 +1,6 @@
 # ADR-0005: Two-layer authorization (interceptor RBAC + handler resource check)
 
-- Status: Accepted
+- Status: Accepted (the plugin-token "third lever" is revised by [ADR-0012](0012-plugin-token-deny-by-default.md): mint-time scope filtering proved insufficient; enforcement is now deny-by-default at the interceptor)
 - Date: 2026-04-20
 
 ## Context

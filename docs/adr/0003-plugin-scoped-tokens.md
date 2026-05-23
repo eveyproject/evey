@@ -1,6 +1,6 @@
 # ADR-0003: Plugin-scoped JWT tokens
 
-- Status: Accepted
+- Status: Accepted (enforcement extended by [ADR-0012](0012-plugin-token-deny-by-default.md))
 - Date: 2026-02-20
 
 ## Context

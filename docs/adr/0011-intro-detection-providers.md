@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-05-04
+- Amended: 2026-05-23 — TheIntroDB read path migrated to API v3 (imdb_id fallback, duration_ms, open-ended credits, 3-tier quota). The Context and Decision below describe the original 2026-05-04 design; see [Update 2026-05-23 — TIDB API v3](#update-2026-05-23--tidb-api-v3) at the end for what changed.
 
 ## Context
 
@@ -72,6 +73,7 @@ TheIntroDB shipped a v3 API (npm `theintrodb@3.0.0`, 2026-05-19; the official Je
 
 - `internal/domain/library/ports.go` — `IntroMetadataProvider`, `SegmentContributor`
 - `internal/adapters/driven/introproviders/` — clients, chain, cache, rate-limiter, contributor
+- `internal/adapters/driven/introproviders/tidb_live_test.go` — opt-in live v3 smoke test (build tag `tidblive`, skips without `EVEY_INTRO_TIDB_API_KEY`)
 - `internal/adapters/driven/postgres/intro_metadata_cache_repo.go` + migration `000093_intro_metadata_cache.up.sql`
 - `internal/app/library/intro_detection_service.go` — pipeline integration + `BackfillLibrary` admin entry point
 - `proto/evey/v1/admin_intro.proto` — invalidation + backfill endpoints
