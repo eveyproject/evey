@@ -39,11 +39,15 @@ func (s *BackupStore) resolveArchivePath(id string) (string, bool) {
 }
 
 func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data io.Reader) error {
-	if err := os.MkdirAll(s.dir, 0750); err != nil {
+	// Owner-only: a DB backup is the whole database (incl. password hashes). On
+	// kernels without Landlock a plugin runs DAC-isolated from the server's uid,
+	// so 0700 dir + 0600 files keep backups unreadable to it (belt-and-suspenders
+	// alongside the chmod 700 in the image).
+	if err := os.MkdirAll(s.dir, 0700); err != nil {
 		return fmt.Errorf("create backup dir: %w", err)
 	}
 	archivePath := filepath.Join(s.dir, m.ID+".tar.gz")
-	f, err := os.Create(archivePath)
+	f, err := os.OpenFile(archivePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("create archive: %w", err)
 	}
@@ -81,7 +85,7 @@ func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data i
 
 	// sidecar for fast listing
 	sidecarPath := filepath.Join(s.dir, m.ID+".json")
-	return os.WriteFile(sidecarPath, manifestBytes, 0640)
+	return os.WriteFile(sidecarPath, manifestBytes, 0600)
 }
 
 func streamTarEntry(tw *tar.Writer, name string, r io.Reader) error {

@@ -157,15 +157,19 @@ func landlockConnectPorts(externalFetch []string) []int {
 	return ports
 }
 
-// resolveAutoMode picks the strongest sandbox the current host actually
-// supports: bubblewrap if a throwaway sandbox builds (bare-metal with
-// userns + mount), else Landlock if the kernel enforces it, else basic.
+// resolveAutoMode picks the sandbox best suited to the host, preferring
+// Landlock: it needs no privilege, runs under Docker's default seccomp +
+// AppArmor with zero host changes, and can't be relaxed once applied — the
+// right default for the primary (containerised) deployment. Bubblewrap is the
+// fallback only where Landlock is absent but a throwaway bwrap sandbox actually
+// builds (bare-metal / privileged container with userns + mount), then basic.
+// Order: landlock -> bubblewrap -> basic.
 func resolveAutoMode() string {
-	if ProbeSandbox(sandboxModeBubblewrap) == nil {
-		return sandboxModeBubblewrap
-	}
 	if landlockAvailable() {
 		return sandboxModeLandlock
+	}
+	if ProbeSandbox(sandboxModeBubblewrap) == nil {
+		return sandboxModeBubblewrap
 	}
 	slog.Warn("plugin sandbox auto-detection fell back to basic mode: no per-path " +
 		"filesystem isolation available (bubblewrap unusable here and Landlock absent). " +

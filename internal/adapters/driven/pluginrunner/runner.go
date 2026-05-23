@@ -36,7 +36,7 @@ const (
 	sandboxModeBubblewrap = "bubblewrap" // bwrap namespace isolation (needs mount; bare-metal only)
 	sandboxModeStrict     = "strict"     // bubblewrap + LD_PRELOAD seccomp
 	sandboxModeLandlock   = "landlock"   // Landlock LSM self-confinement (no mount; runs under default Docker security)
-	sandboxModeAuto       = "auto"       // detect best available at boot: bubblewrap > landlock > basic
+	sandboxModeAuto       = "auto"       // detect best available at boot: landlock > bubblewrap > basic
 
 	defaultSandboxMode = sandboxModeAuto
 )
@@ -179,10 +179,10 @@ func (r *Runner) WithHostRegistry(reg HostRegistry) *Runner {
 
 // WithSandboxMode sets the isolation strategy used when launching plugins.
 // Valid values: "auto" (default), "landlock", "bubblewrap", "strict", "basic".
-//   - "auto"       — detect the best available at boot: bubblewrap (if it runs
-//     under the host security) > landlock > basic. Recommended for the official
-//     image: works out-of-the-box on any host with the strongest isolation the
-//     kernel permits.
+//   - "auto"       — detect the best available at boot: landlock > bubblewrap
+//     (only where Landlock is absent but bwrap runs under the host security) >
+//     basic. Recommended for the official image: prefers Landlock (no privilege,
+//     runs under Docker's default security), falls back as the host allows.
 //   - "landlock"   — Landlock LSM self-confinement (filesystem allowlist). Needs
 //     no mount/unshare, so it runs under Docker's default seccomp+AppArmor. Needs
 //     kernel ≥5.13 with Landlock in the active LSM list. Refuses to start a
