@@ -3,6 +3,8 @@ package pluginhost
 import (
 	"context"
 	"errors"
+	"strings"
+	"sync"
 	"testing"
 
 	pluginv1 "github.com/evey-project/evey/gen/plugin/v1"
@@ -481,4 +483,103 @@ func TestPluginEmittedEvent_EventName(t *testing.T) {
 
 func TestPluginHostSockPath(t *testing.T) {
 	assert.Equal(t, "/tmp/evey/plugins/plg-foo/host.sock", PluginHostSockPath("plg-foo"))
+}
+
+// --- Data store RPCs ---
+
+type fakeDataRepo struct {
+	mu sync.Mutex
+	m  map[string]string // "pluginID\x00userID\x00key" -> value
+}
+
+func newFakeDataRepo() *fakeDataRepo { return &fakeDataRepo{m: map[string]string{}} }
+
+func (f *fakeDataRepo) k(p, u, key string) string { return p + "\x00" + u + "\x00" + key }
+
+func (f *fakeDataRepo) Get(_ context.Context, p, u, key string) (*plugindomain.PluginDataEntry, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	v, ok := f.m[f.k(p, u, key)]
+	if !ok {
+		return nil, shared.ErrNotFound
+	}
+	return &plugindomain.PluginDataEntry{PluginID: p, UserID: u, Key: key, Value: v}, nil
+}
+
+func (f *fakeDataRepo) Set(_ context.Context, p, u, key, value string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.m[f.k(p, u, key)] = value
+	return nil
+}
+
+func (f *fakeDataRepo) Delete(_ context.Context, p, u, key string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.m, f.k(p, u, key))
+	return nil
+}
+
+func (f *fakeDataRepo) List(_ context.Context, p, u string) ([]*plugindomain.PluginDataEntry, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []*plugindomain.PluginDataEntry
+	prefix := p + "\x00" + u + "\x00"
+	for k, v := range f.m {
+		if strings.HasPrefix(k, prefix) {
+			out = append(out, &plugindomain.PluginDataEntry{PluginID: p, UserID: u, Key: k[len(prefix):], Value: v})
+		}
+	}
+	return out, nil
+}
+
+func TestHostDataStore_RoundTrip(t *testing.T) {
+	h := newTestHostServer().WithDataStore(newFakeDataRepo())
+	ctx := ctxWithPluginID("plg-1")
+
+	// absent
+	got, err := h.GetData(ctx, &pluginv1.GetDataRequest{Key: "k"})
+	require.NoError(t, err)
+	assert.False(t, got.Found)
+
+	_, err = h.SetData(ctx, &pluginv1.SetDataRequest{Key: "k", Value: "v"})
+	require.NoError(t, err)
+
+	got, err = h.GetData(ctx, &pluginv1.GetDataRequest{Key: "k"})
+	require.NoError(t, err)
+	assert.True(t, got.Found)
+	assert.Equal(t, "v", got.Value)
+
+	keys, err := h.ListDataKeys(ctx, &pluginv1.ListDataKeysRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"k"}, keys.Keys)
+
+	_, err = h.DeleteData(ctx, &pluginv1.DeleteDataRequest{Key: "k"})
+	require.NoError(t, err)
+	got, _ = h.GetData(ctx, &pluginv1.GetDataRequest{Key: "k"})
+	assert.False(t, got.Found)
+}
+
+func TestHostDataStore_PluginScoped(t *testing.T) {
+	repo := newFakeDataRepo()
+	h := newTestHostServer().WithDataStore(repo)
+
+	_, err := h.SetData(ctxWithPluginID("plg-1"), &pluginv1.SetDataRequest{Key: "k", Value: "one"})
+	require.NoError(t, err)
+	_, err = h.SetData(ctxWithPluginID("plg-2"), &pluginv1.SetDataRequest{Key: "k", Value: "two"})
+	require.NoError(t, err)
+
+	// plg-2 must never see plg-1's value (id comes from the authenticated ctx).
+	got, _ := h.GetData(ctxWithPluginID("plg-2"), &pluginv1.GetDataRequest{Key: "k"})
+	assert.Equal(t, "two", got.Value)
+	got, _ = h.GetData(ctxWithPluginID("plg-1"), &pluginv1.GetDataRequest{Key: "k"})
+	assert.Equal(t, "one", got.Value)
+}
+
+func TestHostDataStore_Unimplemented(t *testing.T) {
+	h := newTestHostServer() // no data store wired
+	_, err := h.GetData(ctxWithPluginID("plg-1"), &pluginv1.GetDataRequest{Key: "k"})
+	require.Error(t, err)
+	st, _ := status.FromError(err)
+	assert.Equal(t, codes.Unimplemented, st.Code())
 }

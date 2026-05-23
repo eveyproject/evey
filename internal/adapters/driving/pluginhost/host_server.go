@@ -2,6 +2,7 @@ package pluginhost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -57,7 +58,8 @@ type HostServer struct {
 	events          shared.EventBus
 	logger          plugindomain.PluginLogger
 	permInterceptor grpc.UnaryServerInterceptor
-	rpcLimiter      *ratelimit.Limiter // per-plugin HostService RPC rate limit (anti-flood)
+	rpcLimiter      *ratelimit.Limiter                // per-plugin HostService RPC rate limit (anti-flood)
+	data            plugindomain.PluginDataRepository // plugin-global key/value store; nil disables the data RPCs
 
 	mu       sync.RWMutex
 	registry map[string]*pluginEntry
@@ -92,6 +94,14 @@ func NewHostServer(
 		rpcLimiter:      ratelimit.New(pluginRPCRatePerMin),
 		registry:        make(map[string]*pluginEntry),
 	}
+}
+
+// WithDataStore wires the plugin data-store repository, enabling the GetData/
+// SetData/DeleteData/ListDataKeys RPCs. Without it those RPCs return
+// Unimplemented.
+func (h *HostServer) WithDataStore(repo plugindomain.PluginDataRepository) *HostServer {
+	h.data = repo
+	return h
 }
 
 // makeRateLimitInterceptor caps a plugin's HostService RPC rate (keyed by
@@ -441,6 +451,70 @@ func (h *HostServer) SetConfig(ctx context.Context, req *pluginv1.SetConfigReque
 		return nil, status.Errorf(codes.Internal, "save config: %v", err)
 	}
 	return &pluginv1.SetConfigResponse{}, nil
+}
+
+// The data RPCs persist the plugin's OWN key/value store (plugin-global scope,
+// table plugin_data). The plugin id is taken from the authenticated context, so
+// a plugin can only ever read/write its own namespace.
+
+func (h *HostServer) GetData(ctx context.Context, req *pluginv1.GetDataRequest) (*pluginv1.GetDataResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "pluginhost.GetData")
+	defer span.End()
+	if h.data == nil {
+		return nil, status.Error(codes.Unimplemented, "data store unavailable")
+	}
+	e, err := h.data.Get(ctx, pluginIDFromCtx(ctx), "", req.Key)
+	if err != nil {
+		if errors.Is(err, shared.ErrNotFound) {
+			return &pluginv1.GetDataResponse{Found: false}, nil
+		}
+		return nil, status.Errorf(codes.Internal, "get data: %v", err)
+	}
+	return &pluginv1.GetDataResponse{Value: e.Value, Found: true}, nil
+}
+
+func (h *HostServer) SetData(ctx context.Context, req *pluginv1.SetDataRequest) (*pluginv1.SetDataResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "pluginhost.SetData")
+	defer span.End()
+	if h.data == nil {
+		return nil, status.Error(codes.Unimplemented, "data store unavailable")
+	}
+	if req.Key == "" {
+		return nil, status.Error(codes.InvalidArgument, "key is required")
+	}
+	if err := h.data.Set(ctx, pluginIDFromCtx(ctx), "", req.Key, req.Value); err != nil {
+		return nil, status.Errorf(codes.Internal, "set data: %v", err)
+	}
+	return &pluginv1.SetDataResponse{}, nil
+}
+
+func (h *HostServer) DeleteData(ctx context.Context, req *pluginv1.DeleteDataRequest) (*pluginv1.DeleteDataResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "pluginhost.DeleteData")
+	defer span.End()
+	if h.data == nil {
+		return nil, status.Error(codes.Unimplemented, "data store unavailable")
+	}
+	if err := h.data.Delete(ctx, pluginIDFromCtx(ctx), "", req.Key); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete data: %v", err)
+	}
+	return &pluginv1.DeleteDataResponse{}, nil
+}
+
+func (h *HostServer) ListDataKeys(ctx context.Context, _ *pluginv1.ListDataKeysRequest) (*pluginv1.ListDataKeysResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "pluginhost.ListDataKeys")
+	defer span.End()
+	if h.data == nil {
+		return nil, status.Error(codes.Unimplemented, "data store unavailable")
+	}
+	entries, err := h.data.List(ctx, pluginIDFromCtx(ctx), "")
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list data: %v", err)
+	}
+	keys := make([]string, 0, len(entries))
+	for _, e := range entries {
+		keys = append(keys, e.Key)
+	}
+	return &pluginv1.ListDataKeysResponse{Keys: keys}, nil
 }
 
 func mediaItemToProto(item *library.MediaItem) *pluginv1.MediaItem {

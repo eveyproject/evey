@@ -30,6 +30,11 @@ var methodPermissions = map[string][]string{
 	"/plugin.v1.HostService/Log":                nil,
 	"/plugin.v1.HostService/GetConfig":          nil,
 	"/plugin.v1.HostService/SetConfig":          nil,
+	// Data store: a plugin's own namespace — no special permission required.
+	"/plugin.v1.HostService/GetData":      nil,
+	"/plugin.v1.HostService/SetData":      nil,
+	"/plugin.v1.HostService/DeleteData":   nil,
+	"/plugin.v1.HostService/ListDataKeys": nil,
 }
 
 // PluginPermissionInterceptor returns a gRPC UnaryServerInterceptor that

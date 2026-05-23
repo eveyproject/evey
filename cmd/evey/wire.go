@@ -458,7 +458,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	pluginSecurityDashboardSvc := appplugin.NewSecurityDashboardService(r.Plugin, bus, cfg.Plugins.SandboxMode)
 
 	permInterceptor := grpcapi.PluginPermissionInterceptor(permChecker)
-	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, infra.pluginLogger, permInterceptor)
+	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, infra.pluginLogger, permInterceptor).
+		WithDataStore(r.PluginData)
 	infra.pluginRunner.WithHostRegistry(pluginHostSrv)
 	infra.pluginLogger.StartCleanup(ctx, &pluginIDLister{repo: r.Plugin})
 
