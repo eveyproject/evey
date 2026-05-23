@@ -70,6 +70,29 @@ The gRPC service definitions are in `proto/evey/v1/`. Language-specific SDK stub
 
 The host enforces permissions at the RPC level — calling an RPC your manifest did not declare results in `PermissionDenied`.
 
+### Data store
+
+Every plugin gets its own persistent key/value store, namespaced to the plugin —
+**no permission required, a plugin owns its own data**. Use it for cursors,
+caches, last-sync timestamps, anything the plugin needs to remember across
+restarts. Values are opaque strings (encode JSON yourself if you need structure).
+
+| `HostService` RPC | Purpose |
+|---|---|
+| `SetData(key, value)` | Upsert a value. |
+| `GetData(key) → {value, found}` | Read a value. |
+| `DeleteData(key)` | Remove a key. |
+| `ListDataKeys() → {keys}` | List the plugin's keys. |
+
+The plugin id is taken from the authenticated socket — a plugin can only ever
+read/write its **own** namespace, never another plugin's. When the plugin is
+uninstalled, its entire store is wiped automatically (`ON DELETE CASCADE`), so
+no stale data survives removal.
+
+This store is plugin-global. To persist data **per user** (e.g. a preference for
+the currently-viewing user), see the `prefs` permission below — that surface is
+reached from the plugin's iframe, where a user context exists.
+
 ## Frontend API
 
 When a plugin declares a `frontend` module, the HTML for the iframe `srcdoc` includes a bridge script that exposes `window.evey` to the module's JavaScript.
@@ -131,8 +154,15 @@ The host waits up to 5 seconds for the plugin to signal `ready` (done automatica
 | `player.overlay` | Overlay layer on the video player |
 | `settings.user.appearance` | Appearance sub-section in user settings |
 | `sidebar.bottom` | Bottom area of the main navigation sidebar |
+| `admin.nav` | One nav entry in the admin panel opening the plugin's own sandboxed page |
 
-Slots not listed above (including all `admin.*`, `login.*`, `setup.*`, `profile.security.*`) are rejected at install time.
+`admin.nav` is the **only** admin-area slot. It does not inject UI into existing
+admin screens — it adds a single menu entry that opens your plugin's own page in
+a sandboxed iframe on a dedicated admin route. Requesting it shows up in the
+install consent diff.
+
+All other slots under `admin.*`, `login.*`, `setup.*`, `profile.security.*` are
+rejected at install time.
 
 ## Capabilities
 
@@ -159,6 +189,30 @@ The plugin may publish notifications. The host routes outbound notification even
 ### `webhook.receiver`
 
 The plugin registers as a webhook endpoint. The host forwards matching inbound HTTP POST requests to the plugin via gRPC. No additional permission required beyond the capability declaration.
+
+### `public`
+
+Grants the plugin's iframe read-only access to non-sensitive server data:
+`GetPublicMediaItem` / `ListPublicMediaItems`, which return a **safe projection**
+(id, title, type, year, overview, poster URL) — never file paths, sizes,
+provider ids or streams. Server branding (name) is already public and needs no
+permission. Declare `public` in `permissions` to request it.
+
+### `prefs`
+
+Grants the plugin's iframe read/write of the **current user's** preferences in
+the plugin's own namespace, via `PluginUserDataService` (`GetPref` / `SetPref` /
+`DeletePref` / `ListPrefs`). The plugin and user are bound by the iframe token,
+so a plugin can only touch (its-own-plugin, the-current-user) data — never
+another plugin's, never another user's, never identity/security fields. Rows
+cascade-delete with the plugin or the user. Declare `prefs` in `permissions`.
+
+> **What you can never request.** `admin.*`, `auth.*` (login/logout/session),
+> `system.*`, and generic `user.write` / `library.write` are hard-locked: they
+> are stripped from any token and rejected at the API boundary even if a
+> manifest tries to declare them. A scoped plugin token is **deny-by-default** on
+> the server API — it can only reach the methods the granted permissions above
+> explicitly unlock.
 
 ## Examples
 

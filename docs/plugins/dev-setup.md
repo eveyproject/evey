@@ -79,7 +79,14 @@ frontend:
     src: dist/index.js
 ```
 
-The slot must exist in `internal/domain/plugin/slots.go` (`home.section`, `media.detail.sidebar`, `player.overlay`, `sidebar.bottom`, `settings.user.appearance`). Anything else (`admin.*`, `login.*`, `setup.*`, `profile.security.*`) is rejected at install time.
+The slot must exist in `internal/domain/plugin/slots.go` (`home.section`, `home.hero`, `library.sidebar`, `media.detail.sidebar`, `player.overlay`, `sidebar.bottom`, `settings.user.appearance`, and `admin.nav` — the one controlled admin-area slot, a menu entry opening your plugin's own sandboxed page). Anything else (`admin.*` injection, `login.*`, `setup.*`, `profile.security.*`) is rejected at install time.
+
+**Storing data.** Your backend gets a private key/value store over the host
+socket (`SetData`/`GetData`/`DeleteData`/`ListDataKeys`) — no permission needed,
+wiped automatically on uninstall. For per-user preferences from your iframe,
+request the `prefs` permission; for read-only access to non-sensitive media
+(title/poster), request `public`. See `docs/plugins/api-reference.md`. Admin,
+auth, system and generic write scopes can never be requested.
 
 ## 4. Run the install loop
 
