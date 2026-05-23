@@ -273,7 +273,7 @@ In practice, every official deployment is the prebuilt Docker image, where `auto
 
 0. **Landlock filesystem allowlist** (modes `landlock`/`auto`) -- a tiny pre-exec shim, `evey-plugin-launcher`, applies a [Landlock](https://docs.kernel.org/userspace-api/landlock.html) ruleset before exec'ing the plugin: read+execute on system directories (`/usr`, `/lib`, `/lib64`, `/bin`, `/sbin`, `/etc`), read+write on the plugin's own directory, its socket directory and the container's pseudo-devices (`/dev` — `/dev/null`, `/dev/urandom`…), and **everything else denied** -- `/data` (media, JWT key, DB socket) and sibling plugin directories are unreachable. Landlock is enforced by the kernel *before* DAC, so it confines the plugin even when it shares the server's UID. On Landlock ABI v4 (kernel ≥6.7) the launcher also governs **TCP egress**: a plugin without the `network` permission is denied all TCP connect/bind, and one with it may connect only to ports 80/443 plus any explicit `:port` in `external_fetch` (filtered by port, not host). It needs no mount/unshare, so it works under Docker's baseline container security with no relaxed seccomp profile, no added capability, and no privileged mode. The launcher refuses to start (`-require-landlock`) rather than run a plugin unconfined.
 
-1. **Seccomp BPF** -- A shared library (`libevey-sandbox.so`) is injected via `LD_PRELOAD`. The BPF filter blocks `execve`/`execveat` (no child processes) plus `setns`, `bpf`, `kexec_*`, `finit_module`, `keyctl`, `add_key`, `process_vm_readv`/`writev` and `perf_event_open`, returning `EPERM`. It is applied in `basic`, `strict` **and `landlock`** modes (Landlock confines the filesystem/network; this denylist closes the syscall/process-escape vectors Landlock does not cover). Plugins with the `subprocess` permission skip this filter.
+1. **Seccomp BPF** -- A shared library (`libevey-sandbox.so`) is injected via `LD_PRELOAD`. The BPF filter blocks `execve`/`execveat` (no child processes) plus `setns`, `bpf`, `kexec_*`, `finit_module`, `keyctl`, `add_key`, `process_vm_readv`/`writev` and `perf_event_open`, returning `EPERM`. It also denies `kill` outright and `tkill`/`tgkill` when the target is PID 1, so a plugin (which shares the server's UID) cannot signal/kill the server — while `raise()`/`abort()` self-signaling still works. It is applied in `basic`, `strict` **and `landlock`** modes (Landlock confines the filesystem/network; this denylist closes the syscall/process-escape vectors Landlock does not cover). Plugins with the `subprocess` permission skip this filter.
 
 2. **Privilege dropping** -- When Evey runs as root, plugin processes are started as `evey-plugin` (UID/GID 1001) via `SysProcAttr.Credential`. The `PR_SET_NO_NEW_PRIVS` flag prevents privilege escalation.
 
@@ -325,35 +325,45 @@ security_opt:
 
 ### Advanced: per-plugin resource limits (cgroup delegation)
 
-Per-plugin CPU/RAM/PIDs caps require the container to create cgroup v2 leaves
-under its own cgroup. Docker does not allow this by default, so it is **opt-in**:
+Per-plugin CPU/RAM/PIDs/IO caps require the container to create cgroup v2 leaves
+under its own cgroup. Docker does not allow this by default (the cgroup mount is
+read-only and the server, as an unprivileged user, cannot write it), so it is
+**opt-in** — and the container must start as root *only to perform that one
+setup step*, then drop to the unprivileged `evey` user:
 
 ```yaml
 evey:
+  user: "0:0"                              # start as root for the cgroup setup, then drop to evey
   environment:
     EVEY_PLUGINS_CGROUP_DELEGATE: "true"   # enable per-plugin cgroup leaves
   volumes:
-    - /sys/fs/cgroup:/sys/fs/cgroup:rw     # let the server manage its cgroup subtree
+    - /sys/fs/cgroup:/sys/fs/cgroup:rw     # let the entrypoint delegate the cgroup subtree
 ```
 
-On the first plugin start the runner then: relocates the container's own
-processes into an `evey-init` leaf (cgroup v2's "no internal processes" rule
-forbids delegating from a cgroup that holds processes), enables the
-memory/cpu/pids controllers, and creates a leaf per plugin under `evey-plugins`.
+The entrypoint (running as root) relocates the container's own processes into an
+`evey-init` leaf (cgroup v2's "no internal processes" rule forbids delegating
+from a cgroup that holds processes), enables memory/cpu/pids/io in the root
+`subtree_control`, creates `evey-plugins` and chowns it to `evey`, then **re-execs
+itself as `evey` via `su-exec`**. The server (and Meilisearch) therefore run as
+UID 1000 — *a server compromise lands unprivileged, not root* — while the runner,
+as `evey`, creates one cgroup leaf per plugin under the delegated `evey-plugins`.
 A plugin that breaches its limit is OOM-killed in its own leaf; the host, the
 server and sibling plugins are unaffected. Every step is **fail-soft** — on any
-error the runner logs the precise reason and runs without limits, never breaking
-the server.
+error it logs the precise reason and runs without limits, never breaking startup.
 
-**Security note.** The `:rw` cgroup mount is only writable by the *server*; the
-untrusted *plugins* are walled off from `/sys/fs/cgroup` by Landlock (it is not
-in their allowlist), so this mount grants them nothing. The only residual is
-that a compromised *server* could touch the host cgroup tree — already moot,
-since a server compromise is total. This is a filesystem mount, not a
-relaxation of the container's seccomp/AppArmor/capability baseline.
+**Security note.** Root exists only for the millisecond setup phase before the
+server starts; it runs fixed code (no plugin input) and then drops. The `:rw`
+cgroup mount is writable only by the *server*; untrusted *plugins* are walled off
+from `/sys/fs/cgroup` by Landlock. This is a filesystem mount + a brief init-time
+privilege, not a relaxation of the container's seccomp/AppArmor/capability
+baseline, and the server never runs as root while handling requests or plugins.
 
 Defaults (per plugin): `EVEY_PLUGINS_MEMORY_MB=256`, `EVEY_PLUGINS_CPU_PERCENT=50`,
-`EVEY_PLUGINS_PIDS_MAX=64`.
+`EVEY_PLUGINS_PIDS_MAX=64`. Disk space is capped separately via
+`EVEY_PLUGINS_DISK_MAX_MB` (default 100) — the runner measures each plugin's
+install directory every 30s and stops a plugin that grows past it (cgroups do
+not bound disk space). IO bandwidth is deprioritised via `io.weight`. HostService
+RPCs are rate-limited per plugin (600/min) to stop a flood loading the server.
 
 ### Permission model
 
@@ -426,7 +436,7 @@ The sandbox is defense-in-depth, not a hard security boundary. Each layer is byp
 - **Process group / `Pdeathsig`** -- cleanup, not confinement. It prevents zombie processes, not exfiltration or resource abuse during the plugin's lifetime.
 - **Permission checker (gRPC interceptor)** -- only gates HostService RPCs. A plugin granted `network` can contact any external host; there is no egress filter. A plugin without `network` can still read anything the host provides via RPC (respecting declared permissions).
 - **Network egress is port-based, not host-based** -- under `landlock` on Landlock ABI v4 (kernel ≥6.7), TCP is denied by default: a plugin without the `network` permission cannot `connect()` at all, and one with it may only connect to ports 80/443 plus any explicit `:port` in its `external_fetch` list (it can never `bind`/listen). Landlock filters by **port, not host**, so the per-host `external_fetch` allowlist is *not* enforced by this layer (a `network` plugin can still reach any host on an allowed port); host filtering would need a DNS/proxy layer. On kernels below v4 the TCP filter silently degrades to a no-op (filesystem confinement still applies). UDP is not covered.
-- **Resource limits need cgroup delegation** -- per-plugin CPU/RAM/PIDs caps (default 256 MiB / 50% CPU / 64 PIDs) are enforced via a cgroup v2 leaf per plugin, so a plugin breaching its limit is OOM-killed in its own cgroup — never touching the host, the server or sibling plugins. This requires the container to manage its own cgroup subtree, which Docker does not allow by default (`/sys/fs/cgroup` is mounted read-only and the server lives in the container cgroup root, which cgroup v2's "no internal processes" rule forbids from delegating). See *Enabling per-plugin resource limits* below. When delegation is not enabled the runner warns and runs **without** limits (a malicious plugin can then exhaust host resources).
+- **Resource limits need cgroup delegation (opt-in)** -- per-plugin CPU/RAM/PIDs/IO caps are enforced via a cgroup v2 leaf per plugin, plus a disk-space monitor and a per-plugin HostService RPC rate limit, so a plugin breaching a limit is contained (OOM-killed / throttled / stopped) without touching the host, the server or siblings. This requires cgroup delegation, which Docker does not allow by default; it is **opt-in** (`user: "0:0"` + `EVEY_PLUGINS_CGROUP_DELEGATE` + a rw cgroup mount — see *Advanced: per-plugin resource limits*). When delegation is not enabled the runner warns and runs **without** the cgroup caps (a malicious plugin could then exhaust CPU/RAM); the disk monitor and RPC rate limit still apply.
 - **CSS sanitizer** -- conservative, but browsers evolve. New CSS features and URL schemes may slip through until the sanitizer is updated.
 - **iframe sandbox (`allow-scripts`)** -- same-origin is disabled, but the iframe shares the browser process with the host page on some engines; speculative-execution side channels are not mitigated.
 
