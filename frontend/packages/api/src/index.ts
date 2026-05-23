@@ -35,7 +35,7 @@ export * from "./generated/sync-play-service/sync-play-service";
 export type { V1LoginRequest, V1AuthResponse, V1User, V1Profile, V1APIKey, V1InviteLink, UserServiceUpdateUserBody } from "./generated/user.schemas";
 export type { V1UserLibraryAccess, V1LibraryRef, LibraryAccessServiceSetUserLibraryAccessBody } from "./generated/library_access.schemas";
 export type { V1SetupWizardRequest, V1DashboardInfo, V1SystemInfo } from "./generated/admin_system.schemas";
-export type { V1Plugin } from "./generated/admin_plugin.schemas";
+export type { V1Plugin, V1PluginResourceLimits } from "./generated/admin_plugin.schemas";
 export { V1PluginState } from "./generated/admin_plugin.schemas";
 export type { V1ActiveSession, V1AuditLogEntry } from "./generated/admin_session.schemas";
 export type {

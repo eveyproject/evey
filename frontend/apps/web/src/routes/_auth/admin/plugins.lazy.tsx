@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { PluginCard } from "@/features/admin/PluginCard";
 import { PluginSecurityDashboard } from "@/features/admin/PluginSecurityDashboard";
+import { PluginResourceLimits } from "@/features/admin/PluginResourceLimits";
 
 export const Route = createLazyFileRoute("/_auth/admin/plugins")({
   component: PluginsPage,
@@ -595,6 +596,8 @@ function PluginsPage() {
           </div>
         </div>
       )}
+
+      <PluginResourceLimits />
 
       {isLoading ? (
         <div className="flex justify-center py-16">

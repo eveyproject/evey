@@ -115,6 +115,17 @@ plugins:
     title: This update requests new permissions
     description: The plugin update widens its permissions, capabilities, frontend slots, or external_fetch hosts. Review the diff below and confirm only if you trust the new requirements.
     confirm: Approve and install
+  resourceLimits:
+    title: Resource limits
+    description: "Per-plugin caps the runtime enforces. Memory, PIDs and disk apply on the next monitor sweep; CPU nice and sandbox mode apply to plugins (re)started afterwards."
+    memoryMb: Max memory (MiB)
+    pidsMax: Max processes
+    diskMaxMb: Max disk (MiB)
+    cpuNice: CPU nice (0-19)
+    sandboxMode: Sandbox mode
+    save: Save limits
+    saved: Resource limits updated
+    saveFailed: Failed to update resource limits
   availableRuntimes: Available Runtimes
   security:
     title: Security Dashboard
