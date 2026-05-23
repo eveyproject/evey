@@ -21,6 +21,7 @@ import {
   Image,
   type LucideIcon,
 } from "lucide-react";
+import { PluginSlot } from "@/features/plugins/PluginSlot";
 
 interface NavLink {
   href: string;
@@ -163,6 +164,9 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
           </div>
         );
       })}
+      {/* Plugin-contributed admin entries (slot admin.nav). Each granted plugin
+          mounts its own sandboxed module here; nothing renders when none use it. */}
+      {!collapsed && <PluginSlot name="admin.nav" />}
     </div>
   );
 }
