@@ -7,13 +7,17 @@ import { useMediaSegments } from "@/hooks/useMediaSegments";
 // chosen from whichever segment the playhead is currently inside, so the
 // same button reads "Skip Intro", "Skip Recap" or "Skip Credits" as
 // playback moves through the episode.
-const SKIPPABLE = ["intro", "recap", "end_credits"] as const;
+// "preview" (next-episode preview reel) is admin-gated server-side: it is
+// only present in the API response when the admin enables it, so listing it
+// here is safe — no button appears unless the server actually returns one.
+const SKIPPABLE = ["intro", "recap", "end_credits", "preview"] as const;
 type SkippableType = (typeof SKIPPABLE)[number];
 
 const LABEL_KEY: Record<SkippableType, string> = {
   intro: "player.skipIntro",
   recap: "player.skipRecap",
   end_credits: "player.skipCredits",
+  preview: "player.skipPreview",
 };
 
 // MKV chapter title → segment type. Mirrors the server-side mapping in

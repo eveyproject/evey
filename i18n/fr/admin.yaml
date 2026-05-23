@@ -601,6 +601,11 @@ serverSettings:
   hwAccelEnabled: "Accélération matérielle"
   loginRateLimit: "Limite connexion (req/min)"
   globalRateLimit: "Limite globale (req/min)"
+  logLevel: Niveau de journalisation
+  libraryWatcher: Surveillance des fichiers de la bibliothèque
+  periodicScanInterval: Intervalle d'analyse périodique
+  restartHint: (appliqué au redémarrage)
+  skipPreview: "Passer les segments d'aperçu"
   saved: "Paramètres enregistrés"
   usingDefault: "Valeur par défaut :"
   reset: "Réinitialiser"

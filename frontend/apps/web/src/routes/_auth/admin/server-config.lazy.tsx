@@ -827,6 +827,7 @@ interface ServerSettings {
   logLevel: SettingValue<string>;
   libraryWatcherEnabled: SettingValue<boolean>;
   periodicScanInterval: SettingValue<string>;
+  skipPreviewEnabled: SettingValue<boolean>;
 }
 const SETTINGS_KEY = ["/api/v1/admin/server-settings"];
 const LOG_LEVELS = ["debug", "info", "warn", "error"];
@@ -846,6 +847,7 @@ function ServerSettingsCard() {
   const [logLevel, setLogLevel] = useState("");
   const [libraryWatcher, setLibraryWatcher] = useState(true);
   const [scanInterval, setScanInterval] = useState("");
+  const [skipPreview, setSkipPreview] = useState(false);
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -858,6 +860,7 @@ function ServerSettingsCard() {
       setLogLevel(data.logLevel.source === "override" ? String(data.logLevel.value) : "");
       setLibraryWatcher(data.libraryWatcherEnabled.value);
       setScanInterval(data.periodicScanInterval.source === "override" ? String(data.periodicScanInterval.value) : "");
+      setSkipPreview(data.skipPreviewEnabled.value);
     }
   }, [data]);
 
@@ -885,6 +888,7 @@ function ServerSettingsCard() {
     if (logLevel) body.logLevel = logLevel;
     body.libraryWatcherEnabled = libraryWatcher;
     if (scanInterval) body.periodicScanInterval = scanInterval;
+    body.skipPreviewEnabled = skipPreview;
     saveMutation.mutate(body);
   }
 
@@ -952,6 +956,16 @@ function ServerSettingsCard() {
           <div className="flex flex-col gap-1">
             <Input label={`${t("admin.serverSettings.periodicScanInterval")} ${t("admin.serverSettings.restartHint")}`} placeholder={String(data.periodicScanInterval.default ?? "2m")} value={scanInterval} onChange={(e) => { setScanInterval(e.target.value); setDirty(true); }} data-testid="scan-interval-input" />
             <ResetBtn setting={data.periodicScanInterval} field="periodicScanInterval" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-[var(--text)]">{t("admin.serverSettings.skipPreview")}</label>
+              <button type="button" role="switch" aria-checked={skipPreview} aria-label={t("admin.serverSettings.skipPreview")} data-testid="skip-preview-toggle" onClick={() => { setSkipPreview(!skipPreview); setDirty(true); }}
+                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors" style={{ backgroundColor: skipPreview ? "var(--accent)" : "var(--border)" }}>
+                <span className="inline-block h-4 w-4 rounded-full bg-white transition-transform" style={{ transform: skipPreview ? "translateX(1.375rem)" : "translateX(0.25rem)" }} />
+              </button>
+            </div>
+            <ResetBtn setting={data.skipPreviewEnabled} field="skipPreviewEnabled" />
           </div>
           <div className="flex justify-end pt-2">
             <Button onClick={handleSave} loading={saveMutation.isPending} disabled={!dirty} data-testid="server-config-save-btn">{t("common.save")}</Button>

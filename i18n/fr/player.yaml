@@ -75,6 +75,7 @@ nextEpisodeOverlay:
 skipIntro: "Passer l'intro"
 skipRecap: "Passer le résumé"
 skipCredits: "Passer le générique"
+skipPreview: "Passer l'aperçu"
 download: "Télécharger"
 watchTogether: "Regarder ensemble"
 buffering: "Mise en mémoire tampon…"

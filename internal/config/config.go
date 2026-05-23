@@ -124,6 +124,13 @@ type MetadataConfig struct {
 	// per-account 500/day for /media. Treat as a secret.
 	// EVEY_INTRO_TIDB_API_KEY
 	TIDBAPIKey string
+
+	// SkipPreviewEnabled controls whether "preview" (next-episode preview
+	// reel) segments are served to the player. Off by default — the admin
+	// opts in from the panel. Read live per request by the segments handler,
+	// so a change takes effect without a restart.
+	// EVEY_INTRO_SKIP_PREVIEW_ENABLED
+	SkipPreviewEnabled bool
 }
 
 type VAPIDConfig struct {
@@ -461,6 +468,7 @@ func Load() (*Config, error) {
 			Language:              "en",
 			IntroProvidersEnabled: envBool("EVEY_INTRO_PROVIDERS_ENABLED", false),
 			TIDBAPIKey:            envStr("EVEY_INTRO_TIDB_API_KEY", ""),
+			SkipPreviewEnabled:    envBool("EVEY_INTRO_SKIP_PREVIEW_ENABLED", false),
 		},
 		Backup: BackupConfig{
 			Dir:           envStr("EVEY_BACKUP_DIR", "/data/backups"),

@@ -602,6 +602,11 @@ serverSettings:
   hwAccelEnabled: "हार्डवेयर त्वरण"
   loginRateLimit: "लॉगिन दर सीमा (अनु./मिनट)"
   globalRateLimit: "वैश्विक दर सीमा (अनु./मिनट)"
+  logLevel: लॉग स्तर
+  libraryWatcher: लाइब्रेरी फ़ाइल मॉनिटर
+  periodicScanInterval: आवधिक स्कैन अंतराल
+  restartHint: (पुनरारंभ पर लागू)
+  skipPreview: पूर्वावलोकन सेगमेंट छोड़ें
   saved: "सेटिंग्स सहेजी गईं"
   usingDefault: "डिफ़ॉल्ट मान:"
   reset: "डिफ़ॉल्ट पर रीसेट करें"

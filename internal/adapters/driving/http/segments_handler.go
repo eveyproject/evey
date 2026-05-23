@@ -12,7 +12,10 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-func segmentsHandler(tokenGen TokenVerifier, svc SegmentsGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
+// previewEnabled reports whether "preview" (next-episode preview reel)
+// segments should be served. Read live per request so the admin toggle takes
+// effect without a restart; nil is treated as disabled.
+func segmentsHandler(tokenGen TokenVerifier, svc SegmentsGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, previewEnabled func() bool) http.HandlerFunc {
 	type segmentJSON struct {
 		Type       string  `json:"type"`
 		StartMs    int64   `json:"startMs"`
@@ -64,8 +67,15 @@ func segmentsHandler(tokenGen TokenVerifier, svc SegmentsGetter, baseURL string,
 			}
 		}
 
+		// "preview" is admin-gated: even when the client asks for it, it is
+		// withheld unless the server toggle is on. Default off.
+		showPreview := previewEnabled != nil && previewEnabled()
+
 		out := make([]segmentJSON, 0, len(segments))
 		for _, seg := range segments {
+			if seg.Type == "preview" && !showPreview {
+				continue
+			}
 			if typeFilter != nil {
 				if _, ok := typeFilter[seg.Type]; !ok {
 					continue

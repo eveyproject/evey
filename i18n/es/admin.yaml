@@ -602,6 +602,11 @@ serverSettings:
   hwAccelEnabled: "Aceleracion por hardware"
   loginRateLimit: "Limite de inicio de sesion (sol./min)"
   globalRateLimit: "Limite global (sol./min)"
+  logLevel: Nivel de registro
+  libraryWatcher: Monitor de archivos de biblioteca
+  periodicScanInterval: Intervalo de escaneo periodico
+  restartHint: (se aplica al reiniciar)
+  skipPreview: Saltar segmentos de avance
   saved: "Configuracion guardada"
   usingDefault: "Valor predeterminado:"
   reset: "Restablecer valor predeterminado"

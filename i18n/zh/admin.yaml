@@ -602,6 +602,11 @@ serverSettings:
   hwAccelEnabled: "硬件加速"
   loginRateLimit: "登录速率限制（请求/分钟）"
   globalRateLimit: "全局速率限制（请求/分钟）"
+  logLevel: 日志级别
+  libraryWatcher: 媒体库文件监视
+  periodicScanInterval: 定期扫描间隔
+  restartHint: （重启后生效）
+  skipPreview: 跳过预告片段
   saved: "设置已保存"
   usingDefault: "默认值："
   reset: "重置为默认值"

@@ -33,6 +33,7 @@ func TestSegmentsHandler_NoAuth_401(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		func() bool { return false },
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -50,6 +51,7 @@ func TestSegmentsHandler_NotFound_404(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{err: errTest},
+		func() bool { return false },
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -68,6 +70,7 @@ func TestSegmentsHandler_IDOR_403(t *testing.T) {
 		"http://localhost",
 		denyAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib-restricted")},
+		func() bool { return false },
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -86,6 +89,7 @@ func TestSegmentsHandler_StreamTokenMismatch_403(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		func() bool { return false },
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -111,6 +115,7 @@ func TestSegmentsHandler_OK(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		func() bool { return false },
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -148,6 +153,7 @@ func TestSegmentsHandler_TypeFilter(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		func() bool { return false },
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments?types=intro,outro", nil)
 	req.SetPathValue("id", "m1")
@@ -166,6 +172,48 @@ func TestSegmentsHandler_TypeFilter(t *testing.T) {
 	}
 }
 
+// preview is admin-gated: withheld when the toggle is off (even if the
+// client explicitly asks for it), served when on.
+func TestSegmentsHandler_PreviewGating(t *testing.T) {
+	segs := []*domainlibrary.MediaSegment{
+		{ID: "s1", MediaItemID: "m1", Type: "intro", StartMs: 0, EndMs: 60000, Source: "tidb"},
+		{ID: "s2", MediaItemID: "m1", Type: "preview", StartMs: 90000, EndMs: 120000, Source: "tidb"},
+	}
+	run := func(previewEnabled bool) string {
+		h := segmentsHandler(
+			&fakeTokenVerifier{claims: testClaims(false)},
+			&fakeSegmentsGetter{segments: segs},
+			"http://localhost",
+			allowAll(),
+			&fakeMediaItemGetter{item: testMediaItem("lib1")},
+			func() bool { return previewEnabled },
+		)
+		// client explicitly asks for preview
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments?types=intro,preview", nil)
+		req.SetPathValue("id", "m1")
+		req = withHTTPClaims(req, testClaims(false))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+		return w.Body.String()
+	}
+
+	off := run(false)
+	if strings.Contains(off, `"preview"`) {
+		t.Errorf("preview must be withheld when disabled: %s", off)
+	}
+	if !strings.Contains(off, `"intro"`) {
+		t.Errorf("intro must still be present when preview disabled: %s", off)
+	}
+
+	on := run(true)
+	if !strings.Contains(on, `"preview"`) {
+		t.Errorf("preview must be served when enabled: %s", on)
+	}
+}
+
 func TestSegmentsHandler_GetError_500(t *testing.T) {
 	h := segmentsHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
@@ -173,6 +221,7 @@ func TestSegmentsHandler_GetError_500(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		func() bool { return false },
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")

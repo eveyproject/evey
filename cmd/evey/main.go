@@ -115,6 +115,7 @@ func run() error {
 	loadOverride(ctx, deps.cfgStore, "ratelimit.login_max", parseInt, &cfg.Server.LoginRateLimitMax)
 	loadOverride(ctx, deps.cfgStore, "ratelimit.global_max", parseInt, &cfg.Server.GlobalRateLimitMax)
 	loadOverride(ctx, deps.cfgStore, "log.level", parseStr, &cfg.Log.Level)
+	loadOverride(ctx, deps.cfgStore, "intro_providers.skip_preview_enabled", parseBool, &cfg.Metadata.SkipPreviewEnabled)
 	eveylogger.SetLevel(cfg.Log.Level) // apply any DB override to the live logger
 
 	startMetricsCollector(ctx, db, deps.media.hlsManager, deps.repos.mediaItemRepo)

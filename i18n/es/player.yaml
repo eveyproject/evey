@@ -75,6 +75,7 @@ nextEpisodeOverlay:
 skipIntro: "Saltar intro"
 skipRecap: "Saltar resumen"
 skipCredits: "Saltar créditos"
+skipPreview: Saltar avance
 download: "Descargar"
 watchTogether: "Ver juntos"
 buffering: "Cargando…"

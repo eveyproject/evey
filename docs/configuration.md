@@ -109,11 +109,13 @@ See [reverse-proxy.md](reverse-proxy.md).
 ```env
 EVEY_INTRO_TIDB_API_KEY=                # optional Bearer token for TheIntroDB (500 lookups/day vs 100 anonymous)
 EVEY_INTRO_FFMPEG_THREADS=1             # threads per ffmpeg process used by intro detection (1-16)
+EVEY_INTRO_SKIP_PREVIEW_ENABLED=false   # serve "preview" (next-episode reel) segments to the player so a "Skip Preview" button appears
 ```
 
-`api.tidb_key`, `intro_providers.enabled`, and `intro_providers.tidb_submit_enabled`
-can also be configured via `/admin/server-config` (DB-first, env fallback). Restart
-the server after toggling `intro_providers.enabled`.
+`api.tidb_key`, `intro_providers.enabled`, `intro_providers.tidb_submit_enabled`,
+and `intro_providers.skip_preview_enabled` can also be configured via
+`/admin/server-config` (DB-first, env fallback). Restart the server after toggling
+`intro_providers.enabled`; the skip-preview toggle applies live (no restart).
 
 See [adr/0011-intro-detection-providers.md](adr/0011-intro-detection-providers.md).
 

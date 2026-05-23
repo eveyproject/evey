@@ -75,6 +75,7 @@ nextEpisodeOverlay:
 skipIntro: Skip Intro
 skipRecap: Skip Recap
 skipCredits: Skip Credits
+skipPreview: Skip Preview
 download: Download
 watchTogether: Watch Together
 buffering: "Buffering…"

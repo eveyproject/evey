@@ -26,6 +26,7 @@ const (
 	cfgKeyLogLevel         = "log.level"
 	cfgKeyWatcherEnabled   = "library.watcher_enabled"
 	cfgKeyScanInterval     = "library.periodic_scan_interval"
+	cfgKeySkipPreview      = "intro_providers.skip_preview_enabled"
 )
 
 var validLogLevels = map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
@@ -88,6 +89,10 @@ func registerServerSettingsRoutes(
 			getter: func() any { return cfg.Library.WatcherEnabled }},
 		{jsonKey: "periodicScanInterval", cfgKey: cfgKeyScanInterval, defaultVal: "2m",
 			getter: func() any { return cfg.Library.PeriodicScanInterval.String() }},
+		// Skip-preview is read live by the segments handler, so toggling it
+		// takes effect immediately (no restart).
+		{jsonKey: "skipPreviewEnabled", cfgKey: cfgKeySkipPreview, defaultVal: false,
+			getter: func() any { return cfg.Metadata.SkipPreviewEnabled }},
 	}
 
 	buildResponse := func() map[string]settingValue {
@@ -124,6 +129,7 @@ func registerServerSettingsRoutes(
 			LogLevel                *string `json:"logLevel"`
 			LibraryWatcherEnabled   *bool   `json:"libraryWatcherEnabled"`
 			PeriodicScanInterval    *string `json:"periodicScanInterval"`
+			SkipPreviewEnabled      *bool   `json:"skipPreviewEnabled"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			span.RecordError(err)
@@ -223,6 +229,14 @@ func registerServerSettingsRoutes(
 					}
 					cfg.Library.PeriodicScanInterval = d
 					return d.String()
+				}},
+			{cfgKey: cfgKeySkipPreview,
+				apply: func() string {
+					if body.SkipPreviewEnabled == nil {
+						return ""
+					}
+					cfg.Metadata.SkipPreviewEnabled = *body.SkipPreviewEnabled
+					return strconv.FormatBool(*body.SkipPreviewEnabled)
 				}},
 		}
 

@@ -602,6 +602,11 @@ serverSettings:
   hwAccelEnabled: Hardwarebeschleunigung
   loginRateLimit: Anmelde-Ratenlimit (Anf./Min.)
   globalRateLimit: Globales Ratenlimit (Anf./Min.)
+  logLevel: Protokollstufe
+  libraryWatcher: Bibliotheks-Dateiüberwachung
+  periodicScanInterval: Intervall für periodischen Scan
+  restartHint: (wird beim Neustart angewendet)
+  skipPreview: Vorschau-Segmente überspringen
   saved: Einstellungen gespeichert
   usingDefault: "Standardwert:"
   reset: Auf Standard zurücksetzen
