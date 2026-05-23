@@ -24,10 +24,37 @@ Pick what your plugin actually uses; you don't need them all.
 |---|---|---|
 | Python 3 | `python3`, `pip` | Use `pip install --user` to keep host clean. SDK stubs live in `sdk/python/`. |
 | Node.js | Node 20+, `npm` or `pnpm` | SDK loads `plugin_api.proto` at runtime via `@grpc/proto-loader`. |
-| Go | Go ≥ 1.21 | SDK stubs in `sdk/go/`. |
+| Go | Go ≥ 1.21 | No bundled stubs — generate with `protoc-gen-go` + `protoc-gen-go-grpc`; a compiled Go binary also needs the `native-binary` permission. |
 | Dart / Java / PHP / Ruby / Swift | Per-language toolchain | Stubs are pre-generated in `sdk/<lang>/`. |
 | CSS-only theme | Nothing extra | A theme is a ZIP with `kind: theme` + a `theme.css`. |
 | Theme JS | Nothing extra (the host runs your JS in a constrained ShadowRoot) | The static scanner refuses any access to `document`, `window`, `fetch`, `localStorage`, etc. — see `internal/pkg/themejs/scan.go`. |
+
+### Generating stubs for another language
+
+Stubs ship pre-generated for the languages above, but the plugin gRPC contract
+is just a proto file — you can target **any language `protoc` supports** (Rust,
+C#, Kotlin, Elixir, …). The single source of truth is:
+
+```
+proto/plugin/v1/plugin_api.proto
+```
+
+Generate with `protoc` (or `buf`), pointing your language's gRPC plugin at it:
+
+```bash
+# generic shape — exact --*_out flags depend on the language/plugin
+protoc --proto_path=proto \
+       --<lang>_out=OUT_DIR --grpc_<lang>_out=OUT_DIR \
+       proto/plugin/v1/plugin_api.proto
+```
+
+Worked recipes for the bundled languages (which gRPC plugin each needs:
+`grpc_php_plugin`, `protoc-gen-grpc-java`, `protoc-gen-grpc-swift`, …) live in
+the `plugin-sdk` target of the root `Makefile` and in each `sdk/<lang>/README.md`
+(e.g. `sdk/php/README.md`). `make plugin-sdk` regenerates the shipped stubs.
+
+Vendor the generated stubs inside your plugin ZIP — the host only auto-copies
+stubs for the languages it ships (`sdk/<lang>/`).
 
 ### Optional but recommended
 

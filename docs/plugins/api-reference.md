@@ -66,7 +66,7 @@ EVEY_PLUGIN_ID=<plugin_id>
 EVEY_PLUGIN_TOKEN=<jwt>        # short-lived token scoped to this plugin + user session
 ```
 
-The gRPC service definitions are in `proto/evey/v1/`. Language-specific SDK stubs are generated from those protos and can be included in the plugin ZIP or vendored alongside.
+The gRPC service definitions are in `proto/plugin/v1/plugin_api.proto`. Language-specific SDK stubs are generated from that proto and can be included in the plugin ZIP or vendored alongside. Stubs ship pre-generated for several languages (`sdk/<lang>/`); to target one that isn't bundled, see [dev-setup.md → Generating stubs for another language](dev-setup.md#generating-stubs-for-another-language).
 
 The host enforces permissions at the RPC level — calling an RPC your manifest did not declare results in `PermissionDenied`.
 
