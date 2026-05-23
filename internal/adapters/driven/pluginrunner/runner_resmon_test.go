@@ -1,9 +1,13 @@
 package pluginrunner
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,4 +83,96 @@ func TestProcReadersDeadPID(t *testing.T) {
 func TestApplyNiceDisabled(t *testing.T) {
 	r := &Runner{cpuNice: 0}
 	assert.NotPanics(t, func() { r.applyNice(os.Getpid()) })
+}
+
+// spawnSleep starts a real `sleep` child wired into a minimal processEntry the
+// resource monitor can act on (Stop needs cancel + done + a throwaway sockPath).
+// A goroutine reaps it and closes done; cleanup kills any survivor.
+func spawnSleep(t *testing.T, r *Runner, id string) (*processEntry, int) {
+	t.Helper()
+	if _, err := exec.LookPath("sleep"); err != nil {
+		t.Skip("sleep not available")
+	}
+	cmd := exec.Command("sleep", "120")
+	require.NoError(t, cmd.Start())
+
+	_, cancel := context.WithCancel(context.Background())
+	e := &processEntry{
+		cmd:      cmd,
+		cancel:   cancel,
+		sockPath: filepath.Join(t.TempDir(), "p.sock"),
+		pluginID: id,
+		done:     make(chan struct{}),
+	}
+	go func() { _, _ = cmd.Process.Wait(); close(e.done) }()
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
+
+	r.mu.Lock()
+	r.processes[id] = e
+	r.mu.Unlock()
+	return e, cmd.Process.Pid
+}
+
+func processAlive(pid int) bool {
+	// Signal 0 probes existence without delivering anything.
+	return syscall.Kill(pid, 0) == nil
+}
+
+// TestCheckResources_KillsMemoryOverLimit is the core proof of the userspace
+// approach: with a memory cap set BELOW a live process's real RSS (read from
+// /proc), one monitor pass stops that process. Deterministic — the cap is
+// derived from the measured RSS, so the breach cannot be flaky.
+func TestCheckResources_KillsMemoryOverLimit(t *testing.T) {
+	r := NewRunner()
+	e, pid := spawnSleep(t, r, "memhog")
+
+	rss, err := procRSSBytes(pid)
+	require.NoError(t, err)
+	require.Positive(t, rss)
+	r.resLimits = resourceLimits{memBytes: rss / 2} // cap below actual RSS → must trip
+
+	r.checkResources(e, pid, map[int]*cpuSample{}, false)
+
+	assert.Eventually(t, func() bool { return !processAlive(pid) }, 5*time.Second, 50*time.Millisecond,
+		"monitor must stop a process exceeding its memory cap")
+	r.mu.RLock()
+	_, stillTracked := r.processes["memhog"]
+	r.mu.RUnlock()
+	assert.False(t, stillTracked, "stopped plugin must be removed from the runner")
+}
+
+// TestCheckResources_LeavesUnderLimit is the negative control: a process well
+// under its cap is never touched.
+func TestCheckResources_LeavesUnderLimit(t *testing.T) {
+	r := NewRunner()
+	_, pid := spawnSleep(t, r, "calm")
+	r.resLimits = resourceLimits{memBytes: 4 << 30} // 4 GiB — never exceeded by sleep
+
+	r.checkResources(r.processes["calm"], pid, map[int]*cpuSample{}, false)
+
+	assert.True(t, processAlive(pid), "a process under its cap must keep running")
+	r.mu.RLock()
+	_, stillTracked := r.processes["calm"]
+	r.mu.RUnlock()
+	assert.True(t, stillTracked, "an under-cap plugin must stay tracked")
+}
+
+// TestResourceMonitorLoop_StopsHog proves the real background sweeper (the
+// goroutine, not a direct call) detects and stops an over-cap process end to end.
+func TestResourceMonitorLoop_StopsHog(t *testing.T) {
+	r := NewRunner()
+	e, pid := spawnSleep(t, r, "loophog")
+	rss, err := procRSSBytes(pid)
+	require.NoError(t, err)
+	r.resLimits = resourceLimits{memBytes: rss / 2}
+
+	r.startResourceMonitor() // launches the real ticker loop (first sweep at resMonInterval)
+
+	select {
+	case <-e.done:
+		// process exited — the sweeper stopped it
+	case <-time.After(resMonInterval + 4*time.Second):
+		t.Fatal("resource monitor loop did not stop the over-cap process in time")
+	}
+	assert.False(t, processAlive(pid))
 }

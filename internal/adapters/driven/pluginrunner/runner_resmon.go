@@ -77,9 +77,19 @@ type cpuSample struct {
 }
 
 // startResourceMonitor launches the sweeper once. It runs for the lifetime of
-// the process; when no plugins are running each sweep is a no-op.
+// the process; when no plugins are running each sweep is a no-op. The one-time
+// log line lets ops confirm the monitor is armed and with which caps (the
+// sweeper is otherwise silent until a plugin breaches a limit).
 func (r *Runner) startResourceMonitor() {
-	r.resMonOnce.Do(func() { go r.resourceMonitorLoop() })
+	r.resMonOnce.Do(func() {
+		cfg := r.resLimits.defaults()
+		slog.Info("plugin resource monitor started",
+			slog.Int64("mem_mb", cfg.memBytes>>20),
+			slog.Int("pids_max", cfg.pidsMax),
+			slog.Int64("disk_mb", r.diskMaxBytes>>20),
+			slog.Int("cpu_nice", r.cpuNice))
+		go r.resourceMonitorLoop()
+	})
 }
 
 func (r *Runner) resourceMonitorLoop() {
