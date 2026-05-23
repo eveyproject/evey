@@ -82,12 +82,13 @@ type cpuSample struct {
 // sweeper is otherwise silent until a plugin breaches a limit).
 func (r *Runner) startResourceMonitor() {
 	r.resMonOnce.Do(func() {
-		cfg := r.resLimits.defaults()
+		lim, nice, disk := r.limitsSnapshot()
+		cfg := lim.defaults()
 		slog.Info("plugin resource monitor started",
 			slog.Int64("mem_mb", cfg.memBytes>>20),
 			slog.Int("pids_max", cfg.pidsMax),
-			slog.Int64("disk_mb", r.diskMaxBytes>>20),
-			slog.Int("cpu_nice", r.cpuNice))
+			slog.Int64("disk_mb", disk>>20),
+			slog.Int("cpu_nice", nice))
 		go r.resourceMonitorLoop()
 	})
 }
@@ -125,7 +126,8 @@ func (r *Runner) resourceMonitorLoop() {
 
 // checkResources samples one plugin and enforces its caps.
 func (r *Runner) checkResources(e *processEntry, pid int, cpu map[int]*cpuSample, checkDisk bool) {
-	cfg := r.resLimits.defaults()
+	lim, _, diskMax := r.limitsSnapshot()
+	cfg := lim.defaults()
 
 	// Memory: kill if RSS exceeds the cap.
 	if cfg.memBytes > 0 {
@@ -169,9 +171,9 @@ func (r *Runner) checkResources(e *processEntry, pid int, cpu map[int]*cpuSample
 	}
 
 	// Disk: heavier (walks the dir) → only every Nth sweep.
-	if checkDisk && r.diskMaxBytes > 0 && e.installDir != "" {
-		if sz, err := dirSize(e.installDir); err == nil && sz > r.diskMaxBytes {
-			r.killOverLimit(e, fmt.Sprintf("disk quota exceeded (%d MB > %d MB)", sz>>20, r.diskMaxBytes>>20))
+	if checkDisk && diskMax > 0 && e.installDir != "" {
+		if sz, err := dirSize(e.installDir); err == nil && sz > diskMax {
+			r.killOverLimit(e, fmt.Sprintf("disk quota exceeded (%d MB > %d MB)", sz>>20, diskMax>>20))
 		}
 	}
 }
@@ -186,10 +188,11 @@ func (r *Runner) killOverLimit(e *processEntry, reason string) {
 // never starve the server (and other higher-priority work) of CPU under
 // contention. Lowering one's own child priority needs no privilege.
 func (r *Runner) applyNice(pid int) {
-	if r.cpuNice <= 0 {
+	_, nice, _ := r.limitsSnapshot()
+	if nice <= 0 {
 		return
 	}
-	if err := unix.Setpriority(unix.PRIO_PROCESS, pid, r.cpuNice); err != nil {
+	if err := unix.Setpriority(unix.PRIO_PROCESS, pid, nice); err != nil {
 		slog.Debug("set plugin nice failed", slog.Int("pid", pid), slog.Any("err", err))
 	}
 }

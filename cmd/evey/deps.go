@@ -24,6 +24,7 @@ import (
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
+	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	"github.com/evey-project/evey/internal/adapters/driving/pluginhost"
 	grpcapi "github.com/evey-project/evey/internal/adapters/driving/grpcapi"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
@@ -129,9 +130,11 @@ type appDeps struct {
 	engagement engagementDeps
 	auth       authDeps
 	repos      repoDeps
-	bus            *eventbus.InMemoryEventBus
-	cfgStore       *httpapi.ServerConfigStore
-	serverCfgSvc   *appconfig.Service
+	bus               *eventbus.InMemoryEventBus
+	cfgStore          *httpapi.ServerConfigStore
+	serverCfgSvc      *appconfig.Service
+	pluginRunner      *pluginrunner.Runner
+	pluginResDefaults appplugin.ResourceDefaults
 	backupSvc       *appbackup.Service
 	backupScheduler *appbackup.Scheduler
 	translator     *eveyi18n.Translator

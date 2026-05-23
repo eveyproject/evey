@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"testing"
 	"time"
 
@@ -535,4 +536,46 @@ func TestEnforceRBAC_ContextClaims(t *testing.T) {
 	assert.True(t, got.IsAdmin)
 	assert.Equal(t, "profile-7", got.ProfileID)
 	assert.ElementsMatch(t, []string{auth.PermLibraryRead, auth.PermMediaRead}, got.Permissions)
+}
+
+type stubPluginParser struct{ claims *auth.PluginClaims }
+
+func (s stubPluginParser) ParsePluginToken(string) (*auth.PluginClaims, error) {
+	if s.claims == nil {
+		return nil, errors.New("not a plugin token")
+	}
+	return s.claims, nil
+}
+
+// TestAuthInterceptor_PluginTokenDeniedOnAdminMethod proves a scoped plugin
+// token (mintable by any authenticated user via IssuePluginToken) cannot reach
+// a RoleAdmin method: the interceptor fails closed. A non-admin method still
+// passes through, preserving the iframe's legitimate read access.
+func TestAuthInterceptor_PluginTokenDeniedOnAdminMethod(t *testing.T) {
+	ai, _ := setupInterceptor()
+	authUnary := ai.WithRBAC(interceptors.DefaultRBACConfig()).Unary()
+	ptUnary := interceptors.NewPluginTokenInterceptor(stubPluginParser{
+		claims: &auth.PluginClaims{PluginID: "p1", UserID: "u1", TokenType: "plugin"},
+	}).Unary()
+	ctx := ctxWithToken("any-plugin-token")
+
+	// pt sets the plugin claims into ctx, then delegates to auth (the real chain).
+	run := func(method string) (any, error) {
+		info := &grpc.UnaryServerInfo{FullMethod: method}
+		return ptUnary(ctx, nil, info, func(c context.Context, r any) (any, error) {
+			return authUnary(c, r, info, nopHandler)
+		})
+	}
+
+	t.Run("admin method denied", func(t *testing.T) {
+		_, err := run("/evey.v1.AdminPluginService/UpdatePluginResourceLimits")
+		require.Error(t, err)
+		assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	})
+
+	t.Run("non-admin method allowed", func(t *testing.T) {
+		resp, err := run("/evey.v1.LibraryService/ListLibraries")
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
 }

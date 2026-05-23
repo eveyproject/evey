@@ -30,6 +30,7 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
 	"github.com/evey-project/evey/internal/config"
+	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
@@ -51,6 +52,10 @@ type GRPCServerDeps struct {
 	PluginRuntime   *appplugin.RuntimeService
 	PluginQuery     *appplugin.QueryService
 	PluginToken     *appplugin.TokenService
+	// PluginRunner drives the per-plugin resource-limits RPCs (read + apply).
+	// Holds *pluginrunner.Runner; nil when the plugin system is disabled.
+	PluginRunner           pluginResourceController
+	PluginResourceDefaults appplugin.ResourceDefaults
 	MetadataCmd     *appmetadata.CommandService
 	MetadataQuery   *appmetadata.QueryService
 	ActivityCmd     *appactivity.CommandService
@@ -132,12 +137,19 @@ func (s *GRPCServer) RegisterServices() {
 		smtpConfigured: d.SMTPConfigured,
 		serverCfgSvc:   d.ServerCfgSvc,
 	})
+	var pluginCfgRepo shared.ServerConfigRepository
+	if d.ServerCfgSvc != nil { // keep a true-nil interface when the store is absent
+		pluginCfgRepo = d.ServerCfgSvc
+	}
 	eveyv1.RegisterAdminPluginServiceServer(s.server, &adminPluginHandler{
 		pluginInstaller: d.PluginInstaller,
 		pluginRuntime:   d.PluginRuntime,
 		pluginQuery:     d.PluginQuery,
 		tokenSvc:        d.PluginToken,
 		logDir:          d.LogDir,
+		pluginRes:       d.PluginRunner,
+		serverCfg:       pluginCfgRepo,
+		resDefaults:     d.PluginResourceDefaults,
 		enabled:         d.Cfg != nil && d.Cfg.Server.PluginsEnabled,
 	})
 	eveyv1.RegisterAdminTaskServiceServer(s.server, &adminTaskHandler{

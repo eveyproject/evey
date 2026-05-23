@@ -100,13 +100,20 @@ type Runner struct {
 	allowMissingSandbox bool
 	eventBus            EventBus
 	hostRegistry        HostRegistry
-	sandboxMode         string
 	autoResolveOnce     sync.Once // resolves sandboxModeAuto to a concrete mode once
 	autoResolved        string
-	resLimits           resourceLimits
-	cpuNice             int       // scheduling nice applied to plugins (0 = leave default)
-	diskMaxBytes        int64     // per-plugin disk quota; 0 = disabled
 	resMonOnce          sync.Once // starts the resource-monitor sweeper at most once
+
+	// limMu guards the live-editable runtime knobs below. They are read by the
+	// resource-monitor sweeper and by Start while the admin may update them at
+	// runtime (ServerConfigChanged → SetX), so every access goes through the
+	// lock. Resource caps apply on the next sweep; nice and sandbox mode apply
+	// to plugins started after the change.
+	limMu        sync.RWMutex
+	sandboxMode  string
+	resLimits    resourceLimits
+	cpuNice      int   // scheduling nice applied to plugins (0 = leave default)
+	diskMaxBytes int64 // per-plugin disk quota; 0 = disabled
 }
 
 // ErrSandboxUnavailable is returned by Start when a plugin without the
@@ -190,13 +197,7 @@ func (r *Runner) WithHostRegistry(reg HostRegistry) *Runner {
 // Any unrecognised value (including empty string) is silently mapped to
 // defaultSandboxMode ("auto") — callers should validate upstream.
 func (r *Runner) WithSandboxMode(mode string) *Runner {
-	switch mode {
-	case sandboxModeBasic, sandboxModeBubblewrap, sandboxModeStrict, sandboxModeLandlock, sandboxModeAuto:
-		r.sandboxMode = mode
-	default:
-		// Empty string or any unknown value → default mode.
-		r.sandboxMode = defaultSandboxMode
-	}
+	r.SetSandboxMode(mode)
 	return r
 }
 
@@ -205,7 +206,7 @@ func (r *Runner) WithSandboxMode(mode string) *Runner {
 // cgroups are unusable in a non-privileged Docker container). Pass 0 for either
 // value to use the package default (256 MiB / 64 PIDs).
 func (r *Runner) WithResourceLimits(memBytes int64, pidsMax int) *Runner {
-	r.resLimits = resourceLimits{memBytes: memBytes, pidsMax: pidsMax}
+	r.SetResourceLimits(memBytes, pidsMax)
 	return r
 }
 
@@ -213,7 +214,7 @@ func (r *Runner) WithResourceLimits(memBytes int64, pidsMax int) *Runner {
 // a plugin cannot starve the server's CPU under contention. Pass 0 to leave the
 // default priority.
 func (r *Runner) WithCPUNice(nice int) *Runner {
-	r.cpuNice = nice
+	r.SetCPUNice(nice)
 	return r
 }
 
@@ -221,8 +222,69 @@ func (r *Runner) WithCPUNice(nice int) *Runner {
 // measures the directory periodically and stops a plugin that grows past
 // maxBytes. Pass 0 to disable.
 func (r *Runner) WithDiskQuota(maxBytes int64) *Runner {
-	r.diskMaxBytes = maxBytes
+	r.SetDiskQuota(maxBytes)
 	return r
+}
+
+// SetSandboxMode updates the isolation mode at runtime. Any unrecognised value
+// (including empty) maps to the default ("auto"). Applies to plugins started
+// after the change; already-running plugins keep their current sandbox.
+func (r *Runner) SetSandboxMode(mode string) {
+	switch mode {
+	case sandboxModeBasic, sandboxModeBubblewrap, sandboxModeStrict, sandboxModeLandlock, sandboxModeAuto:
+	default:
+		mode = defaultSandboxMode
+	}
+	r.limMu.Lock()
+	r.sandboxMode = mode
+	r.limMu.Unlock()
+}
+
+// SetResourceLimits updates the memory/PID caps at runtime; the next sweep
+// enforces them. Pass 0 for either to use the package default.
+func (r *Runner) SetResourceLimits(memBytes int64, pidsMax int) {
+	r.limMu.Lock()
+	r.resLimits = resourceLimits{memBytes: memBytes, pidsMax: pidsMax}
+	r.limMu.Unlock()
+}
+
+// SetCPUNice updates the scheduling nice applied to plugins at spawn. Applies to
+// plugins started after the change.
+func (r *Runner) SetCPUNice(nice int) {
+	r.limMu.Lock()
+	r.cpuNice = nice
+	r.limMu.Unlock()
+}
+
+// SetDiskQuota updates the per-plugin install-directory cap at runtime; the next
+// disk sweep enforces it. Pass 0 to disable.
+func (r *Runner) SetDiskQuota(maxBytes int64) {
+	r.limMu.Lock()
+	r.diskMaxBytes = maxBytes
+	r.limMu.Unlock()
+}
+
+// limitsSnapshot returns the live resource caps + nice + disk quota under the
+// lock, for the sweeper and Start to read consistently.
+func (r *Runner) limitsSnapshot() (lim resourceLimits, nice int, diskMax int64) {
+	r.limMu.RLock()
+	defer r.limMu.RUnlock()
+	return r.resLimits, r.cpuNice, r.diskMaxBytes
+}
+
+func (r *Runner) sandboxModeValue() string {
+	r.limMu.RLock()
+	defer r.limMu.RUnlock()
+	return r.sandboxMode
+}
+
+// ResourceConfig returns the current effective per-plugin caps for display in
+// the admin UI: memory (MiB), max PIDs, disk (MiB), nice, and sandbox mode.
+// Zero memory/PIDs are reported as the package defaults the monitor applies.
+func (r *Runner) ResourceConfig() (memMB int, pidsMax int, diskMB int, nice int, sandbox string) {
+	lim, n, disk := r.limitsSnapshot()
+	lim = lim.defaults()
+	return int(lim.memBytes >> 20), lim.pidsMax, int(disk >> 20), n, r.sandboxModeValue()
 }
 
 // publishPluginError emits the domain plugin.error event so subscribers
@@ -520,7 +582,7 @@ func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *
 // once (memoised) by probing the host; the empty string keeps the historical
 // test fallback to "basic".
 func (r *Runner) effectiveMode() string {
-	mode := r.sandboxMode
+	mode := r.sandboxModeValue()
 	if mode == "" {
 		mode = sandboxModeBasic // internal fallback for tests; prod always calls WithSandboxMode
 	}

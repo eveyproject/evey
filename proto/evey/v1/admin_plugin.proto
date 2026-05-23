@@ -108,6 +108,24 @@ service AdminPluginService {
       body: "*"
     };
   }
+
+  // GetPluginResourceLimits returns the effective per-plugin resource caps the
+  // runner is enforcing (env defaults overlaid with admin overrides).
+  rpc GetPluginResourceLimits(GetPluginResourceLimitsRequest) returns (PluginResourceLimits) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/plugin-resource-limits"
+    };
+  }
+
+  // UpdatePluginResourceLimits validates, persists and applies the per-plugin
+  // resource caps live: memory/PID/disk on the next monitor sweep, cpu_nice and
+  // sandbox_mode to plugins started afterwards. Returns the new effective caps.
+  rpc UpdatePluginResourceLimits(PluginResourceLimits) returns (PluginResourceLimits) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/plugin-resource-limits"
+      body: "*"
+    };
+  }
 }
 
 message IssuePluginTokenRequest {
@@ -184,6 +202,19 @@ message PluginConfig {
   string plugin_id = 1;
   map<string, string> values = 2;
   string config_schema_json = 3;
+}
+
+message GetPluginResourceLimitsRequest {}
+
+// PluginResourceLimits is the effective per-plugin cap set enforced by the
+// runner's resource monitor. Used as both the read response and the update
+// request (server validates ranges and ignores out-of-range values).
+message PluginResourceLimits {
+  int32 memory_mb = 1;     // max RSS per plugin (MiB); 0 = package default
+  int32 pids_max = 2;      // max threads/processes per plugin; 0 = package default
+  int32 disk_max_mb = 3;   // max install-dir size per plugin (MiB); 0 = disabled
+  int32 cpu_nice = 4;      // scheduling nice applied at spawn (0-19)
+  string sandbox_mode = 5; // auto | landlock | bubblewrap | strict | basic
 }
 
 message PluginLogEntry {

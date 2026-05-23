@@ -55,7 +55,14 @@ func (i *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
 			return handler(ctx, req)
 		}
 		if PluginClaimsFromContext(ctx) != nil {
-			// Authenticated via scoped plugin token — skip user-auth. Scope enforcement is per-RPC.
+			// Authenticated via scoped plugin token — skip user-auth (per-RPC
+			// scope enforcement applies). But a plugin token (mintable by any
+			// authenticated user via IssuePluginToken) must NEVER satisfy an
+			// admin requirement: deny RoleAdmin methods fail-closed so a plugin
+			// cannot escalate to admin operations.
+			if i.isAdminMethod(info.FullMethod) {
+				return nil, i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
+			}
 			return handler(ctx, req)
 		}
 		newCtx, err := i.authenticate(ctx)
@@ -75,6 +82,9 @@ func (i *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 			return handler(srv, ss)
 		}
 		if PluginClaimsFromContext(ss.Context()) != nil {
+			if i.isAdminMethod(info.FullMethod) {
+				return i.translatedErr(ss.Context(), codes.PermissionDenied, "errors.auth.admin_access_required")
+			}
 			return handler(srv, ss)
 		}
 		newCtx, err := i.authenticate(ss.Context())
@@ -87,6 +97,13 @@ func (i *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 		wrapped := &wrappedStream{ServerStream: ss, ctx: newCtx}
 		return handler(srv, wrapped)
 	}
+}
+
+// isAdminMethod reports whether the method requires the admin role per the RBAC
+// table. Used to fail-closed for scoped plugin tokens, which bypass enforceRBAC.
+func (i *AuthInterceptor) isAdminMethod(method string) bool {
+	role, ok := i.rbac.MethodRoles[method]
+	return ok && role == RoleAdmin
 }
 
 func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error {

@@ -7,18 +7,29 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// pluginResourceController is the subset of the plugin runner the
+// resource-limits RPCs drive: read the live caps and push updated ones. Kept as
+// an interface so grpcapi stays decoupled from the pluginrunner adapter.
+// *pluginrunner.Runner satisfies it.
+type pluginResourceController interface {
+	appplugin.ResourceController
+	ResourceConfig() (memMB, pidsMax, diskMB, nice int, sandbox string)
+}
 
 type adminPluginHandler struct {
 	eveyv1.UnimplementedAdminPluginServiceServer
@@ -27,6 +38,13 @@ type adminPluginHandler struct {
 	pluginQuery     *appplugin.QueryService
 	tokenSvc        *appplugin.TokenService
 	logDir          string
+	// resource-limits RPCs: the runner (live caps), the server-config store
+	// (persist + publish; also read back for the effective values), and the
+	// env/boot defaults used when a cap has no stored override. pluginRes is nil
+	// when the plugin system is disabled (the runner is not constructed).
+	pluginRes   pluginResourceController
+	serverCfg   shared.ServerConfigRepository
+	resDefaults appplugin.ResourceDefaults
 	// enabled mirrors cfg.Server.PluginsEnabled. When false, every
 	// install/enable/disable/token/runtime mutation returns
 	// FailedPrecondition. Listing/reading is left open so the admin UI
@@ -471,4 +489,81 @@ func (d *adminPluginHandler) GetPluginLogs(ctx context.Context, req *eveyv1.GetP
 		all = all[:limit]
 	}
 	return &eveyv1.GetPluginLogsResponse{Entries: all, Total: total}, nil
+}
+
+// GetPluginResourceLimits returns the per-plugin caps the runner is currently
+// enforcing (env defaults overlaid with stored admin overrides).
+func (d *adminPluginHandler) GetPluginResourceLimits(ctx context.Context, _ *eveyv1.GetPluginResourceLimitsRequest) (*eveyv1.PluginResourceLimits, error) {
+	_, span := tracing.StartSpan(ctx, "grpc.admin.GetPluginResourceLimits")
+	defer span.End()
+	// Admin-only: requires a real user (a scoped plugin token carries no user
+	// claims, so this rejects it on top of the RBAC + interceptor guards).
+	if _, err := requireClaims(ctx); err != nil {
+		return nil, err
+	}
+	return d.effectiveResourceLimits(ctx), nil
+}
+
+// UpdatePluginResourceLimits validates the requested caps, persists them to the
+// server-config store (which also publishes a change event), and applies them
+// to the runner synchronously — memory/PID/disk take effect on the next monitor
+// sweep, cpu_nice and sandbox_mode on the next plugin start. Returns the new
+// effective caps. Out-of-range values are rejected with InvalidArgument.
+func (d *adminPluginHandler) UpdatePluginResourceLimits(ctx context.Context, req *eveyv1.PluginResourceLimits) (*eveyv1.PluginResourceLimits, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.UpdatePluginResourceLimits")
+	defer span.End()
+	if _, err := requireClaims(ctx); err != nil {
+		return nil, err
+	}
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
+	if req.MemoryMb < 0 || req.PidsMax < 0 || req.DiskMaxMb < 0 {
+		return nil, status.Error(codes.InvalidArgument, "memory_mb, pids_max and disk_max_mb must be >= 0")
+	}
+	if req.CpuNice < 0 || req.CpuNice > 19 {
+		return nil, status.Error(codes.InvalidArgument, "cpu_nice must be between 0 and 19")
+	}
+	if req.SandboxMode != "" && !appplugin.IsValidSandboxMode(req.SandboxMode) {
+		return nil, status.Error(codes.InvalidArgument, "sandbox_mode must be one of: auto, landlock, bubblewrap, strict, basic")
+	}
+	if d.serverCfg == nil {
+		return nil, status.Error(codes.FailedPrecondition, "server config store unavailable")
+	}
+
+	updates := []struct{ key, val string }{
+		{appplugin.KeyMemoryMB, strconv.Itoa(int(req.MemoryMb))},
+		{appplugin.KeyPIDsMax, strconv.Itoa(int(req.PidsMax))},
+		{appplugin.KeyDiskMaxMB, strconv.Itoa(int(req.DiskMaxMb))},
+		{appplugin.KeyCPUNice, strconv.Itoa(int(req.CpuNice))},
+		{appplugin.KeySandboxMode, req.SandboxMode},
+	}
+	for _, u := range updates {
+		if err := d.serverCfg.Set(ctx, u.key, u.val); err != nil {
+			span.RecordError(err)
+			return nil, internalError("persist plugin resource limit", err)
+		}
+	}
+	// Apply synchronously: the change event is delivered asynchronously, so we
+	// don't rely on it for our own response.
+	appplugin.ApplyResourceConfig(ctx, d.serverCfg, d.pluginRes, d.resDefaults)
+	return d.effectiveResourceLimits(ctx), nil
+}
+
+// effectiveResourceLimits reports the caps the runner enforces. When the plugin
+// system is disabled (no runner) it resolves the stored/overridden values
+// directly so the admin UI still renders accurate numbers.
+func (d *adminPluginHandler) effectiveResourceLimits(ctx context.Context) *eveyv1.PluginResourceLimits {
+	if d.pluginRes != nil {
+		mem, pids, disk, nice, sandbox := d.pluginRes.ResourceConfig()
+		return &eveyv1.PluginResourceLimits{
+			MemoryMb: int32(mem), PidsMax: int32(pids), DiskMaxMb: int32(disk),
+			CpuNice: int32(nice), SandboxMode: sandbox,
+		}
+	}
+	v := appplugin.ResolveResourceConfig(ctx, d.serverCfg, d.resDefaults)
+	return &eveyv1.PluginResourceLimits{
+		MemoryMb: int32(v.MemoryMB), PidsMax: int32(v.PIDsMax), DiskMaxMb: int32(v.DiskMaxMB),
+		CpuNice: int32(v.CPUNice), SandboxMode: v.SandboxMode,
+	}
 }

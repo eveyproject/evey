@@ -273,6 +273,25 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		}
 	})
 
+	// Plugin resource caps: overlay any admin overrides (server_config) on the
+	// env/boot defaults and push them into the runner. Applied at boot (saved
+	// overrides take effect immediately) and live on every plugins.* change —
+	// memory/PID/disk on the next monitor sweep, nice/sandbox on the next plugin
+	// start. An absent/invalid row falls back to the default, never blocking.
+	pluginResDefaults := appplugin.ResourceDefaults{
+		MemoryMB:    int(cfg.Plugins.MemoryMB),
+		PIDsMax:     cfg.Plugins.PIDsMax,
+		DiskMaxMB:   cfg.Plugins.DiskMaxMB,
+		CPUNice:     cfg.Plugins.CPUNice,
+		SandboxMode: cfg.Plugins.SandboxMode,
+	}
+	appplugin.ApplyResourceConfig(ctx, r.ServerCfg, infra.pluginRunner, pluginResDefaults)
+	bus.Subscribe(shared.ServerConfigChanged{}.EventName(), func(evtCtx context.Context, evt shared.Event) {
+		if c, ok := evt.(shared.ServerConfigChanged); ok && appplugin.ResourceConfigKeys[c.Key] {
+			appplugin.ApplyResourceConfig(evtCtx, r.ServerCfg, infra.pluginRunner, pluginResDefaults)
+		}
+	})
+
 	libCmdSvc := applibrary.NewCommandService(
 		r.Library, r.Library, r.MediaItem,
 		r.MediaStream, r.Person, r.MediaPerson,
@@ -699,8 +718,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			quickConnectRepo:  r.QuickConnect,
 			introMetaCache:    r.IntroMetadataCache,
 		},
-		cfgStore:       httpapi.NewServerConfigStore(r.ServerCfg),
-		serverCfgSvc:   serverCfgSvc,
+		cfgStore:          httpapi.NewServerConfigStore(r.ServerCfg),
+		serverCfgSvc:      serverCfgSvc,
+		pluginRunner:      infra.pluginRunner,
+		pluginResDefaults: pluginResDefaults,
 		backupSvc:       backupSvc,
 		backupScheduler: backupScheduler,
 		translator:     infra.translator,

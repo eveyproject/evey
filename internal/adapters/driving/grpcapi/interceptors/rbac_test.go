@@ -73,6 +73,8 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminPluginService/GetPluginConfig",
 		"/evey.v1.AdminPluginService/UpdatePluginConfig",
 		"/evey.v1.AdminPluginService/GetPluginLogs",
+		"/evey.v1.AdminPluginService/GetPluginResourceLimits",
+		"/evey.v1.AdminPluginService/UpdatePluginResourceLimits",
 		// AdminMediaService
 		"/evey.v1.AdminMediaService/RefreshAllMetadata",
 		"/evey.v1.AdminMediaService/MatchOrphansInLibrary",
