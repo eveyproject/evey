@@ -21,7 +21,7 @@ import {
   Image,
   type LucideIcon,
 } from "lucide-react";
-import { PluginSlot } from "@/features/plugins/PluginSlot";
+import { usePluginSlotEntries } from "@/features/plugins/usePluginSlot";
 
 interface NavLink {
   href: string;
@@ -99,6 +99,7 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
   const { t } = useTranslation();
   const { location } = useRouterState();
   const pathname = location.pathname;
+  const pluginEntries = usePluginSlotEntries("admin.nav");
 
   const [sectionCollapsed, setSectionCollapsed] = useState<Record<string, boolean>>({});
 
@@ -165,8 +166,33 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
         );
       })}
       {/* Plugin-contributed admin entries (slot admin.nav). Each granted plugin
-          mounts its own sandboxed module here; nothing renders when none use it. */}
-      {!collapsed && <PluginSlot name="admin.nav" />}
+          gets a sidebar link to its own dedicated full-page route
+          (/admin/extensions/<id>), where its sandboxed iframe renders. */}
+      {pluginEntries.length > 0 && (
+        <div className="mt-2 flex flex-col gap-0.5">
+          {pluginEntries.map((entry) => {
+            const href = `/admin/extensions/${entry.pluginId}`;
+            const active = isLinkActive(pathname, href);
+            return (
+              <Link
+                key={entry.pluginId}
+                to="/admin/extensions/$pluginId"
+                params={{ pluginId: entry.pluginId }}
+                onClick={onNavigate}
+                className={`flex items-center gap-2.5 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-colors-fast ${collapsed ? "justify-center" : ""} ${active ? "" : "hover:bg-[var(--surface-raised)]"}`}
+                style={{
+                  backgroundColor: active ? "var(--accent)" : undefined,
+                  color: active ? "white" : "var(--text)",
+                }}
+                title={collapsed ? entry.name : undefined}
+              >
+                <Puzzle size={15} />
+                {!collapsed && <span>{entry.name}</span>}
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

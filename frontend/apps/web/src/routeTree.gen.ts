@@ -59,6 +59,7 @@ import { Route as AuthAdminAnalyticsRouteImport } from './routes/_auth/admin/ana
 import { Route as AuthAdminActivityRouteImport } from './routes/_auth/admin/activity'
 import { Route as AuthCollectionsSmartFilterIdRouteImport } from './routes/_auth/collections/smart/$filterId'
 import { Route as AuthAdminMediaMediaIdRouteImport } from './routes/_auth/admin/media.$mediaId'
+import { Route as AuthAdminExtensionsPluginIdRouteImport } from './routes/_auth/admin/extensions.$pluginId'
 
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
@@ -394,6 +395,16 @@ const AuthAdminMediaMediaIdRoute = AuthAdminMediaMediaIdRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/media.$mediaId.lazy').then((d) => d.Route),
 )
+const AuthAdminExtensionsPluginIdRoute =
+  AuthAdminExtensionsPluginIdRouteImport.update({
+    id: '/extensions/$pluginId',
+    path: '/extensions/$pluginId',
+    getParentRoute: () => AuthAdminRoute,
+  } as any).lazy(() =>
+    import('./routes/_auth/admin/extensions.$pluginId.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -443,6 +454,7 @@ export interface FileRoutesByFullPath {
   '/photos/': typeof AuthPhotosIndexRoute
   '/playlists/': typeof AuthPlaylistsIndexRoute
   '/profile/': typeof AuthProfileIndexRoute
+  '/admin/extensions/$pluginId': typeof AuthAdminExtensionsPluginIdRoute
   '/admin/media/$mediaId': typeof AuthAdminMediaMediaIdRoute
   '/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
 }
@@ -493,6 +505,7 @@ export interface FileRoutesByTo {
   '/photos': typeof AuthPhotosIndexRoute
   '/playlists': typeof AuthPlaylistsIndexRoute
   '/profile': typeof AuthProfileIndexRoute
+  '/admin/extensions/$pluginId': typeof AuthAdminExtensionsPluginIdRoute
   '/admin/media/$mediaId': typeof AuthAdminMediaMediaIdRoute
   '/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
 }
@@ -546,6 +559,7 @@ export interface FileRoutesById {
   '/_auth/photos/': typeof AuthPhotosIndexRoute
   '/_auth/playlists/': typeof AuthPlaylistsIndexRoute
   '/_auth/profile/': typeof AuthProfileIndexRoute
+  '/_auth/admin/extensions/$pluginId': typeof AuthAdminExtensionsPluginIdRoute
   '/_auth/admin/media/$mediaId': typeof AuthAdminMediaMediaIdRoute
   '/_auth/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
 }
@@ -599,6 +613,7 @@ export interface FileRouteTypes {
     | '/photos/'
     | '/playlists/'
     | '/profile/'
+    | '/admin/extensions/$pluginId'
     | '/admin/media/$mediaId'
     | '/collections/smart/$filterId'
   fileRoutesByTo: FileRoutesByTo
@@ -649,6 +664,7 @@ export interface FileRouteTypes {
     | '/photos'
     | '/playlists'
     | '/profile'
+    | '/admin/extensions/$pluginId'
     | '/admin/media/$mediaId'
     | '/collections/smart/$filterId'
   id:
@@ -701,6 +717,7 @@ export interface FileRouteTypes {
     | '/_auth/photos/'
     | '/_auth/playlists/'
     | '/_auth/profile/'
+    | '/_auth/admin/extensions/$pluginId'
     | '/_auth/admin/media/$mediaId'
     | '/_auth/collections/smart/$filterId'
   fileRoutesById: FileRoutesById
@@ -1069,6 +1086,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminMediaMediaIdRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/extensions/$pluginId': {
+      id: '/_auth/admin/extensions/$pluginId'
+      path: '/extensions/$pluginId'
+      fullPath: '/admin/extensions/$pluginId'
+      preLoaderRoute: typeof AuthAdminExtensionsPluginIdRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
   }
 }
 
@@ -1089,6 +1113,7 @@ interface AuthAdminRouteChildren {
   AuthAdminUsersRoute: typeof AuthAdminUsersRoute
   AuthAdminWebhooksRoute: typeof AuthAdminWebhooksRoute
   AuthAdminIndexRoute: typeof AuthAdminIndexRoute
+  AuthAdminExtensionsPluginIdRoute: typeof AuthAdminExtensionsPluginIdRoute
   AuthAdminMediaMediaIdRoute: typeof AuthAdminMediaMediaIdRoute
 }
 
@@ -1109,6 +1134,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminUsersRoute: AuthAdminUsersRoute,
   AuthAdminWebhooksRoute: AuthAdminWebhooksRoute,
   AuthAdminIndexRoute: AuthAdminIndexRoute,
+  AuthAdminExtensionsPluginIdRoute: AuthAdminExtensionsPluginIdRoute,
   AuthAdminMediaMediaIdRoute: AuthAdminMediaMediaIdRoute,
 }
 

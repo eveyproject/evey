@@ -53,6 +53,7 @@ interface FrontModule {
 
 interface PluginInfo {
   id: string;
+  name?: string;
   enabled?: boolean;
   frontend?: FrontModule[];
   webRoot?: string;
@@ -70,6 +71,7 @@ const ALLOWED_NAV_PREFIXES = [
   "/player",
   "/settings",
   "/search",
+  "/admin",
 ];
 
 function isAllowedNavPath(path: string): boolean {
@@ -77,6 +79,47 @@ function isAllowedNavPath(path: string): boolean {
   if (path.startsWith("//")) return false;
   if (path.length > 2048) return false;
   return ALLOWED_NAV_PREFIXES.some((p) => path === p || path.startsWith(p + "/") || path.startsWith(p + "?"));
+}
+
+export interface SlotEntry {
+  pluginId: string;
+  /** Display name (manifest name), falling back to the id. */
+  name: string;
+  entryPath: string;
+  externalFetch: string[];
+}
+
+/**
+ * Lists the enabled+running plugins that mount a frontend module in `slot`,
+ * with their display name + resolved entry path. Used by the admin dashboard
+ * to render a menu row per admin.nav plugin (each linking to its own dedicated
+ * screen) — mobile parity with web's usePluginSlotEntries.
+ */
+export function usePluginSlotEntries(slot: string): SlotEntry[] {
+  const isAuthenticated = useAuthStore((s) => !!s.accessToken);
+  const { data } = useQuery<ListPluginsResponse>({
+    queryKey: ["/api/v1/plugins"],
+    queryFn: () => eveyFetch<ListPluginsResponse>({ url: "/api/v1/plugins", method: "GET" }),
+    staleTime: 60_000,
+    enabled: isAuthenticated,
+  });
+  const entries: SlotEntry[] = [];
+  for (const p of data?.plugins ?? []) {
+    if (p.enabled === false || !p.id) continue;
+    const webRoot = p.webRoot ?? "";
+    const externalFetch = p.externalFetch ?? [];
+    for (const mod of p.frontend ?? []) {
+      if (mod.slot !== slot) continue;
+      let entry = mod.src;
+      if (webRoot && webRoot !== ".") {
+        const prefix = webRoot.endsWith("/") ? webRoot : webRoot + "/";
+        if (entry.startsWith(prefix)) entry = entry.slice(prefix.length);
+        else if (entry === webRoot) entry = "";
+      }
+      entries.push({ pluginId: p.id, name: p.name || p.id, entryPath: entry, externalFetch });
+    }
+  }
+  return entries;
 }
 
 interface PluginSlotProps {

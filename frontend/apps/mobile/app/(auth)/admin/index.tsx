@@ -8,7 +8,7 @@ import {
   useAdminSystemServiceGetSystemInfo,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
+import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 
 function StatCard({ label, value, icon, theme }: { label: string; value: string | number; icon: string; theme: ReturnType<typeof useTheme> }) {
   return (
@@ -36,6 +36,8 @@ export default function AdminDashboard() {
   const { t } = useTranslation();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+
+  const pluginEntries = usePluginSlotEntries("admin.nav");
 
   const { data: dashboard, refetch: refetchDash } = useAdminSystemServiceGetDashboard({ query: { refetchInterval: 10_000 } });
   const { data: sysInfo, refetch: refetchSys } = useAdminSystemServiceGetSystemInfo();
@@ -135,12 +137,21 @@ export default function AdminDashboard() {
             <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
           </Pressable>
         ))}
+        {/* Plugin-contributed admin entries (slot admin.nav) — each granted
+            plugin gets a menu row linking to its own dedicated screen
+            (/admin/extensions/<id>), mobile parity with web. */}
+        {pluginEntries.map((entry) => (
+          <Pressable
+            key={entry.pluginId}
+            onPress={() => router.push(`/admin/extensions/${entry.pluginId}` as never)}
+            style={[styles.navRow, { borderBottomColor: theme.colors.border }]}
+          >
+            <Ionicons name="extension-puzzle-outline" size={20} color={theme.colors.accent} />
+            <Text style={{ color: theme.colors.text, fontSize: 15, flex: 1 }}>{entry.name}</Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
+          </Pressable>
+        ))}
       </View>
-
-      {/* Plugin-contributed admin entries (slot admin.nav) — parity with web,
-          so plugins can add an admin menu entry on mobile too. Renders nothing
-          when no granted plugin uses the slot. */}
-      <PluginSlot name="admin.nav" />
     </ScrollView>
   );
 }
