@@ -825,6 +825,8 @@ interface ServerSettings {
   loginRateLimit: SettingValue<number>;
   globalRateLimit: SettingValue<number>;
   logLevel: SettingValue<string>;
+  libraryWatcherEnabled: SettingValue<boolean>;
+  periodicScanInterval: SettingValue<string>;
 }
 const SETTINGS_KEY = ["/api/v1/admin/server-settings"];
 const LOG_LEVELS = ["debug", "info", "warn", "error"];
@@ -842,6 +844,8 @@ function ServerSettingsCard() {
   const [loginRate, setLoginRate] = useState("");
   const [globalRate, setGlobalRate] = useState("");
   const [logLevel, setLogLevel] = useState("");
+  const [libraryWatcher, setLibraryWatcher] = useState(true);
+  const [scanInterval, setScanInterval] = useState("");
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -852,6 +856,8 @@ function ServerSettingsCard() {
       setLoginRate(data.loginRateLimit.source === "override" ? String(data.loginRateLimit.value) : "");
       setGlobalRate(data.globalRateLimit.source === "override" ? String(data.globalRateLimit.value) : "");
       setLogLevel(data.logLevel.source === "override" ? String(data.logLevel.value) : "");
+      setLibraryWatcher(data.libraryWatcherEnabled.value);
+      setScanInterval(data.periodicScanInterval.source === "override" ? String(data.periodicScanInterval.value) : "");
     }
   }, [data]);
 
@@ -877,6 +883,8 @@ function ServerSettingsCard() {
     if (loginRate) body.loginRateLimit = parseInt(loginRate, 10);
     if (globalRate) body.globalRateLimit = parseInt(globalRate, 10);
     if (logLevel) body.logLevel = logLevel;
+    body.libraryWatcherEnabled = libraryWatcher;
+    if (scanInterval) body.periodicScanInterval = scanInterval;
     saveMutation.mutate(body);
   }
 
@@ -928,6 +936,22 @@ function ServerSettingsCard() {
               options={[{ label: `${t("admin.serverConfig.envDefault")} (${data.logLevel.default ?? "info"})`, value: "" }, ...LOG_LEVELS.map((l) => ({ label: l, value: l }))]}
             />
             <ResetBtn setting={data.logLevel} field="logLevel" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-[var(--text)]">
+                {t("admin.serverSettings.libraryWatcher")} <span className="text-xs text-[var(--text-muted)]">{t("admin.serverSettings.restartHint")}</span>
+              </label>
+              <button type="button" role="switch" aria-checked={libraryWatcher} aria-label={t("admin.serverSettings.libraryWatcher")} data-testid="library-watcher-toggle" onClick={() => { setLibraryWatcher(!libraryWatcher); setDirty(true); }}
+                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors" style={{ backgroundColor: libraryWatcher ? "var(--accent)" : "var(--border)" }}>
+                <span className="inline-block h-4 w-4 rounded-full bg-white transition-transform" style={{ transform: libraryWatcher ? "translateX(1.375rem)" : "translateX(0.25rem)" }} />
+              </button>
+            </div>
+            <ResetBtn setting={data.libraryWatcherEnabled} field="libraryWatcherEnabled" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Input label={`${t("admin.serverSettings.periodicScanInterval")} ${t("admin.serverSettings.restartHint")}`} placeholder={String(data.periodicScanInterval.default ?? "2m")} value={scanInterval} onChange={(e) => { setScanInterval(e.target.value); setDirty(true); }} data-testid="scan-interval-input" />
+            <ResetBtn setting={data.periodicScanInterval} field="periodicScanInterval" />
           </div>
           <div className="flex justify-end pt-2">
             <Button onClick={handleSave} loading={saveMutation.isPending} disabled={!dirty} data-testid="server-config-save-btn">{t("common.save")}</Button>

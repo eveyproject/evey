@@ -255,3 +255,8 @@ func parseBool(s string) (bool, bool) {
 	b, err := strconv.ParseBool(s)
 	return b, err == nil
 }
+
+func parseDuration(s string) (time.Duration, bool) {
+	d, err := time.ParseDuration(s)
+	return d, err == nil && d > 0
+}

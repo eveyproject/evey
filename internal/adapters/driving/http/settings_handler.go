@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	otelcodes "go.opentelemetry.io/otel/codes"
 
@@ -23,6 +24,8 @@ const (
 	cfgKeyRateLimitLogin   = "ratelimit.login_max"
 	cfgKeyRateLimitGlobal  = "ratelimit.global_max"
 	cfgKeyLogLevel         = "log.level"
+	cfgKeyWatcherEnabled   = "library.watcher_enabled"
+	cfgKeyScanInterval     = "library.periodic_scan_interval"
 )
 
 var validLogLevels = map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
@@ -78,6 +81,13 @@ func registerServerSettingsRoutes(
 			getter: func() any { return cfg.Server.GlobalRateLimitMax }},
 		{jsonKey: "logLevel", cfgKey: cfgKeyLogLevel, defaultVal: "info",
 			getter: func() any { return cfg.Log.Level }},
+		// Library watcher + periodic scan are consumed at boot, so a change here
+		// takes effect on the next restart (no live setter). Surfaced so the
+		// values can be managed from the panel instead of the .env.
+		{jsonKey: "libraryWatcherEnabled", cfgKey: cfgKeyWatcherEnabled, defaultVal: true,
+			getter: func() any { return cfg.Library.WatcherEnabled }},
+		{jsonKey: "periodicScanInterval", cfgKey: cfgKeyScanInterval, defaultVal: "2m",
+			getter: func() any { return cfg.Library.PeriodicScanInterval.String() }},
 	}
 
 	buildResponse := func() map[string]settingValue {
@@ -112,6 +122,8 @@ func registerServerSettingsRoutes(
 			LoginRateLimit          *int    `json:"loginRateLimit"`
 			GlobalRateLimit         *int    `json:"globalRateLimit"`
 			LogLevel                *string `json:"logLevel"`
+			LibraryWatcherEnabled   *bool   `json:"libraryWatcherEnabled"`
+			PeriodicScanInterval    *string `json:"periodicScanInterval"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			span.RecordError(err)
@@ -191,6 +203,26 @@ func registerServerSettingsRoutes(
 					if body.LogLevel != nil {
 						logger.SetLevel(*body.LogLevel)
 					}
+				}},
+			{cfgKey: cfgKeyWatcherEnabled,
+				apply: func() string {
+					if body.LibraryWatcherEnabled == nil {
+						return ""
+					}
+					cfg.Library.WatcherEnabled = *body.LibraryWatcherEnabled
+					return strconv.FormatBool(*body.LibraryWatcherEnabled)
+				}},
+			{cfgKey: cfgKeyScanInterval,
+				apply: func() string {
+					if body.PeriodicScanInterval == nil {
+						return ""
+					}
+					d, err := time.ParseDuration(*body.PeriodicScanInterval)
+					if err != nil || d <= 0 {
+						return "" // invalid duration → ignore
+					}
+					cfg.Library.PeriodicScanInterval = d
+					return d.String()
 				}},
 		}
 

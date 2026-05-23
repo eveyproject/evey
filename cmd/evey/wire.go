@@ -13,6 +13,23 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/evey-project/evey/internal/adapters/driven/email"
+	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
+	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
+	"github.com/evey-project/evey/internal/adapters/driven/introproviders"
+	itunesadapter "github.com/evey-project/evey/internal/adapters/driven/itunes"
+	meili "github.com/evey-project/evey/internal/adapters/driven/meilisearch"
+	metadataadapter "github.com/evey-project/evey/internal/adapters/driven/metadata"
+	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
+	"github.com/evey-project/evey/internal/adapters/driven/opensubtitles"
+	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
+	"github.com/evey-project/evey/internal/adapters/driven/postgres"
+	"github.com/evey-project/evey/internal/adapters/driven/search"
+	"github.com/evey-project/evey/internal/adapters/driven/webhooksender"
+	webpushadapter "github.com/evey-project/evey/internal/adapters/driven/webpush"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi"
+	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
+	"github.com/evey-project/evey/internal/adapters/driving/pluginhost"
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appbackup "github.com/evey-project/evey/internal/app/backup"
 	appcollection "github.com/evey-project/evey/internal/app/collection"
@@ -35,30 +52,13 @@ import (
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
-	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
-	"github.com/evey-project/evey/internal/adapters/driven/email"
-	webpushadapter "github.com/evey-project/evey/internal/adapters/driven/webpush"
-	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
-	"github.com/evey-project/evey/internal/adapters/driven/introproviders"
-	"github.com/evey-project/evey/internal/pkg/cpuutil"
-	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
-	itunesadapter "github.com/evey-project/evey/internal/adapters/driven/itunes"
-	meili "github.com/evey-project/evey/internal/adapters/driven/meilisearch"
-	"github.com/evey-project/evey/internal/adapters/driven/search"
-	"github.com/evey-project/evey/internal/adapters/driven/webhooksender"
-	metadataadapter "github.com/evey-project/evey/internal/adapters/driven/metadata"
-	"github.com/evey-project/evey/internal/adapters/driven/opensubtitles"
-	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi"
-	"github.com/evey-project/evey/internal/adapters/driving/pluginhost"
 	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/metadata"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/cpuutil"
 	"github.com/evey-project/evey/internal/pkg/eventbus"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
@@ -81,36 +81,36 @@ import (
 
 // infraDeps holds infrastructure adapters and low-level dependencies shared across app services.
 type infraDeps struct {
-	repos            *postgres.Repos
-	searchAdapter    library.SearchIndex
-	searchHealth     httpapi.SearchHealthChecker
-	scanner          *filesystem.Scanner
-	prober           *ffmpeg.Prober
-	transcoder       *ffmpeg.Transcoder
-	hwDetector       *ffmpeg.HWDetector
-	trickplayGen     *ffmpeg.TrickplayGenerator
-	introDetector    *ffmpeg.IntroDetector
-	imageConverter   *ffmpeg.ImageConverter
-	mkvAdapter       *mkvgoadapter.Adapter
-	bus              *eventbus.InMemoryEventBus
-	hasher           auth.BcryptHasher
-	tokenGen         *auth.JWTGenerator
-	translator       *eveyi18n.Translator
-	metadataHTTP     *http.Client
-	tmdbProvider     *metadataadapter.TMDBProvider
-	imdbProvider     *metadataadapter.IMDBAPIProvider
-	tvmazeProvider   *metadataadapter.TVMazeProvider
-	omdbProvider     *metadataadapter.OMDbProvider
-	artworkDL        *metadataadapter.ArtworkHTTPDownloader
-	personFetcher    *metadataadapter.TMDBPersonFetcher
+	repos             *postgres.Repos
+	searchAdapter     library.SearchIndex
+	searchHealth      httpapi.SearchHealthChecker
+	scanner           *filesystem.Scanner
+	prober            *ffmpeg.Prober
+	transcoder        *ffmpeg.Transcoder
+	hwDetector        *ffmpeg.HWDetector
+	trickplayGen      *ffmpeg.TrickplayGenerator
+	introDetector     *ffmpeg.IntroDetector
+	imageConverter    *ffmpeg.ImageConverter
+	mkvAdapter        *mkvgoadapter.Adapter
+	bus               *eventbus.InMemoryEventBus
+	hasher            auth.BcryptHasher
+	tokenGen          *auth.JWTGenerator
+	translator        *eveyi18n.Translator
+	metadataHTTP      *http.Client
+	tmdbProvider      *metadataadapter.TMDBProvider
+	imdbProvider      *metadataadapter.IMDBAPIProvider
+	tvmazeProvider    *metadataadapter.TVMazeProvider
+	omdbProvider      *metadataadapter.OMDbProvider
+	artworkDL         *metadataadapter.ArtworkHTTPDownloader
+	personFetcher     *metadataadapter.TMDBPersonFetcher
 	pluginRunner      *pluginrunner.Runner
 	pluginLogger      *pluginrunner.PluginLogger
 	manifestParser    *pluginrunner.YAMLManifestParser
 	pluginInstaller   *pluginrunner.ZipInstaller
 	pluginAnalyzer    *pluginrunner.StaticAnalyzer
 	pluginSigVerifier *pluginrunner.CosignVerifier
-	subScanner       *filesystem.SubtitleScanner
-	tmdbKey          string
+	subScanner        *filesystem.SubtitleScanner
+	tmdbKey           string
 }
 
 // buildInfra creates repos, infrastructure adapters, and low-level dependencies.
@@ -199,7 +199,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		WithSandboxMode(cfg.Plugins.SandboxMode).
 		WithResourceLimits(cfg.Plugins.MemoryMB*1024*1024, cfg.Plugins.PIDsMax).
 		WithCPUNice(cfg.Plugins.CPUNice).
-		WithDiskQuota(int64(cfg.Plugins.DiskMaxMB)*1024*1024).
+		WithDiskQuota(int64(cfg.Plugins.DiskMaxMB) * 1024 * 1024).
 		WithEventBus(bus)
 	manifestParser := pluginrunner.NewManifestParser()
 	pluginInstaller := pluginrunner.NewZipInstaller()
@@ -221,28 +221,28 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	subScanner := filesystem.NewSubtitleScanner()
 
 	return &infraDeps{
-		repos:           r,
-		searchAdapter:   searchAdapter,
-		searchHealth:    searchHealth,
-		scanner:         scanner,
-		prober:          prober,
-		transcoder:      transcoder,
-		hwDetector:      hwDetector,
-		trickplayGen:    trickplayGen,
-		introDetector:   introDetector,
-		imageConverter:  imageConverter,
-		mkvAdapter:      mkvAdapter,
-		bus:             bus,
-		hasher:          hasher,
-		tokenGen:        tokenGen,
-		translator:      translator,
-		metadataHTTP:    metadataHTTP,
-		tmdbProvider:    tmdbProvider,
-		imdbProvider:    imdbProvider,
-		tvmazeProvider:  tvmazeProvider,
-		omdbProvider:    omdbProvider,
-		artworkDL:       artworkDownloader,
-		personFetcher:   personFetcher,
+		repos:             r,
+		searchAdapter:     searchAdapter,
+		searchHealth:      searchHealth,
+		scanner:           scanner,
+		prober:            prober,
+		transcoder:        transcoder,
+		hwDetector:        hwDetector,
+		trickplayGen:      trickplayGen,
+		introDetector:     introDetector,
+		imageConverter:    imageConverter,
+		mkvAdapter:        mkvAdapter,
+		bus:               bus,
+		hasher:            hasher,
+		tokenGen:          tokenGen,
+		translator:        translator,
+		metadataHTTP:      metadataHTTP,
+		tmdbProvider:      tmdbProvider,
+		imdbProvider:      imdbProvider,
+		tvmazeProvider:    tvmazeProvider,
+		omdbProvider:      omdbProvider,
+		artworkDL:         artworkDownloader,
+		personFetcher:     personFetcher,
 		pluginRunner:      pluginRunner,
 		pluginLogger:      pluginLogger,
 		manifestParser:    manifestParser,
@@ -724,12 +724,12 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		serverCfgSvc:      serverCfgSvc,
 		pluginRunner:      infra.pluginRunner,
 		pluginResDefaults: pluginResDefaults,
-		backupSvc:       backupSvc,
-		backupScheduler: backupScheduler,
-		translator:     infra.translator,
-		searchHealth:   infra.searchHealth,
-		imageConverter: infra.imageConverter,
-		frameExtractor: infra.trickplayGen,
+		backupSvc:         backupSvc,
+		backupScheduler:   backupScheduler,
+		translator:        infra.translator,
+		searchHealth:      infra.searchHealth,
+		imageConverter:    infra.imageConverter,
+		frameExtractor:    infra.trickplayGen,
 	}, nil
 }
 
@@ -737,6 +737,12 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps, deps *appDeps, rootLog *slog.Logger) {
 	r := infra.repos
 	bus := infra.bus
+
+	// Apply any admin DB overrides for the library watcher + periodic scan
+	// BEFORE they start (these settings are consumed here, not re-read later, so
+	// a change takes effect on the next restart — see /admin/server-settings).
+	loadOverride(ctx, deps.cfgStore, "library.watcher_enabled", parseBool, &cfg.Library.WatcherEnabled)
+	loadOverride(ctx, deps.cfgStore, "library.periodic_scan_interval", parseDuration, &cfg.Library.PeriodicScanInterval)
 
 	startWatcher(ctx, cfg, bus, r.Library, deps.library.cmdSvc, rootLog)
 
