@@ -58,6 +58,23 @@ service LibraryService {
     };
   }
 
+  // Public, non-sensitive projection of media items (id/title/type/year/poster/
+  // overview only — never file paths or provider ids). This is the read surface
+  // a plugin may be granted via the `public` permission; regular users may call
+  // it too. Distinct from GetMediaItem/ListMediaItems, which return sensitive
+  // server-side detail and are never exposed to plugin tokens.
+  rpc GetPublicMediaItem(GetPublicMediaItemRequest) returns (PublicMediaItem) {
+    option (google.api.http) = {
+      get: "/api/v1/public/media/{id}"
+    };
+  }
+
+  rpc ListPublicMediaItems(ListPublicMediaItemsRequest) returns (ListPublicMediaItemsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/public/media"
+    };
+  }
+
   rpc SearchMedia(SearchMediaRequest) returns (SearchMediaResponse) {
     option (google.api.http) = {
       get: "/api/v1/media/search"
@@ -366,6 +383,33 @@ message ScanLibraryRequest {
 
 message GetMediaItemRequest {
   string id = 1;
+}
+
+// PublicMediaItem is the non-sensitive projection exposed via the `public`
+// permission. It deliberately omits file_path, file_size, provider_ids,
+// streams and any server-side detail.
+message PublicMediaItem {
+  string id = 1;
+  MediaItemType type = 2;
+  string title = 3;
+  int32 year = 4;
+  string overview = 5;
+  string poster_url = 6;
+}
+
+message GetPublicMediaItemRequest {
+  string id = 1;
+}
+
+message ListPublicMediaItemsRequest {
+  string library_id = 1;
+  MediaItemType type = 2;
+  PaginationRequest pagination = 3;
+}
+
+message ListPublicMediaItemsResponse {
+  repeated PublicMediaItem items = 1;
+  int32 total = 2;
 }
 
 message ListMediaItemsRequest {

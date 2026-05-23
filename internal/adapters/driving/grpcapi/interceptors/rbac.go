@@ -154,8 +154,13 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.AdminIntroService/InvalidateIntroCache":               RoleAdmin,
 			"/evey.v1.AdminIntroService/BackfillIntroDetection":             RoleAdmin,
 		},
-		// Empty = a scoped plugin token can call NO public-API method (deny-by-
-		// default). Grantable plugin capabilities add explicit entries here.
-		PluginMethodScopes: map[string]string{},
+		// Deny-by-default: a scoped plugin token can call ONLY these public-API
+		// methods, and only if it carries the mapped scope. (Server branding is
+		// already reachable via the public GetSetupStatus method, which the
+		// PublicMethods check allows before the plugin path.)
+		PluginMethodScopes: map[string]string{
+			"/evey.v1.LibraryService/GetPublicMediaItem":   "public",
+			"/evey.v1.LibraryService/ListPublicMediaItems": "public",
+		},
 	}
 }

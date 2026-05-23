@@ -28,6 +28,9 @@ var AllowedPluginScopes = map[string]bool{
 	"api.metadata":      true,
 	"api.user":          true,
 	"notification.sender": true,
+	// public: read-only access to non-sensitive surface (server branding is
+	// already public; public media projection exposes title/poster/year only).
+	"public": true,
 }
 
 // ForbiddenPluginScopePrefixes: scopes starting with any of these are rejected even

@@ -579,6 +579,19 @@ func TestAuthInterceptor_PluginTokenDenyByDefault(t *testing.T) {
 		assert.Equal(t, codes.PermissionDenied, status.Code(err))
 	})
 
+	t.Run("public media allowlisted with public scope (real config)", func(t *testing.T) {
+		pub := &auth.PluginClaims{PluginID: "p1", UserID: "u1", TokenType: "plugin", Scopes: []string{"public"}}
+		resp, err := runPluginToken(interceptors.DefaultRBACConfig(), pub, "/evey.v1.LibraryService/GetPublicMediaItem")
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("public media denied without public scope (real config)", func(t *testing.T) {
+		_, err := runPluginToken(interceptors.DefaultRBACConfig(), claims, "/evey.v1.LibraryService/ListPublicMediaItems")
+		require.Error(t, err)
+		assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	})
+
 	rbac := interceptors.DefaultRBACConfig()
 	rbac.PluginMethodScopes = map[string]string{
 		"/test/PluginRead": "media.read", // requires a scope
