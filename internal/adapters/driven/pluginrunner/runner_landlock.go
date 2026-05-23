@@ -33,6 +33,55 @@ var systemReadOnlyDirs = []string{"/usr", "/lib", "/lib64", "/bin", "/sbin", "/e
 // guards the root-owned nodes against an unprivileged plugin.
 const devDir = "/dev"
 
+// buildLauncherArgv builds the evey-plugin-launcher argv wrapping the plugin
+// command: a filesystem allowlist (system dirs read-only; the plugin's own dir
+// + socket dir read-write), the TCP egress policy, and the kernel seccomp
+// denylist. requireLandlock=true fails the plugin closed if Landlock can't be
+// enforced (landlock mode); false keeps Landlock best-effort — the basic-mode
+// fallback, where the launcher still delivers seccomp (incl. -deny-inet) and
+// Landlock-if-available on top of the LD_PRELOAD shim.
+func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, requireLandlock bool) []string {
+	pluginDir := p.InstallDir
+	if pluginDir == "" {
+		pluginDir = defaultPluginDir
+	}
+	pluginSockDir := filepath.Join(sockDir, p.ID)
+
+	args := make([]string, 0, len(systemReadOnlyDirs)*2+16+len(cmd.Args))
+	args = append(args, launcher)
+	for _, d := range systemReadOnlyDirs {
+		args = append(args, "-ro", d)
+	}
+	args = append(args, "-rw", pluginDir, "-rw", pluginSockDir, "-rw", devDir)
+
+	// TCP egress: deny by default (-restrict-net, Landlock ABI v4+). A plugin
+	// with the network permission may connect to standard HTTP(S) ports plus any
+	// explicit external_fetch port; one without it is cut off from TCP.
+	args = append(args, "-restrict-net")
+	if slices.Contains(p.Permissions, networkPerm) {
+		for _, port := range landlockConnectPorts(p.ExternalFetch) {
+			args = append(args, "-net-connect", strconv.Itoa(port))
+		}
+	}
+
+	// Kernel seccomp denylist installed right before exec, so it also constrains
+	// static/compiled plugin binaries (which never load the LD_PRELOAD
+	// libevey-sandbox.so and would otherwise bypass that layer). -deny-inet adds
+	// socket(AF_INET/AF_INET6) denial for non-network plugins — kernel
+	// no-IP-egress that holds even on Landlock ABI <4 where -restrict-net is a no-op.
+	args = append(args, "-seccomp")
+	if !slices.Contains(p.Permissions, networkPerm) {
+		args = append(args, "-deny-inet")
+	}
+
+	if requireLandlock {
+		args = append(args, "-require-landlock")
+	}
+	args = append(args, "--")
+	args = append(args, cmd.Args...) // original argv: interpreter + script (+ extra args)
+	return args
+}
+
 // applyLandlockSandbox wraps cmd with the evey-plugin-launcher shim, which
 // applies a Landlock filesystem allowlist (system dirs read-only; the plugin's
 // own dir and socket dir read-write) before exec'ing the plugin. Unlike
@@ -52,42 +101,8 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 	if pluginDir == "" {
 		pluginDir = defaultPluginDir
 	}
-	pluginSockDir := filepath.Join(sockDir, p.ID)
-
-	args := make([]string, 0, len(systemReadOnlyDirs)*2+12+len(cmd.Args))
-	args = append(args, launcher)
-	for _, d := range systemReadOnlyDirs {
-		args = append(args, "-ro", d)
-	}
-	args = append(args, "-rw", pluginDir, "-rw", pluginSockDir, "-rw", devDir)
-
-	// TCP egress: deny by default (-restrict-net). A plugin holding the
-	// "network" permission may connect to standard HTTP(S) ports plus any
-	// explicit port in its external_fetch list; one without it is cut off from
-	// TCP entirely (enforced on Landlock ABI v4+; a no-op on older kernels).
-	args = append(args, "-restrict-net")
-	if slices.Contains(p.Permissions, networkPerm) {
-		for _, port := range landlockConnectPorts(p.ExternalFetch) {
-			args = append(args, "-net-connect", strconv.Itoa(port))
-		}
-	}
-
-	// Kernel seccomp denylist installed by the launcher right before exec, so it
-	// also constrains static/compiled plugin binaries (which never load the
-	// LD_PRELOAD libevey-sandbox.so and would otherwise bypass that layer
-	// entirely). -deny-inet adds socket(AF_INET/AF_INET6) denial for plugins
-	// without the network permission — a kernel-enforced no-IP-egress that holds
-	// even on Landlock ABI <4 where -restrict-net is a no-op.
-	args = append(args, "-seccomp")
-	if !slices.Contains(p.Permissions, networkPerm) {
-		args = append(args, "-deny-inet")
-	}
-
-	args = append(args, "-require-landlock", "--")
-	args = append(args, cmd.Args...) // original argv: interpreter + script (+ extra args)
-
 	cmd.Path = launcher
-	cmd.Args = args
+	cmd.Args = buildLauncherArgv(launcher, p, cmd, true)
 
 	// The plugin dir is the only writable allowlisted location the plugin owns,
 	// so point HOME/TMPDIR there. A plugin writing scratch to $HOME=/tmp would

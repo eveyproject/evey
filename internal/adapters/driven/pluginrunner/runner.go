@@ -597,8 +597,27 @@ func (r *Runner) effectiveMode() string {
 	return r.autoResolved
 }
 
-// applyBasicSandbox is the original LD_PRELOAD + UID-drop sandbox path.
+// applyBasicSandbox is the legacy LD_PRELOAD + UID-drop fallback, now upgraded
+// to wrap with the launcher when it's available: best-effort Landlock plus the
+// kernel seccomp denylist (incl. -deny-inet). This matters most on kernels
+// without Landlock (e.g. an old NAS) where the LD_PRELOAD shim is the only
+// other syscall layer and a static binary would bypass it — the launcher's
+// kernel seccomp still applies. If the launcher binary is absent (some dev
+// images) it falls back to LD_PRELOAD-only, preserving prior behaviour.
 func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) error {
+	if launcher, err := launcherPath(); err == nil {
+		pluginDir := p.InstallDir
+		if pluginDir == "" {
+			pluginDir = defaultPluginDir
+		}
+		cmd.Path = launcher
+		cmd.Args = buildLauncherArgv(launcher, p, cmd, false) // best-effort Landlock
+		cmd.Env = overrideEnv(cmd.Env, map[string]string{"HOME": pluginDir, "TMPDIR": pluginDir})
+	}
+
+	// LD_PRELOAD shim: belt-and-suspenders for dynamic plugins, and the only
+	// syscall layer if the launcher is absent. Skipped for plugins granted the
+	// subprocess permission (allowed to spawn).
 	if slices.Contains(p.Permissions, subprocessPerm) {
 		return nil
 	}
@@ -690,7 +709,14 @@ func pluginSysProcAttr() *syscall.SysProcAttr {
 		Setpgid:   true,
 		Pdeathsig: syscall.SIGTERM,
 	}
-	if os.Getuid() == 0 {
+	// Drop the plugin to a separate uid/gid (evey-plugin) so it can't read the
+	// server's own files (jwt.key) or /proc by plain DAC — the protection that
+	// matters on kernels without Landlock. Requires the privilege to setuid:
+	// either we're root, or the binary was granted CAP_SETUID+CAP_SETGID via
+	// file capabilities (so the server stays non-root). canSetUIDGID() reads the
+	// real effective caps, so absent the privilege we safely keep the plugin at
+	// the server's uid rather than failing the spawn.
+	if os.Getuid() == 0 || canSetUIDGID() {
 		a.Credential = &syscall.Credential{Uid: pluginUID, Gid: pluginGID}
 	}
 	return a
