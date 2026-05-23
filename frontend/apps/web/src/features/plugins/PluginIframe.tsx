@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast, useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
-import { eveyFetch, eveyFetchRaw } from "@evey/api";
+import { eveyFetch, eveyFetchRaw, adminPluginServiceIssuePluginToken } from "@evey/api";
 import { BRIDGE_SCRIPT } from "./front-bridge";
 
 interface PluginIframeProps {
@@ -211,6 +211,65 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
   const TOAST_WINDOW_MS = 1000;
   const toastTimestamps = useRef<number[]>([]);
 
+  // Scoped plugin token used to proxy the iframe's prefs/public RPCs. Held by
+  // the parent (never exposed to the iframe JS); the server enforces the
+  // plugin's granted scopes on it (deny-by-default). Lazily issued + re-issued
+  // on expiry.
+  const pluginTokenRef = useRef<string | null>(null);
+  const ensurePluginToken = useCallback(async (): Promise<string | null> => {
+    if (pluginTokenRef.current) return pluginTokenRef.current;
+    try {
+      const r = await adminPluginServiceIssuePluginToken(pluginId, {});
+      pluginTokenRef.current = r.token ?? null;
+    } catch {
+      pluginTokenRef.current = null;
+    }
+    return pluginTokenRef.current;
+  }, [pluginId]);
+
+  // Maps a bridge method to its endpoint, called with the plugin token so the
+  // server gates it by the granted scope. Only this allowlist is reachable.
+  const callPluginEndpoint = useCallback((method: string, args: Record<string, unknown>, token: string): Promise<Response> => {
+    const enc = encodeURIComponent;
+    switch (method) {
+      case "prefs.get":
+        return eveyFetchRaw({ url: `/api/v1/plugin-prefs/${enc(String(args.key ?? ""))}`, method: "GET", authToken: token });
+      case "prefs.set":
+        return eveyFetchRaw({ url: `/api/v1/plugin-prefs/${enc(String(args.key ?? ""))}`, method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value: String(args.value ?? "") }), authToken: token });
+      case "prefs.delete":
+        return eveyFetchRaw({ url: `/api/v1/plugin-prefs/${enc(String(args.key ?? ""))}`, method: "DELETE", authToken: token });
+      case "prefs.list":
+        return eveyFetchRaw({ url: `/api/v1/plugin-prefs`, method: "GET", authToken: token });
+      case "media.get":
+        return eveyFetchRaw({ url: `/api/v1/public/media/${enc(String(args.id ?? ""))}`, method: "GET", authToken: token });
+      case "media.list":
+        return eveyFetchRaw({ url: `/api/v1/public/media${args.libraryId ? `?libraryId=${enc(String(args.libraryId))}` : ""}`, method: "GET", authToken: token });
+      default:
+        return Promise.reject(new Error(`method not permitted: ${method}`));
+    }
+  }, []);
+
+  const pluginRpcCall = useCallback(async (method: string, args: Record<string, unknown>): Promise<unknown> => {
+    let token = await ensurePluginToken();
+    if (!token) throw new Error("plugin token unavailable");
+    let res = await callPluginEndpoint(method, args, token);
+    if (res.status === 401) {
+      pluginTokenRef.current = null; // expired — re-issue once
+      token = await ensurePluginToken();
+      if (token) res = await callPluginEndpoint(method, args, token);
+    }
+    if (!res.ok) {
+      let msg = `${res.status}`;
+      try {
+        const b = (await res.clone().json()) as { message?: string };
+        if (b.message) msg = b.message;
+      } catch { /* ignore */ }
+      throw new Error(msg);
+    }
+    const text = await res.text();
+    return text ? JSON.parse(text) : {};
+  }, [ensurePluginToken, callPluginEndpoint]);
+
   const handleMessage = useCallback(
     (e: MessageEvent) => {
       const iframe = iframeRef.current;
@@ -261,9 +320,22 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
             setHeight(Math.max(50, Math.min(800, data.height)));
           }
           break;
+        case "rpc": {
+          const id = data.id;
+          const method = typeof data.method === "string" ? data.method : "";
+          const args = (data.args as Record<string, unknown>) ?? {};
+          pluginRpcCall(method, args)
+            .then((result) =>
+              iframe.contentWindow?.postMessage({ type: "rpc-result", id, ok: true, data: result }, "*"),
+            )
+            .catch((err: Error) =>
+              iframe.contentWindow?.postMessage({ type: "rpc-result", id, ok: false, error: err.message }, "*"),
+            );
+          break;
+        }
       }
     },
-    [context, pluginConfig, i18n.language, navigate],
+    [context, pluginConfig, i18n.language, navigate, pluginRpcCall],
   );
 
   useEffect(() => {

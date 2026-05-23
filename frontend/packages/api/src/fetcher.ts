@@ -138,6 +138,10 @@ export interface RawFetcherRequest {
   headers?: Record<string, string>;
   body?: BodyInit;
   signal?: AbortSignal;
+  // authToken overrides the Authorization header with an explicit Bearer token
+  // (e.g. a scoped plugin token). When set, the user-token refresh-on-401 path
+  // is skipped — the caller owns this token's lifecycle.
+  authToken?: string;
 }
 
 async function fetchWithRefresh(
@@ -182,12 +186,37 @@ async function fetchWithRefresh(
 }
 
 export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response> {
+  const method = request.method.toUpperCase();
+
+  // Explicit-token path (e.g. a scoped plugin token): plain fetch, no
+  // user-token refresh. Returns the raw Response (caller inspects res.ok) so a
+  // scope denial (403) surfaces to the caller rather than triggering a refresh.
+  if (request.authToken) {
+    const h: Record<string, string> = {
+      ...extraHeaders,
+      ...(request.headers ?? {}),
+      Authorization: `Bearer ${request.authToken}`,
+    };
+    const loc = getLocale?.();
+    if (loc) h["Accept-Language"] = loc;
+    if (method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE") {
+      const csrf = getCSRFToken();
+      if (csrf) h["X-CSRF-Token"] = csrf;
+    }
+    return fetch(resolveURL(request.url), {
+      method: request.method,
+      credentials: "include" as const,
+      headers: h,
+      body: request.body,
+      signal: request.signal,
+    });
+  }
+
   const token = await _ensureFreshToken();
   const headers: Record<string, string> = { ...extraHeaders, ...(request.headers ?? {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const locale = getLocale?.();
   if (locale) headers["Accept-Language"] = locale;
-  const method = request.method.toUpperCase();
   if (method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE") {
     const csrf = getCSRFToken();
     if (csrf) headers["X-CSRF-Token"] = csrf;
