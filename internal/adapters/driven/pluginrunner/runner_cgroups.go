@@ -21,6 +21,7 @@ const (
 	defaultCPUQuota   int   = 50000              // 50 ms per period
 	defaultCPUPeriod  int   = 100000             // 100 ms period → 50% of one core
 	defaultPIDsMax    int   = 64
+	defaultIOWeight   int   = 50                 // io.weight (1-10000, default 100) — deprioritise plugin disk IO under contention
 
 	// cgroupRoot is the mount point for cgroup v2. Overridable in tests via
 	// setCgroupRoot so that test code never touches the real /sys/fs/cgroup.
@@ -38,6 +39,7 @@ type cgroupConfig struct {
 	cpuQuota  int
 	cpuPeriod int
 	pidsMax   int
+	ioWeight  int
 }
 
 // defaults fills unset (zero) fields with sane package-level values.
@@ -53,6 +55,9 @@ func (c cgroupConfig) defaults() cgroupConfig {
 	}
 	if c.pidsMax == 0 {
 		c.pidsMax = defaultPIDsMax
+	}
+	if c.ioWeight == 0 {
+		c.ioWeight = defaultIOWeight
 	}
 	return c
 }
@@ -102,6 +107,12 @@ func prepareCgroup(pluginID string, cfg cgroupConfig) (string, error) {
 			_ = os.Remove(cgroupPath)
 			return "", fmt.Errorf("write %s: %w", p, err)
 		}
+	}
+
+	// io.weight is best-effort: the io controller may not be delegated to this
+	// level; a failure must not disable the mem/cpu/pids caps already applied.
+	if err := os.WriteFile(filepath.Join(cgroupPath, "io.weight"), []byte(fmt.Sprintf("%d", cfg.ioWeight)), 0o644); err != nil {
+		slog.Debug("cgroup io.weight unavailable (io controller not delegated?)", slog.Any("err", err))
 	}
 
 	return cgroupPath, nil

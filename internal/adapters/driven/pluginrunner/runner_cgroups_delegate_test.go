@@ -10,9 +10,9 @@ import (
 )
 
 func TestAvailableControllers(t *testing.T) {
-	assert.Equal(t, []string{"memory", "cpu", "pids"}, availableControllers("cpuset cpu io memory pids"))
+	assert.Equal(t, []string{"memory", "cpu", "pids", "io"}, availableControllers("cpuset cpu io memory pids"))
 	assert.Equal(t, []string{"memory", "pids"}, availableControllers("memory pids"))
-	assert.Empty(t, availableControllers("cpuset io"))
+	assert.Equal(t, []string{"io"}, availableControllers("cpuset io"))
 }
 
 func TestCgroupDelegationEnabled(t *testing.T) {

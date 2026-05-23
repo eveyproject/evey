@@ -48,8 +48,11 @@ func setupCgroupDelegation() bool {
 		return false
 	}
 	want := availableControllers(string(avail))
-	if len(want) == 0 {
-		slog.Warn("cgroup delegation: none of memory/cpu/pids available at the cgroup root — per-plugin limits disabled",
+	// memory/cpu/pids are the caps that matter; io is a best-effort bonus. If
+	// the three core controllers are not all delegable, per-plugin limits can't
+	// be enforced — fail-soft.
+	if !containsAll(want, "memory", "cpu", "pids") {
+		slog.Warn("cgroup delegation: memory/cpu/pids not all available at the cgroup root — per-plugin limits disabled",
 			slog.String("available", strings.TrimSpace(string(avail))))
 		return false
 	}
@@ -100,12 +103,26 @@ func availableControllers(controllers string) []string {
 		have[f] = true
 	}
 	var out []string
-	for _, c := range []string{"memory", "cpu", "pids"} {
+	for _, c := range []string{"memory", "cpu", "pids", "io"} {
 		if have[c] {
 			out = append(out, c)
 		}
 	}
 	return out
+}
+
+// containsAll reports whether every want item is present in have.
+func containsAll(have []string, want ...string) bool {
+	set := make(map[string]bool, len(have))
+	for _, h := range have {
+		set[h] = true
+	}
+	for _, w := range want {
+		if !set[w] {
+			return false
+		}
+	}
+	return true
 }
 
 // readCgroupProcs reads PIDs (one per line) from a cgroup.procs file.
