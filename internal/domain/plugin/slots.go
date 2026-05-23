@@ -28,6 +28,12 @@ var AllowedSlots = map[string]SlotMeta{
 	"settings.user.appearance": {Auth: true, Critical: false},
 	// sidebar.bottom is the navigation tray bottom area — non-critical, cosmetic.
 	"sidebar.bottom": {Auth: true, Critical: false},
+	// admin.nav is the ONE controlled admin-area slot: it adds a single nav entry
+	// to the admin panel opening the plugin's OWN sandboxed page. It is NOT an
+	// injection point into existing admin screens (those stay off-limits, see
+	// below) — the frontend renders it as a dedicated, admin-gated route hosting
+	// the plugin iframe. Requesting it surfaces in the install consent diff.
+	"admin.nav": {Auth: true, Critical: false},
 }
 
 // IsSlotAllowed returns true when a plugin is permitted to mount in this slot.
