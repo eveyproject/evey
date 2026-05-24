@@ -615,6 +615,7 @@ func (r *Runner) effectiveMode() string {
 // kernel seccomp still applies. If the launcher binary is absent (some dev
 // images) it falls back to LD_PRELOAD-only, preserving prior behaviour.
 func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) error {
+	launcherApplied := false
 	if launcher, err := launcherPath(); err == nil {
 		pluginDir := p.InstallDir
 		if pluginDir == "" {
@@ -624,12 +625,36 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 		du, dg := r.pluginDropArgs(true)                              // basic = the case uid-sep protects ("auto" enables here)
 		cmd.Args = buildLauncherArgv(launcher, p, cmd, false, du, dg) // best-effort Landlock
 		cmd.Env = overrideEnv(cmd.Env, map[string]string{"HOME": pluginDir, "TMPDIR": pluginDir})
+		launcherApplied = true
+	} else {
+		// The launcher carries the only kernel-level layer (Landlock + seccomp)
+		// that survives execve. Losing it is a real degradation, so surface it
+		// instead of swallowing the error — what follows is LD_PRELOAD-only (for
+		// non-subprocess plugins) or a fail-closed refusal (subprocess, below).
+		slog.Warn("plugin launcher unavailable; basic sandbox degraded",
+			slog.String("plugin_id", p.ID),
+			slog.Any("err", err))
 	}
 
 	// LD_PRELOAD shim: belt-and-suspenders for dynamic plugins, and the only
-	// syscall layer if the launcher is absent. Skipped for plugins granted the
-	// subprocess permission (allowed to spawn).
+	// syscall layer if the launcher is absent. It does NOT survive an exec of a
+	// child, so it is useless for plugins granted the subprocess permission —
+	// those rely on the launcher's kernel seccomp instead. Skipping the shim for
+	// a subprocess plugin is therefore only safe when the launcher actually
+	// applied; if it didn't, the plugin would run with no confinement at all, so
+	// fall through to the same fail-closed guard as a missing sandbox lib.
 	if slices.Contains(p.Permissions, subprocessPerm) {
+		if launcherApplied {
+			return nil
+		}
+		if !r.allowMissingSandbox {
+			slog.Error("refusing to start subprocess plugin without launcher confinement",
+				slog.String("plugin_id", p.ID))
+			r.publishPluginError(parentCtx, p.ID, "plugin launcher unavailable; subprocess plugin refused start")
+			return fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
+		}
+		slog.Warn("starting subprocess plugin without sandbox (dev override)",
+			slog.String("plugin_id", p.ID))
 		return nil
 	}
 	libPath := r.ensureSandboxLib()

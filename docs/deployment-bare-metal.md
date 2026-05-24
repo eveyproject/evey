@@ -166,6 +166,15 @@ UID 1001 with seccomp only. Use this only on old/locked-down kernels where
 neither Landlock nor bubblewrap is available, and lean on the UID separation in
 §4 to protect secrets.
 
+> **A plugin granted the `subprocess` permission requires the launcher**, even in
+> basic mode. The LD_PRELOAD shim does not survive an `exec` of a child process,
+> so it cannot confine a plugin allowed to spawn subprocesses — only the
+> launcher's kernel seccomp (installed right before `exec` and inherited across
+> it) does. If `evey-plugin-launcher` is missing (see §1), such a plugin
+> **refuses to start** in production (fail-closed) rather than running
+> unconfined. Plugins without that permission fall back to the LD_PRELOAD shim as
+> documented above.
+
 ## 4. UID separation (protect secrets without root)
 
 UID separation runs each plugin under a separate user (UID 1001, `evey-plugin`),

@@ -369,15 +369,20 @@ func TestWithSandboxMode_BwrapAbsent(t *testing.T) {
 	assert.Contains(t, err.Error(), "$PATH")
 }
 
-// TestRunnerAllowsSubprocessPermWithoutSandbox documents that plugins
-// explicitly granted the subprocess permission bypass the sandbox check
-// (they need it to spawn helper processes).
-func TestRunnerAllowsSubprocessPermWithoutSandbox(t *testing.T) {
+// TestRunnerAllowsSubprocessPermWithDevOverride documents that a plugin granted
+// the subprocess permission may start WITHOUT launcher confinement only under
+// the dev override (WithAllowMissingSandbox). In production (no override) a
+// missing launcher fail-closes instead — see
+// TestApplyBasicSandbox_SubprocessRequiresLauncherWhenAbsent.
+func TestRunnerAllowsSubprocessPermWithDevOverride(t *testing.T) {
 	bin := buildTestBinary(t)
 	dir := filepath.Dir(bin)
 	ctx := context.Background()
 
-	r := NewRunner(dir)
+	// Force the launcher absent so this exercises the LD_PRELOAD-less path.
+	t.Setenv("EVEY_PLUGIN_LAUNCHER", filepath.Join(t.TempDir(), "missing-launcher"))
+
+	r := NewRunner(dir).WithAllowMissingSandbox(true)
 	p := &plugin.Plugin{
 		ID:          "plg-subproc",
 		Name:        bin,
@@ -387,6 +392,62 @@ func TestRunnerAllowsSubprocessPermWithoutSandbox(t *testing.T) {
 	err := r.Start(ctx, p)
 	require.NoError(t, err)
 	_ = r.Stop(ctx, p.ID)
+}
+
+// TestApplyBasicSandbox_SubprocessRequiresLauncherWhenAbsent pins the corrected
+// fail-closed contract for the subprocess permission in basic mode. The
+// LD_PRELOAD shim does not survive an exec of a child process, so a subprocess
+// plugin is confined only by the launcher's kernel seccomp/Landlock. Therefore
+// the subprocess permission must NOT unconditionally bypass the sandbox:
+//   - launcher present       → allowed (the launcher confines it);
+//   - launcher absent + prod  → refused (no confinement layer left);
+//   - launcher absent + dev   → allowed (explicit override).
+//
+// Regression for the audit finding "basic mode starts a subprocess plugin
+// unconfined and silently when the launcher binary is missing".
+func TestApplyBasicSandbox_SubprocessRequiresLauncherWhenAbsent(t *testing.T) {
+	bin := buildTestBinary(t)
+	dir := filepath.Dir(bin)
+	ctx := context.Background()
+
+	subprocPlugin := func() *plugin.Plugin {
+		return &plugin.Plugin{
+			ID:          "plg-subproc",
+			Name:        bin,
+			InstallDir:  dir,
+			Permissions: []string{"subprocess"},
+		}
+	}
+
+	t.Run("launcher present → wrapped and allowed", func(t *testing.T) {
+		launcher := filepath.Join(t.TempDir(), "evey-plugin-launcher")
+		require.NoError(t, os.WriteFile(launcher, []byte("#!/bin/sh\n"), 0o755))
+		t.Setenv("EVEY_PLUGIN_LAUNCHER", launcher)
+
+		r := NewRunner(dir) // production: allowMissingSandbox=false
+		cmd := exec.Command(bin)
+		err := r.applyBasicSandbox(ctx, subprocPlugin(), cmd)
+		require.NoError(t, err)
+		assert.Equal(t, launcher, cmd.Path, "subprocess plugin must be wrapped by the launcher")
+	})
+
+	t.Run("launcher absent + prod → fail-closed", func(t *testing.T) {
+		t.Setenv("EVEY_PLUGIN_LAUNCHER", filepath.Join(t.TempDir(), "missing-launcher"))
+
+		r := NewRunner(dir) // production: no dev override
+		cmd := exec.Command(bin)
+		err := r.applyBasicSandbox(ctx, subprocPlugin(), cmd)
+		require.ErrorIs(t, err, ErrSandboxUnavailable)
+	})
+
+	t.Run("launcher absent + dev override → allowed", func(t *testing.T) {
+		t.Setenv("EVEY_PLUGIN_LAUNCHER", filepath.Join(t.TempDir(), "missing-launcher"))
+
+		r := NewRunner(dir).WithAllowMissingSandbox(true)
+		cmd := exec.Command(bin)
+		err := r.applyBasicSandbox(ctx, subprocPlugin(), cmd)
+		require.NoError(t, err)
+	})
 }
 
 func TestBuildHostsFile_Empty(t *testing.T) {
