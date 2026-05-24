@@ -98,7 +98,7 @@ COPY --from=getmeili/meilisearch:v1.12 /bin/meilisearch /usr/local/bin/meilisear
 RUN adduser -D -u 1000 evey \
     && adduser -D -u 1001 -G evey evey-plugin
 
-RUN mkdir -p /data/media /data/transcoding /data/logs /data/plugins /data/keys /data/meili /data/backups /srv /cache \
+RUN mkdir -p /data/transcoding /data/logs /data/plugins /data/keys /data/meili /data/backups /srv /cache \
     && chown -R evey:evey /data /cache \
     && chown evey-plugin:evey /data/plugins \
     && chmod 750 /data/plugins \
