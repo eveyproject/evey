@@ -709,14 +709,15 @@ func pluginSysProcAttr() *syscall.SysProcAttr {
 		Setpgid:   true,
 		Pdeathsig: syscall.SIGTERM,
 	}
-	// Drop the plugin to a separate uid/gid (evey-plugin) so it can't read the
-	// server's own files (jwt.key) or /proc by plain DAC — the protection that
-	// matters on kernels without Landlock. Requires the privilege to setuid:
-	// either we're root, or the binary was granted CAP_SETUID+CAP_SETGID via
-	// file capabilities (so the server stays non-root). canSetUIDGID() reads the
-	// real effective caps, so absent the privilege we safely keep the plugin at
-	// the server's uid rather than failing the spawn.
-	if os.Getuid() == 0 || canSetUIDGID() {
+	// Drop the plugin to a separate uid (evey-plugin) ONLY when we run as root —
+	// because we must also chown the plugin's per-process sock dir + install dir
+	// to that uid, which needs CAP_CHOWN, which a non-root server doesn't have.
+	// Doing this non-root via file caps therefore requires CAP_SETUID+CAP_SETGID
+	// *and* CAP_CHOWN plus chowning those dirs; that's a backlog item. Until then
+	// a non-root server keeps the plugin at its own uid (the dir owner) so the
+	// plugin can still bind its socket — see the sock-dir chown above, also
+	// gated on root.
+	if os.Getuid() == 0 {
 		a.Credential = &syscall.Credential{Uid: pluginUID, Gid: pluginGID}
 	}
 	return a

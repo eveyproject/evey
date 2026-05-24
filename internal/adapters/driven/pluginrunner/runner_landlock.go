@@ -165,7 +165,12 @@ func landlockConnectPorts(externalFetch []string) []int {
 // builds (bare-metal / privileged container with userns + mount), then basic.
 // Order: landlock -> bubblewrap -> basic.
 func resolveAutoMode() string {
-	if landlockAvailable() {
+	// landlock mode is driven by the evey-plugin-launcher shim, so only pick it
+	// when the kernel enforces Landlock AND the launcher binary is actually
+	// present — otherwise auto would resolve to a mode that can't run (e.g. a
+	// dev tree where only the server binary was built). Bubblewrap is the next
+	// choice where it builds (bare-metal), then basic.
+	if landlockAvailable() && launcherAvailable() {
 		return sandboxModeLandlock
 	}
 	if ProbeSandbox(sandboxModeBubblewrap) == nil {
@@ -176,6 +181,14 @@ func resolveAutoMode() string {
 		"Plugins run with UID-drop + seccomp only. A kernel ≥5.13 with Landlock in the " +
 		"active LSM list enables strong isolation with no host changes.")
 	return sandboxModeBasic
+}
+
+// launcherAvailable reports whether the evey-plugin-launcher binary can be
+// located — used by auto-detection to avoid resolving to landlock mode (which
+// requires the launcher) on a host that doesn't ship it.
+func launcherAvailable() bool {
+	_, err := launcherPath()
+	return err == nil
 }
 
 // launcherPath locates the evey-plugin-launcher binary: an explicit override

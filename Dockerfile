@@ -81,7 +81,7 @@ ARG RUNTIMES=lean
 # `evey:beta-full` if they need something heavier.
 RUN apk add --no-cache bubblewrap ca-certificates curl ffmpeg chromaprint postgresql-client unzip wget \
     libva libva-utils intel-media-driver libva-intel-driver mesa-va-gallium \
-    libcap python3 \
+    python3 \
     && if [ "$RUNTIMES" = "nodejs" ] || [ "$RUNTIMES" = "full" ]; then \
          apk add --no-cache nodejs npm; \
        fi \
@@ -108,15 +108,6 @@ RUN mkdir -p /data/media /data/transcoding /data/logs /data/plugins /data/keys /
     && chmod 700 /data/keys /data/logs /data/backups
 
 COPY --from=builder /evey /evey
-# Grant the (non-root) server CAP_SETUID/CAP_SETGID via file capabilities so it
-# can drop each plugin to the unprivileged evey-plugin uid (1001) without ever
-# running as root — giving plain-DAC isolation of the server's secrets (jwt.key)
-# from plugins even on kernels without Landlock (e.g. an old NAS). Done in the
-# final stage (after COPY) so the xattr isn't lost across build stages. The
-# plugin loses these caps on the launcher execve (the launcher carries none).
-# Tradeoff: a server RCE could setuid(0); accepted — the server is the trusted
-# component and the plugin (uid 1001, seccomp-denied setuid) cannot use it.
-RUN setcap cap_setuid,cap_setgid+ep /evey
 COPY --from=builder /evey-plugin-launcher /evey-plugin-launcher
 COPY --from=builder /libevey-sandbox.so /app/libevey-sandbox.so
 COPY --from=builder /src/i18n /i18n
