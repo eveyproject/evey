@@ -156,11 +156,22 @@ entrypoint: theme.css
 
 ZIP it, upload in Admin > Plugins. Full spec and examples: [docs/plugins.md](docs/plugins.md)
 
+## Languages & Accessibility
+
+The UI ships in 6 languages (EN, FR, DE, ES, ZH, HI), with English as the source
+and fallback; media metadata language is configured separately. The interface
+honors `prefers-reduced-motion`, labels its controls, and the player is
+keyboard-driven — but Evey has **not** been formally audited for accessibility
+and isn't screen-reader tested end to end. For the honest details (how i18n
+works, how to add a language, and the a11y gaps that remain), see
+[docs/i18n-accessibility.md](docs/i18n-accessibility.md).
+
 ## Docs
 
 | | |
 |---|---|
 | [Configuration](docs/configuration.md) | All env variables |
+| [Languages & Accessibility](docs/i18n-accessibility.md) | i18n + a11y: state & gaps |
 | [Reverse Proxy](docs/reverse-proxy.md) | Caddy, Nginx, Traefik |
 | [Transcoding](docs/transcoding.md) | Hardware acceleration |
 | [Backups](docs/backups.md) | Schedule & restore |
