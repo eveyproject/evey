@@ -138,10 +138,13 @@ Applied to `theme.js` at install time. A pattern that matches causes install to 
 The confinement layers that apply across **every** mode (subject to host
 capability):
 
-- **UID separation** — each plugin drops to uid/gid 1001 (`evey-plugin`),
-  distinct from the server's uid 1000, via `setcap cap_setuid,cap_setgid+ep`
-  on the (non-root) server. `jwt.key` (`0600`) and `/data/{keys,logs,backups}`
-  (`chmod 700`) are then DAC-unreadable to a plugin even without Landlock.
+- **UID separation** (`EVEY_PLUGINS_UID_SEPARATION`, default `auto`) — when
+  active, each plugin drops to uid 1001 (`evey-plugin`), distinct from the
+  server's uid 1000, via `cap_setuid` on the **launcher** (the server stays
+  unprivileged). `auto` enables it only in `basic` mode (no Landlock/bwrap),
+  where DAC is the only secret wall; `on` forces it everywhere; `off` disables
+  it. When active, `jwt.key` (`0600`) and `/data/{keys,logs,backups}`
+  (owner-only) are DAC-unreadable to a uid-1001 plugin even without Landlock.
 - **Kernel seccomp denylist** — installed by `evey-plugin-launcher` per build
   arch, pre-`execve`, so it constrains **static/compiled plugin binaries too**
   (which never load `libevey-sandbox.so`). Blocks `ptrace`, `mount`, `unshare`,
@@ -214,7 +217,7 @@ See [ADR-0013](../adr/0013-userspace-plugin-resource-monitor.md) for the rationa
 
 Note: `--unshare-cgroup` in the bwrap namespace list below creates an isolated cgroup _namespace_ (the plugin sees a fresh cgroup hierarchy) but does **not** impose resource limits; those come from the userspace monitor above.
 
-Source: `internal/adapters/driven/pluginrunner/runner_landlock.go`, `runner_bwrap.go`, `runner_resmon.go`, `runner_caps_linux.go`; `cmd/evey-plugin-launcher/{main.go,seccomp_linux.go,landlock_linux.go}`; `cmd/evey/hardening_linux.go`; `sandbox/sandbox.c`.
+Source: `internal/adapters/driven/pluginrunner/runner_landlock.go`, `runner_bwrap.go`, `runner_resmon.go`; `cmd/evey-plugin-launcher/{main.go,seccomp_linux.go,landlock_linux.go,droppriv_linux.go}`; `cmd/evey/hardening_linux.go`; `sandbox/sandbox.c`.
 
 ### 8. DNS whitelist (V1, best-effort)
 

@@ -82,9 +82,10 @@ sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugi
 ```
 
 - `evey` (UID 1000) runs the server.
-- `evey-plugin` (UID 1001) is the UID the server drops each plugin to, so a
-  compromised plugin lands as a different, unprivileged user that cannot read
-  the server's secrets by plain filesystem permissions.
+- `evey-plugin` (UID 1001) is the UID plugins are dropped to (by the launcher
+  when uid separation is active), so a compromised plugin lands as a different,
+  unprivileged user that cannot read the server's secrets by plain filesystem
+  permissions. See §4.
 
 The server marks itself **non-dumpable** at startup (`PR_SET_DUMPABLE=0`,
 `cmd/evey/hardening_linux.go`) so a co-resident plugin can't scrape
@@ -167,33 +168,44 @@ neither Landlock nor bubblewrap is available, and lean on the UID separation in
 
 ## 4. UID separation (protect secrets without root)
 
-UID separation is what stops a plugin from reading the server's `jwt.key`,
-backups, and logs by plain filesystem permissions (DAC) — it matters most in
-`basic` mode, where there's no Landlock path confinement. The server drops each
-plugin to UID 1001 **only if it has the privilege to** (`pluginSysProcAttr()` →
-`canSetUIDGID()` in `runner.go` / `runner_caps_linux.go`). You have two options:
+UID separation runs each plugin under a separate user (UID 1001, `evey-plugin`),
+distinct from the server (UID 1000), so a plugin can't read the server's
+`jwt.key`, backups or logs by plain filesystem permissions (DAC). It matters most
+in **`basic`** mode (no Landlock path confinement); under Landlock or bubblewrap
+the filesystem is already walled off, so it's redundant there.
 
-1. **Run the server as root.** It will `setuid`/`setgid` plugins to 1001. Simple,
-   but the server itself runs as root — not recommended.
+Controlled by `EVEY_PLUGINS_UID_SEPARATION` (`auto` | `on` | `off`, default
+`auto`):
 
-2. **Keep the server non-root + grant a file capability** (recommended, what the
-   image does):
+- `auto` — enable only when the sandbox resolves to `basic`. On a modern
+  bare-metal kernel (Landlock) it stays off, by design.
+- `on` — always, even under Landlock/bubblewrap (an extra independent layer).
+- `off` — never.
 
-   ```bash
-   sudo setcap cap_setuid,cap_setgid+ep /opt/evey/evey
-   ```
+**The drop is done by the launcher, not the server.** The server stays non-root
+with **no** capabilities; the small `evey-plugin-launcher` binary carries a single
+file capability and `setuid`s itself to 1001 just before exec'ing the plugin:
 
-   `canSetUIDGID()` reads the binary's effective capabilities from
-   `/proc/self/status` (`CapEff`); when both `CAP_SETUID` and `CAP_SETGID` are
-   present the server drops plugins to UID 1001 while itself staying non-root.
-   If the caps aren't present it **safely keeps the plugin at the server's UID**
-   rather than failing the spawn (you lose UID separation, not the server).
+```bash
+sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
+```
 
-   **Tradeoff:** the server then holds `CAP_SETUID`/`CAP_SETGID`, so a server RCE
-   could `setuid(0)`. This is accepted — the server is the trusted component; the
-   plugin (UID 1001, with `setuid`-family syscalls denied by seccomp) cannot use
-   it, and it loses the caps on the launcher `execve` (the launcher carries no
-   file caps).
+This keeps the server fully unprivileged — a server RCE can't `setuid(0)` because
+the server holds no caps; only the tiny, no-input launcher does (and it refuses
+any target UID below 1000). It's **best-effort**: if the launcher can't drop
+(capability missing, or `no_new_privs` set) it logs a warning and runs the plugin
+at the server's UID rather than failing — so this never breaks plugin startup.
+
+> **Incompatible with `no_new_privs`.** If you launch the server with
+> `no-new-privileges` (or systemd `NoNewPrivileges=yes`), the file capability is
+> ignored on exec and uid separation silently degrades to same-UID (with a
+> warning). Pick one.
+
+If the server runs **as root** instead (not recommended), it drops plugins to
+1001 directly and the launcher capability isn't needed.
+
+See the plain-language guide for the per-scenario picture:
+[plugins/sandbox-deployment.md](plugins/sandbox-deployment.md).
 
 ## 5. Secret file permissions
 

@@ -52,14 +52,20 @@ A plugin's `plugin.yaml` declares the permissions it requests. The runner enforc
 
 ### 3. UID separation (DAC)
 
-Each plugin process is dropped to UID/GID 1001 (`evey-plugin`), distinct from the server's UID (1000, `evey`). The drop happens when the server is root **or** when it holds `CAP_SETUID`+`CAP_SETGID` via file capabilities — the official image grants them with `setcap cap_setuid,cap_setgid+ep /evey`, so the server stays non-root yet can still isolate plugins by plain DAC. [`canSetUIDGID`](../internal/adapters/driven/pluginrunner/runner_caps_linux.go) reads the real `CapEff`; absent the privilege the plugin safely stays at the server's UID rather than failing the spawn.
+A plugin process can be dropped to UID 1001 (`evey-plugin`), distinct from the server's UID (1000, `evey`), so the server's secrets are unreadable to it by plain DAC. It is controlled by `EVEY_PLUGINS_UID_SEPARATION` (`auto` | `on` | `off`, default `auto`):
 
-What this buys, **even on a kernel without Landlock**:
+- `auto` — drop **only when the sandbox resolves to `basic`** (no Landlock/bubblewrap FS confinement) — the one case where DAC is the only thing protecting secrets. Skipped under landlock/bubblewrap, where it's redundant.
+- `on` — always (an extra independent layer on top of Landlock/bubblewrap).
+- `off` — never.
 
-- The server's secrets are DAC-protected from a uid-1001 plugin: `jwt.key` is `0600`, and `/data/{keys,logs,backups}` are `chmod 700` (owner-only); backups are written `0700` dir + `0600` files. A plugin running as 1001 cannot read any of them.
+**The drop is performed by the launcher, not the server.** The server stays non-root with no capabilities; `evey-plugin-launcher` carries `cap_setuid` (a file capability, `setcap cap_setuid+ep` in the `Dockerfile`) and `setgid`/`setuid`s itself to the shared group + UID 1001 right before exec. It refuses any target UID below 1000, and is **best-effort**: if it can't drop (no capability, or `no_new_privs` set) it warns and runs the plugin at the server's UID rather than failing the spawn — so enabling it can never break plugin startup. A root server drops plugins directly via `SysProcAttr` and needs no capability. Plain-language guide: [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md).
+
+What this buys, **even on a kernel without Landlock** (when active):
+
+- The server's secrets are DAC-protected from a uid-1001 plugin: `jwt.key` is `0600`, and `/data/{keys,logs,backups}` are owner-only; backups are written `0700` dir + `0600` files. A plugin running as 1001 cannot read any of them.
 - Combined with `PR_SET_DUMPABLE=0` on the server (see [§8](#8-server-process-hardening-pr_set_dumpable0)), the in-memory JWT key and environment secrets (`DB_PASSWORD`, `MEILI_MASTER_KEY`) are unreadable via `/proc/<server>/{mem,environ,maps}`.
 
-All plugins share UID 1001, so they are not isolated from *each other* by DAC alone — that is what the filesystem confinement layer (Landlock / bubblewrap) adds. See [§4](#4-syscall-confinement-kernel-seccomp--ld_preload) and the per-mode table below.
+All plugins share UID 1001, so they are not isolated from *each other* by DAC alone — that is what the filesystem confinement layer (Landlock / bubblewrap) adds. Under `basic`+uid-separation a malicious plugin could read or disturb a sibling's files; isolating plugins from each other without Landlock would need a UID *per plugin*. See [§4](#4-syscall-confinement-kernel-seccomp--ld_preload), the per-mode table below, and [Known limits](#known-limits).
 
 ### 4. Syscall confinement (kernel seccomp + LD_PRELOAD)
 
@@ -202,11 +208,13 @@ sandbox_mode: auto   # default — resolves landlock → bubblewrap → basic fo
 # sandbox_mode: strict      # bubblewrap + LD_PRELOAD seccomp lib
 ```
 
+`EVEY_PLUGINS_UID_SEPARATION` (`auto` | `on` | `off`, default `auto`) is a separate knob that controls whether plugins run under a distinct UID (see [§3](#3-uid-separation-dac)): `auto` enables it only when the mode resolves to `basic`, `on` forces it everywhere (extra independent layer), `off` disables it. Best-effort and launcher-driven; incompatible with `no_new_privs`. Per-scenario walkthrough: [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md).
+
 Mapping per mode (all values reflect host capability — e.g. Landlock requires kernel ≥ 5.13 with Landlock in the active LSM list):
 
 | Layer | auto | landlock | basic | bubblewrap | strict |
 |---|---|---|---|---|---|
-| UID separation (1001) | yes | yes | yes | yes | yes |
+| UID separation (1001) — `EVEY_PLUGINS_UID_SEPARATION`, default `auto` | on in basic only | off (set `on` to force) | on | via userns¹ | via userns¹ |
 | Kernel seccomp (launcher, pre-exec, covers static binaries) | yes | yes | yes | yes | yes |
 | LD_PRELOAD seccomp (interpreted plugins) | yes | yes | yes | no | yes |
 | `-deny-inet` (no IP socket for non-network plugins) | yes | yes | yes | n/a (net ns) | n/a (net ns) |
@@ -214,6 +222,8 @@ Mapping per mode (all values reflect host capability — e.g. Landlock requires 
 | Network | Landlock v4 TCP filter + `-deny-inet` | Landlock v4 TCP filter + `-deny-inet` | `-deny-inet` only | `--unshare-net` unless `network` perm | same |
 | Namespaces (user/pid/uts/ipc/cgroup) | n/a | n/a | n/a | unshared | unshared |
 | Resource caps | userspace monitor + `nice` | userspace monitor + `nice` | userspace monitor + `nice` | userspace monitor + `nice` | userspace monitor + `nice` |
+
+¹ In `bubblewrap`/`strict` the launcher isn't used, so the `cap_setuid` drop doesn't apply; the unshared **user namespace** provides UID isolation instead.
 
 Note: a true syscall *allowlist* for `strict` is still roadmap; today `strict` = bubblewrap + the LD_PRELOAD denylist.
 

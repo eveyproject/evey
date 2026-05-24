@@ -138,18 +138,19 @@ is hardened so this stays the recommended containerised posture — **no
   kernel-module, kexec, setuid-family, keyring, … syscalls) is installed right
   before the plugin `execve`, so it constrains even static/compiled plugins.
   Non-network plugins additionally get `socket(AF_INET/AF_INET6)` denied.
-- **Plugin UID separation without root.** The server drops each plugin to the
-  unprivileged `evey-plugin` user (UID 1001) so a plugin can't read the server's
-  secrets (e.g. `jwt.key`) by plain filesystem permissions — important on
-  kernels without Landlock. The image grants the server binary
-  `cap_setuid,cap_setgid+ep` via **file capabilities**: this is **not root** and
-  needs **no `--privileged`** — it's a narrow capability that lets the non-root
-  server change a child's UID, and the plugin loses it on `execve`.
+- **Plugin UID separation without root.** On a host without Landlock, plugins can
+  run under the unprivileged `evey-plugin` user (UID 1001) so they can't read the
+  server's secrets (e.g. `jwt.key`) by plain file permissions. The **launcher**
+  binary (not the server) carries a single `cap_setuid` file capability and drops
+  the plugin itself — **not root, no `--privileged`** — so the server stays fully
+  unprivileged. Controlled by `EVEY_PLUGINS_UID_SEPARATION` (default `auto`: on
+  only where Landlock is absent, since under Landlock secrets are already walled
+  off); best-effort, and incompatible with `no-new-privileges`.
 - **Per-plugin resource caps** (memory / PID / disk / CPU nice) enforced by a
   userspace monitor — **no cgroup / `mem_limit` / `cpus` settings needed** — and
   all **admin-editable at runtime** from Admin → Server Config.
 
-Full threat model and per-layer detail: [plugins/security-model.md](plugins/security-model.md).
+Which setup for your machine (old NAS, bare-metal, what to enable/disable, the risks in plain words): [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md). Full threat model and per-layer detail: [plugins/security-model.md](plugins/security-model.md).
 You can keep the default `auto` (recommended) or pin `EVEY_PLUGINS_SANDBOX_MODE:
 landlock` in compose to be explicit and fail-closed (`landlock` refuses to start
 a plugin if Landlock can't be enforced). Both give the same posture on a modern
