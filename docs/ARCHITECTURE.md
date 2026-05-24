@@ -10,7 +10,7 @@ Strict ports-and-adapters layout under `internal/`:
 - `internal/app/<context>/` — application services. Orchestrate ports. No IO.
 - `internal/adapters/driven/` — outbound adapters implementing domain ports: `postgres`, `meilisearch`, `ffmpeg`, `mkvgo`, `filesystem`, `opensubtitles`, `email`, `webpush`, `webhooksender`, `pluginrunner`, `metadata`, `search`.
 - `internal/adapters/driving/` — inbound adapters: `grpcapi` (+ grpc-gateway HTTP), `http` (static, auth middleware, SSE), `pluginhost` (iframe sandbox).
-- `pkg/` — shared kernel reused across contexts (auth, logging, proto types, config).
+- `internal/pkg/` — shared kernel reused across contexts (auth, logging, proto types, config).
 
 Dependency rule: `adapters -> app -> domain`. Domain never imports app or adapters. Composition happens in `cmd/.../wire.go`.
 
@@ -142,6 +142,12 @@ flowchart TB
     server -->|read/write FS| cache
     server -->|read/write FS| data
 ```
+
+> **Production differs from this dev topology.** The install compose has no
+> separate `evey-web` container (nor the dev-only mailcatcher): the `evey-server`
+> binary serves the built web UI from `/srv`, so the reverse proxy forwards
+> *everything* — UI and API — to it on `:9091`. See
+> [installation.md](installation.md) and [reverse-proxy.md](reverse-proxy.md).
 
 ### Level 3 — Component (zoom on `evey-server`)
 
