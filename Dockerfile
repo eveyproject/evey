@@ -79,7 +79,7 @@ ARG RUNTIMES=lean
 # python3 is bundled in every variant: the majority of community plugins use
 # it, and the install error message points users to `evey:beta-nodejs` /
 # `evey:beta-full` if they need something heavier.
-RUN apk add --no-cache bubblewrap ca-certificates curl ffmpeg chromaprint postgresql-client unzip wget \
+RUN apk add --no-cache bubblewrap libcap ca-certificates curl ffmpeg chromaprint postgresql-client unzip wget \
     libva libva-utils intel-media-driver libva-intel-driver mesa-va-gallium \
     python3 \
     && if [ "$RUNTIMES" = "nodejs" ] || [ "$RUNTIMES" = "full" ]; then \
@@ -109,6 +109,13 @@ RUN mkdir -p /data/media /data/transcoding /data/logs /data/plugins /data/keys /
 
 COPY --from=builder /evey /evey
 COPY --from=builder /evey-plugin-launcher /evey-plugin-launcher
+# cap_setuid lets the launcher drop a plugin to the evey-plugin uid (1001) even
+# when the server runs non-root, enabling EVEY_PLUGINS_UID_SEPARATION=true so a
+# plugin can't read the server's 0600 secrets on a host without Landlock.
+# Dormant unless that flag is set; the launcher refuses any target uid < 1000.
+# Requires the container to keep CAP_SETUID in its bounding set (Docker default;
+# don't cap_drop it) and is incompatible with no-new-privileges.
+RUN setcap cap_setuid+ep /evey-plugin-launcher
 COPY --from=builder /libevey-sandbox.so /app/libevey-sandbox.so
 COPY --from=builder /src/i18n /i18n
 COPY --from=builder /src/sdk /app/sdk
