@@ -207,3 +207,6 @@ selectedCount: '{{count}} ausgewählt'
 somethingWentWrong: Etwas ist schiefgelaufen
 tryAgain: Erneut versuchen
 unknownError: Unbekannter Fehler
+shufflePlay: Zufallswiedergabe
+shuffleEmpty: Nichts zum Mischen vorhanden
+shuffleFailed: Konnte nichts zum Abspielen auswählen

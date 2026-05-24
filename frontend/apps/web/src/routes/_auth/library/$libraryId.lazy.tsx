@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Folder, ChevronRight } from "lucide-react";
+import { Folder, ChevronRight, Shuffle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
@@ -366,6 +366,50 @@ function LibraryPage() {
   const displayItems = hasLocalFilters ? localFiltered : items;
   const displayCount = hasLocalFilters ? localFiltered.length : totalItems;
 
+  const [randomLoading, setRandomLoading] = useState(false);
+  // Shuffle play: start one random item from the current view. A movie plays
+  // straight away; a series goes to its detail so the user picks an episode.
+  const playRandomPick = useCallback((pick?: V1MediaItem) => {
+    const id = pick?.id;
+    if (!id) { toast.error(t("common.shuffleFailed")); return; }
+    if (pick?.type === "MEDIA_ITEM_TYPE_MOVIE") {
+      navigate({ to: "/player/$mediaId", params: { mediaId: id } });
+    } else {
+      navigate({ to: "/media/$mediaId", params: { mediaId: id } });
+    }
+  }, [navigate, t]);
+  const handleRandomPlay = useCallback(async () => {
+    if (randomLoading || !libraryId) return;
+    // With a search or panel filters active, shuffle within what's on screen so
+    // the pick honors every facet (multi-genre, resolution, year…). With no
+    // such filter, shuffle the WHOLE library via a random page offset (pageSize
+    // 1, page = offset+1) so it isn't limited to the scrolled-in slice — the
+    // genre deep-link, if any, is still applied server-side.
+    if (hasActiveFilters || searchActive) {
+      if (displayItems.length === 0) { toast.info(t("common.shuffleEmpty")); return; }
+      playRandomPick(displayItems[Math.floor(Math.random() * displayItems.length)]);
+      return;
+    }
+    setRandomLoading(true);
+    try {
+      const base = {
+        libraryId,
+        ...(typeFilter ? { type: typeFilter } : {}),
+        ...(genreFilter ? { genre: genreFilter } : {}),
+      };
+      const probe = await libraryServiceListMediaItems({ ...base, "pagination.page": 1, "pagination.pageSize": 1 });
+      const total = probe.pagination?.totalItems ?? 0;
+      if (total === 0) { toast.info(t("common.shuffleEmpty")); return; }
+      const page = Math.floor(Math.random() * total) + 1;
+      const res = page === 1 ? probe : await libraryServiceListMediaItems({ ...base, "pagination.page": page, "pagination.pageSize": 1 });
+      playRandomPick(res.items?.[0]);
+    } catch {
+      toast.error(t("common.shuffleFailed"));
+    } finally {
+      setRandomLoading(false);
+    }
+  }, [randomLoading, libraryId, hasActiveFilters, searchActive, displayItems, typeFilter, genreFilter, playRandomPick, t]);
+
   return (
     <div data-testid="library-page">
       <nav className="flex items-center gap-1.5 text-sm mb-3" aria-label="Breadcrumb">
@@ -415,6 +459,16 @@ function LibraryPage() {
           order={sortOrder}
           onChange={(o) => updateSearch({ sortOrder: o })}
         />
+        <Button
+          variant="secondary"
+          onClick={handleRandomPlay}
+          loading={randomLoading}
+          title={t("common.shufflePlay")}
+          data-testid="library-shuffle-play"
+        >
+          <Shuffle size={16} />
+          {t("common.shufflePlay")}
+        </Button>
         <LibraryFilterToggle search={search} resultCount={hasLocalFilters || hasServerFilters ? displayCount : undefined} onClick={() => setFiltersOpen((v) => !v)} />
         <ViewToggleButton mode={viewMode} onChange={setViewMode} />
         <button

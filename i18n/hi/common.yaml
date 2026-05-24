@@ -207,3 +207,6 @@ selectedCount: '{{count}} चयनित'
 somethingWentWrong: कुछ गलत हो गया
 tryAgain: पुनः प्रयास करें
 unknownError: अज्ञात त्रुटि
+shufflePlay: शफ़ल चलाएँ
+shuffleEmpty: यहाँ चलाने के लिए कुछ नहीं
+shuffleFailed: चलाने के लिए कुछ चुना नहीं जा सका
