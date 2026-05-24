@@ -85,8 +85,11 @@ func TestNew_WritesToFile(t *testing.T) {
 	}
 }
 
+// Tests that call logger.New are intentionally NOT t.Parallel: New mutates the
+// package-global level var (globalLevel, backing runtime SetLevel), so parallel
+// New calls race — a sibling raising the level to warn/error could suppress this
+// test's log line before it is written, leaving the expected file uncreated.
 func TestParseLevel_AllValues(t *testing.T) {
-	t.Parallel()
 	dir := t.TempDir()
 
 	tests := []struct {
@@ -113,7 +116,6 @@ func TestParseLevel_AllValues(t *testing.T) {
 }
 
 func TestDevHandler_OutputFormatting(t *testing.T) {
-	t.Parallel()
 	dir := t.TempDir()
 	var buf strings.Builder
 
@@ -137,7 +139,6 @@ func TestDevHandler_OutputFormatting(t *testing.T) {
 }
 
 func TestDevHandler_WithAttrsAndGroup(t *testing.T) {
-	t.Parallel()
 	dir := t.TempDir()
 
 	l := logger.New(logger.Config{Dir: dir, Level: "debug", DevMode: true})
@@ -155,7 +156,6 @@ func TestDevHandler_WithAttrsAndGroup(t *testing.T) {
 }
 
 func TestRotatingWriter_SizeRotation(t *testing.T) {
-	t.Parallel()
 	dir := t.TempDir()
 
 	// Use very small max size (1 byte effectively) to trigger rotation
@@ -219,7 +219,6 @@ func TestStartCleanup_DefaultRetention(t *testing.T) {
 }
 
 func TestMultiHandler_EnabledFalseWhenBelowAll(t *testing.T) {
-	t.Parallel()
 	dir := t.TempDir()
 
 	l := logger.New(logger.Config{Dir: dir, Level: "error", DevMode: true})
@@ -235,7 +234,6 @@ func TestMultiHandler_EnabledFalseWhenBelowAll(t *testing.T) {
 }
 
 func TestDevHandler_WithAttrs_PreservesExisting(t *testing.T) {
-	t.Parallel()
 	dir := t.TempDir()
 
 	l := logger.New(logger.Config{Dir: dir, Level: "debug", DevMode: true})
