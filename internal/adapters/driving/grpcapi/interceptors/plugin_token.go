@@ -7,9 +7,7 @@ import (
 
 	authpkg "github.com/evey-project/evey/internal/pkg/auth"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 )
 
 // pluginClaimsKey stores *authpkg.PluginClaims in context for scoped plugin tokens.
@@ -84,27 +82,4 @@ func PluginClaimsFromContext(ctx context.Context) *authpkg.PluginClaims {
 // wiring; the interceptor sets these from a validated plugin token at runtime.
 func ContextWithPluginClaims(ctx context.Context, claims *authpkg.PluginClaims) context.Context {
 	return context.WithValue(ctx, pluginClaimsKey{}, claims)
-}
-
-// ScopeFromCtx returns the scopes granted by a scoped plugin token in ctx, if any.
-func ScopeFromCtx(ctx context.Context) ([]string, bool) {
-	c := PluginClaimsFromContext(ctx)
-	if c == nil {
-		return nil, false
-	}
-	return c.Scopes, true
-}
-
-// RequireScope returns a PermissionDenied error if the scoped plugin claims in
-// ctx do not grant the named scope. If ctx has no plugin claims, returns nil
-// (user auth applies instead).
-func RequireScope(ctx context.Context, scope string) error {
-	c := PluginClaimsFromContext(ctx)
-	if c == nil {
-		return nil
-	}
-	if !c.HasScope(scope) {
-		return status.Errorf(codes.PermissionDenied, "plugin token lacks scope %q", scope)
-	}
-	return nil
 }

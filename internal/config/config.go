@@ -53,10 +53,10 @@ type Config struct {
 	Log          LogConfig
 	Backup       BackupConfig
 	RemoteAccess RemoteAccessConfig
-	SMTP    SMTPConfig
-	VAPID   VAPIDConfig
-	Tracing TracingConfig
-	Plugins PluginsConfig
+	SMTP         SMTPConfig
+	VAPID        VAPIDConfig
+	Tracing      TracingConfig
+	Plugins      PluginsConfig
 }
 
 // PluginsConfig holds configuration for the third-party plugin subsystem.
@@ -64,7 +64,7 @@ type PluginsConfig struct {
 	// SandboxMode controls the isolation level applied to plugin processes.
 	// Valid values:
 	//   "auto"       detect the strongest isolation the host supports at boot
-	//                (bubblewrap > landlock > basic) — recommended, works OOTB.
+	//                (landlock > bubblewrap > basic) — recommended, works OOTB.
 	//   "landlock"   Landlock LSM filesystem allowlist; no mount/unshare, so it
 	//                runs under Docker's default seccomp+AppArmor. Fail-closed.
 	//   "bubblewrap" bwrap namespace isolation (needs the mount syscall, so it
@@ -173,23 +173,24 @@ type LogConfig struct {
 }
 
 type ServerConfig struct {
-	Port              int
-	BaseURL           string
-	Name              string
-	WebDir            string
-	TrustedProxies    []string
-	RealIPHeader      string
-	ForwardedProto    bool
+	Port               int
+	BaseURL            string
+	Name               string
+	WebDir             string
+	TrustedProxies     []string
+	RealIPHeader       string
+	ForwardedProto     bool
 	LoginRateLimitMax  int
 	GlobalRateLimitMax int
 	// PluginsEnabled gates the entire third-party plugin subsystem.
 	// Defaults to true: plugins are a first-class feature and always run inside
-	// the bubblewrap sandbox — or refuse to start. There is no unsandboxed
-	// fallback (a host where bwrap can't run yields a boot warning + failing
-	// plugins, never plugins running unconfined). Installing remains admin-only
-	// and gated by the analyzer + cosign + permission ack. Set
-	// EVEY_PLUGINS_ENABLED=false to disable the subsystem entirely (admin RPCs
-	// return FailedPrecondition, the runner is not constructed).
+	// the plugin sandbox. "auto" picks the strongest the host supports
+	// (landlock > bubblewrap > basic); even the basic fallback applies a UID
+	// drop + seccomp denylist, so a plugin never runs fully unconfined.
+	// Installing remains admin-only and gated by the analyzer + cosign +
+	// permission ack. Set EVEY_PLUGINS_ENABLED=false to disable the subsystem
+	// entirely (admin RPCs return FailedPrecondition, the runner is not
+	// constructed).
 	PluginsEnabled bool
 }
 
@@ -257,10 +258,10 @@ type JWTConfig struct {
 }
 
 type TranscodingConfig struct {
-	MaxConcurrent   int
-	CacheMaxGB      int
-	CacheDir        string
-	HWAccelEnabled  bool
+	MaxConcurrent     int
+	CacheMaxGB        int
+	CacheDir          string
+	HWAccelEnabled    bool
 	TrickplayCacheDir string
 }
 
@@ -279,9 +280,8 @@ type MetricsConfig struct {
 }
 
 type LibraryConfig struct {
-	DefaultScanInterval   time.Duration
-	PeriodicScanInterval  time.Duration // fallback polling when inotify misses events
-	WatcherEnabled        bool
+	PeriodicScanInterval time.Duration // fallback polling when inotify misses events
+	WatcherEnabled       bool
 }
 
 type PlaybackConfig struct {
@@ -297,9 +297,9 @@ func (c *Config) EffectiveBaseURL() string {
 	return c.Server.BaseURL
 }
 
-func (c *Config) EffectiveServerName() string       { return c.Server.Name }
-func (c *Config) EffectiveMaxConcurrent() int        { return c.Transcoding.MaxConcurrent }
-func (c *Config) EffectiveHWAccelEnabled() bool      { return c.Transcoding.HWAccelEnabled }
+func (c *Config) EffectiveServerName() string   { return c.Server.Name }
+func (c *Config) EffectiveMaxConcurrent() int   { return c.Transcoding.MaxConcurrent }
+func (c *Config) EffectiveHWAccelEnabled() bool { return c.Transcoding.HWAccelEnabled }
 
 // WarnValidate validates config, returning an error for critical security issues
 // and logging warnings for non-critical ones.
@@ -404,13 +404,13 @@ func isLoopbackHost(host string) bool {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
-			Port:              envInt("EVEY_SERVER_PORT", 9090),
-			BaseURL:           envStr("EVEY_SERVER_BASE_URL", "http://localhost:9091"),
-			Name:              envStr("EVEY_SERVER_NAME", "Evey"),
-			WebDir:            envStr("EVEY_WEB_DIR", "/srv"),
-			TrustedProxies:    envStrSlice("EVEY_TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
-			RealIPHeader:      envStr("EVEY_REAL_IP_HEADER", "X-Forwarded-For"),
-			ForwardedProto:    envBool("EVEY_FORWARDED_PROTO", false),
+			Port:               envInt("EVEY_SERVER_PORT", 9090),
+			BaseURL:            envStr("EVEY_SERVER_BASE_URL", "http://localhost:9091"),
+			Name:               envStr("EVEY_SERVER_NAME", "Evey"),
+			WebDir:             envStr("EVEY_WEB_DIR", "/srv"),
+			TrustedProxies:     envStrSlice("EVEY_TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
+			RealIPHeader:       envStr("EVEY_REAL_IP_HEADER", "X-Forwarded-For"),
+			ForwardedProto:     envBool("EVEY_FORWARDED_PROTO", false),
 			LoginRateLimitMax:  envInt("EVEY_RATELIMIT_LOGIN_MAX", 10),
 			GlobalRateLimitMax: envInt("EVEY_RATELIMIT_GLOBAL_MAX", 300),
 			PluginsEnabled:     envBool("EVEY_PLUGINS_ENABLED", true),
@@ -455,7 +455,6 @@ func Load() (*Config, error) {
 			SampleIntervalSec: envInt("EVEY_METRICS_SAMPLE_INTERVAL_SEC", 60),
 		},
 		Library: LibraryConfig{
-			DefaultScanInterval:  envDuration("EVEY_LIBRARY_SCAN_INTERVAL", 6*time.Hour),
 			PeriodicScanInterval: envDuration("EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL", 2*time.Minute),
 			WatcherEnabled:       envBool("EVEY_LIBRARY_WATCHER_ENABLED", true),
 		},

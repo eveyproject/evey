@@ -53,7 +53,6 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, 90, cfg.Metrics.RetentionDays)
 	assert.Equal(t, 60, cfg.Metrics.SampleIntervalSec)
 
-	assert.Equal(t, 6*time.Hour, cfg.Library.DefaultScanInterval)
 	assert.Equal(t, 2*time.Minute, cfg.Library.PeriodicScanInterval)
 	assert.True(t, cfg.Library.WatcherEnabled)
 

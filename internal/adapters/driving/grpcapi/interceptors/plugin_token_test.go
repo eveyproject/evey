@@ -8,9 +8,7 @@ import (
 
 	authpkg "github.com/evey-project/evey/internal/pkg/auth"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 )
 
 type fakeParser struct {
@@ -40,9 +38,8 @@ func TestPluginTokenInterceptor_ValidToken_PopulatesCtx(t *testing.T) {
 	if got == nil || got.PluginID != "plg1" {
 		t.Fatalf("claims not populated: %+v", got)
 	}
-	scopes, ok := ScopeFromCtx(gotCtx)
-	if !ok || len(scopes) != 1 || scopes[0] != "media:read" {
-		t.Errorf("scopes = %v ok=%v", scopes, ok)
+	if len(got.Scopes) != 1 || got.Scopes[0] != "media:read" {
+		t.Errorf("scopes = %v", got.Scopes)
 	}
 }
 
@@ -92,27 +89,6 @@ func TestPluginTokenInterceptor_APIKeySkipped(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
-	}
-}
-
-func TestRequireScope_NoClaims_OK(t *testing.T) {
-	if err := RequireScope(context.Background(), "media:read"); err != nil {
-		t.Errorf("expected nil, got %v", err)
-	}
-}
-
-func TestRequireScope_HasScope_OK(t *testing.T) {
-	ctx := context.WithValue(context.Background(), pluginClaimsKey{}, &authpkg.PluginClaims{Scopes: []string{"media:read"}})
-	if err := RequireScope(ctx, "media:read"); err != nil {
-		t.Errorf("expected nil, got %v", err)
-	}
-}
-
-func TestRequireScope_MissingScope_PermissionDenied(t *testing.T) {
-	ctx := context.WithValue(context.Background(), pluginClaimsKey{}, &authpkg.PluginClaims{Scopes: []string{"media:read"}})
-	err := RequireScope(ctx, "media:write")
-	if code := status.Code(err); code != codes.PermissionDenied {
-		t.Fatalf("code = %v, want PermissionDenied", code)
 	}
 }
 
