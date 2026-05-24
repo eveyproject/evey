@@ -98,6 +98,7 @@ type Runner struct {
 	sandboxOnce         sync.Once
 	onIPCResult         OnIPCResult
 	allowMissingSandbox bool
+	uidSeparation       bool // drop plugins to evey-plugin uid via launcher cap_setuid (non-root server)
 	eventBus            EventBus
 	hostRegistry        HostRegistry
 	autoResolveOnce     sync.Once // resolves sandboxModeAuto to a concrete mode once
@@ -473,6 +474,14 @@ func (r *Runner) setupSocketDir(pluginID string) (string, string, error) {
 		if err := os.Chown(pluginSockDir, pluginUID, pluginGID); err != nil {
 			return "", "", fmt.Errorf("chown plugin sock dir: %w", err)
 		}
+	} else if r.uidSeparation {
+		// Non-root + uid separation: the server (the dir owner) can't chown to the
+		// plugin uid (no CAP_CHOWN), so make the dir group-writable + setgid. The
+		// plugin runs in the server's group, so it can create plugin.sock here,
+		// and the setgid bit keeps created sockets in that shared group.
+		if err := os.Chmod(pluginSockDir, os.FileMode(0o770)|os.ModeSetgid); err != nil {
+			return "", "", fmt.Errorf("chmod plugin sock dir for uid separation: %w", err)
+		}
 	}
 	sock := filepath.Join(pluginSockDir, "plugin.sock")
 	if err := os.Remove(sock); err != nil && !os.IsNotExist(err) {
@@ -611,7 +620,8 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 			pluginDir = defaultPluginDir
 		}
 		cmd.Path = launcher
-		cmd.Args = buildLauncherArgv(launcher, p, cmd, false) // best-effort Landlock
+		du, dg := r.pluginDropArgs()
+		cmd.Args = buildLauncherArgv(launcher, p, cmd, false, du, dg) // best-effort Landlock
 		cmd.Env = overrideEnv(cmd.Env, map[string]string{"HOME": pluginDir, "TMPDIR": pluginDir})
 	}
 
@@ -721,6 +731,28 @@ func pluginSysProcAttr() *syscall.SysProcAttr {
 		a.Credential = &syscall.Credential{Uid: pluginUID, Gid: pluginGID}
 	}
 	return a
+}
+
+// pluginDropArgs returns the uid/gid the launcher should setuid to before exec,
+// or 0,0 to leave the plugin at the server's uid. It returns a real uid only
+// when uid separation is enabled AND the server is non-root: a root server drops
+// the plugin via SysProcAttr.Credential instead (see pluginSysProcAttr), and a
+// disabled flag preserves the prior same-uid behaviour (no regression). The gid
+// is the server's own group so the plugin can write the group-shared sock dir.
+func (r *Runner) pluginDropArgs() (uid, gid int) {
+	if r.uidSeparation && os.Getuid() != 0 {
+		return pluginUID, os.Getgid()
+	}
+	return 0, 0
+}
+
+// WithUIDSeparation makes the runner drop each plugin to the dedicated
+// evey-plugin uid via the launcher's cap_setuid even when the server is
+// non-root. Off by default (a host lacking that file capability, or one using
+// no-new-privileges, would otherwise fail plugin startup).
+func (r *Runner) WithUIDSeparation(on bool) *Runner {
+	r.uidSeparation = on
+	return r
 }
 
 // trackLifecycle runs cmd.Wait in a goroutine and cleans up once the

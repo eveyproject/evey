@@ -3,6 +3,7 @@ package pluginrunner
 import (
 	"context"
 	"os/exec"
+	"slices"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
@@ -56,6 +57,33 @@ func TestApplyLandlockSandbox_BuildsArgv(t *testing.T) {
 	assert.Contains(t, cmd.Env, "HOME=/data/plugins/weather")
 	assert.Contains(t, cmd.Env, "TMPDIR=/data/plugins/weather")
 	assert.Contains(t, cmd.Env, "EVEY_PLUGIN_ID=weather", "unrelated env preserved")
+}
+
+func TestBuildLauncherArgv_UIDSeparation(t *testing.T) {
+	p := &plugin.Plugin{ID: "weather", InstallDir: "/data/plugins/weather"}
+	cmd := exec.Command("/usr/bin/node", "/data/plugins/weather/main.js")
+
+	t.Run("no -uid when dropUID is 0 (default, unchanged behaviour)", func(t *testing.T) {
+		args := buildLauncherArgv("/bin/true", p, cmd, false, 0, 0)
+		assert.NotContains(t, args, "-uid")
+		assert.NotContains(t, args, "-gid")
+	})
+
+	t.Run("appends -uid/-gid as flags before the -- separator", func(t *testing.T) {
+		args := buildLauncherArgv("/bin/true", p, cmd, false, 1001, 1000)
+		uidIdx := slices.Index(args, "-uid")
+		require.GreaterOrEqual(t, uidIdx, 0, "-uid must be present")
+		assert.Equal(t, "1001", args[uidIdx+1])
+		gidIdx := slices.Index(args, "-gid")
+		require.GreaterOrEqual(t, gidIdx, 0, "-gid must be present")
+		assert.Equal(t, "1000", args[gidIdx+1])
+		sep := slices.Index(args, "--")
+		require.GreaterOrEqual(t, sep, 0)
+		assert.Less(t, uidIdx, sep, "-uid must precede the -- separator (it is a launcher flag)")
+		// the original command stays at the tail, untouched
+		assert.Equal(t, "/usr/bin/node", args[len(args)-2])
+		assert.Equal(t, "/data/plugins/weather/main.js", args[len(args)-1])
+	})
 }
 
 func TestApplyLandlockSandbox_NoNetworkPerm_CutsOffTCP(t *testing.T) {

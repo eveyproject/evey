@@ -92,6 +92,15 @@ type PluginsConfig struct {
 	// this. 0 disables the check.
 	DiskMaxMB int
 
+	// UIDSeparation runs each plugin under the dedicated evey-plugin uid (1001),
+	// distinct from the server's, so plain DAC keeps the server's 0600 secrets
+	// (jwt.key, backups) unreadable to plugins even on a host without Landlock.
+	// On the non-root official image this needs the cap_setuid file capability
+	// on the launcher (see Dockerfile) and is incompatible with
+	// no-new-privileges. Off by default: a host lacking that capability would
+	// otherwise fail plugin startup (fail-closed). EVEY_PLUGINS_UID_SEPARATION
+	UIDSeparation bool
+
 	// CosignPolicy controls whether plugin ZIPs must carry a cosign signature.
 	// Values: "off" (no verification), "warn" (default — install proceeds but
 	// unsigned/invalid plugins surface a finding in the security dashboard),
@@ -514,6 +523,7 @@ func Load() (*Config, error) {
 			DiskMaxMB:       envInt("EVEY_PLUGINS_DISK_MAX_MB", 100),
 			CPUNice:         envInt("EVEY_PLUGINS_CPU_NICE", 10),
 			PIDsMax:         envInt("EVEY_PLUGINS_PIDS_MAX", 64),
+			UIDSeparation:   envBool("EVEY_PLUGINS_UID_SEPARATION", false),
 			CosignPolicy:    strings.ToLower(strings.TrimSpace(envStr("EVEY_PLUGINS_COSIGN_POLICY", "warn"))),
 			CosignPublicKey: envStr("EVEY_PLUGINS_COSIGN_PUBLIC_KEY", ""),
 		},

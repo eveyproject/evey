@@ -40,7 +40,7 @@ const devDir = "/dev"
 // enforced (landlock mode); false keeps Landlock best-effort — the basic-mode
 // fallback, where the launcher still delivers seccomp (incl. -deny-inet) and
 // Landlock-if-available on top of the LD_PRELOAD shim.
-func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, requireLandlock bool) []string {
+func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, requireLandlock bool, dropUID, dropGID int) []string {
 	pluginDir := p.InstallDir
 	if pluginDir == "" {
 		pluginDir = defaultPluginDir
@@ -74,6 +74,13 @@ func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, require
 		args = append(args, "-deny-inet")
 	}
 
+	// Drop to the dedicated plugin uid (distinct from the server) when uid
+	// separation is on and the server is non-root; the launcher carries
+	// cap_setuid for this. dropUID==0 leaves the plugin at the server's uid.
+	if dropUID > 0 {
+		args = append(args, "-uid", strconv.Itoa(dropUID), "-gid", strconv.Itoa(dropGID))
+	}
+
 	if requireLandlock {
 		args = append(args, "-require-landlock")
 	}
@@ -102,7 +109,8 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 		pluginDir = defaultPluginDir
 	}
 	cmd.Path = launcher
-	cmd.Args = buildLauncherArgv(launcher, p, cmd, true)
+	du, dg := r.pluginDropArgs()
+	cmd.Args = buildLauncherArgv(launcher, p, cmd, true, du, dg)
 
 	// The plugin dir is the only writable allowlisted location the plugin owns,
 	// so point HOME/TMPDIR there. A plugin writing scratch to $HOME=/tmp would

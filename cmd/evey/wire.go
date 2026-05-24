@@ -200,6 +200,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		WithResourceLimits(cfg.Plugins.MemoryMB*1024*1024, cfg.Plugins.PIDsMax).
 		WithCPUNice(cfg.Plugins.CPUNice).
 		WithDiskQuota(int64(cfg.Plugins.DiskMaxMB) * 1024 * 1024).
+		WithUIDSeparation(cfg.Plugins.UIDSeparation).
 		WithEventBus(bus)
 	manifestParser := pluginrunner.NewManifestParser()
 	pluginInstaller := pluginrunner.NewZipInstaller()
