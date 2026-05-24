@@ -17,5 +17,6 @@ Structural decisions for Evey. New ADRs are numbered sequentially and never rewr
 | [0011](0011-intro-detection-providers.md) | External intro detection providers ahead of the heuristic pipeline | 2026-05-04 (amended 2026-05-23) | Accepted |
 | [0012](0012-plugin-token-deny-by-default.md) | Deny-by-default authorization for plugin tokens | 2026-05-23 | Accepted |
 | [0013](0013-userspace-plugin-resource-monitor.md) | Userspace plugin resource monitor (cgroups abandoned) | 2026-05-23 | Accepted |
+| [0014](0014-landlock-plugin-sandbox.md) | Landlock plugin sandbox via a pre-exec launcher shim | 2026-05-24 | Accepted |
 
 See also [docs/ARCHITECTURE.md](../ARCHITECTURE.md) for the high-level picture.

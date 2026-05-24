@@ -100,7 +100,7 @@ STAT_BLOCKED /var, /home, /root, /mnt, /media, /opt, /srv, /run (all ENOENT)
 STAT_BLOCKED /etc/passwd, /etc/shadow, /data/jwt.key (all ENOENT)
 ```
 
-`/data` itself is mounted but contains only the plugin's own subdirectory (`/data/plugins`); no `jwt.key`, `backups`, `artworks` are visible. `/proc/1/environ` IS readable but PID 1 inside the namespace is the plugin itself (`--unshare-pid`), so reading its own environ is not a leak.
+`/data` appears not because the host `/data` is mounted (it never is) but because bubblewrap synthesises the empty parent directories of the plugin's own read-write bind target (`/data/plugins/<id>`); it therefore contains only that one subdirectory. No `jwt.key`, `backups`, `artworks` are visible. `/proc/1/environ` IS readable but PID 1 inside the namespace is the plugin itself (`--unshare-pid`), so reading its own environ is not a leak.
 
 Re-run the canary after any change to `runner_bwrap.go` to confirm the mount layout still blocks.
 
@@ -191,18 +191,22 @@ When `sandbox_mode` is `bubblewrap` or `strict` (opt-in via `evey.yaml`), each p
 
 **Mount whitelist:**
 
-The sandbox exposes read-only system paths needed for runtime (libraries, SSL, DNS) while blocking access to data paths:
+The sandbox bind-mounts a **selective allowlist** of read-only system paths needed for runtime (interpreters, shared libraries, SSL, DNS) while never exposing data paths. There is **no** full `/` bind: only the directories below are mounted, so `/data`, `/var`, `/home`, `/root` and sibling plugin directories simply do not exist inside the namespace.
 
 | Path | Access | Rationale |
 |---|---|---|
-| `/` (full ro-bind) | Read-only | Provides `/usr`, `/lib`, `/bin`, `/sbin`, ssl certs, `resolv.conf` etc. |
+| `/usr`, `/bin`, `/sbin` | Read-only | Interpreters and system binaries |
+| `/lib`, `/lib64` | Read-only (`--ro-bind-try`) | Shared libraries (absent paths skipped per distro) |
+| `/etc/ssl`, `/etc/ca-certificates`, `/etc/resolv.conf`, `/etc/nsswitch.conf`, `/etc/{alpine,os}-release` | Read-only (`--ro-bind-try`) | TLS trust store, DNS resolution, runtime detection. **Not** `/etc` wholesale: `/etc/passwd`, `/etc/shadow`, `/etc/ssh` are never mounted. |
 | `<plugin_dir>` | Read-write | Plugin's own install directory |
-| `<plugin_sock_dir>` | Read-write | Per-plugin IPC socket directory |
+| `<plugin_sock_dir>` | Read-write | Per-plugin IPC socket directory (re-bound after the `/tmp` tmpfs) |
 | `/proc` | Proc-mount | Required by runtimes |
-| `/dev` | Synthetic | Minimal device set (null, zero, random, tty) — no physical devices |
+| `/dev` | Synthetic (`--dev`) | Minimal device set (null, zero, full, random, urandom, tty, pts) — no physical devices |
 | `/tmp` | tmpfs | Ephemeral scratch; host `/tmp` is not visible |
 
-Paths **not** mounted: `/data`, `/var`, `/home`, other plugins' directories.
+Paths **not** mounted: `/data`, `/var`, `/home`, `/root`, `/run`, `/etc/passwd`, `/etc/shadow`, `/etc/ssh`, other plugins' directories.
+
+Source: `buildBwrapCmd` in `internal/adapters/driven/pluginrunner/runner_bwrap.go`.
 
 **Userspace resource monitor** (per plugin):
 
