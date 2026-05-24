@@ -32,7 +32,7 @@ EVEY_VERSION=latest                    # Docker image tag (latest, v0.1.0-beta.1
 EVEY_DB_USER=evey
 EVEY_DB_PASSWORD=changeme
 EVEY_DB_NAME=evey
-EVEY_DB_SSLMODE=disable               # disable, require, verify-full
+EVEY_DB_SSLMODE=prefer                # default (works with the bundled Postgres); or disable | require | verify-full
 POSTGRES_DATA_DIR=~/.evey/postgres-data
 ```
 

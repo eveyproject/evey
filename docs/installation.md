@@ -36,6 +36,7 @@ services:
       - "9091:9091"
     environment:
       EVEY_DB_HOST: postgres
+      EVEY_DB_SSLMODE: disable          # internal Docker network; the bundled Postgres has no TLS
       EVEY_MEILI_URL: http://meilisearch:7700
       EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
       EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
@@ -104,9 +105,10 @@ Only these env vars are infra/secret and **belong in compose/.env** — they are
 never admin-editable: `EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY`, `EVEY_DB_HOST`,
 `EVEY_DB_USER`, `EVEY_DB_NAME`, `EVEY_DB_SSLMODE`, `EVEY_MEILI_URL`, the `*_DIR`
 paths, `EVEY_JWT_PRIVATE_KEY_PATH`, `EVEY_SERVER_BASE_URL`,
-`EVEY_TRUSTED_PROXIES` / `EVEY_FORWARDED_PROTO`, and (rarely needed)
-`EVEY_PLUGINS_ENABLED` / `EVEY_PLUGINS_SANDBOX_MODE`. Full reference:
-[configuration.md](configuration.md).
+`EVEY_TRUSTED_PROXIES` / `EVEY_FORWARDED_PROTO`, and the plugin master switch
+`EVEY_PLUGINS_ENABLED`. (`EVEY_PLUGINS_SANDBOX_MODE`, `EVEY_PLUGINS_UID_SEPARATION`
+and the resource caps may be set here as initial defaults, but are admin-editable
+at runtime from Admin → Plugins.) Full reference: [configuration.md](configuration.md).
 
 > **Embedded Meilisearch alternative.** The image can also run Meilisearch
 > *inside* the evey container (`EVEY_EMBEDDED_MEILI=true`), in which case you drop
@@ -229,8 +231,9 @@ docker compose logs --tail=200 evey     # server logs (migration errors, config 
 ```
 
 - **evey won't start / config error.** The server refuses to boot if
-  `EVEY_DB_PASSWORD` is still the default `evey` or `MEILI_MASTER_KEY` is empty /
-  too short. Read the logged validation message and fix `.env`.
+  `EVEY_DB_PASSWORD` is still the default `evey`, or `MEILI_MASTER_KEY` is empty
+  or a default placeholder (a short non-default key only warns). Read the logged
+  validation message and fix `.env`.
 - **DB not reachable.** Confirm Postgres is healthy and the password matches:
   ```bash
   docker exec evey-postgres pg_isready -U "$EVEY_DB_USER"

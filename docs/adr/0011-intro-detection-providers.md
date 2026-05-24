@@ -58,7 +58,7 @@ CPU budget: the same `cpuutil.TrickplayWorkers(adaptive)` cap that gates trickpl
 
 ## Update 2026-05-23 — TIDB API v3
 
-TheIntroDB shipped a v3 API (npm `theintrodb@3.0.0`, 2026-05-19; the official Jellyfin plugin pins `/v3`). v2 still serves identical-shaped responses, so the migration is non-breaking. `TIDBClient` now targets `https://api.theintrodb.org/v3`. Changes adopted on the **read** path (`Fetch`):
+TheIntroDB shipped a v3 API (npm `theintrodb@3.0.0`, 2026-05-19; `/v3` is the version current public clients pin). v2 still serves identical-shaped responses, so the migration is non-breaking. `TIDBClient` now targets `https://api.theintrodb.org/v3`. Changes adopted on the **read** path (`Fetch`):
 
 - **imdb_id fallback** — v3 accepts `imdb_id` directly (movies and series), so `TIDBClient` queries by `imdb_id` when no `tmdb_id` is resolvable instead of bailing straight to `IntroDBClient`. The IntroDB (`introdb.app`) adapter stays as a secondary fallback but is now partly redundant.
 - **`duration_ms`** — forwarded from the item runtime (`Lookup.DurationMs`, sourced from `MediaItem.File.Duration`). Lets the server match the right release cut and resolve open-ended segments.
