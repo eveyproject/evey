@@ -76,4 +76,48 @@ describe("PlayerProgressBar seek commit", () => {
     expect(onSeek).toHaveBeenCalledTimes(1);
     expect(onSeek.mock.calls[0][0].target.value).toBe("30");
   });
+
+  // Anti-regression for the "I scrub to 10min and it jumps back to 30min" bug:
+  // a transcode seek restarts the stream, so absoluteTime keeps reporting the
+  // OLD position for a couple of seconds. The thumb must hold the requested
+  // position until the real playhead catches up, then track it again.
+  it("holds the requested position after commit, then releases when it converges", () => {
+    const onSeek = vi.fn();
+    const { rerender } = render(
+      <PlayerProgressBar {...defaultProps} absoluteTime={1800} effectiveDuration={3000} onSeek={onSeek} />,
+    );
+    const slider = screen.getByRole("slider", { name: "Seek" }) as HTMLInputElement;
+
+    fireEvent.change(slider, { target: { value: "600" } });
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(onSeek).toHaveBeenCalledTimes(1);
+
+    // absoluteTime still old (restart in flight) — thumb must NOT snap back.
+    rerender(<PlayerProgressBar {...defaultProps} absoluteTime={1800} effectiveDuration={3000} onSeek={onSeek} />);
+    expect(slider.value).toBe("600");
+
+    // playhead reaches the target — held value released, tracks real position.
+    rerender(<PlayerProgressBar {...defaultProps} absoluteTime={600} effectiveDuration={3000} onSeek={onSeek} />);
+    expect(slider.value).toBe("600");
+    rerender(<PlayerProgressBar {...defaultProps} absoluteTime={605} effectiveDuration={3000} onSeek={onSeek} />);
+    expect(slider.value).toBe("605");
+  });
+
+  // The hold must not get stuck if the position never converges (failed seek):
+  // a safety timeout releases it back to the live position.
+  it("releases the held value after the safety timeout if it never converges", () => {
+    const onSeek = vi.fn();
+    const { rerender } = render(
+      <PlayerProgressBar {...defaultProps} absoluteTime={1800} effectiveDuration={3000} onSeek={onSeek} />,
+    );
+    const slider = screen.getByRole("slider", { name: "Seek" }) as HTMLInputElement;
+
+    fireEvent.change(slider, { target: { value: "600" } });
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(slider.value).toBe("600");
+
+    act(() => { vi.advanceTimersByTime(12000); });
+    rerender(<PlayerProgressBar {...defaultProps} absoluteTime={1800} effectiveDuration={3000} onSeek={onSeek} />);
+    expect(slider.value).toBe("1800");
+  });
 });

@@ -27,7 +27,7 @@ import {
   setSubtitleStyle,
   type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
-import { buildTranscodeHlsUrl, getSelectedBurnInTrack, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
+import { buildTranscodeHlsUrl, getSelectedBurnInTrack, resolveDefaultAudio, resolveDefaultSubtitle, shouldRestartTranscodeSeek } from "./hooks/hlsPlayerUtils";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback } from "./hooks/useTranscodePlayback";
 import { useSubtitleManager } from "./hooks/useSubtitleManager";
@@ -205,8 +205,8 @@ export function HLSPlayer({
   const onStreamTokenRefreshRef = useRef(onStreamTokenRefresh);
   onStreamTokenRefreshRef.current = onStreamTokenRefresh;
   const { data: playbackSettings } = usePlaybackSettings();
-  const skipFwd = playbackSettings?.skipForwardSeconds ?? 10;
-  const skipBwd = playbackSettings?.skipBackwardSeconds ?? 10;
+  const skipFwd = playbackSettings?.skipForwardSeconds ?? 30;
+  const skipBwd = playbackSettings?.skipBackwardSeconds ?? 30;
   const skipFwdRef = useRef(skipFwd);
   skipFwdRef.current = skipFwd;
   const skipBwdRef = useRef(skipBwd);
@@ -263,12 +263,17 @@ export function HLSPlayer({
     const video = videoRef.current;
     if (!video) return;
     if (transcodeMode) {
-      const localTime = absoluteTimeSec - transcodeOffsetRef.current;
-      if (localTime < 0 || (video.buffered.length > 0 && localTime > video.buffered.end(video.buffered.length - 1) + 10)) {
+      // The transcode is a sliding-window stream: a target outside what hls.js
+      // has buffered (forward past the edge, OR backward before the window's
+      // start after a long watch) is no longer in the playlist and needs a
+      // restart at the new offset. Only restarting forward-past-buffer let a
+      // backward scrub fall through to an in-place seek that hls.js couldn't
+      // satisfy, so the playhead snapped back to where it was.
+      if (shouldRestartTranscodeSeek(absoluteTimeSec, transcodeOffsetRef.current, video.buffered)) {
         setTranscodeStartTime(absoluteTimeSec);
         return;
       }
-      video.currentTime = localTime;
+      video.currentTime = absoluteTimeSec - transcodeOffsetRef.current;
     } else {
       video.currentTime = absoluteTimeSec;
     }

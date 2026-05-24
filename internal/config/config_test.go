@@ -57,8 +57,8 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.True(t, cfg.Library.WatcherEnabled)
 
 	assert.Equal(t, 0, cfg.Playback.DefaultMaxStreams)
-	assert.Equal(t, 10, cfg.Playback.SkipForwardSeconds)
-	assert.Equal(t, 10, cfg.Playback.SkipBackwardSeconds)
+	assert.Equal(t, 30, cfg.Playback.SkipForwardSeconds)
+	assert.Equal(t, 30, cfg.Playback.SkipBackwardSeconds)
 
 	assert.Equal(t, "en", cfg.Metadata.Language)
 

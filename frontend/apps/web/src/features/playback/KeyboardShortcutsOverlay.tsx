@@ -7,7 +7,7 @@ interface KeyboardShortcutsOverlayProps {
   skipForwardSeconds?: number;
 }
 
-export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 10, skipForwardSeconds = 10 }: KeyboardShortcutsOverlayProps) {
+export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 30, skipForwardSeconds = 30 }: KeyboardShortcutsOverlayProps) {
   const { t } = useTranslation();
   const shortcuts: [string, string][] = useMemo(() => [
     ["Space / K", t("player.shortcuts.playPause")],

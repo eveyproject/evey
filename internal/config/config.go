@@ -480,8 +480,8 @@ func Load() (*Config, error) {
 		},
 		Playback: PlaybackConfig{
 			DefaultMaxStreams:   envInt("EVEY_PLAYBACK_MAX_STREAMS", 0),
-			SkipForwardSeconds:  envInt("EVEY_PLAYBACK_SKIP_FORWARD", 10),
-			SkipBackwardSeconds: envInt("EVEY_PLAYBACK_SKIP_BACKWARD", 10),
+			SkipForwardSeconds:  envInt("EVEY_PLAYBACK_SKIP_FORWARD", 30),
+			SkipBackwardSeconds: envInt("EVEY_PLAYBACK_SKIP_BACKWARD", 30),
 		},
 		Metadata: MetadataConfig{
 			Language:              "en",

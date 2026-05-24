@@ -15,12 +15,59 @@ import {
   buildTranscodeHlsUrl,
   resolveDefaultAudio,
   resolveDefaultSubtitle,
+  shouldRestartTranscodeSeek,
 } from "./hlsPlayerUtils";
+
+// Minimal TimeRanges stub: one contiguous buffered range [start, end].
+function bufferedRange(start: number, end: number): TimeRanges {
+  return {
+    length: 1,
+    start: (i: number) => (i === 0 ? start : NaN),
+    end: (i: number) => (i === 0 ? end : NaN),
+  } as TimeRanges;
+}
+const noBuffer = { length: 0, start: () => NaN, end: () => NaN } as TimeRanges;
 
 const textSub: SubtitleStream = { index: 3, trackIndex: 0, language: "eng", codec: "subrip" };
 const pgsSub: SubtitleStream = { index: 4, trackIndex: 1, language: "fre", codec: "hdmv_pgs_subtitle", burnIn: true };
 const vobSub: SubtitleStream = { index: 5, trackIndex: 2, language: "jpn", codec: "dvd_subtitle", burnIn: true };
 const streams = [textSub, pgsSub, vobSub];
+
+describe("shouldRestartTranscodeSeek", () => {
+  // offset 0, currently watching ~30min: the sliding window only buffers near
+  // the playhead (1770..1830 local). This is the reported bug case.
+  const window = bufferedRange(1770, 1830);
+
+  it("restarts on a backward seek before the buffered window (30min -> 10min)", () => {
+    // target 600s, offset 0 -> localTime 600, which is < buffered.start (1770).
+    expect(shouldRestartTranscodeSeek(600, 0, window)).toBe(true);
+  });
+
+  it("restarts on a forward seek past the buffered window + tolerance", () => {
+    expect(shouldRestartTranscodeSeek(1900, 0, window)).toBe(true);
+  });
+
+  it("seeks in place within the buffered window", () => {
+    expect(shouldRestartTranscodeSeek(1800, 0, window)).toBe(false);
+  });
+
+  it("allows a small forward seek inside the 10s live-edge tolerance", () => {
+    expect(shouldRestartTranscodeSeek(1838, 0, window)).toBe(false); // local 1838 <= 1830 + 10
+    expect(shouldRestartTranscodeSeek(1841, 0, window)).toBe(true); // local 1841 > 1830 + 10
+  });
+
+  it("accounts for the transcode offset (local = absolute - offset)", () => {
+    // transcode restarted at 600; buffer holds local 0..60 (absolute 600..660).
+    const w = bufferedRange(0, 60);
+    expect(shouldRestartTranscodeSeek(630, 600, w)).toBe(false); // local 30, in window
+    expect(shouldRestartTranscodeSeek(500, 600, w)).toBe(true); // local -100, before start
+    expect(shouldRestartTranscodeSeek(1800, 600, w)).toBe(true); // local 1200, past window
+  });
+
+  it("restarts when nothing is buffered yet", () => {
+    expect(shouldRestartTranscodeSeek(600, 0, noBuffer)).toBe(true);
+  });
+});
 
 describe("getSelectedBurnInTrack", () => {
   it("returns null when no subtitle selected", () => {

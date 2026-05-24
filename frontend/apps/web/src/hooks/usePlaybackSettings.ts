@@ -5,7 +5,7 @@ export interface PlaybackSettings {
   skipBackwardSeconds: number;
 }
 
-const DEFAULTS: PlaybackSettings = { skipForwardSeconds: 10, skipBackwardSeconds: 10 };
+const DEFAULTS: PlaybackSettings = { skipForwardSeconds: 30, skipBackwardSeconds: 30 };
 
 export function usePlaybackSettings() {
   return usePlaybackSettingsServiceGetPlaybackSettings({

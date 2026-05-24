@@ -33,6 +33,29 @@ export function buildTranscodeHlsUrl(
   return `/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
 
+// shouldRestartTranscodeSeek decides whether a seek in transcode mode can be
+// served by moving the <video> playhead in place, or needs the transcode to
+// restart at the new offset. The server transcodes sequentially from the
+// current offset and only exposes a sliding window of segments (live-style),
+// so hls.js can seek in place ONLY within the range it has actually buffered.
+// A target before the buffered window's start (the window scrolled past it, as
+// after a long playback then a backward scrub) or beyond its end is no longer
+// in the playlist and must restart. An empty buffer also forces a restart.
+//
+// The +10s forward tolerance lets a small seek just past the live edge ride the
+// segments about to arrive instead of paying a full restart.
+export function shouldRestartTranscodeSeek(
+  absoluteTimeSec: number,
+  offsetSec: number,
+  buffered: TimeRanges,
+): boolean {
+  if (buffered.length === 0) return true;
+  const localTime = absoluteTimeSec - offsetSec;
+  const start = buffered.start(0);
+  const end = buffered.end(buffered.length - 1);
+  return localTime < start || localTime > end + 10;
+}
+
 export function resolveDefaultAudio(
   audioStreams: { index: number; trackIndex: number; language?: string; title?: string; isDefault?: boolean }[],
   seriesId: string | undefined,

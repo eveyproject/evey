@@ -43,17 +43,39 @@ export function PlayerProgressBar({
   // stuck on a missed mouseup/touchend, and the 200ms delay is
   // imperceptible compared to the transcode restart itself (seconds).
   const [dragValue, setDragValue] = useState<number | null>(null);
+  // After committing a seek we keep showing the requested position until the
+  // real playhead catches up. A transcode seek restarts the stream (a couple
+  // of seconds) during which absoluteTime still reports the OLD position — so
+  // without this the thumb would snap back to where it was and then jump to the
+  // target, which reads as a broken seek ("I dragged to 10min, it went back to
+  // 30min"). A safety timeout releases the hold if the position never converges.
+  const [committedValue, setCommittedValue] = useState<number | null>(null);
   const debounceRef = useRef<number | null>(null);
+  const settleRef = useRef<number | null>(null);
   const onSeekRef = useRef(onSeek);
   onSeekRef.current = onSeek;
 
   useEffect(() => {
     return () => {
-      if (debounceRef.current !== null) {
-        window.clearTimeout(debounceRef.current);
-      }
+      if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
+      if (settleRef.current !== null) window.clearTimeout(settleRef.current);
     };
   }, []);
+
+  // Release the held value once the real position has reached it. Keyframe-snap
+  // can land the seek a few seconds off the request, so allow a tolerance.
+  useEffect(() => {
+    if (committedValue === null) return;
+    if (Math.abs(absoluteTime - committedValue) <= 8) {
+      setCommittedValue(null);
+      if (settleRef.current !== null) {
+        window.clearTimeout(settleRef.current);
+        settleRef.current = null;
+      }
+    }
+  }, [absoluteTime, committedValue]);
+
+  const displayTime = dragValue ?? committedValue ?? absoluteTime;
 
   function handleSeekHover(e: React.MouseEvent) {
     const bar = seekBarRef.current;
@@ -105,7 +127,7 @@ export function PlayerProgressBar({
       {/* progress track */}
       <div
         className="absolute left-0 h-1 rounded group-hover:h-1.5 transition-all bg-[var(--accent)]"
-        style={{ width: effectiveDuration > 0 ? `${(absoluteTime / effectiveDuration) * 100}%` : "0%" }}
+        style={{ width: effectiveDuration > 0 ? `${(displayTime / effectiveDuration) * 100}%` : "0%" }}
       />
       <ChapterMarkers
         chapters={chapters}
@@ -118,7 +140,7 @@ export function PlayerProgressBar({
         min={0}
         max={effectiveDuration || 0}
         step={0.5}
-        value={dragValue ?? absoluteTime}
+        value={displayTime}
         onChange={(e) => {
           const v = Number(e.target.value);
           setDragValue(v);
@@ -127,8 +149,16 @@ export function PlayerProgressBar({
           }
           debounceRef.current = window.setTimeout(() => {
             onSeekRef.current({ target: { value: String(v) } } as React.ChangeEvent<HTMLInputElement>);
+            // Hold the requested position until the playhead reaches it instead
+            // of dropping back to the (still-old) absoluteTime mid-restart.
+            setCommittedValue(v);
             setDragValue(null);
             debounceRef.current = null;
+            if (settleRef.current !== null) window.clearTimeout(settleRef.current);
+            settleRef.current = window.setTimeout(() => {
+              setCommittedValue(null);
+              settleRef.current = null;
+            }, 12000);
           }, 200);
         }}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-raised"
