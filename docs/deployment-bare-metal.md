@@ -239,8 +239,8 @@ walkthrough. Don't duplicate the table here. Notes specific to bare metal:
   [reverse-proxy.md](reverse-proxy.md).
 - Migrations run automatically at startup; no separate migrate step.
 - The plugin resource caps (`EVEY_PLUGINS_MEMORY_MB`, `_PIDS_MAX`,
-  `_DISK_MAX_MB`, `_CPU_NICE`) are admin-editable at runtime from Admin → Server
-  Config; the env values are just the initial defaults.
+  `_DISK_MAX_MB`, `_CPU_NICE`) and the sandbox mode are admin-editable at runtime
+  from Admin → Plugins; the env values are just the initial defaults.
 
 ## 7. Verify your sandbox
 

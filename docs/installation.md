@@ -148,7 +148,7 @@ is hardened so this stays the recommended containerised posture — **no
   off); best-effort, and incompatible with `no-new-privileges`.
 - **Per-plugin resource caps** (memory / PID / disk / CPU nice) enforced by a
   userspace monitor — **no cgroup / `mem_limit` / `cpus` settings needed** — and
-  all **admin-editable at runtime** from Admin → Server Config.
+  all **admin-editable at runtime** from Admin → Plugins.
 
 Which setup for your machine (old NAS, bare-metal, what to enable/disable, the risks in plain words): [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md). Full threat model and per-layer detail: [plugins/security-model.md](plugins/security-model.md).
 You can keep the default `auto` (recommended) or pin `EVEY_PLUGINS_SANDBOX_MODE:

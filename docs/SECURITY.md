@@ -62,14 +62,14 @@ A plugin process can be dropped to UID 1001 (`evey-plugin`), distinct from the s
 
 What this buys, **even on a kernel without Landlock** (when active):
 
-- The server's secrets are DAC-protected from a uid-1001 plugin: `jwt.key` is `0600`, and `/data/{keys,logs,backups}` are owner-only; backups are written `0700` dir + `0600` files. A plugin running as 1001 cannot read any of them.
+- The server's secrets are DAC-protected from a uid-1001 plugin: `jwt.key` (`0600`) and backups (`0700` dir + `0600` files) are made owner-only **at runtime**, so the protection holds even on a bind-mounted `/data`; a uid-1001 plugin cannot read them. (The image also `chmod 700`s `/data/{keys,logs,backups}`, but a bind-mounted host `/data` keeps its own perms — the runtime modes above are what's guaranteed.)
 - Combined with `PR_SET_DUMPABLE=0` on the server (see [§8](#8-server-process-hardening-pr_set_dumpable0)), the in-memory JWT key and environment secrets (`DB_PASSWORD`, `MEILI_MASTER_KEY`) are unreadable via `/proc/<server>/{mem,environ,maps}`.
 
 All plugins share UID 1001, so they are not isolated from *each other* by DAC alone — that is what the filesystem confinement layer (Landlock / bubblewrap) adds. Under `basic`+uid-separation a malicious plugin could read or disturb a sibling's files; isolating plugins from each other without Landlock would need a UID *per plugin*. See [§4](#4-syscall-confinement-kernel-seccomp--ld_preload), the per-mode table below, and [Known limits](#known-limits).
 
 ### 4. Syscall confinement (kernel seccomp + LD_PRELOAD)
 
-Two seccomp filters apply the same denylist; both call `prctl(PR_SET_NO_NEW_PRIVS)` first, then install a BPF program that EPERMs the denied syscalls and allows everything else.
+Two seccomp filters apply nearly the same denylist (they differ only on the signal syscalls — see the table); both call `prctl(PR_SET_NO_NEW_PRIVS)` first, then install a BPF program that EPERMs the denied syscalls and allows everything else.
 
 1. **Kernel-applied (the primary layer).** The [`evey-plugin-launcher`](../cmd/evey-plugin-launcher) shim is prepended to the plugin argv and installs the BPF filter ([`seccomp_linux.go`](../cmd/evey-plugin-launcher/seccomp_linux.go)) **right before `execve`**, per build arch. The filter is inherited across `execve` into the plugin and into any child it later spawns. Because it is installed by the launcher and not via `LD_PRELOAD`, it **also constrains static/compiled plugin binaries** — which never load `libevey-sandbox.so` and used to bypass the shim entirely. An arch mismatch in the `seccomp_data` ABI field is `SECCOMP_RET_KILL_PROCESS` (foils i386/x32 syscall-number confusion).
 2. **LD_PRELOAD (belt-and-suspenders for dynamic plugins).** [`sandbox/sandbox.c`](../sandbox/sandbox.c) is a tiny constructor preloaded into interpreted plugins; same denylist, plus it sets `PR_SET_DUMPABLE=0` on the plugin itself.
@@ -79,7 +79,7 @@ Blocked syscalls, grouped by category:
 | Category | Syscalls blocked |
 |---|---|
 | Process control / debug | `ptrace`, `process_vm_readv`, `process_vm_writev` |
-| Process signals | `kill`; `tkill`/`tgkill` only when the target is PID 1 (the server) |
+| Process signals | `kill` (both filters); the launcher also denies `tgkill` outright, while the LD_PRELOAD shim instead denies `tkill`/`tgkill` only when aimed at PID 1 (the server) |
 | Filesystem mount | `mount`, `umount2`, `pivot_root`, `chroot` |
 | Namespaces | `unshare`, `setns` |
 | Kernel modules | `init_module`, `finit_module`, `delete_module` |

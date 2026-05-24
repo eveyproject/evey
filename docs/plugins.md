@@ -68,5 +68,5 @@ The three pillars:
 Plugins are on by default (`EVEY_PLUGINS_ENABLED=true`). The sandbox mode is
 `EVEY_PLUGINS_SANDBOX_MODE` (default `auto`, which resolves to Landlock on the
 official image). Resource caps (`EVEY_PLUGINS_MEMORY_MB`, `_PIDS_MAX`,
-`_DISK_MAX_MB`, `_CPU_NICE`) are admin-editable from **Admin → Server Config**.
+`_DISK_MAX_MB`, `_CPU_NICE`) are admin-editable from **Admin → Plugins**.
 See [configuration.md](configuration.md) and [plugins/dev-setup.md](plugins/dev-setup.md#7-resource-limits-and-sandbox).

@@ -23,7 +23,7 @@ A plugin you install is boxed in. The box, depending on your machine:
   approved that permission).
 - **Caps CPU, memory, disk and process count**, so a runaway plugin can't take
   the server down.
-- **Keeps your secrets unreadable** — the login‑signing key, backups and logs.
+- **Keeps your secrets unreadable** — the login‑signing key and backups.
 
 On top of that: plugins are **admin‑only to install**, they're **scanned** for
 suspicious code, and you **approve their permissions** before they run.
@@ -38,8 +38,8 @@ suspicious code, and you **approve their permissions** before they run.
 | **Old NAS in Docker** (e.g. older Synology, kernel < 5.13) | Good isolation, **minus the per‑folder file walls**. Secrets, network and system actions are still locked down. | Optional: turn on **uid separation** (below) for belt‑and‑braces secret protection. |
 | **Any Linux, no Docker** (bare‑metal) | **Strongest isolation**, automatically (Landlock on a modern kernel, otherwise bubblewrap namespaces). | Follow the [bare‑metal guide](../deployment-bare-metal.md). |
 
-How to know which one you got: open **Admin → Plugins → Security**. The badge
-shows the sandbox mode actually in force — `landlock` or `bubblewrap` means
+How to know which one you got: open **Admin → Plugins** — the Security panel's
+badge shows the sandbox mode actually in force: `landlock` or `bubblewrap` means
 strong, `basic` means the "old NAS" case.
 
 ---
@@ -83,12 +83,11 @@ What a **malicious** plugin could and couldn't do — by scenario:
 A bad plugin is fully boxed in. It **cannot** read your secrets, **cannot** see
 or touch other plugins' files, **cannot** make arbitrary network calls, and
 **cannot** tamper with the system. The only realistic way out is a serious Linux
-**kernel** bug — which is true of *any* non‑VM sandbox (and Evey isolates plugins
-far more than Plex/Jellyfin/Emby, which barely sandbox them at all).
+**kernel** bug — true of *any* sandbox that isn't a full virtual machine.
 
 **Old NAS in Docker, no per‑folder walls (`basic`):**
-- ✅ Your **secrets stay protected** (login key, backups, logs) — *especially if
-  you turn uid separation `on`*.
+- ✅ Your **secrets stay protected** (login key, backups) — *especially if you
+  turn uid separation `on`*.
 - ✅ The plugin gets **no network** unless permitted.
 - ✅ **Dangerous system actions are still blocked** at the kernel.
 - ⚠️ But with no per‑folder walls, a bad plugin **could read ordinary, non‑secret
@@ -145,8 +144,8 @@ EVEY_PLUGINS_CPU_NICE=10                # scheduling priority 0–19 (higher = n
 
 ## Changing the sandbox mode while running
 
-You can change the mode from **Admin → Plugins → Resource limits**. Running
-plugins are **restarted automatically** so the new mode takes effect immediately
+You can change the mode from the **Resource limits** card on **Admin → Plugins**.
+Running plugins are **restarted automatically** so the new mode takes effect immediately
 (no manual disable/enable). The Security badge shows the mode actually in force.
 If a plugin can't run under the new mode (e.g. you picked `bubblewrap` on Docker,
 where it needs privileges), it shows up as **errored** in the dashboard — just
@@ -163,7 +162,7 @@ docker exec evey getcap /evey-plugin-launcher        # → cap_setuid=ep
 # which user a running plugin runs as (evey = shared with server, evey-plugin = separated):
 docker exec evey ps -o user,pid,args | grep -v grep | grep -iE "node|python"
 
-# the sandbox mode actually in force: Admin → Plugins → Security badge.
+# the sandbox mode actually in force: the Security badge on the Admin → Plugins page.
 ```
 
 ---
