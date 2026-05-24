@@ -107,6 +107,8 @@ func run(argv []string) int {
 	require := fs.Bool("require-landlock", false, "exit non-zero if Landlock cannot be enforced (fail closed)")
 	seccompFlag := fs.Bool("seccomp", false, "install a kernel seccomp denylist (ptrace/mount/unshare/kill/…) before exec")
 	denyInetFlag := fs.Bool("deny-inet", false, "also EPERM socket(AF_INET/AF_INET6): block all TCP/UDP egress (no network permission)")
+	uidFlag := fs.Int("uid", 0, "setuid to this uid before exec (0 = no drop; needs the cap_setuid file capability or a root parent)")
+	gidFlag := fs.Int("gid", 0, "setgid to this (shared) gid before exec; used with -uid")
 	if err := fs.Parse(flagArgs); err != nil {
 		return 2
 	}
@@ -125,7 +127,16 @@ func run(argv []string) int {
 		denyInet:        *denyInetFlag,
 	}
 
-	// Resource caps first (best effort; failures are warnings, not fatal).
+	// Privilege drop FIRST: before any OS thread is locked and before seccomp
+	// (which denies setuid) is installed. Fail closed — if a drop was requested
+	// but is impossible (missing cap_setuid, no-new-privileges, or an unsafe
+	// uid), refuse to run rather than start the plugin under the wrong identity.
+	if err := dropPrivileges(*uidFlag, *gidFlag); err != nil {
+		fmt.Fprintf(os.Stderr, "evey-plugin-launcher: privilege drop failed, refusing to run: %v\n", err)
+		return 1
+	}
+
+	// Resource caps next (best effort; failures are warnings, not fatal).
 	applyRlimits(cfg)
 
 	// Filesystem confinement. On a kernel without Landlock this fails; honour

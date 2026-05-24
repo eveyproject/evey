@@ -208,3 +208,54 @@ func TestRun_NoCommand(t *testing.T) {
 		t.Errorf("no command after '--' should return 2, got %d", code)
 	}
 }
+
+// TestDropPrivileges_ReexecDropsUID re-execs the launcher with -uid/-gid and
+// verifies the plugin runs as the dropped uid and loses access to a 0600 file
+// owned by the original uid. Needs root (the make-test container runs as root)
+// so setuid succeeds without the cap_setuid file capability — the file-cap path
+// is covered by the docker PoC; this locks the launcher's drop logic + guards.
+func TestDropPrivileges_ReexecDropsUID(t *testing.T) {
+	if os.Getuid() != 0 {
+		t.Skip("needs root to setuid without the cap_setuid file capability")
+	}
+	tmp := t.TempDir()
+	if err := os.Chmod(tmp, 0o755); err != nil { // let the dropped uid traverse to the file
+		t.Fatal(err)
+	}
+	secret := filepath.Join(tmp, "secret")
+	if err := os.WriteFile(secret, []byte("top-secret-jwt"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	reexec := func(args ...string) (string, error) {
+		cmd := exec.Command(os.Args[0], args...)
+		cmd.Env = append(os.Environ(), "EVEY_LAUNCHER_REEXEC=1")
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+
+	t.Run("drops to uid 1001 and loses access to the 0600 secret", func(t *testing.T) {
+		out, err := reexec("-uid", "1001", "-gid", "1000", "--",
+			"/bin/sh", "-c", "id -u; cat "+secret+" 2>&1 || true")
+		if err != nil {
+			t.Fatalf("launcher failed: %v out=%q", err, out)
+		}
+		if !strings.Contains(out, "1001") {
+			t.Errorf("expected plugin to run as uid 1001, got %q", out)
+		}
+		if strings.Contains(out, "top-secret-jwt") {
+			t.Errorf("0600 secret leaked to the dropped uid: %q", out)
+		}
+	})
+
+	t.Run("refuses an unsafe service uid below 1000", func(t *testing.T) {
+		out, err := reexec("-uid", "500", "-gid", "500", "--",
+			"/bin/sh", "-c", "echo RAN")
+		if err == nil {
+			t.Errorf("expected the launcher to refuse uid 500, got success out=%q", out)
+		}
+		if strings.Contains(out, "RAN") {
+			t.Errorf("plugin ran despite an unsafe uid: %q", out)
+		}
+	})
+}
