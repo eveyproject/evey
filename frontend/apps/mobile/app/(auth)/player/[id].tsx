@@ -27,6 +27,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
+import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
 import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
 import { useChapters } from "../../../src/hooks/useChapters";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
@@ -408,6 +409,10 @@ export default function PlayerScreen() {
 
   const isTranscode = streamInfo?.playMethod === "PLAY_METHOD_TRANSCODE";
 
+  const { data: playbackSettings } = usePlaybackSettings();
+  const skipFwd = playbackSettings?.skipForwardSeconds ?? 30;
+  const skipBwd = playbackSettings?.skipBackwardSeconds ?? 30;
+
   const seekPreview = useCallback(
     (pct: number) => {
       const d = knownDuration > 0 ? knownDuration : duration;
@@ -484,6 +489,8 @@ export default function PlayerScreen() {
     onBrightnessChange: handleBrightnessChange,
     getVolume: getGestureVolume,
     getBrightness: getGestureBrightness,
+    skipForwardSeconds: skipFwd,
+    skipBackwardSeconds: skipBwd,
   });
 
   useEffect(() => cleanup, [cleanup]);
@@ -867,13 +874,13 @@ export default function PlayerScreen() {
               {/* Controls row — playback transport on the left, settings/track
                   pickers/cast on the right (matches the web player layout). */}
               <View style={[styles.controlsRow, { marginTop: 4 }]}>
-                <Pressable onPress={() => seekBy(-10)} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={t("player.controls.rewind", { seconds: 10 })} accessibilityRole="button">
+                <Pressable onPress={() => seekBy(-skipBwd)} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={t("player.controls.rewind", { seconds: skipBwd })} accessibilityRole="button">
                   <Ionicons name="play-back" size={20} color="#fff" />
                 </Pressable>
                 <Pressable onPress={togglePlayPause} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")} accessibilityRole="button">
                   <Ionicons name={isPlaying ? "pause" : "play"} size={24} color="#fff" />
                 </Pressable>
-                <Pressable onPress={() => seekBy(10)} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={t("player.controls.forward", { seconds: 10 })} accessibilityRole="button">
+                <Pressable onPress={() => seekBy(skipFwd)} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={t("player.controls.forward", { seconds: skipFwd })} accessibilityRole="button">
                   <Ionicons name="play-forward" size={20} color="#fff" />
                 </Pressable>
                 <Text style={styles.timeText}>{formatTime(currentTime)} / {formatTime(effectiveDuration)}</Text>

@@ -20,6 +20,8 @@ interface UsePlayerGesturesArgs {
   onBrightnessChange: (absoluteValue: number) => void;
   getVolume: () => number;
   getBrightness: () => number;
+  skipForwardSeconds?: number;
+  skipBackwardSeconds?: number;
 }
 
 export interface GestureOverlayState {
@@ -36,6 +38,8 @@ export function usePlayerGestures({
   onBrightnessChange,
   getVolume,
   getBrightness,
+  skipForwardSeconds = 30,
+  skipBackwardSeconds = 30,
 }: UsePlayerGesturesArgs) {
   const [seekFlash, setSeekFlash] = useState<"left" | "right" | null>(null);
   const [volumeIndicator, setVolumeIndicator] = useState<number | null>(null);
@@ -132,10 +136,10 @@ export function usePlayerGestures({
             lastTapRef.current = null;
 
             if (relX < LEFT_ZONE) {
-              onSeekBy(-10);
+              onSeekBy(-skipBackwardSeconds);
               flashSeek("left");
             } else if (relX > RIGHT_ZONE) {
-              onSeekBy(10);
+              onSeekBy(skipForwardSeconds);
               flashSeek("right");
             } else {
               onTogglePlayPause();
@@ -150,7 +154,7 @@ export function usePlayerGestures({
           }
         },
       }),
-    [onSeekBy, onTogglePlayPause, onToggleControls, onVolumeChange, onBrightnessChange, getVolume, getBrightness, flashSeek],
+    [onSeekBy, onTogglePlayPause, onToggleControls, onVolumeChange, onBrightnessChange, getVolume, getBrightness, flashSeek, skipForwardSeconds, skipBackwardSeconds],
   );
 
   const cleanup = useCallback(() => {

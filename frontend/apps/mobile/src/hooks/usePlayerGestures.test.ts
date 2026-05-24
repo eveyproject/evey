@@ -11,7 +11,7 @@ vi.mock("react-native", () => ({
 import { renderHook, act } from "@testing-library/react";
 import { usePlayerGestures } from "./usePlayerGestures";
 
-function setup() {
+function setup(extra: Partial<{ skipForwardSeconds: number; skipBackwardSeconds: number }> = {}) {
   const cbs = {
     onSeekBy: vi.fn(),
     onTogglePlayPause: vi.fn(),
@@ -20,6 +20,7 @@ function setup() {
     onBrightnessChange: vi.fn(),
     getVolume: vi.fn(() => 0.5),
     getBrightness: vi.fn(() => 0.5),
+    ...extra,
   };
   const { result } = renderHook(() => usePlayerGestures(cbs));
   const config = (result.current.panResponder as any)._config;
@@ -39,7 +40,7 @@ afterEach(() => { vi.useRealTimers(); });
 
 describe("usePlayerGestures", () => {
   describe("double tap", () => {
-    it("double tap left zone triggers seekBy(-10)", () => {
+    it("double tap left zone triggers seekBy(-skipBackwardSeconds) [default 30]", () => {
       const { config, cbs } = setup();
 
       config.onPanResponderGrant(makeEvt(100), makeGS());
@@ -48,10 +49,26 @@ describe("usePlayerGestures", () => {
       config.onPanResponderGrant(makeEvt(100), makeGS());
       config.onPanResponderRelease(makeEvt(100), makeGS());
 
-      expect(cbs.onSeekBy).toHaveBeenCalledWith(-10);
+      expect(cbs.onSeekBy).toHaveBeenCalledWith(-30);
     });
 
-    it("double tap right zone triggers seekBy(10)", () => {
+    it("double tap honours the configured skip seconds", () => {
+      const { config, cbs } = setup({ skipForwardSeconds: 25, skipBackwardSeconds: 15 });
+
+      config.onPanResponderGrant(makeEvt(100), makeGS());
+      config.onPanResponderRelease(makeEvt(100), makeGS());
+      config.onPanResponderGrant(makeEvt(100), makeGS());
+      config.onPanResponderRelease(makeEvt(100), makeGS());
+      expect(cbs.onSeekBy).toHaveBeenCalledWith(-15);
+
+      config.onPanResponderGrant(makeEvt(800), makeGS());
+      config.onPanResponderRelease(makeEvt(800), makeGS());
+      config.onPanResponderGrant(makeEvt(800), makeGS());
+      config.onPanResponderRelease(makeEvt(800), makeGS());
+      expect(cbs.onSeekBy).toHaveBeenCalledWith(25);
+    });
+
+    it("double tap right zone triggers seekBy(skipForwardSeconds) [default 30]", () => {
       const { config, cbs } = setup();
 
       config.onPanResponderGrant(makeEvt(800), makeGS());
@@ -60,7 +77,7 @@ describe("usePlayerGestures", () => {
       config.onPanResponderGrant(makeEvt(800), makeGS());
       config.onPanResponderRelease(makeEvt(800), makeGS());
 
-      expect(cbs.onSeekBy).toHaveBeenCalledWith(10);
+      expect(cbs.onSeekBy).toHaveBeenCalledWith(30);
     });
 
     it("double tap center zone triggers togglePlayPause", () => {

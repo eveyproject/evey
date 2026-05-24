@@ -13,10 +13,10 @@ const { useTVEventHandler } = require("react-native") as {
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
+import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
 import { QualityPicker } from "../../../src/components/QualityPicker";
 
 const CONTROLS_TIMEOUT = 4000;
-const SEEK_STEP = 10;
 
 function formatTime(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -130,6 +130,10 @@ export default function PlayerScreen() {
 
   const isTranscode = streamInfo?.playMethod === "PLAY_METHOD_TRANSCODE";
 
+  const { data: playbackSettings } = usePlaybackSettings();
+  const skipFwd = playbackSettings?.skipForwardSeconds ?? 30;
+  const skipBwd = playbackSettings?.skipBackwardSeconds ?? 30;
+
   const seekBy = useCallback(
     (seconds: number) => {
       if (!player) return;
@@ -177,9 +181,9 @@ export default function PlayerScreen() {
     if (type === "select" || type === "playPause") {
       togglePlayPause();
     } else if (type === "left") {
-      seekBy(-SEEK_STEP);
+      seekBy(-skipBwd);
     } else if (type === "right") {
-      seekBy(SEEK_STEP);
+      seekBy(skipFwd);
     } else if (type === "up") {
       cycleSpeed();
     } else if (type === "down") {
@@ -256,13 +260,13 @@ export default function PlayerScreen() {
           {/* Center play/pause indicator */}
           <View style={styles.centerControls}>
             <View style={styles.seekHint}>
-              <Text style={styles.seekHintText}>-{SEEK_STEP}s</Text>
+              <Text style={styles.seekHintText}>-{skipBwd}s</Text>
             </View>
             <View style={styles.playIndicator}>
               <Text style={styles.playIcon}>{isPlaying ? "||" : "\u25B6"}</Text>
             </View>
             <View style={styles.seekHint}>
-              <Text style={styles.seekHintText}>+{SEEK_STEP}s</Text>
+              <Text style={styles.seekHintText}>+{skipFwd}s</Text>
             </View>
           </View>
 
