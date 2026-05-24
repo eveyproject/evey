@@ -126,9 +126,15 @@ func TestCheckResources_KillsMemoryOverLimit(t *testing.T) {
 	r := NewRunner()
 	e, pid := spawnSleep(t, r, "memhog")
 
-	rss, err := procRSSBytes(pid)
-	require.NoError(t, err)
-	require.Positive(t, rss)
+	// A freshly Start()ed process has no RSS accounted in /proc yet; under load
+	// the gap is wide enough that an immediate read returns 0 (flaky). Wait for
+	// the first positive reading — the cap is still derived from the real RSS.
+	var rss int64
+	require.Eventually(t, func() bool {
+		var err error
+		rss, err = procRSSBytes(pid)
+		return err == nil && rss > 0
+	}, 5*time.Second, 20*time.Millisecond, "process RSS must appear in /proc")
 	r.resLimits = resourceLimits{memBytes: rss / 2} // cap below actual RSS → must trip
 
 	r.checkResources(e, pid, map[int]*cpuSample{}, false)
