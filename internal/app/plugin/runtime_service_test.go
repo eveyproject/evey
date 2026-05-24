@@ -96,6 +96,40 @@ func TestStartPlugin_LoadsPermissions(t *testing.T) {
 	assert.NoError(t, pc.CheckPermission("plg-perm", "api.library"))
 }
 
+func TestRestartRunningPlugins(t *testing.T) {
+	svc, pluginRepo, runner, _ := newTestRuntimeService()
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-run", Name: "running", Language: "go", Status: plugindomain.Running, Enabled: true,
+		InstallDir: "/tmp/test-plugins/plg-run",
+	}))
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-stop", Name: "stopped", Language: "go", Status: plugindomain.Stopped, Enabled: true,
+		InstallDir: "/tmp/test-plugins/plg-stop",
+	}))
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-theme", Kind: plugindomain.KindTheme, Name: "theme", Status: plugindomain.Running, Enabled: true,
+	}))
+
+	svc.RestartRunningPlugins(ctx)
+
+	// the running non-theme plugin was bounced through the runner and is up again
+	healthy, _ := runner.Health(ctx, "plg-run")
+	assert.True(t, healthy, "running plugin must be (re)started via the runner")
+	run, _ := pluginRepo.GetByID(ctx, "plg-run")
+	assert.Equal(t, plugindomain.Running, run.Status)
+
+	// the stopped plugin is left alone
+	stopHealthy, _ := runner.Health(ctx, "plg-stop")
+	assert.False(t, stopHealthy, "stopped plugin must not be started")
+	stop, _ := pluginRepo.GetByID(ctx, "plg-stop")
+	assert.Equal(t, plugindomain.Stopped, stop.Status)
+
+	// the theme (no runner) is untouched, not bounced
+	theme, _ := pluginRepo.GetByID(ctx, "plg-theme")
+	assert.Equal(t, plugindomain.Running, theme.Status)
+}
+
 // ─── Stop ───────────────────────────────────────────────────────────────────
 
 func TestStopPlugin_NotFound(t *testing.T) {

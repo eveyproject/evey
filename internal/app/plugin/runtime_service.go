@@ -127,6 +127,35 @@ func (s *RuntimeService) StopPlugin(ctx context.Context, id string) error {
 	return nil
 }
 
+// RestartRunningPlugins bounces every currently-running (non-theme) plugin so a
+// changed start-time setting — chiefly the sandbox mode — takes effect now
+// instead of lazily on the next manual restart. Best-effort and fire-and-forget:
+// a plugin that fails to start under the new mode is left in Error status
+// (visible in the dashboard), so the admin can revert the setting.
+func (s *RuntimeService) RestartRunningPlugins(ctx context.Context) {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.RestartRunningPlugins")
+	defer span.End()
+	plugins, err := s.plugins.List(ctx)
+	if err != nil {
+		slog.Warn("restart running plugins: list failed", slog.Any("err", err))
+		return
+	}
+	for _, p := range plugins {
+		if p.Status != plugin.Running || p.IsTheme() {
+			continue
+		}
+		if err := s.StopPlugin(ctx, p.ID); err != nil {
+			slog.Warn("restart running plugins: stop failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+			continue
+		}
+		if err := s.StartPlugin(ctx, p.ID); err != nil {
+			// StartPlugin already set the plugin to Error + persisted it, so the
+			// failure surfaces in the dashboard; just record it and move on.
+			slog.Warn("restart running plugins: start failed under new mode", slog.String("pluginID", p.ID), slog.Any("err", err))
+		}
+	}
+}
+
 // EnablePlugin marks the plugin enabled and (for non-theme plugins) starts
 // the runner. Without the runner.Start call the plugin remained Stopped after
 // re-enabling — matching DB state but not actually serving traffic.

@@ -531,6 +531,13 @@ func (d *adminPluginHandler) UpdatePluginResourceLimits(ctx context.Context, req
 		return nil, status.Error(codes.FailedPrecondition, "server config store unavailable")
 	}
 
+	// Capture the current sandbox mode so we can tell whether this update changes
+	// it (and thus whether running plugins must be restarted to apply it).
+	oldMode := ""
+	if d.pluginRes != nil {
+		_, _, _, _, oldMode = d.pluginRes.ResourceConfig()
+	}
+
 	updates := []struct{ key, val string }{
 		{appplugin.KeyMemoryMB, strconv.Itoa(int(req.MemoryMb))},
 		{appplugin.KeyPIDsMax, strconv.Itoa(int(req.PidsMax))},
@@ -547,6 +554,16 @@ func (d *adminPluginHandler) UpdatePluginResourceLimits(ctx context.Context, req
 	// Apply synchronously: the change event is delivered asynchronously, so we
 	// don't rely on it for our own response.
 	appplugin.ApplyResourceConfig(ctx, d.serverCfg, d.pluginRes, d.resDefaults)
+
+	// A sandbox-mode change must take effect now, not lazily on the next restart
+	// (otherwise the dashboard shows the new mode while plugins still run under
+	// the old one). Restart running plugins in the background; one that can't run
+	// under the new mode is left in Error (visible), so the admin can revert.
+	if d.pluginRes != nil && d.pluginRuntime != nil {
+		if _, _, _, _, newMode := d.pluginRes.ResourceConfig(); newMode != oldMode {
+			go d.pluginRuntime.RestartRunningPlugins(context.WithoutCancel(ctx))
+		}
+	}
 	return d.effectiveResourceLimits(ctx), nil
 }
 
