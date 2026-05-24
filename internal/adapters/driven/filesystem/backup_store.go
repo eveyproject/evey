@@ -124,7 +124,9 @@ func streamTarEntry(tw *tar.Writer, name string, r io.Reader) error {
 		src = tmp
 	}
 
-	hdr := &tar.Header{Name: name, Mode: 0640, Size: size}
+	// 0600: the SQL dump carries bcrypt hashes + DB-stored secrets (SMTP/VAPID/
+	// OIDC/TIDB), so keep extracted files owner-only, matching the 0600 archive.
+	hdr := &tar.Header{Name: name, Mode: 0600, Size: size}
 	if err := tw.WriteHeader(hdr); err != nil {
 		return err
 	}
@@ -135,7 +137,7 @@ func streamTarEntry(tw *tar.Writer, name string, r io.Reader) error {
 func writeTarEntry(tw *tar.Writer, name string, data []byte) error {
 	hdr := &tar.Header{
 		Name: name,
-		Mode: 0640,
+		Mode: 0600,
 		Size: int64(len(data)),
 	}
 	if err := tw.WriteHeader(hdr); err != nil {
