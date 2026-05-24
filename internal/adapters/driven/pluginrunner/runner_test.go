@@ -450,6 +450,55 @@ func TestApplyBasicSandbox_SubprocessRequiresLauncherWhenAbsent(t *testing.T) {
 	})
 }
 
+// TestSetupSocketDir_UIDSeparationParentTraversable is the regression for the
+// prod crash where a uid-dropped plugin got
+// "listen EACCES /tmp/evey/plugins/<id>/plugin.sock": the per-plugin dir was
+// made group-writable but the 0700 PARENT wasn't traversable by the plugin
+// group, so the dropped process couldn't even reach its own socket. Under uid
+// separation the parent must grant group SEARCH (no listing); without it the
+// parent stays locked down.
+func TestSetupSocketDir_UIDSeparationParentTraversable(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("targets the non-root uid-separation path; CI runs non-root")
+	}
+	reset := func() { _ = os.Chmod(sockDir, 0o700) }
+	t.Cleanup(reset)
+
+	t.Run("uid-sep on: parent group-traversable + subdir setgid", func(t *testing.T) {
+		reset()
+		r := NewRunner(t.TempDir()).WithUIDSeparation("on")
+		dir, sock, err := r.setupSocketDir("plg-uidsep-on")
+		t.Cleanup(func() { _ = os.RemoveAll(dir) })
+		require.NoError(t, err)
+		assert.Contains(t, sock, "plg-uidsep-on")
+
+		parent, err := os.Stat(sockDir)
+		require.NoError(t, err)
+		assert.NotZero(t, parent.Mode().Perm()&0o010,
+			"parent must be group-traversable (group execute) so the dropped uid can reach its socket")
+		assert.Zero(t, parent.Mode().Perm()&0o044,
+			"parent must NOT be readable by group/other — traverse only, no enumeration")
+
+		sub, err := os.Stat(dir)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o770), sub.Mode().Perm(), "per-plugin dir must be group rwx")
+		assert.NotZero(t, sub.Mode()&os.ModeSetgid, "per-plugin dir must be setgid")
+	})
+
+	t.Run("uid-sep off: parent not loosened", func(t *testing.T) {
+		reset()
+		r := NewRunner(t.TempDir()).WithUIDSeparation("off")
+		dir, _, err := r.setupSocketDir("plg-uidsep-off")
+		t.Cleanup(func() { _ = os.RemoveAll(dir) })
+		require.NoError(t, err)
+
+		parent, err := os.Stat(sockDir)
+		require.NoError(t, err)
+		assert.Zero(t, parent.Mode().Perm()&0o077,
+			"parent must grant nothing to group/other when uid separation is off")
+	})
+}
+
 func TestBuildHostsFile_Empty(t *testing.T) {
 	path, cleanup, err := buildHostsFile("plg-test", nil)
 	require.NoError(t, err)

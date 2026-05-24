@@ -471,8 +471,15 @@ func (r *Runner) setupSocketDir(pluginID string) (string, string, error) {
 		return "", "", fmt.Errorf("create plugin sock dir: %w", err)
 	}
 	if os.Getuid() == 0 {
+		// Root drops the plugin to evey-plugin (1001) via SysProcAttr.Credential.
+		// Own the per-plugin dir to that identity, and make the PARENT traversable
+		// by the plugin group — otherwise the dropped process can't even search
+		// the 0700 parent to reach its own socket ("listen EACCES").
 		if err := os.Chown(pluginSockDir, pluginUID, pluginGID); err != nil {
 			return "", "", fmt.Errorf("chown plugin sock dir: %w", err)
+		}
+		if err := r.makeSockParentTraversable(pluginGID); err != nil {
+			return "", "", err
 		}
 	} else if uidSepApplies(r.uidSepMode, r.effectiveMode() == sandboxModeBasic) {
 		// Non-root + uid separation will drop the plugin to evey-plugin (1001):
@@ -483,12 +490,40 @@ func (r *Runner) setupSocketDir(pluginID string) (string, string, error) {
 		if err := os.Chmod(pluginSockDir, os.FileMode(0o770)|os.ModeSetgid); err != nil {
 			return "", "", fmt.Errorf("chmod plugin sock dir for uid separation: %w", err)
 		}
+		// The per-plugin dir being group-writable is useless if the dropped uid
+		// can't traverse the 0700 parent to reach it — that was a real prod crash
+		// ("listen EACCES /tmp/evey/plugins/<id>/plugin.sock"). Grant the group
+		// SEARCH (0710: traverse only, no listing → can't enumerate other plugins)
+		// on the parent. Holds only sockets, no secrets — the server's keys live
+		// under /data (0600 owned by the server) and stay unreadable to uid 1001.
+		if err := r.makeSockParentTraversable(-1); err != nil {
+			return "", "", err
+		}
 	}
 	sock := filepath.Join(pluginSockDir, "plugin.sock")
 	if err := os.Remove(sock); err != nil && !os.IsNotExist(err) {
 		slog.Warn("remove old plugin sock", slog.Any("err", err))
 	}
 	return pluginSockDir, sock, nil
+}
+
+// makeSockParentTraversable grants the plugin group SEARCH on the shared sock
+// parent dir so a uid-dropped plugin can traverse it to reach its own per-plugin
+// socket dir. 0710 = owner rwx, group --x (traverse only, no listing → a plugin
+// can't enumerate other plugins' dirs), other none. groupGID >= 0 also re-owns
+// the parent's group (the root path, where we hold CAP_CHOWN); pass -1 to leave
+// the group as-is (non-root: the parent already carries the server's shared
+// group). Only plugin sockets live here, never secrets.
+func (r *Runner) makeSockParentTraversable(groupGID int) error {
+	if groupGID >= 0 {
+		if err := os.Chown(sockDir, 0, groupGID); err != nil {
+			return fmt.Errorf("chown sock parent dir: %w", err)
+		}
+	}
+	if err := os.Chmod(sockDir, 0o710); err != nil {
+		return fmt.Errorf("chmod sock parent dir for uid separation: %w", err)
+	}
+	return nil
 }
 
 // resolveCommand parses p.Entrypoint (falling back to p.Name) and returns
