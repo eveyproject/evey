@@ -24,27 +24,28 @@ type SecurityDashboardBus interface {
 // lastError events are stored in an in-memory bounded map (tail-50 per plugin),
 // since the domain has no persistent error-log repository.
 type SecurityDashboardService struct {
-	plugins     domainplugin.PluginRepository
-	sandboxMode string // e.g. "basic", "bubblewrap", "strict" — from config
+	plugins       domainplugin.PluginRepository
+	sandboxModeFn func() string // returns the effective sandbox mode in force (resolves "auto")
 
-	mu              sync.RWMutex
-	lastErrors      map[string]*domainplugin.PluginLastError  // pluginID → last error
-	lastStartedAt   map[string]time.Time                      // pluginID → last started timestamp
+	mu            sync.RWMutex
+	lastErrors    map[string]*domainplugin.PluginLastError // pluginID → last error
+	lastStartedAt map[string]time.Time                     // pluginID → last started timestamp
 }
 
 // NewSecurityDashboardService creates the service and subscribes to plugin events on bus.
-// sandboxMode is the value of cfg.Plugins.SandboxMode (or "basic" when not set).
+// sandboxModeFn returns the effective sandbox mode in force (the runner resolves
+// "auto" to landlock/bubblewrap/basic), read live so it reflects runtime changes.
 func NewSecurityDashboardService(
 	plugins domainplugin.PluginRepository,
 	bus SecurityDashboardBus,
-	sandboxMode string,
+	sandboxModeFn func() string,
 ) *SecurityDashboardService {
-	if sandboxMode == "" {
-		sandboxMode = "bubblewrap"
+	if sandboxModeFn == nil {
+		sandboxModeFn = func() string { return "bubblewrap" }
 	}
 	s := &SecurityDashboardService{
 		plugins:       plugins,
-		sandboxMode:   sandboxMode,
+		sandboxModeFn: sandboxModeFn,
 		lastErrors:    make(map[string]*domainplugin.PluginLastError),
 		lastStartedAt: make(map[string]time.Time),
 	}
@@ -134,7 +135,7 @@ func (s *SecurityDashboardService) effectiveSandboxMode(p *domainplugin.Plugin) 
 			return "none"
 		}
 	}
-	return s.sandboxMode
+	return s.sandboxModeFn()
 }
 
 // findingsFromReport converts the domain AnalysisReport into SecurityFinding

@@ -109,6 +109,7 @@ func run(argv []string) int {
 	denyInetFlag := fs.Bool("deny-inet", false, "also EPERM socket(AF_INET/AF_INET6): block all TCP/UDP egress (no network permission)")
 	uidFlag := fs.Int("uid", 0, "setuid to this uid before exec (0 = no drop; needs the cap_setuid file capability or a root parent)")
 	gidFlag := fs.Int("gid", 0, "setgid to this (shared) gid before exec; used with -uid")
+	uidBestEffort := fs.Bool("uid-besteffort", false, "if the uid drop fails, warn and run as the server uid instead of refusing (the plugin stays confined by the other layers)")
 	if err := fs.Parse(flagArgs); err != nil {
 		return 2
 	}
@@ -132,8 +133,17 @@ func run(argv []string) int {
 	// but is impossible (missing cap_setuid, no-new-privileges, or an unsafe
 	// uid), refuse to run rather than start the plugin under the wrong identity.
 	if err := dropPrivileges(*uidFlag, *gidFlag); err != nil {
-		fmt.Fprintf(os.Stderr, "evey-plugin-launcher: privilege drop failed, refusing to run: %v\n", err)
-		return 1
+		// A drop error means no setuid happened, so the process is still at the
+		// server uid (no escalation). In best-effort mode we surface it loudly and
+		// continue — the plugin runs same-uid, confined by the other layers — so a
+		// host that can't grant the capability (or uses no-new-privileges) keeps
+		// working instead of failing every plugin closed.
+		if *uidBestEffort {
+			fmt.Fprintf(os.Stderr, "evey-plugin-launcher: WARNING uid separation unavailable, running as the server uid: %v\n", err)
+		} else {
+			fmt.Fprintf(os.Stderr, "evey-plugin-launcher: privilege drop failed, refusing to run: %v\n", err)
+			return 1
+		}
 	}
 
 	// Resource caps next (best effort; failures are warnings, not fatal).

@@ -80,10 +80,32 @@ func TestBuildLauncherArgv_UIDSeparation(t *testing.T) {
 		sep := slices.Index(args, "--")
 		require.GreaterOrEqual(t, sep, 0)
 		assert.Less(t, uidIdx, sep, "-uid must precede the -- separator (it is a launcher flag)")
+		assert.Contains(t, args, "-uid-besteffort", "uid drop is best-effort (warn+continue, not fail-closed)")
 		// the original command stays at the tail, untouched
 		assert.Equal(t, "/usr/bin/node", args[len(args)-2])
 		assert.Equal(t, "/data/plugins/weather/main.js", args[len(args)-1])
 	})
+}
+
+func TestUIDSepApplies(t *testing.T) {
+	cases := []struct {
+		mode    string
+		isBasic bool
+		want    bool
+	}{
+		{uidSepOn, true, true},
+		{uidSepOn, false, true},
+		{uidSepAuto, true, true},   // basic → enable (the case it protects)
+		{uidSepAuto, false, false}, // landlock/bwrap → redundant, skip
+		{uidSepOff, true, false},
+		{uidSepOff, false, false},
+		{"", true, false}, // unset → never
+	}
+	for _, c := range cases {
+		if got := uidSepApplies(c.mode, c.isBasic); got != c.want {
+			t.Errorf("uidSepApplies(%q, basic=%v) = %v, want %v", c.mode, c.isBasic, got, c.want)
+		}
+	}
 }
 
 func TestApplyLandlockSandbox_NoNetworkPerm_CutsOffTCP(t *testing.T) {

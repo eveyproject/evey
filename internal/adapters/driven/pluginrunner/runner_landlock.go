@@ -78,7 +78,7 @@ func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, require
 	// separation is on and the server is non-root; the launcher carries
 	// cap_setuid for this. dropUID==0 leaves the plugin at the server's uid.
 	if dropUID > 0 {
-		args = append(args, "-uid", strconv.Itoa(dropUID), "-gid", strconv.Itoa(dropGID))
+		args = append(args, "-uid", strconv.Itoa(dropUID), "-gid", strconv.Itoa(dropGID), "-uid-besteffort")
 	}
 
 	if requireLandlock {
@@ -109,7 +109,7 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 		pluginDir = defaultPluginDir
 	}
 	cmd.Path = launcher
-	du, dg := r.pluginDropArgs()
+	du, dg := r.pluginDropArgs(false) // landlock confines the FS; uid-sep only via "on"
 	cmd.Args = buildLauncherArgv(launcher, p, cmd, true, du, dg)
 
 	// The plugin dir is the only writable allowlisted location the plugin owns,

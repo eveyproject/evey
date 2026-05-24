@@ -16,7 +16,7 @@ import (
 func TestGetSecurityDashboard_Empty(t *testing.T) {
 	repo := fakes.NewFakePluginRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplugin.NewSecurityDashboardService(repo, bus, "basic")
+	svc := appplugin.NewSecurityDashboardService(repo, bus, func() string { return "basic" })
 
 	snaps, err := svc.GetSecurityDashboard(context.Background())
 	if err != nil {
@@ -45,7 +45,7 @@ func TestGetSecurityDashboard_OnePlugin(t *testing.T) {
 	}
 
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplugin.NewSecurityDashboardService(repo, bus, "basic")
+	svc := appplugin.NewSecurityDashboardService(repo, bus, func() string { return "basic" })
 
 	snaps, err := svc.GetSecurityDashboard(context.Background())
 	if err != nil {
@@ -88,7 +88,7 @@ func TestGetSecurityDashboard_SubprocessPermission_SandboxNone(t *testing.T) {
 	}
 
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplugin.NewSecurityDashboardService(repo, bus, "bubblewrap")
+	svc := appplugin.NewSecurityDashboardService(repo, bus, func() string { return "bubblewrap" })
 
 	snaps, err := svc.GetSecurityDashboard(context.Background())
 	if err != nil {
@@ -117,7 +117,7 @@ func TestGetSecurityDashboard_LastErrorViaEventBus(t *testing.T) {
 	}
 
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplugin.NewSecurityDashboardService(repo, bus, "basic")
+	svc := appplugin.NewSecurityDashboardService(repo, bus, func() string { return "basic" })
 
 	// Simulate a plugin.error event being published.
 	errEvent := plugin.PluginError{
@@ -166,7 +166,7 @@ func TestGetSecurityDashboard_SizeBytes(t *testing.T) {
 	}
 
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplugin.NewSecurityDashboardService(repo, bus, "basic")
+	svc := appplugin.NewSecurityDashboardService(repo, bus, func() string { return "basic" })
 
 	snaps, err := svc.GetSecurityDashboard(context.Background())
 	if err != nil {
@@ -200,7 +200,7 @@ func TestGetSecurityDashboard_Findings(t *testing.T) {
 	}
 
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplugin.NewSecurityDashboardService(repo, bus, "basic")
+	svc := appplugin.NewSecurityDashboardService(repo, bus, func() string { return "basic" })
 
 	snaps, err := svc.GetSecurityDashboard(context.Background())
 	if err != nil {
@@ -222,7 +222,7 @@ func TestGetSecurityDashboard_RepoError(t *testing.T) {
 	repo.Err = context.DeadlineExceeded
 
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplugin.NewSecurityDashboardService(repo, bus, "basic")
+	svc := appplugin.NewSecurityDashboardService(repo, bus, func() string { return "basic" })
 
 	_, err := svc.GetSecurityDashboard(context.Background())
 	if err == nil {

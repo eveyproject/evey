@@ -98,7 +98,7 @@ type Runner struct {
 	sandboxOnce         sync.Once
 	onIPCResult         OnIPCResult
 	allowMissingSandbox bool
-	uidSeparation       bool // drop plugins to evey-plugin uid via launcher cap_setuid (non-root server)
+	uidSepMode          string // "auto"|"on"|"off": drop plugins to evey-plugin uid via launcher cap_setuid
 	eventBus            EventBus
 	hostRegistry        HostRegistry
 	autoResolveOnce     sync.Once // resolves sandboxModeAuto to a concrete mode once
@@ -474,11 +474,12 @@ func (r *Runner) setupSocketDir(pluginID string) (string, string, error) {
 		if err := os.Chown(pluginSockDir, pluginUID, pluginGID); err != nil {
 			return "", "", fmt.Errorf("chown plugin sock dir: %w", err)
 		}
-	} else if r.uidSeparation {
-		// Non-root + uid separation: the server (the dir owner) can't chown to the
-		// plugin uid (no CAP_CHOWN), so make the dir group-writable + setgid. The
-		// plugin runs in the server's group, so it can create plugin.sock here,
-		// and the setgid bit keeps created sockets in that shared group.
+	} else if uidSepApplies(r.uidSepMode, r.effectiveMode() == sandboxModeBasic) {
+		// Non-root + uid separation will drop the plugin to evey-plugin (1001):
+		// the server (the dir owner) can't chown to that uid (no CAP_CHOWN), so
+		// make the dir group-writable + setgid instead. The plugin runs in the
+		// server's group, so it can create plugin.sock here, and the setgid bit
+		// keeps created sockets in that shared group.
 		if err := os.Chmod(pluginSockDir, os.FileMode(0o770)|os.ModeSetgid); err != nil {
 			return "", "", fmt.Errorf("chmod plugin sock dir for uid separation: %w", err)
 		}
@@ -620,7 +621,7 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 			pluginDir = defaultPluginDir
 		}
 		cmd.Path = launcher
-		du, dg := r.pluginDropArgs()
+		du, dg := r.pluginDropArgs(true)                              // basic = the case uid-sep protects ("auto" enables here)
 		cmd.Args = buildLauncherArgv(launcher, p, cmd, false, du, dg) // best-effort Landlock
 		cmd.Env = overrideEnv(cmd.Env, map[string]string{"HOME": pluginDir, "TMPDIR": pluginDir})
 	}
@@ -733,26 +734,62 @@ func pluginSysProcAttr() *syscall.SysProcAttr {
 	return a
 }
 
+// uid-separation modes (EVEY_PLUGINS_UID_SEPARATION).
+const (
+	uidSepAuto = "auto" // enable only when the effective mode is basic (no Landlock/bwrap)
+	uidSepOn   = "on"   // always attempt the drop
+	uidSepOff  = "off"  // never
+)
+
 // pluginDropArgs returns the uid/gid the launcher should setuid to before exec,
-// or 0,0 to leave the plugin at the server's uid. It returns a real uid only
-// when uid separation is enabled AND the server is non-root: a root server drops
-// the plugin via SysProcAttr.Credential instead (see pluginSysProcAttr), and a
-// disabled flag preserves the prior same-uid behaviour (no regression). The gid
-// is the server's own group so the plugin can write the group-shared sock dir.
-func (r *Runner) pluginDropArgs() (uid, gid int) {
-	if r.uidSeparation && os.Getuid() != 0 {
-		return pluginUID, os.Getgid()
+// or 0,0 to leave the plugin at the server's uid. isBasicMode is whether the
+// effective sandbox is "basic" (no Landlock/bwrap FS isolation), which is the
+// only place uid separation actually protects secrets. It returns a real uid
+// only when the server is non-root (a root server drops via
+// SysProcAttr.Credential) AND the mode says so: "on" always, "auto" only in
+// basic, "off"/unset never. The gid is the server's own group so the plugin can
+// write the group-shared socket dir.
+func (r *Runner) pluginDropArgs(isBasicMode bool) (uid, gid int) {
+	if os.Getuid() == 0 || !uidSepApplies(r.uidSepMode, isBasicMode) {
+		return 0, 0
 	}
-	return 0, 0
+	return pluginUID, os.Getgid()
 }
 
-// WithUIDSeparation makes the runner drop each plugin to the dedicated
-// evey-plugin uid via the launcher's cap_setuid even when the server is
-// non-root. Off by default (a host lacking that file capability, or one using
-// no-new-privileges, would otherwise fail plugin startup).
-func (r *Runner) WithUIDSeparation(on bool) *Runner {
-	r.uidSeparation = on
+// uidSepApplies decides whether to drop the plugin to a separate uid given the
+// configured policy and whether the effective sandbox is basic: "on" always,
+// "auto" only in basic (redundant under landlock/bwrap), "off"/unset never.
+func uidSepApplies(mode string, isBasicMode bool) bool {
+	switch mode {
+	case uidSepOn:
+		return true
+	case uidSepAuto:
+		return isBasicMode
+	default:
+		return false
+	}
+}
+
+// WithUIDSeparation sets the uid-separation policy ("auto"|"on"|"off"). Unknown
+// values map to "off" (safest). "auto" drops the plugin to the evey-plugin uid
+// only when the sandbox resolves to "basic"; "on" always; both are best-effort
+// (a host without cap_setuid, or using no-new-privileges, runs same-uid with a
+// warning rather than failing closed).
+func (r *Runner) WithUIDSeparation(mode string) *Runner {
+	switch mode {
+	case uidSepAuto, uidSepOn, uidSepOff:
+		r.uidSepMode = mode
+	default:
+		r.uidSepMode = uidSepOff
+	}
 	return r
+}
+
+// EffectiveSandboxMode returns the concrete sandbox mode actually in force —
+// "auto" resolved to the mode selected for this host (landlock/bubblewrap/basic).
+// Exposed so the admin dashboard can show what's really active, not just "auto".
+func (r *Runner) EffectiveSandboxMode() string {
+	return r.effectiveMode()
 }
 
 // trackLifecycle runs cmd.Wait in a goroutine and cleans up once the

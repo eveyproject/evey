@@ -258,4 +258,21 @@ func TestDropPrivileges_ReexecDropsUID(t *testing.T) {
 			t.Errorf("plugin ran despite an unsafe uid: %q", out)
 		}
 	})
+
+	t.Run("best-effort: a drop failure warns and runs same-uid instead of refusing", func(t *testing.T) {
+		// dropPrivileges refuses uid 500; with -uid-besteffort the launcher warns
+		// and runs the command as the original uid (no setuid happened → no
+		// escalation) rather than exiting — so a host that can't drop keeps working.
+		out, err := reexec("-uid", "500", "-gid", "500", "-uid-besteffort", "--",
+			"/bin/sh", "-c", "echo RAN")
+		if err != nil {
+			t.Fatalf("best-effort must not fail the launcher: %v out=%q", err, out)
+		}
+		if !strings.Contains(out, "RAN") {
+			t.Errorf("command should still run in best-effort mode: %q", out)
+		}
+		if !strings.Contains(out, "WARNING") {
+			t.Errorf("best-effort degradation should warn loudly: %q", out)
+		}
+	})
 }
