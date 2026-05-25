@@ -45,6 +45,25 @@ func TestStartPlugin_AlreadyRunning(t *testing.T) {
 	assert.ErrorIs(t, err, appplugin.ErrAlreadyRunning)
 }
 
+// TestStartPlugin_Initializing_NoDoubleStart pins the double-spawn fix: the
+// installer auto-starts a non-theme plugin (status → Initializing); a follow-up
+// enable must NOT spawn a second process (which would lose SO_PEERCRED PID auth
+// and surface "PID mismatch"). StartPlugin returns ErrAlreadyRunning and never
+// touches the runner.
+func TestStartPlugin_Initializing_NoDoubleStart(t *testing.T) {
+	svc, pluginRepo, runner, _ := newTestRuntimeService()
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-init", Name: "initializing", Status: plugindomain.Initializing, Enabled: true,
+	}))
+
+	err := svc.StartPlugin(ctx, "plg-init")
+	assert.ErrorIs(t, err, appplugin.ErrAlreadyRunning)
+
+	healthy, _ := runner.Health(ctx, "plg-init")
+	assert.False(t, healthy, "an Initializing plugin must not be re-started (no second spawn)")
+}
+
 func TestStartPlugin_CSSTheme_NoRunner(t *testing.T) {
 	svc, pluginRepo, runner, _ := newTestRuntimeService()
 	ctx := context.Background()

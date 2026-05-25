@@ -66,7 +66,13 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrPluginNotFound
 	}
-	if p.Status == plugin.Running {
+	// A freshly-installed non-theme plugin is already spawned by the installer
+	// (status → Initializing) and is connecting to the host socket. Starting it
+	// again here would spawn a SECOND process; the first one then fails the
+	// SO_PEERCRED PID auth ("PID mismatch — possible spoofing attempt") because
+	// SetExpectedPID was re-armed with the second PID. Treat Initializing as
+	// already-started so an enable-after-install is a no-op, not a double-spawn.
+	if p.Status == plugin.Running || p.Status == plugin.Initializing {
 		return ErrAlreadyRunning
 	}
 	if p.IsTheme() {
