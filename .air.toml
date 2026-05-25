@@ -2,7 +2,10 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "go build -o ./tmp/evey ./cmd/evey"
+  # Build the server (fatal), then the landlock launcher + the LD_PRELOAD
+  # seccomp shim (best-effort, never block server start). With both present and
+  # Landlock available, sandbox auto-detection resolves to landlock like prod.
+  cmd = "go build -o ./tmp/evey ./cmd/evey && (go build -o ./tmp/evey-plugin-launcher ./cmd/evey-plugin-launcher && gcc -shared -fPIC -nostartfiles -o /app/libevey-sandbox.so sandbox/sandbox.c || true)"
   bin = "./tmp/evey"
   full_bin = "./tmp/evey"
   include_ext = ["go", "yaml"]
