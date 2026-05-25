@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/codes"
@@ -69,9 +70,44 @@ func (r *MediaItemRepository) withMediaItemTx(ctx context.Context, f func(*sql.T
 	return tx.Commit()
 }
 
+// sanitizeMediaItemText strips bytes that aren't valid UTF-8 from the item's
+// text fields. Postgres TEXT columns reject invalid UTF-8 — e.g. a Latin-1
+// filename byte (0x80) parsed into the title made the insert fail on EVERY
+// scan, so the item never indexed and the log filled with the same error
+// ("invalid byte sequence for encoding UTF8"). Stripping is safe: valid UTF-8
+// is returned unchanged, and a mangled scan title is overwritten by the
+// provider title at enrichment. A mis-encoded file path will be stored
+// stripped (so the row inserts); such a file needs renaming to play.
+func sanitizeMediaItemText(item *library.MediaItem) {
+	v := func(s string) string { return strings.ToValidUTF8(s, "") }
+	item.Title = v(item.Title)
+	item.ScanTitle = v(item.ScanTitle)
+	item.SortTitle = v(item.SortTitle)
+	item.OriginalTitle = v(item.OriginalTitle)
+	item.Overview = v(item.Overview)
+	item.Tagline = v(item.Tagline)
+	if item.File != nil {
+		item.File.Path = v(item.File.Path)
+		item.File.ContainerFormat = v(item.File.ContainerFormat)
+		item.File.Fingerprint = v(item.File.Fingerprint)
+	}
+	if item.Catalog != nil {
+		for i := range item.Catalog.Genres {
+			item.Catalog.Genres[i] = v(item.Catalog.Genres[i])
+		}
+		for i := range item.Catalog.Studios {
+			item.Catalog.Studios[i] = v(item.Catalog.Studios[i])
+		}
+		for i := range item.Catalog.Tags {
+			item.Catalog.Tags[i] = v(item.Catalog.Tags[i])
+		}
+	}
+}
+
 func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaItem) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.Create")
 	defer span.End()
+	sanitizeMediaItemText(item)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
@@ -129,6 +165,7 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaItem) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.Update")
 	defer span.End()
+	sanitizeMediaItemText(item)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
