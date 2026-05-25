@@ -204,6 +204,17 @@ func TestLibraryHandler_DeleteLibrary(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Regression for the prod 500: deleting a library that no longer exists (stale
+// admin list, double-click, already removed elsewhere) must be idempotent —
+// success, not an internal error.
+func TestLibraryHandler_DeleteLibrary_AlreadyAbsentIdempotent(t *testing.T) {
+	h, _, _, _, _, _, _ := newTestLibraryHandler()
+	ctx := adminCtx()
+
+	_, err := h.DeleteLibrary(ctx, &eveyv1.DeleteLibraryRequest{Id: "lib-does-not-exist"})
+	require.NoError(t, err)
+}
+
 func TestLibraryHandler_GetMediaItem_Success(t *testing.T) {
 	h, _, mediaQuery, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()

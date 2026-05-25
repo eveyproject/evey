@@ -169,6 +169,14 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 		return nil, status.Errorf(codes.NotFound, "library not found")
 	}
 	if err := h.cmd.DeleteLibrary(ctx, req.Id); err != nil {
+		// Deleting an already-absent library is not a server error: the desired
+		// state (library gone) is achieved. Return idempotent success so a stale
+		// admin list that still shows it simply refreshes it away, instead of the
+		// 500 the bare repo "not found" used to surface.
+		if errors.Is(err, shared.ErrNotFound) {
+			slog.Info("delete library: already absent", slog.String("library_id", req.Id))
+			return &eveyv1.DeleteLibraryResponse{}, nil
+		}
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("delete library", err)
