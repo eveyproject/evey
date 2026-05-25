@@ -217,3 +217,35 @@ func TestSyncPlayRoomRepo_Delete(t *testing.T) {
 	assert.ErrorIs(t, err, shared.ErrNotFound)
 	assert.Nil(t, got)
 }
+
+// Regression: an audio room's media_id references a music track, which is not
+// a media_item. This used to violate fk_syncplay_rooms_media_id; the FK was
+// dropped (migration 000100) since existence is validated in the handler per
+// media_type. Seed only the host (no media_item) and assert the insert works.
+func TestSyncPlayRoomRepo_Create_AudioMediaNotInMediaItems(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, newTestUser("sp-audio-user")))
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, newTestProfile("sp-audio-host", shared.UserID("sp-audio-user"))))
+
+	repo := postgres.NewSyncPlayRoomRepo(db)
+	room := &syncplay.Room{
+		ID:        "sp-audio",
+		Code:      "MUSIC1",
+		Name:      "Listen Together",
+		HostID:    "sp-audio-host",
+		MediaID:   "track-not-a-media-item",
+		MediaType: "music",
+		Members:   []syncplay.Member{},
+		State:     syncplay.PlaybackState{},
+		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+	}
+	require.NoError(t, repo.Create(ctx, room), "audio room with a non-media_item media_id must insert (FK dropped)")
+
+	got, err := repo.Get(ctx, "sp-audio")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, shared.MediaItemID("track-not-a-media-item"), got.MediaID)
+}
