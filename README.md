@@ -1,6 +1,12 @@
+<p align="center">
+  <img src="evey-brand/social/readme-hero.png" alt="Evey" width="800">
+</p>
+
 # Evey
 
 Self-hosted media server for movies, TV shows, music, and photos.
+
+Brand assets (logo, favicon, social images) live in [`evey-brand/`](evey-brand/) — see its [README](evey-brand/README.md) for usage rules.
 
 ## Install
 

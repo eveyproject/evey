@@ -1,0 +1,14 @@
+/* Evey brand tokens — drop into your CSS */
+:root {
+  --evey-bg: #FFFFFF;
+  --evey-fg: #0A0A0A;
+  --evey-v: #DC2626;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --evey-bg: #0A0A0A;
+    --evey-fg: #FFFFFF;
+    --evey-v: #DC2626;
+  }
+}
