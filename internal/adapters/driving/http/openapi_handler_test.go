@@ -43,7 +43,7 @@ func TestBuildPublicOpenAPISpec_FiltersToAPIKeySurface(t *testing.T) {
       "swagger": "2.0",
       "paths": {
         "/api/v1/libraries": {
-          "get": {"operationId": "LibraryService_ListLibraries", "description": "list"},
+          "get": {"operationId": "LibraryService_ListLibraries", "description": "list", "tags": ["LibraryService"]},
           "post": {"operationId": "LibraryService_CreateLibrary", "description": "create"}
         },
         "/api/v1/libraries/{id}": {
@@ -81,8 +81,9 @@ func TestBuildPublicOpenAPISpec_FiltersToAPIKeySurface(t *testing.T) {
 	if got.XScope != authpkg.ScopeMediaRead {
 		t.Errorf("x-required-scope = %q, want %q", got.XScope, authpkg.ScopeMediaRead)
 	}
-	if len(got.Tags) != 1 || got.Tags[0] != authpkg.ScopeMediaRead {
-		t.Errorf("tags = %v, want [%s]", got.Tags, authpkg.ScopeMediaRead)
+	// Group tag = resource (Service suffix stripped); verb order is client-side.
+	if len(got.Tags) != 1 || got.Tags[0] != "Library" {
+		t.Errorf("tags = %v, want [Library]", got.Tags)
 	}
 
 	// CreateLibrary and DeleteLibrary are not in the API-key surface -> dropped.

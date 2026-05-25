@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 
@@ -46,7 +45,6 @@ func buildPublicOpenAPISpec(dir string) ([]byte, error) {
 	}
 	mergedPaths := map[string]map[string]any{}
 	mergedDefs := map[string]json.RawMessage{}
-	usedScopes := map[string]bool{}
 	kept := 0
 
 	for _, e := range entries {
@@ -80,12 +78,22 @@ func buildPublicOpenAPISpec(dir string) ([]byte, error) {
 				if !ok {
 					continue // internal method: not part of the API-key surface
 				}
-				usedScopes[scope] = true
-				// Group by scope in the UI and surface the requirement.
-				op["tags"] = []string{scope}
+				// Keep buf's original tag (the service) so Swagger UI groups by
+				// resource — all of a resource's operations together — rather than
+				// splitting them across scopes. Surface the scope in the
+				// description and as an extension instead.
 				desc, _ := op["description"].(string)
 				op["description"] = "**Required scope: `" + scope + "`**\n\n" + desc
 				op["x-required-scope"] = scope
+				// Group by resource: strip the "Service" suffix from buf's tag.
+				// Verb ordering within the group is done client-side.
+				if tags, ok := op["tags"].([]any); ok {
+					for i, tg := range tags {
+						if s, ok := tg.(string); ok {
+							tags[i] = strings.TrimSuffix(s, "Service")
+						}
+					}
+				}
 				if mergedPaths[path] == nil {
 					mergedPaths[path] = map[string]any{}
 				}
@@ -95,24 +103,13 @@ func buildPublicOpenAPISpec(dir string) ([]byte, error) {
 		}
 	}
 
-	scopes := make([]string, 0, len(usedScopes))
-	for s := range usedScopes {
-		scopes = append(scopes, s)
-	}
-	sort.Strings(scopes)
-	tags := make([]map[string]any, 0, len(scopes))
-	for _, s := range scopes {
-		tags = append(tags, map[string]any{"name": s, "description": "Operations requiring the " + s + " scope"})
-	}
-
 	spec := map[string]any{
 		"swagger": "2.0",
 		"info": map[string]any{
 			"title":       "Evey Public API",
 			"version":     "v1",
-			"description": fmt.Sprintf("The %d endpoints callable with an API key, grouped by the scope each requires. Authorize with your key as a Bearer token (`Bearer evey_…`). Everything else in the server is internal and not reachable with an API key.", kept),
+			"description": fmt.Sprintf("The %d endpoints callable with an API key, grouped by resource; each operation lists the scope it requires. Authorize with your key as a Bearer token (`Bearer evey_…`). Everything else in the server is internal and not reachable with an API key.", kept),
 		},
-		"tags":        tags,
 		"consumes":    []string{"application/json"},
 		"produces":    []string{"application/json"},
 		"paths":       mergedPaths,
