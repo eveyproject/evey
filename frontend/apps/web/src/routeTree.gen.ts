@@ -55,6 +55,7 @@ import { Route as AuthAdminFeedsRouteImport } from './routes/_auth/admin/feeds'
 import { Route as AuthAdminBackupRouteImport } from './routes/_auth/admin/backup'
 import { Route as AuthAdminArtworksRouteImport } from './routes/_auth/admin/artworks'
 import { Route as AuthAdminApiKeysRouteImport } from './routes/_auth/admin/api-keys'
+import { Route as AuthAdminApiDocsRouteImport } from './routes/_auth/admin/api-docs'
 import { Route as AuthAdminAnalyticsRouteImport } from './routes/_auth/admin/analytics'
 import { Route as AuthAdminActivityRouteImport } from './routes/_auth/admin/activity'
 import { Route as AuthCollectionsSmartFilterIdRouteImport } from './routes/_auth/collections/smart/$filterId'
@@ -364,6 +365,13 @@ const AuthAdminApiKeysRoute = AuthAdminApiKeysRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/api-keys.lazy').then((d) => d.Route),
 )
+const AuthAdminApiDocsRoute = AuthAdminApiDocsRouteImport.update({
+  id: '/api-docs',
+  path: '/api-docs',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/api-docs.lazy').then((d) => d.Route),
+)
 const AuthAdminAnalyticsRoute = AuthAdminAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -423,6 +431,7 @@ export interface FileRoutesByFullPath {
   '/syncplay': typeof AuthSyncplayRoute
   '/admin/activity': typeof AuthAdminActivityRoute
   '/admin/analytics': typeof AuthAdminAnalyticsRoute
+  '/admin/api-docs': typeof AuthAdminApiDocsRoute
   '/admin/api-keys': typeof AuthAdminApiKeysRoute
   '/admin/artworks': typeof AuthAdminArtworksRoute
   '/admin/backup': typeof AuthAdminBackupRoute
@@ -474,6 +483,7 @@ export interface FileRoutesByTo {
   '/syncplay': typeof AuthSyncplayRoute
   '/admin/activity': typeof AuthAdminActivityRoute
   '/admin/analytics': typeof AuthAdminAnalyticsRoute
+  '/admin/api-docs': typeof AuthAdminApiDocsRoute
   '/admin/api-keys': typeof AuthAdminApiKeysRoute
   '/admin/artworks': typeof AuthAdminArtworksRoute
   '/admin/backup': typeof AuthAdminBackupRoute
@@ -528,6 +538,7 @@ export interface FileRoutesById {
   '/_auth/syncplay': typeof AuthSyncplayRoute
   '/_auth/admin/activity': typeof AuthAdminActivityRoute
   '/_auth/admin/analytics': typeof AuthAdminAnalyticsRoute
+  '/_auth/admin/api-docs': typeof AuthAdminApiDocsRoute
   '/_auth/admin/api-keys': typeof AuthAdminApiKeysRoute
   '/_auth/admin/artworks': typeof AuthAdminArtworksRoute
   '/_auth/admin/backup': typeof AuthAdminBackupRoute
@@ -582,6 +593,7 @@ export interface FileRouteTypes {
     | '/syncplay'
     | '/admin/activity'
     | '/admin/analytics'
+    | '/admin/api-docs'
     | '/admin/api-keys'
     | '/admin/artworks'
     | '/admin/backup'
@@ -633,6 +645,7 @@ export interface FileRouteTypes {
     | '/syncplay'
     | '/admin/activity'
     | '/admin/analytics'
+    | '/admin/api-docs'
     | '/admin/api-keys'
     | '/admin/artworks'
     | '/admin/backup'
@@ -686,6 +699,7 @@ export interface FileRouteTypes {
     | '/_auth/syncplay'
     | '/_auth/admin/activity'
     | '/_auth/admin/analytics'
+    | '/_auth/admin/api-docs'
     | '/_auth/admin/api-keys'
     | '/_auth/admin/artworks'
     | '/_auth/admin/backup'
@@ -1058,6 +1072,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminApiKeysRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/api-docs': {
+      id: '/_auth/admin/api-docs'
+      path: '/api-docs'
+      fullPath: '/admin/api-docs'
+      preLoaderRoute: typeof AuthAdminApiDocsRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/analytics': {
       id: '/_auth/admin/analytics'
       path: '/analytics'
@@ -1099,6 +1120,7 @@ declare module '@tanstack/react-router' {
 interface AuthAdminRouteChildren {
   AuthAdminActivityRoute: typeof AuthAdminActivityRoute
   AuthAdminAnalyticsRoute: typeof AuthAdminAnalyticsRoute
+  AuthAdminApiDocsRoute: typeof AuthAdminApiDocsRoute
   AuthAdminApiKeysRoute: typeof AuthAdminApiKeysRoute
   AuthAdminArtworksRoute: typeof AuthAdminArtworksRoute
   AuthAdminBackupRoute: typeof AuthAdminBackupRoute
@@ -1120,6 +1142,7 @@ interface AuthAdminRouteChildren {
 const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminActivityRoute: AuthAdminActivityRoute,
   AuthAdminAnalyticsRoute: AuthAdminAnalyticsRoute,
+  AuthAdminApiDocsRoute: AuthAdminApiDocsRoute,
   AuthAdminApiKeysRoute: AuthAdminApiKeysRoute,
   AuthAdminArtworksRoute: AuthAdminArtworksRoute,
   AuthAdminBackupRoute: AuthAdminBackupRoute,

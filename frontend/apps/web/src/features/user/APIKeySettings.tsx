@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { BookOpen } from "lucide-react";
 import {
   useUserServiceListAPIKeys,
   useUserServiceCreateAPIKey,
@@ -120,6 +122,13 @@ export function APIKeySettings() {
           <p className="text-xs text-[var(--text-muted)] mt-1">
             {t("auth.apiKeys.description")}
           </p>
+          <Link
+            to="/admin/api-docs"
+            className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline mt-2"
+          >
+            <BookOpen size={13} aria-hidden="true" />
+            {t("auth.apiDocs.link")}
+          </Link>
         </div>
         <Button variant="primary" onClick={() => setCreateOpen(true)}>
           {t("common.newKey")}

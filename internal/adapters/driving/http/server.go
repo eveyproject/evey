@@ -206,6 +206,10 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("GET /api/v1/i18n/{locale}", i18nHandler(s.Translator, s.Cfg.Log.DevMode))
 	}
 
+	// OpenAPI spec for the public (API-key) surface, consumed by the in-app
+	// Swagger UI linked from the API keys page.
+	mux.HandleFunc("GET /api/v1/openapi.json", auth(openAPIPublicHandler()))
+
 	mux.HandleFunc("GET /api/v1/admin/fs/browse", admin(browseDirsHandler(s.TokenGen)))
 
 	var mhOpts []mediaServeOption

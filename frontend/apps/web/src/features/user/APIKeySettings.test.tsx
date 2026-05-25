@@ -23,6 +23,11 @@ vi.mock("@tanstack/react-query", async (importActual) => {
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
 
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ to, children, ...props }: { to: string; children: React.ReactNode }) =>
+    React.createElement("a", { href: to, ...props }, children),
+}));
+
 const mockKeys = [
   { id: "key1", name: "Home Assistant", key: "evey_abcdef1234", createdAt: "2025-01-01T00:00:00Z", lastUsedAt: "2025-06-15T12:00:00Z" },
   { id: "key2", name: "Plex Sync", key: "evey_xyz9876543", createdAt: "2025-03-10T00:00:00Z", lastUsedAt: undefined },

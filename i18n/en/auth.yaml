@@ -206,6 +206,11 @@ settings:
       mismatch: PINs do not match
       passwordReauth: Account password
       passwordRequired: Password required to set a PIN for the first time
+apiDocs:
+  title: API documentation
+  subtitle: The endpoints you can call with an API key, grouped by the scope each one requires. Use Authorize to try them out with your key.
+  link: View API documentation
+  loadError: Failed to load the API specification.
 apiKeys:
   title: API Keys
   description: Create API keys for external integrations.

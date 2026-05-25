@@ -206,6 +206,11 @@ settings:
       mismatch: PINs stimmen nicht überein
       passwordReauth: "Kontopasswort"
       passwordRequired: "Passwort erforderlich, um erstmals eine PIN festzulegen"
+apiDocs:
+  title: API-Dokumentation
+  subtitle: Die Endpunkte, die mit einem API-Schlüssel aufgerufen werden können, gruppiert nach dem jeweils erforderlichen Scope. Mit „Authorize“ kannst du sie mit deinem Schlüssel ausprobieren.
+  link: API-Dokumentation ansehen
+  loadError: Die API-Spezifikation konnte nicht geladen werden.
 apiKeys:
   title: API-Schlüssel
   description: API-Schlüssel für externe Integrationen erstellen.

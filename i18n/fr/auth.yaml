@@ -206,6 +206,11 @@ settings:
       mismatch: "Les PIN ne correspondent pas"
       passwordReauth: "Mot de passe du compte"
       passwordRequired: "Mot de passe requis pour définir un PIN la première fois"
+apiDocs:
+  title: Documentation de l'API
+  subtitle: Les endpoints appelables avec une clé API, regroupés par le scope que chacun requiert. Utilisez Authorize pour les essayer avec votre clé.
+  link: Voir la documentation de l'API
+  loadError: Échec du chargement de la spécification de l'API.
 apiKeys:
   title: "Clés API"
   description: "Créez des clés API pour les intégrations externes."
