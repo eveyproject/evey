@@ -23,6 +23,9 @@ vi.mock("@evey/api", () => ({
   useAdminPluginServiceGetPluginConfig: vi.fn(() => ({ data: { values: {} }, isLoading: false })),
   useAdminPluginServiceUpdatePluginConfig: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useAdminPluginServiceGetPluginLogs: vi.fn(() => ({ data: undefined, isLoading: false })),
+  useAdminPluginServiceGetPluginResourceLimits: vi.fn(() => ({ data: undefined, isLoading: false })),
+  useAdminPluginServiceUpdatePluginResourceLimits: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  getAdminPluginServiceGetPluginResourceLimitsQueryKey: vi.fn(() => ["plugin-resource-limits"]),
 }));
 
 vi.mock("@evey/store", () => ({

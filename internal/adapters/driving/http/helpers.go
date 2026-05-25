@@ -109,6 +109,12 @@ func serveFileWithCache(w http.ResponseWriter, r *http.Request, filePath string)
 }
 
 func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *domainuser.Claims, libraryID shared.LibraryID, checker LibraryAccessChecker) bool {
+	// Fail closed: a nil claims (shouldn't happen behind auth middleware) is
+	// denied rather than panicking on claims.IsAdmin.
+	if claims == nil {
+		http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+		return false
+	}
 	if claims.IsAdmin {
 		return true
 	}

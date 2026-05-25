@@ -24,7 +24,8 @@ describe("usePlaybackSettings", () => {
   it("applies defaults for missing fields", () => {
     mockHook.mockReturnValue({ data: {}, isSuccess: true });
     const { result } = renderHook(() => usePlaybackSettings());
-    expect(result.current.data?.skipForwardSeconds).toBe(10);
-    expect(result.current.data?.skipBackwardSeconds).toBe(10);
+    // Default skip was raised to 30s (commits 93bab7098 / e55fd646c).
+    expect(result.current.data?.skipForwardSeconds).toBe(30);
+    expect(result.current.data?.skipBackwardSeconds).toBe(30);
   });
 });
