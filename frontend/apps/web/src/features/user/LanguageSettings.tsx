@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Select } from "@/components/ui/Select";
 import { supportedLanguages } from "@/i18n";
 import { useLocaleStore, useAuthStore } from "@evey/store";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey, userServiceRefreshToken } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, userServiceRefreshToken } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function LanguageSettings() {
@@ -30,12 +30,17 @@ export function LanguageSettings() {
     if (defaultProfile?.id) {
       try {
         await updateProfile.mutateAsync({ id: defaultProfile.id, data: { locale: code } });
-        if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
         // 4. Refresh token to get new JWT with updated locale
         const resp = await userServiceRefreshToken({});
         if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
       } catch (err) { console.warn("locale update failed", err); }
     }
+    // 5. Server responses are localized by locale (Accept-Language + JWT), but
+    //    React Query keys don't include it — so cached lists, the home feed
+    //    especially, keep the old language until staleTime lapses. Invalidate
+    //    everything now that both locale signals are updated, so they refetch
+    //    in the new language.
+    void qc.invalidateQueries();
   };
 
   return (

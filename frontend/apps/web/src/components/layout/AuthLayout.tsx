@@ -7,6 +7,7 @@ import { TopBar } from "./TopBar";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { KeyboardShortcutsHelp } from "@/components/ui/KeyboardShortcutsHelp";
 import { GlobalAudioPlayer } from "@/features/music/GlobalAudioPlayer";
+import { useMusicPlayerStore } from "@evey/store";
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -19,6 +20,10 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const isPlayer = location.pathname.startsWith("/player/");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { showHelp, setShowHelp } = useKeyboardShortcuts(!isPlayer);
+  // The audio player is a fixed bottom bar; when a track is loaded it would
+  // overlap the bottom of the scrollable content. Reserve its height so the
+  // last rows / action buttons stay reachable.
+  const musicActive = useMusicPlayerStore((s) => s.playing) !== null;
 
   if (isPlayer) return <>{children}</>;
 
@@ -72,7 +77,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         <main
           id="main-content"
           key={location.pathname}
-          className={`flex-1 min-h-0 overflow-y-auto animate-fade-in${isHome ? "" : " p-4 sm:p-6"}`}
+          className={`flex-1 min-h-0 overflow-y-auto animate-fade-in${isHome ? "" : " p-4 sm:p-6"}${musicActive ? " pb-24" : ""}`}
         >
           {children}
         </main>
