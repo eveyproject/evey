@@ -2,6 +2,14 @@
 *.md
 data/
 logs/
+# Local docker-compose volume mounts (root-owned, gitignored): never part of
+# the build context — they pollute it and break the build on permission-denied.
+caddy-config/
+caddy-data/
+evey-data/
+meili-data/
+postgres-data/
+tmp/
 *.pem
 .env
 **/node_modules
