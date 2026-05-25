@@ -126,9 +126,11 @@ func TestApplyLandlockSandbox_NoNetworkPerm_CutsOffTCP(t *testing.T) {
 
 func TestApplyLandlockSandbox_NoSubprocessPerm_RequiresSeccompLib(t *testing.T) {
 	t.Setenv("EVEY_PLUGIN_LAUNCHER", "/bin/true")
-	// allowMissingSandbox defaults to false → fail-closed when the lib is absent
-	// (it is, on the test box: /app/libevey-sandbox.so does not exist).
-	r := NewRunner().WithSandboxMode(sandboxModeLandlock)
+	// allowMissingSandbox defaults to false → fail-closed when the lib is absent.
+	// Force "lib absent" deterministically: the prod-like container builds the
+	// real /app/libevey-sandbox.so, so we must not rely on its ambient absence.
+	r := NewRunner().WithSandboxMode(sandboxModeLandlock).
+		WithSandboxLibPath(t.TempDir() + "/absent-libevey-sandbox.so")
 	p := &plugin.Plugin{ID: "x", InstallDir: "/data/plugins/x"} // no subprocess permission
 	cmd := exec.Command("/usr/bin/node", "/data/plugins/x/main.js")
 

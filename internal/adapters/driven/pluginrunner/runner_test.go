@@ -281,10 +281,11 @@ func TestRunnerRefusesUnsandboxedStart(t *testing.T) {
 	dir := filepath.Dir(bin)
 	ctx := context.Background()
 
-	// Default Runner = strict. sandbox.so isn't present in test env and
-	// /app/sandbox/sandbox.c doesn't exist either, so ensureSandboxLib
-	// returns "" → Start must fail-closed.
-	r := NewRunner(dir)
+	// Default Runner = strict. Force "sandbox lib absent" deterministically so
+	// ensureSandboxLib returns "" → Start must fail-closed. We must not rely on
+	// the ambient absence of /app/libevey-sandbox.so: the prod-like container
+	// builds it, which would otherwise flip this test red.
+	r := NewRunner(dir).WithSandboxLibPath(t.TempDir() + "/absent-libevey-sandbox.so")
 	p := &plugin.Plugin{ID: "plg-nosandbox", Name: bin /* no subprocess perm */}
 
 	err := r.Start(ctx, p)

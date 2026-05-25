@@ -98,6 +98,7 @@ type Runner struct {
 	sandboxOnce         sync.Once
 	onIPCResult         OnIPCResult
 	allowMissingSandbox bool
+	sandboxLibOverride  string // test-only: override sandboxLibPath so the fail-closed path is deterministic regardless of ambient lib presence
 	uidSepMode          string // "auto"|"on"|"off": drop plugins to evey-plugin uid via launcher cap_setuid
 	eventBus            EventBus
 	hostRegistry        HostRegistry
@@ -158,6 +159,16 @@ func (r *Runner) WithIPCCallback(cb OnIPCResult) *Runner {
 //     warning so ops can catch it (see cmd/evey/wire.go).
 func (r *Runner) WithAllowMissingSandbox(allow bool) *Runner {
 	r.allowMissingSandbox = allow
+	return r
+}
+
+// WithSandboxLibPath overrides the path probed for libevey-sandbox.so. It exists
+// so the fail-closed tests can force a "lib absent" condition deterministically
+// (otherwise they depend on the ambient absence of /app/libevey-sandbox.so and
+// pass on a dev laptop while failing in the prod-like container that builds it).
+// Production wiring MUST NOT call this (see wire.go).
+func (r *Runner) WithSandboxLibPath(path string) *Runner {
+	r.sandboxLibOverride = path
 	return r
 }
 
@@ -1159,12 +1170,16 @@ func (r *Runner) SendEvent(ctx context.Context, pluginID string, event any) erro
 
 func (r *Runner) ensureSandboxLib() string {
 	r.sandboxOnce.Do(func() {
-		if _, err := os.Stat(sandboxLibPath); err == nil {
-			r.sandboxLib = sandboxLibPath
+		path := sandboxLibPath
+		if r.sandboxLibOverride != "" {
+			path = r.sandboxLibOverride
+		}
+		if _, err := os.Stat(path); err == nil {
+			r.sandboxLib = path
 			return
 		}
 		slog.Error("sandbox lib missing — build-time artifact required",
-			slog.String("path", sandboxLibPath))
+			slog.String("path", path))
 	})
 	return r.sandboxLib
 }
