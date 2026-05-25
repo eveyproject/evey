@@ -5,7 +5,7 @@ import warnings
 
 import plugin_api_pb2 as plugin_dot_v1_dot_plugin__api__pb2
 
-GRPC_GENERATED_VERSION = '1.76.0'
+GRPC_GENERATED_VERSION = '1.80.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -347,6 +347,26 @@ class HostServiceStub(object):
                 request_serializer=plugin_dot_v1_dot_plugin__api__pb2.SetConfigRequest.SerializeToString,
                 response_deserializer=plugin_dot_v1_dot_plugin__api__pb2.SetConfigResponse.FromString,
                 _registered_method=True)
+        self.GetData = channel.unary_unary(
+                '/plugin.v1.HostService/GetData',
+                request_serializer=plugin_dot_v1_dot_plugin__api__pb2.GetDataRequest.SerializeToString,
+                response_deserializer=plugin_dot_v1_dot_plugin__api__pb2.GetDataResponse.FromString,
+                _registered_method=True)
+        self.SetData = channel.unary_unary(
+                '/plugin.v1.HostService/SetData',
+                request_serializer=plugin_dot_v1_dot_plugin__api__pb2.SetDataRequest.SerializeToString,
+                response_deserializer=plugin_dot_v1_dot_plugin__api__pb2.SetDataResponse.FromString,
+                _registered_method=True)
+        self.DeleteData = channel.unary_unary(
+                '/plugin.v1.HostService/DeleteData',
+                request_serializer=plugin_dot_v1_dot_plugin__api__pb2.DeleteDataRequest.SerializeToString,
+                response_deserializer=plugin_dot_v1_dot_plugin__api__pb2.DeleteDataResponse.FromString,
+                _registered_method=True)
+        self.ListDataKeys = channel.unary_unary(
+                '/plugin.v1.HostService/ListDataKeys',
+                request_serializer=plugin_dot_v1_dot_plugin__api__pb2.ListDataKeysRequest.SerializeToString,
+                response_deserializer=plugin_dot_v1_dot_plugin__api__pb2.ListDataKeysResponse.FromString,
+                _registered_method=True)
 
 
 class HostServiceServicer(object):
@@ -426,13 +446,40 @@ class HostServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetConfig(self, request, context):
-        """Config
+        """Config (admin-configured settings, read-mostly by the plugin)
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def SetConfig(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetData(self, request, context):
+        """Data store — the plugin's own persistent key/value namespace (plugin-global
+        scope). Rows live in plugin_data and are wiped when the plugin is
+        uninstalled. No special permission required: a plugin owns its own data.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetData(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteData(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListDataKeys(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -505,6 +552,26 @@ def add_HostServiceServicer_to_server(servicer, server):
                     servicer.SetConfig,
                     request_deserializer=plugin_dot_v1_dot_plugin__api__pb2.SetConfigRequest.FromString,
                     response_serializer=plugin_dot_v1_dot_plugin__api__pb2.SetConfigResponse.SerializeToString,
+            ),
+            'GetData': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetData,
+                    request_deserializer=plugin_dot_v1_dot_plugin__api__pb2.GetDataRequest.FromString,
+                    response_serializer=plugin_dot_v1_dot_plugin__api__pb2.GetDataResponse.SerializeToString,
+            ),
+            'SetData': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetData,
+                    request_deserializer=plugin_dot_v1_dot_plugin__api__pb2.SetDataRequest.FromString,
+                    response_serializer=plugin_dot_v1_dot_plugin__api__pb2.SetDataResponse.SerializeToString,
+            ),
+            'DeleteData': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteData,
+                    request_deserializer=plugin_dot_v1_dot_plugin__api__pb2.DeleteDataRequest.FromString,
+                    response_serializer=plugin_dot_v1_dot_plugin__api__pb2.DeleteDataResponse.SerializeToString,
+            ),
+            'ListDataKeys': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListDataKeys,
+                    request_deserializer=plugin_dot_v1_dot_plugin__api__pb2.ListDataKeysRequest.FromString,
+                    response_serializer=plugin_dot_v1_dot_plugin__api__pb2.ListDataKeysResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -859,6 +926,114 @@ class HostService(object):
             '/plugin.v1.HostService/SetConfig',
             plugin_dot_v1_dot_plugin__api__pb2.SetConfigRequest.SerializeToString,
             plugin_dot_v1_dot_plugin__api__pb2.SetConfigResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetData(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/plugin.v1.HostService/GetData',
+            plugin_dot_v1_dot_plugin__api__pb2.GetDataRequest.SerializeToString,
+            plugin_dot_v1_dot_plugin__api__pb2.GetDataResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetData(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/plugin.v1.HostService/SetData',
+            plugin_dot_v1_dot_plugin__api__pb2.SetDataRequest.SerializeToString,
+            plugin_dot_v1_dot_plugin__api__pb2.SetDataResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteData(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/plugin.v1.HostService/DeleteData',
+            plugin_dot_v1_dot_plugin__api__pb2.DeleteDataRequest.SerializeToString,
+            plugin_dot_v1_dot_plugin__api__pb2.DeleteDataResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListDataKeys(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/plugin.v1.HostService/ListDataKeys',
+            plugin_dot_v1_dot_plugin__api__pb2.ListDataKeysRequest.SerializeToString,
+            plugin_dot_v1_dot_plugin__api__pb2.ListDataKeysResponse.FromString,
             options,
             channel_credentials,
             insecure,

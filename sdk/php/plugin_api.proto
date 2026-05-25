@@ -2,11 +2,10 @@ syntax = "proto3";
 
 package plugin.v1;
 
-import "google/protobuf/any.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/gravity/evey/gen/plugin/v1;pluginv1";
+option go_package = "github.com/evey-project/evey/gen/plugin/v1;pluginv1";
 
 // Host -> Plugin communication
 service PluginService {
@@ -42,9 +41,17 @@ service HostService {
   // Logging
   rpc Log(LogRequest) returns (LogResponse);
 
-  // Config
+  // Config (admin-configured settings, read-mostly by the plugin)
   rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
   rpc SetConfig(SetConfigRequest) returns (SetConfigResponse);
+
+  // Data store — the plugin's own persistent key/value namespace (plugin-global
+  // scope). Rows live in plugin_data and are wiped when the plugin is
+  // uninstalled. No special permission required: a plugin owns its own data.
+  rpc GetData(GetDataRequest) returns (GetDataResponse);
+  rpc SetData(SetDataRequest) returns (SetDataResponse);
+  rpc DeleteData(DeleteDataRequest) returns (DeleteDataResponse);
+  rpc ListDataKeys(ListDataKeysRequest) returns (ListDataKeysResponse);
 }
 
 // --- Enums ---
@@ -283,6 +290,36 @@ message SetConfigRequest {
 }
 
 message SetConfigResponse {}
+
+// --- Data store messages ---
+
+message GetDataRequest {
+  string key = 1;
+}
+
+message GetDataResponse {
+  string value = 1;
+  bool found = 2;
+}
+
+message SetDataRequest {
+  string key = 1;
+  string value = 2;
+}
+
+message SetDataResponse {}
+
+message DeleteDataRequest {
+  string key = 1;
+}
+
+message DeleteDataResponse {}
+
+message ListDataKeysRequest {}
+
+message ListDataKeysResponse {
+  repeated string keys = 1;
+}
 
 // --- Static analysis (returned by host on install) ---
 
