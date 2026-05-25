@@ -127,8 +127,12 @@ useAuthStore.subscribe((state, prev) => {
 });
 scheduleTokenRefresh();
 
-// Dev helper: `clearI18n()` in console to flush cached translations
+// Dev-only niceties. `import.meta.env.DEV` is true under `vite dev` and false
+// in prod builds (`vite build`), so none of this leaks to pre-prod/prod.
 if (import.meta.env.DEV) {
+  // Mark the browser tab so a local dev session is never mistaken for prod.
+  document.title = "Evey [DEV]";
+  // `clearI18n()` in the console flushes cached translations.
   (window as never as Record<string, unknown>).clearI18n = () => {
     Object.keys(localStorage).filter((k) => k.startsWith("evey_i18n_")).forEach((k) => localStorage.removeItem(k));
     location.reload();
