@@ -10,8 +10,6 @@ import {
   Music2,
   Images,
   Settings,
-  PanelLeftClose,
-  PanelLeft,
   ArrowLeft,
   Headphones,
 } from "lucide-react";
@@ -58,25 +56,28 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       aria-label={isOnAdmin ? t("common.nav.adminNav") : t("common.nav.mainNav")}
       className={`flex flex-col h-full bg-[var(--surface)] border-r border-[var(--border)] py-4 shrink-0 overflow-hidden transition-[max-width] duration-200 ${isCollapsed ? "max-w-16 w-16" : "max-w-56 w-56"}`}
     >
-      {/* Header */}
-      <div className={`flex items-center mb-6 ${isCollapsed ? "flex-col gap-3 px-2" : "justify-between px-4"}`}>
-        <Link
-          to="/home"
-          onClick={onNavigate}
-          preload="intent"
-          aria-label="Evey"
-          className="text-[var(--text)] hover:opacity-80 transition-opacity-fast"
-        >
-          {isCollapsed ? <EveyMark height={28} /> : <EveyWordmark height={24} />}
-        </Link>
-        {!isMobile && (
+      {/* Header — on desktop the logo itself toggles the collapsed state
+          (the old dedicated button is gone); on the mobile overlay there's no
+          collapse, so the logo links home and closes the drawer. */}
+      <div className={`flex items-center mb-6 ${isCollapsed ? "justify-center px-2" : "justify-between px-4"}`}>
+        {isMobile ? (
+          <Link
+            to="/home"
+            onClick={onNavigate}
+            preload="intent"
+            aria-label="Evey"
+            className="text-[var(--text)] hover:opacity-80 transition-opacity-fast"
+          >
+            <EveyWordmark height={24} />
+          </Link>
+        ) : (
           <button
             onClick={toggleCollapsed}
-            className="p-1 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors-fast cursor-pointer"
             aria-label={isCollapsed ? t("common.nav.expandSidebar") : t("common.nav.collapseSidebar")}
             title={isCollapsed ? t("common.nav.expandSidebar") : t("common.nav.collapseSidebar")}
+            className="text-[var(--text)] hover:opacity-80 transition-opacity-fast cursor-pointer"
           >
-            {isCollapsed ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
+            {isCollapsed ? <EveyMark height={28} /> : <EveyWordmark height={24} />}
           </button>
         )}
       </div>
