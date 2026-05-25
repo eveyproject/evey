@@ -119,6 +119,10 @@ RUN setcap cap_setuid+ep /evey-plugin-launcher
 COPY --from=builder /libevey-sandbox.so /app/libevey-sandbox.so
 COPY --from=builder /src/i18n /i18n
 COPY --from=builder /src/sdk /app/sdk
+# Generated OpenAPI v2 specs, served (filtered to the API-key surface) at
+# /api/v1/openapi.json. Matches publicOpenAPIDirs in openapi_handler.go;
+# without this the endpoint 503s (the specs live only in the build stages).
+COPY --from=builder /src/gen/evey/v1 /app/gen/evey/v1
 COPY --from=builder /src/docker/seccomp-evey.json /etc/evey/seccomp.json
 COPY --from=frontend /app/apps/web/dist /srv
 COPY docker/entrypoint.sh /entrypoint.sh
