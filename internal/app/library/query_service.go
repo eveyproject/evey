@@ -78,6 +78,18 @@ func (s *QueryService) GetMediaItemTranslation(ctx context.Context, mediaItemID,
 	return s.mediaTranslations.GetByMediaItemAndLocale(ctx, mediaItemID, locale)
 }
 
+// GetMediaItemTranslations batch-fetches one locale's translations for many
+// items, keyed by media item ID. Returns an empty map (not an error) when no
+// translation repo is configured, so callers can overlay best-effort.
+func (s *QueryService) GetMediaItemTranslations(ctx context.Context, mediaItemIDs []string, locale string) (map[string]*library.MediaItemTranslation, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.GetMediaItemTranslations")
+	defer span.End()
+	if s.mediaTranslations == nil || locale == "" || len(mediaItemIDs) == 0 {
+		return map[string]*library.MediaItemTranslation{}, nil
+	}
+	return s.mediaTranslations.GetByMediaItemsAndLocale(ctx, mediaItemIDs, locale)
+}
+
 func (s *QueryService) GetPersonTranslation(ctx context.Context, personID, locale string) (*library.PersonTranslation, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.GetPersonTranslation")
 	defer span.End()

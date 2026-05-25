@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -13,6 +14,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -164,7 +166,7 @@ func (h *feedHandler) ContinueWatching(ctx context.Context, req *eveyv1.Continue
 	if err != nil {
 		return nil, internalError("continue watching: parental filter", err)
 	}
-	return feedItemsToResponse(items), nil
+	return feedItemsToResponse(h.localizeTitles(ctx, items)), nil
 }
 
 func (h *feedHandler) RecentlyAdded(ctx context.Context, req *eveyv1.RecentlyAddedRequest) (*eveyv1.FeedResponse, error) {
@@ -189,7 +191,7 @@ func (h *feedHandler) RecentlyAdded(ctx context.Context, req *eveyv1.RecentlyAdd
 	if err != nil {
 		return nil, internalError("recently added: parental filter", err)
 	}
-	return feedItemsToResponse(items), nil
+	return feedItemsToResponse(h.localizeTitles(ctx, items)), nil
 }
 
 func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRequest) (*eveyv1.FeedResponse, error) {
@@ -215,7 +217,7 @@ func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRe
 	if err != nil {
 		return nil, internalError("recommended: parental filter", err)
 	}
-	return feedItemsToResponse(items), nil
+	return feedItemsToResponse(h.localizeTitles(ctx, items)), nil
 }
 
 func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItemsRequest) (*eveyv1.FeedResponse, error) {
@@ -244,7 +246,7 @@ func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItems
 	if err != nil {
 		return nil, internalError("similar items: parental filter", err)
 	}
-	return feedItemsToResponse(items), nil
+	return feedItemsToResponse(h.localizeTitles(ctx, items)), nil
 }
 
 func (h *feedHandler) GetAdminFeedConfigs(ctx context.Context, _ *eveyv1.GetAdminFeedConfigsRequest) (*eveyv1.GetAdminFeedConfigsResponse, error) {
@@ -352,7 +354,7 @@ func (h *feedHandler) ResumePlayback(ctx context.Context, req *eveyv1.ResumePlay
 	if err != nil {
 		return nil, internalError("resume playback: parental filter", err)
 	}
-	return feedItemsToResponse(items), nil
+	return feedItemsToResponse(h.localizeTitles(ctx, items)), nil
 }
 
 func (h *feedHandler) NextEpisode(ctx context.Context, req *eveyv1.NextEpisodeRequest) (*eveyv1.FeedResponse, error) {
@@ -382,7 +384,7 @@ func (h *feedHandler) NextEpisode(ctx context.Context, req *eveyv1.NextEpisodeRe
 	if err != nil {
 		return nil, internalError("next episode: parental filter", err)
 	}
-	return feedItemsToResponse(items), nil
+	return feedItemsToResponse(h.localizeTitles(ctx, items)), nil
 }
 
 func (h *feedHandler) BatchUpdateAdminFeedConfigs(ctx context.Context, req *eveyv1.BatchUpdateAdminFeedConfigsRequest) (*eveyv1.BatchUpdateAdminFeedConfigsResponse, error) {
@@ -419,6 +421,32 @@ func feedItemToProto(item *feed.FeedItem) *eveyv1.FeedItem {
 		pb.PrimaryBlurhash = *item.PrimaryBlurhash
 	}
 	return pb
+}
+
+// localizeTitles overlays each feed item's title with the caller-locale
+// translation (media_item_translations), so the home feed matches the language
+// the detail page already uses. Best-effort: a missing translation keeps the
+// base title, and a fetch error is logged but never fails the feed.
+func (h *feedHandler) localizeTitles(ctx context.Context, items []*feed.FeedItem) []*feed.FeedItem {
+	locale := eveyi18n.LocaleFromCtx(ctx)
+	if locale == "" || len(items) == 0 || h.libQuery == nil {
+		return items
+	}
+	ids := make([]string, 0, len(items))
+	for _, it := range items {
+		ids = append(ids, string(it.MediaItemID))
+	}
+	trans, err := h.libQuery.GetMediaItemTranslations(ctx, ids, locale)
+	if err != nil {
+		slog.Warn("feed: localize titles", slog.Any("err", err))
+		return items
+	}
+	for _, it := range items {
+		if t, ok := trans[string(it.MediaItemID)]; ok && t.Title != "" {
+			it.Title = t.Title
+		}
+	}
+	return items
 }
 
 func feedItemsToResponse(items []*feed.FeedItem) *eveyv1.FeedResponse {

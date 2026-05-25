@@ -67,6 +67,9 @@ func (r *fakeMediaTranslationRepo) GetByMediaItemAndLocale(_ context.Context, _,
 func (r *fakeMediaTranslationRepo) GetByMediaItem(_ context.Context, _ string) ([]*domainlib.MediaItemTranslation, error) {
 	return nil, nil
 }
+func (r *fakeMediaTranslationRepo) GetByMediaItemsAndLocale(_ context.Context, _ []string, _ string) (map[string]*domainlib.MediaItemTranslation, error) {
+	return nil, nil
+}
 func (r *fakeMediaTranslationRepo) DeleteByMediaItem(_ context.Context, _ string) error { return nil }
 
 func captureLog() (*slog.Logger, *bytes.Buffer) {

@@ -34,6 +34,9 @@ func (r *trackingMediaTranslationRepo) GetByMediaItemAndLocale(_ context.Context
 func (r *trackingMediaTranslationRepo) GetByMediaItem(_ context.Context, _ string) ([]*domainlib.MediaItemTranslation, error) {
 	return nil, nil
 }
+func (r *trackingMediaTranslationRepo) GetByMediaItemsAndLocale(_ context.Context, _ []string, _ string) (map[string]*domainlib.MediaItemTranslation, error) {
+	return nil, nil
+}
 func (r *trackingMediaTranslationRepo) DeleteByMediaItem(_ context.Context, _ string) error {
 	return nil
 }

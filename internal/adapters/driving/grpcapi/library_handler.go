@@ -418,6 +418,28 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	for _, item := range items {
 		ids = append(ids, string(item.ID))
 	}
+	// Overlay locale translations (title/overview/tagline) so the grid matches
+	// the language the detail page already uses. Best-effort: base values stay
+	// when no translation exists; a fetch error is logged, not fatal.
+	if locale := eveyi18n.LocaleFromCtx(ctx); locale != "" && len(ids) > 0 {
+		if trans, tErr := h.query.GetMediaItemTranslations(ctx, ids, locale); tErr == nil {
+			for _, item := range items {
+				if t := trans[string(item.ID)]; t != nil {
+					if t.Title != "" {
+						item.Title = t.Title
+					}
+					if t.Overview != "" {
+						item.Overview = t.Overview
+					}
+					if t.Tagline != "" {
+						item.Tagline = t.Tagline
+					}
+				}
+			}
+		} else {
+			slog.Warn("list media items: localize titles", slog.Any("err", tErr))
+		}
+	}
 	var artworkMap map[string][]*domainmetadata.ArtworkRecord
 	if h.metadataSvc != nil {
 		var artErr error

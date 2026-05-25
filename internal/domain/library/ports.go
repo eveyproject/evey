@@ -344,6 +344,10 @@ type TrickplayGenerator interface {
 type MediaItemTranslationQueryRepo interface {
 	GetByMediaItemAndLocale(ctx context.Context, mediaItemID, locale string) (*MediaItemTranslation, error)
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*MediaItemTranslation, error)
+	// GetByMediaItemsAndLocale batch-fetches one locale's translations for many
+	// items at once, keyed by media item ID. Items without a translation in
+	// that locale are simply absent from the map (no error).
+	GetByMediaItemsAndLocale(ctx context.Context, mediaItemIDs []string, locale string) (map[string]*MediaItemTranslation, error)
 }
 
 type MediaItemTranslationRepository interface {

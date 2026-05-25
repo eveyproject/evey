@@ -67,6 +67,23 @@ func (r *fakeMediaItemTranslationRepo) GetByMediaItemAndLocale(_ context.Context
 	return nil, nil
 }
 
+func (r *fakeMediaItemTranslationRepo) GetByMediaItemsAndLocale(_ context.Context, ids []string, locale string) (map[string]*library.MediaItemTranslation, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make(map[string]*library.MediaItemTranslation)
+	for _, id := range ids {
+		if m, ok := r.items[id]; ok {
+			if t, ok2 := m[locale]; ok2 {
+				out[id] = t
+			}
+		}
+	}
+	return out, nil
+}
+
 func (r *fakeMediaItemTranslationRepo) GetByMediaItem(_ context.Context, mediaItemID string) ([]*library.MediaItemTranslation, error) {
 	if r.Err != nil {
 		return nil, r.Err

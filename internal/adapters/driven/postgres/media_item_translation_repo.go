@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -96,6 +97,47 @@ func (r *MediaItemTranslationRepository) GetByMediaItemAndLocale(ctx context.Con
 		return nil, err
 	}
 	return &t, nil
+}
+
+// GetByMediaItemsAndLocale batch-fetches one locale's translations for the
+// given items in a single query, keyed by media item ID. Used by list/feed
+// surfaces to localize many titles at once instead of N round-trips.
+func (r *MediaItemTranslationRepository) GetByMediaItemsAndLocale(ctx context.Context, mediaItemIDs []string, locale string) (map[string]*library.MediaItemTranslation, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_item_translation.GetByMediaItemsAndLocale")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
+	out := make(map[string]*library.MediaItemTranslation, len(mediaItemIDs))
+	if len(mediaItemIDs) == 0 || locale == "" {
+		return out, nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT media_item_id, locale, title, overview, tagline
+		FROM media_item_translations
+		WHERE media_item_id = ANY($1) AND locale = $2
+	`, pq.Array(mediaItemIDs), locale)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var t library.MediaItemTranslation
+		if err := rows.Scan(&t.MediaItemID, &t.Locale, &t.Title, &t.Overview, &t.Tagline); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		out[string(t.MediaItemID)] = &t
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *MediaItemTranslationRepository) GetByMediaItem(ctx context.Context, mediaItemID string) ([]*library.MediaItemTranslation, error) {
