@@ -1,11 +1,15 @@
 package interceptors_test
 
 import (
+	"strings"
 	"testing"
 
+	_ "github.com/evey-project/evey/gen/evey/v1" // register proto service descriptors
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
 func TestDefaultRBACConfig_PublicMethods(t *testing.T) {
@@ -67,6 +71,8 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminPluginService/RemovePluginRuntime",
 		"/evey.v1.AdminPluginService/InstallPlugin",
 		"/evey.v1.AdminPluginService/UninstallPlugin",
+		"/evey.v1.AdminPluginService/PreviewPluginUpdate",
+		"/evey.v1.AdminPluginService/ApplyPluginUpdate",
 		"/evey.v1.AdminPluginService/EnablePlugin",
 		"/evey.v1.AdminPluginService/DisablePlugin",
 		"/evey.v1.AdminPluginService/ListPlugins",
@@ -181,6 +187,60 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 			assert.Equal(t, interceptors.RoleAdmin, role, "should require admin role")
 		})
 	}
+}
+
+// TestAllAdminServiceMethodsAreGated walks the real gRPC service descriptors
+// (not a hand-maintained list) and asserts every method of every Admin*-named
+// service is either gated RoleAdmin or explicitly allowlisted as public. This is
+// the guard the hardcoded expectedAdmin list lacked: it fails the build when a
+// new admin RPC ships without a MethodRoles entry — exactly the gap that left
+// ApplyPluginUpdate/PreviewPluginUpdate callable by any authenticated user.
+func TestAllAdminServiceMethodsAreGated(t *testing.T) {
+	cfg := interceptors.DefaultRBACConfig()
+
+	// Methods under an Admin*-named service that are deliberately NOT admin-gated.
+	// The default expectation is RoleAdmin; every exception needs a justification
+	// here so a genuinely-missing gate (the ApplyPluginUpdate gap) can't hide.
+	allowedNonAdmin := map[string]string{
+		// Setup bootstrap, reachable before any admin account exists (public).
+		"/evey.v1.AdminSystemService/SetupWizard":    "public setup bootstrap",
+		"/evey.v1.AdminSystemService/GetSetupStatus": "public setup status",
+		// Any authenticated user (iframe plugin consumer) mints plugin tokens;
+		// FilterPluginScopes strips admin/system scopes at the service layer and
+		// plugin tokens are floor-denied from every RoleAdmin method.
+		"/evey.v1.AdminPluginService/IssuePluginToken": "RoleUser by design; scopes filtered",
+	}
+
+	var checked int
+	protoregistry.GlobalFiles.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+		svcs := fd.Services()
+		for i := 0; i < svcs.Len(); i++ {
+			svc := svcs.Get(i)
+			if !strings.HasPrefix(string(svc.Name()), "Admin") {
+				continue
+			}
+			methods := svc.Methods()
+			for j := 0; j < methods.Len(); j++ {
+				full := "/" + string(svc.FullName()) + "/" + string(methods.Get(j).Name())
+				checked++
+				if _, ok := allowedNonAdmin[full]; ok {
+					continue
+				}
+				// t.Errorf (not require) so every offending method is reported in
+				// one run, not just the first.
+				role, ok := cfg.MethodRoles[full]
+				if !ok {
+					t.Errorf("admin RPC %s has no RBAC entry — any authenticated user can call it; add it to MethodRoles (or to allowedNonAdmin with a justification)", full)
+					continue
+				}
+				assert.Equalf(t, interceptors.RoleAdmin, role,
+					"admin RPC %s must require RoleAdmin", full)
+			}
+		}
+		return true
+	})
+
+	require.Positive(t, checked, "no Admin* service methods discovered — proto descriptors not registered?")
 }
 
 func TestDefaultRBACConfig_AllMethodRolesAreAdmin(t *testing.T) {
