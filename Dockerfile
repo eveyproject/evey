@@ -79,7 +79,10 @@ ARG RUNTIMES=lean
 # python3 is bundled in every variant: the majority of community plugins use
 # it, and the install error message points users to `evey:beta-nodejs` /
 # `evey:beta-full` if they need something heavier.
-RUN apk add --no-cache bubblewrap libcap ca-certificates curl ffmpeg chromaprint postgresql-client unzip wget \
+# cosign verifies plugin signatures when EVEY_PLUGINS_COSIGN_POLICY is warn/enforce.
+# Without it, enforce fails closed and blocks EVERY install (the verifier shells out
+# to `cosign verify-blob`). See tests/plugins/cosign/README.md for the signing flow.
+RUN apk add --no-cache bubblewrap libcap cosign ca-certificates curl ffmpeg chromaprint postgresql-client unzip wget \
     libva libva-utils intel-media-driver libva-intel-driver mesa-va-gallium \
     python3 \
     && if [ "$RUNTIMES" = "nodejs" ] || [ "$RUNTIMES" = "full" ]; then \
