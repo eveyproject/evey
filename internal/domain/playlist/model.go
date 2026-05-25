@@ -19,7 +19,7 @@ type Playlist struct {
 	ID          string
 	Name        string
 	Description string
-	UserID      shared.UserID
+	ProfileID   shared.ProfileID
 	Type        PlaylistType
 	Rules       []Rule
 	SortBy      string
@@ -51,8 +51,8 @@ func (p *Playlist) Validate() error {
 	if p.Name == "" {
 		return errors.New("playlist name is required")
 	}
-	if p.UserID == "" {
-		return errors.New("playlist user ID is required")
+	if p.ProfileID == "" {
+		return errors.New("playlist profile ID is required")
 	}
 	if p.Type != Manual && p.Type != Smart {
 		return errors.New("playlist type must be 'manual' or 'smart'")
@@ -61,12 +61,12 @@ func (p *Playlist) Validate() error {
 }
 
 // NewPlaylist constructs a Playlist with invariants enforced.
-func NewPlaylist(name, userID string, ptype PlaylistType) (*Playlist, error) {
+func NewPlaylist(name, profileID string, ptype PlaylistType) (*Playlist, error) {
 	now := time.Now()
 	p := &Playlist{
 		ID:        id.New("pl-"),
 		Name:      name,
-		UserID:    shared.UserID(userID),
+		ProfileID: shared.ProfileID(profileID),
 		Type:      ptype,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -77,8 +77,9 @@ func NewPlaylist(name, userID string, ptype PlaylistType) (*Playlist, error) {
 	return p, nil
 }
 
-func (p *Playlist) IsOwner(userID string) bool {
-	return p.UserID == shared.UserID(userID)
+// IsOwnedBy reports whether the playlist belongs to the given profile.
+func (p *Playlist) IsOwnedBy(profileID string) bool {
+	return p.ProfileID == shared.ProfileID(profileID)
 }
 
 func (p *Playlist) IsSmart() bool {

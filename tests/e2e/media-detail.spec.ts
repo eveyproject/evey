@@ -139,11 +139,13 @@ test.describe("Media Detail — series", () => {
     expect(count).toBeGreaterThan(0);
   });
 
-  test("series has no download button (no filePath)", async ({ page }) => {
+  test("series has a download button (full-series ZIP)", async ({ page }) => {
     const detail = page.locator('[data-testid="media-detail"]');
     await expect(detail).toBeVisible({ timeout: 15_000 });
 
-    const dlBtn = page.locator('[data-testid="download-btn"]');
-    await expect(dlBtn).not.toBeVisible({ timeout: 3_000 });
+    const dlBtn = page.locator('[data-testid="download-btn"]').first();
+    await expect(dlBtn).toBeVisible({ timeout: 10_000 });
+    const href = await dlBtn.getAttribute("href");
+    expect(href).toContain("/download");
   });
 });

@@ -38,9 +38,9 @@ func (r *PlaylistRepository) Create(ctx context.Context, pl *playlist.Playlist) 
 		return fmt.Errorf("PlaylistRepo.Create marshal rules: %w", err)
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO playlists (id, name, description, user_id, type, rules, sort_by, sort_order, created_at, updated_at)
+		`INSERT INTO playlists (id, name, description, profile_id, type, rules, sort_by, sort_order, created_at, updated_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-		pl.ID, pl.Name, pl.Description, pl.UserID, pl.Type, rulesJSON, pl.SortBy, pl.SortOrder, pl.CreatedAt, pl.UpdatedAt,
+		pl.ID, pl.Name, pl.Description, pl.ProfileID, pl.Type, rulesJSON, pl.SortBy, pl.SortOrder, pl.CreatedAt, pl.UpdatedAt,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -59,9 +59,9 @@ func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.
 	pl := &playlist.Playlist{}
 	var rulesJSON []byte
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, name, description, user_id, type, rules, sort_by, sort_order, created_at, updated_at
+		`SELECT id, name, description, profile_id, type, rules, sort_by, sort_order, created_at, updated_at
 		 FROM playlists WHERE id = $1`, id,
-	).Scan(&pl.ID, &pl.Name, &pl.Description, &pl.UserID, &pl.Type, &rulesJSON, &pl.SortBy, &pl.SortOrder, &pl.CreatedAt, &pl.UpdatedAt)
+	).Scan(&pl.ID, &pl.Name, &pl.Description, &pl.ProfileID, &pl.Type, &rulesJSON, &pl.SortBy, &pl.SortOrder, &pl.CreatedAt, &pl.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, shared.ErrNotFound
 	}
@@ -76,15 +76,15 @@ func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.
 	return pl, nil
 }
 
-func (r *PlaylistRepository) List(ctx context.Context, userID string) ([]*playlist.Playlist, error) {
+func (r *PlaylistRepository) List(ctx context.Context, profileID string) ([]*playlist.Playlist, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.playlist.List")
 	defer span.End()
-	span.SetAttributes(attribute.String("user.id", userID))
+	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, description, user_id, type, rules, sort_by, sort_order, created_at, updated_at
-		 FROM playlists WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1000`, userID,
+		`SELECT id, name, description, profile_id, type, rules, sort_by, sort_order, created_at, updated_at
+		 FROM playlists WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 1000`, profileID,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -97,7 +97,7 @@ func (r *PlaylistRepository) List(ctx context.Context, userID string) ([]*playli
 	for rows.Next() {
 		pl := &playlist.Playlist{}
 		var rulesJSON []byte
-		if err := rows.Scan(&pl.ID, &pl.Name, &pl.Description, &pl.UserID, &pl.Type, &rulesJSON, &pl.SortBy, &pl.SortOrder, &pl.CreatedAt, &pl.UpdatedAt); err != nil {
+		if err := rows.Scan(&pl.ID, &pl.Name, &pl.Description, &pl.ProfileID, &pl.Type, &rulesJSON, &pl.SortBy, &pl.SortOrder, &pl.CreatedAt, &pl.UpdatedAt); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("PlaylistRepo.List scan: %w", err)

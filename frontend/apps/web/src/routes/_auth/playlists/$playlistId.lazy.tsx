@@ -1,11 +1,11 @@
-import { Folder, X } from "lucide-react";
+import { Folder, X, Download } from "lucide-react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 import { BackButton } from "@/components/ui/BackButton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { toast } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
 import { usePlaylistDetail, useRemoveFromPlaylist, type PlaylistItem } from "@/features/playlist/api";
 import { SmartPlaylistRulesEditor } from "@/features/playlist/SmartPlaylistRulesEditor";
 
@@ -64,6 +64,7 @@ function PlaylistDetail() {
   const { t } = useTranslation();
   const { playlistId } = Route.useParams();
   const { data: playlist, isLoading, isError } = usePlaylistDetail(playlistId);
+  const accessToken = useAuthStore((s) => s.accessToken);
 
   if (isLoading) {
     return (
@@ -84,9 +85,22 @@ function PlaylistDetail() {
   return (
     <div>
       <BackButton fallback="/playlists" className="mb-4" />
-      <div className="flex items-center gap-3 mb-2">
-        <h1 className="text-2xl font-bold text-[var(--text)]">{playlist.name}</h1>
-        <Badge variant={playlist.type === "smart" ? "warning" : "info"}>{playlist.type}</Badge>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <h1 className="text-2xl font-bold truncate text-[var(--text)]">{playlist.name}</h1>
+          <Badge variant={playlist.type === "smart" ? "warning" : "info"}>{playlist.type}</Badge>
+        </div>
+        {items.length > 0 && accessToken && (
+          <a
+            href={`/api/v1/playlists/${playlistId}/download?token=${encodeURIComponent(accessToken)}`}
+            download={`${playlist.name ?? "playlist"}.zip`}
+            data-testid="playlist-download-btn"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-medium bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)] transition-colors-fast flex-shrink-0"
+          >
+            <Download size={16} />
+            {t("media.playlist.download")}
+          </a>
+        )}
       </div>
       {playlist.description && (
         <p className="text-sm mb-4 text-[var(--text-muted)]">{playlist.description}</p>

@@ -8,7 +8,7 @@ import (
 
 type PlaylistCreated struct {
 	ID         string
-	UserID     shared.UserID
+	ProfileID  shared.ProfileID
 	Name       string
 	OccurredAt time.Time
 }

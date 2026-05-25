@@ -12,12 +12,29 @@ import (
 type Service struct {
 	cmd   *CommandService
 	query *QueryService
+	plays music.PlayRepository
 }
 
 func NewService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner music.MusicScanner) *Service {
 	cmd := NewCommandService(tracks, bus, libRepo, scanner)
 	q := NewQueryService(tracks, scanner)
 	return &Service{cmd: cmd, query: q}
+}
+
+// WithPlayRepository wires per-profile play-count tracking. Optional: when nil,
+// RecordPlay is a no-op.
+func (s *Service) WithPlayRepository(plays music.PlayRepository) *Service {
+	s.plays = plays
+	return s
+}
+
+// RecordPlay registers one listen of trackID by profileID, feeding the
+// playlist generator's taste signal. No-op if play tracking isn't wired.
+func (s *Service) RecordPlay(ctx context.Context, profileID, trackID string) error {
+	if s.plays == nil {
+		return nil
+	}
+	return s.plays.IncrementPlay(ctx, profileID, trackID)
 }
 
 func (s *Service) CommandService() *CommandService { return s.cmd }

@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { GlobalAudioPlayer } from "./GlobalAudioPlayer";
 import { useAuthStore, useMusicPlayerStore } from "@evey/store";
+
+const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mockNavigate }));
 
 // We're testing that the <audio src> attribute does not rebuild when
 // the Zustand accessToken rotates — the bug that aborted music playback
@@ -14,6 +17,7 @@ function makeJwt(expSeconds: number) {
 }
 
 beforeEach(() => {
+  mockNavigate.mockClear();
   // reset both stores between tests
   useAuthStore.setState({ accessToken: null });
   useMusicPlayerStore.setState({
@@ -21,6 +25,7 @@ beforeEach(() => {
     queue: [],
     shuffle: false,
     externallyPaused: false,
+    source: null,
   });
   // jsdom doesn't implement HTMLMediaElement.play — stub to avoid unhandled rejections
   window.HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve());
@@ -146,6 +151,36 @@ describe("GlobalAudioPlayer", () => {
     });
     rerender(<GlobalAudioPlayer />);
     expect(document.querySelector("audio")?.getAttribute("src")).toContain("track-2");
+  });
+
+  it("links the track to its album source and navigates without remounting audio", () => {
+    useAuthStore.setState({ accessToken: makeJwt(9999999999) });
+    useMusicPlayerStore.setState({
+      playing: {
+        ID: "track-1", Title: "Song", Artist: "Artist", Album: "Greatest Hits",
+        AlbumArtist: "", Year: 0, TrackNumber: 0, DiskNumber: 0, Duration: 0,
+        FilePath: "", MimeType: "", Genre: "", CoverArtURL: "",
+      },
+      queue: [], shuffle: false, externallyPaused: false,
+      source: { type: "album", id: "Greatest Hits", label: "Greatest Hits" },
+    });
+    render(<GlobalAudioPlayer />);
+    fireEvent.click(screen.getByRole("button", { name: "Greatest Hits" }));
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/music", search: { tab: "tracks", album: "Greatest Hits" } });
+  });
+
+  it("shows a non-interactive title when no source is set", () => {
+    useAuthStore.setState({ accessToken: makeJwt(9999999999) });
+    useMusicPlayerStore.setState({
+      playing: {
+        ID: "track-1", Title: "Song", Artist: "Artist", Album: "",
+        AlbumArtist: "", Year: 0, TrackNumber: 0, DiskNumber: 0, Duration: 0,
+        FilePath: "", MimeType: "", Genre: "", CoverArtURL: "",
+      },
+      queue: [], shuffle: false, externallyPaused: false, source: null,
+    });
+    render(<GlobalAudioPlayer />);
+    expect(screen.queryByRole("button", { name: "Song" })).toBeNull();
   });
 });
 

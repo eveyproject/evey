@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "@tanstack/react-router";
+import { eveyFetchRaw } from "@evey/api";
 import { useAuthStore, useMusicPlayerStore } from "@evey/store";
 import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, VolumeX, Shuffle } from "lucide-react";
 
@@ -54,6 +56,22 @@ export function GlobalAudioPlayer() {
   const next = useMusicPlayerStore((s) => s.next);
   const prev = useMusicPlayerStore((s) => s.prev);
   const close = useMusicPlayerStore((s) => s.close);
+  const source = useMusicPlayerStore((s) => s.source);
+  const navigate = useNavigate();
+  // The audio element lives in the layout (outside the router Outlet), so this
+  // navigation swaps the page content without remounting <audio> — playback is
+  // never interrupted.
+  const goToSource = !source
+    ? undefined
+    : () => {
+        if (source.type === "playlist") {
+          void navigate({ to: "/music", search: { tab: "playlists", playlistId: source.id } });
+        } else if (source.type === "artist") {
+          void navigate({ to: "/music", search: { tab: "tracks", artist: source.id } });
+        } else {
+          void navigate({ to: "/music", search: { tab: "tracks", album: source.id } });
+        }
+      };
   // Pin token at track-change time: subscribing to accessToken would rebuild
   // src on every refresh cycle, which aborts the in-flight audio stream.
   const src = useMemo(() => {
@@ -167,16 +185,34 @@ export function GlobalAudioPlayer() {
         src={src}
         onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
         onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
-        onEnded={next}
+        onEnded={() => {
+          // A finished track counts as a listen — feeds the playlist generator's
+          // taste signal. Fire-and-forget; never block playback advance.
+          void eveyFetchRaw({ url: `/api/v1/music/tracks/${playing.ID}/played`, method: "POST" }).catch(() => {});
+          next();
+        }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
       />
       <div className="flex items-center gap-3 min-w-0 w-[120px] sm:w-[200px]">
         <MiniTrackArt trackID={playing.ID} coverArtURL={playing.CoverArtURL} />
-        <div className="min-w-0">
-          <p className="font-medium truncate text-sm text-[var(--text)]">{playing.Title || "—"}</p>
-          <p className="text-xs truncate text-[var(--text-muted)]">{playing.Artist || "—"}</p>
-        </div>
+        {goToSource ? (
+          <button
+            type="button"
+            onClick={goToSource}
+            title={source!.label}
+            aria-label={source!.label}
+            className="group min-w-0 text-left bg-transparent border-none cursor-pointer p-0"
+          >
+            <p className="font-medium truncate text-sm text-[var(--text)] group-hover:text-[var(--accent)] transition-colors-fast">{playing.Title || "—"}</p>
+            <p className="text-xs truncate text-[var(--text-muted)]">{playing.Artist || "—"}</p>
+          </button>
+        ) : (
+          <div className="min-w-0">
+            <p className="font-medium truncate text-sm text-[var(--text)]">{playing.Title || "—"}</p>
+            <p className="text-xs truncate text-[var(--text-muted)]">{playing.Artist || "—"}</p>
+          </div>
+        )}
       </div>
       <div className="flex flex-col items-center gap-1 flex-1">
         <div className="flex items-center gap-4">
@@ -189,13 +225,13 @@ export function GlobalAudioPlayer() {
           >
             <Shuffle size={16} aria-hidden="true" />
           </button>
-          <button onClick={prev} disabled={!shuffle && currentIndex <= 0} className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer" aria-label="Previous">
+          <button onClick={prev} disabled={!shuffle && currentIndex <= 0} className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer" aria-label={t("common.previous")}>
             <SkipBack size={18} aria-hidden="true" />
           </button>
-          <button onClick={togglePlay} className="bg-[var(--accent)] border-none cursor-pointer text-[var(--filter-active-text)] rounded-full w-9 h-9 flex items-center justify-center" aria-label={isPlaying ? "Pause" : "Play"}>
+          <button onClick={togglePlay} className="bg-[var(--accent)] border-none cursor-pointer text-[var(--filter-active-text)] rounded-full w-9 h-9 flex items-center justify-center" aria-label={isPlaying ? t("common.aria.pause") : t("common.aria.play")}>
             {isPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
           </button>
-          <button onClick={next} disabled={!shuffle && currentIndex >= queue.length - 1} className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer" aria-label="Next">
+          <button onClick={next} disabled={!shuffle && currentIndex >= queue.length - 1} className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer" aria-label={t("common.next")}>
             <SkipForward size={18} aria-hidden="true" />
           </button>
         </div>
@@ -217,7 +253,7 @@ export function GlobalAudioPlayer() {
         </button>
         <input type="range" min={0} max={1} step={0.02} value={volume} onChange={(e) => setVolume(Number(e.target.value))} aria-label={t("media.music.volume")} className="w-[72px] accent-[var(--accent)]" />
       </div>
-      <button onClick={close} className="text-[var(--text-muted)] bg-transparent border-none cursor-pointer" aria-label="Close player" title="Close">
+      <button onClick={close} className="text-[var(--text-muted)] bg-transparent border-none cursor-pointer" aria-label={t("common.aria.close")} title={t("common.aria.close")}>
         <X size={18} aria-hidden="true" />
       </button>
     </div>

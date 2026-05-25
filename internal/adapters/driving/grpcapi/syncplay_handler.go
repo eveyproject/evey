@@ -87,7 +87,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 			span.SetStatus(otelcodes.Error, "playlist service unavailable")
 			return nil, status.Error(codes.FailedPrecondition, "playlist service unavailable")
 		}
-		pl, err := h.playlistSvc.GetByID(ctx, req.PlaylistId, claims.UserID)
+		pl, err := h.playlistSvc.GetByID(ctx, req.PlaylistId, claims.ProfileID)
 		if err != nil || pl == nil {
 			if err != nil {
 				span.RecordError(err)
@@ -95,7 +95,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 			span.SetStatus(otelcodes.Error, "playlist not found")
 			return nil, status.Error(codes.NotFound, "playlist not found")
 		}
-		mediaItems, plItems, err := h.playlistSvc.GetItems(ctx, req.PlaylistId, claims.UserID)
+		mediaItems, plItems, err := h.playlistSvc.GetItems(ctx, req.PlaylistId, claims.ProfileID)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "playlist not found")

@@ -12,6 +12,7 @@ import {
   getPlaylistServiceGetPlaylistQueryKey,
   getPlaylistServiceGetPlaylistItemsQueryKey,
   V1PlaylistType,
+  eveyFetch,
 } from "@evey/api";
 import type { V1PlaylistProto } from "@evey/api";
 
@@ -131,6 +132,21 @@ export function useUpdatePlaylist() {
       qc.invalidateQueries({ queryKey: getPlaylistServiceListPlaylistsQueryKey() });
       qc.invalidateQueries({ queryKey: getPlaylistServiceGetPlaylistQueryKey(vars.id) });
     },
+  });
+}
+
+// useGeneratePlaylist builds a taste-weighted music playlist on the server
+// (custom endpoint, not part of the gRPC gateway) and returns its id.
+export function useGeneratePlaylist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { libraryId: string; name?: string; size?: number }) =>
+      eveyFetch<{ id: string; name: string }>({
+        url: "/api/v1/playlists/generate",
+        method: "POST",
+        data,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: getPlaylistServiceListPlaylistsQueryKey() }),
   });
 }
 

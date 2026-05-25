@@ -76,12 +76,12 @@ func newSyncplayTestEnv() *syncplayTestEnv {
 	}
 }
 
-func (e *syncplayTestEnv) seedPlaylist(plID, userID string, trackIDs []string) {
+func (e *syncplayTestEnv) seedPlaylist(plID, profileID string, trackIDs []string) {
 	pl := &playlist.Playlist{
-		ID:     plID,
-		Name:   "My PL",
-		UserID: shared.UserID(userID),
-		Type:   playlist.Manual,
+		ID:        plID,
+		Name:      "My PL",
+		ProfileID: shared.ProfileID(profileID),
+		Type:      playlist.Manual,
 	}
 	_ = e.playlistRepo.Create(context.Background(), pl)
 	for i, tid := range trackIDs {
@@ -388,7 +388,7 @@ func TestCreateRoom_FromPlaylist_Success(t *testing.T) {
 	env.seedMedia("t1", "lib-1")
 	env.seedMedia("t2", "lib-1")
 	env.grantAccess("u-1", "lib-1")
-	env.seedPlaylist("pl-1", "u-1", []string{"t1", "t2"})
+	env.seedPlaylist("pl-1", "p-1", []string{"t1", "t2"})
 	// Use a music track service stub: requireMediaAccess hits musicSvc when media_type=music
 	// musicSvc is nil here — so set up. requireMediaAccess for music with nil musicSvc returns NotFound.
 	// Workaround: admin bypass.
@@ -426,7 +426,7 @@ func TestCreateRoom_FromPlaylist_NotFound(t *testing.T) {
 func TestCreateRoom_FromPlaylist_Empty(t *testing.T) {
 	t.Parallel()
 	env := newSyncplayTestEnv()
-	env.seedPlaylist("pl-1", "u-1", nil)
+	env.seedPlaylist("pl-1", "p-1", nil)
 	ctx := ctxWithClaims("u-1", "p-1", true)
 	resp, err := env.handler.CreateRoom(ctx, &eveyv1.CreateSyncPlayRoomRequest{
 		PlaylistId: "pl-1",
@@ -440,7 +440,7 @@ func TestCreateRoom_FromPlaylist_NotOwner(t *testing.T) {
 	t.Parallel()
 	env := newSyncplayTestEnv()
 	env.seedMedia("t1", "lib-1")
-	env.seedPlaylist("pl-1", "u-other", []string{"t1"})
+	env.seedPlaylist("pl-1", "p-other", []string{"t1"})
 	ctx := ctxWithClaims("u-1", "p-1", true)
 	resp, err := env.handler.CreateRoom(ctx, &eveyv1.CreateSyncPlayRoomRequest{
 		PlaylistId: "pl-1",

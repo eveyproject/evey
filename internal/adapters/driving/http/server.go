@@ -96,7 +96,8 @@ type HTTPServer struct {
 
 	// Collections / Playlists / Favorites
 	CollectionSvc *appcollection.Service
-	PlaylistSvc   *appplaylist.Service
+	PlaylistSvc    *appplaylist.Service
+	PlaylistGenSvc *appplaylist.GeneratorService
 	FavoriteSvc   *appfavorite.Service
 
 	// Music
@@ -373,7 +374,12 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerLogsRoute(mux, s.LogDir, s.TokenGen)
 	registerAvailableRuntimesRoute(mux, s.TokenGen)
 	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc)
-
+	if s.CollectionSvc != nil {
+		registerCollectionRoutes(mux, s.CollectionSvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo, s.BaseURL(), s.GlobalRL)
+	}
+	if s.PlaylistSvc != nil && s.PlaylistGenSvc != nil {
+		registerPlaylistRoutes(mux, s.PlaylistSvc, s.PlaylistGenSvc, s.LibQuerySvc, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.BaseURL(), s.GlobalRL)
+	}
 
 	if s.SubtitleSvc != nil {
 		registerSubtitleRoutes(mux, s.SubtitleSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)

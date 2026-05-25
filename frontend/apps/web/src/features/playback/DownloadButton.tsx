@@ -3,14 +3,22 @@ import { Download } from "lucide-react";
 
 interface DownloadButtonProps {
   mediaId: string;
+  /** Filename hint for the browser (the <a download> attribute). */
   title?: string;
-  streamToken?: string;
+  /**
+   * Token authorizing the download. A stream token for single files
+   * (movie/episode), or the access token for container archives
+   * (season/series ZIP, which have no stream token of their own).
+   */
+  token?: string;
+  /** Label override, e.g. "Download season". Defaults to player.download. */
+  label?: string;
 }
 
-export function DownloadButton({ mediaId, title, streamToken }: DownloadButtonProps) {
+export function DownloadButton({ mediaId, title, token, label }: DownloadButtonProps) {
   const { t } = useTranslation();
-  if (!streamToken) return null;
-  const url = `/api/v1/media/${mediaId}/download?token=${encodeURIComponent(streamToken)}`;
+  if (!token) return null;
+  const url = `/api/v1/media/${mediaId}/download?token=${encodeURIComponent(token)}`;
 
   return (
     <a
@@ -20,7 +28,7 @@ export function DownloadButton({ mediaId, title, streamToken }: DownloadButtonPr
       className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
     >
       <Download size={16} />
-      {t("player.download")}
+      {label ?? t("player.download")}
     </a>
   );
 }

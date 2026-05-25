@@ -37,7 +37,7 @@ func TestPlaylist_ManualVsSmart(t *testing.T) {
 		p := &playlist.Playlist{
 			ID:        "pl1",
 			Name:      "My Favorites",
-			UserID:    "u1",
+			ProfileID: "u1",
 			Type:      playlist.Manual,
 			Rules:     nil,
 			CreatedAt: now,
@@ -54,10 +54,10 @@ func TestPlaylist_ManualVsSmart(t *testing.T) {
 	t.Run("smart playlist has rules", func(t *testing.T) {
 		t.Parallel()
 		p := &playlist.Playlist{
-			ID:     "pl2",
-			Name:   "Action Movies",
-			UserID: "u1",
-			Type:   playlist.Smart,
+			ID:        "pl2",
+			Name:      "Action Movies",
+			ProfileID: "u1",
+			Type:      playlist.Smart,
 			Rules: []playlist.Rule{
 				{Field: "genre", Operator: "contains", Value: "action"},
 				{Field: "year", Operator: "gte", Value: "2000"},
@@ -84,11 +84,11 @@ func TestPlaylist_ManualVsSmart(t *testing.T) {
 
 func TestPlaylist_IsOwner(t *testing.T) {
 	t.Parallel()
-	p := &playlist.Playlist{UserID: "u1"}
-	if !p.IsOwner("u1") {
+	p := &playlist.Playlist{ProfileID: "u1"}
+	if !p.IsOwnedBy("u1") {
 		t.Error("owner should be recognized")
 	}
-	if p.IsOwner("u2") {
+	if p.IsOwnedBy("u2") {
 		t.Error("non-owner should not be recognized")
 	}
 }
@@ -115,32 +115,32 @@ func TestPlaylist_Validate(t *testing.T) {
 	}{
 		{
 			name:    "valid manual",
-			pl:      playlist.Playlist{Name: "fav", UserID: "u1", Type: playlist.Manual},
+			pl:      playlist.Playlist{Name: "fav", ProfileID: "u1", Type: playlist.Manual},
 			wantErr: "",
 		},
 		{
 			name:    "valid smart",
-			pl:      playlist.Playlist{Name: "smart", UserID: "u1", Type: playlist.Smart},
+			pl:      playlist.Playlist{Name: "smart", ProfileID: "u1", Type: playlist.Smart},
 			wantErr: "",
 		},
 		{
 			name:    "missing name",
-			pl:      playlist.Playlist{UserID: "u1", Type: playlist.Manual},
+			pl:      playlist.Playlist{ProfileID: "u1", Type: playlist.Manual},
 			wantErr: "playlist name is required",
 		},
 		{
-			name:    "missing user ID",
+			name:    "missing profile ID",
 			pl:      playlist.Playlist{Name: "fav", Type: playlist.Manual},
-			wantErr: "playlist user ID is required",
+			wantErr: "playlist profile ID is required",
 		},
 		{
 			name:    "invalid type",
-			pl:      playlist.Playlist{Name: "fav", UserID: "u1", Type: "unknown"},
+			pl:      playlist.Playlist{Name: "fav", ProfileID: "u1", Type: "unknown"},
 			wantErr: "playlist type must be 'manual' or 'smart'",
 		},
 		{
 			name:    "empty type",
-			pl:      playlist.Playlist{Name: "fav", UserID: "u1"},
+			pl:      playlist.Playlist{Name: "fav", ProfileID: "u1"},
 			wantErr: "playlist type must be 'manual' or 'smart'",
 		},
 	}
@@ -171,7 +171,7 @@ func TestNewPlaylist_HappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if p.ID == "" || p.Name != "My List" || p.UserID != "u1" || p.Type != playlist.Manual {
+	if p.ID == "" || p.Name != "My List" || p.ProfileID != "u1" || p.Type != playlist.Manual {
 		t.Errorf("unexpected playlist: %+v", p)
 	}
 	if p.CreatedAt.IsZero() || p.UpdatedAt.IsZero() {

@@ -80,6 +80,7 @@ type contentDeps struct {
 	favoriteSvc      *appfavorite.Service
 	starRatingSvc    *apprating.Service
 	playlistSvc      *appplaylist.Service
+	playlistGenSvc   *appplaylist.GeneratorService
 }
 
 // engagementDeps groups activity, notifications, feeds, webhooks and plugins.

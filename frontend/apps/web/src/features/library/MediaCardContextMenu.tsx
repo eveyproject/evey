@@ -97,15 +97,6 @@ export const CardContextMenu = memo(function CardContextMenu({
       },
     },
     {
-      key: "download",
-      label: t("media.contextMenu.download"),
-      onClick: () => {
-        const tk = useAuthStore.getState().accessToken;
-        window.open(`/api/v1/media/${mediaId}/download${tk ? `?token=${encodeURIComponent(tk)}` : ""}`, "_blank");
-        onClose();
-      },
-    },
-    {
       key: "mark-watched",
       label: t("media.contextMenu.markWatched"),
       onClick: () => {

@@ -16,6 +16,15 @@ export interface MusicTrack {
   CoverArtURL: string;
 }
 
+// MusicSource records where the current playback was launched from, so the
+// mini-player can link back to it. `id` is the value needed to navigate:
+// the album title (album), the playlist id (playlist), or the artist name.
+export interface MusicSource {
+  type: "album" | "playlist" | "artist";
+  id: string;
+  label: string;
+}
+
 const SHUFFLE_KEY = "evey-music-shuffle";
 
 function loadShuffle(): boolean {
@@ -32,8 +41,11 @@ interface MusicPlayerState {
   // externally-forced pause — e.g. a trailer modal is open.
   // The <audio> element in GlobalAudioPlayer reacts to this flag.
   externallyPaused: boolean;
+  // Where the current playback was started from (album/playlist/artist), or
+  // null when launched from an ad-hoc context (search, single track).
+  source: MusicSource | null;
 
-  play: (track: MusicTrack, queue?: MusicTrack[]) => void;
+  play: (track: MusicTrack, queue?: MusicTrack[], source?: MusicSource | null) => void;
   setQueue: (queue: MusicTrack[]) => void;
   toggleShuffle: () => void;
   pauseExternal: () => void;
@@ -48,11 +60,15 @@ export const useMusicPlayerStore = create<MusicPlayerState>()((set, get) => ({
   queue: [],
   shuffle: typeof window !== "undefined" ? loadShuffle() : false,
   externallyPaused: false,
+  source: null,
 
-  play: (track, queue) => set((s) => ({
+  play: (track, queue, source) => set((s) => ({
     playing: track,
     queue: queue ?? s.queue,
     externallyPaused: false,
+    // A fresh play() call replaces the source; omitting it (e.g. ad-hoc track)
+    // clears it so the mini-player won't link to an unrelated album.
+    source: source ?? null,
   })),
 
   setQueue: (queue) => set({ queue }),
@@ -96,5 +112,5 @@ export const useMusicPlayerStore = create<MusicPlayerState>()((set, get) => ({
     if (idx > 0) set({ playing: queue[idx - 1], externallyPaused: false });
   },
 
-  close: () => set({ playing: null, queue: [], externallyPaused: false }),
+  close: () => set({ playing: null, queue: [], externallyPaused: false, source: null }),
 }));

@@ -20,7 +20,7 @@ import { FavoriteButton } from "./FavoriteButton";
 import { RatingButtons } from "./RatingButtons";
 import { StarRating } from "./StarRating";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
-import { PlaySeriesButton } from "./MediaDetailSeries";
+import { PlaySeriesButton, PlaySeasonButton } from "./MediaDetailSeries";
 import { TrailerSection } from "./MediaDetailTrailer";
 import { MetadataEditPanel } from "./MediaDetailEdit";
 
@@ -54,7 +54,17 @@ export function MediaDetailActions({
   const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
   const profileId = useAuthStore((s) => s.profileId);
   const isAdmin = useAuthStore((s) => s.isAdmin);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const navigate = useNavigate();
+
+  const handlePlay = (episodeId: string) => {
+    if (needsPin()) {
+      setPendingPlayId(episodeId);
+      setPinDialogOpen(true);
+    } else {
+      void navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
+    }
+  };
   const qc = useQueryClient();
   const { needsPin } = useParentalGate(item.officialRating);
 
@@ -128,30 +138,16 @@ export function MediaDetailActions({
 
       <div className="flex gap-3 flex-wrap pt-2" data-testid="media-actions">
         {item.id && isSeries && (
-          <PlaySeriesButton
-            seriesId={item.id}
-            onPlay={(episodeId) => {
-              if (needsPin()) {
-                setPendingPlayId(episodeId);
-                setPinDialogOpen(true);
-              } else {
-                void navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
-              }
-            }}
-          />
+          <PlaySeriesButton seriesId={item.id} onPlay={handlePlay} />
+        )}
+        {item.id && isSeason && (
+          <PlaySeasonButton seasonId={item.id} onPlay={handlePlay} />
         )}
         {item.id && !isSeries && !isSeason && (
           <Button
             variant="primary"
             data-testid="play-button"
-            onClick={() => {
-              if (needsPin()) {
-                setPendingPlayId(item.id!);
-                setPinDialogOpen(true);
-              } else {
-                void navigate({ to: "/player/$mediaId", params: { mediaId: item.id! } });
-              }
-            }}
+            onClick={() => handlePlay(item.id!)}
           >
             <Play size={16} fill="currentColor" />
             {t("media.detail.play")}
@@ -171,7 +167,23 @@ export function MediaDetailActions({
           )
         )}
         {item.id && item.filePath && streamToken && (
-          <DownloadButton mediaId={item.id} title={item.title} streamToken={streamToken} />
+          <DownloadButton mediaId={item.id} title={item.title} token={streamToken} />
+        )}
+        {item.id && isSeason && accessToken && (
+          <DownloadButton
+            mediaId={item.id}
+            title={`${item.title ?? "season"}.zip`}
+            token={accessToken}
+            label={t("media.detail.downloadSeason")}
+          />
+        )}
+        {item.id && isSeries && accessToken && (
+          <DownloadButton
+            mediaId={item.id}
+            title={`${item.title ?? "series"}.zip`}
+            token={accessToken}
+            label={t("media.detail.downloadSeries")}
+          />
         )}
         {item.id && item.filePath && isAdmin && <ShareLinkButton mediaId={item.id} />}
         {item.id && <FavoriteButton mediaId={item.id} size="md" />}

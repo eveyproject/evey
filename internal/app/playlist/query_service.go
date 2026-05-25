@@ -38,33 +38,33 @@ func NewQueryService(
 	}
 }
 
-func (s *QueryService) GetByID(ctx context.Context, id, userID string) (*playlist.Playlist, error) {
+func (s *QueryService) GetByID(ctx context.Context, id, profileID string) (*playlist.Playlist, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.GetByID")
 	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if !pl.IsOwner(userID) {
+	if !pl.IsOwnedBy(profileID) {
 		return nil, ErrNotOwner
 	}
 	return pl, nil
 }
 
-func (s *QueryService) List(ctx context.Context, userID string) ([]*playlist.Playlist, error) {
+func (s *QueryService) List(ctx context.Context, profileID string) ([]*playlist.Playlist, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.List")
 	defer span.End()
-	return s.playlists.List(ctx, userID)
+	return s.playlists.List(ctx, profileID)
 }
 
-func (s *QueryService) GetItems(ctx context.Context, playlistID, userID string) ([]*library.MediaItem, []*playlist.PlaylistItem, error) {
+func (s *QueryService) GetItems(ctx context.Context, playlistID, profileID string) ([]*library.MediaItem, []*playlist.PlaylistItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.GetItems")
 	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, playlistID)
 	if err != nil {
 		return nil, nil, err
 	}
-	if !pl.IsOwner(userID) {
+	if !pl.IsOwnedBy(profileID) {
 		return nil, nil, ErrNotOwner
 	}
 	if pl.IsSmart() {

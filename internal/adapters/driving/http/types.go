@@ -56,6 +56,17 @@ type MediaItemGetter interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 }
 
+// MediaArchiveSource retrieves a media item, lists its children, and lists
+// libraries. The download handler uses it to assemble a ZIP for container
+// items (a season's episodes, or every episode of a series) and to confine the
+// files it bundles to the configured library roots.
+type MediaArchiveSource interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+	GetMediaItemsByIDs(ctx context.Context, ids []string) ([]*domainlibrary.MediaItem, error)
+	ListMediaItems(ctx context.Context, filter domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error)
+	ListLibraries(ctx context.Context) ([]*domainlibrary.Library, error)
+}
+
 // MediaStreamsGetter retrieves streams for a media item.
 type MediaStreamsGetter interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)

@@ -46,6 +46,7 @@ favorites:
   yearOldest: Año (más antiguos)
 collections:
   title: Colecciones
+  download: Descargar colección
   newSmartCollection: Nueva colección inteligente
   smartCollections: Colecciones inteligentes
   tmdbCollections: Colecciones TMDB
@@ -170,6 +171,8 @@ detail:
   notFound: Elemento multimedia no encontrado.
   play: Reproducir
   resume: Reanudar
+  downloadSeason: Descargar temporada
+  downloadSeries: Descargar serie
   favorite: Favorito
   favorited: En favoritos
   markWatched: Marcar como visto
@@ -317,6 +320,7 @@ music:
   genre: Genre
   year: Year
   shuffle: Aleatorio
+  playRandom: Reproducción aleatoria
   mute: Silenciar
   unmute: Activar sonido
   seekPosition: Posición de reproducción
@@ -371,6 +375,12 @@ playlist:
   type: Tipo
   manual: Manual
   smart: Inteligente
+  download: Descargar lista
+  generate: Generar lista
+  generating: Generando…
+  generatedName: Mi mezcla
+  generated: Lista generada
+  generateFailed: Error al generar
   createTitle: Crear lista de reproducción
   createPlaylist: Crear lista de reproducción
   newPlaylist: "+ Nueva lista"

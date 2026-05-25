@@ -1,20 +1,25 @@
 package httpapi
 
 import (
+	"archive/zip"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -155,7 +160,7 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, item.File.Path)
 }
 
-func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
+func downloadHandler(tokens TokenVerifier, libSvc MediaArchiveSource, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.media.Download")
 		defer span.End()
@@ -172,7 +177,7 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL strin
 		}
 
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
-		if err != nil || item.File == nil || item.File.Path == "" {
+		if err != nil || item == nil {
 			if err != nil {
 				span.RecordError(err)
 			}
@@ -184,7 +189,24 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL strin
 			span.SetStatus(codes.Error, "library access denied")
 			return
 		}
-		serveDownload(w, r, item, baseURL)
+
+		// Single-file items (movie, episode, track) stream the raw file.
+		if item.File != nil && item.File.Path != "" {
+			serveDownload(w, r, item, baseURL)
+			return
+		}
+
+		// Container items are bundled into a ZIP on the fly: a season packs its
+		// episodes, a series packs every episode under per-season folders.
+		switch item.Type {
+		case library.Season:
+			serveSeasonArchive(w, r, libSvc, item, baseURL, mediaRoots(r.Context(), libSvc))
+		case library.Series:
+			serveSeriesArchive(w, r, libSvc, item, baseURL, mediaRoots(r.Context(), libSvc))
+		default:
+			span.SetStatus(codes.Error, "no downloadable file")
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		}
 	}
 }
 
@@ -210,4 +232,262 @@ func serveDownload(w http.ResponseWriter, r *http.Request, item *library.MediaIt
 	w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
 	setCORSHeaders(w, r, baseURL)
 	http.ServeFile(w, r, item.File.Path)
+}
+
+// archiveEntry is one file to place inside a download ZIP. name may contain a
+// "/" to nest the file under a per-season folder.
+type archiveEntry struct {
+	path string
+	name string
+}
+
+// serveSeasonArchive streams a ZIP of every episode file of a season, flat.
+func serveSeasonArchive(w http.ResponseWriter, r *http.Request, libSvc MediaArchiveSource, season *library.MediaItem, baseURL string, roots []string) {
+	episodes := sortedChildren(r.Context(), libSvc, string(season.ID), season.LibraryID)
+	var entries []archiveEntry
+	for _, ep := range episodes {
+		if !archivableFile(ep, roots) {
+			continue
+		}
+		entries = append(entries, archiveEntry{path: ep.File.Path, name: episodeEntryName(ep)})
+	}
+	serveMediaArchive(w, r, season.Title, entries, baseURL)
+}
+
+// serveSeriesArchive streams a ZIP of every episode of every season, nested
+// under per-season folders ("Season 01/E01 - Title.mkv").
+func serveSeriesArchive(w http.ResponseWriter, r *http.Request, libSvc MediaArchiveSource, series *library.MediaItem, baseURL string, roots []string) {
+	seasons := sortedChildren(r.Context(), libSvc, string(series.ID), series.LibraryID)
+	var entries []archiveEntry
+	for _, season := range seasons {
+		folder := seasonFolderName(season)
+		for _, ep := range sortedChildren(r.Context(), libSvc, string(season.ID), series.LibraryID) {
+			if !archivableFile(ep, roots) {
+				continue
+			}
+			entries = append(entries, archiveEntry{path: ep.File.Path, name: folder + "/" + episodeEntryName(ep)})
+		}
+	}
+	serveMediaArchive(w, r, series.Title, entries, baseURL)
+}
+
+// archivableFile reports whether an item has an on-disk file safe to bundle:
+// it must exist and (defense-in-depth) sit under a configured library root, so
+// a poisoned media_files.path can't exfiltrate an arbitrary file via the ZIP.
+func archivableFile(it *library.MediaItem, roots []string) bool {
+	if it == nil || it.File == nil || it.File.Path == "" {
+		return false
+	}
+	if !pathWithinRoots(roots, it.File.Path) {
+		slog.Warn("download archive: path outside library roots, skipped", slog.String("item_id", string(it.ID)), slog.String("path", it.File.Path))
+		return false
+	}
+	return true
+}
+
+// mediaRoots returns the cleaned set of configured library paths. Returns nil
+// on error or when none are configured — callers treat nil as "unknown" and
+// fall open (the path confinement is defense-in-depth, not the access gate).
+func mediaRoots(ctx context.Context, libSvc MediaArchiveSource) []string {
+	libs, err := libSvc.ListLibraries(ctx)
+	if err != nil {
+		slog.Warn("download archive: list libraries for path confinement", slog.Any("err", err))
+		return nil
+	}
+	var roots []string
+	for _, l := range libs {
+		for _, p := range l.Paths {
+			if p != "" {
+				roots = append(roots, p)
+			}
+		}
+	}
+	return roots
+}
+
+// pathWithinRoots reports whether path sits under one of roots. Empty roots
+// means "unknown" and returns true (fail open) so a transient library-list
+// failure never blocks an otherwise-authorised download.
+func pathWithinRoots(roots []string, path string) bool {
+	if len(roots) == 0 {
+		return true
+	}
+	for _, root := range roots {
+		if isWithinDir(root, path) {
+			return true
+		}
+	}
+	return false
+}
+
+// sortedChildren lists the children of parentID, ordered by index number, and
+// restricted to the parent's library. Defense-in-depth: the parent's access
+// was already authorised, so a child in another library must not be bundled in.
+func sortedChildren(ctx context.Context, libSvc MediaArchiveSource, parentID string, libraryID shared.LibraryID) []*library.MediaItem {
+	items, err := libSvc.ListMediaItems(ctx, library.ListMediaItemsFilter{ParentID: &parentID})
+	if err != nil {
+		slog.Warn("download archive: list children", slog.String("parent_id", parentID), slog.Any("err", err))
+		return nil
+	}
+	out := make([]*library.MediaItem, 0, len(items))
+	for _, it := range items {
+		if it.LibraryID != libraryID {
+			slog.Warn("download archive: cross-library child skipped",
+				slog.String("item_id", string(it.ID)), slog.String("expected_lib", string(libraryID)), slog.String("got_lib", string(it.LibraryID)))
+			continue
+		}
+		out = append(out, it)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return indexNumber(out[i]) < indexNumber(out[j]) })
+	return out
+}
+
+func indexNumber(it *library.MediaItem) int {
+	if it.IndexNumber != nil {
+		return *it.IndexNumber
+	}
+	return 0
+}
+
+func episodeEntryName(ep *library.MediaItem) string {
+	ext := filepath.Ext(ep.File.Path)
+	base := sanitizeFilename(ep.Title)
+	if ep.IndexNumber != nil {
+		base = fmt.Sprintf("E%02d - %s", *ep.IndexNumber, base)
+	}
+	return base + ext
+}
+
+func seasonFolderName(season *library.MediaItem) string {
+	if season.IndexNumber != nil {
+		return fmt.Sprintf("Season %02d", *season.IndexNumber)
+	}
+	return sanitizeFilename(season.Title)
+}
+
+// serveMediaArchive streams the given entries as a ZIP. Files are stored
+// uncompressed (zip.Store): media is already compressed, so deflate would burn
+// CPU for no size gain. Duplicate entry names are disambiguated with a suffix.
+func serveMediaArchive(w http.ResponseWriter, r *http.Request, title string, entries []archiveEntry, baseURL string) {
+	_, span := tracing.StartSpan(r.Context(), "http.media.ServeArchive")
+	defer span.End()
+	if len(entries) == 0 {
+		span.SetStatus(codes.Error, "no downloadable files")
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	zipName := sanitizeFilename(title) + ".zip"
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": zipName}))
+	setCORSHeaders(w, r, baseURL)
+	// A large archive can take longer than the global write timeout to stream.
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
+		slog.Warn("set write deadline", slog.Any("err", err))
+	}
+	zw := zip.NewWriter(w)
+	defer func() {
+		if err := zw.Close(); err != nil {
+			slog.Warn("download archive: zip close", slog.Any("err", err))
+		}
+	}()
+	seen := make(map[string]int)
+	for _, e := range entries {
+		name := e.name
+		if n, ok := seen[name]; ok {
+			ext := filepath.Ext(name)
+			seen[e.name] = n + 1
+			name = fmt.Sprintf("%s (%d)%s", strings.TrimSuffix(name, ext), n+1, ext)
+		} else {
+			seen[name] = 1
+		}
+		if err := addFileToZip(zw, e.path, name); err != nil {
+			slog.Warn("download archive: add file", slog.String("path", e.path), slog.Any("err", err))
+		}
+	}
+}
+
+func addFileToZip(zw *zip.Writer, path, name string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	zfw, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store})
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(zfw, f)
+	return err
+}
+
+// buildMediaArchiveEntries flattens a heterogeneous list of media items (as
+// found in a collection or a playlist) into ZIP entries: a single file for
+// movies/episodes/tracks, and a per-title folder of episodes for series
+// (nested by season) and seasons. Items the caller can't access, or whose file
+// sits outside the library roots, are dropped.
+func buildMediaArchiveEntries(ctx context.Context, libSvc MediaArchiveSource, items []*library.MediaItem, canAccess func(shared.LibraryID) bool, roots []string) []archiveEntry {
+	var entries []archiveEntry
+	for _, it := range items {
+		if it == nil || !canAccess(it.LibraryID) {
+			continue
+		}
+		switch {
+		case it.File != nil && it.File.Path != "":
+			if !archivableFile(it, roots) {
+				continue
+			}
+			entries = append(entries, archiveEntry{path: it.File.Path, name: singleFileEntryName(it)})
+		case it.Type == library.Series:
+			folder := sanitizeFilename(it.Title)
+			for _, season := range sortedChildren(ctx, libSvc, string(it.ID), it.LibraryID) {
+				sub := folder + "/" + seasonFolderName(season)
+				for _, ep := range sortedChildren(ctx, libSvc, string(season.ID), it.LibraryID) {
+					if !archivableFile(ep, roots) {
+						continue
+					}
+					entries = append(entries, archiveEntry{path: ep.File.Path, name: sub + "/" + episodeEntryName(ep)})
+				}
+			}
+		case it.Type == library.Season:
+			folder := sanitizeFilename(it.Title)
+			for _, ep := range sortedChildren(ctx, libSvc, string(it.ID), it.LibraryID) {
+				if !archivableFile(ep, roots) {
+					continue
+				}
+				entries = append(entries, archiveEntry{path: ep.File.Path, name: folder + "/" + episodeEntryName(ep)})
+			}
+		}
+	}
+	return entries
+}
+
+func singleFileEntryName(it *library.MediaItem) string {
+	return sanitizeFilename(it.Title) + filepath.Ext(it.File.Path)
+}
+
+// libraryAccessFunc returns a per-library access predicate for archive builds.
+// Admins pass through; other users are checked against the LibraryAccessChecker,
+// memoised per library. A nil caller (shouldn't happen behind auth) is denied.
+func libraryAccessFunc(ctx context.Context, claims *domainuser.Claims, checker LibraryAccessChecker) func(shared.LibraryID) bool {
+	isAdmin := claims != nil && claims.IsAdmin
+	var userID shared.UserID
+	if claims != nil {
+		userID = shared.UserID(claims.UserID)
+	}
+	cache := make(map[shared.LibraryID]bool)
+	return func(lib shared.LibraryID) bool {
+		if isAdmin {
+			return true
+		}
+		if claims == nil {
+			return false
+		}
+		if v, ok := cache[lib]; ok {
+			return v
+		}
+		ok, err := checker.HasAccess(ctx, userID, lib)
+		v := err == nil && ok
+		cache[lib] = v
+		return v
+	}
 }

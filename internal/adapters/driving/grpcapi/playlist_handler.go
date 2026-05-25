@@ -30,7 +30,7 @@ func (h *playlistHandler) ListPlaylists(ctx context.Context, req *eveyv1.ListPla
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.ListPlaylists: %w", err)
 	}
-	pls, err := h.svc.List(ctx, claims.UserID)
+	pls, err := h.svc.List(ctx, claims.ProfileID)
 	if err != nil {
 		return nil, internalError("list playlists", err)
 	}
@@ -48,7 +48,7 @@ func (h *playlistHandler) GetPlaylist(ctx context.Context, req *eveyv1.GetPlayli
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.GetPlaylist: %w", err)
 	}
-	pl, err := h.svc.GetByID(ctx, req.Id, claims.UserID)
+	pl, err := h.svc.GetByID(ctx, req.Id, claims.ProfileID)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "playlist not found: %v", err)
 	}
@@ -62,7 +62,7 @@ func (h *playlistHandler) CreatePlaylist(ctx context.Context, req *eveyv1.Create
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.CreatePlaylist: %w", err)
 	}
-	pl, err := playlist.NewPlaylist(req.Name, claims.UserID, playlistTypeFromProto(req.Type))
+	pl, err := playlist.NewPlaylist(req.Name, claims.ProfileID, playlistTypeFromProto(req.Type))
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
@@ -83,7 +83,7 @@ func (h *playlistHandler) UpdatePlaylist(ctx context.Context, req *eveyv1.Update
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.UpdatePlaylist: %w", err)
 	}
-	userID := claims.UserID
+	profileID := claims.ProfileID
 	pl := &playlist.Playlist{
 		ID:          req.Id,
 		Name:        req.Name,
@@ -92,13 +92,13 @@ func (h *playlistHandler) UpdatePlaylist(ctx context.Context, req *eveyv1.Update
 		SortBy:      req.SortBy,
 		SortOrder:   req.SortOrder,
 	}
-	if updateErr := h.svc.Update(ctx, pl, userID); updateErr != nil {
+	if updateErr := h.svc.Update(ctx, pl, profileID); updateErr != nil {
 		if errors.Is(updateErr, appplaylist.ErrNotOwner) {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
 		}
 		return nil, internalError("update playlist", updateErr)
 	}
-	updated, err := h.svc.GetByID(ctx, req.Id, userID)
+	updated, err := h.svc.GetByID(ctx, req.Id, profileID)
 	if err != nil {
 		return nil, internalError("get updated playlist", err)
 	}
@@ -112,7 +112,7 @@ func (h *playlistHandler) DeletePlaylist(ctx context.Context, req *eveyv1.Delete
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.DeletePlaylist: %w", err)
 	}
-	if err := h.svc.Delete(ctx, req.Id, claims.UserID); err != nil {
+	if err := h.svc.Delete(ctx, req.Id, claims.ProfileID); err != nil {
 		if errors.Is(err, appplaylist.ErrNotOwner) {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
 		}
@@ -128,7 +128,7 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.GetPlaylistItems: %w", err)
 	}
-	mediaItems, plItems, err := h.svc.GetItems(ctx, req.Id, claims.UserID)
+	mediaItems, plItems, err := h.svc.GetItems(ctx, req.Id, claims.ProfileID)
 	if err != nil {
 		if errors.Is(err, appplaylist.ErrNotOwner) {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
@@ -199,7 +199,7 @@ func (h *playlistHandler) AddPlaylistItem(ctx context.Context, req *eveyv1.AddPl
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.AddPlaylistItem: %w", err)
 	}
-	if err := h.svc.AddItemWithType(ctx, req.Id, req.MediaItemId, claims.UserID, req.MediaType); err != nil {
+	if err := h.svc.AddItemWithType(ctx, req.Id, req.MediaItemId, claims.ProfileID, req.MediaType); err != nil {
 		switch {
 		case errors.Is(err, appplaylist.ErrNotOwner):
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
@@ -221,7 +221,7 @@ func (h *playlistHandler) RemovePlaylistItem(ctx context.Context, req *eveyv1.Re
 	if err != nil {
 		return nil, fmt.Errorf("playlistHandler.RemovePlaylistItem: %w", err)
 	}
-	if err := h.svc.RemoveItem(ctx, req.Id, req.MediaItemId, claims.UserID); err != nil {
+	if err := h.svc.RemoveItem(ctx, req.Id, req.MediaItemId, claims.ProfileID); err != nil {
 		if errors.Is(err, appplaylist.ErrNotOwner) {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
 		} else if errors.Is(err, appplaylist.ErrSmartItems) {
@@ -256,12 +256,14 @@ func playlistToProto(pl *playlist.Playlist) *eveyv1.PlaylistProto {
 		Id:          pl.ID,
 		Name:        pl.Name,
 		Description: pl.Description,
-		UserId:      string(pl.UserID),
-		Type:        playlistTypeToProtoMap[pl.Type],
-		SortBy:      pl.SortBy,
-		SortOrder:   pl.SortOrder,
-		CreatedAt:   toTimestamppb(pl.CreatedAt),
-		UpdatedAt:   toTimestamppb(pl.UpdatedAt),
+		// Proto field is still named user_id (wire-compat, frontend-unused); it
+		// now carries the owning profile id since playlists are profile-scoped.
+		UserId:    string(pl.ProfileID),
+		Type:      playlistTypeToProtoMap[pl.Type],
+		SortBy:    pl.SortBy,
+		SortOrder: pl.SortOrder,
+		CreatedAt: toTimestamppb(pl.CreatedAt),
+		UpdatedAt: toTimestamppb(pl.UpdatedAt),
 	}
 	for _, r := range pl.Rules {
 		pb.Rules = append(pb.Rules, &eveyv1.PlaylistRule{

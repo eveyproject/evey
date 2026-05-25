@@ -116,7 +116,7 @@ describe("SeasonEpisodesSection", () => {
     expect(screen.getByText("1h 32m")).toBeInTheDocument();
   });
 
-  it("links episodes to player", () => {
+  it("links the episode row to its media page", () => {
     mockListMediaItems.mockReturnValue({
       data: {
         items: [{ id: "ep1", indexNumber: 1, title: "Pilot" }],
@@ -126,7 +126,21 @@ describe("SeasonEpisodesSection", () => {
       <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
       { wrapper: Wrapper },
     );
-    expect(screen.getByText("Pilot").closest("a")).toHaveAttribute("href", "/player/ep1");
+    expect(screen.getByText("Pilot").closest("a")).toHaveAttribute("href", "/media/ep1");
+  });
+
+  it("exposes a play link to the player for each episode", () => {
+    mockListMediaItems.mockReturnValue({
+      data: {
+        items: [{ id: "ep1", indexNumber: 1, title: "Pilot" }],
+      },
+    });
+    render(
+      <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
+      { wrapper: Wrapper },
+    );
+    const playerLinks = screen.getAllByRole("link").filter((l) => l.getAttribute("href") === "/player/ep1");
+    expect(playerLinks.length).toBe(1);
   });
 
   it("sorts episodes by indexNumber", () => {
@@ -143,7 +157,7 @@ describe("SeasonEpisodesSection", () => {
       <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
       { wrapper: Wrapper },
     );
-    const links = screen.getAllByRole("link");
+    const links = screen.getAllByRole("link").filter((l) => l.getAttribute("href")?.startsWith("/media/"));
     expect(links[0]).toHaveTextContent("First");
     expect(links[1]).toHaveTextContent("Second");
     expect(links[2]).toHaveTextContent("Third");

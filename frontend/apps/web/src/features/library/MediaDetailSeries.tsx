@@ -8,12 +8,49 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatDuration } from "./mediaDetailUtils";
 
+function sortByIndex(items: V1MediaItem[]): V1MediaItem[] {
+  return [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+}
+
+// EpisodeRow links the row to the episode's media page and exposes a separate
+// play control that jumps straight to the player.
+function EpisodeRow({ ep }: { ep: V1MediaItem }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]">
+      <Link
+        to="/media/$mediaId"
+        params={{ mediaId: ep.id ?? "" }}
+        className="flex items-center gap-3 px-4 py-2 flex-1 min-w-0"
+      >
+        <span className="text-sm w-10 flex-shrink-0 font-mono font-medium text-[var(--accent)]">
+          E{ep.indexNumber ?? "?"}
+        </span>
+        <span className="text-sm flex-1 truncate">{ep.title}</span>
+        {ep.durationMs && (
+          <span className="text-xs flex-shrink-0 text-[var(--text-muted)]">{formatDuration(ep.durationMs)}</span>
+        )}
+      </Link>
+      <Link
+        to="/player/$mediaId"
+        params={{ mediaId: ep.id ?? "" }}
+        aria-label={t("media.detail.play")}
+        title={t("media.detail.play")}
+        className="flex items-center justify-center px-4 py-2 flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors-fast"
+      >
+        <Play size={16} fill="currentColor" />
+      </Link>
+    </div>
+  );
+}
+
 function SeasonRow({ seasonId }: { seasonId: string }) {
   const { t } = useTranslation();
   const { data: season } = useLibraryServiceGetMediaItem(seasonId);
   const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: seasonId });
   const [open, setOpen] = useState(false);
-  const episodes = [...(episodesData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+  const episodes = sortByIndex(episodesData?.items ?? []);
+  const firstEpisode = episodes[0];
 
   const seasonLabel = season?.indexNumber != null
     ? t("media.season", { number: season.indexNumber })
@@ -21,35 +58,40 @@ function SeasonRow({ seasonId }: { seasonId: string }) {
 
   return (
     <div className="mb-2 border border-[var(--border)] rounded-[var(--radius-md)]">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 text-left bg-[var(--surface)] rounded-[var(--radius-md)]"
-        aria-expanded={open}
-      >
-        <span className="font-medium text-[var(--text)]">{seasonLabel}</span>
-        <span className="text-sm text-[var(--text-muted)]">
-          {t("media.detail.ep", { count: episodes.length })}
-          <ChevronDown className="inline-block ml-1 transition-transform-fast" size={16} style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }} />
-        </span>
-      </button>
+      <div className="w-full flex items-center justify-between gap-2 px-4 py-3 bg-[var(--surface)] rounded-[var(--radius-md)]">
+        <Link
+          to="/media/$mediaId"
+          params={{ mediaId: seasonId }}
+          className="font-medium text-[var(--text)] hover:text-[var(--accent)] transition-colors-fast truncate min-w-0 flex-1"
+        >
+          {seasonLabel}
+        </Link>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {firstEpisode?.id && (
+            <Link
+              to="/player/$mediaId"
+              params={{ mediaId: firstEpisode.id }}
+              aria-label={t("media.detail.play")}
+              title={t("media.detail.play")}
+              className="flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors-fast"
+            >
+              <Play size={16} fill="currentColor" />
+            </Link>
+          )}
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="flex items-center gap-1 text-sm text-[var(--text-muted)] bg-transparent border-none cursor-pointer"
+            aria-expanded={open}
+            aria-label={t("media.detail.episodes")}
+          >
+            {t("media.detail.ep", { count: episodes.length })}
+            <ChevronDown className="transition-transform-fast" size={16} style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }} />
+          </button>
+        </div>
+      </div>
       {open && (
         <div className="divide-y max-h-96 overflow-y-auto divide-[var(--border)]">
-          {episodes.map((ep) => (
-            <Link
-              key={ep.id}
-              to="/player/$mediaId"
-              params={{ mediaId: ep.id ?? "" }}
-              className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
-            >
-              <span className="text-sm w-10 flex-shrink-0 font-mono font-medium text-[var(--accent)]">
-                E{ep.indexNumber ?? "?"}
-              </span>
-              <span className="text-sm flex-1 truncate">{ep.title}</span>
-              {ep.durationMs && (
-                <span className="text-xs flex-shrink-0 text-[var(--text-muted)]">{formatDuration(ep.durationMs)}</span>
-              )}
-            </Link>
-          ))}
+          {episodes.map((ep) => (ep.id ? <EpisodeRow key={ep.id} ep={ep} /> : null))}
         </div>
       )}
     </div>
@@ -59,14 +101,14 @@ function SeasonRow({ seasonId }: { seasonId: string }) {
 export function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPlay: (episodeId: string) => void }) {
   const { t } = useTranslation();
   const { data: seasonsData } = useLibraryServiceListMediaItems({ parentId: seriesId });
-  const seasons = [...(seasonsData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+  const seasons = sortByIndex(seasonsData?.items ?? []);
   const firstSeason = seasons[0];
 
   const { data: episodesData } = useLibraryServiceListMediaItems(
     { parentId: firstSeason?.id ?? "" },
     { query: { enabled: !!firstSeason?.id } } as never,
   );
-  const episodes = [...(episodesData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+  const episodes = sortByIndex(episodesData?.items ?? []);
   const firstEpisode = episodes[0];
 
   if (!firstEpisode?.id) return null;
@@ -79,10 +121,26 @@ export function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPla
   );
 }
 
+export function PlaySeasonButton({ seasonId, onPlay }: { seasonId: string; onPlay: (episodeId: string) => void }) {
+  const { t } = useTranslation();
+  const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: seasonId });
+  const episodes = sortByIndex(episodesData?.items ?? []);
+  const firstEpisode = episodes[0];
+
+  if (!firstEpisode?.id) return null;
+
+  return (
+    <Button variant="primary" data-testid="play-button" onClick={() => onPlay(firstEpisode.id!)}>
+      <Play size={16} fill="currentColor" />
+      {t("media.detail.play")}
+    </Button>
+  );
+}
+
 export function SeriesSection({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const { data: seasonsData } = useLibraryServiceListMediaItems({ parentId: item.id ?? "" });
-  const seasons = [...(seasonsData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+  const seasons = sortByIndex(seasonsData?.items ?? []);
   if (!seasons.length) return null;
 
   return (
@@ -91,7 +149,7 @@ export function SeriesSection({ item }: { item: V1MediaItem }) {
         <h2 className="text-lg font-semibold text-[var(--text)]">{t("media.detail.seasons")}</h2>
         <Badge variant="info">{t("media.detail.seasonCount", { count: seasons.length })}</Badge>
       </div>
-      {seasons.map((s) => s.id ? <SeasonRow key={s.id} seasonId={s.id} /> : null)}
+      {seasons.map((s) => (s.id ? <SeasonRow key={s.id} seasonId={s.id} /> : null))}
     </div>
   );
 }
@@ -99,7 +157,7 @@ export function SeriesSection({ item }: { item: V1MediaItem }) {
 export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: item.id ?? "" });
-  const episodes = [...(episodesData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+  const episodes = sortByIndex(episodesData?.items ?? []);
   if (!episodes.length) return null;
 
   return (
@@ -109,22 +167,7 @@ export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
         <Badge variant="info">{t("media.detail.episodeCount", { count: episodes.length })}</Badge>
       </div>
       <div className="divide-y border border-[var(--border)] rounded-[var(--radius-md)]">
-        {episodes.map((ep) => (
-          <Link
-            key={ep.id}
-            to="/player/$mediaId"
-            params={{ mediaId: ep.id ?? "" }}
-            className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
-          >
-            <span className="text-sm w-10 flex-shrink-0 font-mono font-medium text-[var(--accent)]">
-              E{ep.indexNumber ?? "?"}
-            </span>
-            <span className="text-sm flex-1 truncate">{ep.title}</span>
-            {ep.durationMs && (
-              <span className="text-xs flex-shrink-0 text-[var(--text-muted)]">{formatDuration(ep.durationMs)}</span>
-            )}
-          </Link>
-        ))}
+        {episodes.map((ep) => (ep.id ? <EpisodeRow key={ep.id} ep={ep} /> : null))}
       </div>
     </div>
   );

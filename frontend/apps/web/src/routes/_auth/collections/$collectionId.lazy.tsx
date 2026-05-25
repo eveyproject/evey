@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Folder } from "lucide-react";
+import { Folder, Download } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useAuthStore } from "@evey/store";
 import { useCollection, useDeleteCollection } from "@/features/collection/api";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
@@ -22,6 +23,7 @@ function CollectionDetailPage() {
   const { data, isLoading } = useCollection(collectionId, pageSize, (page - 1) * pageSize);
   const deleteMut = useDeleteCollection();
   const navigate = Route.useNavigate();
+  const accessToken = useAuthStore((s) => s.accessToken);
 
   const col = data?.collection;
   const items = data?.items ?? [];
@@ -82,9 +84,22 @@ function CollectionDetailPage() {
             </div>
           )}
 
-          <p className="text-xs mb-4 text-[var(--text-muted)]">
-            {t("common.item", { count: total })}
-          </p>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <p className="text-xs text-[var(--text-muted)]">
+              {t("common.item", { count: total })}
+            </p>
+            {total > 0 && accessToken && (
+              <a
+                href={`/api/v1/collections/${collectionId}/download?token=${encodeURIComponent(accessToken)}`}
+                download={`${col.name ?? "collection"}.zip`}
+                data-testid="collection-download-btn"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-medium bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)] transition-colors-fast"
+              >
+                <Download size={16} />
+                {t("media.collections.download")}
+              </a>
+            )}
+          </div>
         </>
       )}
 

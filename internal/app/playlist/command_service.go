@@ -42,7 +42,7 @@ func (s *CommandService) Create(ctx context.Context, pl *playlist.Playlist) erro
 	if ptype == "" {
 		ptype = playlist.Manual
 	}
-	created, err := playlist.NewPlaylist(pl.Name, string(pl.UserID), ptype)
+	created, err := playlist.NewPlaylist(pl.Name, string(pl.ProfileID), ptype)
 	if err != nil {
 		return fmt.Errorf("invalid playlist: %w", err)
 	}
@@ -61,7 +61,7 @@ func (s *CommandService) Create(ctx context.Context, pl *playlist.Playlist) erro
 	return s.playlists.Create(ctx, pl)
 }
 
-func (s *CommandService) Update(ctx context.Context, pl *playlist.Playlist, userID string) error {
+func (s *CommandService) Update(ctx context.Context, pl *playlist.Playlist, profileID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.Update")
 	defer span.End()
 	if pl.Name == "" {
@@ -71,37 +71,37 @@ func (s *CommandService) Update(ctx context.Context, pl *playlist.Playlist, user
 	if err != nil {
 		return fmt.Errorf("CommandService.Update: %w", err)
 	}
-	if !existing.IsOwner(userID) {
+	if !existing.IsOwnedBy(profileID) {
 		return ErrNotOwner
 	}
-	pl.UserID = existing.UserID
+	pl.ProfileID = existing.ProfileID
 	pl.Type = existing.Type
 	pl.CreatedAt = existing.CreatedAt
 	pl.UpdatedAt = time.Now()
 	return s.playlists.Update(ctx, pl)
 }
 
-func (s *CommandService) Delete(ctx context.Context, id, userID string) error {
+func (s *CommandService) Delete(ctx context.Context, id, profileID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.Delete")
 	defer span.End()
 	existing, err := s.playlists.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("CommandService.Delete: %w", err)
 	}
-	if !existing.IsOwner(userID) {
+	if !existing.IsOwnedBy(profileID) {
 		return ErrNotOwner
 	}
 	return s.playlists.Delete(ctx, id)
 }
 
-func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, userID, mediaType string) error {
+func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, profileID, mediaType string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.AddItem")
 	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, playlistID)
 	if err != nil {
 		return fmt.Errorf("CommandService.AddItem: %w", err)
 	}
-	if !pl.IsOwner(userID) {
+	if !pl.IsOwnedBy(profileID) {
 		return ErrNotOwner
 	}
 	if pl.IsSmart() {
@@ -154,14 +154,14 @@ func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, u
 	})
 }
 
-func (s *CommandService) RemoveItem(ctx context.Context, playlistID, mediaItemID, userID string) error {
+func (s *CommandService) RemoveItem(ctx context.Context, playlistID, mediaItemID, profileID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.RemoveItem")
 	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, playlistID)
 	if err != nil {
 		return fmt.Errorf("CommandService.RemoveItem: %w", err)
 	}
-	if !pl.IsOwner(userID) {
+	if !pl.IsOwnedBy(profileID) {
 		return ErrNotOwner
 	}
 	if pl.IsSmart() {
@@ -170,14 +170,14 @@ func (s *CommandService) RemoveItem(ctx context.Context, playlistID, mediaItemID
 	return s.items.Remove(ctx, playlistID, mediaItemID)
 }
 
-func (s *CommandService) ReorderItems(ctx context.Context, playlistID, userID string, mediaItemIDs []string) error {
+func (s *CommandService) ReorderItems(ctx context.Context, playlistID, profileID string, mediaItemIDs []string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playlist.ReorderItems")
 	defer span.End()
 	pl, err := s.playlists.GetByID(ctx, playlistID)
 	if err != nil {
 		return fmt.Errorf("CommandService.ReorderItems: %w", err)
 	}
-	if !pl.IsOwner(userID) {
+	if !pl.IsOwnedBy(profileID) {
 		return ErrNotOwner
 	}
 	return s.items.Reorder(ctx, playlistID, mediaItemIDs)

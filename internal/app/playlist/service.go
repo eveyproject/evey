@@ -61,38 +61,38 @@ func (s *Service) Create(ctx context.Context, pl *playlist.Playlist) error {
 	return s.cmd.Create(ctx, pl)
 }
 
-func (s *Service) Update(ctx context.Context, pl *playlist.Playlist, userID string) error {
-	return s.cmd.Update(ctx, pl, userID)
+func (s *Service) Update(ctx context.Context, pl *playlist.Playlist, profileID string) error {
+	return s.cmd.Update(ctx, pl, profileID)
 }
 
-func (s *Service) Delete(ctx context.Context, id, userID string) error {
-	return s.cmd.Delete(ctx, id, userID)
+func (s *Service) Delete(ctx context.Context, id, profileID string) error {
+	return s.cmd.Delete(ctx, id, profileID)
 }
 
-func (s *Service) AddItem(ctx context.Context, playlistID, mediaItemID, userID string) error {
-	return s.cmd.AddItem(ctx, playlistID, mediaItemID, userID, "")
+func (s *Service) AddItem(ctx context.Context, playlistID, mediaItemID, profileID string) error {
+	return s.cmd.AddItem(ctx, playlistID, mediaItemID, profileID, "")
 }
 
-func (s *Service) AddItemWithType(ctx context.Context, playlistID, mediaItemID, userID, mediaType string) error {
-	return s.cmd.AddItem(ctx, playlistID, mediaItemID, userID, mediaType)
+func (s *Service) AddItemWithType(ctx context.Context, playlistID, mediaItemID, profileID, mediaType string) error {
+	return s.cmd.AddItem(ctx, playlistID, mediaItemID, profileID, mediaType)
 }
 
-func (s *Service) RemoveItem(ctx context.Context, playlistID, mediaItemID, userID string) error {
-	return s.cmd.RemoveItem(ctx, playlistID, mediaItemID, userID)
+func (s *Service) RemoveItem(ctx context.Context, playlistID, mediaItemID, profileID string) error {
+	return s.cmd.RemoveItem(ctx, playlistID, mediaItemID, profileID)
 }
 
-func (s *Service) ReorderItems(ctx context.Context, playlistID, userID string, mediaItemIDs []string) error {
-	return s.cmd.ReorderItems(ctx, playlistID, userID, mediaItemIDs)
+func (s *Service) ReorderItems(ctx context.Context, playlistID, profileID string, mediaItemIDs []string) error {
+	return s.cmd.ReorderItems(ctx, playlistID, profileID, mediaItemIDs)
 }
 
-func (s *Service) GetByID(ctx context.Context, id, userID string) (*playlist.Playlist, error) {
-	return s.query.GetByID(ctx, id, userID)
+func (s *Service) GetByID(ctx context.Context, id, profileID string) (*playlist.Playlist, error) {
+	return s.query.GetByID(ctx, id, profileID)
 }
 
-func (s *Service) List(ctx context.Context, userID string) ([]*playlist.Playlist, error) {
-	return s.query.List(ctx, userID)
+func (s *Service) List(ctx context.Context, profileID string) ([]*playlist.Playlist, error) {
+	return s.query.List(ctx, profileID)
 }
 
-func (s *Service) GetItems(ctx context.Context, playlistID, userID string) ([]*library.MediaItem, []*playlist.PlaylistItem, error) {
-	return s.query.GetItems(ctx, playlistID, userID)
+func (s *Service) GetItems(ctx context.Context, playlistID, profileID string) ([]*library.MediaItem, []*playlist.PlaylistItem, error) {
+	return s.query.GetItems(ctx, playlistID, profileID)
 }

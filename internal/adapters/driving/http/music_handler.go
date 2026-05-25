@@ -35,6 +35,7 @@ func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen *au
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/art", authMw(h.getTrackArt))
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/stream", authMw(h.streamTrack))
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/download", authMw(h.downloadTrack))
+	mux.HandleFunc("POST /api/v1/music/tracks/{id}/played", authMw(h.recordPlay))
 	mux.HandleFunc("GET /api/v1/music/albums/download", authMw(h.downloadAlbum))
 	mux.HandleFunc("GET /api/v1/music/album-art/{hash}", authMw(h.serveAlbumArt))
 	mux.HandleFunc("POST /api/v1/admin/music/fetch-missing-art", adminMw(h.fetchMissingArt))
@@ -217,6 +218,44 @@ func (h *musicHandler) downloadTrack(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("set write deadline", slog.Any("err", err))
 	}
 	http.ServeContent(w, r, track.FilePath, time.Time{}, f)
+}
+
+// recordPlay registers one listen of a track for the caller's profile, feeding
+// the playlist generator's taste signal. Called by the player when a track
+// finishes. Idempotency isn't a concern — each finished play is a real listen.
+func (h *musicHandler) recordPlay(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.music.RecordPlay")
+	defer span.End()
+	r = r.WithContext(ctx)
+	claims := HTTPClaimsFromContext(r.Context())
+	id := r.PathValue("id")
+	span.SetAttributes(attribute.String("track_id", id))
+	track, err := h.svc.GetTrack(r.Context(), id)
+	if err != nil || track == nil {
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.SetStatus(otelcodes.Error, "track not found")
+		http.NotFound(w, r)
+		return
+	}
+	if !checkLibraryAccess(r.Context(), w, claims, track.LibraryID, h.libChecker) {
+		span.SetStatus(otelcodes.Error, "library access denied")
+		return
+	}
+	if claims == nil || claims.ProfileID == "" {
+		// No active profile to attribute the play to — accept as a no-op.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err := h.svc.RecordPlay(r.Context(), claims.ProfileID, id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "record play failed")
+		slog.Error("music: record play", slog.Any("err", err))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {

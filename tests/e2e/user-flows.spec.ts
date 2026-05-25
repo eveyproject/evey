@@ -346,13 +346,16 @@ test.describe("Navigation", () => {
 // ─── DOWNLOAD ───────────────────────────────────────────────────────
 
 test.describe("Download", () => {
-  test("context menu has download option", async ({ page }) => {
+  // Download moved off the card context menu onto the media detail page
+  // (single file for movies/episodes, full ZIP for seasons/series).
+  test("context menu no longer offers download", async ({ page }) => {
     await goto(page, "/home");
     const card = page.locator('[data-testid="media-card"]').first();
     await card.waitFor({ state: "visible", timeout: 10_000 });
     await card.click({ button: "right" });
-    const dl = page.locator('[data-testid="media-context-menu-download"]');
-    await expect(dl).toBeVisible({ timeout: 3_000 });
+    // Menu opened (another known item is present) but download is gone.
+    await expect(page.locator('[data-testid="media-context-menu-add-to-playlist"]')).toBeVisible({ timeout: 3_000 });
+    await expect(page.locator('[data-testid="media-context-menu-download"]')).toHaveCount(0);
   });
 });
 

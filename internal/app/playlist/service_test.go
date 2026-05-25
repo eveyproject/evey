@@ -65,9 +65,9 @@ func newTestService() (*Service, *fakes.FakePlaylistRepository, *fakes.FakePlayl
 func TestCreatePlaylist(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	pl := &playlist.Playlist{
-		Name:   "My Playlist",
-		UserID: "user-1",
-		Type:   playlist.Manual,
+		Name:      "My Playlist",
+		ProfileID: "user-1",
+		Type:      playlist.Manual,
 	}
 	if err := svc.Create(context.Background(), pl); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -82,7 +82,7 @@ func TestCreatePlaylist(t *testing.T) {
 
 func TestGetPlaylistOwnershipCheck(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	pl := &playlist.Playlist{Name: "Test", UserID: "user-1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Test", ProfileID: "user-1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
 	_, err := svc.GetByID(context.Background(), pl.ID, "user-2")
@@ -101,9 +101,9 @@ func TestGetPlaylistOwnershipCheck(t *testing.T) {
 
 func TestListPlaylistsFiltersByUser(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	svc.Create(context.Background(), &playlist.Playlist{Name: "A", UserID: "user-1", Type: playlist.Manual})
-	svc.Create(context.Background(), &playlist.Playlist{Name: "B", UserID: "user-2", Type: playlist.Manual})
-	svc.Create(context.Background(), &playlist.Playlist{Name: "C", UserID: "user-1", Type: playlist.Smart})
+	svc.Create(context.Background(), &playlist.Playlist{Name: "A", ProfileID: "user-1", Type: playlist.Manual})
+	svc.Create(context.Background(), &playlist.Playlist{Name: "B", ProfileID: "user-2", Type: playlist.Manual})
+	svc.Create(context.Background(), &playlist.Playlist{Name: "C", ProfileID: "user-1", Type: playlist.Smart})
 
 	list, err := svc.List(context.Background(), "user-1")
 	if err != nil {
@@ -116,7 +116,7 @@ func TestListPlaylistsFiltersByUser(t *testing.T) {
 
 func TestAddAndRemoveItem(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	pl := &playlist.Playlist{Name: "Manual", UserID: "user-1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Manual", ProfileID: "user-1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
 	if err := svc.AddItem(context.Background(), pl.ID, "media-1", "user-1"); err != nil {
@@ -149,10 +149,10 @@ func TestAddAndRemoveItem(t *testing.T) {
 func TestCannotAddItemsToSmartPlaylist(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	pl := &playlist.Playlist{
-		Name:   "Smart",
-		UserID: "user-1",
-		Type:   playlist.Smart,
-		Rules:  []playlist.Rule{{Field: "genre", Operator: "eq", Value: "Action"}},
+		Name:      "Smart",
+		ProfileID: "user-1",
+		Type:      playlist.Smart,
+		Rules:     []playlist.Rule{{Field: "genre", Operator: "eq", Value: "Action"}},
 	}
 	svc.Create(context.Background(), pl)
 
@@ -171,10 +171,10 @@ func TestSmartPlaylistGetItems(t *testing.T) {
 	)
 
 	pl := &playlist.Playlist{
-		Name:   "Action",
-		UserID: "user-1",
-		Type:   playlist.Smart,
-		Rules:  []playlist.Rule{{Field: "genre", Operator: "eq", Value: "Action"}},
+		Name:      "Action",
+		ProfileID: "user-1",
+		Type:      playlist.Smart,
+		Rules:     []playlist.Rule{{Field: "genre", Operator: "eq", Value: "Action"}},
 	}
 	env.svc.Create(context.Background(), pl)
 
@@ -189,7 +189,7 @@ func TestSmartPlaylistGetItems(t *testing.T) {
 
 func TestUpdatePlaylist(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	pl := &playlist.Playlist{Name: "Old", UserID: "user-1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Old", ProfileID: "user-1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
 	updated := &playlist.Playlist{ID: pl.ID, Name: "New", Description: "updated"}
@@ -208,7 +208,7 @@ func TestUpdatePlaylist(t *testing.T) {
 
 func TestDeletePlaylistOwnership(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	pl := &playlist.Playlist{Name: "Mine", UserID: "user-1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Mine", ProfileID: "user-1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
 	if err := svc.Delete(context.Background(), pl.ID, "user-2"); !errors.Is(err, ErrNotOwner) {
@@ -225,7 +225,7 @@ func TestDeletePlaylistOwnership(t *testing.T) {
 
 func TestMaxItemsLimit(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	pl := &playlist.Playlist{Name: "Big", UserID: "user-1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Big", ProfileID: "user-1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
 	for i := range maxItems {
@@ -264,7 +264,7 @@ func TestAddItem_InvalidMediaID(t *testing.T) {
 	checker := &fakeMediaChecker{items: map[string]*library.MediaItem{}}
 	svc.WithMediaChecker(checker)
 
-	pl := &playlist.Playlist{Name: "Manual", UserID: "user-1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Manual", ProfileID: "user-1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
 	err := svc.AddItem(context.Background(), pl.ID, "nonexistent-id", "user-1")
@@ -280,7 +280,7 @@ func TestAddItem_ValidMediaID(t *testing.T) {
 	}}
 	svc.WithMediaChecker(checker)
 
-	pl := &playlist.Playlist{Name: "Manual", UserID: "user-1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Manual", ProfileID: "user-1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
 	if err := svc.AddItem(context.Background(), pl.ID, "media-1", "user-1"); err != nil {
@@ -312,7 +312,7 @@ func TestAddItem_MusicType_ValidTrack(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	svc.WithMusicTrackChecker(&fakeMusicChecker{ids: map[string]bool{"track-1": true}})
 
-	pl := &playlist.Playlist{Name: "Mix", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Mix", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
 	if err := svc.AddItemWithType(context.Background(), pl.ID, "track-1", "u1", "music"); err != nil {
@@ -334,7 +334,7 @@ func TestAddItem_MusicType_UnknownTrack(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	svc.WithMusicTrackChecker(&fakeMusicChecker{ids: map[string]bool{}})
 
-	pl := &playlist.Playlist{Name: "Mix", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Mix", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
 	err := svc.AddItemWithType(context.Background(), pl.ID, "missing", "u1", "music")
@@ -345,7 +345,7 @@ func TestAddItem_MusicType_UnknownTrack(t *testing.T) {
 
 func TestAddItem_DefaultMediaType_IsVideo(t *testing.T) {
 	svc, _, itemRepo, _ := newTestService()
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
 	if err := svc.AddItem(context.Background(), pl.ID, "m1", "u1"); err != nil {
@@ -362,7 +362,7 @@ func TestAddItem_DefaultMediaType_IsVideo(t *testing.T) {
 
 func TestReorderItems(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	pl := &playlist.Playlist{Name: "Ordered", UserID: "user-1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Ordered", ProfileID: "user-1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
 	svc.AddItem(context.Background(), pl.ID, "a", "user-1")
@@ -384,7 +384,7 @@ func TestReorderItems(t *testing.T) {
 
 func TestReorderItems_WrongOwner(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	pl := &playlist.Playlist{Name: "Mine", UserID: "user-1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Mine", ProfileID: "user-1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 	svc.AddItem(context.Background(), pl.ID, "a", "user-1")
 
@@ -398,7 +398,7 @@ func TestDelete_RemovesFromList(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	ctx := context.Background()
 
-	pl := &playlist.Playlist{Name: "Bye", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Bye", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(ctx, pl)
 
 	if err := svc.Delete(ctx, pl.ID, "u1"); err != nil {
@@ -417,7 +417,7 @@ func TestUpdate_NameAndDescription(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	ctx := context.Background()
 
-	pl := &playlist.Playlist{Name: "Before", Description: "old", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Before", Description: "old", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(ctx, pl)
 
 	updated := &playlist.Playlist{ID: pl.ID, Name: "After", Description: "new"}
@@ -434,7 +434,7 @@ func TestUpdate_WrongOwner(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	ctx := context.Background()
 
-	pl := &playlist.Playlist{Name: "Mine", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "Mine", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(ctx, pl)
 
 	err := svc.Update(ctx, &playlist.Playlist{ID: pl.ID, Name: "Stolen"}, "u2")
@@ -447,9 +447,9 @@ func TestList_MultipleUsers(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	ctx := context.Background()
 
-	svc.Create(ctx, &playlist.Playlist{Name: "A1", UserID: "u1", Type: playlist.Manual})
-	svc.Create(ctx, &playlist.Playlist{Name: "A2", UserID: "u1", Type: playlist.Smart})
-	svc.Create(ctx, &playlist.Playlist{Name: "B1", UserID: "u2", Type: playlist.Manual})
+	svc.Create(ctx, &playlist.Playlist{Name: "A1", ProfileID: "u1", Type: playlist.Manual})
+	svc.Create(ctx, &playlist.Playlist{Name: "A2", ProfileID: "u1", Type: playlist.Smart})
+	svc.Create(ctx, &playlist.Playlist{Name: "B1", ProfileID: "u2", Type: playlist.Manual})
 
 	u1list, _ := svc.List(ctx, "u1")
 	u2list, _ := svc.List(ctx, "u2")
@@ -468,7 +468,7 @@ func TestList_MultipleUsers(t *testing.T) {
 
 func TestCreate_EmptyNameRejected(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	pl := &playlist.Playlist{Name: "", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "", ProfileID: "u1", Type: playlist.Manual}
 	if err := svc.Create(context.Background(), pl); err == nil {
 		t.Fatal("expected error for empty name")
 	}
@@ -476,7 +476,7 @@ func TestCreate_EmptyNameRejected(t *testing.T) {
 
 func TestCreate_InvalidTypeRejected(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.PlaylistType("bogus")}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", Type: playlist.PlaylistType("bogus")}
 	if err := svc.Create(context.Background(), pl); err == nil {
 		t.Fatal("expected error for invalid type")
 	}
@@ -484,7 +484,7 @@ func TestCreate_InvalidTypeRejected(t *testing.T) {
 
 func TestCreate_DefaultSortOrder(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 	if pl.SortOrder != "asc" {
 		t.Fatalf("SortOrder = %q, want asc", pl.SortOrder)
@@ -493,7 +493,7 @@ func TestCreate_DefaultSortOrder(t *testing.T) {
 
 func TestCreate_PreservesExplicitSortFields(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", SortBy: "title", SortOrder: "desc"}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", SortBy: "title", SortOrder: "desc"}
 	svc.Create(context.Background(), pl)
 	if pl.SortBy != "title" {
 		t.Fatalf("SortBy = %q, want title", pl.SortBy)
@@ -505,7 +505,7 @@ func TestCreate_PreservesExplicitSortFields(t *testing.T) {
 
 func TestCreate_SetsTimestamps(t *testing.T) {
 	svc, _, _, _ := newTestService()
-	pl := &playlist.Playlist{Name: "x", UserID: "u1"}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1"}
 	svc.Create(context.Background(), pl)
 	if pl.CreatedAt.IsZero() {
 		t.Fatal("CreatedAt not set")
@@ -515,18 +515,18 @@ func TestCreate_SetsTimestamps(t *testing.T) {
 	}
 }
 
-func TestUpdate_PreservesUserIDAndCreatedAt(t *testing.T) {
+func TestUpdate_PreservesProfileIDAndCreatedAt(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	ctx := context.Background()
-	pl := &playlist.Playlist{Name: "Orig", UserID: "u1", Type: playlist.Smart}
+	pl := &playlist.Playlist{Name: "Orig", ProfileID: "u1", Type: playlist.Smart}
 	svc.Create(ctx, pl)
 	origCreatedAt := pl.CreatedAt
 
-	upd := &playlist.Playlist{ID: pl.ID, Name: "New", UserID: "attacker", Type: playlist.Manual}
+	upd := &playlist.Playlist{ID: pl.ID, Name: "New", ProfileID: "attacker", Type: playlist.Manual}
 	svc.Update(ctx, upd, "u1")
 
-	if upd.UserID != "u1" {
-		t.Fatalf("UserID = %q, want u1 (immutable)", upd.UserID)
+	if upd.ProfileID != "u1" {
+		t.Fatalf("ProfileID = %q, want u1 (immutable)", upd.ProfileID)
 	}
 	if upd.Type != playlist.Smart {
 		t.Fatalf("Type = %q, want smart (immutable)", upd.Type)
@@ -542,7 +542,7 @@ func TestUpdate_PreservesUserIDAndCreatedAt(t *testing.T) {
 func TestAddItem_SortOrderIncrements(t *testing.T) {
 	svc, _, itemRepo, _ := newTestService()
 	ctx := context.Background()
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(ctx, pl)
 
 	svc.AddItem(ctx, pl.ID, "m1", "u1")
@@ -563,7 +563,7 @@ func TestAddItem_SortOrderIncrements(t *testing.T) {
 func TestAddItem_SortOrderAfterGap(t *testing.T) {
 	svc, _, itemRepo, _ := newTestService()
 	ctx := context.Background()
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(ctx, pl)
 
 	svc.AddItem(ctx, pl.ID, "m1", "u1")
@@ -584,7 +584,7 @@ func TestAddItem_SortOrderAfterGap(t *testing.T) {
 func TestAddItem_GetItemsRepoError(t *testing.T) {
 	svc, _, itemRepo, _ := newTestService()
 	ctx := context.Background()
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(ctx, pl)
 
 	itemRepo.Err = errors.New("storage fail")
@@ -600,7 +600,7 @@ func TestAddItem_MediaCheckerNonNotFoundError(t *testing.T) {
 	checker := &errorMediaChecker{err: errors.New("db timeout")}
 	svc.WithMediaChecker(checker)
 
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(ctx, pl)
 
 	err := svc.AddItem(ctx, pl.ID, "m1", "u1")
@@ -615,7 +615,7 @@ func TestAddItem_MediaCheckerNonNotFoundError(t *testing.T) {
 func TestRemoveItem_SmartPlaylistRejected(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	ctx := context.Background()
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Smart}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", Type: playlist.Smart}
 	svc.Create(ctx, pl)
 
 	err := svc.RemoveItem(ctx, pl.ID, "m1", "u1")
@@ -627,7 +627,7 @@ func TestRemoveItem_SmartPlaylistRejected(t *testing.T) {
 func TestGetItems_ManualReturnsNilMediaItems(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	ctx := context.Background()
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(ctx, pl)
 	svc.AddItem(ctx, pl.ID, "m1", "u1")
 
@@ -647,7 +647,7 @@ func TestGetItems_SmartReturnsNilPlaylistItems(t *testing.T) {
 	env := newTestEnv()
 	ctx := context.Background()
 	env.seed(&library.MediaItem{ID: "m1", Title: "A"})
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Smart}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", Type: playlist.Smart}
 	env.svc.Create(ctx, pl)
 
 	mediaItems, plItems, err := env.svc.GetItems(ctx, pl.ID, "u1")
@@ -665,7 +665,7 @@ func TestGetItems_SmartReturnsNilPlaylistItems(t *testing.T) {
 func TestGetItems_ItemRepoError(t *testing.T) {
 	svc, _, itemRepo, _ := newTestService()
 	ctx := context.Background()
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", Type: playlist.Manual}
 	svc.Create(ctx, pl)
 
 	itemRepo.Err = errors.New("storage fail")
@@ -679,7 +679,7 @@ func TestGetItems_SmartQuerierError(t *testing.T) {
 	svc, _, _, querier := newTestService()
 	ctx := context.Background()
 	querier.Err = errors.New("query fail")
-	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Smart}
+	pl := &playlist.Playlist{Name: "x", ProfileID: "u1", Type: playlist.Smart}
 	svc.Create(ctx, pl)
 
 	_, _, err := svc.GetItems(ctx, pl.ID, "u1")
@@ -699,10 +699,10 @@ func TestGetItems_SmartPlaylist_QuerierReturnsItems(t *testing.T) {
 	)
 
 	pl := &playlist.Playlist{
-		Name:   "Movies Only",
-		UserID: "u1",
-		Type:   playlist.Smart,
-		Rules:  []playlist.Rule{{Field: "type", Operator: "eq", Value: "movie"}},
+		Name:      "Movies Only",
+		ProfileID: "u1",
+		Type:      playlist.Smart,
+		Rules:     []playlist.Rule{{Field: "type", Operator: "eq", Value: "movie"}},
 	}
 	env.svc.Create(ctx, pl)
 

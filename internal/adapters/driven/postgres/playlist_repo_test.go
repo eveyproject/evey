@@ -13,13 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestPlaylist(id, userID string) *domainplaylist.Playlist {
+func newTestPlaylist(id, profileID string) *domainplaylist.Playlist {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	return &domainplaylist.Playlist{
 		ID:          id,
 		Name:        "Playlist " + id,
 		Description: "Desc for " + id,
-		UserID:      shared.UserID(userID),
+		ProfileID:   shared.ProfileID(profileID),
 		Type:        domainplaylist.Manual,
 		Rules:       []domainplaylist.Rule{},
 		SortBy:      "sort_order",
@@ -34,20 +34,23 @@ func TestPlaylistRepo_Create(t *testing.T) {
 	defer cleanup()
 
 	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
 	plRepo := postgres.NewPlaylistRepository(db)
 	ctx := context.Background()
 
 	u := newTestUser("plu1")
 	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("plp1", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
 
-	pl := newTestPlaylist("pl1", string(u.ID))
+	pl := newTestPlaylist("pl1", string(p.ID))
 	require.NoError(t, plRepo.Create(ctx, pl))
 
 	got, err := plRepo.GetByID(ctx, pl.ID)
 	require.NoError(t, err)
 	assert.Equal(t, pl.Name, got.Name)
 	assert.Equal(t, pl.Description, got.Description)
-	assert.Equal(t, pl.UserID, got.UserID)
+	assert.Equal(t, pl.ProfileID, got.ProfileID)
 	assert.Equal(t, domainplaylist.Manual, got.Type)
 }
 
@@ -56,6 +59,7 @@ func TestPlaylistRepo_List(t *testing.T) {
 	defer cleanup()
 
 	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
 	plRepo := postgres.NewPlaylistRepository(db)
 	ctx := context.Background()
 
@@ -63,19 +67,23 @@ func TestPlaylistRepo_List(t *testing.T) {
 	require.NoError(t, userRepo.Create(ctx, u1))
 	u2 := newTestUser("plu3")
 	require.NoError(t, userRepo.Create(ctx, u2))
+	p1 := newTestProfile("plp2a", u1.ID)
+	require.NoError(t, profileRepo.Create(ctx, p1))
+	p2 := newTestProfile("plp2b", u2.ID)
+	require.NoError(t, profileRepo.Create(ctx, p2))
 
-	require.NoError(t, plRepo.Create(ctx, newTestPlaylist("pl2a", string(u1.ID))))
-	require.NoError(t, plRepo.Create(ctx, newTestPlaylist("pl2b", string(u1.ID))))
-	require.NoError(t, plRepo.Create(ctx, newTestPlaylist("pl2c", string(u2.ID))))
+	require.NoError(t, plRepo.Create(ctx, newTestPlaylist("pl2a", string(p1.ID))))
+	require.NoError(t, plRepo.Create(ctx, newTestPlaylist("pl2b", string(p1.ID))))
+	require.NoError(t, plRepo.Create(ctx, newTestPlaylist("pl2c", string(p2.ID))))
 
-	list, err := plRepo.List(ctx, string(u1.ID))
+	list, err := plRepo.List(ctx, string(p1.ID))
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
 	for _, pl := range list {
-		assert.Equal(t, string(u1.ID), string(pl.UserID))
+		assert.Equal(t, string(p1.ID), string(pl.ProfileID))
 	}
 
-	list2, err := plRepo.List(ctx, string(u2.ID))
+	list2, err := plRepo.List(ctx, string(p2.ID))
 	require.NoError(t, err)
 	assert.Len(t, list2, 1)
 }
@@ -85,6 +93,7 @@ func TestPlaylistRepo_AddItem(t *testing.T) {
 	defer cleanup()
 
 	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
 	libRepo := postgres.NewLibraryRepository(db)
 	itemRepo := postgres.NewMediaItemRepository(db)
 	plRepo := postgres.NewPlaylistRepository(db)
@@ -93,6 +102,8 @@ func TestPlaylistRepo_AddItem(t *testing.T) {
 
 	u := newTestUser("plu4")
 	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("plp4", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("pllib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
 	mi1 := newTestMediaItem("plmi1", lib.ID)
@@ -100,7 +111,7 @@ func TestPlaylistRepo_AddItem(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, mi1))
 	require.NoError(t, itemRepo.Create(ctx, mi2))
 
-	pl := newTestPlaylist("pl3", string(u.ID))
+	pl := newTestPlaylist("pl3", string(p.ID))
 	require.NoError(t, plRepo.Create(ctx, pl))
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
@@ -125,6 +136,7 @@ func TestPlaylistRepo_ReorderItems(t *testing.T) {
 	defer cleanup()
 
 	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
 	libRepo := postgres.NewLibraryRepository(db)
 	itemRepo := postgres.NewMediaItemRepository(db)
 	plRepo := postgres.NewPlaylistRepository(db)
@@ -133,6 +145,8 @@ func TestPlaylistRepo_ReorderItems(t *testing.T) {
 
 	u := newTestUser("plu5")
 	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("plp5", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("pllib2")
 	require.NoError(t, libRepo.Create(ctx, lib))
 	mi1 := newTestMediaItem("plmi3", lib.ID)
@@ -142,7 +156,7 @@ func TestPlaylistRepo_ReorderItems(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, mi2))
 	require.NoError(t, itemRepo.Create(ctx, mi3))
 
-	pl := newTestPlaylist("pl4", string(u.ID))
+	pl := newTestPlaylist("pl4", string(p.ID))
 	require.NoError(t, plRepo.Create(ctx, pl))
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
@@ -240,6 +254,7 @@ func TestPlaylistRepo_Delete(t *testing.T) {
 	defer cleanup()
 
 	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
 	libRepo := postgres.NewLibraryRepository(db)
 	itemRepo := postgres.NewMediaItemRepository(db)
 	plRepo := postgres.NewPlaylistRepository(db)
@@ -248,12 +263,14 @@ func TestPlaylistRepo_Delete(t *testing.T) {
 
 	u := newTestUser("plu6")
 	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("plp6", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
 	lib := newTestLibrary("pllib3")
 	require.NoError(t, libRepo.Create(ctx, lib))
 	mi := newTestMediaItem("plmi6", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, mi))
 
-	pl := newTestPlaylist("pl5", string(u.ID))
+	pl := newTestPlaylist("pl5", string(p.ID))
 	require.NoError(t, plRepo.Create(ctx, pl))
 
 	now := time.Now().UTC().Truncate(time.Millisecond)

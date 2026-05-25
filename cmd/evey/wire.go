@@ -509,12 +509,14 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	starRatingSvc := apprating.NewService(r.Rating, bus, apprating.WithThumbRating(r.UserRating))
 	musicScanner := filesystem.NewMusicScanner()
 	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library, musicScanner)
+	musicSvc.WithPlayRepository(r.MusicPlay)
 	musicSvc.CommandService().WithProber(infra.prober)
 	musicSvc.CommandService().WithAlbumArtFetcher(itunesadapter.NewAlbumArtFetcher(infra.metadataHTTP), cfg.Transcoding.CacheDir)
 	libCmdSvc.WithMusicScanner(musicSvc)
 	libCmdSvc.WithPhotoScanner(photoSvc)
 	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist, r.MediaItemQuery)
 	playlistSvc.WithMusicTrackChecker(musicTrackCheckerAdapter{repo: r.MusicTrack})
+	playlistGenSvc := appplaylist.NewGeneratorService(r.MusicTrack, r.MusicPlay, r.Playlist, r.PlaylistItem)
 
 	var subtitleSvc *appsubtitle.Service
 	if osAPIKey := resolveAPIKey(ctx, r.ServerCfg, "api.opensubtitles_key", "EVEY_OPENSUBTITLES_API_KEY"); osAPIKey != "" {
@@ -686,6 +688,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			favoriteSvc:      favoriteSvc,
 			starRatingSvc:    starRatingSvc,
 			playlistSvc:      playlistSvc,
+			playlistGenSvc:   playlistGenSvc,
 		},
 		engagement: engagementDeps{
 			activityCmdSvc:             activityCmdSvc,

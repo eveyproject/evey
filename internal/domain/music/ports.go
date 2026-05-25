@@ -26,6 +26,17 @@ type TrackRepository interface {
 	SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, albumFolder, url string) error
 }
 
+// PlayRepository records and reads per-profile music listening counts. It's the
+// taste signal for the playlist generator (favorites/ratings can't apply to
+// music tracks, which aren't media_items).
+type PlayRepository interface {
+	// IncrementPlay bumps the (profile, track) play count by one, stamping the
+	// last-played time. Upserts the row on first play.
+	IncrementPlay(ctx context.Context, profileID, trackID string) error
+	// PlayCountsForProfile returns track id → play count for the profile.
+	PlayCountsForProfile(ctx context.Context, profileID string) (map[string]int, error)
+}
+
 // AlbumKey identifies a distinct album within a library. AlbumFolder is
 // the authoritative identity (a track's parent directory). Album and
 // Artist are display-only strings — the most frequent values across the

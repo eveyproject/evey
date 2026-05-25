@@ -41,7 +41,7 @@ func (r *FakePlaylistRepository) GetByID(_ context.Context, id string) (*playlis
 	return pl, nil
 }
 
-func (r *FakePlaylistRepository) List(_ context.Context, userID string) ([]*playlist.Playlist, error) {
+func (r *FakePlaylistRepository) List(_ context.Context, profileID string) ([]*playlist.Playlist, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -49,7 +49,7 @@ func (r *FakePlaylistRepository) List(_ context.Context, userID string) ([]*play
 	defer r.mu.RUnlock()
 	var result []*playlist.Playlist
 	for _, pl := range r.items {
-		if string(pl.UserID) == userID {
+		if string(pl.ProfileID) == profileID {
 			result = append(result, pl)
 		}
 	}

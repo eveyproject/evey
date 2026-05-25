@@ -27,10 +27,42 @@ func (f *fakeTokenVerifier) ValidateAccessToken(_ string) (*domainuser.Claims, e
 type fakeMediaItemGetter struct {
 	item *domainlibrary.MediaItem
 	err  error
+	// children maps a ParentID to its child media items, used by the archive
+	// (season/series) download tests via ListMediaItems.
+	children map[string][]*domainlibrary.MediaItem
+	// libraries backs ListLibraries; nil means "no roots known" so the archive
+	// path-confinement falls open (most tests don't care about it).
+	libraries []*domainlibrary.Library
 }
 
 func (f *fakeMediaItemGetter) GetMediaItem(_ context.Context, _ string) (*domainlibrary.MediaItem, error) {
 	return f.item, f.err
+}
+
+func (f *fakeMediaItemGetter) GetMediaItemsByIDs(_ context.Context, ids []string) ([]*domainlibrary.MediaItem, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.item == nil {
+		return nil, nil
+	}
+	for _, id := range ids {
+		if string(f.item.ID) == id {
+			return []*domainlibrary.MediaItem{f.item}, nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *fakeMediaItemGetter) ListMediaItems(_ context.Context, filter domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
+	if filter.ParentID == nil {
+		return nil, nil
+	}
+	return f.children[*filter.ParentID], nil
+}
+
+func (f *fakeMediaItemGetter) ListLibraries(_ context.Context) ([]*domainlibrary.Library, error) {
+	return f.libraries, nil
 }
 
 type fakeLibraryLister struct {

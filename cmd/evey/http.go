@@ -78,9 +78,10 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		ActivityQuerySvc: deps.engagement.activityQuerySvc,
 		ActivityCmdSvc:   deps.engagement.activityCmdSvc,
 
-		CollectionSvc: deps.content.collectionSvc,
-		PlaylistSvc:   deps.content.playlistSvc,
-		FavoriteSvc:   deps.content.favoriteSvc,
+		CollectionSvc:  deps.content.collectionSvc,
+		PlaylistSvc:    deps.content.playlistSvc,
+		PlaylistGenSvc: deps.content.playlistGenSvc,
+		FavoriteSvc:    deps.content.favoriteSvc,
 
 		MusicSvc: deps.media.musicSvc,
 

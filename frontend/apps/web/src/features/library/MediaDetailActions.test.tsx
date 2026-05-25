@@ -65,6 +65,9 @@ vi.mock("./MediaDetailSeries", () => ({
   PlaySeriesButton: ({ onPlay }: { onPlay: (id: string) => void }) => (
     <button data-testid="play-series-btn" onClick={() => onPlay("ep-1")}>Play Series</button>
   ),
+  PlaySeasonButton: ({ onPlay }: { onPlay: (id: string) => void }) => (
+    <button data-testid="play-season-btn" onClick={() => onPlay("ep-1")}>Play Season</button>
+  ),
 }));
 
 vi.mock("./MediaDetailEdit", () => ({
@@ -145,8 +148,9 @@ describe("MediaDetailActions", () => {
     expect(screen.queryByTestId("play-button")).not.toBeInTheDocument();
   });
 
-  it("hides play button for season", () => {
+  it("shows PlaySeasonButton for season", () => {
     render(<MediaDetailActions {...defaultProps} isSeason />, { wrapper: Wrapper });
+    expect(screen.getByTestId("play-season-btn")).toBeInTheDocument();
     expect(screen.queryByTestId("play-button")).not.toBeInTheDocument();
   });
 

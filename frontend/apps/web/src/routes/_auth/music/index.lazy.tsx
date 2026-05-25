@@ -16,10 +16,11 @@ import {
   getPlaylistServiceGetPlaylistItemsQueryKey,
   V1PlaylistType,
 } from "@evey/api";
-import { useAuthStore, useMusicPlayerStore, toast } from "@evey/store";
+import { useAuthStore, useMusicPlayerStore, toast, type MusicSource } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Music, X, Plus, Trash2, ArrowLeft, Play, Download } from "lucide-react";
+import { Music, X, Plus, Trash2, ArrowLeft, Play, Download, Shuffle, Sparkles } from "lucide-react";
+import { useGeneratePlaylist } from "@/features/playlist/api";
 
 export const Route = createLazyFileRoute("/_auth/music/")({
   component: MusicPage,
@@ -110,6 +111,17 @@ function TrackArt({ trackID, coverArtURL, size = 36 }: { trackID: string; coverA
       onError={() => setError(true)}
     />
   );
+}
+
+// shuffleTracks returns a new array in random order (Fisher-Yates). Used by the
+// ephemeral "shuffle play" — builds a randomized queue without persisting it.
+function shuffleTracks<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 function useMusicLibraries() {
@@ -344,8 +356,16 @@ function MusicPage() {
   const { data: albums, isLoading: albumsLoading } = useMusicAlbums(activeLibraryID);
   const { data: artists, isLoading: artistsLoading } = useMusicArtists(activeLibraryID);
 
-  function handlePlay(t: Track, allTracks: Track[]) {
-    playInStore(t, allTracks);
+  function handlePlay(t: Track, allTracks: Track[], source?: MusicSource) {
+    playInStore(t, allTracks, source);
+  }
+
+  // Ephemeral shuffle: randomize the loaded tracks and play — no saved playlist.
+  function playRandom() {
+    const pool = tracks ?? [];
+    if (pool.length === 0) return;
+    const shuffled = shuffleTracks(pool);
+    handlePlay(shuffled[0], shuffled);
   }
 
   const tabClass = (active: boolean) =>
@@ -389,6 +409,18 @@ function MusicPage() {
             ))}
           </select>
         )}
+
+        {(tracks?.length ?? 0) > 0 && (
+          <button
+            type="button"
+            onClick={playRandom}
+            data-testid="music-shuffle-play"
+            className="sm:ml-auto inline-flex items-center gap-2 px-4 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium bg-[var(--accent)] text-[var(--filter-active-text)] border-none cursor-pointer"
+          >
+            <Shuffle size={16} aria-hidden="true" />
+            {t("media.music.playRandom")}
+          </button>
+        )}
       </div>
 
       <div className="flex gap-2 mb-6">
@@ -404,7 +436,17 @@ function MusicPage() {
           allTracks={tracks ?? []}
           loading={tracksLoading}
           playing={playing}
-          onPlay={(tr, filtered) => handlePlay(tr, filtered)}
+          onPlay={(tr, filtered) =>
+            handlePlay(
+              tr,
+              filtered,
+              albumFilter
+                ? { type: "album", id: albumFilter, label: albumFilter }
+                : artistFilter
+                  ? { type: "artist", id: artistFilter, label: artistFilter }
+                  : undefined,
+            )
+          }
           search={searchInput}
           onSearchChange={setSearchInput}
           albumFilter={albumFilter}
@@ -435,7 +477,7 @@ function MusicPage() {
         />
       )}
       {tab === "playlists" && (
-        <PlaylistsTab allTracks={tracks ?? []} onPlay={(tr, all) => handlePlay(tr, all)} />
+        <PlaylistsTab allTracks={tracks ?? []} onPlay={(tr, all, source) => handlePlay(tr, all, source)} libraryID={activeLibraryID} />
       )}
 
       {/* NowPlayingBar is now rendered globally via AuthLayout's GlobalAudioPlayer */}
@@ -446,13 +488,31 @@ function MusicPage() {
 function PlaylistsTab({
   allTracks,
   onPlay,
+  libraryID,
 }: {
   allTracks: Track[];
-  onPlay: (tr: Track, all: Track[]) => void;
+  onPlay: (tr: Track, all: Track[], source?: MusicSource) => void;
+  libraryID?: string;
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const accessToken = useAuthStore((s) => s.accessToken);
   const [selected, setSelected] = useState<string | null>(null);
+  const generate = useGeneratePlaylist();
+
+  function handleGenerate() {
+    if (!libraryID || generate.isPending) return;
+    generate.mutate(
+      { libraryId: libraryID, name: t("media.playlist.generatedName") },
+      {
+        onSuccess: (res) => {
+          toast.success(t("media.playlist.generated"));
+          if (res?.id) setSelected(res.id);
+        },
+        onError: () => toast.error(t("media.playlist.generateFailed")),
+      },
+    );
+  }
   const { data: playlistsData, isLoading: listLoading } = usePlaylistServiceListPlaylists();
   const { data: itemsData, isLoading: itemsLoading } = usePlaylistServiceGetPlaylistItems(
     selected ?? "",
@@ -466,6 +526,9 @@ function PlaylistsTab({
     (p) => p.type !== V1PlaylistType.PLAYLIST_TYPE_SMART,
   );
   const selectedPlaylist = playlists.find((p) => p.id === selected);
+  const playlistSource: MusicSource | undefined = selectedPlaylist?.id
+    ? { type: "playlist", id: selectedPlaylist.id, label: selectedPlaylist.name ?? selectedPlaylist.id }
+    : undefined;
 
   const tracksByID = useMemo(() => {
     const m = new Map<string, Track>();
@@ -515,12 +578,24 @@ function PlaylistsTab({
           {playlistTracks.length > 0 && (
             <button
               type="button"
-              onClick={() => onPlay(playlistTracks[0], playlistTracks)}
+              onClick={() => onPlay(playlistTracks[0], playlistTracks, playlistSource)}
               className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[var(--radius-sm)] bg-[var(--accent)] text-[var(--filter-active-text)] border-none cursor-pointer"
             >
               <Play size={14} />
               {t("media.music.shuffle")}
             </button>
+          )}
+          {selected && playlistTracks.length > 0 && accessToken && (
+            <a
+              href={`/api/v1/playlists/${selected}/download?token=${encodeURIComponent(accessToken)}`}
+              download={`${selectedPlaylist?.name ?? "playlist"}.zip`}
+              data-testid="playlist-download-btn"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[var(--radius-sm)] border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-raised)] transition-colors-fast ${playlistTracks.length > 0 ? "" : "ml-auto"}`}
+              title={t("media.playlist.download")}
+            >
+              <Download size={14} />
+              {t("media.playlist.download")}
+            </a>
           )}
         </div>
         {itemsLoading ? (
@@ -536,7 +611,7 @@ function PlaylistsTab({
               >
                 <button
                   type="button"
-                  onClick={() => onPlay(tr, playlistTracks)}
+                  onClick={() => onPlay(tr, playlistTracks, playlistSource)}
                   className="flex items-center gap-3 flex-1 min-w-0 bg-transparent border-none cursor-pointer text-left p-0"
                 >
                   <TrackArt trackID={tr.ID} coverArtURL={tr.CoverArtURL} />
@@ -565,11 +640,25 @@ function PlaylistsTab({
   if (listLoading) {
     return <p className="text-[var(--text-muted)] text-sm">{t("media.music.loading")}</p>;
   }
-  if (playlists.length === 0) {
-    return <p className="text-[var(--text-muted)] text-sm">{t("media.music.noPlaylists")}</p>;
-  }
   return (
     <div className="space-y-2">
+      {libraryID && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={generate.isPending}
+            data-testid="generate-playlist-btn"
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium bg-[var(--accent)] text-[var(--filter-active-text)] border-none cursor-pointer disabled:opacity-50 disabled:cursor-default"
+          >
+            <Sparkles size={16} aria-hidden="true" />
+            {generate.isPending ? t("media.playlist.generating") : t("media.playlist.generate")}
+          </button>
+        </div>
+      )}
+      {playlists.length === 0 && (
+        <p className="text-[var(--text-muted)] text-sm">{t("media.music.noPlaylists")}</p>
+      )}
       {playlists.map((p) => (
         <div
           key={p.id}
