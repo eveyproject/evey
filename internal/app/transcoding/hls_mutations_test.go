@@ -38,6 +38,8 @@ func (h *waitReadyErrHandle) WaitReady(_ context.Context) error { return h.err }
 func (h *waitReadyErrHandle) Stop() error                       { return nil }
 func (h *waitReadyErrHandle) Done() <-chan struct{}             { return h.done }
 func (h *waitReadyErrHandle) Err() error                        { return h.err }
+func (h *waitReadyErrHandle) Pause() error                      { return nil }
+func (h *waitReadyErrHandle) Resume() error                     { return nil }
 
 // Kills CONDITIONALS_NEGATION at hls.go:228 (stale cache invalidation).
 func TestGetOrCreate_InvalidatesStaleDiskCacheOnDecisionMismatch(t *testing.T) {

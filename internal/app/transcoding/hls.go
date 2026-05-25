@@ -52,6 +52,7 @@ type HLSSession struct {
 	LastAccess       time.Time
 	LastUserAgent    string // captured on each MarkAccess, "" until first handler call
 	warnedIdle       bool   // gated so the "approaching idle kill" log fires at most once per session
+	paused           bool   // ffmpeg SIGSTOPped by the flow-control loop (client idle)
 	mu               sync.Mutex
 	handle           transcoding.HLSProcessHandle // nil when serving cached transcode
 	ready            chan struct{}
@@ -97,7 +98,48 @@ func (s *HLSSession) MarkAccess(userAgent string) {
 		s.LastUserAgent = userAgent
 	}
 	s.warnedIdle = false
+	resume := s.paused
+	s.paused = false
+	h := s.handle
 	s.mu.Unlock()
+	// Client is pulling again — let ffmpeg continue if the flow-control loop
+	// had suspended it. Done outside the lock (h.Resume takes the handle's own
+	// mutex); only fires on the paused→active edge so the hot segment path
+	// isn't signalling ffmpeg on every request.
+	if resume && h != nil {
+		if err := h.Resume(); err != nil {
+			slog.Warn("hls: resume ffmpeg failed",
+				slog.String("media_id", string(s.MediaItemID)), slog.Any("err", err))
+		}
+	}
+}
+
+// pauseIfIdle suspends ffmpeg (SIGSTOP) when the client hasn't fetched a
+// segment for longer than idle. ffmpeg's -readrate caps it at 1.5× real-time
+// but does NOT tie it to the playhead, so a paused client would otherwise let
+// the sliding window run away (and delete_segments evict the paused position),
+// causing a live-edge jump on resume. Returns true on the active→paused edge
+// (for logging). No-op for cached sessions (nil handle).
+func (s *HLSSession) pauseIfIdle(idle time.Duration, now time.Time) bool {
+	s.mu.Lock()
+	if s.paused || s.handle == nil || now.Sub(s.LastAccess) < idle {
+		s.mu.Unlock()
+		return false
+	}
+	s.paused = true
+	h := s.handle
+	s.mu.Unlock()
+	if err := h.Pause(); err != nil {
+		// Couldn't suspend (process already gone) — roll back so MarkAccess
+		// doesn't try to resume a process that was never paused.
+		s.mu.Lock()
+		s.paused = false
+		s.mu.Unlock()
+		slog.Debug("hls: pause ffmpeg failed",
+			slog.String("media_id", string(s.MediaItemID)), slog.Any("err", err))
+		return false
+	}
+	return true
 }
 
 func (s *HLSSession) streamCount() int {
@@ -193,7 +235,50 @@ func NewHLSManager(shutdownCtx context.Context, cacheDir string, maxConcurrent i
 	}
 	sweepOrphanCacheDirs(cacheDir)
 	go m.cleanupLoop()
+	go m.pauseLoop()
 	return m
+}
+
+const (
+	// hlsPauseCheckInterval is how often the flow-control loop scans sessions
+	// for idleness. Short so ffmpeg is suspended promptly after the client
+	// stops pulling (no point transcoding ahead of a paused player).
+	hlsPauseCheckInterval = 5 * time.Second
+	// hlsPauseIdleThreshold is how long with no segment fetch before ffmpeg is
+	// SIGSTOPped. Comfortably larger than hls.js's inter-fetch gap during
+	// steady playback (it refills toward maxBufferLength≈30s by pulling a
+	// segment every few seconds), so active playback never pauses; only a real
+	// stall/pause (client buffer full, no fetches) trips it.
+	hlsPauseIdleThreshold = 20 * time.Second
+)
+
+// pauseLoop suspends ffmpeg for sessions whose client has gone idle, and lets
+// MarkAccess (segment/playlist fetch) resume them. This keeps the sliding
+// window aligned with the playhead so a long pause can't slide it away.
+func (m *HLSManager) pauseLoop() {
+	ticker := time.NewTicker(hlsPauseCheckInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-m.stopCleanup:
+			return
+		case <-ticker.C:
+			now := time.Now()
+			m.mu.Lock()
+			sessions := make([]*HLSSession, 0, len(m.sessions))
+			for _, s := range m.sessions {
+				sessions = append(sessions, s)
+			}
+			m.mu.Unlock()
+			for _, s := range sessions {
+				if s.pauseIfIdle(hlsPauseIdleThreshold, now) {
+					slog.Debug("hls: ffmpeg suspended — client idle",
+						slog.String("media_id", string(s.MediaItemID)),
+						slog.String("user_id", string(s.UserID)))
+				}
+			}
+		}
+	}
 }
 
 // sweepOrphanCacheDirs removes every subdirectory of cacheDir at startup.

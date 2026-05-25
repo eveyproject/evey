@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -71,6 +72,7 @@ type hlsHandle struct {
 	done   chan struct{}
 	err    error
 	stderr *ringBuffer
+	paused bool // ffmpeg currently SIGSTOPped (client idle)
 }
 
 func (h *hlsHandle) run(ctx context.Context) {
@@ -198,6 +200,39 @@ func (h *hlsHandle) Done() <-chan struct{} {
 
 func (h *hlsHandle) Err() error {
 	return h.err
+}
+
+// Pause sends SIGSTOP so ffmpeg stops advancing the sliding window while the
+// client isn't fetching segments. Without this, -readrate 1.5 lets ffmpeg keep
+// transcoding ~1.5× real-time during a long pause, sliding the window (and its
+// delete_segments cleanup) far past the paused position — on resume hls.js then
+// jumps to the live edge. Idempotent; a no-op once the process has exited.
+func (h *hlsHandle) Pause() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.paused || h.cmd == nil || h.cmd.Process == nil {
+		return nil
+	}
+	if err := h.cmd.Process.Signal(syscall.SIGSTOP); err != nil {
+		// Process likely already exited (finished/killed) — nothing to suspend.
+		return err
+	}
+	h.paused = true
+	return nil
+}
+
+// Resume sends SIGCONT to let a paused ffmpeg continue. Idempotent.
+func (h *hlsHandle) Resume() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if !h.paused || h.cmd == nil || h.cmd.Process == nil {
+		return nil
+	}
+	if err := h.cmd.Process.Signal(syscall.SIGCONT); err != nil {
+		return err
+	}
+	h.paused = false
+	return nil
 }
 
 // --- ffmpeg arg building ---

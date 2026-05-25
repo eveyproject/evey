@@ -61,3 +61,5 @@ func (h *fakeHandle) WaitReady(_ context.Context) error { <-h.ready; return nil 
 func (h *fakeHandle) Stop() error                       { return nil }
 func (h *fakeHandle) Done() <-chan struct{}              { return h.done }
 func (h *fakeHandle) Err() error                        { return nil }
+func (h *fakeHandle) Pause() error                      { return nil }
+func (h *fakeHandle) Resume() error                     { return nil }

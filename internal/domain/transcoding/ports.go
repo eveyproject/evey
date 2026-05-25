@@ -53,6 +53,12 @@ type HLSProcessHandle interface {
 	Stop() error
 	Done() <-chan struct{}
 	Err() error
+	// Pause suspends the transcode process (SIGSTOP) so it stops advancing
+	// the sliding window while the client isn't pulling segments. Resume
+	// (SIGCONT) lets it continue. Both are idempotent and no-op when the
+	// process has already exited.
+	Pause() error
+	Resume() error
 }
 
 type HLSProcessOpts struct {
