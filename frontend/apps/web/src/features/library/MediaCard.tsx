@@ -173,7 +173,8 @@ export const MediaCard = memo(function MediaCard({
     <Link
       to={linkTo}
       params={linkParams as never}
-      className={`group block flex-shrink-0 w-36 sm:w-44 relative${selected ? " ring-2 ring-[var(--accent)] rounded-[var(--radius-md)]" : ""}`}
+      className={`evey-media-card group block flex-shrink-0 w-36 sm:w-44 relative${selected ? " ring-2 ring-[var(--accent)] rounded-[var(--radius-md)]" : ""}`}
+      data-evey="media-card"
       data-testid="media-card"
       onMouseEnter={() => {
         if (item.id) {
@@ -237,7 +238,7 @@ export const MediaCard = memo(function MediaCard({
       {showPreview && <HoverPreview item={item} />}
 
       <div
-        className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-[1.03] group-focus-within:scale-[1.03] aspect-[2/3] rounded-[var(--radius-md)] shadow-[var(--shadow-md)]"
+        className="evey-poster relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-[1.03] group-focus-within:scale-[1.03] aspect-[2/3] rounded-[var(--radius-md)] shadow-[var(--shadow-md)]"
       >
         {poster ? (
           <>

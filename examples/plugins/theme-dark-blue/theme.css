@@ -58,3 +58,11 @@
   background: var(--accent);
   color: var(--bg);
 }
+
+/*
+ * Stable theming hooks (see docs/themes/api-reference.md) — optional, beyond
+ * the palette. Themes may target these without depending on utility classes.
+ */
+.evey-poster {
+  border-radius: var(--radius-lg);
+}

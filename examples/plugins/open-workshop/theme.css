@@ -1,0 +1,138 @@
+/*
+ * Open Workshop — a complete terminal/homelab theme for Evey.
+ *
+ * Demonstrates how far a CSS-only theme can go: palette + monospace + square
+ * corners + flat surfaces + amber glow + CRT scanlines + terminal chrome added
+ * with ::before/::after on the stable hooks (docs/themes/api-reference.md).
+ * No structure is created (a theme can't add real components) — everything
+ * here is cosmetic and passes the CSS sanitizer.
+ */
+:root {
+  --bg: #0a0a0a;
+  --bg-secondary: #0d0d0d;
+  --surface: #0f0f0f;
+  --surface-raised: #161616;
+  --surface-hover: #1c1c1c;
+  --text: #e6e6e6;
+  --text-secondary: #9a9a9a;
+  --text-muted: #6f6f6f;
+  --accent: #ffb84d;
+  --accent-hover: #ffce80;
+  --accent-subtle: rgba(255, 184, 77, 0.12);
+  --border: #2a2a2a;
+  --shadow: transparent;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --success: #86efac;
+  --warning: #ffb84d;
+  --error: #ef4444;
+  --color-danger: #ef4444;
+  --filter-active-text: #0a0a0a;
+  --overlay-text: #e6e6e6;
+  --radius: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --font-family: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* CRT scanlines + faint amber vignette on the page background (not an overlay,
+   so it never sits above content — anti-phishing safe). */
+body {
+  background-color: #0a0a0a;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 184, 77, 0.025) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 80% at 50% -10%, rgba(255, 184, 77, 0.06), transparent 60%);
+}
+
+::selection { background: var(--accent); color: var(--bg); }
+
+/* Terminal scrollbar */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: #0d0d0d; }
+*::-webkit-scrollbar-thumb { background: #2a2a2a; border: 1px solid #161616; }
+*::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+@keyframes evey-ws-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+/* Header → a command bar. Amber rule, mono, a fake prompt + blinking cursor. */
+.evey-app-header {
+  background: #000;
+  border-bottom: 1px solid var(--accent);
+  backdrop-filter: none;
+  font-family: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.04em;
+  position: relative;
+}
+.evey-app-header::before {
+  content: "▸ evey://workshop";
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--accent);
+  font: 600 11px 'Geist Mono', ui-monospace, monospace;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 6px rgba(255, 184, 77, 0.5);
+  pointer-events: none;
+  opacity: 0.85;
+}
+.evey-app-header::after {
+  content: "█";
+  position: absolute;
+  left: 132px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--accent);
+  font: 600 11px 'Geist Mono', ui-monospace, monospace;
+  animation: evey-ws-blink 1.1s steps(1) infinite;
+  pointer-events: none;
+}
+
+/* Dense grid, tagged like a directory listing. */
+.evey-media-grid {
+  gap: 0.375rem;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  position: relative;
+}
+
+/* Posters: square, thin rule, flat; amber glow + scan on hover. */
+.evey-poster {
+  border-radius: 0;
+  border: 1px solid var(--border);
+  box-shadow: none;
+  position: relative;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.evey-media-card:hover .evey-poster {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 18px rgba(255, 184, 77, 0.25);
+}
+/* corner ticks — workshop framing */
+.evey-poster::before,
+.evey-poster::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: var(--accent);
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+.evey-poster::before { top: 3px; left: 3px; border-top: 1px solid; border-left: 1px solid; }
+.evey-poster::after { bottom: 3px; right: 3px; border-bottom: 1px solid; border-right: 1px solid; }
+.evey-media-card:hover .evey-poster::before,
+.evey-media-card:hover .evey-poster::after { opacity: 1; }
+
+/* Card meta in mono. */
+.evey-media-card {
+  font-family: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: -0.01em;
+}
+
+/* Detail page poster framed in amber. */
+.evey-media-detail .evey-poster {
+  border-radius: 0;
+  border: 1px solid var(--accent-subtle);
+}

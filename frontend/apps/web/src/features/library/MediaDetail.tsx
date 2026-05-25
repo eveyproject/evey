@@ -102,7 +102,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   })();
 
   return (
-    <div data-testid="media-detail">
+    <div className="evey-media-detail" data-testid="media-detail">
       <MediaDetailHero
         item={item}
         backdropUrl={backdropUrl}
@@ -116,7 +116,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
       <div className="flex gap-6 mt-6">
         <div className="flex-shrink-0 w-48 hidden md:block">
           <div
-            className="w-48 overflow-hidden rounded-[var(--radius-md)] aspect-[2/3] bg-[var(--surface-raised)]"
+            className="evey-poster w-48 overflow-hidden rounded-[var(--radius-md)] aspect-[2/3] bg-[var(--surface-raised)]"
           >
             {posterUrl ? (
               <img src={posterUrl} srcSet={posterSrcSet} sizes="192px" alt={item.title ?? ""} fetchPriority="high" className="w-full h-full object-cover" data-testid="media-poster" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />

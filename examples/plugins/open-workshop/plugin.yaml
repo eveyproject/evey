@@ -1,0 +1,5 @@
+name: open-workshop
+kind: theme
+version: 1.0.2
+description: Open Workshop — a full terminal/homelab theme. True black, amber, monospace, scanlines, square corners, terminal chrome via pseudo-elements. Shows how far a CSS-only theme can push the look. From the Claude Design "Open Workshop" direction.
+author: evey-examples

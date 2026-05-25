@@ -105,7 +105,7 @@ export function TopBar() {
     <header
       ref={headerRef}
       data-scrolled="false"
-      className="topbar-glass h-14 flex items-center justify-between px-3 sm:px-6 border-b shrink-0 transition-all duration-200"
+      className="evey-app-header topbar-glass h-14 flex items-center justify-between px-3 sm:px-6 border-b shrink-0 transition-all duration-200"
     >
       <div className="flex-1">
         <div className="relative w-full max-w-[60vw] sm:max-w-80">

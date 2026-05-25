@@ -33,23 +33,35 @@ Served at `/api/v1/themes/<id>/theme.css`. The file is passed through the CSS sa
 
 The stylesheet is injected as a `<link rel="stylesheet">` in `<head>`. It applies globally to the host document. Standard CSS applies: custom properties, `@keyframes`, `@media`, `@font-face` (with `data:` sources), `@layer`, container queries.
 
-### Example: override card appearance
+### Stable theming hooks (selector contract)
+
+Evey marks a small set of cosmetic, non-sensitive elements with **stable
+classes** you can target without depending on the (volatile) utility classes.
+These are a contract: they will not be renamed across refactors.
+
+| Selector | Element | Safe to restyle |
+|---|---|---|
+| `.evey-app-header` | the top bar | colours, height, spacing, blur — **never** hide/move the controls inside it |
+| `.evey-media-grid` | the media card grids (library, rows) | columns, `gap`, alignment |
+| `.evey-media-card` | one media card (poster + meta) | width, spacing, hover |
+| `.evey-poster` | the poster/artwork visual (also on detail) | `aspect-ratio`, `border-radius`, shadow, fit |
+| `.evey-media-detail` | the media detail page root | layout of the detail body |
+
+Anything the sanitizer forbids still applies (no `@import`, no full-screen
+overlays, no `pointer-events:none` on controls, no `[type=password]` /
+`.admin-*` / `.token-*` / `.secret-*`, `z-index` clamped). A theme may restyle
+these hooks freely; it may **not** repurpose the header to hide or impersonate
+the trusted controls (logout, profile, real notifications).
+
+### Example: bigger posters, denser grid, sharper corners
 
 ```css
-:root {
-  --card-radius: 12px;
-  --card-shadow: 0 4px 16px rgba(0,0,0,.4);
-}
+/* Larger posters on a tighter grid */
+.evey-media-card { width: 12rem; }
+.evey-poster     { border-radius: 2px; }
+.evey-media-grid { gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 
-.media-card {
-  border-radius: var(--card-radius);
-  box-shadow: var(--card-shadow);
-  transition: transform 120ms ease;
-}
-
-.media-card:hover {
-  transform: scale(1.03);
-}
+.evey-media-card:hover { transform: scale(1.03); transition: transform 120ms ease; }
 ```
 
 ### Example: custom player theme
