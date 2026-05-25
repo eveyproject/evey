@@ -104,6 +104,13 @@ message WatchProgress {
   int32 play_count = 8;
   google.protobuf.Timestamp last_played_at = 9;
   google.protobuf.Timestamp updated_at = 10;
+  // Display metadata, populated by GetWatchHistory so clients show a real label
+  // instead of the bare media_item_id. Empty when the item can't be resolved.
+  string title = 11; // movie title, or episode title for episodes
+  string media_type = 12; // "movie" | "episode" | "track" | ...
+  int32 index_number = 13; // episode number (episodes only)
+  int32 parent_index_number = 14; // season number (episodes only)
+  string series_title = 15; // parent series title (episodes only)
 }
 
 message PlaySession {

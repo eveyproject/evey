@@ -25,6 +25,11 @@ type WatchProgress = {
   playCount?: number;
   lastPlayedAt?: string;
   updatedAt?: string;
+  title?: string;
+  mediaType?: string;
+  indexNumber?: number;
+  parentIndexNumber?: number;
+  seriesTitle?: string;
 };
 
 interface Props {
@@ -74,6 +79,20 @@ function HistoryItem({ item }: { item: WatchProgress }) {
     ? `/api/v1/media/${item.mediaItemId}/artwork/poster`
     : undefined;
 
+  // Server now returns title + (for episodes) series title + season/episode
+  // numbers, so we show a real label instead of the bare media id.
+  const label = (() => {
+    const title = item.title?.trim();
+    if (item.mediaType === "episode") {
+      const s = item.parentIndexNumber;
+      const e = item.indexNumber;
+      const code = s && e ? `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}` : e ? `E${e}` : "";
+      const parts = [item.seriesTitle?.trim(), code, title].filter(Boolean);
+      if (parts.length) return parts.join(" · ");
+    }
+    return title || t("auth.watchHistory.unknownMedia", "Unknown media");
+  })();
+
   return (
     <div className="flex items-center gap-3 py-3 border-b border-[var(--border)] last:border-0" data-testid="history-item">
       <Link
@@ -103,7 +122,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
           params={{ mediaId: item.mediaItemId ?? "" }}
           className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] transition-colors-fast truncate block"
         >
-          Media {item.mediaItemId?.slice(0, 8)}
+          {label}
           {item.playCount && item.playCount > 1 ? ` (${t("auth.watchHistory.plays", { count: item.playCount })})` : ""}
         </Link>
         <div className="flex items-center gap-2 mt-0.5">

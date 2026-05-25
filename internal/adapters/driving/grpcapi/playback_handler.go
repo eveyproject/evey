@@ -399,36 +399,93 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	resp := &eveyv1.GetWatchHistoryResponse{Pagination: &eveyv1.PaginationResponse{}}
-	if allowedIDs != nil {
-		ids := make([]string, len(items))
-		for i, wp := range items {
-			ids[i] = string(wp.MediaItemID)
-		}
-		mis, mErr := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
-		if mErr != nil {
-			slog.Warn("watch history: batch fetch media items", slog.Any("err", mErr))
-		}
-		allowed := make(map[string]bool, len(mis))
-		for _, mi := range mis {
-			if slices.Contains(allowedIDs, string(mi.LibraryID)) {
-				allowed[string(mi.ID)] = true
-			}
-		}
-		for _, wp := range items {
-			if allowed[string(wp.MediaItemID)] {
-				resp.Items = append(resp.Items, watchProgressToProto(wp))
-			}
-		}
-	} else {
-		for _, wp := range items {
-			resp.Items = append(resp.Items, watchProgressToProto(wp))
-		}
-	}
+	resp.Items = h.enrichWatchHistory(ctx, items, allowedIDs)
 	if len(items) > 0 && len(items) >= limit {
 		last := items[len(items)-1]
 		resp.Pagination.NextCursor = encodeTimeCursor(last.LastPlayedAt, string(last.MediaItemID))
 	}
 	return resp, nil
+}
+
+// enrichWatchHistory turns raw progress rows into display-ready items: it
+// batch-resolves each media item (title, type, episode number) plus, for
+// episodes, the parent season (season number) and grandparent series (title),
+// so clients render a real label instead of the bare media_item_id. It also
+// enforces library access: a restricted user only sees items in an allowed
+// library, and an item whose media no longer exists is hidden from them.
+// Best-effort — a failed lookup just leaves the affected fields empty.
+func (h *playbackHandler) enrichWatchHistory(ctx context.Context, items []*playback.WatchProgress, allowedIDs []string) []*eveyv1.WatchProgress {
+	ids := make([]string, 0, len(items))
+	for _, wp := range items {
+		ids = append(ids, string(wp.MediaItemID))
+	}
+	byID := h.mediaItemMap(ctx, ids)
+
+	// Episodes need their season (number) and series (title), one level up each.
+	seasonIDs := make([]string, 0)
+	for _, mi := range byID {
+		if mi.Type == library.Episode && mi.ParentID != "" {
+			seasonIDs = append(seasonIDs, mi.ParentID)
+		}
+	}
+	seasonByID := h.mediaItemMap(ctx, seasonIDs)
+	seriesIDs := make([]string, 0)
+	for _, s := range seasonByID {
+		if s.ParentID != "" {
+			seriesIDs = append(seriesIDs, s.ParentID)
+		}
+	}
+	seriesByID := h.mediaItemMap(ctx, seriesIDs)
+
+	out := make([]*eveyv1.WatchProgress, 0, len(items))
+	for _, wp := range items {
+		mi := byID[string(wp.MediaItemID)]
+		if allowedIDs != nil {
+			// Restricted user: skip items outside an allowed library, and skip
+			// unresolved (deleted) media since access can't be verified.
+			if mi == nil || !slices.Contains(allowedIDs, string(mi.LibraryID)) {
+				continue
+			}
+		}
+		pb := watchProgressToProto(wp)
+		if mi != nil {
+			pb.Title = mi.Title
+			pb.MediaType = string(mi.Type)
+			if mi.IndexNumber != nil {
+				pb.IndexNumber = int32(*mi.IndexNumber)
+			}
+			if mi.Type == library.Episode {
+				if season := seasonByID[mi.ParentID]; season != nil {
+					if season.IndexNumber != nil {
+						pb.ParentIndexNumber = int32(*season.IndexNumber)
+					}
+					if series := seriesByID[season.ParentID]; series != nil {
+						pb.SeriesTitle = series.Title
+					}
+				}
+			}
+		}
+		out = append(out, pb)
+	}
+	return out
+}
+
+// mediaItemMap batch-resolves media items by ID into a lookup map. Best-effort:
+// a fetch error logs and yields an empty map rather than failing the caller.
+func (h *playbackHandler) mediaItemMap(ctx context.Context, ids []string) map[string]*library.MediaItem {
+	m := map[string]*library.MediaItem{}
+	if len(ids) == 0 {
+		return m
+	}
+	mis, err := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
+	if err != nil {
+		slog.Warn("watch history: batch fetch media items", slog.Any("err", err))
+		return m
+	}
+	for _, mi := range mis {
+		m[string(mi.ID)] = mi
+	}
+	return m
 }
 
 func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetResumeItemsRequest) (*eveyv1.GetResumeItemsResponse, error) {

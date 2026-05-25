@@ -446,6 +446,43 @@ func TestPlaybackHandler_GetWatchHistory(t *testing.T) {
 	assert.Len(t, resp.Items, 2)
 }
 
+func TestPlaybackHandler_GetWatchHistory_EnrichesEpisodeLabel(t *testing.T) {
+	h, _, progressRepo, mediaRepo, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	// episode -> season -> series hierarchy; season/episode numbers via IndexNumber.
+	seasonNum, epNum := 2, 5
+	mediaRepo.Seed(&library.MediaItem{ID: "series-1", Type: library.Series, Title: "Breaking Bad"})
+	mediaRepo.Seed(&library.MediaItem{ID: "season-1", Type: library.Season, ParentID: "series-1", IndexNumber: &seasonNum})
+	mediaRepo.Seed(&library.MediaItem{ID: "ep-1", Type: library.Episode, ParentID: "season-1", Title: "Cancer Man", IndexNumber: &epNum})
+	mediaRepo.Seed(&library.MediaItem{ID: "movie-1", Type: library.MovieItem, Title: "Heat"})
+
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{ID: "wp-ep", ProfileID: "profile-1", MediaItemID: "ep-1", LastPlayedAt: time.Now()})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{ID: "wp-mov", ProfileID: "profile-1", MediaItemID: "movie-1", LastPlayedAt: time.Now().Add(-time.Minute)})
+
+	resp, err := h.GetWatchHistory(ctx, &eveyv1.GetWatchHistoryRequest{Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 2)
+
+	byID := map[string]*eveyv1.WatchProgress{}
+	for _, it := range resp.Items {
+		byID[it.MediaItemId] = it
+	}
+	ep := byID["ep-1"]
+	require.NotNil(t, ep)
+	assert.Equal(t, "Cancer Man", ep.Title)
+	assert.Equal(t, "episode", ep.MediaType)
+	assert.Equal(t, int32(5), ep.IndexNumber)
+	assert.Equal(t, int32(2), ep.ParentIndexNumber)
+	assert.Equal(t, "Breaking Bad", ep.SeriesTitle)
+
+	mov := byID["movie-1"]
+	require.NotNil(t, mov)
+	assert.Equal(t, "Heat", mov.Title)
+	assert.Equal(t, "movie", mov.MediaType)
+	assert.Empty(t, mov.SeriesTitle)
+}
+
 func TestPlaybackHandler_GetWatchHistory_Unauthenticated(t *testing.T) {
 	h, _, _, _, _, _ := newTestPlaybackHandler()
 	_, err := h.GetWatchHistory(context.Background(), &eveyv1.GetWatchHistoryRequest{})
