@@ -6,6 +6,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
+  useLibraryServiceListGenres,
   libraryServiceListMediaItems,
   libraryServiceFilterMediaItems,
   libraryServiceSearchMedia,
@@ -180,6 +181,7 @@ function LibraryPage() {
   const typeOptions = isShowLibrary ? SHOW_TYPE_KEYS : [];
 
   const hasServerFilters = Boolean(
+    search.genres?.length ||
     search.yearFrom != null ||
     search.yearTo != null ||
     (search.minRating != null && search.minRating > 0),
@@ -232,13 +234,14 @@ function LibraryPage() {
         libraryId,
         typeFilter ?? "",
         genreFilter,
+        (search.genres ?? []).join("|"),
         search.yearFrom ?? null,
         search.yearTo ?? null,
         search.minRating ?? null,
         sortField,
         sortOrder,
       ] as const,
-    [libraryId, typeFilter, genreFilter, search.yearFrom, search.yearTo, search.minRating, sortField, sortOrder],
+    [libraryId, typeFilter, genreFilter, search.genres, search.yearFrom, search.yearTo, search.minRating, sortField, sortOrder],
   );
   const filterQuery = useInfiniteQuery({
     queryKey: filterKey,
@@ -250,6 +253,7 @@ function LibraryPage() {
           libraryId,
           ...(typeFilter ? { type: typeFilter } : {}),
           ...(genreFilter ? { genre: genreFilter } : {}),
+          ...(search.genres?.length ? { genres: search.genres } : {}),
           ...(search.yearFrom != null ? { yearFrom: search.yearFrom } : {}),
           ...(search.yearTo != null ? { yearTo: search.yearTo } : {}),
           ...(search.minRating != null && search.minRating > 0 ? { minRating: search.minRating } : {}),
@@ -321,13 +325,13 @@ function LibraryPage() {
     "pagination.pageSize": PAGE_SIZE * 4,
   }, { query: { enabled: !!libraryId && filtersOpen } });
 
-  const genres = useMemo(() => {
-    const allGenres = new Set<string>();
-    for (const item of metaData?.items ?? []) {
-      for (const g of item.genres ?? []) allGenres.add(g);
-    }
-    return Array.from(allGenres).sort();
-  }, [metaData?.items]);
+  // Genres come from a dedicated endpoint that returns the library's full
+  // distinct set, not just the genres present in the sampled first pages
+  // (metaData) — otherwise the filter chips silently missed genres.
+  const { data: genresData } = useLibraryServiceListGenres(libraryId, {
+    query: { enabled: !!libraryId && filtersOpen },
+  });
+  const genres = useMemo(() => genresData?.genres ?? [], [genresData?.genres]);
 
   const availableOptions = useMemo(
     () => collectFilterOptions(metaData?.items ?? []),
@@ -340,7 +344,10 @@ function LibraryPage() {
     // searchQuery's top-N may include items whose title contains the term
     // via the search index's looser matching (synonyms, accent folding).
     return applyLocalFilters(items, {
-      genres: search.genres,
+      // Genres are filtered server-side via FilterMediaItems (genres=[...]).
+      // The only path that doesn't is text search (SearchMedia has no
+      // multi-genre param), so re-filter genres client-side only then.
+      genres: searchActive ? search.genres : undefined,
       resolutions: search.resolutions,
       codecs: search.codecs,
       audioLangs: search.audioLangs,
@@ -353,7 +360,7 @@ function LibraryPage() {
 
   const hasLocalFilters = Boolean(
     searchTerm.trim() ||
-    search.genres?.length ||
+    (searchActive && search.genres?.length) ||
     search.resolutions?.length ||
     search.codecs?.length ||
     search.audioLangs?.length ||

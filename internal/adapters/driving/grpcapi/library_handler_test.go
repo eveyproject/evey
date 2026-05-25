@@ -420,6 +420,72 @@ func TestLibraryHandler_GetMediaItem_AdminBypassesAccess(t *testing.T) {
 	assert.Equal(t, "Secret", resp.Title)
 }
 
+func TestLibraryHandler_ListGenres_IDOR_Denied(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "g-secret", LibraryID: "lib-secret", Type: "movie",
+		Catalog: &library.MediaCatalog{Genres: []string{"Horror"}}})
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	ctx := userCtx("user-2", "profile-2")
+
+	resp, err := h.ListGenres(ctx, &eveyv1.ListGenresRequest{LibraryId: "lib-secret"})
+	require.NoError(t, err)
+	assert.Empty(t, resp.Genres, "no access to lib-secret must leak no genres")
+}
+
+func TestLibraryHandler_ListGenres_Allowed(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "g-a", LibraryID: "lib-1", Type: "movie",
+		Catalog: &library.MediaCatalog{Genres: []string{"Drama", "Comedy"}}})
+	mediaQuery.Seed(&library.MediaItem{ID: "g-b", LibraryID: "lib-1", Type: "movie",
+		Catalog: &library.MediaCatalog{Genres: []string{"Comedy", "Action"}}})
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	ctx := userCtx("user-2", "profile-2")
+
+	resp, err := h.ListGenres(ctx, &eveyv1.ListGenresRequest{LibraryId: "lib-1"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Action", "Comedy", "Drama"}, resp.Genres, "distinct + sorted")
+}
+
+func TestLibraryHandler_ListGenres_MissingLibraryID(t *testing.T) {
+	h, _, _, _, _, _, _ := newTestLibraryHandler()
+	ctx := userCtx("user-2", "profile-2")
+	_, err := h.ListGenres(ctx, &eveyv1.ListGenresRequest{LibraryId: ""})
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestLibraryHandler_FilterMediaItems_MultiGenre(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "f-a", LibraryID: "lib-1", Type: "movie", Title: "A",
+		Catalog: &library.MediaCatalog{Genres: []string{"Action"}}})
+	mediaQuery.Seed(&library.MediaItem{ID: "f-d", LibraryID: "lib-1", Type: "movie", Title: "D",
+		Catalog: &library.MediaCatalog{Genres: []string{"Drama"}}})
+	mediaQuery.Seed(&library.MediaItem{ID: "f-h", LibraryID: "lib-1", Type: "movie", Title: "H",
+		Catalog: &library.MediaCatalog{Genres: []string{"Horror"}}})
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	ctx := userCtx("user-2", "profile-2")
+
+	resp, err := h.FilterMediaItems(ctx, &eveyv1.FilterMediaItemsRequest{
+		LibraryId: "lib-1",
+		Genres:    []string{"Action", "Drama"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), resp.Total, "OR match on Action or Drama, Horror excluded")
+	ids := map[string]bool{}
+	for _, it := range resp.Items {
+		ids[it.Id] = true
+	}
+	assert.True(t, ids["f-a"])
+	assert.True(t, ids["f-d"])
+	assert.False(t, ids["f-h"])
+}
+
 func TestLibraryHandler_ListMediaItems_IDOR_Denied(t *testing.T) {
 	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
 

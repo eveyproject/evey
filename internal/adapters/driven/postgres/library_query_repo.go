@@ -205,6 +205,46 @@ func (r *MediaItemQueryRepoAdapter) GetCastForItems(ctx context.Context, mediaIt
 	return result, nil
 }
 
+// ListGenres returns the distinct, sorted genres across every item in a
+// library. genres lives as a JSONB array on media_catalog, so we unnest it
+// with jsonb_array_elements_text and de-dup in SQL — the full set, unlike the
+// client which only ever saw genres from the first loaded page.
+func (r *MediaItemQueryRepoAdapter) ListGenres(ctx context.Context, libraryID shared.LibraryID) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.ListGenres")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT DISTINCT g
+		   FROM media_items mi
+		   JOIN media_catalog mc ON mc.media_item_id = mi.id
+		   CROSS JOIN LATERAL jsonb_array_elements_text(mc.genres) AS g
+		  WHERE mi.library_id = $1 AND g <> ''
+		  ORDER BY g`, string(libraryID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	var genres []string
+	for rows.Next() {
+		var g string
+		if err := rows.Scan(&g); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		genres = append(genres, g)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return genres, nil
+}
+
 func (r *MediaItemQueryRepoAdapter) SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.SeriesAggregate")
 	defer span.End()

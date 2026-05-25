@@ -142,6 +142,13 @@ func (s *QueryService) CountMediaItems(ctx context.Context, filter library.ListM
 	return s.mediaItems.Count(ctx, filter)
 }
 
+// ListGenres returns the distinct, sorted genres present in a library.
+func (s *QueryService) ListGenres(ctx context.Context, libraryID shared.LibraryID) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.ListGenres")
+	defer span.End()
+	return s.mediaItems.ListGenres(ctx, libraryID)
+}
+
 // ReindexSearch rebuilds the search index from the database for the given
 // library (empty = all libraries), without contacting metadata providers.
 // Backs POST /api/v1/admin/search/reindex.

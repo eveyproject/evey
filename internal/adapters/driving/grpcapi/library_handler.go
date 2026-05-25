@@ -947,7 +947,11 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 		t := mediaItemTypeFromProto[req.Type]
 		filter.Type = &t
 	}
-	if req.Genre != "" {
+	// Multi-select chips win over the single free-text genre. Both feed
+	// filter.Genres, which the repo OR-matches server-side.
+	if len(req.Genres) > 0 {
+		filter.Genres = req.Genres
+	} else if req.Genre != "" {
 		filter.Genres = []string{req.Genre}
 	}
 
@@ -968,6 +972,32 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 		resp.Items = append(resp.Items, mediaItemToProto(item))
 	}
 	return resp, nil
+}
+
+func (h *libraryHandler) ListGenres(ctx context.Context, req *eveyv1.ListGenresRequest) (*eveyv1.ListGenresResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.ListGenres")
+	defer span.End()
+	if _, err := requireClaims(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	if req.LibraryId == "" {
+		return nil, status.Error(codes.InvalidArgument, "library_id is required")
+	}
+	if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); !ok {
+		if accessErr != nil {
+			slog.Warn("check library access", slog.Any("err", accessErr))
+		}
+		return &eveyv1.ListGenresResponse{}, nil
+	}
+	genres, err := h.query.ListGenres(ctx, shared.LibraryID(req.LibraryId))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, internalError("list genres", err)
+	}
+	return &eveyv1.ListGenresResponse{Genres: genres}, nil
 }
 
 func scheduleToProto(s *library.ScanSchedule) *eveyv1.LibrarySchedule {

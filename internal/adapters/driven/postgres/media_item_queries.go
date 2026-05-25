@@ -2,10 +2,10 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
+
+	"github.com/lib/pq"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -101,14 +101,12 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 		args = append(args, f.MinRating)
 		argIdx++
 	}
-	for _, g := range f.Genres {
-		conditions = append(conditions, fmt.Sprintf("mc.genres @> $%d::jsonb", argIdx))
-		gJSON, err := json.Marshal([]string{g})
-		if err != nil {
-			slog.Warn("marshal genre filter", slog.Any("err", err))
-			continue
-		}
-		args = append(args, string(gJSON))
+	if len(f.Genres) > 0 {
+		// OR-match: item kept if its genres array contains ANY of the
+		// requested genres (jsonb ?| text[]). For a single genre this is
+		// equivalent to the prior @> containment check.
+		conditions = append(conditions, fmt.Sprintf("mc.genres ?| $%d::text[]", argIdx))
+		args = append(args, pq.Array(f.Genres))
 		argIdx++
 	}
 	if len(f.AllowedRatings) > 0 {

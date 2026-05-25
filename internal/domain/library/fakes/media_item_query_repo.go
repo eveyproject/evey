@@ -71,6 +71,28 @@ func (r *FakeMediaItemQueryRepo) GetByIDs(_ context.Context, ids []shared.MediaI
 	return result, nil
 }
 
+// matchesGenres mirrors the repo's OR-match: an item passes if its catalog
+// genres include at least one of the requested genres. An empty filter matches
+// everything.
+func matchesGenres(item *library.MediaItem, genres []string) bool {
+	if len(genres) == 0 {
+		return true
+	}
+	if item.Catalog == nil {
+		return false
+	}
+	have := make(map[string]bool, len(item.Catalog.Genres))
+	for _, g := range item.Catalog.Genres {
+		have[g] = true
+	}
+	for _, g := range genres {
+		if have[g] {
+			return true
+		}
+	}
+	return false
+}
+
 func allowedRatingsSet(allowed []string) map[string]bool {
 	if len(allowed) == 0 {
 		return nil
@@ -108,6 +130,9 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 			continue
 		}
 		if filter.Type != nil && string(item.Type) != *filter.Type {
+			continue
+		}
+		if !matchesGenres(item, filter.Genres) {
 			continue
 		}
 		if allowedSet != nil {
@@ -196,6 +221,9 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 		if filter.ParentID != nil && item.ParentID != *filter.ParentID {
 			continue
 		}
+		if !matchesGenres(item, filter.Genres) {
+			continue
+		}
 		if allowedSet != nil {
 			official := ""
 			if item.Classification != nil {
@@ -252,6 +280,34 @@ func (r *FakeMediaItemQueryRepo) GetCastForItems(_ context.Context, mediaItemIDs
 		}
 	}
 	return result, nil
+}
+
+func (r *FakeMediaItemQueryRepo) ListGenres(_ context.Context, libraryID shared.LibraryID) ([]string, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	set := make(map[string]bool)
+	for _, item := range r.items {
+		if item.LibraryID != libraryID || item.Catalog == nil {
+			continue
+		}
+		for _, g := range item.Catalog.Genres {
+			if g != "" {
+				set[g] = true
+			}
+		}
+	}
+	genres := make([]string, 0, len(set))
+	for g := range set {
+		genres = append(genres, g)
+	}
+	sort.Strings(genres)
+	return genres, nil
 }
 
 func (r *FakeMediaItemQueryRepo) SeriesAggregate(_ context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {

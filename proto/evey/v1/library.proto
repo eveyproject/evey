@@ -112,6 +112,15 @@ service LibraryService {
     };
   }
 
+  // ListGenres returns the distinct, sorted genres present across an entire
+  // library's media (the full set, not a sample). Powers the library filter's
+  // genre chips, which otherwise only saw genres from the first loaded page.
+  rpc ListGenres(ListGenresRequest) returns (ListGenresResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/libraries/{library_id}/genres"
+    };
+  }
+
   rpc GetSeriesAggregate(GetSeriesAggregateRequest) returns (SeriesAggregate) {
     option (google.api.http) = {
       get: "/api/v1/media/{id}/series-aggregate"
@@ -498,6 +507,8 @@ message DeleteLibraryScheduleResponse {}
 message FilterMediaItemsRequest {
   string library_id = 1;
   MediaItemType type = 2;
+  // genre: single-genre filter (kept for the free-text genre input). For
+  // multi-select use `genres` below — when both are set, `genres` wins.
   string genre = 3;
   int32 year_from = 4;
   int32 year_to = 5;
@@ -506,11 +517,23 @@ message FilterMediaItemsRequest {
   SortOrder sort_order = 8;
   int32 limit = 9;
   int32 offset = 10;
+  // genres: OR-match on any of these genres (the filter chips). Discriminant
+  // server-side over the whole library, unlike the previous client-side
+  // narrowing on already-loaded items.
+  repeated string genres = 11;
 }
 
 message FilterMediaItemsResponse {
   repeated MediaItem items = 1;
   int32 total = 2;
+}
+
+message ListGenresRequest {
+  string library_id = 1;
+}
+
+message ListGenresResponse {
+  repeated string genres = 1;
 }
 
 message GetSeriesAggregateRequest {

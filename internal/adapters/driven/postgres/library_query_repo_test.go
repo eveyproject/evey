@@ -177,6 +177,88 @@ func TestMediaItemQueryRepoAdapter_List_Count(t *testing.T) {
 	assert.Equal(t, 3, count)
 }
 
+func TestMediaItemQueryRepoAdapter_ListGenres(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	queryRepo := postgres.NewMediaItemQueryRepoAdapter(db)
+
+	lib := newTestLibrary("cq-genres-lib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	other := newTestLibrary("cq-genres-other")
+	require.NoError(t, libRepo.Create(ctx, other))
+
+	a := newTestMediaItem("cq-g-a", lib.ID)
+	a.Catalog.Genres = []string{"Drama", "Comedy"}
+	require.NoError(t, itemRepo.Create(ctx, a))
+
+	b := newTestMediaItem("cq-g-b", lib.ID)
+	b.Catalog.Genres = []string{"Comedy", "Action"} // Comedy duplicated across items
+	require.NoError(t, itemRepo.Create(ctx, b))
+
+	empty := newTestMediaItem("cq-g-empty", lib.ID)
+	empty.Catalog.Genres = []string{}
+	require.NoError(t, itemRepo.Create(ctx, empty))
+
+	// Item in a different library must not leak into this library's genres.
+	leak := newTestMediaItem("cq-g-leak", other.ID)
+	leak.Catalog.Genres = []string{"Horror"}
+	require.NoError(t, itemRepo.Create(ctx, leak))
+
+	genres, err := queryRepo.ListGenres(ctx, lib.ID)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Action", "Comedy", "Drama"}, genres,
+		"distinct + sorted, scoped to the library, Horror excluded")
+
+	// Library with no items at all returns no genres (not an error).
+	none, err := queryRepo.ListGenres(ctx, shared.LibraryID("cq-genres-nonexistent"))
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}
+
+func TestMediaItemRepo_List_GenresOR(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+
+	lib := newTestLibrary("cq-genor-lib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	action := newTestMediaItem("cq-go-action", lib.ID)
+	action.Catalog.Genres = []string{"Action"}
+	require.NoError(t, itemRepo.Create(ctx, action))
+
+	drama := newTestMediaItem("cq-go-drama", lib.ID)
+	drama.Catalog.Genres = []string{"Drama", "Romance"}
+	require.NoError(t, itemRepo.Create(ctx, drama))
+
+	horror := newTestMediaItem("cq-go-horror", lib.ID)
+	horror.Catalog.Genres = []string{"Horror"}
+	require.NoError(t, itemRepo.Create(ctx, horror))
+
+	libID := lib.ID
+	list, err := itemRepo.List(ctx, library.ListMediaItemsFilter{
+		LibraryID: &libID,
+		Genres:    []string{"Action", "Drama"},
+		Limit:     10,
+	})
+	require.NoError(t, err)
+	ids := make(map[string]bool)
+	for _, it := range list {
+		ids[string(it.ID)] = true
+	}
+	assert.Len(t, list, 2, "OR match: an item with Action OR Drama is kept")
+	assert.True(t, ids["cq-go-action"])
+	assert.True(t, ids["cq-go-drama"])
+	assert.False(t, ids["cq-go-horror"], "Horror-only item must be excluded")
+}
+
 func TestMediaItemRepo_List_AllowedRatings(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

@@ -114,6 +114,10 @@ func (c *CachedMediaItemQueryRepo) SeriesAggregate(ctx context.Context, seriesID
 	return c.inner.SeriesAggregate(ctx, seriesID)
 }
 
+func (c *CachedMediaItemQueryRepo) ListGenres(ctx context.Context, libraryID shared.LibraryID) ([]string, error) {
+	return c.inner.ListGenres(ctx, libraryID)
+}
+
 func (c *CachedMediaItemQueryRepo) evictLoop() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
