@@ -4,13 +4,23 @@
     "slug": "evey-tv",
     "version": "1.0.0",
     "scheme": "evey",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0A"
+    },
     "platforms": ["ios", "android"],
     "ios": {
       "bundleIdentifier": "com.evey.tv",
       "isAppleTVOnly": true
     },
     "android": {
-      "package": "com.evey.tv"
+      "package": "com.evey.tv",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0A"
+      }
     },
     "plugins": ["expo-router", "expo-video"]
   }

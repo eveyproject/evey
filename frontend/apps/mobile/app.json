@@ -6,6 +6,12 @@
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "scheme": "evey",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0A"
+    },
     "platforms": [
       "ios",
       "android"
@@ -22,7 +28,8 @@
     "android": {
       "package": "com.evey.app",
       "adaptiveIcon": {
-        "backgroundColor": "#111827"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0A"
       }
     },
     "plugins": [

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
+import { EveyWordmark, EveyMark } from "@/components/ui/EveyLogo";
 import {
   Home,
   Library,
@@ -58,12 +59,16 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       className={`flex flex-col h-full bg-[var(--surface)] border-r border-[var(--border)] py-4 shrink-0 overflow-hidden transition-[max-width] duration-200 ${isCollapsed ? "max-w-16 w-16" : "max-w-56 w-56"}`}
     >
       {/* Header */}
-      <div className={`flex items-center mb-6 ${isCollapsed ? "justify-center px-2" : "justify-between px-4"}`}>
-        {!isCollapsed && (
-          <Link to="/home" onClick={onNavigate} preload="intent" className="text-xl font-bold text-[var(--accent)] hover:opacity-80 transition-opacity-fast">
-            Evey
-          </Link>
-        )}
+      <div className={`flex items-center mb-6 ${isCollapsed ? "flex-col gap-3 px-2" : "justify-between px-4"}`}>
+        <Link
+          to="/home"
+          onClick={onNavigate}
+          preload="intent"
+          aria-label="Evey"
+          className="text-[var(--text)] hover:opacity-80 transition-opacity-fast"
+        >
+          {isCollapsed ? <EveyMark height={28} /> : <EveyWordmark height={24} />}
+        </Link>
         {!isMobile && (
           <button
             onClick={toggleCollapsed}
