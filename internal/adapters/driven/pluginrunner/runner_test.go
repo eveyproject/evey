@@ -76,6 +76,37 @@ func TestRunnerStopNotRunning(t *testing.T) {
 	assert.ErrorContains(t, err, "not running")
 }
 
+// fakeHostRegistry records UnregisterPlugin calls to assert host-socket cleanup.
+type fakeHostRegistry struct {
+	unregistered []string
+}
+
+func (f *fakeHostRegistry) RegisterPlugin(id string) (string, error) {
+	return "/tmp/fake-host-" + id + ".sock", nil
+}
+func (f *fakeHostRegistry) SetExpectedPID(_ string, _ int32) {}
+func (f *fakeHostRegistry) UnregisterPlugin(id string) {
+	f.unregistered = append(f.unregistered, id)
+}
+
+// Regression: Stop must unregister the host socket even when the plugin is no
+// longer tracked in r.processes (desynced orphan). Otherwise a later re-enable
+// fails with "plugin already registered" until a full server restart.
+func TestRunnerStopUnregistersHostSockWhenUntracked(t *testing.T) {
+	reg := &fakeHostRegistry{}
+	r := NewRunner().WithHostRegistry(reg)
+	err := r.Stop(context.Background(), "plg-orphan")
+	assert.ErrorContains(t, err, "not running")
+	assert.Contains(t, reg.unregistered, "plg-orphan", "host socket must be unregistered on the not-running path")
+}
+
+func TestRunnerKillUnregistersHostSockWhenUntracked(t *testing.T) {
+	reg := &fakeHostRegistry{}
+	r := NewRunner().WithHostRegistry(reg)
+	require.NoError(t, r.Kill("plg-orphan"))
+	assert.Contains(t, reg.unregistered, "plg-orphan", "host socket must be unregistered on Kill's not-running path")
+}
+
 func TestRunnerSendEventNotRunning(t *testing.T) {
 	r := NewRunner()
 	err := r.SendEvent(context.Background(), "nonexistent", nil)

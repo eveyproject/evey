@@ -155,11 +155,16 @@ func (h *HostServer) RegisterPlugin(pluginID string) (string, error) {
 	sockDir := filepath.Dir(sockPath)
 
 	h.mu.Lock()
-	if _, exists := h.registry[pluginID]; exists {
-		h.mu.Unlock()
-		return "", fmt.Errorf("plugin %s already registered", pluginID)
-	}
+	_, exists := h.registry[pluginID]
 	h.mu.Unlock()
+	if exists {
+		// Self-heal a stale orphan: a prior stop/crash/restart that left the
+		// entry behind would otherwise lock the plugin out of re-enabling until
+		// a full server restart. Tear the old registration down and re-create
+		// it fresh. UnregisterPlugin takes h.mu itself, so call it unlocked.
+		slog.Warn("plugin host socket already registered; evicting stale entry to re-register", slog.String("plugin", pluginID))
+		h.UnregisterPlugin(pluginID)
+	}
 
 	if err := os.MkdirAll(sockDir, 0o700); err != nil {
 		return "", fmt.Errorf("create sock dir: %w", err)

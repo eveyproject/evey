@@ -972,6 +972,13 @@ func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *p
 }
 
 func (r *Runner) Stop(ctx context.Context, pluginID string) error {
+	// Always clear the host-socket registry on the way out — including the early
+	// returns below — so a desynced orphan (gone from r.processes but still
+	// registered, e.g. after a failed restart) can't lock out a later re-enable
+	// with "plugin already registered".
+	if r.hostRegistry != nil {
+		defer r.hostRegistry.UnregisterPlugin(pluginID)
+	}
 	r.mu.Lock()
 	entry, ok := r.processes[pluginID]
 	if !ok {
@@ -1025,9 +1032,8 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 	if entry.hostsCleanup != nil {
 		entry.hostsCleanup()
 	}
-	if r.hostRegistry != nil {
-		r.hostRegistry.UnregisterPlugin(pluginID)
-	}
+	// Host-socket unregistration is handled by the deferred call at the top so
+	// every exit path (incl. the early returns) cleans the registry.
 
 	if r.logger != nil {
 		r.logger.WriteLog(pluginID, "[INFO] plugin process stopped")
@@ -1042,6 +1048,11 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 // not try to handle an exit that we already own. Returns nil when the plugin
 // is not tracked (already dead or never started).
 func (r *Runner) Kill(pluginID string) error {
+	// Always clear the host-socket registry on the way out (see Stop) so a
+	// killed/untracked plugin can be re-enabled without "already registered".
+	if r.hostRegistry != nil {
+		defer r.hostRegistry.UnregisterPlugin(pluginID)
+	}
 	r.mu.Lock()
 	entry, ok := r.processes[pluginID]
 	if !ok {
@@ -1077,9 +1088,7 @@ func (r *Runner) Kill(pluginID string) error {
 	if entry.hostsCleanup != nil {
 		entry.hostsCleanup()
 	}
-	if r.hostRegistry != nil {
-		r.hostRegistry.UnregisterPlugin(pluginID)
-	}
+	// Host-socket unregistration handled by the deferred call at the top.
 	if r.logger != nil {
 		r.logger.WriteLog(pluginID, "[INFO] plugin process killed (SIGKILL)")
 		r.logger.ClosePlugin(pluginID)

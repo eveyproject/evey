@@ -180,7 +180,7 @@ func TestAuthInterceptor_NoSpoofingViaCrossSocket(t *testing.T) {
 	assert.Equal(t, codes.Unauthenticated, st.Code())
 }
 
-func TestRegisterPlugin_DoubleRegister(t *testing.T) {
+func TestRegisterPlugin_DoubleRegister_SelfHeals(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("test relies on sock_dir mode 0700 owned by current uid")
 	}
@@ -190,9 +190,13 @@ func TestRegisterPlugin_DoubleRegister(t *testing.T) {
 	require.NoError(t, err)
 	defer h.UnregisterPlugin("plg-dup")
 
-	_, err = h.RegisterPlugin("plg-dup")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "already registered")
+	// Re-registering self-heals a stale entry: it evicts the old registration
+	// and returns a fresh socket rather than erroring. The old behavior (error
+	// "already registered") locked a plugin out of re-enabling until a full
+	// server restart when an orphan entry leaked (e.g. a desynced restart).
+	sock, err := h.RegisterPlugin("plg-dup")
+	require.NoError(t, err)
+	assert.NotEmpty(t, sock)
 }
 
 func TestRegisterPlugin_EmptyID(t *testing.T) {
