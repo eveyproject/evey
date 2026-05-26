@@ -136,3 +136,120 @@ body {
   border-radius: 0;
   border: 1px solid var(--accent-subtle);
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   SDUI EXPERIENCE SURFACE  (e.g. /experience-poc)
+   A theme can't add structure to what an extension declares via SDUI, but it
+   CAN frame and light it like a real terminal/homelab dashboard. Hooks: the
+   SDUI container [data-sdui-root] and its panels (<section>). The container is
+   a CSS grid, so the header/footer pseudo-elements are position:absolute (an
+   absolutely-positioned generated box is NOT a grid item → it won't take a
+   column). Everything below is cosmetic and passes the CSS sanitizer.
+   ─────────────────────────────────────────────────────────────────────────── */
+[data-sdui-root] {
+  position: relative;
+  padding: 2.5rem 0.9rem 2.3rem;
+  font-family: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+  background-color: #060606;
+  /* blueprint grid, visible in the gutters between panels */
+  background-image:
+    linear-gradient(rgba(255, 184, 77, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 184, 77, 0.045) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+/* boot-log command strip across the top */
+[data-sdui-root]::before {
+  content: "● evey://workshop  ::  system dashboard  ::  live";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1.85rem;
+  display: flex;
+  align-items: center;
+  padding: 0 0.85rem;
+  font: 600 10.5px 'Geist Mono', ui-monospace, monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: linear-gradient(180deg, #000, #0b0b0b);
+  border-bottom: 1px solid var(--accent);
+  text-shadow: 0 0 9px rgba(255, 184, 77, 0.5);
+}
+/* status bar across the bottom */
+[data-sdui-root]::after {
+  content: "READY ▸ landlock=on · seccomp=on · signed";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1.7rem;
+  display: flex;
+  align-items: center;
+  padding: 0 0.85rem;
+  font: 600 9.5px 'Geist Mono', ui-monospace, monospace;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: #040404;
+  border-top: 1px solid #1c1c1c;
+}
+
+/* Each SDUI panel → a framed terminal window: amber top rail, depth, corner tick. */
+[data-sdui-root] section {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 184, 77, 0.035), transparent 64px),
+    var(--surface);
+  border-color: #242424;
+  box-shadow:
+    inset 0 0 0 1px #000,
+    0 0 0 1px rgba(255, 184, 77, 0.05),
+    0 10px 30px rgba(0, 0, 0, 0.55);
+}
+[data-sdui-root] section::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), rgba(255, 184, 77, 0) 72%);
+  opacity: 0.85;
+  pointer-events: none;
+}
+[data-sdui-root] section::after {
+  content: "";
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  width: 9px;
+  height: 9px;
+  border-right: 1px solid var(--accent);
+  border-bottom: 1px solid var(--accent);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Panel title row → a terminal window header (the section's first child div). */
+[data-sdui-root] section > div:first-child {
+  position: relative;
+  padding-left: 1.6rem;
+  background: linear-gradient(180deg, #0c0c0c, #060606);
+  border-bottom-color: #242424;
+  text-shadow: 0 0 7px rgba(255, 184, 77, 0.4);
+}
+[data-sdui-root] section > div:first-child::before {
+  content: "▸";
+  position: absolute;
+  left: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--accent);
+  text-shadow: 0 0 7px rgba(255, 184, 77, 0.6);
+}
+
+/* Faint CRT glow on panel text (labels, ascii stat bars, values). */
+[data-sdui-root] section span {
+  text-shadow: 0 0 6px rgba(255, 184, 77, 0.12);
+}
