@@ -1,7 +1,14 @@
-import { render } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { render, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { sanitizeSduiDocument, SDUI_LIMITS } from "./schema";
 import { SduiRenderer } from "./SduiRenderer";
+
+// SduiRenderer calls useNavigate(); mock it so the renderer works without a
+// Router and we can assert what navigation a click triggers.
+const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }));
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigateMock }));
+
+beforeEach(() => navigateMock.mockClear());
 
 function renderDoc(input: unknown) {
   return render(<SduiRenderer doc={sanitizeSduiDocument(input)} />);
@@ -76,5 +83,50 @@ describe("SDUI — adversarial security", () => {
     );
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
     expect(doc.nodes).toHaveLength(1);
+  });
+
+  it("strips unsafe navigation targets (external, javascript:, protocol-relative, traversal)", () => {
+    const doc = sanitizeSduiDocument({
+      nodes: [
+        { type: "link", label: "ext", to: "https://evil.com", tone: "default" },
+        { type: "link", label: "js", to: "javascript:alert(1)", tone: "default" },
+        { type: "link", label: "proto", to: "//evil.com/x", tone: "default" },
+        { type: "link", label: "trav", to: "/../../etc/passwd", tone: "default" },
+        { type: "link", label: "ok", to: "/media/4a6f-123", tone: "default" },
+        {
+          type: "table",
+          columns: ["t"],
+          rows: [
+            { cells: ["evil"], to: "javascript:alert(1)" },
+            { cells: ["ok"], to: "/library/lib1" },
+          ],
+        },
+      ],
+    });
+    const links = doc.nodes.filter((n) => n.type === "link") as Array<{ label: string; to: string }>;
+    const to = (label: string) => links.find((l) => l.label === label)!.to;
+    expect(to("ext")).toBe("");
+    expect(to("js")).toBe("");
+    expect(to("proto")).toBe("");
+    expect(to("trav")).toBe("");
+    expect(to("ok")).toBe("/media/4a6f-123");
+    const table = doc.nodes.find((n) => n.type === "table") as { rows: Array<{ to: string }> };
+    expect(table.rows[0].to).toBe(""); // javascript: stripped
+    expect(table.rows[1].to).toBe("/library/lib1");
+  });
+
+  it("navigates internally on click of a safe link, never for a dropped target", () => {
+    const { getByText } = renderDoc({
+      nodes: [
+        { type: "link", label: "go", to: "/media/abc-123", tone: "default" },
+        { type: "link", label: "nope", to: "javascript:alert(1)", tone: "default" },
+      ],
+    });
+    fireEvent.click(getByText("go"));
+    expect(navigateMock).toHaveBeenCalledWith({ to: "/media/abc-123" });
+
+    navigateMock.mockClear();
+    fireEvent.click(getByText("nope")); // sanitized to "" → rendered as inert <div>
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 });

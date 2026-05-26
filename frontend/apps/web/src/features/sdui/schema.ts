@@ -2,13 +2,16 @@
 //
 // An extension describes UI as DATA (this schema), never as HTML/JS/CSS. The
 // host renders it with its own native components (web here; RN renderers would
-// consume the exact same document). Security comes from three invariants,
+// consume the exact same document). Security comes from four invariants,
 // enforced at the trust boundary `sanitizeSduiDocument`:
 //   1. node `type` is a closed allow-list — an unknown/forged type is dropped;
 //   2. all user-visible values are plain strings, rendered as text by React
 //      (auto-escaped) — never as markup, never `dangerouslySetInnerHTML`;
 //   3. `tone` is an enum mapped to fixed classes — the extension cannot inject
-//      arbitrary colours/CSS; and sizes/depth are capped (anti-DoS).
+//      arbitrary colours/CSS; and sizes/depth are capped (anti-DoS);
+//   4. navigation targets (`to`) are clamped by `safePath` to internal app
+//      routes only — no scheme, no protocol-relative, no traversal (so a click
+//      can open an app route, never an external site and never code).
 // The sanitizer never throws: untrusted input is coerced/dropped into a safe
 // document.
 
@@ -16,7 +19,7 @@ export type SduiTone = "default" | "accent" | "ok" | "warn" | "muted";
 const TONES: readonly SduiTone[] = ["default", "accent", "ok", "warn", "muted"];
 
 export interface SduiStat { label: string; value: number; max: number }
-export interface SduiRow { cells: string[]; tone: SduiTone }
+export interface SduiRow { cells: string[]; tone: SduiTone; to: string }
 export interface SduiPair { k: string; v: string; tone: SduiTone }
 
 export type SduiNode =
@@ -24,7 +27,8 @@ export type SduiNode =
   | { type: "statBar"; items: SduiStat[] }
   | { type: "table"; columns: string[]; rows: SduiRow[] }
   | { type: "kv"; pairs: SduiPair[] }
-  | { type: "text"; value: string; tone: SduiTone };
+  | { type: "text"; value: string; tone: SduiTone }
+  | { type: "link"; label: string; to: string; tone: SduiTone };
 
 export interface SduiDocument {
   version: 1;
@@ -53,6 +57,18 @@ function tone(v: unknown): SduiTone {
 }
 function arr(v: unknown): unknown[] {
   return Array.isArray(v) ? v.slice(0, SDUI_LIMITS.maxArray) : [];
+}
+
+// safePath is the trust boundary for SDUI navigation. A node may carry a `to`
+// the renderer will follow, but ONLY an internal absolute app path: one leading
+// slash, not protocol-relative (`//`), no scheme (`javascript:`/`http:` — the
+// `:` is outside the allowed charset), no `..` traversal, restricted charset.
+// Anything else collapses to "" → the renderer treats the node as non-navigable.
+function safePath(v: unknown): string {
+  if (typeof v !== "string" || v.length === 0 || v.length > SDUI_LIMITS.maxString) return "";
+  if (v[0] !== "/" || v[1] === "/") return "";
+  if (v.includes("..") || v.includes("\\")) return "";
+  return /^\/[A-Za-z0-9/._~-]*$/.test(v) ? v : "";
 }
 
 interface Budget { nodes: number }
@@ -87,7 +103,7 @@ function sanitizeNode(input: unknown, depth: number, budget: Budget): SduiNode |
         columns: arr(n.columns).map(str),
         rows: arr(n.rows).map((r) => {
           const o = (r && typeof r === "object" ? r : {}) as Record<string, unknown>;
-          return { cells: arr(o.cells).map(str), tone: tone(o.tone) };
+          return { cells: arr(o.cells).map(str), tone: tone(o.tone), to: safePath(o.to) };
         }),
       };
     case "kv":
@@ -100,6 +116,8 @@ function sanitizeNode(input: unknown, depth: number, budget: Budget): SduiNode |
       };
     case "text":
       return { type: "text", value: str(n.value), tone: tone(n.tone) };
+    case "link":
+      return { type: "link", label: str(n.label), to: safePath(n.to), tone: tone(n.tone) };
     default:
       // Unknown/forged type → dropped (and its node budget reclaimed).
       budget.nodes--;

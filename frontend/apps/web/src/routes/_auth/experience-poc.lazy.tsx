@@ -24,7 +24,7 @@ interface Dashboard {
   totalUsers: number;
 }
 interface SystemInfo { version: string; ffmpegVersion: string; uptimeSeconds: string; os: string; arch: string }
-interface PopularItem { title: string; type: string; playCount: number }
+interface PopularItem { id: string; title: string; type: string; playCount: number }
 interface Lib { id: string; name: string; type: string; count: number }
 interface Data { dash: Dashboard | null; sys: SystemInfo | null; popular: PopularItem[]; libs: Lib[] }
 
@@ -112,25 +112,25 @@ function buildDoc(d: Data) {
           rows: d.popular.map((m, i) => ({
             cells: [String(i + 1).padStart(2, "0"), shortType(m.type), m.title, String(m.playCount)],
             tone: "accent",
+            to: m.id ? `/media/${m.id}` : "",
           })),
         },
       ],
     });
   }
 
-  // col 3 — libraries (real per-library counts)
+  // col 3 — libraries (real per-library counts), each a clickable link
   if (d.libs.length) {
-    const maxCount = Math.max(1, ...d.libs.map((l) => l.count));
     nodes.push({
       type: "panel",
       title: "libraries",
       subtitle: `// ${d.libs.length}`,
-      children: [
-        {
-          type: "statBar",
-          items: d.libs.map((l) => ({ label: shortType(l.type) || l.name, value: l.count, max: maxCount })),
-        },
-      ],
+      children: d.libs.map((l) => ({
+        type: "link",
+        label: `${shortType(l.type) || l.name} · ${l.count}`,
+        to: `/library/${l.id}`,
+        tone: "default",
+      })),
     });
   }
 
@@ -207,6 +207,7 @@ function ExperiencePoc() {
       );
 
       const popular: PopularItem[] = ((popR?.items as Array<Record<string, unknown>> | undefined) ?? []).map((m) => ({
+        id: String(m.mediaItemId ?? ""),
         title: String(m.title ?? ""),
         type: String(m.type ?? ""),
         playCount: Number(m.playCount ?? 0),
