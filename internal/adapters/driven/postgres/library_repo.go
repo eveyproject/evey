@@ -29,9 +29,9 @@ func (r *LibraryRepository) Create(ctx context.Context, lib *library.Library) er
 		return fmt.Errorf("LibraryRepo.Create marshal paths: %w", err)
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO libraries (id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		lib.ID, lib.Name, lib.Type, pathsJSON, lib.ScanIntervalMinutes, lib.Enabled, lib.LastScannedAt, lib.CreatedAt, lib.UpdatedAt,
+		`INSERT INTO libraries (id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at, scan_on_startup, realtime_monitoring)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		lib.ID, lib.Name, lib.Type, pathsJSON, lib.ScanIntervalMinutes, lib.Enabled, lib.LastScannedAt, lib.CreatedAt, lib.UpdatedAt, lib.ScanOnStartup, lib.RealtimeMonitoring,
 	)
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Create: %w", err)
@@ -47,9 +47,9 @@ func (r *LibraryRepository) GetByID(ctx context.Context, id shared.LibraryID) (*
 	lib := &library.Library{}
 	var pathsJSON []byte
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at
+		`SELECT id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at, scan_on_startup, realtime_monitoring
 		 FROM libraries WHERE id = $1`, string(id),
-	).Scan(&lib.ID, &lib.Name, &lib.Type, &pathsJSON, &lib.ScanIntervalMinutes, &lib.Enabled, &lib.LastScannedAt, &lib.CreatedAt, &lib.UpdatedAt)
+	).Scan(&lib.ID, &lib.Name, &lib.Type, &pathsJSON, &lib.ScanIntervalMinutes, &lib.Enabled, &lib.LastScannedAt, &lib.CreatedAt, &lib.UpdatedAt, &lib.ScanOnStartup, &lib.RealtimeMonitoring)
 	if err != nil {
 		return nil, fmt.Errorf("LibraryRepo.GetByID: %w", err)
 	}
@@ -64,7 +64,7 @@ func (r *LibraryRepository) List(ctx context.Context, filter library.ListLibrari
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	const baseQuery = `SELECT id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at
+	const baseQuery = `SELECT id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at, scan_on_startup, realtime_monitoring
 		 FROM libraries ORDER BY name`
 	var (
 		rows *sql.Rows
@@ -92,7 +92,7 @@ func (r *LibraryRepository) List(ctx context.Context, filter library.ListLibrari
 	for rows.Next() {
 		lib := &library.Library{}
 		var pathsJSON []byte
-		if err := rows.Scan(&lib.ID, &lib.Name, &lib.Type, &pathsJSON, &lib.ScanIntervalMinutes, &lib.Enabled, &lib.LastScannedAt, &lib.CreatedAt, &lib.UpdatedAt); err != nil {
+		if err := rows.Scan(&lib.ID, &lib.Name, &lib.Type, &pathsJSON, &lib.ScanIntervalMinutes, &lib.Enabled, &lib.LastScannedAt, &lib.CreatedAt, &lib.UpdatedAt, &lib.ScanOnStartup, &lib.RealtimeMonitoring); err != nil {
 			return nil, fmt.Errorf("LibraryRepo.List scan: %w", err)
 		}
 		if err := json.Unmarshal(pathsJSON, &lib.Paths); err != nil {
@@ -116,9 +116,9 @@ func (r *LibraryRepository) Update(ctx context.Context, lib *library.Library) er
 		return fmt.Errorf("LibraryRepo.Update marshal paths: %w", err)
 	}
 	res, err := r.db.ExecContext(ctx,
-		`UPDATE libraries SET name=$1, type=$2, paths=$3, scan_interval_minutes=$4, enabled=$5, last_scanned_at=$6, updated_at=$7
-		 WHERE id=$8`,
-		lib.Name, lib.Type, pathsJSON, lib.ScanIntervalMinutes, lib.Enabled, lib.LastScannedAt, lib.UpdatedAt, lib.ID,
+		`UPDATE libraries SET name=$1, type=$2, paths=$3, scan_interval_minutes=$4, enabled=$5, last_scanned_at=$6, updated_at=$7, scan_on_startup=$8, realtime_monitoring=$9
+		 WHERE id=$10`,
+		lib.Name, lib.Type, pathsJSON, lib.ScanIntervalMinutes, lib.Enabled, lib.LastScannedAt, lib.UpdatedAt, lib.ScanOnStartup, lib.RealtimeMonitoring, lib.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Update: %w", err)

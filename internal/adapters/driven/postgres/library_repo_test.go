@@ -43,6 +43,47 @@ func TestLibraryRepo_Create_GetByID(t *testing.T) {
 	assert.Equal(t, lib.Type, got.Type)
 }
 
+func TestLibraryRepo_ScanFlags_RoundTrip(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewLibraryRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("flags1")
+	lib.ScanOnStartup = true
+	lib.RealtimeMonitoring = true
+	require.NoError(t, repo.Create(ctx, lib))
+
+	// Create → GetByID must preserve both flags (the bug was they were never persisted).
+	got, err := repo.GetByID(ctx, shared.LibraryID(lib.ID))
+	require.NoError(t, err)
+	assert.True(t, got.ScanOnStartup, "scan_on_startup must persist")
+	assert.True(t, got.RealtimeMonitoring, "realtime_monitoring must persist")
+
+	// List path scans the same columns.
+	list, err := repo.List(ctx, library.ListLibrariesFilter{})
+	require.NoError(t, err)
+	var seen *library.Library
+	for _, l := range list {
+		if l.ID == lib.ID {
+			seen = l
+		}
+	}
+	require.NotNil(t, seen)
+	assert.True(t, seen.ScanOnStartup)
+	assert.True(t, seen.RealtimeMonitoring)
+
+	// Update must persist a flip back to false.
+	got.ScanOnStartup = false
+	got.RealtimeMonitoring = false
+	require.NoError(t, repo.Update(ctx, got))
+	after, err := repo.GetByID(ctx, shared.LibraryID(lib.ID))
+	require.NoError(t, err)
+	assert.False(t, after.ScanOnStartup)
+	assert.False(t, after.RealtimeMonitoring)
+}
+
 func TestLibraryRepo_List(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
