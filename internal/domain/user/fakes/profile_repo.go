@@ -31,6 +31,32 @@ func (r *FakeProfileRepository) Create(_ context.Context, p *user.Profile) error
 	return nil
 }
 
+// CreateWithinCap mirrors the repo: count + insert under the same lock so the
+// cap holds atomically. maxProfiles <= 0 means unlimited.
+func (r *FakeProfileRepository) CreateWithinCap(_ context.Context, p *user.Profile, maxProfiles int) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
+	if maxProfiles > 0 {
+		n := 0
+		for _, existing := range r.items {
+			if existing.UserID == p.UserID {
+				n++
+			}
+		}
+		if n >= maxProfiles {
+			return user.ErrProfileCapReached
+		}
+	}
+	r.items[string(p.ID)] = p
+	return nil
+}
+
 func (r *FakeProfileRepository) GetByID(_ context.Context, id shared.ProfileID) (*user.Profile, error) {
 	if r.Err != nil {
 		return nil, r.Err

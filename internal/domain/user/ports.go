@@ -2,10 +2,16 @@ package user
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
 )
+
+// ErrProfileCapReached is returned by ProfileRepository.CreateWithinCap when the
+// per-user profile cap would be exceeded. The app layer maps it onto its own
+// caller-facing error.
+var ErrProfileCapReached = errors.New("profile cap reached")
 
 type UserRepository interface {
 	Create(ctx context.Context, u *User) error
@@ -21,6 +27,11 @@ type UserRepository interface {
 
 type ProfileRepository interface {
 	Create(ctx context.Context, p *Profile) error
+	// CreateWithinCap inserts p only if the owning user has fewer than
+	// maxProfiles profiles, enforcing the count and the insert atomically under
+	// a per-user lock so concurrent creates cannot race past the cap.
+	// maxProfiles <= 0 means unlimited. Returns ErrProfileCapReached when full.
+	CreateWithinCap(ctx context.Context, p *Profile, maxProfiles int) error
 	GetByID(ctx context.Context, id shared.ProfileID) (*Profile, error)
 	GetByUserID(ctx context.Context, userID shared.UserID) ([]*Profile, error)
 	GetAll(ctx context.Context) ([]*Profile, error)

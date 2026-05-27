@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -13,13 +14,13 @@ import (
 )
 
 type UserService struct {
-	users          user.UserRepository
-	profiles       user.ProfileRepository
-	refreshTkns    user.RefreshTokenRepository
-	hasher         user.PasswordHasher
-	events         shared.EventBus
-	uow            shared.TransactionalUnit
-	defaultLocale  func() string // optional: resolves server.language, defaults to "en"
+	users         user.UserRepository
+	profiles      user.ProfileRepository
+	refreshTkns   user.RefreshTokenRepository
+	hasher        user.PasswordHasher
+	events        shared.EventBus
+	uow           shared.TransactionalUnit
+	defaultLocale func() string // optional: resolves server.language, defaults to "en"
 }
 
 type UserServiceOption func(*UserService)
@@ -276,7 +277,17 @@ func (s *UserService) CreateProfile(ctx context.Context, p *user.Profile) error 
 		return err
 	}
 	p.CreatedAt = time.Now()
-	if err := s.profiles.Create(ctx, p); err != nil {
+	// The cap check above is advisory (it races with concurrent creates); the
+	// authoritative, atomic enforcement happens in CreateWithinCap under a
+	// per-user lock. maxProfiles<=0 (incl. missing user/cap) means unlimited.
+	maxProfiles := 0
+	if u, uErr := s.users.GetByID(ctx, p.UserID); uErr == nil && u != nil && u.MaxProfiles != nil {
+		maxProfiles = *u.MaxProfiles
+	}
+	if err := s.profiles.CreateWithinCap(ctx, p, maxProfiles); err != nil {
+		if errors.Is(err, user.ErrProfileCapReached) {
+			return ErrMaxProfilesReached
+		}
 		return fmt.Errorf("UserService.CreateProfile: %w", err)
 	}
 	evtProfileCreated := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
@@ -319,6 +330,7 @@ func (s *UserService) SetDefaultProfile(ctx context.Context, profileID shared.Pr
 //  1. User.MaxProfiles cap (create only, skipped for updates)
 //  2. Kids invariant: when any kids profile exists on this user, every
 //     non-kids profile must have a PIN set.
+//
 // isUpdate skips the profile-count check (updating an existing profile
 // doesn't increase the count).
 func (s *UserService) checkProfileInvariants(ctx context.Context, p *user.Profile, isUpdate bool) error {

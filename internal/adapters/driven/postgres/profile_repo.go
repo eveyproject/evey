@@ -65,6 +65,61 @@ func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
 	return nil
 }
 
+// CreateWithinCap enforces the per-user profile cap and the insert atomically.
+// It serialises concurrent creates for the same user with a tx-scoped advisory
+// lock, counts the user's profiles under that lock, and inserts only when the
+// count is below maxProfiles — closing the count-then-create TOCTOU that let
+// concurrent requests overshoot the cap. maxProfiles <= 0 means unlimited.
+func (r *ProfileRepository) CreateWithinCap(ctx context.Context, p *user.Profile, maxProfiles int) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.CreateWithinCap")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", string(p.ID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("ProfileRepo.CreateWithinCap begin tx: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+				slog.Warn("ProfileRepo.CreateWithinCap rollback failed", slog.Any("err", rbErr))
+			}
+		}
+	}()
+
+	// Serialise concurrent creates for this user. The advisory lock is held
+	// for the lifetime of the tx and released automatically on commit/rollback.
+	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, string(p.UserID)); err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("ProfileRepo.CreateWithinCap lock: %w", err)
+	}
+	if maxProfiles > 0 {
+		var n int
+		if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM profiles WHERE user_id=$1`, string(p.UserID)).Scan(&n); err != nil {
+			span.RecordError(err)
+			return fmt.Errorf("ProfileRepo.CreateWithinCap count: %w", err)
+		}
+		if n >= maxProfiles {
+			return user.ErrProfileCapReached
+		}
+	}
+	// Reuse Create's INSERT, routed through this tx via ctxWithTx.
+	if err = r.Create(ctxWithTx(ctx, tx), p); err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("ProfileRepo.CreateWithinCap commit: %w", err)
+	}
+	committed = true
+	return nil
+}
+
 func (r *ProfileRepository) GetByID(ctx context.Context, id shared.ProfileID) (*user.Profile, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.profile.GetByID")
 	defer span.End()

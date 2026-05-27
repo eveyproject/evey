@@ -2,6 +2,10 @@ package postgres_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,6 +28,67 @@ func newTestProfile(id string, userID shared.UserID) *user.Profile {
 	}
 }
 
+// TestProfileRepo_CreateWithinCap_Concurrent proves the per-user cap holds under
+// concurrent creates (the F2 TOCTOU: count-then-create let requests overshoot).
+func TestProfileRepo_CreateWithinCap_Concurrent(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("capu")
+	require.NoError(t, userRepo.Create(ctx, u))
+
+	const maxCap = 2
+	const attempts = 12
+	var okCount, capCount int64
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			p := newTestProfile(fmt.Sprintf("capp-%d", i), u.ID)
+			switch err := profileRepo.CreateWithinCap(ctx, p, maxCap); {
+			case err == nil:
+				atomic.AddInt64(&okCount, 1)
+			case errors.Is(err, user.ErrProfileCapReached):
+				atomic.AddInt64(&capCount, 1)
+			default:
+				t.Errorf("unexpected error: %v", err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	assert.Equal(t, int64(maxCap), okCount, "exactly maxCap creates succeed")
+	assert.Equal(t, int64(attempts-maxCap), capCount, "the rest hit the cap")
+
+	got, err := profileRepo.GetByUserID(ctx, u.ID)
+	require.NoError(t, err)
+	assert.Len(t, got, maxCap, "DB must hold exactly maxCap profiles")
+}
+
+// CreateWithinCap with maxProfiles<=0 is unlimited.
+func TestProfileRepo_CreateWithinCap_Unlimited(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("uncap")
+	require.NoError(t, userRepo.Create(ctx, u))
+
+	for i := 0; i < 5; i++ {
+		require.NoError(t, profileRepo.CreateWithinCap(ctx, newTestProfile(fmt.Sprintf("unl-%d", i), u.ID), 0))
+	}
+	got, err := profileRepo.GetByUserID(ctx, u.ID)
+	require.NoError(t, err)
+	assert.Len(t, got, 5)
+}
 
 func TestProfileRepo_Create_GetByID(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
