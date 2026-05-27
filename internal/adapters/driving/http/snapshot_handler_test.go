@@ -44,8 +44,7 @@ func TestSnapshot_Success(t *testing.T) {
 		fe,
 		allowAll(),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x/video.mkv"}}},
-		"http://localhost",
-	)
+		"http://localhost", nil)
 
 	req := newSnapshotReq(t, "m1", "position_ms=12500")
 	req = withHTTPClaims(req, testClaims(false))
@@ -79,8 +78,8 @@ func TestSnapshot_NegativePositionClampedToZero(t *testing.T) {
 		fe,
 		allowAll(),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x.mkv"}}},
-		"http://localhost",
-	)
+		"http://localhost", nil)
+
 	req := newSnapshotReq(t, "m1", "position_ms=-5000")
 	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
@@ -100,8 +99,8 @@ func TestSnapshot_MediaNotFound(t *testing.T) {
 		&fakeFrameExt{},
 		allowAll(),
 		&fakeMediaItemGetter{err: errors.New("not found")},
-		"http://localhost",
-	)
+		"http://localhost", nil)
+
 	req := newSnapshotReq(t, "ghost", "")
 	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
@@ -118,8 +117,8 @@ func TestSnapshot_LibraryAccessDenied(t *testing.T) {
 		&fakeFrameExt{data: []byte("x")},
 		denyAll(),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-private", File: &domainlibrary.MediaFile{Path: "/x.mkv"}}},
-		"http://localhost",
-	)
+		"http://localhost", nil)
+
 	req := newSnapshotReq(t, "m1", "")
 	req = withHTTPClaims(req, &domainuser.Claims{UserID: "u1", ProfileID: "p1", IsAdmin: false})
 	w := httptest.NewRecorder()
@@ -137,8 +136,8 @@ func TestSnapshot_ExtractError(t *testing.T) {
 		&fakeFrameExt{err: errors.New("ffmpeg boom")},
 		allowAll(),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x.mkv"}}},
-		"http://localhost",
-	)
+		"http://localhost", nil)
+
 	req := newSnapshotReq(t, "m1", "position_ms=0")
 	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()

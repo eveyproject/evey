@@ -15,7 +15,6 @@ import (
 	"time"
 
 	appmedia "github.com/evey-project/evey/internal/app/media"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
@@ -23,6 +22,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainsubtitle "github.com/evey-project/evey/internal/domain/subtitle"
 	subfakes "github.com/evey-project/evey/internal/domain/subtitle/fakes"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
@@ -43,7 +43,6 @@ func (f *fakeSubtitleMediaGetter) GetMediaItem(_ context.Context, id string) (*d
 	}
 	return nil, errors.New("not found")
 }
-
 
 // ============================================================
 // Subtitle routes tests
@@ -228,7 +227,7 @@ func TestStreamToken_OK(t *testing.T) {
 	mg.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
-	h := httpAuthMiddleware(gen)(streamTokenHandler(gen, store, allowAll(), mg))
+	h := httpAuthMiddleware(gen)(streamTokenHandler(gen, store, allowAll(), mg, nil))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer "+userToken)
@@ -252,7 +251,7 @@ func TestStreamToken_NoAuth_401(t *testing.T) {
 	gen := auth.NewJWTGenerator(key, time.Minute)
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
-	h := httpAuthMiddleware(gen)(streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter()))
+	h := httpAuthMiddleware(gen)(streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter(), nil))
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
@@ -268,7 +267,7 @@ func TestStreamToken_InvalidToken_401(t *testing.T) {
 	gen := auth.NewJWTGenerator(key, time.Minute)
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
-	h := httpAuthMiddleware(gen)(streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter()))
+	h := httpAuthMiddleware(gen)(streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter(), nil))
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
@@ -285,7 +284,7 @@ func TestStreamToken_MediaNotFound_404(t *testing.T) {
 	gen := auth.NewJWTGenerator(key, time.Minute)
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
-	h := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter())
+	h := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter(), nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
@@ -304,7 +303,7 @@ func TestStreamToken_IDOR_403(t *testing.T) {
 	mg.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted"}
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
-	h := streamTokenHandler(gen, store, denyAll(), mg)
+	h := streamTokenHandler(gen, store, denyAll(), mg, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
@@ -1388,9 +1387,9 @@ func TestTranscodeHandler_InvalidToken_401(t *testing.T) {
 
 func TestTranscodeHandler_NotFound_404(t *testing.T) {
 	h := transcodeHandler(transcodeServe{
-		tokens: &fakeTokenVerifier{claims: testClaims(false)},
-		libSvc: &fakeMediaStreamsGetter{itemErr: errTest},
-		baseURL: "http://localhost",
+		tokens:        &fakeTokenVerifier{claims: testClaims(false)},
+		libSvc:        &fakeMediaStreamsGetter{itemErr: errTest},
+		baseURL:       "http://localhost",
 		libraryAccess: allowAll(),
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
@@ -1405,9 +1404,9 @@ func TestTranscodeHandler_NotFound_404(t *testing.T) {
 
 func TestTranscodeHandler_IDOR_403(t *testing.T) {
 	h := transcodeHandler(transcodeServe{
-		tokens: &fakeTokenVerifier{claims: testClaims(false)},
-		libSvc: &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", File: &domainlibrary.MediaFile{Path: "/a"}}},
-		baseURL: "http://localhost",
+		tokens:        &fakeTokenVerifier{claims: testClaims(false)},
+		libSvc:        &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", File: &domainlibrary.MediaFile{Path: "/a"}}},
+		baseURL:       "http://localhost",
 		libraryAccess: denyAll(),
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
@@ -1422,9 +1421,9 @@ func TestTranscodeHandler_IDOR_403(t *testing.T) {
 
 func TestTranscodeHandler_QueryToken(t *testing.T) {
 	h := transcodeHandler(transcodeServe{
-		tokens: &fakeTokenVerifier{claims: testClaims(false)},
-		libSvc: &fakeMediaStreamsGetter{itemErr: errTest},
-		baseURL: "http://localhost",
+		tokens:        &fakeTokenVerifier{claims: testClaims(false)},
+		libSvc:        &fakeMediaStreamsGetter{itemErr: errTest},
+		baseURL:       "http://localhost",
 		libraryAccess: allowAll(),
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
@@ -1443,9 +1442,9 @@ func TestTranscodeHandler_MaxStreams_429(t *testing.T) {
 	fakeMaxStreams := &fakeUserMaxStreams{max: &maxStreams}
 	throttle.Acquire("u1", 0) // occupy one slot
 	h := transcodeHandler(transcodeServe{
-		tokens: &fakeTokenVerifier{claims: testClaims(false)},
-		libSvc: &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/a"}}},
-		baseURL: "http://localhost",
+		tokens:        &fakeTokenVerifier{claims: testClaims(false)},
+		libSvc:        &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/a"}}},
+		baseURL:       "http://localhost",
 		libraryAccess: allowAll(), throttle: throttle, userMaxStreams: fakeMaxStreams,
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
@@ -1474,8 +1473,8 @@ func (f *fakeUserMaxStreams) GetMaxStreams(_ context.Context, _ string) *int {
 func TestHLSMasterHandler_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(hlsMasterHandler(hlsMasterServe{
-		tokens: verifier,
-		libSvc: &fakeMediaStreamsGetter{},
+		tokens:        verifier,
+		libSvc:        &fakeMediaStreamsGetter{},
 		libraryAccess: allowAll(),
 	}))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
@@ -1490,8 +1489,8 @@ func TestHLSMasterHandler_NoAuth_401(t *testing.T) {
 func TestHLSMasterHandler_InvalidToken_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(hlsMasterHandler(hlsMasterServe{
-		tokens: verifier,
-		libSvc: &fakeMediaStreamsGetter{},
+		tokens:        verifier,
+		libSvc:        &fakeMediaStreamsGetter{},
 		libraryAccess: allowAll(),
 	}))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
@@ -1506,7 +1505,7 @@ func TestHLSMasterHandler_InvalidToken_401(t *testing.T) {
 
 func TestHLSMasterHandler_NotFound_404(t *testing.T) {
 	h := hlsMasterHandler(hlsMasterServe{
-		libSvc: &fakeMediaStreamsGetter{itemErr: errTest},
+		libSvc:        &fakeMediaStreamsGetter{itemErr: errTest},
 		libraryAccess: allowAll(),
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
@@ -1521,7 +1520,7 @@ func TestHLSMasterHandler_NotFound_404(t *testing.T) {
 
 func TestHLSMasterHandler_IDOR_403(t *testing.T) {
 	h := hlsMasterHandler(hlsMasterServe{
-		libSvc: &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", File: &domainlibrary.MediaFile{Path: "/a"}}},
+		libSvc:        &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		libraryAccess: denyAll(),
 	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
@@ -1548,7 +1547,6 @@ func TestServePhoto_NotFound(t *testing.T) {
 		t.Errorf("auth should pass, got %d", w.Code)
 	}
 }
-
 
 // ============================================================
 // Backup handler additional tests

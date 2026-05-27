@@ -13,7 +13,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-func streamTokenHandler(tokenGen *auth.JWTGenerator, store *appmedia.StreamTokenStore, libAccess LibraryAccessChecker, mediaGetter mediaLibraryGetter) http.HandlerFunc {
+func streamTokenHandler(tokenGen *auth.JWTGenerator, store *appmedia.StreamTokenStore, libAccess LibraryAccessChecker, mediaGetter mediaLibraryGetter, parental ParentalChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.stream_token.Issue")
 		defer span.End()
@@ -32,6 +32,10 @@ func streamTokenHandler(tokenGen *auth.JWTGenerator, store *appmedia.StreamToken
 		}
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libAccess) {
 			span.SetStatus(otelcodes.Error, "library access denied")
+			return
+		}
+		if !checkParental(r.Context(), w, claims, item, parental) {
+			span.SetStatus(otelcodes.Error, "parental restricted")
 			return
 		}
 

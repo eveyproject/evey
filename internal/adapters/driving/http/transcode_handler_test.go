@@ -80,7 +80,7 @@ func TestTranscodeHandler_IDOR_Forbidden(t *testing.T) {
 
 func TestPlaybackInfoHandler_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
-	inner := playbackInfoHandler(verifier, &fakeMediaStreamsGetter{}, allowAll(), nil)
+	inner := playbackInfoHandler(verifier, &fakeMediaStreamsGetter{}, allowAll(), nil, nil)
 	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
@@ -96,8 +96,8 @@ func TestPlaybackInfoHandler_MediaNotFound_404(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{itemErr: errTest},
 		allowAll(),
-		nil,
-	)
+		nil, nil)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
 	req = withHTTPClaims(req, testClaims(false))

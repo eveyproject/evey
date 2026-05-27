@@ -713,43 +713,19 @@ func mediaItemBlockedByParental(pf parentalFilter, item *library.MediaItem) bool
 		return false
 	}
 	if pf.maxAge >= 0 {
-		worstAge := -1
 		var certByCountry map[string]string
 		var officialRating string
 		if item.Classification != nil {
 			certByCountry = item.Classification.CertificationsByCountry
 			officialRating = item.Classification.OfficialRating
 		}
-		if pf.region != "" && certByCountry != nil {
-			if r, ok := certByCountry[pf.region]; ok && r != "" {
-				if age := ratings.MinAgeFor(pf.region, r); age > worstAge {
-					worstAge = age
-				}
-			}
-		}
-		if officialRating != "" {
-			if age := ratings.MinAgeFor(pf.region, officialRating); age > worstAge {
-				worstAge = age
-			}
-		}
-		// Worst-case across every known foreign cert. A kid profile in FR
-		// shouldn't be the place to discover that an MA 15+ Australian rating
-		// existed all along.
-		for country, rating := range certByCountry {
-			if rating == "" {
-				continue
-			}
-			if age := ratings.MinAgeFor(country, rating); age > worstAge {
-				worstAge = age
-			}
-		}
-		if worstAge < 0 {
-			// No rating resolvable. Fail closed for kids — admin can edit the
-			// item's metadata override to expose it explicitly if it really is
-			// child-appropriate.
-			return true
-		}
-		if worstAge > pf.maxAge {
+		// Worst-case across the region cert, the OfficialRating and every known
+		// foreign cert. A kid profile in FR shouldn't be the place to discover
+		// that an MA 15+ Australian rating existed all along.
+		worstAge := ratings.WorstCaseMinAge(pf.region, officialRating, certByCountry)
+		if worstAge < 0 || worstAge > pf.maxAge {
+			// Unresolvable rating fails closed for kids — admin can expose the
+			// item explicitly via a metadata override if it really is suitable.
 			return true
 		}
 	}

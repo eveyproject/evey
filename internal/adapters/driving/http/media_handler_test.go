@@ -92,8 +92,8 @@ func TestDownloadHandler_Unauthenticated(t *testing.T) {
 		verifier,
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		"http://localhost",
-		&fakeLibraryAccessChecker{allowed: true},
-	)
+		&fakeLibraryAccessChecker{allowed: true}, nil)
+
 	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
 	req.SetPathValue("id", "m1")
@@ -110,8 +110,8 @@ func TestDownloadHandler_IDOR_Forbidden(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		"http://localhost",
-		&fakeLibraryAccessChecker{allowed: false},
-	)
+		&fakeLibraryAccessChecker{allowed: false}, nil)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
 	req.SetPathValue("id", "m1")
 	req = withHTTPClaims(req, testClaims(false))
@@ -127,8 +127,8 @@ func TestDownloadHandler_Allowed_FileNotFound(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/nonexistent_file_xyz.mkv"}}},
 		"http://localhost",
-		&fakeLibraryAccessChecker{allowed: true},
-	)
+		&fakeLibraryAccessChecker{allowed: true}, nil)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
 	req.SetPathValue("id", "m1")
 	req = withHTTPClaims(req, testClaims(false))

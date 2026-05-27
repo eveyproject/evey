@@ -12,7 +12,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-func snapshotHandler(tokenGen TokenVerifier, frameExt FrameExtractor, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, baseURL string) http.HandlerFunc {
+func snapshotHandler(tokenGen TokenVerifier, frameExt FrameExtractor, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, baseURL string, parental ParentalChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		spanCtx, span := tracing.StartSpan(r.Context(), "http.snapshot.Capture")
 		defer span.End()
@@ -30,6 +30,10 @@ func snapshotHandler(tokenGen TokenVerifier, frameExt FrameExtractor, libraryAcc
 		}
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			span.SetStatus(otelcodes.Error, "library access denied")
+			return
+		}
+		if !checkParental(r.Context(), w, claims, item, parental) {
+			span.SetStatus(otelcodes.Error, "parental restricted")
 			return
 		}
 		if item.File == nil || item.File.Path == "" {

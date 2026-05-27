@@ -385,8 +385,7 @@ func TestPlaybackInfo_NoAuth_401(t *testing.T) {
 		verifier,
 		&fakeMediaStreamsGetter{},
 		allowAll(),
-		nil,
-	))
+		nil, nil))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
 	w := httptest.NewRecorder()
@@ -402,8 +401,7 @@ func TestPlaybackInfo_InvalidToken_401(t *testing.T) {
 		verifier,
 		&fakeMediaStreamsGetter{},
 		allowAll(),
-		nil,
-	))
+		nil, nil))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer bad")
@@ -419,8 +417,8 @@ func TestPlaybackInfo_NotFound_404(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{itemErr: errTest},
 		allowAll(),
-		nil,
-	)
+		nil, nil)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
 	req = withHTTPClaims(req, testClaims(false))
@@ -436,8 +434,8 @@ func TestPlaybackInfo_IDOR_403(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		denyAll(),
-		nil,
-	)
+		nil, nil)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
 	req = withHTTPClaims(req, testClaims(false))
@@ -461,8 +459,8 @@ func TestPlaybackInfo_OK(t *testing.T) {
 			},
 		},
 		allowAll(),
-		nil,
-	)
+		nil, nil)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
 	req = withHTTPClaims(req, testClaims(false))
@@ -481,8 +479,8 @@ func TestPlaybackInfo_StreamsError_500(t *testing.T) {
 			sErr: errTest,
 		},
 		allowAll(),
-		nil,
-	)
+		nil, nil)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
 	req = withHTTPClaims(req, testClaims(false))
@@ -619,8 +617,7 @@ func TestDownloadHandler_InvalidToken_401(t *testing.T) {
 		verifier,
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		"http://localhost",
-		allowAll(),
-	))
+		allowAll(), nil))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer bad")
@@ -636,8 +633,8 @@ func TestDownloadHandler_StreamTokenContext(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/nonexistent"}}},
 		"http://localhost",
-		allowAll(),
-	)
+		allowAll(), nil)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
 	req.SetPathValue("id", "m1")
 	ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
@@ -657,8 +654,8 @@ func TestDownloadHandler_EmptyFilePath_404(t *testing.T) {
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		"http://localhost",
-		allowAll(),
-	)
+		allowAll(), nil)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
 	req.SetPathValue("id", "m1")
 	req = withHTTPClaims(req, testClaims(false))
@@ -1633,4 +1630,3 @@ func TestParentalUpdateSettings_ClearPIN(t *testing.T) {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
 }
-

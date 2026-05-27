@@ -12,8 +12,10 @@ import (
 
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appbackup "github.com/evey-project/evey/internal/app/backup"
+	appcast "github.com/evey-project/evey/internal/app/chromecast"
 	appcollection "github.com/evey-project/evey/internal/app/collection"
 	appconfig "github.com/evey-project/evey/internal/app/config"
+	appdlna "github.com/evey-project/evey/internal/app/dlna"
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmedia "github.com/evey-project/evey/internal/app/media"
@@ -23,12 +25,9 @@ import (
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
 	apprating "github.com/evey-project/evey/internal/app/rating"
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
-	appcast "github.com/evey-project/evey/internal/app/chromecast"
-	appdlna "github.com/evey-project/evey/internal/app/dlna"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"github.com/evey-project/evey/internal/config"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/notification"
@@ -38,6 +37,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/i18n"
 	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
@@ -95,10 +95,10 @@ type HTTPServer struct {
 	ActivityCmdSvc   *appactivity.CommandService
 
 	// Collections / Playlists / Favorites
-	CollectionSvc *appcollection.Service
+	CollectionSvc  *appcollection.Service
 	PlaylistSvc    *appplaylist.Service
 	PlaylistGenSvc *appplaylist.GeneratorService
-	FavoriteSvc   *appfavorite.Service
+	FavoriteSvc    *appfavorite.Service
 
 	// Music
 	MusicSvc *appmusic.Service
@@ -159,12 +159,12 @@ type HTTPServer struct {
 	ServerCtx context.Context
 
 	// Rate limiters passed in from main
-	LoginRL          *ratelimit.Limiter
-	GlobalRL         *ratelimit.Limiter
-	AdminHeavyRL     *ratelimit.Limiter
-	AdminWriteRL     *ratelimit.Limiter
-	PasswordResetRL  *ratelimit.Limiter
-	OIDCLoginRL      *ratelimit.Limiter
+	LoginRL         *ratelimit.Limiter
+	GlobalRL        *ratelimit.Limiter
+	AdminHeavyRL    *ratelimit.Limiter
+	AdminWriteRL    *ratelimit.Limiter
+	PasswordResetRL *ratelimit.Limiter
+	OIDCLoginRL     *ratelimit.Limiter
 
 	// i18n
 	Translator *i18n.Translator
@@ -174,8 +174,8 @@ type HTTPServer struct {
 
 	// User stream/bitrate adapters
 	UserMaxStreams UserMaxStreamsGetter
-	UserBitrate   UserBitrateGetter
-	ProfilePrefs  ProfilePrefsGetter
+	UserBitrate    UserBitrateGetter
+	ProfilePrefs   ProfilePrefsGetter
 
 	// Frame extraction (for admin snapshot preview)
 	FrameExtractor FrameExtractor
@@ -212,7 +212,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 	mux.HandleFunc("GET /api/v1/admin/fs/browse", admin(browseDirsHandler(s.TokenGen)))
 
-	var mhOpts []mediaServeOption
+	// parentalChk gates the raw byte/decision/token stream handlers so a kids
+	// profile that knows an adult media-id out of band can't bypass the gRPC
+	// parental filter by hitting these endpoints directly. Gating the HLS master
+	// (which creates the session) transitively protects the segment handler.
+	parentalChk := NewParentalChecker(s.UserQuerySvc)
+
+	mhOpts := []mediaServeOption{withParental(parentalChk)}
 	if s.ImageConverter != nil {
 		mhOpts = append(mhOpts, withImageConverter(s.ImageConverter, s.ArtworkRepo))
 	}
@@ -222,7 +228,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 	mux.HandleFunc("POST /api/v1/media/{id}/stream", streamAuth(mh))
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
-	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo)))
+	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))
 	// Public share download: no auth — the uuid token is the capability.
 	// Admin-only to CREATE (RBAC), but the resulting link must resolve without
 	// a login. Rate-limited per-IP as defence-in-depth (the uuid entropy is the
@@ -230,12 +236,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.ShareSvc != nil {
 		mux.HandleFunc("GET /api/v1/share/{token}/download", ratelimit.MiddlewareFunc(s.GlobalRL, shareDownloadHandler(s.ShareSvc, s.LibQuerySvc, s.BaseURL())))
 	}
-	mux.HandleFunc("POST /api/v1/media/{id}/stream-token", auth(streamTokenHandler(s.TokenGen, s.StreamTokenStore, s.LibraryAccessRepo, s.LibQuerySvc)))
+	mux.HandleFunc("POST /api/v1/media/{id}/stream-token", auth(streamTokenHandler(s.TokenGen, s.StreamTokenStore, s.LibraryAccessRepo, s.LibQuerySvc, parentalChk)))
 
 	transcodeThrottle := apptranscoding.NewTranscodeThrottle()
 	mux.HandleFunc("GET /api/v1/media/{id}/transcode", streamAuth(transcodeHandler(transcodeServe{
 		tokens: s.TokenGen, libSvc: s.LibQuerySvc, baseURL: s.BaseURL(),
 		libraryAccess: s.LibraryAccessRepo, throttle: transcodeThrottle, userMaxStreams: s.UserMaxStreams,
+		parental: parentalChk,
 	})))
 	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", streamAuth(subtitleHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo)))
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", streamAuth(chaptersHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc)))
@@ -243,7 +250,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// Trickplay (manifest + sprite images) is public (non-sensitive): no auth required.
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc))
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc))
-	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", streamAuth(snapshotHandler(s.TokenGen, s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL())))
+	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", streamAuth(snapshotHandler(s.TokenGen, s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL(), parentalChk)))
 	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.TokenGen, s.LibCmdSvc, s.ServerCtx))))
 	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
 	mux.HandleFunc("POST /api/v1/admin/search/reindex", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, searchReindexHandler(s.LibQuerySvc, s.ServerCtx))))
@@ -253,12 +260,12 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("DELETE /api/v1/admin/media/{id}/segments", deleteSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/segments/propagate", propagateSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 	}
-	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs)))
+	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs, parentalChk)))
 	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", streamAuth(hlsMasterHandler(hlsMasterServe{
 		tokens: s.TokenGen, libSvc: s.LibQuerySvc, hlsManager: s.HLSManager,
 		libraryAccess: s.LibraryAccessRepo, userMaxStreams: s.UserMaxStreams,
 		audioNormalizeGetter: s.AudioNormalizeGetter, bitrateGetter: s.UserBitrate,
-		profilePrefs: s.ProfilePrefs,
+		profilePrefs: s.ProfilePrefs, parental: parentalChk,
 	})))
 	hlsMediaCache := NewCachedMediaItemGetter(s.LibQuerySvc)
 	hlsAccessCache := NewCachedLibraryAccessChecker(s.LibraryAccessRepo)
@@ -336,9 +343,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 	// JSON CRUD → gRPC: favorites, playlists, metadata overrides, transcode cache/profiles, library access, admin
 	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx, s.PhotoTranscoder, s.PhotoCacheDir) // binary: photo/serve
-	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo) // binary: WebSocket
-	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                                   // Play On: WebSocket + REST
-	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL) // binary: download/restore
+	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)                                            // binary: WebSocket
+	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                                                                               // Play On: WebSocket + REST
+	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL)                                                    // binary: download/restore
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
 	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, s.HLSManager, s.LoginRL, s.GlobalRL, s.AdminWriteRL)
 	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL)
@@ -403,7 +410,6 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.PluginSecurityDashboardSvc != nil {
 		registerPluginSecurityDashboardRoute(mux, s.TokenGen, s.PluginSecurityDashboardSvc)
 	}
-
 
 	if s.OIDCSvc != nil {
 		registerOIDCRoutes(mux, s.OIDCSvc, s.HTTPSOnly, s.OIDCLoginRL)

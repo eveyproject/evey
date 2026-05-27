@@ -100,6 +100,38 @@ func IsAllowedByAge(country, rating string, maxAge int) bool {
 	return age <= maxAge
 }
 
+// WorstCaseMinAge returns the highest minimum recommended age across the
+// profile-region certification, the OfficialRating field, and every other
+// country certification we can map. Returns -1 when none of them resolve to a
+// known min-age. Callers enforcing a parental filter for kids should treat -1
+// as "block" (fail closed): a title that exposes only, say, an "AU: MA 15+"
+// rating must not slip past a profile region'd to FR just because there is no
+// FR cert and the permissive IsAllowedByAge would let an unknown rating through.
+func WorstCaseMinAge(region, officialRating string, certByCountry map[string]string) int {
+	worst := -1
+	if region != "" && certByCountry != nil {
+		if r, ok := certByCountry[region]; ok && r != "" {
+			if age := MinAgeFor(region, r); age > worst {
+				worst = age
+			}
+		}
+	}
+	if officialRating != "" {
+		if age := MinAgeFor(region, officialRating); age > worst {
+			worst = age
+		}
+	}
+	for country, rating := range certByCountry {
+		if rating == "" {
+			continue
+		}
+		if age := MinAgeFor(country, rating); age > worst {
+			worst = age
+		}
+	}
+	return worst
+}
+
 // AllowedRatingsForAge returns the union of all rating strings (across countries)
 // whose minimum age is <= maxAge. Callers use this for SQL-level pre-filtering;
 // the precise per-country check runs later in the handler via IsAllowedByAge.

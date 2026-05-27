@@ -23,7 +23,7 @@ func TestStreamTokenHandler_CreateToken(t *testing.T) {
 	mg.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
-	h := streamTokenHandler(gen, store, allowAll(), mg)
+	h := streamTokenHandler(gen, store, allowAll(), mg, nil)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
 	req = withHTTPClaims(req, &domainuser.Claims{UserID: "u1", IsAdmin: false})
@@ -50,7 +50,7 @@ func TestStreamTokenHandler_InvalidToken_401(t *testing.T) {
 	gen := auth.NewJWTGenerator(key, time.Minute)
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
-	inner := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter())
+	inner := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter(), nil)
 	h := httpAuthMiddleware(gen)(inner)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
@@ -68,7 +68,7 @@ func TestStreamTokenHandler_NoAuth_401(t *testing.T) {
 	gen := auth.NewJWTGenerator(key, time.Minute)
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
-	inner := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter())
+	inner := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter(), nil)
 	h := httpAuthMiddleware(gen)(inner)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
@@ -85,7 +85,7 @@ func TestStreamTokenHandler_MediaNotFound_404(t *testing.T) {
 	gen := auth.NewJWTGenerator(key, time.Minute)
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
-	h := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter())
+	h := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter(), nil)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
 	req = withHTTPClaims(req, &domainuser.Claims{UserID: "u1", IsAdmin: false})
@@ -104,7 +104,7 @@ func TestStreamTokenHandler_IDOR_403(t *testing.T) {
 	mg.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted"}
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
-	h := streamTokenHandler(gen, store, denyAll(), mg)
+	h := streamTokenHandler(gen, store, denyAll(), mg, nil)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
 	req = withHTTPClaims(req, &domainuser.Claims{UserID: "u1", IsAdmin: false})

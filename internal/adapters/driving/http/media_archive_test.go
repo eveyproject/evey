@@ -46,8 +46,8 @@ func runArchiveDownload(t *testing.T, getter *fakeMediaItemGetter, id string) *h
 		&fakeTokenVerifier{claims: testClaims(false)},
 		getter,
 		"http://localhost",
-		&fakeLibraryAccessChecker{allowed: true},
-	)
+		&fakeLibraryAccessChecker{allowed: true}, nil)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/"+id+"/download", nil)
 	req.SetPathValue("id", id)
 	req = withHTTPClaims(req, testClaims(false))

@@ -94,6 +94,7 @@ type mediaServe struct {
 	imgConverter  ImageConverter
 	baseURL       string
 	libraryAccess LibraryAccessChecker
+	parental      ParentalChecker
 }
 
 // ArtworkWebPWriter updates the WebP path on an artwork record.
@@ -108,6 +109,12 @@ func withImageConverter(conv ImageConverter, writer ArtworkWebPWriter) mediaServ
 		h.imgConverter = conv
 		h.artworkWriter = writer
 	}
+}
+
+// withParental wires the parental gate onto the stream handler. Supplied via an
+// option so the many mediaHandler test call sites stay unchanged.
+func withParental(pc ParentalChecker) mediaServeOption {
+	return func(h *mediaServe) { h.parental = pc }
 }
 
 func mediaHandler(tokens TokenVerifier, libSvc MediaItemGetter, artworkRepo ArtworkReader, baseURL string, libraryAccess LibraryAccessChecker, opts ...mediaServeOption) http.HandlerFunc {
@@ -151,6 +158,10 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 		span.SetStatus(codes.Error, "library access denied")
 		return
 	}
+	if !checkParental(r.Context(), w, claims, item, h.parental) {
+		span.SetStatus(codes.Error, "parental restricted")
+		return
+	}
 	if item.File == nil || item.File.Path == "" {
 		span.SetStatus(codes.Error, "media file missing")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
@@ -160,7 +171,7 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, item.File.Path)
 }
 
-func downloadHandler(tokens TokenVerifier, libSvc MediaArchiveSource, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
+func downloadHandler(tokens TokenVerifier, libSvc MediaArchiveSource, baseURL string, libraryAccess LibraryAccessChecker, parental ParentalChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.media.Download")
 		defer span.End()
@@ -187,6 +198,10 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaArchiveSource, baseURL st
 		}
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			span.SetStatus(codes.Error, "library access denied")
+			return
+		}
+		if !checkParental(r.Context(), w, claims, item, parental) {
+			span.SetStatus(codes.Error, "parental restricted")
 			return
 		}
 

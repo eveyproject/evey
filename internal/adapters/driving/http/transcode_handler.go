@@ -171,10 +171,11 @@ type playbackServe struct {
 	libSvc        MediaStreamsGetter
 	libraryAccess LibraryAccessChecker
 	profilePrefs  ProfilePrefsGetter
+	parental      ParentalChecker
 }
 
-func playbackInfoHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, libraryAccess LibraryAccessChecker, profilePrefs ProfilePrefsGetter) http.HandlerFunc {
-	h := &playbackServe{tokens: tokenGen, libSvc: libSvc, libraryAccess: libraryAccess, profilePrefs: profilePrefs}
+func playbackInfoHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, libraryAccess LibraryAccessChecker, profilePrefs ProfilePrefsGetter, parental ParentalChecker) http.HandlerFunc {
+	h := &playbackServe{tokens: tokenGen, libSvc: libSvc, libraryAccess: libraryAccess, profilePrefs: profilePrefs, parental: parental}
 	return h.serveHTTP
 }
 
@@ -196,6 +197,10 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
 		span.SetStatus(codes.Error, "library access denied")
+		return
+	}
+	if !checkParental(r.Context(), w, claims, item, h.parental) {
+		span.SetStatus(codes.Error, "parental restricted")
 		return
 	}
 
@@ -268,14 +273,15 @@ func (h *playbackServe) parseClientProfile(r *http.Request) domaintranscoding.Cl
 // --- hlsMasterHandler ---
 
 type hlsMasterServe struct {
-	tokens              TokenVerifier
-	libSvc              MediaStreamsGetter
-	hlsManager          *apptranscoding.HLSManager
-	libraryAccess       LibraryAccessChecker
+	tokens               TokenVerifier
+	libSvc               MediaStreamsGetter
+	hlsManager           *apptranscoding.HLSManager
+	libraryAccess        LibraryAccessChecker
 	userMaxStreams       UserMaxStreamsGetter
 	audioNormalizeGetter func(ctx context.Context) bool
-	bitrateGetter       UserBitrateGetter
-	profilePrefs        ProfilePrefsGetter
+	bitrateGetter        UserBitrateGetter
+	profilePrefs         ProfilePrefsGetter
+	parental             ParentalChecker
 }
 
 func hlsMasterHandler(deps hlsMasterServe) http.HandlerFunc {
@@ -321,6 +327,12 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
 		span.SetStatus(codes.Error, "library access denied")
+		return
+	}
+	if !checkParental(r.Context(), w, claims, item, h.parental) {
+		span.SetStatus(codes.Error, "parental restricted")
+		slog.Warn("hls: master 403 — parental restricted",
+			slog.String("media_id", mediaID), slog.String("user_id", userID))
 		return
 	}
 
@@ -599,12 +611,13 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 // --- transcodeHandler ---
 
 type transcodeServe struct {
-	tokens        TokenVerifier
-	libSvc        MediaStreamsGetter
-	baseURL       string
-	libraryAccess LibraryAccessChecker
-	throttle      *apptranscoding.TranscodeThrottle
+	tokens         TokenVerifier
+	libSvc         MediaStreamsGetter
+	baseURL        string
+	libraryAccess  LibraryAccessChecker
+	throttle       *apptranscoding.TranscodeThrottle
 	userMaxStreams UserMaxStreamsGetter
+	parental       ParentalChecker
 }
 
 func transcodeHandler(deps transcodeServe) http.HandlerFunc {
@@ -638,6 +651,10 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
 		span.SetStatus(codes.Error, "library access denied")
+		return
+	}
+	if !checkParental(r.Context(), w, claims, item, h.parental) {
+		span.SetStatus(codes.Error, "parental restricted")
 		return
 	}
 	maxStreams := 0
@@ -720,4 +737,3 @@ func loadProfilePrefs(ctx context.Context, getter ProfilePrefsGetter, profileID 
 	}
 	return apptranscoding.ParseTranscodingPreferences(raw)
 }
-

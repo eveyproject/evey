@@ -1,0 +1,90 @@
+package httpapi
+
+import (
+	"context"
+	"net/http"
+
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/ratings"
+	"github.com/evey-project/evey/internal/pkg/region"
+)
+
+// ParentalChecker decides whether the active profile may view an item under its
+// parental settings. The raw byte/decision/token HTTP handlers (HLS master,
+// direct stream, transcode, download, snapshot, playback-info, stream-token)
+// authorise library access but historically served content without consulting
+// the kids filter that lives in the gRPC layer — so a kids profile that knew an
+// adult media-id out of band could still stream it. These handlers run the
+// check via checkParental.
+type ParentalChecker interface {
+	// BlockedByParental reports whether the given profile must not view item.
+	// item is the already-resolved MediaItem (carrying its Classification), so
+	// no extra fetch is needed.
+	BlockedByParental(ctx context.Context, profileID string, item *domainlibrary.MediaItem) bool
+}
+
+// ProfileParentalGetter resolves a profile's parental configuration. Satisfied
+// by *appuser.QueryService.
+type ProfileParentalGetter interface {
+	GetProfileByID(ctx context.Context, profileID string) (*domainuser.Profile, error)
+}
+
+type profileParentalChecker struct {
+	profiles ProfileParentalGetter
+}
+
+// NewParentalChecker builds the ParentalChecker used by the streaming handlers.
+// A nil getter yields a checker that never blocks (parental simply not wired).
+func NewParentalChecker(p ProfileParentalGetter) ParentalChecker {
+	return &profileParentalChecker{profiles: p}
+}
+
+func (c *profileParentalChecker) BlockedByParental(ctx context.Context, profileID string, item *domainlibrary.MediaItem) bool {
+	if c == nil || c.profiles == nil || profileID == "" || item == nil {
+		return false
+	}
+	profile, err := c.profiles.GetProfileByID(ctx, profileID)
+	if err != nil || profile == nil {
+		// Can't resolve the profile → this is not a kids restriction we can
+		// assert; leave the existing library-access check as the guard.
+		return false
+	}
+	ps := profile.EffectiveParental()
+	if ps == nil {
+		return false
+	}
+	if ps.MaxAge != nil {
+		reg := region.Resolve(profile.Region, "", profile.Locale)
+		officialRating := ""
+		var certByCountry map[string]string
+		if item.Classification != nil {
+			officialRating = item.Classification.OfficialRating
+			certByCountry = item.Classification.CertificationsByCountry
+		}
+		worst := ratings.WorstCaseMinAge(reg, officialRating, certByCountry)
+		// Fail closed: an unresolvable rating is blocked for a kids profile.
+		if worst < 0 || worst > *ps.MaxAge {
+			return true
+		}
+	}
+	if item.Catalog != nil && ratings.HasBlockedTag(item.Catalog.Tags, ps.BlockedTags) {
+		return true
+	}
+	return false
+}
+
+// checkParental writes a 403 and returns false when the active profile may not
+// view item. It is a no-op (returns true) when parental is not wired, the
+// caller is an admin, or there are no claims/item — mirroring checkLibraryAccess
+// and the gRPC resolver which both exempt admins from a parental filter.
+func checkParental(ctx context.Context, w http.ResponseWriter, claims *domainuser.Claims, item *domainlibrary.MediaItem, pc ParentalChecker) bool {
+	if pc == nil || claims == nil || claims.IsAdmin || item == nil {
+		return true
+	}
+	if pc.BlockedByParental(ctx, claims.ProfileID, item) {
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		return false
+	}
+	return true
+}
