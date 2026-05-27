@@ -484,7 +484,7 @@ func Load() (*Config, error) {
 			SkipBackwardSeconds: envInt("EVEY_PLAYBACK_SKIP_BACKWARD", 30),
 		},
 		Metadata: MetadataConfig{
-			Language:              "en",
+			Language:              envStr("EVEY_METADATA_LANGUAGE", "en"),
 			IntroProvidersEnabled: envBool("EVEY_INTRO_PROVIDERS_ENABLED", false),
 			TIDBAPIKey:            envStr("EVEY_INTRO_TIDB_API_KEY", ""),
 			SkipPreviewEnabled:    envBool("EVEY_INTRO_SKIP_PREVIEW_ENABLED", false),

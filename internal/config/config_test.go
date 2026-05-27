@@ -112,6 +112,7 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	t.Setenv("EVEY_LIBRARY_WATCHER_ENABLED", "false")
 	t.Setenv("EVEY_LOG_LEVEL", "debug")
 	t.Setenv("EVEY_REMOTE_ACCESS_ENABLED", "true")
+	t.Setenv("EVEY_METADATA_LANGUAGE", "fr")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -123,7 +124,7 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	assert.True(t, cfg.OIDC.Enabled)
 	assert.Equal(t, 30*time.Minute, cfg.JWT.AccessTokenTTL)
 	assert.False(t, cfg.Library.WatcherEnabled)
-	assert.Equal(t, "en", cfg.Metadata.Language)
+	assert.Equal(t, "fr", cfg.Metadata.Language)
 	assert.Equal(t, "debug", cfg.Log.Level)
 	assert.True(t, cfg.RemoteAccess.Enabled)
 }
