@@ -261,18 +261,37 @@ func TestRestoreBackup_DumperError(t *testing.T) {
 	}
 }
 
-func TestRestoreBackup_EmptySHA256_SkipsValidation(t *testing.T) {
-	svc, _, dumper := setup()
+func TestRestoreBackup_EmptySHA256_Rejected(t *testing.T) {
+	// An archive whose manifest has no DumpSHA256 must be rejected (fail-closed).
+	// Legitimate backups always carry a checksum; an empty field indicates a
+	// pre-feature or tampered archive.
+	svc, _, _ := setup()
 	dump := []byte("-- dump with no sha\n")
 	m := makeManifest(dump)
 	m.DumpSHA256 = ""
 	archive := buildTarGz(t, m, dump, nil)
 
+	err := svc.RestoreBackup(context.Background(), bytes.NewReader(archive))
+	if err == nil {
+		t.Fatal("expected error when manifest DumpSHA256 is empty")
+	}
+	if !strings.Contains(err.Error(), "missing dump checksum") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+func TestRestoreBackup_ValidSHA256_Succeeds(t *testing.T) {
+	// Restore with a correct matching checksum must succeed and deliver the dump.
+	svc, _, dumper := setup()
+	dump := []byte("-- valid dump with matching sha\n")
+	m := makeManifest(dump) // sets DumpSHA256 = sha256(dump)
+	archive := buildTarGz(t, m, dump, nil)
+
 	if err := svc.RestoreBackup(context.Background(), bytes.NewReader(archive)); err != nil {
-		t.Fatalf("RestoreBackup with empty SHA should succeed: %v", err)
+		t.Fatalf("RestoreBackup with valid SHA256 should succeed: %v", err)
 	}
 	if !bytes.Equal(dumper.Restored, dump) {
-		t.Fatal("restored data should match dump even without SHA validation")
+		t.Fatal("restored data should match the original dump")
 	}
 }
 

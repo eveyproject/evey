@@ -132,10 +132,11 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 	}
 	defer os.Remove(archive.dumpPath) //nolint:errcheck
 
-	if archive.manifest.DumpSHA256 != "" {
-		if archive.dumpSHA256 != archive.manifest.DumpSHA256 {
-			return errors.New("restore: dump integrity check failed (sha256 mismatch)")
-		}
+	if archive.manifest.DumpSHA256 == "" {
+		return errors.New("restore: missing dump checksum in manifest")
+	}
+	if archive.dumpSHA256 != archive.manifest.DumpSHA256 {
+		return errors.New("restore: dump integrity check failed (sha256 mismatch)")
 	}
 
 	f, err := os.Open(archive.dumpPath)
