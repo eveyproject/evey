@@ -2,6 +2,8 @@ package interceptors_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -15,7 +17,7 @@ import (
 func TestErrorSanitizer_StripInternalDetails(t *testing.T) {
 	interceptor := interceptors.ErrorSanitizerUnary()
 
-	handler := func(ctx context.Context, req any) ( any, error) {
+	handler := func(ctx context.Context, req any) (any, error) {
 		return nil, status.Error(codes.Internal, "pq: connection refused at 10.0.0.5:5432")
 	}
 
@@ -45,7 +47,7 @@ func TestErrorSanitizer_PassThroughOtherCodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := func(ctx context.Context, req any) ( any, error) {
+			handler := func(ctx context.Context, req any) (any, error) {
 				return nil, status.Error(tt.code, tt.msg)
 			}
 
@@ -64,7 +66,7 @@ func TestErrorSanitizer_PassThroughOtherCodes(t *testing.T) {
 func TestErrorSanitizer_NilError(t *testing.T) {
 	interceptor := interceptors.ErrorSanitizerUnary()
 
-	handler := func(ctx context.Context, req any) ( any, error) {
+	handler := func(ctx context.Context, req any) (any, error) {
 		return "ok", nil
 	}
 
@@ -155,7 +157,7 @@ func TestErrorSanitizerStream_NilError(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestErrorSanitizer_NonGRPCError(t *testing.T) {
+func TestErrorSanitizer_DeadlineExceeded(t *testing.T) {
 	interceptor := interceptors.ErrorSanitizerUnary()
 
 	handler := func(ctx context.Context, req any) (any, error) {
@@ -166,7 +168,49 @@ func TestErrorSanitizer_NonGRPCError(t *testing.T) {
 	_, err := interceptor(context.Background(), nil, info, handler)
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.DeadlineExceeded, st.Code())
+	assert.Equal(t, "deadline exceeded", st.Message())
+}
+
+// A non-status error escaping a handler (e.g. a repo error wrapped with the
+// handler's name) must not reach the client verbatim — gRPC would surface it
+// as codes.Unknown leaking "activityHandler.GetUserStats: ...".
+func TestErrorSanitizer_WrappedPlainError_Genericised(t *testing.T) {
+	interceptor := interceptors.ErrorSanitizerUnary()
+
+	handler := func(ctx context.Context, req any) (any, error) {
+		return nil, fmt.Errorf("activityHandler.GetUserStats: %w", errors.New("pq: relation \"user_stats\" does not exist"))
+	}
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.Activity/GetUserStats"}
+	_, err := interceptor(context.Background(), nil, info, handler)
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code())
+	assert.Equal(t, "internal error", st.Message())
+	assert.NotContains(t, st.Message(), "activityHandler")
+}
+
+// An explicit codes.Unknown status is likewise genericised.
+func TestErrorSanitizer_UnknownCode_Genericised(t *testing.T) {
+	interceptor := interceptors.ErrorSanitizerUnary()
+
+	handler := func(ctx context.Context, req any) (any, error) {
+		return nil, status.Error(codes.Unknown, "internal/foo.go:42 boom")
+	}
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.Test/Method"}
+	_, err := interceptor(context.Background(), nil, info, handler)
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code())
+	assert.Equal(t, "internal error", st.Message())
 }
 
 func TestErrorSanitizerStream_PassThrough(t *testing.T) {

@@ -37,14 +37,26 @@ func sanitizeError(err error, method string) error {
 	if errors.Is(err, context.Canceled) {
 		return status.Error(codes.Canceled, "request canceled")
 	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return status.Error(codes.DeadlineExceeded, "deadline exceeded")
+	}
 	st, ok := status.FromError(err)
 	if !ok {
-		return err
+		// A non-status error escaped a handler — typically a repo/service error
+		// wrapped with a "fooHandler.Bar: %w" prefix. gRPC surfaces these to the
+		// client verbatim as codes.Unknown, leaking handler names and internal
+		// messages, so treat them exactly like an Internal error.
+		slog.Warn("sanitized non-status error", slog.String("method", method), slog.String("original", err.Error()))
+		return status.Error(codes.Internal, "internal error")
 	}
 	if st.Code() == codes.Canceled {
 		return err
 	}
-	if st.Code() == codes.Internal {
+	// Internal and Unknown are never deliberately-coded, user-facing errors:
+	// genericise their messages. Every other code (NotFound, InvalidArgument,
+	// PermissionDenied, …) carries an intentional — often i18n-translated —
+	// message and is passed through untouched.
+	if st.Code() == codes.Internal || st.Code() == codes.Unknown {
 		if strings.Contains(st.Message(), "context canceled") {
 			return status.Error(codes.Canceled, "request canceled")
 		}
