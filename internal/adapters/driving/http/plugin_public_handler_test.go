@@ -41,7 +41,15 @@ func runningPlugin() *domainplugin.Plugin {
 		ExternalFetch: []string{"api.open-meteo.com"},
 		Enabled:       true,
 		Status:        domainplugin.Running,
-		Config:        map[string]any{"city": "Paris", "units": "metric"},
+		// api_key is a password field + secret_url is flagged secret: both must
+		// be withheld from the public/iframe config; city/units are exposed.
+		ConfigSchema: map[string]any{
+			"city":       map[string]any{"type": "string"},
+			"units":      map[string]any{"type": "select"},
+			"api_key":    map[string]any{"type": "password"},
+			"secret_url": map[string]any{"type": "string", "secret": true},
+		},
+		Config: map[string]any{"city": "Paris", "units": "metric", "api_key": "SECRET123", "secret_url": "http://10.0.0.5/internal"},
 		// Admin-only fields that must NOT appear in public responses:
 		SourceHash:   "deadbeef",
 		Language:     "js",
@@ -240,6 +248,16 @@ func TestPluginPublicConfig_UserToken_200(t *testing.T) {
 	}
 	if resp.Values["city"] != "Paris" {
 		t.Errorf("expected city=Paris, got %v", resp.Values["city"])
+	}
+	if resp.Values["units"] != "metric" {
+		t.Errorf("expected units=metric, got %v", resp.Values["units"])
+	}
+	// Secrets must never reach the non-admin / iframe-facing endpoint.
+	if _, ok := resp.Values["api_key"]; ok {
+		t.Errorf("password field api_key leaked to public config: %v", resp.Values["api_key"])
+	}
+	if _, ok := resp.Values["secret_url"]; ok {
+		t.Errorf("secret-flagged field secret_url leaked to public config: %v", resp.Values["secret_url"])
 	}
 }
 

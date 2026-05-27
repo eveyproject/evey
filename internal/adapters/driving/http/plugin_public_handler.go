@@ -106,10 +106,12 @@ func registerPluginPublicRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator,
 			return
 		}
 
-		cfg := p.Config
-		if cfg == nil {
-			cfg = map[string]any{}
-		}
+		// Only expose config keys the manifest declares non-secret. This is the
+		// public, non-admin endpoint and its result is forwarded into the
+		// sandboxed iframe (client-side), so secrets (type: password / secret:
+		// true) must never appear here — admins read the full config via the
+		// admin endpoint instead.
+		cfg := p.PublicConfig()
 
 		w.Header().Set("Content-Type", "application/json")
 		if encErr := json.NewEncoder(w).Encode(map[string]any{"values": cfg}); encErr != nil {

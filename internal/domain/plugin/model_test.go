@@ -83,19 +83,89 @@ func TestNewPluginFromManifest(t *testing.T) {
 func TestPluginStatus_IsValid(t *testing.T) {
 	t.Parallel()
 	cases := map[plugin.PluginStatus]bool{
-		plugin.Stopped:             true,
-		plugin.Initializing:        true,
-		plugin.Running:             true,
-		plugin.Error:               true,
-		plugin.Installed:           true,
-		plugin.PluginStatus(""):    false,
-		"garbage":                  false,
+		plugin.Stopped:          true,
+		plugin.Initializing:     true,
+		plugin.Running:          true,
+		plugin.Error:            true,
+		plugin.Installed:        true,
+		plugin.PluginStatus(""): false,
+		"garbage":               false,
 	}
 	for s, want := range cases {
 		if s.IsValid() != want {
 			t.Errorf("%q.IsValid() = %v, want %v", s, !want, want)
 		}
 	}
+}
+
+func TestPlugin_PublicConfig(t *testing.T) {
+	t.Parallel()
+
+	schema := map[string]any{
+		"city":       map[string]any{"type": "string"},
+		"units":      map[string]any{"type": "select"},
+		"enabled":    map[string]any{"type": "boolean"},
+		"api_key":    map[string]any{"type": "password"},               // secret by type
+		"webhook":    map[string]any{"type": "string", "secret": true}, // secret by flag
+		"api_key_ci": map[string]any{"type": "PASSWORD"},               // type match is case-insensitive
+	}
+
+	t.Run("withholds secrets, keeps declared non-secret keys", func(t *testing.T) {
+		t.Parallel()
+		p := plugin.Plugin{
+			ConfigSchema: schema,
+			Config: map[string]any{
+				"city":       "Paris",
+				"units":      "metric",
+				"enabled":    true,
+				"api_key":    "SECRET",
+				"webhook":    "https://internal/hook",
+				"api_key_ci": "SECRET2",
+			},
+		}
+		got := p.PublicConfig()
+		want := map[string]any{"city": "Paris", "units": "metric", "enabled": true}
+		if len(got) != len(want) {
+			t.Fatalf("PublicConfig size = %d (%v), want %d (%v)", len(got), got, len(want), want)
+		}
+		for k, v := range want {
+			if got[k] != v {
+				t.Errorf("PublicConfig[%q] = %v, want %v", k, got[k], v)
+			}
+		}
+		for _, secret := range []string{"api_key", "webhook", "api_key_ci"} {
+			if _, ok := got[secret]; ok {
+				t.Errorf("secret key %q leaked into PublicConfig", secret)
+			}
+		}
+	})
+
+	t.Run("withholds keys absent from the schema", func(t *testing.T) {
+		t.Parallel()
+		p := plugin.Plugin{
+			ConfigSchema: map[string]any{"city": map[string]any{"type": "string"}},
+			Config:       map[string]any{"city": "Paris", "ad_hoc_secret": "leak-me"},
+		}
+		got := p.PublicConfig()
+		if _, ok := got["ad_hoc_secret"]; ok {
+			t.Error("ad-hoc key not in schema leaked into PublicConfig")
+		}
+		if got["city"] != "Paris" {
+			t.Errorf("declared key dropped: got %v", got)
+		}
+	})
+
+	t.Run("nil config yields empty, non-nil map", func(t *testing.T) {
+		t.Parallel()
+		p := plugin.Plugin{ConfigSchema: schema}
+		got := p.PublicConfig()
+		if got == nil {
+			t.Fatal("PublicConfig returned nil map")
+		}
+		if len(got) != 0 {
+			t.Errorf("expected empty map, got %v", got)
+		}
+	})
 }
 
 func TestPluginManifest_Validate(t *testing.T) {

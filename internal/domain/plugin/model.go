@@ -34,15 +34,15 @@ const (
 )
 
 type Plugin struct {
-	ID           string
-	Kind         PluginKind
-	Name         string
-	Version      string
-	Description  string
-	Author       string
-	Language     string
-	Entrypoint   string
-	InstallDir   string
+	ID          string
+	Kind        PluginKind
+	Name        string
+	Version     string
+	Description string
+	Author      string
+	Language    string
+	Entrypoint  string
+	InstallDir  string
 	// WebRoot is the relative subdirectory inside InstallDir whose contents
 	// are exposed via the public asset route. Required when Frontend is set;
 	// any file outside that root cannot be requested by the iframe.
@@ -72,6 +72,51 @@ type Plugin struct {
 
 // IsTheme returns true when the plugin is a pure front-end theme (no backend runtime).
 func (p *Plugin) IsTheme() bool { return p.Kind == KindTheme }
+
+// PublicConfig returns the subset of the plugin's saved configuration that is
+// safe to hand to the sandboxed front-end iframe and to non-admin callers of
+// GET /plugins/{id}/config. Only keys declared in the manifest's config_schema
+// are returned, minus any field marked secret — i.e. a field of type "password"
+// or one carrying an explicit `secret: true`. Keys absent from the schema
+// (ad-hoc values an admin may have stored) and secret keys (API keys, internal
+// URLs) are withheld, so secrets never reach the browser where any authenticated
+// user could read them. Admins read the full config via the admin endpoint.
+func (p *Plugin) PublicConfig() map[string]any {
+	out := make(map[string]any)
+	if len(p.Config) == 0 {
+		return out
+	}
+	for key, schema := range p.ConfigSchema {
+		if isSecretConfigField(schema) {
+			continue
+		}
+		if v, ok := p.Config[key]; ok {
+			out[key] = v
+		}
+	}
+	return out
+}
+
+// isSecretConfigField reports whether a config_schema entry describes a value
+// that must not be exposed to the front-end: fields of type "password" or any
+// field with an explicit `secret: true` flag. Entries arrive as map[string]any
+// both from the manifest (YAML) and from the repo (JSONB), so the type
+// assertion is safe on the runtime path; an unrecognised shape is treated as
+// non-secret only because such a key would not have been settable via the
+// schema-driven admin form in the first place.
+func isSecretConfigField(schema any) bool {
+	m, ok := schema.(map[string]any)
+	if !ok {
+		return false
+	}
+	if t, ok := m["type"].(string); ok && strings.EqualFold(strings.TrimSpace(t), "password") {
+		return true
+	}
+	if s, ok := m["secret"].(bool); ok {
+		return s
+	}
+	return false
+}
 
 func (p *Plugin) Validate() error {
 	if p.ID == "" {
@@ -263,8 +308,8 @@ type PluginFinding struct {
 
 type AnalysisReport struct {
 	Safe        bool
-	Issues      []string       // pre-formatted "[SEVERITY] file:line — description (pattern)"
-	Categories  []string       // unique finding categories — used by the installer to gate native-binary opt-in
+	Issues      []string        // pre-formatted "[SEVERITY] file:line — description (pattern)"
+	Categories  []string        // unique finding categories — used by the installer to gate native-binary opt-in
 	RawFindings []PluginFinding // per-finding detail: populated at install time, used for dashboard
 	URLs        []ExtractedURL
 	FileCount   int
