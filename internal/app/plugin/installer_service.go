@@ -256,13 +256,13 @@ type PluginPreview struct {
 // PluginUpdatePreview holds the diff between an installed plugin and a
 // candidate update ZIP. No state is mutated when building this struct.
 type PluginUpdatePreview struct {
-	CurrentVersion  string
+	CurrentVersion   string
 	CandidateVersion string
 
-	PermissionsDiff    PermissionDiff
-	CapabilitiesDiff   PermissionDiff
-	SlotsDiff          PermissionDiff
-	ExternalFetchDiff  PermissionDiff
+	PermissionsDiff   PermissionDiff
+	CapabilitiesDiff  PermissionDiff
+	SlotsDiff         PermissionDiff
+	ExternalFetchDiff PermissionDiff
 
 	// NewFindings are analysis findings present in the candidate but not
 	// critical-blocking (those would prevent the preview from being built).
@@ -370,6 +370,16 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		p.InstallDir = installDir
 	}
 
+	// installOK gates the deferred cleanup: any error return after this point
+	// will cause the deferred func to remove the install directory, ensuring no
+	// orphaned dirs accumulate from failed installs.
+	installOK := false
+	defer func() {
+		if !installOK && p.InstallDir != "" && s.fs != nil {
+			s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
+		}
+	}()
+
 	if p.InstallDir != "" && p.IsTheme() && s.cssSanitizer != nil {
 		themePath := filepath.Join(p.InstallDir, "theme.css")
 		if raw, readErr := os.ReadFile(themePath); readErr == nil {
@@ -391,9 +401,6 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 				slog.Warn("theme JS scanner warnings", slog.String("pluginID", p.ID), slog.Any("warnings", scanWarns))
 			}
 			if scanErr != nil {
-				if s.fs != nil {
-					s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
-				}
 				return nil, fmt.Errorf("plugin blocked: theme.js contains forbidden pattern: %w", scanErr)
 			}
 		}
@@ -416,15 +423,9 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 			// a third-party plugin could ship obfuscated malware that the
 			// regex analyzer choked on and we'd otherwise install it blind.
 			slog.Error("plugin static analysis failed", slog.String("pluginID", p.ID), slog.Any("err", analyzeErr))
-			if s.fs != nil {
-				s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
-			}
 			return nil, fmt.Errorf("plugin blocked: static analysis failed: %w", analyzeErr)
 		}
 		if !report.Safe {
-			if s.fs != nil {
-				s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
-			}
 			return nil, fmt.Errorf("plugin blocked: critical security issues found: %v", report.Issues)
 		}
 		// Escalate specific WARNING categories to blocking. These patterns are
@@ -440,9 +441,6 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		// admin sees and accepts the elevated risk at preview time.
 		if !slices.Contains(p.Permissions, nativeBinaryPerm) {
 			if report.HasCategory("compiled_binary") || report.HasCategory("embedded_archive") {
-				if s.fs != nil {
-					s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
-				}
 				return nil, fmt.Errorf("plugin blocked: bundles compiled binaries or archives — declare permission %q in manifest to opt in", nativeBinaryPerm)
 			}
 		}
@@ -453,9 +451,6 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	}
 
 	if err := s.plugins.Create(ctx, p); err != nil {
-		if p.InstallDir != "" && s.fs != nil {
-			s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
-		}
 		return nil, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
 	}
 
@@ -466,6 +461,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
 				slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 			}
+			installOK = true
 			return p, nil
 		}
 		if s.permChecker != nil {
@@ -483,6 +479,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	if err := s.events.Publish(ctx, evtInstalled); err != nil {
 		slog.Warn("publish event", slog.String("event", evtInstalled.EventName()), slog.Any("err", err))
 	}
+	installOK = true
 	return p, nil
 }
 
@@ -568,14 +565,14 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 		len(slotDiff.Added) > 0 || len(fetchDiff.Added) > 0
 
 	preview := &PluginUpdatePreview{
-		CurrentVersion:   existing.Version,
-		CandidateVersion: manifest.Version,
-		PermissionsDiff:  permDiff,
-		CapabilitiesDiff: capDiff,
-		SlotsDiff:        slotDiff,
+		CurrentVersion:    existing.Version,
+		CandidateVersion:  manifest.Version,
+		PermissionsDiff:   permDiff,
+		CapabilitiesDiff:  capDiff,
+		SlotsDiff:         slotDiff,
 		ExternalFetchDiff: fetchDiff,
-		RequiresAck:      requiresAck,
-		SourceHash:       sourceHash,
+		RequiresAck:       requiresAck,
+		SourceHash:        sourceHash,
 	}
 
 	// Run analyzer on candidate in a temp dir (best-effort — errors don't block preview).

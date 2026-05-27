@@ -595,7 +595,7 @@ func TestInstallPlugin_ConcurrentSameName(t *testing.T) {
 
 func TestInstallPlugin_BlocksCompiledBinaryWithoutPermission(t *testing.T) {
 	svc, _, _, parser, _, analyzer := newTestInstallerService()
-	parser.Result =goManifest("native-without-perm")
+	parser.Result = goManifest("native-without-perm")
 	analyzer.Report = &plugindomain.AnalysisReport{
 		Safe:       true,
 		Categories: []string{"compiled_binary"},
@@ -609,7 +609,7 @@ func TestInstallPlugin_BlocksCompiledBinaryWithoutPermission(t *testing.T) {
 
 func TestInstallPlugin_BlocksEmbeddedArchiveWithoutPermission(t *testing.T) {
 	svc, _, _, parser, _, analyzer := newTestInstallerService()
-	parser.Result =goManifest("archive-without-perm")
+	parser.Result = goManifest("archive-without-perm")
 	analyzer.Report = &plugindomain.AnalysisReport{
 		Safe:       true,
 		Categories: []string{"embedded_archive"},
@@ -625,7 +625,7 @@ func TestInstallPlugin_AllowsCompiledBinaryWithPermission(t *testing.T) {
 	svc, _, _, parser, _, analyzer := newTestInstallerService()
 	manifest := goManifest("native-with-perm")
 	manifest.Permissions = []string{"native-binary"}
-	parser.Result =manifest
+	parser.Result = manifest
 	analyzer.Report = &plugindomain.AnalysisReport{
 		Safe:       true,
 		Categories: []string{"compiled_binary"},
@@ -1038,4 +1038,120 @@ func TestInstallPlugin_ThemeSkipsRuntimeCheck(t *testing.T) {
 	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
 	assert.Equal(t, "bare-theme", p.Name)
+}
+
+// --- Orphaned install dir cleanup ---
+
+// newTestInstallerServiceWithFS is like newTestInstallerService but also
+// returns the FakePluginFileSystem so callers can inspect RemoveAll calls.
+func newTestInstallerServiceWithFS() (
+	*appplugin.InstallerService,
+	*plgfakes.FakePluginRepository,
+	*plgfakes.FakePluginRunner,
+	*plgfakes.FakeManifestParser,
+	*plgfakes.FakePluginInstaller,
+	*plgfakes.FakePluginAnalyzer,
+	*plgfakes.FakePluginFileSystem,
+) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	installer := plgfakes.NewFakePluginInstaller()
+	analyzer := plgfakes.NewFakePluginAnalyzer()
+	pluginFS := plgfakes.NewFakePluginFileSystem()
+
+	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus,
+		appplugin.InstallerWithInstaller(installer),
+		appplugin.InstallerWithAnalyzer(analyzer),
+		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
+		appplugin.InstallerWithFileSystem(pluginFS),
+		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+	)
+
+	return svc, pluginRepo, runner, parser, installer, analyzer, pluginFS
+}
+
+// TestInstallPlugin_FailAfterExtract_CleansUpDir verifies that when the
+// analyzer fails (after extraction), the deferred cleanup removes the install
+// directory exactly once.
+func TestInstallPlugin_FailAfterExtract_CleansUpDir(t *testing.T) {
+	svc, _, _, parser, _, analyzer, pluginFS := newTestInstallerServiceWithFS()
+	parser.Result = goManifest("orphan-test")
+	analyzer.Err = errors.New("analyzer exploded")
+
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "static analysis failed")
+
+	// The deferred cleanup must have removed the install directory.
+	require.Len(t, pluginFS.Removed, 1, "exactly one dir must be removed on failure")
+	assert.Contains(t, pluginFS.Removed[0], "/tmp/test-plugins/", "removed path must be under pluginDir")
+}
+
+// TestInstallPlugin_FailUnsafe_CleansUpDir verifies that an unsafe analysis
+// report (report.Safe == false) also triggers the deferred cleanup.
+func TestInstallPlugin_FailUnsafe_CleansUpDir(t *testing.T) {
+	svc, _, _, parser, _, analyzer, pluginFS := newTestInstallerServiceWithFS()
+	parser.Result = goManifest("unsafe-orphan")
+	analyzer.Report = &plugindomain.AnalysisReport{
+		Safe:   false,
+		Issues: []string{"dangerous pattern"},
+	}
+
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "plugin blocked")
+
+	require.Len(t, pluginFS.Removed, 1, "exactly one dir must be removed on failure")
+	assert.Contains(t, pluginFS.Removed[0], "/tmp/test-plugins/")
+}
+
+// TestInstallPlugin_DBFail_CleansUpDir verifies that a DB create failure
+// (after extraction and analysis) triggers the deferred cleanup.
+func TestInstallPlugin_DBFail_CleansUpDir(t *testing.T) {
+	svc, pluginRepo, _, parser, _, _, pluginFS := newTestInstallerServiceWithFS()
+	parser.Result = goManifest("db-fail-orphan")
+	pluginRepo.Err = errors.New("db unavailable")
+
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db unavailable")
+
+	require.Len(t, pluginFS.Removed, 1, "exactly one dir must be removed on failure")
+	assert.Contains(t, pluginFS.Removed[0], "/tmp/test-plugins/")
+}
+
+// TestInstallPlugin_Success_KeepsDir verifies that a successful install does
+// NOT remove the install directory.
+func TestInstallPlugin_Success_KeepsDir(t *testing.T) {
+	svc, _, _, parser, _, _, pluginFS := newTestInstallerServiceWithFS()
+	parser.Result = goManifest("keep-dir-plugin")
+
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
+	require.NoError(t, err)
+	assert.NotEmpty(t, p.InstallDir)
+
+	// RemoveAll must NOT have been called on the install dir after a success.
+	for _, removed := range pluginFS.Removed {
+		assert.NotEqual(t, p.InstallDir, removed, "successful install must not remove its own dir")
+	}
+}
+
+// TestInstallPlugin_NoBinaryPerm_CleansUpDir verifies that the
+// compiled_binary gate (after analysis) triggers the deferred cleanup.
+func TestInstallPlugin_NoBinaryPerm_CleansUpDir(t *testing.T) {
+	svc, _, _, parser, _, analyzer, pluginFS := newTestInstallerServiceWithFS()
+	parser.Result = goManifest("binary-orphan")
+	analyzer.Report = &plugindomain.AnalysisReport{
+		Safe:       true,
+		Categories: []string{"compiled_binary"},
+	}
+
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "native-binary")
+
+	require.Len(t, pluginFS.Removed, 1, "exactly one dir must be removed on failure")
+	assert.Contains(t, pluginFS.Removed[0], "/tmp/test-plugins/")
 }
