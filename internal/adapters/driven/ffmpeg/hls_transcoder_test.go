@@ -82,7 +82,7 @@ func TestBuildFFmpegArgs_BoundedCacheArgs(t *testing.T) {
 			name: "copy_video",
 			opts: transcoding.HLSProcessOpts{
 				OutputDir: "/tmp/t", FilePath: "/f.mkv",
-				Profiles: transcoding.DefaultHLSProfiles,
+				Profiles:      transcoding.DefaultHLSProfiles,
 				VideoDecision: "copy", AudioDecision: "copy",
 			},
 		},
@@ -139,7 +139,8 @@ func TestBuildFFmpegArgs_MultiVariant(t *testing.T) {
 	}
 	args := ffmpeg.BuildFFmpegArgs(opts)
 	joined := strings.Join(args, " ")
-	assert.Contains(t, joined, "[0:v]split=")
+	assert.Contains(t, joined, "[0:v]bwdif=deint=interlaced,split=")
+	assert.Contains(t, joined, "-force_key_frames")
 	assert.Contains(t, joined, "var_stream_map")
 	assert.Contains(t, joined, "master.m3u8")
 	assert.Contains(t, joined, "-profile:v:0 high")
@@ -171,7 +172,8 @@ func TestBuildFFmpegArgs_BurnIn(t *testing.T) {
 	}
 	args := ffmpeg.BuildFFmpegArgs(opts)
 	joined := strings.Join(args, " ")
-	assert.Contains(t, joined, "[0:v][0:s:2]overlay[vb]")
+	assert.Contains(t, joined, "[0:v]bwdif=deint=interlaced[vd]")
+	assert.Contains(t, joined, "[vd][0:s:2]overlay[vb]")
 	assert.Contains(t, joined, "[vb]split=")
 }
 
@@ -188,6 +190,10 @@ func TestBuildFFmpegArgs_SingleTranscode_OneProfile(t *testing.T) {
 	assert.Contains(t, joined, "-c:a copy")
 	assert.Contains(t, joined, "libx264")
 	assert.NotContains(t, joined, "var_stream_map")
+	// Single transcode must deinterlace (fixes combing on interlaced sources)
+	// and force segment-aligned keyframes (fixes slow first-segment startup).
+	assert.Contains(t, joined, "bwdif=deint=interlaced,scale=")
+	assert.Contains(t, joined, "-force_key_frames expr:gte(t,n_forced*3)")
 }
 
 func TestBuildFFmpegArgs_SingleTranscode_AudioNormalize(t *testing.T) {
@@ -498,7 +504,8 @@ func TestBuildFFmpegArgs_ForceSidecarSubs_SkipsBurnIn_MultiVariant(t *testing.T)
 	args := ffmpeg.BuildFFmpegArgs(opts)
 	joined := strings.Join(args, " ")
 	assert.NotContains(t, joined, "overlay")
-	assert.Contains(t, joined, "[0:v]split=")
+	assert.Contains(t, joined, "[0:v]bwdif=deint=interlaced,split=")
+	assert.Contains(t, joined, "-force_key_frames")
 }
 
 // Without ForceSidecarSubs the existing burn-in behavior remains (regression guard).

@@ -88,7 +88,9 @@ func (h *hlsHandle) run(ctx context.Context) {
 		if err := waitForFile(ctx, streamPath, 30*time.Second, 100*time.Millisecond); err != nil {
 			h.err = fmt.Errorf("waiting for stream_0.m3u8: %w", err)
 			h.cancel()
-			if err := h.cmd.Wait(); err != nil { slog.Debug("ffmpeg wait after cancel", slog.Any("err", err)) }
+			if err := h.cmd.Wait(); err != nil {
+				slog.Debug("ffmpeg wait after cancel", slog.Any("err", err))
+			}
 			close(h.ready)
 			return
 		}
@@ -96,7 +98,9 @@ func (h *hlsHandle) run(ctx context.Context) {
 		if err := os.WriteFile(filepath.Join(h.opts.OutputDir, "master.m3u8"), []byte(master), 0644); err != nil {
 			h.err = fmt.Errorf("write master.m3u8: %w", err)
 			h.cancel()
-			if err := h.cmd.Wait(); err != nil { slog.Debug("ffmpeg wait after cancel", slog.Any("err", err)) }
+			if err := h.cmd.Wait(); err != nil {
+				slog.Debug("ffmpeg wait after cancel", slog.Any("err", err))
+			}
 			close(h.ready)
 			return
 		}
@@ -108,7 +112,9 @@ func (h *hlsHandle) run(ctx context.Context) {
 		if err := waitForFile(ctx, masterPath, 30*time.Second, 100*time.Millisecond); err != nil {
 			h.err = fmt.Errorf("waiting for master.m3u8: %w", err)
 			h.cancel()
-			if err := h.cmd.Wait(); err != nil { slog.Debug("ffmpeg wait after cancel", slog.Any("err", err)) }
+			if err := h.cmd.Wait(); err != nil {
+				slog.Debug("ffmpeg wait after cancel", slog.Any("err", err))
+			}
 			close(h.ready)
 			return
 		}
@@ -314,6 +320,25 @@ func BuildFFmpegArgs(opts transcoding.HLSProcessOpts) []string {
 //     regression, just a brief reload.
 const hlsWindowSegments = "90"
 
+// hlsSegmentSeconds is the target HLS segment length. It MUST stay in sync with
+// the -force_key_frames cadence (hlsForceKeyframesArgs) so ffmpeg emits a
+// keyframe exactly at each segment boundary.
+const hlsSegmentSeconds = "3"
+
+// deinterlaceFilter deinterlaces only frames the decoder flags as interlaced
+// (deint=interlaced) — a no-op on progressive content (verified: passes through
+// untouched), so it is safe to apply unconditionally on the transcode path.
+// Fixes the horizontal "combing" on interlaced sources (old TV/repacks) that
+// would otherwise be encoded field-by-field into progressive frames.
+const deinterlaceFilter = "bwdif=deint=interlaced"
+
+// hlsForceKeyframesArgs forces a keyframe exactly every segment. Without it,
+// x264's sparse default GOP (~10s) made the HLS muxer wait many seconds for a
+// keyframe before it could close the FIRST segment — the dominant cause of the
+// multi-second startup delay — and produced irregular segment lengths. The
+// expr form is fps-independent. Negligible bitrate cost at a 3s cadence.
+var hlsForceKeyframesArgs = []string{"-force_key_frames", "expr:gte(t,n_forced*" + hlsSegmentSeconds + ")"}
+
 // hlsInputReadrate caps ffmpeg's read speed at 1.5× real-time so it
 // doesn't sprint ahead and waste CPU/disk encoding 30 minutes of buffer
 // the user hasn't asked for. With -hls_flags delete_segments the disk
@@ -336,7 +361,7 @@ func appendInputModifiers(args []string) []string {
 func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool) []string {
 	args = append(args,
 		"-f", "hls",
-		"-hls_time", "3",
+		"-hls_time", hlsSegmentSeconds,
 		"-hls_list_size", hlsWindowSegments,
 		"-hls_flags", "delete_segments",
 	)
@@ -464,24 +489,27 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 		var filterParts []string
 		switch {
 		case burnIn && toneMap != "":
+			// deinterlace → tonemap → overlay → scale
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s[vt]", toneMap),
+				fmt.Sprintf("[0:v]%s,%s[vt]", deinterlaceFilter, toneMap),
 				fmt.Sprintf("[vt][0:s:%d]overlay,scale=%d:-2,setsar=1[out]", opts.SubtitleTrackIndex, p.Width),
 			)
 		case burnIn:
+			// deinterlace the video before burning the subtitle overlay on it
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v][0:s:%d]overlay,scale=%d:-2,setsar=1[out]", opts.SubtitleTrackIndex, p.Width),
+				fmt.Sprintf("[0:v]%s[vd]", deinterlaceFilter),
+				fmt.Sprintf("[vd][0:s:%d]overlay,scale=%d:-2,setsar=1[out]", opts.SubtitleTrackIndex, p.Width),
 			)
 		default:
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s,scale=%d:-2,setsar=1[out]", toneMap, p.Width),
+				fmt.Sprintf("[0:v]%s,%s,scale=%d:-2,setsar=1[out]", deinterlaceFilter, toneMap, p.Width),
 			)
 		}
 		args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
 		args = append(args, "-map", "[out]")
 	} else {
 		args = append(args, "-map", "0:v:0",
-			"-vf", fmt.Sprintf("scale=%d:-2,setsar=1", p.Width),
+			"-vf", fmt.Sprintf("%s,scale=%d:-2,setsar=1", deinterlaceFilter, p.Width),
 		)
 	}
 
@@ -492,6 +520,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 		"-preset", "veryfast",
 		"-pix_fmt", "yuv420p",
 	)
+	args = append(args, hlsForceKeyframesArgs...)
 
 	if opts.AudioDecision == "transcode" {
 		args = append(args,
@@ -530,28 +559,31 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		splitOutputs[i] = fmt.Sprintf("[v%d]", i)
 	}
 
+	// Every branch deinterlaces [0:v] first (no-op on progressive) so interlaced
+	// sources don't comb across all variants.
 	if burnIn {
 		if toneMap != "" {
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s[vt]", toneMap),
+				fmt.Sprintf("[0:v]%s,%s[vt]", deinterlaceFilter, toneMap),
 				fmt.Sprintf("[vt][0:s:%d]overlay[vb]", opts.SubtitleTrackIndex),
 				fmt.Sprintf("[vb]split=%d%s", n, strings.Join(splitOutputs, "")),
 			)
 		} else {
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v][0:s:%d]overlay[vb]", opts.SubtitleTrackIndex),
+				fmt.Sprintf("[0:v]%s[vd]", deinterlaceFilter),
+				fmt.Sprintf("[vd][0:s:%d]overlay[vb]", opts.SubtitleTrackIndex),
 				fmt.Sprintf("[vb]split=%d%s", n, strings.Join(splitOutputs, "")),
 			)
 		}
 	} else {
 		if toneMap != "" {
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s[vt]", toneMap),
+				fmt.Sprintf("[0:v]%s,%s[vt]", deinterlaceFilter, toneMap),
 				fmt.Sprintf("[vt]split=%d%s", n, strings.Join(splitOutputs, "")),
 			)
 		} else {
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]split=%d%s", n, strings.Join(splitOutputs, "")),
+				fmt.Sprintf("[0:v]%s,split=%d%s", deinterlaceFilter, n, strings.Join(splitOutputs, "")),
 			)
 		}
 	}
@@ -577,6 +609,10 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 			args = append(args, fmt.Sprintf("-filter:a:%d", i), "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
 		}
 	}
+	// Force aligned keyframes at the segment cadence across every variant — both
+	// to fix slow/irregular first-segment startup and to keep ABR-switchable
+	// segment boundaries identical between renditions.
+	args = append(args, hlsForceKeyframesArgs...)
 
 	var streamMap []string
 	for i := range n {
@@ -591,7 +627,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args,
 		"-master_pl_name", "master.m3u8",
 		"-f", "hls",
-		"-hls_time", "3",
+		"-hls_time", hlsSegmentSeconds,
 		"-hls_list_size", hlsWindowSegments,
 		"-hls_flags", "delete_segments",
 		"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.ts"),
