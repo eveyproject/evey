@@ -477,8 +477,8 @@ func TestSanitizeCSS_FullScreenOverlay_StickyBlocked(t *testing.T) {
 }
 
 func TestSanitizeCSS_FullScreenOverlay_PartialNotBlocked(t *testing.T) {
-	// position:fixed + only width:100vw (no top/left/height) — NOT a full overlay
-	input := []byte(`.banner { position: fixed; width: 100vw; bottom: 0; }`)
+	// position:fixed + only width:100vw, no offset side — only 1 signal, NOT a full overlay
+	input := []byte(`.banner { position: fixed; width: 100vw; }`)
 	out, warns := SanitizeCSS(input)
 	if !containsString(out, "position: fixed") {
 		t.Errorf("partial fixed rule incorrectly removed: %s", out)
@@ -581,6 +581,128 @@ func TestSanitizeCSS_AllNewRulesPass_SafeCSS(t *testing.T) {
 	}
 	if !containsString(out, "z-index: 500") {
 		t.Error("z-index 500 removed")
+	}
+}
+
+// ---- M1: broadened overlay filter tests ----
+
+func TestSanitizeCSS_OverlayM1_TopPxBlocked(t *testing.T) {
+	// top:0px (with unit) + position:fixed + full viewport — must be detected
+	input := []byte(`.phish { position: fixed; top: 0px; left: 0px; width: 100vw; height: 100vh; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "position: fixed") {
+		t.Errorf("overlay with top:0px/left:0px not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for overlay removal")
+	}
+}
+
+func TestSanitizeCSS_OverlayM1_RightBottomBlocked(t *testing.T) {
+	// right:0 + bottom:0 + position:fixed + full-width — must be detected
+	input := []byte(`.phish { position: fixed; right: 0; bottom: 0; width: 100vw; height: 100vh; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "position: fixed") {
+		t.Errorf("overlay with right:0/bottom:0 not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for overlay removal")
+	}
+}
+
+func TestSanitizeCSS_OverlayM1_InsetShorthandBlocked(t *testing.T) {
+	// inset:0 shorthand + position:fixed — must be detected as overlay
+	input := []byte(`.phish { position: fixed; inset: 0; width: 100vw; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "position: fixed") {
+		t.Errorf("overlay with inset:0 not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for overlay removal")
+	}
+}
+
+func TestSanitizeCSS_OverlayM1_InsetMultiValueBlocked(t *testing.T) {
+	// inset: 0 0 0 0 + position:fixed — must be detected as overlay
+	input := []byte(`.phish { position: fixed; inset: 0 0 0 0; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "position: fixed") {
+		t.Errorf("overlay with inset:0 0 0 0 not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for overlay removal")
+	}
+}
+
+func TestSanitizeCSS_OverlayM1_MarginTopNotMisclassified(t *testing.T) {
+	// margin-top:0 must NOT be treated as a zero-offset side — no false positive
+	input := []byte(`.header { position: fixed; width: 100vw; margin-top: 0; }`)
+	out, warns := SanitizeCSS(input)
+	// Only 1 real overlay signal (width:100vw), no zero-side offset → NOT removed
+	if !containsString(out, "position: fixed") {
+		t.Errorf("rule with margin-top:0 incorrectly classified as overlay: %s\nwarnings: %v", out, warns)
+	}
+}
+
+func TestSanitizeCSS_OverlayM1_ZeroRemBlocked(t *testing.T) {
+	// top:0rem is a zero offset — must be detected
+	input := []byte(`.phish { position: fixed; top: 0rem; left: 0rem; width: 100vw; height: 100vh; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "position: fixed") {
+		t.Errorf("overlay with top:0rem not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning")
+	}
+}
+
+// ---- M2: CSS escape decode tests ----
+
+func TestSanitizeCSS_EscapeBypass_ExternalURLColon(t *testing.T) {
+	// \3a is the CSS hex escape for ':' — url(https\3a //evil.com) must be detected
+	input := []byte(`div { background: url(https\3a //evil.com/beacon); }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "evil.com") {
+		t.Errorf("escape-obfuscated external URL not stripped: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for escaped external URL")
+	}
+}
+
+func TestSanitizeCSS_EscapeBypass_ExpressionKeyword(t *testing.T) {
+	// \65 is 'e' — expr\65 ssion(...) must be detected and stripped
+	input := []byte(`div { width: expr\65 ssion(document.body.clientWidth); }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "expr") {
+		t.Errorf("escape-obfuscated expression() not stripped: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for escaped expression()")
+	}
+}
+
+func TestSanitizeCSS_EscapeBypass_LocalURLPreserved(t *testing.T) {
+	// A normal local url with no escapes must survive
+	input := []byte(`div { background: url('/local.png'); }`)
+	out, warns := SanitizeCSS(input)
+	if !containsString(out, "/local.png") {
+		t.Errorf("local url was incorrectly removed: %s", out)
+	}
+	if len(warns) != 0 {
+		t.Errorf("unexpected warnings for local url: %v", warns)
+	}
+}
+
+func TestSanitizeCSS_EscapeBypass_SimpleEscapeInIdentifier(t *testing.T) {
+	// \61 = 'a', so \61 dmin-panel = admin-panel — sensitive selector bypass via escape
+	input := []byte(`.\61 dmin-panel { display: none; }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "display: none") {
+		t.Errorf("escape-obfuscated .admin-* selector not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warning for escaped sensitive selector")
 	}
 }
 
