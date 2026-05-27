@@ -5,18 +5,44 @@ import (
 	"encoding/hex"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/user"
 )
 
 type FakeTokenGenerator struct {
-	mu     sync.Mutex
-	tokens map[string]*user.Claims
-	Err    error
+	mu        sync.Mutex
+	tokens    map[string]*user.Claims
+	pinTokens map[string]string // token → profileID
+	Err       error
 }
 
 func NewFakeTokenGenerator() *FakeTokenGenerator {
-	return &FakeTokenGenerator{tokens: make(map[string]*user.Claims)}
+	return &FakeTokenGenerator{tokens: make(map[string]*user.Claims), pinTokens: make(map[string]string)}
+}
+
+func (g *FakeTokenGenerator) GeneratePINToken(profileID string, _ time.Duration) (string, error) {
+	if g.Err != nil {
+		return "", g.Err
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	token := randomHex(16)
+	g.pinTokens[token] = profileID
+	return token, nil
+}
+
+func (g *FakeTokenGenerator) ParsePINToken(raw string) (string, error) {
+	if g.Err != nil {
+		return "", g.Err
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	pid, ok := g.pinTokens[raw]
+	if !ok {
+		return "", errors.New("invalid pin token")
+	}
+	return pid, nil
 }
 
 func (g *FakeTokenGenerator) GenerateAccessToken(claims user.Claims) (string, error) {

@@ -355,7 +355,7 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 // RefreshToken rotates the refresh token, returning a new access+refresh pair.
 // requestedProfileID (optional) activates a specific profile on the new access
 // token; must belong to the refreshing user or the refresh is rejected.
-func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfileID string, ttlOverride ...time.Duration) (string, string, error) {
+func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfileID, pinToken string, ttlOverride ...time.Duration) (string, string, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.RefreshToken")
 	defer span.End()
 	rt, err := s.claimRefreshToken(ctx, token)
@@ -393,6 +393,20 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 		}
 		// The bound profile no longer exists (deleted) — fall back to default.
 		activeProfileID, _ = resolveActiveProfileID(profs, "")
+	}
+
+	// Parental PIN gate: switching OUT of a kids profile INTO a non-kids one
+	// requires a server-verified PIN proof for the target profile. Enforced here
+	// (not just in the UI) so a direct API call can't bypass parental control.
+	if rt.ProfileID != nil && string(*rt.ProfileID) != activeProfileID {
+		old := findProfileByID(profs, string(*rt.ProfileID))
+		target := findProfileByID(profs, activeProfileID)
+		if old != nil && old.IsKids && target != nil && !target.IsKids && target.HasPIN() {
+			provenID, perr := s.tokens.ParsePINToken(pinToken)
+			if perr != nil || provenID != activeProfileID {
+				return "", "", ErrPINRequired
+			}
+		}
 	}
 
 	accessToken, err := s.tokens.GenerateAccessToken(user.Claims{
@@ -503,6 +517,15 @@ func (s *CommandService) collectPermissions(ctx context.Context, userID shared.U
 // does not belong to them (authorization failure). When no profile matches
 // but the caller didn't request one, falls back to the default profile then
 // the first profile; ok remains true in that case.
+func findProfileByID(profs []*user.Profile, id string) *user.Profile {
+	for _, p := range profs {
+		if string(p.ID) == id {
+			return p
+		}
+	}
+	return nil
+}
+
 func resolveActiveProfileID(profs []*user.Profile, requestedProfileID string) (string, bool) {
 	if requestedProfileID != "" {
 		for _, p := range profs {

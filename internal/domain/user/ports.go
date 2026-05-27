@@ -136,4 +136,9 @@ type TokenGenerator interface {
 	GenerateAccessToken(claims Claims) (string, error)
 	GenerateRefreshToken() (string, error)
 	ValidateAccessToken(token string) (*Claims, error)
+	// GeneratePINToken mints a short-lived proof that the caller entered the
+	// given profile's parental PIN; ParsePINToken validates it and returns the
+	// profile id. Used to gate switching out of a kids profile.
+	GeneratePINToken(profileID string, ttl time.Duration) (string, error)
+	ParsePINToken(raw string) (string, error)
 }

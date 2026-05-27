@@ -22,8 +22,8 @@ import (
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/id"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/id"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -35,10 +35,10 @@ import (
 
 type userHandler struct {
 	eveyv1.UnimplementedUserServiceServer
-	auth        *appuser.CommandService
-	userSvc     *appuser.UserService
-	access      *appuser.AccessService
-	query       *appuser.QueryService
+	auth            *appuser.CommandService
+	userSvc         *appuser.UserService
+	access          *appuser.AccessService
+	query           *appuser.QueryService
 	activitySvc     *appactivity.CommandService
 	translator      *eveyi18n.Translator
 	quickConnectHub *quickconnecthub.Hub
@@ -114,10 +114,14 @@ func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshToken
 	ctx, span := tracing.StartSpan(ctx, "grpc.user.RefreshToken")
 	defer span.End()
 	start := time.Now()
-	access, newRefresh, err := h.auth.RefreshToken(ctx, req.RefreshToken, req.ProfileId, h.refreshTTLOverride(ctx)...)
+	access, newRefresh, err := h.auth.RefreshToken(ctx, req.RefreshToken, req.ProfileId, req.PinToken, h.refreshTTLOverride(ctx)...)
 	if err != nil {
 		metrics.AuthLatency.WithLabelValues("refresh", "failure").Observe(time.Since(start).Seconds())
 		span.RecordError(err)
+		if errors.Is(err, appuser.ErrPINRequired) {
+			span.SetStatus(otelcodes.Error, "pin required")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.pin_required")
+		}
 		span.SetStatus(otelcodes.Error, "invalid credentials")
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}

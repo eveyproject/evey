@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"go.opentelemetry.io/otel/codes"
 
@@ -161,8 +162,13 @@ type parentalHandler struct {
 	profileRepo domainuser.ProfileRepository
 	userRepo    domainuser.UserRepository
 	hasher      domainuser.PasswordHasher
+	tokenGen    *auth.JWTGenerator
 	pinRL       *ratelimit.Limiter
 }
+
+// pinProofTTL is how long a verified-PIN proof stays usable for a profile
+// switch. Short: it only needs to survive the click that follows the dialog.
+const pinProofTTL = 5 * time.Minute
 
 func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.parental.GetSettings")
@@ -413,10 +419,8 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if profile.Parental == nil || profile.Parental.PINHash == "" {
-		w.Header().Set("Content-Type", "application/json")
-		if encErr := json.NewEncoder(w).Encode(map[string]any{"valid": true}); encErr != nil {
-			slog.Warn("json encode failed", slog.Any("err", encErr))
-		}
+		// No PIN set → trivially valid; still mint a proof so the switch flow is uniform.
+		h.writePINResult(w, profileID, true)
 		return
 	}
 	valid, err := h.hasher.Verify(body.PIN, profile.Parental.PINHash)
@@ -426,8 +430,22 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
+	h.writePINResult(w, profileID, valid)
+}
+
+// writePINResult encodes {valid, pinToken?}. On success it mints a short-lived
+// proof (consumed by RefreshToken to authorise a switch out of a kids profile).
+func (h *parentalHandler) writePINResult(w http.ResponseWriter, profileID string, valid bool) {
+	out := map[string]any{"valid": valid}
+	if valid && h.tokenGen != nil {
+		if tok, err := h.tokenGen.GeneratePINToken(profileID, pinProofTTL); err == nil {
+			out["pinToken"] = tok
+		} else {
+			slog.Warn("mint pin proof", slog.Any("err", err))
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]any{"valid": valid}); err != nil {
+	if err := json.NewEncoder(w).Encode(out); err != nil {
 		slog.Warn("json encode failed", slog.Any("err", err))
 	}
 }
@@ -444,6 +462,7 @@ func registerParentalRoutes(
 		profileRepo: profileRepo,
 		userRepo:    userRepo,
 		hasher:      hasher,
+		tokenGen:    tokenGen,
 		// 15 attempts up front, then refill 1 token every 20 seconds (3/min).
 		// Comfortable for a household with kids fat-fingering the PIN; after
 		// burnout still caps a brute-force attacker to ~180 tries/hour.

@@ -257,8 +257,12 @@ message RefreshTokenRequest {
   string refresh_token = 1;
   // Optional profile id to activate on the new access token.
   // Must belong to the same user or the refresh is rejected; absent falls
-  // back to the user's default profile.
+  // back to the profile the token was issued for (else the default).
   string profile_id = 2;
+  // Short-lived proof, minted by /parental/verify-pin, that the caller entered
+  // the target profile's PIN. Required only when switching FROM a kids profile
+  // TO a non-kids one; ignored otherwise.
+  string pin_token = 3;
 }
 
 message LogoutRequest {

@@ -7,9 +7,9 @@ import (
 	"time"
 
 	appuser "github.com/evey-project/evey/internal/app/user"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -122,11 +122,11 @@ func TestCreateProfile(t *testing.T) {
 }
 
 type collidingTokenGen struct {
-	mu            sync.Mutex
-	inner         *userfakes.FakeTokenGenerator
-	fixedToken    string
-	collideCount  int
-	callCount     int
+	mu           sync.Mutex
+	inner        *userfakes.FakeTokenGenerator
+	fixedToken   string
+	collideCount int
+	callCount    int
 }
 
 func (g *collidingTokenGen) GenerateAccessToken(c domainuser.Claims) (string, error) {
@@ -145,6 +145,12 @@ func (g *collidingTokenGen) GenerateRefreshToken() (string, error) {
 
 func (g *collidingTokenGen) ValidateAccessToken(t string) (*domainuser.Claims, error) {
 	return g.inner.ValidateAccessToken(t)
+}
+func (g *collidingTokenGen) GeneratePINToken(p string, ttl time.Duration) (string, error) {
+	return g.inner.GeneratePINToken(p, ttl)
+}
+func (g *collidingTokenGen) ParsePINToken(raw string) (string, error) {
+	return g.inner.ParsePINToken(raw)
 }
 
 func TestLogin_DuplicateRefreshTokenRetries(t *testing.T) {

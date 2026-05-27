@@ -474,7 +474,7 @@ func TestRefreshToken_Happy(t *testing.T) {
 	}
 	_ = d.refreshTkns.Create(ctx, rt)
 
-	access, newRefresh, err := d.svc.RefreshToken(ctx, rawToken, "")
+	access, newRefresh, err := d.svc.RefreshToken(ctx, rawToken, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,11 +500,77 @@ func TestRefreshToken_PreservesBoundProfile(t *testing.T) {
 		ProfileID: &kid, ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	access, _, err := d.svc.RefreshToken(ctx, raw, "")
+	access, _, err := d.svc.RefreshToken(ctx, raw, "", "")
 	require.NoError(t, err)
 	claims, err := d.tokens.ValidateAccessToken(access)
 	require.NoError(t, err)
 	require.Equal(t, "p-kid", claims.ProfileID, "silent refresh must preserve the bound profile, not fall back to default")
+}
+
+// Switching OUT of a kids profile INTO a PIN-protected non-kids one is rejected
+// without a valid PIN proof — even via a direct API call that bypasses the UI.
+func TestRefreshToken_SwitchOutOfKids_RequiresPIN(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-adult", UserID: "u1", Name: "Adult", IsDefault: true, Parental: &user.ParentalSettings{PINHash: "h"}})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-kid", UserID: "u1", Name: "Kid", IsKids: true})
+
+	raw := "kid-token"
+	h := sha256.Sum256([]byte(raw))
+	kid := shared.ProfileID("p-kid")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &kid, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, _, err := d.svc.RefreshToken(ctx, raw, "p-adult", "") // no PIN proof
+	require.ErrorIs(t, err, ErrPINRequired)
+}
+
+func TestRefreshToken_SwitchOutOfKids_WithValidPIN_OK(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-adult", UserID: "u1", Name: "Adult", IsDefault: true, Parental: &user.ParentalSettings{PINHash: "h"}})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-kid", UserID: "u1", Name: "Kid", IsKids: true})
+
+	raw := "kid-token-2"
+	h := sha256.Sum256([]byte(raw))
+	kid := shared.ProfileID("p-kid")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt2", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &kid, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	pinTok, err := d.tokens.GeneratePINToken("p-adult", time.Minute)
+	require.NoError(t, err)
+	access, _, err := d.svc.RefreshToken(ctx, raw, "p-adult", pinTok)
+	require.NoError(t, err)
+	claims, err := d.tokens.ValidateAccessToken(access)
+	require.NoError(t, err)
+	require.Equal(t, "p-adult", claims.ProfileID)
+}
+
+// A PIN proof for the WRONG profile must not unlock a different one.
+func TestRefreshToken_SwitchOutOfKids_WrongProfilePIN_Rejected(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-adult", UserID: "u1", Name: "Adult", IsDefault: true, Parental: &user.ParentalSettings{PINHash: "h"}})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-kid", UserID: "u1", Name: "Kid", IsKids: true})
+
+	raw := "kid-token-3"
+	h := sha256.Sum256([]byte(raw))
+	kid := shared.ProfileID("p-kid")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt3", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &kid, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	wrongTok, _ := d.tokens.GeneratePINToken("p-kid", time.Minute) // proof for the wrong profile
+	_, _, err := d.svc.RefreshToken(ctx, raw, "p-adult", wrongTok)
+	require.ErrorIs(t, err, ErrPINRequired)
 }
 
 // Legacy tokens (no bound profile) keep the old behaviour: fall back to default.
@@ -522,7 +588,7 @@ func TestRefreshToken_LegacyTokenFallsBackToDefault(t *testing.T) {
 		ProfileID: nil, ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	access, _, err := d.svc.RefreshToken(ctx, raw, "")
+	access, _, err := d.svc.RefreshToken(ctx, raw, "", "")
 	require.NoError(t, err)
 	claims, err := d.tokens.ValidateAccessToken(access)
 	require.NoError(t, err)
@@ -531,7 +597,7 @@ func TestRefreshToken_LegacyTokenFallsBackToDefault(t *testing.T) {
 
 func TestRefreshToken_NotFound(t *testing.T) {
 	d := newAuthTestDeps()
-	_, _, err := d.svc.RefreshToken(context.Background(), "bogus", "")
+	_, _, err := d.svc.RefreshToken(context.Background(), "bogus", "", "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -554,7 +620,7 @@ func TestRefreshToken_AlreadyUsed(t *testing.T) {
 	}
 	_ = d.refreshTkns.Create(ctx, rt)
 
-	_, _, err := d.svc.RefreshToken(ctx, rawToken, "")
+	_, _, err := d.svc.RefreshToken(ctx, rawToken, "", "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials for used token, got %v", err)
 	}
@@ -582,7 +648,7 @@ func TestRefreshToken_Reuse_PurgesAllUserTokens(t *testing.T) {
 		ExpiresAt: time.Now().Add(24 * time.Hour), Used: false,
 	})
 
-	_, _, err := d.svc.RefreshToken(ctx, reusedToken, "")
+	_, _, err := d.svc.RefreshToken(ctx, reusedToken, "", "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
 	}
@@ -609,7 +675,7 @@ func TestRefreshToken_Expired(t *testing.T) {
 	}
 	_ = d.refreshTkns.Create(ctx, rt)
 
-	_, _, err := d.svc.RefreshToken(ctx, rawToken, "")
+	_, _, err := d.svc.RefreshToken(ctx, rawToken, "", "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials for expired token, got %v", err)
 	}
@@ -630,7 +696,7 @@ func TestRefreshToken_UserNotFound(t *testing.T) {
 	}
 	_ = d.refreshTkns.Create(ctx, rt)
 
-	_, _, err := d.svc.RefreshToken(ctx, rawToken, "")
+	_, _, err := d.svc.RefreshToken(ctx, rawToken, "", "")
 	if err == nil {
 		t.Fatal("expected error for missing user")
 	}
@@ -649,7 +715,7 @@ func TestRefreshToken_AccessTokenGenError(t *testing.T) {
 	})
 	d.tokens.Err = errors.New("gen fail")
 
-	_, _, err := d.svc.RefreshToken(ctx, rawToken, "")
+	_, _, err := d.svc.RefreshToken(ctx, rawToken, "", "")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -669,7 +735,7 @@ func TestRefreshToken_RefreshTokenGenError(t *testing.T) {
 
 	d.refreshTkns.Err = errors.New("store fail")
 
-	_, _, err := d.svc.RefreshToken(ctx, rawToken, "")
+	_, _, err := d.svc.RefreshToken(ctx, rawToken, "", "")
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("expected ErrInvalidCredentials when repo fails, got %v", err)
 	}
@@ -687,7 +753,7 @@ func TestRefreshToken_NewRefreshTokenStoreError(t *testing.T) {
 		ID: "rt1", UserID: "u1", TokenHash: hash, ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	access, newRefresh, err := d.svc.RefreshToken(ctx, rawToken, "")
+	access, newRefresh, err := d.svc.RefreshToken(ctx, rawToken, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -718,7 +784,7 @@ func TestRefreshToken_WithProfileAndRoles(t *testing.T) {
 		ID: "rt1", UserID: "u1", TokenHash: hash, ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	access, _, err := d.svc.RefreshToken(ctx, rawToken, "")
+	access, _, err := d.svc.RefreshToken(ctx, rawToken, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -747,7 +813,7 @@ func TestRefreshToken_FallbackFirstProfile(t *testing.T) {
 		ID: "rt1", UserID: "u1", TokenHash: hash, ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	access, _, err := d.svc.RefreshToken(ctx, rawToken, "")
+	access, _, err := d.svc.RefreshToken(ctx, rawToken, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -950,6 +1016,12 @@ func (f *failOnNewRefreshGen) GenerateRefreshToken() (string, error) {
 func (f *failOnNewRefreshGen) ValidateAccessToken(t string) (*user.Claims, error) {
 	return f.inner.ValidateAccessToken(t)
 }
+func (f *failOnNewRefreshGen) GeneratePINToken(p string, ttl time.Duration) (string, error) {
+	return f.inner.GeneratePINToken(p, ttl)
+}
+func (f *failOnNewRefreshGen) ParsePINToken(raw string) (string, error) {
+	return f.inner.ParsePINToken(raw)
+}
 
 func TestRefreshToken_NewRefreshGenError(t *testing.T) {
 	users := ufakes.NewFakeUserRepository()
@@ -975,7 +1047,7 @@ func TestRefreshToken_NewRefreshGenError(t *testing.T) {
 
 	// First call succeeds to mark used, then fail on new refresh gen
 	tokenGen.fail = true
-	_, _, err := svc.RefreshToken(ctx, rawToken, "")
+	_, _, err := svc.RefreshToken(ctx, rawToken, "", "")
 	if err == nil {
 		t.Fatal("expected error when new refresh token gen fails")
 	}
@@ -1032,7 +1104,7 @@ func TestRefreshToken_NewRTStoreError(t *testing.T) {
 		ID: "rt1", UserID: "u1", TokenHash: hash, ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	_, _, err := svc.RefreshToken(ctx, rawToken, "")
+	_, _, err := svc.RefreshToken(ctx, rawToken, "", "")
 	if err == nil {
 		t.Fatal("expected error when new RT store fails")
 	}
@@ -1485,7 +1557,7 @@ func TestRefreshToken_WithLongTTL(t *testing.T) {
 	}
 
 	longTTL := 180 * 24 * time.Hour
-	newAccess, newRefresh, err := d.svc.RefreshToken(ctx, refresh, "", longTTL)
+	newAccess, newRefresh, err := d.svc.RefreshToken(ctx, refresh, "", "", longTTL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1528,7 +1600,7 @@ func TestRefreshToken_TOCTOU_ConcurrentReplayRejected(t *testing.T) {
 	for i := range goroutines {
 		go func(i int) {
 			defer wg.Done()
-			_, _, results[i] = d.svc.RefreshToken(ctx, refresh, "")
+			_, _, results[i] = d.svc.RefreshToken(ctx, refresh, "", "")
 		}(i)
 	}
 	wg.Wait()
@@ -1558,7 +1630,7 @@ func TestRefreshToken_DisabledUserRejected(t *testing.T) {
 	u.Enabled = false
 	_ = d.users.Update(ctx, u)
 
-	_, _, err = d.svc.RefreshToken(ctx, refresh, "")
+	_, _, err = d.svc.RefreshToken(ctx, refresh, "", "")
 	if !errors.Is(err, ErrUserDisabled) {
 		t.Fatalf("expected ErrUserDisabled for disabled user, got %v", err)
 	}

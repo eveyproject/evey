@@ -3,6 +3,7 @@ auth:
   invalid_credentials: "Invalid username or password"
   invalid_token: "Invalid or expired token"
   too_many_attempts: "Too many attempts"
+  pin_required: "Parental PIN required to switch to this profile"
   password_too_short: "Password must be at least 8 characters"
   missing_authorization: "Missing authorization header"
   missing_metadata: "Missing request metadata"

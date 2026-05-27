@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type JWTGenerator struct {
@@ -49,6 +49,59 @@ func (g *JWTGenerator) GenerateRefreshToken() (string, error) {
 		"exp":  now.Add(7 * 24 * time.Hour).Unix(),
 	})
 	return token.SignedString(g.privateKey)
+}
+
+// pinTokenType marks a parental-PIN proof token.
+const pinTokenType = "pin"
+
+// GeneratePINToken mints a short-lived RS256 proof that the caller entered the
+// PIN of profileID. It is consumed by RefreshToken to authorise a switch out of
+// a kids profile. Scoped to a single profile so a proof for one profile can't
+// unlock another.
+func (g *JWTGenerator) GeneratePINToken(profileID string, ttl time.Duration) (string, error) {
+	if profileID == "" {
+		return "", errors.New("profileID required")
+	}
+	if ttl <= 0 {
+		return "", errors.New("ttl must be positive")
+	}
+	now := time.Now()
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"token_type": pinTokenType,
+		"profile_id": profileID,
+		"iat":        now.Unix(),
+		"exp":        now.Add(ttl).Unix(),
+	})
+	return token.SignedString(g.privateKey)
+}
+
+// ParsePINToken validates a PIN proof (signature, exp, token_type) and returns
+// the profile id it was minted for. Any failure returns an error and an empty id.
+func (g *JWTGenerator) ParsePINToken(raw string) (string, error) {
+	parsed, err := jwt.Parse(raw, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return g.publicKey, nil
+	}, jwt.WithValidMethods([]string{"RS256"}))
+	if err != nil {
+		return "", err
+	}
+	if !parsed.Valid {
+		return "", errors.New("invalid pin token")
+	}
+	mc, ok := parsed.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", errors.New("invalid claims")
+	}
+	if tt, _ := mc["token_type"].(string); tt != pinTokenType {
+		return "", errors.New("not a pin token")
+	}
+	pid, _ := mc["profile_id"].(string)
+	if pid == "" {
+		return "", errors.New("pin token missing profile_id")
+	}
+	return pid, nil
 }
 
 func (g *JWTGenerator) ValidateAccessToken(tokenStr string) (*user.Claims, error) {

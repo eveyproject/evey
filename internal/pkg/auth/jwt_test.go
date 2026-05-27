@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -169,4 +169,47 @@ func TestValidateAccessToken_MissingRequiredClaims(t *testing.T) {
 	_, err = gen.ValidateAccessToken(tokenStr)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid token claims")
+}
+
+func TestPINToken_RoundTrip(t *testing.T) {
+	t.Parallel()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	g := auth.NewJWTGenerator(key, 15*time.Minute)
+
+	tok, err := g.GeneratePINToken("prf-123", time.Minute)
+	require.NoError(t, err)
+	pid, err := g.ParsePINToken(tok)
+	require.NoError(t, err)
+	assert.Equal(t, "prf-123", pid)
+}
+
+func TestPINToken_Rejections(t *testing.T) {
+	t.Parallel()
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	g := auth.NewJWTGenerator(key, 15*time.Minute)
+
+	// empty profile / non-positive ttl
+	_, err := g.GeneratePINToken("", time.Minute)
+	assert.Error(t, err)
+	_, err = g.GeneratePINToken("prf-1", 0)
+	assert.Error(t, err)
+
+	// expired (mint with a 1ns ttl, then let it lapse)
+	expired, err := g.GeneratePINToken("prf-1", time.Nanosecond)
+	require.NoError(t, err)
+	time.Sleep(5 * time.Millisecond)
+	_, err = g.ParsePINToken(expired)
+	assert.Error(t, err, "expired pin token must be rejected")
+
+	// signed by a different key (tampered/forged)
+	other, _ := rsa.GenerateKey(rand.Reader, 2048)
+	forged, _ := auth.NewJWTGenerator(other, time.Minute).GeneratePINToken("prf-1", time.Minute)
+	_, err = g.ParsePINToken(forged)
+	assert.Error(t, err, "pin token signed by another key must be rejected")
+
+	// an access token is not a pin token (token_type guard)
+	access, _ := g.GenerateAccessToken(user.Claims{UserID: "u1", ProfileID: "prf-1"})
+	_, err = g.ParsePINToken(access)
+	assert.Error(t, err, "access token must not pass as a pin token")
 }

@@ -3,6 +3,7 @@ auth:
   invalid_credentials: "Nom d'utilisateur ou mot de passe invalide"
   invalid_token: "Jeton invalide ou expiré"
   too_many_attempts: "Trop de tentatives"
+  pin_required: "Code PIN parental requis pour basculer sur ce profil"
   password_too_short: "Le mot de passe doit contenir au moins 8 caractères"
   missing_authorization: "En-tête d'autorisation manquant"
   missing_metadata: "Métadonnées de requête manquantes"

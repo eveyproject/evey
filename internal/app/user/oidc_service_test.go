@@ -801,6 +801,12 @@ func (f *failOnRefreshTokenGen) GenerateRefreshToken() (string, error) {
 func (f *failOnRefreshTokenGen) ValidateAccessToken(token string) (*domainuser.Claims, error) {
 	return f.delegate.ValidateAccessToken(token)
 }
+func (f *failOnRefreshTokenGen) GeneratePINToken(p string, ttl time.Duration) (string, error) {
+	return f.delegate.GeneratePINToken(p, ttl)
+}
+func (f *failOnRefreshTokenGen) ParsePINToken(raw string) (string, error) {
+	return f.delegate.ParsePINToken(raw)
+}
 
 func TestHandleCallback_TokenExchangeError(t *testing.T) {
 	oidcSrv := newTestOIDCServer(t)

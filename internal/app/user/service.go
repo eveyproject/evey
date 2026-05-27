@@ -18,4 +18,5 @@ var (
 	ErrCannotDeleteDefault      = errors.New("cannot delete the default profile")
 	ErrInvalidPINFormat         = errors.New("PIN must be exactly 4 digits")
 	ErrAdminCannotBeKids        = errors.New("an admin user's profile cannot be a kids profile")
+	ErrPINRequired              = errors.New("parental PIN required to switch out of a kids profile")
 )
