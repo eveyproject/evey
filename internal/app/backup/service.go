@@ -20,6 +20,11 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
+// ErrInvalidBackup is returned when the uploaded archive is malformed, tampered,
+// or fails integrity validation. Callers can distinguish this from genuine
+// internal/IO failures with errors.Is.
+var ErrInvalidBackup = errors.New("backup rejected: invalid or tampered archive")
+
 var BackupTables = []string{
 	"users",
 	"profiles",
@@ -128,15 +133,17 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 
 	archive, extractErr := extractTarGz(data)
 	if extractErr != nil {
+		// extractTarGz already wraps bad-input errors with ErrInvalidBackup;
+		// IO errors (temp-file creation) are plain and propagate as-is.
 		return fmt.Errorf("restore: %w", extractErr)
 	}
 	defer os.Remove(archive.dumpPath) //nolint:errcheck
 
 	if archive.manifest.DumpSHA256 == "" {
-		return errors.New("restore: missing dump checksum in manifest")
+		return fmt.Errorf("restore: missing dump checksum in manifest: %w", ErrInvalidBackup)
 	}
 	if archive.dumpSHA256 != archive.manifest.DumpSHA256 {
-		return errors.New("restore: dump integrity check failed (sha256 mismatch)")
+		return fmt.Errorf("restore: dump integrity check failed (sha256 mismatch): %w", ErrInvalidBackup)
 	}
 
 	f, err := os.Open(archive.dumpPath)
@@ -238,7 +245,7 @@ type backupArchive struct {
 func extractTarGz(r io.Reader) (*backupArchive, error) {
 	gz, err := gzip.NewReader(r)
 	if err != nil {
-		return nil, fmt.Errorf("not a valid gzip archive: %w", err)
+		return nil, fmt.Errorf("not a valid gzip archive: %w", ErrInvalidBackup)
 	}
 	defer func() {
 		if closeErr := gz.Close(); closeErr != nil {
@@ -255,25 +262,26 @@ func extractTarGz(r io.Reader) (*backupArchive, error) {
 			break
 		}
 		if tarErr != nil {
-			return nil, fmt.Errorf("read tar: %w", tarErr)
+			return nil, fmt.Errorf("read tar: %w", ErrInvalidBackup)
 		}
 		switch hdr.Name {
 		case "manifest.json":
 			content, readErr := io.ReadAll(tr)
 			if readErr != nil {
-				return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, readErr)
+				return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, ErrInvalidBackup)
 			}
 			a.manifestJSON = content
 		case "dump.sql":
 			tmp, tmpErr := os.CreateTemp("", "evey-restore-*.sql")
 			if tmpErr != nil {
+				// OS-level temp file creation failure — internal error, not bad input.
 				return nil, fmt.Errorf("create temp file for dump: %w", tmpErr)
 			}
 			h := sha256.New()
 			if _, cpErr := io.Copy(io.MultiWriter(tmp, h), tr); cpErr != nil {
 				tmp.Close()
 				os.Remove(tmp.Name()) //nolint:errcheck
-				return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, cpErr)
+				return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, ErrInvalidBackup)
 			}
 			tmp.Close()
 			a.dumpPath = tmp.Name()
@@ -285,16 +293,16 @@ func extractTarGz(r io.Reader) (*backupArchive, error) {
 		if a.dumpPath != "" {
 			os.Remove(a.dumpPath) //nolint:errcheck
 		}
-		return nil, errors.New("archive missing manifest.json")
+		return nil, fmt.Errorf("archive missing manifest.json: %w", ErrInvalidBackup)
 	}
 	if a.dumpPath == "" {
-		return nil, errors.New("archive missing dump.sql")
+		return nil, fmt.Errorf("archive missing dump.sql: %w", ErrInvalidBackup)
 	}
 
 	var m backup.BackupManifest
 	if err := json.Unmarshal(a.manifestJSON, &m); err != nil {
 		os.Remove(a.dumpPath) //nolint:errcheck
-		return nil, fmt.Errorf("parse manifest: %w", err)
+		return nil, fmt.Errorf("parse manifest: %w", ErrInvalidBackup)
 	}
 	a.manifest = &m
 	return a, nil

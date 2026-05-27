@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -121,8 +122,13 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		if err := svc.RestoreBackup(r.Context(), file); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "restore failed")
-			slog.Error("restore backup failed", slog.Any("err", err))
-			http.Error(w, `{"message":"restore failed"}`, http.StatusInternalServerError)
+			if errors.Is(err, appbackup.ErrInvalidBackup) {
+				slog.Warn("restore backup rejected: invalid or tampered archive", slog.Any("err", err))
+				http.Error(w, `{"message":"backup rejected: invalid or tampered archive"}`, http.StatusUnprocessableEntity)
+			} else {
+				slog.Error("restore backup failed", slog.Any("err", err))
+				http.Error(w, `{"message":"restore failed"}`, http.StatusInternalServerError)
+			}
 			return
 		}
 		slog.Info("backup restored successfully")

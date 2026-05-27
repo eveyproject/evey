@@ -245,6 +245,9 @@ func TestRestoreBackup_TarGz_SHA256Mismatch(t *testing.T) {
 	if !strings.Contains(err.Error(), "sha256 mismatch") {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if !errors.Is(err, ErrInvalidBackup) {
+		t.Fatalf("sha256 mismatch must satisfy errors.Is(err, ErrInvalidBackup), got: %v", err)
+	}
 }
 
 func TestRestoreBackup_DumperError(t *testing.T) {
@@ -258,6 +261,10 @@ func TestRestoreBackup_DumperError(t *testing.T) {
 	err := svc.RestoreBackup(context.Background(), bytes.NewReader(archive))
 	if err == nil {
 		t.Fatal("expected error when dumper fails")
+	}
+	// Internal postgres/dumper failure must NOT be classified as a client input error.
+	if errors.Is(err, ErrInvalidBackup) {
+		t.Fatalf("dumper error must NOT satisfy errors.Is(err, ErrInvalidBackup), got: %v", err)
 	}
 }
 
@@ -277,6 +284,9 @@ func TestRestoreBackup_EmptySHA256_Rejected(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "missing dump checksum") {
 		t.Fatalf("unexpected error message: %v", err)
+	}
+	if !errors.Is(err, ErrInvalidBackup) {
+		t.Fatalf("missing checksum must satisfy errors.Is(err, ErrInvalidBackup), got: %v", err)
 	}
 }
 
@@ -304,6 +314,9 @@ func TestRestoreBackup_InvalidGzip(t *testing.T) {
 	if !strings.Contains(err.Error(), "restore:") {
 		t.Fatalf("expected wrapped restore error, got: %v", err)
 	}
+	if !errors.Is(err, ErrInvalidBackup) {
+		t.Fatalf("invalid gzip must satisfy errors.Is(err, ErrInvalidBackup), got: %v", err)
+	}
 }
 
 func TestRestoreBackup_MissingManifest(t *testing.T) {
@@ -322,6 +335,9 @@ func TestRestoreBackup_MissingManifest(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "manifest.json") {
 		t.Fatalf("expected manifest missing error, got: %v", err)
+	}
+	if !errors.Is(err, ErrInvalidBackup) {
+		t.Fatalf("missing manifest must satisfy errors.Is(err, ErrInvalidBackup), got: %v", err)
 	}
 }
 
@@ -343,16 +359,22 @@ func TestRestoreBackup_MissingDump(t *testing.T) {
 	if !strings.Contains(err.Error(), "dump.sql") {
 		t.Fatalf("expected dump missing error, got: %v", err)
 	}
+	if !errors.Is(err, ErrInvalidBackup) {
+		t.Fatalf("missing dump.sql must satisfy errors.Is(err, ErrInvalidBackup), got: %v", err)
+	}
 }
 
 func TestRestoreBackup_ReadError(t *testing.T) {
+	// An upload stream that fails to read is indistinguishable from a corrupt
+	// archive at the gzip layer — it is classified as ErrInvalidBackup (client
+	// error), not an internal server fault.
 	svc, _, _ := setup()
 	err := svc.RestoreBackup(context.Background(), &errReader{err: errors.New("read broken")})
 	if err == nil {
 		t.Fatal("expected error from reader")
 	}
-	if !strings.Contains(err.Error(), "read broken") {
-		t.Fatalf("expected read error, got: %v", err)
+	if !errors.Is(err, ErrInvalidBackup) {
+		t.Fatalf("upload read failure must satisfy errors.Is(err, ErrInvalidBackup), got: %v", err)
 	}
 }
 
@@ -386,6 +408,9 @@ func TestRestoreBackup_InvalidManifestJSON(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "parse manifest") {
 		t.Fatalf("expected parse manifest error, got: %v", err)
+	}
+	if !errors.Is(err, ErrInvalidBackup) {
+		t.Fatalf("invalid manifest JSON must satisfy errors.Is(err, ErrInvalidBackup), got: %v", err)
 	}
 }
 
