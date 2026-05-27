@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -20,8 +21,8 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 )
 
@@ -331,7 +332,7 @@ func TestHandleCallback_MissingIDToken(t *testing.T) {
 	defer oidcSrv.close()
 	svc := buildOIDCService(t, oidcSrv)
 
-	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err == nil {
 		t.Fatal("expected error when id_token missing")
 	}
@@ -385,7 +386,7 @@ func TestHandleCallback_NewUser(t *testing.T) {
 	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
 	events := svc.events.(*sharedfakes.FakeEventBus)
 
-	accessTk, refreshTk, rawIDTk, err := svc.HandleCallback(context.Background(), "auth-code")
+	accessTk, refreshTk, rawIDTk, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err != nil {
 		t.Fatalf("HandleCallback failed: %v", err)
 	}
@@ -483,7 +484,7 @@ func TestHandleCallback_ExistingUser(t *testing.T) {
 		IsDefault: true,
 	})
 
-	accessTk, refreshTk, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	accessTk, refreshTk, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err != nil {
 		t.Fatalf("HandleCallback failed: %v", err)
 	}
@@ -535,7 +536,7 @@ func TestHandleCallback_DisabledUser(t *testing.T) {
 		OIDCIssuer:  &issuer,
 	})
 
-	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if !errors.Is(err, ErrUserDisabled) {
 		t.Errorf("expected ErrUserDisabled, got %v", err)
 	}
@@ -561,7 +562,7 @@ func TestHandleCallback_EmailDomainNotAllowed(t *testing.T) {
 		s.allowedEmailDomains = []string{"example.com"}
 	})
 
-	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if !errors.Is(err, ErrEmailDomainNotAllowed) {
 		t.Errorf("expected ErrEmailDomainNotAllowed, got %v", err)
 	}
@@ -592,7 +593,7 @@ func TestHandleCallback_AccessTokenGenerationError(t *testing.T) {
 	// Instead, use a custom token generator
 	tokenGen.Err = errors.New("token gen boom")
 
-	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err == nil {
 		t.Fatal("expected error when token generation fails")
 	}
@@ -623,7 +624,7 @@ func TestHandleCallback_UserRepoCreateError(t *testing.T) {
 		s.userRepo = repo
 	})
 
-	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err == nil {
 		t.Fatal("expected error when user repo fails")
 	}
@@ -647,7 +648,7 @@ func TestHandleCallback_UsernameFromEmail(t *testing.T) {
 	svc := buildOIDCService(t, oidcSrv)
 	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
 
-	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err != nil {
 		t.Fatalf("HandleCallback failed: %v", err)
 	}
@@ -678,7 +679,7 @@ func TestHandleCallback_UsernameFallbackHex(t *testing.T) {
 	svc := buildOIDCService(t, oidcSrv)
 	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
 
-	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err != nil {
 		t.Fatalf("HandleCallback failed: %v", err)
 	}
@@ -741,7 +742,7 @@ func TestHandleCallback_ProfileWithRoles(t *testing.T) {
 		IsDefault: false,
 	})
 
-	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err != nil {
 		t.Fatalf("HandleCallback failed: %v", err)
 	}
@@ -773,11 +774,11 @@ func TestHandleCallback_RefreshTokenError(t *testing.T) {
 
 	// Use a wrapper that fails only on refresh token generation
 	svc.tokens = &failOnRefreshTokenGen{
-		delegate:       tokenGen,
+		delegate:        tokenGen,
 		refreshTokenErr: errors.New("refresh gen boom"),
 	}
 
-	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err == nil {
 		t.Fatal("expected error when refresh token generation fails")
 	}
@@ -817,7 +818,7 @@ func TestHandleCallback_TokenExchangeError(t *testing.T) {
 
 	svc := buildOIDCService(t, oidcSrv)
 
-	_, _, _, err := svc.HandleCallback(context.Background(), "bad-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "bad-code", "")
 	if err == nil {
 		t.Fatal("expected error on token exchange failure")
 	}
@@ -859,9 +860,9 @@ func (r *errUserRepo) Update(ctx context.Context, u *domainuser.User) error {
 
 type errProfileRepo struct {
 	domainuser.ProfileRepository
-	createErr     error
-	getByUserErr  error
-	getByIDErr    error
+	createErr    error
+	getByUserErr error
+	getByIDErr   error
 }
 
 func (r *errProfileRepo) Create(ctx context.Context, p *domainuser.Profile) error {
@@ -949,7 +950,7 @@ func TestHandleCallback_RolesRepoError_ContinuesWithoutRoles(t *testing.T) {
 		err                 error
 	)
 	logs := captureSlogDuring(t, func() {
-		accessTk, refreshTk, _, err = svc.HandleCallback(context.Background(), "auth-code")
+		accessTk, refreshTk, _, err = svc.HandleCallback(context.Background(), "auth-code", "")
 	})
 	if err != nil {
 		t.Fatalf("expected success despite roles error, got %v", err)
@@ -984,7 +985,7 @@ func TestHandleCallback_ProfilesGetByUserIDError_ContinuesEmpty(t *testing.T) {
 		getByUserErr:      errors.New("profiles boom"),
 	}
 
-	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
 	}
@@ -1011,7 +1012,7 @@ func TestHandleCallback_NoProfiles_NoDefault(t *testing.T) {
 		OIDCSubject: &sub, OIDCIssuer: &issuer,
 	})
 
-	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
 	}
@@ -1041,7 +1042,7 @@ func TestHandleCallback_NoDefaultProfile_FallsBackToFirst(t *testing.T) {
 		ID: "prf-only", UserID: "usr-fbprf", Name: "u", IsDefault: false, Locale: "en-US",
 	})
 
-	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
 	}
@@ -1082,7 +1083,7 @@ func TestHandleCallback_ProfileGetByIDError_ContinuesEmptyLocale(t *testing.T) {
 		getByIDErr:        errors.New("profile get boom"),
 	}
 
-	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
 	}
@@ -1116,7 +1117,7 @@ func TestHandleCallback_LoginEventPublishError_Continues(t *testing.T) {
 		err                 error
 	)
 	logs := captureSlogDuring(t, func() {
-		accessTk, refreshTk, _, err = svc.HandleCallback(context.Background(), "auth-code")
+		accessTk, refreshTk, _, err = svc.HandleCallback(context.Background(), "auth-code", "")
 	})
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
@@ -1152,7 +1153,7 @@ func TestHandleCallback_UpdateExistingUserError_Continues(t *testing.T) {
 		err      error
 	)
 	logs := captureSlogDuring(t, func() {
-		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code")
+		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code", "")
 	})
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
@@ -1174,7 +1175,7 @@ func TestHandleCallback_EmailAtPositionZero_UsesHexFallback(t *testing.T) {
 	})
 	defer oidcSrv.close()
 
-	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
 	}
@@ -1207,7 +1208,7 @@ func TestHandleCallback_NewUserProfileCreateError_Continues(t *testing.T) {
 		err      error
 	)
 	logs := captureSlogDuring(t, func() {
-		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code")
+		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code", "")
 	})
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
@@ -1242,7 +1243,7 @@ func TestHandleCallback_NewUserCreatedEventError_Continues(t *testing.T) {
 		err      error
 	)
 	logs := captureSlogDuring(t, func() {
-		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code")
+		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code", "")
 	})
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
@@ -1276,7 +1277,7 @@ func TestHandleCallback_LocaleFromDefaultProfile(t *testing.T) {
 		ID: "prf-locale", UserID: "usr-locale", Name: "u", IsDefault: true, Locale: "fr-FR",
 	})
 
-	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
 	if err != nil {
 		t.Fatalf("expected success, got %v", err)
 	}
@@ -1316,3 +1317,94 @@ func TestValidateState_BoundaryExact(t *testing.T) {
 	}
 }
 
+// --- OIDC nonce (id_token replay/injection defence) ---
+
+func TestAuthURL_IncludesNonce(t *testing.T) {
+	oidcSrv := newTestOIDCServer(t)
+	defer oidcSrv.close()
+	svc := buildOIDCService(t, oidcSrv)
+
+	raw := svc.AuthURL("my-state-nonce")
+	u, err := url.Parse(raw)
+	if err != nil {
+		t.Fatalf("parse AuthURL: %v", err)
+	}
+	if got := u.Query().Get("nonce"); got != "my-state-nonce" {
+		t.Fatalf("AuthURL nonce = %q, want %q", got, "my-state-nonce")
+	}
+}
+
+func TestHandleCallback_NonceMatch_OK(t *testing.T) {
+	sub := "sub-nonce-ok"
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub": sub, "email": "n@example.com", "preferred_username": "n", "nonce": "good-nonce",
+	})
+	defer oidcSrv.close()
+
+	issuer := oidcSrv.issuer
+	svc.userRepo.(*userfakes.FakeUserRepository).Create(context.Background(), &domainuser.User{
+		ID: "usr-nonce-ok", Username: "n", Enabled: true, OIDCSubject: &sub, OIDCIssuer: &issuer,
+	})
+
+	at, rt, _, err := svc.HandleCallback(context.Background(), "auth-code", "good-nonce")
+	if err != nil {
+		t.Fatalf("expected success with matching nonce, got %v", err)
+	}
+	if at == "" || rt == "" {
+		t.Error("expected non-empty tokens")
+	}
+}
+
+func TestHandleCallback_NonceMismatch_Rejected(t *testing.T) {
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub": "sub-nonce-bad", "email": "n@example.com", "nonce": "token-nonce",
+	})
+	defer oidcSrv.close()
+
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "different-nonce")
+	if err == nil || !strings.Contains(err.Error(), "nonce mismatch") {
+		t.Fatalf("expected nonce mismatch rejection, got %v", err)
+	}
+}
+
+func TestHandleCallback_MissingNonceWhenExpected_Rejected(t *testing.T) {
+	// id_token carries no nonce claim, but we expected one — must be rejected.
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub": "sub-nonce-missing", "email": "n@example.com",
+	})
+	defer oidcSrv.close()
+
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "expected-nonce")
+	if err == nil || !strings.Contains(err.Error(), "nonce mismatch") {
+		t.Fatalf("expected nonce mismatch for missing token nonce, got %v", err)
+	}
+}
+
+// --- email_verified enforcement under a domain allowlist ---
+
+func TestHandleCallback_UnverifiedEmail_RejectedUnderAllowlist(t *testing.T) {
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub": "sub-unverif", "email": "u@example.com", "email_verified": false, "nonce": "n1",
+	}, func(s *OIDCService) { s.allowedEmailDomains = []string{"example.com"} })
+	defer oidcSrv.close()
+
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "n1")
+	if err == nil || !errors.Is(err, ErrEmailDomainNotAllowed) {
+		t.Fatalf("expected rejection of unverified email under allowlist, got %v", err)
+	}
+}
+
+func TestHandleCallback_VerifiedEmail_AllowedUnderAllowlist(t *testing.T) {
+	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
+		"sub": "sub-verif", "email": "u@example.com", "email_verified": true, "preferred_username": "u", "nonce": "n2",
+	}, func(s *OIDCService) { s.allowedEmailDomains = []string{"example.com"} })
+	defer oidcSrv.close()
+
+	at, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "n2")
+	if err != nil {
+		t.Fatalf("expected success for verified email in allowed domain, got %v", err)
+	}
+	if at == "" {
+		t.Error("expected non-empty access token")
+	}
+}

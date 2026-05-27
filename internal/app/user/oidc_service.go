@@ -122,7 +122,11 @@ func (s *OIDCService) AuthURL(state string) string {
 	ts := strconv.FormatInt(time.Now().Unix(), 10)
 	payload := ts + "|" + state
 	sig := s.signState(payload)
-	return s.oauth2Cfg.AuthCodeURL(payload + "." + sig)
+	// Also send `state` as the OpenID Connect nonce. The IdP must echo it in the
+	// id_token's nonce claim, which HandleCallback verifies — defence-in-depth on
+	// top of the signed/TTL'd state that binds the id_token to this exact login
+	// and blocks id_token replay/injection.
+	return s.oauth2Cfg.AuthCodeURL(payload+"."+sig, oauth2.SetAuthURLParam("nonce", state))
 }
 
 // ValidateState checks the signed state from the callback.
@@ -160,7 +164,7 @@ func (s *OIDCService) signState(nonce string) string {
 
 // HandleCallback exchanges the code, verifies the ID token, finds/creates the user,
 // and returns Evey access + refresh tokens plus the raw OIDC id_token for RP-Initiated Logout.
-func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessToken, refreshToken, rawOIDCIDToken string, err error) {
+func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce string) (accessToken, refreshToken, rawOIDCIDToken string, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.HandleCallback")
 	defer span.End()
 	oauth2Token, err := s.oauth2Cfg.Exchange(ctx, code)
@@ -177,10 +181,17 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 	if err != nil {
 		return "", "", "", fmt.Errorf("id_token verification: %w", err)
 	}
+	// The id_token's nonce must match the one we sent in AuthURL (carried in the
+	// signed state). A mismatch means this id_token was not minted for this login
+	// request — reject it (blocks replay/injection of a token obtained elsewhere).
+	if idToken.Nonce != expectedNonce {
+		return "", "", "", errors.New("id_token nonce mismatch")
+	}
 
 	var claims struct {
 		Sub               string `json:"sub"`
 		Email             string `json:"email"`
+		EmailVerified     bool   `json:"email_verified"`
 		PreferredUsername string `json:"preferred_username"`
 		Name              string `json:"name"`
 	}
@@ -188,7 +199,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 		return "", "", "", fmt.Errorf("parse id_token claims: %w", claimsErr)
 	}
 
-	u, err := s.findOrCreateUser(ctx, claims.Sub, claims.Email, claims.PreferredUsername)
+	u, err := s.findOrCreateUser(ctx, claims.Sub, claims.Email, claims.PreferredUsername, claims.EmailVerified)
 	if err != nil {
 		return "", "", "", fmt.Errorf("OIDCService.HandleCallback: %w", err)
 	}
@@ -246,7 +257,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 	return accessToken, refreshToken, rawIDToken, nil
 }
 
-func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferredUsername string) (*domainuser.User, error) {
+func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferredUsername string, emailVerified bool) (*domainuser.User, error) {
 	u, err := s.userRepo.GetByOIDCSubject(ctx, s.issuer, sub)
 	if err == nil {
 		if !u.Enabled {
@@ -259,7 +270,14 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 		return u, nil
 	}
 
-	// first OIDC login — enforce email domain allowlist before creating user
+	// first OIDC login — enforce the email domain allowlist before creating a
+	// user. When an allowlist is configured the email is a trust boundary, so
+	// require the IdP to have verified it: a lax provider could otherwise assert
+	// an arbitrary address in an allowed domain to slip past the allowlist.
+	if len(s.allowedEmailDomains) > 0 && !emailVerified {
+		slog.Warn("oidc: unverified email rejected under domain allowlist", slog.String("email", email))
+		return nil, ErrEmailDomainNotAllowed
+	}
 	if !IsEmailAllowed(email, s.allowedEmailDomains) {
 		slog.Warn("oidc: email domain not allowed", slog.String("email", email))
 		return nil, ErrEmailDomainNotAllowed

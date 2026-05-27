@@ -73,7 +73,8 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 			return
 		}
 
-		if _, err := oidcSvc.ValidateState(state); err != nil {
+		nonce, err := oidcSvc.ValidateState(state)
+		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "invalid state")
 			slog.Warn("oidc callback: invalid state", slog.Any("err", err))
@@ -81,7 +82,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 			return
 		}
 
-		accessToken, refreshToken, rawIDToken, err := oidcSvc.HandleCallback(r.Context(), code)
+		accessToken, refreshToken, rawIDToken, err := oidcSvc.HandleCallback(r.Context(), code, nonce)
 		if err != nil {
 			span.RecordError(err)
 			if errors.Is(err, appuser.ErrEmailDomainNotAllowed) {
