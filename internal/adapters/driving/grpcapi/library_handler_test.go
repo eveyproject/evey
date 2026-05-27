@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -566,6 +567,71 @@ func TestLibraryHandler_SearchMedia_IDOR_FiltersAccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, resp.Items, 1)
 	assert.Equal(t, "mi-1", resp.Items[0].Id)
+}
+
+// The search index carries no per-country certifications (and often no rating
+// at all), so a kids profile's filter must resolve the full items and apply the
+// fail-closed parental check — not trust the indexed OfficialRating.
+func TestLibraryHandler_SearchMedia_ParentalFailClosed(t *testing.T) {
+	h, _, mediaQuery, searchIdx, libraryAccess, profiles, _ := newTestLibraryHandler()
+	ctx := context.Background()
+
+	// Hits returned by the index — note they carry no rating, like the real one.
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-r", LibraryID: "lib-1", Title: "Searchword R", Type: "movie"}, nil)
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie"}, nil)
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-unrated", LibraryID: "lib-1", Title: "Searchword Unrated", Type: "movie"}, nil)
+
+	// Full items (with classification) the handler resolves from the DB.
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-r", LibraryID: "lib-1", Title: "Searchword R", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "R"}}) // age 17 → blocked
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "PG"}}) // age 10 → allowed
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-unrated", LibraryID: "lib-1", Title: "Searchword Unrated", Type: "movie"}) // no rating → fail closed
+
+	maxAge := 13
+	profiles.Create(ctx, &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}})
+	libraryAccess.Grant(ctx, "user-2", "lib-1")
+
+	resp, err := h.SearchMedia(userCtx("user-2", "profile-2"), &eveyv1.SearchMediaRequest{Query: "Searchword", Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 1, "only the PG item passes; R is over-age and the unrated item fails closed")
+	assert.Equal(t, "mi-pg", resp.Items[0].Id)
+}
+
+// When the item resolution fails for a kids profile, every hit is withheld
+// rather than leaked.
+func TestLibraryHandler_SearchMedia_ParentalFetchError_FailsClosed(t *testing.T) {
+	h, _, mediaQuery, searchIdx, libraryAccess, profiles, _ := newTestLibraryHandler()
+	ctx := context.Background()
+
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie"}, nil)
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "PG"}})
+
+	maxAge := 13
+	profiles.Create(ctx, &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}})
+	libraryAccess.Grant(ctx, "user-2", "lib-1")
+	mediaQuery.Err = errors.New("db unavailable") // item fetch fails
+
+	resp, err := h.SearchMedia(userCtx("user-2", "profile-2"), &eveyv1.SearchMediaRequest{Query: "Searchword", Limit: 10})
+	require.NoError(t, err)
+	assert.Empty(t, resp.Items, "an unresolvable kids search must fail closed")
+}
+
+// A non-kids profile is unaffected: no extra fetch, all hits returned.
+func TestLibraryHandler_SearchMedia_NonKids_Unfiltered(t *testing.T) {
+	h, _, _, searchIdx, libraryAccess, _, _ := newTestLibraryHandler()
+	ctx := context.Background()
+
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-r", LibraryID: "lib-1", Title: "Searchword R", Type: "movie"}, nil)
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie"}, nil)
+	libraryAccess.Grant(ctx, "user-2", "lib-1")
+
+	resp, err := h.SearchMedia(userCtx("user-2", "profile-2"), &eveyv1.SearchMediaRequest{Query: "Searchword", Limit: 10})
+	require.NoError(t, err)
+	assert.Len(t, resp.Items, 2)
 }
 
 func TestLibraryHandler_FilterMediaItems_IDOR_Denied(t *testing.T) {

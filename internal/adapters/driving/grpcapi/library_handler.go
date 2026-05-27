@@ -538,14 +538,44 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	resp := &eveyv1.SearchMediaResponse{
 		TotalHits: int32(total),
 	}
+	// The search index does not carry per-country certifications (it only has a
+	// single, often-empty OfficialRating), so the indexed fields are not a sound
+	// basis for a kids filter. When a parental filter is active, resolve the full
+	// items and run the same fail-closed, worst-case-across-countries check used
+	// everywhere else. Non-kids profiles (and admins) skip the fetch entirely.
+	var parentalBlocked map[string]bool
+	if pf.maxAge >= 0 || len(pf.blockedTags) > 0 {
+		ids := make([]string, 0, len(hits))
+		for _, hit := range hits {
+			ids = append(ids, hit.ID)
+		}
+		parentalBlocked = make(map[string]bool, len(hits))
+		items, ferr := h.query.GetMediaItemsByIDs(ctx, ids)
+		if ferr != nil {
+			// Cannot resolve classification for a kids profile → fail closed:
+			// every hit is treated as blocked rather than leaked.
+			span.RecordError(ferr)
+			for _, hit := range hits {
+				parentalBlocked[hit.ID] = true
+			}
+		} else {
+			byID := make(map[string]*library.MediaItem, len(items))
+			for _, it := range items {
+				byID[string(it.ID)] = it
+			}
+			for _, hit := range hits {
+				it := byID[hit.ID]
+				if it == nil || mediaItemBlockedByParental(pf, it) {
+					parentalBlocked[hit.ID] = true
+				}
+			}
+		}
+	}
 	for _, hit := range hits {
 		if allowedIDs != nil && !slices.Contains(allowedIDs, string(hit.LibraryID)) {
 			continue
 		}
-		if pf.maxAge >= 0 && !ratings.IsAllowedByAge(pf.region, hit.OfficialRating, pf.maxAge) {
-			continue
-		}
-		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(hit.Tags, pf.blockedTags) {
+		if parentalBlocked != nil && parentalBlocked[hit.ID] {
 			continue
 		}
 		mi := &eveyv1.MediaItem{
