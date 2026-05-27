@@ -18,10 +18,52 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
+var pgDumpHeader = []byte("-- PostgreSQL database dump")
+
+// Backups are produced by DumpTables as `pg_dump --data-only --no-owner
+// --no-privileges --disable-triggers`. That output has a small, fixed grammar,
+// so the restore validator is an ALLOWLIST (every non-data line must match one
+// of these forms) rather than a blocklist — a blocklist was provably evadable
+// (CREATE EXTENSION, escaped tokens, multi-line) and, crucially, missed psql
+// meta-command RCE such as `\!` and `\copy ... from program`. Anything outside
+// this grammar is rejected, so the restore can never carry a server-side
+// program/file COPY, function/DO body, or shell escape regardless of the DB
+// role's privileges.
 var (
-	pgDumpHeader    = []byte("-- PostgreSQL database dump")
-	dangerousLineRe = regexp.MustCompile(`(?i)(COPY\s+.*\s+TO\s+PROGRAM|CREATE\s+.*\s+LANGUAGE|DO\s+\$[^$]*\$|EXECUTE|pg_read_file|pg_write_file|lo_import|lo_export)`)
+	reDumpSet         = regexp.MustCompile(`(?i)^SET\s+[a-z_]+\s*(=|TO)\s*.+;$`)
+	reDumpSessionAuth = regexp.MustCompile(`(?i)^SET\s+SESSION\s+AUTHORIZATION\s+DEFAULT;$`)
+	reDumpSetConfig   = regexp.MustCompile(`(?i)^SELECT\s+pg_catalog\.set_config\('[a-z_]+',\s*'[^']*',\s*(true|false)\);$`)
+	reDumpAlterTrig   = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+(ONLY\s+)?[a-z0-9_."]+\s+(DISABLE|ENABLE)\s+TRIGGER\s+ALL;$`)
+	reDumpTruncate    = regexp.MustCompile(`(?i)^TRUNCATE\s+(TABLE\s+)?[a-z0-9_."][a-z0-9_.,"\s]*;$`)
+	reDumpCopyStdin   = regexp.MustCompile(`(?i)^COPY\s+[a-z0-9_."]+\s*\([^)]*\)\s+FROM\s+stdin;$`)
+	reDumpRestrict    = regexp.MustCompile(`^\\(restrict|unrestrict)\s+\S+$`)
 )
+
+// allowedDumpLine reports whether a single non-COPY-data line of a data-only
+// dump is part of the safe grammar. The caller handles COPY data separately.
+func allowedDumpLine(line string) bool {
+	t := strings.TrimSpace(line)
+	switch {
+	case t == "" || strings.HasPrefix(t, "--"): // blank / comment
+		return true
+	case strings.HasPrefix(t, `\`): // psql meta: only \restrict/\unrestrict (reject \!, \copy, \g, \i, …)
+		return reDumpRestrict.MatchString(t)
+	case reDumpSessionAuth.MatchString(t):
+		return true
+	case reDumpSetConfig.MatchString(t):
+		return true
+	case reDumpSet.MatchString(t):
+		return true
+	case reDumpAlterTrig.MatchString(t):
+		return true
+	case reDumpTruncate.MatchString(t):
+		return true
+	case reDumpCopyStdin.MatchString(t):
+		return true
+	default:
+		return false
+	}
+}
 
 type DatabaseDumper struct {
 	host     string
@@ -128,7 +170,11 @@ func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) erro
 	return nil
 }
 
-// validateBackup reads the entire backup, checks the header and scans every line for dangerous SQL.
+// validateBackup reads the entire backup, checks the pg_dump header, and
+// allowlist-validates every line outside of COPY data blocks. COPY data (the
+// rows streamed between `COPY … FROM stdin;` and a lone `\.`) is opaque and
+// passed through verbatim; any non-data line that is not part of the safe
+// data-only grammar (see allowedDumpLine) is rejected.
 func (d *DatabaseDumper) validateBackup(data io.Reader) ([]byte, error) {
 	scanner := bufio.NewScanner(data)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
@@ -136,20 +182,37 @@ func (d *DatabaseDumper) validateBackup(data io.Reader) ([]byte, error) {
 	var buf bytes.Buffer
 	lineNum := 0
 	headerFound := false
+	inCopyData := false
 
 	for scanner.Scan() {
 		line := scanner.Text()
 		lineNum++
 
-		if !headerFound && strings.Contains(line, string(pgDumpHeader)) {
+		if inCopyData {
+			// Opaque COPY rows. psql ends the block on a line that is exactly
+			// `\.`; rows can't contain a bare `\.` (it would be escaped), so this
+			// matches psql's own framing and can't be used to smuggle SQL.
+			if strings.TrimRight(line, "\r") == `\.` {
+				inCopyData = false
+			}
+			buf.WriteString(line)
+			buf.WriteByte('\n')
+			continue
+		}
+
+		trimmed := strings.TrimRight(line, "\r")
+		if !headerFound && strings.Contains(trimmed, string(pgDumpHeader)) {
 			headerFound = true
 		}
 		if lineNum == 50 && !headerFound {
 			return nil, errors.New("restore: invalid file: missing pg_dump header")
 		}
 
-		if dangerousLineRe.MatchString(line) {
-			return nil, fmt.Errorf("restore: rejected: dangerous SQL at line %d", lineNum)
+		if !allowedDumpLine(trimmed) {
+			return nil, fmt.Errorf("restore: rejected: disallowed statement at line %d", lineNum)
+		}
+		if reDumpCopyStdin.MatchString(strings.TrimSpace(trimmed)) {
+			inCopyData = true
 		}
 
 		buf.WriteString(line)
