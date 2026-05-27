@@ -26,9 +26,9 @@ type fakeSubtitleService struct {
 
 	lastSearchLang string
 	lastDownload   struct {
-		fileID         int
-		language       string
-		format         string
+		fileID   int
+		language string
+		format   string
 	}
 	lastDeleteID string
 }
@@ -86,7 +86,9 @@ func TestSubtitleSearch_Success(t *testing.T) {
 		t.Errorf("expected lang fr, got %s", svc.lastSearchLang)
 	}
 	var resp struct {
-		Results []struct{ FileID int `json:"fileId"` } `json:"results"`
+		Results []struct {
+			FileID int `json:"fileId"`
+		} `json:"results"`
 	}
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
@@ -237,6 +239,71 @@ func TestSubtitleDownload_ServiceError_500(t *testing.T) {
 	}
 }
 
+// filePath is a server-side filesystem path and must only be exposed to admins.
+func TestSubtitleDownload_FilePath_AdminOnly(t *testing.T) {
+	newDownloadResp := func(isAdmin bool) map[string]any {
+		svc := &fakeSubtitleService{downloadSub: &domainsubtitle.SubtitleDownload{
+			ID: "s1", MediaItemID: "m1", Language: "en", Format: "srt", FilePath: "/srv/media/sub.srt", Source: "opensubtitles", DownloadedAt: time.Unix(0, 0),
+		}}
+		h := newSubtitleRoutes(svc, validUserValidator(isAdmin), subtitleMediaGetter("lib1"), allowAll())
+		mux := http.NewServeMux()
+		mux.HandleFunc("POST /api/v1/media/{id}/subtitles/download", h.download)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/subtitles/download", strings.NewReader(`{"fileId":1}`))
+		req.Header.Set("Authorization", "Bearer tok")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("expected 201, got %d", w.Code)
+		}
+		var out map[string]any
+		if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		return out
+	}
+
+	if got := newDownloadResp(false); got["filePath"] != nil {
+		t.Errorf("non-admin download leaked filePath: %v", got["filePath"])
+	}
+	if got := newDownloadResp(true); got["filePath"] != "/srv/media/sub.srt" {
+		t.Errorf("admin download missing filePath: %v", got["filePath"])
+	}
+}
+
+func TestSubtitleList_FilePath_AdminOnly(t *testing.T) {
+	newListResp := func(isAdmin bool) []map[string]any {
+		svc := &fakeSubtitleService{listSubs: []*domainsubtitle.SubtitleDownload{
+			{ID: "s1", MediaItemID: "m1", Language: "en", Format: "srt", FilePath: "/srv/media/sub.srt", DownloadedAt: time.Unix(0, 0)},
+		}}
+		h := newSubtitleRoutes(svc, validUserValidator(isAdmin), subtitleMediaGetter("lib1"), allowAll())
+		mux := http.NewServeMux()
+		mux.HandleFunc("GET /api/v1/media/{id}/subtitles", h.list)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitles", nil)
+		req.Header.Set("Authorization", "Bearer tok")
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+		var resp struct {
+			Subtitles []map[string]any `json:"subtitles"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		return resp.Subtitles
+	}
+
+	nonAdmin := newListResp(false)
+	if len(nonAdmin) != 1 || nonAdmin[0]["filePath"] != nil {
+		t.Errorf("non-admin list leaked filePath: %v", nonAdmin)
+	}
+	admin := newListResp(true)
+	if len(admin) != 1 || admin[0]["filePath"] != "/srv/media/sub.srt" {
+		t.Errorf("admin list missing filePath: %v", admin)
+	}
+}
+
 // --- list ---
 
 func TestSubtitleList_Success(t *testing.T) {
@@ -257,7 +324,9 @@ func TestSubtitleList_Success(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 	var resp struct {
-		Subtitles []struct{ ID string `json:"id"` } `json:"subtitles"`
+		Subtitles []struct {
+			ID string `json:"id"`
+		} `json:"subtitles"`
 	}
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)

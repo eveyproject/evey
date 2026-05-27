@@ -252,7 +252,8 @@ func (h *subtitleRoutes) download(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ctx)
 	mediaID := r.PathValue("id")
 	span.SetAttributes(attribute.String("media_item_id", mediaID))
-	if _, ok := h.requireMediaAccess(w, r, mediaID); !ok {
+	claims, ok := h.requireMediaAccess(w, r, mediaID)
+	if !ok {
 		span.SetStatus(otelcodes.Error, "media access denied")
 		return
 	}
@@ -280,17 +281,21 @@ func (h *subtitleRoutes) download(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"download failed"}`, http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(map[string]any{
+	out := map[string]any{
 		"id":           sub.ID,
 		"mediaItemId":  sub.MediaItemID,
 		"language":     sub.Language,
 		"format":       sub.Format,
-		"filePath":     sub.FilePath,
 		"source":       sub.Source,
 		"downloadedAt": sub.DownloadedAt.UTC().Format(time.RFC3339),
-	}); err != nil {
+	}
+	// filePath is a server-side filesystem path; only admins may see it.
+	if claims != nil && claims.IsAdmin {
+		out["filePath"] = sub.FilePath
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(out); err != nil {
 		slog.Warn("json encode failed", slog.Any("err", err))
 	}
 }
@@ -301,7 +306,8 @@ func (h *subtitleRoutes) list(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ctx)
 	mediaID := r.PathValue("id")
 	span.SetAttributes(attribute.String("media_item_id", mediaID))
-	if _, ok := h.requireMediaAccess(w, r, mediaID); !ok {
+	claims, ok := h.requireMediaAccess(w, r, mediaID)
+	if !ok {
 		span.SetStatus(otelcodes.Error, "media access denied")
 		return
 	}
@@ -318,21 +324,26 @@ func (h *subtitleRoutes) list(w http.ResponseWriter, r *http.Request) {
 		MediaItemID  string `json:"mediaItemId"`
 		Language     string `json:"language"`
 		Format       string `json:"format"`
-		FilePath     string `json:"filePath"`
+		FilePath     string `json:"filePath,omitempty"`
 		Source       string `json:"source"`
 		DownloadedAt string `json:"downloadedAt"`
 	}
+	// filePath is a server-side filesystem path; only expose it to admins.
+	isAdmin := claims != nil && claims.IsAdmin
 	out := make([]subJSON, 0, len(subs))
 	for _, s := range subs {
-		out = append(out, subJSON{
+		j := subJSON{
 			ID:           s.ID,
 			MediaItemID:  string(s.MediaItemID),
 			Language:     s.Language,
 			Format:       s.Format,
-			FilePath:     s.FilePath,
 			Source:       s.Source,
 			DownloadedAt: s.DownloadedAt.UTC().Format(time.RFC3339),
-		})
+		}
+		if isAdmin {
+			j.FilePath = s.FilePath
+		}
+		out = append(out, j)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]any{"subtitles": out}); err != nil {
