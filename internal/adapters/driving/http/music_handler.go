@@ -18,25 +18,27 @@ import (
 	appmusic "github.com/evey-project/evey/internal/app/music"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type musicHandler struct {
 	svc        *appmusic.Service
 	libChecker LibraryAccessChecker
+	libLister  MediaArchiveSource // may be nil; used for path confinement (fail-open)
 }
 
 var albumArtHashRe = regexp.MustCompile(`^[a-f0-9]{16,128}$`)
 
-func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter) {
+func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, rl *ratelimit.Limiter, libLister MediaArchiveSource) {
 	authMw := httpAuthMiddleware(tokenGen)
 	adminMw := httpAdminMiddleware(tokenGen)
-	h := &musicHandler{svc: svc, libChecker: libChecker}
+	h := &musicHandler{svc: svc, libChecker: libChecker, libLister: libLister}
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/art", authMw(h.getTrackArt))
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/stream", authMw(h.streamTrack))
-	mux.HandleFunc("GET /api/v1/music/tracks/{id}/download", authMw(h.downloadTrack))
+	mux.HandleFunc("GET /api/v1/music/tracks/{id}/download", authMw(ratelimit.MiddlewareFunc(rl, h.downloadTrack)))
 	mux.HandleFunc("POST /api/v1/music/tracks/{id}/played", authMw(h.recordPlay))
-	mux.HandleFunc("GET /api/v1/music/albums/download", authMw(h.downloadAlbum))
+	mux.HandleFunc("GET /api/v1/music/albums/download", authMw(ratelimit.MiddlewareFunc(rl, h.downloadAlbum)))
 	mux.HandleFunc("GET /api/v1/music/album-art/{hash}", authMw(h.serveAlbumArt))
 	mux.HandleFunc("POST /api/v1/admin/music/fetch-missing-art", adminMw(h.fetchMissingArt))
 }
@@ -202,6 +204,19 @@ func (h *musicHandler) downloadTrack(w http.ResponseWriter, r *http.Request) {
 		span.SetStatus(otelcodes.Error, "library access denied")
 		return
 	}
+	// Defense-in-depth: confine path to known library roots.
+	if h.libLister != nil {
+		roots := mediaRoots(r.Context(), h.libLister)
+		if len(roots) > 0 && !pathWithinRoots(roots, track.FilePath) {
+			slog.Warn("music download: track path outside library roots, blocked",
+				slog.String("track_id", track.ID),
+				slog.String("path", track.FilePath),
+			)
+			span.SetStatus(otelcodes.Error, "path outside library roots")
+			http.NotFound(w, r)
+			return
+		}
+	}
 	f, err := os.Open(track.FilePath)
 	if err != nil {
 		span.RecordError(err)
@@ -291,6 +306,11 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	// Defense-in-depth: compute roots once for path confinement over the album's tracks.
+	var albumRoots []string
+	if h.libLister != nil {
+		albumRoots = mediaRoots(r.Context(), h.libLister)
+	}
 	zipName := sanitizeFilename(album) + ".zip"
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipName))
@@ -306,6 +326,12 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 		if string(tr.LibraryID) != libraryID {
 			slog.Warn("music album download: cross-library track skipped",
 				slog.String("track_id", tr.ID), slog.String("expected_lib", libraryID), slog.String("got_lib", string(tr.LibraryID)))
+			continue
+		}
+		// Defense-in-depth: confine path to known library roots.
+		if len(albumRoots) > 0 && !pathWithinRoots(albumRoots, tr.FilePath) {
+			slog.Warn("music album download: path outside library roots, skipped",
+				slog.String("track_id", tr.ID), slog.String("path", tr.FilePath))
 			continue
 		}
 		func() {

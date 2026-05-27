@@ -207,7 +207,7 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaArchiveSource, baseURL st
 
 		// Single-file items (movie, episode, track) stream the raw file.
 		if item.File != nil && item.File.Path != "" {
-			serveDownload(w, r, item, baseURL)
+			serveDownload(w, r, item, baseURL, mediaRoots(r.Context(), libSvc))
 			return
 		}
 
@@ -225,13 +225,25 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaArchiveSource, baseURL st
 	}
 }
 
-func serveDownload(w http.ResponseWriter, r *http.Request, item *library.MediaItem, baseURL string) {
+func serveDownload(w http.ResponseWriter, r *http.Request, item *library.MediaItem, baseURL string, roots []string) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.media.ServeDownload")
 	defer span.End()
 	r = r.WithContext(ctx)
 	if item.File == nil {
 		span.SetStatus(codes.Error, "media file missing")
 		http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
+		return
+	}
+	// Defense-in-depth: confine path to known library roots so a poisoned
+	// media_files.path cannot exfiltrate an arbitrary file. Fails open when
+	// roots are unknown (transient list error) — confinement is NOT the
+	// access gate; access was already checked by the caller.
+	if len(roots) > 0 && !pathWithinRoots(roots, item.File.Path) {
+		slog.Warn("download: path outside library roots, blocked",
+			slog.String("item_id", string(item.ID)),
+			slog.String("path", item.File.Path),
+		)
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
 	fi, err := os.Stat(item.File.Path)

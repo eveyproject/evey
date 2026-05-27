@@ -12,7 +12,7 @@ import (
 // they had access to, and the token entropy is the access control. Validate()
 // enforces expiry + view-limit and increments the view count. This is the only
 // public-facing use of share links; creation/listing/revoke are admin-gated.
-func shareDownloadHandler(shareSvc *appmedia.ShareService, libSvc MediaItemGetter, baseURL string) http.HandlerFunc {
+func shareDownloadHandler(shareSvc *appmedia.ShareService, libSvc MediaArchiveSource, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
 		if token == "" {
@@ -33,6 +33,6 @@ func shareDownloadHandler(shareSvc *appmedia.ShareService, libSvc MediaItemGette
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		serveDownload(w, r, item, baseURL)
+		serveDownload(w, r, item, baseURL, mediaRoots(r.Context(), libSvc))
 	}
 }

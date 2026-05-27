@@ -21,6 +21,7 @@ import (
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 func TestIsWithinDir_Inside(t *testing.T) {
@@ -76,7 +77,7 @@ func newMusicTestMuxWithToken(t *testing.T) (*http.ServeMux, string) {
 	repo := musicfakes.NewFakeMusicTrackRepository()
 	bus := sharedfakes.NewFakeEventBus()
 	svc := appmusic.NewService(repo, bus, nil, nil)
-	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil)
+	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil)
 	return mux, token
 }
 
@@ -144,7 +145,7 @@ func newMusicMux(t *testing.T, isAdmin bool, checker LibraryAccessChecker, repo 
 	bus := sharedfakes.NewFakeEventBus()
 	svc := appmusic.NewService(repo, bus, libRepo, musicfakes.NewFakeMusicScanner())
 	mux := http.NewServeMux()
-	registerMusicRoutes(mux, svc, tokenGen, checker, nil)
+	registerMusicRoutes(mux, svc, tokenGen, checker, nil, ratelimit.New(10000), nil)
 	return mux, token, svc
 }
 
@@ -279,7 +280,7 @@ func TestServeAlbumArt_FileMissing_404(t *testing.T) {
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, musicfakes.NewFakeMusicScanner())
 	svc.CommandService().WithAlbumArtFetcher(nil, dir)
 	mux := http.NewServeMux()
-	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil)
+	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/album-art/abcdef0123456789", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -310,7 +311,7 @@ func TestServeAlbumArt_Success(t *testing.T) {
 	// WithAlbumArtFetcher sets albumArtDir = filepath.Join(dataDir, "music_album_art")
 	svc.CommandService().WithAlbumArtFetcher(nil, dir)
 	mux := http.NewServeMux()
-	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil)
+	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/album-art/"+hash, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -416,6 +417,111 @@ func TestFetchMissingArt_Success_WithLibRepo(t *testing.T) {
 }
 
 // ---------- getTrackArt access denial ----------
+
+// ---------- downloadTrack ----------
+
+// newMusicMuxWithLister creates a mux with a rate-limiter and a libLister for
+// testing path confinement on music download routes.
+func newMusicMuxWithLister(t *testing.T, repo *musicfakes.FakeMusicTrackRepository, checker LibraryAccessChecker, libLister MediaArchiveSource) (*http.ServeMux, string) {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokenGen := auth.NewJWTGenerator(key, time.Minute)
+	token, err := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", IsAdmin: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appmusic.NewService(repo, bus, nil, musicfakes.NewFakeMusicScanner())
+	mux := http.NewServeMux()
+	registerMusicRoutes(mux, svc, tokenGen, checker, nil, ratelimit.New(10000), libLister)
+	return mux, token
+}
+
+func TestDownloadTrack_PathOutsideRoots_404(t *testing.T) {
+	dir := t.TempDir()
+	trackPath := writeTempFile(t, dir, "song.mp3", []byte("audiodata"))
+
+	repo := musicfakes.NewFakeMusicTrackRepository()
+	if err := repo.Upsert(context.Background(), domainmusic.Track{
+		ID:        "t1",
+		LibraryID: shared.LibraryID("lib-A"),
+		Title:     "Song",
+		FilePath:  trackPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// roots does NOT include dir
+	otherDir := t.TempDir()
+	libLister := &fakeMediaItemGetter{
+		libraries: []*domainlibrary.Library{
+			{ID: "lib-A", Paths: []string{otherDir}},
+		},
+	}
+	mux, token := newMusicMuxWithLister(t, repo, allowAll(), libLister)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/tracks/t1/download", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 when track path is outside roots, got %d", w.Code)
+	}
+}
+
+func TestDownloadTrack_PathInsideRoots_Serves(t *testing.T) {
+	dir := t.TempDir()
+	trackPath := writeTempFile(t, dir, "song.mp3", []byte("audiodata"))
+
+	repo := musicfakes.NewFakeMusicTrackRepository()
+	if err := repo.Upsert(context.Background(), domainmusic.Track{
+		ID:        "t1",
+		LibraryID: shared.LibraryID("lib-A"),
+		Title:     "Song",
+		FilePath:  trackPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// roots includes dir
+	libLister := &fakeMediaItemGetter{
+		libraries: []*domainlibrary.Library{
+			{ID: "lib-A", Paths: []string{dir}},
+		},
+	}
+	mux, token := newMusicMuxWithLister(t, repo, allowAll(), libLister)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/tracks/t1/download", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK && w.Code != http.StatusPartialContent {
+		t.Errorf("expected 200 when track path is inside roots, got %d", w.Code)
+	}
+}
+
+func TestDownloadTrack_NilLister_FailOpen(t *testing.T) {
+	dir := t.TempDir()
+	trackPath := writeTempFile(t, dir, "song.mp3", []byte("audiodata"))
+
+	repo := musicfakes.NewFakeMusicTrackRepository()
+	if err := repo.Upsert(context.Background(), domainmusic.Track{
+		ID:        "t1",
+		LibraryID: shared.LibraryID("lib-A"),
+		Title:     "Song",
+		FilePath:  trackPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// nil libLister → no confinement → fail open
+	mux, token := newMusicMuxWithLister(t, repo, allowAll(), nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/tracks/t1/download", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK && w.Code != http.StatusPartialContent {
+		t.Errorf("nil lister should fail open and serve the file, got %d", w.Code)
+	}
+}
 
 func TestGetTrackArt_AccessDenied_403(t *testing.T) {
 	repo := musicfakes.NewFakeMusicTrackRepository()

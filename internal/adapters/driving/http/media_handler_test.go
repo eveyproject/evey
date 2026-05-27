@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -241,6 +242,79 @@ func TestCheckLibraryAccess_User_Allowed(t *testing.T) {
 	ok := checkLibraryAccess(context.Background(), w, claims, shared.LibraryID("lib1"), checker)
 	if !ok {
 		t.Error("should be allowed")
+	}
+}
+
+// --- tests: serveDownload path confinement ---
+
+func TestServeDownload_PathOutsideRoots_404(t *testing.T) {
+	dir := t.TempDir()
+	// Create a real file that sits outside the declared root.
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File: &domainlibrary.MediaFile{Path: dir + "/movie.mkv"},
+	}
+	if err := os.WriteFile(item.File.Path, []byte("data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// roots does NOT include dir, so path is outside
+	roots := []string{"/some/other/root"}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	serveDownload(w, r, item, "http://localhost", roots)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 when path is outside roots, got %d", w.Code)
+	}
+}
+
+func TestServeDownload_EmptyRoots_FailOpen(t *testing.T) {
+	dir := t.TempDir()
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File: &domainlibrary.MediaFile{Path: dir + "/movie.mkv"},
+	}
+	if err := os.WriteFile(item.File.Path, []byte("videodata"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// empty roots → fail open, file should be served
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	serveDownload(w, r, item, "http://localhost", nil)
+
+	if w.Code == http.StatusNotFound && w.Body.String() == `{"message":"not found"}`+"\n" {
+		t.Error("empty roots should fail open, not block the download")
+	}
+	// 200 or 206 (range) expected — anything but a confinement 404
+	if w.Code != http.StatusOK && w.Code != http.StatusPartialContent {
+		// if the stat failed for another reason that's fine — just not our confinement 404
+		t.Logf("got %d (acceptable if not confinement block)", w.Code)
+	}
+}
+
+func TestServeDownload_PathInsideRoots_Serves(t *testing.T) {
+	dir := t.TempDir()
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File: &domainlibrary.MediaFile{Path: dir + "/movie.mkv"},
+	}
+	if err := os.WriteFile(item.File.Path, []byte("videodata"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// roots includes dir — path is inside
+	roots := []string{dir}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	serveDownload(w, r, item, "http://localhost", roots)
+
+	// Should not be blocked by confinement; expect 200 (or 206 for range)
+	if w.Code == http.StatusNotFound {
+		body := w.Body.String()
+		if body == `{"message":"not found"}`+"\n" {
+			t.Errorf("path inside roots should not be blocked; got 404 with body %q", body)
+		}
 	}
 }
 

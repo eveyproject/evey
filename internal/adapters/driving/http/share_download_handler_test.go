@@ -14,6 +14,10 @@ import (
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 )
 
+// Compile-time check: fakeMediaItemGetter must satisfy MediaArchiveSource so
+// it can be passed to the widened shareDownloadHandler parameter.
+var _ MediaArchiveSource = (*fakeMediaItemGetter)(nil)
+
 func TestShareDownloadHandler_ServesFileForValidToken(t *testing.T) {
 	dir := t.TempDir()
 	fpath := filepath.Join(dir, "movie.mp4")
@@ -53,6 +57,37 @@ func TestShareDownloadHandler_UnknownToken404(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("code = %d, want 404", rec.Code)
+	}
+}
+
+func TestShareDownloadHandler_PathOutsideRoots_404(t *testing.T) {
+	dir := t.TempDir()
+	fpath := filepath.Join(dir, "movie.mp4")
+	if err := os.WriteFile(fpath, []byte("VIDEODATA"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repo := sharedfakes.NewFakeShareLinkRepo()
+	repo.Seed(&shared.ShareLink{ID: "s1", Token: "tok-conf", MediaItemID: "m1", ExpiresAt: time.Now().Add(time.Hour)})
+	// roots does NOT include dir — confinement should block serving
+	otherDir := t.TempDir()
+	getter := &fakeMediaItemGetter{
+		item: &domainlibrary.MediaItem{
+			ID: "m1", LibraryID: "lib1", Title: "Movie",
+			File: &domainlibrary.MediaFile{Path: fpath},
+		},
+		libraries: []*domainlibrary.Library{
+			{ID: "lib1", Paths: []string{otherDir}},
+		},
+	}
+	h := shareDownloadHandler(appmedia.NewShareService(repo), getter, "http://x")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/share/tok-conf/download", nil)
+	req.SetPathValue("token", "tok-conf")
+	rec := httptest.NewRecorder()
+	h(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("code = %d, want 404 (path outside roots)", rec.Code)
 	}
 }
 
