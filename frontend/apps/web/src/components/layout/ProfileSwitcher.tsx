@@ -73,11 +73,11 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
 
   const others = profiles.filter((p) => p.id && p.id !== active?.id);
 
-  const doSwitch = useCallback(async (target: V1Profile) => {
+  const doSwitch = useCallback(async (target: V1Profile, pinToken?: string) => {
     if (!target.id) return;
     setSwitching(target.id);
     try {
-      const resp = await userServiceRefreshToken({ profileId: target.id });
+      const resp = await userServiceRefreshToken({ profileId: target.id, pinToken });
       if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
       try {
         localStorage.setItem("evey:last_profile_id", target.id);
@@ -248,9 +248,9 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
         <PinPromptDialog
           target={pinTarget}
           onCancel={() => setPinTarget(null)}
-          onVerified={async (target) => {
+          onVerified={async (target, pinToken) => {
             setPinTarget(null);
-            await doSwitch(target);
+            await doSwitch(target, pinToken);
           }}
         />
       )}

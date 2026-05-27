@@ -48,10 +48,10 @@ function ProfileSelectPage() {
   const currentProfile = profiles.find((p) => p.id === activeProfileId);
   const currentIsKids = currentProfile?.isKids === true;
 
-  const switchProfile = useCallback(async (target: V1Profile): Promise<boolean> => {
+  const switchProfile = useCallback(async (target: V1Profile, pinToken?: string): Promise<boolean> => {
     if (!target.id) return false;
     try {
-      const resp = await userServiceRefreshToken({ profileId: target.id });
+      const resp = await userServiceRefreshToken({ profileId: target.id, pinToken });
       if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
       try { localStorage.setItem(LAST_PROFILE_KEY, target.id); } catch { /* ignore */ }
       await qc.invalidateQueries();
@@ -159,10 +159,10 @@ function ProfileSelectPage() {
         <PinPromptDialog
           target={pinTarget}
           onCancel={() => setPinTarget(null)}
-          onVerified={async (target) => {
+          onVerified={async (target, pinToken) => {
             setPinTarget(null);
             setBusy(target.id ?? null);
-            const ok = await switchProfile(target);
+            const ok = await switchProfile(target, pinToken);
             setBusy(null);
             if (ok) void navigate({ to: "/home" });
           }}

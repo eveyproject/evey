@@ -63,4 +63,7 @@ message VerifyPinRequest {
 
 message VerifyPinResponse {
   bool valid = 1;
+  // Short-lived proof of PIN entry, passed to RefreshToken to authorise a
+  // switch out of a kids profile. Present only when valid is true.
+  string pin_token = 2;
 }

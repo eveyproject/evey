@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/Input";
 interface Props {
   target: V1Profile;
   onCancel: () => void;
-  onVerified: (target: V1Profile) => void | Promise<void>;
+  // pinToken is the short-lived proof returned by verify-pin; it must be passed
+  // to the profile switch (RefreshToken) to authorise leaving a kids profile.
+  onVerified: (target: V1Profile, pinToken?: string) => void | Promise<void>;
 }
 
 export function PinPromptDialog({ target, onCancel, onVerified }: Props) {
@@ -32,7 +34,7 @@ export function PinPromptDialog({ target, onCancel, onVerified }: Props) {
         setError(t("auth.profile.select.pinWrong", "Incorrect PIN"));
         return;
       }
-      await onVerified(target);
+      await onVerified(target, resp.pinToken);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("auth.profile.select.pinWrong", "Incorrect PIN"));
     } finally {
