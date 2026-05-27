@@ -63,7 +63,7 @@ func (c *libraryItemCounter) CountByLibrary(ctx context.Context, libraryID share
 	}
 }
 
-func chaptersHandler(tokenGen TokenVerifier, libSvc ChaptersGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
+func chaptersHandler(tokenGen TokenVerifier, libSvc ChaptersGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker) http.HandlerFunc {
 	type chapterJSON struct {
 		Title       string `json:"title"`
 		StartTimeMs int64  `json:"startTimeMs"`
@@ -92,6 +92,10 @@ func chaptersHandler(tokenGen TokenVerifier, libSvc ChaptersGetter, baseURL stri
 		}
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			span.SetStatus(codes.Error, "library access denied")
+			return
+		}
+		if !checkParental(r.Context(), w, claims, item, parental) {
+			span.SetStatus(codes.Error, "parental restricted")
 			return
 		}
 		chapters, err := libSvc.GetChapters(r.Context(), mediaID)

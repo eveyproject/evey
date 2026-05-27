@@ -34,6 +34,7 @@ func TestSegmentsHandler_NoAuth_401(t *testing.T) {
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		func() bool { return false },
+		nil,
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -52,6 +53,7 @@ func TestSegmentsHandler_NotFound_404(t *testing.T) {
 		allowAll(),
 		&fakeMediaItemGetter{err: errTest},
 		func() bool { return false },
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -71,6 +73,7 @@ func TestSegmentsHandler_IDOR_403(t *testing.T) {
 		denyAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib-restricted")},
 		func() bool { return false },
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -90,6 +93,7 @@ func TestSegmentsHandler_StreamTokenMismatch_403(t *testing.T) {
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		func() bool { return false },
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -116,6 +120,7 @@ func TestSegmentsHandler_OK(t *testing.T) {
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		func() bool { return false },
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")
@@ -154,6 +159,7 @@ func TestSegmentsHandler_TypeFilter(t *testing.T) {
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		func() bool { return false },
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments?types=intro,outro", nil)
 	req.SetPathValue("id", "m1")
@@ -187,6 +193,7 @@ func TestSegmentsHandler_PreviewGating(t *testing.T) {
 			allowAll(),
 			&fakeMediaItemGetter{item: testMediaItem("lib1")},
 			func() bool { return previewEnabled },
+			nil,
 		)
 		// client explicitly asks for preview
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments?types=intro,preview", nil)
@@ -214,6 +221,60 @@ func TestSegmentsHandler_PreviewGating(t *testing.T) {
 	}
 }
 
+func TestSegmentsHandler_ParentalBlocked_403(t *testing.T) {
+	segs := []*domainlibrary.MediaSegment{
+		{ID: "s1", MediaItemID: "m1", Type: "intro", StartMs: 0, EndMs: 60000, Source: "phash"},
+	}
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
+	}
+	h := segmentsHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeSegmentsGetter{segments: segs},
+		"http://localhost",
+		allowAll(),
+		&fakeMediaItemGetter{item: item},
+		func() bool { return false },
+		alwaysBlockChecker{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
+	req.SetPathValue("id", "m1")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 from parental gate, got %d", w.Code)
+	}
+}
+
+func TestSegmentsHandler_ParentalAdmin_OK(t *testing.T) {
+	segs := []*domainlibrary.MediaSegment{
+		{ID: "s1", MediaItemID: "m1", Type: "intro", StartMs: 0, EndMs: 60000, Source: "phash"},
+	}
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
+	}
+	h := segmentsHandler(
+		&fakeTokenVerifier{claims: testClaims(true)},
+		&fakeSegmentsGetter{segments: segs},
+		"http://localhost",
+		allowAll(),
+		&fakeMediaItemGetter{item: item},
+		func() bool { return false },
+		alwaysBlockChecker{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
+	req.SetPathValue("id", "m1")
+	req = withHTTPClaims(req, testClaims(true))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("admin must bypass parental, got %d", w.Code)
+	}
+}
+
 func TestSegmentsHandler_GetError_500(t *testing.T) {
 	h := segmentsHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
@@ -222,6 +283,7 @@ func TestSegmentsHandler_GetError_500(t *testing.T) {
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		func() bool { return false },
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/segments", nil)
 	req.SetPathValue("id", "m1")

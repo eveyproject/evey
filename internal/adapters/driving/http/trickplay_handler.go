@@ -22,7 +22,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
+func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.trickplay.Manifest")
 		defer span.End()
@@ -49,6 +49,10 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 		// Trickplay is public: skip library access check when no auth claims.
 		if claims != nil && !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			span.SetStatus(otelcodes.Error, "library access denied")
+			return
+		}
+		if !checkParental(r.Context(), w, claims, item, parental) {
+			span.SetStatus(otelcodes.Error, "parental restricted")
 			return
 		}
 
@@ -170,7 +174,7 @@ func formatVTTTimeMs(totalMs int64) string {
 	return fmt.Sprintf("%02d:%02d:%02d.%03d", h, m, s, ms)
 }
 
-func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
+func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.trickplay.Image")
 		defer span.End()
@@ -201,6 +205,10 @@ func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseU
 		// Trickplay image is public: skip library access check when no auth claims.
 		if claims != nil && !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			span.SetStatus(otelcodes.Error, "library access denied")
+			return
+		}
+		if !checkParental(r.Context(), w, claims, item, parental) {
+			span.SetStatus(otelcodes.Error, "parental restricted")
 			return
 		}
 

@@ -249,6 +249,7 @@ func TestChaptersHandler_StreamToken_WrongMediaID_403(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
@@ -262,6 +263,54 @@ func TestChaptersHandler_StreamToken_WrongMediaID_403(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected 403 for wrong media_id, got %d", w.Code)
+	}
+}
+
+func TestChaptersHandler_ParentalBlocked_403(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File:           &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"},
+		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
+	}
+	h := chaptersHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeChaptersGetter{},
+		"http://localhost",
+		allowAll(),
+		&fakeMediaItemGetter{item: item},
+		alwaysBlockChecker{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
+	req.SetPathValue("id", "m1")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 from parental gate, got %d", w.Code)
+	}
+}
+
+func TestChaptersHandler_ParentalAdmin_OK(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File:           &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"},
+		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
+	}
+	h := chaptersHandler(
+		&fakeTokenVerifier{claims: testClaims(true)},
+		&fakeChaptersGetter{},
+		"http://localhost",
+		allowAll(),
+		&fakeMediaItemGetter{item: item},
+		alwaysBlockChecker{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
+	req.SetPathValue("id", "m1")
+	req = withHTTPClaims(req, testClaims(true))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("admin must bypass parental, got %d", w.Code)
 	}
 }
 

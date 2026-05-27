@@ -410,3 +410,55 @@ func TestSubtitleDelete_ServiceError_404(t *testing.T) {
 		t.Fatalf("expected 404, got %d", w.Code)
 	}
 }
+
+// --- subtitleHandler parental gate ---
+
+func TestSubtitleHandler_ParentalBlocked_403(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File:           &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"},
+		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
+	}
+	h := subtitleHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeMediaStreamsGetter{item: item},
+		"http://localhost",
+		allowAll(),
+		alwaysBlockChecker{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("track", "0")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 from parental gate, got %d", w.Code)
+	}
+}
+
+func TestSubtitleHandler_ParentalAdmin_NotBlocked(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File:           &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"},
+		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
+	}
+	h := subtitleHandler(
+		&fakeTokenVerifier{claims: testClaims(true)},
+		&fakeMediaStreamsGetter{item: item},
+		"http://localhost",
+		allowAll(),
+		alwaysBlockChecker{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("track", "0")
+	req = withHTTPClaims(req, testClaims(true))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	// Admin bypasses parental — handler continues past the gate.
+	// ffmpeg is not present in unit tests so we get some non-403 status.
+	if w.Code == http.StatusForbidden {
+		t.Errorf("admin must not be blocked by parental, got 403")
+	}
+}

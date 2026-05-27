@@ -44,6 +44,7 @@ func TestTrickplayManifestHandler_Unauthenticated(t *testing.T) {
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
 	)
 	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay.vtt", nil)
@@ -62,6 +63,7 @@ func TestTrickplayManifestHandler_IDOR_Forbidden(t *testing.T) {
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: false},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay.vtt", nil)
 	req.SetPathValue("id", "m1")
@@ -89,6 +91,7 @@ func TestTrickplayManifestHandler_OK(t *testing.T) {
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay.vtt", nil)
 	req.SetPathValue("id", "m1")
@@ -111,6 +114,7 @@ func TestTrickplayImageHandler_Unauthenticated(t *testing.T) {
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
 	)
 	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/trickplay_001.webp", nil)
@@ -130,6 +134,7 @@ func TestTrickplayImageHandler_IDOR_Forbidden(t *testing.T) {
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: false},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/trickplay_001.webp", nil)
 	req.SetPathValue("id", "m1")
@@ -139,6 +144,104 @@ func TestTrickplayImageHandler_IDOR_Forbidden(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestTrickplayManifestHandler_ParentalBlocked_403(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
+	}
+	h := trickplayManifestHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeTrickplayGetter{},
+		"http://localhost",
+		&fakeLibraryAccessChecker{allowed: true},
+		&fakeMediaItemGetter{item: item},
+		alwaysBlockChecker{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay", nil)
+	req.SetPathValue("id", "m1")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 from parental gate, got %d", w.Code)
+	}
+}
+
+func TestTrickplayManifestHandler_ParentalAdmin_OK(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
+	}
+	// getter returns error so the handler emits empty WEBVTT and returns 200
+	h := trickplayManifestHandler(
+		&fakeTokenVerifier{claims: testClaims(true)},
+		&fakeTrickplayGetter{err: errTest},
+		"http://localhost",
+		&fakeLibraryAccessChecker{allowed: true},
+		&fakeMediaItemGetter{item: item},
+		alwaysBlockChecker{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay", nil)
+	req.SetPathValue("id", "m1")
+	req = withHTTPClaims(req, testClaims(true))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	// on manifest error the handler emits an empty WEBVTT — any non-403 is pass
+	if w.Code == http.StatusForbidden {
+		t.Errorf("admin must bypass parental, got 403")
+	}
+}
+
+func TestTrickplayImageHandler_ParentalBlocked_403(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
+	}
+	h := trickplayImageHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeTrickplayGetter{},
+		"http://localhost",
+		&fakeLibraryAccessChecker{allowed: true},
+		&fakeMediaItemGetter{item: item},
+		alwaysBlockChecker{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/trickplay_001.webp", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("image", "trickplay_001.webp")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 from parental gate, got %d", w.Code)
+	}
+}
+
+func TestTrickplayImageHandler_ParentalAdmin_OK(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
+	}
+	// getter returns error → handler emits 404 (not 403)
+	h := trickplayImageHandler(
+		&fakeTokenVerifier{claims: testClaims(true)},
+		&fakeTrickplayGetter{err: errTest},
+		"http://localhost",
+		&fakeLibraryAccessChecker{allowed: true},
+		&fakeMediaItemGetter{item: item},
+		alwaysBlockChecker{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/trickplay_001.webp", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("image", "trickplay_001.webp")
+	req = withHTTPClaims(req, testClaims(true))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	// admin bypasses parental; manifest not found → 404, never 403
+	if w.Code == http.StatusForbidden {
+		t.Errorf("admin must bypass parental, got 403")
 	}
 }
 

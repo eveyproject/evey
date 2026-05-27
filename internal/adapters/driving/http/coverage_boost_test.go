@@ -271,6 +271,7 @@ func TestChaptersHandler_NoAuth_401(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
@@ -289,6 +290,7 @@ func TestChaptersHandler_InvalidToken_401(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
@@ -307,6 +309,7 @@ func TestChaptersHandler_NotFound_404(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{err: errTest},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
@@ -325,6 +328,7 @@ func TestChaptersHandler_IDOR_403(t *testing.T) {
 		"http://localhost",
 		denyAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib-restricted")},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
@@ -345,6 +349,7 @@ func TestChaptersHandler_OK(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
@@ -366,6 +371,7 @@ func TestChaptersHandler_ServiceError_500(t *testing.T) {
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
@@ -1363,6 +1369,7 @@ func TestSubtitleHandler_NoAuth_401(t *testing.T) {
 		&fakeMediaStreamsGetter{},
 		"http://localhost",
 		allowAll(),
+		nil,
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -1381,6 +1388,7 @@ func TestSubtitleHandler_InvalidToken_401(t *testing.T) {
 		&fakeMediaStreamsGetter{},
 		"http://localhost",
 		allowAll(),
+		nil,
 	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -1399,6 +1407,7 @@ func TestSubtitleHandler_NotFound_404(t *testing.T) {
 		&fakeMediaStreamsGetter{itemErr: errTest},
 		"http://localhost",
 		allowAll(),
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -1417,6 +1426,7 @@ func TestSubtitleHandler_IDOR_403(t *testing.T) {
 		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "restricted", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		"http://localhost",
 		denyAll(),
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
@@ -1435,6 +1445,7 @@ func TestSubtitleHandler_QueryToken(t *testing.T) {
 		&fakeMediaStreamsGetter{itemErr: errTest},
 		"http://localhost",
 		allowAll(),
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0?token=valid", nil)
 	req.SetPathValue("id", "m1")
