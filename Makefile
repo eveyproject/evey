@@ -1,4 +1,4 @@
-.PHONY: proto-gen plugin-sdk plugin-zips build test test-image test-shell lint clean \
+.PHONY: proto-gen plugin-sdk plugin-zips build test test-image test-shell lint sec-scan clean \
 	migrate-up migrate-down setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go
@@ -68,6 +68,13 @@ test-shell: test-image
 
 lint:
 	golangci-lint run ./...
+
+# Curated gosec security sweep — uses a SEPARATE config (.golangci.gosec.yml)
+# so `make lint` stays noise-free. Full sweep on demand (~21 findings, mostly
+# already-triaged FPs). CI runs the same profile with only-new-issues as a
+# regression ratchet. See gosec_eval memory for the triage.
+sec-scan:
+	golangci-lint run -c .golangci.gosec.yml ./...
 
 clean:
 	rm -rf bin/ gen/

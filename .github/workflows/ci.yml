@@ -59,6 +59,30 @@ jobs:
       - name: build
         run: go build ./...
 
+      # Code-quality linters (.golangci.yml). Ratchet mode: only-new-issues
+      # means a pre-existing finding never blocks — only issues introduced by
+      # the pushed commits (push: before..after diff) or the PR diff fail the
+      # build. Skipped on release tags (no diff base → would report everything).
+      - name: lint (golangci-lint, new issues only)
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')
+        uses: golangci/golangci-lint-action@v9.2.1
+        with:
+          version: v2.12.2
+          only-new-issues: true
+
+      # Curated gosec security scan (.golangci.gosec.yml — high-signal rules
+      # only; see gosec_eval). Same ratchet: the ~21 legacy findings (mostly
+      # already-triaged false positives) never block — only a newly introduced
+      # SQL/cookie/taint/secret regression does.
+      - name: gosec security scan (curated, new issues only)
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')
+        uses: golangci/golangci-lint-action@v9.2.1
+        with:
+          version: v2.12.2
+          only-new-issues: true
+          skip-save-cache: true
+          args: --config=.golangci.gosec.yml
+
       - name: test (unit)
         run: |
           go test \

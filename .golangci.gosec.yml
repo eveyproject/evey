@@ -1,0 +1,46 @@
+# Security-only golangci-lint profile — runs ONLY gosec, curated to the
+# high-signal rules. Deliberately kept SEPARATE from .golangci.yml so that
+# `make lint` stays noise-free. Used by:
+#   - `make sec-scan`        full curated sweep, on demand
+#   - CI security ratchet    golangci-lint-action with only-new-issues
+#
+# gosec's raw output on this codebase is ~386 findings dominated by noise:
+# G115 (int overflow), G104 (unhandled errors, already covered by errcheck),
+# G304 (file-by-path, inherent to a media server) and the permission rules.
+# Whitelisting the categories below drops that to ~40 reviewable findings.
+# See the gosec_eval memory for the full triage.
+version: "2"
+
+run:
+  go: "1.26"
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - gosec
+  settings:
+    gosec:
+      includes:
+        - G101  # hardcoded credentials
+        - G103  # use of unsafe
+        - G110  # decompression bomb (DoS)
+        - G117  # marshaled struct field matches a secret name
+        - G124  # http.Cookie missing Secure/HttpOnly/SameSite
+        - G201  # SQL query built with a format string
+        - G202  # SQL query built with string concatenation
+        - G203  # unescaped data in an HTML template
+        - G204  # subprocess launched with tainted input
+        - G305  # path traversal when extracting a zip/tar archive
+        - G404  # weak random number generator
+        - G702  # command injection (taint analysis)
+        - G703  # path traversal (taint analysis)
+  exclusions:
+    generated: lax
+    paths:
+      - ^cmd/        # admin/diagnostic CLIs + plugin launcher: trusted args, syscall unsafe is expected
+      - /gen/        # generated proto
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
