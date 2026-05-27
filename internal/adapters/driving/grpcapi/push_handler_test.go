@@ -52,6 +52,31 @@ func TestGetVAPIDKey_ReturnsPublicKey(t *testing.T) {
 	}
 }
 
+func TestListDevices_Unauthenticated(t *testing.T) {
+	t.Parallel()
+	h := newTestPushHandler(notiffakes.NewFakePushSubscriptionRepository())
+	_, err := h.ListDevices(context.Background(), &eveyv1.ListDevicesRequest{})
+	if got := codeOf(t, err); got != codes.Unauthenticated {
+		t.Errorf("code = %v, want Unauthenticated", got)
+	}
+}
+
+// ListDevices is a graceful stub for the deferred native-device feature: it
+// must answer authenticated callers with an empty list (HTTP 200), NOT
+// codes.Unimplemented (HTTP 501), so the profile Devices tab never 5xxes.
+func TestListDevices_AuthenticatedReturnsEmpty(t *testing.T) {
+	t.Parallel()
+	h := newTestPushHandler(notiffakes.NewFakePushSubscriptionRepository())
+	ctx := ctxWithClaims("u1", "p1", false)
+	resp, err := h.ListDevices(ctx, &eveyv1.ListDevicesRequest{})
+	if err != nil {
+		t.Fatalf("ListDevices: %v", err)
+	}
+	if len(resp.Devices) != 0 {
+		t.Errorf("Devices = %d, want 0 (empty stub)", len(resp.Devices))
+	}
+}
+
 func TestRegisterWebPush_Unauthenticated(t *testing.T) {
 	t.Parallel()
 	h := newTestPushHandler(notiffakes.NewFakePushSubscriptionRepository())
