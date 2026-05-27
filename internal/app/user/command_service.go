@@ -282,7 +282,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		return "", "", fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err = s.generateAndStoreRefreshToken(ctx, string(u.ID), ttlOverride...)
+	refreshToken, err = s.generateAndStoreRefreshToken(ctx, string(u.ID), defaultProfileID, ttlOverride...)
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.Login: %w", err)
 	}
@@ -345,7 +345,7 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 		return "", "", fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err = s.generateAndStoreRefreshToken(ctx, string(u.ID), ttlOverride...)
+	refreshToken, err = s.generateAndStoreRefreshToken(ctx, string(u.ID), defaultProfileID, ttlOverride...)
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.GenerateTokensForUser: %w", err)
 	}
@@ -377,10 +377,22 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 	if pErr != nil {
 		slog.Warn("get profiles by user failed", slog.String("userID", string(u.ID)), slog.Any("err", pErr))
 	}
-	activeProfileID, ok := resolveActiveProfileID(profs, requestedProfileID)
+	// A silent refresh (empty requestedProfileID) must PRESERVE the profile this
+	// token was issued for — not silently fall back to the default profile,
+	// which let a kids profile escape parental control on token expiry. An
+	// explicit requestedProfileID (a profile switch) still wins.
+	effectiveRequested := requestedProfileID
+	if effectiveRequested == "" && rt.ProfileID != nil {
+		effectiveRequested = string(*rt.ProfileID)
+	}
+	activeProfileID, ok := resolveActiveProfileID(profs, effectiveRequested)
 	if !ok {
-		// Caller asked for a profile that doesn't belong to them — reject.
-		return "", "", ErrInvalidCredentials
+		if requestedProfileID != "" {
+			// Caller explicitly asked for a profile that doesn't belong to them — reject.
+			return "", "", ErrInvalidCredentials
+		}
+		// The bound profile no longer exists (deleted) — fall back to default.
+		activeProfileID, _ = resolveActiveProfileID(profs, "")
 	}
 
 	accessToken, err := s.tokens.GenerateAccessToken(user.Claims{
@@ -395,7 +407,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}
 
-	newRefresh, err := s.generateAndStoreRefreshToken(ctx, string(u.ID), ttlOverride...)
+	newRefresh, err := s.generateAndStoreRefreshToken(ctx, string(u.ID), activeProfileID, ttlOverride...)
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}
@@ -533,10 +545,15 @@ func (s *CommandService) Logout(ctx context.Context, userID string) error {
 
 const maxRefreshTokenRetries = 3
 
-func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userID string, ttlOverride ...time.Duration) (string, error) {
+func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userID, profileID string, ttlOverride ...time.Duration) (string, error) {
 	ttl := s.refreshTokenTTL
 	if len(ttlOverride) > 0 && ttlOverride[0] > 0 {
 		ttl = ttlOverride[0]
+	}
+	var boundProfile *shared.ProfileID
+	if profileID != "" {
+		pid := shared.ProfileID(profileID)
+		boundProfile = &pid
 	}
 	for range maxRefreshTokenRetries {
 		token, err := s.tokens.GenerateRefreshToken()
@@ -549,6 +566,7 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 			ID:        id.New("rt-"),
 			UserID:    shared.UserID(userID),
 			TokenHash: hex.EncodeToString(h[:]),
+			ProfileID: boundProfile,
 			ExpiresAt: time.Now().Add(ttl),
 			CreatedAt: time.Now(),
 		}

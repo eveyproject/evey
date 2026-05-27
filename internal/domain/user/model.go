@@ -26,25 +26,25 @@ func (s QuickConnectStatus) IsValid() bool {
 }
 
 type User struct {
-	ID               shared.UserID
-	Username         string
-	Email            string
-	PasswordHash     string
-	IsAdmin          bool
-	Enabled          bool
-	OIDCSubject      *string
-	OIDCIssuer       *string
-	MaxStreams        *int
+	ID           shared.UserID
+	Username     string
+	Email        string
+	PasswordHash string
+	IsAdmin      bool
+	Enabled      bool
+	OIDCSubject  *string
+	OIDCIssuer   *string
+	MaxStreams   *int
 	// MaxProfiles bounds the number of profiles this user can have.
 	// nil / 0 means unlimited. Enforced at CreateProfile.
-	MaxProfiles      *int
+	MaxProfiles *int
 	// MaxDevicesPerProfile bounds concurrent devices per profile.
 	// nil / 0 means unlimited. Enforced at playback start.
 	MaxDevicesPerProfile *int
-	MaxBitrateKbps   int
-	PushConsent      bool
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	MaxBitrateKbps       int
+	PushConsent          bool
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 type ParentalSettings struct {
@@ -55,13 +55,13 @@ type ParentalSettings struct {
 }
 
 type Profile struct {
-	ID                shared.ProfileID
-	UserID            shared.UserID
-	Name              string
-	AvatarPath        *string
-	Preferences       map[string]string
-	MaxRating         *string
-	IsDefault         bool
+	ID          shared.ProfileID
+	UserID      shared.UserID
+	Name        string
+	AvatarPath  *string
+	Preferences map[string]string
+	MaxRating   *string
+	IsDefault   bool
 	// IsKids marks a restricted profile intended for minors. When at least
 	// one kids profile exists on the user, all non-kids profiles MUST have a
 	// PIN set so switching to them from kids requires a challenge.
@@ -123,9 +123,12 @@ type RefreshToken struct {
 	TokenHash  string
 	DeviceName string
 	ClientIP   *string
-	Used       bool
-	ExpiresAt  time.Time
-	CreatedAt  time.Time
+	// ProfileID is the profile that was active when this token was issued. nil
+	// for legacy tokens (pre-binding), which fall back to the default profile.
+	ProfileID *shared.ProfileID
+	Used      bool
+	ExpiresAt time.Time
+	CreatedAt time.Time
 }
 
 type APIKeyModel struct {

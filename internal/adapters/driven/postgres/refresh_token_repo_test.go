@@ -53,6 +53,31 @@ func TestRefreshTokenRepo_Create(t *testing.T) {
 	assert.Equal(t, tok.DeviceName, got.DeviceName)
 }
 
+func TestRefreshTokenRepo_ProfileID_RoundTrip(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedUser(t, db, "rt-prof-user")
+	require.NoError(t, postgres.NewProfileRepository(db).Create(context.Background(), newTestProfile("rt-prof-1", "rt-prof-user")))
+	repo := postgres.NewRefreshTokenRepository(db)
+	ctx := context.Background()
+
+	bound := newRefreshToken("rtp1", "rt-prof-user", "hash_bound")
+	pid := shared.ProfileID("rt-prof-1")
+	bound.ProfileID = &pid
+	require.NoError(t, repo.Create(ctx, bound))
+	got, err := repo.GetByTokenHash(ctx, "hash_bound")
+	require.NoError(t, err)
+	require.NotNil(t, got.ProfileID, "bound profile_id must persist")
+	assert.Equal(t, shared.ProfileID("rt-prof-1"), *got.ProfileID)
+
+	legacy := newRefreshToken("rtp2", "rt-prof-user", "hash_unbound")
+	require.NoError(t, repo.Create(ctx, legacy))
+	got2, err := repo.GetByTokenHash(ctx, "hash_unbound")
+	require.NoError(t, err)
+	assert.Nil(t, got2.ProfileID, "unbound token reads back nil")
+}
+
 func TestRefreshTokenRepo_Create_DuplicateHash(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

@@ -29,10 +29,14 @@ func (r *RefreshTokenRepository) Create(ctx context.Context, t *user.RefreshToke
 	span.SetAttributes(attribute.String("refresh_token.id", t.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	var profileID any
+	if t.ProfileID != nil {
+		profileID = string(*t.ProfileID)
+	}
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO refresh_tokens (id, user_id, token_hash, device_name, client_ip, expires_at, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		t.ID, t.UserID, t.TokenHash, t.DeviceName, t.ClientIP, t.ExpiresAt, t.CreatedAt,
+		`INSERT INTO refresh_tokens (id, user_id, token_hash, device_name, client_ip, expires_at, created_at, profile_id)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		t.ID, t.UserID, t.TokenHash, t.DeviceName, t.ClientIP, t.ExpiresAt, t.CreatedAt, profileID,
 	)
 	if err != nil {
 		var pqErr *pq.Error
@@ -55,14 +59,19 @@ func (r *RefreshTokenRepository) GetByTokenHash(ctx context.Context, hash string
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	t := &user.RefreshToken{}
+	var profileID sql.NullString
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, token_hash, device_name, client_ip, used, expires_at, created_at
+		`SELECT id, user_id, token_hash, device_name, client_ip, used, expires_at, created_at, profile_id
 		 FROM refresh_tokens WHERE token_hash = $1`, hash,
-	).Scan(&t.ID, &t.UserID, &t.TokenHash, &t.DeviceName, &t.ClientIP, &t.Used, &t.ExpiresAt, &t.CreatedAt)
+	).Scan(&t.ID, &t.UserID, &t.TokenHash, &t.DeviceName, &t.ClientIP, &t.Used, &t.ExpiresAt, &t.CreatedAt, &profileID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return nil, err
+	}
+	if profileID.Valid {
+		pid := shared.ProfileID(profileID.String)
+		t.ProfileID = &pid
 	}
 	return t, nil
 }

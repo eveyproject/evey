@@ -483,6 +483,52 @@ func TestRefreshToken_Happy(t *testing.T) {
 	}
 }
 
+// A silent refresh (empty requestedProfileID) must keep the profile the token
+// was bound to — not snap back to the default profile (the parental-escape bug).
+func TestRefreshToken_PreservesBoundProfile(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-def", UserID: "u1", Name: "Main", IsDefault: true})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-kid", UserID: "u1", Name: "Kid", IsKids: true})
+
+	raw := "bound-token"
+	h := sha256.Sum256([]byte(raw))
+	kid := shared.ProfileID("p-kid")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &kid, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	access, _, err := d.svc.RefreshToken(ctx, raw, "")
+	require.NoError(t, err)
+	claims, err := d.tokens.ValidateAccessToken(access)
+	require.NoError(t, err)
+	require.Equal(t, "p-kid", claims.ProfileID, "silent refresh must preserve the bound profile, not fall back to default")
+}
+
+// Legacy tokens (no bound profile) keep the old behaviour: fall back to default.
+func TestRefreshToken_LegacyTokenFallsBackToDefault(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-def", UserID: "u1", Name: "Main", IsDefault: true})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-other", UserID: "u1", Name: "Other"})
+
+	raw := "legacy-token"
+	h := sha256.Sum256([]byte(raw))
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: nil, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	access, _, err := d.svc.RefreshToken(ctx, raw, "")
+	require.NoError(t, err)
+	claims, err := d.tokens.ValidateAccessToken(access)
+	require.NoError(t, err)
+	require.Equal(t, "p-def", claims.ProfileID, "legacy token (nil profile) falls back to default")
+}
+
 func TestRefreshToken_NotFound(t *testing.T) {
 	d := newAuthTestDeps()
 	_, _, err := d.svc.RefreshToken(context.Background(), "bogus", "")
@@ -1517,4 +1563,3 @@ func TestRefreshToken_DisabledUserRejected(t *testing.T) {
 		t.Fatalf("expected ErrUserDisabled for disabled user, got %v", err)
 	}
 }
-

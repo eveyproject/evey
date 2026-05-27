@@ -244,7 +244,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 		return "", "", "", fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err = s.generateAndStoreRefreshToken(ctx, string(u.ID))
+	refreshToken, err = s.generateAndStoreRefreshToken(ctx, string(u.ID), defaultProfileID)
 	if err != nil {
 		return "", "", "", fmt.Errorf("OIDCService.HandleCallback: %w", err)
 	}
@@ -342,7 +342,12 @@ func IsEmailAllowed(email string, allowedDomains []string) bool {
 	return false
 }
 
-func (s *OIDCService) generateAndStoreRefreshToken(ctx context.Context, userID string) (string, error) {
+func (s *OIDCService) generateAndStoreRefreshToken(ctx context.Context, userID, profileID string) (string, error) {
+	var boundProfile *shared.ProfileID
+	if profileID != "" {
+		pid := shared.ProfileID(profileID)
+		boundProfile = &pid
+	}
 	for range maxRefreshTokenRetries {
 		token, err := s.tokens.GenerateRefreshToken()
 		if err != nil {
@@ -353,6 +358,7 @@ func (s *OIDCService) generateAndStoreRefreshToken(ctx context.Context, userID s
 			ID:        id.New("rt-"),
 			UserID:    shared.UserID(userID),
 			TokenHash: hex.EncodeToString(h[:]),
+			ProfileID: boundProfile,
 			ExpiresAt: time.Now().Add(s.refreshTokenTTL),
 			CreatedAt: time.Now(),
 		}
