@@ -176,6 +176,27 @@ func TestOrchestrator_Close_KillsAllSessions(t *testing.T) {
 	assert.Equal(t, 0, o.ActiveCount())
 }
 
+func TestOrchestrator_Close_CleansDiskSegments(t *testing.T) {
+	// The auditor's concern: a graceful shutdown must purge the segments of
+	// every live session — cancel-on-seek keeps them warm because rewind
+	// might hit them, but Close has no "future" to keep them around for.
+	cache, dir := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger())
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	hashDir := filepath.Join(dir, "segments", fp.Hash())
+	require.NoError(t, os.MkdirAll(hashDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(hashDir, "stream_0_000.ts"), []byte("xx"), 0o644))
+
+	o.Close()
+
+	_, err := os.Stat(hashDir)
+	assert.True(t, os.IsNotExist(err), "Close must remove the hash directory")
+}
+
 // ============================================================================
 // fakes
 // ============================================================================
