@@ -155,7 +155,11 @@ func NewSegmentOrchestrator(
 	return o
 }
 
-// Close stops the inactivity GC and kills all live sessions. Safe to call once.
+// Close stops the inactivity GC, kills all live sessions, and purges their
+// disk segments. cancel-on-seek and inactivity-kill intentionally leave the
+// hash on disk so future requests can hit it warm; Close is the explicit
+// shutdown path where we DO want the cache freed (the orchestrator is going
+// away — nothing will hit those segments again). Safe to call once.
 func (o *SegmentOrchestrator) Close() {
 	close(o.stopGC)
 	<-o.gcDone
@@ -170,6 +174,11 @@ func (o *SegmentOrchestrator) Close() {
 
 	for _, s := range sessions {
 		o.killSession(s, "close")
+		if err := o.cache.CleanupHash(s.hash); err != nil {
+			o.logger.Warn("orchestrator: close cleanup failed",
+				slog.String("hash", s.hash),
+				slog.Any("err", err))
+		}
 	}
 	o.shutdownCancel()
 }
