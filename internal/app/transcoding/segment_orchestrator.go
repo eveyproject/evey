@@ -133,6 +133,11 @@ func NewSegmentOrchestrator(
 	opts OrchestratorOptions,
 	logger *slog.Logger,
 ) *SegmentOrchestrator {
+	// Defensive: tests historically passed nil here; production wiring uses
+	// slog.Default(). Fall back so a nil arg doesn't crash at startup.
+	if logger == nil {
+		logger = slog.Default()
+	}
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 	o := &SegmentOrchestrator{
 		cache:          cache,

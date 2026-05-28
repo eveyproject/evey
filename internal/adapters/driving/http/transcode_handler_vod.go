@@ -71,31 +71,38 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	file := r.PathValue("file")
 	span.SetAttributes(attribute.String("media.id", mediaID), attribute.String("hls.file", file))
 
-	if !h.commonAuth(w, r, mediaID, span) {
+	// commonAuth resolves the media item (and its streams) on its way through
+	// the access checks. Passing them down to the per-file handlers prevents
+	// each downstream function from re-fetching — one master + one variant +
+	// one segment request used to fan out to 9 DB hits, now down to 3.
+	item, streams, ok := h.commonAuth(w, r, mediaID, span)
+	if !ok {
 		return
 	}
 
 	switch {
 	case file == "master.m3u8":
-		h.serveMaster(w, r, mediaID, span)
+		h.serveMaster(w, r, mediaID, item, streams, span)
 	case vodVariantNameRE.MatchString(file):
-		h.serveVariant(w, r, mediaID, file, span)
+		h.serveVariant(w, r, mediaID, file, item, streams, span)
 	case vodSegmentNameRE.MatchString(file):
-		h.serveSegment(w, r, mediaID, file, span)
+		h.serveSegment(w, r, mediaID, file, item, streams, span)
 	default:
 		span.SetStatus(codes.Error, "unknown hls path")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 	}
 }
 
-// commonAuth runs the auth + access + parental checks shared by every handler.
-// Returns true to continue, false (after writing an error response) to abort.
-func (h *hlsVODServe) commonAuth(w http.ResponseWriter, r *http.Request, mediaID string, span trace.Span) bool {
+// commonAuth runs auth + access + parental and resolves the media item +
+// streams. Returns (item, streams, true) to continue, (nil, nil, false) after
+// writing an error response to abort. Resolving the media item here lets the
+// per-file handlers avoid re-fetching downstream.
+func (h *hlsVODServe) commonAuth(w http.ResponseWriter, r *http.Request, mediaID string, span trace.Span) (*domainlibrary.MediaItem, []*domainlibrary.MediaStream, bool) {
 	if st, ok := StreamTokenFromContext(r.Context()); ok {
 		if st.MediaItemID != shared.MediaItemID(mediaID) {
 			span.SetStatus(codes.Error, "stream token media mismatch")
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return false
+			return nil, nil, false
 		}
 	}
 	claims := HTTPClaimsFromContext(r.Context())
@@ -106,21 +113,28 @@ func (h *hlsVODServe) commonAuth(w http.ResponseWriter, r *http.Request, mediaID
 		}
 		span.SetStatus(codes.Error, "media item not found")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-		return false
+		return nil, nil, false
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
 		span.SetStatus(codes.Error, "library access denied")
-		return false
+		return nil, nil, false
 	}
 	if !checkParental(r.Context(), w, claims, item, h.parental) {
 		span.SetStatus(codes.Error, "parental restricted")
-		return false
+		return nil, nil, false
 	}
-	return true
+	streams, err := h.libSvc.GetMediaStreams(r.Context(), mediaID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "streams resolve failed")
+		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+		return nil, nil, false
+	}
+	return item, streams, true
 }
 
-func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaID string, span trace.Span) {
-	in, err := h.buildManifestInput(r, mediaID)
+func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
+	in, err := h.buildManifestInput(r, mediaID, item, streams)
 	if err != nil {
 		h.writeManifestErr(w, span, err, mediaID)
 		return
@@ -146,11 +160,11 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	)
 }
 
-func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, mediaID, file string, span trace.Span) {
+func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
 	m := vodVariantNameRE.FindStringSubmatch(file)
 	profileIdx, _ := strconv.Atoi(m[1])
 
-	in, err := h.buildManifestInput(r, mediaID)
+	in, err := h.buildManifestInput(r, mediaID, item, streams)
 	if err != nil {
 		h.writeManifestErr(w, span, err, mediaID)
 		return
@@ -175,7 +189,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	_, _ = w.Write([]byte(out))
 }
 
-func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, mediaID, file string, span trace.Span) {
+func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
 	m := vodSegmentNameRE.FindStringSubmatch(file)
 	variantIdx, _ := strconv.Atoi(m[1])
 	isInit := m[2] == ""
@@ -184,7 +198,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		segmentIdx, _ = strconv.Atoi(m[2])
 	}
 
-	fp, err := h.buildFingerprint(r, mediaID)
+	fp, err := h.buildFingerprint(r, mediaID, item, streams)
 	if err != nil {
 		h.writeManifestErr(w, span, err, mediaID)
 		return
@@ -262,10 +276,9 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 // ManifestInput the generator consumes. Threads the same query string-parsed
 // fields into both the manifest's URLs and the DecisionFingerprint, so segment
 // requests can be hashed back to the same cache bucket.
-func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string) (apptranscoding.ManifestInput, error) {
-	item, streams, err := h.resolveMedia(r.Context(), mediaID)
-	if err != nil {
-		return apptranscoding.ManifestInput{}, err
+func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (apptranscoding.ManifestInput, error) {
+	if item == nil || item.File == nil {
+		return apptranscoding.ManifestInput{}, errors.New("buildManifestInput: nil item")
 	}
 
 	if item.File.Duration.Milliseconds() <= 0 {
@@ -297,10 +310,9 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string) (apptr
 // buildFingerprint reproduces the DecisionFingerprint from a segment-time
 // request. Must match exactly what was produced at manifest time, or the
 // cache lookup misses on every segment. Hence shared helpers.
-func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string) (apptranscoding.DecisionFingerprint, error) {
-	item, streams, err := h.resolveMedia(r.Context(), mediaID)
-	if err != nil {
-		return apptranscoding.DecisionFingerprint{}, err
+func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (apptranscoding.DecisionFingerprint, error) {
+	if item == nil || item.File == nil {
+		return apptranscoding.DecisionFingerprint{}, errors.New("buildFingerprint: nil item")
 	}
 	decision := h.makeDecision(r.Context(), streams, item.File.ContainerFormat, r)
 	profiles := h.profilesForDecision(decision)
@@ -333,21 +345,6 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string) (apptran
 		UseFMP4:             h.useFMP4,
 		Profiles:            fpProfiles,
 	}, nil
-}
-
-func (h *hlsVODServe) resolveMedia(ctx context.Context, mediaID string) (*domainlibrary.MediaItem, []*domainlibrary.MediaStream, error) {
-	item, err := h.libSvc.GetMediaItem(ctx, mediaID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("resolveMedia: %w", err)
-	}
-	if item.File == nil || item.File.Path == "" {
-		return nil, nil, errors.New("resolveMedia: media has no file")
-	}
-	streams, err := h.libSvc.GetMediaStreams(ctx, mediaID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("resolveMedia: streams: %w", err)
-	}
-	return item, streams, nil
 }
 
 func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary.MediaStream, container string, r *http.Request) domaintranscoding.PlaybackDecision {
