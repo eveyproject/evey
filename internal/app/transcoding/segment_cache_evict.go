@@ -11,6 +11,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 // EvictionPolicy configures the LRU sweeper that bounds the on-disk cache.
@@ -147,7 +149,9 @@ func (c *SegmentCache) sweepOnce(p EvictionPolicy, logger *slog.Logger) {
 		evicted++
 	}
 
+	metrics.HLSVODCacheBytes.Set(float64(total))
 	if evicted > 0 {
+		metrics.HLSVODCacheEvictedBytes.Add(float64(freed))
 		logger.Info("sweepOnce: evicted",
 			slog.Int("hashes", evicted),
 			slog.Int64("freed_bytes", freed),

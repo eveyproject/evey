@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 // OrchestratorOptions configures the orchestrator's lifecycle policy.
@@ -192,8 +193,10 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	// calling Wait. The cache check below is best-effort early bail.
 	if o.cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: segmentIdx}, fp.UseFMP4) {
 		o.touchSession(hash)
+		metrics.HLSVODCacheHits.Inc()
 		return nil
 	}
+	metrics.HLSVODCacheMisses.Inc()
 
 	o.mu.Lock()
 	session, exists := o.sessions[hash]
@@ -327,6 +330,9 @@ func (o *SegmentOrchestrator) spawnSession(
 		slog.Int("end_seg", endSegIdx),
 		slog.String("source", srcPath))
 
+	metrics.HLSVODRafaleSpawned.WithLabelValues("miss").Inc()
+	metrics.HLSVODSessions.Inc()
+
 	return nil
 }
 
@@ -367,6 +373,9 @@ func (o *SegmentOrchestrator) killSession(s *orchestratorSession, reason string)
 	o.logger.Info("orchestrator: session killed",
 		slog.String("hash", hash),
 		slog.String("reason", reason))
+
+	metrics.HLSVODSessionsKilled.WithLabelValues(reason).Inc()
+	metrics.HLSVODSessions.Dec()
 }
 
 // touchSession bumps lastAccess without holding the orchestrator lock for the

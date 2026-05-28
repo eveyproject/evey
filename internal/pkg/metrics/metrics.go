@@ -86,6 +86,63 @@ var (
 		Help:    "Transcode job duration in seconds, by terminal status.",
 		Buckets: []float64{1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600, 7200},
 	}, []string{"status"})
+
+	// ---- HLS VOD pipeline (Phase 1+ refacto) ----
+	// These metrics live next to the legacy HLSSessionsGauge so a dashboard
+	// can chart "old vs new" during the transition. After the legacy path is
+	// retired (Phase 4) the legacy gauges go away.
+
+	// HLSVODSessions counts ffmpeg rafales currently owned by the
+	// SegmentOrchestrator. Distinct from HLSSessionsGauge which tracks the
+	// legacy HLSManager — both can be >0 simultaneously during the cutover.
+	HLSVODSessions = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "evey_hlsvod_sessions_active",
+		Help: "Current number of active VOD-pipeline ffmpeg rafale sessions.",
+	})
+
+	// HLSVODRafaleSpawned counts every fresh ffmpeg rafale start. Tagged by
+	// reason — "miss" (no covering session) or "seek_out_of_window" (the
+	// previous rafale was killed by cancel-on-seek before this spawn).
+	HLSVODRafaleSpawned = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "evey_hlsvod_rafale_spawned_total",
+		Help: "Total VOD-pipeline ffmpeg rafale spawns, by reason.",
+	}, []string{"reason"})
+
+	// HLSVODSessionsKilled counts session terminations, tagged by reason
+	// (seek_out_of_window, inactivity, close, error). Useful to spot
+	// pathologies — e.g. inactivity kills > 0 means the inactivity timeout
+	// is shorter than the player's natural pause window.
+	HLSVODSessionsKilled = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "evey_hlsvod_sessions_killed_total",
+		Help: "Total VOD-pipeline ffmpeg session kills, by reason.",
+	}, []string{"reason"})
+
+	// HLSVODCacheHits / HLSVODCacheMisses split segment requests by whether
+	// they hit the disk cache before waiting for ffmpeg. Hit-rate >> 0 is
+	// the primary KPI for the multi-session cache: low hit-rate means users
+	// rarely share segments.
+	HLSVODCacheHits = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_hlsvod_cache_hits_total",
+		Help: "Total segment requests served straight from the disk cache.",
+	})
+	HLSVODCacheMisses = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_hlsvod_cache_misses_total",
+		Help: "Total segment requests that had to wait for ffmpeg to land the segment.",
+	})
+
+	// HLSVODCacheBytes tracks the total on-disk segment cache size.
+	// Updated by the eviction sweeper on each pass.
+	HLSVODCacheBytes = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "evey_hlsvod_cache_size_bytes",
+		Help: "Current total VOD segment cache size on disk.",
+	})
+
+	// HLSVODCacheEvictedBytes counts bytes freed by the LRU sweeper.
+	// Sustained > 0 means the cache is undersized for the workload.
+	HLSVODCacheEvictedBytes = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_hlsvod_cache_evicted_bytes_total",
+		Help: "Total bytes freed from the VOD segment cache by the LRU sweeper.",
+	})
 )
 
 func init() {
@@ -96,6 +153,8 @@ func init() {
 		MediaItemsTotal,
 		AuthLatency, ScanQueueDepth, TranscodeQueueDepth,
 		TranscodeDuration,
+		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled,
+		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 	)
 }
 
