@@ -419,13 +419,21 @@ func serveMediaArchive(w http.ResponseWriter, r *http.Request, title string, ent
 	}()
 	seen := make(map[string]int)
 	for _, e := range entries {
+		// Dedup with a while-loop: the previous one-shot bumped the ORIGINAL
+		// entry's counter but never registered the renamed file in `seen`, so
+		// an entry whose name literally equalled the renamed form (e.g.
+		// "X (2).ext") still collided. Loop until we land on an unused name,
+		// registering each step so subsequent identical entries keep stepping.
 		name := e.name
-		if n, ok := seen[name]; ok {
+		for {
+			n, ok := seen[name]
+			if !ok {
+				seen[name] = 1
+				break
+			}
 			ext := filepath.Ext(name)
-			seen[e.name] = n + 1
+			seen[name] = n + 1
 			name = fmt.Sprintf("%s (%d)%s", strings.TrimSuffix(name, ext), n+1, ext)
-		} else {
-			seen[name] = 1
 		}
 		if err := addFileToZip(zw, e.path, name); err != nil {
 			slog.Warn("download archive: add file", slog.String("path", e.path), slog.Any("err", err))

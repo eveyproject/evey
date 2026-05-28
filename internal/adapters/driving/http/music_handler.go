@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -347,11 +348,20 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 				base = fmt.Sprintf("%02d - %s", tr.TrackNumber, base)
 			}
 			entryName := base + ext
-			if n, ok := seen[entryName]; ok {
-				entryName = fmt.Sprintf("%s (%d)%s", base, n+1, ext)
-				seen[base+ext] = n + 1
-			} else {
-				seen[entryName] = 1
+			// Dedup with a while-loop (same fix as serveMediaArchive): the
+			// one-shot only bumped the ORIGINAL key and never registered the
+			// renamed entry, so a track whose computed entryName equalled an
+			// already-renamed file's name still collided.
+			for {
+				n, ok := seen[entryName]
+				if !ok {
+					seen[entryName] = 1
+					break
+				}
+				extNow := filepath.Ext(entryName)
+				baseNow := strings.TrimSuffix(entryName, extNow)
+				seen[entryName] = n + 1
+				entryName = fmt.Sprintf("%s (%d)%s", baseNow, n+1, extNow)
 			}
 			zfw, zipErr := zw.Create(entryName)
 			if zipErr != nil {
