@@ -161,7 +161,7 @@ export const CardContextMenu = memo(function CardContextMenu({
     <div
       ref={ref}
       role="menu"
-      aria-label={t("media.contextMenu.editMetadata")}
+      aria-label={t("common.actions")}
       className="fixed z-popover min-w-[160px] py-1 rounded-[var(--radius-md)] shadow-xl bg-[var(--surface)] border border-[var(--border)]"
       style={{
         left: position.x,
