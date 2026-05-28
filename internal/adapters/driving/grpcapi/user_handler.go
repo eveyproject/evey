@@ -87,7 +87,7 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 	access, refresh, err := h.auth.Login(ctx, req.Username, req.Password, h.refreshTTLOverride(ctx)...)
 	if err != nil {
 		metrics.AuthLatency.WithLabelValues("login", "failure").Observe(time.Since(start).Seconds())
-		slog.Warn("login failed", slog.String("username", req.Username), slog.Any("err", err))
+		slog.Warn("login failed", slog.String("username", sanitizeLogValue(req.Username)), slog.Any("err", err))
 		h.audit(ctx, "", "login", "user", nil, map[string]any{"username": req.Username, "status": "failed"})
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "invalid credentials")
@@ -724,7 +724,7 @@ func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.Regist
 	}
 	access, refresh, loginErr := h.auth.Login(ctx, req.Username, req.Password)
 	if loginErr != nil {
-		slog.Warn("register with invite: auto-login failed", slog.String("username", req.Username), slog.Any("err", loginErr))
+		slog.Warn("register with invite: auto-login failed", slog.String("username", sanitizeLogValue(req.Username)), slog.Any("err", loginErr))
 		return &eveyv1.AuthResponse{User: userToProto(u)}, nil
 	}
 	return &eveyv1.AuthResponse{
