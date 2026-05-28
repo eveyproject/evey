@@ -50,8 +50,19 @@ jobs:
       - name: vet
         run: go vet $(go list ./... | grep -v /gen/)
 
-      - name: install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      # Pin govulncheck version + cache the binary so we don't pay the
+      # `go install` cost (compilation + dep resolution, ~30-60s) on every
+      # CI run. `@latest` would defeat the cache key on every release.
+      - name: cache govulncheck binary
+        id: govulncheck-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin/govulncheck
+          key: govulncheck-v1.1.4-${{ runner.os }}-${{ runner.arch }}
+
+      - name: install govulncheck (cache miss)
+        if: steps.govulncheck-cache.outputs.cache-hit != 'true'
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
       - name: govulncheck
         run: govulncheck ./cmd/... ./internal/...
