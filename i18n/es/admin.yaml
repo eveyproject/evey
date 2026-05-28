@@ -54,6 +54,9 @@ plugin:
   noLogs: No hay logs disponibles.
   hideLogs: Ocultar logs
   uninstall: Desinstalar
+  update: "Actualizar desde origen…"
+  previewUpdate: Vista previa
+  updateSourceLabel: ZIP de origen (ruta o URL)
   configuration: Configuración
   noConfig: No hay claves de config definidas.
   configSaved: Config guardada

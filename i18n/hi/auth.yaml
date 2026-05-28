@@ -281,6 +281,7 @@ watchHistory:
   thisMonth: "इस महीने"
   plays: "{{count}} बार चलाया"
   watched: "देखा गया"
+  unknownMedia: "अज्ञात मीडिया"
   noHistory: "कोई देखने का इतिहास नहीं"
   noHistoryDesc: "अपना इतिहास यहां देखने के लिए कुछ देखना शुरू करें।"
   clearHistory: "इतिहास साफ़ करें"

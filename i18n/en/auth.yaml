@@ -286,6 +286,7 @@ watchHistory:
   thisMonth: This Month
   plays: "{{count}} plays"
   watched: Watched
+  unknownMedia: Unknown media
   noHistory: No watch history
   noHistoryDesc: Start watching something to see your history here.
   clearHistory: Clear History

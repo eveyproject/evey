@@ -335,6 +335,7 @@ photos:
   title: Photos
   albums: Albums
   allPhotos: All Photos
+  lightbox: Photo viewer
   noPhotos: No photos
   noPhotosDesc: No photos found in this library.
   noAlbums: No albums

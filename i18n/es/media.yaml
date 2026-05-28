@@ -335,6 +335,7 @@ photos:
   title: Fotos
   albums: Álbumes
   allPhotos: Todas las fotos
+  lightbox: Visor de fotos
   noPhotos: Sin fotos
   noPhotosDesc: No se encontraron fotos en esta biblioteca.
   noAlbums: Sin álbumes

@@ -286,6 +286,7 @@ watchHistory:
   thisMonth: Dieser Monat
   plays: "{{count}} Wiedergaben"
   watched: Angesehen
+  unknownMedia: Unbekanntes Medium
   noHistory: Kein Wiedergabeverlauf
   noHistoryDesc: Beginnen Sie etwas anzuschauen, um Ihren Verlauf hier zu sehen.
   clearHistory: Verlauf löschen

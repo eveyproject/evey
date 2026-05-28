@@ -281,6 +281,7 @@ watchHistory:
   thisMonth: "本月"
   plays: "{{count}} 次播放"
   watched: "已观看"
+  unknownMedia: "未知媒体"
   noHistory: "没有观看历史"
   noHistoryDesc: "开始观看内容后，您的历史记录将在此处显示。"
   clearHistory: "清除历史"

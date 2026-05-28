@@ -331,6 +331,7 @@ photos:
   title: 照片
   albums: 相册
   allPhotos: 所有照片
+  lightbox: 照片查看器
   noPhotos: 没有照片
   noPhotosDesc: 此媒体库中没有照片。
   noAlbums: 没有相册

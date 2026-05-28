@@ -286,6 +286,7 @@ watchHistory:
   thisMonth: "Este mes"
   plays: "{{count}} reproducciones"
   watched: "Visto"
+  unknownMedia: "Medio desconocido"
   noHistory: "Sin historial de reproducción"
   noHistoryDesc: "Empieza a ver algo para que tu historial aparezca aquí."
   clearHistory: "Borrar historial"

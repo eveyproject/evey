@@ -335,6 +335,7 @@ photos:
   title: Photos
   albums: Albums
   allPhotos: Toutes les photos
+  lightbox: Visionneuse photo
   noPhotos: Aucune photo
   noPhotosDesc: Aucune photo trouvée dans cette bibliothèque.
   noAlbums: Aucun album

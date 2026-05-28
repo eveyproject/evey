@@ -53,6 +53,9 @@ plugin:
   noLogs: Aucun log disponible.
   hideLogs: Masquer les logs
   uninstall: Désinstaller
+  update: "Mettre à jour depuis la source…"
+  previewUpdate: Aperçu
+  updateSourceLabel: "ZIP source (chemin ou URL)"
   configuration: Configuration
   noConfig: Aucune clé de config définie.
   configSaved: Config enregistrée

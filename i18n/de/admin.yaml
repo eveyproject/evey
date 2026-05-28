@@ -54,6 +54,9 @@ plugin:
   noLogs: Keine Protokolle verfügbar.
   hideLogs: Protokolle ausblenden
   uninstall: Deinstallieren
+  update: "Aus Quelle aktualisieren …"
+  previewUpdate: Vorschau
+  updateSourceLabel: Quell-ZIP (Pfad oder URL)
   configuration: Konfiguration
   noConfig: Keine Konfigurationsschlüssel definiert.
   configSaved: Konfiguration gespeichert

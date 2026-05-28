@@ -331,6 +331,7 @@ photos:
   title: फ़ोटो
   albums: एल्बम
   allPhotos: सभी फ़ोटो
+  lightbox: फ़ोटो व्यूअर
   noPhotos: कोई फ़ोटो नहीं
   noPhotosDesc: इस लाइब्रेरी में कोई फ़ोटो नहीं मिली।
   noAlbums: कोई एल्बम नहीं
