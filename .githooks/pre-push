@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Pre-push hook — runs `make ci-fast` before letting `git push` proceed.
+#
+# Catches the cheap CI failures (govulncheck, vet, build, gosec) locally so
+# a regression doesn't reach GitHub Actions and tank a PR.
+#
+# Activation (run once, per clone):
+#     git config core.hooksPath .githooks
+#
+# Bypass (when you know what you're doing — e.g. pushing docs-only):
+#     git push --no-verify
+#
+# Heavy race tests (unit + postgres testcontainers) are NOT in ci-fast.
+# Run them manually before a substantial push:
+#     make ci-local
+#
+# All checks run inside the evey-server container (Go pinned + module cache
+# mounted), so they don't depend on a host Go install.
+
+set -e
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo "pre-push: docker not found on PATH — start the dev stack first or bypass with --no-verify." >&2
+    exit 1
+fi
+
+if ! docker inspect --format '{{.State.Status}}' evey-server >/dev/null 2>&1; then
+    echo "pre-push: container 'evey-server' is not running." >&2
+    echo "         start it with 'make dev', or bypass with 'git push --no-verify'." >&2
+    exit 1
+fi
+
+echo "pre-push: running make ci-fast (~30-60s) — bypass with 'git push --no-verify'"
+exec make ci-fast

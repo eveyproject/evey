@@ -1,4 +1,6 @@
 .PHONY: proto-gen plugin-sdk plugin-zips build test test-image test-shell lint sec-scan clean \
+	ci-fast ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec \
+	ci-local ci-local-lint ci-local-test ci-local-frontend \
 	migrate-up migrate-down setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go
@@ -75,6 +77,65 @@ lint:
 # regression ratchet. See gosec_eval memory for the triage.
 sec-scan:
 	golangci-lint run -c .golangci.gosec.yml ./...
+
+# ── Pré-CI locale ─────────────────────────────────────────────────────────────
+# Mirror exact des étapes CI (.github/workflows/ci.yml) qu'on peut rouler en
+# local. Objectif : attraper les rouges (vulns, compile, lint, race) AVANT
+# `git push` au lieu de découvrir 5 min après que la CI distante a échoué.
+#
+#   make ci-fast    quick: vet + govulncheck + build + sec-scan (~30-60s)
+#                   ⇒ avant chaque push (couvre 90% des reds CI).
+#   make ci-local   full:  ci-fast + race tests (unit + postgres) + frontend
+#                          typecheck (~5-10 min)
+#                   ⇒ avant un push important / refacto large.
+#
+# Tout passe par le container `evey-server` (Go pinné + cache modules monté)
+# pour bypasser les soucis TLS/permissions sur l'hôte WSL.
+
+ci-fast: ci-fast-vet ci-fast-vuln ci-fast-build
+	@echo "✅ ci-fast OK — vet + govulncheck + build verts."
+	@echo "   NB : gosec ratchet (only-new-issues) PAS exécuté localement — le container"
+	@echo "   evey-server n'a pas git (requis par golangci-lint --new-from-rev). Le step"
+	@echo "   CI 'gosec security scan' attrape ça côté GHA (qui a accès au diff PR)."
+	@echo "   Pour un sweep gosec local manuel (full, hors ratchet) : make sec-scan"
+	@echo "   Tests -race PAS exécutés non plus (utilise make ci-local)."
+
+ci-fast-vet:
+	@echo "→ go vet (excl. /gen/)"
+	@docker exec -w /app evey-server sh -c 'go vet $$(go list ./... | grep -v /gen/)'
+
+ci-fast-vuln:
+	@echo "→ govulncheck (./cmd/... ./internal/...)"
+	@docker exec -w /app evey-server sh -c 'test -x /go/bin/govulncheck || go install golang.org/x/vuln/cmd/govulncheck@latest; /go/bin/govulncheck ./cmd/... ./internal/...'
+
+ci-fast-build:
+	@echo "→ go build ./..."
+	@docker exec -w /app evey-server sh -c 'go build ./...'
+
+ci-fast-sec:
+	@# Mirror du ratchet CI : --new-from-rev=<base> ne flag QUE les findings
+	@# introduits par les commits non encore poussés. Sans ce flag, les
+	@# ~21 FPs legacy bloqueraient chaque pre-push.
+	@# BASE est calculé sur l'hôte (le container `evey-server` n'a pas git)
+	@# puis injecté dans l'exec. Fallback : origin/master, sinon HEAD~1.
+	@BASE=$$(git rev-parse "origin/$$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null || git rev-parse "origin/master" 2>/dev/null || git rev-parse HEAD~1); \
+	echo "→ golangci-lint -c .golangci.gosec.yml (new-from $$BASE)"; \
+	docker exec -w /app evey-server sh -c "golangci-lint run -c .golangci.gosec.yml --new-from-rev=$$BASE ./..."
+
+ci-local-lint:
+	@BASE=$$(git rev-parse "origin/$$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null || git rev-parse "origin/master" 2>/dev/null || git rev-parse HEAD~1); \
+	echo "→ golangci-lint (general, new-from $$BASE)"; \
+	docker exec -w /app evey-server sh -c "golangci-lint run --new-from-rev=$$BASE ./..."
+
+ci-local: ci-fast ci-local-lint ci-local-test ci-local-frontend
+	@echo "✅ ci-local OK — mirror CI complet vert (vet + vuln + build + sec + lint + race + frontend typecheck)."
+
+# ci-local-test reuse la cible `test` existante (testcontainers + race full suite).
+ci-local-test: test
+
+ci-local-frontend:
+	@echo "→ frontend typecheck (pnpm --filter web)"
+	@cd frontend && npx pnpm --filter web run typecheck
 
 clean:
 	rm -rf bin/ gen/
