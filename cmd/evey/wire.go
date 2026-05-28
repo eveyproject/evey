@@ -670,6 +670,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			playbackSvc:      playbackSvc,
 			transcodingSvc:   transcodingSvc,
 			hlsManager:       hlsMgr,
+			hlsTranscoder:    hlsTranscoder,
 			mkvSvc:           mkvSvc,
 			musicSvc:         musicSvc,
 			photoSvc:         photoSvc,

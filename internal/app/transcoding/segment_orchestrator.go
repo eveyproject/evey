@@ -69,11 +69,18 @@ type SegmentOrchestrator struct {
 	opts     OrchestratorOptions
 	logger   *slog.Logger
 
+	// shutdownCtx is the long-lived parent context for every ffmpeg session
+	// the orchestrator spawns. Never the HTTP request context — that one is
+	// cancelled the moment the segment is served, which would tear down the
+	// rafale before the next segment is requested. Cancelled only by Close.
+	shutdownCtx    context.Context
+	shutdownCancel context.CancelFunc
+
 	mu       sync.Mutex
 	sessions map[string]*orchestratorSession
 
-	stopGC   chan struct{}
-	gcDone   chan struct{}
+	stopGC chan struct{}
+	gcDone chan struct{}
 }
 
 // SourceResolver bridges the orchestrator (which works with DecisionFingerprint)
@@ -125,15 +132,18 @@ func NewSegmentOrchestrator(
 	opts OrchestratorOptions,
 	logger *slog.Logger,
 ) *SegmentOrchestrator {
+	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 	o := &SegmentOrchestrator{
-		cache:    cache,
-		process:  process,
-		source:   source,
-		opts:     opts.withDefaults(),
-		logger:   logger.With("component", "segment_orchestrator"),
-		sessions: make(map[string]*orchestratorSession),
-		stopGC:   make(chan struct{}),
-		gcDone:   make(chan struct{}),
+		cache:          cache,
+		process:        process,
+		source:         source,
+		opts:           opts.withDefaults(),
+		logger:         logger.With("component", "segment_orchestrator"),
+		shutdownCtx:    shutdownCtx,
+		shutdownCancel: shutdownCancel,
+		sessions:       make(map[string]*orchestratorSession),
+		stopGC:         make(chan struct{}),
+		gcDone:         make(chan struct{}),
 	}
 	go o.gcLoop()
 	return o
@@ -155,6 +165,7 @@ func (o *SegmentOrchestrator) Close() {
 	for _, s := range sessions {
 		o.killSession(s, "close")
 	}
+	o.shutdownCancel()
 }
 
 // EnsureSegmentRange guarantees that segment `segmentIdx` will be produced (or
@@ -225,6 +236,9 @@ func (o *SegmentOrchestrator) spawnSession(
 	hash := fp.Hash()
 	endSegIdx := startSegIdx + o.opts.LookAheadSegments - 1
 
+	// Resolve source through the request context (auth + db calls live there)
+	// but spawn ffmpeg under the orchestrator's long-lived context so it
+	// survives past the original request returning to the client.
 	srcPath, _, err := o.source.ResolveSource(ctx, fp)
 	if err != nil {
 		return fmt.Errorf("spawnSession: resolve source: %w", err)
@@ -257,7 +271,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		ForceSidecarSubs:    fp.ForceSidecarSubs,
 	}
 
-	sessionCtx, cancel := context.WithCancel(ctx)
+	sessionCtx, cancel := context.WithCancel(o.shutdownCtx)
 	handle, err := o.process.Start(sessionCtx, procOpts)
 	if err != nil {
 		cancel()

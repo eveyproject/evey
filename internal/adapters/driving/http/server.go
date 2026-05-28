@@ -33,6 +33,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/notification"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
 	domainshared "github.com/evey-project/evey/internal/domain/shared"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/i18n"
@@ -85,6 +86,11 @@ type HTTPServer struct {
 	// Transcoding
 	TranscodingSvc *apptranscoding.Service
 	HLSManager     *apptranscoding.HLSManager
+	// HLSTranscoder is the raw ffmpeg adapter — used by the VOD pipeline
+	// (Phase 1 refacto) which spawns its own rafale sessions, bypassing the
+	// legacy HLSManager. Wired alongside HLSManager during the migration; the
+	// legacy field goes away in Phase 4.
+	HLSTranscoder domaintranscoding.HLSProcess
 
 	// Metadata
 	MetadataCmdSvc   *appmetadata.CommandService
@@ -270,6 +276,18 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	hlsMediaCache := NewCachedMediaItemGetter(s.LibQuerySvc)
 	hlsAccessCache := NewCachedLibraryAccessChecker(s.LibraryAccessRepo)
 	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(hlsSegmentHandler(s.TokenGen, hlsMediaCache, s.HLSManager, hlsAccessCache)))
+
+	// Phase 1 refacto — VOD-style HLS pipeline (manifest precomputed in Go,
+	// segments produced on demand by SegmentOrchestrator into SegmentCache).
+	// Runs in parallel under /hls/v2/ until the runtime validation step lands
+	// and we can retire the legacy /hls/ path. See features/hls_vod_playlist_refacto.
+	if s.HLSTranscoder != nil && s.HLSManager != nil {
+		if vodHandler := newHLSVODServe(s, s.LibQuerySvc, hlsAccessCache, parentalChk); vodHandler != nil {
+			// Single catch-all — the handler dispatches on the {file} pattern
+			// (master.m3u8 / stream_N.m3u8 / stream_N_NNN.ext / stream_N_init.mp4).
+			mux.HandleFunc("GET /api/v1/media/{id}/hls/v2/{file}", streamAuth(vodHandler.serveHTTP))
+		}
+	}
 	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.TokenGen, s.LibQuerySvc, NewLibraryItemCounter(s.LibQuerySvc, s.MusicSvc, s.PhotoSvc))))
 
 	// DLNA
