@@ -80,10 +80,13 @@ export function assertUploadBlocked(
 }
 
 /**
- * Assert the upload was rejected AND the issues list contains the expected
- * category string. The issues array elements look like:
- *   "[CRITICAL] file:line — description (pattern)"
- * Pass a substring or regex source to check against.
+ * Assert the upload was rejected AND the analyzer flagged the expected category.
+ * The server returns a deduplicated `categories: string[]` machine-readable
+ * enum list (e.g. ["shell_exec", "sandbox_escape", "native_code"]) alongside
+ * the human-readable `issues` strings. We assert against `categories` —
+ * matching enums is robust to wording changes in the issue descriptions.
+ * Falls back to a substring scan of `issues` for older server builds that
+ * don't emit `categories` yet (so the test stays useful across versions).
  */
 export function assertBlockedWithCategory(
   result: { status: number; body: Record<string, unknown> },
@@ -91,11 +94,22 @@ export function assertBlockedWithCategory(
   expectedCategory: string,
 ): void {
   assertUploadBlocked(result, fixtureLabel);
+  const want = expectedCategory.toLowerCase();
+  const categories = (result.body["categories"] as string[] | undefined) ?? [];
+  if (categories.length > 0) {
+    if (!categories.map((c) => c.toLowerCase()).includes(want)) {
+      throw new Error(
+        `[${fixtureLabel}] categories ${JSON.stringify(categories)} does not include "${expectedCategory}".`,
+      );
+    }
+    return;
+  }
+  // Fallback for legacy server responses without the categories field.
   const issues = (result.body["issues"] as string[] | undefined) ?? [];
   const joined = issues.join("\n").toLowerCase();
-  if (!joined.includes(expectedCategory.toLowerCase())) {
+  if (!joined.includes(want)) {
     throw new Error(
-      `[${fixtureLabel}] issues list does not mention "${expectedCategory}".\nIssues:\n${issues.join("\n")}`,
+      `[${fixtureLabel}] no categories field and issues list does not mention "${expectedCategory}".\nIssues:\n${issues.join("\n")}`,
     );
   }
 }

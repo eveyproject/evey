@@ -413,22 +413,40 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusPreconditionRequired)
 				if encErr := json.NewEncoder(w).Encode(map[string]any{
-					"message":             "plugin update requires permission acknowledgment",
-					"permission_changes":  true,
-					"new_entries":         extractEscalationEntries(installErr.Error()),
+					"message":            "plugin update requires permission acknowledgment",
+					"permission_changes": true,
+					"new_entries":        extractEscalationEntries(installErr.Error()),
 				}); encErr != nil {
 					slog.Warn("encode escalation response", slog.Any("err", encErr))
 				}
 				return
 			}
 			if strings.Contains(installErr.Error(), "plugin blocked:") {
-				issues := extractBlockedIssues(installErr.Error())
+				// Prefer the structured PluginBlockedError when available (the
+				// report.Safe=false path): it carries the deduplicated
+				// `categories` enum list — machine-readable, useful for the
+				// admin dashboard + the e2e security spec. Other "plugin
+				// blocked:" paths (analyzer-failed, theme.js scanner,
+				// native-binary, escalated warnings) don't have categories
+				// and fall back to the legacy string-extracted issues.
+				var blockErr *appplugin.PluginBlockedError
+				var issues, categories []string
+				if errors.As(installErr, &blockErr) {
+					issues = blockErr.Issues
+					categories = blockErr.Categories
+				} else {
+					issues = extractBlockedIssues(installErr.Error())
+				}
+				if categories == nil {
+					categories = []string{}
+				}
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
 				if encErr := json.NewEncoder(w).Encode(map[string]any{
-					"message": "Plugin blocked by security analysis",
-					"blocked": true,
-					"issues":  issues,
+					"message":    "Plugin blocked by security analysis",
+					"blocked":    true,
+					"issues":     issues,
+					"categories": categories,
 				}); encErr != nil {
 					slog.Warn("encode blocked response", slog.Any("err", encErr))
 				}

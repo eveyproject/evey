@@ -111,6 +111,26 @@ const nativeBinaryPerm = "native-binary"
 // after an explicit admin acknowledgment to proceed.
 var ErrPluginPermissionEscalation = errors.New("plugin update requires permission escalation")
 
+// PluginBlockedError is returned by InstallPlugin when the static analyzer
+// rejects a plugin for CRITICAL security findings. It carries the structured
+// data the http layer needs: the pre-formatted Issues strings (kept for
+// backwards-compat with the admin UI which already renders them) AND the
+// deduplicated Categories list (machine-readable enums like "shell_exec",
+// "sandbox_escape", etc.) which the security-spec test asserts against.
+//
+// Other "plugin blocked: ..." returns (analyzer-failed, theme.js scanner,
+// native-binary opt-in, escalated warnings) do NOT use this type because they
+// don't have a per-finding category list — the http handler falls back to its
+// existing string-parsing path for those.
+type PluginBlockedError struct {
+	Issues     []string
+	Categories []string
+}
+
+func (e *PluginBlockedError) Error() string {
+	return fmt.Sprintf("plugin blocked: critical security issues found: %v", e.Issues)
+}
+
 type permEscalationCtxKey struct{}
 
 // WithAllowPermissionEscalation returns a child context that authorizes an
@@ -426,7 +446,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 			return nil, fmt.Errorf("plugin blocked: static analysis failed: %w", analyzeErr)
 		}
 		if !report.Safe {
-			return nil, fmt.Errorf("plugin blocked: critical security issues found: %v", report.Issues)
+			return nil, &PluginBlockedError{Issues: report.Issues, Categories: report.Categories}
 		}
 		// Escalate specific WARNING categories to blocking. These patterns are
 		// dangerous enough that admin opt-in (like native-binary) or a source
