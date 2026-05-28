@@ -64,7 +64,12 @@ func (h *themeAssetHandler) handleThemeCSS(w http.ResponseWriter, r *http.Reques
 	}
 
 	cssPath := filepath.Join(h.pluginDir, id, "theme.css")
-	if !strings.HasPrefix(filepath.Clean(cssPath), filepath.Clean(h.pluginDir)) {
+	// Require the path separator after pluginDir: without it, an id like
+	// "../plugins-evil/foo" would resolve to /…/plugins-evil/foo which still
+	// matches HasPrefix("/…/plugins") and would escape the install root.
+	// (The repo lookup above is the primary defence, this is belt-and-braces.)
+	cleanedRoot := filepath.Clean(h.pluginDir) + string(filepath.Separator)
+	if !strings.HasPrefix(filepath.Clean(cssPath), cleanedRoot) {
 		span.SetStatus(otelcodes.Error, "invalid path")
 		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 		return
@@ -116,7 +121,11 @@ func (h *themeAssetHandler) handleThemeJS(w http.ResponseWriter, r *http.Request
 	}
 
 	jsPath := filepath.Join(h.pluginDir, id, "theme.js")
-	if !strings.HasPrefix(filepath.Clean(jsPath), filepath.Clean(h.pluginDir)) {
+	// Separator-anchored prefix check (see handleThemeCSS above for the
+	// reasoning — prevents an id like "../plugins-evil/…" from satisfying
+	// HasPrefix while pointing outside the install root).
+	cleanedRoot := filepath.Clean(h.pluginDir) + string(filepath.Separator)
+	if !strings.HasPrefix(filepath.Clean(jsPath), cleanedRoot) {
 		span.SetStatus(otelcodes.Error, "invalid path")
 		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 		return
