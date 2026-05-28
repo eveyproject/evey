@@ -19,8 +19,15 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  backend:
-    name: Backend — test & build
+  # Backend is split in two parallel jobs (was one ~13-17 min sequential
+  # backend job): `quality` carries vet + govulncheck + golangci-lint + gosec,
+  # `correctness` carries build + unit tests + postgres testcontainers.
+  # The two share the same proto-generate prelude but run on separate
+  # runners — wallclock drops from sum(quality, correctness) to max(...).
+  # Cost: setup-go + buf duplicated, but both cache hit so the overhead
+  # is ~30-60s per job, far less than what's saved.
+  quality:
+    name: Backend — quality & security
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -67,9 +74,6 @@ jobs:
       - name: govulncheck
         run: govulncheck ./cmd/... ./internal/...
 
-      - name: build
-        run: go build ./...
-
       # Code-quality linters (.golangci.yml). Ratchet mode: only-new-issues
       # means a pre-existing finding never blocks — only issues introduced by
       # the pushed commits (push: before..after diff) or the PR diff fail the
@@ -94,18 +98,45 @@ jobs:
           skip-save-cache: true
           args: --config=.golangci.gosec.yml
 
+  correctness:
+    name: Backend — build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: install buf
+        uses: bufbuild/buf-action@v1
+        with:
+          version: "1.68.2"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          setup_only: true
+
+      - name: generate proto
+        run: buf generate
+
+      - name: build
+        run: go build ./...
+
+      # Unit tests keep -race: lots of goroutines (HTTP handlers, transcoder
+      # sessions, etc.) — race detection is high-value there.
       - name: test (unit)
         run: |
           go test \
             $(go list ./... | grep -v "adapters/driven/postgres" | grep -v /gen/) \
             -count=1 -timeout=120s -race
 
+      # Postgres tests run serialised through a shared testcontainer
+      # (no t.Parallel — truncateAll would race across tests). -race adds
+      # 2-3× overhead with little signal here (the postgres repo layer
+      # has no concurrent goroutines on its hot path), so it runs without
+      # -race in CI and is re-run with -race nightly (cf nightly-race.yml).
       - name: test (postgres — testcontainers)
-        # 297+ serialized tests through a shared container (no t.Parallel —
-        # truncateAll would race across tests). -race adds 2-3x overhead,
-        # and the migrate roundtrip test spins a dedicated container on top.
-        # 300s was just barely enough without -race; CI needs more headroom.
-        run: go test ./internal/adapters/driven/postgres/... -count=1 -timeout=600s -race
+        run: go test ./internal/adapters/driven/postgres/... -count=1 -timeout=300s
 
   frontend:
     name: Frontend — typecheck & build
@@ -156,10 +187,10 @@ jobs:
   docker:
     name: Docker — build & push (${{ matrix.runtime.name }})
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    needs: [quality, correctness, frontend]
     # Only publish on push events (branch push or release tag) — never on PRs.
-    # backend+frontend already gate this job, so a failing test/build blocks
-    # the image from reaching either registry.
+    # The 3 backend/frontend jobs already gate this, so a failing test/lint
+    # blocks the image from reaching either registry.
     if: github.event_name == 'push'
     permissions:
       contents: read
@@ -241,3 +272,35 @@ jobs:
           cache-from: type=gha,scope=docker-${{ matrix.runtime.name }}
           cache-to: type=gha,mode=max,scope=docker-${{ matrix.runtime.name }}
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
+
+  # Sentinel job for branch protection. Required check should target this
+  # one job rather than each parallel job individually — that way `docker`
+  # being skipped on PRs (event_name != 'push') doesn't break the gate.
+  # Succeeds iff every required upstream job either passed or was correctly
+  # skipped for the event type.
+  ci-pass:
+    name: CI passed
+    runs-on: ubuntu-latest
+    needs: [quality, correctness, frontend, docker]
+    if: always()
+    steps:
+      - name: verify required jobs
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          CORRECTNESS: ${{ needs.correctness.result }}
+          FRONTEND: ${{ needs.frontend.result }}
+          DOCKER: ${{ needs.docker.result }}
+        run: |
+          set -e
+          fail=0
+          for kv in "quality=$QUALITY" "correctness=$CORRECTNESS" "frontend=$FRONTEND" "docker=$DOCKER"; do
+            name="${kv%%=*}"
+            result="${kv#*=}"
+            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
+              echo "::error::Required job '$name' did not pass (result: $result)"
+              fail=1
+            else
+              echo "OK: $name -> $result"
+            fi
+          done
+          exit $fail

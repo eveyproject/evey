@@ -1,0 +1,84 @@
+name: Nightly — race & deep vuln
+
+# Nightly deep-security gate. The commit-CI runs unit tests with -race
+# (cheap, high signal — lots of goroutines) but skips -race on the postgres
+# repo tests (300+ serialised tests through a shared container, -race adds
+# 2-3× overhead with little signal there). This workflow re-runs the
+# postgres tests with -race + a verbose govulncheck pass with call traces.
+# A red here is a real race-condition or vuln regression and should block
+# the next push until investigated.
+
+on:
+  schedule:
+    # 03:17 UTC daily — staggered off the hour to dodge the cron stampede
+    # GitHub Actions sees at HH:00 (queue can be 10-30 min late).
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  postgres-race:
+    name: Postgres tests with -race
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: install buf
+        uses: bufbuild/buf-action@v1
+        with:
+          version: "1.68.2"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          setup_only: true
+
+      - name: generate proto
+        run: buf generate
+
+      # 300s without -race was just barely enough; with -race the historical
+      # baseline is ~600s, give 900s headroom in case a future test adds load.
+      - name: test (postgres — race)
+        run: go test ./internal/adapters/driven/postgres/... -count=1 -timeout=900s -race
+
+  vuln-deep:
+    name: govulncheck (deep, call traces)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: install buf
+        uses: bufbuild/buf-action@v1
+        with:
+          version: "1.68.2"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          setup_only: true
+
+      - name: generate proto
+        run: buf generate
+
+      - name: cache govulncheck binary
+        id: govulncheck-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin/govulncheck
+          key: govulncheck-v1.1.4-${{ runner.os }}-${{ runner.arch }}
+
+      - name: install govulncheck (cache miss)
+        if: steps.govulncheck-cache.outputs.cache-hit != 'true'
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+
+      # Verbose mode dumps the call traces for each vulnerability — heavier
+      # than the commit-CI run but the surface for a regression here is the
+      # whole transitive dep graph, so it's worth the extra time nightly.
+      - name: govulncheck (verbose)
+        run: govulncheck -show=traces,version,verbose ./cmd/... ./internal/...
