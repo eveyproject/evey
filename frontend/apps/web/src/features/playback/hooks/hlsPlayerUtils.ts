@@ -30,7 +30,11 @@ export function buildTranscodeHlsUrl(
   if (selectedBurnInTrack !== null) params.set("subtitleTrack", String(selectedBurnInTrack));
   if (startSec > 0) params.set("startSec", String(startSec));
   appendCodecParams(params);
-  return `/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
+  // The VOD pipeline (Phase 1 refacto, /hls/v2/) computes the manifest from
+  // the known media duration so hls.js sees a complete VOD stream from t=0
+  // and never live-edge-snaps. startSec is harmless here — the server
+  // ignores it and the client seeks via video.currentTime.
+  return `/api/v1/media/${mediaId}/hls/v2/master.m3u8?${params.toString()}`;
 }
 
 // shouldRestartTranscodeSeek decides whether a seek in transcode mode can be
