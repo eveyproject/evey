@@ -466,7 +466,12 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		// (which only switches to fMP4 for hevc/av1/vp9 sources). Phase 2 will
 		// thread a UseFMP4 flag into HLSProcessOpts and flip this to true.
 		useFMP4: false,
-		segmentWaitTimeout:   15 * time.Second,
+		// 25 s covers a worst-case ffmpeg cold start at -ss far into the
+		// media (the slow probe + initial decode + 1st keyframe + first
+		// segment encode chain has been measured at 11-14 s on the dev
+		// box). hls.js retries 503 automatically so a tighter cap would
+		// just produce visible buffering.
+		segmentWaitTimeout: 25 * time.Second,
 	}
 }
 
