@@ -355,12 +355,16 @@ func appendInputModifiers(args []string) []string {
 // appendHLSOutputArgs writes the HLS muxer arguments shared by every
 // builder. list_size 0 + playlist_type event keep all segments available for
 // the full session duration; useFMP4 picks the segment container.
+// `temp_file` makes ffmpeg write each segment to `<name>.tmp` first, then
+// rename atomically on close — so a concurrent reader never sees a partial
+// segment (audit indies: Stash pattern, free with this flag on Linux/macOS).
 func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool) []string {
 	args = append(args,
 		"-f", "hls",
 		"-hls_time", hlsSegmentSeconds,
 		"-hls_list_size", "0",
 		"-hls_playlist_type", "event",
+		"-hls_flags", "temp_file",
 	)
 	if useFMP4 {
 		args = append(args,
@@ -627,6 +631,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		"-hls_time", hlsSegmentSeconds,
 		"-hls_list_size", "0",
 		"-hls_playlist_type", "event",
+		"-hls_flags", "temp_file",
 		"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.ts"),
 		filepath.Join(opts.OutputDir, "stream_%v.m3u8"),
 	)

@@ -111,6 +111,7 @@ func TestBuildFFmpegArgs_BoundedCacheArgs(t *testing.T) {
 			assert.Contains(t, joined, "-readrate 1.5", "ffmpeg input read rate must be capped at 1.5x real-time")
 			assert.Contains(t, joined, "-hls_list_size 0", "playlist must be unbounded (event-type, growing) to avoid drift-out on long playback")
 			assert.Contains(t, joined, "-hls_playlist_type event", "playlist must be marked event so hls.js doesn't snap to liveSyncPosition")
+			assert.Contains(t, joined, "-hls_flags temp_file", "temp_file flag makes ffmpeg rename segments atomically — eliminates read-while-write races (audit indies: Stash pattern, free with this flag)")
 			assert.NotContains(t, joined, "delete_segments", "delete_segments must not be set — session.stop() cleans up the OutputDir")
 		})
 	}
