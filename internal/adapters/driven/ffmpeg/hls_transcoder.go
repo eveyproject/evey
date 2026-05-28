@@ -358,13 +358,20 @@ func appendInputModifiers(args []string) []string {
 // `temp_file` makes ffmpeg write each segment to `<name>.tmp` first, then
 // rename atomically on close — so a concurrent reader never sees a partial
 // segment (audit indies: Stash pattern, free with this flag on Linux/macOS).
-func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool) []string {
+//
+// startNumber controls ffmpeg's HLS segment counter (and so the segment
+// filenames stream_N_NNN.{ts|m4s}). When the rafale starts mid-media via
+// `-ss`, callers must compute startNumber = floor(StartSec/hlsSegmentSeconds)
+// so the produced filenames match the absolute manifest indices the VOD
+// pipeline cache addresses by. Pass 0 for legacy / non-rafale callers.
+func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, startNumber int) []string {
 	args = append(args,
 		"-f", "hls",
 		"-hls_time", hlsSegmentSeconds,
 		"-hls_list_size", "0",
 		"-hls_playlist_type", "event",
 		"-hls_flags", "temp_file",
+		"-start_number", fmt.Sprintf("%d", startNumber),
 	)
 	if useFMP4 {
 		args = append(args,
@@ -470,7 +477,19 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-c:a", "copy")
 	}
 
-	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams))
+	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams), startNumberFor(opts))
+}
+
+// startNumberFor maps StartSec onto the segment counter so produced filenames
+// match the absolute manifest indices the VOD pipeline addresses. floor()
+// because segment N covers media seconds [N*L, (N+1)*L), so a StartSec of
+// 153 s with 3 s segments lands inside seg 51 — start_number must be 51.
+func startNumberFor(opts transcoding.HLSProcessOpts) int {
+	if opts.StartSec <= 0 {
+		return 0
+	}
+	const segSec = 3.0
+	return int(opts.StartSec / segSec)
 }
 
 func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
@@ -536,7 +555,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-c:a", "copy")
 	}
 
-	return appendHLSOutputArgs(args, opts.OutputDir, false)
+	return appendHLSOutputArgs(args, opts.OutputDir, false, startNumberFor(opts))
 }
 
 func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
@@ -632,6 +651,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		"-hls_list_size", "0",
 		"-hls_playlist_type", "event",
 		"-hls_flags", "temp_file",
+		"-start_number", fmt.Sprintf("%d", startNumberFor(opts)),
 		"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.ts"),
 		filepath.Join(opts.OutputDir, "stream_%v.m3u8"),
 	)
