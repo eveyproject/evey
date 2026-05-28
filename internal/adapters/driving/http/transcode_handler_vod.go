@@ -435,13 +435,17 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		slog.Warn("hls-vod: cache init failed, skipping v2 routes", slog.Any("err", err))
 		return nil
 	}
-	// Phase 2: LRU sweeper bounds the on-disk cache. 50 GB default — sized for
-	// a home-server scale (a few concurrent multi-variant sessions, each
-	// ~5 GB worst case for a 2h 1080p movie). The sweeper runs background and
-	// is stopped on shutdown via the returned stop func; we don't currently
-	// track stop here because the orchestrator lives for the process lifetime.
+	// Phase 2: LRU sweeper bounds the on-disk cache. Configured via the
+	// existing EVEY_TRANSCODING_CACHE_MAX_GB env var so home servers can
+	// tune disk vs more cached sessions independently of code. The sweeper
+	// runs in the background; its stop func is intentionally dropped since
+	// the orchestrator lives for the process lifetime.
+	maxGB := 50
+	if s.Cfg != nil && s.Cfg.Transcoding.CacheMaxGB > 0 {
+		maxGB = s.Cfg.Transcoding.CacheMaxGB
+	}
 	_ = cache.StartEviction(apptranscoding.EvictionPolicy{
-		MaxBytes: 50 * 1024 * 1024 * 1024, // 50 GB
+		MaxBytes: int64(maxGB) * 1024 * 1024 * 1024,
 	}, slog.Default())
 	resolver := &MediaSourceResolver{LibSvc: libSvc}
 	orch := apptranscoding.NewSegmentOrchestrator(

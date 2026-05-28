@@ -205,16 +205,28 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	if exists {
 		session.mu.Lock()
 		inWindow := segmentIdx >= session.startSeg && segmentIdx <= session.endSeg
+		// nearAhead: just past endSeg but within "ffmpeg will reach this
+		// naturally" range. ffmpeg has no -t cap and runs to media EOF,
+		// so seg endSeg+1 is already being encoded by the same process.
+		// Extending the window keeps the same rafale and bumps lastAccess
+		// so the inactivity GC doesn't reap a session that's still being
+		// linearly consumed. Without this guard, every LookAheadSegments
+		// played triggers a spurious cancel-on-seek + respawn — the exact
+		// pathology that surfaced on the dev stress test.
+		nearAhead := segmentIdx > session.endSeg && segmentIdx <= session.endSeg+o.opts.LookAheadSegments
 		session.mu.Unlock()
 
-		if inWindow {
+		if inWindow || nearAhead {
 			session.mu.Lock()
 			session.lastAccess = time.Now()
+			if nearAhead {
+				session.endSeg = segmentIdx + o.opts.LookAheadSegments
+			}
 			session.mu.Unlock()
 			return nil
 		}
 
-		// Cancel-on-seek: requested segment is outside the active rafale.
+		// True cancel-on-seek: segment far ahead OR rewound before window.
 		// Tear down and respawn at the new offset. Don't hold o.mu while
 		// killing — the ffmpeg Stop may block briefly on Wait().
 		o.logger.Info("orchestrator: cancel-on-seek",
