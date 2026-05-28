@@ -4,14 +4,22 @@ RUN apk add --no-cache ffmpeg chromaprint curl postgresql-client gcc musl-dev li
     python3 py3-pip py3-grpcio py3-protobuf \
     nodejs npm tzdata \
     bash perl lua5.4 ruby php83 php83-pcntl php83-posix \
-    bubblewrap && \
+    bubblewrap git && \
     go install github.com/air-verse/air@latest && \
     go install github.com/bufbuild/buf/cmd/buf@v1.47.2 && \
+    go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 && \
+    go install golang.org/x/vuln/cmd/govulncheck@latest && \
     npm install -g esbuild@0.25.12 @grpc/grpc-js@1.12.6 @grpc/proto-loader@0.7.13 && \
     ln -sf /usr/bin/lua5.4 /usr/bin/lua && \
     ln -sf /usr/bin/php83 /usr/bin/php
 
 ENV TZ=Europe/Paris
+
+# /app is bind-mounted from the host where ownership is the host UID (1000),
+# not root (the container default). Git 2.36+ refuses to read such repos as
+# "dubious ownership" — opt in explicitly so `make ci-fast` can compute
+# --new-from-rev for the golangci-lint ratchet.
+RUN git config --global --add safe.directory /app
 
 RUN adduser -D -u 1001 -G root evey-plugin
 

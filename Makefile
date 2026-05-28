@@ -92,13 +92,9 @@ sec-scan:
 # Tout passe par le container `evey-server` (Go pinné + cache modules monté)
 # pour bypasser les soucis TLS/permissions sur l'hôte WSL.
 
-ci-fast: ci-fast-vet ci-fast-vuln ci-fast-build
-	@echo "✅ ci-fast OK — vet + govulncheck + build verts."
-	@echo "   NB : gosec ratchet (only-new-issues) PAS exécuté localement — le container"
-	@echo "   evey-server n'a pas git (requis par golangci-lint --new-from-rev). Le step"
-	@echo "   CI 'gosec security scan' attrape ça côté GHA (qui a accès au diff PR)."
-	@echo "   Pour un sweep gosec local manuel (full, hors ratchet) : make sec-scan"
-	@echo "   Tests -race PAS exécutés non plus (utilise make ci-local)."
+ci-fast: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec
+	@echo "✅ ci-fast OK — vet + govulncheck + build + gosec ratchet verts."
+	@echo "   Tests -race PAS exécutés (utilise 'make ci-local' avant un push important)."
 
 ci-fast-vet:
 	@echo "→ go vet (excl. /gen/)"
@@ -116,16 +112,17 @@ ci-fast-sec:
 	@# Mirror du ratchet CI : --new-from-rev=<base> ne flag QUE les findings
 	@# introduits par les commits non encore poussés. Sans ce flag, les
 	@# ~21 FPs legacy bloqueraient chaque pre-push.
-	@# BASE est calculé sur l'hôte (le container `evey-server` n'a pas git)
-	@# puis injecté dans l'exec. Fallback : origin/master, sinon HEAD~1.
+	@# BASE est calculé sur l'hôte (la résolution origin/<branche> est fiable
+	@# depuis l'hôte) puis injecté dans l'exec. Fallback : origin/master,
+	@# sinon HEAD~1.
 	@BASE=$$(git rev-parse "origin/$$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null || git rev-parse "origin/master" 2>/dev/null || git rev-parse HEAD~1); \
 	echo "→ golangci-lint -c .golangci.gosec.yml (new-from $$BASE)"; \
-	docker exec -w /app evey-server sh -c "golangci-lint run -c .golangci.gosec.yml --new-from-rev=$$BASE ./..."
+	docker exec -w /app evey-server sh -c "(command -v golangci-lint >/dev/null || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2) && golangci-lint run -c .golangci.gosec.yml --new-from-rev=$$BASE ./..."
 
 ci-local-lint:
 	@BASE=$$(git rev-parse "origin/$$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null || git rev-parse "origin/master" 2>/dev/null || git rev-parse HEAD~1); \
 	echo "→ golangci-lint (general, new-from $$BASE)"; \
-	docker exec -w /app evey-server sh -c "golangci-lint run --new-from-rev=$$BASE ./..."
+	docker exec -w /app evey-server sh -c "(command -v golangci-lint >/dev/null || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2) && golangci-lint run --new-from-rev=$$BASE ./..."
 
 ci-local: ci-fast ci-local-lint ci-local-test ci-local-frontend
 	@echo "✅ ci-local OK — mirror CI complet vert (vet + vuln + build + sec + lint + race + frontend typecheck)."
