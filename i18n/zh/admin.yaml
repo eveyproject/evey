@@ -477,8 +477,11 @@ serverConfig:
   artworkRetryDesc: "回填仍缺少本地文件的封面记录。也会在后台每小时运行一次。"
   artworkRetryDone: "重试完成：{{succeeded}} 成功，{{failed}} 失败。"
   parserTokensTitle: "解析器标记"
+  parserTokensDesc: "在基本列表之外，文件名解析器额外识别的标记。用于添加解析器默认不会去除的发行标签（HDRIP、自定义版本等），让孤立项与 TMDB 匹配。更改将在下次扫描时立即生效。"
   parserTokensEditions: "额外的版本后缀"
+  parserTokensEditionsHint: "用逗号分隔，可包含多个词（正则预分词）。在 TMDB 查询前从标题中移除。"
   parserTokensQualities: "额外的质量标记"
+  parserTokensQualitiesHint: "用逗号分隔的单词标记（小写）。解析器以 '.'、'_'、'-' 和空格分隔文件名。"
   tableHeaders:
     key: "键"
     value: "值"

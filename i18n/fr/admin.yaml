@@ -476,8 +476,11 @@ serverConfig:
   artworkRetryDesc: "Rattrape les artworks dont le fichier local est manquant. Lancé toutes les heures en arrière-plan."
   artworkRetryDone: "Rattrapage terminé : {{succeeded}} réussis, {{failed}} échoués."
   parserTokensTitle: "Jetons d'analyse"
+  parserTokensDesc: "Jetons supplémentaires reconnus par l'analyseur de nom de fichier en plus de la liste de base. À utiliser pour ajouter des tags de release que l'analyseur ne retire pas par défaut (HDRIP, éditions personnalisées, etc.) afin que les orphelins correspondent à TMDB. Les changements prennent effet immédiatement au prochain scan."
   parserTokensEditions: "Suffixes d'édition supplémentaires"
+  parserTokensEditionsHint: "Séparés par virgules, peuvent comporter plusieurs mots (pré-tokenisation par regex). Retirés du titre avant la recherche TMDB."
   parserTokensQualities: "Jetons de qualité supplémentaires"
+  parserTokensQualitiesHint: "Séparés par virgules, jetons d'un seul mot (en minuscules). L'analyseur découpe les noms de fichier sur '.', '_', '-' et espace."
   tableHeaders:
     key: "Clé"
     value: "Valeur"

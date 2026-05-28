@@ -477,8 +477,11 @@ serverConfig:
   artworkRetryDesc: "Rellena las filas de carátulas que aún carecen de archivo local. También se ejecuta cada hora en segundo plano."
   artworkRetryDone: "Reintento completado: {{succeeded}} exitosas, {{failed}} fallidas."
   parserTokensTitle: "Tokens del analizador"
+  parserTokensDesc: "Tokens adicionales reconocidos por el analizador de nombres de archivo más allá de la lista base. Úsalo para añadir etiquetas de release que el analizador no quita por defecto (HDRIP, ediciones personalizadas, etc.) para que los huérfanos coincidan con TMDB. Los cambios surten efecto inmediatamente en el siguiente escaneo."
   parserTokensEditions: "Sufijos de edición adicionales"
+  parserTokensEditionsHint: "Separados por comas, pueden abarcar varias palabras (pre-tokenización por regex). Se eliminan del título antes de la búsqueda en TMDB."
   parserTokensQualities: "Tokens de calidad adicionales"
+  parserTokensQualitiesHint: "Separados por comas, tokens de una sola palabra (en minúsculas). El analizador divide los nombres de archivo por '.', '_', '-' y espacio."
   tableHeaders:
     key: "Clave"
     value: "Valor"

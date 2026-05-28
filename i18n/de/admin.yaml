@@ -471,8 +471,11 @@ serverConfig:
   trickplayAdaptiveCpu: "Adaptive CPU"
   trickplayAdaptiveCpuDesc: "Schonender Modus (~25% CPU). Deaktivieren für schnellere Generierung (~50% CPU)."
   parserTokensTitle: "Parser-Tokens"
+  parserTokensDesc: "Zusätzliche Tokens, die der Dateinamen-Parser zusätzlich zur Standardliste erkennt. Damit lassen sich Release-Tags ergänzen, die der Parser standardmäßig nicht entfernt (HDRIP, eigene Editionen usw.), damit Waisen mit TMDB übereinstimmen. Änderungen werden beim nächsten Scan sofort wirksam."
   parserTokensEditions: "Zusätzliche Edition-Suffixe"
+  parserTokensEditionsHint: "Komma-getrennt, können mehrere Wörter umfassen (Regex-Pre-Tokenisierung). Werden vor dem TMDB-Lookup vom Titel entfernt."
   parserTokensQualities: "Zusätzliche Qualitäts-Tokens"
+  parserTokensQualitiesHint: "Komma-getrennt, Einzel-Wort-Tokens (in Kleinbuchstaben). Der Parser zerlegt Dateinamen an '.', '_', '-' und Leerzeichen."
   tableHeaders:
     key: Schlüssel
     value: Wert

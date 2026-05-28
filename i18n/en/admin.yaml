@@ -488,8 +488,11 @@ serverConfig:
   artworkRetryDesc: "Backfill any artwork rows still missing a local file. Runs hourly in the background too."
   artworkRetryDone: "Retry finished: {{succeeded}} succeeded, {{failed}} failed."
   parserTokensTitle: "Parser tokens"
+  parserTokensDesc: "Extra tokens recognised by the filename parser on top of the baseline list. Use this to add release tags the parser doesn't strip out of the box (HDRIP, custom editions, etc.) so orphans match TMDB. Changes take effect immediately on the next scan."
   parserTokensEditions: "Extra edition suffixes"
+  parserTokensEditionsHint: "Comma-separated, can span multiple words (regex pre-tokenisation). Stripped from the title before TMDB lookup."
   parserTokensQualities: "Extra quality tokens"
+  parserTokensQualitiesHint: "Comma-separated, single-word tokens (lowercased). The parser splits filenames on '.', '_', '-' and space."
   tableHeaders:
     key: Key
     value: Value
