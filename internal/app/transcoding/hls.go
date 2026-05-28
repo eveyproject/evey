@@ -117,9 +117,10 @@ func (s *HLSSession) MarkAccess(userAgent string) {
 // pauseIfIdle suspends ffmpeg (SIGSTOP) when the client hasn't fetched a
 // segment for longer than idle. ffmpeg's -readrate caps it at 1.5× real-time
 // but does NOT tie it to the playhead, so a paused client would otherwise let
-// the sliding window run away (and delete_segments evict the paused position),
-// causing a live-edge jump on resume. Returns true on the active→paused edge
-// (for logging). No-op for cached sessions (nil handle).
+// ffmpeg keep encoding far past the paused position — burning CPU and disk on
+// segments the user may never reach. The event-mode playlist itself is safe
+// (no eviction), this is purely a host-resource guard. Returns true on the
+// active→paused edge (for logging). No-op for cached sessions (nil handle).
 func (s *HLSSession) pauseIfIdle(idle time.Duration, now time.Time) bool {
 	s.mu.Lock()
 	if s.paused || s.handle == nil || now.Sub(s.LastAccess) < idle {

@@ -70,9 +70,11 @@ func TestBuildFFmpegArgs_ModeA_AllCopy(t *testing.T) {
 	assert.Contains(t, joined, "-c:a copy")
 }
 
-// All builders MUST emit the bounded HLS playlist + readrate combo so the
-// transcode cache stays under ~150 MB per active session and ffmpeg
-// doesn't sprint ahead of the user's playback position.
+// All builders MUST emit the event-mode HLS playlist + readrate combo.
+// -hls_list_size 0 + -hls_playlist_type event keep the full growing playlist
+// so hls.js never snaps to the live edge (eliminates the drift-jump on long
+// playback). -readrate 1.5 avoids wasting CPU on frames the user won't reach.
+// Disk cleanup is guaranteed by HLSSession.stop() → os.RemoveAll(OutputDir).
 func TestBuildFFmpegArgs_BoundedCacheArgs(t *testing.T) {
 	cases := []struct {
 		name string
@@ -107,8 +109,9 @@ func TestBuildFFmpegArgs_BoundedCacheArgs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			joined := strings.Join(ffmpeg.BuildFFmpegArgs(tc.opts), " ")
 			assert.Contains(t, joined, "-readrate 1.5", "ffmpeg input read rate must be capped at 1.5x real-time")
-			assert.Contains(t, joined, "-hls_list_size 90", "playlist must keep 90 segments (4.5 min buffer for low-bandwidth clients)")
-			assert.Contains(t, joined, "-hls_flags delete_segments", "old segments must be deleted from disk as the window slides")
+			assert.Contains(t, joined, "-hls_list_size 0", "playlist must be unbounded (event-type, growing) to avoid drift-out on long playback")
+			assert.Contains(t, joined, "-hls_playlist_type event", "playlist must be marked event so hls.js doesn't snap to liveSyncPosition")
+			assert.NotContains(t, joined, "delete_segments", "delete_segments must not be set — session.stop() cleans up the OutputDir")
 		})
 	}
 }

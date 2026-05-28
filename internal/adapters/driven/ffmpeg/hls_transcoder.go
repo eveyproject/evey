@@ -208,11 +208,12 @@ func (h *hlsHandle) Err() error {
 	return h.err
 }
 
-// Pause sends SIGSTOP so ffmpeg stops advancing the sliding window while the
-// client isn't fetching segments. Without this, -readrate 1.5 lets ffmpeg keep
-// transcoding ~1.5× real-time during a long pause, sliding the window (and its
-// delete_segments cleanup) far past the paused position — on resume hls.js then
-// jumps to the live edge. Idempotent; a no-op once the process has exited.
+// Pause sends SIGSTOP so ffmpeg stops encoding while the client isn't fetching
+// segments. With the event-mode playlist nothing can be evicted underneath the
+// paused user, but -readrate 1.5 still lets ffmpeg keep encoding ~1.5× real-time
+// during a long pause — burning CPU and disk on segments the user may never
+// reach. Suspending while idle keeps the playlist stable and the host quiet.
+// Idempotent; a no-op once the process has exited.
 func (h *hlsHandle) Pause() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -303,22 +304,20 @@ func BuildFFmpegArgs(opts transcoding.HLSProcessOpts) []string {
 	return buildMultiVariantArgs(opts)
 }
 
-// hlsWindowSegments caps how many segments the m3u8 playlist exposes at any
-// time. Combined with -hls_flags delete_segments below, ffmpeg deletes the
-// older .ts/.m4s files as the window slides, so the on-disk transcode cache
-// stays bounded at hlsWindowSegments × hls_time × ~bitrate
-// (90 × 3s × ~5 MB ≈ 450 MB per active session for typical 1080p H.264).
+// HLS playlist mode: event (growing, immutable beginning).
 //
-// 90 segments = 4.5 minutes buffer. Sized for "comfort max":
-//   - Normal client (1× real-time): plenty of rewind room without 404.
-//   - Low-bandwidth client (~0.3× real-time): still keeps up with the
-//     window since ffmpeg is throttled to 1.5× via -readrate; the buffer
-//     can absorb a 5× consumer/producer ratio before segments expire
-//     out from under the player.
-//   - Seek beyond the 4.5-min buffer: frontend already handles the 404
-//     by reloading the HLS source via setTranscodeStartTime — no UX
-//     regression, just a brief reload.
-const hlsWindowSegments = "90"
+// -hls_list_size 0 keeps every segment in the playlist from the start of the
+// session. -hls_playlist_type event marks the playlist as EVENT so hls.js
+// knows the beginning is stable and will never snap to the live edge
+// (liveSyncPosition). This eliminates the ~6-minute drift-jump that occurred
+// with the old sliding-window approach (-hls_list_size 90 + delete_segments):
+// at -readrate 1.5, ffmpeg encodes 1.5x faster than playback, accumulating a
+// 0.5 s/s gap; after ~9 min the oldest segments were deleted and hls.js
+// snapped forward to the live edge.
+//
+// On-disk cost is bounded by HLSSession.stop() which calls os.RemoveAll on
+// the OutputDir at session end — no manual segment deletion needed. Worst case
+// is bitrate x media_duration per session (~5 GB for a 2h 1080p multivariant).
 
 // hlsSegmentSeconds is the target HLS segment length. It MUST stay in sync with
 // the -force_key_frames cadence (hlsForceKeyframesArgs) so ffmpeg emits a
@@ -339,12 +338,10 @@ const deinterlaceFilter = "bwdif=deint=interlaced"
 // expr form is fps-independent. Negligible bitrate cost at a 3s cadence.
 var hlsForceKeyframesArgs = []string{"-force_key_frames", "expr:gte(t,n_forced*" + hlsSegmentSeconds + ")"}
 
-// hlsInputReadrate caps ffmpeg's read speed at 1.5× real-time so it
-// doesn't sprint ahead and waste CPU/disk encoding 30 minutes of buffer
-// the user hasn't asked for. With -hls_flags delete_segments the disk
-// stays bounded anyway, but readrate also reduces CPU spent encoding
-// frames the user will never reach (e.g. when they open a movie, watch
-// 5 minutes, then close).
+// hlsInputReadrate caps ffmpeg's read speed at 1.5× real-time. Even though
+// the disk is now bounded by stop() cleanup rather than delete_segments,
+// readrate still avoids wasting CPU encoding frames the user will never reach
+// (e.g. open a movie, watch 5 minutes, close).
 const hlsInputReadrate = "1.5"
 
 // appendInputModifiers prepends -readrate to args before the next -i.
@@ -356,14 +353,14 @@ func appendInputModifiers(args []string) []string {
 }
 
 // appendHLSOutputArgs writes the HLS muxer arguments shared by every
-// builder. windowSegments + delete_segments cap the on-disk cache;
-// useFMP4 picks the segment container.
+// builder. list_size 0 + playlist_type event keep all segments available for
+// the full session duration; useFMP4 picks the segment container.
 func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool) []string {
 	args = append(args,
 		"-f", "hls",
 		"-hls_time", hlsSegmentSeconds,
-		"-hls_list_size", hlsWindowSegments,
-		"-hls_flags", "delete_segments",
+		"-hls_list_size", "0",
+		"-hls_playlist_type", "event",
 	)
 	if useFMP4 {
 		args = append(args,
@@ -620,16 +617,16 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 	args = append(args, "-var_stream_map", strings.Join(streamMap, " "))
 
-	// Multi-variant master playlist — bounded with the same windowed
-	// flags as the single-variant builders so the cache stays under
-	// hlsWindowSegments × hls_time × max(VideoBitrate / 8) per variant
-	// (typical 1080p H.264 ≈ 150 MB per variant).
+	// Multi-variant master playlist — same event-mode flags as the single-variant
+	// builders: list_size 0 keeps the full growing playlist, playlist_type event
+	// prevents hls.js from snapping to the live edge. Cleanup is handled by
+	// HLSSession.stop() → os.RemoveAll(OutputDir) at session end.
 	args = append(args,
 		"-master_pl_name", "master.m3u8",
 		"-f", "hls",
 		"-hls_time", hlsSegmentSeconds,
-		"-hls_list_size", hlsWindowSegments,
-		"-hls_flags", "delete_segments",
+		"-hls_list_size", "0",
+		"-hls_playlist_type", "event",
 		"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.ts"),
 		filepath.Join(opts.OutputDir, "stream_%v.m3u8"),
 	)
