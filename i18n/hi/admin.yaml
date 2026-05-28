@@ -476,6 +476,9 @@ serverConfig:
   artworkRetryNow: "अभी गायब आर्टवर्क पुनः प्राप्त करें"
   artworkRetryDesc: "उन आर्टवर्क पंक्तियों को बैकफिल करें जिनमें अभी भी स्थानीय फ़ाइल नहीं है। पृष्ठभूमि में हर घंटे भी चलता है।"
   artworkRetryDone: "पुनः प्रयास पूर्ण: {{succeeded}} सफल, {{failed}} विफल।"
+  parserTokensTitle: "पार्सर टोकन"
+  parserTokensEditions: "अतिरिक्त एडिशन सफ़िक्स"
+  parserTokensQualities: "अतिरिक्त क्वालिटी टोकन"
   tableHeaders:
     key: "कुंजी"
     value: "मान"

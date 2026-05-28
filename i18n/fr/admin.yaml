@@ -475,6 +475,9 @@ serverConfig:
   artworkRetryNow: "Réessayer les artworks manquants"
   artworkRetryDesc: "Rattrape les artworks dont le fichier local est manquant. Lancé toutes les heures en arrière-plan."
   artworkRetryDone: "Rattrapage terminé : {{succeeded}} réussis, {{failed}} échoués."
+  parserTokensTitle: "Jetons d'analyse"
+  parserTokensEditions: "Suffixes d'édition supplémentaires"
+  parserTokensQualities: "Jetons de qualité supplémentaires"
   tableHeaders:
     key: "Clé"
     value: "Valeur"

@@ -470,6 +470,9 @@ serverConfig:
   trickplayEnabled: Trickplay-Vorschaubilder aktivieren
   trickplayAdaptiveCpu: "Adaptive CPU"
   trickplayAdaptiveCpuDesc: "Schonender Modus (~25% CPU). Deaktivieren für schnellere Generierung (~50% CPU)."
+  parserTokensTitle: "Parser-Tokens"
+  parserTokensEditions: "Zusätzliche Edition-Suffixe"
+  parserTokensQualities: "Zusätzliche Qualitäts-Tokens"
   tableHeaders:
     key: Schlüssel
     value: Wert

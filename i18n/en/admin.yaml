@@ -487,6 +487,9 @@ serverConfig:
   artworkRetryNow: "Retry missing artwork now"
   artworkRetryDesc: "Backfill any artwork rows still missing a local file. Runs hourly in the background too."
   artworkRetryDone: "Retry finished: {{succeeded}} succeeded, {{failed}} failed."
+  parserTokensTitle: "Parser tokens"
+  parserTokensEditions: "Extra edition suffixes"
+  parserTokensQualities: "Extra quality tokens"
   tableHeaders:
     key: Key
     value: Value

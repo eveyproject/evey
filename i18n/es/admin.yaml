@@ -476,6 +476,9 @@ serverConfig:
   artworkRetryNow: "Reintentar carátulas faltantes ahora"
   artworkRetryDesc: "Rellena las filas de carátulas que aún carecen de archivo local. También se ejecuta cada hora en segundo plano."
   artworkRetryDone: "Reintento completado: {{succeeded}} exitosas, {{failed}} fallidas."
+  parserTokensTitle: "Tokens del analizador"
+  parserTokensEditions: "Sufijos de edición adicionales"
+  parserTokensQualities: "Tokens de calidad adicionales"
   tableHeaders:
     key: "Clave"
     value: "Valor"
