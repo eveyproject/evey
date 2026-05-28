@@ -125,6 +125,7 @@ profile:
     pin: "PIN (4 अंक)"
     pinRequired: "क्योंकि एक बच्चों की प्रोफ़ाइल मौजूद है, एक PIN आवश्यक है।"
     pinKeep: "वर्तमान PIN बनाए रखने के लिए खाली छोड़ें।"
+    maxAge: "अधिकतम आयु रेटिंग"
     locale: "भाषा"
     region: "क्षेत्र"
 settings:
@@ -192,9 +193,11 @@ settings:
     enable: "अभिभावक नियंत्रण सक्षम करें"
     enableDesc: "रेटिंग द्वारा सामग्री फ़िल्टर करें"
     maxAge: "अधिकतम आयु"
+    defaultMaxAge: "डिफ़ॉल्ट (12+)"
     noRestriction: "कोई प्रतिबंध नहीं"
     noProfile: "कोई प्रोफ़ाइल नहीं मिली।"
     failedToUpdate: "अपडेट करने में विफल"
+    pinScopeNote: "PIN बच्चों के प्रोफ़ाइल से वयस्क प्रोफ़ाइल पर स्विच करने को नियंत्रित करता है। प्रति-प्रोफ़ाइल आयु सीमा प्रत्येक प्रोफ़ाइल पर सेट होती है (प्रोफ़ाइल टैब → संपादित करें)।"
     pin:
       title: "PIN सेट करें"
       description: "प्रतिबंधित सामग्री अनलॉक करने के लिए 4 अंकों का PIN।"
@@ -206,6 +209,10 @@ settings:
       mismatch: "PIN मेल नहीं खाते"
       passwordReauth: "खाता पासवर्ड"
       passwordRequired: "पहली बार PIN सेट करने के लिए पासवर्ड आवश्यक है"
+      changeTitle: "PIN बदलें"
+      currentPin: "वर्तमान PIN"
+      currentPinRequired: "अपना वर्तमान PIN दर्ज करें"
+      updatePin: "PIN अपडेट करें"
 apiKeys:
   title: "API कुंजियां"
   description: "बाहरी इंटीग्रेशन के लिए API कुंजियां बनाएं।"

@@ -125,6 +125,7 @@ profile:
     pin: "PIN (4 Ziffern)"
     pinRequired: "Eine PIN ist erforderlich, da ein Kinderprofil existiert."
     pinKeep: "Leer lassen, um die aktuelle PIN beizubehalten."
+    maxAge: "Max. Altersfreigabe"
     locale: "Sprache"
     region: "Region"
 settings:
@@ -192,9 +193,11 @@ settings:
     enable: Kindersicherung aktivieren
     enableDesc: Inhalte nach Altersfreigabe filtern
     maxAge: "Höchstalter"
+    defaultMaxAge: "Standard (12+)"
     noRestriction: "Keine Einschränkung"
     noProfile: Kein Profil gefunden.
     failedToUpdate: Aktualisierung fehlgeschlagen
+    pinScopeNote: "Die PIN sperrt Wechsel von Kinder- zu Erwachsenenprofilen. Pro-Profil-Altersgrenzen werden pro Profil festgelegt (Reiter Profile → Bearbeiten)."
     pin:
       title: PIN festlegen
       description: 4-stellige PIN zum Entsperren eingeschränkter Inhalte.
@@ -206,6 +209,10 @@ settings:
       mismatch: PINs stimmen nicht überein
       passwordReauth: "Kontopasswort"
       passwordRequired: "Passwort erforderlich, um erstmals eine PIN festzulegen"
+      changeTitle: "PIN ändern"
+      currentPin: "Aktuelle PIN"
+      currentPinRequired: "Aktuelle PIN eingeben"
+      updatePin: "PIN aktualisieren"
 apiDocs:
   title: API-Dokumentation
   subtitle: Die Endpunkte, die mit einem API-Schlüssel aufgerufen werden können, gruppiert nach dem jeweils erforderlichen Scope. Mit „Authorize“ kannst du sie mit deinem Schlüssel ausprobieren.

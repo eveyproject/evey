@@ -125,6 +125,7 @@ profile:
     pin: "PIN (4 dígitos)"
     pinRequired: "Se requiere un PIN porque existe un perfil infantil."
     pinKeep: "Dejar en blanco para conservar el PIN actual."
+    maxAge: "Clasificación de edad máxima"
     locale: "Idioma"
     region: "Región"
 settings:
@@ -192,9 +193,11 @@ settings:
     enable: "Activar control parental"
     enableDesc: "Filtrar contenido por clasificación"
     maxAge: "Edad máxima"
+    defaultMaxAge: "Por defecto (12+)"
     noRestriction: "Sin restricción"
     noProfile: "No se encontró perfil."
     failedToUpdate: "Error al actualizar"
+    pinScopeNote: "El PIN bloquea el cambio de perfiles infantiles a perfiles adultos. Los límites de edad por perfil se configuran en cada perfil (pestaña Perfiles → Editar)."
     pin:
       title: "Establecer PIN"
       description: "PIN de 4 dígitos para desbloquear contenido restringido."
@@ -206,6 +209,10 @@ settings:
       mismatch: "Los PIN no coinciden"
       passwordReauth: "Contraseña de la cuenta"
       passwordRequired: "Contraseña requerida para establecer un PIN por primera vez"
+      changeTitle: "Cambiar PIN"
+      currentPin: "PIN actual"
+      currentPinRequired: "Introduce tu PIN actual"
+      updatePin: "Actualizar PIN"
 apiDocs:
   title: Documentación de la API
   subtitle: Los endpoints que puedes llamar con una clave API, agrupados por el scope que requiere cada uno. Usa Authorize para probarlos con tu clave.

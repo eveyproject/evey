@@ -125,6 +125,7 @@ profile:
     pin: PIN (4 digits)
     pinRequired: "A PIN is required because a kids profile exists."
     pinKeep: Leave blank to keep current PIN.
+    maxAge: Max age rating
     locale: Language
     region: Region
 settings:
@@ -192,9 +193,11 @@ settings:
     enable: Enable parental controls
     enableDesc: Filter content by rating
     maxAge: "Max age"
+    defaultMaxAge: "Default (12+)"
     noRestriction: "No restriction"
     noProfile: No profile found.
     failedToUpdate: Failed to update
+    pinScopeNote: "The PIN gates kids → adult profile switches. Per-profile age caps live on each profile (Profiles tab → Edit)."
     pin:
       title: Set PIN
       description: 4-digit PIN to unlock restricted content.
@@ -206,6 +209,10 @@ settings:
       mismatch: PINs do not match
       passwordReauth: Account password
       passwordRequired: Password required to set a PIN for the first time
+      changeTitle: Change PIN
+      currentPin: Current PIN
+      currentPinRequired: Enter your current PIN
+      updatePin: Update PIN
 apiDocs:
   title: API documentation
   subtitle: The endpoints you can call with an API key, grouped by the scope each one requires. Use Authorize to try them out with your key.

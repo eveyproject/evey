@@ -125,6 +125,7 @@ profile:
     pin: "PIN 码（4 位数字）"
     pinRequired: "由于存在儿童个人资料，需要设置 PIN 码。"
     pinKeep: "留空以保留当前 PIN 码。"
+    maxAge: "最大年龄分级"
     locale: "语言"
     region: "地区"
 settings:
@@ -192,9 +193,11 @@ settings:
     enable: "启用家长控制"
     enableDesc: "按分级过滤内容"
     maxAge: "最大年龄"
+    defaultMaxAge: "默认 (12+)"
     noRestriction: "无限制"
     noProfile: "未找到资料。"
     failedToUpdate: "更新失败"
+    pinScopeNote: "PIN 用于限制从儿童资料切换到成人资料。每个资料的年龄限制在该资料中设置（“资料”标签 → 编辑）。"
     pin:
       title: "设置 PIN"
       description: "4 位数 PIN 码用于解锁受限内容。"
@@ -206,6 +209,10 @@ settings:
       mismatch: "PIN 不匹配"
       passwordReauth: "账户密码"
       passwordRequired: "首次设置 PIN 需要密码"
+      changeTitle: "更改 PIN 码"
+      currentPin: "当前 PIN 码"
+      currentPinRequired: "请输入当前 PIN 码"
+      updatePin: "更新 PIN 码"
 apiKeys:
   title: "API 密钥"
   description: "为外部集成创建 API 密钥。"
