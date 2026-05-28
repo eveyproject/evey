@@ -68,3 +68,47 @@ func TestResolveProfileID_DifferentProfile_Admin(t *testing.T) {
 		t.Errorf("admin should access p-2, got %q err=%v", pid, err)
 	}
 }
+
+func TestSanitizeLogValue(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"empty", "", ""},
+		{"plain", "alice", "alice"},
+		{"crlf", "alice\r\nINFO fake log line", `alice\r\nINFO fake log line`},
+		{"lone_lf", "a\nb", `a\nb`},
+		{"lone_cr", "a\rb", `a\rb`},
+		{"tab", "a\tb", `a\tb`},
+		{"ansi_reset", "a\x1b[0mb", `a\x1b[0mb`},
+		{"nul", "a\x00b", `a\x00b`},
+		{"unicode_preserved", "élève_中文", "élève_中文"},
+	}
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			if got := sanitizeLogValue(c.in); got != c.want {
+				t.Errorf("sanitizeLogValue(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+func TestSanitizeLogValue_TruncatesLongInputs(t *testing.T) {
+	t.Parallel()
+	long := make([]byte, 300)
+	for i := range long {
+		long[i] = 'x'
+	}
+	got := sanitizeLogValue(string(long))
+	// 256 'x' + ellipsis rune (3 bytes UTF-8) — assert length and suffix.
+	if len(got) > 260 {
+		t.Errorf("expected truncation near 256 bytes, got %d", len(got))
+	}
+	if got[len(got)-3:] != "…" {
+		t.Errorf("expected ellipsis suffix, got %q", got[len(got)-3:])
+	}
+}
