@@ -65,7 +65,10 @@ function buildStreamUrl(
   const params = new URLSearchParams({ token });
   if (startSec && startSec > 0) params.set("startSec", String(Math.floor(startSec)));
   appendCodecParams(params);
-  return `${serverUrl}/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
+  // Same VOD pipeline switch as web/mobile — server publishes a complete
+  // VOD manifest from t=0 so the TV player never live-edge-snaps on long
+  // continuous playback. See features/hls_vod_playlist_refacto memo.
+  return `${serverUrl}/api/v1/media/${mediaId}/hls/v2/master.m3u8?${params.toString()}`;
 }
 
 export function usePlaySession(mediaId: string): PlaySessionResult {
