@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -484,11 +485,18 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 // match the absolute manifest indices the VOD pipeline addresses. floor()
 // because segment N covers media seconds [N*L, (N+1)*L), so a StartSec of
 // 153 s with 3 s segments lands inside seg 51 — start_number must be 51.
+//
+// hlsSegmentSeconds is a const string ("3") rather than a float to stay in
+// sync with ffmpeg's -hls_time argument shape. Parsing once is cheap and
+// keeps the source of truth in one place.
 func startNumberFor(opts transcoding.HLSProcessOpts) int {
 	if opts.StartSec <= 0 {
 		return 0
 	}
-	const segSec = 3.0
+	segSec, err := strconv.ParseFloat(hlsSegmentSeconds, 64)
+	if err != nil || segSec <= 0 {
+		segSec = 3.0
+	}
 	return int(opts.StartSec / segSec)
 }
 
