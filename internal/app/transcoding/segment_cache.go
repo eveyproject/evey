@@ -244,10 +244,12 @@ func (c *SegmentCache) CleanupHash(decisionHash string) error {
 }
 
 // RegisterSession marks a hash as live so Wait calls bind to its lifetime.
-// Returns a teardown function the caller must invoke (typically via defer) when
-// the session ends — that closes the channel, aborting in-flight Waits.
-// Idempotent on the same hash: a second RegisterSession returns the existing
-// teardown without recreating the channel.
+// Returns a release function the caller must invoke when the session ends —
+// that aborts in-flight Waits but does NOT delete files. Disk cleanup happens
+// either via the LRU sweeper or by an explicit CleanupHash on shutdown. This
+// separation lets cancel-on-seek tear down a rafale without throwing away the
+// segments it has already produced (the user may rewind into that zone next).
+// Idempotent on the same hash.
 func (c *SegmentCache) RegisterSession(decisionHash string) func() {
 	c.mu.Lock()
 	if _, ok := c.pending[decisionHash]; !ok {
@@ -255,7 +257,12 @@ func (c *SegmentCache) RegisterSession(decisionHash string) func() {
 	}
 	c.mu.Unlock()
 	return func() {
-		_ = c.CleanupHash(decisionHash)
+		c.mu.Lock()
+		if ch, ok := c.pending[decisionHash]; ok {
+			close(ch)
+			delete(c.pending, decisionHash)
+		}
+		c.mu.Unlock()
 	}
 }
 
