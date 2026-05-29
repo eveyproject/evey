@@ -11,6 +11,7 @@ import { EpisodesPanel } from "./PlayerEpisodesPanel";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerEpisodesPanel";
 import { SettingsPanel } from "./PlayerSettingsPanel";
 import { usePlayerContext } from "./PlayerContext";
+import { useDocumentPiP } from "./hooks/useDocumentPiP";
 
 export type { EpisodeNavItem, SeasonNavItem };
 
@@ -76,6 +77,7 @@ export function PlayerControls({
 }: PlayerControlsProps) {
   const { t } = useTranslation();
   const ctx = usePlayerContext();
+  const docPiP = useDocumentPiP();
   const {
     videoRef, playing: localPlaying, volume: localVolume, muted: localMuted, fullscreen, isPip,
     effectiveDuration: localDuration, absoluteTime: localTime, bufferedEnd, transcodeOffset,
@@ -223,6 +225,14 @@ export function PlayerControls({
   }
 
   function togglePip() {
+    // Prefer Document PiP (Chrome 116+): brings the WHOLE player UI into
+    // the floating window — progress bar, subtitles, chapter skip, next
+    // episode prompt — not just the bare <video>. Falls back to the
+    // standard PiP on Safari/Firefox where DocPiP doesn't exist.
+    if (docPiP.available) {
+      void docPiP.toggle();
+      return;
+    }
     const video = videoRef.current;
     if (!video || !document.pictureInPictureEnabled) return;
     if (document.pictureInPictureElement) {
@@ -546,15 +556,23 @@ export function PlayerControls({
             </button>
           )}
 
-          {/* Picture-in-Picture */}
-          {typeof document !== "undefined" && document.pictureInPictureEnabled && (
+          {/* Picture-in-Picture (Document PiP when available, falls back to the legacy video-only PiP) */}
+          {typeof document !== "undefined" && (docPiP.available || document.pictureInPictureEnabled) && (
             <button
               onClick={togglePip}
-              aria-label={isPip ? t("player.controls.exitPip") : t("player.controls.pip")}
-              title={isPip ? `${t("player.controls.exitPip")} (P)` : `${t("player.controls.pip")} (P)`}
+              aria-label={
+                docPiP.isOpen || isPip
+                  ? t("player.controls.exitPip")
+                  : t("player.controls.pip")
+              }
+              title={
+                docPiP.isOpen || isPip
+                  ? `${t("player.controls.exitPip")} (P)`
+                  : `${t("player.controls.pip")} (P)`
+              }
               className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
             >
-              {isPip ? (
+              {docPiP.isOpen || isPip ? (
                 <PictureInPicture2 size={20}  aria-hidden="true" />
               ) : (
                 <PictureInPicture size={20}  aria-hidden="true" />
