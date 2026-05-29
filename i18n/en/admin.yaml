@@ -18,7 +18,7 @@ nav:
   monitoring: Monitoring
   analytics: Analytics
   activity: Activity
-  qoe: Streaming QoE
+  qoe: Streaming Quality
   maintenance: Maintenance
   backupRestore: Database Backup
 
@@ -633,7 +633,7 @@ serverSettings:
   reset: Reset to default
 
 qoe:
-  title: Streaming QoE
+  title: Streaming Quality
   subtitle: What players actually experience — buffer, rebuffers, throughput. Read-only.
   window24h: Last 24h
   window7d: Last 7 days

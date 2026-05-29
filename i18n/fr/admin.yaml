@@ -18,7 +18,7 @@ nav:
   monitoring: Surveillance
   analytics: Analytique
   activity: Activité
-  qoe: "QoE de streaming"
+  qoe: "Qualité streaming"
   maintenance: Maintenance
   backupRestore: Sauvegarde BDD et restauration
 
@@ -621,7 +621,7 @@ serverSettings:
   reset: "Réinitialiser"
 
 qoe:
-  title: "QoE de streaming"
+  title: "Qualité streaming"
   subtitle: "Ce que les players ressentent vraiment : buffer, rebuffers, débit. Lecture seule."
   window24h: "Dernières 24h"
   window7d: "7 derniers jours"
