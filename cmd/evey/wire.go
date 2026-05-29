@@ -45,6 +45,7 @@ import (
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
+	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	apprating "github.com/evey-project/evey/internal/app/rating"
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
@@ -62,6 +63,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/eventbus"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
+	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 // Event subscription map (bus.Subscribe calls):

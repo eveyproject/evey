@@ -1,7 +1,7 @@
 .PHONY: proto-gen plugin-sdk plugin-zips build test test-image test-shell lint sec-scan clean \
 	ci-fast ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec \
 	ci-local ci-local-lint ci-local-test ci-local-frontend \
-	migrate-up migrate-down setup dev dev-down dev-logs \
+	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go
 
@@ -139,11 +139,26 @@ clean:
 
 # ── Database ───────────────────────────────────────────────────────────────────
 
+# Migrations run automatically when evey-server boots (Air rebuilds → process
+# restart → embedded RunMigrations). These targets exist for the operator path
+# where you want to apply / roll back without bouncing the server (CI release
+# pipeline, canary deploy, rollback drill).
+#
+# --no-backup skips the pre-migration pg_dump. The dump needs pg_dump in PATH,
+# which is rarely installed on the WSL host (postgres-client is only inside
+# the Docker container). Drop the flag in prod environments where you DO have
+# postgres-client and want a rollback snapshot before the schema changes.
 migrate-up:
-	go run ./cmd/migrate up
+	CGO_ENABLED=0 EVEY_DB_HOST=$${EVEY_DB_HOST:-localhost} EVEY_DB_PORT=$${EVEY_DB_PORT:-5432} \
+		go run ./cmd/migrate up --no-backup
 
 migrate-down:
-	go run ./cmd/migrate down
+	CGO_ENABLED=0 EVEY_DB_HOST=$${EVEY_DB_HOST:-localhost} EVEY_DB_PORT=$${EVEY_DB_PORT:-5432} \
+		go run ./cmd/migrate down --no-backup
+
+migrate-version:
+	CGO_ENABLED=0 EVEY_DB_HOST=$${EVEY_DB_HOST:-localhost} EVEY_DB_PORT=$${EVEY_DB_PORT:-5432} \
+		go run ./cmd/migrate version
 
 # ── Dev (uses docker-compose.yml + docker-compose.override.yml) ───────────────
 
