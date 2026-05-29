@@ -13,6 +13,7 @@ import {
   Key,
   BarChart3,
   TrendingUp,
+  Gauge,
   Database,
   Cpu,
   SlidersHorizontal,
@@ -73,6 +74,7 @@ const sectionsDef: NavSection[] = [
     links: [
       { href: "/admin/analytics", labelKey: "admin.nav.analytics", icon: TrendingUp },
       { href: "/admin/activity", labelKey: "admin.nav.activity", icon: BarChart3 },
+      { href: "/admin/qoe", labelKey: "admin.nav.qoe", icon: Gauge },
     ],
   },
   {

@@ -18,6 +18,7 @@ nav:
   monitoring: Monitoring
   analytics: Analytics
   activity: Activity
+  qoe: Streaming QoE
   maintenance: Maintenance
   backupRestore: Database Backup
 
@@ -630,6 +631,37 @@ serverSettings:
   saved: Settings saved
   usingDefault: "Using default:"
   reset: Reset to default
+
+qoe:
+  title: Streaming QoE
+  subtitle: What players actually experience — buffer, rebuffers, throughput. Read-only.
+  window24h: Last 24h
+  window7d: Last 7 days
+  loading: Loading telemetry…
+  loadError: Could not load QoE data
+  justNow: just now
+  kpi:
+    events: Telemetry events
+    starvedRatio: Starvation ratio
+    sessions: Unique sessions
+    uniqueMedia: Unique titles
+  topStarved:
+    title: Most starved titles
+    subtitle: Highest share of rebuffer events. Min 50 events to enter the leaderboard.
+    empty: No starvation events in this window. Healthy network or quiet evening.
+  byDevice:
+    title: By device class
+    subtitle: Coarse player-side class derived from User-Agent. No fingerprinting.
+    empty: No telemetry in this window yet.
+  col:
+    mediaId: Media ID
+    starvedRatio: Starved ratio
+    starvedEvents: Starved
+    totalEvents: Total
+    lastStarved: Last starved
+    deviceClass: Device class
+    avgBufferMs: Avg buffer (ms)
+    avgEncodedKbps: Avg encoded (kbps)
 
 segments:
   title: Media segments

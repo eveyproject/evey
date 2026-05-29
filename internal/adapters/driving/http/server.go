@@ -97,6 +97,11 @@ type HTTPServer struct {
 	// request. Nil-safe: the VOD handler short-circuits when this is unset.
 	QoESink appqoe.EventSink
 
+	// QoEQuerySvc serves the admin dashboard for QoE telemetry. Nil-safe:
+	// the route registration short-circuits and admins get a 404 instead of
+	// a 500 when CMCD ingest isn't wired (tests, dev w/o Postgres).
+	QoEQuerySvc *appqoe.QueryService
+
 	// Metadata
 	MetadataCmdSvc   *appmetadata.CommandService
 	MetadataQuerySvc *appmetadata.QueryService
@@ -424,6 +429,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 	if s.PluginSecurityDashboardSvc != nil {
 		registerPluginSecurityDashboardRoute(mux, s.TokenGen, s.PluginSecurityDashboardSvc)
+	}
+	if s.QoEQuerySvc != nil {
+		registerQoEDashboardRoute(mux, s.TokenGen, s.QoEQuerySvc)
 	}
 
 	if s.OIDCSvc != nil {

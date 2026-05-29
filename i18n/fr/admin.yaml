@@ -18,6 +18,7 @@ nav:
   monitoring: Surveillance
   analytics: Analytique
   activity: Activité
+  qoe: "QoE de streaming"
   maintenance: Maintenance
   backupRestore: Sauvegarde BDD et restauration
 
@@ -618,6 +619,37 @@ serverSettings:
   saved: "Paramètres enregistrés"
   usingDefault: "Valeur par défaut :"
   reset: "Réinitialiser"
+
+qoe:
+  title: "QoE de streaming"
+  subtitle: "Ce que les players ressentent vraiment : buffer, rebuffers, débit. Lecture seule."
+  window24h: "Dernières 24h"
+  window7d: "7 derniers jours"
+  loading: "Chargement de la télémétrie…"
+  loadError: "Impossible de charger les données QoE"
+  justNow: "à l'instant"
+  kpi:
+    events: "Évènements télémétrie"
+    starvedRatio: "Taux de famine"
+    sessions: "Sessions uniques"
+    uniqueMedia: "Titres uniques"
+  topStarved:
+    title: "Titres les plus famines"
+    subtitle: "Part la plus élevée de rebuffer. Minimum 50 évènements pour figurer."
+    empty: "Aucune famine sur cette période. Réseau sain ou soirée calme."
+  byDevice:
+    title: "Par type d'appareil"
+    subtitle: "Classe d'appareil grossière dérivée du User-Agent. Aucun fingerprinting."
+    empty: "Pas encore de télémétrie sur cette période."
+  col:
+    mediaId: "ID média"
+    starvedRatio: "Taux famine"
+    starvedEvents: "Famines"
+    totalEvents: "Total"
+    lastStarved: "Dernière famine"
+    deviceClass: "Appareil"
+    avgBufferMs: "Buffer moy. (ms)"
+    avgEncodedKbps: "Débit moy. (kbps)"
 
 segments:
   title: "Segments du média"

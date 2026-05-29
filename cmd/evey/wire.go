@@ -578,6 +578,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		BufferSize: 2048, // ~30 min of segments for a busy 5-user evening
 		DropMetric: eveymetrics.QoEIngestDrops,
 	}, slog.Default())
+	qoeQuerySvc := appqoe.NewQueryService(qoeReaderAdapter{reader: postgres.NewPlaybackQoEReader(db)})
 
 	introDetectionSvc := applibrary.NewIntroDetectionService(
 		r.MediaSegment,
@@ -709,6 +710,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			hlsVODCache:      hlsVODCache,
 			hlsTranscoder:    hlsTranscoder,
 			qoeSink:          qoeSink,
+			qoeQuerySvc:      qoeQuerySvc,
 			mkvSvc:           mkvSvc,
 			musicSvc:         musicSvc,
 			photoSvc:         photoSvc,

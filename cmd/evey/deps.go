@@ -68,6 +68,7 @@ type mediaDeps struct {
 	hlsVODCache   *apptranscoding.SegmentCache
 	hlsTranscoder *ffmpeg.HLSTranscoder
 	qoeSink       appqoe.EventSink
+	qoeQuerySvc   *appqoe.QueryService
 	mkvSvc         *appmkv.Service
 	musicSvc       *appmusic.Service
 	photoSvc        *appphoto.Service

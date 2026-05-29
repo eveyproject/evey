@@ -50,6 +50,7 @@ import { Route as AuthAdminSystemHealthRouteImport } from './routes/_auth/admin/
 import { Route as AuthAdminSessionsRouteImport } from './routes/_auth/admin/sessions'
 import { Route as AuthAdminServerConfigRouteImport } from './routes/_auth/admin/server-config'
 import { Route as AuthAdminRemoteAccessRouteImport } from './routes/_auth/admin/remote-access'
+import { Route as AuthAdminQoeRouteImport } from './routes/_auth/admin/qoe'
 import { Route as AuthAdminPluginsRouteImport } from './routes/_auth/admin/plugins'
 import { Route as AuthAdminLibrariesRouteImport } from './routes/_auth/admin/libraries'
 import { Route as AuthAdminFeedsRouteImport } from './routes/_auth/admin/feeds'
@@ -331,6 +332,13 @@ const AuthAdminRemoteAccessRoute = AuthAdminRemoteAccessRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/remote-access.lazy').then((d) => d.Route),
 )
+const AuthAdminQoeRoute = AuthAdminQoeRouteImport.update({
+  id: '/qoe',
+  path: '/qoe',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/qoe.lazy').then((d) => d.Route),
+)
 const AuthAdminPluginsRoute = AuthAdminPluginsRouteImport.update({
   id: '/plugins',
   path: '/plugins',
@@ -447,6 +455,7 @@ export interface FileRoutesByFullPath {
   '/admin/feeds': typeof AuthAdminFeedsRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
+  '/admin/qoe': typeof AuthAdminQoeRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
   '/admin/server-config': typeof AuthAdminServerConfigRoute
   '/admin/sessions': typeof AuthAdminSessionsRoute
@@ -500,6 +509,7 @@ export interface FileRoutesByTo {
   '/admin/feeds': typeof AuthAdminFeedsRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
+  '/admin/qoe': typeof AuthAdminQoeRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
   '/admin/server-config': typeof AuthAdminServerConfigRoute
   '/admin/sessions': typeof AuthAdminSessionsRoute
@@ -556,6 +566,7 @@ export interface FileRoutesById {
   '/_auth/admin/feeds': typeof AuthAdminFeedsRoute
   '/_auth/admin/libraries': typeof AuthAdminLibrariesRoute
   '/_auth/admin/plugins': typeof AuthAdminPluginsRoute
+  '/_auth/admin/qoe': typeof AuthAdminQoeRoute
   '/_auth/admin/remote-access': typeof AuthAdminRemoteAccessRoute
   '/_auth/admin/server-config': typeof AuthAdminServerConfigRoute
   '/_auth/admin/sessions': typeof AuthAdminSessionsRoute
@@ -612,6 +623,7 @@ export interface FileRouteTypes {
     | '/admin/feeds'
     | '/admin/libraries'
     | '/admin/plugins'
+    | '/admin/qoe'
     | '/admin/remote-access'
     | '/admin/server-config'
     | '/admin/sessions'
@@ -665,6 +677,7 @@ export interface FileRouteTypes {
     | '/admin/feeds'
     | '/admin/libraries'
     | '/admin/plugins'
+    | '/admin/qoe'
     | '/admin/remote-access'
     | '/admin/server-config'
     | '/admin/sessions'
@@ -720,6 +733,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/feeds'
     | '/_auth/admin/libraries'
     | '/_auth/admin/plugins'
+    | '/_auth/admin/qoe'
     | '/_auth/admin/remote-access'
     | '/_auth/admin/server-config'
     | '/_auth/admin/sessions'
@@ -1051,6 +1065,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminRemoteAccessRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/qoe': {
+      id: '/_auth/admin/qoe'
+      path: '/qoe'
+      fullPath: '/admin/qoe'
+      preLoaderRoute: typeof AuthAdminQoeRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/plugins': {
       id: '/_auth/admin/plugins'
       path: '/plugins'
@@ -1148,6 +1169,7 @@ interface AuthAdminRouteChildren {
   AuthAdminFeedsRoute: typeof AuthAdminFeedsRoute
   AuthAdminLibrariesRoute: typeof AuthAdminLibrariesRoute
   AuthAdminPluginsRoute: typeof AuthAdminPluginsRoute
+  AuthAdminQoeRoute: typeof AuthAdminQoeRoute
   AuthAdminRemoteAccessRoute: typeof AuthAdminRemoteAccessRoute
   AuthAdminServerConfigRoute: typeof AuthAdminServerConfigRoute
   AuthAdminSessionsRoute: typeof AuthAdminSessionsRoute
@@ -1170,6 +1192,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminFeedsRoute: AuthAdminFeedsRoute,
   AuthAdminLibrariesRoute: AuthAdminLibrariesRoute,
   AuthAdminPluginsRoute: AuthAdminPluginsRoute,
+  AuthAdminQoeRoute: AuthAdminQoeRoute,
   AuthAdminRemoteAccessRoute: AuthAdminRemoteAccessRoute,
   AuthAdminServerConfigRoute: AuthAdminServerConfigRoute,
   AuthAdminSessionsRoute: AuthAdminSessionsRoute,
