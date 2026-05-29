@@ -1,11 +1,16 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Card } from "./Card";
+import { InfoTooltip } from "./InfoTooltip";
 
 interface CollapsibleCardProps {
   title: string;
   subtitle?: string;
   icon?: ReactNode;
+  /** Optional long-form explanation. Renders a "?" button next to the title;
+      content shows in a popover on click. Use when the subtitle would be too
+      long but the operator still benefits from on-demand detail. */
+  info?: ReactNode;
   /** When true, the header is decoration only — the body is always shown. */
   alwaysOpen?: boolean;
   /** Initial open state. Ignored when alwaysOpen is true. */
@@ -20,6 +25,7 @@ export function CollapsibleCard({
   title,
   subtitle,
   icon,
+  info,
   alwaysOpen = false,
   defaultOpen = false,
   children,
@@ -59,7 +65,10 @@ export function CollapsibleCard({
           </span>
         )}
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-semibold text-[var(--text)] truncate">{title}</h3>
+          <h3 className="text-base font-semibold text-[var(--text)] truncate flex items-center gap-1.5">
+            {title}
+            {info && <InfoTooltip label={title}>{info}</InfoTooltip>}
+          </h3>
           {subtitle && (
             <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{subtitle}</p>
           )}

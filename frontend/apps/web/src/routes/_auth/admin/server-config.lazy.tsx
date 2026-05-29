@@ -975,6 +975,7 @@ function ServerConfigPage() {
       <CollapsibleCard
         title={t("admin.serverConfig.introProvidersTitle")}
         subtitle={t("admin.serverConfig.introProvidersDesc")}
+        info={t("admin.serverConfig.introProvidersInfo")}
       >
         <IntroDetectionSettingsCard entries={entries} />
       </CollapsibleCard>
