@@ -400,16 +400,22 @@ func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, startNum
 	return args
 }
 
+// needsFMP4Segments returns true to mux into fMP4 (`.m4s` + init.mp4)
+// rather than MPEG-TS (`.ts`). fMP4 is the project default since Apple
+// blessed it as the CMAF container in WWDC 2024; segments are ~10-30%
+// smaller than TS for the same bitrate (no 188-byte packet overhead),
+// the init segment carries the codec config once instead of repeating
+// it in every TS packet, and switching to CMAF later (one encode serving
+// HLS + DASH) requires fMP4 anyway. Every browser shipping hls.js or
+// Safari natif in the last 5 years supports it.
+//
+// The `streams` arg is no longer consulted — historically we forced
+// fMP4 only for HEVC/AV1/VP9 sources because the TS muxer doesn't carry
+// them cleanly. With fMP4 as the default the check is moot. Kept the
+// signature in case we ever need a per-stream opt-out hook.
 func needsFMP4Segments(streams []*library.MediaStream) bool {
-	for _, s := range streams {
-		if s.StreamType == "video" {
-			switch strings.ToLower(s.Codec) {
-			case "hevc", "h265", "av1", "vp9":
-				return true
-			}
-		}
-	}
-	return false
+	_ = streams
+	return true
 }
 
 func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {

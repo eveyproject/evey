@@ -482,10 +482,11 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		cache:                cache,
 		orchestrator:         orch,
 		qoeSink:              s.QoESink,
-		// Phase 1 keeps TS to match the ffmpeg adapter's default container path
-		// (which only switches to fMP4 for hevc/av1/vp9 sources). Phase 2 will
-		// thread a UseFMP4 flag into HLSProcessOpts and flip this to true.
-		useFMP4: false,
+		// fMP4 is now the project default — matches the ffmpeg adapter
+		// (needsFMP4Segments returns true unconditionally) and Apple's
+		// post-WWDC-2024 stance on CMAF. Per-rendition behaviour stays
+		// uniform across all codecs (H.264 / HEVC / AV1 / VP9).
+		useFMP4: true,
 		// 25 s covers a worst-case ffmpeg cold start at -ss far into the
 		// media (the slow probe + initial decode + 1st keyframe + first
 		// segment encode chain has been measured at 11-14 s on the dev

@@ -571,7 +571,10 @@ func TestBuildFFmpegArgs_HEVCCopy_UsesFMP4Segments(t *testing.T) {
 	assert.NotContains(t, joined, "%03d.ts")
 }
 
-func TestBuildFFmpegArgs_H264Copy_UsesTSSegments(t *testing.T) {
+// Used to assert that H.264 copy emitted TS segments, but fMP4 is now the
+// project default for every codec (post-WWDC-2024 alignment). H.264 copy
+// must produce .m4s like everyone else.
+func TestBuildFFmpegArgs_H264Copy_UsesFMP4Segments(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:       "/tmp/test",
 		FilePath:        "/f.mkv",
@@ -586,8 +589,8 @@ func TestBuildFFmpegArgs_H264Copy_UsesTSSegments(t *testing.T) {
 	}
 	args := ffmpeg.BuildFFmpegArgs(opts)
 	joined := strings.Join(args, " ")
-	assert.Contains(t, joined, "%03d.ts")
-	assert.NotContains(t, joined, "-hls_segment_type fmp4")
+	assert.Contains(t, joined, "%03d.m4s")
+	assert.Contains(t, joined, "-hls_segment_type fmp4")
 }
 
 // Verifies that buildCopyVideoArgs forces a video re-encode when StartSec > 0.
