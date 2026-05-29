@@ -213,6 +213,13 @@ export function PlayerControls({
     const video = videoRef.current;
     if (!video) return;
     video.volume = val;
+    // The muted-autoplay fallback leaves video.muted=true even after the user
+    // grabs the slider; without this unmute, dragging the bar visibly raises
+    // the slider but produces no sound — they have to also click the volume
+    // icon. Interpret a >0 drag as "I want sound now" and clear the mute.
+    if (val > 0 && video.muted) {
+      video.muted = false;
+    }
   }
 
   function togglePip() {
