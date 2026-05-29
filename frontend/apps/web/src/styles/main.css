@@ -83,7 +83,11 @@ button, [role="button"], a, summary, label[for] { cursor: pointer; }
 button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 
 ::selection {
-  background: var(--accent-subtle);
+  /* --accent-subtle is 10-12% opacity by design (badges, hover states),
+     too faint for a text selection — drove a "I can't see what I'm
+     selecting" report. Mix the full accent at 35 % so the highlight is
+     visible across every theme while staying readable. */
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
   color: var(--text);
 }
 

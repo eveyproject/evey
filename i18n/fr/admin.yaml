@@ -510,7 +510,7 @@ serverConfig:
     usingDefault: "Utilise la clé par défaut"
     usingCustom: "Utilise une clé personnalisée"
   introProvidersTitle: "Sources de détection des intros"
-  introProvidersDesc: "Interroge les bases communautaires (TheIntroDB en primaire, IntroDB en secours) pour récupérer les timecodes intro / recap / générique. Évite la détection locale CPU-intensive sur les épisodes couverts."
+  introProvidersDesc: "Interroge deux bases communautaires distinctes pour récupérer les timecodes intro / recap / générique et éviter la détection locale CPU-intensive sur les éléments couverts. Primaire : TheIntroDB (theintrodb.org) couvre films et séries, clé API gratuite. Secours : IntroDB (introdb.app) ne couvre que les épisodes de séries, sans clé."
   introProvidersEnabled: "Activer les sources externes de skip intro"
   introProvidersRestart: "Un redémarrage du serveur est nécessaire après activation ou désactivation."
   introProvidersTidbStatus: "TheIntroDB : "
