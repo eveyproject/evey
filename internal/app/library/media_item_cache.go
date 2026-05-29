@@ -118,6 +118,12 @@ func (c *CachedMediaItemQueryRepo) ListGenres(ctx context.Context, libraryID sha
 	return c.inner.ListGenres(ctx, libraryID)
 }
 
+// NextEpisodeOf passes through; caching wouldn't pay off (one call per
+// progress event, rare) and would complicate eviction on episode adds.
+func (c *CachedMediaItemQueryRepo) NextEpisodeOf(ctx context.Context, episodeID shared.MediaItemID) (*library.MediaItem, error) {
+	return c.inner.NextEpisodeOf(ctx, episodeID)
+}
+
 func (c *CachedMediaItemQueryRepo) evictLoop() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
