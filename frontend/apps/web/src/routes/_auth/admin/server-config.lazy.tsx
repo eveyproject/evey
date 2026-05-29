@@ -19,7 +19,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { Card } from "@/components/ui/Card";
+import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
+import { FeedConfigCard } from "@/features/admin/FeedConfigCard";
 import { ISO_REGIONS } from "@/features/user/regionList";
 import { defaultRegionForLocale } from "@/features/user/regionDefaults";
 import { supportedLanguages } from "@/i18n";
@@ -186,13 +187,7 @@ function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined })
   const regionOptions = useMemo(() => regionOptionsForLocale(i18n.language || "en"), [i18n.language]);
 
   return (
-    <div className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]">
-      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
-        {t("admin.serverConfig.languageRegion")}
-      </h2>
-      <p className="text-sm mb-4 text-[var(--text-muted)]">
-        {t("admin.serverConfig.languageRegionDesc")}
-      </p>
+    <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
           id="server-lang"
@@ -219,7 +214,7 @@ function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined })
           options={[{ label: t("admin.serverConfig.envDefault"), value: "" }, ...LOCALE_OPTIONS]}
         />
       </div>
-      {setEntry.isPending && <div className="mt-3"><Spinner size="sm" /></div>}
+      {setEntry.isPending && <div><Spinner size="sm" /></div>}
     </div>
   );
 }
@@ -331,13 +326,8 @@ function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   }
 
   return (
-    <div
-      className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]"
-    >
-      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
-        {t("admin.serverConfig.apiKeys.title")}
-      </h2>
-      <p className="text-sm mb-4 text-[var(--text-muted)]">
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-[var(--text-muted)]">
         {t("admin.serverConfig.apiKeys.description")}
       </p>
 
@@ -478,17 +468,8 @@ function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   }
 
   return (
-    <div
-      className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]"
-    >
-      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
-        {t("admin.serverConfig.emailSmtp")}
-      </h2>
-      <p className="text-sm mb-4 text-[var(--text-muted)]">
-        {t("admin.serverConfig.emailSmtpDesc")}
-      </p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input label={t("admin.serverConfig.smtpHost")} placeholder="smtp.example.com" value={host} onChange={(e) => setHost(e.target.value)} />
         <Input label={t("admin.serverConfig.port")} type="number" placeholder="587" value={port} onChange={(e) => setPort(e.target.value)} />
         <Input label={t("admin.serverConfig.smtpUsername")} placeholder="user@example.com" value={username} onChange={(e) => setUsername(e.target.value)} />
@@ -545,14 +526,7 @@ function ArtworkSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }
   });
 
   return (
-    <div className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]">
-      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
-        {t("admin.serverConfig.artworkTitle")}
-      </h2>
-      <p className="text-sm mb-4 text-[var(--text-muted)]">
-        {t("admin.serverConfig.artworkDesc")}
-      </p>
-      <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
         <Checkbox
           label={t("admin.serverConfig.artworkAutoDownload")}
           checked={enabled}
@@ -575,7 +549,6 @@ function ArtworkSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }
           </span>
         </div>
         {setEntry.isPending && <Spinner size="sm" />}
-      </div>
     </div>
   );
 }
@@ -597,14 +570,7 @@ function IntroDetectionSettingsCard({ entries }: { entries: ConfigEntry[] | unde
   const tidbSubmitEnabled = entries?.find((e) => e.key === INTRO_TIDB_SUBMIT_KEY)?.value === "true";
 
   return (
-    <div className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]">
-      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
-        {t("admin.serverConfig.introProvidersTitle")}
-      </h2>
-      <p className="text-sm mb-4 text-[var(--text-muted)]">
-        {t("admin.serverConfig.introProvidersDesc")}
-      </p>
-      <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
         <Checkbox
           label={t("admin.serverConfig.introProvidersEnabled")}
           checked={enabled}
@@ -647,7 +613,6 @@ function IntroDetectionSettingsCard({ entries }: { entries: ConfigEntry[] | unde
           </div>
         )}
         {setEntry.isPending && <Spinner size="sm" />}
-      </div>
     </div>
   );
 }
@@ -710,17 +675,7 @@ function ParserTokensCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   }
 
   return (
-    <div className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]">
-      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
-        {t("admin.serverConfig.parserTokensTitle", "Parser tokens")}
-      </h2>
-      <p className="text-sm mb-4 text-[var(--text-muted)]">
-        {t(
-          "admin.serverConfig.parserTokensDesc",
-          "Extra tokens recognised by the filename parser on top of the baseline list. Use this to add release tags the parser doesn't strip out of the box (HDRIP, custom editions, etc.) so orphans match TMDB. Changes take effect immediately on the next scan.",
-        )}
-      </p>
-      <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-[var(--text)]">
             {t("admin.serverConfig.parserTokensQualities", "Extra quality tokens")}
@@ -769,7 +724,6 @@ function ParserTokensCard({ entries }: { entries: ConfigEntry[] | undefined }) {
             {t("common.save")}
           </Button>
         </div>
-      </div>
     </div>
   );
 }
@@ -782,16 +736,7 @@ function TrickplaySettingsCard({ entries }: { entries: ConfigEntry[] | undefined
   const adaptiveCpu = entries?.find((e) => e.key === TRICKPLAY_CPU_KEY)?.value !== "false";
 
   return (
-    <div
-      className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]"
-    >
-      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
-        {t("admin.serverConfig.trickplayTitle")}
-      </h2>
-      <p className="text-sm mb-4 text-[var(--text-muted)]">
-        {t("admin.serverConfig.trickplayDesc")}
-      </p>
-      <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
           <Checkbox
             label={t("admin.serverConfig.trickplayEnabled")}
@@ -812,7 +757,6 @@ function TrickplaySettingsCard({ entries }: { entries: ConfigEntry[] | undefined
           {t("admin.serverConfig.trickplayAdaptiveCpuDesc")}
         </p>
         {setEntry.isPending && <Spinner size="sm" />}
-      </div>
     </div>
   );
 }
@@ -901,10 +845,7 @@ function ServerSettingsCard() {
   if (!data) return null;
 
   return (
-    <Card>
-      <div className="p-5">
-        <h2 className="text-base font-semibold mb-4 text-[var(--text)]">{t("admin.serverSettings.title")}</h2>
-        <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <Input id="server-name" data-testid="server-name-input" label={t("admin.serverSettings.serverName")} placeholder={data.serverName.default ?? "Evey"} value={serverName} onChange={(e) => { setServerName(e.target.value); setDirty(true); }} />
             <ResetBtn setting={data.serverName} field="serverName" />
@@ -970,9 +911,7 @@ function ServerSettingsCard() {
           <div className="flex justify-end pt-2">
             <Button onClick={handleSave} loading={saveMutation.isPending} disabled={!dirty} data-testid="server-config-save-btn">{t("common.save")}</Button>
           </div>
-        </div>
-      </div>
-    </Card>
+    </div>
   );
 }
 
@@ -984,21 +923,71 @@ function ServerConfigPage() {
     <div className="flex flex-col gap-6">
       <PageHeader title={t("admin.serverConfig.title")} subtitle={t("admin.serverConfig.subtitle")} />
 
-      <LocaleSettingsCard entries={entries} />
+      <CollapsibleCard
+        title={t("admin.serverSettings.title")}
+        alwaysOpen
+      >
+        <ServerSettingsCard />
+      </CollapsibleCard>
 
-      <ApiKeysCard entries={entries} />
+      <CollapsibleCard
+        title={t("admin.serverConfig.languageRegion")}
+        subtitle={t("admin.serverConfig.languageRegionDesc")}
+      >
+        <LocaleSettingsCard entries={entries} />
+      </CollapsibleCard>
 
-      <SmtpSettingsCard entries={entries} />
+      <CollapsibleCard
+        title={t("admin.serverConfig.feedConfig.title")}
+        subtitle={t("admin.serverConfig.feedConfig.subtitle")}
+      >
+        <FeedConfigCard />
+      </CollapsibleCard>
 
-      <TrickplaySettingsCard entries={entries} />
+      <CollapsibleCard
+        title={t("admin.serverConfig.apiKeys.title")}
+        subtitle={t("admin.serverConfig.apiKeys.description")}
+      >
+        <ApiKeysCard entries={entries} />
+      </CollapsibleCard>
 
-      <ArtworkSettingsCard entries={entries} />
+      <CollapsibleCard
+        title={t("admin.serverConfig.emailSmtp")}
+        subtitle={t("admin.serverConfig.emailSmtpDesc")}
+      >
+        <SmtpSettingsCard entries={entries} />
+      </CollapsibleCard>
 
-      <IntroDetectionSettingsCard entries={entries} />
+      <CollapsibleCard
+        title={t("admin.serverConfig.artworkTitle")}
+        subtitle={t("admin.serverConfig.artworkDesc")}
+      >
+        <ArtworkSettingsCard entries={entries} />
+      </CollapsibleCard>
 
-      <ParserTokensCard entries={entries} />
+      <CollapsibleCard
+        title={t("admin.serverConfig.trickplayTitle")}
+        subtitle={t("admin.serverConfig.trickplayDesc")}
+      >
+        <TrickplaySettingsCard entries={entries} />
+      </CollapsibleCard>
 
-      <ServerSettingsCard />
+      <CollapsibleCard
+        title={t("admin.serverConfig.introProvidersTitle")}
+        subtitle={t("admin.serverConfig.introProvidersDesc")}
+      >
+        <IntroDetectionSettingsCard entries={entries} />
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title={t("admin.serverConfig.parserTokensTitle", "Parser tokens")}
+        subtitle={t(
+          "admin.serverConfig.parserTokensDesc",
+          "Extra tokens recognised by the filename parser on top of the baseline list.",
+        )}
+      >
+        <ParserTokensCard entries={entries} />
+      </CollapsibleCard>
 
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>

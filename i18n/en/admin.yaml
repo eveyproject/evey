@@ -455,6 +455,9 @@ audit:
 serverConfig:
   title: Server Config
   subtitle: Key-value configuration entries persisted in the database.
+  feedConfig:
+    title: Home feeds
+    subtitle: Choose which sections appear on the home page, in what order, and how many items each shows.
   languageRegion: Language & Region
   languageRegionDesc: "Server language and region settings. Affects default UI language, default classification region and metadata language."
   serverLanguage: "Server language"

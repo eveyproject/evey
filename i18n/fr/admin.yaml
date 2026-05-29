@@ -443,6 +443,9 @@ audit:
 serverConfig:
   title: "Configuration du serveur"
   subtitle: "Entrées de configuration clé-valeur stockées dans la base de données."
+  feedConfig:
+    title: "Flux d'accueil"
+    subtitle: "Choisis quelles sections apparaissent sur la page d'accueil, dans quel ordre, et combien d'éléments chacune affiche."
   languageRegion: "Langue et région"
   languageRegionDesc: "Réglages linguistiques et régionaux du serveur. Impacte la langue UI par défaut, la région de classification par défaut et la langue des métadonnées."
   serverLanguage: "Langue du serveur"
