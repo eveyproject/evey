@@ -26,7 +26,7 @@ type adminSystemHandler struct {
 	userQuery      *appuser.QueryService
 	transcodingSvc *apptranscoding.Service
 	activitySvc    *appactivity.QueryService
-	hlsManager     *apptranscoding.HLSManager
+	hlsManager     *apptranscoding.SegmentOrchestrator
 	libLister      adminLibraryLister
 	version        string
 	startTime      time.Time

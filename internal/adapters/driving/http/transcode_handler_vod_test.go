@@ -1,0 +1,464 @@
+package httpapi
+
+import (
+	"context"
+	"log/slog"
+	"math"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	transcodingfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
+)
+
+// ----------------------------------------------------------------
+// Test-local fakes
+// ----------------------------------------------------------------
+
+// testFakeStreamsGetter satisfies MediaStreamsGetter.
+type testFakeStreamsGetter struct {
+	item    *domainlibrary.MediaItem
+	streams []*domainlibrary.MediaStream
+	err     error
+}
+
+func (f *testFakeStreamsGetter) GetMediaItem(_ context.Context, _ string) (*domainlibrary.MediaItem, error) {
+	return f.item, f.err
+}
+
+func (f *testFakeStreamsGetter) GetMediaStreams(_ context.Context, _ string) ([]*domainlibrary.MediaStream, error) {
+	return f.streams, f.err
+}
+
+// testFakeParentalChecker satisfies ParentalChecker, never blocks unless asked.
+type testFakeParentalChecker struct{ block bool }
+
+func (f testFakeParentalChecker) BlockedByParental(_ context.Context, _ string, _ *domainlibrary.MediaItem) bool {
+	return f.block
+}
+
+// testFakeEnsure counts EnsureSegmentRange calls and can optionally fail.
+type testFakeEnsure struct {
+	calls []int
+	err   error
+}
+
+func (f *testFakeEnsure) EnsureSegmentRange(_ context.Context, _ apptranscoding.DecisionFingerprint, segIdx int) error {
+	f.calls = append(f.calls, segIdx)
+	return f.err
+}
+
+// fakeOrchestratorAdapter is a thin SegmentOrchestrator-shaped shim that
+// delegates only EnsureSegmentRange so tests can control it without spawning
+// ffmpeg. We keep a real *SegmentOrchestrator in hlsVODServe but override via
+// a wrapper that embeds fakeEnsure via the orchestratorEnsurer interface.
+
+// ---- construction helpers ----
+
+// testMediaItemWith1Minute builds a MediaItem with 60 s duration.
+func testMediaItemWith1Minute() *domainlibrary.MediaItem {
+	dur, _ := shared.NewDurationMs(60_000)
+	return &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File: &domainlibrary.MediaFile{
+			Path:     "/test.mkv",
+			Duration: dur,
+		},
+	}
+}
+
+// testMediaItemNoDuration builds a MediaItem with duration=0 (unprobed).
+func testMediaItemNoDuration() *domainlibrary.MediaItem {
+	return &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File: &domainlibrary.MediaFile{
+			Path: "/test.mkv",
+			// Duration zero-value → Milliseconds()==0
+		},
+	}
+}
+
+// buildVODHandler builds an hlsVODServe with real ManifestGenerator + a
+// real SegmentCache wired to tmpDir. The orchestrator uses fakes.HLSProcess
+// so EnsureSegmentRange really calls through (no ffmpeg spawned — the fake
+// writes .m3u8 files but no segments unless we pre-seed them).
+func buildVODHandler(t *testing.T, libSvc MediaStreamsGetter, libAccess LibraryAccessChecker, parental ParentalChecker) (*hlsVODServe, string) {
+	t.Helper()
+	cacheDir := t.TempDir()
+	cache, err := apptranscoding.NewSegmentCache(cacheDir + "/vod")
+	require.NoError(t, err)
+
+	orch := apptranscoding.NewSegmentOrchestrator(
+		cache,
+		&transcodingfakes.HLSProcess{},
+		&noopSourceResolver{},
+		apptranscoding.OrchestratorOptions{},
+		slog.Default(),
+	)
+	t.Cleanup(func() { orch.Close() })
+
+	h := &hlsVODServe{
+		tokens:               &fakeTokenVerifier{claims: testClaims(false)},
+		libSvc:               libSvc,
+		libraryAccess:        libAccess,
+		parental:             parental,
+		profilePrefs:         nil,
+		audioNormalizeGetter: nil,
+		userMaxStreams:        nil,
+		manifestGen:          apptranscoding.NewManifestGenerator(),
+		cache:                cache,
+		orchestrator:         orch,
+		useFMP4:              false,
+		segmentWaitTimeout:   5 * time.Second,
+	}
+	return h, cacheDir
+}
+
+// noopSourceResolver returns a dummy path so the orchestrator can resolve a source.
+type noopSourceResolver struct{}
+
+func (noopSourceResolver) ResolveSource(_ context.Context, fp apptranscoding.DecisionFingerprint) (string, []apptranscoding.SourceStream, error) {
+	return fp.SourcePath, nil, nil
+}
+
+// doVODRequest fires the handler at /api/v1/media/{mediaID}/hls/v2/{file}
+// and returns the recorder. It injects HTTP claims automatically.
+func doVODRequest(h *hlsVODServe, mediaID, file string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/"+mediaID+"/hls/v2/"+file, nil)
+	req.SetPathValue("id", mediaID)
+	req.SetPathValue("file", file)
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.serveHTTP(w, req)
+	return w
+}
+
+// ----------------------------------------------------------------
+// 1-5: Routing / dispatch
+// ----------------------------------------------------------------
+
+func TestHLSVOD_Routing_Master(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
+		allowAll(),
+		testFakeParentalChecker{block: false},
+	)
+	w := doVODRequest(h, "m1", "master.m3u8")
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/vnd.apple.mpegurl", w.Header().Get("Content-Type"))
+}
+
+func TestHLSVOD_Routing_Variant(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	w := doVODRequest(h, "m1", "stream_0.m3u8")
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/vnd.apple.mpegurl", w.Header().Get("Content-Type"))
+}
+
+func TestHLSVOD_Routing_SegmentTS_CacheMissSpawnsOrchestrator(t *testing.T) {
+	// The segment doesn't exist on disk → Wait will time out (segmentWaitTimeout
+	// is short for tests). We just verify the handler returns 503 (not 404/500),
+	// meaning it reached the Wait step (i.e. routing and EnsureSegmentRange worked).
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	h.segmentWaitTimeout = 50 * time.Millisecond // keep test fast
+	w := doVODRequest(h, "m1", "stream_0_042.ts")
+	// seg=42, isInit=false — reaches serveSegment, EnsureSegmentRange, then Wait
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code, "cache miss should 503 after timeout")
+}
+
+func TestHLSVOD_Routing_InitSegment(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	h.segmentWaitTimeout = 50 * time.Millisecond
+	w := doVODRequest(h, "m1", "stream_0_init.mp4")
+	// isInit=true — also reaches serveSegment → EnsureSegmentRange(0) → Wait → 503
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code, "init segment cache miss should 503")
+}
+
+func TestHLSVOD_Routing_UnknownFile_404(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	w := doVODRequest(h, "m1", "foo.txt")
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// ----------------------------------------------------------------
+// 6-8: Auth / security
+// ----------------------------------------------------------------
+
+func TestHLSVOD_StreamTokenMismatch_403(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/master.m3u8", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("file", "master.m3u8")
+	req = withHTTPClaims(req, testClaims(false))
+	// Inject a stream token that was issued for a *different* media item.
+	ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+		UserID:      "u1",
+		MediaItemID: "other-media",
+	})
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+	h.serveHTTP(w, req)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestHLSVOD_LibraryAccessDenied_403(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
+		denyAll(),
+		testFakeParentalChecker{},
+	)
+	w := doVODRequest(h, "m1", "master.m3u8")
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestHLSVOD_ParentalBlocked_403(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
+		allowAll(),
+		testFakeParentalChecker{block: true},
+	)
+	w := doVODRequest(h, "m1", "master.m3u8")
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// ----------------------------------------------------------------
+// 9-13: Manifest
+// ----------------------------------------------------------------
+
+func TestHLSVOD_Duration0_503WithRetryAfter(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemNoDuration()},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	w := doVODRequest(h, "m1", "master.m3u8")
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, "5", w.Header().Get("Retry-After"), "must set Retry-After: 5 for durationMissingError")
+}
+
+func TestHLSVOD_MasterPlaylist_ContainsEXTM3UAndTwoStreamINF(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	w := doVODRequest(h, "m1", "master.m3u8")
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	assert.Contains(t, body, "#EXTM3U")
+	// profilesForDecision always returns DefaultHLSProfiles[:2] (360p + 480p).
+	count := strings.Count(body, "#EXT-X-STREAM-INF")
+	assert.Equal(t, 2, count, "master must list exactly 2 STREAM-INF entries (360p + 480p)")
+}
+
+func TestHLSVOD_MasterPlaylist_SubPlaylistURLsContainToken(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	// Inject a raw token in the request context so ManifestInput.StreamToken is set.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/master.m3u8", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("file", "master.m3u8")
+	req = withHTTPClaims(req, testClaims(false))
+	ctx := context.WithValue(req.Context(), rawTokenCtxKey, "mytoken123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+	h.serveHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	assert.Contains(t, body, "token=mytoken123", "sub-playlist URLs must contain the stream token")
+}
+
+func TestHLSVOD_VariantPlaylist_IsVODWithEndlist(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	w := doVODRequest(h, "m1", "stream_0.m3u8")
+	require.Equal(t, http.StatusOK, w.Code)
+	body := w.Body.String()
+	assert.Contains(t, body, "#EXT-X-PLAYLIST-TYPE:VOD")
+	assert.Contains(t, body, "#EXT-X-ENDLIST")
+
+	// 60 s / 3 s per segment = 20 segments
+	expectedSegments := int(math.Ceil(60.0 / apptranscoding.ManifestSegmentSeconds))
+	count := strings.Count(body, "#EXTINF:")
+	assert.Equal(t, expectedSegments, count, "variant playlist must list N=ceil(duration/3) segments")
+}
+
+func TestHLSVOD_ProfileOutOfRange_404(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	// profilesForDecision returns only [:2], so stream_99.m3u8 must 404.
+	w := doVODRequest(h, "m1", "stream_99.m3u8")
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// ----------------------------------------------------------------
+// 14-16: Segment
+// ----------------------------------------------------------------
+
+// TestHLSVOD_Segment_CacheHit_200 pre-seeds the segment file on disk so the
+// cache.Wait returns immediately; the handler must serve the file with 200.
+func TestHLSVOD_Segment_CacheHit_200(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, cacheDir := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+
+	// Compute the DecisionFingerprint the handler will produce for m1 with
+	// default settings so we can pre-place the segment at the right path.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/stream_0_000.ts", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("file", "stream_0_000.ts")
+	req = withHTTPClaims(req, testClaims(false))
+
+	// Reproduce the fingerprint using the same helpers the handler uses.
+	fp := apptranscoding.DecisionFingerprint{
+		MediaID:             "m1",
+		SourcePath:          "/test.mkv",
+		SubtitleBurnInTrack: -1, // parseIntQuery default for "subtitleTrack" is -1
+		UseFMP4:             false,
+		Profiles:            profilesForTest(),
+	}
+	segKey := apptranscoding.SegmentKey{
+		DecisionHash: fp.Hash(),
+		VariantIdx:   0,
+		SegmentIdx:   0,
+		IsInit:       false,
+	}
+	segPath := filepath.Join(cacheDir, "vod", "segments", segKey.DecisionHash)
+	require.NoError(t, os.MkdirAll(segPath, 0o755))
+	segFile := filepath.Join(segPath, "stream_0_000.ts")
+	require.NoError(t, os.WriteFile(segFile, []byte("fake-ts-content"), 0o644))
+
+	w := httptest.NewRecorder()
+	h.serveHTTP(w, req)
+	// If the cache pre-seed works, Wait returns immediately and ServeFile fires.
+	assert.Equal(t, http.StatusOK, w.Code, "cache hit must serve 200")
+}
+
+// TestHLSVOD_Segment_CacheMiss_503 verifies that a missing segment eventually
+// causes a 503 (after segmentWaitTimeout) rather than a 404 or panic.
+func TestHLSVOD_Segment_CacheMiss_503(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	h.segmentWaitTimeout = 50 * time.Millisecond // fast for test
+	w := doVODRequest(h, "m1", "stream_0_005.ts")
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code, "cache miss must 503 after timeout")
+}
+
+// TestHLSVOD_Segment_WaitTimeout_503 forces an immediate context cancellation
+// to simulate a Wait timeout independently of the fake orchestrator.
+func TestHLSVOD_Segment_WaitTimeout_503(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	// Minimum timeout so the poll loop exits immediately.
+	h.segmentWaitTimeout = 1 * time.Millisecond
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/stream_0_000.ts", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("file", "stream_0_000.ts")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.serveHTTP(w, req)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code, "wait timeout must produce 503")
+}
+
+// ----------------------------------------------------------------
+// helpers for fingerprint pre-computation
+// ----------------------------------------------------------------
+
+// profilesForTest returns the same ABR ladder profilesForDecision produces
+// (DefaultHLSProfiles[:2]) as ProfileFingerprint entries.
+func profilesForTest() []apptranscoding.ProfileFingerprint {
+	all := domaintranscoding.DefaultHLSProfiles
+	slice := all[:2]
+	out := make([]apptranscoding.ProfileFingerprint, len(slice))
+	for i, p := range slice {
+		out[i] = apptranscoding.ProfileFingerprint{
+			Name:         p.Name,
+			Width:        p.Width,
+			Height:       p.Height,
+			VideoBitrate: p.VideoBitrate,
+			AudioBitrate: p.AudioBitrate,
+		}
+	}
+	return out
+}

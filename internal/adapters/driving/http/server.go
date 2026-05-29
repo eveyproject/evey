@@ -33,6 +33,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/notification"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
 	domainshared "github.com/evey-project/evey/internal/domain/shared"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/i18n"
@@ -84,7 +85,13 @@ type HTTPServer struct {
 
 	// Transcoding
 	TranscodingSvc *apptranscoding.Service
-	HLSManager     *apptranscoding.HLSManager
+	// HLSVODOrch owns the VOD pipeline's ffmpeg rafale sessions (cache
+	// addressing, cancel-on-seek, inactivity GC). Also satisfies the legacy
+	// HLSSessionRemover + ActiveStreamChecker contracts so admin kill-session
+	// and the trickplay scheduler keep working without a separate HLSManager.
+	HLSVODOrch    *apptranscoding.SegmentOrchestrator
+	HLSVODCache   *apptranscoding.SegmentCache
+	HLSTranscoder domaintranscoding.HLSProcess
 
 	// Metadata
 	MetadataCmdSvc   *appmetadata.CommandService
@@ -261,15 +268,19 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/segments/propagate", propagateSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 	}
 	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs, parentalChk)))
-	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", streamAuth(hlsMasterHandler(hlsMasterServe{
-		tokens: s.TokenGen, libSvc: s.LibQuerySvc, hlsManager: s.HLSManager,
-		libraryAccess: s.LibraryAccessRepo, userMaxStreams: s.UserMaxStreams,
-		audioNormalizeGetter: s.AudioNormalizeGetter, bitrateGetter: s.UserBitrate,
-		profilePrefs: s.ProfilePrefs, parental: parentalChk,
-	})))
-	hlsMediaCache := NewCachedMediaItemGetter(s.LibQuerySvc)
 	hlsAccessCache := NewCachedLibraryAccessChecker(s.LibraryAccessRepo)
-	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(hlsSegmentHandler(s.TokenGen, hlsMediaCache, s.HLSManager, hlsAccessCache)))
+
+	// VOD-style HLS pipeline: manifest precomputed in Go from durationMs,
+	// segments produced on demand by SegmentOrchestrator into SegmentCache.
+	// Replaced the previous ffmpeg-writes-the-playlist path that drifted out
+	// after ~9 min of continuous playback (cf features/hls_vod_playlist_refacto).
+	if s.HLSTranscoder != nil && s.HLSVODOrch != nil {
+		if vodHandler := newHLSVODServe(s, s.LibQuerySvc, hlsAccessCache, parentalChk); vodHandler != nil {
+			// Single catch-all — the handler dispatches on the {file} pattern
+			// (master.m3u8 / stream_N.m3u8 / stream_N_NNN.ext / stream_N_init.mp4).
+			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(vodHandler.serveHTTP))
+		}
+	}
 	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.TokenGen, s.LibQuerySvc, NewLibraryItemCounter(s.LibQuerySvc, s.MusicSvc, s.PhotoSvc))))
 
 	// DLNA
@@ -347,7 +358,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                                                                               // Play On: WebSocket + REST
 	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL)                                                    // binary: download/restore
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
-	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, s.HLSManager, s.LoginRL, s.GlobalRL, s.AdminWriteRL)
+	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, s.HLSVODOrch, s.LoginRL, s.GlobalRL, s.AdminWriteRL)
 	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL)
 	registerParentalRoutes(mux, s.ProfileRepo, s.UserRepo, s.Hasher, s.TokenGen)
 	if s.DataDir != "" {

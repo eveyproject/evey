@@ -131,44 +131,6 @@ func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, rem
 	return a
 }
 
-func (h *hlsMasterServe) resolveSourceDimensions(ctx context.Context, mediaID string) (int, int, []*domainlibrary.MediaStream) {
-	sourceWidth, sourceHeight := 1920, 1080
-	streams, err := h.libSvc.GetMediaStreams(ctx, mediaID)
-	if err != nil {
-		return sourceWidth, sourceHeight, nil
-	}
-	for _, s := range streams {
-		if s.StreamType == "video" && s.Width != nil && s.Height != nil {
-			sourceWidth = *s.Width
-			sourceHeight = *s.Height
-			break
-		}
-	}
-	return sourceWidth, sourceHeight, streams
-}
-
-func (h *hlsMasterServe) resolveSubtitle(r *http.Request, streams []*domainlibrary.MediaStream) (int, string) {
-	st := r.URL.Query().Get("subtitleTrack")
-	if st == "" || streams == nil {
-		return -1, ""
-	}
-	n, err := strconv.Atoi(st)
-	if err != nil || n < 0 {
-		return -1, ""
-	}
-	subIdx := 0
-	for _, s := range streams {
-		if s.StreamType != "subtitle" {
-			continue
-		}
-		if subIdx == n {
-			return n, s.Codec
-		}
-		subIdx++
-	}
-	return -1, ""
-}
-
 func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscoding.ClientProfile {
 	client := domaintranscoding.DefaultWebProfile
 	if v := r.URL.Query().Get("videoCodecs"); v != "" {

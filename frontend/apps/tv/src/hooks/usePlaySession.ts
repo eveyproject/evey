@@ -65,6 +65,7 @@ function buildStreamUrl(
   const params = new URLSearchParams({ token });
   if (startSec && startSec > 0) params.set("startSec", String(Math.floor(startSec)));
   appendCodecParams(params);
+  // Server publishes a complete VOD manifest from t=0 (no live-edge snap).
   return `${serverUrl}/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
 

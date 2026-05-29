@@ -1,0 +1,487 @@
+package transcoding
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// single360p is a minimal single-profile used throughout the Master/Variant tests.
+var single360p = []transcoding.HLSProfile{
+	{Name: "360p", Width: 640, Height: 360, VideoBitrate: 800, AudioBitrate: 96},
+}
+
+// baseInput returns a valid ManifestInput for the given profiles and duration.
+func baseInput(profiles []transcoding.HLSProfile, dur float64) ManifestInput {
+	return ManifestInput{
+		MediaID:             "media-abc",
+		DurationSec:         dur,
+		Profiles:            profiles,
+		SubtitleBurnInTrack: -1, // disabled by default
+	}
+}
+
+// --- Validate ---
+
+func TestManifestGenerator_Validate_MediaIDEmpty(t *testing.T) {
+	in := baseInput(single360p, 10.0)
+	in.MediaID = ""
+	err := in.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "MediaID")
+}
+
+func TestManifestGenerator_Validate_DurationZero(t *testing.T) {
+	in := baseInput(single360p, 0)
+	err := in.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DurationSec must be > 0")
+}
+
+func TestManifestGenerator_Validate_DurationNegative(t *testing.T) {
+	in := baseInput(single360p, -5.0)
+	err := in.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DurationSec must be > 0")
+}
+
+func TestManifestGenerator_Validate_ProfilesEmpty(t *testing.T) {
+	in := baseInput(nil, 10.0)
+	err := in.Validate()
+	require.Error(t, err)
+}
+
+func TestManifestGenerator_Validate_OK(t *testing.T) {
+	in := baseInput(single360p, 10.0)
+	require.NoError(t, in.Validate())
+}
+
+// --- SegmentCount ---
+
+func TestManifestGenerator_SegmentCount(t *testing.T) {
+	tests := []struct {
+		name     string
+		dur      float64
+		expected int
+	}{
+		{"exact multiple", 9.0, 3},
+		{"ceil", 10.0, 4},
+		{"zero", 0, 0},
+		{"negative", -1.0, 0},
+		{"less than one segment", 2.5, 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			in := ManifestInput{DurationSec: tc.dur}
+			assert.Equal(t, tc.expected, in.SegmentCount())
+		})
+	}
+}
+
+// --- Master ---
+
+func TestManifestGenerator_Master_SingleProfile(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	lines := nonEmptyLines(out)
+	// #EXTM3U, #EXT-X-VERSION:6, then 1×STREAM-INF + 1×URL = 4 lines total
+	require.Len(t, lines, 4)
+	assert.Equal(t, "#EXTM3U", lines[0])
+	assert.Equal(t, "#EXT-X-VERSION:6", lines[1])
+	assert.Contains(t, lines[2], "#EXT-X-STREAM-INF:")
+	assert.Contains(t, lines[3], "stream_0.m3u8")
+}
+
+func TestManifestGenerator_Master_FourProfiles(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(transcoding.DefaultHLSProfiles, 10.0)
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	lines := nonEmptyLines(out)
+	// 2 header lines + 4×(STREAM-INF + URL) = 10 lines
+	assert.Len(t, lines, 10)
+
+	// Each profile must have its own stream_N.m3u8 URL
+	for i := 0; i < 4; i++ {
+		url := fmt.Sprintf("stream_%d.m3u8", i)
+		assert.True(t, containsLine(lines, url), "expected URL line for profile %d", i)
+	}
+}
+
+func TestManifestGenerator_Master_Bandwidth(t *testing.T) {
+	// 360p: VideoBitrate=800, AudioBitrate=96 → (800+96)*1000 = 896000
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.Contains(t, out, "BANDWIDTH=896000")
+}
+
+func TestManifestGenerator_Master_AllProfileBandwidths(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(transcoding.DefaultHLSProfiles, 10.0)
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	expected := []struct {
+		name string
+		bps  int64
+	}{
+		{"360p", (800 + 96) * 1000},
+		{"480p", (1400 + 128) * 1000},
+		{"720p", (2800 + 128) * 1000},
+		{"1080p", (5000 + 192) * 1000},
+	}
+	for _, e := range expected {
+		t.Run(e.name, func(t *testing.T) {
+			assert.Contains(t, out, fmt.Sprintf("BANDWIDTH=%d", e.bps))
+		})
+	}
+}
+
+func TestManifestGenerator_Master_Resolution(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.Contains(t, out, "RESOLUTION=640x360")
+}
+
+func TestManifestGenerator_Master_Codecs(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	// CODECS value must be quoted in the attribute line
+	assert.Contains(t, out, `CODECS="avc1.640028,mp4a.40.2"`)
+}
+
+func TestManifestGenerator_Master_TokenInQuery(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.StreamToken = "tok123"
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.Contains(t, out, "token=tok123")
+}
+
+func TestManifestGenerator_Master_NoTokenWhenEmpty(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.StreamToken = ""
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.NotContains(t, out, "token=")
+}
+
+func TestManifestGenerator_Master_AudioTrackAlwaysPresent(t *testing.T) {
+	// audioTrack=0 must appear even when StreamToken is empty and all optional fields unset.
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.AudioTrack = 0
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.Contains(t, out, "audioTrack=0")
+}
+
+func TestManifestGenerator_Master_SubtitleTrackPresent(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.SubtitleBurnInTrack = 2
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.Contains(t, out, "subtitleTrack=2")
+}
+
+func TestManifestGenerator_Master_SubtitleTrackAbsentWhenMinus1(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.SubtitleBurnInTrack = -1
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.NotContains(t, out, "subtitleTrack")
+}
+
+func TestManifestGenerator_Master_VideoCodecsPresentWhenSet(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.VideoCodecs = []string{"h264", "hevc"}
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.Contains(t, out, "videoCodecs=h264%2Chevc")
+}
+
+func TestManifestGenerator_Master_VideoCodecsAbsentWhenEmpty(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.VideoCodecs = nil
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.NotContains(t, out, "videoCodecs")
+}
+
+func TestManifestGenerator_Master_AudioCodecsPresentWhenSet(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.AudioCodecs = []string{"aac"}
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.Contains(t, out, "audioCodecs=aac")
+}
+
+func TestManifestGenerator_Master_AudioCodecsAbsentWhenEmpty(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.AudioCodecs = nil
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.NotContains(t, out, "audioCodecs")
+}
+
+func TestManifestGenerator_Master_ContainersPresentWhenSet(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.Containers = []string{"mp4", "mkv"}
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.Contains(t, out, "containers=mp4%2Cmkv")
+}
+
+func TestManifestGenerator_Master_ContainersAbsentWhenEmpty(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.Containers = nil
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	assert.NotContains(t, out, "containers")
+}
+
+// --- Variant ---
+
+func TestManifestGenerator_Variant_ProfileIdxNegative(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	_, err := g.Variant(in, -1)
+	require.Error(t, err)
+}
+
+func TestManifestGenerator_Variant_ProfileIdxOutOfRange(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	_, err := g.Variant(in, 1) // len == 1, so idx 1 is out of range
+	require.Error(t, err)
+}
+
+func TestManifestGenerator_Variant_Header(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 9.0)
+	out, err := g.Variant(in, 0)
+	require.NoError(t, err)
+
+	assert.Contains(t, out, "#EXTM3U\n")
+	assert.Contains(t, out, "#EXT-X-VERSION:6\n")
+	assert.Contains(t, out, "#EXT-X-PLAYLIST-TYPE:VOD\n")
+	assert.Contains(t, out, "#EXT-X-TARGETDURATION:3\n")
+	assert.Contains(t, out, "#EXT-X-MEDIA-SEQUENCE:0\n")
+}
+
+func TestManifestGenerator_Variant_Footer(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 9.0)
+	out, err := g.Variant(in, 0)
+	require.NoError(t, err)
+
+	assert.True(t, strings.HasSuffix(strings.TrimRight(out, "\n"), "#EXT-X-ENDLIST"),
+		"playlist must end with #EXT-X-ENDLIST")
+}
+
+func TestManifestGenerator_Variant_DurationExact3Segments(t *testing.T) {
+	// 9.0s / 3.0s = exactly 3 segments, all full
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 9.0)
+	out, err := g.Variant(in, 0)
+	require.NoError(t, err)
+
+	extinfLines := extractEXTINF(out)
+	require.Len(t, extinfLines, 3, "expected 3 segments")
+	for _, line := range extinfLines {
+		assert.Equal(t, "#EXTINF:3.000,", line)
+	}
+}
+
+func TestManifestGenerator_Variant_DurationCeil10(t *testing.T) {
+	// 10.0s → ceil(10/3) = 4 segments; last = 10 - 3*3 = 1.0s
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	out, err := g.Variant(in, 0)
+	require.NoError(t, err)
+
+	extinfLines := extractEXTINF(out)
+	require.Len(t, extinfLines, 4, "expected 4 segments")
+	assert.Equal(t, "#EXTINF:3.000,", extinfLines[0])
+	assert.Equal(t, "#EXTINF:3.000,", extinfLines[1])
+	assert.Equal(t, "#EXTINF:3.000,", extinfLines[2])
+	assert.Equal(t, "#EXTINF:1.000,", extinfLines[3])
+}
+
+func TestManifestGenerator_Variant_DurationLessThanSegment(t *testing.T) {
+	// 2.5s < 3.0s → 1 segment at 2.500
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 2.5)
+	out, err := g.Variant(in, 0)
+	require.NoError(t, err)
+
+	extinfLines := extractEXTINF(out)
+	require.Len(t, extinfLines, 1, "expected 1 segment")
+	assert.Equal(t, "#EXTINF:2.500,", extinfLines[0])
+}
+
+func TestManifestGenerator_Variant_ModeTS_Extension(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 9.0)
+	in.UseFMP4 = false
+	out, err := g.Variant(in, 0)
+	require.NoError(t, err)
+
+	assert.Contains(t, out, ".ts")
+	assert.NotContains(t, out, ".m4s")
+	assert.NotContains(t, out, "#EXT-X-MAP")
+}
+
+func TestManifestGenerator_Variant_ModeFMP4_Extension(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 9.0)
+	in.UseFMP4 = true
+	out, err := g.Variant(in, 0)
+	require.NoError(t, err)
+
+	assert.Contains(t, out, ".m4s")
+	assert.NotContains(t, out, ".ts")
+}
+
+func TestManifestGenerator_Variant_ModeFMP4_InitMap(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(transcoding.DefaultHLSProfiles, 9.0)
+	in.UseFMP4 = true
+	out, err := g.Variant(in, 2) // profileIdx=2 → stream_2_init.mp4
+	require.NoError(t, err)
+
+	assert.Contains(t, out, `#EXT-X-MAP:URI="stream_2_init.mp4`)
+}
+
+func TestManifestGenerator_Variant_SegmentURLFormat_TS(t *testing.T) {
+	// 9.0s → segments 000, 001, 002
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 9.0)
+	in.UseFMP4 = false
+	out, err := g.Variant(in, 0)
+	require.NoError(t, err)
+
+	assert.Contains(t, out, "stream_0_000.ts")
+	assert.Contains(t, out, "stream_0_001.ts")
+	assert.Contains(t, out, "stream_0_002.ts")
+}
+
+func TestManifestGenerator_Variant_SegmentURLFormat_FMP4(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(transcoding.DefaultHLSProfiles, 9.0)
+	in.UseFMP4 = true
+	out, err := g.Variant(in, 1) // profileIdx=1
+	require.NoError(t, err)
+
+	assert.Contains(t, out, "stream_1_000.m4s")
+	assert.Contains(t, out, "stream_1_001.m4s")
+	assert.Contains(t, out, "stream_1_002.m4s")
+}
+
+func TestManifestGenerator_Variant_QuerySuffixOnAllSegments(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 9.0)
+	in.StreamToken = "mytoken"
+	in.UseFMP4 = false
+	out, err := g.Variant(in, 0)
+	require.NoError(t, err)
+
+	// Every segment URL line must carry the token query param.
+	for _, line := range nonEmptyLines(out) {
+		if strings.HasPrefix(line, "stream_") {
+			assert.Contains(t, line, "token=mytoken", "segment URL must carry token: %q", line)
+		}
+	}
+}
+
+func TestManifestGenerator_Variant_QuerySuffixOnInitMap(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 9.0)
+	in.StreamToken = "tok"
+	in.UseFMP4 = true
+	out, err := g.Variant(in, 0)
+	require.NoError(t, err)
+
+	// The EXT-X-MAP URI must also carry the query suffix
+	mapLine := ""
+	for _, line := range nonEmptyLines(out) {
+		if strings.HasPrefix(line, "#EXT-X-MAP:") {
+			mapLine = line
+			break
+		}
+	}
+	require.NotEmpty(t, mapLine, "EXT-X-MAP line not found")
+	assert.Contains(t, mapLine, "token=tok")
+}
+
+// --- helpers ---
+
+// nonEmptyLines splits s into non-empty lines.
+func nonEmptyLines(s string) []string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		if line != "" {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+// containsLine reports whether any element of lines equals target.
+func containsLine(lines []string, target string) bool {
+	for _, l := range lines {
+		if strings.HasPrefix(l, target) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractEXTINF returns all #EXTINF lines from a playlist.
+func extractEXTINF(s string) []string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		if strings.HasPrefix(line, "#EXTINF:") {
+			out = append(out, line)
+		}
+	}
+	return out
+}

@@ -119,11 +119,11 @@ func run() error {
 	loadOverride(ctx, deps.cfgStore, "intro_providers.skip_preview_enabled", parseBool, &cfg.Metadata.SkipPreviewEnabled)
 	eveylogger.SetLevel(cfg.Log.Level) // apply any DB override to the live logger
 
-	startMetricsCollector(ctx, db, deps.media.hlsManager, deps.repos.mediaItemRepo)
+	startMetricsCollector(ctx, db, deps.media.hlsVODOrch, deps.repos.mediaItemRepo)
 
 	qcHub := quickconnecthub.New()
 	grpcSrv := buildGRPCServer(deps, cfg, rootLog, logCfg.Dir, ctx, qcHub)
-	defer deps.media.hlsManager.CleanupAll()
+	defer deps.media.hlsVODOrch.CleanupAll()
 
 	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 	httpPort := cfg.Server.Port + 1

@@ -941,91 +941,9 @@ func TestAnalyzeStreams_HEVC_EAC3_PartialSupport(t *testing.T) {
 // transcode resolveSourceDimensions tests
 // ============================================================
 
-func TestResolveSourceDimensions_Default(t *testing.T) {
-	h := &hlsMasterServe{libSvc: &fakeMediaStreamsGetter{sErr: errors.New("fail")}}
-	w, ht, streams := h.resolveSourceDimensions(context.Background(), "m1")
-	if w != 1920 || ht != 1080 {
-		t.Errorf("expected 1920x1080, got %dx%d", w, ht)
-	}
-	if streams != nil {
-		t.Error("expected nil streams on error")
-	}
-}
-
-func TestResolveSourceDimensions_FromStreams(t *testing.T) {
-	sw, sh := 3840, 2160
-	h := &hlsMasterServe{libSvc: &fakeMediaStreamsGetter{
-		item: testMediaItem("lib1"),
-		streams: []*domainlibrary.MediaStream{
-			{StreamType: "video", Codec: "hevc", Width: &sw, Height: &sh},
-			{StreamType: "audio", Codec: "aac"},
-		},
-	}}
-	w, ht, streams := h.resolveSourceDimensions(context.Background(), "m1")
-	if w != 3840 || ht != 2160 {
-		t.Errorf("expected 3840x2160, got %dx%d", w, ht)
-	}
-	if len(streams) != 2 {
-		t.Errorf("expected 2 streams, got %d", len(streams))
-	}
-}
-
 // ============================================================
 // transcode resolveSubtitle tests
 // ============================================================
-
-func TestResolveSubtitle_NoQuery(t *testing.T) {
-	h := &hlsMasterServe{}
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	idx, codec := h.resolveSubtitle(req, nil)
-	if idx != -1 || codec != "" {
-		t.Errorf("expected -1/'', got %d/%s", idx, codec)
-	}
-}
-
-func TestResolveSubtitle_InvalidTrack(t *testing.T) {
-	h := &hlsMasterServe{}
-	req := httptest.NewRequest(http.MethodGet, "/test?subtitleTrack=abc", nil)
-	idx, _ := h.resolveSubtitle(req, []*domainlibrary.MediaStream{})
-	if idx != -1 {
-		t.Errorf("expected -1, got %d", idx)
-	}
-}
-
-func TestResolveSubtitle_NegativeTrack(t *testing.T) {
-	h := &hlsMasterServe{}
-	req := httptest.NewRequest(http.MethodGet, "/test?subtitleTrack=-1", nil)
-	idx, _ := h.resolveSubtitle(req, []*domainlibrary.MediaStream{})
-	if idx != -1 {
-		t.Errorf("expected -1, got %d", idx)
-	}
-}
-
-func TestResolveSubtitle_ValidTrack(t *testing.T) {
-	h := &hlsMasterServe{}
-	streams := []*domainlibrary.MediaStream{
-		{StreamType: "video", Codec: "h264"},
-		{StreamType: "subtitle", Codec: "srt"},
-		{StreamType: "subtitle", Codec: "ass"},
-	}
-	req := httptest.NewRequest(http.MethodGet, "/test?subtitleTrack=1", nil)
-	idx, codec := h.resolveSubtitle(req, streams)
-	if idx != 1 || codec != "ass" {
-		t.Errorf("expected 1/ass, got %d/%s", idx, codec)
-	}
-}
-
-func TestResolveSubtitle_TrackOutOfRange(t *testing.T) {
-	h := &hlsMasterServe{}
-	streams := []*domainlibrary.MediaStream{
-		{StreamType: "subtitle", Codec: "srt"},
-	}
-	req := httptest.NewRequest(http.MethodGet, "/test?subtitleTrack=5", nil)
-	idx, _ := h.resolveSubtitle(req, streams)
-	if idx != -1 {
-		t.Errorf("expected -1 for out of range, got %d", idx)
-	}
-}
 
 // ============================================================
 // parseClientProfile tests
@@ -1289,67 +1207,6 @@ func TestSubtitleDelete_OK(t *testing.T) {
 // HLS segment handler auth tests
 // ============================================================
 
-func TestHLSSegmentHandler_NoAuth_401(t *testing.T) {
-	v := &fakeTokenVerifier{err: errTest}
-	h := httpAuthMiddleware(v)(hlsSegmentHandler(v, &fakeMediaItemGetter{item: testMediaItem("lib1")}, nil, allowAll()))
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/segment.ts", nil)
-	req.SetPathValue("id", "m1")
-	req.SetPathValue("file", "segment.ts")
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestHLSSegmentHandler_InvalidToken_401(t *testing.T) {
-	v := &fakeTokenVerifier{err: errTest}
-	h := httpAuthMiddleware(v)(hlsSegmentHandler(v, &fakeMediaItemGetter{item: testMediaItem("lib1")}, nil, allowAll()))
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/segment.ts", nil)
-	req.SetPathValue("id", "m1")
-	req.SetPathValue("file", "segment.ts")
-	req.Header.Set("Authorization", "Bearer bad")
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestHLSSegmentHandler_NotFound_404(t *testing.T) {
-	h := hlsSegmentHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaItemGetter{err: errTest},
-		nil, allowAll(),
-	)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/segment.ts", nil)
-	req.SetPathValue("id", "m1")
-	req.SetPathValue("file", "segment.ts")
-	req = withHTTPClaims(req, testClaims(false))
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-}
-
-func TestHLSSegmentHandler_IDOR_403(t *testing.T) {
-	h := hlsSegmentHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaItemGetter{item: testMediaItem("lib-restricted")},
-		nil, denyAll(),
-	)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/segment.ts", nil)
-	req.SetPathValue("id", "m1")
-	req.SetPathValue("file", "segment.ts")
-	req = withHTTPClaims(req, testClaims(false))
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
 // HLSSegmentHandler_QueryToken skipped — requires non-nil HLSManager to avoid panic after auth
 
 // ============================================================
@@ -1469,69 +1326,6 @@ func (f *fakeUserMaxStreams) GetMaxStreams(_ context.Context, _ string) *int {
 // ============================================================
 // HLS master handler auth tests
 // ============================================================
-
-func TestHLSMasterHandler_NoAuth_401(t *testing.T) {
-	verifier := &fakeTokenVerifier{err: errTest}
-	h := httpAuthMiddleware(verifier)(hlsMasterHandler(hlsMasterServe{
-		tokens:        verifier,
-		libSvc:        &fakeMediaStreamsGetter{},
-		libraryAccess: allowAll(),
-	}))
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
-	req.SetPathValue("id", "m1")
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestHLSMasterHandler_InvalidToken_401(t *testing.T) {
-	verifier := &fakeTokenVerifier{err: errTest}
-	h := httpAuthMiddleware(verifier)(hlsMasterHandler(hlsMasterServe{
-		tokens:        verifier,
-		libSvc:        &fakeMediaStreamsGetter{},
-		libraryAccess: allowAll(),
-	}))
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
-	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer bad")
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestHLSMasterHandler_NotFound_404(t *testing.T) {
-	h := hlsMasterHandler(hlsMasterServe{
-		libSvc:        &fakeMediaStreamsGetter{itemErr: errTest},
-		libraryAccess: allowAll(),
-	})
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
-	req.SetPathValue("id", "m1")
-	req = withHTTPClaims(req, testClaims(false))
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-}
-
-func TestHLSMasterHandler_IDOR_403(t *testing.T) {
-	h := hlsMasterHandler(hlsMasterServe{
-		libSvc:        &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", File: &domainlibrary.MediaFile{Path: "/a"}}},
-		libraryAccess: denyAll(),
-	})
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
-	req.SetPathValue("id", "m1")
-	req = withHTTPClaims(req, testClaims(false))
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
 
 // ============================================================
 // Photo handler additional tests

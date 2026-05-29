@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -185,6 +186,17 @@ func (h *hlsHandle) WaitReady(ctx context.Context) error {
 }
 
 func (h *hlsHandle) Stop() error {
+	// A SIGSTOPped process can't observe ctx cancellation. Always SIGCONT first
+	// so the cancel→graceful-exit path completes in milliseconds; otherwise we
+	// pay the full 5s timeout and fall through to SIGKILL on every throttled
+	// session teardown.
+	h.mu.Lock()
+	if h.paused && h.cmd != nil && h.cmd.Process != nil {
+		_ = h.cmd.Process.Signal(syscall.SIGCONT)
+		h.paused = false
+	}
+	h.mu.Unlock()
+
 	h.cancel()
 	select {
 	case <-h.done:
@@ -355,12 +367,23 @@ func appendInputModifiers(args []string) []string {
 // appendHLSOutputArgs writes the HLS muxer arguments shared by every
 // builder. list_size 0 + playlist_type event keep all segments available for
 // the full session duration; useFMP4 picks the segment container.
-func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool) []string {
+// `temp_file` makes ffmpeg write each segment to `<name>.tmp` first, then
+// rename atomically on close — so a concurrent reader never sees a partial
+// segment (audit indies: Stash pattern, free with this flag on Linux/macOS).
+//
+// startNumber controls ffmpeg's HLS segment counter (and so the segment
+// filenames stream_N_NNN.{ts|m4s}). When the rafale starts mid-media via
+// `-ss`, callers must compute startNumber = floor(StartSec/hlsSegmentSeconds)
+// so the produced filenames match the absolute manifest indices the VOD
+// pipeline cache addresses by. Pass 0 for legacy / non-rafale callers.
+func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, startNumber int) []string {
 	args = append(args,
 		"-f", "hls",
 		"-hls_time", hlsSegmentSeconds,
 		"-hls_list_size", "0",
 		"-hls_playlist_type", "event",
+		"-hls_flags", "temp_file",
+		"-start_number", fmt.Sprintf("%d", startNumber),
 	)
 	if useFMP4 {
 		args = append(args,
@@ -466,7 +489,26 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-c:a", "copy")
 	}
 
-	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams))
+	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams), startNumberFor(opts))
+}
+
+// startNumberFor maps StartSec onto the segment counter so produced filenames
+// match the absolute manifest indices the VOD pipeline addresses. floor()
+// because segment N covers media seconds [N*L, (N+1)*L), so a StartSec of
+// 153 s with 3 s segments lands inside seg 51 — start_number must be 51.
+//
+// hlsSegmentSeconds is a const string ("3") rather than a float to stay in
+// sync with ffmpeg's -hls_time argument shape. Parsing once is cheap and
+// keeps the source of truth in one place.
+func startNumberFor(opts transcoding.HLSProcessOpts) int {
+	if opts.StartSec <= 0 {
+		return 0
+	}
+	segSec, err := strconv.ParseFloat(hlsSegmentSeconds, 64)
+	if err != nil || segSec <= 0 {
+		segSec = 3.0
+	}
+	return int(opts.StartSec / segSec)
 }
 
 func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
@@ -532,7 +574,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-c:a", "copy")
 	}
 
-	return appendHLSOutputArgs(args, opts.OutputDir, false)
+	return appendHLSOutputArgs(args, opts.OutputDir, false, startNumberFor(opts))
 }
 
 func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
@@ -627,6 +669,8 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		"-hls_time", hlsSegmentSeconds,
 		"-hls_list_size", "0",
 		"-hls_playlist_type", "event",
+		"-hls_flags", "temp_file",
+		"-start_number", fmt.Sprintf("%d", startNumberFor(opts)),
 		"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.ts"),
 		filepath.Join(opts.OutputDir, "stream_%v.m3u8"),
 	)

@@ -540,8 +540,33 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	shareSvc := appmedia.NewShareService(shareLinkRepo)
 
 	hlsTranscoder := ffmpeg.NewHLSTranscoder()
-	hlsMgr := apptranscoding.NewHLSManager(ctx, cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent, hlsTranscoder)
-	libCmdSvc.SetTrickplayActiveStreamChecker(hlsMgr)
+	hlsVODCache, err := apptranscoding.NewSegmentCache(cfg.Transcoding.CacheDir)
+	if err != nil {
+		return nil, fmt.Errorf("hls vod cache: %w", err)
+	}
+	// LRU sweep on the on-disk segment cache. Cleanup token dropped: the
+	// orchestrator runs for the process lifetime, so the cache sweeper is
+	// stopped implicitly when the binary exits.
+	_ = hlsVODCache.StartEviction(apptranscoding.EvictionPolicy{
+		MaxBytes: int64(cfg.Transcoding.CacheMaxGB) * 1024 * 1024 * 1024,
+	}, slog.Default())
+	// Inline SourceResolver: the orchestrator hands a DecisionFingerprint
+	// back, we look up the media item via the library query service. Streams
+	// are filled in later (Phase 3 follow-up) — Phase 1+2 only need the path.
+	sourceResolver := apptranscoding.SourceResolverFunc(func(ctx context.Context, fp apptranscoding.DecisionFingerprint) (string, []apptranscoding.SourceStream, error) {
+		item, err := libQuerySvc.GetMediaItem(ctx, fp.MediaID)
+		if err != nil {
+			return "", nil, fmt.Errorf("resolveSource: %w", err)
+		}
+		if item.File == nil || item.File.Path == "" {
+			return "", nil, fmt.Errorf("resolveSource: media %s has no file", fp.MediaID)
+		}
+		return item.File.Path, nil, nil
+	})
+	hlsVODOrch := apptranscoding.NewSegmentOrchestrator(hlsVODCache, hlsTranscoder, sourceResolver, apptranscoding.OrchestratorOptions{
+		ThrottleEnabled: true,
+	}, slog.Default())
+	libCmdSvc.SetTrickplayActiveStreamChecker(hlsVODOrch)
 
 	introDetectionSvc := applibrary.NewIntroDetectionService(
 		r.MediaSegment,
@@ -669,7 +694,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		media: mediaDeps{
 			playbackSvc:      playbackSvc,
 			transcodingSvc:   transcodingSvc,
-			hlsManager:       hlsMgr,
+			hlsVODOrch:       hlsVODOrch,
+			hlsVODCache:      hlsVODCache,
+			hlsTranscoder:    hlsTranscoder,
 			mkvSvc:           mkvSvc,
 			musicSvc:         musicSvc,
 			photoSvc:         photoSvc,
