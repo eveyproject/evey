@@ -5,6 +5,7 @@ import {
   useLibraryServiceListLibraries,
   feedServiceBatchUpdateAdminFeedConfigs,
   getFeedServiceGetAdminFeedConfigsQueryKey,
+  getFeedServiceGetFeedConfigQueryKey,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
@@ -100,6 +101,13 @@ export function FeedConfigCard() {
       toast.success(t("common.feeds.saved"));
       queryClient.invalidateQueries({
         queryKey: getFeedServiceGetAdminFeedConfigsQueryKey(),
+      });
+      // The home page reads merged config via GetFeedConfig (admin defaults
+      // + profile overrides). Without this second invalidation the admin
+      // save lands in DB but every open HP keeps showing the stale merged
+      // result until the 60s staleTime expires.
+      queryClient.invalidateQueries({
+        queryKey: getFeedServiceGetFeedConfigQueryKey(),
       });
     } catch {
       toast.error(t("common.error"));
