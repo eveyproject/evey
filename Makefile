@@ -140,25 +140,26 @@ clean:
 # ── Database ───────────────────────────────────────────────────────────────────
 
 # Migrations run automatically when evey-server boots (Air rebuilds → process
-# restart → embedded RunMigrations). These targets exist for the operator path
-# where you want to apply / roll back without bouncing the server (CI release
-# pipeline, canary deploy, rollback drill).
+# restart → embedded RunMigrations). These targets exist for the operator
+# path where you want to apply / roll back without bouncing the server (CI
+# release pipeline, canary deploy, rollback drill).
 #
-# --no-backup skips the pre-migration pg_dump. The dump needs pg_dump in PATH,
-# which is rarely installed on the WSL host (postgres-client is only inside
-# the Docker container). Drop the flag in prod environments where you DO have
-# postgres-client and want a rollback snapshot before the schema changes.
+# All three run *inside* the evey-server container: that's where Go, the
+# source tree (/app), pg_dump, and the EVEY_DB_* env vars (sslmode=disable,
+# host=postgres, EVEY_BACKUP_DIR=/data/backups) live. Running them on the
+# WSL host would either crash on missing gcc / pg_dump or pick up the
+# Postgres-incompatible "sslmode=prefer" default.
+#
+# evey-server must be up for these targets to work — start the stack first
+# with `make dev` if it isn't.
 migrate-up:
-	CGO_ENABLED=0 EVEY_DB_HOST=$${EVEY_DB_HOST:-localhost} EVEY_DB_PORT=$${EVEY_DB_PORT:-5432} \
-		go run ./cmd/migrate up --no-backup
+	docker exec -w /app evey-server sh -c 'go run ./cmd/migrate up'
 
 migrate-down:
-	CGO_ENABLED=0 EVEY_DB_HOST=$${EVEY_DB_HOST:-localhost} EVEY_DB_PORT=$${EVEY_DB_PORT:-5432} \
-		go run ./cmd/migrate down --no-backup
+	docker exec -w /app evey-server sh -c 'go run ./cmd/migrate down'
 
 migrate-version:
-	CGO_ENABLED=0 EVEY_DB_HOST=$${EVEY_DB_HOST:-localhost} EVEY_DB_PORT=$${EVEY_DB_PORT:-5432} \
-		go run ./cmd/migrate version
+	docker exec -w /app evey-server sh -c 'go run ./cmd/migrate version'
 
 # ── Dev (uses docker-compose.yml + docker-compose.override.yml) ───────────────
 
