@@ -49,6 +49,12 @@ type hlsVODServe struct {
 	// disabled (tests, dev without postgres). Record is non-blocking.
 	qoeSink appqoe.EventSink
 
+	// complexityRepo reads the per-title classification used to pick the
+	// ABR ladder. Nil-safe — profilesForDecision falls back to
+	// LadderFilmNormal when the repo isn't wired (dev w/o postgres) or
+	// the row hasn't been classified yet.
+	complexityRepo domaintranscoding.ComplexityRepo
+
 	// useFMP4 controls the segment container. fMP4 is the project default —
 	// segments are ~30% smaller and the codecs string in the master playlist
 	// matches what hls.js expects on modern Chromium/Firefox.
@@ -311,7 +317,7 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 	}
 
 	decision := h.makeDecision(r.Context(), streams, item.File.ContainerFormat, r)
-	profiles := h.profilesForDecision(decision)
+	profiles := h.profilesForDecision(r.Context(), item, streams, decision)
 
 	audioTrack := parseIntQuery(r, "audioTrack", 0)
 	subBurnIn := parseIntQuery(r, "subtitleTrack", -1)
@@ -356,7 +362,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		return apptranscoding.DecisionFingerprint{}, errors.New("buildFingerprint: nil item")
 	}
 	decision := h.makeDecision(r.Context(), streams, item.File.ContainerFormat, r)
-	profiles := h.profilesForDecision(decision)
+	profiles := h.profilesForDecision(r.Context(), item, streams, decision)
 
 	audioTrack := parseIntQuery(r, "audioTrack", 0)
 	subBurnIn := parseIntQuery(r, "subtitleTrack", -1)
@@ -400,15 +406,38 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 	return *d
 }
 
-// profilesForDecision picks the ABR ladder for a given decision. Phase 1 keeps
-// only the 360p + 480p rungs (the production-deployed pair, see logs); Phase 2
-// will refine based on source resolution and client capabilities.
-func (h *hlsVODServe) profilesForDecision(_ domaintranscoding.PlaybackDecision) []domaintranscoding.HLSProfile {
-	all := domaintranscoding.DefaultHLSProfiles
-	if len(all) < 2 {
-		return all
+// profilesForDecision picks the ABR ladder for a given (decision, mediaItem,
+// streams) triple. Reads the per-title complexity class persisted by the
+// background ComplexityWorker; falls back to LadderFilmNormal when the
+// item hasn't been classified yet (safe: matches pre-refactor behaviour).
+// Caps the ladder to the source resolution so we never advertise a 4K rung
+// for a 1080p source.
+func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, _ domaintranscoding.PlaybackDecision) []domaintranscoding.HLSProfile {
+	class := domaintranscoding.ClassFilmNormal
+	if h.complexityRepo != nil && item != nil {
+		if entry, found, err := h.complexityRepo.Get(ctx, string(item.ID)); err == nil && found && entry.Class.IsValid() {
+			class = entry.Class
+		}
 	}
-	return all[:2]
+	ladder := domaintranscoding.LadderFor(class)
+	// Source resolution comes from the first video stream's dimensions.
+	// Streams may be missing (degenerate file) — CapLadderToSource handles
+	// zero values as "unknown, don't cap". Width/Height are *int on the
+	// MediaStream domain type so a missing probe doesn't conflate "unknown"
+	// with "zero pixels".
+	var srcW, srcH int
+	for _, s := range streams {
+		if s != nil && s.StreamType == "video" {
+			if s.Width != nil {
+				srcW = *s.Width
+			}
+			if s.Height != nil {
+				srcH = *s.Height
+			}
+			break
+		}
+	}
+	return domaintranscoding.CapLadderToSource(ladder, srcW, srcH)
 }
 
 // durationMissingError is the specific 503 we return when a media file's
@@ -482,6 +511,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		cache:                cache,
 		orchestrator:         orch,
 		qoeSink:              s.QoESink,
+		complexityRepo:       s.ComplexityRepo,
 		// fMP4 is now the project default — matches the ffmpeg adapter
 		// (needsFMP4Segments returns true unconditionally) and Apple's
 		// post-WWDC-2024 stance on CMAF. Per-rendition behaviour stays

@@ -42,6 +42,8 @@ func runAdmin(args []string) error {
 		return adminReindexSearch(args[1:])
 	case "migrate":
 		return adminMigrate(args[1:])
+	case "reclassify":
+		return adminReclassify(args[1:])
 	case "-h", "--help", "help":
 		_ = adminUsage()
 		return nil
@@ -64,6 +66,10 @@ Schema subcommands:
   migrate up [--no-backup]          Apply all pending migrations.
   migrate down [--no-backup]        Roll back exactly one migration step.
   migrate version                   Print current schema version (exit 1 if dirty).
+
+Per-title encoding subcommands:
+  reclassify <media-id>             Force-recompute the complexity class for one media item.
+  reclassify --all                  Wipe + re-queue every classified item (worker will pick them up).
 
 Configuration is read from EVEY_* env vars (same as the server).
 See docs/runbooks/recovery.md and docs/runbooks/cli.md for full procedures.
@@ -385,5 +391,71 @@ func adminMigrateUsage() error {
                     to taking the dump when EVEY_BACKUP_DIR is set.
 `)
 	return fmt.Errorf("admin migrate: subcommand required")
+}
+
+// adminReclassify wipes the per-title complexity row for one or every media
+// item, which puts the items back into the worker's unclassified queue
+// (the worker picks them up on its next tick — no separate trigger).
+//
+//	evey admin reclassify <media-id>     just this one
+//	evey admin reclassify --all          everything
+func adminReclassify(args []string) error {
+	if len(args) < 1 {
+		return adminReclassifyUsage()
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
+	db, err := sql.Open("postgres", cfg.DB.DSN())
+	if err != nil {
+		return fmt.Errorf("open db: %w", err)
+	}
+	defer func() { _ = db.Close() }()
+	db.SetMaxOpenConns(2)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("ping db: %w", err)
+	}
+
+	if args[0] == "--all" {
+		res, err := db.Exec(`UPDATE media_items
+			SET complexity_class = NULL,
+			    complexity_metrics = NULL,
+			    complexity_computed_at = NULL
+			WHERE complexity_class IS NOT NULL`)
+		if err != nil {
+			return fmt.Errorf("reclassify --all: %w", err)
+		}
+		n, _ := res.RowsAffected()
+		fmt.Printf("reclassify: %d media items requeued; worker will pick them up\n", n)
+		return nil
+	}
+	mediaID := args[0]
+	res, err := db.Exec(`UPDATE media_items
+		SET complexity_class = NULL,
+		    complexity_metrics = NULL,
+		    complexity_computed_at = NULL
+		WHERE id = $1`, mediaID)
+	if err != nil {
+		return fmt.Errorf("reclassify %s: %w", mediaID, err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("no media item with id %q", mediaID)
+	}
+	fmt.Printf("reclassify: media %s requeued\n", mediaID)
+	return nil
+}
+
+func adminReclassifyUsage() error {
+	fmt.Fprintf(os.Stderr, `usage: evey admin reclassify <media-id|--all>
+
+  <media-id>        Wipe the complexity row for one item; worker will redo it.
+  --all             Wipe every complexity row; the worker re-classifies the
+                    whole library at its background pace (default ~5 items
+                    per ~25s burst, 15 min idle between bursts).
+`)
+	return fmt.Errorf("admin reclassify: target required")
 }
 

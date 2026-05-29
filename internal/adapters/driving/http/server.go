@@ -93,6 +93,9 @@ type HTTPServer struct {
 	HLSVODOrch    *apptranscoding.SegmentOrchestrator
 	HLSVODCache   *apptranscoding.SegmentCache
 	HLSTranscoder domaintranscoding.HLSProcess
+	// ComplexityRepo drives per-title ABR ladder selection. Nil-safe — the
+	// VOD handler falls back to LadderFilmNormal when unset.
+	ComplexityRepo domaintranscoding.ComplexityRepo
 	// QoESink ingests CMCD telemetry from every segment / master / variant
 	// request. Nil-safe: the VOD handler short-circuits when this is unset.
 	QoESink appqoe.EventSink

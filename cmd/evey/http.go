@@ -75,6 +75,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		HLSTranscoder:  deps.media.hlsTranscoder,
 		QoESink:        deps.media.qoeSink,
 		QoEQuerySvc:    deps.media.qoeQuerySvc,
+		ComplexityRepo: deps.media.complexityRepo,
 
 		MetadataCmdSvc:   deps.content.metadataCmdSvc,
 		MetadataQuerySvc: deps.content.metadataQuerySvc,

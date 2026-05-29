@@ -570,6 +570,24 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	}, slog.Default())
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsVODOrch)
 
+	// Per-title complexity classifier: background worker samples 30 frames
+	// per file, computes YDEV + scenecut metrics, maps to a content class
+	// stored on media_items. profilesForDecision reads it at manifest time
+	// to pick the appropriate ABR ladder. Repo nil-safe across the path —
+	// unclassified items keep getting LadderFilmNormal.
+	complexityRepo := postgres.NewMediaComplexityRepo(db)
+	complexityClassifier := ffmpeg.NewComplexityClassifier("ffmpeg", "ffprobe")
+	complexityWorker := apptranscoding.NewComplexityWorker(
+		complexityRepo,
+		complexityClassifier,
+		mediaItemReaderFunc(func(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
+			return libQuerySvc.GetMediaItem(ctx, string(id))
+		}),
+		apptranscoding.ComplexityWorkerOpts{},
+		slog.Default(),
+	)
+	complexityWorker.Start(ctx)
+
 	// CMCD (CTA-5004) ingest sink. The HTTP handler parses the CMCD query
 	// param on every segment / master / variant fetch and ships an event
 	// here; the buffered worker drains into playback_qoe_events. Phase 1 is
@@ -713,6 +731,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			hlsTranscoder:    hlsTranscoder,
 			qoeSink:          qoeSink,
 			qoeQuerySvc:      qoeQuerySvc,
+			complexityRepo:   complexityRepo,
 			mkvSvc:           mkvSvc,
 			musicSvc:         musicSvc,
 			photoSvc:         photoSvc,

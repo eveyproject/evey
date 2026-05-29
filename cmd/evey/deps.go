@@ -23,6 +23,7 @@ import (
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
@@ -67,8 +68,9 @@ type mediaDeps struct {
 	hlsVODOrch    *apptranscoding.SegmentOrchestrator
 	hlsVODCache   *apptranscoding.SegmentCache
 	hlsTranscoder *ffmpeg.HLSTranscoder
-	qoeSink       appqoe.EventSink
-	qoeQuerySvc   *appqoe.QueryService
+	qoeSink        appqoe.EventSink
+	qoeQuerySvc    *appqoe.QueryService
+	complexityRepo domaintranscoding.ComplexityRepo
 	mkvSvc         *appmkv.Service
 	musicSvc       *appmusic.Service
 	photoSvc        *appphoto.Service
