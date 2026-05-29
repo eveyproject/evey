@@ -18,7 +18,6 @@ import { DownloadButton } from "../playback/DownloadButton";
 import { ShareLinkButton } from "./ShareLinkButton";
 import { FavoriteButton } from "./FavoriteButton";
 import { RatingButtons } from "./RatingButtons";
-import { StarRating } from "./StarRating";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 import { PlaySeriesButton, PlaySeasonButton } from "./MediaDetailSeries";
 import { TrailerSection } from "./MediaDetailTrailer";
@@ -188,7 +187,6 @@ export function MediaDetailActions({
         {item.id && item.filePath && isAdmin && <ShareLinkButton mediaId={item.id} />}
         {item.id && <FavoriteButton mediaId={item.id} size="md" />}
         {item.id && <RatingButtons mediaId={item.id} />}
-        {item.id && <StarRating mediaId={item.id} />}
         {item.id && (
           <Button variant="secondary" onClick={() => setPlaylistModalOpen(true)}>
             <Plus size={16} />

@@ -21,25 +21,6 @@ service RatingService {
     };
   }
 
-  rpc PostStarRating(PostStarRatingRequest) returns (PostStarRatingResponse) {
-    option (google.api.http) = {
-      post: "/api/v1/media/{media_item_id}/rating"
-      body: "*"
-    };
-  }
-
-  rpc GetStarRating(GetStarRatingRequest) returns (GetStarRatingResponse) {
-    option (google.api.http) = {
-      get: "/api/v1/media/{media_item_id}/rating"
-    };
-  }
-
-  rpc DeleteStarRating(DeleteStarRatingRequest) returns (google.protobuf.Empty) {
-    option (google.api.http) = {
-      delete: "/api/v1/media/{media_item_id}/rating"
-    };
-  }
-
   rpc GetRatingAggregate(GetRatingAggregateRequest) returns (GetRatingAggregateResponse) {
     option (google.api.http) = {
       get: "/api/v1/media/{media_item_id}/rating/aggregate"
@@ -62,27 +43,6 @@ message GetMyThumbRatingRequest {
 
 message GetMyThumbRatingResponse {
   int32 value = 1;
-}
-
-message PostStarRatingRequest {
-  string media_item_id = 1;
-  int32 value = 2;
-}
-
-message PostStarRatingResponse {
-  int32 value = 1;
-}
-
-message GetStarRatingRequest {
-  string media_item_id = 1;
-}
-
-message GetStarRatingResponse {
-  int32 value = 1;
-}
-
-message DeleteStarRatingRequest {
-  string media_item_id = 1;
 }
 
 message GetRatingAggregateRequest {

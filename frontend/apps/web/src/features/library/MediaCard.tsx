@@ -8,7 +8,6 @@ import type { V1Artwork } from "@evey/api";
 import { Blurhash } from "react-blurhash";
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
-import { StarRatingBadge } from "./StarRating";
 import { useWatchedMap } from "@/hooks/useWatchedMap";
 import { typeLabel } from "@/utils/typeLabel";
 import { HoverPreview } from "./MediaCardHoverPreview";
@@ -367,8 +366,6 @@ export const MediaCard = memo(function MediaCard({
             <FavoriteButton mediaId={item.id} size="sm" />
           </div>
         ) : null}
-
-        {item.id && !lite && <StarRatingBadge mediaId={item.id} />}
 
         {item.id && (
           <button

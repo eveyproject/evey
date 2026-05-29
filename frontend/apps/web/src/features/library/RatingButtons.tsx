@@ -31,7 +31,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
         title={rating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
         aria-label={rating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
       >
-        <ThumbsUp size={20} />
+        <ThumbsUp size={20} aria-hidden="true" />
       </button>
       <button
         type="button"
@@ -40,7 +40,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
         title={rating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}
         aria-label={rating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}
       >
-        <ThumbsDown size={20} />
+        <ThumbsDown size={20} aria-hidden="true" />
       </button>
     </div>
   );
