@@ -4,7 +4,7 @@
 
 export const KNOWN_FEED_TYPES = [
   "resume_playback",
-  "next_up",
+  "next_episode",
   "collections",
   "recommended",
   "most_popular",
@@ -14,7 +14,7 @@ export type KnownFeedType = (typeof KNOWN_FEED_TYPES)[number];
 
 export const FEED_LABEL_KEYS: Record<KnownFeedType, string> = {
   resume_playback: "common.feeds.labels.resume_playback",
-  next_up: "common.feeds.labels.next_up",
+  next_episode: "common.feeds.labels.next_up",
   collections: "common.feeds.labels.collections",
   recommended: "common.feeds.labels.recommended",
   most_popular: "common.feeds.labels.most_popular",

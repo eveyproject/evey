@@ -4,9 +4,9 @@ import { usePlaybackServiceGetNextUp } from "@evey/api";
 import { MediaSlider } from "./MediaSlider";
 import { MediaCardWithModals as MediaCard } from "../library/MediaCardWithModals";
 
-export const NextUpRow = memo(function NextUpRow() {
+export const NextUpRow = memo(function NextUpRow({ maxItems }: { maxItems?: number } = {}) {
   const { t } = useTranslation();
-  const { data, isLoading } = usePlaybackServiceGetNextUp({ limit: 20 });
+  const { data, isLoading } = usePlaybackServiceGetNextUp({ limit: maxItems ?? 20 });
   const items = data?.items ?? [];
 
   if (!isLoading && items.length === 0) return null;

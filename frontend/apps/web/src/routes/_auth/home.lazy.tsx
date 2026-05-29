@@ -222,11 +222,11 @@ const HeroBanner = memo(function HeroBanner() {
   );
 });
 
-const MusicLibrarySlider = memo(function MusicLibrarySlider({ libraryId, name }: { libraryId: string; name: string }) {
+const MusicLibrarySlider = memo(function MusicLibrarySlider({ libraryId, name, maxItems }: LibrarySliderProps) {
   const accessToken = useAuthStore((s) => s.accessToken);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   const { data, isLoading } = useMusicServiceGetAlbums({ libraryId });
-  const albums = (data?.albums ?? []).slice(0, 20);
+  const albums = (data?.albums ?? []).slice(0, maxItems && maxItems > 0 ? maxItems : 20);
   if (!isLoading && albums.length === 0) return null;
   return (
     <MediaSlider title={name} seeAllHref="/music" isLoading={isLoading}>
@@ -249,11 +249,11 @@ const MusicLibrarySlider = memo(function MusicLibrarySlider({ libraryId, name }:
   );
 });
 
-const PhotoLibrarySlider = memo(function PhotoLibrarySlider({ libraryId, name }: { libraryId: string; name: string }) {
+const PhotoLibrarySlider = memo(function PhotoLibrarySlider({ libraryId, name, maxItems }: LibrarySliderProps) {
   const accessToken = useAuthStore((s) => s.accessToken);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   const { data, isLoading } = usePhotoServiceListPhotoAlbums({ libraryId });
-  const albums = (data?.albums ?? []).slice(0, 20);
+  const albums = (data?.albums ?? []).slice(0, maxItems && maxItems > 0 ? maxItems : 20);
   if (!isLoading && albums.length === 0) return null;
   return (
     <MediaSlider title={name} seeAllHref="/photos" isLoading={isLoading}>
@@ -271,13 +271,20 @@ const PhotoLibrarySlider = memo(function PhotoLibrarySlider({ libraryId, name }:
   );
 });
 
-const LibrarySlider = memo(function LibrarySlider({ libraryId, name, libraryType }: { libraryId: string; name: string; libraryType?: string }) {
-  if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicLibrarySlider libraryId={libraryId} name={name} />;
-  if (libraryType === "LIBRARY_TYPE_PHOTOS") return <PhotoLibrarySlider libraryId={libraryId} name={name} />;
-  return <MediaItemsLibrarySlider libraryId={libraryId} name={name} libraryType={libraryType} />;
+interface LibrarySliderProps {
+  libraryId: string;
+  name: string;
+  libraryType?: string;
+  maxItems?: number;
+}
+
+const LibrarySlider = memo(function LibrarySlider({ libraryId, name, libraryType, maxItems }: LibrarySliderProps) {
+  if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicLibrarySlider libraryId={libraryId} name={name} maxItems={maxItems} />;
+  if (libraryType === "LIBRARY_TYPE_PHOTOS") return <PhotoLibrarySlider libraryId={libraryId} name={name} maxItems={maxItems} />;
+  return <MediaItemsLibrarySlider libraryId={libraryId} name={name} libraryType={libraryType} maxItems={maxItems} />;
 });
 
-const MediaItemsLibrarySlider = memo(function MediaItemsLibrarySlider({ libraryId, name, libraryType }: { libraryId: string; name: string; libraryType?: string }) {
+const MediaItemsLibrarySlider = memo(function MediaItemsLibrarySlider({ libraryId, name, libraryType, maxItems }: LibrarySliderProps) {
   const typeFilter = libraryType === "LIBRARY_TYPE_SHOWS"
     ? "MEDIA_ITEM_TYPE_SERIES"
     : libraryType === "LIBRARY_TYPE_MOVIES"
@@ -287,10 +294,14 @@ const MediaItemsLibrarySlider = memo(function MediaItemsLibrarySlider({ libraryI
   // state (that would change the lib page semantics), but home sliders
   // should hide items the active profile has marked watched. Pull a wider
   // window so the visible row stays full after watched items are filtered.
+  // The fetched window scales with maxItems so admin can ask for more
+  // than the 20 baseline without coming up short after watched-filter.
+  const visibleTarget = maxItems && maxItems > 0 ? maxItems : 20;
+  const fetchPageSize = Math.max(40, visibleTarget * 2);
   const { data, isLoading } = useLibraryServiceListMediaItems({
     libraryId,
     ...(typeFilter ? { type: typeFilter as never } : {}),
-    "pagination.pageSize": 40,
+    "pagination.pageSize": fetchPageSize,
     sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
     sortOrder: "SORT_ORDER_DESC",
   });
@@ -298,8 +309,8 @@ const MediaItemsLibrarySlider = memo(function MediaItemsLibrarySlider({ libraryI
   const watchedMap = useWatchedMap();
   const items = useMemo(() => {
     const all = data?.items ?? [];
-    return all.filter((it) => !it.id || !watchedMap.get(it.id)).slice(0, 20);
-  }, [data, watchedMap]);
+    return all.filter((it) => !it.id || !watchedMap.get(it.id)).slice(0, visibleTarget);
+  }, [data, watchedMap, visibleTarget]);
   if (!isLoading && items.length === 0) return null;
 
   return (
@@ -311,9 +322,9 @@ const MediaItemsLibrarySlider = memo(function MediaItemsLibrarySlider({ libraryI
   );
 });
 
-const ResumePlaybackSlider = memo(function ResumePlaybackSlider() {
+const ResumePlaybackSlider = memo(function ResumePlaybackSlider({ maxItems }: SectionProps) {
   const { t } = useTranslation();
-  const { data, isLoading } = useFeedServiceResumePlayback();
+  const { data, isLoading } = useFeedServiceResumePlayback({ limit: maxItems });
   const items = data?.items ?? [];
   if (!isLoading && items.length === 0) return null;
 
@@ -340,9 +351,9 @@ const ResumePlaybackSlider = memo(function ResumePlaybackSlider() {
   );
 });
 
-const MostPopularSlider = memo(function MostPopularSlider() {
+const MostPopularSlider = memo(function MostPopularSlider({ maxItems }: SectionProps) {
   const { t } = useTranslation();
-  const { data, isLoading } = useMostPopular(20);
+  const { data, isLoading } = useMostPopular(maxItems ?? 20);
   const items = data ?? [];
   if (!isLoading && items.length === 0) return null;
 
@@ -360,9 +371,9 @@ const MostPopularSlider = memo(function MostPopularSlider() {
   );
 });
 
-const RecommendedSlider = memo(function RecommendedSlider() {
+const RecommendedSlider = memo(function RecommendedSlider({ maxItems }: SectionProps) {
   const { t } = useTranslation();
-  const { data, isLoading } = useFeedServiceRecommended({ limit: 20 });
+  const { data, isLoading } = useFeedServiceRecommended({ limit: maxItems ?? 20 });
   const items = data?.items ?? [];
   if (!isLoading && items.length === 0) return null;
 
@@ -381,10 +392,13 @@ const RecommendedSlider = memo(function RecommendedSlider() {
   );
 });
 
-const CollectionsSection = memo(function CollectionsSection() {
+const CollectionsSection = memo(function CollectionsSection({ maxItems }: SectionProps) {
   const { t } = useTranslation();
   const { data, isLoading } = useCollections();
-  const collections = data?.collections ?? [];
+  const collections = useMemo(() => {
+    const all = data?.collections ?? [];
+    return maxItems ? all.slice(0, maxItems) : all;
+  }, [data, maxItems]);
   if (!isLoading && collections.length === 0) return null;
 
   return (
@@ -396,9 +410,14 @@ const CollectionsSection = memo(function CollectionsSection() {
   );
 });
 
-const SECTION_REGISTRY: Record<string, FC> = {
+// Each home section accepts an optional `maxItems` overriding its default —
+// driven by the merged feed config (admin default + profile override).
+// Falsy = "use the slider's own default" so we don't accidentally fetch 0.
+type SectionProps = { maxItems?: number };
+
+const SECTION_REGISTRY: Record<string, FC<SectionProps>> = {
   resume_playback: ResumePlaybackSlider,
-  next_up: NextUpRow,
+  next_episode: NextUpRow,
   collections: CollectionsSection,
   recommended: RecommendedSlider,
   most_popular: MostPopularSlider,
@@ -406,7 +425,7 @@ const SECTION_REGISTRY: Record<string, FC> = {
 
 // Keep in sync with KNOWN_FEED_TYPES in features/home/feedTypes.ts.
 const FALLBACK_ORDER = [
-  "resume_playback", "next_up", "collections",
+  "resume_playback", "next_episode", "collections",
   "recommended", "most_popular",
 ];
 
@@ -429,7 +448,7 @@ function HomePage() {
   const allSections = useMemo(() => {
     const configs = feedConfig?.configs;
     if (!configs || configs.length === 0 || feedConfigError) {
-      return FALLBACK_ORDER.map((ft, i) => ({ feedType: ft, enabled: true, displayOrder: i }));
+      return FALLBACK_ORDER.map((ft, i) => ({ feedType: ft, enabled: true, displayOrder: i, maxItems: undefined as number | undefined }));
     }
     return [...configs].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
   }, [feedConfig, feedConfigError]);
@@ -483,11 +502,12 @@ function HomePage() {
             <PluginSlot name="home.section" excludeRegistered={excludeRegisteredPluginIDs} />
             {sections.map((cfg) => {
               const ft = cfg.feedType ?? "";
+              const max = cfg.maxItems && cfg.maxItems > 0 ? cfg.maxItems : undefined;
               if (ft.startsWith("library:")) {
                 const libId = ft.replace("library:", "");
                 const lib = libraries.find((l) => l.id === libId);
                 return lib ? (
-                  <LibrarySlider key={ft} libraryId={libId} name={lib.name ?? t("media.home.library")} libraryType={lib.type} />
+                  <LibrarySlider key={ft} libraryId={libId} name={lib.name ?? t("media.home.library")} libraryType={lib.type} maxItems={max} />
                 ) : null;
               }
               if (ft.startsWith("plugin:")) {
@@ -498,7 +518,7 @@ function HomePage() {
                 return <PluginSlot key={ft} name="home.section" pluginId={pluginId} />;
               }
               const Component = SECTION_REGISTRY[ft];
-              return Component ? <Component key={ft} /> : null;
+              return Component ? <Component key={ft} maxItems={max} /> : null;
             })}
 
             {libraries

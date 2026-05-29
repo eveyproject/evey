@@ -196,6 +196,9 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 
 @utility scrollbar-none {
   scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 @utility scrollbar-thin {
   scrollbar-width: thin;
