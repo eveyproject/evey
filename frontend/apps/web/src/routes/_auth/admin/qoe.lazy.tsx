@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Gauge, AlertTriangle, Users, Film } from "lucide-react";
 import { eveyFetch } from "@evey/api";
@@ -55,8 +55,14 @@ function useQoEDashboard(window: Window) {
         url: `/api/v1/admin/qoe/dashboard?window=${window}`,
         method: "GET",
       }),
-    staleTime: 30_000,
+    // Refetch on every window toggle: 24h and 7d use separate React Query
+    // caches, and a 30s staleTime made one of them go stale while the other
+    // was the fresh focused view — you'd see 24h > 7d which is
+    // mathematically impossible. keepPreviousData avoids a loading flash
+    // during the refetch.
+    staleTime: 0,
     refetchInterval: 60_000,
+    placeholderData: keepPreviousData,
   });
 }
 
