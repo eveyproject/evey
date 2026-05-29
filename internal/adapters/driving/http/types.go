@@ -71,6 +71,11 @@ type MediaArchiveSource interface {
 type MediaStreamsGetter interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
+	// NextEpisodeOf resolves the next episode in the same series — same
+	// season's next index, or first ep of the next season. nil + nil err
+	// when current is the series finale. Consumed by the predictive
+	// warm-up endpoint.
+	NextEpisodeOf(ctx context.Context, episodeID string) (*domainlibrary.MediaItem, error)
 }
 
 // ChaptersGetter retrieves chapters for a media item.

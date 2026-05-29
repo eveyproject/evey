@@ -73,6 +73,10 @@ func (f *fakeMediaStreamsGetter) GetMediaStreams(_ context.Context, _ string) ([
 	return f.streams, f.sErr
 }
 
+func (f *fakeMediaStreamsGetter) NextEpisodeOf(_ context.Context, _ string) (*domainlibrary.MediaItem, error) {
+	return nil, nil
+}
+
 type fakeRemoteAccessStore struct {
 	data map[string]string
 }

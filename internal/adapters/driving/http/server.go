@@ -291,6 +291,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// Single catch-all — the handler dispatches on the {file} pattern
 			// (master.m3u8 / stream_N.m3u8 / stream_N_NNN.ext / stream_N_init.mp4).
 			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(vodHandler.serveHTTP))
+			// Predictive warm-up: the player POSTs at ~85% progress of an
+			// episode so the next ep's transcode is pre-spawned and the
+			// autoplay handoff feels instant. Auth-required (logged-in user
+			// only) but no body — the URL identifies the *current* media.
+			mux.HandleFunc("POST /api/v1/media/{id}/prewarm-next", auth(vodHandler.servePrewarmNext))
 		}
 	}
 	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.TokenGen, s.LibQuerySvc, NewLibraryItemCounter(s.LibQuerySvc, s.MusicSvc, s.PhotoSvc))))

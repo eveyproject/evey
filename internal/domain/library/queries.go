@@ -33,6 +33,13 @@ type MediaItemQueryRepo interface {
 	// GetCastForItems fetches cast for multiple media items in one query (batch to avoid N+1).
 	GetCastForItems(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]CastMember, error)
 	SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (SeriesAggregate, error)
+	// NextEpisodeOf returns the next episode in the same series as the
+	// given episode (next in same season, or first of next season if
+	// current is the last of its season). Returns nil with no error when
+	// the episode is the series finale. Used by the predictive warm-up
+	// path: when the player is ~85% through an episode, we pre-spawn the
+	// next one's transcode so the autoplay handoff is instant.
+	NextEpisodeOf(ctx context.Context, episodeID shared.MediaItemID) (*MediaItem, error)
 	// ListGenres returns the distinct, sorted genres present across a library's
 	// media — the full set, not a sample of loaded items.
 	ListGenres(ctx context.Context, libraryID shared.LibraryID) ([]string, error)

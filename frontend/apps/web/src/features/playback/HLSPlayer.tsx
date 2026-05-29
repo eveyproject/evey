@@ -509,7 +509,7 @@ export function HLSPlayer({
           </div>
         </div>
       )}
-      <ProgressReporter sessionId={sessionId} videoRef={videoRef} transcodeOffsetRef={transcodeOffsetRef} onRemoteStop={onClose} />
+      <ProgressReporter sessionId={sessionId} videoRef={videoRef} transcodeOffsetRef={transcodeOffsetRef} mediaId={mediaId} mediaType={mediaType} onRemoteStop={onClose} />
       <AutoMarkWatched
         mediaId={mediaId}
         videoRef={videoRef}

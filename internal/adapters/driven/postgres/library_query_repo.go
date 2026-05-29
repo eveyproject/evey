@@ -257,4 +257,63 @@ func (r *MediaItemQueryRepoAdapter) SeriesAggregate(ctx context.Context, seriesI
 	return agg, nil
 }
 
+// NextEpisodeOf returns the next episode in the same series as the given
+// episode. Walks: same season + index_number > current, else first episode
+// of the next season. Nil + no error when the current episode is the
+// series finale.
+//
+// Used by the predictive warm-up path — pre-spawn the next episode's
+// transcode at ~85 % progress so the autoplay handoff is instant.
+func (r *MediaItemQueryRepoAdapter) NextEpisodeOf(ctx context.Context, episodeID shared.MediaItemID) (*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media.NextEpisodeOf")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	// CTE: resolve current episode → season → series, then pick the
+	// next episode (same season first, else first ep of the next season).
+	const q = `
+		WITH cur AS (
+			SELECT mi.id, mi.parent_id AS season_id, mi.index_number AS episode_idx,
+			       sea.parent_id AS series_id, sea.index_number AS season_idx
+			FROM media_items mi
+			INNER JOIN media_items sea ON sea.id = mi.parent_id
+			WHERE mi.id = $1 AND mi.type = 'episode' AND mi.index_number IS NOT NULL
+		),
+		same_season AS (
+			SELECT mi.id, 0 AS rank, mi.index_number AS idx
+			FROM media_items mi, cur
+			WHERE mi.parent_id = cur.season_id
+			  AND mi.type = 'episode'
+			  AND mi.index_number IS NOT NULL
+			  AND mi.index_number > cur.episode_idx
+			ORDER BY mi.index_number ASC
+			LIMIT 1
+		),
+		next_season AS (
+			SELECT mi.id, 1 AS rank, mi.index_number AS idx
+			FROM media_items sea
+			INNER JOIN media_items mi ON mi.parent_id = sea.id AND mi.type = 'episode'
+			INNER JOIN cur ON sea.parent_id = cur.series_id
+			WHERE sea.type = 'season'
+			  AND sea.index_number IS NOT NULL
+			  AND sea.index_number > cur.season_idx
+			  AND mi.index_number IS NOT NULL
+			ORDER BY sea.index_number ASC, mi.index_number ASC
+			LIMIT 1
+		)
+		SELECT id FROM (SELECT id, rank FROM same_season UNION ALL SELECT id, rank FROM next_season) c
+		ORDER BY rank ASC LIMIT 1`
+	var nextID string
+	if err := r.db.QueryRowContext(ctx, q, string(episodeID)).Scan(&nextID); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return r.GetByID(ctx, shared.MediaItemID(nextID))
+}
+
 var _ library.MediaItemQueryRepo = (*MediaItemQueryRepoAdapter)(nil)

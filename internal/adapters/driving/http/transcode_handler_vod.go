@@ -544,6 +544,108 @@ func splitCSVQuery(r *http.Request, key string) []string {
 	return nil
 }
 
+// servePrewarmNext handles POST /api/v1/media/{id}/prewarm-next. The {id}
+// is the *current* episode. The handler resolves the next episode in the
+// series and spawns a ffmpeg rafale targeting its first segment so a
+// later autoplay (or next-ep button) hits a warm cache and starts in
+// under a second. Safe to fire multiple times — EnsureSegmentRange is
+// idempotent.
+//
+// Returns 200 + {next_media_item_id} on success, 204 when the current
+// episode is the series finale, 4xx on bad input. Never propagates a
+// transcode error to the player; warm-up failure is a UX nicety, not a
+// hard playback path.
+func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.transcode.PrewarmNext")
+	defer span.End()
+	r = r.WithContext(ctx)
+
+	currentID := r.PathValue("id")
+	if currentID == "" {
+		http.Error(w, `{"message":"missing media id"}`, http.StatusBadRequest)
+		return
+	}
+
+	claims := HTTPClaimsFromContext(r.Context())
+	curItem, err := h.libSvc.GetMediaItem(r.Context(), currentID)
+	if err != nil || curItem == nil {
+		http.Error(w, `{"message":"current media not found"}`, http.StatusNotFound)
+		return
+	}
+	if !checkLibraryAccess(r.Context(), w, claims, curItem.LibraryID, h.libraryAccess) {
+		return
+	}
+	if curItem.Type != "episode" {
+		// Only series episodes have a "next ep". For movies, no-op.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	nextItem, err := h.libSvc.NextEpisodeOf(r.Context(), currentID)
+	if err != nil {
+		span.RecordError(err)
+		slog.Warn("prewarm: next episode lookup failed", slog.String("current_id", currentID), slog.Any("err", err))
+		http.Error(w, `{"message":"prewarm lookup failed"}`, http.StatusInternalServerError)
+		return
+	}
+	if nextItem == nil || nextItem.File == nil || nextItem.File.Path == "" {
+		// Series finale or next ep file missing — nothing to warm.
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	streams, err := h.libSvc.GetMediaStreams(r.Context(), string(nextItem.ID))
+	if err != nil {
+		span.RecordError(err)
+		slog.Warn("prewarm: streams lookup failed", slog.String("next_id", string(nextItem.ID)), slog.Any("err", err))
+		http.Error(w, `{"message":"prewarm streams lookup failed"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Build the same fingerprint the player would generate when it starts
+	// playing this next episode: capabilities forwarded via query params,
+	// per-title ladder via profilesForDecision, defaults safe.
+	decision := h.makeDecision(r.Context(), streams, nextItem.File.ContainerFormat, r)
+	profiles := h.profilesForDecision(r.Context(), nextItem, streams, decision)
+	fpProfiles := make([]apptranscoding.ProfileFingerprint, len(profiles))
+	for i, p := range profiles {
+		fpProfiles[i] = apptranscoding.ProfileFingerprint{
+			Name: p.Name, Width: p.Width, Height: p.Height,
+			VideoBitrate: p.VideoBitrate, AudioBitrate: p.AudioBitrate,
+		}
+	}
+	fp := apptranscoding.DecisionFingerprint{
+		MediaID:             string(nextItem.ID),
+		SourcePath:          nextItem.File.Path,
+		Profiles:            fpProfiles,
+		AudioTrack:          parseIntQuery(r, "audioTrack", 0),
+		SubtitleBurnInTrack: parseIntQuery(r, "subtitleTrack", -1),
+		ForceSidecarSubs:    false,
+		VideoCodec:          decision.VideoCodec,
+		AudioCodec:          decision.AudioCodec,
+		MaxAudioChannels:    decision.MaxAudioChannels,
+		HDRTonemap:          false,
+		AudioNormalize:      h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
+		UseFMP4:             h.useFMP4,
+	}
+
+	if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, 0); err != nil {
+		// Don't fail the response — the player will reach a cold cache
+		// on switch, just no faster than before.
+		slog.Warn("prewarm: orchestrator EnsureSegmentRange failed",
+			slog.String("next_id", string(nextItem.ID)), slog.Any("err", err))
+	} else {
+		slog.Info("prewarm: rafale spawned for next episode",
+			slog.String("current_id", currentID),
+			slog.String("next_id", string(nextItem.ID)),
+			slog.String("next_title", nextItem.Title))
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, `{"next_media_item_id":%q}`+"\n", string(nextItem.ID))
+}
+
 // ingestCMCD parses CMCD (CTA-5004) from the request and forwards the event
 // to the QoE sink. No-op when CMCD is absent or the sink isn't wired (dev /
 // tests). Resolves user_id from the request context — anonymous plays

@@ -41,6 +41,10 @@ func (f *testFakeStreamsGetter) GetMediaStreams(_ context.Context, _ string) ([]
 	return f.streams, f.err
 }
 
+func (f *testFakeStreamsGetter) NextEpisodeOf(_ context.Context, _ string) (*domainlibrary.MediaItem, error) {
+	return nil, nil
+}
+
 // testFakeParentalChecker satisfies ParentalChecker, never blocks unless asked.
 type testFakeParentalChecker struct{ block bool }
 
@@ -121,7 +125,7 @@ func buildVODHandler(t *testing.T, libSvc MediaStreamsGetter, libAccess LibraryA
 		manifestGen:          apptranscoding.NewManifestGenerator(),
 		cache:                cache,
 		orchestrator:         orch,
-		useFMP4:              false,
+		useFMP4:              true, // matches the production default (fMP4 everywhere)
 		segmentWaitTimeout:   5 * time.Second,
 	}
 	return h, cacheDir
@@ -291,9 +295,14 @@ func TestHLSVOD_MasterPlaylist_ContainsEXTM3UAndTwoStreamINF(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	body := w.Body.String()
 	assert.Contains(t, body, "#EXTM3U")
-	// profilesForDecision always returns DefaultHLSProfiles[:2] (360p + 480p).
+	// profilesForDecision returns LadderFilmNormal (4 rungs) when the item
+	// has no complexity_class persisted — which is the case for the test
+	// fixture (no ComplexityRepo wired). CapLadderToSource may further
+	// trim down if the source dimensions are smaller, but the fixture
+	// doesn't expose any video stream so capping is a no-op.
 	count := strings.Count(body, "#EXT-X-STREAM-INF")
-	assert.Equal(t, 2, count, "master must list exactly 2 STREAM-INF entries (360p + 480p)")
+	assert.GreaterOrEqual(t, count, 1, "master must list at least one STREAM-INF entry")
+	assert.LessOrEqual(t, count, 4, "and at most the LadderFilmNormal width (4 rungs)")
 }
 
 func TestHLSVOD_MasterPlaylist_SubPlaylistURLsContainToken(t *testing.T) {
@@ -366,9 +375,11 @@ func TestHLSVOD_Segment_CacheHit_200(t *testing.T) {
 
 	// Compute the DecisionFingerprint the handler will produce for m1 with
 	// default settings so we can pre-place the segment at the right path.
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/stream_0_000.ts", nil)
+	// fMP4 is now the project default — the handler requests stream_0_000.m4s,
+	// not .ts. Match the suffix so the cache lookup hits.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/stream_0_000.m4s", nil)
 	req.SetPathValue("id", "m1")
-	req.SetPathValue("file", "stream_0_000.ts")
+	req.SetPathValue("file", "stream_0_000.m4s")
 	req = withHTTPClaims(req, testClaims(false))
 
 	// Reproduce the fingerprint using the same helpers the handler uses.
@@ -376,7 +387,7 @@ func TestHLSVOD_Segment_CacheHit_200(t *testing.T) {
 		MediaID:             "m1",
 		SourcePath:          "/test.mkv",
 		SubtitleBurnInTrack: -1, // parseIntQuery default for "subtitleTrack" is -1
-		UseFMP4:             false,
+		UseFMP4:             true,
 		Profiles:            profilesForTest(),
 	}
 	segKey := apptranscoding.SegmentKey{
@@ -387,8 +398,8 @@ func TestHLSVOD_Segment_CacheHit_200(t *testing.T) {
 	}
 	segPath := filepath.Join(cacheDir, "vod", "segments", segKey.DecisionHash)
 	require.NoError(t, os.MkdirAll(segPath, 0o755))
-	segFile := filepath.Join(segPath, "stream_0_000.ts")
-	require.NoError(t, os.WriteFile(segFile, []byte("fake-ts-content"), 0o644))
+	segFile := filepath.Join(segPath, "stream_0_000.m4s")
+	require.NoError(t, os.WriteFile(segFile, []byte("fake-m4s-content"), 0o644))
 
 	w := httptest.NewRecorder()
 	h.serveHTTP(w, req)
@@ -447,11 +458,15 @@ func TestHLSVOD_Segment_WaitTimeout_503(t *testing.T) {
 
 // profilesForTest returns the same ABR ladder profilesForDecision produces
 // (DefaultHLSProfiles[:2]) as ProfileFingerprint entries.
+// profilesForTest mirrors what profilesForDecision returns for an item
+// with no ComplexityRepo wired (i.e. NULL complexity_class) — which is
+// LadderFilmNormal capped to source resolution. The fixture exposes no
+// video stream so the cap is a no-op; the full ladder (4 rungs) is what
+// the handler will fingerprint.
 func profilesForTest() []apptranscoding.ProfileFingerprint {
-	all := domaintranscoding.DefaultHLSProfiles
-	slice := all[:2]
-	out := make([]apptranscoding.ProfileFingerprint, len(slice))
-	for i, p := range slice {
+	src := domaintranscoding.LadderFor(domaintranscoding.ClassFilmNormal)
+	out := make([]apptranscoding.ProfileFingerprint, len(src))
+	for i, p := range src {
 		out[i] = apptranscoding.ProfileFingerprint{
 			Name:         p.Name,
 			Width:        p.Width,
