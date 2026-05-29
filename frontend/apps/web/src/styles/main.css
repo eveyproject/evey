@@ -195,9 +195,12 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 }
 
 @utility scrollbar-none {
-  scrollbar-width: none;
+  /* `!important` overrides the universal `* { scrollbar-width: thin }`
+     rule above; without it, scrollbar-none is silently ignored on
+     Firefox + Chromium-based browsers. */
+  scrollbar-width: none !important;
   &::-webkit-scrollbar {
-    display: none;
+    display: none !important;
   }
 }
 @utility scrollbar-thin {
