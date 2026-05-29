@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,7 +11,22 @@ import (
 )
 
 func TestLoad_Defaults(t *testing.T) {
-	t.Parallel()
+	// Can't run in parallel — we mutate the process env. The dev container
+	// pre-sets EVEY_SMTP_*, EVEY_DB_* etc., which would otherwise leak
+	// into defaults and break the asserts.
+	for _, e := range os.Environ() {
+		i := strings.Index(e, "=")
+		if i <= 0 {
+			continue
+		}
+		name := e[:i]
+		if strings.HasPrefix(name, "EVEY_") ||
+			strings.HasPrefix(name, "MEILI_") ||
+			strings.HasPrefix(name, "VAPID_") {
+			t.Setenv(name, "")
+			os.Unsetenv(name)
+		}
+	}
 	cfg, err := Load()
 	require.NoError(t, err)
 

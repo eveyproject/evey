@@ -440,6 +440,13 @@ func applyCursor(items []*library.MediaItem, sortKey string, c shared.Cursor, de
 	return nil
 }
 
+// NextEpisodeOf is a tests-only stub. The predictive next-episode warm-up
+// is exercised by the postgres repo + http handler tests; this fake just
+// satisfies the interface so unrelated handler tests compile.
+func (r *FakeMediaItemQueryRepo) NextEpisodeOf(_ context.Context, _ shared.MediaItemID) (*library.MediaItem, error) {
+	return nil, nil
+}
+
 // Seed adds items for testing.
 func (r *FakeMediaItemQueryRepo) Seed(item *library.MediaItem) {
 	r.mu.Lock()

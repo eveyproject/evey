@@ -19,27 +19,8 @@ func mustRatingValue(v int) rating.RatingValue {
 	return rv
 }
 
-// DeleteStarRating success path deletes the profile's rating.
-func TestRatingHandler_DeleteStarRating_Success(t *testing.T) {
-	t.Parallel()
-	f := newRatingFixture()
-	f.mediaItems.Seed(&library.MediaItem{ID: "m1", LibraryID: "lib-1"})
-	_ = f.starRepo.Upsert(context.Background(), rating.Rating{
-		MediaItemID: "m1", ProfileID: "profile-1", Value: mustRatingValue(5),
-	})
-
-	ctx := ctxWithClaims("user-1", "profile-1", false)
-	_, err := f.handler.DeleteStarRating(ctx, &eveyv1.DeleteStarRatingRequest{MediaItemId: "m1"})
-	require.NoError(t, err)
-}
-
-// DeleteStarRating without auth returns an error.
-func TestRatingHandler_DeleteStarRating_Unauthenticated(t *testing.T) {
-	t.Parallel()
-	f := newRatingFixture()
-	_, err := f.handler.DeleteStarRating(context.Background(), &eveyv1.DeleteStarRatingRequest{MediaItemId: "m1"})
-	require.Error(t, err)
-}
+// (Star rating RPC was removed when we ripped the star UI — only thumbs
+// up/down remain. Aggregate read still serves /admin and series detail.)
 
 // GetRatingAggregate returns the average/count for a media item.
 func TestRatingHandler_GetRatingAggregate_Success(t *testing.T) {

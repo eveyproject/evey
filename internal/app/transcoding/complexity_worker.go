@@ -200,7 +200,7 @@ func (w *ComplexityWorker) classifyOne(ctx context.Context, mediaItemID string) 
 		slog.String("media_id", mediaItemID),
 		slog.String("title", item.Title),
 		slog.String("class", string(class)),
-		slog.Float64("ydev_mean", metrics.YDEVMean),
+		slog.Float64("motion_mean", metrics.MotionMean),
 		slog.Float64("scenecuts_per_min", metrics.ScenecutsPerMinute),
 		slog.Int64("src_bitrate_kbps", metrics.SourceBitrateKbps),
 		slog.Int("frames_sampled", metrics.FramesSampled))

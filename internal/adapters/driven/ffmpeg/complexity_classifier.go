@@ -104,8 +104,8 @@ func (c *ComplexityClassifier) Classify(ctx context.Context, filePath string, du
 		endSec = durationSec
 	}
 
-	var totalYDEVSum float64
-	var totalYDEVN, totalCuts int
+	var totalMotionSum float64
+	var totalMotionN, totalCuts int
 
 	runCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
@@ -121,17 +121,17 @@ func (c *ComplexityClassifier) Classify(ctx context.Context, filePath string, du
 			ratio = 0.5
 		}
 		seek := startSec + ratio*(endSec-startSec)
-		ydevSum, ydevN, cuts := c.sampleAt(runCtx, filePath, seek)
-		totalYDEVSum += ydevSum
-		totalYDEVN += ydevN
+		motionSum, motionN, cuts := c.sampleAt(runCtx, filePath, seek)
+		totalMotionSum += motionSum
+		totalMotionN += motionN
 		totalCuts += cuts
 	}
 
-	metrics.FramesSampled = totalYDEVN
-	if totalYDEVN > 0 {
-		metrics.YDEVMean = totalYDEVSum / float64(totalYDEVN)
+	metrics.FramesSampled = totalMotionN
+	if totalMotionN > 0 {
+		metrics.MotionMean = totalMotionSum / float64(totalMotionN)
 	}
-	if durationSec > 0 && totalYDEVN > 0 {
+	if durationSec > 0 && totalMotionN > 0 {
 		// Cuts observed across the ~sample-second bursts, scaled to "per
 		// minute" assuming the bursts are representative of the whole
 		// film. Coarse but enough to bucket animation vs sport.
@@ -215,14 +215,18 @@ func (c *ComplexityClassifier) probeSource(ctx context.Context, filePath string)
 //
 // Best-effort: garbled output yields a partial parse with low FramesSampled
 // rather than crashing.
-var ydevRE = regexp.MustCompile(`lavfi\.signalstats\.YDEV=([0-9]+\.?[0-9]*)`)
+// signalstats emits YDIF (frame-to-frame Y delta) + YAVG / YMIN / YHIGH —
+// no YDEV. The earlier regex grepped for YDEV and silently never matched,
+// which is why every classification came back with frames_sampled=0
+// before this fix.
+var ydifRE = regexp.MustCompile(`lavfi\.signalstats\.YDIF=([0-9]+\.?[0-9]*)`)
 var sceneRE = regexp.MustCompile(`lavfi\.scd\.score=([0-9]+\.?[0-9]*)`)
 
-func parseSignalStats(text string) (ydevSum float64, ydevN int, sceneCuts int) {
-	for _, m := range ydevRE.FindAllStringSubmatch(text, -1) {
+func parseSignalStats(text string) (motionSum float64, frameCount int, sceneCuts int) {
+	for _, m := range ydifRE.FindAllStringSubmatch(text, -1) {
 		if v, err := strconv.ParseFloat(m[1], 64); err == nil {
-			ydevSum += v
-			ydevN++
+			motionSum += v
+			frameCount++
 		}
 	}
 	for _, m := range sceneRE.FindAllStringSubmatch(text, -1) {

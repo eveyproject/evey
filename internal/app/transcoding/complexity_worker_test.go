@@ -100,7 +100,7 @@ func TestComplexityWorker_ProcessesBatchAndPersists(t *testing.T) {
 	const id = "media-1"
 	repo := &fakeComplexityRepo{unclassified: []string{id}}
 	classifier := &fakeClassifier{out: domaintranscoding.ComplexityMetrics{
-		YDEVMean: 18, ScenecutsPerMinute: 3, SourceBitrateKbps: 2000, SourceHeight: 1080,
+		MotionMean: 1.0, ScenecutsPerMinute: 3, SourceBitrateKbps: 2000, SourceHeight: 1080,
 		FramesSampled: 30,
 	}}
 	reader := &fakeMediaReader{items: map[string]*domainlibrary.MediaItem{

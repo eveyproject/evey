@@ -169,16 +169,8 @@ func TestPutThumbRating_MissingMediaWinsOverInvalidValue(t *testing.T) {
 	assert.Equal(t, codes.NotFound, st.Code())
 }
 
-func TestPostStarRating_MissingMediaWinsOverInvalidValue(t *testing.T) {
-	t.Parallel()
-	f := newRatingFixture()
-	ctx := authedCtx("u1", "p1", true)
-
-	_, err := f.handler.PostStarRating(ctx, &eveyv1.PostStarRatingRequest{MediaItemId: "missing", Value: 0})
-	require.Error(t, err)
-	st, _ := status.FromError(err)
-	assert.Equal(t, codes.NotFound, st.Code())
-}
+// (PostStarRating/GetStarRating RPCs were removed when the star UI was
+// ripped. Tests deleted; only thumbs up/down remain — covered above.)
 
 // --- GetMyThumbRating ---
 
@@ -206,45 +198,6 @@ func TestGetMyThumbRating_NotFound(t *testing.T) {
 	assert.Equal(t, int32(0), resp.Value)
 }
 
-// --- PostStarRating ---
-
-func TestPostStarRating_Success(t *testing.T) {
-	t.Parallel()
-	f := newRatingFixture()
-	f.seedMedia("m1", "lib1")
-	ctx := authedCtx("u1", "p1", true)
-
-	resp, err := f.handler.PostStarRating(ctx, &eveyv1.PostStarRatingRequest{MediaItemId: "m1", Value: 7})
-	require.NoError(t, err)
-	assert.Equal(t, int32(7), resp.Value)
-}
-
-// --- GetStarRating ---
-
-func TestGetStarRating_Success(t *testing.T) {
-	t.Parallel()
-	f := newRatingFixture()
-	f.seedMedia("m1", "lib1")
-	ctx := authedCtx("u1", "p1", true)
-
-	_, _ = f.handler.PostStarRating(ctx, &eveyv1.PostStarRatingRequest{MediaItemId: "m1", Value: 8})
-
-	resp, err := f.handler.GetStarRating(ctx, &eveyv1.GetStarRatingRequest{MediaItemId: "m1"})
-	require.NoError(t, err)
-	assert.Equal(t, int32(8), resp.Value)
-}
-
-func TestGetStarRating_NotFound(t *testing.T) {
-	t.Parallel()
-	f := newRatingFixture()
-	f.seedMedia("m1", "lib1")
-	ctx := authedCtx("u1", "p1", true)
-
-	resp, err := f.handler.GetStarRating(ctx, &eveyv1.GetStarRatingRequest{MediaItemId: "m1"})
-	require.NoError(t, err)
-	assert.Equal(t, int32(0), resp.Value)
-}
-
 // --- IDOR: non-admin without library access ---
 
 func TestPutThumbRating_IDOR_NoAccess(t *testing.T) {
@@ -256,19 +209,6 @@ func TestPutThumbRating_IDOR_NoAccess(t *testing.T) {
 	ctx := authedCtx("u1", "p1", false)
 
 	_, err := f.handler.PutThumbRating(ctx, &eveyv1.PutThumbRatingRequest{MediaItemId: "m1", Value: 1})
-	require.Error(t, err)
-	st, _ := status.FromError(err)
-	assert.Equal(t, codes.NotFound, st.Code())
-}
-
-func TestPostStarRating_IDOR_NoAccess(t *testing.T) {
-	t.Parallel()
-	f := newRatingFixture()
-	f.seedMedia("m1", "lib-private")
-	_ = f.libraryAccess.Grant(context.Background(), "u1", "lib-other")
-	ctx := authedCtx("u1", "p1", false)
-
-	_, err := f.handler.PostStarRating(ctx, &eveyv1.PostStarRatingRequest{MediaItemId: "m1", Value: 5})
 	require.Error(t, err)
 	st, _ := status.FromError(err)
 	assert.Equal(t, codes.NotFound, st.Code())

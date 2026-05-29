@@ -791,15 +791,16 @@ func TestHLSTranscoder_Integration_ModeA(t *testing.T) {
 
 	require.NoError(t, handle.Err())
 
-	// Verify segments were created
+	// Verify segments were created. Default profiles now use fMP4 → .m4s
+	// (per the HLS spec quick-wins flip), so we accept either container.
 	entries, _ := os.ReadDir(outputDir)
-	tsCount := 0
+	segCount := 0
 	for _, e := range entries {
-		if strings.HasSuffix(e.Name(), ".ts") {
-			tsCount++
+		if strings.HasSuffix(e.Name(), ".ts") || strings.HasSuffix(e.Name(), ".m4s") {
+			segCount++
 		}
 	}
-	assert.Positive(t, tsCount, "should have produced .ts segments")
+	assert.Positive(t, segCount, "should have produced segments (.ts or .m4s)")
 }
 
 func TestHLSTranscoder_Stop(t *testing.T) {

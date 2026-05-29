@@ -81,7 +81,7 @@ func TestCapLadderToSource_TinySourceKeepsAtLeastOne(t *testing.T) {
 
 func TestClassify_AnimationFromLowMetrics(t *testing.T) {
 	m := ComplexityMetrics{
-		YDEVMean:           18,
+		MotionMean:         1.0,
 		ScenecutsPerMinute: 3,
 		SourceBitrateKbps:  2200,
 		SourceHeight:       1080,
@@ -91,10 +91,10 @@ func TestClassify_AnimationFromLowMetrics(t *testing.T) {
 }
 
 func TestClassify_4KHighBitrateForcesHighMotion(t *testing.T) {
-	// 4K with 20 Mbps source — refuse to call it animation even if YDEV is
-	// freakishly low. Bias toward high-motion ladder.
+	// 4K with 20 Mbps source — refuse to call it animation even if motion
+	// is freakishly low. Bias toward high-motion ladder.
 	m := ComplexityMetrics{
-		YDEVMean:           18,
+		MotionMean:         1.0,
 		ScenecutsPerMinute: 3,
 		SourceBitrateKbps:  20000,
 		SourceHeight:       2160,
@@ -106,7 +106,7 @@ func TestClassify_4KLowBitrateBecomesNormal(t *testing.T) {
 	// 4K with low bitrate (under-encoded master): fall back to normal
 	// rather than animation (we'd under-allocate bandwidth on grain).
 	m := ComplexityMetrics{
-		YDEVMean:           18,
+		MotionMean:         1.0,
 		ScenecutsPerMinute: 3,
 		SourceBitrateKbps:  6000,
 		SourceHeight:       2160,
@@ -116,7 +116,7 @@ func TestClassify_4KLowBitrateBecomesNormal(t *testing.T) {
 
 func TestClassify_DialogueDramaIsLowMotion(t *testing.T) {
 	m := ComplexityMetrics{
-		YDEVMean:           35,
+		MotionMean:         2.5,
 		ScenecutsPerMinute: 5,
 		SourceBitrateKbps:  5500,
 		SourceHeight:       1080,
@@ -127,7 +127,7 @@ func TestClassify_DialogueDramaIsLowMotion(t *testing.T) {
 
 func TestClassify_HighMotionAction(t *testing.T) {
 	m := ComplexityMetrics{
-		YDEVMean:           62,
+		MotionMean:         7.0,
 		ScenecutsPerMinute: 18,
 		SourceBitrateKbps:  8000,
 		SourceHeight:       1080,
@@ -138,7 +138,7 @@ func TestClassify_HighMotionAction(t *testing.T) {
 
 func TestClassify_SustainedSportHasOwnClass(t *testing.T) {
 	m := ComplexityMetrics{
-		YDEVMean:           58,
+		MotionMean:         6.0,
 		ScenecutsPerMinute: 25,
 		SourceBitrateKbps:  6000,
 		SourceHeight:       1080,
@@ -149,7 +149,7 @@ func TestClassify_SustainedSportHasOwnClass(t *testing.T) {
 
 func TestClassify_NormalIsTheSafeDefault(t *testing.T) {
 	m := ComplexityMetrics{
-		YDEVMean:           45,
+		MotionMean:         4.0,
 		ScenecutsPerMinute: 10,
 		SourceBitrateKbps:  4500,
 		SourceHeight:       1080,
