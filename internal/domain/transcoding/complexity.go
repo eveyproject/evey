@@ -63,6 +63,23 @@ func Classify(m ComplexityMetrics) ContentClass {
 		return ClassFilmNormal
 	}
 
+	// Sample-free fallback: when the per-frame YDEV / scenecut pipeline
+	// returned nothing (ffmpeg killed, file too short, unsupported codec)
+	// the YDEV / Scenecuts are zero and the cut-based heuristics below
+	// would all match those zeros and bucket everything as low-motion.
+	// Decide on bitrate + resolution alone instead — coarser but always
+	// safer than a wrong ladder pick.
+	if m.FramesSampled == 0 {
+		switch {
+		case m.SourceHeight >= 1080 && m.SourceBitrateKbps > 0 && m.SourceBitrateKbps < 2500:
+			return ClassAnimation
+		case m.SourceHeight >= 1080 && m.SourceBitrateKbps >= 7000:
+			return ClassFilmHighMotion
+		default:
+			return ClassFilmNormal
+		}
+	}
+
 	// Sustained motion + complex frames → sport. Rare on a film/TV library
 	// but cheap to gate. Must come before high-motion so we don't shadow it.
 	if m.ScenecutsPerMinute > 20 && m.YDEVMean > 50 {

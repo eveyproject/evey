@@ -85,6 +85,7 @@ func TestClassify_AnimationFromLowMetrics(t *testing.T) {
 		ScenecutsPerMinute: 3,
 		SourceBitrateKbps:  2200,
 		SourceHeight:       1080,
+		FramesSampled:      30,
 	}
 	assert.Equal(t, ClassAnimation, Classify(m))
 }
@@ -119,6 +120,7 @@ func TestClassify_DialogueDramaIsLowMotion(t *testing.T) {
 		ScenecutsPerMinute: 5,
 		SourceBitrateKbps:  5500,
 		SourceHeight:       1080,
+		FramesSampled:      30,
 	}
 	assert.Equal(t, ClassFilmLowMotion, Classify(m))
 }
@@ -129,6 +131,7 @@ func TestClassify_HighMotionAction(t *testing.T) {
 		ScenecutsPerMinute: 18,
 		SourceBitrateKbps:  8000,
 		SourceHeight:       1080,
+		FramesSampled:      30,
 	}
 	assert.Equal(t, ClassFilmHighMotion, Classify(m))
 }
@@ -139,6 +142,7 @@ func TestClassify_SustainedSportHasOwnClass(t *testing.T) {
 		ScenecutsPerMinute: 25,
 		SourceBitrateKbps:  6000,
 		SourceHeight:       1080,
+		FramesSampled:      30,
 	}
 	assert.Equal(t, ClassSport, Classify(m))
 }
@@ -149,6 +153,35 @@ func TestClassify_NormalIsTheSafeDefault(t *testing.T) {
 		ScenecutsPerMinute: 10,
 		SourceBitrateKbps:  4500,
 		SourceHeight:       1080,
+		FramesSampled:      30,
+	}
+	assert.Equal(t, ClassFilmNormal, Classify(m))
+}
+
+func TestClassify_NoSamples_AnimationFromLowBitrate(t *testing.T) {
+	// ffmpeg sample failed: only bitrate + resolution available.
+	m := ComplexityMetrics{
+		SourceBitrateKbps: 1800,
+		SourceHeight:      1080,
+		FramesSampled:     0,
+	}
+	assert.Equal(t, ClassAnimation, Classify(m))
+}
+
+func TestClassify_NoSamples_HighMotionFromHighBitrate(t *testing.T) {
+	m := ComplexityMetrics{
+		SourceBitrateKbps: 9000,
+		SourceHeight:      1080,
+		FramesSampled:     0,
+	}
+	assert.Equal(t, ClassFilmHighMotion, Classify(m))
+}
+
+func TestClassify_NoSamples_NormalIsFallback(t *testing.T) {
+	m := ComplexityMetrics{
+		SourceBitrateKbps: 4000,
+		SourceHeight:      720,
+		FramesSampled:     0,
 	}
 	assert.Equal(t, ClassFilmNormal, Classify(m))
 }

@@ -73,69 +73,96 @@ func (c *ComplexityClassifier) Classify(ctx context.Context, filePath string, du
 	metrics.SourceWidth = w
 	metrics.SourceHeight = h
 
-	// Build the sample-and-stats pipeline. The select filter picks
-	// `SampleFrames` frames spread evenly across the duration; signalstats
-	// emits YDEV per frame as metadata that we grep from ffmpeg's stderr.
-	// scene>0.3 trips on hard cuts; the showinfo filter logs each
-	// selected frame so we can count scenecuts independently of the
-	// YDEV stream.
+	// Per-frame YDEV / scenecut signals are nice-to-have but the original
+	// single-pass `select=not(mod(n,X))` pipeline forced ffmpeg to decode
+	// every input frame to compute mod() — 4K HDR sources OOM-killed
+	// inside 90s on the dev box. Replace with a small number of seek-and-
+	// sample short bursts: each ffmpeg invocation hits ~1 second of video
+	// at a calibrated position, runs signalstats on the few decoded
+	// frames, prints the per-frame YDEV. Total wallclock for 8 samples
+	// ~5-15 s on the dev box; bounded memory because each invocation
+	// decodes ~24 frames not the full film.
+	//
+	// Falls back gracefully: probe-only (bitrate + resolution) metrics
+	// are already populated above, so a classifier failure here still
+	// yields a usable metrics struct and the domain Classify()
+	// decision table copes via its bitrate/resolution branches.
 	sample := c.SampleFrames
 	if sample <= 0 {
-		sample = 30
+		sample = 8
 	}
-	stride := durationSec / float64(sample)
-	if stride < 1.0 {
-		// Files shorter than `sample` seconds: just sample every second.
-		// Adjusts sample down for very short fixtures (tests, music tracks).
-		stride = 1.0
-		sample = int(durationSec)
-		if sample < 1 {
-			sample = 1
-		}
+	if sample > 16 {
+		sample = 16
+	}
+	// Don't sample inside the first / last 5 % of the file — opening
+	// credits and end credits skew the metrics in unhelpful ways.
+	startSec := durationSec * 0.05
+	endSec := durationSec * 0.95
+	if endSec <= startSec || endSec < 5 {
+		sample = 1
+		startSec = 0
+		endSec = durationSec
 	}
 
-	// `-skip_frame nokey` ⇒ feed only keyframes to the filtergraph so the
-	// "30 samples across the duration" arithmetic stays cheap (no full
-	// decode). signalstats wants a real frame regardless, so we drop the
-	// flag if it makes the sample empty.
-	filterGraph := fmt.Sprintf(
-		"select='not(mod(n\\,%d))*lte(selected_n\\,%d)',signalstats,select='gt(scene\\,0.3)+1',metadata=print:file=-",
-		int(30.0*stride), // n stride in frames assuming 30 fps source — rough but adequate
-		sample,
-	)
+	var totalYDEVSum float64
+	var totalYDEVN, totalCuts int
 
-	runCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	runCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, c.ffmpegBin,
+
+	for i := 0; i < sample; i++ {
+		select {
+		case <-runCtx.Done():
+			break
+		default:
+		}
+		ratio := float64(i) / float64(sample-1)
+		if sample == 1 {
+			ratio = 0.5
+		}
+		seek := startSec + ratio*(endSec-startSec)
+		ydevSum, ydevN, cuts := c.sampleAt(runCtx, filePath, seek)
+		totalYDEVSum += ydevSum
+		totalYDEVN += ydevN
+		totalCuts += cuts
+	}
+
+	metrics.FramesSampled = totalYDEVN
+	if totalYDEVN > 0 {
+		metrics.YDEVMean = totalYDEVSum / float64(totalYDEVN)
+	}
+	if durationSec > 0 && totalYDEVN > 0 {
+		// Cuts observed across the ~sample-second bursts, scaled to "per
+		// minute" assuming the bursts are representative of the whole
+		// film. Coarse but enough to bucket animation vs sport.
+		burstSeconds := float64(sample) // each burst ~1 s
+		metrics.ScenecutsPerMinute = float64(totalCuts) * 60.0 / burstSeconds
+	}
+	return metrics, nil
+}
+
+// sampleAt seeks to `atSec`, decodes ~1 second of video at that point, and
+// runs signalstats on the decoded frames. Returns (sumYDEV, count,
+// scenecuts) from the metadata stream. Best-effort: any ffmpeg error
+// yields zeros and is silently swallowed (the caller still has probe
+// metrics to work with). Bounded by a 15 s wallclock per burst.
+func (c *ComplexityClassifier) sampleAt(parent context.Context, filePath string, atSec float64) (float64, int, int) {
+	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, c.ffmpegBin,
 		"-hide_banner", "-nostats",
+		"-ss", fmt.Sprintf("%.3f", atSec),
 		"-i", filePath,
-		"-vf", filterGraph,
+		"-t", "1",
+		"-vf", "signalstats,metadata=print:file=-",
 		"-an", "-sn",
 		"-f", "null", "-",
 	)
-	var stderr bytes.Buffer
+	var stderr, stdout bytes.Buffer
 	cmd.Stderr = &stderr
-	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
-
-	runErr := cmd.Run()
-	// Even on non-zero exit the partial stderr usually contains usable
-	// signalstats lines (e.g. the file ends mid-segment but we got 20+
-	// samples). Parse what we have before bailing.
-	ydevSum, ydevN, sceneCuts := parseSignalStats(stdout.String() + "\n" + stderr.String())
-	metrics.FramesSampled = ydevN
-	if ydevN > 0 {
-		metrics.YDEVMean = ydevSum / float64(ydevN)
-	}
-	if durationSec > 0 {
-		metrics.ScenecutsPerMinute = float64(sceneCuts) / (durationSec / 60.0)
-	}
-
-	if runErr != nil && ydevN == 0 {
-		return metrics, fmt.Errorf("complexity classifier: ffmpeg sample failed (%w) — stderr tail: %s",
-			runErr, tailString(stderr.String(), 400))
-	}
-	return metrics, nil
+	_ = cmd.Run()
+	return parseSignalStats(stdout.String() + "\n" + stderr.String())
 }
 
 // probeSource pulls the format-level bitrate + the first video stream's
