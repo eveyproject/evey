@@ -2,6 +2,7 @@ package feed
 
 import (
 	"context"
+	"strings"
 
 	"github.com/evey-project/evey/internal/domain/feed"
 	"github.com/evey-project/evey/internal/domain/notification"
@@ -48,8 +49,13 @@ func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([
 			MaxItems:     a.MaxItems,
 			Params:       a.Params,
 		}
+		isPlugin := strings.HasPrefix(string(a.FeedType), "plugin:")
 		if o, ok := overrideMap[a.FeedType]; ok {
-			if o.Enabled != nil {
+			// Plugin feeds: admin enable/disable is a hard override (admin
+			// has the last word on whether a plugin section appears at
+			// all). DisplayOrder stays profile-controlled even on plugins
+			// — each user keeps their Customize panel order.
+			if o.Enabled != nil && !(isPlugin && !a.Enabled) {
 				m.Enabled = *o.Enabled
 			}
 			if o.DisplayOrder != nil {
