@@ -56,6 +56,23 @@ type ManifestInput struct {
 	// when true, MPEG-TS (`.ts`) when false. fMP4 is default in production —
 	// segments are ~30% smaller and CMAF-style aligns with hls.js modern path.
 	UseFMP4 bool
+
+	// ChosenVideoCodec / ChosenAudioCodec are the codecs the ffmpeg decision
+	// picked for this session (e.g. "h264", "hevc", "av1" / "aac", "ac3",
+	// "eac3"). Used to emit a correct `CODECS=...` attribute on each
+	// `#EXT-X-STREAM-INF` so Safari + AirPlay don't reject HEVC/AV1
+	// renditions out of hand (they validate against the master before
+	// pulling the segment). Empty falls back to h264+aac, which preserves
+	// the pre-refactor behaviour.
+	ChosenVideoCodec string
+	ChosenAudioCodec string
+
+	// ResumeOffsetSec, when > 0, emits `#EXT-X-START:TIME-OFFSET=<n>` in
+	// each variant so Safari natif / AirPlay / tvOS resume at the right
+	// position without a JS seek. NOT hashed into the decisionHash —
+	// per-user resume must NOT shard the segment cache. Threaded via a
+	// query param outside the cache key.
+	ResumeOffsetSec float64
 }
 
 // Validate returns an error if the input can't produce a valid manifest.
@@ -114,16 +131,29 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	var b strings.Builder
 	b.WriteString("#EXTM3U\n")
 	b.WriteString("#EXT-X-VERSION:6\n")
+	// Declares to hls.js (and well-behaved players) that every segment starts
+	// at a keyframe — true here because the ffmpeg adapter forces keyframes
+	// at the segment boundary cadence. Lets the player switch renditions
+	// (ABR) and back-seek within the buffer without re-pulling adjacent
+	// segments to find an IDR. Without this tag the player has to assume
+	// the worst and re-fetch, costing one whole segment of latency on every
+	// switch.
+	b.WriteString("#EXT-X-INDEPENDENT-SEGMENTS\n")
 
+	codecs := codecsAttr(in.ChosenVideoCodec, in.ChosenAudioCodec)
 	for i, p := range in.Profiles {
 		// BANDWIDTH is the playlist's peak bitrate in bps. We use video + audio
 		// (both in kbps from the profile, so multiply by 1000). hls.js uses it
 		// to drive ABR switches — if it's wrong the wrong rendition is picked.
 		bps := (p.VideoBitrate + p.AudioBitrate) * 1000
+		// AVERAGE-BANDWIDTH lets the player factor sustained throughput vs
+		// the peak. We estimate it at 85% of peak (typical for VBR encodes
+		// with light scenes amortising the high-motion peaks). Optional per
+		// HLS spec but hls.js + Safari both use it when present.
+		avg := bps * 85 / 100
 		res := fmt.Sprintf("%dx%d", p.Width, p.Height)
-		codecs := masterCodecsAttr()
 
-		fmt.Fprintf(&b, "#EXT-X-STREAM-INF:BANDWIDTH=%d,RESOLUTION=%s,CODECS=%q\n", bps, res, codecs)
+		fmt.Fprintf(&b, "#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%s,CODECS=%q\n", bps, avg, res, codecs)
 		fmt.Fprintf(&b, "stream_%d.m3u8%s\n", i, querySuffix(in))
 	}
 
@@ -162,6 +192,18 @@ func (g *ManifestGenerator) Variant(in ManifestInput, profileIdx int) (string, e
 	fmt.Fprintf(&b, "#EXT-X-TARGETDURATION:%d\n", int(math.Ceil(ManifestSegmentSeconds)))
 	b.WriteString("#EXT-X-MEDIA-SEQUENCE:0\n")
 
+	// Resume offset is portable across every conformant HLS player: Safari
+	// native, AirPlay, tvOS all honour it without the JS layer having to
+	// seek post-attach. Clamp to the media duration to stay valid; <= 0
+	// emits nothing (pre-refactor behaviour).
+	if in.ResumeOffsetSec > 0 {
+		offset := in.ResumeOffsetSec
+		if offset > in.DurationSec {
+			offset = in.DurationSec
+		}
+		fmt.Fprintf(&b, "#EXT-X-START:TIME-OFFSET=%.3f,PRECISE=YES\n", offset)
+	}
+
 	suffix := querySuffix(in)
 
 	if in.UseFMP4 {
@@ -192,13 +234,62 @@ func (g *ManifestGenerator) Variant(in ManifestInput, profileIdx int) (string, e
 	return b.String(), nil
 }
 
-// masterCodecsAttr returns a generic codecs string suitable for hls.js capability
-// checks. The exact codec depends on the ffmpeg decision; we expose a permissive
-// match (avc1.640028 = H.264 high@L4.0, mp4a.40.2 = AAC-LC) so hls.js never
-// rejects the rendition based on the master playlist. The real codec is what
-// the segment actually carries.
-func masterCodecsAttr() string {
-	return "avc1.640028,mp4a.40.2"
+// codecsAttr returns the RFC 6381 codecs string for the master playlist
+// `CODECS=` attribute, given the chosen video + audio codec from the ffmpeg
+// decision. Safari validates this string up front and refuses to fetch
+// segments when it doesn't match its decoder capability — historically we
+// hardcoded `avc1.640028,mp4a.40.2` which silently locked Safari out of
+// any HEVC / AV1 / VP9 rendition. The strings here are deliberately
+// permissive within each codec family (no profile/level enumeration per
+// rendition) — that's the right tradeoff: we don't yet probe per-rendition
+// profile, and a too-narrow string is what bricks Safari.
+//
+// Audio falls back to AAC-LC when unknown. Empty inputs ⇒ pre-refactor
+// behaviour (H.264 + AAC-LC).
+func codecsAttr(videoCodec, audioCodec string) string {
+	v := videoCodecAttr(strings.ToLower(videoCodec))
+	a := audioCodecAttr(strings.ToLower(audioCodec))
+	return v + "," + a
+}
+
+func videoCodecAttr(c string) string {
+	switch c {
+	case "hevc", "h265", "x265":
+		// hvc1.1.6.L93.B0 = HEVC main profile, main tier, level 3.1 — covers
+		// up to 1080p30. For 4K + main10 you'd want hvc1.2.4.L150.B0; we keep
+		// the broader string because we don't have per-rendition profile/level
+		// data wired through yet, and Safari accepts the permissive form.
+		return "hvc1.1.6.L93.B0"
+	case "av1", "av01":
+		// av01.0.04M.10 = main profile, level 4.0, 10-bit. Permissive enough
+		// for most software/HW AV1 decoders.
+		return "av01.0.04M.10"
+	case "vp9":
+		return "vp09.00.10.08"
+	case "", "h264", "avc", "libx264":
+		// avc1.640028 = High profile @ L4.0 (1080p baseline). Pre-refactor
+		// default; keep for backward compat when ChosenVideoCodec is empty.
+		return "avc1.640028"
+	default:
+		return "avc1.640028"
+	}
+}
+
+func audioCodecAttr(c string) string {
+	switch c {
+	case "ac3", "ac-3":
+		return "ac-3"
+	case "eac3", "ec-3":
+		return "ec-3"
+	case "opus":
+		return "opus"
+	case "flac":
+		return "flac"
+	case "", "aac", "aac-lc", "mp4a":
+		return "mp4a.40.2"
+	default:
+		return "mp4a.40.2"
+	}
 }
 
 // querySuffix builds the `?…` to append to every URL in the playlists. The

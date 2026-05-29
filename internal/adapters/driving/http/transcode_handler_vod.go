@@ -318,6 +318,19 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 
 	token := RawTokenFromContext(r.Context())
 
+	// `?resume=N` is intentionally OUTSIDE the decisionHash inputs so two
+	// users on the same DecisionFingerprint don't shard the segment cache
+	// just because they resume at different positions. ManifestInput.Validate
+	// rejects negative/garbage; sec or ms accepted (caller convention: sec).
+	resumeSec := 0.0
+	if r != nil {
+		if raw := r.URL.Query().Get("resume"); raw != "" {
+			if n, err := strconv.ParseFloat(raw, 64); err == nil && n > 0 {
+				resumeSec = n
+			}
+		}
+	}
+
 	return apptranscoding.ManifestInput{
 		MediaID:             mediaID,
 		DurationSec:         float64(item.File.Duration.Milliseconds()) / 1000.0,
@@ -329,6 +342,9 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		AudioCodecs:         splitCSVQuery(r, "audioCodecs"),
 		Containers:          splitCSVQuery(r, "containers"),
 		UseFMP4:             h.useFMP4,
+		ChosenVideoCodec:    decision.VideoCodec,
+		ChosenAudioCodec:    decision.AudioCodec,
+		ResumeOffsetSec:     resumeSec,
 	}, nil
 }
 

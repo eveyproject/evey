@@ -91,12 +91,13 @@ func TestManifestGenerator_Master_SingleProfile(t *testing.T) {
 	require.NoError(t, err)
 
 	lines := nonEmptyLines(out)
-	// #EXTM3U, #EXT-X-VERSION:6, then 1×STREAM-INF + 1×URL = 4 lines total
-	require.Len(t, lines, 4)
+	// #EXTM3U, #EXT-X-VERSION:6, #EXT-X-INDEPENDENT-SEGMENTS, then 1×STREAM-INF + 1×URL = 5 lines total
+	require.Len(t, lines, 5)
 	assert.Equal(t, "#EXTM3U", lines[0])
 	assert.Equal(t, "#EXT-X-VERSION:6", lines[1])
-	assert.Contains(t, lines[2], "#EXT-X-STREAM-INF:")
-	assert.Contains(t, lines[3], "stream_0.m3u8")
+	assert.Equal(t, "#EXT-X-INDEPENDENT-SEGMENTS", lines[2])
+	assert.Contains(t, lines[3], "#EXT-X-STREAM-INF:")
+	assert.Contains(t, lines[4], "stream_0.m3u8")
 }
 
 func TestManifestGenerator_Master_FourProfiles(t *testing.T) {
@@ -106,8 +107,8 @@ func TestManifestGenerator_Master_FourProfiles(t *testing.T) {
 	require.NoError(t, err)
 
 	lines := nonEmptyLines(out)
-	// 2 header lines + 4×(STREAM-INF + URL) = 10 lines
-	assert.Len(t, lines, 10)
+	// 3 header lines + 4×(STREAM-INF + URL) = 11 lines
+	assert.Len(t, lines, 11)
 
 	// Each profile must have its own stream_N.m3u8 URL
 	for i := 0; i < 4; i++ {
