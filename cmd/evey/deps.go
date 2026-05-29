@@ -15,6 +15,7 @@ import (
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
+	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	appconfig "github.com/evey-project/evey/internal/app/config"
@@ -66,6 +67,7 @@ type mediaDeps struct {
 	hlsVODOrch    *apptranscoding.SegmentOrchestrator
 	hlsVODCache   *apptranscoding.SegmentCache
 	hlsTranscoder *ffmpeg.HLSTranscoder
+	qoeSink       appqoe.EventSink
 	mkvSvc         *appmkv.Service
 	musicSvc       *appmusic.Service
 	photoSvc        *appphoto.Service

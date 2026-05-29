@@ -568,6 +568,17 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	}, slog.Default())
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsVODOrch)
 
+	// CMCD (CTA-5004) ingest sink. The HTTP handler parses the CMCD query
+	// param on every segment / master / variant fetch and ships an event
+	// here; the buffered worker drains into playback_qoe_events. Phase 1 is
+	// pure observation — no feedback loop yet — so the only failure path we
+	// care about is "buffer full" which surfaces via metrics + warn logs.
+	qoeStorage := qoeStorageAdapter{repo: postgres.NewPlaybackQoERepo(db)}
+	qoeSink := appqoe.NewBufferedSink(qoeStorage, appqoe.SinkOptions{
+		BufferSize: 2048, // ~30 min of segments for a busy 5-user evening
+		DropMetric: eveymetrics.QoEIngestDrops,
+	}, slog.Default())
+
 	introDetectionSvc := applibrary.NewIntroDetectionService(
 		r.MediaSegment,
 		r.Trickplay,
@@ -697,6 +708,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			hlsVODOrch:       hlsVODOrch,
 			hlsVODCache:      hlsVODCache,
 			hlsTranscoder:    hlsTranscoder,
+			qoeSink:          qoeSink,
 			mkvSvc:           mkvSvc,
 			musicSvc:         musicSvc,
 			photoSvc:         photoSvc,

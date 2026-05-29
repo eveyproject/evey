@@ -26,6 +26,7 @@ import (
 	apprating "github.com/evey-project/evey/internal/app/rating"
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
+	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/config"
@@ -92,6 +93,9 @@ type HTTPServer struct {
 	HLSVODOrch    *apptranscoding.SegmentOrchestrator
 	HLSVODCache   *apptranscoding.SegmentCache
 	HLSTranscoder domaintranscoding.HLSProcess
+	// QoESink ingests CMCD telemetry from every segment / master / variant
+	// request. Nil-safe: the VOD handler short-circuits when this is unset.
+	QoESink appqoe.EventSink
 
 	// Metadata
 	MetadataCmdSvc   *appmetadata.CommandService

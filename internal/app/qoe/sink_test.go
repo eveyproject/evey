@@ -1,0 +1,129 @@
+package qoe
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/evey-project/evey/internal/pkg/cmcd"
+)
+
+// captureStorage records every event it receives. block can be set to make
+// inserts hang, which lets us prove buffer-full → drop without flakiness.
+type captureStorage struct {
+	mu    sync.Mutex
+	events []Event
+	block chan struct{}
+	err   error
+}
+
+func (c *captureStorage) InsertEvent(_ context.Context, evt Event) error {
+	if c.block != nil {
+		<-c.block
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.err != nil {
+		return c.err
+	}
+	c.events = append(c.events, evt)
+	return nil
+}
+
+func (c *captureStorage) snapshot() []Event {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]Event, len(c.events))
+	copy(out, c.events)
+	return out
+}
+
+type countingDrops struct{ n atomic.Int64 }
+
+func (c *countingDrops) Inc()       { c.n.Add(1) }
+func (c *countingDrops) load() int  { return int(c.n.Load()) }
+
+func TestBufferedSink_RecordIsNonBlocking_DrainsToStorage(t *testing.T) {
+	cap := &captureStorage{}
+	drops := &countingDrops{}
+	sink := NewBufferedSink(cap, SinkOptions{BufferSize: 16, DropMetric: drops}, nil)
+	defer func() { _ = sink.Close(context.Background()) }()
+
+	for i := 0; i < 10; i++ {
+		sink.Record(Event{
+			MediaItemID: "media-1",
+			VariantIdx:  i % 3,
+			SegmentIdx:  i,
+			Payload:     cmcd.Payload{EncodedKbps: 2400, BufferLengthMs: 12000},
+		})
+	}
+
+	require.Eventually(t, func() bool {
+		return len(cap.snapshot()) == 10
+	}, 2*time.Second, 10*time.Millisecond)
+	assert.Equal(t, 0, drops.load(), "no drops at buffer < cap")
+}
+
+func TestBufferedSink_DropsOnBufferFullWithoutBlocking(t *testing.T) {
+	cap := &captureStorage{block: make(chan struct{})}
+	drops := &countingDrops{}
+	sink := NewBufferedSink(cap, SinkOptions{BufferSize: 4, DropMetric: drops}, nil)
+
+	// Storage hangs → 1 event in worker mid-insert, 4 fill the channel, the rest drop.
+	for i := 0; i < 20; i++ {
+		sink.Record(Event{MediaItemID: "x", SegmentIdx: i})
+	}
+
+	// Drops should be observable already (no flush happened).
+	require.Eventually(t, func() bool {
+		return drops.load() >= 15
+	}, time.Second, 10*time.Millisecond, "buffer-full path must count drops")
+
+	// Unblock storage so Close() can drain. Use a non-blocking close + drain
+	// loop so the worker can proceed without us pinning the goroutine.
+	go func() {
+		for {
+			select {
+			case <-cap.block:
+				return
+			default:
+				cap.block <- struct{}{}
+			}
+		}
+	}()
+	_ = sink.Close(context.Background())
+}
+
+func TestBufferedSink_RecordAfterCloseIsNoop(t *testing.T) {
+	cap := &captureStorage{}
+	drops := &countingDrops{}
+	sink := NewBufferedSink(cap, SinkOptions{BufferSize: 4, DropMetric: drops}, nil)
+
+	require.NoError(t, sink.Close(context.Background()))
+	sink.Record(Event{MediaItemID: "post-close"})
+	time.Sleep(50 * time.Millisecond)
+	assert.Empty(t, cap.snapshot())
+	assert.Equal(t, 0, drops.load(), "post-close records aren't drops, just no-ops")
+}
+
+func TestBufferedSink_StorageErrorDoesNotKillWorker(t *testing.T) {
+	cap := &captureStorage{err: errors.New("db down")}
+	sink := NewBufferedSink(cap, SinkOptions{BufferSize: 8}, nil)
+	defer func() { _ = sink.Close(context.Background()) }()
+
+	for i := 0; i < 5; i++ {
+		sink.Record(Event{MediaItemID: "x", SegmentIdx: i})
+	}
+
+	// Give worker time to attempt all 5 inserts.
+	time.Sleep(100 * time.Millisecond)
+	// Worker survives errors → channel keeps draining → subsequent Record
+	// calls still don't block.
+	sink.Record(Event{MediaItemID: "y"})
+}

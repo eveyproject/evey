@@ -17,10 +17,13 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/cmcd"
+	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -41,6 +44,10 @@ type hlsVODServe struct {
 	manifestGen  *apptranscoding.ManifestGenerator
 	cache        *apptranscoding.SegmentCache
 	orchestrator *apptranscoding.SegmentOrchestrator
+
+	// qoeSink ingests CMCD telemetry from segment requests. Nil when QoE is
+	// disabled (tests, dev without postgres). Record is non-blocking.
+	qoeSink appqoe.EventSink
 
 	// useFMP4 controls the segment container. fMP4 is the project default —
 	// segments are ~30% smaller and the codecs string in the master playlist
@@ -134,6 +141,10 @@ func (h *hlsVODServe) commonAuth(w http.ResponseWriter, r *http.Request, mediaID
 }
 
 func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
+	// Catches the startup CMCD payload (?CMCD=su,sid=...,ot=m) — the first
+	// thing every player sends. Useful for "time to first frame" admin views.
+	h.ingestCMCD(r, mediaID, 0, 0, false, true, false)
+
 	in, err := h.buildManifestInput(r, mediaID, item, streams)
 	if err != nil {
 		h.writeManifestErr(w, span, err, mediaID)
@@ -163,6 +174,10 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
 	m := vodVariantNameRE.FindStringSubmatch(file)
 	profileIdx, _ := strconv.Atoi(m[1])
+
+	// Catches CMCD on variant playlist fetches (typical when the player ABR
+	// switches renditions). Helps the dashboard count switch frequency.
+	h.ingestCMCD(r, mediaID, profileIdx, 0, false, false, true)
 
 	in, err := h.buildManifestInput(r, mediaID, item, streams)
 	if err != nil {
@@ -197,6 +212,11 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	if !isInit {
 		segmentIdx, _ = strconv.Atoi(m[2])
 	}
+
+	// CMCD ingest (CTA-5004). Parsed and shipped to the QoE sink before we
+	// do anything that can 5xx — we want telemetry even on failure paths.
+	// Sink is non-blocking; an absent payload is the no-op common case.
+	h.ingestCMCD(r, mediaID, variantIdx, segmentIdx, isInit, false, false)
 
 	fp, err := h.buildFingerprint(r, mediaID, item, streams)
 	if err != nil {
@@ -440,6 +460,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		manifestGen:          apptranscoding.NewManifestGenerator(),
 		cache:                cache,
 		orchestrator:         orch,
+		qoeSink:              s.QoESink,
 		// Phase 1 keeps TS to match the ffmpeg adapter's default container path
 		// (which only switches to fMP4 for hevc/av1/vp9 sources). Phase 2 will
 		// thread a UseFMP4 flag into HLSProcessOpts and flip this to true.
@@ -469,4 +490,56 @@ func splitCSVQuery(r *http.Request, key string) []string {
 		return strings.Split(v, ",")
 	}
 	return nil
+}
+
+// ingestCMCD parses CMCD (CTA-5004) from the request and forwards the event
+// to the QoE sink. No-op when CMCD is absent or the sink isn't wired (dev /
+// tests). Resolves user_id from the request context — anonymous plays
+// (shared link, no token) end up with an empty user_id, which is fine.
+func (h *hlsVODServe) ingestCMCD(r *http.Request, mediaID string, variantIdx, segmentIdx int, isInit, isManifest, isVariantPL bool) {
+	if h.qoeSink == nil {
+		return
+	}
+	payload, ok := cmcd.FromRequest(r)
+	if !ok {
+		return
+	}
+	eveymetrics.QoEIngestEvents.Inc()
+
+	var userID string
+	if claims := HTTPClaimsFromContext(r.Context()); claims != nil {
+		userID = claims.UserID
+	}
+
+	// TODO: remove after CMCD stabilization — Info-level so we see ingest
+	// activity in prod logs during Phase 1 rollout. Downgrade to Debug
+	// (or drop entirely) once the SQL table and dashboard are confirmed
+	// working.
+	slog.Info("hls-vod: CMCD ingest",
+		slog.String("media_id", mediaID),
+		slog.String("user_id", userID),
+		slog.Int("variant", variantIdx),
+		slog.Int("seg", segmentIdx),
+		slog.Bool("init", isInit),
+		slog.Bool("manifest", isManifest),
+		slog.Bool("variant_pl", isVariantPL),
+		slog.String("sid", payload.SessionID),
+		slog.Int("buffer_ms", payload.BufferLengthMs),
+		slog.Int("encoded_kbps", payload.EncodedKbps),
+		slog.Int("measured_kbps", payload.MeasuredKbps),
+		slog.Bool("starved", payload.BufferStarved),
+		slog.Bool("startup", payload.Startup))
+
+	h.qoeSink.Record(appqoe.Event{
+		UserID:      userID,
+		MediaItemID: mediaID,
+		VariantIdx:  variantIdx,
+		SegmentIdx:  segmentIdx,
+		IsInit:      isInit,
+		IsManifest:  isManifest,
+		IsVariantPL: isVariantPL,
+		DeviceClass: appqoe.DeviceClass(r),
+		RemoteIP:    appqoe.RemoteIP(r),
+		Payload:     payload,
+	})
 }

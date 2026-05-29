@@ -124,6 +124,16 @@ func run() error {
 	qcHub := quickconnecthub.New()
 	grpcSrv := buildGRPCServer(deps, cfg, rootLog, logCfg.Dir, ctx, qcHub)
 	defer deps.media.hlsVODOrch.CleanupAll()
+	defer func() {
+		// Give the QoE sink a brief window to flush pending CMCD events; we
+		// don't block shutdown on it though — telemetry that didn't make it
+		// is acceptable, a slow shutdown is not.
+		closeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := deps.media.qoeSink.Close(closeCtx); err != nil {
+			slog.Warn("qoe sink close", slog.Any("err", err))
+		}
+	}()
 
 	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 	httpPort := cfg.Server.Port + 1

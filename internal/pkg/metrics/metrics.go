@@ -157,6 +157,18 @@ var (
 		Name: "evey_hlsvod_throttle_resume_total",
 		Help: "Total ffmpeg SIGCONTs issued by the pause-when-ahead policy.",
 	})
+
+	// QoEIngestEvents counts every CMCD event received. QoEIngestDrops counts
+	// the ones the sink dropped because its buffer was full — sustained > 0
+	// means we need a bigger buffer or a faster DB.
+	QoEIngestEvents = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_qoe_ingest_events_total",
+		Help: "Total CMCD (CTA-5004) events received from segment requests.",
+	})
+	QoEIngestDrops = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_qoe_ingest_drops_total",
+		Help: "CMCD events dropped due to sink buffer overflow.",
+	})
 )
 
 func init() {
@@ -170,6 +182,7 @@ func init() {
 		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume,
+		QoEIngestEvents, QoEIngestDrops,
 	)
 }
 
