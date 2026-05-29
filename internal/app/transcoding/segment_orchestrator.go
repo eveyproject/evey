@@ -32,6 +32,30 @@ type OrchestratorOptions struct {
 	// SegmentSeconds — keep in sync with ManifestSegmentSeconds and the ffmpeg
 	// force_key_frames cadence. Exposed for tests.
 	SegmentSeconds float64
+
+	// ThrottleEnabled toggles the pause-when-ahead policy (Plex pattern).
+	// When ffmpeg has produced ThrottlePauseAhead segments more than the
+	// client's high-water request, SIGSTOP the process; SIGCONT when the
+	// client catches back up to within ThrottleResumeBelow segments.
+	// Saves CPU + thermals + disk write churn on calm linear playback
+	// without affecting seek latency (cancel-on-seek tears the session
+	// down before throttle gets involved).
+	ThrottleEnabled bool
+
+	// ThrottlePauseAhead is the buffer (in segments) above which ffmpeg
+	// gets paused. Default 10 = 30s buffer at 3s segments. Plex docs cite
+	// 30-45s as the empirical sweet spot.
+	ThrottlePauseAhead int
+
+	// ThrottleResumeBelow is the buffer (in segments) below which a paused
+	// session resumes. Hysteresis vs ThrottlePauseAhead avoids flapping.
+	// Default 5 = 15s.
+	ThrottleResumeBelow int
+
+	// ThrottleTickInterval is how often the throttle policy is evaluated.
+	// Default 1s — coarse enough to be free, tight enough that a seek-out
+	// that lands on a paused session resumes within one tick.
+	ThrottleTickInterval time.Duration
 }
 
 func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
@@ -47,6 +71,20 @@ func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
 	}
 	if out.SegmentSeconds <= 0 {
 		out.SegmentSeconds = ManifestSegmentSeconds
+	}
+	if out.ThrottlePauseAhead <= 0 {
+		out.ThrottlePauseAhead = 10
+	}
+	if out.ThrottleResumeBelow <= 0 {
+		out.ThrottleResumeBelow = 5
+	}
+	if out.ThrottleResumeBelow >= out.ThrottlePauseAhead {
+		// Hysteresis invariant: resume threshold must be strictly below pause
+		// threshold or the session will flap every tick.
+		out.ThrottleResumeBelow = out.ThrottlePauseAhead / 2
+	}
+	if out.ThrottleTickInterval <= 0 {
+		out.ThrottleTickInterval = time.Second
 	}
 	return out
 }
@@ -82,6 +120,9 @@ type SegmentOrchestrator struct {
 
 	stopGC chan struct{}
 	gcDone chan struct{}
+
+	stopThrottle chan struct{}
+	throttleDone chan struct{}
 }
 
 // SourceResolver bridges the orchestrator (which works with DecisionFingerprint)
@@ -130,6 +171,15 @@ type orchestratorSession struct {
 	teardown   func() // SegmentCache.RegisterSession's teardown
 	cancelCtx  context.CancelFunc
 	done       chan struct{} // closed when ffmpeg exits (success or error)
+
+	// Throttle state. clientHighWater is the largest segment index any client
+	// has asked us to ensure for this session — used as a proxy for "how far
+	// the client has consumed". paused tracks whether the ffmpeg process is
+	// currently SIGSTOPped; useFMP4 is captured at spawn so the throttle loop
+	// can query the cache without the fingerprint.
+	clientHighWater int
+	paused          bool
+	useFMP4         bool
 }
 
 // NewSegmentOrchestrator wires the cache and the ffmpeg adapter together. The
@@ -159,8 +209,15 @@ func NewSegmentOrchestrator(
 		sessions:       make(map[string]*orchestratorSession),
 		stopGC:         make(chan struct{}),
 		gcDone:         make(chan struct{}),
+		stopThrottle:   make(chan struct{}),
+		throttleDone:   make(chan struct{}),
 	}
 	go o.gcLoop()
+	if o.opts.ThrottleEnabled {
+		go o.throttleLoop()
+	} else {
+		close(o.throttleDone)
+	}
 	return o
 }
 
@@ -172,6 +229,10 @@ func NewSegmentOrchestrator(
 func (o *SegmentOrchestrator) Close() {
 	close(o.stopGC)
 	<-o.gcDone
+	if o.opts.ThrottleEnabled {
+		close(o.stopThrottle)
+	}
+	<-o.throttleDone
 
 	o.mu.Lock()
 	sessions := make([]*orchestratorSession, 0, len(o.sessions))
@@ -215,7 +276,7 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	// for the rafale; per-variant readiness is checked by the handler before
 	// calling Wait. The cache check below is best-effort early bail.
 	if o.cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: segmentIdx}, fp.UseFMP4) {
-		o.touchSession(hash)
+		o.touchSession(hash, segmentIdx)
 		metrics.HLSVODCacheHits.Inc()
 		return nil
 	}
@@ -242,6 +303,9 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 		if inWindow || nearAhead {
 			session.mu.Lock()
 			session.lastAccess = time.Now()
+			if segmentIdx > session.clientHighWater {
+				session.clientHighWater = segmentIdx
+			}
 			if nearAhead {
 				session.endSeg = segmentIdx + o.opts.LookAheadSegments
 			}
@@ -318,15 +382,17 @@ func (o *SegmentOrchestrator) spawnSession(
 	}
 
 	session := &orchestratorSession{
-		hash:       hash,
-		mediaID:    fp.MediaID,
-		handle:     handle,
-		startSeg:   startSegIdx,
-		endSeg:     endSegIdx,
-		lastAccess: time.Now(),
-		teardown:   teardown,
-		cancelCtx:  cancel,
-		done:       make(chan struct{}),
+		hash:            hash,
+		mediaID:         fp.MediaID,
+		handle:          handle,
+		startSeg:        startSegIdx,
+		endSeg:          endSegIdx,
+		lastAccess:      time.Now(),
+		teardown:        teardown,
+		cancelCtx:       cancel,
+		done:            make(chan struct{}),
+		clientHighWater: startSegIdx,
+		useFMP4:         fp.UseFMP4,
 	}
 
 	o.mu.Lock()
@@ -388,6 +454,14 @@ func (o *SegmentOrchestrator) killSession(s *orchestratorSession, reason string)
 	s.mu.Unlock()
 
 	if handle != nil {
+		// A throttled session is in SIGSTOP and will ignore ctx cancellation;
+		// the Stop path Resume()s defensively too, but calling it here means
+		// the session.paused flag and metrics stay coherent for the throttle
+		// loop while Stop runs.
+		if err := handle.Resume(); err != nil {
+			o.logger.Warn("orchestrator: ffmpeg resume before stop failed",
+				slog.String("hash", hash), slog.Any("err", err))
+		}
 		if err := handle.Stop(); err != nil {
 			o.logger.Warn("orchestrator: ffmpeg stop failed",
 				slog.String("hash", hash),
@@ -414,10 +488,12 @@ func (o *SegmentOrchestrator) killSession(s *orchestratorSession, reason string)
 	metrics.HLSVODSessions.Dec()
 }
 
-// touchSession bumps lastAccess without holding the orchestrator lock for the
-// whole touch. Used on cache hits so the GC doesn't reap a session whose
-// segments are still being consumed from the cache.
-func (o *SegmentOrchestrator) touchSession(hash string) {
+// touchSession bumps lastAccess and the client high-water without holding the
+// orchestrator lock for the whole touch. Used on cache hits so the GC doesn't
+// reap a session whose segments are still being consumed from the cache, and
+// so the throttle loop sees client progress and resumes a paused ffmpeg in
+// time.
+func (o *SegmentOrchestrator) touchSession(hash string, segmentIdx int) {
 	o.mu.Lock()
 	s := o.sessions[hash]
 	o.mu.Unlock()
@@ -426,6 +502,9 @@ func (o *SegmentOrchestrator) touchSession(hash string) {
 	}
 	s.mu.Lock()
 	s.lastAccess = time.Now()
+	if segmentIdx > s.clientHighWater {
+		s.clientHighWater = segmentIdx
+	}
 	s.mu.Unlock()
 }
 
@@ -460,6 +539,93 @@ func (o *SegmentOrchestrator) sweepIdle() {
 	o.mu.Unlock()
 	for _, s := range toKill {
 		o.killSession(s, "inactivity")
+	}
+}
+
+// throttleLoop applies pause-when-ahead to every live session on a ticker.
+// Pattern lifted from Plex's transcode pipeline (audit competitors_big): when
+// ffmpeg has produced ThrottlePauseAhead segments more than the client's
+// high-water, SIGSTOP it — we burn 0 CPU until the client catches up.
+// Hysteresis (ResumeBelow strictly less than PauseAhead) prevents flapping.
+// The loop is a no-op when ThrottleEnabled is false (the goroutine isn't
+// even started in that case).
+func (o *SegmentOrchestrator) throttleLoop() {
+	defer close(o.throttleDone)
+	ticker := time.NewTicker(o.opts.ThrottleTickInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-o.stopThrottle:
+			return
+		case <-ticker.C:
+			o.evaluateThrottle()
+		}
+	}
+}
+
+// evaluateThrottle runs one tick of the pause-when-ahead policy. For each
+// live session, ListReady gives the latest produced segment idx; the buffer
+// (produced - client) decides pause vs resume.
+func (o *SegmentOrchestrator) evaluateThrottle() {
+	o.mu.Lock()
+	snapshot := make([]*orchestratorSession, 0, len(o.sessions))
+	for _, s := range o.sessions {
+		snapshot = append(snapshot, s)
+	}
+	o.mu.Unlock()
+
+	for _, s := range snapshot {
+		s.mu.Lock()
+		hash := s.hash
+		client := s.clientHighWater
+		paused := s.paused
+		handle := s.handle
+		useFMP4 := s.useFMP4
+		s.mu.Unlock()
+
+		if handle == nil {
+			continue
+		}
+
+		idxs, err := o.cache.ListReady(hash, 0, useFMP4)
+		if err != nil || len(idxs) == 0 {
+			continue
+		}
+		produced := idxs[len(idxs)-1]
+		buffer := produced - client
+
+		switch {
+		case !paused && buffer >= o.opts.ThrottlePauseAhead:
+			if err := handle.Pause(); err != nil {
+				o.logger.Warn("orchestrator: throttle pause failed",
+					slog.String("hash", hash), slog.Any("err", err))
+				continue
+			}
+			s.mu.Lock()
+			s.paused = true
+			s.mu.Unlock()
+			o.logger.Debug("orchestrator: throttle paused",
+				slog.String("hash", hash),
+				slog.Int("client_idx", client),
+				slog.Int("produced_idx", produced),
+				slog.Int("buffer", buffer))
+			metrics.HLSVODThrottlePause.Inc()
+		case paused && buffer <= o.opts.ThrottleResumeBelow:
+			if err := handle.Resume(); err != nil {
+				o.logger.Warn("orchestrator: throttle resume failed",
+					slog.String("hash", hash), slog.Any("err", err))
+				continue
+			}
+			s.mu.Lock()
+			s.paused = false
+			s.mu.Unlock()
+			o.logger.Debug("orchestrator: throttle resumed",
+				slog.String("hash", hash),
+				slog.Int("client_idx", client),
+				slog.Int("produced_idx", produced),
+				slog.Int("buffer", buffer))
+			metrics.HLSVODThrottleResume.Inc()
+		}
 	}
 }
 

@@ -162,6 +162,124 @@ func TestOrchestrator_InactivityGC_KeepsLiveSessions(t *testing.T) {
 // Close
 // ============================================================================
 
+// ============================================================================
+// Throttle: pause-when-ahead policy
+// ============================================================================
+
+func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
+	cache, dir := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	opts := testOpts()
+	opts.ThrottleEnabled = true
+	opts.ThrottlePauseAhead = 6
+	opts.ThrottleResumeBelow = 2
+	opts.ThrottleTickInterval = 50 * time.Millisecond
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.Equal(t, 1, o.ActiveCount())
+
+	// Simulate ffmpeg producing 10 segments while the client is still at 0.
+	// useFMP4=true (matches minimalFingerprint) → .m4s.
+	hashDir := filepath.Join(dir, "segments", fp.Hash())
+	require.NoError(t, os.MkdirAll(hashDir, 0o755))
+	for i := 0; i < 10; i++ {
+		name := filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s"))
+		require.NoError(t, os.WriteFile(name, []byte("xx"), 0o644))
+	}
+
+	// Reach into the session to retrieve the handle for assertion.
+	o.mu.Lock()
+	sess := o.sessions[fp.Hash()]
+	o.mu.Unlock()
+	require.NotNil(t, sess)
+	handle := sess.handle.(*fakeHandle)
+
+	// Wait up to 1s for the throttle loop to detect the buffer and pause.
+	require.Eventually(t, func() bool {
+		p, _, paused := handle.counts()
+		return p >= 1 && paused
+	}, time.Second, 20*time.Millisecond, "throttle should pause ffmpeg when produced - client >= PauseAhead")
+
+	// Client catches up to within ResumeBelow → throttle must resume.
+	o.touchSession(fp.Hash(), 9)
+
+	require.Eventually(t, func() bool {
+		_, r, paused := handle.counts()
+		return r >= 1 && !paused
+	}, time.Second, 20*time.Millisecond, "throttle should resume ffmpeg when client catches up")
+}
+
+func TestOrchestrator_Throttle_NoFlapWithHysteresis(t *testing.T) {
+	cache, dir := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	opts := testOpts()
+	opts.ThrottleEnabled = true
+	opts.ThrottlePauseAhead = 4
+	opts.ThrottleResumeBelow = 2
+	opts.ThrottleTickInterval = 30 * time.Millisecond
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+
+	hashDir := filepath.Join(dir, "segments", fp.Hash())
+	require.NoError(t, os.MkdirAll(hashDir, 0o755))
+	for i := 0; i < 5; i++ {
+		require.NoError(t, os.WriteFile(filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s")), []byte("x"), 0o644))
+	}
+
+	o.mu.Lock()
+	sess := o.sessions[fp.Hash()]
+	o.mu.Unlock()
+	handle := sess.handle.(*fakeHandle)
+
+	// Hold steady at buffer=5-0=5: ≥ PauseAhead(4), so we pause exactly once.
+	// Many ticks must NOT produce many pauses (hysteresis: stay paused).
+	require.Eventually(t, func() bool { p, _, _ := handle.counts(); return p >= 1 }, time.Second, 10*time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
+	p, r, _ := handle.counts()
+	assert.Equal(t, 1, p, "no double-pause while already paused")
+	assert.Equal(t, 0, r, "no resume while buffer stays above ResumeBelow")
+}
+
+func formatVariantSegment(variantIdx, segIdx int, ext string) string {
+	return "stream_" + itoa(variantIdx) + "_" + zeroPad3(segIdx) + ext
+}
+
+func itoa(i int) string {
+	if i == 0 {
+		return "0"
+	}
+	var b [10]byte
+	n := 0
+	for i > 0 {
+		b[n] = byte('0' + i%10)
+		i /= 10
+		n++
+	}
+	out := make([]byte, n)
+	for j := 0; j < n; j++ {
+		out[j] = b[n-1-j]
+	}
+	return string(out)
+}
+
+func zeroPad3(i int) string {
+	if i < 10 {
+		return "00" + itoa(i)
+	}
+	if i < 100 {
+		return "0" + itoa(i)
+	}
+	return itoa(i)
+}
+
 func TestOrchestrator_Close_KillsAllSessions(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
@@ -246,9 +364,12 @@ func (p *fakeProcess) lastOpts() transcoding.HLSProcessOpts {
 }
 
 type fakeHandle struct {
-	mu      sync.Mutex
-	stopped bool
-	done    chan struct{}
+	mu       sync.Mutex
+	stopped  bool
+	pauseN   int
+	resumeN  int
+	paused   bool
+	done     chan struct{}
 }
 
 func (h *fakeHandle) WaitReady(_ context.Context) error { return nil }
@@ -263,8 +384,25 @@ func (h *fakeHandle) Stop() error {
 }
 func (h *fakeHandle) Done() <-chan struct{} { return h.done }
 func (h *fakeHandle) Err() error            { return nil }
-func (h *fakeHandle) Pause() error          { return nil }
-func (h *fakeHandle) Resume() error         { return nil }
+func (h *fakeHandle) Pause() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.pauseN++
+	h.paused = true
+	return nil
+}
+func (h *fakeHandle) Resume() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.resumeN++
+	h.paused = false
+	return nil
+}
+func (h *fakeHandle) counts() (pauseN, resumeN int, paused bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.pauseN, h.resumeN, h.paused
+}
 
 type stubSource struct {
 	path    string

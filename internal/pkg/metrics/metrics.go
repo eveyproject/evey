@@ -143,6 +143,20 @@ var (
 		Name: "evey_hlsvod_cache_evicted_bytes_total",
 		Help: "Total bytes freed from the VOD segment cache by the LRU sweeper.",
 	})
+
+	// HLSVODThrottlePause / HLSVODThrottleResume count adaptive throttle
+	// state transitions. Sustained Pause >> Resume means clients are mostly
+	// idle on linear playback (good — CPU saved). The ratio also indicates
+	// whether the PauseAhead / ResumeBelow thresholds are well-tuned: lots
+	// of pair churn on a single session = flap, widen the hysteresis.
+	HLSVODThrottlePause = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_hlsvod_throttle_pause_total",
+		Help: "Total ffmpeg SIGSTOPs issued by the pause-when-ahead policy.",
+	})
+	HLSVODThrottleResume = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_hlsvod_throttle_resume_total",
+		Help: "Total ffmpeg SIGCONTs issued by the pause-when-ahead policy.",
+	})
 )
 
 func init() {
@@ -155,6 +169,7 @@ func init() {
 		TranscodeDuration,
 		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
+		HLSVODThrottlePause, HLSVODThrottleResume,
 	)
 }
 

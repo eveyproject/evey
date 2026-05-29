@@ -186,6 +186,17 @@ func (h *hlsHandle) WaitReady(ctx context.Context) error {
 }
 
 func (h *hlsHandle) Stop() error {
+	// A SIGSTOPped process can't observe ctx cancellation. Always SIGCONT first
+	// so the cancel→graceful-exit path completes in milliseconds; otherwise we
+	// pay the full 5s timeout and fall through to SIGKILL on every throttled
+	// session teardown.
+	h.mu.Lock()
+	if h.paused && h.cmd != nil && h.cmd.Process != nil {
+		_ = h.cmd.Process.Signal(syscall.SIGCONT)
+		h.paused = false
+	}
+	h.mu.Unlock()
+
 	h.cancel()
 	select {
 	case <-h.done:
