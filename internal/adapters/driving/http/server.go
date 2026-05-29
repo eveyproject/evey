@@ -267,25 +267,17 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/segments/propagate", propagateSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 	}
 	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs, parentalChk)))
-	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", streamAuth(hlsMasterHandler(hlsMasterServe{
-		tokens: s.TokenGen, libSvc: s.LibQuerySvc, hlsManager: s.HLSManager,
-		libraryAccess: s.LibraryAccessRepo, userMaxStreams: s.UserMaxStreams,
-		audioNormalizeGetter: s.AudioNormalizeGetter, bitrateGetter: s.UserBitrate,
-		profilePrefs: s.ProfilePrefs, parental: parentalChk,
-	})))
-	hlsMediaCache := NewCachedMediaItemGetter(s.LibQuerySvc)
 	hlsAccessCache := NewCachedLibraryAccessChecker(s.LibraryAccessRepo)
-	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(hlsSegmentHandler(s.TokenGen, hlsMediaCache, s.HLSManager, hlsAccessCache)))
 
-	// Phase 1 refacto — VOD-style HLS pipeline (manifest precomputed in Go,
-	// segments produced on demand by SegmentOrchestrator into SegmentCache).
-	// Runs in parallel under /hls/v2/ until the runtime validation step lands
-	// and we can retire the legacy /hls/ path. See features/hls_vod_playlist_refacto.
+	// VOD-style HLS pipeline: manifest precomputed in Go from durationMs,
+	// segments produced on demand by SegmentOrchestrator into SegmentCache.
+	// Replaced the previous ffmpeg-writes-the-playlist path that drifted out
+	// after ~9 min of continuous playback (cf features/hls_vod_playlist_refacto).
 	if s.HLSTranscoder != nil && s.HLSManager != nil {
 		if vodHandler := newHLSVODServe(s, s.LibQuerySvc, hlsAccessCache, parentalChk); vodHandler != nil {
 			// Single catch-all — the handler dispatches on the {file} pattern
 			// (master.m3u8 / stream_N.m3u8 / stream_N_NNN.ext / stream_N_init.mp4).
-			mux.HandleFunc("GET /api/v1/media/{id}/hls/v2/{file}", streamAuth(vodHandler.serveHTTP))
+			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(vodHandler.serveHTTP))
 		}
 	}
 	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.TokenGen, s.LibQuerySvc, NewLibraryItemCounter(s.LibQuerySvc, s.MusicSvc, s.PhotoSvc))))

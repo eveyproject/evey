@@ -60,7 +60,7 @@ var vodSegmentNameRE = regexp.MustCompile(`^stream_(\d+)(?:_(\d{3})|_init)\.(ts|
 // vodVariantNameRE matches the sub-playlist file name.
 var vodVariantNameRE = regexp.MustCompile(`^stream_(\d+)\.m3u8$`)
 
-// serveHTTP is the single dispatch entry point for `/hls/v2/{file}`. It splits
+// serveHTTP is the single dispatch entry point for `/hls/{file}`. It splits
 // master vs sub-playlist vs segment by file name and delegates.
 func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.transcode.HLSVOD")

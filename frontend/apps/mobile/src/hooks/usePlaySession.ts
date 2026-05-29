@@ -80,12 +80,8 @@ export function buildStreamUrl(
   const params = new URLSearchParams({ token });
   if (startSec && startSec > 0) params.set("startSec", String(Math.floor(startSec)));
   appendCodecParams(params);
-  // Same VOD pipeline switch as web — the server publishes a complete VOD
-  // manifest from t=0 instead of a growing live playlist, killing the
-  // drift-jump bug on long playback. Mobile players (Expo AV) handle the
-  // VOD playlist the same way as the live one, just without the live-edge
-  // snap. See features/hls_vod_playlist_refacto memo for context.
-  return `${serverUrl}/api/v1/media/${mediaId}/hls/v2/master.m3u8?${params.toString()}`;
+  // Server publishes a complete VOD manifest from t=0 (no live-edge snap).
+  return `${serverUrl}/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
 
 export function usePlaySession(mediaId: string): PlaySessionResult {
