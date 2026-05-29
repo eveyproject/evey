@@ -157,6 +157,13 @@ var (
 		Name: "evey_hlsvod_throttle_resume_total",
 		Help: "Total ffmpeg SIGCONTs issued by the pause-when-ahead policy.",
 	})
+	// HLSVODStarvationResumes counts only the resumes triggered by CMCD
+	// bs=1 (vs the regular tick-based ones). High value vs total resume
+	// means the throttle tick is too slow for the network.
+	HLSVODStarvationResumes = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_hlsvod_starvation_resumes_total",
+		Help: "ffmpeg SIGCONTs triggered by CMCD bs=1 starvation signal.",
+	})
 
 	// QoEIngestEvents counts every CMCD event received. QoEIngestDrops counts
 	// the ones the sink dropped because its buffer was full — sustained > 0
@@ -181,7 +188,7 @@ func init() {
 		TranscodeDuration,
 		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
-		HLSVODThrottlePause, HLSVODThrottleResume,
+		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,
 		QoEIngestEvents, QoEIngestDrops,
 	)
 }

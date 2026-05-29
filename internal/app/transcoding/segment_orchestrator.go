@@ -629,6 +629,91 @@ func (o *SegmentOrchestrator) evaluateThrottle() {
 	}
 }
 
+// NotifyClientHint feeds CMCD telemetry from the HTTP layer back into the
+// orchestrator so the throttle / prefetch policy can react to what the
+// client is actually experiencing — buffer length, imminent starvation,
+// real cursor — instead of the coarse "last requested segment" proxy.
+//
+// CRITICAL constraint: this method NEVER changes which variant the client
+// downloads. The HLS protocol gives the player full control over rendition
+// selection (the segment URL carries the variant index). All we can do
+// here is adjust the encoder's pace and lookahead, and wake up a paused
+// ffmpeg — all transparent to the client and to the user's manual quality
+// lock.
+//
+// Effects per session whose mediaID matches:
+//
+//   - clientHighWater bumped forward when the CMCD-derived cursor is
+//     ahead of what touchSession had previously seen. We only ever bump
+//     forward — a stale CMCD packet must not pull the throttle back.
+//
+//   - On bs=1 (buffer starved), SIGCONT a paused session immediately
+//     instead of waiting up to ThrottleTickInterval. The client has
+//     already stopped playback, so resume latency directly hits rebuffer.
+//
+//   - On large bl (client comfortably ahead), stretch endSeg so the next
+//     EnsureSegmentRange call doesn't have to extend the rafale itself.
+//     Pays off on calm networks by reducing respawns later.
+//
+// No-op when no live session matches mediaID. Safe to call from any
+// goroutine.
+func (o *SegmentOrchestrator) NotifyClientHint(mediaItemID string, bufferLengthMs int, bufferStarved bool, segmentIdx int) {
+	o.mu.Lock()
+	matched := make([]*orchestratorSession, 0, 1)
+	for _, s := range o.sessions {
+		s.mu.Lock()
+		mid := s.mediaID
+		s.mu.Unlock()
+		if mid == mediaItemID {
+			matched = append(matched, s)
+		}
+	}
+	o.mu.Unlock()
+	if len(matched) == 0 {
+		return
+	}
+
+	bufferAheadSegs := 0
+	if bufferLengthMs > 0 && o.opts.SegmentSeconds > 0 {
+		bufferAheadSegs = int(float64(bufferLengthMs) / 1000.0 / o.opts.SegmentSeconds)
+	}
+	consumableIdx := segmentIdx
+	if consumableIdx < 0 {
+		consumableIdx = 0
+	}
+
+	for _, s := range matched {
+		s.mu.Lock()
+		if consumableIdx > s.clientHighWater {
+			s.clientHighWater = consumableIdx
+		}
+		needsResume := bufferStarved && s.paused
+		handle := s.handle
+
+		target := consumableIdx + bufferAheadSegs + o.opts.LookAheadSegments
+		if bufferAheadSegs >= o.opts.LookAheadSegments && target > s.endSeg {
+			s.endSeg = target
+		}
+		s.mu.Unlock()
+
+		if needsResume && handle != nil {
+			if err := handle.Resume(); err != nil {
+				o.logger.Warn("orchestrator: starvation resume failed",
+					slog.String("media_id", mediaItemID), slog.Any("err", err))
+				continue
+			}
+			s.mu.Lock()
+			s.paused = false
+			s.mu.Unlock()
+			o.logger.Info("orchestrator: throttle resumed by CMCD bs=1",
+				slog.String("media_id", mediaItemID),
+				slog.Int("segment_idx", segmentIdx))
+			metrics.HLSVODThrottleResume.Inc()
+			metrics.HLSVODStarvationResumes.Inc()
+		}
+	}
+}
+
 // ActiveCount returns how many ffmpeg sessions are currently live. Test +
 // observability accessor; cheap to call.
 func (o *SegmentOrchestrator) ActiveCount() int {

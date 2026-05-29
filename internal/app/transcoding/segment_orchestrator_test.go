@@ -213,6 +213,81 @@ func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
 	}, time.Second, 20*time.Millisecond, "throttle should resume ffmpeg when client catches up")
 }
 
+func TestOrchestrator_NotifyClientHint_ResumesPausedOnStarvation(t *testing.T) {
+	cache, dir := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	opts := testOpts()
+	opts.ThrottleEnabled = true
+	opts.ThrottlePauseAhead = 4
+	opts.ThrottleResumeBelow = 2
+	opts.ThrottleTickInterval = 50 * time.Millisecond
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+
+	hashDir := filepath.Join(dir, "segments", fp.Hash())
+	require.NoError(t, os.MkdirAll(hashDir, 0o755))
+	for i := 0; i < 8; i++ {
+		require.NoError(t, os.WriteFile(filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s")), []byte("x"), 0o644))
+	}
+	o.mu.Lock()
+	sess := o.sessions[fp.Hash()]
+	o.mu.Unlock()
+	handle := sess.handle.(*fakeHandle)
+
+	require.Eventually(t, func() bool { _, _, paused := handle.counts(); return paused }, time.Second, 10*time.Millisecond)
+
+	// CMCD bs=1 arrives — we must SIGCONT immediately, not wait the tick.
+	o.NotifyClientHint(fp.MediaID, 0, true, 1)
+
+	_, resumes, paused := handle.counts()
+	assert.GreaterOrEqual(t, resumes, 1, "starvation hint must resume")
+	assert.False(t, paused, "starvation hint must clear paused state")
+}
+
+func TestOrchestrator_NotifyClientHint_NoOpOnUnknownMedia(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger())
+	defer o.Close()
+
+	o.NotifyClientHint("nobody-here", 12000, true, 5)
+	assert.Equal(t, 0, o.ActiveCount())
+}
+
+func TestOrchestrator_NotifyClientHint_ExtendsEndSegOnFatBuffer(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	opts := testOpts()
+	opts.LookAheadSegments = 10
+	opts.SegmentSeconds = 3.0
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+
+	o.mu.Lock()
+	sess := o.sessions[fp.Hash()]
+	o.mu.Unlock()
+	sess.mu.Lock()
+	endBefore := sess.endSeg
+	sess.mu.Unlock()
+
+	// 45s buffer ≥ LookAhead × segmentSeconds (10×3=30s) → stretch endSeg.
+	o.NotifyClientHint(fp.MediaID, 45000, false, 0)
+
+	sess.mu.Lock()
+	endAfter := sess.endSeg
+	sess.mu.Unlock()
+	assert.Greater(t, endAfter, endBefore, "fat buffer hint should stretch endSeg")
+}
+
 func TestOrchestrator_Throttle_NoFlapWithHysteresis(t *testing.T) {
 	cache, dir := newTestCache(t)
 	proc := newFakeProcess()

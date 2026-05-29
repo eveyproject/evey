@@ -217,6 +217,11 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// do anything that can 5xx — we want telemetry even on failure paths.
 	// Sink is non-blocking; an absent payload is the no-op common case.
 	h.ingestCMCD(r, mediaID, variantIdx, segmentIdx, isInit, false, false)
+	// Phase 3 feedback loop: forward the CMCD signal to the orchestrator so
+	// it can wake up a paused ffmpeg on starvation and stretch the prefetch
+	// window when the client has a fat buffer. NEVER changes which variant
+	// is served — that's the player's call.
+	h.notifyOrchestratorHint(r, mediaID, segmentIdx)
 
 	fp, err := h.buildFingerprint(r, mediaID, item, streams)
 	if err != nil {
@@ -542,4 +547,25 @@ func (h *hlsVODServe) ingestCMCD(r *http.Request, mediaID string, variantIdx, se
 		RemoteIP:    appqoe.RemoteIP(r),
 		Payload:     payload,
 	})
+}
+
+// notifyOrchestratorHint forwards CMCD telemetry (buffer length, starvation
+// flag, current segment cursor) to the orchestrator's NotifyClientHint so
+// the throttle / prefetch policy can react in real time. Read-only on the
+// HTTP path — never blocks, never errors. No-op when CMCD is absent.
+//
+// NEVER touches which variant is served — the player owns rendition
+// selection. Phase 3 feedback loop only adjusts encoder pacing.
+func (h *hlsVODServe) notifyOrchestratorHint(r *http.Request, mediaID string, segmentIdx int) {
+	if h.orchestrator == nil {
+		return
+	}
+	payload, ok := cmcd.FromRequest(r)
+	if !ok {
+		return
+	}
+	// Bare-minimum signals: buffer length (ms) and starvation flag drive
+	// the policy. Object type "v"/"av" matters most (video pipeline),
+	// audio-only fetches can still bump clientHighWater forward harmlessly.
+	h.orchestrator.NotifyClientHint(mediaID, payload.BufferLengthMs, payload.BufferStarved, segmentIdx)
 }
