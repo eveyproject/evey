@@ -95,6 +95,10 @@ export function useTouchGestures({
       if (!video) return;
       const newVol = Math.max(0, Math.min(1, swipeStartVolumeRef.current + dy * SENSITIVITY));
       video.volume = newVol;
+      // Same intent as the volume slider: a swipe up past 0 clears the
+      // muted-autoplay flag. Otherwise the indicator shows the new level
+      // while the user still hears nothing.
+      if (newVol > 0 && video.muted) video.muted = false;
       setSwipeIndicator({ type: "volume", value: newVol });
     } else if (swipeActiveRef.current === "brightness") {
       const newBri = Math.max(MIN_BRIGHTNESS, Math.min(MAX_BRIGHTNESS, swipeStartBrightnessRef.current + dy * SENSITIVITY));
@@ -183,7 +187,11 @@ export function useTouchGestures({
     if (!video) return;
     e.preventDefault();
     const delta = e.deltaY < 0 ? 0.05 : -0.05;
-    video.volume = Math.min(1, Math.max(0, video.volume + delta));
+    const next = Math.min(1, Math.max(0, video.volume + delta));
+    video.volume = next;
+    // Same intent as the volume slider: scrolling up past 0 clears the
+    // muted-autoplay flag.
+    if (next > 0 && video.muted) video.muted = false;
   }, []);
 
   const setBrightnessValue = useCallback((value: number) => {

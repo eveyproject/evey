@@ -101,10 +101,17 @@ export function usePlayerKeyboard({
           seekRef.current(dur > 0 ? Math.min(dur, fwdTarget) : fwdTarget);
           break;
         }
-        case "ArrowUp":
+        case "ArrowUp": {
           e.preventDefault();
-          video.volume = Math.min(1, video.volume + 0.1);
+          const next = Math.min(1, video.volume + 0.1);
+          video.volume = next;
+          // Same intent as the volume slider: a deliberate raise clears the
+          // muted-autoplay flag so the user hears something instead of seeing
+          // the volume bar move silently. Symmetric with the slider fix
+          // (PlayerControls.handleVolume).
+          if (next > 0 && video.muted) video.muted = false;
           break;
+        }
         case "ArrowDown":
           e.preventDefault();
           video.volume = Math.max(0, video.volume - 0.1);
