@@ -419,39 +419,16 @@ func (r *MediaSourceResolver) ResolveSource(ctx context.Context, fp apptranscodi
 	return item.File.Path, nil, nil
 }
 
-// newHLSVODServe wires the orchestration components (cache + orchestrator)
-// onto the server's dependencies. Called once at route registration time;
-// returns nil if any prerequisite is missing (in which case the caller skips
-// route registration so the legacy /hls/ path stays the only entry point).
+// newHLSVODServe binds the handler to the orchestrator + cache that wire.go
+// has already built. Returns nil if either prerequisite is missing so the
+// caller skips route registration cleanly.
 func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryAccessChecker, parental ParentalChecker) *hlsVODServe {
-	if s == nil || s.HLSTranscoder == nil || s.HLSManager == nil {
+	_ = libAccess // wired through commonAuth via s.LibraryAccessRepo
+	if s == nil || s.HLSVODOrch == nil || s.HLSVODCache == nil {
 		return nil
 	}
-	cache, err := apptranscoding.NewSegmentCache(s.HLSManager.CacheDir() + "/vod")
-	if err != nil {
-		slog.Warn("hls-vod: cache init failed, skipping v2 routes", slog.Any("err", err))
-		return nil
-	}
-	// Phase 2: LRU sweeper bounds the on-disk cache. Configured via the
-	// existing EVEY_TRANSCODING_CACHE_MAX_GB env var so home servers can
-	// tune disk vs more cached sessions independently of code. The sweeper
-	// runs in the background; its stop func is intentionally dropped since
-	// the orchestrator lives for the process lifetime.
-	maxGB := 50
-	if s.Cfg != nil && s.Cfg.Transcoding.CacheMaxGB > 0 {
-		maxGB = s.Cfg.Transcoding.CacheMaxGB
-	}
-	_ = cache.StartEviction(apptranscoding.EvictionPolicy{
-		MaxBytes: int64(maxGB) * 1024 * 1024 * 1024,
-	}, slog.Default())
-	resolver := &MediaSourceResolver{LibSvc: libSvc}
-	orch := apptranscoding.NewSegmentOrchestrator(
-		cache,
-		s.HLSTranscoder,
-		resolver,
-		apptranscoding.OrchestratorOptions{},
-		slog.Default(),
-	)
+	cache := s.HLSVODCache
+	orch := s.HLSVODOrch
 	return &hlsVODServe{
 		tokens:               s.TokenGen,
 		libSvc:               libSvc,

@@ -16,7 +16,7 @@ type mediaItemCounter interface {
 	Count(ctx context.Context, filter domainlibrary.ListMediaItemsFilter) (int, error)
 }
 
-func startMetricsCollector(ctx context.Context, db *sql.DB, hlsManager *apptranscoding.HLSManager, mediaItemRepo mediaItemCounter) {
+func startMetricsCollector(ctx context.Context, db *sql.DB, hlsOrch *apptranscoding.SegmentOrchestrator, mediaItemRepo mediaItemCounter) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -26,7 +26,10 @@ func startMetricsCollector(ctx context.Context, db *sql.DB, hlsManager *apptrans
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
-			eveymetrics.HLSSessionsGauge.Set(float64(hlsManager.ActiveSessionCount()))
+			// Keep the legacy gauge name so existing Prometheus dashboards
+			// keep working — the VOD orchestrator's per-event metrics
+			// (evey_hlsvod_*) sit alongside.
+			eveymetrics.HLSSessionsGauge.Set(float64(hlsOrch.ActiveSessionCount()))
 			select {
 			case <-ctx.Done():
 				return

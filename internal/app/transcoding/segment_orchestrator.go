@@ -95,6 +95,14 @@ type SourceResolver interface {
 	ResolveSource(ctx context.Context, fp DecisionFingerprint) (path string, streams []SourceStream, err error)
 }
 
+// SourceResolverFunc adapts a plain function to the SourceResolver interface,
+// letting wire.go inline the bridge without declaring a one-method struct.
+type SourceResolverFunc func(ctx context.Context, fp DecisionFingerprint) (string, []SourceStream, error)
+
+func (f SourceResolverFunc) ResolveSource(ctx context.Context, fp DecisionFingerprint) (string, []SourceStream, error) {
+	return f(ctx, fp)
+}
+
 // SourceStream is the minimal stream metadata the orchestrator passes to the
 // ffmpeg adapter. Defined here (rather than re-using library.MediaStream
 // directly) to avoid pulling the library package into the orchestrator.
@@ -114,6 +122,7 @@ type SourceStream struct {
 type orchestratorSession struct {
 	mu         sync.Mutex
 	hash       string
+	mediaID    string // for RemoveSession reverse lookup (a single mediaID can have several hashes — different audio/sub/codec decisions)
 	handle     transcoding.HLSProcessHandle
 	startSeg   int // first segment this rafale is producing
 	endSeg     int // last segment (inclusive) the rafale will produce
@@ -310,6 +319,7 @@ func (o *SegmentOrchestrator) spawnSession(
 
 	session := &orchestratorSession{
 		hash:       hash,
+		mediaID:    fp.MediaID,
 		handle:     handle,
 		startSeg:   startSegIdx,
 		endSeg:     endSegIdx,
@@ -460,6 +470,42 @@ func (o *SegmentOrchestrator) ActiveCount() int {
 	defer o.mu.Unlock()
 	return len(o.sessions)
 }
+
+// ActiveSessionCount is the alias the library trickplay scheduler and the
+// admin/system metrics gauge consume — same shape as the legacy HLSManager's
+// counter, so the trickplay ActiveStreamChecker contract drops in without
+// changing callers.
+func (o *SegmentOrchestrator) ActiveSessionCount() int { return o.ActiveCount() }
+
+// RemoveSession kills every rafale currently producing for the given media
+// ID. A single media can have several live sessions when different clients
+// negotiate different audio tracks / sub burn-ins / codecs (one DecisionHash
+// each), so the legacy contract — keyed by mediaID — fans out here. Safe to
+// call for a media with no live session (no-op). Implements the
+// HLSSessionRemover interface the admin/kill-session and playback-stop paths
+// rely on.
+func (o *SegmentOrchestrator) RemoveSession(mediaItemID string) {
+	o.mu.Lock()
+	var toKill []*orchestratorSession
+	for _, s := range o.sessions {
+		s.mu.Lock()
+		match := s.mediaID == mediaItemID
+		s.mu.Unlock()
+		if match {
+			toKill = append(toKill, s)
+		}
+	}
+	o.mu.Unlock()
+	for _, s := range toKill {
+		o.killSession(s, "remove_session")
+	}
+}
+
+// CleanupAll mirrors the legacy HLSManager.CleanupAll — deferred from main
+// at shutdown. Same observable behaviour as Close (kill every ffmpeg + free
+// every hash on disk) but kept as a distinct method so the wiring side can
+// `defer` it without ambiguity.
+func (o *SegmentOrchestrator) CleanupAll() { o.Close() }
 
 // profilesToDomain converts the cache fingerprint profiles into the domain
 // type expected by the ffmpeg adapter. Both shapes carry essentially the same

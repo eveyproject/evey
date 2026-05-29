@@ -157,21 +157,6 @@ func TestAdminGetDashboard(t *testing.T) {
 	}
 }
 
-func TestAdminGetDashboard_WithHLSManager(t *testing.T) {
-	d := newTestSystemHandler()
-	tmpDir := t.TempDir()
-	hls := apptranscoding.NewHLSManager(context.Background(), tmpDir, 5, &transcodingfakes.HLSProcess{})
-	defer hls.CleanupAll()
-	d.hlsManager = hls
-
-	resp, err := d.GetDashboard(context.Background(), &eveyv1.GetDashboardRequest{})
-	if err != nil {
-		t.Fatalf("GetDashboard: %v", err)
-	}
-	if resp.ActiveTranscodes != 0 {
-		t.Errorf("expected 0 active transcodes, got %d", resp.ActiveTranscodes)
-	}
-}
 
 func TestAdminGetDashboard_WithLibLister(t *testing.T) {
 	d := newTestSystemHandler()

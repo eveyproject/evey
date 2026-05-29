@@ -77,7 +77,7 @@ type GRPCServerDeps struct {
 	CfgStore        remoteAccessConfigStore
 	Version         string
 	// Fields previously set via Set* methods
-	HLSManager     *apptranscoding.HLSManager
+	HLSVODOrch     *apptranscoding.SegmentOrchestrator
 	Scheduler      *applibrary.Scheduler
 	LogDir         string
 	ServerCtx      context.Context
@@ -118,7 +118,7 @@ func (s *GRPCServer) RegisterServices() {
 	d := &s.deps
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: d.LibCmd, query: d.LibQuery, metadataSvc: d.MetadataQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, activitySvc: d.ActivityCmd, translator: d.Translator, quickConnectHub: d.QuickConnectHub, cfg: d.Cfg})
-	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, hlsManager: d.HLSManager})
+	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, hlsManager: d.HLSVODOrch})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: d.Transcoding, userQuery: d.UserQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: d.Mkv, libQuery: d.LibQuery, userAccess: d.UserAccess})
 	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{cmd: d.MetadataCmd, query: d.MetadataQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})
@@ -131,7 +131,7 @@ func (s *GRPCServer) RegisterServices() {
 		userQuery:      d.UserQuery,
 		transcodingSvc: d.Transcoding,
 		activitySvc:    d.ActivityQuery,
-		hlsManager:     d.HLSManager,
+		hlsManager:     d.HLSVODOrch,
 		libLister:      d.LibQuery,
 		version:        d.Version,
 		startTime:      s.startTime,
@@ -172,7 +172,7 @@ func (s *GRPCServer) RegisterServices() {
 		activitySvc: d.ActivityQuery,
 		playbackCmd: d.PlaybackCmd,
 		playbackQry: d.PlaybackQuery,
-		hlsManager:  d.HLSManager,
+		hlsManager:  d.HLSVODOrch,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: d.ActivityQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: d.NotifCmd, query: d.NotifQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})

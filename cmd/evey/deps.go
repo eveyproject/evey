@@ -59,10 +59,12 @@ type userDeps struct {
 type mediaDeps struct {
 	playbackSvc    *appplayback.Service
 	transcodingSvc *apptranscoding.Service
-	hlsManager     *apptranscoding.HLSManager
-	// hlsTranscoder is the raw ffmpeg adapter — exposed so the VOD pipeline
-	// (Phase 1 refacto) can spawn its own rafale sessions without going through
-	// the legacy HLSManager. Removed in Phase 4 once the legacy path is dead.
+	// hlsVODOrch owns the ffmpeg rafale sessions that produce VOD-style HLS
+	// segments. Also satisfies ActiveStreamChecker (trickplay scheduler) and
+	// HLSSessionRemover (admin kill-session, playback stop) — the legacy
+	// HLSManager that used to sit here is fully retired.
+	hlsVODOrch    *apptranscoding.SegmentOrchestrator
+	hlsVODCache   *apptranscoding.SegmentCache
 	hlsTranscoder *ffmpeg.HLSTranscoder
 	mkvSvc         *appmkv.Service
 	musicSvc       *appmusic.Service

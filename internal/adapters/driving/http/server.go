@@ -85,11 +85,12 @@ type HTTPServer struct {
 
 	// Transcoding
 	TranscodingSvc *apptranscoding.Service
-	HLSManager     *apptranscoding.HLSManager
-	// HLSTranscoder is the raw ffmpeg adapter — used by the VOD pipeline
-	// (Phase 1 refacto) which spawns its own rafale sessions, bypassing the
-	// legacy HLSManager. Wired alongside HLSManager during the migration; the
-	// legacy field goes away in Phase 4.
+	// HLSVODOrch owns the VOD pipeline's ffmpeg rafale sessions (cache
+	// addressing, cancel-on-seek, inactivity GC). Also satisfies the legacy
+	// HLSSessionRemover + ActiveStreamChecker contracts so admin kill-session
+	// and the trickplay scheduler keep working without a separate HLSManager.
+	HLSVODOrch    *apptranscoding.SegmentOrchestrator
+	HLSVODCache   *apptranscoding.SegmentCache
 	HLSTranscoder domaintranscoding.HLSProcess
 
 	// Metadata
@@ -273,7 +274,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// segments produced on demand by SegmentOrchestrator into SegmentCache.
 	// Replaced the previous ffmpeg-writes-the-playlist path that drifted out
 	// after ~9 min of continuous playback (cf features/hls_vod_playlist_refacto).
-	if s.HLSTranscoder != nil && s.HLSManager != nil {
+	if s.HLSTranscoder != nil && s.HLSVODOrch != nil {
 		if vodHandler := newHLSVODServe(s, s.LibQuerySvc, hlsAccessCache, parentalChk); vodHandler != nil {
 			// Single catch-all — the handler dispatches on the {file} pattern
 			// (master.m3u8 / stream_N.m3u8 / stream_N_NNN.ext / stream_N_init.mp4).
@@ -357,7 +358,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                                                                               // Play On: WebSocket + REST
 	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL)                                                    // binary: download/restore
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
-	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, s.HLSManager, s.LoginRL, s.GlobalRL, s.AdminWriteRL)
+	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, s.HLSVODOrch, s.LoginRL, s.GlobalRL, s.AdminWriteRL)
 	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL)
 	registerParentalRoutes(mux, s.ProfileRepo, s.UserRepo, s.Hasher, s.TokenGen)
 	if s.DataDir != "" {

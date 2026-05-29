@@ -39,7 +39,7 @@ type playbackHandler struct {
 	userQuery      *appuser.QueryService
 	userAccess     *appuser.AccessService
 	translator     *eveyi18n.Translator
-	hlsManager     *apptranscoding.HLSManager
+	hlsManager     *apptranscoding.SegmentOrchestrator
 }
 
 func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {
