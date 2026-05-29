@@ -4,6 +4,7 @@ Operational playbooks for running Evey in production (or a serious home lab).
 
 ## Index
 
+- [cli.md](cli.md) — `evey admin` operator CLI reference (migrate, reset-password, rotate-jwt-key, restore-backup, reindex-search) + standalone dev/QA binaries.
 - [migration-runbook.md](migration-runbook.md) — applying, rolling back, and recovering from database migrations.
 - [incident-runbook.md](incident-runbook.md) — first-response diagnostics for common outages (server down, auth broken, transcode fail, DB/Meili issues, cache full, plugin crash, WSL git corruption).
 
@@ -11,6 +12,8 @@ Operational playbooks for running Evey in production (or a serious home lab).
 
 | Situation | Runbook |
 |---|---|
+| Looking up an `evey admin` subcommand or invocation pattern | `cli.md` |
+| `make migrate-up` / `make migrate-down` / `make migrate-version` | `cli.md` → migrate |
 | Deploying a new Evey version that changes schema | `migration-runbook.md` |
 | `schema_migrations.dirty = true` after a crashed upgrade | `migration-runbook.md` → Recovery |
 | Planning a large `ALTER`, `DROP COLUMN`, or FK addition | `migration-runbook.md` → Special cases |

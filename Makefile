@@ -153,13 +153,13 @@ clean:
 # evey-server must be up for these targets to work — start the stack first
 # with `make dev` if it isn't.
 migrate-up:
-	docker exec -w /app evey-server sh -c 'go run ./cmd/migrate up'
+	docker exec -w /app evey-server sh -c 'go run ./cmd/evey admin migrate up'
 
 migrate-down:
-	docker exec -w /app evey-server sh -c 'go run ./cmd/migrate down'
+	docker exec -w /app evey-server sh -c 'go run ./cmd/evey admin migrate down'
 
 migrate-version:
-	docker exec -w /app evey-server sh -c 'go run ./cmd/migrate version'
+	docker exec -w /app evey-server sh -c 'go run ./cmd/evey admin migrate version'
 
 # ── Dev (uses docker-compose.yml + docker-compose.override.yml) ───────────────
 

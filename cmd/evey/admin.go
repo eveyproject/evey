@@ -40,6 +40,8 @@ func runAdmin(args []string) error {
 		return adminRestoreBackup(args[1:])
 	case "reindex-search":
 		return adminReindexSearch(args[1:])
+	case "migrate":
+		return adminMigrate(args[1:])
 	case "-h", "--help", "help":
 		_ = adminUsage()
 		return nil
@@ -58,8 +60,13 @@ Recovery subcommands:
   restore-backup <path>             Restore the database from a pg_dump.gz file.
   reindex-search [--library <id>]   Rebuild the Meilisearch index from the database (no metadata fetch).
 
+Schema subcommands:
+  migrate up [--no-backup]          Apply all pending migrations.
+  migrate down [--no-backup]        Roll back exactly one migration step.
+  migrate version                   Print current schema version (exit 1 if dirty).
+
 Configuration is read from EVEY_* env vars (same as the server).
-See docs/runbooks/recovery.md for full procedures.
+See docs/runbooks/recovery.md and docs/runbooks/cli.md for full procedures.
 `)
 	return fmt.Errorf("admin: subcommand required")
 }
@@ -293,5 +300,90 @@ func adminReindexSearch(args []string) error {
 	}
 	fmt.Printf("Done. Indexed %d media items.\n", n)
 	return nil
+}
+
+// adminMigrate dispatches `evey admin migrate <up|down|version>`. Same
+// env-var contract as the server boot path.
+func adminMigrate(args []string) error {
+	if len(args) < 1 {
+		return adminMigrateUsage()
+	}
+	cmd := args[0]
+	noBackup := false
+	for _, a := range args[1:] {
+		if a == "--no-backup" {
+			noBackup = true
+		}
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
+	db, err := sql.Open("postgres", cfg.DB.DSN())
+	if err != nil {
+		return fmt.Errorf("open db: %w", err)
+	}
+	defer func() { _ = db.Close() }()
+	db.SetMaxOpenConns(2)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("ping db: %w", err)
+	}
+
+	backupOpts := postgres.BackupOpts{
+		Dir:       cfg.Backup.Dir,
+		Host:      cfg.DB.Host,
+		Port:      cfg.DB.Port,
+		User:      cfg.DB.User,
+		Password:  cfg.DB.Password,
+		DBName:    cfg.DB.DBName,
+		Retention: 3,
+	}
+	if noBackup {
+		backupOpts.Dir = ""
+	}
+
+	switch cmd {
+	case "up":
+		if err := postgres.RunMigrations(db, backupOpts); err != nil {
+			return fmt.Errorf("migrate up: %w", err)
+		}
+		fmt.Println("migrations: up — schema at latest version")
+		return nil
+	case "down":
+		if err := postgres.RollbackLastMigration(db, backupOpts); err != nil {
+			return fmt.Errorf("migrate down: %w", err)
+		}
+		fmt.Println("migrations: down — one step rolled back")
+		return nil
+	case "version":
+		v, dirty, err := postgres.CurrentMigrationVersion(db)
+		if err != nil {
+			return fmt.Errorf("migrate version: %w", err)
+		}
+		if dirty {
+			fmt.Printf("schema version: %d (DIRTY — previous migration failed)\n", v)
+			return fmt.Errorf("schema is dirty")
+		}
+		fmt.Printf("schema version: %d\n", v)
+		return nil
+	default:
+		return adminMigrateUsage()
+	}
+}
+
+func adminMigrateUsage() error {
+	fmt.Fprintf(os.Stderr, `usage: evey admin migrate <up|down|version> [--no-backup]
+
+  up                Apply all pending migrations.
+  down              Roll back exactly one migration step.
+  version           Print current schema version (exit 1 if DB is in a dirty state).
+
+  --no-backup       Skip the pre-migration pg_dump (use on hosts where
+                    pg_dump isn't installed — typical WSL dev). Defaults
+                    to taking the dump when EVEY_BACKUP_DIR is set.
+`)
+	return fmt.Errorf("admin migrate: subcommand required")
 }
 
