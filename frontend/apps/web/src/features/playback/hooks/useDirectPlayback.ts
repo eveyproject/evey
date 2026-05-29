@@ -68,6 +68,8 @@ export function useDirectPlayback({
       hlsInstance = new Hls({
         maxBufferLength: 30,
         maxMaxBufferLength: 60,
+        // CMCD ingest — same rationale as useTranscodePlayback.
+        cmcd: {},
       });
       hlsRef.current = hlsInstance;
       hlsInstance.loadSource(streamInfo.transcodeUrl);

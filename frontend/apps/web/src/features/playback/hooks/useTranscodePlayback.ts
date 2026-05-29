@@ -96,6 +96,12 @@ export function useTranscodePlayback({
       startPosition: 0,
       maxBufferLength: 30,
       maxMaxBufferLength: 60,
+      // Emit CMCD (CTA-5004) on every segment / playlist request. The
+      // server reads br, bl, mtp, bs, su, sid, ... and stores them in
+      // playback_qoe_events for the /admin/qoe dashboard, plus uses
+      // bs=1 to wake up a throttled ffmpeg immediately. Defaults: query
+      // mode (?CMCD=...), auto-generated sessionId.
+      cmcd: {},
       xhrSetup: (xhr: XMLHttpRequest, url: string) => {
         const tok = streamTokenRef.current;
         if (!tok) return;
