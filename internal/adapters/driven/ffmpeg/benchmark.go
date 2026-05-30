@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -52,7 +53,10 @@ func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunne
 		opts.FfmpegPath = "ffmpeg"
 	}
 	if opts.SamplePath == "" {
-		opts.SamplePath = "/usr/share/evey/bench.mkv"
+		// /data is the project's writable volume in all deployment
+		// flavours (docker, k8s, bare). /usr/share is read-only on
+		// most container images so we can't generate there.
+		opts.SamplePath = "/data/bench/sample.hevc"
 	}
 	if opts.DurationSec == 0 {
 		opts.DurationSec = 5
@@ -111,30 +115,122 @@ func (r *BenchmarkRunner) Run(ctx context.Context) (transcoding.EncodeCapability
 }
 
 // resolveSample picks the bench input. When the bundled sample isn't on
-// disk (dev container without /usr/share/evey/bench.mkv installed), we
-// fall back to a synthetic testsrc — flagged so the caller can note the
-// caveat in logs (testsrc has regular patterns that libx264 compresses
-// better than real footage, so the resulting cap may be slightly
-// optimistic).
+// disk, we *generate* a real 4K HEVC mire on the fly via ffmpeg
+// (testsrc → libx265 ultrafast, ~5 s of video, ~5 MB) and cache it.
+//
+// Why a real HEVC sample matters: the original implementation used
+// lavfi testsrc as input. lavfi generates frames in-memory, so the
+// decoder never runs — the bench measured pure encode throughput.
+// But the actual production bottleneck on a host without HW is
+// software HEVC *decode* (4K HEVC = ~1× realtime on a CPU), which
+// can plummet the effective realtime budget for the encoder. Pure
+// encode benches systematically overstate the cap (we saw it
+// dev-side: testsrc says 2160p OK, real Ghostbusters 4K HEVC stalls
+// at 1080p decode-bound).
+//
+// First call generates the file; subsequent runs (Recalibrate, next
+// boot) reuse it. The file is small enough to ship in the image's
+// /var/lib/evey/, but we still generate at first run so the binary
+// is self-contained.
+//
+// Returns the path to use; second value (fallback) is always false
+// once generation succeeds — kept as a compatibility seam for
+// callers that need to know "are we on synthetic" (legacy callers
+// passed true to switch to lavfi). With on-demand generation we
+// never need the lavfi branch anymore unless generation itself
+// fails.
 func (r *BenchmarkRunner) resolveSample() (string, bool) {
 	if _, err := os.Stat(r.samplePath); err == nil {
 		return r.samplePath, false
 	}
-	r.logger.Warn("benchmark: bundled sample missing, using synthetic testsrc",
-		slog.String("expected_path", r.samplePath))
-	return "", true // empty path signals "use lavfi testsrc"
+	if err := r.generateSample(); err != nil {
+		r.logger.Warn("benchmark: HEVC sample generation failed, falling back to synthetic testsrc",
+			slog.String("path", r.samplePath),
+			slog.Any("err", err))
+		return "", true
+	}
+	r.logger.Info("benchmark: generated HEVC mire sample",
+		slog.String("path", r.samplePath))
+	return r.samplePath, false
 }
 
-// benchSoftware probes the libx264 ultrafast ceiling. Highest passing
-// rung wins. Returns 720 minimum (universal floor) even if every probe
-// fails — guarantees the host can at least serve a 720p stream.
+// generateSample produces a ~5 s 3840x2160 HEVC file at samplePath.
+// Encoded with libx265 `medium` preset + explicit B-frame chain so
+// the decoder side exercises B-frame reordering + multi-reference
+// motion comp — the load profile a real Blu-ray rip would have.
+// (An earlier draft used `ultrafast` here, which produced a file with
+// no B-frames; the decoder ran 3-5× faster than on real content and
+// the bench cap was systematically optimistic.)
+//
+// Slow on weak hosts (~30-60 s at preset medium 4K) but only runs
+// once per machine — the file is reused across reboots and
+// recalibrations until Recalibrate is forced.
+func (r *BenchmarkRunner) generateSample() error {
+	if err := os.MkdirAll(filepath.Dir(r.samplePath), 0o755); err != nil {
+		return fmt.Errorf("mkdir bench dir: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	// We layer noise on top of testsrc so x265 can't compress to a
+	// trivial size — without `geq` the lavfi pattern is too regular
+	// and the resulting .hevc is < 100 KB (x265 finds it fully
+	// predictable), which means the decoder runs in pure cache and
+	// the bench measures nothing meaningful. With noise the file
+	// lands around 10-20 MB at the target bitrate, similar to a
+	// real 4K Blu-ray.
+	cmd := exec.CommandContext(ctx, r.ffmpegBin(),
+		"-hide_banner", "-nostats", "-y",
+		"-f", "lavfi", "-i",
+		"testsrc=duration=5:size=3840x2160:rate=24,format=yuv420p,"+
+			"noise=alls=20:allf=t+u",
+		"-c:v", "libx265", "-preset", "medium",
+		// bframes=4 + ref=3 = decoder load profile of a typical 4K
+		// Blu-ray encoder. -b:v with a real cap forces x265 to spend
+		// the bits even on the easy parts of the input.
+		"-x265-params", "bframes=4:ref=3:b-adapt=2:rc-lookahead=20",
+		"-b:v", "20M", "-maxrate", "25M", "-bufsize", "50M",
+		"-tag:v", "hvc1",
+		"-an",
+		r.samplePath,
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("ffmpeg generate sample: %w (tail: %s)", err, tailString(string(out), 200))
+	}
+	return nil
+}
+
+// ffmpegBin returns the resolved ffmpeg binary path, falling back to
+// "ffmpeg" on PATH when none configured.
+func (r *BenchmarkRunner) ffmpegBin() string {
+	if r.ffmpegPath != "" {
+		return r.ffmpegPath
+	}
+	return "ffmpeg"
+}
+
+// benchSoftware probes the libx264 ultrafast ceiling under the same
+// pipeline shape the production HLS transcoder uses: a single ffmpeg
+// instance decodes the HEVC source once, splits the decoded stream N
+// ways via filter_complex, and encodes every active rung in parallel
+// (`buildMultiVariantArgs` in hls_transcoder.go uses var_stream_map).
+// Probing only "decode + one encode at rung H" would systematically
+// overshoot — the real CPU pressure is decode + N encodes, where N is
+// the number of rungs at or below H.
+//
+// Highest passing rung wins. Returns 720 minimum (universal floor) even
+// if every probe fails — guarantees the host can at least serve a 720p
+// stream.
 func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fallback bool) int {
 	best := 0
-	for _, h := range benchLadder {
-		fps, ok := r.runOnce(ctx, sample, fallback, h, "libx264", nil)
+	for i, h := range benchLadder {
+		// Heights for every rung at or below h — exactly what the
+		// production pipeline encodes when the ladder top is h.
+		laddered := benchLadder[:i+1]
+		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, "libx264", nil)
 		passing := ok && fps >= float64(r.sourceRate())*r.margin
 		r.logger.Info("benchmark: software probe",
 			slog.Int("height", h),
+			slog.Int("parallel_encodes", len(laddered)),
 			slog.Float64("fps", fps),
 			slog.Bool("passing", passing))
 		if !passing {
@@ -154,8 +250,10 @@ func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fall
 }
 
 // benchHardware picks the HW backend with the most encoders available
-// and probes its ladder the same way. Returns (0, "") when no HW is
-// usable — software-only operation, fully supported by the handler.
+// and probes its ladder under the same multi-variant pipeline as the
+// software path (1 decode + N parallel encodes, matching prod).
+// Returns (0, "") when no HW is usable — software-only operation,
+// fully supported by the handler.
 func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool) (int, string) {
 	devices, err := r.hwDetector.DetectDevices(ctx)
 	if err != nil || len(devices) == 0 {
@@ -177,13 +275,15 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		}
 		extraInputArgs := hwInputArgs(dev.Type)
 		best := 0
-		for _, h := range benchLadder {
-			fps, ok := r.runOnce(ctx, sample, fallback, h, encoder, extraInputArgs)
+		for i, h := range benchLadder {
+			laddered := benchLadder[:i+1]
+			fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, encoder, extraInputArgs)
 			passing := ok && fps >= float64(r.sourceRate())*r.margin
 			r.logger.Info("benchmark: hardware probe",
 				slog.String("backend", dev.Type),
 				slog.String("encoder", encoder),
 				slog.Int("height", h),
+				slog.Int("parallel_encodes", len(laddered)),
 				slog.Float64("fps", fps),
 				slog.Bool("passing", passing))
 			if !passing {
@@ -220,17 +320,27 @@ func hwInputArgs(backend string) []string {
 // wall-clock = real FPS.
 var frameRE = regexp.MustCompile(`frame=\s*([0-9]+)`)
 
-// runOnce encodes durationSec of input at the requested height with
-// the requested encoder; returns the measured encode FPS
-// (= frame_count / wall_clock_seconds). Returns (0, false) on any
-// error so the caller treats it as "rung failed".
+// runMultiVariant runs ffmpeg with the same pipeline shape as the
+// production HLS transcoder: 1 decode + filter_complex split into N
+// branches + N parallel scaler+encoder chains. The FPS we report is
+// the OVERALL throughput (`frame=` count from ffmpeg's progress, which
+// is the encoded frames in the slowest output, divided by wall-clock).
+// That number is what realistically caps the production pipeline:
+// the parallel encodes share decode bandwidth, scale CPU, and core
+// allocation, so a host that can do 1×4K encode in realtime won't
+// necessarily do 1 decode + 4 parallel encodes in realtime.
 //
-// FPS is computed Go-side because `-nostats` disables ffmpeg's running
-// `fps=N.N` field and the terminal value with the flag set is always
-// `0.0`. The `frame=N` count is reliable in both modes.
-//
-// Output discarded to /dev/null — we measure throughput, not quality.
-func (r *BenchmarkRunner) runOnce(ctx context.Context, sample string, fallback bool, height int, encoder string, extraInputArgs []string) (float64, bool) {
+// Returns (0, false) on any failure so the caller treats it as
+// "rung failed". Output goes to /dev/null per branch — we measure
+// throughput, not segments.
+func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fallback bool, heights []int, encoder string, extraInputArgs []string) (float64, bool) {
+	if len(heights) == 0 {
+		return 0, false
+	}
+	// Generous timeout: a host close to realtime might take
+	// (durationSec / margin) wall-clock to encode, plus startup
+	// overhead. Triple the duration leaves room for jitter without
+	// running forever on a fully-stuck host.
 	runCtx, cancel := context.WithTimeout(ctx, time.Duration(r.durationSec*3)*time.Second+10*time.Second)
 	defer cancel()
 
@@ -242,13 +352,31 @@ func (r *BenchmarkRunner) runOnce(ctx context.Context, sample string, fallback b
 	} else {
 		args = append(args, "-t", fmt.Sprintf("%d", r.durationSec), "-i", sample)
 	}
-	args = append(args,
-		"-vf", fmt.Sprintf("scale=-2:%d", height),
-		"-c:v", encoder,
-		"-preset", "ultrafast",
-		"-an", "-sn",
-		"-f", "null", "-",
-	)
+
+	// Build filter_complex: [0:v]split=N[v0][v1]...; [v0]scale=-2:H0[o0]; ...
+	// Mirrors buildMultiVariantArgs in hls_transcoder.go so the bench
+	// shape matches production exactly.
+	splitOutputs := make([]string, len(heights))
+	for i := range heights {
+		splitOutputs[i] = fmt.Sprintf("[v%d]", i)
+	}
+	fc := fmt.Sprintf("[0:v]split=%d%s", len(heights), strings.Join(splitOutputs, ""))
+	for i, h := range heights {
+		fc += fmt.Sprintf(";[v%d]scale=-2:%d[o%d]", i, h, i)
+	}
+	args = append(args, "-filter_complex", fc)
+	for i := range heights {
+		args = append(args,
+			"-map", fmt.Sprintf("[o%d]", i),
+			fmt.Sprintf("-c:v:%d", i), encoder,
+			"-preset", "ultrafast",
+			"-pix_fmt", "yuv420p",
+		)
+	}
+	// Single null output for the whole graph — ffmpeg muxes all the
+	// mapped streams together (one per rung). We don't care about the
+	// container, just throughput.
+	args = append(args, "-an", "-sn", "-f", "null", "-")
 
 	cmd := exec.CommandContext(runCtx, r.ffmpegPath, args...)
 	var stderr bytes.Buffer
@@ -257,9 +385,9 @@ func (r *BenchmarkRunner) runOnce(ctx context.Context, sample string, fallback b
 	err := cmd.Run()
 	wall := time.Since(startedAt).Seconds()
 	if err != nil {
-		r.logger.Debug("benchmark: runOnce failed",
+		r.logger.Debug("benchmark: runMultiVariant failed",
 			slog.String("encoder", encoder),
-			slog.Int("height", height),
+			slog.Any("heights", heights),
 			slog.Any("err", err),
 			slog.String("stderr_tail", tailString(stderr.String(), 300)))
 		return 0, false
@@ -267,7 +395,6 @@ func (r *BenchmarkRunner) runOnce(ctx context.Context, sample string, fallback b
 	if wall <= 0 {
 		return 0, false
 	}
-	// Last `frame=N` line is the final count.
 	matches := frameRE.FindAllStringSubmatch(stderr.String(), -1)
 	if len(matches) == 0 {
 		return 0, false
