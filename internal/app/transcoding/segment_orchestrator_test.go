@@ -34,7 +34,7 @@ func TestOrchestrator_EnsureSegmentRange_SpawnsFFmpegOnMiss(t *testing.T) {
 	assert.Equal(t, 1, o.ActiveCount())
 	assert.Equal(t, 1, proc.startCount())
 	// StartSec must match segmentIdx × segmentSeconds.
-	assert.Equal(t, 0.0, proc.lastOpts().StartSec)
+	assert.InDelta(t, 0.0, proc.lastOpts().StartSec, 0.001)
 }
 
 func TestOrchestrator_EnsureSegmentRange_NoSpawnOnCacheHit(t *testing.T) {
@@ -100,7 +100,7 @@ func TestOrchestrator_EnsureSegmentRange_CancelOnSeek(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 
 	// The new spawn's StartSec reflects the seek target.
-	assert.Equal(t, 500.0*3.0, proc.lastOpts().StartSec)
+	assert.InDelta(t, 500.0*3.0, proc.lastOpts().StartSec, 0.001)
 }
 
 // ============================================================================
@@ -186,7 +186,7 @@ func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
 	// useFMP4=true (matches minimalFingerprint) → .m4s.
 	hashDir := filepath.Join(dir, "segments", fp.Hash())
 	require.NoError(t, os.MkdirAll(hashDir, 0o755))
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		name := filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s"))
 		require.NoError(t, os.WriteFile(name, []byte("xx"), 0o644))
 	}
@@ -230,7 +230,7 @@ func TestOrchestrator_NotifyClientHint_ResumesPausedOnStarvation(t *testing.T) {
 
 	hashDir := filepath.Join(dir, "segments", fp.Hash())
 	require.NoError(t, os.MkdirAll(hashDir, 0o755))
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		require.NoError(t, os.WriteFile(filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s")), []byte("x"), 0o644))
 	}
 	o.mu.Lock()
@@ -305,7 +305,7 @@ func TestOrchestrator_Throttle_NoFlapWithHysteresis(t *testing.T) {
 
 	hashDir := filepath.Join(dir, "segments", fp.Hash())
 	require.NoError(t, os.MkdirAll(hashDir, 0o755))
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		require.NoError(t, os.WriteFile(filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s")), []byte("x"), 0o644))
 	}
 
@@ -339,7 +339,7 @@ func itoa(i int) string {
 		n++
 	}
 	out := make([]byte, n)
-	for j := 0; j < n; j++ {
+	for j := range n {
 		out[j] = b[n-1-j]
 	}
 	return string(out)

@@ -195,8 +195,8 @@ func CPUSignature() string {
 	for scanner.Scan() {
 		line := scanner.Text()
 		if model == "" && strings.HasPrefix(line, "model name") {
-			if idx := strings.IndexByte(line, ':'); idx >= 0 {
-				model = strings.TrimSpace(line[idx+1:])
+			if _, after, ok := strings.Cut(line, ":"); ok {
+				model = strings.TrimSpace(after)
 			}
 		}
 		if strings.HasPrefix(line, "processor") {

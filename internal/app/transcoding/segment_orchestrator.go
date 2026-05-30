@@ -130,6 +130,15 @@ type SegmentOrchestrator struct {
 	// cleanup pass — leaking tempdirs in tests and racing with the
 	// orchestrator's lifecycle in prod.
 	prewarmWG sync.WaitGroup
+
+	// spawnedHashes is the set of every cache hash this orchestrator
+	// has ever spawned a session for. We track it separately from the
+	// live `sessions` map so Close() can cleanup the disk even when
+	// sweepIdle has already deleted the session struct from the live
+	// map — the disk segments stay on the host until an explicit
+	// shutdown cleanup, and we don't want a goroutine ordering race
+	// between sweepIdle and Close to leak them.
+	spawnedHashes map[string]struct{}
 }
 
 // SourceResolver bridges the orchestrator (which works with DecisionFingerprint)
@@ -214,6 +223,7 @@ func NewSegmentOrchestrator(
 		shutdownCtx:    shutdownCtx,
 		shutdownCancel: shutdownCancel,
 		sessions:       make(map[string]*orchestratorSession),
+		spawnedHashes:  make(map[string]struct{}),
 		stopGC:         make(chan struct{}),
 		gcDone:         make(chan struct{}),
 		stopThrottle:   make(chan struct{}),
@@ -247,19 +257,29 @@ func (o *SegmentOrchestrator) Close() {
 	o.shutdownCancel()
 	o.prewarmWG.Wait()
 
+	// Snapshot every hash this orchestrator has ever spawned a session
+	// for. Iterate it (not the live `sessions` map) so a sweepIdle that
+	// deleted the session struct mid-shutdown still gets its disk cache
+	// cleaned. killSession is idempotent and skips already-cleared
+	// entries, so it's safe to call on a hash whose session is already
+	// gone.
 	o.mu.Lock()
-	sessions := make([]*orchestratorSession, 0, len(o.sessions))
-	for _, s := range o.sessions {
-		sessions = append(sessions, s)
+	hashes := make([]string, 0, len(o.spawnedHashes))
+	for h := range o.spawnedHashes {
+		hashes = append(hashes, h)
 	}
+	liveSessions := o.sessions
 	o.sessions = make(map[string]*orchestratorSession)
+	o.spawnedHashes = make(map[string]struct{})
 	o.mu.Unlock()
 
-	for _, s := range sessions {
-		o.killSession(s, "close")
-		if err := o.cache.CleanupHash(s.hash); err != nil {
+	for _, hash := range hashes {
+		if s, ok := liveSessions[hash]; ok {
+			o.killSession(s, "close")
+		}
+		if err := o.cache.CleanupHash(hash); err != nil {
 			o.logger.Warn("orchestrator: close cleanup failed",
-				slog.String("hash", s.hash),
+				slog.String("hash", hash),
 				slog.Any("err", err))
 		}
 	}
@@ -282,9 +302,7 @@ func (o *SegmentOrchestrator) PreWarm(fp DecisionFingerprint, startSegIdx int) {
 	if o.shutdownCtx.Err() != nil {
 		return
 	}
-	o.prewarmWG.Add(1)
-	go func() {
-		defer o.prewarmWG.Done()
+	o.prewarmWG.Go(func() {
 		ctx, cancel := context.WithTimeout(o.shutdownCtx, 30*time.Second)
 		defer cancel()
 		if err := o.EnsureSegmentRange(ctx, fp, startSegIdx); err != nil {
@@ -292,7 +310,7 @@ func (o *SegmentOrchestrator) PreWarm(fp DecisionFingerprint, startSegIdx int) {
 				slog.String("media_id", fp.MediaID),
 				slog.Any("err", err))
 		}
-	}()
+	})
 }
 
 // EnsureSegmentRange guarantees that segment `segmentIdx` will be produced (or
@@ -451,12 +469,15 @@ func (o *SegmentOrchestrator) spawnSession(
 		o.mu.Unlock()
 		o.logger.Info("orchestrator: spawn race lost, keeping existing session", slog.String("hash", hash))
 		cancel()
-		_ = handle.Stop()
+		if err := handle.Stop(); err != nil {
+			o.logger.Debug("orchestrator: stop on spawn race lost (ignored)", slog.Any("err", err))
+		}
 		teardown()
 		_ = existing // intentional no-op, keeps existing
 		return nil
 	}
 	o.sessions[hash] = session
+	o.spawnedHashes[hash] = struct{}{}
 	o.mu.Unlock()
 
 	// Reap when ffmpeg exits so the session entry doesn't linger forever.
@@ -724,10 +745,7 @@ func (o *SegmentOrchestrator) NotifyClientHint(mediaItemID string, bufferLengthM
 	if bufferLengthMs > 0 && o.opts.SegmentSeconds > 0 {
 		bufferAheadSegs = int(float64(bufferLengthMs) / 1000.0 / o.opts.SegmentSeconds)
 	}
-	consumableIdx := segmentIdx
-	if consumableIdx < 0 {
-		consumableIdx = 0
-	}
+	consumableIdx := max(segmentIdx, 0)
 
 	for _, s := range matched {
 		s.mu.Lock()

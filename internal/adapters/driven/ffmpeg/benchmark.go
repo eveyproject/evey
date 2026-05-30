@@ -377,10 +377,12 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 	for i := range heights {
 		splitOutputs[i] = fmt.Sprintf("[v%d]", i)
 	}
-	fc := fmt.Sprintf("[0:v]split=%d%s", len(heights), strings.Join(splitOutputs, ""))
+	var fcBuf strings.Builder
+	fmt.Fprintf(&fcBuf, "[0:v]split=%d%s", len(heights), strings.Join(splitOutputs, ""))
 	for i, h := range heights {
-		fc += fmt.Sprintf(";[v%d]scale=-2:%d[o%d]", i, h, i)
+		fmt.Fprintf(&fcBuf, ";[v%d]scale=-2:%d[o%d]", i, h, i)
 	}
+	fc := fcBuf.String()
 	args = append(args, "-filter_complex", fc)
 	for i := range heights {
 		args = append(args,

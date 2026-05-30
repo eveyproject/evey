@@ -53,7 +53,7 @@ func (r *CapabilityRepoAdapter) Get(ctx context.Context) (domaintranscoding.Enco
 		// Corrupt JSON in storage is treated as "no calibration": the
 		// caller will re-run the benchmark and overwrite the bad row
 		// instead of failing the boot.
-		return domaintranscoding.EncodeCapability{}, false, nil
+		return domaintranscoding.EncodeCapability{}, false, nil //nolint:nilerr // intentional: corrupt cache → trigger rebench, not propagate the parse error
 	}
 	return cap, true, nil
 }

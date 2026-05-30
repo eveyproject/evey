@@ -108,11 +108,9 @@ func (c *ComplexityClassifier) Classify(ctx context.Context, filePath string, du
 	runCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	for i := 0; i < sample; i++ {
-		select {
-		case <-runCtx.Done():
+	for i := range sample {
+		if runCtx.Err() != nil {
 			break
-		default:
 		}
 		ratio := float64(i) / float64(sample-1)
 		if sample == 1 {
@@ -168,7 +166,13 @@ func (c *ComplexityClassifier) sampleAt(parent context.Context, filePath string,
 	var stderr, stdout bytes.Buffer
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
-	_ = cmd.Run()
+	// Best-effort sampler: ffmpeg failures (codec issues, oversized
+	// input, timeout) all yield "no samples here", which parseSignalStats
+	// handles via the FramesSampled==0 fallback. We deliberately don't
+	// propagate the error to the caller.
+	if err := cmd.Run(); err != nil {
+		_ = err // keep best-effort semantics
+	}
 	return parseSignalStats(stdout.String() + "\n" + stderr.String())
 }
 
@@ -189,7 +193,7 @@ func (c *ComplexityClassifier) probeSource(ctx context.Context, filePath string)
 	if e != nil {
 		return 0, 0, 0, fmt.Errorf("ffprobe: %w", e)
 	}
-	for _, line := range strings.Split(string(out), "\n") {
+	for line := range strings.SplitSeq(string(out), "\n") {
 		kv := strings.SplitN(strings.TrimSpace(line), "=", 2)
 		if len(kv) != 2 {
 			continue

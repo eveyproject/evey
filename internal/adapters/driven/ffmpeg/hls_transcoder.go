@@ -192,7 +192,12 @@ func (h *hlsHandle) Stop() error {
 	// session teardown.
 	h.mu.Lock()
 	if h.paused && h.cmd != nil && h.cmd.Process != nil {
-		_ = h.cmd.Process.Signal(syscall.SIGCONT)
+		// Failure here only matters if the process has already exited,
+		// in which case the Stop path below treats the missing process
+		// as already-stopped — nothing to recover.
+		if err := h.cmd.Process.Signal(syscall.SIGCONT); err != nil {
+			_ = err // best-effort wake before stop
+		}
 		h.paused = false
 	}
 	h.mu.Unlock()

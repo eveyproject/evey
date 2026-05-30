@@ -26,7 +26,7 @@ func TestCPUSignature_HexFormat(t *testing.T) {
 		t.Errorf("expected 32 hex chars, got %d (%q)", len(sig), sig)
 	}
 	for _, r := range sig {
-		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
 			t.Errorf("non-hex char in signature: %q", sig)
 			break
 		}
