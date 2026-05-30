@@ -10,7 +10,7 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
-import { GripVertical, Puzzle } from "lucide-react";
+import { GripVertical } from "lucide-react";
 
 // Mirrors AdminFeedsPage from routes/_auth/admin/feeds.lazy.tsx but as an
 // embeddable card for the server-config page. The standalone /admin/feeds
@@ -194,40 +194,39 @@ export function FeedConfigCard() {
           return (
           <div
             key={row.feedType}
-            draggable={!plugin}
-            onDragStart={() => { if (!plugin) setDragIdx(i); }}
+            draggable
+            onDragStart={() => setDragIdx(i)}
             onDragOver={(e) => {
               e.preventDefault();
-              if (!plugin) setOverIdx(i);
+              setOverIdx(i);
             }}
             onDragEnd={handleDragEnd}
             className="grid grid-cols-[24px_1fr_80px_80px] gap-2 items-center px-4 py-3 transition-all"
             style={{
               borderBottom:
                 i < rows.length - 1 ? "1px solid var(--border)" : "none",
-              backgroundColor: plugin
-                ? "color-mix(in srgb, var(--accent) 6%, transparent)"
-                : overIdx === i && dragIdx !== null && dragIdx !== i
+              // Drop-target highlight wins over the plugin tint so the
+              // admin still sees where the row will land when hovering one.
+              backgroundColor:
+                overIdx === i && dragIdx !== null && dragIdx !== i
                   ? "var(--accent-subtle)"
-                  : "transparent",
+                  : plugin
+                    ? "color-mix(in srgb, var(--accent) 6%, transparent)"
+                    : "transparent",
               borderLeft: plugin
                 ? "3px solid color-mix(in srgb, var(--accent) 70%, transparent)"
                 : undefined,
               opacity: dragIdx === i ? 0.5 : 1,
             }}
           >
-            {plugin ? (
-              <Puzzle
-                size={16}
-                aria-label={t("admin.serverConfig.feedConfig.pluginBadge", "Plugin")}
-                className="text-[var(--accent)]"
-              />
-            ) : (
-              <GripVertical
-                size={16}
-                className="cursor-grab active:cursor-grabbing text-[var(--text-muted)]"
-              />
-            )}
+            <GripVertical
+              size={16}
+              className="cursor-grab active:cursor-grabbing text-[var(--text-muted)]"
+            />
+            {/* The Puzzle icon used to sit here for plugins, but it
+                doubled as a "non-draggable" cue. Now that admin can
+                reorder plugins too, the grip is shown everywhere — the
+                Plugin badge in the label column still signals the kind. */}
 
             <span
               className="text-sm font-medium select-none flex items-center gap-2"
