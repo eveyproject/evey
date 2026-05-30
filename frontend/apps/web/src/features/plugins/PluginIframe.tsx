@@ -73,6 +73,17 @@ function detectThemeMode(): "dark" | "light" {
   return luminance > 128 ? "light" : "dark";
 }
 
+// pluginIdShape gates what we accept at the HTML boundary. The server
+// issues `plg-<24 hex>` slugs (`id.New("plg-")`); we re-assert here so a
+// malformed pluginId (typo, manipulated state, future bug) can never
+// terminate the `<base href>` attribute or inject markup. The pattern is
+// deliberately permissive within `plg-…` (lowercase + digits + `_`/`-`,
+// bounded length) so tests and human-readable dev slugs keep working while
+// every HTML-special character (`"`, `<`, `>`, space, `/`, ...) is refused.
+// An invalid id short-circuits to an empty string and the iframe renders
+// nothing.
+const pluginIdShape = /^plg-[a-zA-Z0-9_-]{1,64}$/;
+
 // buildSrcdoc renders the iframe's HTML. The plugin bundle is INLINED into
 // a <script> tag rather than fetched via <script src=…?token=…> to keep the
 // scoped plugin token out of any URL (Referer / browser history / server-log
@@ -85,6 +96,9 @@ function detectThemeMode(): "dark" | "light" {
 // `connect-src` is fed from the plugin's external_fetch allow-list so the
 // front module can only reach hosts the admin has approved.
 function buildSrcdoc(pluginId: string, bundleCode: string, externalFetch: string[]): string {
+  if (!pluginIdShape.test(pluginId)) {
+    return "";
+  }
   const themeVars = getThemeVars();
   // Use ABSOLUTE URLs for the base href. Firefox in an about:srcdoc iframe
   // resolves path-only URLs against `about:srcdoc` (not the parent host),

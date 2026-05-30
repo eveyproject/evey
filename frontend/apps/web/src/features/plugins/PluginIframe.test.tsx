@@ -60,16 +60,16 @@ describe("PluginIframe", () => {
   it("renders nothing when no access token", () => {
     mockToken = null;
     const { container } = render(
-      <PluginIframe pluginId="p1" src="index.js" />,
+      <PluginIframe pluginId="plg-test1" src="index.js" />,
     );
     expect(container.innerHTML).toBe("");
   });
 
   it("fetches the plugin bundle via Bearer header (no token in URL)", async () => {
-    render(<PluginIframe pluginId="p1" src="index.js" />);
+    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
     await waitFor(() => {
       const calls = eveyFetchRawMock.mock.calls;
-      const bundleCall = calls.find(([req]) => (req as { url: string }).url === "/api/v1/plugins/p1/assets/index.js");
+      const bundleCall = calls.find(([req]) => (req as { url: string }).url === "/api/v1/plugins/plg-test1/assets/index.js");
       expect(bundleCall, "bundle fetch was expected").toBeTruthy();
       expect((bundleCall![0] as { method: string }).method).toBe("GET");
       // The URL must never carry a ?token= query — eveyFetchRaw attaches the
@@ -79,8 +79,8 @@ describe("PluginIframe", () => {
   });
 
   it("inlines the plugin bundle into the iframe srcdoc (no <script src>)", async () => {
-    render(<PluginIframe pluginId="p1" src="index.js" />);
-    const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
+    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
+    const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
     const srcdoc = iframe.getAttribute("srcdoc") ?? "";
     expect(srcdoc).toContain(PLUGIN_BUNDLE);
     expect(srcdoc).not.toMatch(/<script\s+src=/i);
@@ -95,8 +95,8 @@ describe("PluginIframe", () => {
       status: 200,
       text: async () => "var s = '</script><script>evil()</script>';",
     });
-    render(<PluginIframe pluginId="p1" src="index.js" />);
-    const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
+    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
+    const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
     const srcdoc = iframe.getAttribute("srcdoc") ?? "";
     // Defused form keeps the original JS string semantics but prevents the
     // HTML parser from terminating the inline <script> early.
@@ -105,15 +105,15 @@ describe("PluginIframe", () => {
   });
 
   it("injects <base href> pointing at the assets root (absolute URL)", async () => {
-    render(<PluginIframe pluginId="p1" src="index.js" />);
-    const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
+    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
+    const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
     const srcdoc = iframe.getAttribute("srcdoc") ?? "";
-    expect(srcdoc).toMatch(/<base href="https?:\/\/[^/]+\/api\/v1\/plugins\/p1\/assets\/">/);
+    expect(srcdoc).toMatch(/<base href="https?:\/\/[^/]+\/api\/v1\/plugins\/plg-test1\/assets\/">/);
   });
 
   it("injects meta CSP with default-src none and script-src host origin", async () => {
-    render(<PluginIframe pluginId="p1" src="index.js" />);
-    const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
+    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
+    const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
     const srcdoc = iframe.getAttribute("srcdoc") ?? "";
     expect(srcdoc).toContain('http-equiv="Content-Security-Policy"');
     expect(srcdoc).toContain("default-src 'none'");
@@ -121,30 +121,49 @@ describe("PluginIframe", () => {
   });
 
   it("CSP connect-src reflects the externalFetch list when provided", async () => {
-    render(<PluginIframe pluginId="p1" src="index.js" externalFetch={["api.example.com", "cdn.example.org"]} />);
-    const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
+    render(<PluginIframe pluginId="plg-test1" src="index.js" externalFetch={["api.example.com", "cdn.example.org"]} />);
+    const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
     const srcdoc = iframe.getAttribute("srcdoc") ?? "";
     expect(srcdoc).toContain("connect-src https://api.example.com https://cdn.example.org");
   });
 
   it("CSP connect-src is 'none' when externalFetch is empty", async () => {
-    render(<PluginIframe pluginId="p1" src="index.js" />);
-    const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
+    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
+    const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
     const srcdoc = iframe.getAttribute("srcdoc") ?? "";
     expect(srcdoc).toContain("connect-src 'none'");
   });
 
   it("uses sandbox=allow-scripts", async () => {
-    render(<PluginIframe pluginId="p1" src="index.js" />);
-    const iframe = await screen.findByTitle(/p1/);
+    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
+    const iframe = await screen.findByTitle(/plg-test1/);
     expect(iframe).toHaveAttribute("sandbox", "allow-scripts");
   });
 
   it("shows error fallback when bundle fetch fails", async () => {
     eveyFetchRawMock.mockRejectedValueOnce(new Error("forbidden"));
-    render(<PluginIframe pluginId="p1" src="index.js" />);
+    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
     await waitFor(() => {
-      expect(screen.queryByTitle(/p1/)).toBeNull();
+      expect(screen.queryByTitle(/plg-test1/)).toBeNull();
+    });
+  });
+
+  it("renders nothing when pluginId has an HTML-special character (defense-in-depth)", async () => {
+    // pluginId is server-issued (`plg-<24 hex>`), but a malformed value
+    // — typo, manipulated state, future bug — must never be interpolated
+    // into the srcdoc HTML. The boundary check returns an empty srcdoc;
+    // the component renders nothing.
+    render(<PluginIframe pluginId={'plg-foo"><script>1</script>'} src="index.js" />);
+    // No iframe titled with the bad id appears.
+    await waitFor(() => {
+      expect(screen.queryByTitle(/plg-foo/)).toBeNull();
+    });
+  });
+
+  it("renders nothing when pluginId is missing the plg- prefix (defense-in-depth)", async () => {
+    render(<PluginIframe pluginId="weather" src="index.js" />);
+    await waitFor(() => {
+      expect(screen.queryByTitle(/weather/)).toBeNull();
     });
   });
 });
@@ -156,8 +175,8 @@ describe("PluginIframe", () => {
 // way to satisfy the strict source/origin checks the host applies.
 
 async function mountIframe(externalFetch?: string[]) {
-  render(<PluginIframe pluginId="p1" src="index.js" externalFetch={externalFetch} />);
-  const iframe = (await screen.findByTitle(/p1/)) as HTMLIFrameElement;
+  render(<PluginIframe pluginId="plg-test1" src="index.js" externalFetch={externalFetch} />);
+  const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
   // jsdom assigns iframe.contentWindow lazily; nudge it.
   if (!iframe.contentWindow) {
     Object.defineProperty(iframe, "contentWindow", {
