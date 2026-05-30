@@ -616,6 +616,7 @@ serverSettings:
   periodicScanInterval: 定期扫描间隔
   restartHint: （重启后生效）
   skipPreview: 跳过预告片段
+  skipPreviewInfo: "隐藏某些剧集在末尾插入的下一集短预告。启用后，即使客户端会显示这些片段，服务器也会在播放时跳过它们。"
   saved: "设置已保存"
   usingDefault: "默认值："
   reset: "重置为默认值"

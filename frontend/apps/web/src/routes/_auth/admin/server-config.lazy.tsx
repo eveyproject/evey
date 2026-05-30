@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { FeedConfigCard } from "@/features/admin/FeedConfigCard";
 import { EncodeCalibrationCard } from "@/features/admin/EncodeCalibrationCard";
 import { ISO_REGIONS } from "@/features/user/regionList";
@@ -902,6 +903,9 @@ function ServerSettingsCard() {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-3">
               <label className="text-sm font-medium text-[var(--text)]">{t("admin.serverSettings.skipPreview")}</label>
+              <InfoTooltip label={t("admin.serverSettings.skipPreview")}>
+                {t("admin.serverSettings.skipPreviewInfo")}
+              </InfoTooltip>
               <button type="button" role="switch" aria-checked={skipPreview} aria-label={t("admin.serverSettings.skipPreview")} data-testid="skip-preview-toggle" onClick={() => { setSkipPreview(!skipPreview); setDirty(true); }}
                 className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors" style={{ backgroundColor: skipPreview ? "var(--accent)" : "var(--border)" }}>
                 <span className="inline-block h-4 w-4 rounded-full bg-white transition-transform" style={{ transform: skipPreview ? "translateX(1.375rem)" : "translateX(0.25rem)" }} />

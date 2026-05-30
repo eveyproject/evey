@@ -616,6 +616,7 @@ serverSettings:
   periodicScanInterval: Intervalo de escaneo periodico
   restartHint: (se aplica al reiniciar)
   skipPreview: Saltar segmentos de avance
+  skipPreviewInfo: "Oculta el breve avance del proximo episodio que algunas series insertan al final. Si esta activo, el servidor omite estos segmentos durante la reproduccion aunque el cliente los muestre."
   saved: "Configuracion guardada"
   usingDefault: "Valor predeterminado:"
   reset: "Restablecer valor predeterminado"

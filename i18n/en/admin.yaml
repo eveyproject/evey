@@ -650,6 +650,7 @@ serverSettings:
   periodicScanInterval: Periodic scan interval
   restartHint: (applies on restart)
   skipPreview: Skip preview segments
+  skipPreviewInfo: "Hides the short next-episode preview some shows splice in at the end. When enabled, the server omits these segments from playback even if the client would otherwise show them."
   saved: Settings saved
   usingDefault: "Using default:"
   reset: Reset to default
