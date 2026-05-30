@@ -39,6 +39,8 @@ func (a qoeReaderAdapter) GetTopStarvedTitles(ctx context.Context, window time.D
 	for _, r := range rows {
 		out = append(out, appqoe.StarvedTitle{
 			MediaItemID:   r.MediaItemID,
+			Title:         r.Title,
+			FilePath:      r.FilePath,
 			StarvedEvents: r.StarvedEvents,
 			TotalEvents:   r.TotalEvents,
 			StarvedRatio:  r.StarvedRatio,

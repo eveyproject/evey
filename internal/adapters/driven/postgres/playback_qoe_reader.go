@@ -34,8 +34,12 @@ type QoESummary struct {
 }
 
 // QoEStarvedTitle is one row of "top N titles where viewers struggled".
+// Title + FilePath are JOINed in from media_items so the admin UI can
+// label the row instead of just showing a UUID.
 type QoEStarvedTitle struct {
 	MediaItemID   string
+	Title         string
+	FilePath      string
 	StarvedEvents int64
 	TotalEvents   int64
 	StarvedRatio  float64
@@ -92,20 +96,35 @@ func (r *PlaybackQoEReader) GetTopStarvedTitles(ctx context.Context, window time
 		limit = 10
 	}
 
+	// LEFT JOIN media_items so a starved row with no matching media
+	// (orphaned event after a library cleanup) still shows up with
+	// empty title/path rather than disappearing — admin can still see
+	// the ratio and act on it.
 	const q = `
+		WITH agg AS (
+			SELECT
+				media_item_id,
+				COUNT(*) FILTER (WHERE buffer_starved = TRUE) AS starved,
+				COUNT(*)                                       AS total,
+				MAX(ts) FILTER (WHERE buffer_starved = TRUE)   AS last_starved_at
+			FROM playback_qoe_events
+			WHERE ts >= NOW() - $1::interval
+			  AND media_item_id IS NOT NULL
+			GROUP BY media_item_id
+			HAVING COUNT(*) >= 50
+			   AND COUNT(*) FILTER (WHERE buffer_starved = TRUE) > 0
+		)
 		SELECT
-			media_item_id::text,
-			COUNT(*) FILTER (WHERE buffer_starved = TRUE) AS starved,
-			COUNT(*)                                       AS total,
-			MAX(ts) FILTER (WHERE buffer_starved = TRUE)   AS last_starved_at
-		FROM playback_qoe_events
-		WHERE ts >= NOW() - $1::interval
-		  AND media_item_id IS NOT NULL
-		GROUP BY media_item_id
-		HAVING COUNT(*) >= 50
-		   AND COUNT(*) FILTER (WHERE buffer_starved = TRUE) > 0
-		ORDER BY (COUNT(*) FILTER (WHERE buffer_starved = TRUE))::float / NULLIF(COUNT(*), 0) DESC,
-		         starved DESC
+			a.media_item_id::text,
+			COALESCE(mi.title, '') AS title,
+			COALESCE(mf.file_path, '') AS file_path,
+			a.starved,
+			a.total,
+			a.last_starved_at
+		FROM agg a
+		LEFT JOIN media_items mi ON mi.id = a.media_item_id
+		LEFT JOIN media_files mf ON mf.media_item_id = a.media_item_id
+		ORDER BY (a.starved)::float / NULLIF(a.total, 0) DESC, a.starved DESC
 		LIMIT $2`
 	rows, err := r.db.QueryContext(ctx, q, intervalArg(window), limit)
 	if err != nil {
@@ -117,7 +136,7 @@ func (r *PlaybackQoEReader) GetTopStarvedTitles(ctx context.Context, window time
 	for rows.Next() {
 		var r QoEStarvedTitle
 		var lastStarvedAt sql.NullTime
-		if err := rows.Scan(&r.MediaItemID, &r.StarvedEvents, &r.TotalEvents, &lastStarvedAt); err != nil {
+		if err := rows.Scan(&r.MediaItemID, &r.Title, &r.FilePath, &r.StarvedEvents, &r.TotalEvents, &lastStarvedAt); err != nil {
 			return nil, fmt.Errorf("qoe top starved scan: %w", err)
 		}
 		if lastStarvedAt.Valid {

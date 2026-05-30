@@ -27,9 +27,13 @@ type Summary struct {
 	UniqueMedia    int64   `json:"unique_media"`
 }
 
-// StarvedTitle is the "viewers struggled here" leaderboard.
+// StarvedTitle is the "viewers struggled here" leaderboard. Title +
+// FilePath are JOINed in so the admin UI doesn't have to look them up
+// per-row (one query per page load, one row per title).
 type StarvedTitle struct {
 	MediaItemID   string    `json:"media_item_id"`
+	Title         string    `json:"title"`
+	FilePath      string    `json:"file_path"`
 	StarvedEvents int64     `json:"starved_events"`
 	TotalEvents   int64     `json:"total_events"`
 	StarvedRatio  float64   `json:"starved_ratio"`

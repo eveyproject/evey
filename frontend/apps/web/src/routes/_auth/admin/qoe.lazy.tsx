@@ -24,6 +24,8 @@ interface QoESummary {
 
 interface QoEStarvedTitle {
   media_item_id: string;
+  title: string;
+  file_path: string;
   starved_events: number;
   total_events: number;
   starved_ratio: number;
@@ -174,7 +176,7 @@ function QoEPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/40 text-left">
                   <tr>
-                    <th className="p-3">{t("admin.qoe.col.mediaId")}</th>
+                    <th className="p-3">{t("admin.qoe.col.title", "Title")}</th>
                     <th className="p-3 text-right">
                       {t("admin.qoe.col.starvedRatio")}
                     </th>
@@ -191,9 +193,28 @@ function QoEPage() {
                 </thead>
                 <tbody>
                   {data.top_starved_titles.map((row) => (
-                    <tr key={row.media_item_id} className="border-t border-border">
-                      <td className="p-3 font-mono text-xs">
-                        {row.media_item_id}
+                    <tr key={row.media_item_id} className="border-t border-border align-top">
+                      <td className="p-3">
+                        {/* Title (or fallback to short ID for orphans
+                            after a library cleanup) + secondary line
+                            with file_path so an admin can grep the
+                            disk / re-encode source without an extra
+                            SQL hop. */}
+                        <div className="font-medium">
+                          {row.title || (
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {row.media_item_id.slice(0, 8)}…
+                            </span>
+                          )}
+                        </div>
+                        {row.file_path && (
+                          <div
+                            className="mt-0.5 truncate font-mono text-xs text-muted-foreground"
+                            title={row.file_path}
+                          >
+                            {row.file_path}
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 text-right">
                         {formatPct(row.starved_ratio)}
