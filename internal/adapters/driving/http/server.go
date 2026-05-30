@@ -96,6 +96,10 @@ type HTTPServer struct {
 	// ComplexityRepo drives per-title ABR ladder selection. Nil-safe — the
 	// VOD handler falls back to LadderFilmNormal when unset.
 	ComplexityRepo domaintranscoding.ComplexityRepo
+	// CalibrationSvc supplies the host's calibrated encode ceiling
+	// (libx264 + optional HW). Nil-safe: the VOD handler stays on the
+	// safe 720p floor when unset (tests).
+	CalibrationSvc *apptranscoding.CalibrationService
 	// QoESink ingests CMCD telemetry from every segment / master / variant
 	// request. Nil-safe: the VOD handler short-circuits when this is unset.
 	QoESink appqoe.EventSink

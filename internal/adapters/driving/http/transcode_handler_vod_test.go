@@ -456,15 +456,18 @@ func TestHLSVOD_Segment_WaitTimeout_503(t *testing.T) {
 // helpers for fingerprint pre-computation
 // ----------------------------------------------------------------
 
-// profilesForTest returns the same ABR ladder profilesForDecision produces
-// (DefaultHLSProfiles[:2]) as ProfileFingerprint entries.
-// profilesForTest mirrors what profilesForDecision returns for an item
-// with no ComplexityRepo wired (i.e. NULL complexity_class) — which is
-// LadderFilmNormal capped to source resolution. The fixture exposes no
-// video stream so the cap is a no-op; the full ladder (4 rungs) is what
-// the handler will fingerprint.
+// profilesForTest returns the same ABR ladder profilesForDecision
+// produces. Mirror the handler's exact pipeline:
+//  1. start from LadderFilmNormal (no ComplexityRepo wired in tests)
+//  2. CapLadderToSource is a no-op since the fixture has no video stream
+//  3. CapLadderToHeight to 720p (the safe fallback when no
+//     CalibrationService is wired — matches the handler's default)
+// If a test wires CapabilityService with a different cap, that test
+// should build its own profile slice — this helper is the
+// uncalibrated/default-path mirror.
 func profilesForTest() []apptranscoding.ProfileFingerprint {
 	src := domaintranscoding.LadderFor(domaintranscoding.ClassFilmNormal)
+	src = domaintranscoding.CapLadderToHeight(src, 720)
 	out := make([]apptranscoding.ProfileFingerprint, len(src))
 	for i, p := range src {
 		out[i] = apptranscoding.ProfileFingerprint{

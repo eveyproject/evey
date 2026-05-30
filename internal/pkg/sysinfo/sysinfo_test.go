@@ -6,6 +6,33 @@ import (
 	"time"
 )
 
+func TestCPUSignature_StableAcrossCalls(t *testing.T) {
+	// CPU identity doesn't change between calls — same hash every time.
+	// Empty on non-Linux is acceptable (caller handles "unknown identity").
+	first := CPUSignature()
+	second := CPUSignature()
+	if first != second {
+		t.Errorf("CPUSignature drift: %q vs %q", first, second)
+	}
+}
+
+func TestCPUSignature_HexFormat(t *testing.T) {
+	sig := CPUSignature()
+	if sig == "" {
+		t.Skip("/proc/cpuinfo unavailable (non-Linux runner)")
+	}
+	// 16 bytes = 32 hex chars
+	if len(sig) != 32 {
+		t.Errorf("expected 32 hex chars, got %d (%q)", len(sig), sig)
+	}
+	for _, r := range sig {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+			t.Errorf("non-hex char in signature: %q", sig)
+			break
+		}
+	}
+}
+
 func TestCollect_ReturnsNonNegative(t *testing.T) {
 	s := Collect()
 	if s.CPUPercent < 0 || s.CPUPercent > 100 {

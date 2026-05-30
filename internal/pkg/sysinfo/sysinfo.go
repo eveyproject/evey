@@ -2,6 +2,8 @@ package sysinfo
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"os/exec"
 	"runtime"
@@ -169,6 +171,43 @@ func FFmpegVersion(ffmpegPath string) string {
 		}
 	})
 	return ffmpegCached
+}
+
+// CPUSignature returns a stable hash of the host CPU identity (first
+// `model name` line + total logical cores from /proc/cpuinfo). Designed
+// to invalidate cached calibration data when a container migrates to a
+// different host or the operator swaps the CPU. Identical hardware
+// returns the same hash across restarts.
+//
+// Empty when /proc/cpuinfo is unreadable (non-Linux, locked-down
+// sandbox) — callers should treat empty as "machine identity unknown"
+// and skip the auto-invalidation logic accordingly.
+func CPUSignature() string {
+	f, err := os.Open("/proc/cpuinfo")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	var model string
+	var cores int
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if model == "" && strings.HasPrefix(line, "model name") {
+			if idx := strings.IndexByte(line, ':'); idx >= 0 {
+				model = strings.TrimSpace(line[idx+1:])
+			}
+		}
+		if strings.HasPrefix(line, "processor") {
+			cores++
+		}
+	}
+	if model == "" && cores == 0 {
+		return ""
+	}
+	h := sha256.Sum256([]byte(model + "|cores=" + strconv.Itoa(cores)))
+	return hex.EncodeToString(h[:16]) // 16 bytes = 32 hex chars, enough for collision-free identity
 }
 
 func readCPUStat() (cpuSample, bool) {

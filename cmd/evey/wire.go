@@ -577,6 +577,24 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// unclassified items keep getting LadderFilmNormal.
 	complexityRepo := postgres.NewMediaComplexityRepo(db)
 	complexityClassifier := ffmpeg.NewComplexityClassifier("ffmpeg", "ffprobe")
+
+	// Encode capability calibration: bench libx264 + any HW backend
+	// against a fixed ladder so the HLS-VOD handler can cap the ladder
+	// at what THIS host actually sustains in realtime. Without this,
+	// the 4K rung on Raspberry Pi would lock the multi-variant ffmpeg
+	// pipeline below realtime and seg 0 would never land in time.
+	//
+	// Bench is blocking on first boot (~20 s) — the safe 720p fallback
+	// in the service constructor keeps requests served until it returns.
+	// Persisted across restarts via server_settings + CPU signature
+	// invalidation, so the 20 s only hits once per host lifetime.
+	capabilityRepo := apptranscoding.NewCapabilityRepoAdapter(r.ServerCfg)
+	calibrationRunner := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{}, slog.Default())
+	calibrationSvc := apptranscoding.NewCalibrationService(capabilityRepo, calibrationRunner, slog.Default())
+	if err := calibrationSvc.EnsureCalibrated(ctx); err != nil {
+		slog.Warn("calibration: EnsureCalibrated returned error, falling back to 720p", slog.Any("err", err))
+	}
+
 	complexityWorker := apptranscoding.NewComplexityWorker(
 		complexityRepo,
 		complexityClassifier,
@@ -732,6 +750,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			qoeSink:          qoeSink,
 			qoeQuerySvc:      qoeQuerySvc,
 			complexityRepo:   complexityRepo,
+			calibrationSvc:   calibrationSvc,
 			mkvSvc:           mkvSvc,
 			musicSvc:         musicSvc,
 			photoSvc:         photoSvc,

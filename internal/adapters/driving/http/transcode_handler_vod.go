@@ -55,6 +55,13 @@ type hlsVODServe struct {
 	// the row hasn't been classified yet.
 	complexityRepo domaintranscoding.ComplexityRepo
 
+	// capability reports the host's calibrated encode ceiling. Nil-safe:
+	// profilesForDecision falls back to the safe 720p floor when the
+	// service isn't wired (tests). Returns a fresh snapshot per call so
+	// recalibration via the admin endpoint takes effect immediately —
+	// no need to restart the server.
+	capability func() domaintranscoding.EncodeCapability
+
 	// useFMP4 controls the segment container. fMP4 is the project default —
 	// segments are ~30% smaller and the codecs string in the master playlist
 	// matches what hls.js expects on modern Chromium/Firefox.
@@ -450,15 +457,24 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 		}
 	}
 	capped := domaintranscoding.CapLadderToSource(ladder, srcW, srcH)
-	// Software-encode path: drop the 2160p rung. ffmpeg builds every
-	// variant in a single invocation (var_stream_map), so the whole pipeline
-	// is bottlenecked by the heaviest rung. On a 4K HEVC source with no HW
-	// decoder, a 2160p H.264 15 Mbps rung can't keep up with realtime — the
-	// player buffer crashes and seg fetches time out across every variant.
-	// When the HWDetector is wired into the encode path (see
-	// features/hls_audit_hardware memory note), this cap will become
-	// conditional on "no HW accelerator available". Until then, hard cap.
-	return domaintranscoding.CapLadderToHeight(capped, 1080)
+	// Apply the host's calibrated encode ceiling. The CalibrationService
+	// has benchmarked libx264 + any available HW backend at boot and
+	// knows the tallest rung this CPU/GPU can sustain at >= 1.2× realtime.
+	// Without this cap, a single-ffmpeg multi-variant pipeline would be
+	// bottlenecked by the heaviest rung on weak hosts (Raspberry Pi,
+	// Synology NAS) — segment 0 would never land in time and the player
+	// would loop on rebuffer.
+	//
+	// HW path is gated on (a) calibration found a usable backend AND
+	// (b) the source codec can be HW-decoded — the latter we don't
+	// query yet (out of scope for Phase A), so for now we always go
+	// through SoftwareMaxHeight. Phase A+ wire enables the HW branch.
+	maxH := 720 // safe floor if capability isn't wired yet (tests / dev w/o calibration)
+	if h.capability != nil {
+		cap := h.capability()
+		maxH = cap.MaxHeightFor(false) // hwAccelUsable=false until Phase A+ wires the codec-side hwdetect
+	}
+	return domaintranscoding.CapLadderToHeight(capped, maxH)
 }
 
 // durationMissingError is the specific 503 we return when a media file's
@@ -533,6 +549,12 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		orchestrator:         orch,
 		qoeSink:              s.QoESink,
 		complexityRepo:       s.ComplexityRepo,
+		capability: func() domaintranscoding.EncodeCapability {
+			if s.CalibrationSvc == nil {
+				return domaintranscoding.SafeFallback()
+			}
+			return s.CalibrationSvc.Current()
+		},
 		// fMP4 is now the project default — matches the ffmpeg adapter
 		// (needsFMP4Segments returns true unconditionally) and Apple's
 		// post-WWDC-2024 stance on CMAF. Per-rendition behaviour stays
