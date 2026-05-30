@@ -13,15 +13,13 @@ import (
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
-// ComplexityClassifier runs a one-shot ffmpeg pass on a media file to
-// extract the metrics the per-title classifier consumes (YDEV mean,
-// scenecut count, source bitrate / resolution). Single ffmpeg invocation
-// per file — we sample 30 frames spread across the duration via the
-// `select` filter, run them through `signalstats` for YDEV, and count
-// scenecuts in the same pipeline.
-//
-// One pass keeps the worker cheap: 10-30s of CPU per film on the dev box,
-// run idle in the background and never on the playback hot path.
+// ComplexityClassifier samples a media file with ffmpeg to extract the
+// metrics the per-title classifier consumes (motion mean, scenecut count,
+// source bitrate / resolution). Runs as 8 small seek-and-decode bursts of
+// ~1 s each — the single-pass select-filter approach OOM-killed on long
+// 4K HDR files (commit f69a4a82f). Total wall-clock budget per file is
+// 60 s; per burst is 15 s. Designed for an idle background worker, never
+// on the playback hot path.
 type ComplexityClassifier struct {
 	ffmpegBin  string
 	ffprobeBin string
@@ -154,7 +152,16 @@ func (c *ComplexityClassifier) sampleAt(parent context.Context, filePath string,
 		"-ss", fmt.Sprintf("%.3f", atSec),
 		"-i", filePath,
 		"-t", "1",
-		"-vf", "signalstats,metadata=print:file=-",
+		// signalstats → YDIF (motion proxy), scdet → scd.score (scene-change
+		// score on every frame). Both share the decoded-frame stream so the
+		// added cost is filter-arithmetic only, not extra decoding —
+		// compatible with the 8-burst OOM budget. The previous filtergraph
+		// used `select='gt(scene,0.3)'` which forced re-decoding scene-only
+		// and was removed for OOM (f69a4a82f), but never updated the regex
+		// downstream → scenecuts silently stayed at 0 and ClassSport became
+		// unreachable. scdet emits scd.score continuously so we just need to
+		// threshold in parseSignalStats.
+		"-vf", "signalstats,scdet,metadata=print:file=-",
 		"-an", "-sn",
 		"-f", "null", "-",
 	)
@@ -205,20 +212,22 @@ func (c *ComplexityClassifier) probeSource(ctx context.Context, filePath string)
 	return bitrateKbps, width, height, nil
 }
 
-// parseSignalStats walks the combined stdout/stderr of the ffmpeg invocation
-// and pulls (sum of YDEV, count of frames, count of scenecuts). The
-// `metadata=print` filter writes one block per selected frame in stdout;
-// signalstats keys land in `lavfi.signalstats.YDEV=NN.NN`. The scene
-// filter increments `pts_time` lines we ignore — scenecuts are reported
-// in stderr by signalstats' own scene metadata when present, but we
-// fallback to counting `lavfi.scd.mafd` jumps if upstream prints them.
+// parseSignalStats walks the combined stdout/stderr of the ffmpeg call
+// and pulls (sum of motion, frame count, scenecut count). metadata=print
+// writes one block per decoded frame; the filtergraph emits
+// `lavfi.signalstats.YDIF=...` per frame (motion proxy) and
+// `lavfi.scd.score=...` per frame (scene-change score, thresholded at
+// 0.3 here to match the typical scdet default).
+//
+// The original implementation grepped YDEV (never emitted by signalstats
+// — only YDIF/YAVG/YMIN/YHIGH/YMAX exist) and lavfi.scd.score without the
+// scdet filter chained in — both regexes silently matched zero, so the
+// motion mean and scenecut count both stayed at 0 on every classify.
+// Fixed in two passes: regex switch to YDIF, then filtergraph addition
+// of scdet so the scd.score regex actually has input to match.
 //
 // Best-effort: garbled output yields a partial parse with low FramesSampled
 // rather than crashing.
-// signalstats emits YDIF (frame-to-frame Y delta) + YAVG / YMIN / YHIGH —
-// no YDEV. The earlier regex grepped for YDEV and silently never matched,
-// which is why every classification came back with frames_sampled=0
-// before this fix.
 var ydifRE = regexp.MustCompile(`lavfi\.signalstats\.YDIF=([0-9]+\.?[0-9]*)`)
 var sceneRE = regexp.MustCompile(`lavfi\.scd\.score=([0-9]+\.?[0-9]*)`)
 
