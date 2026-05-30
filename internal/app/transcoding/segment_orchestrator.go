@@ -565,13 +565,27 @@ func (o *SegmentOrchestrator) spawnSession(
 		o.killSession(evicted, "lru_cap")
 	}
 
-	// Reap when ffmpeg exits so the session entry doesn't linger forever.
+	// Reap when ffmpeg exits so the session entry doesn't linger
+	// forever. Releases its cache-pending refcount via teardown too —
+	// natural EOF skips killSession's teardown path so without this,
+	// future Wait() callers for the hash would block until the cache
+	// pending channel was eventually closed by another route.
+	// Refcount is idempotent (the release func no-ops on second call)
+	// so a path that goes through both reap AND killSession remains
+	// safe.
 	go func() {
 		select {
 		case <-handle.Done():
 		case <-sessionCtx.Done():
 		}
 		close(session.done)
+		session.mu.Lock()
+		teardown := session.teardown
+		session.teardown = nil
+		session.mu.Unlock()
+		if teardown != nil {
+			teardown()
+		}
 		o.removeSessionFromList(hash, session)
 	}()
 
@@ -600,6 +614,11 @@ func (o *SegmentOrchestrator) killSession(s *orchestratorSession, reason string)
 	hash := s.hash
 	teardown := s.teardown
 	s.cancelCtx = nil
+	// Null out teardown so the reap goroutine doesn't try to fire it
+	// after we already did. The released bool inside the closure
+	// remains the canonical idempotency guard at the cache layer, but
+	// nulling here avoids spurious "released" returns.
+	s.teardown = nil
 	s.mu.Unlock()
 
 	if handle != nil {

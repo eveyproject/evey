@@ -69,6 +69,16 @@ func (r *CapabilityRepoAdapter) Set(ctx context.Context, cap domaintranscoding.E
 		// zero would lock the host into "uncalibrated" state forever.
 		return errors.New("capability repo: refuse to persist zero SoftwareMaxHeight")
 	}
+	// Upper-bound guard — defends against a corrupted JSON write (DB
+	// access by an external tool, future config-import bug, etc.)
+	// that would push a height beyond any sensible video resolution.
+	// CapLadderToHeight tolerates large values gracefully (always
+	// returns >=1 rung) so this is defense-in-depth rather than a
+	// hot-path check, but the cap aligns with the highest realistic
+	// rung any benchmarker could produce.
+	if cap.SoftwareMaxHeight > 4320 || cap.HWMaxHeight > 4320 {
+		return errors.New("capability repo: refuse to persist height > 4320 (above 8K — likely corrupted)")
+	}
 	b, err := json.Marshal(cap)
 	if err != nil {
 		return fmt.Errorf("capability repo: marshal: %w", err)

@@ -162,6 +162,60 @@ func TestSegmentCache_Wait_RespectsContextCancel(t *testing.T) {
 	wg.Wait()
 }
 
+// TestSegmentCache_RegisterSession_RefcountedTeardown — the multi-rafale
+// orchestrator can RegisterSession twice on the same hash (two clients
+// watching the same film at different positions). The release returned
+// by RegisterSession must NOT close the shared pending channel until
+// EVERY rafale has released — otherwise Wait() callers for the
+// still-active rafale receive a spurious "session torn down" abort.
+func TestSegmentCache_RegisterSession_RefcountedTeardown(t *testing.T) {
+	c, _ := newTestCache(t)
+	const hash = "shared-hash"
+
+	release1 := c.RegisterSession(hash)
+	release2 := c.RegisterSession(hash)
+	// Snapshot the channel BEFORE the first release so we can assert
+	// it survives the partial teardown.
+	c.mu.RLock()
+	ch := c.pending[hash]
+	c.mu.RUnlock()
+	require.NotNil(t, ch, "RegisterSession must create the pending channel")
+
+	// First release: refcount drops 2→1, channel must stay open so
+	// the second rafale's Wait() callers don't trip on it.
+	release1()
+	select {
+	case <-ch:
+		t.Fatal("first release closed the shared channel — would break Wait() for the surviving rafale")
+	default:
+	}
+
+	// Second release: refcount drops 1→0, channel closes.
+	release2()
+	select {
+	case <-ch:
+		// expected
+	default:
+		t.Fatal("last release must close the shared channel")
+	}
+}
+
+// TestSegmentCache_RegisterSession_DoubleReleaseSafe — both the
+// orchestrator's killSession path and the reap goroutine can hold a
+// reference to the same release func; if both fire on a normal exit,
+// the release MUST be idempotent (no double-decrement of refcount).
+func TestSegmentCache_RegisterSession_DoubleReleaseSafe(t *testing.T) {
+	c, _ := newTestCache(t)
+	release := c.RegisterSession("h")
+	release()
+	release() // second call must be a no-op
+	// Refcount must not have gone negative.
+	c.mu.RLock()
+	refs := c.pendingRefs["h"]
+	c.mu.RUnlock()
+	assert.Equal(t, 0, refs, "second release must not decrement past zero")
+}
+
 func TestSegmentCache_Wait_AbortsOnCleanupHash(t *testing.T) {
 	// RegisterSession + CleanupHash combo: a Wait blocked on a session that
 	// gets torn down must return promptly, not stall until timeout.

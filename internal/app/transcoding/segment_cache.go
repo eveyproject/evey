@@ -122,10 +122,18 @@ func (f DecisionFingerprint) Hash() string {
 type SegmentCache struct {
 	baseDir string // <transcodeCacheDir>/segments
 
-	mu     sync.RWMutex
-	// pending[hash] = chan closed when CleanupHash is called for that hash, so
-	// Wait can abort early on session teardown instead of timing out.
-	pending map[string]chan struct{}
+	mu sync.RWMutex
+	// pending[hash] = chan closed when the LAST live session for that
+	// hash is torn down (orRefCount drops to 0), or when CleanupHash
+	// is called explicitly. Wait subscribes to this channel so it
+	// aborts early on session teardown instead of timing out.
+	//
+	// Refcounted because the multi-rafale orchestrator may have
+	// several sessions sharing the same hash directory (two clients
+	// on different positions of the same media). Closing the channel
+	// when ONE rafale teardowns would break Wait() for the others.
+	pending     map[string]chan struct{}
+	pendingRefs map[string]int
 }
 
 // NewSegmentCache returns a cache rooted at baseDir/segments. The directory is
@@ -136,8 +144,9 @@ func NewSegmentCache(baseDir string) (*SegmentCache, error) {
 		return nil, fmt.Errorf("SegmentCache: mkdir %q: %w", root, err)
 	}
 	return &SegmentCache{
-		baseDir: root,
-		pending: make(map[string]chan struct{}),
+		baseDir:     root,
+		pending:     make(map[string]chan struct{}),
+		pendingRefs: make(map[string]int),
 	}, nil
 }
 
@@ -255,14 +264,30 @@ func (c *SegmentCache) RegisterSession(decisionHash string) func() {
 	if _, ok := c.pending[decisionHash]; !ok {
 		c.pending[decisionHash] = make(chan struct{})
 	}
+	c.pendingRefs[decisionHash]++
 	c.mu.Unlock()
+	released := false
 	return func() {
 		c.mu.Lock()
+		defer c.mu.Unlock()
+		// Make the teardown idempotent — the orchestrator's killSession +
+		// reap goroutine could both fire on a normal exit. Only the
+		// first call decrements the refcount.
+		if released {
+			return
+		}
+		released = true
+		c.pendingRefs[decisionHash]--
+		if c.pendingRefs[decisionHash] > 0 {
+			// Other rafales still serving this hash — don't close the
+			// shared channel yet, their Wait() callers depend on it.
+			return
+		}
+		delete(c.pendingRefs, decisionHash)
 		if ch, ok := c.pending[decisionHash]; ok {
 			close(ch)
 			delete(c.pending, decisionHash)
 		}
-		c.mu.Unlock()
 	}
 }
 
