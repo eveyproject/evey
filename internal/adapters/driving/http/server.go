@@ -292,6 +292,10 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 	if s.CapOverrideSvc != nil {
 		mux.HandleFunc("GET /api/v1/admin/transcode/calibration/overrides", admin(transcodeOverridesGetHandler(s.CapOverrideSvc)))
+		// Reset is per-source-class via query string so the URL stays
+		// flat ("DELETE /overrides/2160p" would also work — chose
+		// the query form to mirror trickplay/regenerate's pattern).
+		mux.HandleFunc("DELETE /api/v1/admin/transcode/calibration/overrides", admin(transcodeOverrideResetHandler(s.CapOverrideSvc)))
 	}
 	if s.IntroDetector != nil {
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/detect-segments", introDetectionHandler(s.TokenGen, s.IntroDetector))

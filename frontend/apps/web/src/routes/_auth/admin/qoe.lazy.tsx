@@ -310,13 +310,12 @@ type EncodeOverride = {
 };
 
 // EncodeOverridesCard surfaces the CMCD-feedback adaptive cap overrides
-// the Phase C worker has written. Read-only — the worker is the only
-// writer, and we deliberately don't ship a force-reset button (admins
-// can wait for TTL, or recalibrate the encode capability if the
-// constraint comes from the underlying hardware).
+// the Phase C worker has written. Admin can wait for TTL (7 d) or use
+// the "Reset" button to drop a row immediately — typically when they
+// know the underlying limit changed (HW added, faster CPU swapped in).
 function EncodeOverridesCard() {
   const { t, i18n } = useTranslation();
-  const { data } = useQuery<{ overrides: EncodeOverride[] }>({
+  const { data, refetch } = useQuery<{ overrides: EncodeOverride[] }>({
     queryKey: ["admin", "transcode-overrides"],
     queryFn: () =>
       eveyFetch<{ overrides: EncodeOverride[] }>({
@@ -327,6 +326,21 @@ function EncodeOverridesCard() {
     // doesn't need sub-second freshness.
     staleTime: 60_000,
   });
+
+  const resetOverride = async (sourceClass: string) => {
+    try {
+      await eveyFetch<void>({
+        url: `/api/v1/admin/transcode/calibration/overrides?source_class=${encodeURIComponent(sourceClass)}`,
+        method: "DELETE",
+      });
+      await refetch();
+    } catch (err) {
+      // Surface the error in the console — the table will simply
+      // refresh on the next staleTime expiry if the request silently
+      // failed at the network layer.
+      console.warn("override reset failed", err);
+    }
+  };
 
   const overrides = data?.overrides ?? [];
 
@@ -369,6 +383,7 @@ function EncodeOverridesCard() {
               <th className="p-3">{t("admin.qoe.overrides.col.appliedAt", "Applied")}</th>
               <th className="p-3">{t("admin.qoe.overrides.col.expiresAt", "Expires")}</th>
               <th className="p-3">{t("admin.qoe.overrides.col.reason", "Reason")}</th>
+              <th className="p-3"></th>
             </tr>
           </thead>
           <tbody>
@@ -381,6 +396,19 @@ function EncodeOverridesCard() {
                 <td className="p-3 text-xs text-muted-foreground">{fmtDate(o.applied_at)}</td>
                 <td className="p-3 text-xs text-muted-foreground">{fmtDate(o.expires_at)}</td>
                 <td className="p-3 text-xs text-muted-foreground">{o.reason}</td>
+                <td className="p-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => resetOverride(o.source_class)}
+                    className="text-xs text-[var(--accent)] hover:underline"
+                    title={t(
+                      "admin.qoe.overrides.resetHint",
+                      "Drop this adaptive cap immediately. Worker will re-evaluate on the next tick.",
+                    )}
+                  >
+                    {t("admin.qoe.overrides.reset", "Reset")}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

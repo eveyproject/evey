@@ -29,6 +29,13 @@ type capOverrideLister interface {
 	ListActive() []domaintranscoding.CapOverride
 }
 
+// capOverrideResetter is the narrow port the override-reset endpoint
+// needs. Defined separately from capOverrideLister so handler tests
+// can mock only what they actually exercise.
+type capOverrideResetter interface {
+	ResetOverride(ctx context.Context, sourceClass string) (bool, error)
+}
+
 // transcodeCalibrationGetHandler returns the current encode capability
 // (read-only). Used by the Server Config admin page to surface "last
 // calibrated 3 days ago" + the actual caps the host is enforcing.
@@ -79,6 +86,48 @@ func transcodeOverridesGetHandler(lister capOverrideLister) http.HandlerFunc {
 			span.SetStatus(codes.Error, "encode overrides")
 			slog.Warn("calibration: GET overrides encode failed", slog.Any("err", err))
 		}
+	}
+}
+
+// transcodeOverrideResetHandler removes a CMCD-feedback adaptive cap
+// override for a source-class bucket. Admin can use it when they're
+// confident the underlying limit has changed (HW added, encoder
+// preset tuned) and they want to give the calibrated ceiling a fresh
+// chance — instead of waiting for the 7-day TTL.
+//
+// Routes via `?source_class=2160p` (or `1440p`/`1080p`). Returns 204
+// on success (idempotent — removing a non-existent override is
+// fine), 400 on missing query.
+func transcodeOverrideResetHandler(svc capOverrideResetter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracing.StartSpan(r.Context(), "http.transcode.calibration.OverrideReset")
+		defer span.End()
+
+		if svc == nil {
+			http.Error(w, `{"message":"override service not wired"}`, http.StatusServiceUnavailable)
+			return
+		}
+		sourceClass := r.URL.Query().Get("source_class")
+		if sourceClass == "" {
+			http.Error(w, `{"message":"missing source_class query"}`, http.StatusBadRequest)
+			return
+		}
+		// Detach from the request context: the DELETE is fast (single
+		// SQL row) but the cache refresh that follows hits the same
+		// repo and we want both to complete even if the admin's
+		// browser navigates away.
+		runCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if _, err := svc.ResetOverride(runCtx, sourceClass); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "reset override")
+			slog.Warn("calibration: override reset failed",
+				slog.String("source_class", sourceClass), slog.Any("err", err))
+			http.Error(w, `{"message":"reset failed"}`, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

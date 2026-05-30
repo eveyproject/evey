@@ -53,4 +53,9 @@ type CapOverrideRepo interface {
 	// DeleteExpired removes rows past expires_at. Worker runs this
 	// periodically so the table stays small.
 	DeleteExpired(ctx context.Context) (int, error)
+	// Delete removes a specific source-class override. Used by the
+	// admin "reset cap" button. No-op when the source class has no
+	// override (already empty). Returns (true, nil) when a row was
+	// actually removed so the handler can distinguish 200 vs 404.
+	Delete(ctx context.Context, sourceClass string) (bool, error)
 }

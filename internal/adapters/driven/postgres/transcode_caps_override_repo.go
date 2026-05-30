@@ -75,6 +75,21 @@ func (r *TranscodeCapsOverrideRepo) List(ctx context.Context) ([]transcoding.Cap
 	return out, rows.Err()
 }
 
+func (r *TranscodeCapsOverrideRepo) Delete(ctx context.Context, sourceClass string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.transcode_caps_override.Delete")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	const q = `DELETE FROM transcode_caps_overrides WHERE source_class = $1`
+	res, err := r.db.ExecContext(ctx, q, sourceClass)
+	if err != nil {
+		return false, fmt.Errorf("transcode caps delete: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 func (r *TranscodeCapsOverrideRepo) DeleteExpired(ctx context.Context) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.transcode_caps_override.DeleteExpired")
 	defer span.End()

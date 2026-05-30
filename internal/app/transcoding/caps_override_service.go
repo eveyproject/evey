@@ -179,6 +179,28 @@ func (s *CapOverrideService) Refresh(ctx context.Context) error {
 	return nil
 }
 
+// ResetOverride drops the override for a specific source class and
+// refreshes the in-memory cache so the handler sees the change
+// immediately. Used by the admin "reset cap" button.
+// Returns (true, nil) when a row was actually removed.
+func (s *CapOverrideService) ResetOverride(ctx context.Context, sourceClass string) (bool, error) {
+	removed, err := s.repo.Delete(ctx, sourceClass)
+	if err != nil {
+		return false, err
+	}
+	if removed {
+		s.logger.Info("caps override: reset by admin",
+			slog.String("source_class", sourceClass))
+	}
+	if err := s.Refresh(ctx); err != nil {
+		// Cache refresh failure is non-fatal — the next tick will
+		// reload anyway. Surface a warning so admins notice if
+		// /admin/qoe shows the override that should be gone.
+		s.logger.Warn("caps override: cache refresh failed after reset", slog.Any("err", err))
+	}
+	return removed, nil
+}
+
 // ListActive returns every cached non-expired override. Exposed for the
 // admin UI panel — same atomic snapshot the handler reads on each
 // request, so what the admin sees IS what the handler enforces.

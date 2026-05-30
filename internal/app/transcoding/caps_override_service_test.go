@@ -36,6 +36,16 @@ func (r *fakeCapOverrideRepo) List(_ context.Context) ([]domaintranscoding.CapOv
 	}
 	return out, nil
 }
+func (r *fakeCapOverrideRepo) Delete(_ context.Context, sourceClass string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.rows[sourceClass]; !ok {
+		return false, nil
+	}
+	delete(r.rows, sourceClass)
+	return true, nil
+}
+
 func (r *fakeCapOverrideRepo) DeleteExpired(_ context.Context) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
