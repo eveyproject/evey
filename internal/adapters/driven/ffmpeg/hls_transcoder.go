@@ -605,6 +605,19 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 	args = appendInputModifiers(args)
 	args = append(args, "-i", opts.FilePath)
+	// Preserve source PTS in the output so an fMP4 fragment carries a
+	// tfdt that matches the EXTINF position the Go-precomputed VOD
+	// manifest gave hls.js for that segment. Without `-copyts`, a rafale
+	// spawned at seg N>0 produces fragments whose tfdt restarts at 0;
+	// the browser rejects them as "no decoder for the format" because
+	// the init segment + fragment disagree on time origin.
+	//
+	// Deliberately NOT using `-avoid_negative_ts disabled` (the
+	// single-variant builder uses it together with `-start_at_zero`).
+	// fMP4 muxer requires non-negative timestamps, and we want
+	// ffmpeg's default behaviour to shift if needed without zeroing
+	// the absolute PTS.
+	args = append(args, "-copyts")
 
 	var filterParts []string
 	splitOutputs := make([]string, n)

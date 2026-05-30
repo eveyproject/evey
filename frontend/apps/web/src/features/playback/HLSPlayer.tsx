@@ -27,7 +27,7 @@ import {
   setSubtitleStyle,
   type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
-import { buildTranscodeHlsUrl, getSelectedBurnInTrack, resolveDefaultAudio, resolveDefaultSubtitle, shouldRestartTranscodeSeek } from "./hooks/hlsPlayerUtils";
+import { buildTranscodeHlsUrl, getSelectedBurnInTrack, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback } from "./hooks/useTranscodePlayback";
 import { useSubtitleManager } from "./hooks/useSubtitleManager";
@@ -262,22 +262,15 @@ export function HLSPlayer({
   const handleSeekRequest = useCallback((absoluteTimeSec: number) => {
     const video = videoRef.current;
     if (!video) return;
-    if (transcodeMode) {
-      // The transcode is a sliding-window stream: a target outside what hls.js
-      // has buffered (forward past the edge, OR backward before the window's
-      // start after a long watch) is no longer in the playlist and needs a
-      // restart at the new offset. Only restarting forward-past-buffer let a
-      // backward scrub fall through to an in-place seek that hls.js couldn't
-      // satisfy, so the playhead snapped back to where it was.
-      if (shouldRestartTranscodeSeek(absoluteTimeSec, transcodeOffsetRef.current, video.buffered)) {
-        setTranscodeStartTime(absoluteTimeSec);
-        return;
-      }
-      video.currentTime = absoluteTimeSec - transcodeOffsetRef.current;
-    } else {
-      video.currentTime = absoluteTimeSec;
-    }
-  }, [transcodeMode, setTranscodeStartTime]);
+    // VOD pipeline (transcode + direct): the manifest covers the full
+    // media duration. SegmentOrchestrator spawns a rafale at the target
+    // segment with `-copyts`, so hls.js can seek via video.currentTime
+    // and the served fragment's tfdt lines up with the EXTINF position.
+    // No more sliding-window restart branch — that legacy code computed
+    // currentTime relative to a transcodeOffset the new pipeline doesn't
+    // carry, and produced UI/playhead drift on resume.
+    video.currentTime = absoluteTimeSec;
+  }, []);
 
   const seekRef = useRef(handleSeekRequest);
   seekRef.current = handleSeekRequest;

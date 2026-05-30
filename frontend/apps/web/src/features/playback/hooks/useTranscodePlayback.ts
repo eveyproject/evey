@@ -50,15 +50,27 @@ export function useTranscodePlayback({
       hlsRef.current = null;
     }
 
-    const offset = transcodeStartTime;
-    transcodeOffsetRef.current = offset > 0 ? offset : 0;
+    // VOD pipeline: the server precomputes the full manifest covering
+    // the entire media (0 → totalDuration) and serves segments on
+    // demand. There is no "transcode start offset" — the playhead is
+    // an absolute position in the source. transcodeOffset must stay
+    // at 0 so positionRef = currentTime matches the absolute time;
+    // a non-zero offset (legacy sliding-window assumption) silently
+    // produced UI/playhead drift on resume (UI showed 9:45 but
+    // playback started at segment 0).
+    //
+    // This pairs with the multi-variant ffmpeg builder which now ships
+    // `-copyts` so the fMP4 tfdt in each segment matches the absolute
+    // EXTINF position from the manifest.
+    transcodeOffsetRef.current = 0;
+    const initialSeekSec = transcodeStartTime > 0 ? transcodeStartTime : 0;
 
     const hlsUrl = buildTranscodeHlsUrl(
       mediaId,
       streamTokenRef.current,
       currentTrackIndex,
       selectedBurnInTrack,
-      offset,
+      0, // server ignores startSec on the VOD path
     );
 
     if (!Hls.isSupported()) {
@@ -129,14 +141,15 @@ export function useTranscodePlayback({
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       setHlsLevels(hls.levels.map((l) => l.height));
-      // Pin the playhead to local 0 = absolute transcodeOffset. The server
-      // already transcodes from `offset`, so the stream's t=0 IS the seek
-      // target. Without this, a backward seek that restarts the transcode
-      // leaves the <video> element holding its previous (forward) local
-      // currentTime — hls.js only honours startPosition when currentTime
-      // is ~0, so it keeps the stale value and the playhead jumps forward
-      // into already-transcoded content instead of landing on the seek.
-      if (video.currentTime !== 0) {
+      // VOD pipeline: the manifest covers the full media duration so we
+      // seek the resume target via video.currentTime, which causes
+      // hls.js to request the matching segment from the server.
+      // SegmentOrchestrator spawns a rafale at that segment with the
+      // matching -ss; with -copyts the fragment's tfdt matches the
+      // EXTINF position and hls.js accepts it.
+      if (initialSeekSec > 0) {
+        video.currentTime = initialSeekSec;
+      } else if (video.currentTime !== 0) {
         video.currentTime = 0;
       }
       // Browsers block unmuted autoplay until the user has interacted with
