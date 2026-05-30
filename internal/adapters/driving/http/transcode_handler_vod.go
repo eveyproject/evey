@@ -62,6 +62,13 @@ type hlsVODServe struct {
 	// no need to restart the server.
 	capability func() domaintranscoding.EncodeCapability
 
+	// capOverride is the CMCD-feedback adaptive override service.
+	// Returns (override, true) when an active override applies to the
+	// source-class bucket — handler uses MIN(benchmark, override) as
+	// the effective cap. Nil-safe so tests without the worker still
+	// pass.
+	capOverride func(sourceHeight int) (domaintranscoding.CapOverride, bool)
+
 	// useFMP4 controls the segment container. fMP4 is the project default —
 	// segments are ~30% smaller and the codecs string in the master playlist
 	// matches what hls.js expects on modern Chromium/Firefox.
@@ -474,6 +481,17 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 		cap := h.capability()
 		maxH = cap.MaxHeightFor(false) // hwAccelUsable=false until Phase A+ wires the codec-side hwdetect
 	}
+	// CMCD-feedback adaptive override (Phase C). The override service
+	// watches playback_qoe_events and writes a downward cap when a
+	// source-class shows sustained starvation — typically "4K transcode
+	// keeps starving viewers, drop the 4K bucket to 1080p". We apply
+	// MIN(benchmark_cap, override_cap) so an override only lowers the
+	// ceiling, never raises it.
+	if h.capOverride != nil && srcH > 0 {
+		if ov, ok := h.capOverride(srcH); ok && ov.MaxHeight > 0 && ov.MaxHeight < maxH {
+			maxH = ov.MaxHeight
+		}
+	}
 	return domaintranscoding.CapLadderToHeight(capped, maxH)
 }
 
@@ -554,6 +572,12 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 				return domaintranscoding.SafeFallback()
 			}
 			return s.CalibrationSvc.Current()
+		},
+		capOverride: func(sourceHeight int) (domaintranscoding.CapOverride, bool) {
+			if s.CapOverrideSvc == nil {
+				return domaintranscoding.CapOverride{}, false
+			}
+			return s.CapOverrideSvc.OverrideForHeight(sourceHeight)
 		},
 		// fMP4 is now the project default — matches the ffmpeg adapter
 		// (needsFMP4Segments returns true unconditionally) and Apple's

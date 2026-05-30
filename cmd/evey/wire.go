@@ -595,6 +595,16 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		slog.Warn("calibration: EnsureCalibrated returned error, falling back to 720p", slog.Any("err", err))
 	}
 
+	// CMCD-feedback adaptive cap (Phase C). Periodically aggregates
+	// playback_qoe_events to lower the calibration-set ceiling on
+	// source-classes where viewers consistently starve. TTL'd so a
+	// network blip doesn't lock the cap forever.
+	capsOverrideRepo := postgres.NewTranscodeCapsOverrideRepo(db)
+	capsOverrideSvc := apptranscoding.NewCapOverrideService(
+		capsOverrideRepo, db, apptranscoding.CapOverrideServiceOpts{}, slog.Default(),
+	)
+	capsOverrideSvc.Start(ctx)
+
 	complexityWorker := apptranscoding.NewComplexityWorker(
 		complexityRepo,
 		complexityClassifier,
@@ -751,6 +761,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			qoeQuerySvc:      qoeQuerySvc,
 			complexityRepo:   complexityRepo,
 			calibrationSvc:   calibrationSvc,
+			capsOverrideSvc:  capsOverrideSvc,
 			mkvSvc:           mkvSvc,
 			musicSvc:         musicSvc,
 			photoSvc:         photoSvc,

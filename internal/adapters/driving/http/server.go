@@ -100,6 +100,10 @@ type HTTPServer struct {
 	// (libx264 + optional HW). Nil-safe: the VOD handler stays on the
 	// safe 720p floor when unset (tests).
 	CalibrationSvc *apptranscoding.CalibrationService
+	// CapOverrideSvc supplies the CMCD-feedback adaptive override on
+	// top of the benchmark-set cap. Nil-safe: the VOD handler skips
+	// the override branch when unset.
+	CapOverrideSvc *apptranscoding.CapOverrideService
 	// QoESink ingests CMCD telemetry from every segment / master / variant
 	// request. Nil-safe: the VOD handler short-circuits when this is unset.
 	QoESink appqoe.EventSink

@@ -71,7 +71,8 @@ type mediaDeps struct {
 	qoeSink        appqoe.EventSink
 	qoeQuerySvc    *appqoe.QueryService
 	complexityRepo domaintranscoding.ComplexityRepo
-	calibrationSvc *apptranscoding.CalibrationService
+	calibrationSvc  *apptranscoding.CalibrationService
+	capsOverrideSvc *apptranscoding.CapOverrideService
 	mkvSvc         *appmkv.Service
 	musicSvc       *appmusic.Service
 	photoSvc        *appphoto.Service
