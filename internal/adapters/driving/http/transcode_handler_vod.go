@@ -208,6 +208,18 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write([]byte(out))
+
+	// Cold-start optimization: kick off the rafale NOW, before the player
+	// has even parsed the variant playlist and asked for seg 0. Saves the
+	// client → server → client round-trip (~50-200 ms) and, more
+	// importantly, gives ffmpeg a head start on the slow decode path. On
+	// 4K HEVC sources the segment 0 wall-clock dominates startup latency;
+	// without this hint ffmpeg only starts when the .m4s request arrives.
+	// PreWarm runs in a goroutine bound to the orchestrator's shutdownCtx
+	// so Close() cancels every in-flight pre-warm (clean test teardown).
+	if fp, fpErr := h.buildFingerprint(r, mediaID, item, streams); fpErr == nil {
+		h.orchestrator.PreWarm(fp, 0)
+	}
 }
 
 func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
@@ -437,7 +449,16 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 			break
 		}
 	}
-	return domaintranscoding.CapLadderToSource(ladder, srcW, srcH)
+	capped := domaintranscoding.CapLadderToSource(ladder, srcW, srcH)
+	// Software-encode path: drop the 2160p rung. ffmpeg builds every
+	// variant in a single invocation (var_stream_map), so the whole pipeline
+	// is bottlenecked by the heaviest rung. On a 4K HEVC source with no HW
+	// decoder, a 2160p H.264 15 Mbps rung can't keep up with realtime — the
+	// player buffer crashes and seg fetches time out across every variant.
+	// When the HWDetector is wired into the encode path (see
+	// features/hls_audit_hardware memory note), this cap will become
+	// conditional on "no HW accelerator available". Until then, hard cap.
+	return domaintranscoding.CapLadderToHeight(capped, 1080)
 }
 
 // durationMissingError is the specific 503 we return when a media file's

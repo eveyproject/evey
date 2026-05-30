@@ -113,6 +113,32 @@ func LadderFor(c ContentClass) []HLSProfile {
 	}
 }
 
+// CapLadderToHeight trims the ladder so no rung exceeds maxHeight pixels.
+// Designed for the software-only encode path: ffmpeg software encoders
+// can't keep up with a 2160p H.264 rung on a 4K HEVC source — the whole
+// pipeline (which produces every variant in a single ffmpeg via
+// var_stream_map) gets bottlenecked by the heaviest rung. Capping to
+// 1080p (maxHeight=1080) is what every other OSS player (Jellyfin,
+// Stash, Navidrome) does when no HW accelerator is available.
+//
+// maxHeight=0 ⇒ no cap.
+// Always returns at least one rung (the lowest).
+func CapLadderToHeight(ladder []HLSProfile, maxHeight int) []HLSProfile {
+	if maxHeight <= 0 {
+		return ladder
+	}
+	out := make([]HLSProfile, 0, len(ladder))
+	for _, p := range ladder {
+		if p.Height <= maxHeight {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return ladder[:1]
+	}
+	return out
+}
+
 // CapLadderToSource trims the returned ladder so no rung tries to upscale
 // beyond the source resolution — pointless bandwidth and risks visible
 // blurring. e.g. a 720p source with LadderFilmHighMotion (which has a

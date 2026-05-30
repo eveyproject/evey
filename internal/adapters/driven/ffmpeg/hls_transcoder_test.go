@@ -70,11 +70,16 @@ func TestBuildFFmpegArgs_ModeA_AllCopy(t *testing.T) {
 	assert.Contains(t, joined, "-c:a copy")
 }
 
-// All builders MUST emit the event-mode HLS playlist + readrate combo.
-// -hls_list_size 0 + -hls_playlist_type event keep the full growing playlist
-// so hls.js never snaps to the live edge (eliminates the drift-jump on long
-// playback). -readrate 1.5 avoids wasting CPU on frames the user won't reach.
+// All builders MUST emit the event-mode HLS playlist flags. -hls_list_size 0
+// + -hls_playlist_type event keep the full growing playlist so hls.js never
+// snaps to the live edge (eliminates the drift-jump on long playback).
 // Disk cleanup is guaranteed by HLSSession.stop() → os.RemoveAll(OutputDir).
+//
+// Note: -readrate was removed (commit: 4K cold start fix). The
+// SegmentOrchestrator's adaptive throttle (SIGSTOP when client is too far
+// ahead, SIGCONT on CMCD bs=1) replaces the goal more precisely AND lets
+// ffmpeg burn CPU during cold start. Asserting -readrate's presence would
+// regress that fix.
 func TestBuildFFmpegArgs_BoundedCacheArgs(t *testing.T) {
 	cases := []struct {
 		name string
@@ -108,7 +113,7 @@ func TestBuildFFmpegArgs_BoundedCacheArgs(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			joined := strings.Join(ffmpeg.BuildFFmpegArgs(tc.opts), " ")
-			assert.Contains(t, joined, "-readrate 1.5", "ffmpeg input read rate must be capped at 1.5x real-time")
+			assert.NotContains(t, joined, "-readrate", "readrate has been retired in favour of the orchestrator's adaptive throttle; reintroducing it cripples cold start")
 			assert.Contains(t, joined, "-hls_list_size 0", "playlist must be unbounded (event-type, growing) to avoid drift-out on long playback")
 			assert.Contains(t, joined, "-hls_playlist_type event", "playlist must be marked event so hls.js doesn't snap to liveSyncPosition")
 			assert.Contains(t, joined, "-hls_flags temp_file", "temp_file flag makes ffmpeg rename segments atomically — eliminates read-while-write races (audit indies: Stash pattern, free with this flag)")

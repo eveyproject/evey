@@ -82,4 +82,13 @@ type HLSProcessOpts struct {
 	AudioCodec       string // domain codec name: "aac"|"ac3"|"eac3"|"opus". Empty → aac.
 	MaxAudioChannels int    // 0 = no cap (preserves current -ac 2 default when transcoding audio).
 	ForceSidecarSubs bool   // true → skip burn-in even for bitmap subs (served as sidecar externally).
+
+	// UseFMP4 picks the segment container: true → fMP4 (.m4s + per-variant
+	// init segment), false → MPEG-TS (.ts). Must match the extension baked
+	// into the manifest the player consumes — otherwise segment fetches
+	// look up a file the encoder never produces and time out forever.
+	// Single-variant builders already honoured this via appendHLSOutputArgs;
+	// the multi-variant builder used to hardcode .ts and silently ignored
+	// the project's fMP4 default flip.
+	UseFMP4 bool
 }

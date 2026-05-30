@@ -350,18 +350,26 @@ const deinterlaceFilter = "bwdif=deint=interlaced"
 // expr form is fps-independent. Negligible bitrate cost at a 3s cadence.
 var hlsForceKeyframesArgs = []string{"-force_key_frames", "expr:gte(t,n_forced*" + hlsSegmentSeconds + ")"}
 
-// hlsInputReadrate caps ffmpeg's read speed at 1.5× real-time. Even though
-// the disk is now bounded by stop() cleanup rather than delete_segments,
-// readrate still avoids wasting CPU encoding frames the user will never reach
-// (e.g. open a movie, watch 5 minutes, close).
-const hlsInputReadrate = "1.5"
-
-// appendInputModifiers prepends -readrate to args before the next -i.
-// Caller is responsible for adding -i and the file path after this call.
-// Caps the input read rate so ffmpeg stays close to real-time and doesn't
-// fill the disk / CPU with buffer the user will never reach.
+// appendInputModifiers is the hook for pre-`-i` flags. It used to add
+// `-readrate 1.5` so ffmpeg stayed close to real-time and didn't waste CPU
+// on segments the viewer would never reach.
+//
+// The cap is now removed: with the SegmentOrchestrator's adaptive throttle
+// (SIGSTOP when the client is too far ahead, SIGCONT on CMCD bs=1 or when
+// the client catches up) the same goal — "don't burn CPU past what the
+// client needs" — is enforced more precisely AND without crippling the
+// cold start. On a 4K HEVC source, software decode runs near 1× real-time;
+// with -readrate 1.5 the first 6 s segment took ~6 s wall-clock to produce
+// — over hls.js's per-fragment timeout, so the player gave up on every
+// variant and the stream never started. Removing the cap lets the encoder
+// burn CPU on segments 0-N until the throttle kicks in once the client has
+// a healthy buffer ahead.
+//
+// Kept as a function (rather than inlined) so a future per-job cap (e.g.
+// "throttle harder when N concurrent ffmpeg" / config knob) has an
+// obvious place to hook.
 func appendInputModifiers(args []string) []string {
-	return append(args, "-readrate", hlsInputReadrate)
+	return args
 }
 
 // appendHLSOutputArgs writes the HLS muxer arguments shared by every
@@ -677,9 +685,25 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		"-hls_playlist_type", "event",
 		"-hls_flags", "temp_file",
 		"-start_number", fmt.Sprintf("%d", startNumberFor(opts)),
-		"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.ts"),
-		filepath.Join(opts.OutputDir, "stream_%v.m3u8"),
 	)
+	// Container choice: fMP4 (.m4s + per-variant init) or MPEG-TS (.ts).
+	// The single-variant builders honoured opts.UseFMP4 via
+	// appendHLSOutputArgs but this multi-variant path used to hardcode .ts —
+	// since the project flipped to fMP4 by default (commit cecbf9d10) the
+	// manifest served to hls.js asked for .m4s while ffmpeg wrote .ts.
+	// Cache lookups missed forever and every seg 0 timed out.
+	if opts.UseFMP4 {
+		args = append(args,
+			"-hls_segment_type", "fmp4",
+			"-hls_fmp4_init_filename", "stream_%v_init.mp4",
+			"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.m4s"),
+		)
+	} else {
+		args = append(args,
+			"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.ts"),
+		)
+	}
+	args = append(args, filepath.Join(opts.OutputDir, "stream_%v.m3u8"))
 	return args
 }
 

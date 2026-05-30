@@ -123,6 +123,13 @@ type SegmentOrchestrator struct {
 
 	stopThrottle chan struct{}
 	throttleDone chan struct{}
+
+	// prewarmWG tracks PreWarm goroutines so Close() can drain them before
+	// nuking the cache. Without this, a goroutine spawned by serveVariant
+	// could write fresh files into the cache dir AFTER Close() ran its
+	// cleanup pass — leaking tempdirs in tests and racing with the
+	// orchestrator's lifecycle in prod.
+	prewarmWG sync.WaitGroup
 }
 
 // SourceResolver bridges the orchestrator (which works with DecisionFingerprint)
@@ -234,6 +241,12 @@ func (o *SegmentOrchestrator) Close() {
 	}
 	<-o.throttleDone
 
+	// Cancel shutdownCtx FIRST so in-flight PreWarm goroutines see the
+	// cancellation before they try to spawn new sessions, then drain them
+	// so cache cleanup below isn't racing with file writes.
+	o.shutdownCancel()
+	o.prewarmWG.Wait()
+
 	o.mu.Lock()
 	sessions := make([]*orchestratorSession, 0, len(o.sessions))
 	for _, s := range o.sessions {
@@ -250,7 +263,36 @@ func (o *SegmentOrchestrator) Close() {
 				slog.Any("err", err))
 		}
 	}
-	o.shutdownCancel()
+}
+
+// PreWarm asks the orchestrator to start producing segments for fp in a
+// background goroutine. Fire-and-forget: the spawned work outlives the
+// HTTP request that triggered it but is bounded by the orchestrator's own
+// shutdownCtx, so Close() cancels every in-flight pre-warm (clean
+// teardown, no leaked tempdirs in tests).
+//
+// Used by the HLS-VOD handler on `serveVariant`: when the player fetches
+// the variant playlist we kick off the ffmpeg rafale immediately, in
+// parallel with the player parsing the playlist. Saves a 200 ms RTT in
+// the cold-start path AND gives ffmpeg an extra head start when its first
+// segment is slow (4K HEVC software decode).
+func (o *SegmentOrchestrator) PreWarm(fp DecisionFingerprint, startSegIdx int) {
+	// Skip cleanly if Close already ran. shutdownCtx.Err() is non-nil after
+	// shutdownCancel — spawning a goroutine then would race the cache wipe.
+	if o.shutdownCtx.Err() != nil {
+		return
+	}
+	o.prewarmWG.Add(1)
+	go func() {
+		defer o.prewarmWG.Done()
+		ctx, cancel := context.WithTimeout(o.shutdownCtx, 30*time.Second)
+		defer cancel()
+		if err := o.EnsureSegmentRange(ctx, fp, startSegIdx); err != nil {
+			o.logger.Debug("orchestrator: prewarm failed (non-fatal)",
+				slog.String("media_id", fp.MediaID),
+				slog.Any("err", err))
+		}
+	}()
 }
 
 // EnsureSegmentRange guarantees that segment `segmentIdx` will be produced (or
@@ -371,6 +413,11 @@ func (o *SegmentOrchestrator) spawnSession(
 		AudioCodec:          fp.AudioCodec,
 		MaxAudioChannels:    fp.MaxAudioChannels,
 		ForceSidecarSubs:    fp.ForceSidecarSubs,
+		// fp.UseFMP4 is the container choice baked into the manifest the
+		// player will receive (.m4s vs .ts). Without forwarding it, ffmpeg
+		// always wrote .ts via the multi-variant builder while the manifest
+		// pointed at .m4s — segment fetches missed the cache forever.
+		UseFMP4: fp.UseFMP4,
 	}
 
 	sessionCtx, cancel := context.WithCancel(o.shutdownCtx)
