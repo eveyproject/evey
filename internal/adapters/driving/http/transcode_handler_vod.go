@@ -594,6 +594,19 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Re-check access on the NEXT item independently. The current item's
+	// access doesn't imply the next one — a series can straddle libraries,
+	// and a kid profile may have access to the current ep but not the next
+	// (different rating / blocked tags). Without these two checks an
+	// attacker could pivot from an accessible ep to trigger a transcode
+	// rafale on any media they shouldn't see.
+	if !checkLibraryAccess(r.Context(), w, claims, nextItem.LibraryID, h.libraryAccess) {
+		return
+	}
+	if !checkParental(r.Context(), w, claims, nextItem, h.parental) {
+		return
+	}
+
 	streams, err := h.libSvc.GetMediaStreams(r.Context(), string(nextItem.ID))
 	if err != nil {
 		span.RecordError(err)

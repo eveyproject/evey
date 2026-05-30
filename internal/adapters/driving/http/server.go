@@ -295,7 +295,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// episode so the next ep's transcode is pre-spawned and the
 			// autoplay handoff feels instant. Auth-required (logged-in user
 			// only) but no body — the URL identifies the *current* media.
-			mux.HandleFunc("POST /api/v1/media/{id}/prewarm-next", auth(vodHandler.servePrewarmNext))
+			// Rate-limited via AdminHeavyRL: each accepted request can spawn
+			// an ffmpeg rafale, so we must cap per-IP abuse independently of
+			// the frontend's once-per-mount throttle (a JS console can bypass
+			// it trivially).
+			mux.HandleFunc("POST /api/v1/media/{id}/prewarm-next", auth(ratelimit.MiddlewareFunc(s.AdminHeavyRL, vodHandler.servePrewarmNext)))
 		}
 	}
 	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.TokenGen, s.LibQuerySvc, NewLibraryItemCounter(s.LibQuerySvc, s.MusicSvc, s.PhotoSvc))))

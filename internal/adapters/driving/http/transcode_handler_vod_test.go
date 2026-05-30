@@ -477,3 +477,157 @@ func profilesForTest() []apptranscoding.ProfileFingerprint {
 	}
 	return out
 }
+
+// ----------------------------------------------------------------
+// Prewarm-next handler — security regressions from the audit.
+// Covers the 3 HIGH findings: cross-library IDOR, parental bypass on
+// nextItem, and the absence of a rate-limit middleware (rate-limit is
+// tested through the registration in server_test, here we cover the
+// per-item access checks).
+// ----------------------------------------------------------------
+
+// prewarmStreamsGetter routes GetMediaItem by id and lets the test set the
+// next-episode result explicitly. Same MediaStreamsGetter interface as
+// testFakeStreamsGetter but with per-id lookup.
+type prewarmStreamsGetter struct {
+	items   map[string]*domainlibrary.MediaItem
+	streams []*domainlibrary.MediaStream
+	next    *domainlibrary.MediaItem
+	nextErr error
+}
+
+func (f *prewarmStreamsGetter) GetMediaItem(_ context.Context, id string) (*domainlibrary.MediaItem, error) {
+	if it, ok := f.items[id]; ok {
+		return it, nil
+	}
+	return nil, nil
+}
+func (f *prewarmStreamsGetter) GetMediaStreams(_ context.Context, _ string) ([]*domainlibrary.MediaStream, error) {
+	return f.streams, nil
+}
+func (f *prewarmStreamsGetter) NextEpisodeOf(_ context.Context, _ string) (*domainlibrary.MediaItem, error) {
+	return f.next, f.nextErr
+}
+
+// libIDAccessChecker allows only the listed library IDs. Mirrors the
+// production LibraryAccessChecker semantics so we can simulate a user
+// who has Lib A but not Lib B.
+type libIDAccessChecker struct{ allowed map[string]bool }
+
+func (c *libIDAccessChecker) HasAccess(_ context.Context, _ shared.UserID, libID shared.LibraryID) (bool, error) {
+	return c.allowed[string(libID)], nil
+}
+
+// blockMediaParental blocks the specified media item ids only — used to
+// simulate a kid profile that may see ep N but not ep N+1.
+type blockMediaParental struct{ blocked map[string]bool }
+
+func (p *blockMediaParental) BlockedByParental(_ context.Context, _ string, item *domainlibrary.MediaItem) bool {
+	if item == nil {
+		return false
+	}
+	return p.blocked[string(item.ID)]
+}
+
+func newEpisode(id, libID string) *domainlibrary.MediaItem {
+	dur, _ := shared.NewDurationMs(60_000)
+	return &domainlibrary.MediaItem{
+		ID:        shared.MediaItemID(id),
+		LibraryID: shared.LibraryID(libID),
+		Type:      "episode",
+		File:      &domainlibrary.MediaFile{Path: "/" + id + ".mkv", Duration: dur},
+	}
+}
+
+func doPrewarmRequest(h *hlsVODServe, mediaID string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/"+mediaID+"/prewarm-next", nil)
+	req.SetPathValue("id", mediaID)
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.servePrewarmNext(w, req)
+	return w
+}
+
+// HIGH-1 (audit): cross-library IDOR. User can play ep on Lib A and the
+// next ep is on Lib B (series straddles libraries). The handler MUST
+// re-check access on nextItem.LibraryID, not just curItem.LibraryID.
+func TestPrewarmNext_CrossLibrary_IDOR_Forbidden(t *testing.T) {
+	cur := newEpisode("ep-a", "lib-a")
+	next := newEpisode("ep-b", "lib-b")
+	libSvc := &prewarmStreamsGetter{
+		items: map[string]*domainlibrary.MediaItem{"ep-a": cur, "ep-b": next},
+		next:  next,
+	}
+	// Caller has access ONLY to lib-a — same path the player would take
+	// to start watching ep-a — but lib-b must remain off-limits.
+	access := &libIDAccessChecker{allowed: map[string]bool{"lib-a": true}}
+	h, _ := buildVODHandler(t, libSvc, access, testFakeParentalChecker{})
+
+	w := doPrewarmRequest(h, "ep-a")
+	assert.Equal(t, http.StatusForbidden, w.Code,
+		"prewarm-next must reject when nextItem belongs to a library the caller can't access")
+}
+
+// HIGH-2 (audit): parental bypass on nextItem. Kid profile may see ep N
+// (current) but ep N+1 is blocked. The handler MUST re-check parental on
+// nextItem so a kid can't trigger transcode of restricted content.
+func TestPrewarmNext_NextItemParentalBlocked_Forbidden(t *testing.T) {
+	cur := newEpisode("ep-a", "lib-a")
+	next := newEpisode("ep-b", "lib-a")
+	libSvc := &prewarmStreamsGetter{
+		items: map[string]*domainlibrary.MediaItem{"ep-a": cur, "ep-b": next},
+		next:  next,
+	}
+	access := &libIDAccessChecker{allowed: map[string]bool{"lib-a": true}}
+	// Block only the next episode — current ep stays viewable.
+	parental := &blockMediaParental{blocked: map[string]bool{"ep-b": true}}
+	h, _ := buildVODHandler(t, libSvc, access, parental)
+
+	w := doPrewarmRequest(h, "ep-a")
+	assert.Equal(t, http.StatusForbidden, w.Code,
+		"prewarm-next must reject when nextItem is parental-restricted for this profile")
+}
+
+// Sanity: current item access denial still blocks. Mirrors the existing
+// check on curItem so it doesn't regress when adding the nextItem check.
+func TestPrewarmNext_CurrentItemAccessDenied_Forbidden(t *testing.T) {
+	cur := newEpisode("ep-a", "lib-private")
+	libSvc := &prewarmStreamsGetter{
+		items: map[string]*domainlibrary.MediaItem{"ep-a": cur},
+	}
+	access := &libIDAccessChecker{allowed: map[string]bool{"lib-other": true}}
+	h, _ := buildVODHandler(t, libSvc, access, testFakeParentalChecker{})
+
+	w := doPrewarmRequest(h, "ep-a")
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// 204 when no next episode exists (series finale). Documents the success
+// path without spawning ffmpeg.
+func TestPrewarmNext_NoNextEpisode_NoContent(t *testing.T) {
+	cur := newEpisode("ep-a", "lib-a")
+	libSvc := &prewarmStreamsGetter{
+		items: map[string]*domainlibrary.MediaItem{"ep-a": cur},
+		next:  nil, // series finale
+	}
+	access := &libIDAccessChecker{allowed: map[string]bool{"lib-a": true}}
+	h, _ := buildVODHandler(t, libSvc, access, testFakeParentalChecker{})
+
+	w := doPrewarmRequest(h, "ep-a")
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+// 204 when current is a movie. Prewarm is episode-only by design.
+func TestPrewarmNext_NotEpisode_NoContent(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	cur := &domainlibrary.MediaItem{
+		ID: "mov-1", LibraryID: "lib-a", Type: "movie",
+		File: &domainlibrary.MediaFile{Path: "/m.mkv", Duration: dur},
+	}
+	libSvc := &prewarmStreamsGetter{items: map[string]*domainlibrary.MediaItem{"mov-1": cur}}
+	access := &libIDAccessChecker{allowed: map[string]bool{"lib-a": true}}
+	h, _ := buildVODHandler(t, libSvc, access, testFakeParentalChecker{})
+
+	w := doPrewarmRequest(h, "mov-1")
+	assert.Equal(t, http.StatusNoContent, w.Code)
+}
