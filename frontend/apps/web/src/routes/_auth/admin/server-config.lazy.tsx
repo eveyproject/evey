@@ -21,6 +21,7 @@ import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { FeedConfigCard } from "@/features/admin/FeedConfigCard";
+import { EncodeCalibrationCard } from "@/features/admin/EncodeCalibrationCard";
 import { ISO_REGIONS } from "@/features/user/regionList";
 import { defaultRegionForLocale } from "@/features/user/regionDefaults";
 import { supportedLanguages } from "@/i18n";
@@ -970,6 +971,16 @@ function ServerConfigPage() {
         subtitle={t("admin.serverConfig.trickplayDesc")}
       >
         <TrickplaySettingsCard entries={entries} />
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title={t("admin.calibration.cardTitle", "Encode calibration")}
+        subtitle={t(
+          "admin.calibration.cardSubtitle",
+          "Measured at boot — sets the cap on the HLS ladder so the host doesn't overshoot what it can encode in realtime.",
+        )}
+      >
+        <EncodeCalibrationCard />
       </CollapsibleCard>
 
       <CollapsibleCard

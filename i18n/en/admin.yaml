@@ -620,6 +620,24 @@ dashboardStats:
   free: Free
   loginFailed: Login failed
 
+calibration:
+  cardTitle: Encode calibration
+  cardSubtitle: "Measured at boot — sets the cap on the HLS ladder so the host doesn't overshoot what it can encode in realtime."
+  softwareMax: Software encode cap
+  hwMax: Hardware encode cap
+  hwNone: "no GPU accelerator detected"
+  libx264: "libx264 ultrafast"
+  lastRun: Last calibrated
+  cpuSig: CPU signature
+  recalibrate: Recalibrate
+  recalibrating: "Recalibrating…"
+  recalibrateHint: "Re-run the benchmark after enabling hardware acceleration, swapping the CPU, or migrating the container to a different host."
+  successToast: "Recalibration complete"
+  busyToast: "Recalibration already in progress"
+  errorToast: "Recalibration failed"
+  setupTitle: "Calibrating encode capability"
+  setupSubtitle: "Measuring how high your host can encode in realtime. This usually takes ~20 seconds and only runs once."
+
 serverSettings:
   title: Server Settings
   serverName: Server Name

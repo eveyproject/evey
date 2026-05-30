@@ -608,6 +608,24 @@ dashboardStats:
   free: "Libre"
   loginFailed: "Echec de connexion"
 
+calibration:
+  cardTitle: "Calibrage de l'encodage"
+  cardSubtitle: "Mesuré au démarrage — fixe le plafond du ladder HLS pour que la machine ne tente jamais d'encoder plus haut que ce qu'elle peut tenir en temps réel."
+  softwareMax: "Plafond software"
+  hwMax: "Plafond matériel"
+  hwNone: "aucun accélérateur GPU détecté"
+  libx264: "libx264 ultrafast"
+  lastRun: "Dernier calibrage"
+  cpuSig: "Signature CPU"
+  recalibrate: "Recalibrer"
+  recalibrating: "Calibrage en cours…"
+  recalibrateHint: "Relance le benchmark après activation de l'accélération matérielle, changement de CPU ou migration du container."
+  successToast: "Calibrage terminé"
+  busyToast: "Calibrage déjà en cours"
+  errorToast: "Le calibrage a échoué"
+  setupTitle: "Calibrage des capacités d'encodage"
+  setupSubtitle: "Mesure de la hauteur maximale que votre machine peut encoder en temps réel. Environ 20 secondes, une seule fois."
+
 serverSettings:
   title: "Paramètres du serveur"
   serverName: "Nom du serveur"
