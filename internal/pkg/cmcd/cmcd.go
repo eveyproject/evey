@@ -89,6 +89,14 @@ func FromRequest(r *http.Request) (Payload, bool) {
 //   - other token                     → string (unquoted)
 //
 // Whitespace around keys/values is trimmed. Unknown keys land in Raw only.
+// maxRawKeys bounds the number of distinct CTA-5004 keys we keep per
+// payload. The spec is open — vendors are allowed custom keys — but
+// a buggy / malicious player blasting thousands of synthetic keys
+// would inflate the JSON we persist in playback_qoe_events.raw with
+// no analytical value. 50 covers the standard keys (~12) plus a
+// healthy margin for vendor extensions; beyond that, drop.
+const maxRawKeys = 50
+
 func parse(s string) Payload {
 	p := Payload{Raw: make(map[string]string, 12)}
 
@@ -99,7 +107,13 @@ func parse(s string) Payload {
 		if k == "" {
 			continue
 		}
-		p.Raw[k] = v
+		// Standard keys always go through `assign` even past the cap
+		// (the strongly-typed Payload fields drive the QoE dashboard).
+		// Only the unstructured Raw map respects the cap so JSONB
+		// storage stays bounded.
+		if len(p.Raw) < maxRawKeys {
+			p.Raw[k] = v
+		}
 		assign(&p, k, v)
 	}
 	return p

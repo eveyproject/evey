@@ -217,6 +217,13 @@ type orchestratorSession struct {
 	clientHighWater int
 	paused          bool
 	useFMP4         bool
+	// lastResumeAt rate-limits NotifyClientHint's SIGCONT path.
+	// A malicious / buggy client could forge `bs=1` at 1000/sec and
+	// keep us hammering the kernel with SIGCONT syscalls — idempotent
+	// on a running process but wasted scheduler time. One Resume per
+	// second per session is plenty (the player rebuffers more slowly
+	// than that anyway).
+	lastResumeAt time.Time
 }
 
 // NewSegmentOrchestrator wires the cache and the ffmpeg adapter together. The
@@ -884,12 +891,17 @@ func (o *SegmentOrchestrator) NotifyClientHint(mediaItemID string, bufferLengthM
 	}
 	consumableIdx := max(segmentIdx, 0)
 
+	now := time.Now()
 	for _, s := range matched {
 		s.mu.Lock()
 		if consumableIdx > s.clientHighWater {
 			s.clientHighWater = consumableIdx
 		}
-		needsResume := bufferStarved && s.paused
+		// Resume throttle: at most one SIGCONT per second per session.
+		// A client spamming `bs=1` (forged or genuinely terrible
+		// network) can't burn through kernel syscalls under us.
+		resumeAllowed := s.lastResumeAt.IsZero() || now.Sub(s.lastResumeAt) >= time.Second
+		needsResume := bufferStarved && s.paused && resumeAllowed
 		handle := s.handle
 
 		target := consumableIdx + bufferAheadSegs + o.opts.LookAheadSegments
@@ -906,6 +918,7 @@ func (o *SegmentOrchestrator) NotifyClientHint(mediaItemID string, bufferLengthM
 			}
 			s.mu.Lock()
 			s.paused = false
+			s.lastResumeAt = now
 			s.mu.Unlock()
 			o.logger.Info("orchestrator: throttle resumed by CMCD bs=1",
 				slog.String("media_id", mediaItemID),
