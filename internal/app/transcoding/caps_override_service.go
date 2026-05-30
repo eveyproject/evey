@@ -179,6 +179,21 @@ func (s *CapOverrideService) Refresh(ctx context.Context) error {
 	return nil
 }
 
+// ListActive returns every cached non-expired override. Exposed for the
+// admin UI panel — same atomic snapshot the handler reads on each
+// request, so what the admin sees IS what the handler enforces.
+func (s *CapOverrideService) ListActive() []domaintranscoding.CapOverride {
+	list := s.cached.Load()
+	if list == nil {
+		return nil
+	}
+	// Defensive copy: callers (HTTP handler → JSON) shouldn't be able
+	// to mutate the cached slice via shared backing array.
+	out := make([]domaintranscoding.CapOverride, len(*list))
+	copy(out, *list)
+	return out
+}
+
 // OverrideForHeight returns the active override matching sourceHeight,
 // or false if none applies. Called by the handler on every HLS-VOD
 // request — lock-free atomic read.

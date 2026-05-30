@@ -23,6 +23,12 @@ type calibrationSvc interface {
 	Current() domaintranscoding.EncodeCapability
 }
 
+// capOverrideLister is the narrow port the overrides GET handler needs.
+// Same atomic snapshot the HLS-VOD request path reads.
+type capOverrideLister interface {
+	ListActive() []domaintranscoding.CapOverride
+}
+
 // transcodeCalibrationGetHandler returns the current encode capability
 // (read-only). Used by the Server Config admin page to surface "last
 // calibrated 3 days ago" + the actual caps the host is enforcing.
@@ -41,6 +47,37 @@ func transcodeCalibrationGetHandler(svc calibrationSvc) http.HandlerFunc {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "encode capability")
 			slog.Warn("calibration: GET encode failed", slog.Any("err", err))
+		}
+	}
+}
+
+// transcodeOverridesGetHandler returns the active CMCD-feedback
+// adaptive overrides (Phase C). Read-only — surfaces what the worker
+// has computed from playback_qoe_events. The admin uses this to see
+// "why is the 4K bucket capped to 1080p?" and the worker is the only
+// thing that writes it; the UI has no force-reset button by design
+// (KISS for Phase C MVP).
+func transcodeOverridesGetHandler(lister capOverrideLister) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, span := tracing.StartSpan(r.Context(), "http.transcode.calibration.OverridesGet")
+		defer span.End()
+
+		if lister == nil {
+			http.Error(w, `{"message":"override service not wired"}`, http.StatusServiceUnavailable)
+			return
+		}
+		overrides := lister.ListActive()
+		if overrides == nil {
+			overrides = []domaintranscoding.CapOverride{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-cache")
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"overrides": overrides,
+		}); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "encode overrides")
+			slog.Warn("calibration: GET overrides encode failed", slog.Any("err", err))
 		}
 	}
 }

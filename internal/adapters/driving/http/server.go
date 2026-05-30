@@ -290,6 +290,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("GET /api/v1/admin/transcode/calibration", admin(transcodeCalibrationGetHandler(s.CalibrationSvc)))
 		mux.HandleFunc("POST /api/v1/admin/transcode/calibration/recalibrate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, transcodeRecalibrateHandler(s.CalibrationSvc))))
 	}
+	if s.CapOverrideSvc != nil {
+		mux.HandleFunc("GET /api/v1/admin/transcode/calibration/overrides", admin(transcodeOverridesGetHandler(s.CapOverrideSvc)))
+	}
 	if s.IntroDetector != nil {
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/detect-segments", introDetectionHandler(s.TokenGen, s.IntroDetector))
 		mux.HandleFunc("PUT /api/v1/admin/media/{id}/segments", setSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))

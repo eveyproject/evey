@@ -270,9 +270,102 @@ function QoEPage() {
               </table>
             )}
           </Card>
+
+          <EncodeOverridesCard />
         </>
       )}
     </div>
+  );
+}
+
+type EncodeOverride = {
+  source_class: string;
+  max_height: number;
+  reason: string;
+  starved_ratio: number;
+  samples_count: number;
+  applied_at: string;
+  expires_at: string;
+};
+
+// EncodeOverridesCard surfaces the CMCD-feedback adaptive cap overrides
+// the Phase C worker has written. Read-only — the worker is the only
+// writer, and we deliberately don't ship a force-reset button (admins
+// can wait for TTL, or recalibrate the encode capability if the
+// constraint comes from the underlying hardware).
+function EncodeOverridesCard() {
+  const { t, i18n } = useTranslation();
+  const { data } = useQuery<{ overrides: EncodeOverride[] }>({
+    queryKey: ["admin", "transcode-overrides"],
+    queryFn: () =>
+      eveyFetch<{ overrides: EncodeOverride[] }>({
+        url: "/api/v1/admin/transcode/calibration/overrides",
+        method: "GET",
+      }),
+    // Worker runs every 30 min; an admin viewing this card occasionally
+    // doesn't need sub-second freshness.
+    staleTime: 60_000,
+  });
+
+  const overrides = data?.overrides ?? [];
+
+  const fmtDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleString(i18n.language);
+    } catch {
+      return iso;
+    }
+  };
+
+  return (
+    <Card>
+      <div className="border-b border-border p-4">
+        <h2 className="text-lg font-semibold">
+          {t("admin.qoe.overrides.title", "Adaptive encode caps")}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          {t(
+            "admin.qoe.overrides.subtitle",
+            "CMCD-feedback adjustments on top of the calibrated ceiling. Each row lowers the cap for one source bucket until it expires.",
+          )}
+        </p>
+      </div>
+      {overrides.length === 0 ? (
+        <p className="p-4 text-sm text-muted-foreground">
+          {t(
+            "admin.qoe.overrides.empty",
+            "No active adaptive overrides — the calibrated ceiling is in effect on every source class.",
+          )}
+        </p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="bg-muted/40 text-left">
+            <tr>
+              <th className="p-3">{t("admin.qoe.overrides.col.sourceClass", "Source bucket")}</th>
+              <th className="p-3 text-right">{t("admin.qoe.overrides.col.maxHeight", "Cap")}</th>
+              <th className="p-3 text-right">{t("admin.qoe.overrides.col.starvedRatio", "Starved")}</th>
+              <th className="p-3 text-right">{t("admin.qoe.overrides.col.samples", "Samples")}</th>
+              <th className="p-3">{t("admin.qoe.overrides.col.appliedAt", "Applied")}</th>
+              <th className="p-3">{t("admin.qoe.overrides.col.expiresAt", "Expires")}</th>
+              <th className="p-3">{t("admin.qoe.overrides.col.reason", "Reason")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {overrides.map((o) => (
+              <tr key={o.source_class} className="border-t border-border">
+                <td className="p-3 font-medium">{o.source_class}</td>
+                <td className="p-3 text-right">{o.max_height}p</td>
+                <td className="p-3 text-right">{(o.starved_ratio * 100).toFixed(1)}%</td>
+                <td className="p-3 text-right">{o.samples_count}</td>
+                <td className="p-3 text-xs text-muted-foreground">{fmtDate(o.applied_at)}</td>
+                <td className="p-3 text-xs text-muted-foreground">{fmtDate(o.expires_at)}</td>
+                <td className="p-3 text-xs text-muted-foreground">{o.reason}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Card>
   );
 }
 
