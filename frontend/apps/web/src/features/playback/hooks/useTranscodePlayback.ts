@@ -50,24 +50,15 @@ export function useTranscodePlayback({
       hlsRef.current = null;
     }
 
-    // VOD pipeline: the server precomputes the full manifest covering
-    // the entire media (0 → totalDuration), and serves segments on
-    // demand. There is no "transcode start offset" — the playhead is
-    // an absolute position in the source file. transcodeOffset must
-    // stay at 0 so positionRef = currentTime is the real absolute
-    // time. The previous sliding-window assumption (offset > 0,
-    // currentTime local) silently produced UI/playhead drift when
-    // resuming or seeking: the UI showed 9:45 (offset) but the player
-    // played segment 0 (currentTime=0).
-    transcodeOffsetRef.current = 0;
-    const initialSeekSec = transcodeStartTime > 0 ? transcodeStartTime : 0;
+    const offset = transcodeStartTime;
+    transcodeOffsetRef.current = offset > 0 ? offset : 0;
 
     const hlsUrl = buildTranscodeHlsUrl(
       mediaId,
       streamTokenRef.current,
       currentTrackIndex,
       selectedBurnInTrack,
-      0, // server ignores startSec on the VOD path
+      offset,
     );
 
     if (!Hls.isSupported()) {
@@ -138,16 +129,14 @@ export function useTranscodePlayback({
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       setHlsLevels(hls.levels.map((l) => l.height));
-      // VOD pipeline: the manifest covers the full media. Seek
-      // straight to the resume / target time so the user lands where
-      // they left off instead of replaying from the start. hls.js
-      // honours currentTime assignments after MANIFEST_PARSED before
-      // it actually fetches segments, so the first fragment request
-      // is for the right offset (cheap — server spawns the rafale at
-      // the matching seg index).
-      if (initialSeekSec > 0) {
-        video.currentTime = initialSeekSec;
-      } else if (video.currentTime !== 0) {
+      // Pin the playhead to local 0 = absolute transcodeOffset. The server
+      // already transcodes from `offset`, so the stream's t=0 IS the seek
+      // target. Without this, a backward seek that restarts the transcode
+      // leaves the <video> element holding its previous (forward) local
+      // currentTime — hls.js only honours startPosition when currentTime
+      // is ~0, so it keeps the stale value and the playhead jumps forward
+      // into already-transcoded content instead of landing on the seek.
+      if (video.currentTime !== 0) {
         video.currentTime = 0;
       }
       // Browsers block unmuted autoplay until the user has interacted with
