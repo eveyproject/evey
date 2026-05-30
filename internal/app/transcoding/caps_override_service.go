@@ -214,6 +214,16 @@ func (s *CapOverrideService) aggregateAndUpsert(ctx context.Context) error {
 		return nil // tests without a real DB
 	}
 
+	// The aggregation joins playback_qoe_events (potentially 100k+
+	// rows over the AggregationWindow) with media_items + media_streams.
+	// Wrap in a deadline so a slow query can't hang the worker tick
+	// indefinitely — the loop catches the error and retries on the
+	// next interval. 30 s is generous vs the typical sub-second
+	// query, tight enough that a stalled DB doesn't lose more than
+	// half a tick.
+	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	const q = `
 		WITH source_height AS (
 			SELECT mi.id AS media_item_id, MAX(ms.height) AS height
@@ -239,7 +249,7 @@ func (s *CapOverrideService) aggregateAndUpsert(ctx context.Context) error {
 		FROM buckets
 		WHERE source_class IS NOT NULL
 		  AND total >= $2`
-	rows, err := s.db.QueryContext(ctx, q, intervalArg(s.opts.AggregationWindow), s.opts.MinSamples)
+	rows, err := s.db.QueryContext(queryCtx, q, intervalArg(s.opts.AggregationWindow), s.opts.MinSamples)
 	if err != nil {
 		return fmt.Errorf("aggregation query: %w", err)
 	}
