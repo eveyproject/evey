@@ -77,10 +77,27 @@ func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunne
 	}
 }
 
-// benchLadder is the resolution rungs we probe. Ordered low → high so
-// we can short-circuit: as soon as a rung fails, the heavier ones can't
-// possibly pass either, so we stop. Saves seconds on weak hosts.
-var benchLadder = []int{720, 1080, 1440, 2160}
+// hwBenchLadder is the resolution rungs we probe for hardware-encode
+// capability. Goes all the way to 2160p — NVENC / QSV / VAAPI can
+// reasonably hit it on consumer hardware.
+var hwBenchLadder = []int{720, 1080, 1440, 2160}
+
+// swBenchLadder caps software encoding at 1440p. The 4K rung is
+// intentionally excluded: even on a CPU that can encode 2160p in
+// the synthetic mire (testsrc + noise), real 4K HEVC blu-ray sources
+// carry decoder load (B-frame chains, multi-reference motion comp,
+// long GOPs) that our generated sample can't fully approximate
+// without shipping a copyrighted reference clip. We've seen the
+// runtime gap empirically: bench says "2160p OK" but Ghostbusters
+// 4K HEVC stalls in production. Until we have HW decode wired (or
+// a license-clean real-content sample bundled), 2160p stays a
+// HW-only capability. Phase C runtime overrides will lower further
+// if even 1440p turns out to be too aggressive on some host.
+var swBenchLadder = []int{720, 1080, 1440}
+
+// Ordered low → high so we can short-circuit: as soon as a rung
+// fails, the heavier ones can't possibly pass either. Saves
+// seconds on weak hosts.
 
 // Run executes the full benchmark and returns a fully-populated
 // EncodeCapability. Best-effort: a partial failure (HW probe crashed,
@@ -222,10 +239,10 @@ func (r *BenchmarkRunner) ffmpegBin() string {
 // stream.
 func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fallback bool) int {
 	best := 0
-	for i, h := range benchLadder {
+	for i, h := range swBenchLadder {
 		// Heights for every rung at or below h — exactly what the
 		// production pipeline encodes when the ladder top is h.
-		laddered := benchLadder[:i+1]
+		laddered := swBenchLadder[:i+1]
 		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, "libx264", nil)
 		passing := ok && fps >= float64(r.sourceRate())*r.margin
 		r.logger.Info("benchmark: software probe",
@@ -275,8 +292,8 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		}
 		extraInputArgs := hwInputArgs(dev.Type)
 		best := 0
-		for i, h := range benchLadder {
-			laddered := benchLadder[:i+1]
+		for i, h := range hwBenchLadder {
+			laddered := hwBenchLadder[:i+1]
 			fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, encoder, extraInputArgs)
 			passing := ok && fps >= float64(r.sourceRate())*r.margin
 			r.logger.Info("benchmark: hardware probe",
