@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -216,11 +217,23 @@ func (s *CapOverrideService) ListActive() []domaintranscoding.CapOverride {
 	return out
 }
 
-// OverrideForHeight returns the active override matching sourceHeight,
-// or false if none applies. Called by the handler on every HLS-VOD
-// request — lock-free atomic read.
-func (s *CapOverrideService) OverrideForHeight(sourceHeight int) (domaintranscoding.CapOverride, bool) {
-	cls := domaintranscoding.SourceClassFor(sourceHeight)
+// OverrideForHeight returns the active override matching the
+// (codec, height) bucket, or false if none applies. Called by the
+// handler on every HLS-VOD request — lock-free atomic read.
+//
+// Match priority:
+//  1. Exact "<codec>/<height>" bucket (post-per-codec rows).
+//  2. "any/<height>" wildcard bucket (handler couldn't determine
+//     the source codec).
+//  3. Legacy "<height>" row (pre-per-codec MVP rows still in DB
+//     during the rolling upgrade window; the next worker tick
+//     re-aggregates and overwrites them with codec-aware ones).
+//
+// The first match wins; we don't merge overrides (the lowest cap
+// among matches wouldn't be meaningful in practice — the worker
+// already picks one rung lower than current).
+func (s *CapOverrideService) OverrideForHeight(sourceCodec string, sourceHeight int) (domaintranscoding.CapOverride, bool) {
+	cls := domaintranscoding.SourceClassFor(sourceCodec, sourceHeight)
 	if cls == "" {
 		return domaintranscoding.CapOverride{}, false
 	}
@@ -228,10 +241,41 @@ func (s *CapOverrideService) OverrideForHeight(sourceHeight int) (domaintranscod
 	if list == nil {
 		return domaintranscoding.CapOverride{}, false
 	}
-	for _, o := range *list {
-		if o.SourceClass == cls {
-			return o, true
+
+	// Compute fallback class strings ONCE outside the loop.
+	wildcardCls := domaintranscoding.SourceClassFor("", sourceHeight) // "any/<height>"
+	var legacyCls string                                              // "<height>" (pre-per-codec)
+	switch {
+	case sourceHeight >= 2160:
+		legacyCls = "2160p"
+	case sourceHeight >= 1440:
+		legacyCls = "1440p"
+	case sourceHeight >= 1080:
+		legacyCls = "1080p"
+	}
+
+	var exact, wildcard, legacy *domaintranscoding.CapOverride
+	for i := range *list {
+		o := &(*list)[i]
+		switch o.SourceClass {
+		case cls:
+			exact = o
+		case wildcardCls:
+			wildcard = o
+		case legacyCls:
+			if domaintranscoding.SourceClassMatchesLegacy(o.SourceClass) {
+				legacy = o
+			}
 		}
+	}
+	if exact != nil {
+		return *exact, true
+	}
+	if wildcard != nil {
+		return *wildcard, true
+	}
+	if legacy != nil {
+		return *legacy, true
 	}
 	return domaintranscoding.CapOverride{}, false
 }
@@ -261,24 +305,50 @@ func (s *CapOverrideService) aggregateAndUpsert(ctx context.Context) error {
 	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	// Per-codec granularity: a 4K HEVC source has a heavier decode
+	// profile than a 4K H.264 source (B-frame chains, multi-ref motion
+	// comp), so a starvation pattern on one shouldn't auto-cap the
+	// other. We bucket by (codec, height_bucket) and normalise the
+	// codec name with the same rules as SourceClassFor — that way the
+	// override the worker writes here matches what the handler looks
+	// up at request time.
+	//
+	// Codec normalisation lives in SQL because we want a single
+	// aggregation query instead of pulling raw rows into Go (millions
+	// of QoE events at scale). The CASE mirrors normaliseSourceCodec.
 	const q = `
-		WITH source_height AS (
-			SELECT mi.id AS media_item_id, MAX(ms.height) AS height
+		WITH source_meta AS (
+			SELECT
+				mi.id AS media_item_id,
+				MAX(ms.height) AS height,
+				LOWER(MAX(ms.codec) FILTER (WHERE ms.stream_type = 'video')) AS codec
 			FROM media_items mi
 			JOIN media_streams ms ON ms.media_item_id = mi.id AND ms.stream_type = 'video'
 			GROUP BY mi.id
+		), normalised AS (
+			SELECT
+				sm.media_item_id,
+				sm.height,
+				CASE
+					WHEN sm.codec IN ('h264', 'avc', 'avc1')          THEN 'h264'
+					WHEN sm.codec IN ('hevc', 'h265', 'hev1', 'hvc1') THEN 'hevc'
+					WHEN sm.codec IN ('av1', 'av01')                  THEN 'av1'
+					WHEN sm.codec = 'vp9'                              THEN 'vp9'
+					ELSE 'any'
+				END AS codec_bucket
+			FROM source_meta sm
 		), buckets AS (
 			SELECT
 				CASE
-					WHEN sh.height >= 2160 THEN '2160p'
-					WHEN sh.height >= 1440 THEN '1440p'
-					WHEN sh.height >= 1080 THEN '1080p'
+					WHEN nm.height >= 2160 THEN nm.codec_bucket || '/2160p'
+					WHEN nm.height >= 1440 THEN nm.codec_bucket || '/1440p'
+					WHEN nm.height >= 1080 THEN nm.codec_bucket || '/1080p'
 					ELSE NULL
 				END AS source_class,
 				COUNT(*) FILTER (WHERE pe.buffer_starved = TRUE) AS starved,
 				COUNT(*)                                          AS total
 			FROM playback_qoe_events pe
-			JOIN source_height sh ON sh.media_item_id = pe.media_item_id
+			JOIN normalised nm ON nm.media_item_id = pe.media_item_id
 			WHERE pe.ts >= NOW() - $1::interval
 			GROUP BY source_class
 		)
@@ -337,8 +407,16 @@ func (s *CapOverrideService) aggregateAndUpsert(ctx context.Context) error {
 // rung we'd cap to. 2160p is the most likely problematic bucket; the
 // stepdowns are conservative (one rung at a time so we don't
 // over-correct on a transient network event).
+//
+// Accepts both per-codec ("hevc/2160p") and legacy ("2160p") class
+// strings — only the height suffix matters for the height cap. The
+// codec is informational for the override row.
 func lowerCapFor(cls string) int {
-	switch cls {
+	heightPart := cls
+	if i := strings.IndexByte(cls, '/'); i >= 0 {
+		heightPart = cls[i+1:]
+	}
+	switch heightPart {
 	case "2160p":
 		return 1080 // skip 1440p — the cap-1080 case is the proven safe one
 	case "1440p":

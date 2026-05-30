@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -11,10 +12,13 @@ import (
 // applies effective_cap = MIN(benchmark_cap, override_cap) at
 // request time.
 //
-// SourceClass is the bucket the worker recognises — Phase C MVP uses
-// height buckets only ("1080p", "1440p", "2160p"). Finer granularity
-// (per-codec, per-title) is intentionally deferred until real data
-// shows the coarse buckets aren't precise enough.
+// SourceClass is the bucket the worker recognises. Format is
+// "<codec>/<height>" — e.g. "hevc/2160p", "h264/1080p", "av1/1440p".
+// Codec defaults to "any" when the source codec couldn't be
+// determined; legacy rows from Phase C MVP (plain height like "1080p")
+// still parse via the SourceClassParse helper for backward compat
+// during the rolling upgrade window. Heights below 1080p don't get a
+// bucket — we never cap below 720p in the handler.
 type CapOverride struct {
 	SourceClass  string    `json:"source_class"`
 	MaxHeight    int       `json:"max_height"`
@@ -25,19 +29,62 @@ type CapOverride struct {
 	ExpiresAt    time.Time `json:"expires_at"`
 }
 
-// SourceClassFor maps a source height to the cap-bucket the override
-// system reasons about. Heights below 1080p don't get a bucket — we
-// never cap below 720p in the handler so there's nothing to override.
-func SourceClassFor(sourceHeight int) string {
+// SourceClassFor maps a (codec, height) pair to the cap-bucket the
+// override system reasons about. Heights below 1080p don't get a
+// bucket — we never cap below 720p in the handler so there's nothing
+// to override. Codec is normalised to lowercase; empty/unknown
+// codecs use the "any" sentinel so legacy callers and broken probes
+// still produce a stable key.
+//
+// Examples:
+//
+//	SourceClassFor("hevc", 2160) → "hevc/2160p"
+//	SourceClassFor("h264", 1080) → "h264/1080p"
+//	SourceClassFor("",     1440) → "any/1440p"
+//	SourceClassFor("hevc", 720)  → ""           (below 1080p floor)
+func SourceClassFor(sourceCodec string, sourceHeight int) string {
+	heightBucket := ""
 	switch {
 	case sourceHeight >= 2160:
-		return "2160p"
+		heightBucket = "2160p"
 	case sourceHeight >= 1440:
-		return "1440p"
+		heightBucket = "1440p"
 	case sourceHeight >= 1080:
-		return "1080p"
+		heightBucket = "1080p"
 	default:
 		return ""
+	}
+	codec := normaliseSourceCodec(sourceCodec)
+	return codec + "/" + heightBucket
+}
+
+// SourceClassMatchesLegacy returns true when class is a pre-codec
+// Phase C MVP row ("1080p", "1440p", "2160p"). Migration helper: the
+// handler can still apply legacy overrides during the rolling
+// upgrade window before the worker re-aggregates with codec info.
+func SourceClassMatchesLegacy(class string) bool {
+	switch class {
+	case "1080p", "1440p", "2160p":
+		return true
+	}
+	return false
+}
+
+func normaliseSourceCodec(codec string) string {
+	c := strings.ToLower(strings.TrimSpace(codec))
+	switch c {
+	case "h264", "avc", "avc1":
+		return "h264"
+	case "hevc", "h265", "hev1", "hvc1":
+		return "hevc"
+	case "av1", "av01":
+		return "av1"
+	case "vp9":
+		return "vp9"
+	case "":
+		return "any"
+	default:
+		return "any" // unrecognised codec → don't pollute the bucket space
 	}
 }
 

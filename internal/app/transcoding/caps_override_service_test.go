@@ -63,57 +63,110 @@ func (r *fakeCapOverrideRepo) DeleteExpired(_ context.Context) (int, error) {
 func TestCapOverrideService_OverrideForHeight_EmptyCacheReturnsFalse(t *testing.T) {
 	repo := &fakeCapOverrideRepo{}
 	s := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
-	_, ok := s.OverrideForHeight(2160)
+	_, ok := s.OverrideForHeight("hevc", 2160)
 	assert.False(t, ok)
 }
 
-func TestCapOverrideService_OverrideForHeight_MatchesByBucket(t *testing.T) {
+func TestCapOverrideService_OverrideForHeight_ExactCodecMatchWins(t *testing.T) {
 	repo := &fakeCapOverrideRepo{}
-	// Seed an active override on the 2160p bucket.
+	// Seed two buckets: HEVC 2160p starves, H264 2160p doesn't (no row).
 	_ = repo.Upsert(context.Background(), domaintranscoding.CapOverride{
-		SourceClass: "2160p",
-		MaxHeight:   1080,
-		AppliedAt:   time.Now(),
-		ExpiresAt:   time.Now().Add(time.Hour),
+		SourceClass: "hevc/2160p", MaxHeight: 1080,
+		AppliedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour),
 	})
 	s := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
 	assertNoError(t, s.Refresh(context.Background()))
 
-	// 4K source → 2160p bucket → hit
-	o, ok := s.OverrideForHeight(2160)
+	// HEVC 4K source → hit.
+	o, ok := s.OverrideForHeight("hevc", 2160)
 	assert.True(t, ok)
 	assert.Equal(t, 1080, o.MaxHeight)
 
-	// Letterboxed 1600 → 1440p bucket → miss (no row)
-	_, ok = s.OverrideForHeight(1600)
-	assert.False(t, ok)
+	// H264 4K source on same machine → no override (lighter decode).
+	_, ok = s.OverrideForHeight("h264", 2160)
+	assert.False(t, ok, "per-codec granularity must NOT bleed into other codecs")
 
-	// 720p source → no bucket → never hit
-	_, ok = s.OverrideForHeight(720)
+	// HEVC 720p → below floor, never hit.
+	_, ok = s.OverrideForHeight("hevc", 720)
 	assert.False(t, ok)
+}
+
+func TestCapOverrideService_OverrideForHeight_WildcardCodecFallback(t *testing.T) {
+	repo := &fakeCapOverrideRepo{}
+	// "any/2160p" row — wildcard (unknown codec at write time).
+	_ = repo.Upsert(context.Background(), domaintranscoding.CapOverride{
+		SourceClass: "any/2160p", MaxHeight: 1440,
+		AppliedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour),
+	})
+	s := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
+	assertNoError(t, s.Refresh(context.Background()))
+
+	// A typed codec request still matches the wildcard.
+	o, ok := s.OverrideForHeight("hevc", 2160)
+	assert.True(t, ok, "wildcard codec bucket must match any codec at lookup time")
+	assert.Equal(t, 1440, o.MaxHeight)
+}
+
+func TestCapOverrideService_OverrideForHeight_LegacyMVPRowMatches(t *testing.T) {
+	repo := &fakeCapOverrideRepo{}
+	// Pre-per-codec MVP row still lingering in the DB during the
+	// rolling-upgrade window — should match height-only.
+	_ = repo.Upsert(context.Background(), domaintranscoding.CapOverride{
+		SourceClass: "2160p", MaxHeight: 1080,
+		AppliedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour),
+	})
+	s := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
+	assertNoError(t, s.Refresh(context.Background()))
+
+	o, ok := s.OverrideForHeight("hevc", 2160)
+	assert.True(t, ok)
+	assert.Equal(t, 1080, o.MaxHeight)
+}
+
+func TestCapOverrideService_OverrideForHeight_ExactBeatsWildcardBeatsLegacy(t *testing.T) {
+	repo := &fakeCapOverrideRepo{}
+	// All three buckets present → exact codec match wins.
+	for _, o := range []domaintranscoding.CapOverride{
+		{SourceClass: "hevc/2160p", MaxHeight: 1080, ExpiresAt: time.Now().Add(time.Hour)},
+		{SourceClass: "any/2160p", MaxHeight: 1440, ExpiresAt: time.Now().Add(time.Hour)},
+		{SourceClass: "2160p", MaxHeight: 720, ExpiresAt: time.Now().Add(time.Hour)},
+	} {
+		_ = repo.Upsert(context.Background(), o)
+	}
+	s := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
+	assertNoError(t, s.Refresh(context.Background()))
+
+	o, ok := s.OverrideForHeight("hevc", 2160)
+	assert.True(t, ok)
+	assert.Equal(t, 1080, o.MaxHeight, "exact (hevc/2160p=1080) must beat wildcard (1440) and legacy (720)")
 }
 
 func TestCapOverrideService_Refresh_UpdatesCache(t *testing.T) {
 	repo := &fakeCapOverrideRepo{}
 	s := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
-	_, ok := s.OverrideForHeight(2160)
+	_, ok := s.OverrideForHeight("hevc", 2160)
 	assert.False(t, ok, "cache empty before first refresh")
 
 	_ = repo.Upsert(context.Background(), domaintranscoding.CapOverride{
-		SourceClass: "2160p", MaxHeight: 1080,
+		SourceClass: "hevc/2160p", MaxHeight: 1080,
 		AppliedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour),
 	})
 	assertNoError(t, s.Refresh(context.Background()))
-	_, ok = s.OverrideForHeight(2160)
+	_, ok = s.OverrideForHeight("hevc", 2160)
 	assert.True(t, ok, "refresh must publish new rows to the cache")
 }
 
 func TestLowerCapFor_StepsDownOneRungAtATime(t *testing.T) {
+	// New format: "<codec>/<height>"
+	assert.Equal(t, 1080, lowerCapFor("hevc/2160p"))
+	assert.Equal(t, 1080, lowerCapFor("h264/1440p"))
+	assert.Equal(t, 720, lowerCapFor("av1/1080p"))
+	assert.Equal(t, 0, lowerCapFor("hevc/720p"), "below 1080p we don't override (handler floor protects)")
+	// Legacy format also tolerated (rolling upgrade window).
 	assert.Equal(t, 1080, lowerCapFor("2160p"))
-	assert.Equal(t, 1080, lowerCapFor("1440p"))
 	assert.Equal(t, 720, lowerCapFor("1080p"))
-	assert.Equal(t, 0, lowerCapFor("720p"), "below 1080p we don't override (handler floor protects)")
 	assert.Equal(t, 0, lowerCapFor("unknown"))
+	assert.Equal(t, 0, lowerCapFor(""))
 }
 
 func assertNoError(t *testing.T, err error) {

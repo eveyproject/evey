@@ -67,7 +67,7 @@ type hlsVODServe struct {
 	// source-class bucket — handler uses MIN(benchmark, override) as
 	// the effective cap. Nil-safe so tests without the worker still
 	// pass.
-	capOverride func(sourceHeight int) (domaintranscoding.CapOverride, bool)
+	capOverride func(sourceCodec string, sourceHeight int) (domaintranscoding.CapOverride, bool)
 
 	// useFMP4 controls the segment container. fMP4 is the project default —
 	// segments are ~30% smaller and the codecs string in the master playlist
@@ -452,6 +452,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	// MediaStream domain type so a missing probe doesn't conflate "unknown"
 	// with "zero pixels".
 	var srcW, srcH int
+	var srcCodec string
 	for _, s := range streams {
 		if s != nil && s.StreamType == "video" {
 			if s.Width != nil {
@@ -460,6 +461,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 			if s.Height != nil {
 				srcH = *s.Height
 			}
+			srcCodec = s.Codec
 			break
 		}
 	}
@@ -488,7 +490,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	// MIN(benchmark_cap, override_cap) so an override only lowers the
 	// ceiling, never raises it.
 	if h.capOverride != nil && srcH > 0 {
-		if ov, ok := h.capOverride(srcH); ok && ov.MaxHeight > 0 && ov.MaxHeight < maxH {
+		if ov, ok := h.capOverride(srcCodec, srcH); ok && ov.MaxHeight > 0 && ov.MaxHeight < maxH {
 			maxH = ov.MaxHeight
 		}
 	}
@@ -573,11 +575,11 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 			}
 			return s.CalibrationSvc.Current()
 		},
-		capOverride: func(sourceHeight int) (domaintranscoding.CapOverride, bool) {
+		capOverride: func(sourceCodec string, sourceHeight int) (domaintranscoding.CapOverride, bool) {
 			if s.CapOverrideSvc == nil {
 				return domaintranscoding.CapOverride{}, false
 			}
-			return s.CapOverrideSvc.OverrideForHeight(sourceHeight)
+			return s.CapOverrideSvc.OverrideForHeight(sourceCodec, sourceHeight)
 		},
 		// fMP4 is now the project default — matches the ffmpeg adapter
 		// (needsFMP4Segments returns true unconditionally) and Apple's
