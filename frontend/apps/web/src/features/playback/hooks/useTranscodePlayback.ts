@@ -100,14 +100,22 @@ export function useTranscodePlayback({
     }
 
     const hls = new Hls({
-      // 0 = start at first frame of first segment. ffmpeg ships
-      // -copyts -avoid_negative_ts disabled -start_at_zero on the
-      // server side (Jellyfin's recipe), which translates the segment
-      // PTS so the first frame lands exactly at t=0. Forcing 0 here
-      // matches that, no keyframe-snap nudge.
-      startPosition: 0,
+      // -1 lets hls.js compute the start position from the manifest
+      // (it'll seek to whatever we set via video.currentTime in
+      // MANIFEST_PARSED). Forcing 0 here defeats the resume.
+      startPosition: -1,
       maxBufferLength: 30,
       maxMaxBufferLength: 60,
+      // Long-distance seeks spawn a fresh rafale on the server side;
+      // ffmpeg can take 10-15 s to produce segment 0 of that rafale
+      // on a 4K HEVC source. The hls.js default fragLoadingTimeOut
+      // (20 s) is right at the edge and can fire when the rafale
+      // races startup → "fragLoadTimeOut" surfaced as a fatal error
+      // on legitimate seeks. Bump the per-fragment timeout to 60 s;
+      // the orchestrator's own segmentWaitTimeout (25 s) keeps a
+      // genuinely stuck request from hanging indefinitely.
+      fragLoadingTimeOut: 60_000,
+      fragLoadingMaxRetry: 4,
       // Emit CMCD (CTA-5004) on every segment / playlist request. The
       // server reads br, bl, mtp, bs, su, sid, ... and stores them in
       // playback_qoe_events for the /admin/qoe dashboard, plus uses
