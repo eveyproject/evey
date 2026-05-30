@@ -76,10 +76,12 @@ func TestOrchestrator_EnsureSegmentRange_SecondCallSameWindowNoRespawn(t *testin
 // EnsureSegmentRange: cancel-on-seek
 // ============================================================================
 
-func TestOrchestrator_EnsureSegmentRange_CancelOnSeek(t *testing.T) {
-	// A request OUTSIDE the active window must kill the existing ffmpeg and
-	// spawn a fresh one at the new offset (the audit's hls-media-server
-	// pattern).
+func TestOrchestrator_EnsureSegmentRange_SeekSpawnsAdditionalRafale(t *testing.T) {
+	// Multi-rafale per hash: a seek outside the active window spawns a
+	// new ffmpeg ALONGSIDE the existing one instead of cancelling it.
+	// Lets two clients on the same media at different positions
+	// coexist (two browser tabs, PC + mobile by the same user). The
+	// older rafale only retires when the LRU cap is reached.
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
 	src := stubSource{path: "/media/test.mkv"}
@@ -90,17 +92,43 @@ func TestOrchestrator_EnsureSegmentRange_CancelOnSeek(t *testing.T) {
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
 	require.Equal(t, 1, proc.startCount())
 
-	// Seek to segment 500 → far outside window [0, 29].
+	// Seek to segment 500 → far outside window [0, 29] of rafale 1.
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 500))
 
-	// Eventual consistency: the killed session's reaper goroutine deletes the
-	// old entry async. Wait until ActiveCount stabilises at 1.
+	// Both rafales should now coexist (MaxRafalesPerHash default = 3).
 	require.Eventually(t, func() bool {
-		return o.ActiveCount() == 1 && proc.startCount() == 2
+		return o.ActiveCount() == 2 && proc.startCount() == 2
 	}, time.Second, 10*time.Millisecond)
 
-	// The new spawn's StartSec reflects the seek target.
+	// The 2nd spawn's StartSec reflects the seek target.
 	assert.InDelta(t, 500.0*3.0, proc.lastOpts().StartSec, 0.001)
+}
+
+func TestOrchestrator_EnsureSegmentRange_LRUEvictsOldestBeyondCap(t *testing.T) {
+	// MaxRafalesPerHash=2: spawn 3 distant rafales, the 1st (oldest)
+	// must be LRU-evicted so we stay at the cap. Validates the
+	// multi-rafale ceiling — a runaway client (10 seeks/min) can't
+	// pile up ffmpeg processes indefinitely.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	opts := testOpts()
+	opts.MaxRafalesPerHash = 2
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	// Tiny pause between spawns so the LRU timestamps order
+	// predictably (clock-based ordering, not insert order).
+	time.Sleep(2 * time.Millisecond)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 500))
+	time.Sleep(2 * time.Millisecond)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 1000))
+
+	require.Eventually(t, func() bool {
+		return o.ActiveCount() == 2 && proc.startCount() == 3
+	}, time.Second, 10*time.Millisecond, "third rafale should evict the oldest, capping at 2")
 }
 
 // ============================================================================
@@ -193,7 +221,7 @@ func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
 
 	// Reach into the session to retrieve the handle for assertion.
 	o.mu.Lock()
-	sess := o.sessions[fp.Hash()]
+	sessList := o.sessions[fp.Hash()]; var sess *orchestratorSession; if len(sessList) > 0 { sess = sessList[0] }
 	o.mu.Unlock()
 	require.NotNil(t, sess)
 	handle := sess.handle.(*fakeHandle)
@@ -234,7 +262,7 @@ func TestOrchestrator_NotifyClientHint_ResumesPausedOnStarvation(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s")), []byte("x"), 0o644))
 	}
 	o.mu.Lock()
-	sess := o.sessions[fp.Hash()]
+	sessList := o.sessions[fp.Hash()]; var sess *orchestratorSession; if len(sessList) > 0 { sess = sessList[0] }
 	o.mu.Unlock()
 	handle := sess.handle.(*fakeHandle)
 
@@ -273,7 +301,7 @@ func TestOrchestrator_NotifyClientHint_ExtendsEndSegOnFatBuffer(t *testing.T) {
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
 
 	o.mu.Lock()
-	sess := o.sessions[fp.Hash()]
+	sessList := o.sessions[fp.Hash()]; var sess *orchestratorSession; if len(sessList) > 0 { sess = sessList[0] }
 	o.mu.Unlock()
 	sess.mu.Lock()
 	endBefore := sess.endSeg
@@ -310,7 +338,7 @@ func TestOrchestrator_Throttle_NoFlapWithHysteresis(t *testing.T) {
 	}
 
 	o.mu.Lock()
-	sess := o.sessions[fp.Hash()]
+	sessList := o.sessions[fp.Hash()]; var sess *orchestratorSession; if len(sessList) > 0 { sess = sessList[0] }
 	o.mu.Unlock()
 	handle := sess.handle.(*fakeHandle)
 

@@ -56,6 +56,15 @@ type OrchestratorOptions struct {
 	// Default 1s — coarse enough to be free, tight enough that a seek-out
 	// that lands on a paused session resumes within one tick.
 	ThrottleTickInterval time.Duration
+
+	// MaxRafalesPerHash bounds the number of concurrent ffmpeg rafales
+	// that can be active for a single fingerprint. Each rafale serves a
+	// disjoint span (one client per rafale, in practice). Default 3
+	// is enough for "two browser tabs + one resume" type traffic on a
+	// single film without melting the CPU on a server hosting 10
+	// different films. Set to 1 to recover the legacy single-rafale
+	// behaviour (kill-on-conflict).
+	MaxRafalesPerHash int
 }
 
 func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
@@ -86,6 +95,9 @@ func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
 	if out.ThrottleTickInterval <= 0 {
 		out.ThrottleTickInterval = time.Second
 	}
+	if out.MaxRafalesPerHash <= 0 {
+		out.MaxRafalesPerHash = 3
+	}
 	return out
 }
 
@@ -115,8 +127,17 @@ type SegmentOrchestrator struct {
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
 
-	mu       sync.Mutex
-	sessions map[string]*orchestratorSession
+	mu sync.Mutex
+	// sessions maps a fingerprint hash to the rafales currently active
+	// for it. Multiple concurrent rafales per hash exist when several
+	// clients watch the same media at different positions (two browser
+	// tabs, multi-user replay of the same film). Each rafale serves a
+	// disjoint segment range; ffmpeg writes its own `stream_N_<seg>.m4s`
+	// files so the per-variant filename never collides between rafales.
+	//
+	// Bounded by maxRafalesPerHash to keep CPU under control on
+	// pathological hosts — beyond the cap the LRU rafale is evicted.
+	sessions map[string][]*orchestratorSession
 
 	stopGC chan struct{}
 	gcDone chan struct{}
@@ -222,7 +243,7 @@ func NewSegmentOrchestrator(
 		logger:         logger.With("component", "segment_orchestrator"),
 		shutdownCtx:    shutdownCtx,
 		shutdownCancel: shutdownCancel,
-		sessions:       make(map[string]*orchestratorSession),
+		sessions:       make(map[string][]*orchestratorSession),
 		spawnedHashes:  make(map[string]struct{}),
 		stopGC:         make(chan struct{}),
 		gcDone:         make(chan struct{}),
@@ -269,12 +290,12 @@ func (o *SegmentOrchestrator) Close() {
 		hashes = append(hashes, h)
 	}
 	liveSessions := o.sessions
-	o.sessions = make(map[string]*orchestratorSession)
+	o.sessions = make(map[string][]*orchestratorSession)
 	o.spawnedHashes = make(map[string]struct{})
 	o.mu.Unlock()
 
 	for _, hash := range hashes {
-		if s, ok := liveSessions[hash]; ok {
+		for _, s := range liveSessions[hash] {
 			o.killSession(s, "close")
 		}
 		if err := o.cache.CleanupHash(hash); err != nil {
@@ -283,6 +304,63 @@ func (o *SegmentOrchestrator) Close() {
 				slog.Any("err", err))
 		}
 	}
+}
+
+// findCoveringSessionLocked picks a live session whose [startSeg, endSeg]
+// range covers segmentIdx (or whose nearAhead window does). Returns nil
+// when no rafale serves this position — caller spawns a new one. Must
+// be called with o.mu held.
+func (o *SegmentOrchestrator) findCoveringSessionLocked(hash string, segmentIdx, nearAheadBudget int) *orchestratorSession {
+	for _, s := range o.sessions[hash] {
+		s.mu.Lock()
+		inWindow := segmentIdx >= s.startSeg && segmentIdx <= s.endSeg
+		nearAhead := segmentIdx > s.endSeg && segmentIdx <= s.endSeg+nearAheadBudget
+		s.mu.Unlock()
+		if inWindow || nearAhead {
+			return s
+		}
+	}
+	return nil
+}
+
+// evictLRUIfFullLocked enforces MaxRafalesPerHash by killing the
+// least-recently-touched rafale when the cap is reached. Run AFTER
+// the new session has been appended to o.sessions[hash], so the
+// freshly-spawned one is never the eviction candidate. Must be called
+// with o.mu held.
+//
+// Returns the evicted session (or nil) so the caller can run killSession
+// outside the lock — killSession itself reacquires o.mu.
+func (o *SegmentOrchestrator) evictLRUIfFullLocked(hash string) *orchestratorSession {
+	list := o.sessions[hash]
+	if len(list) <= o.opts.MaxRafalesPerHash {
+		return nil
+	}
+	// Find the LRU among the OLDER entries (skip the newly-appended one
+	// at index len-1 — it has the freshest lastAccess by construction).
+	var victim *orchestratorSession
+	var victimIdx int
+	var oldest time.Time
+	for i := range list[:len(list)-1] {
+		s := list[i]
+		s.mu.Lock()
+		la := s.lastAccess
+		s.mu.Unlock()
+		if victim == nil || la.Before(oldest) {
+			victim = s
+			victimIdx = i
+			oldest = la
+		}
+	}
+	if victim == nil {
+		return nil
+	}
+	// Splice the victim out of the list — killSession does the rest
+	// (close ffmpeg, teardown cache pending channel) without holding
+	// o.mu so we don't deadlock when it reacquires the lock at the
+	// end of its body.
+	o.sessions[hash] = append(list[:victimIdx], list[victimIdx+1:]...)
+	return victim
 }
 
 // PreWarm asks the orchestrator to start producing segments for fp in a
@@ -342,48 +420,43 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	}
 	metrics.HLSVODCacheMisses.Inc()
 
+	// Multi-rafale per hash: walk every active rafale for this
+	// fingerprint and reuse the first one whose [startSeg, endSeg]
+	// window (or nearAhead extension) covers segmentIdx. If none
+	// does, spawn a fresh rafale ALONGSIDE the existing ones — we
+	// don't tear them down anymore. The previous "kill on
+	// out-of-window seek" policy was correct for a single-client
+	// orchestrator but broke as soon as two clients sat on different
+	// positions of the same media (the second seek killed the
+	// first's rafale). Concurrency is bounded by MaxRafalesPerHash;
+	// past the cap the LRU rafale is evicted by evictLRUIfFullLocked
+	// after the new spawn.
 	o.mu.Lock()
-	session, exists := o.sessions[hash]
+	session := o.findCoveringSessionLocked(hash, segmentIdx, o.opts.LookAheadSegments)
 	o.mu.Unlock()
 
-	if exists {
+	if session != nil {
 		session.mu.Lock()
 		inWindow := segmentIdx >= session.startSeg && segmentIdx <= session.endSeg
-		// nearAhead: just past endSeg but within "ffmpeg will reach this
-		// naturally" range. ffmpeg has no -t cap and runs to media EOF,
-		// so seg endSeg+1 is already being encoded by the same process.
-		// Extending the window keeps the same rafale and bumps lastAccess
-		// so the inactivity GC doesn't reap a session that's still being
-		// linearly consumed. Without this guard, every LookAheadSegments
-		// played triggers a spurious cancel-on-seek + respawn — the exact
-		// pathology that surfaced on the dev stress test.
 		nearAhead := segmentIdx > session.endSeg && segmentIdx <= session.endSeg+o.opts.LookAheadSegments
-		session.mu.Unlock()
-
-		if inWindow || nearAhead {
-			session.mu.Lock()
-			session.lastAccess = time.Now()
-			if segmentIdx > session.clientHighWater {
-				session.clientHighWater = segmentIdx
-			}
-			if nearAhead {
-				session.endSeg = segmentIdx + o.opts.LookAheadSegments
-			}
-			session.mu.Unlock()
-			return nil
+		session.lastAccess = time.Now()
+		if segmentIdx > session.clientHighWater {
+			session.clientHighWater = segmentIdx
 		}
-
-		// True cancel-on-seek: segment far ahead OR rewound before window.
-		// Tear down and respawn at the new offset. Don't hold o.mu while
-		// killing — the ffmpeg Stop may block briefly on Wait().
-		o.logger.Info("orchestrator: cancel-on-seek",
-			slog.String("hash", hash),
-			slog.Int("requested", segmentIdx),
-			slog.Int("active_start", session.startSeg),
-			slog.Int("active_end", session.endSeg))
-		o.killSession(session, "seek_out_of_window")
+		if nearAhead {
+			session.endSeg = segmentIdx + o.opts.LookAheadSegments
+		}
+		session.mu.Unlock()
+		_ = inWindow // already encoded in the cover check; kept here for log clarity if added later
+		return nil
 	}
 
+	// No rafale covers this position — spawn a new one. If we cross
+	// MaxRafalesPerHash, the post-spawn evictLRUIfFullLocked pass
+	// retires the LRU.
+	o.logger.Info("orchestrator: spawning additional rafale for unserved seek",
+		slog.String("hash", hash),
+		slog.Int("requested", segmentIdx))
 	return o.spawnSession(ctx, fp, segmentIdx)
 }
 
@@ -461,24 +534,36 @@ func (o *SegmentOrchestrator) spawnSession(
 	}
 
 	o.mu.Lock()
-	if existing, ok := o.sessions[hash]; ok {
-		// Lost a race: another goroutine spawned for the same hash between our
-		// check and now. Kill the loser (ourselves), keep the existing one. The
-		// existing one's window may or may not include startSegIdx — that's the
-		// caller's problem on the next call; here we just avoid two ffmpegs.
+	// Multi-rafale spawn race: only veto the new spawn if another
+	// goroutine has ALREADY spawned a rafale that covers startSegIdx
+	// (window or nearAhead). Multiple rafales on disjoint ranges of
+	// the same hash are the whole point of this refactor — letting
+	// them coexist is what fixes the multi-client / multi-tab bug.
+	if existing := o.findCoveringSessionLocked(hash, startSegIdx, o.opts.LookAheadSegments); existing != nil {
 		o.mu.Unlock()
-		o.logger.Info("orchestrator: spawn race lost, keeping existing session", slog.String("hash", hash))
+		o.logger.Info("orchestrator: spawn race lost (covered by sibling rafale), discarding new session",
+			slog.String("hash", hash),
+			slog.Int("start_seg", startSegIdx))
 		cancel()
 		if err := handle.Stop(); err != nil {
 			o.logger.Debug("orchestrator: stop on spawn race lost (ignored)", slog.Any("err", err))
 		}
 		teardown()
-		_ = existing // intentional no-op, keeps existing
 		return nil
 	}
-	o.sessions[hash] = session
+	o.sessions[hash] = append(o.sessions[hash], session)
 	o.spawnedHashes[hash] = struct{}{}
+	evicted := o.evictLRUIfFullLocked(hash)
 	o.mu.Unlock()
+
+	// LRU-evict the oldest rafale outside the lock — killSession
+	// reacquires o.mu so we can't hold it here.
+	if evicted != nil {
+		o.logger.Info("orchestrator: LRU-evicting rafale (cap reached)",
+			slog.String("hash", hash),
+			slog.Int("evicted_start_seg", evicted.startSeg))
+		o.killSession(evicted, "lru_cap")
+	}
 
 	// Reap when ffmpeg exits so the session entry doesn't linger forever.
 	go func() {
@@ -487,11 +572,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		case <-sessionCtx.Done():
 		}
 		close(session.done)
-		o.mu.Lock()
-		if cur, ok := o.sessions[hash]; ok && cur == session {
-			delete(o.sessions, hash)
-		}
-		o.mu.Unlock()
+		o.removeSessionFromList(hash, session)
 	}()
 
 	o.logger.Info("orchestrator: rafale spawned",
@@ -542,11 +623,7 @@ func (o *SegmentOrchestrator) killSession(s *orchestratorSession, reason string)
 		teardown()
 	}
 
-	o.mu.Lock()
-	if cur, ok := o.sessions[hash]; ok && cur == s {
-		delete(o.sessions, hash)
-	}
-	o.mu.Unlock()
+	o.removeSessionFromList(hash, s)
 
 	o.logger.Info("orchestrator: session killed",
 		slog.String("hash", hash),
@@ -556,24 +633,61 @@ func (o *SegmentOrchestrator) killSession(s *orchestratorSession, reason string)
 	metrics.HLSVODSessions.Dec()
 }
 
-// touchSession bumps lastAccess and the client high-water without holding the
-// orchestrator lock for the whole touch. Used on cache hits so the GC doesn't
-// reap a session whose segments are still being consumed from the cache, and
-// so the throttle loop sees client progress and resumes a paused ffmpeg in
-// time.
+// removeSessionFromList drops `target` from o.sessions[hash], leaving
+// the surviving rafales in place. Deletes the map entry when the
+// slice goes empty so future len() reads see "no live rafale". Used
+// by the reap goroutine (ffmpeg exited on its own) and killSession
+// (explicit teardown).
+func (o *SegmentOrchestrator) removeSessionFromList(hash string, target *orchestratorSession) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	list := o.sessions[hash]
+	for i, s := range list {
+		if s == target {
+			o.sessions[hash] = append(list[:i], list[i+1:]...)
+			break
+		}
+	}
+	if len(o.sessions[hash]) == 0 {
+		delete(o.sessions, hash)
+	}
+}
+
+// touchSession bumps lastAccess + client high-water on the rafale that
+// covers segmentIdx, falling back to the most-recently-accessed
+// rafale of the hash when no exact cover exists (cache-hit case: the
+// client is fetching from disk, but we still want to keep at least
+// one rafale warm for the upcoming segments). Used on cache hits so
+// the GC doesn't reap a session whose segments are still being
+// consumed from the cache, and so the throttle loop sees client
+// progress and resumes a paused ffmpeg in time.
 func (o *SegmentOrchestrator) touchSession(hash string, segmentIdx int) {
 	o.mu.Lock()
-	s := o.sessions[hash]
+	target := o.findCoveringSessionLocked(hash, segmentIdx, o.opts.LookAheadSegments)
+	if target == nil {
+		// No exact cover. Bump the most-recently-touched rafale so the
+		// GC keeps at least one session warm for the hash.
+		var newest time.Time
+		for _, s := range o.sessions[hash] {
+			s.mu.Lock()
+			la := s.lastAccess
+			s.mu.Unlock()
+			if target == nil || la.After(newest) {
+				target = s
+				newest = la
+			}
+		}
+	}
 	o.mu.Unlock()
-	if s == nil {
+	if target == nil {
 		return
 	}
-	s.mu.Lock()
-	s.lastAccess = time.Now()
-	if segmentIdx > s.clientHighWater {
-		s.clientHighWater = segmentIdx
+	target.mu.Lock()
+	target.lastAccess = time.Now()
+	if segmentIdx > target.clientHighWater {
+		target.clientHighWater = segmentIdx
 	}
-	s.mu.Unlock()
+	target.mu.Unlock()
 }
 
 // gcLoop runs in the background and kills sessions whose lastAccess is older
@@ -596,12 +710,14 @@ func (o *SegmentOrchestrator) sweepIdle() {
 	cutoff := time.Now().Add(-o.opts.InactivityTimeout)
 	o.mu.Lock()
 	var toKill []*orchestratorSession
-	for _, s := range o.sessions {
-		s.mu.Lock()
-		idle := s.lastAccess.Before(cutoff)
-		s.mu.Unlock()
-		if idle {
-			toKill = append(toKill, s)
+	for _, list := range o.sessions {
+		for _, s := range list {
+			s.mu.Lock()
+			idle := s.lastAccess.Before(cutoff)
+			s.mu.Unlock()
+			if idle {
+				toKill = append(toKill, s)
+			}
 		}
 	}
 	o.mu.Unlock()
@@ -636,9 +752,9 @@ func (o *SegmentOrchestrator) throttleLoop() {
 // (produced - client) decides pause vs resume.
 func (o *SegmentOrchestrator) evaluateThrottle() {
 	o.mu.Lock()
-	snapshot := make([]*orchestratorSession, 0, len(o.sessions))
-	for _, s := range o.sessions {
-		snapshot = append(snapshot, s)
+	var snapshot []*orchestratorSession
+	for _, list := range o.sessions {
+		snapshot = append(snapshot, list...)
 	}
 	o.mu.Unlock()
 
@@ -728,12 +844,14 @@ func (o *SegmentOrchestrator) evaluateThrottle() {
 func (o *SegmentOrchestrator) NotifyClientHint(mediaItemID string, bufferLengthMs int, bufferStarved bool, segmentIdx int) {
 	o.mu.Lock()
 	matched := make([]*orchestratorSession, 0, 1)
-	for _, s := range o.sessions {
-		s.mu.Lock()
-		mid := s.mediaID
-		s.mu.Unlock()
-		if mid == mediaItemID {
-			matched = append(matched, s)
+	for _, list := range o.sessions {
+		for _, s := range list {
+			s.mu.Lock()
+			mid := s.mediaID
+			s.mu.Unlock()
+			if mid == mediaItemID {
+				matched = append(matched, s)
+			}
 		}
 	}
 	o.mu.Unlock()
@@ -779,12 +897,18 @@ func (o *SegmentOrchestrator) NotifyClientHint(mediaItemID string, bufferLengthM
 	}
 }
 
-// ActiveCount returns how many ffmpeg sessions are currently live. Test +
-// observability accessor; cheap to call.
+// ActiveCount returns how many ffmpeg sessions are currently live across
+// every fingerprint. Test + observability accessor; cheap to call.
+// Counts all rafales in the slice, not just distinct hashes — a film
+// with two concurrent clients reports 2, not 1.
 func (o *SegmentOrchestrator) ActiveCount() int {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return len(o.sessions)
+	n := 0
+	for _, list := range o.sessions {
+		n += len(list)
+	}
+	return n
 }
 
 // ActiveSessionCount is the alias the library trickplay scheduler and the
@@ -803,12 +927,14 @@ func (o *SegmentOrchestrator) ActiveSessionCount() int { return o.ActiveCount() 
 func (o *SegmentOrchestrator) RemoveSession(mediaItemID string) {
 	o.mu.Lock()
 	var toKill []*orchestratorSession
-	for _, s := range o.sessions {
-		s.mu.Lock()
-		match := s.mediaID == mediaItemID
-		s.mu.Unlock()
-		if match {
-			toKill = append(toKill, s)
+	for _, list := range o.sessions {
+		for _, s := range list {
+			s.mu.Lock()
+			match := s.mediaID == mediaItemID
+			s.mu.Unlock()
+			if match {
+				toKill = append(toKill, s)
+			}
 		}
 	}
 	o.mu.Unlock()
