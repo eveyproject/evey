@@ -150,3 +150,98 @@ func TestHTTPStreamAuthMiddleware_NoToken_401(t *testing.T) {
 		t.Fatalf("no token must be 401 on stream endpoint too: got %d ran=%v", w.Code, ran)
 	}
 }
+
+// httpScrapeOrAdminMiddleware accepts a static scrape bearer OR an admin JWT.
+
+func TestScrapeOrAdmin_StaticTokenPasses(t *testing.T) {
+	// Verifier refuses every JWT — proves the static path bypasses JWT
+	// validation entirely when the scrape token matches.
+	v := &fakeTokenVerifier{err: errTest}
+	var ran bool
+	var uid string
+	var admin bool
+	h := httpScrapeOrAdminMiddleware(v, "scrape-secret")(recordingHandler(&ran, &uid, &admin))
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer scrape-secret")
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusOK || !ran {
+		t.Fatalf("static scrape token must pass: got %d ran=%v", w.Code, ran)
+	}
+}
+
+func TestScrapeOrAdmin_WrongStaticTokenFallsBackToAdminAndIs401(t *testing.T) {
+	v := &fakeTokenValidator{err: errTest}
+	var ran bool
+	var uid string
+	var admin bool
+	h := httpScrapeOrAdminMiddleware(v, "scrape-secret")(recordingHandler(&ran, &uid, &admin))
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer wrong")
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusUnauthorized || ran {
+		t.Fatalf("wrong static token must fall through to admin and 401: got %d ran=%v", w.Code, ran)
+	}
+}
+
+func TestScrapeOrAdmin_EmptyScrapeTokenAllowsAdminJWT(t *testing.T) {
+	v := &fakeTokenVerifier{claims: testClaims(true)} // admin claims
+	var ran bool
+	var uid string
+	var admin bool
+	h := httpScrapeOrAdminMiddleware(v, "")(recordingHandler(&ran, &uid, &admin))
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer some-jwt")
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusOK || !ran {
+		t.Fatalf("admin JWT must pass when scrape token disabled: got %d ran=%v", w.Code, ran)
+	}
+	if !admin {
+		t.Error("admin path must surface admin claims")
+	}
+}
+
+func TestScrapeOrAdmin_NonAdminJWTRejected(t *testing.T) {
+	// A normal authenticated user (non-admin) must still be 403 even when
+	// the scrape token is configured but not provided. Defense-in-depth:
+	// having user-level credentials must NEVER unlock /metrics.
+	v := &fakeTokenVerifier{claims: testClaims(false)}
+	var ran bool
+	var uid string
+	var admin bool
+	h := httpScrapeOrAdminMiddleware(v, "scrape-secret")(recordingHandler(&ran, &uid, &admin))
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer user-jwt") // valid claims but IsAdmin=false
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusForbidden || ran {
+		t.Fatalf("non-admin user JWT must be 403 on /metrics: got %d ran=%v", w.Code, ran)
+	}
+}
+
+func TestScrapeOrAdmin_EmptyAuthorizationRejected(t *testing.T) {
+	// No header, no scrape token attempt — must be 401 from admin path.
+	v := &fakeTokenVerifier{err: errTest}
+	var ran bool
+	var uid string
+	var admin bool
+	h := httpScrapeOrAdminMiddleware(v, "scrape-secret")(recordingHandler(&ran, &uid, &admin))
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	w := httptest.NewRecorder()
+	h(w, req)
+
+	if w.Code != http.StatusUnauthorized || ran {
+		t.Fatalf("no auth at all must be 401: got %d ran=%v", w.Code, ran)
+	}
+}

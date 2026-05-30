@@ -224,7 +224,8 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	streamAuth := httpStreamAuthMiddleware(s.TokenGen)
 	admin := httpAdminMiddleware(s.TokenGen)
 
-	mux.HandleFunc("GET /metrics", admin(func(w http.ResponseWriter, r *http.Request) {
+	scrapeOrAdmin := httpScrapeOrAdminMiddleware(s.TokenGen, s.Cfg.Metrics.ScrapeToken)
+	mux.HandleFunc("GET /metrics", scrapeOrAdmin(func(w http.ResponseWriter, r *http.Request) {
 		eveymetrics.Handler().ServeHTTP(w, r)
 	}))
 	mux.HandleFunc("/healthz", s.healthzHandler)

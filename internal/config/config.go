@@ -291,6 +291,12 @@ type OIDCConfig struct {
 type MetricsConfig struct {
 	RetentionDays     int
 	SampleIntervalSec int
+	// ScrapeToken, when set, is an alternate static bearer accepted on the
+	// GET /metrics endpoint in addition to the admin JWT. Lets a Prometheus
+	// or Grafana datasource scrape without refreshing a ~15-min JWT every
+	// scrape interval. Empty (the default) disables this path — only the
+	// admin JWT is then accepted. Rotate by changing the env + restart.
+	ScrapeToken string
 }
 
 type LibraryConfig struct {
@@ -473,6 +479,7 @@ func Load() (*Config, error) {
 		Metrics: MetricsConfig{
 			RetentionDays:     envInt("EVEY_METRICS_RETENTION_DAYS", 90),
 			SampleIntervalSec: envInt("EVEY_METRICS_SAMPLE_INTERVAL_SEC", 60),
+			ScrapeToken:       envStr("EVEY_METRICS_SCRAPE_TOKEN", ""),
 		},
 		Library: LibraryConfig{
 			PeriodicScanInterval: envDuration("EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL", 2*time.Minute),

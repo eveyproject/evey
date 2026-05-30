@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"net/http"
 
 	domainuser "github.com/evey-project/evey/internal/domain/user"
@@ -78,5 +79,27 @@ func httpAdminMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.Han
 			}
 			next(w, r)
 		})
+	}
+}
+
+// httpScrapeOrAdminMiddleware accepts either a static scrape bearer
+// (constant-time compared against scrapeToken) OR a valid admin JWT.
+// Scoped to GET /metrics so Prometheus/Grafana can scrape without
+// renewing a ~15-min JWT every interval. Empty scrapeToken disables
+// the static path; only the admin fallback then applies.
+func httpScrapeOrAdminMiddleware(verifier TokenVerifier, scrapeToken string) func(http.HandlerFunc) http.HandlerFunc {
+	adminMw := httpAdminMiddleware(verifier)
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		adminPath := adminMw(next)
+		return func(w http.ResponseWriter, r *http.Request) {
+			if scrapeToken != "" {
+				if tok := extractBearerToken(r); tok != "" &&
+					subtle.ConstantTimeCompare([]byte(tok), []byte(scrapeToken)) == 1 {
+					next(w, r)
+					return
+				}
+			}
+			adminPath(w, r)
+		}
 	}
 }
