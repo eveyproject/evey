@@ -4,6 +4,7 @@ import type { SubtitleStream } from "./SubtitleSelector";
 import type { Chapter } from "@/hooks/useChapters";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerEpisodesPanel";
+import { useMediaSession } from "./hooks/useMediaSession";
 
 export interface PlayerState {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -183,6 +184,21 @@ export function PlayerProvider({
     : (duration && isFinite(duration) && duration > 0) ? duration : 0;
 
   const absoluteTime = transcodeOffset + currentTime;
+
+  // Publish to the OS Media Session (lock screen / Now Playing). Feature-
+  // detected and additive — a no-op where unsupported.
+  useMediaSession({
+    videoRef,
+    title,
+    artworkUrl: mediaId ? `/api/v1/media/${mediaId}/artwork/poster` : undefined,
+    playing,
+    position: absoluteTime,
+    duration: effectiveDuration,
+    playbackRate: playbackSpeed,
+    transcodeOffset,
+    skipForwardSeconds,
+    skipBackwardSeconds,
+  });
 
   const value = useMemo<PlayerState>(() => ({
     videoRef,

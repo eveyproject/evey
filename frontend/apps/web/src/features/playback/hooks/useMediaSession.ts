@@ -1,0 +1,142 @@
+import { useEffect } from "react";
+
+export interface MediaSessionParams {
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  /** Display title (episode/movie). No metadata is published without it. */
+  title?: string;
+  /** Optional artwork URL (poster). Best-effort — a 401/404 just shows no art. */
+  artworkUrl?: string;
+  playing: boolean;
+  /** Absolute position/duration on the media timeline (transcode-offset aware). */
+  position: number;
+  duration: number;
+  playbackRate: number;
+  /** Offset between the <video> element clock and the absolute timeline. In
+   *  transcode mode the element plays a window starting at transcodeOffset, so
+   *  an absolute seekTo must subtract it before touching video.currentTime. */
+  transcodeOffset: number;
+  skipForwardSeconds: number;
+  skipBackwardSeconds: number;
+}
+
+const hasMediaSession = () =>
+  typeof navigator !== "undefined" && "mediaSession" in navigator;
+
+// useMediaSession mirrors the player onto the OS Media Session API so the
+// lock screen / notification shade / macOS Now Playing shows the title +
+// artwork and its play / pause / seek controls drive the <video> element.
+// Entirely feature-detected and additive: on a browser without Media Session
+// support every effect is a no-op. Seeks go through video.currentTime — the
+// same mechanism as the in-player scrub bar — so they behave identically in
+// direct-play and transcode mode (the player's seeking listeners react the
+// same way), with the transcodeOffset applied for absolute seeks.
+export function useMediaSession({
+  videoRef,
+  title,
+  artworkUrl,
+  playing,
+  position,
+  duration,
+  playbackRate,
+  transcodeOffset,
+  skipForwardSeconds,
+  skipBackwardSeconds,
+}: MediaSessionParams) {
+  // Metadata (title + artwork).
+  useEffect(() => {
+    if (!hasMediaSession() || !title) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title,
+        artwork: artworkUrl
+          ? [{ src: artworkUrl, sizes: "512x512", type: "image/jpeg" }]
+          : [],
+      });
+    } catch {
+      // MediaMetadata unavailable (older Safari) — leave it unset.
+    }
+    return () => {
+      if (hasMediaSession()) navigator.mediaSession.metadata = null;
+    };
+  }, [title, artworkUrl]);
+
+  // Action handlers. Re-bound when the skip sizes / offset change so the
+  // closures read fresh values.
+  useEffect(() => {
+    if (!hasMediaSession()) return;
+    const ms = navigator.mediaSession;
+    const video = () => videoRef.current;
+    const set = (
+      action: MediaSessionAction,
+      handler: MediaSessionActionHandler | null,
+    ) => {
+      try {
+        ms.setActionHandler(action, handler);
+      } catch {
+        // Unsupported action on this browser — ignore.
+      }
+    };
+
+    set("play", () => {
+      void video()?.play();
+    });
+    set("pause", () => video()?.pause());
+    set("seekbackward", (d) => {
+      const v = video();
+      if (!v) return;
+      v.currentTime = Math.max(
+        0,
+        v.currentTime - (d.seekOffset ?? skipBackwardSeconds),
+      );
+    });
+    set("seekforward", (d) => {
+      const v = video();
+      if (!v) return;
+      v.currentTime = v.currentTime + (d.seekOffset ?? skipForwardSeconds);
+    });
+    set("seekto", (d) => {
+      const v = video();
+      if (!v || d.seekTime == null) return;
+      // seekTime is on the absolute timeline; the element clock is offset by
+      // transcodeOffset in transcode mode (0 in direct play).
+      v.currentTime = Math.max(0, d.seekTime - transcodeOffset);
+    });
+
+    const actions: MediaSessionAction[] = [
+      "play",
+      "pause",
+      "seekbackward",
+      "seekforward",
+      "seekto",
+    ];
+    return () => {
+      actions.forEach((a) => set(a, null));
+    };
+  }, [videoRef, transcodeOffset, skipForwardSeconds, skipBackwardSeconds]);
+
+  // Play/pause state for the OS widget.
+  useEffect(() => {
+    if (!hasMediaSession()) return;
+    navigator.mediaSession.playbackState = playing ? "playing" : "paused";
+  }, [playing]);
+
+  // Position state drives the scrubber on the lock screen.
+  useEffect(() => {
+    if (
+      !hasMediaSession() ||
+      typeof navigator.mediaSession.setPositionState !== "function"
+    ) {
+      return;
+    }
+    if (!duration || !isFinite(duration) || duration <= 0) return;
+    try {
+      navigator.mediaSession.setPositionState({
+        duration,
+        position: Math.min(Math.max(0, position), duration),
+        playbackRate: playbackRate || 1,
+      });
+    } catch {
+      // Invalid state (e.g. position > duration mid-update) — skip this tick.
+    }
+  }, [duration, position, playbackRate]);
+}
