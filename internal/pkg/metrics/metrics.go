@@ -185,6 +185,17 @@ var (
 		Name: "evey_qoe_ingest_drops_total",
 		Help: "CMCD events dropped due to sink buffer overflow.",
 	})
+
+	// RateLimitRejected counts requests refused by the per-method per-IP rate
+	// limiter, labeled by gRPC method. It is the primary ops signal for a
+	// brute-force / credential-stuffing attempt in progress: the limiter runs
+	// BEFORE the logging interceptor, so without this counter (and the paired
+	// slog.Warn) a throttled attack is invisible. Method cardinality is bounded by
+	// the fixed DefaultPublicMethodLimiters set.
+	RateLimitRejected = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "evey_ratelimit_rejected_total",
+		Help: "Requests rejected by the per-method per-IP rate limiter, by method.",
+	}, []string{"method"})
 )
 
 func init() {
@@ -199,6 +210,7 @@ func init() {
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,
 		QoEIngestEvents, QoEIngestDrops,
+		RateLimitRejected,
 	)
 }
 

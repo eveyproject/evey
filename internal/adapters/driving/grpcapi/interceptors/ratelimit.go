@@ -2,6 +2,7 @@ package interceptors
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 
 	"google.golang.org/grpc"
@@ -9,13 +10,14 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 // MethodLimiter associates a gRPC full method name with a per-IP limiter.
 type MethodLimiter struct {
-	Limiter         *ratelimit.Limiter
-	RetryAfterSecs  int
+	Limiter        *ratelimit.Limiter
+	RetryAfterSecs int
 }
 
 // DefaultPublicMethodLimiters returns per-method limiters for endpoints
@@ -26,13 +28,13 @@ type MethodLimiter struct {
 // is per-IP.
 func DefaultPublicMethodLimiters() map[string]*MethodLimiter {
 	return map[string]*MethodLimiter{
-		"/evey.v1.UserService/Login":                 {Limiter: ratelimit.NewWithBurst(5, 5), RetryAfterSecs: 12},
-		"/evey.v1.UserService/RefreshToken":          {Limiter: ratelimit.NewWithBurst(30, 30), RetryAfterSecs: 2},
-		"/evey.v1.UserService/RequestPasswordReset":  {Limiter: ratelimit.NewWithBurst(3, 3), RetryAfterSecs: 20},
-		"/evey.v1.UserService/ResetPassword":         {Limiter: ratelimit.NewWithBurst(5, 5), RetryAfterSecs: 12},
-		"/evey.v1.UserService/RegisterWithInvite":    {Limiter: ratelimit.NewWithBurst(10, 10), RetryAfterSecs: 6},
-		"/evey.v1.UserService/InitiateQuickConnect":  {Limiter: ratelimit.NewWithBurst(10, 10), RetryAfterSecs: 6},
-		"/evey.v1.UserService/CheckQuickConnect":     {Limiter: ratelimit.NewWithBurst(30, 30), RetryAfterSecs: 2},
+		"/evey.v1.UserService/Login":                {Limiter: ratelimit.NewWithBurst(5, 5), RetryAfterSecs: 12},
+		"/evey.v1.UserService/RefreshToken":         {Limiter: ratelimit.NewWithBurst(30, 30), RetryAfterSecs: 2},
+		"/evey.v1.UserService/RequestPasswordReset": {Limiter: ratelimit.NewWithBurst(3, 3), RetryAfterSecs: 20},
+		"/evey.v1.UserService/ResetPassword":        {Limiter: ratelimit.NewWithBurst(5, 5), RetryAfterSecs: 12},
+		"/evey.v1.UserService/RegisterWithInvite":   {Limiter: ratelimit.NewWithBurst(10, 10), RetryAfterSecs: 6},
+		"/evey.v1.UserService/InitiateQuickConnect": {Limiter: ratelimit.NewWithBurst(10, 10), RetryAfterSecs: 6},
+		"/evey.v1.UserService/CheckQuickConnect":    {Limiter: ratelimit.NewWithBurst(30, 30), RetryAfterSecs: 2},
 		// Authenticated but a brute-force target: the QC short code is a
 		// 6-char hex derivation (2²⁴ ≈ 16M). An authenticated attacker
 		// binding a victim's pending code to their own user_id turns
@@ -56,6 +58,7 @@ func RateLimitUnary(limiters map[string]*MethodLimiter) grpc.UnaryServerIntercep
 			ip = "unknown"
 		}
 		if !ml.Limiter.Allow(ip) {
+			recordRejection(info.FullMethod, ip)
 			sendRetryAfter(ctx, ml.RetryAfterSecs)
 			return nil, status.Error(codes.ResourceExhausted, "too many requests")
 		}
@@ -76,11 +79,24 @@ func RateLimitStream(limiters map[string]*MethodLimiter) grpc.StreamServerInterc
 			ip = "unknown"
 		}
 		if !ml.Limiter.Allow(ip) {
+			recordRejection(info.FullMethod, ip)
 			sendRetryAfter(ctx, ml.RetryAfterSecs)
 			return status.Error(codes.ResourceExhausted, "too many requests")
 		}
 		return handler(srv, ss)
 	}
+}
+
+// recordRejection emits the ops signals for a throttled request: a Prometheus
+// counter (labeled by method) and a structured warning. Both are necessary
+// because the rate limiter runs before the logging interceptor, so a throttled
+// brute-force attempt is otherwise invisible. slog.String escapes the IP value,
+// so an attacker-supplied X-Forwarded-For cannot forge log lines here.
+func recordRejection(method, ip string) {
+	metrics.RateLimitRejected.WithLabelValues(method).Inc()
+	slog.Warn("ratelimit: request rejected",
+		slog.String("method", method),
+		slog.String("ip", ip))
 }
 
 func sendRetryAfter(ctx context.Context, secs int) {
