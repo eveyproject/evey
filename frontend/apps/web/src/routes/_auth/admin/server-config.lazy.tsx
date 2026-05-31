@@ -966,6 +966,7 @@ function ServerConfigPage() {
       <CollapsibleCard
         title={t("admin.serverConfig.artworkTitle")}
         subtitle={t("admin.serverConfig.artworkDesc")}
+        info={t("admin.serverConfig.artworkInfo")}
       >
         <ArtworkSettingsCard entries={entries} />
       </CollapsibleCard>
@@ -999,8 +1000,9 @@ function ServerConfigPage() {
         title={t("admin.serverConfig.parserTokensTitle", "Parser tokens")}
         subtitle={t(
           "admin.serverConfig.parserTokensDesc",
-          "Extra tokens recognised by the filename parser on top of the baseline list.",
+          "Extra release tags the filename parser recognises beyond its baseline list.",
         )}
+        info={t("admin.serverConfig.parserTokensInfo")}
       >
         <ParserTokensCard entries={entries} />
       </CollapsibleCard>

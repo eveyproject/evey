@@ -471,7 +471,8 @@ serverConfig:
   trickplayAdaptiveCpu: "Adaptive CPU"
   trickplayAdaptiveCpuDesc: "Schonender Modus (~25% CPU). Deaktivieren für schnellere Generierung (~50% CPU)."
   parserTokensTitle: "Parser-Tokens"
-  parserTokensDesc: "Zusätzliche Tokens, die der Dateinamen-Parser zusätzlich zur Standardliste erkennt. Damit lassen sich Release-Tags ergänzen, die der Parser standardmäßig nicht entfernt (HDRIP, eigene Editionen usw.), damit Waisen mit TMDB übereinstimmen. Änderungen werden beim nächsten Scan sofort wirksam."
+  parserTokensDesc: "Zusätzliche Release-Tags, die der Dateinamen-Parser über seine Standardliste hinaus erkennt."
+  parserTokensInfo: "Tags ergänzen, die der Parser standardmäßig nicht entfernt (HDRIP, eigene Editionen usw.), damit verwaiste Dateien mit TMDB übereinstimmen. Änderungen werden beim nächsten Scan sofort wirksam."
   parserTokensEditions: "Zusätzliche Edition-Suffixe"
   parserTokensEditionsHint: "Komma-getrennt, können mehrere Wörter umfassen (Regex-Pre-Tokenisierung). Werden vor dem TMDB-Lookup vom Titel entfernt."
   parserTokensQualities: "Zusätzliche Qualitäts-Tokens"
@@ -511,7 +512,8 @@ serverConfig:
   introProvidersTidbSubmit: Erkennungen an TheIntroDB beitragen
   introProvidersTidbSubmitDesc: Wenn aktiviert, werden hochzuverlässige phash-Erkennungen (>= 95%) anonym an TheIntroDB übermittelt. Erfordert einen gültigen API-Schlüssel. Opt-in.
   artworkTitle: Artwork-Cache
-  artworkDesc: TMDB-Artworks lokal herunterladen, um WebP statt Weiterleitungen zu liefern.
+  artworkDesc: "Poster und weitere Artworks lokal auf dem Server zwischenspeichern."
+  artworkInfo: "Wenn deaktiviert, hängt das Frontend von externen CDN-URLs ab, die einige Browser blockieren (z. B. Firefox Opaque Response Blocking). Lokales Caching erlaubt zudem die Normalisierung auf WebP."
   artworkAutoDownload: Artworks automatisch herunterladen
   artworkRetryDesc: Artworks mit TMDB-Quell-URL aber ohne lokale Kopie erneut herunterladen.
   artworkRetryNow: Jetzt erneut herunterladen
