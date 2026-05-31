@@ -1,4 +1,5 @@
 nav:
+  qoe: "流媒体质量"
   dashboardSystem: "仪表盘与系统"
   dashboard: "仪表盘"
   nowPlaying: "正在播放"
@@ -81,6 +82,17 @@ plugin:
     urls: "外部 URL"
 
 plugins:
+  resourceLimits:
+    title: "资源限制"
+    description: "运行时强制执行的每个插件上限。内存、PID 和磁盘在下次监控扫描时生效；CPU nice 和沙箱模式对此后（重新）启动的插件生效。"
+    memoryMb: "最大内存 (MiB)"
+    pidsMax: "最大进程数"
+    diskMaxMb: "最大磁盘 (MiB)"
+    cpuNice: "CPU nice (0-19)"
+    sandboxMode: "沙箱模式"
+    save: "保存限制"
+    saved: "资源限制已更新"
+    saveFailed: "更新资源限制失败"
   title: "插件"
   installPlugin: "安装插件"
   uploadFile: "上传文件"
@@ -441,6 +453,10 @@ audit:
   entries: "{{count}} 条记录"
 
 serverConfig:
+  feedConfig:
+    title: "主页信息流"
+    subtitle: "选择主页上显示哪些板块、顺序以及每个板块显示多少项。"
+  introProvidersInfo: "用于片头/回顾/片尾时间戳的两个独立社区数据库。对其覆盖的条目跳过本地高 CPU 占用的检测。主要 — TheIntroDB (theintrodb.org)：电影 + 剧集，需要免费 API 密钥。备用 — IntroDB (introdb.app)：仅剧集，无需密钥。"
   title: "服务器配置"
   subtitle: "存储在数据库中的键值配置项。"
   languageRegion: "语言和地区"

@@ -1,4 +1,5 @@
 auth:
+  pin_required: "Eltern-PIN erforderlich, um zu diesem Profil zu wechseln"
   unauthenticated: "Nicht authentifiziert"
   invalid_credentials: "Ungültiger Benutzername oder Passwort"
   invalid_token: "Ungültiges oder abgelaufenes Token"

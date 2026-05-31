@@ -45,6 +45,7 @@ favorites:
   bulkFailed: "पसंदीदा टॉगल करने में विफल"
   yearOldest: वर्ष (पुराने)
 collections:
+  download: "संग्रह डाउनलोड करें"
   title: संग्रह
   newSmartCollection: नया स्मार्ट संग्रह
   smartCollections: स्मार्ट संग्रह
@@ -167,6 +168,8 @@ person:
   guestStar: अतिथि कलाकार
   yearsOld: वर्ष
 detail:
+  downloadSeason: "सीज़न डाउनलोड करें"
+  downloadSeries: "सीरीज़ डाउनलोड करें"
   notFound: मीडिया आइटम नहीं मिला।
   play: चलाएं
   resume: फिर से शुरू करें
@@ -287,6 +290,7 @@ contextMenu:
   markedUnwatched: नहीं देखा चिह्नित किया
   markError: "{{status}} चिह्नित करने में विफल"
 music:
+  playRandom: "शफ़ल चलाएँ"
   title: संगीत
   tracks: ट्रैक
   albums: एल्बम
@@ -367,6 +371,12 @@ syncplay:
   createFailed: "कमरा बनाने में विफल"
   joinFailed: "कमरे में शामिल होने में विफल"
 playlist:
+  download: "प्लेलिस्ट डाउनलोड करें"
+  generate: "प्लेलिस्ट बनाएँ"
+  generateFailed: "प्लेलिस्ट नहीं बनाई जा सकी"
+  generated: "प्लेलिस्ट बन गई"
+  generatedName: "मेरा मिक्स"
+  generating: "बना रहे हैं…"
   name: नाम
   description: विवरण
   type: प्रकार

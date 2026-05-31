@@ -81,6 +81,17 @@ plugin:
     urls: "URL externes"
 
 plugins:
+  resourceLimits:
+    title: "Limites de ressources"
+    description: "Plafonds par plugin appliqués par le runtime. La mémoire, les PID et le disque s'appliquent au prochain balayage du moniteur ; le nice CPU et le mode bac à sable s'appliquent aux plugins (re)démarrés ensuite."
+    memoryMb: "Mémoire max (Mio)"
+    pidsMax: "Processus max"
+    diskMaxMb: "Disque max (Mio)"
+    cpuNice: "Nice CPU (0-19)"
+    sandboxMode: "Mode bac à sable"
+    save: "Enregistrer les limites"
+    saved: "Limites de ressources mises à jour"
+    saveFailed: "Échec de la mise à jour des limites de ressources"
   title: "Plugins"
   installPlugin: "Installer un Plugin"
   uploadFile: "Téléverser un fichier"

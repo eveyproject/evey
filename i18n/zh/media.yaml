@@ -45,6 +45,7 @@ favorites:
   bulkFailed: "切换收藏失败"
   yearOldest: 年份（最早）
 collections:
+  download: "下载合集"
   title: 合集
   newSmartCollection: 新建智能合集
   smartCollections: 智能合集
@@ -167,6 +168,8 @@ person:
   guestStar: 特邀嘉宾
   yearsOld: 岁
 detail:
+  downloadSeason: "下载本季"
+  downloadSeries: "下载剧集"
   notFound: 未找到媒体项。
   play: 播放
   resume: 继续播放
@@ -287,6 +290,7 @@ contextMenu:
   markedUnwatched: 已标记为未看
   markError: "标记为{{status}}失败"
 music:
+  playRandom: "随机播放"
   title: 音乐
   tracks: 曲目
   albums: 专辑
@@ -367,6 +371,12 @@ syncplay:
   createFailed: "创建房间失败"
   joinFailed: "加入房间失败"
 playlist:
+  download: "下载播放列表"
+  generate: "生成播放列表"
+  generateFailed: "无法生成播放列表"
+  generated: "播放列表已生成"
+  generatedName: "我的混合"
+  generating: "正在生成…"
   name: 名称
   description: 描述
   type: 类型

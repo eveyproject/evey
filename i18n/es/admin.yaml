@@ -1,4 +1,5 @@
 nav:
+  qoe: "Calidad de streaming"
   dashboardSystem: Panel y sistema
   dashboard: Panel
   nowPlaying: Reproduciendo ahora
@@ -81,6 +82,17 @@ plugin:
     urls: "URL externas"
 
 plugins:
+  resourceLimits:
+    title: "Límites de recursos"
+    description: "Límites por plugin que el runtime aplica. La memoria, los PID y el disco se aplican en el siguiente barrido del monitor; el nice de CPU y el modo aislado se aplican a los plugins (re)iniciados después."
+    memoryMb: "Memoria máx. (MiB)"
+    pidsMax: "Procesos máx."
+    diskMaxMb: "Disco máx. (MiB)"
+    cpuNice: "Nice de CPU (0-19)"
+    sandboxMode: "Modo aislado"
+    save: "Guardar límites"
+    saved: "Límites de recursos actualizados"
+    saveFailed: "No se pudieron actualizar los límites de recursos"
   title: "Plugins"
   installPlugin: "Instalar Plugin"
   uploadFile: "Subir archivo"
@@ -441,6 +453,10 @@ audit:
   entries: "{{count}} registros"
 
 serverConfig:
+  feedConfig:
+    title: "Feeds de inicio"
+    subtitle: "Elige qué secciones aparecen en la página de inicio, en qué orden y cuántos elementos muestra cada una."
+  introProvidersInfo: "Dos bases de datos comunitarias distintas para las marcas de tiempo de intro / resumen / créditos. Omite la detección local intensiva en CPU en los elementos que cubren. Principal — TheIntroDB (theintrodb.org): películas + series, requiere clave API gratuita. Alternativa — IntroDB (introdb.app): solo episodios de series, sin clave."
   title: "Configuración del servidor"
   subtitle: "Entradas de configuración clave-valor almacenadas en la base de datos."
   languageRegion: "Idioma y región"

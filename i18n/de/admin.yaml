@@ -1,4 +1,5 @@
 nav:
+  qoe: "Streaming-Qualität"
   dashboardSystem: Dashboard & System
   dashboard: Dashboard
   nowPlaying: Aktuelle Wiedergabe
@@ -81,6 +82,17 @@ plugin:
     urls: Externe URLs
 
 plugins:
+  resourceLimits:
+    title: "Ressourcenlimits"
+    description: "Pro-Plugin-Limits, die die Laufzeit durchsetzt. Arbeitsspeicher, PIDs und Festplatte greifen beim nächsten Monitor-Durchlauf; CPU-Nice und Sandbox-Modus gelten für danach (neu) gestartete Plugins."
+    memoryMb: "Max. Arbeitsspeicher (MiB)"
+    pidsMax: "Max. Prozesse"
+    diskMaxMb: "Max. Festplatte (MiB)"
+    cpuNice: "CPU-Nice (0-19)"
+    sandboxMode: "Sandbox-Modus"
+    save: "Limits speichern"
+    saved: "Ressourcenlimits aktualisiert"
+    saveFailed: "Ressourcenlimits konnten nicht aktualisiert werden"
   title: Plugins
   installPlugin: Plugin installieren
   uploadFile: Datei hochladen
@@ -441,6 +453,10 @@ audit:
   entries: "{{count}} Einträge"
 
 serverConfig:
+  feedConfig:
+    title: "Startseiten-Feeds"
+    subtitle: "Wählen Sie, welche Bereiche auf der Startseite erscheinen, in welcher Reihenfolge und wie viele Einträge jeder zeigt."
+  introProvidersInfo: "Zwei separate Community-Datenbanken für Intro-/Recap-/Abspann-Zeitstempel. Überspringt die lokale, CPU-intensive Erkennung bei abgedeckten Titeln. Primär — TheIntroDB (theintrodb.org): Filme + Serien, kostenloser API-Schlüssel erforderlich. Fallback — IntroDB (introdb.app): nur Serienepisoden, kein Schlüssel erforderlich."
   title: Serverkonfiguration
   subtitle: Schlüssel-Wert-Konfigurationseinträge in der Datenbank gespeichert.
   languageRegion: Sprache & Region

@@ -290,3 +290,8 @@ watchHistory:
   clearAll: "全部清除"
   title: 观看历史
   openMedia: 打开媒体详情
+apiDocs:
+  title: "API 文档"
+  subtitle: "可使用 API 密钥调用的端点，按各自所需的权限范围分组。使用 Authorize 以你的密钥进行试用。"
+  link: "查看 API 文档"
+  loadError: "加载 API 规范失败。"

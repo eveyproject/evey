@@ -1,4 +1,5 @@
 auth:
+  pin_required: "इस प्रोफ़ाइल पर स्विच करने के लिए पैरेंटल PIN आवश्यक है"
   unauthenticated: "अप्रमाणित"
   invalid_credentials: "अमान्य उपयोगकर्ता नाम या पासवर्ड"
   invalid_token: "अमान्य या समय-सीमा समाप्त टोकन"

@@ -1,4 +1,5 @@
 auth:
+  pin_required: "Se requiere el PIN parental para cambiar a este perfil"
   unauthenticated: "No autenticado"
   invalid_credentials: "Nombre de usuario o contraseña inválidos"
   invalid_token: "Token inválido o expirado"
