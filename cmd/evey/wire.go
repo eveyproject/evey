@@ -570,6 +570,14 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	}, slog.Default())
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsVODOrch)
 
+	// Audio rendition orchestrator: shares the segment cache with the
+	// video pipeline but addresses sessions by AudioFingerprint (its own
+	// hash space). Always instantiated; the HTTP audio handlers gate on
+	// the Cfg.Transcoding.AudioRenditionEnabled flag, so leaving this
+	// wired even when the feature is off costs nothing (no ffmpeg
+	// spawned until a request comes in via a route that's also gated).
+	audioOrch := apptranscoding.NewAudioSegmentOrchestrator(hlsVODCache, hlsTranscoder)
+
 	// Per-title complexity classifier: background worker samples 30 frames
 	// per file, computes YDEV + scenecut metrics, maps to a content class
 	// stored on media_items. profilesForDecision reads it at manifest time
@@ -757,6 +765,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			hlsVODOrch:       hlsVODOrch,
 			hlsVODCache:      hlsVODCache,
 			hlsTranscoder:    hlsTranscoder,
+			audioOrch:        audioOrch,
 			qoeSink:          qoeSink,
 			qoeQuerySvc:      qoeQuerySvc,
 			complexityRepo:   complexityRepo,

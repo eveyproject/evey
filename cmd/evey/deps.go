@@ -68,6 +68,11 @@ type mediaDeps struct {
 	hlsVODOrch    *apptranscoding.SegmentOrchestrator
 	hlsVODCache   *apptranscoding.SegmentCache
 	hlsTranscoder *ffmpeg.HLSTranscoder
+	// audioOrch manages audio-only HLS rendition sessions. Always
+	// wired (uses the same hlsVODCache); the HTTP routes that consume
+	// it gate on Cfg.Transcoding.AudioRenditionEnabled so it stays
+	// inert until the feature flag flips.
+	audioOrch *apptranscoding.AudioSegmentOrchestrator
 	qoeSink        appqoe.EventSink
 	qoeQuerySvc    *appqoe.QueryService
 	complexityRepo domaintranscoding.ComplexityRepo
