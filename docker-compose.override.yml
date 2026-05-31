@@ -81,6 +81,65 @@ services:
       meilisearch:
         condition: service_healthy
 
+  # Hardware-accelerated transcode test container (NVENC, glibc runtime).
+  # Opt-in dev variant: builds the runtime-nvidia image target, runs with the
+  # GPU injected (Docker Desktop / nvidia-container-toolkit), and turns the HW
+  # transcode flag ON. The default Air `evey` service (Alpine) stays
+  # software-only and untouched. Reach this instance on :9092.
+  #   docker compose up -d --build evey-hw
+  # Verify HW kicked in:
+  #   docker compose logs evey-hw | grep -i 'benchmark.*hardware\|hw_backend'
+  #   nvidia-smi   # an ffmpeg process appears while a media transcodes
+  evey-hw:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-nvidia
+      args:
+        VERSION: hw-dev
+    image: evey-hw
+    container_name: evey-hw
+    env_file: .env.dev
+    environment:
+      EVEY_TRANSCODING_HW_ACCEL_ENABLED: "true"
+      EVEY_DB_HOST: postgres
+      EVEY_EMBEDDED_MEILI: "false"
+      EVEY_MEILI_URL: http://meilisearch:7700
+      EVEY_HTTP_PORT: "9091"
+      EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
+      EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
+      EVEY_TRICKPLAY_CACHE_DIR: /data/trickplay
+      EVEY_LOG_DIR: /data/logs
+      EVEY_BACKUP_DIR: /data/backups
+      EVEY_LOG_LEVEL: debug
+      # Dev mode relaxes the production config validation (default DB password,
+      # etc.) exactly like the Air `evey` service above — this is a local HW
+      # test box, not a deployment.
+      EVEY_LOG_DEV_MODE: "true"
+      EVEY_PLUGINS_COSIGN_POLICY: "off"
+    ports:
+      - "9092:9091"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - evey-hw-data:/data
+      - evey-hw-cache:/cache
+      - /path/to/movies:/media
+      - /path/to/series:/media2
+      - /path/to/photos:/media3
+      - /path/to/music:/media4
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    restart: "no"
+
   # Vite dev server with HMR
   web:
     container_name: evey-web
@@ -150,3 +209,11 @@ services:
       start_period: 20s
     depends_on:
       - web
+
+# Dedicated transcode cache for the HW test container, kept separate from the
+# software `evey` cache so an HW run produces fresh GPU-encoded segments
+# instead of serving the software ones (the two are byte-compatible by design,
+# but a clean cache makes the HW path observable).
+volumes:
+  evey-hw-cache:
+  evey-hw-data:
