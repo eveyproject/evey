@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"strconv"
 	"time"
@@ -45,13 +46,12 @@ import (
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
-	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	apprating "github.com/evey-project/evey/internal/app/rating"
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
 	"github.com/evey-project/evey/internal/config"
@@ -59,6 +59,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/metadata"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/cpuutil"
 	"github.com/evey-project/evey/internal/pkg/eventbus"
@@ -566,8 +567,19 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		}
 		return item.File.Path, nil, nil
 	})
+	// Global concurrency backstop for the HLS-VOD orchestrator: cap the total
+	// number of concurrent ffmpeg rafales at the host's core count. This bounds a
+	// hash-fanout DoS (an authenticated client spawning N software x264 sessions
+	// across distinct media or diversified decision hashes) without throttling
+	// realistic multi-user streaming: a weak NAS caps at its real capacity (2
+	// cores -> 2, which it could not exceed acceptably anyway), a capable host
+	// stays generous. Past the cap the player receives 503 + Retry-After and
+	// resumes once a slot frees. NumCPU is a coarse default; surfacing it in the
+	// admin transcoding panel or deriving it from encode calibration is a follow-up.
+	maxHLSSessions := runtime.NumCPU()
 	hlsVODOrch := apptranscoding.NewSegmentOrchestrator(hlsVODCache, hlsTranscoder, sourceResolver, apptranscoding.OrchestratorOptions{
-		ThrottleEnabled: true,
+		ThrottleEnabled:   true,
+		MaxActiveSessions: maxHLSSessions,
 	}, slog.Default())
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsVODOrch)
 

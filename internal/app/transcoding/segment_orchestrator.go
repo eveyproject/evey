@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -10,6 +11,15 @@ import (
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 )
+
+// ErrCapacityExceeded is returned by EnsureSegmentRange when the orchestrator is
+// already running MaxActiveSessions ffmpeg rafales and refuses to spawn another.
+// The HTTP handler maps it to 503 + Retry-After so the player backs off and
+// retries once a slot frees, rather than letting an authenticated client melt a
+// weak host's CPU by fanning out across many fingerprints (distinct media, or a
+// single media diversified via audio/sub/hdr query params). This is the global
+// DoS backstop layered on top of the per-hash MaxRafalesPerHash cap.
+var ErrCapacityExceeded = errors.New("transcoding: max active sessions reached")
 
 // OrchestratorOptions configures the orchestrator's lifecycle policy.
 type OrchestratorOptions struct {
@@ -65,6 +75,17 @@ type OrchestratorOptions struct {
 	// different films. Set to 1 to recover the legacy single-rafale
 	// behaviour (kill-on-conflict).
 	MaxRafalesPerHash int
+
+	// MaxActiveSessions caps the TOTAL number of concurrent ffmpeg rafales the
+	// orchestrator runs across ALL fingerprints, independent of
+	// MaxRafalesPerHash (which only bounds rafales for a single media). It is the
+	// global CPU backstop: without it an authenticated client can saturate a weak
+	// host by requesting many distinct media — or diversifying one media's
+	// decision hash (audio/sub/hdr query params) — to spawn N software x264
+	// sessions. At the cap, spawnSession returns ErrCapacityExceeded (HTTP 503)
+	// instead of starting ffmpeg. Zero = unlimited (no cap), preserving legacy
+	// behaviour for tests and callers that don't set it.
+	MaxActiveSessions int
 }
 
 func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
@@ -166,6 +187,14 @@ type SegmentOrchestrator struct {
 	// shutdown cleanup, and we don't want a goroutine ordering race
 	// between sweepIdle and Close to leak them.
 	spawnedHashes map[string]struct{}
+
+	// sessionSem is a counting semaphore bounding the total number of live
+	// ffmpeg rafales to opts.MaxActiveSessions. nil when uncapped
+	// (MaxActiveSessions <= 0). A slot is acquired in spawnSession before ffmpeg
+	// starts and released exactly once — by the reap goroutine when the session
+	// exits, or by an early-return / spawn-race-lost path before the reap
+	// goroutine takes ownership.
+	sessionSem chan struct{}
 }
 
 // SourceResolver bridges the orchestrator (which works with DecisionFingerprint)
@@ -262,6 +291,9 @@ func NewSegmentOrchestrator(
 		gcDone:         make(chan struct{}),
 		stopThrottle:   make(chan struct{}),
 		throttleDone:   make(chan struct{}),
+	}
+	if o.opts.MaxActiveSessions > 0 {
+		o.sessionSem = make(chan struct{}, o.opts.MaxActiveSessions)
 	}
 	go o.gcLoop()
 	if o.opts.ThrottleEnabled {
@@ -481,6 +513,35 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	return o.spawnSession(ctx, fp, segmentIdx)
 }
 
+// acquireSessionSlot reserves one of the MaxActiveSessions global rafale slots
+// without blocking. Returns true when a slot was taken (or the orchestrator is
+// uncapped). A false return means the host is at capacity and the caller must
+// refuse the spawn with ErrCapacityExceeded.
+func (o *SegmentOrchestrator) acquireSessionSlot() bool {
+	if o.sessionSem == nil {
+		return true
+	}
+	select {
+	case o.sessionSem <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+// releaseSessionSlot frees a global rafale slot taken by acquireSessionSlot.
+// No-op when uncapped. Must be called at most once per successful acquire; the
+// non-blocking drain is defensive so a double-release can never deadlock.
+func (o *SegmentOrchestrator) releaseSessionSlot() {
+	if o.sessionSem == nil {
+		return
+	}
+	select {
+	case <-o.sessionSem:
+	default:
+	}
+}
+
 // spawnSession launches an ffmpeg rafale for the given fingerprint at
 // segmentIdx, producing up to startSeg + LookAheadSegments segments. Called
 // under no lock; takes o.mu briefly to register the session.
@@ -492,11 +553,34 @@ func (o *SegmentOrchestrator) spawnSession(
 	hash := fp.Hash()
 	endSegIdx := startSegIdx + o.opts.LookAheadSegments - 1
 
+	// Global concurrency backstop: refuse a fresh rafale when the host is already
+	// running MaxActiveSessions of them. The per-hash cap (MaxRafalesPerHash)
+	// bounds rafales for ONE media but not the TOTAL, so without this a client can
+	// melt a weak CPU by fanning out across fingerprints. The reap goroutine frees
+	// this slot when the session exits; every early-return below frees it via
+	// releaseSlot() since ownership only transfers to the reap goroutine once it
+	// starts.
+	if !o.acquireSessionSlot() {
+		metrics.HLSVODSessionsRejected.Inc()
+		o.logger.Warn("orchestrator: max active sessions reached, refusing spawn",
+			slog.String("hash", hash),
+			slog.Int("cap", o.opts.MaxActiveSessions))
+		return ErrCapacityExceeded
+	}
+	slotReleased := false
+	releaseSlot := func() {
+		if !slotReleased {
+			o.releaseSessionSlot()
+			slotReleased = true
+		}
+	}
+
 	// Resolve source through the request context (auth + db calls live there)
 	// but spawn ffmpeg under the orchestrator's long-lived context so it
 	// survives past the original request returning to the client.
 	srcPath, _, err := o.source.ResolveSource(ctx, fp)
 	if err != nil {
+		releaseSlot()
 		return fmt.Errorf("spawnSession: resolve source: %w", err)
 	}
 	// Phase 3 will wire real streams (burn-in / HDR tonemap); for Phase 1 the
@@ -504,6 +588,7 @@ func (o *SegmentOrchestrator) spawnSession(
 
 	outDir, err := o.cache.DirFor(hash)
 	if err != nil {
+		releaseSlot()
 		return fmt.Errorf("spawnSession: cache dir: %w", err)
 	}
 
@@ -543,6 +628,7 @@ func (o *SegmentOrchestrator) spawnSession(
 	if err != nil {
 		cancel()
 		teardown()
+		releaseSlot()
 		return fmt.Errorf("spawnSession: ffmpeg start: %w", err)
 	}
 
@@ -576,6 +662,7 @@ func (o *SegmentOrchestrator) spawnSession(
 			o.logger.Debug("orchestrator: stop on spawn race lost (ignored)", slog.Any("err", err))
 		}
 		teardown()
+		releaseSlot()
 		return nil
 	}
 	o.sessions[hash] = append(o.sessions[hash], session)
@@ -600,6 +687,12 @@ func (o *SegmentOrchestrator) spawnSession(
 	// Refcount is idempotent (the release func no-ops on second call)
 	// so a path that goes through both reap AND killSession remains
 	// safe.
+	//
+	// Ownership of the global concurrency slot transfers to the reap goroutine
+	// here: it runs exactly once per spawned session and frees the slot when the
+	// session has fully exited. Mark it released so the function-scoped
+	// releaseSlot() can't double-free if more early returns are added later.
+	slotReleased = true
 	go func() {
 		// Distinguish a natural ffmpeg exit (inspect why) from our own teardown
 		// (seek-cancel / GC / shutdown via sessionCtx) — only the former can be
@@ -633,6 +726,10 @@ func (o *SegmentOrchestrator) spawnSession(
 				o.hwDemote(o.shutdownCtx, class, fp.VideoCodec)
 			}
 		}
+
+		// Free the global concurrency slot: this session has fully exited and is
+		// off the live list, so a queued spawn may now proceed.
+		o.releaseSessionSlot()
 	}()
 
 	o.logger.Info("orchestrator: rafale spawned",

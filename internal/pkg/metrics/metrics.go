@@ -117,6 +117,15 @@ var (
 		Help: "Total VOD-pipeline ffmpeg session kills, by reason.",
 	}, []string{"reason"})
 
+	// HLSVODSessionsRejected counts spawn refusals when the orchestrator is at
+	// its MaxActiveSessions global cap. A sustained nonzero rate means the host
+	// is shedding transcode load (503 + Retry-After to the player) — either
+	// genuine overload on a weak host or an abusive hash-fanout client.
+	HLSVODSessionsRejected = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_hlsvod_sessions_rejected_total",
+		Help: "Total VOD-pipeline rafale spawns refused due to the global session cap.",
+	})
+
 	// HLSVODCacheHits / HLSVODCacheMisses split segment requests by whether
 	// they hit the disk cache before waiting for ffmpeg. Hit-rate >> 0 is
 	// the primary KPI for the multi-session cache: low hit-rate means users
@@ -186,7 +195,7 @@ func init() {
 		MediaItemsTotal,
 		AuthLatency, ScanQueueDepth, TranscodeQueueDepth,
 		TranscodeDuration,
-		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled,
+		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled, HLSVODSessionsRejected,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,
 		QoEIngestEvents, QoEIngestDrops,

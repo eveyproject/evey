@@ -334,6 +334,17 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, segmentIdx); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "ensure segment range")
+			if errors.Is(err, apptranscoding.ErrCapacityExceeded) {
+				// Host at its global transcode cap — shed load gracefully. hls.js
+				// retries a 503 on a fragment fetch, so playback resumes once a
+				// slot frees instead of melting the CPU.
+				slog.Warn("hls-vod: at capacity, shedding segment",
+					slog.String("media_id", mediaID),
+					slog.Int("seg", segmentIdx))
+				w.Header().Set("Retry-After", "2")
+				http.Error(w, `{"message":"server at transcode capacity, retry"}`, http.StatusServiceUnavailable)
+				return
+			}
 			slog.Warn("hls-vod: ensure failed",
 				slog.String("media_id", mediaID),
 				slog.Int("variant", variantIdx),
@@ -348,6 +359,11 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, 0); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "ensure init range")
+			if errors.Is(err, apptranscoding.ErrCapacityExceeded) {
+				w.Header().Set("Retry-After", "2")
+				http.Error(w, `{"message":"server at transcode capacity, retry"}`, http.StatusServiceUnavailable)
+				return
+			}
 			http.Error(w, `{"message":"transcode unavailable"}`, http.StatusServiceUnavailable)
 			return
 		}

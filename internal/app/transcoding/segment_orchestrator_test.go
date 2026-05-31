@@ -73,6 +73,83 @@ func TestOrchestrator_EnsureSegmentRange_SecondCallSameWindowNoRespawn(t *testin
 }
 
 // ============================================================================
+// MaxActiveSessions: global concurrency cap (DoS backstop)
+// ============================================================================
+
+func TestOrchestrator_MaxActiveSessions_RejectsAtGlobalCap(t *testing.T) {
+	// Global cap = 2: a third DISTINCT-media spawn is refused with
+	// ErrCapacityExceeded even though each media is well under MaxRafalesPerHash.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	opts := testOpts()
+	opts.MaxActiveSessions = 2
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+	defer o.Close()
+
+	fpFor := func(id string) DecisionFingerprint {
+		f := minimalFingerprint(t)
+		f.MediaID = id
+		return f
+	}
+
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fpFor("media-1"), 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fpFor("media-2"), 0))
+	require.Equal(t, 2, o.ActiveCount(), "two distinct media -> two live rafales")
+
+	err := o.EnsureSegmentRange(context.Background(), fpFor("media-3"), 0)
+	require.ErrorIs(t, err, ErrCapacityExceeded, "third spawn must be refused at the global cap")
+	assert.Equal(t, 2, o.ActiveCount(), "rejected spawn must not leak a session")
+	assert.Equal(t, 2, proc.startCount(), "ffmpeg must not even start for the rejected spawn")
+}
+
+func TestOrchestrator_MaxActiveSessions_SlotFreesWhenSessionExits(t *testing.T) {
+	// Cap = 1: once the single slot is held, a second media is refused; after the
+	// first session is removed (and its reap goroutine frees the slot) the second
+	// media spawns. Proves the slot accounting is released, not leaked.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	opts := testOpts()
+	opts.MaxActiveSessions = 1
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+	defer o.Close()
+
+	first := minimalFingerprint(t)
+	first.MediaID = "media-1"
+	second := minimalFingerprint(t)
+	second.MediaID = "media-2"
+
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), first, 0))
+	require.ErrorIs(t, o.EnsureSegmentRange(context.Background(), second, 0), ErrCapacityExceeded)
+
+	// Free the slot: removing media-1 kills its rafale; the reap goroutine then
+	// releases the semaphore slot asynchronously.
+	o.RemoveSession("media-1")
+
+	require.Eventually(t, func() bool {
+		return o.EnsureSegmentRange(context.Background(), second, 0) == nil
+	}, 2*time.Second, 10*time.Millisecond, "second media must spawn once the freed slot is released")
+}
+
+func TestOrchestrator_MaxActiveSessions_ZeroIsUnlimited(t *testing.T) {
+	// MaxActiveSessions unset (0) preserves legacy behaviour: no global cap, every
+	// distinct-media spawn succeeds.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger())
+	defer o.Close()
+
+	for _, id := range []string{"m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"} {
+		f := minimalFingerprint(t)
+		f.MediaID = id
+		require.NoError(t, o.EnsureSegmentRange(context.Background(), f, 0))
+	}
+	assert.Equal(t, 8, o.ActiveCount(), "no cap -> all 8 distinct rafales live")
+}
+
+// ============================================================================
 // EnsureSegmentRange: cancel-on-seek
 // ============================================================================
 
@@ -221,7 +298,11 @@ func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
 
 	// Reach into the session to retrieve the handle for assertion.
 	o.mu.Lock()
-	sessList := o.sessions[fp.Hash()]; var sess *orchestratorSession; if len(sessList) > 0 { sess = sessList[0] }
+	sessList := o.sessions[fp.Hash()]
+	var sess *orchestratorSession
+	if len(sessList) > 0 {
+		sess = sessList[0]
+	}
 	o.mu.Unlock()
 	require.NotNil(t, sess)
 	handle := sess.handle.(*fakeHandle)
@@ -262,7 +343,11 @@ func TestOrchestrator_NotifyClientHint_ResumesPausedOnStarvation(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s")), []byte("x"), 0o644))
 	}
 	o.mu.Lock()
-	sessList := o.sessions[fp.Hash()]; var sess *orchestratorSession; if len(sessList) > 0 { sess = sessList[0] }
+	sessList := o.sessions[fp.Hash()]
+	var sess *orchestratorSession
+	if len(sessList) > 0 {
+		sess = sessList[0]
+	}
 	o.mu.Unlock()
 	handle := sess.handle.(*fakeHandle)
 
@@ -301,7 +386,11 @@ func TestOrchestrator_NotifyClientHint_ExtendsEndSegOnFatBuffer(t *testing.T) {
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
 
 	o.mu.Lock()
-	sessList := o.sessions[fp.Hash()]; var sess *orchestratorSession; if len(sessList) > 0 { sess = sessList[0] }
+	sessList := o.sessions[fp.Hash()]
+	var sess *orchestratorSession
+	if len(sessList) > 0 {
+		sess = sessList[0]
+	}
 	o.mu.Unlock()
 	sess.mu.Lock()
 	endBefore := sess.endSeg
@@ -338,7 +427,11 @@ func TestOrchestrator_Throttle_NoFlapWithHysteresis(t *testing.T) {
 	}
 
 	o.mu.Lock()
-	sessList := o.sessions[fp.Hash()]; var sess *orchestratorSession; if len(sessList) > 0 { sess = sessList[0] }
+	sessList := o.sessions[fp.Hash()]
+	var sess *orchestratorSession
+	if len(sessList) > 0 {
+		sess = sessList[0]
+	}
 	o.mu.Unlock()
 	handle := sess.handle.(*fakeHandle)
 
@@ -474,13 +567,13 @@ func (p *fakeProcess) lastOpts() transcoding.HLSProcessOpts {
 }
 
 type fakeHandle struct {
-	mu       sync.Mutex
-	stopped  bool
-	pauseN   int
-	resumeN  int
-	paused   bool
-	done     chan struct{}
-	failure  transcoding.FailureClass
+	mu      sync.Mutex
+	stopped bool
+	pauseN  int
+	resumeN int
+	paused  bool
+	done    chan struct{}
+	failure transcoding.FailureClass
 }
 
 func (h *fakeHandle) Failure() transcoding.FailureClass { return h.failure }
