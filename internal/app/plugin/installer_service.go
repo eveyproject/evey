@@ -104,6 +104,17 @@ func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (lo
 // the regex scanner cannot inspect.
 const nativeBinaryPerm = "native-binary"
 
+// gpuPermission is the manifest permission that grants a plugin the GPU render
+// node. It is the highest-risk permission Evey exposes: a render fd is a direct
+// kernel-driver ioctl surface and a per-GPU (not per-tenant) memory boundary
+// shared with Evey's own transcoder. The installer surfaces a loud, specific
+// CRITICAL warning at preview so the admin's grant is informed and deliberate.
+const gpuPermission = "hardware.gpu"
+
+// gpuPermissionWarning is shown at install/update preview whenever a plugin
+// declares hardware.gpu, so the admin consents to the residual risk explicitly.
+const gpuPermissionWarning = "[CRITICAL] permission hardware.gpu — grants the GPU render node: a kernel-driver attack surface and a GPU-memory boundary SHARED with the transcoder (cross-process memory leak possible on AMD/Apple/Qualcomm GPUs; a hung GPU can stall transcoding). Grant ONLY to first-party / trusted plugins; never to an untrusted source. See docs/plugins.md."
+
 // ErrPluginPermissionEscalation is returned when an update would silently
 // grant the plugin new permissions, capabilities, frontend slots, or
 // external_fetch entries that were not present in the installed version.
@@ -463,6 +474,14 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 			if report.HasCategory("compiled_binary") || report.HasCategory("embedded_archive") {
 				return nil, fmt.Errorf("plugin blocked: bundles compiled binaries or archives — declare permission %q in manifest to opt in", nativeBinaryPerm)
 			}
+		}
+		// hardware.gpu is the highest-risk permission — append a loud, specific
+		// CRITICAL warning so the admin sees it at preview alongside the analyzer
+		// findings and consents to the GPU residual risk deliberately.
+		if slices.Contains(p.Permissions, gpuPermission) {
+			report.Issues = append(report.Issues, gpuPermissionWarning)
+			slog.Warn("plugin declares hardware.gpu (highest-risk permission — render node grant)",
+				slog.String("pluginID", p.ID))
 		}
 		// Persist non-blocking warnings so the admin can audit them
 		// post-install (compiled binaries, symlinks, base64 blobs,
