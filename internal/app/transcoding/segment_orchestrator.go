@@ -120,6 +120,12 @@ type SegmentOrchestrator struct {
 	opts    OrchestratorOptions
 	logger  *slog.Logger
 
+	// hwDemote is the level-2 safety-net sink: invoked (off the reap goroutine)
+	// when a session's ffmpeg exits with a hardware-capability failure, so the
+	// calibration service can demote the host capability. Optional/nil-safe —
+	// when unset, a HW failure just falls through to the normal 503-retry.
+	hwDemote func(ctx context.Context, class transcoding.FailureClass, codec string)
+
 	// shutdownCtx is the long-lived parent context for every ffmpeg session
 	// the orchestrator spawns. Never the HTTP request context — that one is
 	// cancelled the moment the segment is served, which would tear down the
@@ -264,6 +270,14 @@ func NewSegmentOrchestrator(
 		close(o.throttleDone)
 	}
 	return o
+}
+
+// SetHWDemoteSink wires the level-2 HW safety net: the sink is called when a
+// session's ffmpeg exits with a hardware-capability failure (classified via the
+// handle's Failure()), so the capability can be demoted for subsequent requests.
+// Optional — left unset in tests / when no calibration service is present.
+func (o *SegmentOrchestrator) SetHWDemoteSink(sink func(ctx context.Context, class transcoding.FailureClass, codec string)) {
+	o.hwDemote = sink
 }
 
 // Close stops the inactivity GC, kills all live sessions, and purges their
@@ -587,8 +601,13 @@ func (o *SegmentOrchestrator) spawnSession(
 	// so a path that goes through both reap AND killSession remains
 	// safe.
 	go func() {
+		// Distinguish a natural ffmpeg exit (inspect why) from our own teardown
+		// (seek-cancel / GC / shutdown via sessionCtx) — only the former can be
+		// a hardware-capability failure worth demoting on.
+		naturalExit := false
 		select {
 		case <-handle.Done():
+			naturalExit = true
 		case <-sessionCtx.Done():
 		}
 		close(session.done)
@@ -600,6 +619,20 @@ func (o *SegmentOrchestrator) spawnSession(
 			teardown()
 		}
 		o.removeSessionFromList(hash, session)
+
+		// Level-2 safety net: a HW-capability failure demotes the host
+		// capability so the client's automatic retry re-resolves a lower tier
+		// (the cache is encoder-agnostic, so the fallback segments slot into the
+		// same manifest). Cancellation / transient / unknown are ignored.
+		if naturalExit && o.hwDemote != nil {
+			if class := handle.Failure(); class.IsHWCapability() {
+				o.logger.Warn("orchestrator: HW encode failure, demoting capability",
+					slog.String("hash", hash),
+					slog.String("class", string(class)),
+					slog.String("codec", fp.VideoCodec))
+				o.hwDemote(o.shutdownCtx, class, fp.VideoCodec)
+			}
+		}
 	}()
 
 	o.logger.Info("orchestrator: rafale spawned",

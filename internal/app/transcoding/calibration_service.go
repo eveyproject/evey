@@ -41,7 +41,24 @@ type CalibrationService struct {
 
 	current       atomic.Pointer[domaintranscoding.EncodeCapability]
 	benchInFlight sync.Mutex
+
+	// demoteMu serialises runtime capability demotions (level-2 safety net) so
+	// concurrent encode failures don't race the read-modify-write of `current`.
+	demoteMu sync.Mutex
+	// fallbacks is a small ring of recent HW→lower-tier demotions, surfaced to
+	// the admin (QoE dashboard) so a degraded host is visible without log diving.
+	fallbacksMu sync.Mutex
+	fallbacks   []HWFallbackEvent
 }
+
+// HWFallbackEvent records one runtime HW-encode demotion for the admin alert.
+type HWFallbackEvent struct {
+	Class string    `json:"class"`
+	Codec string    `json:"codec"`
+	At    time.Time `json:"at"`
+}
+
+const maxFallbackEvents = 20
 
 func NewCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaintranscoding.BenchmarkRunner, logger *slog.Logger) *CalibrationService {
 	if logger == nil {
@@ -145,4 +162,70 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 	}
 	s.current.Store(&cap)
 	return nil
+}
+
+// DemoteCapability is the level-2 safety net: after a hardware encode fails,
+// the orchestrator calls this with the classified failure + the output codec.
+// It applies the minimal-blast-radius PlanDemotion to the live capability —
+// drop tuning on an unsupported option, remove just the codec on a missing
+// encoder, disable HW only on a real init failure — persists deterministic
+// demotions, and records the event for the admin alert. The next request's
+// resolveHW then reads the demoted capability and resolves a lower tier, so the
+// client's automatic 503-retry re-encodes at the working tier with no fork of
+// the (encoder-agnostic) segment cache.
+//
+// Returns true when the capability actually changed. A no-op (already demoted)
+// returns false, which naturally DEBOUNCES the storm of concurrent failures a
+// single bad option produces: only the first call writes + alerts.
+func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaintranscoding.FailureClass, codec string) bool {
+	if !class.IsHWCapability() {
+		return false
+	}
+	s.demoteMu.Lock()
+	defer s.demoteMu.Unlock()
+
+	cur := *s.current.Load()
+	d := domaintranscoding.PlanDemotion(cur, class, codec)
+	if !d.Changed {
+		return false // already demoted — debounces concurrent failures
+	}
+
+	s.recordFallback(class, codec)
+	if d.Persist {
+		if err := s.repo.Set(ctx, d.Capability); err != nil {
+			s.logger.Warn("calibration: demote persist failed (in-memory still updated)",
+				slog.Any("err", err))
+		}
+	}
+	s.current.Store(&d.Capability)
+	s.logger.Warn("calibration: HW capability demoted after encode failure",
+		slog.String("class", string(class)),
+		slog.String("codec", codec),
+		slog.Bool("persist", d.Persist),
+		slog.String("new_backend", d.Capability.HWBackend),
+		slog.Int("new_hw_max_height", d.Capability.HWMaxHeight))
+	return true
+}
+
+func (s *CalibrationService) recordFallback(class domaintranscoding.FailureClass, codec string) {
+	s.fallbacksMu.Lock()
+	defer s.fallbacksMu.Unlock()
+	s.fallbacks = append(s.fallbacks, HWFallbackEvent{
+		Class: string(class),
+		Codec: codec,
+		At:    time.Now().UTC(),
+	})
+	if len(s.fallbacks) > maxFallbackEvents {
+		s.fallbacks = s.fallbacks[len(s.fallbacks)-maxFallbackEvents:]
+	}
+}
+
+// RecentFallbacks returns a copy of the recent HW-demotion events (newest last),
+// for the admin QoE dashboard.
+func (s *CalibrationService) RecentFallbacks() []HWFallbackEvent {
+	s.fallbacksMu.Lock()
+	defer s.fallbacksMu.Unlock()
+	out := make([]HWFallbackEvent, len(s.fallbacks))
+	copy(out, s.fallbacks)
+	return out
 }

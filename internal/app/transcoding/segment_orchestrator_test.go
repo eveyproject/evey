@@ -442,6 +442,9 @@ type fakeProcess struct {
 	mu      sync.Mutex
 	started []transcoding.HLSProcessOpts
 	count   atomic.Int32
+	// failOnExit, when set, makes every spawned handle report this failure
+	// class and exit immediately (Done closed) — drives the level-2 safety net.
+	failOnExit transcoding.FailureClass
 }
 
 func newFakeProcess() *fakeProcess { return &fakeProcess{} }
@@ -449,9 +452,13 @@ func newFakeProcess() *fakeProcess { return &fakeProcess{} }
 func (p *fakeProcess) Start(_ context.Context, opts transcoding.HLSProcessOpts) (transcoding.HLSProcessHandle, error) {
 	p.mu.Lock()
 	p.started = append(p.started, opts)
+	fail := p.failOnExit
 	p.mu.Unlock()
 	p.count.Add(1)
-	h := &fakeHandle{done: make(chan struct{})}
+	h := &fakeHandle{done: make(chan struct{}), failure: fail}
+	if fail != "" {
+		close(h.done) // simulate an immediate process exit with this failure
+	}
 	return h, nil
 }
 
@@ -473,7 +480,10 @@ type fakeHandle struct {
 	resumeN  int
 	paused   bool
 	done     chan struct{}
+	failure  transcoding.FailureClass
 }
+
+func (h *fakeHandle) Failure() transcoding.FailureClass { return h.failure }
 
 func (h *fakeHandle) WaitReady(_ context.Context) error { return nil }
 func (h *fakeHandle) Stop() error {

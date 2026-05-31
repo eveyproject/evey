@@ -15,6 +15,9 @@ type HLSProcess struct {
 	mu      sync.Mutex
 	Started []transcoding.HLSProcessOpts
 	Err     error // if set, Start returns this error
+	// HandleFailure, when set, is reported by every spawned handle's Failure()
+	// — lets a test drive the level-2 safety net (e.g. a HW-capability class).
+	HandleFailure transcoding.FailureClass
 }
 
 func (f *HLSProcess) Start(_ context.Context, opts transcoding.HLSProcessOpts) (transcoding.HLSProcessHandle, error) {
@@ -40,8 +43,9 @@ func (f *HLSProcess) Start(_ context.Context, opts transcoding.HLSProcessOpts) (
 	}
 
 	h := &fakeHandle{
-		ready: make(chan struct{}),
-		done:  make(chan struct{}),
+		ready:   make(chan struct{}),
+		done:    make(chan struct{}),
+		failure: f.HandleFailure,
 	}
 	close(h.ready)
 	close(h.done)
@@ -53,13 +57,15 @@ func fmtStream(i int) string {
 }
 
 type fakeHandle struct {
-	ready chan struct{}
-	done  chan struct{}
+	ready   chan struct{}
+	done    chan struct{}
+	failure transcoding.FailureClass
 }
 
-func (h *fakeHandle) WaitReady(_ context.Context) error { <-h.ready; return nil }
-func (h *fakeHandle) Stop() error                       { return nil }
-func (h *fakeHandle) Done() <-chan struct{}              { return h.done }
-func (h *fakeHandle) Err() error                        { return nil }
-func (h *fakeHandle) Pause() error                      { return nil }
-func (h *fakeHandle) Resume() error                     { return nil }
+func (h *fakeHandle) WaitReady(_ context.Context) error      { <-h.ready; return nil }
+func (h *fakeHandle) Stop() error                            { return nil }
+func (h *fakeHandle) Done() <-chan struct{}                  { return h.done }
+func (h *fakeHandle) Err() error                             { return nil }
+func (h *fakeHandle) Pause() error                           { return nil }
+func (h *fakeHandle) Resume() error                          { return nil }
+func (h *fakeHandle) Failure() transcoding.FailureClass      { return h.failure }

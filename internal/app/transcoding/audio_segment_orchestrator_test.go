@@ -77,11 +77,12 @@ func newAudioFakeHandle() *audioFakeHandle {
 	return &audioFakeHandle{done: make(chan struct{})}
 }
 
-func (h *audioFakeHandle) WaitReady(_ context.Context) error { return nil }
-func (h *audioFakeHandle) Done() <-chan struct{}              { return h.done }
-func (h *audioFakeHandle) Err() error                        { return nil }
-func (h *audioFakeHandle) Pause() error                      { return nil }
-func (h *audioFakeHandle) Resume() error                     { return nil }
+func (h *audioFakeHandle) WaitReady(_ context.Context) error            { return nil }
+func (h *audioFakeHandle) Done() <-chan struct{}                        { return h.done }
+func (h *audioFakeHandle) Err() error                                   { return nil }
+func (h *audioFakeHandle) Failure() transcoding.FailureClass            { return transcoding.FailureNone }
+func (h *audioFakeHandle) Pause() error                                 { return nil }
+func (h *audioFakeHandle) Resume() error                                { return nil }
 func (h *audioFakeHandle) Stop() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()

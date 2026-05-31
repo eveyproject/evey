@@ -70,10 +70,17 @@ type hlsHandle struct {
 	cmd    *exec.Cmd
 	cancel context.CancelFunc
 	ready  chan struct{}
-	done   chan struct{}
-	err    error
-	stderr *ringBuffer
-	paused bool // ffmpeg currently SIGSTOPped (client idle)
+	done    chan struct{}
+	err     error
+	exitErr error // raw ffmpeg exit error, for failure classification (guarded by mu)
+	stderr  *ringBuffer
+	paused  bool // ffmpeg currently SIGSTOPped (client idle)
+}
+
+func (h *hlsHandle) setExitErr(err error) {
+	h.mu.Lock()
+	h.exitErr = err
+	h.mu.Unlock()
 }
 
 func (h *hlsHandle) run(ctx context.Context) {
@@ -89,8 +96,10 @@ func (h *hlsHandle) run(ctx context.Context) {
 		if err := waitForFile(ctx, streamPath, 30*time.Second, 100*time.Millisecond); err != nil {
 			h.err = fmt.Errorf("waiting for stream_0.m3u8: %w", err)
 			h.cancel()
-			if err := h.cmd.Wait(); err != nil {
-				slog.Debug("ffmpeg wait after cancel", slog.Any("err", err))
+			we := h.cmd.Wait()
+			h.setExitErr(we)
+			if we != nil {
+				slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
 			}
 			close(h.ready)
 			return
@@ -99,8 +108,10 @@ func (h *hlsHandle) run(ctx context.Context) {
 		if err := os.WriteFile(filepath.Join(h.opts.OutputDir, "master.m3u8"), []byte(master), 0644); err != nil {
 			h.err = fmt.Errorf("write master.m3u8: %w", err)
 			h.cancel()
-			if err := h.cmd.Wait(); err != nil {
-				slog.Debug("ffmpeg wait after cancel", slog.Any("err", err))
+			we := h.cmd.Wait()
+			h.setExitErr(we)
+			if we != nil {
+				slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
 			}
 			close(h.ready)
 			return
@@ -113,8 +124,10 @@ func (h *hlsHandle) run(ctx context.Context) {
 		if err := waitForFile(ctx, masterPath, 30*time.Second, 100*time.Millisecond); err != nil {
 			h.err = fmt.Errorf("waiting for master.m3u8: %w", err)
 			h.cancel()
-			if err := h.cmd.Wait(); err != nil {
-				slog.Debug("ffmpeg wait after cancel", slog.Any("err", err))
+			we := h.cmd.Wait()
+			h.setExitErr(we)
+			if we != nil {
+				slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
 			}
 			close(h.ready)
 			return
@@ -126,11 +139,23 @@ func (h *hlsHandle) run(ctx context.Context) {
 
 	close(h.ready)
 
-	if err := h.cmd.Wait(); err != nil && ctx.Err() == nil {
+	we := h.cmd.Wait()
+	h.setExitErr(we)
+	if we != nil && ctx.Err() == nil {
 		slog.Warn("hls: ffmpeg exited with error",
-			slog.Any("err", err),
+			slog.Any("err", we),
 			slog.String("stderr_tail", h.stderr.String()))
 	}
+}
+
+// Failure classifies why the process exited, for the level-2 HW safety net. It
+// is only meaningful after Done() has closed; before that exitErr is nil and it
+// reports FailureNone. Reads the raw exit error + the captured stderr tail.
+func (h *hlsHandle) Failure() transcoding.FailureClass {
+	h.mu.Lock()
+	e := h.exitErr
+	h.mu.Unlock()
+	return ClassifyHWFailure(e, h.stderr.String())
 }
 
 // ringBuffer keeps the last N bytes written to it. We use it to capture
@@ -1157,8 +1182,15 @@ type audioHandle struct {
 	ready        chan struct{}
 	done         chan struct{}
 	err          error
+	exitErr      error // raw ffmpeg exit error, for classification (guarded by mu)
 	stderr       *ringBuffer
 	paused       bool
+}
+
+func (h *audioHandle) setExitErr(err error) {
+	h.mu.Lock()
+	h.exitErr = err
+	h.mu.Unlock()
 }
 
 func (h *audioHandle) run(ctx context.Context) {
@@ -1168,8 +1200,10 @@ func (h *audioHandle) run(ctx context.Context) {
 	if err := waitForFile(ctx, playlistPath, 30*time.Second, 100*time.Millisecond); err != nil {
 		h.err = fmt.Errorf("waiting for %s: %w", h.playlistName, err)
 		h.cancel()
-		if err := h.cmd.Wait(); err != nil {
-			slog.Debug("ffmpeg audio wait after cancel", slog.Any("err", err))
+		we := h.cmd.Wait()
+		h.setExitErr(we)
+		if we != nil {
+			slog.Debug("ffmpeg audio wait after cancel", slog.Any("err", we))
 		}
 		close(h.ready)
 		return
@@ -1177,9 +1211,11 @@ func (h *audioHandle) run(ctx context.Context) {
 
 	close(h.ready)
 
-	if err := h.cmd.Wait(); err != nil && ctx.Err() == nil {
+	we := h.cmd.Wait()
+	h.setExitErr(we)
+	if we != nil && ctx.Err() == nil {
 		slog.Warn("hls: ffmpeg audio-only exited with error",
-			slog.Any("err", err),
+			slog.Any("err", we),
 			slog.String("stderr_tail", h.stderr.String()))
 	}
 }
@@ -1220,6 +1256,16 @@ func (h *audioHandle) Stop() error {
 
 func (h *audioHandle) Done() <-chan struct{} { return h.done }
 func (h *audioHandle) Err() error            { return h.err }
+
+// Failure classifies the audio process exit. Audio-only renditions never use a
+// video HW encoder, so a fault here is never a video-HW capability problem; the
+// classifier still distinguishes cancellation/transient/unknown for logging.
+func (h *audioHandle) Failure() transcoding.FailureClass {
+	h.mu.Lock()
+	e := h.exitErr
+	h.mu.Unlock()
+	return ClassifyHWFailure(e, h.stderr.String())
+}
 
 func (h *audioHandle) Pause() error {
 	h.mu.Lock()

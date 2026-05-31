@@ -51,6 +51,7 @@ import (
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
 	"github.com/evey-project/evey/internal/config"
@@ -602,6 +603,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	if err := calibrationSvc.EnsureCalibrated(ctx); err != nil {
 		slog.Warn("calibration: EnsureCalibrated returned error, falling back to 720p", slog.Any("err", err))
 	}
+	// Level-2 HW safety net: a hardware-encode failure demotes the calibrated
+	// capability so the client's retry re-resolves a lower tier (encoder-agnostic
+	// cache ⇒ transparent). DemoteCapability returns whether it changed; the
+	// orchestrator sink ignores the bool.
+	hlsVODOrch.SetHWDemoteSink(func(ctx context.Context, class domaintranscoding.FailureClass, codec string) {
+		calibrationSvc.DemoteCapability(ctx, class, codec)
+	})
 
 	// CMCD-feedback adaptive cap (Phase C). Periodically aggregates
 	// playback_qoe_events to lower the calibration-set ceiling on
