@@ -76,11 +76,6 @@ func (c *CachedMediaItemQueryRepo) Register(bus shared.EventBus) {
 			c.Invalidate(shared.MediaItemID(e.MediaItemID))
 		}
 	})
-	bus.Subscribe("media.item.updated", func(_ context.Context, ev shared.Event) {
-		if e, ok := ev.(library.MediaItemUpdated); ok {
-			c.Invalidate(shared.MediaItemID(e.MediaItemID))
-		}
-	})
 }
 
 func (c *CachedMediaItemQueryRepo) GetByIDs(ctx context.Context, ids []shared.MediaItemID) ([]*library.MediaItem, error) {

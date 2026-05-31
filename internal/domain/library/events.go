@@ -52,13 +52,6 @@ type MediaItemAdded struct {
 
 func (e MediaItemAdded) EventName() string { return "media.item.added" }
 
-type MediaItemUpdated struct {
-	MediaItemID shared.MediaItemID
-	OccurredAt  time.Time
-}
-
-func (e MediaItemUpdated) EventName() string { return "media.item.updated" }
-
 type MediaItemRemoved struct {
 	MediaItemID shared.MediaItemID
 	LibraryID   shared.LibraryID

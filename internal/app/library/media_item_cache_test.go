@@ -144,25 +144,6 @@ func TestCachedMediaItemQueryRepo_Register_InvalidatesOnRemoved(t *testing.T) {
 	assert.Equal(t, "Updated", item.Title)
 }
 
-func TestCachedMediaItemQueryRepo_Register_InvalidatesOnUpdated(t *testing.T) {
-	t.Parallel()
-	inner := libfakes.NewFakeMediaItemQueryRepo()
-	inner.Seed(&library.MediaItem{ID: "m1", Title: "Original"})
-	cache := applib.NewCachedMediaItemQueryRepo(inner, 5*time.Second)
-	defer cache.Stop()
-
-	bus := sharedfakes.NewFakeEventBus()
-	cache.Register(bus)
-
-	_, _ = cache.GetByID(context.Background(), "m1")
-
-	inner.Seed(&library.MediaItem{ID: "m1", Title: "V2"})
-	bus.Publish(context.Background(), library.MediaItemUpdated{MediaItemID: "m1"})
-
-	item, err := cache.GetByID(context.Background(), "m1")
-	require.NoError(t, err)
-	assert.Equal(t, "V2", item.Title)
-}
 
 func TestCachedMediaItemQueryRepo_GetCastByMediaItem(t *testing.T) {
 	t.Parallel()

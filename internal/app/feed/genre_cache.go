@@ -42,7 +42,6 @@ func CacheWithEventBus(bus shared.EventBus) CachedAnalyzerOption {
 			slog.Debug("genre cache invalidated")
 		}
 		bus.Subscribe("media.item.added", invalidate)
-		bus.Subscribe("media.item.updated", invalidate)
 		bus.Subscribe("media.item.removed", invalidate)
 		bus.Subscribe("library.scan.completed", invalidate)
 	}
