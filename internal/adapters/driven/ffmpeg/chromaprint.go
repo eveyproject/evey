@@ -2,10 +2,8 @@ package ffmpeg
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"math/bits"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -136,71 +134,3 @@ func parseFpcalcRawOutput(buf []byte) ([]uint32, error) {
 	return nil, errors.New("FINGERPRINT line not found in fpcalc output")
 }
 
-// EncodeBase64 packs the raw frame slice as little-endian uint32 bytes and
-// base64-encodes — convenient compact storage in the fingerprint cache.
-func EncodeBase64Fingerprint(fp []uint32) string {
-	if len(fp) == 0 {
-		return ""
-	}
-	buf := make([]byte, 4*len(fp))
-	for i, v := range fp {
-		buf[i*4+0] = byte(v)
-		buf[i*4+1] = byte(v >> 8)
-		buf[i*4+2] = byte(v >> 16)
-		buf[i*4+3] = byte(v >> 24)
-	}
-	return base64.StdEncoding.EncodeToString(buf)
-}
-
-// DecodeBase64Fingerprint reverses EncodeBase64Fingerprint.
-func DecodeBase64Fingerprint(s string) ([]uint32, error) {
-	if s == "" {
-		return nil, nil
-	}
-	buf, err := base64.StdEncoding.DecodeString(s)
-	if err != nil {
-		return nil, err
-	}
-	if len(buf)%4 != 0 {
-		return nil, fmt.Errorf("buffer len %d not multiple of 4", len(buf))
-	}
-	fp := make([]uint32, len(buf)/4)
-	for i := range fp {
-		fp[i] = uint32(buf[i*4+0]) |
-			uint32(buf[i*4+1])<<8 |
-			uint32(buf[i*4+2])<<16 |
-			uint32(buf[i*4+3])<<24
-	}
-	return fp, nil
-}
-
-// SlidingBestMatch slides target over reference and returns (bestOffsetFrames,
-// bestSimilarity). bestSimilarity is in [0, 1] — 1 means identical, ~0.5 is
-// noise. Common cutoff for "matched intro" is ≥ 0.85.
-//
-// Algorithm: at each candidate offset where target fully overlaps reference,
-// compute Hamming distance per frame (popcount of XOR), sum, then convert
-// to similarity = 1 - (sum / (32 * frames)).
-//
-// Both fingerprints must come from the same fpcalc version (frame layout
-// is implementation-defined). Same-version-same-source guaranteed by the
-// fingerprint cache: every cached fingerprint carries an algo_version.
-func SlidingBestMatch(target, reference []uint32) (offsetFrames int, similarity float64) {
-	if len(target) == 0 || len(reference) < len(target) {
-		return 0, 0
-	}
-	maxBits := 32 * len(target)
-	bestOffset, bestBits := 0, maxBits
-	for offset := 0; offset <= len(reference)-len(target); offset++ {
-		var diffBits int
-		for i := range target {
-			diffBits += bits.OnesCount32(target[i] ^ reference[offset+i])
-		}
-		if diffBits < bestBits {
-			bestBits = diffBits
-			bestOffset = offset
-		}
-	}
-	sim := 1.0 - float64(bestBits)/float64(maxBits)
-	return bestOffset, sim
-}

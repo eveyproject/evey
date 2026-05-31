@@ -83,16 +83,6 @@ func loadSprites(dir string) []uint64 {
 
 func hamming(a, b uint64) int { return bits.OnesCount64(a ^ b) }
 
-func minHammingTo(h uint64, list []uint64) int {
-	m := 64
-	for _, x := range list {
-		if d := hamming(h, x); d < m {
-			m = d
-		}
-	}
-	return m
-}
-
 func fmtTime(sec int) string { return fmt.Sprintf("%02d:%02d", sec/60, sec%60) }
 
 func main() {

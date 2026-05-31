@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"image/color"
 	"math"
 	"os"
 	"os/exec"
@@ -305,17 +304,6 @@ func (d *IntroDetector) DetectStudioLogo(hashes []uint64, intervalSec int) (star
 	return detectStudioLogoIn(hashes, intervalSec, loadedStudioLogos, 5)
 }
 
-// grayscaleLuminance converts a color to uint8 luminance using BT.601 coefficients.
-// Kept here for potential future use; currently draw.BiLinear produces Gray pixels.
-func grayscaleLuminance(c color.Color) uint8 {
-	r, g, b, _ := c.RGBA()
-	lum := (19595*r + 38470*g + 7471*b + 1<<15) >> 24
-	return uint8(lum)
-}
-
-// Suppress "declared but not used" for grayscaleLuminance when it has no callers.
-var _ = grayscaleLuminance
-
 // AudioRMSProfile decodes a slice of the file [startSec, startSec+durationSec)
 // to PCM mono 8 kHz s16le and returns RMS energy averaged over fixed-length bins
 // (default 250 ms = 2000 samples). Used as a low-cost audio fingerprint for
@@ -508,37 +496,17 @@ func PearsonCorrelation(a, b []float64) float64 {
 	return num / math.Sqrt(dA*dB)
 }
 
-// SlidingBestPearson slides the shorter window `target` across `reference` and
-// returns the highest Pearson correlation observed plus the offset (in bins
-// from the start of `reference`) where the maximum was found. If
-// len(reference) < len(target), returns (0, 0).
+// SlidingBestPearsonBanded slides a multi-channel banded fingerprint
+// (vectorSize floats per time bin, e.g. 6 bands) target window over
+// reference one *time bin* at a time (vectorSize floats) and computes
+// Pearson on the full multi-band concatenation per offset. Returns the
+// best correlation and the offset measured in time bins.
 //
-// This is the core of cross-episode audio confirmation: target audio profile
-// is the candidate intro window from one episode; reference is a wider
-// candidate region from a sibling episode. A clean peak indicates the two
-// episodes share the same audio signal — a real recurring intro — even if
-// the absolute timestamp drifts across episodes.
-func SlidingBestPearson(target, reference []float64) (bestCorr float64, bestOffset int) {
-	if len(reference) < len(target) || len(target) == 0 {
-		return 0, 0
-	}
-	maxOff := len(reference) - len(target)
-	bestCorr = -1
-	for off := 0; off <= maxOff; off++ {
-		c := PearsonCorrelation(target, reference[off:off+len(target)])
-		if c > bestCorr {
-			bestCorr = c
-			bestOffset = off
-		}
-	}
-	return bestCorr, bestOffset
-}
-
-// SlidingBestPearsonBanded is SlidingBestPearson for multi-channel banded
-// fingerprints (vectorSize floats per time bin, e.g. 6 bands). Slides the
-// target window over reference one *time bin* at a time (vectorSize floats)
-// and computes Pearson on the full multi-band concatenation per offset.
-// Returns the best correlation and the offset measured in time bins.
+// This is the core of cross-episode audio confirmation: target audio
+// profile is the candidate intro window from one episode; reference is a
+// wider candidate region from a sibling episode. A clean peak indicates
+// the two episodes share the same audio signal — a real recurring intro
+// — even if the absolute timestamp drifts across episodes.
 func SlidingBestPearsonBanded(target, reference []float64, vectorSize int) (bestCorr float64, bestOffsetBins int) {
 	if vectorSize <= 0 {
 		return 0, 0

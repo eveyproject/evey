@@ -154,12 +154,6 @@ func (s *CommandService) classifyProgress(ctx context.Context, mediaItemID strin
 	}
 }
 
-// shouldAutoComplete is the legacy entrypoint kept for call sites that
-// only need the completion flag. Internally it just unwraps classifyProgress.
-func (s *CommandService) shouldAutoComplete(ctx context.Context, mediaItemID string, positionMs int64) bool {
-	return s.classifyProgress(ctx, mediaItemID, positionMs).completed
-}
-
 func (s *CommandService) StartStream(ctx context.Context, session *playback.PlaySession, userID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.StartStream")
 	defer span.End()
