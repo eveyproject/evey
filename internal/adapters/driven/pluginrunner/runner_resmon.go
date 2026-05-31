@@ -67,13 +67,22 @@ const (
 	resMonCPUPegPct   = 90              // sustained %CPU considered "pegging"
 	resMonCPUPegTicks = 15              // consecutive pegging samples (~30s) before flagging
 	clockTicksPerSec  = 100             // USER_HZ on Linux (sysconf(_SC_CLK_TCK))
+	resMonGPUPegPct   = 90              // sustained % of a DRM engine considered "pegging" (miner)
+	resMonGPUPegTicks = 15              // consecutive GPU-pegging samples (~30s) before KILLING
 )
 
-// cpuSample is the per-plugin CPU accounting carried between sweeps.
+// cpuSample is the per-plugin CPU (and, for hardware.gpu plugins, GPU-engine)
+// accounting carried between sweeps.
 type cpuSample struct {
 	ticks   uint64    // utime+stime at last sample
 	at      time.Time // wall clock at last sample
 	pegRuns int       // consecutive samples above resMonCPUPegPct
+
+	// GPU DRM-engine accounting — only populated for plugins holding
+	// hardware.gpu that actually opened the render node (have drm-engine fdinfo).
+	gpuNanos   uint64    // summed drm-engine-* cumulative nanoseconds at last sample
+	gpuAt      time.Time // wall clock at last GPU sample (zero = not yet sampled)
+	gpuPegRuns int       // consecutive samples above resMonGPUPegPct
 }
 
 // startResourceMonitor launches the sweeper once. It runs for the lifetime of
@@ -170,6 +179,41 @@ func (r *Runner) checkResources(e *processEntry, pid int, cpu map[int]*cpuSample
 		}
 	}
 
+	// GPU: for plugins granted hardware.gpu, DETECT and KILL sustained DRM-engine
+	// pegging — the cryptominer signature. The render node is shared with Evey's
+	// own transcoder (Linux has no per-process GPU hard cap for VAAPI), so a
+	// userspace kill-on-sustained-peg is the only enforcement layer. This is a
+	// deterrent, NOT containment (a short kernel launch can still leak/exploit
+	// before the ~30s window). fdinfo presence also gates it: a plugin that never
+	// touched the GPU has no drm-engine counter and is skipped; the server's own
+	// ffmpeg is never a plugin process, so it is never sampled here.
+	if e.hasGPU {
+		if nanos, ok := gpuEngineNanos(pid); ok {
+			now := time.Now()
+			prev := cpu[pid]
+			switch {
+			case prev == nil:
+				cpu[pid] = &cpuSample{gpuNanos: nanos, gpuAt: now}
+			case prev.gpuAt.IsZero():
+				prev.gpuNanos, prev.gpuAt = nanos, now
+			default:
+				if dt := now.Sub(prev.gpuAt).Seconds(); dt > 0 {
+					pct := float64(nanos-prev.gpuNanos) / 1e9 / dt * 100 // % of one engine-second
+					prev.gpuNanos, prev.gpuAt = nanos, now
+					if pct >= resMonGPUPegPct {
+						prev.gpuPegRuns++
+						if prev.gpuPegRuns >= resMonGPUPegTicks {
+							r.killOverLimit(e, fmt.Sprintf("GPU engine pegged ~%.0f%% sustained (possible miner)", pct))
+							return
+						}
+					} else {
+						prev.gpuPegRuns = 0
+					}
+				}
+			}
+		}
+	}
+
 	// Disk: heavier (walks the dir) → only every Nth sweep.
 	if checkDisk && diskMax > 0 && e.installDir != "" {
 		if sz, err := dirSize(e.installDir); err == nil && sz > diskMax {
@@ -255,4 +299,45 @@ func procCPUTicks(pid int) (uint64, error) {
 		return 0, err
 	}
 	return utime + stime, nil
+}
+
+// gpuEngineNanos sums the cumulative drm-engine-* nanosecond counters across the
+// process's open DRM fds (/proc/<pid>/fdinfo/*). Returns (total, true) only when
+// at least one drm-engine counter is present — i.e. the process actually holds a
+// GPU render fd and is doing work. amdgpu (5.14+), i915/xe (5.19+) and recent
+// nvidia expose these in fdinfo; dividing the delta by wall-clock gives the
+// engine occupancy. Pure file reads, no privilege.
+func gpuEngineNanos(pid int) (uint64, bool) {
+	dir := fmt.Sprintf("/proc/%d/fdinfo", pid)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0, false
+	}
+	var total uint64
+	found := false
+	for _, ent := range entries {
+		data, err := os.ReadFile(filepath.Join(dir, ent.Name()))
+		if err != nil {
+			continue // fd closed between ReadDir and ReadFile — fine
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			// e.g. "drm-engine-gfx:    123456789 ns"
+			if !strings.HasPrefix(line, "drm-engine-") {
+				continue
+			}
+			colon := strings.IndexByte(line, ':')
+			if colon < 0 {
+				continue
+			}
+			fields := strings.Fields(line[colon+1:])
+			if len(fields) == 0 {
+				continue
+			}
+			if n, perr := strconv.ParseUint(fields[0], 10, 64); perr == nil {
+				total += n
+				found = true
+			}
+		}
+	}
+	return total, found
 }

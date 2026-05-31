@@ -58,6 +58,7 @@ type config struct {
 	roPaths         []string
 	rwPaths         []string
 	devPaths        []string // individual device nodes (/dev/null…) allowed read+write, skipped if missing
+	renderDevPath   string   // GPU DRM render node (/dev/dri/renderD12N): read+write+IOCTL_DEV — the hardware.gpu grant, never a card node
 	rlimitAS        uint64   // RLIMIT_AS bytes (virtual mem); risky for node, off by default
 	rlimitNPROC     uint64   // RLIMIT_NPROC; note: per-UID, leaks across plugins sharing the UID
 	rlimitCPU       uint64   // RLIMIT_CPU seconds
@@ -100,6 +101,7 @@ func run(argv []string) int {
 	fs.Var(&ro, "ro", "directory to allow read+execute (repeatable)")
 	fs.Var(&rw, "rw", "directory to allow read+write+create (repeatable)")
 	fs.Var(&dev, "dev", "single device node to allow read+write, e.g. /dev/null (repeatable; skipped if missing). Use instead of -rw /dev so GPU/disk nodes stay denied.")
+	renderDev := fs.String("render-dev", "", "GPU DRM render node (/dev/dri/renderD12N) to allow read+write+IOCTL_DEV — the hardware.gpu grant. Refused unless the path matches a render node; never a card/primary node.")
 	fs.Var(&netConnect, "net-connect", "TCP port the plugin may connect to (repeatable; implies -restrict-net)")
 	restrictNet := fs.Bool("restrict-net", false, "govern TCP access via Landlock v4: deny every bind/connect except the -net-connect ports")
 	asLimit := fs.Uint64("rlimit-as", 0, "RLIMIT_AS bytes (0=unset)")
@@ -120,6 +122,7 @@ func run(argv []string) int {
 		roPaths:         ro,
 		rwPaths:         rw,
 		devPaths:        dev,
+		renderDevPath:   *renderDev,
 		rlimitAS:        *asLimit,
 		rlimitNPROC:     *nprocLimit,
 		rlimitCPU:       *cpuLimit,

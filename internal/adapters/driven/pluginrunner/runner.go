@@ -30,6 +30,7 @@ const (
 	pluginGID         = 1001
 	sandboxLibPath    = "/app/libevey-sandbox.so"
 	subprocessPerm    = "subprocess"
+	gpuPerm           = "hardware.gpu" // grants the DRM render node (highest-risk; admin-only, first-party tier)
 
 	// Sandbox modes for WithSandboxMode.
 	sandboxModeBasic      = "basic"      // LD_PRELOAD + UID drop (legacy/weak fallback)
@@ -51,6 +52,7 @@ type processEntry struct {
 	installDir   string        // plugin install dir, for the resource monitor's disk check
 	hostsCleanup func()        // removes the temp /etc/hosts file; nil if not built
 	tail         *tailBuffer   // last bytes of the process stdout/stderr (crash diagnostics)
+	hasGPU       bool          // plugin holds hardware.gpu → the resmon also watches DRM engine pegging
 
 	crashMu     sync.Mutex
 	crashReason string // set by trackLifecycle on abnormal exit, read by connectIPC
@@ -458,6 +460,7 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		installDir:   p.InstallDir,
 		hostsCleanup: hostsCleanup,
 		tail:         tail,
+		hasGPU:       slices.Contains(p.Permissions, gpuPerm),
 	}
 	hostsCleanedUp = true // ownership handed to entry; trackLifecycle/Stop will call it
 	go r.connectIPC(ctx, entry, p)

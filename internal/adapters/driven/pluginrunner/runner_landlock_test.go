@@ -46,6 +46,8 @@ func TestApplyLandlockSandbox_BuildsArgv(t *testing.T) {
 	assert.Contains(t, cmd.Args, "/dev/null")
 	assert.Contains(t, cmd.Args, "/dev/urandom")
 	assert.NotContains(t, cmd.Args, "/dev", "the whole /dev dir must not be granted (would expose GPU device nodes)")
+	// This plugin lacks hardware.gpu → the GPU render node must NOT be granted.
+	assert.NotContains(t, cmd.Args, "-render-dev", "render node granted only with hardware.gpu")
 	assert.Contains(t, cmd.Args, "-require-landlock")
 	assert.Contains(t, cmd.Args, "--")
 

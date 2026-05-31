@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -71,6 +72,45 @@ func deviceAccess(abi int) uint64 {
 		unix.LANDLOCK_ACCESS_FS_WRITE_FILE)) & supportedFSAccess(abi)
 }
 
+// renderDeviceAccess is the access mask for the ONE granted GPU render node
+// (the hardware.gpu permission). It adds IOCTL_DEV (ABI v5+) because DRM command
+// submission IS ioctl-based — a render node without it is useless — but it is
+// applied ONLY to this node, never to the safe pseudo-devices (deviceAccess),
+// so the GPU ioctl surface is opened for exactly one file. On ABI <5 the kernel
+// does not govern device ioctls, so read+write already permits submission.
+// Note: IOCTL_DEV (like all Landlock) governs only newly-open()ed files — an
+// inherited render fd bypasses it, so the runner must never pre-open one.
+func renderDeviceAccess(abi int) uint64 {
+	a := uint64(unix.LANDLOCK_ACCESS_FS_READ_FILE | unix.LANDLOCK_ACCESS_FS_WRITE_FILE)
+	if abi >= 5 {
+		a |= unix.LANDLOCK_ACCESS_FS_IOCTL_DEV
+	}
+	return a & supportedFSAccess(abi)
+}
+
+// isRenderNode reports whether p is a DRM render node path (/dev/dri/renderD<n>).
+// The -render-dev grant carries the GPU ioctl surface (IOCTL_DEV), so it is
+// refused for anything else — in particular a card/primary node
+// (/dev/dri/card*), which controls modeset/DRM-Master and is privileged.
+// Defence in depth: the runner already resolves only renderD*, but the launcher
+// must never grant the GPU command-submission surface to an arbitrary path.
+func isRenderNode(p string) bool {
+	const prefix = "/dev/dri/renderD"
+	if !strings.HasPrefix(p, prefix) {
+		return false
+	}
+	digits := p[len(prefix):]
+	if digits == "" {
+		return false
+	}
+	for _, c := range digits {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // LANDLOCK_RULE_NET_PORT and the net-port rule attribute are part of Landlock
 // ABI v4 but are not yet exported by x/sys/unix v0.45.0, so we declare them
 // here. The struct layout mirrors the kernel's `struct landlock_net_port_attr`.
@@ -103,7 +143,7 @@ func landlockABI() (int, error) {
 }
 
 func applyLandlock(cfg config) error {
-	if len(cfg.roPaths) == 0 && len(cfg.rwPaths) == 0 && len(cfg.devPaths) == 0 && !cfg.restrictNet {
+	if len(cfg.roPaths) == 0 && len(cfg.rwPaths) == 0 && len(cfg.devPaths) == 0 && cfg.renderDevPath == "" && !cfg.restrictNet {
 		return nil // nothing requested; caller asked for no confinement
 	}
 
@@ -176,6 +216,18 @@ func applyLandlock(cfg config) error {
 			continue
 		}
 		if err := addRule(p, deviceAccess(abi)); err != nil {
+			return err
+		}
+	}
+	// The single GPU render node (hardware.gpu grant). Validated here too —
+	// never grant the IOCTL_DEV-bearing render rule to anything but a renderD*
+	// node — and fail closed if it doesn't exist (the runner only ever passes a
+	// resolved node, so a missing one is a real misconfiguration).
+	if cfg.renderDevPath != "" {
+		if !isRenderNode(cfg.renderDevPath) {
+			return fmt.Errorf("render-dev %q is not a DRM render node (/dev/dri/renderD<n>)", cfg.renderDevPath)
+		}
+		if err := addRule(cfg.renderDevPath, renderDeviceAccess(abi)); err != nil {
 			return err
 		}
 	}

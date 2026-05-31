@@ -288,4 +288,27 @@ func TestRedTeamSandboxEscape(t *testing.T) {
 			// asserted above is what blocks GPU use. They are logged for context.
 		})
 	})
+
+	// Same fixture, but WITH the hardware.gpu permission granted. The grant is
+	// the render node ALONE: open_drm_render must now succeed (legit GPU use),
+	// while the privileged card node and every other vendor's node stay denied —
+	// proving the grant is minimal and cannot be widened to card0/dxg/nvidia*.
+	// Requires a real render node mapped into the test container (the dev `evey`
+	// service maps /dev/dri); on a host without one, resolveRenderNode returns ""
+	// so no -render-dev is emitted and open_drm_render reports BLOCKED — which is
+	// why open_drm_render is gated on the node existing.
+	t.Run("cryptominer-gpu-granted", func(t *testing.T) {
+		if resolveRenderNode() == "" {
+			t.Skip("no DRM render node on this host; granted-case asserts nothing")
+		}
+		v := runEscapeFixture(t, nodePath, launcher, soPath, root, "cryptominer-gpu", []string{noNetNoSub, gpuPerm})
+		assert(t, v, []probeExpect{
+			{"open_drm_render", "BYPASSED", gateLandlock}, // granted: render node reachable
+			{"open_drm_card", "BLOCKED", gateLandlock},    // card/primary node NEVER granted
+			{"open_dxg", "BLOCKED", gateLandlock},         // WSL GPU node never granted
+			{"open_nvidia0", "BLOCKED", gateLandlock},     // NVIDIA nodes are a separate tier
+			{"open_nvidiactl", "BLOCKED", gateLandlock},
+			{"exec_nvidia_smi", "BLOCKED", gatePreload}, // exec still denied (no subprocess perm)
+		})
+	})
 }

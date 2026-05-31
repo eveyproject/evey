@@ -9,11 +9,26 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/plugin"
 )
+
+// resolveRenderNode returns the host's primary DRM render node
+// (/dev/dri/renderD12N), or "" if none exists. Used ONLY to honour the
+// hardware.gpu permission. Returns the lowest-numbered render node and never a
+// card/primary node (/dev/dri/card*) — the launcher re-validates the shape
+// before granting the ioctl-bearing rule.
+func resolveRenderNode() string {
+	matches, _ := filepath.Glob("/dev/dri/renderD[0-9][0-9][0-9]")
+	if len(matches) == 0 {
+		return ""
+	}
+	sort.Strings(matches)
+	return matches[0]
+}
 
 const launcherBinaryName = "evey-plugin-launcher"
 
@@ -60,6 +75,17 @@ func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, require
 	args = append(args, "-rw", pluginDir, "-rw", pluginSockDir)
 	for _, d := range safeDevNodes {
 		args = append(args, "-dev", d)
+	}
+	// hardware.gpu (highest-risk, admin-only, first-party tier): grant the DRM
+	// render node ALONE — with the GPU ioctl surface — via -render-dev. Resolved
+	// to the real renderD12N here (never a card node, never /dev/dxg or
+	// /dev/nvidia*, never /dev/kfd); skipped if the plugin lacks the permission
+	// or the host exposes no render node. NVIDIA compute would need a separate,
+	// even-more-privileged tier (not implied by hardware.gpu).
+	if slices.Contains(p.Permissions, gpuPerm) {
+		if node := resolveRenderNode(); node != "" {
+			args = append(args, "-render-dev", node)
+		}
 	}
 
 	// TCP egress: deny by default (-restrict-net, Landlock ABI v4+). A plugin
