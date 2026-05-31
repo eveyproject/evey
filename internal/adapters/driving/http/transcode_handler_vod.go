@@ -372,10 +372,13 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 
 	// Audio renditions are populated only when the feature flag is on.
 	// Empty slice preserves the muxed audio+video manifest bit-for-bit —
-	// every existing client keeps working without change.
+	// every existing client keeps working without change. Shared
+	// buildAudioRenditions helper guarantees the master + the
+	// audio playlist handlers agree on the same SourceTrackIdx
+	// numbering (audio-index, matches `ffmpeg -map 0:a:N`).
 	var audioRenditions []apptranscoding.AudioRendition
 	if h.audioRenditionEnabled {
-		audioRenditions = collectAudioRenditions(streams)
+		audioRenditions = buildAudioRenditions(streams)
 	}
 
 	return apptranscoding.ManifestInput{
@@ -396,39 +399,6 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 	}, nil
 }
 
-// collectAudioRenditions filters the source media's audio streams into the
-// AudioRendition slice the manifest generator consumes. Languageless tracks
-// keep an empty LanguageCode (the generator omits the LANGUAGE attribute);
-// the source IsDefault flag is honoured for ordering — the first default
-// track lands at index 0 so EXT-X-MEDIA picks it as DEFAULT=YES. Falls back
-// to source order when no track is flagged default.
-func collectAudioRenditions(streams []*domainlibrary.MediaStream) []apptranscoding.AudioRendition {
-	out := make([]apptranscoding.AudioRendition, 0, 4)
-	defaultIdx := -1
-	for _, s := range streams {
-		if s == nil || s.StreamType != domainlibrary.Audio {
-			continue
-		}
-		name := s.Title
-		if name == "" {
-			name = strings.ToUpper(s.Language)
-		}
-		out = append(out, apptranscoding.AudioRendition{
-			SourceTrackIdx: s.StreamIndex,
-			Name:           name,
-			LanguageCode:   s.Language,
-		})
-		if defaultIdx < 0 && s.IsDefault {
-			defaultIdx = len(out) - 1
-		}
-	}
-	if defaultIdx > 0 {
-		// Bubble the source-flagged default to index 0 so it becomes the
-		// EXT-X-MEDIA DEFAULT/AUTOSELECT entry.
-		out[0], out[defaultIdx] = out[defaultIdx], out[0]
-	}
-	return out
-}
 
 // buildFingerprint reproduces the DecisionFingerprint from a segment-time
 // request. Must match exactly what was produced at manifest time, or the

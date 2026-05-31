@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
@@ -292,28 +293,40 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 
 // buildAudioRenditions converts the raw media streams into the
 // AudioRendition slice the ManifestGenerator expects. Only audio streams are
-// included; the SourceTrackIdx is the index among audio streams (not the
-// overall ffmpeg stream index).
+// included; the SourceTrackIdx is the index AMONG AUDIO streams (not the
+// overall ffmpeg stream index) — this matches `ffmpeg -map 0:a:N` semantics
+// so the audio orchestrator hands ffmpeg the right specifier. Name falls
+// back to the language code (upper-cased) when the source track has no
+// title; empty Language is kept empty so the master playlist omits the
+// LANGUAGE attribute entirely (some strict players reject LANGUAGE="").
+//
+// The source-flagged default track (IsDefault) is bubbled to index 0 so
+// EXT-X-MEDIA emits DEFAULT=YES/AUTOSELECT=YES on it. Falls back to source
+// order when no track is flagged default.
 func buildAudioRenditions(streams []*domainlibrary.MediaStream) []apptranscoding.AudioRendition {
 	var out []apptranscoding.AudioRendition
 	audioIdx := 0
+	defaultIdx := -1
 	for _, s := range streams {
-		if s == nil || string(s.StreamType) != "audio" {
+		if s == nil || s.StreamType != domainlibrary.Audio {
 			continue
 		}
 		name := s.Title
-		if name == "" && s.Language != "" {
-			name = s.Language
-		}
 		if name == "" {
-			name = ""
+			name = strings.ToUpper(s.Language)
 		}
 		out = append(out, apptranscoding.AudioRendition{
 			SourceTrackIdx: audioIdx,
 			Name:           name,
 			LanguageCode:   s.Language,
 		})
+		if defaultIdx < 0 && s.IsDefault {
+			defaultIdx = len(out) - 1
+		}
 		audioIdx++
+	}
+	if defaultIdx > 0 {
+		out[0], out[defaultIdx] = out[defaultIdx], out[0]
 	}
 	return out
 }
