@@ -10,6 +10,8 @@ type EncodeCapability = {
   software_max_height: number;
   hw_max_height: number;
   hw_backend?: string;
+  hw_codecs?: string[];
+  hw_device?: string;
   benchmarked_at: string; // RFC3339
   benchmark_duration_ms: number;
   cpu_signature: string;
@@ -74,6 +76,13 @@ export function EncodeCalibrationCard() {
             <>
               <strong className="text-[var(--text)]">{data.hw_max_height}p</strong>
               <span className="text-[var(--text-muted)]"> ({data.hw_backend})</span>
+              {(data.hw_codecs?.length || data.hw_device) && (
+                <span className="mt-0.5 block text-xs text-[var(--text-muted)]">
+                  {[data.hw_codecs?.join(", "), data.hw_device]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              )}
             </>
           ) : (
             <span className="text-[var(--text-muted)]">{t("admin.calibration.hwNone", "no GPU accelerator detected")}</span>
