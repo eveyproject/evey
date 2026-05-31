@@ -50,15 +50,15 @@ const (
 const MinAutoResumeDurationMs int64 = 300_000
 
 type CommandService struct {
-	progress         playback.ProgressCommandRepo
-	progressBuffer   *WatchProgressBuffer
-	sessions         playback.SessionCommandRepo
-	sessionQueries   playback.SessionQueryRepo
-	users            user.UserRepository
-	profiles         user.ProfileRepository
-	events           shared.EventBus
-	uow              shared.TransactionalUnit
-	durations        MediaItemDurationGetter
+	progress       playback.ProgressCommandRepo
+	progressBuffer *WatchProgressBuffer
+	sessions       playback.SessionCommandRepo
+	sessionQueries playback.SessionQueryRepo
+	users          user.UserRepository
+	profiles       user.ProfileRepository
+	events         shared.EventBus
+	uow            shared.TransactionalUnit
+	durations      MediaItemDurationGetter
 }
 
 type CommandServiceOption func(*CommandService)
@@ -171,10 +171,16 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 	session.StartedAt = time.Now()
 
 	claim := func(ctx context.Context) error {
-		if u.HasStreamsLimit() {
+		// Serialize the count-then-create for BOTH the stream and device caps:
+		// the advisory lock must cover the device branch too, otherwise a user
+		// with a device limit but NO stream limit races concurrent StartSession
+		// calls (each counts < limit, both create → N+1 devices per profile).
+		if u.HasStreamsLimit() || u.HasDeviceLimit() {
 			if err := s.sessions.AcquireUserStreamLock(ctx, userID); err != nil {
 				return fmt.Errorf("acquire stream lock: %w", err)
 			}
+		}
+		if u.HasStreamsLimit() {
 			count, err := s.sessionQueries.CountActiveByUser(ctx, userID)
 			if err != nil {
 				return fmt.Errorf("count active: %w", err)

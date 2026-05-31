@@ -12,6 +12,10 @@ type FakePlaySessionRepository struct {
 	mu    sync.RWMutex
 	items map[string]*playback.PlaySession
 	Err   error
+	// LockCalls counts AcquireUserStreamLock invocations so tests can assert the
+	// count-then-create path serializes — e.g. that the device-cap branch takes
+	// the advisory lock too, not only the stream-cap branch.
+	LockCalls int
 }
 
 func NewFakePlaySessionRepository() *FakePlaySessionRepository {
@@ -175,9 +179,13 @@ func (r *FakePlaySessionRepository) ConsumeRemoteCommand(_ context.Context, _ st
 	return "", r.Err
 }
 
-// AcquireUserStreamLock is a no-op in the fake; the test mutex in items
-// already serializes operations for the FakePlaySessionRepository.
+// AcquireUserStreamLock is a no-op lock in the fake (the items mutex already
+// serializes operations); it only records the call so tests can assert the
+// command service reaches for the advisory lock on the expected paths.
 func (r *FakePlaySessionRepository) AcquireUserStreamLock(_ context.Context, _ string) error {
+	r.mu.Lock()
+	r.LockCalls++
+	r.mu.Unlock()
 	return r.Err
 }
 

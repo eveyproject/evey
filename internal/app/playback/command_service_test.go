@@ -173,6 +173,22 @@ func TestStartStream_MaxDevicesPerProfile_Enforced(t *testing.T) {
 	assert.ErrorIs(t, err, appplayback.ErrMaxDevicesPerProfile)
 }
 
+func TestStartStream_DeviceLimitOnly_AcquiresStreamLock(t *testing.T) {
+	t.Parallel()
+	cmd, _, sr, ur, pfr, _ := setupCmd()
+	ctx := context.Background()
+	limit := 2
+	// Device limit but NO stream limit: the create path must still take the
+	// per-user advisory lock so concurrent starts can't race past the device cap.
+	// Pre-fix the lock was acquired only in the stream-limit branch, so LockCalls
+	// here would have been 0.
+	ur.Create(ctx, &user.User{ID: "u1", Username: "alice", Enabled: true, MaxDevicesPerProfile: &limit})
+	pfr.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+	assert.GreaterOrEqual(t, sr.LockCalls, 1, "device-limited start must acquire the per-user stream lock")
+}
+
 func TestStartStream_MaxDevicesNil_NoLimit(t *testing.T) {
 	t.Parallel()
 	cmd, _, _, ur, pfr, _ := setupCmd()
