@@ -155,6 +155,7 @@ dashboard:
   autoRefresh: "Aktualisiert {{time}} · automatische Aktualisierung alle {{interval}}"
 
 users:
+  maxProfilesInvalid: "Maximale Profilanzahl muss eine ganze Zahl >= 0 sein"
   title: Benutzer
   createUser: Benutzer erstellen
   username: Benutzername
@@ -454,6 +455,7 @@ audit:
 
 serverConfig:
   feedConfig:
+    pluginBadge: "Plugin"
     title: "Startseiten-Feeds"
     subtitle: "Wählen Sie, welche Bereiche auf der Startseite erscheinen, in welcher Reihenfolge und wie viele Einträge jeder zeigt."
   introProvidersInfo: "Zwei separate Community-Datenbanken für Intro-/Recap-/Abspann-Zeitstempel. Überspringt die lokale, CPU-intensive Erkennung bei abgedeckten Titeln. Primär — TheIntroDB (theintrodb.org): Filme + Serien, kostenloser API-Schlüssel erforderlich. Fallback — IntroDB (introdb.app): nur Serienepisoden, kein Schlüssel erforderlich."

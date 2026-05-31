@@ -155,6 +155,7 @@ dashboard:
   autoRefresh: "Actualizado {{time}} · se actualiza cada {{interval}}"
 
 users:
+  maxProfilesInvalid: "El máximo de perfiles debe ser un número entero >= 0"
   title: "Usuarios"
   createUser: "Crear usuario"
   username: "Nombre de usuario"
@@ -454,6 +455,7 @@ audit:
 
 serverConfig:
   feedConfig:
+    pluginBadge: "Plugin"
     title: "Feeds de inicio"
     subtitle: "Elige qué secciones aparecen en la página de inicio, en qué orden y cuántos elementos muestra cada una."
   introProvidersInfo: "Dos bases de datos comunitarias distintas para las marcas de tiempo de intro / resumen / créditos. Omite la detección local intensiva en CPU en los elementos que cubren. Principal — TheIntroDB (theintrodb.org): películas + series, requiere clave API gratuita. Alternativa — IntroDB (introdb.app): solo episodios de series, sin clave."

@@ -155,6 +155,7 @@ dashboard:
   autoRefresh: "Updated {{time}} · auto-refreshes every {{interval}}"
 
 users:
+  maxProfilesInvalid: "Max profiles must be a whole number >= 0"
   title: Users
   createUser: Create User
   username: Username
@@ -456,6 +457,7 @@ serverConfig:
   title: Server Config
   subtitle: Key-value configuration entries persisted in the database.
   feedConfig:
+    pluginBadge: "Plugin"
     title: Home feeds
     subtitle: Choose which sections appear on the home page, in what order, and how many items each shows.
   languageRegion: Language & Region

@@ -155,6 +155,7 @@ dashboard:
   autoRefresh: "更新于 {{time}} · 每 {{interval}} 自动刷新"
 
 users:
+  maxProfilesInvalid: "最大配置文件数必须是大于等于 0 的整数"
   title: "用户"
   createUser: "创建用户"
   username: "用户名"
@@ -454,6 +455,7 @@ audit:
 
 serverConfig:
   feedConfig:
+    pluginBadge: "插件"
     title: "主页信息流"
     subtitle: "选择主页上显示哪些板块、顺序以及每个板块显示多少项。"
   introProvidersInfo: "用于片头/回顾/片尾时间戳的两个独立社区数据库。对其覆盖的条目跳过本地高 CPU 占用的检测。主要 — TheIntroDB (theintrodb.org)：电影 + 剧集，需要免费 API 密钥。备用 — IntroDB (introdb.app)：仅剧集，无需密钥。"

@@ -154,6 +154,7 @@ dashboard:
   autoRefresh: "Mis à jour {{time}} · actualisation automatique toutes les {{interval}}"
 
 users:
+  maxProfilesInvalid: "Le nombre maximum de profils doit être un entier >= 0"
   title: "Utilisateurs"
   createUser: "Créer un utilisateur"
   username: "Nom d'utilisateur"
@@ -455,6 +456,7 @@ serverConfig:
   title: "Configuration du serveur"
   subtitle: "Entrées de configuration clé-valeur stockées dans la base de données."
   feedConfig:
+    pluginBadge: "Plugin"
     title: "Flux d'accueil"
     subtitle: "Choisis quelles sections apparaissent sur la page d'accueil, dans quel ordre, et combien d'éléments chacune affiche."
   languageRegion: "Langue et région"

@@ -155,6 +155,7 @@ dashboard:
   autoRefresh: "अपडेट {{time}} · हर {{interval}} ऑटो-रिफ्रेश"
 
 users:
+  maxProfilesInvalid: "अधिकतम प्रोफ़ाइल एक पूर्ण संख्या >= 0 होनी चाहिए"
   title: "उपयोगकर्ता"
   createUser: "उपयोगकर्ता बनाएं"
   username: "उपयोगकर्ता नाम"
@@ -454,6 +455,7 @@ audit:
 
 serverConfig:
   feedConfig:
+    pluginBadge: "प्लगइन"
     title: "होम फ़ीड"
     subtitle: "चुनें कि होम पेज पर कौन से अनुभाग दिखें, किस क्रम में, और प्रत्येक कितने आइटम दिखाए।"
   introProvidersInfo: "इंट्रो / रीकैप / क्रेडिट टाइमस्टैम्प के लिए दो अलग सामुदायिक डेटाबेस। जिन आइटम को वे कवर करते हैं उन पर स्थानीय CPU-भारी पहचान को छोड़ देते हैं। प्राथमिक — TheIntroDB (theintrodb.org): फ़िल्में + TV, मुफ़्त API कुंजी आवश्यक। फ़ॉलबैक — IntroDB (introdb.app): केवल TV एपिसोड, कोई कुंजी आवश्यक नहीं।"
