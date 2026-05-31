@@ -147,6 +147,66 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # Hardware-accelerated transcode test container — VAAPI (AMD iGPU / Intel
+  # QuickSync), the sibling of evey-hw. On the WSL2 dev box AMD/Intel VAAPI goes
+  # through Mesa's d3d12 driver, so this image is Ubuntu 22.04 (Mesa 23.x) and
+  # the service maps /dev/dri + /dev/dxg, mounts the host WSL GPU libs, and sets
+  # LIBVA_DRIVER_NAME=d3d12. Needs `sudo modprobe vgem` on the host for /dev/dri
+  # (cf hw_transcode_wsl_setup). Reach it on :9093.
+  #   docker compose up -d --build evey-hw-vaapi
+  #   docker compose logs evey-hw-vaapi | grep -i 'hw_backend\|hardware probe'
+  evey-hw-vaapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime-vaapi
+      args:
+        VERSION: hw-vaapi-dev
+    image: evey-hw-vaapi
+    container_name: evey-hw-vaapi
+    env_file: .env.dev
+    environment:
+      EVEY_TRANSCODING_HW_ACCEL_ENABLED: "true"
+      EVEY_DB_HOST: postgres
+      EVEY_EMBEDDED_MEILI: "false"
+      EVEY_MEILI_URL: http://meilisearch:7700
+      EVEY_HTTP_PORT: "9091"
+      EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
+      EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
+      EVEY_TRICKPLAY_CACHE_DIR: /data/trickplay
+      EVEY_LOG_DIR: /data/logs
+      EVEY_BACKUP_DIR: /data/backups
+      EVEY_LOG_LEVEL: debug
+      EVEY_LOG_DEV_MODE: "true"
+      EVEY_PLUGINS_COSIGN_POLICY: "off"
+      # WSL2 VAAPI: the Mesa d3d12 driver + the host GPU libs on the lib path.
+      LIBVA_DRIVER_NAME: d3d12
+      LD_LIBRARY_PATH: /usr/lib/wsl/lib
+    ports:
+      - "9093:9091"
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/dxg:/dev/dxg
+    # The render node is root:render — add the host render GID so the evey user
+    # (uid 1000) can open /dev/dri/renderD128. Find it with `getent group render`
+    # (the vgem node was GID 992 on the dev box); override via EVEY_RENDER_GID.
+    group_add:
+      - "${EVEY_RENDER_GID:-992}"
+    volumes:
+      - evey-hw-vaapi-data:/data
+      - evey-hw-vaapi-cache:/cache
+      - /usr/lib/wsl:/usr/lib/wsl:ro
+      - /path/to/movies:/media
+      - /path/to/series:/media2
+      - /path/to/photos:/media3
+      - /path/to/music:/media4
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    restart: "no"
+
   # Vite dev server with HMR
   web:
     container_name: evey-web
@@ -224,3 +284,5 @@ services:
 volumes:
   evey-hw-cache:
   evey-hw-data:
+  evey-hw-vaapi-cache:
+  evey-hw-vaapi-data:

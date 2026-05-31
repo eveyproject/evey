@@ -212,3 +212,71 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=30s \
 USER evey
 
 ENTRYPOINT ["/entrypoint.sh"]
+
+# ── Stage 7: VAAPI / glibc runtime (opt-in, AMD iGPU / Intel QSV transcode) ──
+# Sibling of runtime-nvidia, for VAAPI hardware. On a real Linux host (a NAS)
+# the default Alpine image already does VAAPI via the native amdgpu/i915 + its
+# bundled mesa; this glibc variant exists for the WSL2 dev box, where AMD/Intel
+# VAAPI is only reachable through Mesa's d3d12 driver — which needs Mesa < 24
+# (the host's Mesa 25 hits the #11838 init bug). Ubuntu 22.04 ships Mesa 23.x,
+# so the d3d12 VA driver initialises. At runtime the compose service maps
+# /dev/dri + /dev/dxg and mounts the host's /usr/lib/wsl (the WSL GPU libs) on
+# LD_LIBRARY_PATH, with LIBVA_DRIVER_NAME=d3d12. The CGO-free evey binary and
+# the static launcher are reused unchanged; only ffmpeg + the Landlock shim are
+# rebuilt against glibc.
+FROM ubuntu:22.04 AS runtime-vaapi
+
+# d3d12 is the WSL2 VAAPI backend; native hosts ignore this and auto-select
+# radeonsi/iHD/i965 from the GPU PCI id, so it is harmless on a NAS too.
+ENV LIBVA_DRIVER_NAME=d3d12
+
+# postgresql-client-16 from PGDG (Ubuntu 22.04 only ships pg_dump 14, which
+# refuses to dump the Postgres 16 server — the pre-migration backup would fail).
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt jammy-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
+       ffmpeg bubblewrap libcap2-bin libchromaprint-tools \
+       postgresql-client-16 unzip wget python3 gcc libc6-dev \
+       vainfo mesa-va-drivers libva2 libva-drm2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Rebuild the Landlock shim with glibc (musl .so from stage 4 won't load).
+COPY --from=builder /src/sandbox/sandbox.c /tmp/sandbox.c
+RUN mkdir -p /app && gcc -shared -fPIC -nostartfiles -o /app/libevey-sandbox.so /tmp/sandbox.c && rm /tmp/sandbox.c
+
+COPY --from=getmeili/meilisearch:v1.12 /bin/meilisearch /usr/local/bin/meilisearch
+
+RUN (userdel -r ubuntu 2>/dev/null || true) && (groupdel ubuntu 2>/dev/null || true) \
+    && groupadd -g 1000 evey \
+    && useradd -u 1000 -g evey -m -s /usr/sbin/nologin evey \
+    && useradd -u 1001 -g evey -m -s /usr/sbin/nologin evey-plugin \
+    && mkdir -p /data/transcoding /data/logs /data/plugins /data/keys /data/meili /data/backups /srv /cache \
+    && chown -R evey:evey /data /cache \
+    && chown evey-plugin:evey /data/plugins \
+    && chmod 750 /data/plugins \
+    && chmod 700 /data/keys /data/logs /data/backups
+
+COPY --from=builder /evey /evey
+COPY --from=builder /evey-plugin-launcher /evey-plugin-launcher
+RUN setcap cap_setuid+ep /evey-plugin-launcher
+COPY --from=builder /src/i18n /i18n
+COPY --from=builder /src/sdk /app/sdk
+COPY --from=builder /src/gen/evey/v1 /app/gen/evey/v1
+COPY --from=builder /src/docker/seccomp-evey.json /etc/evey/seccomp.json
+COPY --from=frontend /app/apps/web/dist /srv
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+LABEL org.evey.runtimes="vaapi"
+ENV EVEY_IMAGE_RUNTIMES=vaapi
+
+EXPOSE 9091
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=30s \
+    CMD curl -sf http://localhost:9091/healthz || exit 1
+
+USER evey
+
+ENTRYPOINT ["/entrypoint.sh"]
