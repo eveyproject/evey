@@ -244,6 +244,48 @@ func filterComplexOf(args []string) (string, bool) {
 	return "", false
 }
 
+func TestHWDomainCodecs(t *testing.T) {
+	cases := []struct {
+		in   []string
+		want []string
+	}{
+		{nil, nil},
+		{[]string{"h264_nvenc", "hevc_nvenc"}, []string{"h264", "hevc"}},
+		{[]string{"h264_vaapi"}, []string{"h264"}},
+		{[]string{"h264_qsv", "hevc_qsv", "av1_qsv"}, []string{"h264", "hevc", "av1"}},
+		// de-dup if the same base appears twice (defensive).
+		{[]string{"h264_nvenc", "h264_nvenc"}, []string{"h264"}},
+	}
+	for _, c := range cases {
+		got := hwDomainCodecs(c.in)
+		if len(got) != len(c.want) {
+			t.Errorf("hwDomainCodecs(%v) = %v, want %v", c.in, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("hwDomainCodecs(%v) = %v, want %v", c.in, got, c.want)
+				break
+			}
+		}
+	}
+}
+
+func TestHWDevicePath(t *testing.T) {
+	if got := hwDevicePath("vaapi"); got != "/dev/dri/renderD128" {
+		t.Errorf("vaapi device = %q", got)
+	}
+	if got := hwDevicePath("qsv"); got != "/dev/dri/renderD128" {
+		t.Errorf("qsv device = %q", got)
+	}
+	if got := hwDevicePath("nvenc"); got != "" {
+		t.Errorf("nvenc device must be empty (CUDA-selected), got %q", got)
+	}
+	if got := hwDevicePath(""); got != "" {
+		t.Errorf("empty backend device = %q", got)
+	}
+}
+
 func TestNormalizeVideoCodec(t *testing.T) {
 	cases := map[string]string{
 		"":           "h264",

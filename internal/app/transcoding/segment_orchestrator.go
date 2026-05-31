@@ -114,11 +114,11 @@ func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
 // session is killed and a fresh one is spawned at the new offset. Avoids paying
 // for ahead-encoded segments the user just seeked past.
 type SegmentOrchestrator struct {
-	cache    *SegmentCache
-	process  transcoding.HLSProcess
-	source   SourceResolver
-	opts     OrchestratorOptions
-	logger   *slog.Logger
+	cache   *SegmentCache
+	process transcoding.HLSProcess
+	source  SourceResolver
+	opts    OrchestratorOptions
+	logger  *slog.Logger
 
 	// shutdownCtx is the long-lived parent context for every ffmpeg session
 	// the orchestrator spawns. Never the HTTP request context — that one is
@@ -496,26 +496,31 @@ func (o *SegmentOrchestrator) spawnSession(
 	teardown := o.cache.RegisterSession(hash)
 
 	procOpts := transcoding.HLSProcessOpts{
-		OutputDir:           outDir,
-		FilePath:            srcPath,
-		Profiles:            profilesToDomain(fp.Profiles),
-		VideoDecision:       "transcode",
-		AudioDecision:       "transcode",
-		AudioTrackIndex:     fp.AudioTrack,
-		SubtitleTrackIndex:  fp.SubtitleBurnInTrack,
-		HDRSupported:        false, // tonemap is part of decision; HDRSupported=false on the client forces tonemap
-		AudioNormalize:      fp.AudioNormalize,
-		StartSec:            float64(startSegIdx) * o.opts.SegmentSeconds,
-		Streams:             nil, // Phase 3 will wire real streams for burn-in/HDR tonemap; Phase 1 falls back on ffmpeg adapter defaults
-		VideoCodec:          fp.VideoCodec,
-		AudioCodec:          fp.AudioCodec,
-		MaxAudioChannels:    fp.MaxAudioChannels,
-		ForceSidecarSubs:    fp.ForceSidecarSubs,
+		OutputDir:          outDir,
+		FilePath:           srcPath,
+		Profiles:           profilesToDomain(fp.Profiles),
+		VideoDecision:      "transcode",
+		AudioDecision:      "transcode",
+		AudioTrackIndex:    fp.AudioTrack,
+		SubtitleTrackIndex: fp.SubtitleBurnInTrack,
+		HDRSupported:       false, // tonemap is part of decision; HDRSupported=false on the client forces tonemap
+		AudioNormalize:     fp.AudioNormalize,
+		StartSec:           float64(startSegIdx) * o.opts.SegmentSeconds,
+		Streams:            nil, // Phase 3 will wire real streams for burn-in/HDR tonemap; Phase 1 falls back on ffmpeg adapter defaults
+		VideoCodec:         fp.VideoCodec,
+		AudioCodec:         fp.AudioCodec,
+		MaxAudioChannels:   fp.MaxAudioChannels,
+		ForceSidecarSubs:   fp.ForceSidecarSubs,
 		// fp.UseFMP4 is the container choice baked into the manifest the
 		// player will receive (.m4s vs .ts). Without forwarding it, ffmpeg
 		// always wrote .ts via the multi-variant builder while the manifest
 		// pointed at .m4s — segment fetches missed the cache forever.
 		UseFMP4: fp.UseFMP4,
+		// Hardware encode backend resolved by the handler (empty = software).
+		// The ffmpeg builder switches to the zero-copy GPU pipeline only when
+		// HWAccel is a valid non-None backend AND the content is simple.
+		HWAccel:  transcoding.HWAccelType(fp.HWAccel),
+		HWDevice: fp.HWDevice,
 	}
 
 	sessionCtx, cancel := context.WithCancel(o.shutdownCtx)
@@ -997,4 +1002,3 @@ func profilesToDomain(ps []ProfileFingerprint) []transcoding.HLSProfile {
 	}
 	return out
 }
-

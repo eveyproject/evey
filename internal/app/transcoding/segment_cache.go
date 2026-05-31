@@ -84,6 +84,15 @@ type DecisionFingerprint struct {
 	ForceSidecarSubs    bool
 	UseFMP4             bool
 
+	// HWAccel / HWDevice select the hardware encode backend ("nvenc"/"vaapi"/
+	// "qsv" + DRM render node) when the handler resolves one. Deliberately
+	// EXCLUDED from Hash(): a hardware-encoded segment is byte-compatible with
+	// the software one (same codec/bitrate/resolution/container/naming), so the
+	// addressable cache stays encoder-agnostic — toggling HW at runtime must
+	// not fork the cache. Empty = software path.
+	HWAccel  string
+	HWDevice string
+
 	// Profiles must be the EXACT ABR ladder ffmpeg will emit. Different ladders
 	// produce different multi-variant runs (variant indices and bitrates differ),
 	// so they belong in the hash. Encoded as `name@WxH@vKbps@aKbps;…` ordered.

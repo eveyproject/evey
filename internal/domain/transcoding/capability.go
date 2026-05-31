@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -30,6 +31,17 @@ type EncodeCapability struct {
 	// pick which value to apply per request — software-only requests
 	// fall back to SoftwareMaxHeight even on a HW-capable box.
 	HWBackend string `json:"hw_backend,omitempty"`
+
+	// HWCodecs lists the domain video codecs ("h264", "hevc", "av1") the
+	// calibrated HW backend can actually encode. Empty when no HW. The
+	// handler gates the hardware path per-codec on this so e.g. a old iGPU
+	// QSV box (H.264 only) still software-encodes HEVC instead of failing.
+	HWCodecs []string `json:"hw_codecs,omitempty"`
+
+	// HWDevice is the DRM render node for VAAPI/QSV (e.g. /dev/dri/renderD128),
+	// empty for NVENC (CUDA selects the device). Forwarded to the ffmpeg
+	// hardware pipeline as -hwaccel_device / -qsv_device.
+	HWDevice string `json:"hw_device,omitempty"`
 
 	// CPUSignature is a stable hash of the host CPU identity (model
 	// name + core count from /proc/cpuinfo). If the host migrates to a
@@ -78,6 +90,25 @@ func (c EncodeCapability) MaxHeightFor(hwAccelUsable bool) int {
 		return c.SoftwareMaxHeight
 	}
 	return 720
+}
+
+// HWSupports reports whether the calibrated HW backend can encode the given
+// domain codec. False whenever no backend is calibrated. An empty codec is
+// treated as h264 (the universal default), matching resolveVideoEncoder.
+func (c EncodeCapability) HWSupports(codec string) bool {
+	if c.HWBackend == "" {
+		return false
+	}
+	codec = strings.ToLower(strings.TrimSpace(codec))
+	if codec == "" {
+		codec = "h264"
+	}
+	for _, supported := range c.HWCodecs {
+		if supported == codec {
+			return true
+		}
+	}
+	return false
 }
 
 // CapabilityRepo persists EncodeCapability across restarts. Backed by

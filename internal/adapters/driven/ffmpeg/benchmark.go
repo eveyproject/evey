@@ -113,12 +113,14 @@ func (r *BenchmarkRunner) Run(ctx context.Context) (transcoding.EncodeCapability
 
 	swMax := r.benchSoftware(ctx, sample, fallback)
 
-	hwMax, hwBackend := r.benchHardware(ctx, sample, fallback)
+	hwMax, hwBackend, hwCodecs, hwDevice := r.benchHardware(ctx, sample, fallback)
 
 	cap := transcoding.EncodeCapability{
 		SoftwareMaxHeight:   swMax,
 		HWMaxHeight:         hwMax,
 		HWBackend:           hwBackend,
+		HWCodecs:            hwCodecs,
+		HWDevice:            hwDevice,
 		CPUSignature:        sysinfo.CPUSignature(),
 		BenchmarkedAt:       time.Now().UTC(),
 		BenchmarkDurationMs: time.Since(start).Milliseconds(),
@@ -271,10 +273,10 @@ func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fall
 // software path (1 decode + N parallel encodes, matching prod).
 // Returns (0, "") when no HW is usable — software-only operation,
 // fully supported by the handler.
-func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool) (int, string) {
+func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool) (int, string, []string, string) {
 	devices, err := r.hwDetector.DetectDevices(ctx)
 	if err != nil || len(devices) == 0 {
-		return 0, ""
+		return 0, "", nil, ""
 	}
 	for _, dev := range devices {
 		// Pick the first device that advertises an h264 encoder. NVENC
@@ -309,10 +311,39 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 			best = h
 		}
 		if best > 0 {
-			return best, dev.Type
+			return best, dev.Type, hwDomainCodecs(dev.SupportedCodecs), hwDevicePath(dev.Type)
 		}
 	}
-	return 0, ""
+	return 0, "", nil, ""
+}
+
+// hwDomainCodecs maps probed encoder names (h264_nvenc, hevc_vaapi, ...) back
+// to the domain codec names the handler gates on (h264, hevc, av1), preserving
+// order and de-duplicating.
+func hwDomainCodecs(supported []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, enc := range supported {
+		base := enc
+		if i := strings.IndexByte(enc, '_'); i > 0 {
+			base = enc[:i]
+		}
+		if base != "" && !seen[base] {
+			seen[base] = true
+			out = append(out, base)
+		}
+	}
+	return out
+}
+
+// hwDevicePath returns the DRM render node ffmpeg needs for VAAPI/QSV; NVENC
+// selects its device through CUDA and needs none.
+func hwDevicePath(backend string) string {
+	switch transcoding.HWAccelType(backend) {
+	case transcoding.VAAPI, transcoding.QSV:
+		return "/dev/dri/renderD128"
+	}
+	return ""
 }
 
 // hwInputArgs prepends the input-level HW init flags for each backend.

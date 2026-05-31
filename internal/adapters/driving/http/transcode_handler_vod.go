@@ -69,6 +69,11 @@ type hlsVODServe struct {
 	// pass.
 	capOverride func(sourceCodec string, sourceHeight int) (domaintranscoding.CapOverride, bool)
 
+	// hwAccelEnabled reports whether the hardware-transcode flag
+	// (transcoding.hw_accel_enabled) is on. Read dynamically so an admin
+	// toggle takes effect without a restart. Nil-safe (tests → software).
+	hwAccelEnabled func() bool
+
 	// useFMP4 controls the segment container. fMP4 is the project default —
 	// segments are ~30% smaller and the codecs string in the master playlist
 	// matches what hls.js expects on modern Chromium/Firefox.
@@ -452,7 +457,6 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 	}, nil
 }
 
-
 // buildFingerprint reproduces the DecisionFingerprint from a segment-time
 // request. Must match exactly what was produced at manifest time, or the
 // cache lookup misses on every segment. Hence shared helpers.
@@ -477,6 +481,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		}
 	}
 
+	hwAccel, hwDevice, _ := h.resolveHW(decision.VideoCodec)
 	return apptranscoding.DecisionFingerprint{
 		MediaID:             mediaID,
 		SourcePath:          item.File.Path,
@@ -489,6 +494,8 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		MaxAudioChannels:    decision.MaxAudioChannels,
 		ForceSidecarSubs:    decision.SubtitleDecision == "external",
 		UseFMP4:             h.useFMP4,
+		HWAccel:             hwAccel,
+		HWDevice:            hwDevice,
 		Profiles:            fpProfiles,
 	}, nil
 }
@@ -505,13 +512,32 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 	return *d
 }
 
+// resolveHW decides the hardware encode backend for a chosen output codec.
+// Returns ("", "", false) — the software path — unless the flag is on, the
+// host calibrated a HW backend, and that backend can encode this codec. The
+// boolean is both the ladder's hwAccelUsable (taller HW ceiling) and the
+// signal that tags the fingerprint so the orchestrator runs the GPU pipeline.
+// HDR tonemap / bitmap burn-in are not gated here: the orchestrated VOD path
+// does neither today, and the ffmpeg builder independently falls back to
+// software for those, so the two stay consistent.
+func (h *hlsVODServe) resolveHW(outputCodec string) (accel, device string, usable bool) {
+	if h.hwAccelEnabled == nil || !h.hwAccelEnabled() || h.capability == nil {
+		return "", "", false
+	}
+	cap := h.capability()
+	if !cap.HWSupports(outputCodec) {
+		return "", "", false
+	}
+	return cap.HWBackend, cap.HWDevice, true
+}
+
 // profilesForDecision picks the ABR ladder for a given (decision, mediaItem,
 // streams) triple. Reads the per-title complexity class persisted by the
 // background ComplexityWorker; falls back to LadderFilmNormal when the
 // item hasn't been classified yet (safe: matches pre-refactor behaviour).
 // Caps the ladder to the source resolution so we never advertise a 4K rung
 // for a 1080p source.
-func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, _ domaintranscoding.PlaybackDecision) []domaintranscoding.HLSProfile {
+func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, decision domaintranscoding.PlaybackDecision) []domaintranscoding.HLSProfile {
 	class := domaintranscoding.ClassFilmNormal
 	if h.complexityRepo != nil && item != nil {
 		if entry, found, err := h.complexityRepo.Get(ctx, string(item.ID)); err == nil && found && entry.Class.IsValid() {
@@ -547,14 +573,15 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	// Synology NAS) — segment 0 would never land in time and the player
 	// would loop on rebuffer.
 	//
-	// HW path is gated on (a) calibration found a usable backend AND
-	// (b) the source codec can be HW-decoded — the latter we don't
-	// query yet (out of scope for Phase A), so for now we always go
-	// through SoftwareMaxHeight. Phase A+ wire enables the HW branch.
+	// HW ceiling is applied only when resolveHW confirms the request will
+	// actually take the hardware path (flag on + calibrated backend that can
+	// encode the chosen codec). Otherwise the software ceiling holds, so a
+	// weak host never advertises a rung it can't sustain.
 	maxH := 720 // safe floor if capability isn't wired yet (tests / dev w/o calibration)
 	if h.capability != nil {
 		cap := h.capability()
-		maxH = cap.MaxHeightFor(false) // hwAccelUsable=false until Phase A+ wires the codec-side hwdetect
+		_, _, hwUsable := h.resolveHW(decision.VideoCodec)
+		maxH = cap.MaxHeightFor(hwUsable)
 	}
 	// CMCD-feedback adaptive override (Phase C). The override service
 	// watches playback_qoe_events and writes a downward cap when a
@@ -653,6 +680,9 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 				return domaintranscoding.CapOverride{}, false
 			}
 			return s.CapOverrideSvc.OverrideForHeight(sourceCodec, sourceHeight)
+		},
+		hwAccelEnabled: func() bool {
+			return s.Cfg != nil && s.Cfg.EffectiveHWAccelEnabled()
 		},
 		// fMP4 is now the project default — matches the ffmpeg adapter
 		// (needsFMP4Segments returns true unconditionally) and Apple's
@@ -774,6 +804,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 			VideoBitrate: p.VideoBitrate, AudioBitrate: p.AudioBitrate,
 		}
 	}
+	hwAccel, hwDevice, _ := h.resolveHW(decision.VideoCodec)
 	fp := apptranscoding.DecisionFingerprint{
 		MediaID:             string(nextItem.ID),
 		SourcePath:          nextItem.File.Path,
@@ -787,6 +818,8 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 		HDRTonemap:          false,
 		AudioNormalize:      h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
 		UseFMP4:             h.useFMP4,
+		HWAccel:             hwAccel,
+		HWDevice:            hwDevice,
 	}
 
 	if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, 0); err != nil {
