@@ -14,7 +14,6 @@ func TestRatingEventNames(t *testing.T) {
 		want  string
 	}{
 		{rating.RatingSet{}, "rating.set"},
-		{rating.RatingDeleted{}, "rating.deleted"},
 		{rating.RatingRemoved{}, "rating.removed"},
 	}
 

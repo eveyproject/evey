@@ -109,6 +109,12 @@ func (f *fakeUserGetter) GetByID(_ context.Context, id shared.UserID) (*domainus
 	return u, nil
 }
 
+// wrongEvent satisfies shared.Event but is not NotificationCreated —
+// used to assert the handler ignores other event types.
+type wrongEvent struct{}
+
+func (wrongEvent) EventName() string { return "notification.created" }
+
 type fakeBus struct {
 	handlers map[string]func(context.Context, shared.Event)
 }
@@ -202,13 +208,11 @@ func TestNotificationEmailer_WrongEventType_NoSend(t *testing.T) {
 	emailer := NewNotificationEmailer(sender, profiles, users)
 	emailer.Register(bus)
 
-	// publish a non-NotificationCreated event
-	type fakeEvent struct{}
-	fe := fakeEvent{}
-	// call handle directly with wrong type
+	// Hand the handler a struct that doesn't satisfy NotificationCreated
+	// to confirm it bails out instead of trying to send mail on garbage
+	// input.
 	if h, ok := bus.handlers["notification.created"]; ok {
-		h(context.Background(), domainnotif.NotificationRead{ProfileID: "x"})
-		_ = fe
+		h(context.Background(), wrongEvent{})
 	}
 
 	if len(sender.sent) != 0 {

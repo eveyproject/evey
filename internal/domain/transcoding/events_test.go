@@ -14,7 +14,6 @@ func TestEventNames(t *testing.T) {
 		want  string
 	}{
 		{transcoding.TranscodeStarted{}, "transcode.started"},
-		{transcoding.TranscodeCompleted{}, "transcode.completed"},
 		{transcoding.TranscodeFailed{}, "transcode.failed"},
 		{transcoding.TranscodeCancelled{}, "transcode.cancelled"},
 	}

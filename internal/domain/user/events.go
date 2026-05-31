@@ -54,15 +54,6 @@ type LoginSucceeded struct {
 
 func (e LoginSucceeded) EventName() string { return "user.login.succeeded" }
 
-type LoginFailed struct {
-	Username   string
-	ClientIP   string
-	Reason     string
-	OccurredAt time.Time
-}
-
-func (e LoginFailed) EventName() string { return "user.login.failed" }
-
 type PasswordChanged struct {
 	UserID     shared.UserID
 	OccurredAt time.Time

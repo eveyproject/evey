@@ -15,15 +15,6 @@ type TranscodeStarted struct {
 
 func (e TranscodeStarted) EventName() string { return "transcode.started" }
 
-type TranscodeCompleted struct {
-	JobID       string
-	MediaItemID shared.MediaItemID
-	Duration    shared.Duration
-	OccurredAt  time.Time
-}
-
-func (e TranscodeCompleted) EventName() string { return "transcode.completed" }
-
 type TranscodeFailed struct {
 	JobID        string
 	MediaItemID  shared.MediaItemID

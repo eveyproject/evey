@@ -101,8 +101,6 @@ func TestBackupEventNames(t *testing.T) {
 		want  string
 	}{
 		{backup.BackupFailed{}, "backup.failed"},
-		{backup.BackupCreated{}, "backup.created"},
-		{backup.BackupRestored{}, "backup.restored"},
 	}
 
 	for _, c := range cases {

@@ -19,7 +19,6 @@ func TestEventNames(t *testing.T) {
 		{user.ProfileCreated{}, "user.profile.created"},
 		{user.ProfileDeleted{}, "user.profile.deleted"},
 		{user.LoginSucceeded{}, "user.login.succeeded"},
-		{user.LoginFailed{}, "user.login.failed"},
 		{user.PasswordChanged{}, "user.password.changed"},
 		{user.APIKeyCreated{}, "user.apikey.created"},
 		{user.APIKeyRevoked{}, "user.apikey.revoked"},

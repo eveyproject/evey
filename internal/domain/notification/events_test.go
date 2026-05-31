@@ -16,8 +16,6 @@ func TestNotificationEventNames(t *testing.T) {
 		want  string
 	}{
 		{notification.NotificationCreated{OccurredAt: now}, "notification.created"},
-		{notification.NotificationRead{OccurredAt: now}, "notification.read"},
-		{notification.NotificationDismissed{OccurredAt: now}, "notification.dismissed"},
 	}
 	for _, c := range cases {
 		t.Run(c.want, func(t *testing.T) {
