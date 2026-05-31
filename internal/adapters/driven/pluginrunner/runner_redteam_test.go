@@ -56,7 +56,9 @@ func repoRoot(t *testing.T) string {
 	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "..", ".."))
 }
 
-var escapeVerdictRe = regexp.MustCompile(`\[ESCAPE\] (\S+): (BLOCKED|BYPASSED)`)
+// Fixtures tag verdicts [ESCAPE] (confinement boundary) or [MINER] (a
+// cryptominer-flavoured fixture, e.g. cryptominer-gpu); both are parsed here.
+var escapeVerdictRe = regexp.MustCompile(`\[(?:ESCAPE|MINER)\] (\S+): (BLOCKED|BYPASSED)`)
 
 func parseEscapeVerdicts(out string) map[string]string {
 	m := map[string]string{}
@@ -256,8 +258,34 @@ func TestRedTeamSandboxEscape(t *testing.T) {
 	t.Run("escape-exec", func(t *testing.T) {
 		v := runEscapeFixture(t, nodePath, launcher, soPath, root, "escape-exec", []string{noNetNoSub})
 		assert(t, v, []probeExpect{
-			{"spawn_subprocess", "BLOCKED", gatePreload},  // LD_PRELOAD denies execve
+			{"spawn_subprocess", "BLOCKED", gatePreload},   // LD_PRELOAD denies execve
 			{"child_reads_secret", "BLOCKED", gatePreload}, // spawn denied ⇒ reported blocked
+		})
+	})
+
+	// Cryptominer on a hardware-transcode box: a plugin tries to reach the GPU
+	// (DRM render node / WSL dxg / NVIDIA nodes) to mine, or to spawn a vendor
+	// helper as a loader. The render node IS /dev/dri/renderD128 for both the
+	// AMD/Intel iGPU (VAAPI) and discrete cards, so this one fixture covers every
+	// vendor. The sandbox must deny the device open (Landlock now allowlists only
+	// the safe pseudo-devices, not the whole /dev) and the helper spawn (LD_PRELOAD
+	// execve shim). To make this assertion meaningful, map a real render node into
+	// the test container (docker-compose.override.yml dev `evey` mounts /dev/dri).
+	t.Run("cryptominer-gpu", func(t *testing.T) {
+		v := runEscapeFixture(t, nodePath, launcher, soPath, root, "cryptominer-gpu", []string{noNetNoSub})
+		assert(t, v, []probeExpect{
+			{"list_dri", "BLOCKED", gateLandlock},
+			{"open_drm_render", "BLOCKED", gateLandlock},
+			{"open_drm_card", "BLOCKED", gateLandlock},
+			{"open_dxg", "BLOCKED", gateLandlock},
+			{"open_nvidia0", "BLOCKED", gateLandlock},
+			{"open_nvidiactl", "BLOCKED", gateLandlock},
+			{"exec_nvidia_smi", "BLOCKED", gatePreload},
+			{"exec_ffmpeg_nvenc", "BLOCKED", gatePreload},
+			// read_nvenc_lib / read_cuda_lib are NOT asserted: the vendor .so
+			// files live under /usr (readable for the interpreter) and a plain
+			// read is inert without a device node — the render-node boundary
+			// asserted above is what blocks GPU use. They are logged for context.
 		})
 	})
 }

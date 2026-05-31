@@ -69,6 +69,13 @@ services:
       - /path/to/series:/media2
       - /path/to/photos:/media3
       - /path/to/music:/media4
+    # Map the host DRM render node into the dev box so the cryptominer-gpu
+    # red-team test (TestRedTeamSandboxEscape) probes a REAL GPU device and
+    # proves the Landlock sandbox denies it — not just that the device is
+    # absent. Needs the host /dev/dri to exist (WSL2: `sudo modprobe vgem`,
+    # cf hw_transcode_wsl_setup). Harmless for the software-only dev server.
+    devices:
+      - /dev/dri:/dev/dri
     healthcheck:
       start_period: 60s
       retries: 10
