@@ -43,6 +43,15 @@ type EncodeCapability struct {
 	// hardware pipeline as -hwaccel_device / -qsv_device.
 	HWDevice string `json:"hw_device,omitempty"`
 
+	// HWFeatures lists the optional encoder tuning options the calibration
+	// probe confirmed the HW encoder ACCEPTS on this host (e.g. "forced_idr",
+	// "temporal_aq", "b_ref_mode", "rc_lookahead", "spatial_aq", "bframes").
+	// The arg builder emits a tuning flag only if its name is present here, so
+	// an option an older NVENC/QSV chip rejects is never passed in production.
+	// Empty ⇒ HW encode with no tuning (the safe baseline). Demoted to empty
+	// on a runtime unsupported-option failure (the level-2 safety net).
+	HWFeatures []string `json:"hw_features,omitempty"`
+
 	// CPUSignature is a stable hash of the host CPU identity (model
 	// name + core count from /proc/cpuinfo). If the host migrates to a
 	// different machine — e.g. container restored on another node — the
@@ -105,6 +114,18 @@ func (c EncodeCapability) HWSupports(codec string) bool {
 	}
 	for _, supported := range c.HWCodecs {
 		if supported == codec {
+			return true
+		}
+	}
+	return false
+}
+
+// HWHasFeature reports whether the calibration probe confirmed the named
+// encoder tuning option is accepted on this host. The arg builder gates every
+// optional tuning flag on this so an unsupported option is never emitted.
+func (c EncodeCapability) HWHasFeature(feature string) bool {
+	for _, f := range c.HWFeatures {
+		if f == feature {
 			return true
 		}
 	}
