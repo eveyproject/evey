@@ -73,6 +73,31 @@ type ManifestInput struct {
 	// per-user resume must NOT shard the segment cache. Threaded via a
 	// query param outside the cache key.
 	ResumeOffsetSec float64
+
+	// AudioRenditions, when non-empty, switches the master from muxed
+	// audio+video variants to HLS-native audio renditions: video-only
+	// variants link to a shared `#EXT-X-MEDIA TYPE=AUDIO,GROUP-ID="aud"`
+	// group with one entry per source audio track. The player can then
+	// flip audio language without re-fetching the video stream. The
+	// first entry is marked DEFAULT=YES.
+	//
+	// Empty (the default) preserves the pre-feature muxed-pipeline
+	// behaviour bit-for-bit — every existing client and test keeps
+	// working without change.
+	AudioRenditions []AudioRendition
+}
+
+// AudioRendition describes a single source audio track exposed as an
+// HLS-native rendition. SourceTrackIdx is the 0-indexed audio stream
+// in the source media (used to route segment URLs back to the right
+// ffmpeg -map). Name is the user-facing label hls.js / Safari shows in
+// the picker (e.g. "Français", "English Director's Commentary").
+// LanguageCode is the RFC 5646 tag (e.g. "fr", "en-US"); empty when
+// the source doesn't declare one.
+type AudioRendition struct {
+	SourceTrackIdx int
+	Name           string
+	LanguageCode   string
 }
 
 // Validate returns an error if the input can't produce a valid manifest.
@@ -141,6 +166,39 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	b.WriteString("#EXT-X-INDEPENDENT-SEGMENTS\n")
 
 	codecs := codecsAttr(in.ChosenVideoCodec, in.ChosenAudioCodec)
+	suffix := querySuffix(in)
+
+	// Audio rendition path: emit one #EXT-X-MEDIA per source audio
+	// track and tie every variant to the shared "aud" group. The
+	// variants now carry video-only segments (the audio playlist holds
+	// the audio segments). Pre-feature behaviour stays bit-for-bit
+	// identical when in.AudioRenditions is empty — every existing
+	// caller, test and client falls through to the muxed path below.
+	audioGroup := ""
+	if len(in.AudioRenditions) > 0 {
+		audioGroup = "aud"
+		for i, r := range in.AudioRenditions {
+			def := "NO"
+			autoSel := "NO"
+			if i == 0 {
+				def = "YES"
+				autoSel = "YES"
+			}
+			name := r.Name
+			if name == "" {
+				name = fmt.Sprintf("Track %d", r.SourceTrackIdx+1)
+			}
+			lang := ""
+			if r.LanguageCode != "" {
+				lang = fmt.Sprintf(`,LANGUAGE=%q`, r.LanguageCode)
+			}
+			fmt.Fprintf(&b,
+				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=%q,NAME=%q,DEFAULT=%s,AUTOSELECT=%s%s,URI=\"audio_%d.m3u8%s\"\n",
+				audioGroup, name, def, autoSel, lang, r.SourceTrackIdx, suffix,
+			)
+		}
+	}
+
 	for i, p := range in.Profiles {
 		// BANDWIDTH is the playlist's peak bitrate in bps. We use video + audio
 		// (both in kbps from the profile, so multiply by 1000). hls.js uses it
@@ -153,8 +211,15 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		avg := bps * 85 / 100
 		res := fmt.Sprintf("%dx%d", p.Width, p.Height)
 
-		fmt.Fprintf(&b, "#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%s,CODECS=%q\n", bps, avg, res, codecs)
-		fmt.Fprintf(&b, "stream_%d.m3u8%s\n", i, querySuffix(in))
+		audioAttr := ""
+		if audioGroup != "" {
+			audioAttr = fmt.Sprintf(",AUDIO=%q", audioGroup)
+		}
+		fmt.Fprintf(&b,
+			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%s,CODECS=%q%s\n",
+			bps, avg, res, codecs, audioAttr,
+		)
+		fmt.Fprintf(&b, "stream_%d.m3u8%s\n", i, suffix)
 	}
 
 	return b.String(), nil
@@ -228,6 +293,74 @@ func (g *ManifestGenerator) Variant(in ManifestInput, profileIdx int) (string, e
 		}
 		fmt.Fprintf(&b, "#EXTINF:%.3f,\n", segDur)
 		fmt.Fprintf(&b, "stream_%d_%03d.%s%s\n", profileIdx, i, ext, suffix)
+	}
+
+	b.WriteString("#EXT-X-ENDLIST\n")
+	return b.String(), nil
+}
+
+// AudioPlaylist renders the audio-only sub-playlist for one source
+// audio track. trackIdx is the 0-indexed audio stream in the source
+// media (matches AudioRendition.SourceTrackIdx). The playlist mirrors
+// the Variant() shape — same segment cadence, same VOD framing,
+// EXT-X-MAP init — so the player keeps the audio and video timelines
+// aligned through `#EXT-X-INDEPENDENT-SEGMENTS` declared on the master.
+//
+// Only valid when in.AudioRenditions is non-empty AND trackIdx matches
+// one of the registered renditions; otherwise returns an error. Always
+// emits fMP4 segments — the audio rendition path doesn't support TS.
+func (g *ManifestGenerator) AudioPlaylist(in ManifestInput, trackIdx int) (string, error) {
+	if err := in.Validate(); err != nil {
+		return "", err
+	}
+	if len(in.AudioRenditions) == 0 {
+		return "", fmt.Errorf("AudioPlaylist: no audio renditions registered")
+	}
+	known := false
+	for _, r := range in.AudioRenditions {
+		if r.SourceTrackIdx == trackIdx {
+			known = true
+			break
+		}
+	}
+	if !known {
+		return "", fmt.Errorf("AudioPlaylist: trackIdx %d not in AudioRenditions", trackIdx)
+	}
+
+	segCount := in.SegmentCount()
+	if segCount == 0 {
+		return "", fmt.Errorf("AudioPlaylist: empty segment list (duration=%v)", in.DurationSec)
+	}
+
+	suffix := querySuffix(in)
+
+	var b strings.Builder
+	b.WriteString("#EXTM3U\n")
+	b.WriteString("#EXT-X-VERSION:6\n")
+	b.WriteString("#EXT-X-PLAYLIST-TYPE:VOD\n")
+	fmt.Fprintf(&b, "#EXT-X-TARGETDURATION:%d\n", int(math.Ceil(ManifestSegmentSeconds)))
+	b.WriteString("#EXT-X-MEDIA-SEQUENCE:0\n")
+
+	if in.ResumeOffsetSec > 0 {
+		offset := in.ResumeOffsetSec
+		if offset > in.DurationSec {
+			offset = in.DurationSec
+		}
+		fmt.Fprintf(&b, "#EXT-X-START:TIME-OFFSET=%.3f,PRECISE=YES\n", offset)
+	}
+
+	fmt.Fprintf(&b, "#EXT-X-MAP:URI=\"audio_%d_init.mp4%s\"\n", trackIdx, suffix)
+
+	for i := 0; i < segCount; i++ {
+		segDur := ManifestSegmentSeconds
+		if i == segCount-1 {
+			leftover := in.DurationSec - float64(i)*ManifestSegmentSeconds
+			if leftover > 0 && leftover < ManifestSegmentSeconds {
+				segDur = math.Round(leftover*1000) / 1000
+			}
+		}
+		fmt.Fprintf(&b, "#EXTINF:%.3f,\n", segDur)
+		fmt.Fprintf(&b, "audio_%d_%03d.m4s%s\n", trackIdx, i, suffix)
 	}
 
 	b.WriteString("#EXT-X-ENDLIST\n")

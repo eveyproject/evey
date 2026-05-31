@@ -277,6 +277,12 @@ type TranscodingConfig struct {
 	CacheDir          string
 	HWAccelEnabled    bool
 	TrickplayCacheDir string
+	// AudioRenditionEnabled exposes source audio tracks as HLS-native
+	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch
+	// language without re-fetching the video stream. Off by default
+	// during the rollout — flip to true to opt in. When off, the
+	// pipeline stays muxed audio+video as before (backward compatible).
+	AudioRenditionEnabled bool
 }
 
 type OIDCConfig struct {
@@ -462,11 +468,12 @@ func Load() (*Config, error) {
 			RefreshTokenLongTTL: envDuration("EVEY_JWT_REFRESH_LONG_TTL", 180*24*time.Hour),
 		},
 		Transcoding: TranscodingConfig{
-			MaxConcurrent:     envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
-			CacheMaxGB:        envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
-			CacheDir:          envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
-			HWAccelEnabled:    envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
-			TrickplayCacheDir: envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
+			MaxConcurrent:         envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
+			CacheMaxGB:            envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
+			CacheDir:              envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
+			HWAccelEnabled:        envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
+			TrickplayCacheDir:     envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
+			AudioRenditionEnabled: envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", false),
 		},
 		OIDC: OIDCConfig{
 			Enabled:             envBool("EVEY_OIDC_ENABLED", false),

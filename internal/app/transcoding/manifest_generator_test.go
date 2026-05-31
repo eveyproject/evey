@@ -486,3 +486,114 @@ func extractEXTINF(s string) []string {
 	}
 	return out
 }
+
+// --- Audio rendition path ---
+
+func TestManifestGenerator_Master_NoAudioRenditions_BackwardCompatible(t *testing.T) {
+	// Bit-for-bit verification that the pre-feature behaviour stays
+	// when AudioRenditions is empty: no EXT-X-MEDIA, no AUDIO= attr
+	// on STREAM-INF. Any regression here breaks every existing client.
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	out, err := g.Master(in)
+	require.NoError(t, err)
+	assert.NotContains(t, out, "#EXT-X-MEDIA")
+	assert.NotContains(t, out, "AUDIO=")
+}
+
+func TestManifestGenerator_Master_WithAudioRenditions_EmitsEXTXMEDIA(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.AudioRenditions = []AudioRendition{
+		{SourceTrackIdx: 0, Name: "English", LanguageCode: "en"},
+		{SourceTrackIdx: 1, Name: "Français", LanguageCode: "fr"},
+	}
+	out, err := g.Master(in)
+	require.NoError(t, err)
+	lines := nonEmptyLines(out)
+
+	// Track 0 = DEFAULT, AUTOSELECT YES; track 1 = both NO.
+	assert.True(t, containsLine(lines, `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="English",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE="en",URI="audio_0.m3u8`))
+	assert.True(t, containsLine(lines, `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="Français",DEFAULT=NO,AUTOSELECT=NO,LANGUAGE="fr",URI="audio_1.m3u8`))
+
+	// Every STREAM-INF must now carry AUDIO="aud".
+	for _, l := range lines {
+		if strings.HasPrefix(l, "#EXT-X-STREAM-INF:") {
+			assert.Contains(t, l, `AUDIO="aud"`, "STREAM-INF must link to the audio group: %s", l)
+		}
+	}
+}
+
+func TestManifestGenerator_Master_AudioRendition_LanguageOptional(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.AudioRenditions = []AudioRendition{
+		{SourceTrackIdx: 0, Name: "Commentary"}, // no LanguageCode
+	}
+	out, err := g.Master(in)
+	require.NoError(t, err)
+	// When no language, the LANGUAGE attr is omitted entirely (not
+	// LANGUAGE="" which some players reject).
+	assert.NotContains(t, out, `LANGUAGE=""`)
+	assert.Contains(t, out, `NAME="Commentary",DEFAULT=YES,AUTOSELECT=YES,URI="audio_0.m3u8`)
+}
+
+func TestManifestGenerator_Master_AudioRendition_NameFallback(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.AudioRenditions = []AudioRendition{
+		{SourceTrackIdx: 2, Name: ""}, // missing Name — fall back to "Track 3"
+	}
+	out, err := g.Master(in)
+	require.NoError(t, err)
+	assert.Contains(t, out, `NAME="Track 3"`)
+}
+
+func TestManifestGenerator_AudioPlaylist_OK(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.AudioRenditions = []AudioRendition{
+		{SourceTrackIdx: 0, Name: "English", LanguageCode: "en"},
+	}
+	out, err := g.AudioPlaylist(in, 0)
+	require.NoError(t, err)
+	lines := nonEmptyLines(out)
+	assert.Equal(t, "#EXTM3U", lines[0])
+	assert.Contains(t, out, "#EXT-X-VERSION:6")
+	assert.Contains(t, out, "#EXT-X-PLAYLIST-TYPE:VOD")
+	assert.Contains(t, out, `#EXT-X-MAP:URI="audio_0_init.mp4`)
+	assert.Contains(t, out, "audio_0_000.m4s")
+	assert.Contains(t, out, "audio_0_003.m4s") // 10s / 3s = ceil(3.33) = 4 segments → 000..003
+	assert.Contains(t, out, "#EXT-X-ENDLIST")
+}
+
+func TestManifestGenerator_AudioPlaylist_UnknownTrack(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.AudioRenditions = []AudioRendition{
+		{SourceTrackIdx: 0, Name: "English"},
+	}
+	_, err := g.AudioPlaylist(in, 5) // not in renditions
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "trackIdx 5 not in AudioRenditions")
+}
+
+func TestManifestGenerator_AudioPlaylist_NoRenditions(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	_, err := g.AudioPlaylist(in, 0)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no audio renditions")
+}
+
+func TestManifestGenerator_AudioPlaylist_HonoursResumeOffset(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 100.0)
+	in.AudioRenditions = []AudioRendition{
+		{SourceTrackIdx: 0, Name: "English"},
+	}
+	in.ResumeOffsetSec = 42.5
+	out, err := g.AudioPlaylist(in, 0)
+	require.NoError(t, err)
+	assert.Contains(t, out, "#EXT-X-START:TIME-OFFSET=42.500,PRECISE=YES")
+}
