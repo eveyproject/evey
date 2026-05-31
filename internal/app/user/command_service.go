@@ -207,6 +207,13 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	return u, nil
 }
 
+// dummyLoginHash is a valid cost-12 bcrypt hash of a throwaway string. It is
+// verified against the submitted password when the username does NOT exist, so
+// a failed login costs the same ~100ms whether or not the account is real —
+// closing the timing oracle that would otherwise enumerate usernames. It is
+// never a usable credential (no account stores it).
+const dummyLoginHash = "$2a$12$CCENmDmu1fye2Bn2DUS7G.4pIkth0OyzzFCkIQvblCV9aye/etkwO"
+
 func (s *CommandService) Login(ctx context.Context, username, password string, ttlOverride ...time.Duration) (accessToken, refreshToken string, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.Login")
 	defer span.End()
@@ -222,6 +229,11 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 
 	u, err := s.users.GetByUsername(ctx, username)
 	if err != nil {
+		// Constant-time defense against username enumeration: a missing user must
+		// cost the same as a wrong password. Without this, the bcrypt verify below
+		// runs ONLY for existing users, so the ~100ms (cost-12) delta leaks which
+		// usernames exist. Burn an equivalent bcrypt verify against a fixed hash.
+		_, _ = s.hasher.Verify(password, dummyLoginHash)
 		if recErr := s.loginAttempts.Record(ctx, username, s.loginMaxFails, s.loginWindow); recErr != nil {
 			slog.Warn("login attempt Record", slog.String("username", username), slog.Any("err", recErr))
 		}

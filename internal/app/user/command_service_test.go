@@ -327,6 +327,24 @@ func TestLogin_WrongPassword(t *testing.T) {
 	}
 }
 
+func TestLogin_UnknownUser_RunsConstantTimeDummyVerify(t *testing.T) {
+	d := newAuthTestDeps()
+	// No user seeded → GetByUsername misses. The fix runs a dummy bcrypt verify so
+	// a missing user costs the same ~100ms as a wrong password on an existing one,
+	// closing the username-enumeration timing oracle. Pre-fix the miss path ran
+	// zero verifies and returned in ~0ms.
+	_, _, err := d.svc.Login(context.Background(), "ghost", "whatever")
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
+	}
+	if d.hasher.VerifyCalls != 1 {
+		t.Fatalf("expected exactly 1 verify on unknown user (constant-time), got %d", d.hasher.VerifyCalls)
+	}
+	if len(d.hasher.VerifiedHashes) != 1 || d.hasher.VerifiedHashes[0] != dummyLoginHash {
+		t.Fatalf("expected the dummy timing hash to be verified, got %v", d.hasher.VerifiedHashes)
+	}
+}
+
 func TestLogin_UserDisabled(t *testing.T) {
 	d := newAuthTestDeps()
 	seedAuthUser(t, d, "u1", "alice", "pw", false, false)
