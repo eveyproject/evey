@@ -266,9 +266,13 @@ func extractTarGz(r io.Reader) (*backupArchive, error) {
 		}
 		switch hdr.Name {
 		case "manifest.json":
-			content, readErr := io.ReadAll(tr)
+			const maxManifest = 16 << 20 // 16 MiB — a real manifest is a few KB
+			content, readErr := io.ReadAll(io.LimitReader(tr, maxManifest+1))
 			if readErr != nil {
 				return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, ErrInvalidBackup)
+			}
+			if len(content) > maxManifest {
+				return nil, fmt.Errorf("manifest.json too large (> 16 MiB), refusing: %w", ErrInvalidBackup)
 			}
 			a.manifestJSON = content
 		case "dump.sql":

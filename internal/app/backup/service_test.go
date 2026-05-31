@@ -543,6 +543,30 @@ func TestStartScheduler_NegativeInterval(t *testing.T) {
 	}
 }
 
+// TestRestoreBackup_ManifestTooLarge asserts that a manifest.json entry larger
+// than 16 MiB is rejected as ErrInvalidBackup (gzip-bomb guard).
+func TestRestoreBackup_ManifestTooLarge(t *testing.T) {
+	svc, _, _ := setup()
+
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	// 17 MiB of junk — well beyond the 16 MiB cap.
+	oversized := bytes.Repeat([]byte("a"), 17<<20)
+	writeTar(t, tw, "manifest.json", oversized)
+	writeTar(t, tw, "dump.sql", []byte("-- dump\n"))
+	tw.Close()
+	gw.Close()
+
+	err := svc.RestoreBackup(context.Background(), &buf)
+	if err == nil {
+		t.Fatal("expected error for oversized manifest.json")
+	}
+	if !errors.Is(err, ErrInvalidBackup) {
+		t.Fatalf("oversized manifest must satisfy errors.Is(err, ErrInvalidBackup), got: %v", err)
+	}
+}
+
 func TestWithEventBus_PublishesBackupFailedOnScheduledError(t *testing.T) {
 	store := fakes.NewFakeBackupStore()
 	dumper := fakes.NewFakeDatabaseDumper()
