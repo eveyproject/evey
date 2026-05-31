@@ -623,6 +623,66 @@ serverSettings:
   usingDefault: "Standardwert:"
   reset: Auf Standard zurücksetzen
 
+qoe:
+  title: "Streaming-Qualität"
+  subtitle: "Was Zuschauer tatsächlich erleben — Pufferung, Aussetzer, Datendurchsatz. Nur lesbar."
+  window24h: "Letzte 24 Std."
+  window7d: "Letzte 7 Tage"
+  loading: "Telemetriedaten werden geladen…"
+  loadError: "QoE-Daten konnten nicht geladen werden"
+  justNow: "gerade eben"
+  kpi:
+    events: "Telemetrie-Ereignisse"
+    starvedRatio: "Anteil der Unterbrechungen"
+    sessions: "Eindeutige Sitzungen"
+    uniqueMedia: "Eindeutige Titel"
+  topStarved:
+    title: "Am häufigsten unterbrochene Titel"
+    subtitle: "Höchster Anteil an Pufferungs-Aussetzern. Mindestens 50 Ereignisse für die Rangliste erforderlich."
+    empty: "Keine Unterbrechungen in diesem Zeitraum. Gesundes Netzwerk oder ruhiger Abend."
+  byDevice:
+    title: "Nach Geräteklasse"
+    subtitle: "Grobe Einordnung der Abspielseite anhand des User-Agent. Kein Fingerprinting."
+    empty: "Noch keine Telemetriedaten in diesem Zeitraum."
+  col:
+    mediaId: "Medien-ID"
+    starvedRatio: "Anteil Unterbrechungen"
+    starvedEvents: "Unterbrochen"
+    totalEvents: "Gesamt"
+    lastStarved: "Zuletzt unterbrochen"
+    deviceClass: "Geräteklasse"
+    avgBufferMs: "Ø Puffer (ms)"
+    avgEncodedKbps: "Ø Kodierung (kbps)"
+  overrides:
+    title: "Automatische Qualitätsgrenzen"
+    subtitle: "Automatische Anpassungen auf Basis des tatsächlichen Wiedergabeverlaufs (Pufferung, Datendurchsatz), zusätzlich zur kalibrierten Obergrenze. Jede Zeile senkt vorübergehend die maximale Qualität für eine bestimmte Art von Quelle, bis sie abläuft."
+    help: "Player melden laufend, wie die Wiedergabe verläuft — Pufferfüllstand, Aussetzer und Bandbreite (ein Branchenstandard namens CMCD). Wenn eine bestimmte Art von Quelle bei den Zuschauern immer wieder zu Aussetzern führt, senkt Evey deren Qualitätsgrenze für eine Weile, um die Aussetzer zu stoppen, und hebt sie danach automatisch wieder an."
+    empty: "Keine aktiven automatischen Grenzen — für jede Art von Quelle gilt die volle kalibrierte Qualitäts-Obergrenze."
+    reset: "Zurücksetzen"
+    resetHint: "Diese adaptive Grenze sofort aufheben. Der Worker bewertet sie beim nächsten Durchlauf neu."
+    col:
+      sourceClass: "Quellen-Kategorie"
+      maxHeight: "Grenze"
+      starvedRatio: "Unterbrochen"
+      samples: "Messwerte"
+      appliedAt: "Angewendet"
+      expiresAt: "Läuft ab"
+      reason: "Grund"
+  health:
+    label: "Streaming-Zustand"
+    excellent: "Ausgezeichnet"
+    good: "OK"
+    fair: "Akzeptabel"
+    marginal: "Grenzwertig"
+    poor: "Schlecht"
+    insufficient: "Nicht genügend Daten"
+    recoExcellent: "Die Wiedergabe startet und läuft ohne jede Unterbrechung."
+    recoGood: "Gesund — der gelegentliche Aussetzer liegt im normalen Bereich."
+    recoFair: "Einige Wiedergabe-Aussetzer. Im Auge behalten, falls der Datenverkehr zunimmt."
+    recoMarginal: "Häufige Aussetzer. Hardware-Transkodierung aktivieren oder die Qualitäts-Obergrenze senken."
+    recoPoor: "Viele Aussetzer. Hardware-Transkodierung aktivieren, die Qualitäts-Obergrenze senken oder die Server-/Netzwerkbandbreite prüfen."
+    recoInsufficient: "Messwerte werden gesammelt — schauen Sie wieder vorbei, sobald einige Sitzungen abgespielt wurden."
+
 segments:
   title: Mediensegmente
   intro: Intro

@@ -647,7 +647,7 @@ serverSettings:
 
 qoe:
   title: "Qualité streaming"
-  subtitle: "Ce que les players ressentent vraiment : buffer, rebuffers, débit. Lecture seule."
+  subtitle: "Ce que les spectateurs vivent vraiment : mise en mémoire tampon, coupures, débit. Lecture seule."
   window24h: "Dernières 24h"
   window7d: "7 derniers jours"
   loading: "Chargement de la télémétrie…"
@@ -660,7 +660,7 @@ qoe:
     uniqueMedia: "Titres uniques"
   topStarved:
     title: "Titres les plus famines"
-    subtitle: "Part la plus élevée de rebuffer. Minimum 50 évènements pour figurer."
+    subtitle: "Part la plus élevée de coupures. Minimum 50 évènements pour figurer."
     empty: "Aucune famine sur cette période. Réseau sain ou soirée calme."
   byDevice:
     title: "Par type d'appareil"
@@ -676,9 +676,10 @@ qoe:
     avgBufferMs: "Buffer moy. (ms)"
     avgEncodedKbps: "Débit moy. (kbps)"
   overrides:
-    title: "Plafonds d'encodage adaptatifs"
-    subtitle: "Ajustements par retour CMCD au-dessus du plafond calibré. Chaque ligne abaisse le plafond pour une catégorie de source jusqu'à son expiration."
-    empty: "Aucun override adaptatif actif — le plafond calibré s'applique à toutes les classes de source."
+    title: "Limites de qualité automatiques"
+    subtitle: "Ajustements automatiques selon le déroulement réel de la lecture (mises en mémoire tampon, débit), au-dessus du plafond calibré. Chaque ligne abaisse temporairement la qualité maximale d'un type de source jusqu'à son expiration."
+    help: "Les lecteurs rapportent en continu comment se passe la lecture : niveau de tampon, coupures, bande passante (un standard appelé CMCD). Quand un type de source provoque des coupures à répétition, Evey abaisse sa limite de qualité pendant un temps pour les stopper, puis la relève automatiquement."
+    empty: "Aucune limite automatique active — le plafond de qualité calibré s'applique à tous les types de source."
     reset: "Réinitialiser"
     resetHint: "Supprimer ce plafond adaptatif immédiatement. Le worker réévaluera au prochain cycle."
     col:
@@ -697,12 +698,12 @@ qoe:
     marginal: "Limite"
     poor: "Mauvais"
     insufficient: "Données insuffisantes"
-    recoExcellent: "Les players bufferisent sans accroc partout."
-    recoGood: "Sain — le rebuffer occasionnel reste dans la normale."
-    recoFair: "Quelques rebuffers. À surveiller si le trafic augmente."
-    recoMarginal: "Rebuffers fréquents. Activez le transcodage matériel ou baissez le plafond d'encodage."
-    recoPoor: "Taux de rebuffer élevé. Activez le transcodage matériel, baissez le plafond d'encodage, ou vérifiez la bande passante serveur/réseau."
-    recoInsufficient: "Collecte de télémétrie en cours — revenez après quelques sessions de lecture."
+    recoExcellent: "La lecture démarre et se déroule sans aucune coupure."
+    recoGood: "Sain — les rares coupures restent dans la normale."
+    recoFair: "Quelques coupures. À surveiller si le trafic augmente."
+    recoMarginal: "Coupures fréquentes. Activez le transcodage matériel ou baissez le plafond de qualité."
+    recoPoor: "Beaucoup de coupures. Activez le transcodage matériel, baissez le plafond de qualité, ou vérifiez la bande passante serveur/réseau."
+    recoInsufficient: "Collecte de mesures en cours — revenez après quelques sessions de lecture."
 
 segments:
   title: "Segments du média"

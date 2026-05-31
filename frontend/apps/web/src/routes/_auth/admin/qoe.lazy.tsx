@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 export const Route = createLazyFileRoute("/_auth/admin/qoe")({
   component: QoEPage,
@@ -433,13 +434,19 @@ function EncodeOverridesCard() {
   return (
     <Card>
       <div className="border-b border-border p-4">
-        <h2 className="text-lg font-semibold">
-          {t("admin.qoe.overrides.title", "Adaptive encode caps")}
+        <h2 className="flex items-center gap-1.5 text-lg font-semibold">
+          {t("admin.qoe.overrides.title", "Automatic quality limits")}
+          <InfoTooltip label={t("admin.qoe.overrides.title", "Automatic quality limits")}>
+            {t(
+              "admin.qoe.overrides.help",
+              "Players continuously report how playback is going — buffer level, stalls and bandwidth (an industry standard called CMCD). When one kind of source keeps stalling viewers, Evey lowers its quality limit for a while to stop the stalls, then lifts it again automatically.",
+            )}
+          </InfoTooltip>
         </h2>
         <p className="text-sm text-muted-foreground">
           {t(
             "admin.qoe.overrides.subtitle",
-            "CMCD-feedback adjustments on top of the calibrated ceiling. Each row lowers the cap for one source bucket until it expires.",
+            "Automatic adjustments based on how playback actually goes (buffering, throughput), on top of the calibrated ceiling. Each row temporarily lowers the maximum quality for one kind of source until it expires.",
           )}
         </p>
       </div>
@@ -447,7 +454,7 @@ function EncodeOverridesCard() {
         <p className="p-4 text-sm text-muted-foreground">
           {t(
             "admin.qoe.overrides.empty",
-            "No active adaptive overrides — the calibrated ceiling is in effect on every source class.",
+            "No active automatic limits — the full calibrated quality ceiling applies to every kind of source.",
           )}
         </p>
       ) : (
