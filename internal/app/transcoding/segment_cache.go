@@ -14,23 +14,46 @@ import (
 	"time"
 )
 
+// SegmentKind tags a SegmentKey as belonging to the muxed/video pipeline
+// (the default empty string = "v") or the audio-only rendition pipeline
+// (KindAudio). Audio segments live in their own DecisionHash directory
+// (computed from AudioFingerprint) and use a distinct filename pattern
+// so they never collide with video segments even when the cache dir
+// happens to be shared.
+type SegmentKind string
+
+const (
+	KindVideo SegmentKind = ""
+	KindAudio SegmentKind = "audio"
+)
+
 // SegmentKey uniquely identifies a single HLS segment on disk. Two playback
 // sessions with the same key MUST share the same segment file (whole point of
 // the cache). The key is content-addressed by the DecisionHash — anything that
 // would make ffmpeg produce different bytes (codec, audio track, sub burn-in,
 // HDR tonemap, …) is hashed in, so cache collisions are impossible.
 type SegmentKey struct {
-	DecisionHash string // see DecisionFingerprint
-	VariantIdx   int    // index into ManifestInput.Profiles (0 = lowest quality)
+	DecisionHash string // see DecisionFingerprint / AudioFingerprint
+	VariantIdx   int    // video: index into ManifestInput.Profiles; audio: source audio track index
 	SegmentIdx   int    // 0-based segment index in the variant playlist
 	// IsInit marks the fMP4 initialization segment (`stream_N_init.mp4`).
 	// Init segments have no segment index — they carry the moov box only.
 	IsInit bool
+	// Kind picks the URL/filename pattern. Empty (default) = video,
+	// matches the pre-feature behaviour exactly. KindAudio uses the
+	// audio_T_NNN.m4s pattern and ignores useFMP4 (audio is fMP4-only).
+	Kind SegmentKind
 }
 
 // fileName returns the on-disk name for the segment (without directory). Mirrors
 // the URLs the manifest generator emits, so the orchestrator + http handler agree.
 func (k SegmentKey) fileName(useFMP4 bool) string {
+	if k.Kind == KindAudio {
+		if k.IsInit {
+			return fmt.Sprintf("audio_%d_init.mp4", k.VariantIdx)
+		}
+		return fmt.Sprintf("audio_%d_%03d.m4s", k.VariantIdx, k.SegmentIdx)
+	}
 	if k.IsInit {
 		return fmt.Sprintf("stream_%d_init.mp4", k.VariantIdx)
 	}
@@ -75,6 +98,45 @@ type ProfileFingerprint struct {
 	Height       int
 	VideoBitrate int64
 	AudioBitrate int64
+}
+
+// AudioFingerprint is the content-address of an audio-only HLS rendition
+// session. Lives in its own namespace (separate Hash space from
+// DecisionFingerprint) so the audio pipeline can be swapped/rebuilt
+// independently of the video one. Every parameter that influences the
+// audio bytes ffmpeg emits belongs here.
+//
+// SourceTrackIdx is the 0-indexed audio stream in the source media — the
+// rendition the player picked. AudioCodec is the encoder (aac / ac3 /
+// eac3 / opus). AudioNormalize and MaxAudioChannels mirror the muxed
+// pipeline's existing knobs so audio settings stay consistent across
+// the two pipelines.
+type AudioFingerprint struct {
+	MediaID          string
+	SourcePath       string
+	SourceTrackIdx   int
+	AudioCodec       string
+	AudioBitrate     int64 // kbps; 0 = encoder default
+	AudioNormalize   bool
+	MaxAudioChannels int
+}
+
+// Hash returns the canonical 64-bit hex fingerprint for an audio rendition.
+// Namespaced with the literal "audio:" prefix in the digest input so the
+// hash space can NEVER collide with DecisionFingerprint, even by accident
+// (sha256 collisions aside).
+func (a AudioFingerprint) Hash() string {
+	var b strings.Builder
+	b.WriteString("audio:\n")
+	fmt.Fprintf(&b, "media=%s\n", a.MediaID)
+	fmt.Fprintf(&b, "src=%s\n", a.SourcePath)
+	fmt.Fprintf(&b, "atrack=%d\n", a.SourceTrackIdx)
+	fmt.Fprintf(&b, "acodec=%s\n", a.AudioCodec)
+	fmt.Fprintf(&b, "abitrate=%d\n", a.AudioBitrate)
+	fmt.Fprintf(&b, "anorm=%t\n", a.AudioNormalize)
+	fmt.Fprintf(&b, "ach=%d\n", a.MaxAudioChannels)
+	sum := sha256.Sum256([]byte(b.String()))
+	return hex.EncodeToString(sum[:])[:16]
 }
 
 // Hash returns the canonical, stable SHA-256 fingerprint as a hex string. The

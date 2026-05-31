@@ -59,6 +59,36 @@ func TestDecisionFingerprint_Hash_DistinguishesContainer(t *testing.T) {
 }
 
 // ============================================================================
+// AudioFingerprint.Hash
+// ============================================================================
+
+func TestAudioFingerprint_Hash_IsStable(t *testing.T) {
+	a := AudioFingerprint{MediaID: "m1", SourcePath: "/m.mkv", SourceTrackIdx: 0, AudioCodec: "aac"}
+	assert.Equal(t, a.Hash(), a.Hash())
+}
+
+func TestAudioFingerprint_Hash_DistinguishesTrack(t *testing.T) {
+	a1 := AudioFingerprint{MediaID: "m1", SourcePath: "/m.mkv", SourceTrackIdx: 0, AudioCodec: "aac"}
+	a2 := AudioFingerprint{MediaID: "m1", SourcePath: "/m.mkv", SourceTrackIdx: 1, AudioCodec: "aac"}
+	assert.NotEqual(t, a1.Hash(), a2.Hash(), "different source tracks must NOT share a cache dir")
+}
+
+func TestAudioFingerprint_Hash_DistinguishesCodec(t *testing.T) {
+	a1 := AudioFingerprint{MediaID: "m1", SourcePath: "/m.mkv", AudioCodec: "aac"}
+	a2 := AudioFingerprint{MediaID: "m1", SourcePath: "/m.mkv", AudioCodec: "ac3"}
+	assert.NotEqual(t, a1.Hash(), a2.Hash())
+}
+
+func TestAudioFingerprint_Hash_NamespaceDisjointFromVideo(t *testing.T) {
+	// The two fingerprint types live in disjoint hash spaces — even when
+	// every shared field happens to match. Verifies the "audio:" namespace
+	// prefix actually does its job.
+	dec := DecisionFingerprint{MediaID: "m1", SourcePath: "/m.mkv", AudioCodec: "aac"}
+	aud := AudioFingerprint{MediaID: "m1", SourcePath: "/m.mkv", AudioCodec: "aac"}
+	assert.NotEqual(t, dec.Hash(), aud.Hash(), "audio and video hash spaces must never collide")
+}
+
+// ============================================================================
 // SegmentKey.fileName
 // ============================================================================
 
@@ -75,6 +105,11 @@ func TestSegmentKey_FileName(t *testing.T) {
 		{"fmp4 init variant 0", SegmentKey{VariantIdx: 0, IsInit: true}, true, "stream_0_init.mp4"},
 		{"fmp4 init variant 3", SegmentKey{VariantIdx: 3, IsInit: true}, true, "stream_3_init.mp4"},
 		{"ts init still .mp4 — init is always fMP4", SegmentKey{VariantIdx: 0, IsInit: true}, false, "stream_0_init.mp4"},
+		// Audio rendition path: separate namespace, always fMP4.
+		{"audio track 0 seg 0", SegmentKey{Kind: KindAudio, VariantIdx: 0, SegmentIdx: 0}, true, "audio_0_000.m4s"},
+		{"audio track 2 seg 42", SegmentKey{Kind: KindAudio, VariantIdx: 2, SegmentIdx: 42}, true, "audio_2_042.m4s"},
+		{"audio init track 1", SegmentKey{Kind: KindAudio, VariantIdx: 1, IsInit: true}, true, "audio_1_init.mp4"},
+		{"audio ignores useFMP4=false (always m4s)", SegmentKey{Kind: KindAudio, VariantIdx: 0, SegmentIdx: 3}, false, "audio_0_003.m4s"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
