@@ -84,6 +84,8 @@ export interface PlayerProviderProps {
   episodes?: EpisodeNavItem[];
   currentEpisodeId?: string;
   subtitleStyle?: SubtitleStyle;
+  /** Navigate to an episode (for Media Session prev/next). Optional. */
+  onPlayEpisode?: (episodeId: string) => void;
   children: React.ReactNode;
 }
 
@@ -113,6 +115,7 @@ export function PlayerProvider({
   episodes = [],
   currentEpisodeId = "",
   subtitleStyle,
+  onPlayEpisode,
   children,
 }: PlayerProviderProps) {
   const [playing, setPlaying] = useState(false);
@@ -198,6 +201,9 @@ export function PlayerProvider({
     transcodeOffset,
     skipForwardSeconds,
     skipBackwardSeconds,
+    episodes,
+    currentEpisodeId,
+    onPlayEpisode,
   });
 
   const value = useMemo<PlayerState>(() => ({

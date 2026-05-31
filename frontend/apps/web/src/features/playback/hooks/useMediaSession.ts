@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
 export interface MediaSessionParams {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -17,6 +17,12 @@ export interface MediaSessionParams {
   transcodeOffset: number;
   skipForwardSeconds: number;
   skipBackwardSeconds: number;
+  /** Episode list (ordered) + current id, for previoustrack / nexttrack on the
+   *  lock screen. Only wired for series; absent ⇒ those controls stay hidden. */
+  episodes?: ReadonlyArray<{ id: string }>;
+  currentEpisodeId?: string;
+  /** Navigate to an episode — reuses the player's existing episode switch. */
+  onPlayEpisode?: (episodeId: string) => void;
 }
 
 const hasMediaSession = () =>
@@ -41,7 +47,23 @@ export function useMediaSession({
   transcodeOffset,
   skipForwardSeconds,
   skipBackwardSeconds,
+  episodes,
+  currentEpisodeId,
+  onPlayEpisode,
 }: MediaSessionParams) {
+  // Resolve neighbours as primitives so the handler effect only re-binds when
+  // the actual prev/next changes, not on every episodes-array re-identity.
+  const prevEpisodeId = useMemo(() => {
+    if (!episodes || !currentEpisodeId) return undefined;
+    const i = episodes.findIndex((e) => e.id === currentEpisodeId);
+    return i > 0 ? episodes[i - 1].id : undefined;
+  }, [episodes, currentEpisodeId]);
+  const nextEpisodeId = useMemo(() => {
+    if (!episodes || !currentEpisodeId) return undefined;
+    const i = episodes.findIndex((e) => e.id === currentEpisodeId);
+    return i >= 0 && i < episodes.length - 1 ? episodes[i + 1].id : undefined;
+  }, [episodes, currentEpisodeId]);
+
   // Metadata (title + artwork).
   useEffect(() => {
     if (!hasMediaSession() || !title) return;
@@ -101,6 +123,16 @@ export function useMediaSession({
       // transcodeOffset in transcode mode (0 in direct play).
       v.currentTime = Math.max(0, d.seekTime - transcodeOffset);
     });
+    // null handler ⇒ the OS hides the prev/next control, so they only appear
+    // when there actually is a neighbouring episode.
+    set(
+      "previoustrack",
+      prevEpisodeId && onPlayEpisode ? () => onPlayEpisode(prevEpisodeId) : null,
+    );
+    set(
+      "nexttrack",
+      nextEpisodeId && onPlayEpisode ? () => onPlayEpisode(nextEpisodeId) : null,
+    );
 
     const actions: MediaSessionAction[] = [
       "play",
@@ -108,11 +140,21 @@ export function useMediaSession({
       "seekbackward",
       "seekforward",
       "seekto",
+      "previoustrack",
+      "nexttrack",
     ];
     return () => {
       actions.forEach((a) => set(a, null));
     };
-  }, [videoRef, transcodeOffset, skipForwardSeconds, skipBackwardSeconds]);
+  }, [
+    videoRef,
+    transcodeOffset,
+    skipForwardSeconds,
+    skipBackwardSeconds,
+    prevEpisodeId,
+    nextEpisodeId,
+    onPlayEpisode,
+  ]);
 
   // Play/pause state for the OS widget.
   useEffect(() => {

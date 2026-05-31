@@ -106,6 +106,36 @@ describe("useMediaSession", () => {
     expect(video.currentTime).toBe(200); // 500 - 300
   });
 
+  it("wires nexttrack/previoustrack to neighbouring episodes", () => {
+    const { handlers } = installFakeMediaSession();
+    const onPlayEpisode = vi.fn();
+    const episodes = [{ id: "ep1" }, { id: "ep2" }, { id: "ep3" }];
+    renderHook(() =>
+      useMediaSession(
+        params({ episodes, currentEpisodeId: "ep2", onPlayEpisode }),
+      ),
+    );
+    handlers.nexttrack?.({});
+    expect(onPlayEpisode).toHaveBeenCalledWith("ep3");
+    handlers.previoustrack?.({});
+    expect(onPlayEpisode).toHaveBeenCalledWith("ep1");
+  });
+
+  it("leaves prev/next unbound at the edges of the episode list", () => {
+    const { handlers } = installFakeMediaSession();
+    const onPlayEpisode = vi.fn();
+    const episodes = [{ id: "ep1" }, { id: "ep2" }];
+    renderHook(() =>
+      useMediaSession(
+        params({ episodes, currentEpisodeId: "ep1", onPlayEpisode }),
+      ),
+    );
+    // ep1 is first → no previoustrack handler bound.
+    expect(handlers.previoustrack ?? null).toBeNull();
+    handlers.nexttrack?.({});
+    expect(onPlayEpisode).toHaveBeenCalledWith("ep2");
+  });
+
   it("publishes a clamped position state", () => {
     const { fake } = installFakeMediaSession();
     renderHook(() => useMediaSession(params({ position: 2000, duration: 1200 })));

@@ -540,6 +540,7 @@ export function HLSPlayer({
         currentSeasonId={currentSeasonId}
         episodes={episodes}
         currentEpisodeId={currentEpisodeId}
+        onPlayEpisode={onEpisodeChange}
         chapters={chapters}
         mediaId={mediaId}
         mediaType={mediaType}
