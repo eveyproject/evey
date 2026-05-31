@@ -7,10 +7,10 @@ import (
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/playback"
@@ -319,7 +319,7 @@ func TestPlaybackHandler_StartStream_ParentalDisabled(t *testing.T) {
 		Name:   "Default",
 		Parental: &user.ParentalSettings{
 			MaxAge:  intPtr(10),
-			Enabled:   false,
+			Enabled: false,
 		},
 	})
 	mediaQuery.Seed(&library.MediaItem{
@@ -585,6 +585,60 @@ func TestPlaybackHandler_GetNextUp_Unauthenticated(t *testing.T) {
 	_, err := h.GetNextUp(context.Background(), &eveyv1.GetNextUpRequest{})
 	require.Error(t, err)
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestPlaybackHandler_GetNextUp_ParentalFiltersAdult(t *testing.T) {
+	h, _, progressRepo, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
+	ctx := context.Background()
+
+	maxAge := 13
+	profileRepo.Create(ctx, &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}})
+
+	progressRepo.Upsert(ctx, &playback.WatchProgress{ID: "wp-r", ProfileID: "profile-2", MediaItemID: "mi-r",
+		Position: mustPlaybackDurationMs(t, 30000), Completed: true, LastPlayedAt: time.Now()})
+	progressRepo.Upsert(ctx, &playback.WatchProgress{ID: "wp-pg", ProfileID: "profile-2", MediaItemID: "mi-pg",
+		Position: mustPlaybackDurationMs(t, 30000), Completed: true, LastPlayedAt: time.Now()})
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-r", Title: "Adult", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "R"}}) // age 17 → blocked
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-pg", Title: "Family", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "PG"}}) // age 10 → allowed
+
+	resp, err := h.GetNextUp(userCtx("user-2", "profile-2"), &eveyv1.GetNextUpRequest{Limit: 10})
+	require.NoError(t, err)
+	ids := make([]string, len(resp.Items))
+	for i, it := range resp.Items {
+		ids[i] = it.Id
+	}
+	assert.NotContains(t, ids, "mi-r", "adult next-up item must be hidden from a kids profile (metadata leak)")
+	assert.Contains(t, ids, "mi-pg", "kid-safe next-up item must remain")
+}
+
+func TestPlaybackHandler_GetResumeItems_ParentalFiltersAdult(t *testing.T) {
+	h, _, progressRepo, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
+	ctx := context.Background()
+
+	maxAge := 13
+	profileRepo.Create(ctx, &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}})
+
+	progressRepo.Upsert(ctx, &playback.WatchProgress{ID: "wp-r", ProfileID: "profile-2", MediaItemID: "mi-r",
+		Position: mustPlaybackDurationMs(t, 30000), Completed: false, LastPlayedAt: time.Now()})
+	progressRepo.Upsert(ctx, &playback.WatchProgress{ID: "wp-pg", ProfileID: "profile-2", MediaItemID: "mi-pg",
+		Position: mustPlaybackDurationMs(t, 30000), Completed: false, LastPlayedAt: time.Now()})
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-r", Title: "Adult", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "R"}})
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-pg", Title: "Family", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "PG"}})
+
+	resp, err := h.GetResumeItems(userCtx("user-2", "profile-2"), &eveyv1.GetResumeItemsRequest{Limit: 10})
+	require.NoError(t, err)
+	ids := make([]string, len(resp.Progress))
+	for i, p := range resp.Progress {
+		ids[i] = p.MediaItemId
+	}
+	assert.NotContains(t, ids, "mi-r", "adult resume entry must be hidden from a kids profile")
+	assert.Contains(t, ids, "mi-pg", "kid-safe resume entry must remain")
 }
 
 func TestPlaybackHandler_MarkAsWatched_Unauthenticated(t *testing.T) {

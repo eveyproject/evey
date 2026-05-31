@@ -9,12 +9,12 @@ import (
 	"strconv"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/playback"
@@ -32,14 +32,14 @@ import (
 
 type playbackHandler struct {
 	eveyv1.UnimplementedPlaybackServiceServer
-	cmd            *appplayback.CommandService
-	query          *appplayback.QueryService
-	librarySvc     *applibrary.QueryService
-	activitySvc    *appactivity.CommandService
-	userQuery      *appuser.QueryService
-	userAccess     *appuser.AccessService
-	translator     *eveyi18n.Translator
-	hlsManager     *apptranscoding.SegmentOrchestrator
+	cmd         *appplayback.CommandService
+	query       *appplayback.QueryService
+	librarySvc  *applibrary.QueryService
+	activitySvc *appactivity.CommandService
+	userQuery   *appuser.QueryService
+	userAccess  *appuser.AccessService
+	translator  *eveyi18n.Translator
+	hlsManager  *apptranscoding.SegmentOrchestrator
 }
 
 func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {
@@ -515,8 +515,15 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
+	// Parental gate alongside the library-access gate: a kids profile must not
+	// see adult resume entries it played before the profile was switched to
+	// kids. A kid can have allowedIDs==nil (no library restriction) yet still
+	// need the parental filter, so we fetch+filter the media items whenever
+	// EITHER gate is active. Mirrors the feed handlers.
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
+	parentalActive := pf.maxAge >= 0 || len(pf.blockedTags) > 0
 	resp := &eveyv1.GetResumeItemsResponse{}
-	if allowedIDs != nil {
+	if allowedIDs != nil || parentalActive {
 		ids := make([]string, len(items))
 		for i, wp := range items {
 			ids[i] = string(wp.MediaItemID)
@@ -527,9 +534,13 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 		}
 		allowed := make(map[string]bool, len(mis))
 		for _, mi := range mis {
-			if slices.Contains(allowedIDs, string(mi.LibraryID)) {
-				allowed[string(mi.ID)] = true
+			if allowedIDs != nil && !slices.Contains(allowedIDs, string(mi.LibraryID)) {
+				continue
 			}
+			if mediaItemBlockedByParental(pf, mi) {
+				continue
+			}
+			allowed[string(mi.ID)] = true
 		}
 		for _, wp := range items {
 			if allowed[string(wp.MediaItemID)] {
@@ -582,9 +593,16 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
+	// Parental gate: GetNextUp returns full media-item protos (title/overview/
+	// artwork), so a kids profile must not see adult items it previously played
+	// before the profile was switched to kids. Mirrors the feed handlers.
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
 	byID := make(map[string]*library.MediaItem, len(mediaItems))
 	for _, mi := range mediaItems {
 		if allowedIDs != nil && !slices.Contains(allowedIDs, string(mi.LibraryID)) {
+			continue
+		}
+		if mediaItemBlockedByParental(pf, mi) {
 			continue
 		}
 		byID[string(mi.ID)] = mi
