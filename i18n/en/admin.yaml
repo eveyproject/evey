@@ -687,6 +687,34 @@ qoe:
     deviceClass: Device class
     avgBufferMs: Avg buffer (ms)
     avgEncodedKbps: Avg encoded (kbps)
+  overrides:
+    title: Adaptive encode caps
+    subtitle: CMCD-feedback adjustments on top of the calibrated ceiling. Each row lowers the cap for one source bucket until it expires.
+    empty: No active adaptive overrides — the calibrated ceiling is in effect on every source class.
+    reset: Reset
+    resetHint: Drop this adaptive cap immediately. The worker will re-evaluate on the next tick.
+    col:
+      sourceClass: Source bucket
+      maxHeight: Cap
+      starvedRatio: Starved
+      samples: Samples
+      appliedAt: Applied
+      expiresAt: Expires
+      reason: Reason
+  health:
+    label: Streaming health
+    excellent: Excellent
+    good: OK
+    fair: Acceptable
+    marginal: Marginal
+    poor: Poor
+    insufficient: Not enough data
+    recoExcellent: Players are buffering smoothly across the board.
+    recoGood: Healthy — the occasional rebuffer is within the normal range.
+    recoFair: A few rebuffers. Keep an eye on it if traffic grows.
+    recoMarginal: Frequent rebuffers. Enable hardware transcoding or lower the encode ceiling.
+    recoPoor: High rebuffer rate. Enable hardware transcoding, lower the encode ceiling, or check server/network bandwidth.
+    recoInsufficient: Collecting telemetry — check back once a few sessions have played.
 
 segments:
   title: Media segments

@@ -88,6 +88,76 @@ function formatRelative(iso: string, t: (k: string) => string): string {
   return `${Math.floor(delta / 86400)}d`;
 }
 
+// HealthLevel buckets the starvation ratio into a qualitative streaming-health
+// verdict. Thresholds are deliberately tight: rebuffering is the single most
+// hated playback event, so even a few percent is "marginal".
+type HealthLevel =
+  | "excellent"
+  | "good"
+  | "fair"
+  | "marginal"
+  | "poor"
+  | "insufficient";
+
+// qualityStatus maps the starvation ratio (+ sample size) to a HealthLevel.
+// Below ~50 events the ratio is too noisy to be a verdict, so we report
+// "insufficient" rather than a green/red that flips on the next session.
+function qualityStatus(ratio: number, totalEvents: number): HealthLevel {
+  if (!totalEvents || totalEvents < 50) return "insufficient";
+  if (ratio < 0.01) return "excellent";
+  if (ratio < 0.03) return "good";
+  if (ratio < 0.05) return "fair";
+  if (ratio < 0.1) return "marginal";
+  return "poor";
+}
+
+// HealthBanner shows the verdict badge + a concrete recommendation. Colour is
+// keyed to the level: green (excellent/good), neutral (fair/insufficient),
+// amber (marginal), red (poor).
+function HealthBanner({ level, ratio }: { level: HealthLevel; ratio: number }) {
+  const { t } = useTranslation();
+  const card: Record<HealthLevel, string> = {
+    excellent: "border-emerald-500/30 bg-emerald-500/5",
+    good: "border-emerald-500/30 bg-emerald-500/5",
+    fair: "border-border bg-muted/20",
+    marginal: "border-amber-500/40 bg-amber-500/5",
+    poor: "border-destructive/40 bg-destructive/5",
+    insufficient: "border-border bg-muted/10",
+  };
+  const badge: Record<HealthLevel, string> = {
+    excellent: "bg-emerald-500/15 text-emerald-600",
+    good: "bg-emerald-500/15 text-emerald-600",
+    fair: "bg-muted text-foreground",
+    marginal: "bg-amber-500/15 text-amber-600",
+    poor: "bg-destructive/15 text-destructive",
+    insufficient: "bg-muted text-muted-foreground",
+  };
+  const recoKey =
+    "admin.qoe.health.reco" + level.charAt(0).toUpperCase() + level.slice(1);
+  return (
+    <Card
+      className={`flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:gap-4 ${card[level]}`}
+    >
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="text-sm text-muted-foreground">
+          {t("admin.qoe.health.label")}
+        </span>
+        <span
+          className={`rounded-full px-2.5 py-0.5 text-sm font-semibold ${badge[level]}`}
+        >
+          {t(`admin.qoe.health.${level}`)}
+        </span>
+        {level !== "insufficient" && (
+          <span className="text-xs text-muted-foreground">
+            {formatPct(ratio)}
+          </span>
+        )}
+      </div>
+      <p className="text-sm text-foreground/90">{t(recoKey)}</p>
+    </Card>
+  );
+}
+
 function QoEPage() {
   const { t } = useTranslation();
   const [window, setWindow] = useState<Window>("24h");
@@ -158,6 +228,14 @@ function QoEPage() {
               icon={<Film className="size-5" />}
             />
           </div>
+
+          <HealthBanner
+            level={qualityStatus(
+              data.summary?.starved_ratio ?? 0,
+              data.summary?.total_events ?? 0,
+            )}
+            ratio={data.summary?.starved_ratio ?? 0}
+          />
 
           <Card>
             <div className="border-b border-border p-4">
