@@ -352,11 +352,11 @@ func hwDevicePath(backend string) string {
 func hwInputArgs(backend string) []string {
 	switch backend {
 	case string(transcoding.VAAPI):
-		return []string{"-hwaccel", "vaapi", "-vaapi_device", "/dev/dri/renderD128"}
+		return []string{"-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi", "-vaapi_device", "/dev/dri/renderD128"}
 	case string(transcoding.NVENC):
-		return []string{"-hwaccel", "cuda"}
+		return []string{"-hwaccel", "cuda", "-hwaccel_output_format", "cuda"}
 	case string(transcoding.QSV):
-		return []string{"-hwaccel", "qsv"}
+		return []string{"-hwaccel", "qsv", "-hwaccel_output_format", "qsv"}
 	}
 	return nil
 }
@@ -408,20 +408,41 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 	for i := range heights {
 		splitOutputs[i] = fmt.Sprintf("[v%d]", i)
 	}
+	// HW encoders need the matching GPU scaler + a valid preset (NVENC has no
+	// x264 'ultrafast') and must NOT pin a host pixel format (frames are GPU
+	// surfaces). hwInputArgs already added -hwaccel_output_format for these, so
+	// decode→scale→encode stays on the GPU — exactly the production zero-copy
+	// path the bench is meant to measure.
+	hwScale, hwPreset := "", ""
+	switch {
+	case strings.HasSuffix(encoder, "_nvenc"):
+		hwScale, hwPreset = "scale_cuda", "p4"
+	case strings.HasSuffix(encoder, "_vaapi"):
+		hwScale = "scale_vaapi" // encoder-default rate control, no preset
+	case strings.HasSuffix(encoder, "_qsv"):
+		hwScale, hwPreset = "scale_qsv", "veryfast"
+	}
+
 	var fcBuf strings.Builder
 	fmt.Fprintf(&fcBuf, "[0:v]split=%d%s", len(heights), strings.Join(splitOutputs, ""))
 	for i, h := range heights {
-		fmt.Fprintf(&fcBuf, ";[v%d]scale=-2:%d[o%d]", i, h, i)
+		if hwScale != "" {
+			fmt.Fprintf(&fcBuf, ";[v%d]%s=-2:%d[o%d]", i, hwScale, h, i)
+		} else {
+			fmt.Fprintf(&fcBuf, ";[v%d]scale=-2:%d[o%d]", i, h, i)
+		}
 	}
 	fc := fcBuf.String()
 	args = append(args, "-filter_complex", fc)
 	for i := range heights {
-		args = append(args,
-			"-map", fmt.Sprintf("[o%d]", i),
-			fmt.Sprintf("-c:v:%d", i), encoder,
-			"-preset", "ultrafast",
-			"-pix_fmt", "yuv420p",
-		)
+		args = append(args, "-map", fmt.Sprintf("[o%d]", i), fmt.Sprintf("-c:v:%d", i), encoder)
+		if hwScale != "" {
+			if hwPreset != "" {
+				args = append(args, "-preset", hwPreset)
+			}
+		} else {
+			args = append(args, "-preset", "ultrafast", "-pix_fmt", "yuv420p")
+		}
 	}
 	// Single null output for the whole graph — ffmpeg muxes all the
 	// mapped streams together (one per rung). We don't care about the
