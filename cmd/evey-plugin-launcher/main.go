@@ -57,11 +57,12 @@ func (p *portList) Set(v string) error {
 type config struct {
 	roPaths         []string
 	rwPaths         []string
-	rlimitAS        uint64 // RLIMIT_AS bytes (virtual mem); risky for node, off by default
-	rlimitNPROC     uint64 // RLIMIT_NPROC; note: per-UID, leaks across plugins sharing the UID
-	rlimitCPU       uint64 // RLIMIT_CPU seconds
-	rlimitNOFILE    uint64 // RLIMIT_NOFILE open fds
-	requireLandlock bool   // fail closed if Landlock cannot be enforced
+	devPaths        []string // individual device nodes (/dev/null…) allowed read+write, skipped if missing
+	rlimitAS        uint64   // RLIMIT_AS bytes (virtual mem); risky for node, off by default
+	rlimitNPROC     uint64   // RLIMIT_NPROC; note: per-UID, leaks across plugins sharing the UID
+	rlimitCPU       uint64   // RLIMIT_CPU seconds
+	rlimitNOFILE    uint64   // RLIMIT_NOFILE open fds
+	requireLandlock bool     // fail closed if Landlock cannot be enforced
 
 	restrictNet     bool     // govern TCP access (Landlock ABI v4+); deny-by-default
 	netConnectPorts []uint64 // TCP ports the plugin may connect() to; empty = none
@@ -93,11 +94,12 @@ func run(argv []string) int {
 		return 2
 	}
 
-	var ro, rw stringList
+	var ro, rw, dev stringList
 	var netConnect portList
 	fs := flag.NewFlagSet("evey-plugin-launcher", flag.ContinueOnError)
 	fs.Var(&ro, "ro", "directory to allow read+execute (repeatable)")
 	fs.Var(&rw, "rw", "directory to allow read+write+create (repeatable)")
+	fs.Var(&dev, "dev", "single device node to allow read+write, e.g. /dev/null (repeatable; skipped if missing). Use instead of -rw /dev so GPU/disk nodes stay denied.")
 	fs.Var(&netConnect, "net-connect", "TCP port the plugin may connect to (repeatable; implies -restrict-net)")
 	restrictNet := fs.Bool("restrict-net", false, "govern TCP access via Landlock v4: deny every bind/connect except the -net-connect ports")
 	asLimit := fs.Uint64("rlimit-as", 0, "RLIMIT_AS bytes (0=unset)")
@@ -117,6 +119,7 @@ func run(argv []string) int {
 	cfg := config{
 		roPaths:         ro,
 		rwPaths:         rw,
+		devPaths:        dev,
 		rlimitAS:        *asLimit,
 		rlimitNPROC:     *nprocLimit,
 		rlimitCPU:       *cpuLimit,

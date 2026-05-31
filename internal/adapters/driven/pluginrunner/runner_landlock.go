@@ -25,13 +25,18 @@ const launcherBinaryName = "evey-plugin-launcher"
 // binaries, the SDK and the seccomp profile).
 var systemReadOnlyDirs = []string{"/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc", "/app"}
 
-// devDir exposes the container's pseudo-devices (/dev/null, /dev/zero,
-// /dev/random, /dev/urandom, /dev/tty…). Many runtimes and libraries open
-// /dev/null and /dev/urandom, so a deny-by-default allowlist would break them.
-// It is read-write because /dev/null is written to; this is safe because a
-// default Docker container's /dev holds no disk/memory devices, and DAC still
-// guards the root-owned nodes against an unprivileged plugin.
-const devDir = "/dev"
+// safeDevNodes are the only device nodes a plugin may open. We grant them
+// individually rather than the whole /dev directory: on a hardware-transcode
+// box (the NVIDIA/VAAPI image, `--gpus` + /dev/dri mapped in) the directory
+// also holds GPU render nodes (/dev/dri/renderD128, card0), the WSL2 GPU
+// paravirt device (/dev/dxg) and NVIDIA nodes (/dev/nvidia*). Allowing all of
+// /dev would put those inside the Landlock allowlist, leaving only DAC between
+// a plugin and the GPU — a cryptominer could then open a render node and submit
+// work. By listing only the harmless pseudo-devices, the GPU nodes stay denied
+// by Landlock regardless of DAC, on every vendor (AMD iGPU, Intel, NVIDIA).
+// Each is skipped by the launcher if absent. /dev/urandom covers Node/Python
+// crypto; /dev/null is the common sink (hence read-write).
+var safeDevNodes = []string{"/dev/null", "/dev/zero", "/dev/full", "/dev/random", "/dev/urandom", "/dev/tty"}
 
 // buildLauncherArgv builds the evey-plugin-launcher argv wrapping the plugin
 // command: a filesystem allowlist (system dirs read-only; the plugin's own dir
@@ -52,7 +57,10 @@ func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, require
 	for _, d := range systemReadOnlyDirs {
 		args = append(args, "-ro", d)
 	}
-	args = append(args, "-rw", pluginDir, "-rw", pluginSockDir, "-rw", devDir)
+	args = append(args, "-rw", pluginDir, "-rw", pluginSockDir)
+	for _, d := range safeDevNodes {
+		args = append(args, "-dev", d)
+	}
 
 	// TCP egress: deny by default (-restrict-net, Landlock ABI v4+). A plugin
 	// with the network permission may connect to standard HTTP(S) ports plus any

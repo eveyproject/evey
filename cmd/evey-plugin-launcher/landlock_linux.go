@@ -60,6 +60,17 @@ func readWriteAccess(abi int) uint64 {
 	return supportedFSAccess(abi)
 }
 
+// deviceAccess is what we grant on an individual allowed device node (/dev/null,
+// /dev/urandom…): read + write the file, nothing else. Deliberately WITHOUT
+// IOCTL_DEV (ABI v5) — a sandboxed plugin has no business issuing device ioctls,
+// which is how GPU/DRM command submission works. Granting per-node like this
+// (instead of the whole /dev directory) keeps GPU render nodes, /dev/dxg and
+// /dev/nvidia* outside the allowlist, so a cryptominer plugin can't open them.
+func deviceAccess(abi int) uint64 {
+	return (uint64(unix.LANDLOCK_ACCESS_FS_READ_FILE |
+		unix.LANDLOCK_ACCESS_FS_WRITE_FILE)) & supportedFSAccess(abi)
+}
+
 // LANDLOCK_RULE_NET_PORT and the net-port rule attribute are part of Landlock
 // ABI v4 but are not yet exported by x/sys/unix v0.45.0, so we declare them
 // here. The struct layout mirrors the kernel's `struct landlock_net_port_attr`.
@@ -92,7 +103,7 @@ func landlockABI() (int, error) {
 }
 
 func applyLandlock(cfg config) error {
-	if len(cfg.roPaths) == 0 && len(cfg.rwPaths) == 0 && !cfg.restrictNet {
+	if len(cfg.roPaths) == 0 && len(cfg.rwPaths) == 0 && len(cfg.devPaths) == 0 && !cfg.restrictNet {
 		return nil // nothing requested; caller asked for no confinement
 	}
 
@@ -153,6 +164,18 @@ func applyLandlock(cfg config) error {
 	// real misconfiguration, so let the error surface.
 	for _, p := range cfg.rwPaths {
 		if err := addRule(p, readWriteAccess(abi)); err != nil {
+			return err
+		}
+	}
+	// Individual device nodes (/dev/null, /dev/urandom…): allow read+write but
+	// skip ones absent on this image (a minimal container may lack /dev/full or
+	// /dev/tty) rather than failing the whole ruleset. Everything else under
+	// /dev — GPU render nodes, /dev/dxg, /dev/nvidia* — stays denied.
+	for _, p := range cfg.devPaths {
+		if !pathExists(p) {
+			continue
+		}
+		if err := addRule(p, deviceAccess(abi)); err != nil {
 			return err
 		}
 	}
