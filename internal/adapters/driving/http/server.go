@@ -93,6 +93,10 @@ type HTTPServer struct {
 	HLSVODOrch    *apptranscoding.SegmentOrchestrator
 	HLSVODCache   *apptranscoding.SegmentCache
 	HLSTranscoder domaintranscoding.HLSProcess
+	// AudioOrch manages audio-only HLS rendition sessions (EXT-X-MEDIA).
+	// Nil-safe: the audio rendition routes return 404 when unset. Wiring
+	// from wire.go lands after the feature flag stabilises.
+	AudioOrch *apptranscoding.AudioSegmentOrchestrator
 	// ComplexityRepo drives per-title ABR ladder selection. Nil-safe — the
 	// VOD handler falls back to LadderFilmNormal when unset.
 	ComplexityRepo domaintranscoding.ComplexityRepo
@@ -326,6 +330,32 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// it trivially).
 			mux.HandleFunc("POST /api/v1/media/{id}/prewarm-next", auth(ratelimit.MiddlewareFunc(s.AdminHeavyRL, vodHandler.servePrewarmNext)))
 		}
+	}
+
+	// Audio rendition HLS routes (EXT-X-MEDIA audio-only pipeline).
+	// The audioOrch field is nil until wire.go wires the AudioSegmentOrchestrator;
+	// in the meantime audioRenditionEnabled() returns false and every handler
+	// short-circuits to 404. This nil-safe design lets the feature land
+	// incrementally without a hard runtime dependency on the audio orchestrator.
+	{
+		aOrch := AudioSegmentEnsurer(nil)
+		if s.AudioOrch != nil {
+			aOrch = s.AudioOrch
+		}
+		ah := &audioServe{
+			cfg:                  s.Cfg,
+			libSvc:               s.LibQuerySvc,
+			libraryAccess:        hlsAccessCache,
+			parental:             parentalChk,
+			manifestGen:          apptranscoding.NewManifestGenerator(),
+			cache:                s.HLSVODCache,
+			audioOrch:            aOrch,
+			audioNormalizeGetter: s.AudioNormalizeGetter,
+			segmentWaitTimeout:   30 * time.Second,
+		}
+		mux.HandleFunc("GET /api/v1/media/{id}/audio_{trackIdx}.m3u8", streamAuth(audioPlaylistHandler(ah)))
+		mux.HandleFunc("GET /api/v1/media/{id}/audio_{trackIdx}_init.mp4", streamAuth(audioInitHandler(ah)))
+		mux.HandleFunc("GET /api/v1/media/{id}/audio_{trackIdx}_{segIdx}.m4s", streamAuth(audioSegmentHandler(ah)))
 	}
 	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.TokenGen, s.LibQuerySvc, NewLibraryItemCounter(s.LibQuerySvc, s.MusicSvc, s.PhotoSvc))))
 
