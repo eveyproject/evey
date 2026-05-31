@@ -991,6 +991,13 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 		filter.Genres = []string{req.Genre}
 	}
 
+	// Parental gate: mirror ListMediaItems so the filter screen can't surface
+	// adult content to a kids profile. SQL pre-filter on official_rating plus
+	// the strict in-memory second pass (foreign certifications the SQL can't
+	// see). Without this, FilterMediaItems leaks restricted items.
+	pf := h.resolveParentalFilter(ctx)
+	filter.AllowedRatings = pf.allowedRatings
+
 	total, err := h.query.CountMediaItems(ctx, filter)
 	if err != nil {
 		span.RecordError(err)
@@ -1002,6 +1009,16 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list", err)
+	}
+	if pf.maxAge >= 0 || len(pf.blockedTags) > 0 {
+		filtered := items[:0]
+		for _, it := range items {
+			if mediaItemBlockedByParental(pf, it) {
+				continue
+			}
+			filtered = append(filtered, it)
+		}
+		items = filtered
 	}
 	resp := &eveyv1.FilterMediaItemsResponse{Total: int32(total)}
 	for _, item := range items {

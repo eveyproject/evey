@@ -666,6 +666,51 @@ func TestLibraryHandler_FilterMediaItems_IDOR_Allowed(t *testing.T) {
 	assert.Len(t, resp.Items, 1)
 }
 
+// FilterMediaItems must apply the same parental gate as ListMediaItems —
+// otherwise the filter screen leaks restricted content to a kids profile.
+func TestLibraryHandler_FilterMediaItems_ParentalFailClosed(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, profiles, _ := newTestLibraryHandler()
+	ctx := context.Background()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-r", LibraryID: "lib-1", Title: "Adult R", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "R"}}) // age 17 → blocked
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Kid PG", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "PG"}}) // age 10 → allowed
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-unrated", LibraryID: "lib-1", Title: "Unrated", Type: "movie"}) // fail closed
+
+	maxAge := 13
+	profiles.Create(ctx, &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}})
+	libraryAccess.Grant(ctx, "user-2", "lib-1")
+
+	resp, err := h.FilterMediaItems(userCtx("user-2", "profile-2"), &eveyv1.FilterMediaItemsRequest{
+		LibraryId: "lib-1",
+		Limit:     10,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 1, "only the PG item passes; R is over-age and the unrated item fails closed")
+	assert.Equal(t, "mi-pg", resp.Items[0].Id)
+}
+
+// A non-kids profile is unaffected: FilterMediaItems returns everything.
+func TestLibraryHandler_FilterMediaItems_NonKids_Unfiltered(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
+	ctx := context.Background()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-r", LibraryID: "lib-1", Title: "Adult R", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "R"}})
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Kid PG", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "PG"}})
+	libraryAccess.Grant(ctx, "user-2", "lib-1")
+
+	resp, err := h.FilterMediaItems(userCtx("user-2", "profile-2"), &eveyv1.FilterMediaItemsRequest{
+		LibraryId: "lib-1",
+		Limit:     10,
+	})
+	require.NoError(t, err)
+	assert.Len(t, resp.Items, 2)
+}
+
 func TestLibraryHandler_GetMediaItem_WithOverrides(t *testing.T) {
 	h, _, mediaQuery, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
