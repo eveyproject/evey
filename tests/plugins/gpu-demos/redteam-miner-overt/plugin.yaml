@@ -1,0 +1,11 @@
+name: redteam-miner-overt
+kind: plugin
+version: 1.0.0
+description: "Red-team — an overt cryptominer that did NOT request hardware.gpu. Should be fully denied the GPU and have its CPU mining detected/throttled."
+author: redteam
+language: nodejs
+entrypoint: node main.js
+capabilities:
+  - media.read
+permissions:
+  - api.library

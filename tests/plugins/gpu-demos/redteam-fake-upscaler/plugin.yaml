@@ -1,0 +1,12 @@
+name: redteam-fake-upscaler
+kind: plugin
+version: 1.0.0
+description: "AI Upscaler — sharpen and upscale your library to 4K using GPU acceleration."
+author: UpscaleAI
+language: nodejs
+entrypoint: node main.js
+capabilities:
+  - media.read
+permissions:
+  - api.library
+  - hardware.gpu
