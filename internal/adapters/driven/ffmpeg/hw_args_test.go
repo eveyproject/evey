@@ -191,6 +191,34 @@ func TestHWEncoderQualityArgs_FeatureGating(t *testing.T) {
 	}
 }
 
+func TestNVENCProbeArgs_DeviceFree(t *testing.T) {
+	j := strings.Join(nvencProbeArgs([]string{"-temporal-aq", "1"}), " ")
+	for _, want := range []string{"h264_nvenc", "-temporal-aq 1", "lavfi", "-f null"} {
+		if !strings.Contains(j, want) {
+			t.Errorf("probe args %q missing %q", j, want)
+		}
+	}
+	if strings.Contains(j, "-hwaccel") {
+		t.Errorf("the NVENC option probe must be device-free (no -hwaccel): %q", j)
+	}
+}
+
+// Every probed NVENC feature must be one the builder actually gates on — guards
+// against the probe list and hwEncoderQualityArgs drifting apart (a probed
+// option that the builder ignores, or vice versa).
+func TestNVENCProbeNames_MatchBuilderGating(t *testing.T) {
+	baseline := strings.Join(hwEncoderQualityArgs(transcoding.NVENC, nil), " ")
+	for _, p := range nvencFeatureProbes {
+		got := strings.Join(hwEncoderQualityArgs(transcoding.NVENC, []string{p.name}), " ")
+		if got == baseline {
+			t.Errorf("feature %q is probed but never emitted by the builder (drift)", p.name)
+		}
+		if !strings.Contains(got, p.args[0]) {
+			t.Errorf("feature %q: builder emits %q, expected the probed flag %q", p.name, got, p.args[0])
+		}
+	}
+}
+
 func TestHWDeinterlaceFilter(t *testing.T) {
 	cases := map[transcoding.HWAccelType]string{
 		transcoding.NVENC: "yadif_cuda=deint=interlaced",

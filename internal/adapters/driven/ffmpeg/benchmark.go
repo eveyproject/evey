@@ -115,12 +115,21 @@ func (r *BenchmarkRunner) Run(ctx context.Context) (transcoding.EncodeCapability
 
 	hwMax, hwBackend, hwCodecs, hwDevice := r.benchHardware(ctx, sample, fallback)
 
+	// Probe which optional encoder tuning options the HW encoder accepts, so
+	// the arg builder only emits validated ones (level-1 safety). Only when a
+	// HW backend passed the realtime bench.
+	var hwFeatures []string
+	if hwMax > 0 {
+		hwFeatures = r.probeHWFeatures(ctx, hwBackend)
+	}
+
 	cap := transcoding.EncodeCapability{
 		SoftwareMaxHeight:   swMax,
 		HWMaxHeight:         hwMax,
 		HWBackend:           hwBackend,
 		HWCodecs:            hwCodecs,
 		HWDevice:            hwDevice,
+		HWFeatures:          hwFeatures,
 		CPUSignature:        sysinfo.CPUSignature(),
 		BenchmarkedAt:       time.Now().UTC(),
 		BenchmarkDurationMs: time.Since(start).Milliseconds(),
@@ -129,8 +138,69 @@ func (r *BenchmarkRunner) Run(ctx context.Context) (transcoding.EncodeCapability
 		slog.Int("software_max_height", cap.SoftwareMaxHeight),
 		slog.Int("hw_max_height", cap.HWMaxHeight),
 		slog.String("hw_backend", cap.HWBackend),
+		slog.Any("hw_features", cap.HWFeatures),
 		slog.Int64("elapsed_ms", cap.BenchmarkDurationMs))
 	return cap, nil
+}
+
+// nvencFeatureProbes are the optional NVENC tuning flags we want to use, each
+// tested with a tiny throwaway encode. Names MUST match the has-checks in
+// hwEncoderQualityArgs — a feature is emitted in production iff it is BOTH
+// listed here (probed OK) and gated there. Kept in sync by TestNVENCProbeNames.
+var nvencFeatureProbes = []struct {
+	name string
+	args []string
+}{
+	{"rc_lookahead", []string{"-rc-lookahead", "20"}},
+	{"spatial_aq", []string{"-spatial-aq", "1"}},
+	{"temporal_aq", []string{"-temporal-aq", "1"}},
+	{"b_ref_mode", []string{"-b_ref_mode", "middle"}},
+	{"bframes", []string{"-bf", "3"}},
+}
+
+// nvencProbeArgs builds the ffmpeg argv that encodes a fraction of a second of
+// a synthetic black source through h264_nvenc WITH the candidate option. No
+// real input file and no -hwaccel: NVENC accepts system-memory frames and
+// uploads them itself, so the encoder still opens with the option and rejects
+// it (non-zero exit) exactly as it would in production.
+func nvencProbeArgs(optionArgs []string) []string {
+	args := []string{
+		"-hide_banner", "-nostats", "-loglevel", "error",
+		"-f", "lavfi", "-i", "color=c=black:s=256x144:r=24:d=0.2",
+		"-c:v", "h264_nvenc", "-preset", "p4",
+	}
+	args = append(args, optionArgs...)
+	return append(args, "-f", "null", "-")
+}
+
+// probeHWFeatures returns the tuning options the host's HW encoder accepts.
+// v1 probes NVENC only — a device-free encode from a synthetic source the
+// caller's GPU box can validate directly. VAAPI/QSV option probing needs the
+// real device set up like production and is a hardware-validated follow-up, so
+// it returns nil here (⇒ the safe HW baseline, no tuning).
+func (r *BenchmarkRunner) probeHWFeatures(ctx context.Context, backend string) []string {
+	if backend != "nvenc" {
+		return nil
+	}
+	var ok []string
+	for _, p := range nvencFeatureProbes {
+		if r.probeOption(ctx, nvencProbeArgs(p.args)) {
+			ok = append(ok, p.name)
+			r.logger.Info("benchmark: HW feature supported",
+				slog.String("backend", backend), slog.String("feature", p.name))
+		} else {
+			r.logger.Debug("benchmark: HW feature rejected",
+				slog.String("backend", backend), slog.String("feature", p.name))
+		}
+	}
+	return ok
+}
+
+// probeOption runs one feature-probe encode; it is supported iff ffmpeg exits 0.
+func (r *BenchmarkRunner) probeOption(ctx context.Context, args []string) bool {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, r.ffmpegBin(), args...).Run() == nil
 }
 
 // resolveSample picks the bench input. When the bundled sample isn't on
