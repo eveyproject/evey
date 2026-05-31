@@ -6,9 +6,15 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appfeed "github.com/evey-project/evey/internal/app/feed"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/feed"
 	feedfakes "github.com/evey-project/evey/internal/domain/feed/fakes"
+	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -214,4 +220,172 @@ func TestFeedHandler_SimilarItems_EmptyMediaID_InvalidArgument(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+// feedHandlerWithAccessResult groups the objects returned by
+// newFeedHandlerWithAccess so callers can seed both media items and access
+// grants without relying on positional return values.
+type feedHandlerWithAccessResult struct {
+	handler        *feedHandler
+	querier        *feedfakes.FakeFeedQuerier
+	mediaQueryRepo *libfakes.FakeMediaItemQueryRepo
+	libraryAccess  *userfakes.FakeLibraryAccessRepository
+}
+
+// newFeedHandlerWithAccess builds a feedHandler with a real userAccess service
+// and a real libQuery service wired in. This enables filterByLibraryAccess to
+// exercise the actual grant check instead of short-circuiting via the
+// "h.userAccess == nil" guard in the production code.
+//
+// The existing newFeedHandler helper is intentionally left unmodified so that
+// the tests that use it continue to compile and pass.
+func newFeedHandlerWithAccess() feedHandlerWithAccessResult {
+	cmdRepo := feedfakes.NewFakeConfigCommandRepo()
+	queryRepo := feedfakes.NewFakeConfigQueryRepo()
+	querier := feedfakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	commands := appfeed.NewCommandService(cmdRepo, queryRepo)
+	queries := appfeed.NewQueryService(queryRepo, querier, analyzer)
+
+	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
+	streamRepo := libfakes.NewFakeMediaStreamRepository()
+	searchIdx := libfakes.NewFakeSearchIndex()
+	libQueryRepo := libfakes.NewFakeLibraryQueryRepo()
+	libQuerySvc := applibrary.NewQueryService(libQueryRepo, mediaQueryRepo, streamRepo, searchIdx)
+
+	eventBus := sharedfakes.NewFakeEventBus()
+	userRepo := userfakes.NewFakeUserRepository()
+	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
+	inviteRepo := userfakes.NewFakeInviteLinkRepository()
+	qcRepo := userfakes.NewFakeQuickConnectRepository()
+	libraryAccess := userfakes.NewFakeLibraryAccessRepository()
+	userAccess := appuser.NewAccessService(
+		userRepo, apiKeyRepo, inviteRepo, qcRepo,
+		userfakes.NewFakePasswordHasher(), eventBus,
+		appuser.WithLibraryAccess(libraryAccess),
+	)
+
+	h := &feedHandler{
+		commands:   commands,
+		queries:    queries,
+		userAccess: userAccess,
+		libQuery:   libQuerySvc,
+	}
+	return feedHandlerWithAccessResult{
+		handler:        h,
+		querier:        querier,
+		mediaQueryRepo: mediaQueryRepo,
+		libraryAccess:  libraryAccess,
+	}
+}
+
+// TestFeedHandler_RecentlyAdded_LibraryAccessFilter verifies that
+// filterByLibraryAccess drops items whose underlying media item belongs to a
+// library that the non-admin user is NOT granted access to.
+//
+// Without this test, removing the userAccess/libQuery nil-check short-circuit
+// (or making the grant check always return true) would not break any existing
+// test — this test closes that gap.
+func TestFeedHandler_RecentlyAdded_LibraryAccessFilter(t *testing.T) {
+	res := newFeedHandlerWithAccess()
+
+	// Grant user-3 access to lib-allowed only; lib-hidden is not in the list.
+	res.libraryAccess.Grant(context.Background(), "user-3", "lib-allowed")
+
+	// Seed the media items so libQuery can resolve MediaItemID → LibraryID.
+	res.mediaQueryRepo.Seed(&library.MediaItem{
+		ID:        "mi-visible",
+		LibraryID: "lib-allowed",
+		Title:     "Visible Movie",
+		Type:      "movie",
+	})
+	res.mediaQueryRepo.Seed(&library.MediaItem{
+		ID:        "mi-hidden",
+		LibraryID: "lib-hidden",
+		Title:     "Hidden Movie",
+		Type:      "movie",
+	})
+
+	// Both items are returned by the querier (simulating a DB query with no
+	// access filter — the handler layer is responsible for filtering).
+	res.querier.RecentlyAddedItems = []*feed.FeedItem{
+		{MediaItemID: "mi-visible", Title: "Visible Movie", Type: "movie"},
+		{MediaItemID: "mi-hidden", Title: "Hidden Movie", Type: "movie"},
+	}
+
+	ctx := ctxWithClaims("user-3", "profile-3", false)
+	resp, err := res.handler.RecentlyAdded(ctx, &eveyv1.RecentlyAddedRequest{DaysWindow: 7, Limit: 10})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 1, "only items from granted library must pass the filter")
+	assert.Equal(t, "mi-visible", resp.Items[0].MediaItemId)
+}
+
+// TestFeedHandler_RecentlyAdded_LibraryAccessFilter_AdminBypass verifies
+// the positive/admin path: admins receive all items regardless of library
+// grants (filterByLibraryAccess short-circuits for IsAdmin). This ensures the
+// filter test above discriminates rather than always passing.
+func TestFeedHandler_RecentlyAdded_LibraryAccessFilter_AdminBypass(t *testing.T) {
+	res := newFeedHandlerWithAccess()
+
+	// Seed items in two different libraries.
+	res.mediaQueryRepo.Seed(&library.MediaItem{
+		ID:        "mi-a",
+		LibraryID: "lib-a",
+		Title:     "Film A",
+		Type:      "movie",
+	})
+	res.mediaQueryRepo.Seed(&library.MediaItem{
+		ID:        "mi-b",
+		LibraryID: "lib-b",
+		Title:     "Film B",
+		Type:      "movie",
+	})
+
+	res.querier.RecentlyAddedItems = []*feed.FeedItem{
+		{MediaItemID: "mi-a", Title: "Film A", Type: "movie"},
+		{MediaItemID: "mi-b", Title: "Film B", Type: "movie"},
+	}
+
+	// Admin context: no grants needed.
+	ctx := ctxWithClaims("admin-1", "profile-admin", true)
+	resp, err := res.handler.RecentlyAdded(ctx, &eveyv1.RecentlyAddedRequest{DaysWindow: 7, Limit: 10})
+
+	require.NoError(t, err)
+	assert.Len(t, resp.Items, 2, "admin must see all items across all libraries")
+}
+
+// TestFeedHandler_Recommended_LibraryAccessFilter mirrors the
+// RecentlyAdded test for the Recommended RPC which also calls
+// filterByLibraryAccess.
+func TestFeedHandler_Recommended_LibraryAccessFilter(t *testing.T) {
+	res := newFeedHandlerWithAccess()
+
+	res.libraryAccess.Grant(context.Background(), "user-4", "lib-allowed")
+
+	res.mediaQueryRepo.Seed(&library.MediaItem{
+		ID:        "mi-rec-ok",
+		LibraryID: "lib-allowed",
+		Title:     "Good Rec",
+		Type:      "movie",
+	})
+	res.mediaQueryRepo.Seed(&library.MediaItem{
+		ID:        "mi-rec-hidden",
+		LibraryID: "lib-hidden",
+		Title:     "Forbidden Rec",
+		Type:      "movie",
+	})
+
+	res.querier.RecommendedItems = []*feed.FeedItem{
+		{MediaItemID: "mi-rec-ok", Title: "Good Rec", Type: "movie", Score: 95},
+		{MediaItemID: "mi-rec-hidden", Title: "Forbidden Rec", Type: "movie", Score: 90},
+	}
+
+	ctx := ctxWithClaims("user-4", "profile-4", false)
+	resp, err := res.handler.Recommended(ctx, &eveyv1.RecommendedRequest{Limit: 10})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 1, "only items from granted library must pass the filter")
+	assert.Equal(t, "mi-rec-ok", resp.Items[0].MediaItemId)
 }

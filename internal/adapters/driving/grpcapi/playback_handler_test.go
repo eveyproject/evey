@@ -373,6 +373,59 @@ func TestPlaybackHandler_StartStream_ParentalBlockedTag(t *testing.T) {
 func intPtr(v int) *int       { return &v }
 func int64Ptr(v int64) *int64 { return &v }
 
+// newTestPlaybackHandlerWithAccess builds a playbackHandler that has a real
+// userAccess service wired in (unlike newTestPlaybackHandler which leaves it
+// nil). This makes requireMediaAccess exercise the actual library-access check
+// instead of short-circuiting via the "userAccess == nil" guard.
+func newTestPlaybackHandlerWithAccess() (*playbackHandler, *libfakes.FakeMediaItemQueryRepo, *libfakes.FakeMediaStreamRepository, *userfakes.FakeLibraryAccessRepository) {
+	progressRepo := pbfakes.NewFakeWatchProgressRepository()
+	sessionRepo := pbfakes.NewFakePlaySessionRepository()
+	userRepo := userfakes.NewFakeUserRepository()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	eventBus := sharedfakes.NewFakeEventBus()
+
+	userRepo.Create(context.Background(), &user.User{
+		ID:       "user-2",
+		Username: "viewer",
+		IsAdmin:  false,
+		Enabled:  true,
+	})
+	profileRepo.Create(context.Background(), &user.Profile{
+		ID:     "profile-2",
+		UserID: "user-2",
+		Name:   "Default",
+	})
+
+	cmdSvc := appplayback.NewCommandService(progressRepo, sessionRepo, sessionRepo, userRepo, profileRepo, eventBus)
+	querySvc := appplayback.NewQueryService(progressRepo, sessionRepo)
+
+	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
+	streamRepo := libfakes.NewFakeMediaStreamRepository()
+	searchIdx := libfakes.NewFakeSearchIndex()
+	libQueryRepo := libfakes.NewFakeLibraryQueryRepo()
+	libQuerySvc := applibrary.NewQueryService(libQueryRepo, mediaQueryRepo, streamRepo, searchIdx)
+
+	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
+	inviteRepo := userfakes.NewFakeInviteLinkRepository()
+	qcRepo := userfakes.NewFakeQuickConnectRepository()
+	libraryAccess := userfakes.NewFakeLibraryAccessRepository()
+	userAccess := appuser.NewAccessService(
+		userRepo, apiKeyRepo, inviteRepo, qcRepo,
+		userfakes.NewFakePasswordHasher(), eventBus,
+		appuser.WithLibraryAccess(libraryAccess),
+	)
+	userQuery := appuser.NewQueryService(userRepo, profileRepo, apiKeyRepo, inviteRepo, qcRepo)
+
+	h := &playbackHandler{
+		cmd:        cmdSvc,
+		query:      querySvc,
+		librarySvc: libQuerySvc,
+		userQuery:  userQuery,
+		userAccess: userAccess,
+	}
+	return h, mediaQueryRepo, streamRepo, libraryAccess
+}
+
 func TestGetStreamInfo_AudioCodecsWired(t *testing.T) {
 	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
@@ -574,4 +627,82 @@ func TestGetStreamInfo_DecisionFieldsPopulated(t *testing.T) {
 	assert.Contains(t, resp.TranscodeReasons, "video_codec_unsupported")
 	assert.Contains(t, resp.TranscodeReasons, "audio_codec_unsupported")
 	assert.Contains(t, resp.TranscodeReasons, "container_incompatible")
+}
+
+// TestPlaybackHandler_GetStreamInfo_CrossLibrary_NotFound verifies that a
+// non-admin user requesting stream info for a media item whose library is NOT
+// in their access list receives codes.NotFound (IDOR guard). Without this
+// test the short-circuit "h.userAccess == nil → allow" in requireMediaAccess
+// would mask any regression that made the check permissive.
+func TestPlaybackHandler_GetStreamInfo_CrossLibrary_NotFound(t *testing.T) {
+	h, mediaQueryRepo, _, libraryAccess := newTestPlaybackHandlerWithAccess()
+
+	// Grant user-2 access to lib-1 only; lib-secret is not in the list.
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+
+	// Seed a media item that lives in lib-secret (the forbidden library).
+	mediaQueryRepo.Seed(&library.MediaItem{
+		ID:        "mi-secret",
+		LibraryID: "lib-secret",
+		Title:     "Secret Movie",
+		Type:      "movie",
+		File:      &library.MediaFile{ContainerFormat: "mp4"},
+	})
+
+	ctx := userCtx("user-2", "profile-2")
+	_, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-secret"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err), "cross-library access must be denied with NotFound")
+}
+
+// TestPlaybackHandler_GetStreamInfo_AllowedLibrary verifies the positive path:
+// the same user CAN access a media item whose library IS in their grant list.
+// This ensures the test above actually discriminates (a permissive check would
+// make both pass, not just the denial test).
+func TestPlaybackHandler_GetStreamInfo_AllowedLibrary(t *testing.T) {
+	h, mediaQueryRepo, _, libraryAccess := newTestPlaybackHandlerWithAccess()
+
+	// Grant user-2 access to lib-1.
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+
+	// Seed a media item in the allowed library.
+	mediaQueryRepo.Seed(&library.MediaItem{
+		ID:        "mi-allowed",
+		LibraryID: "lib-1",
+		Title:     "Allowed Movie",
+		Type:      "movie",
+		File:      &library.MediaFile{ContainerFormat: "mp4"},
+	})
+
+	ctx := userCtx("user-2", "profile-2")
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-allowed"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "mi-allowed", resp.MediaItemId)
+}
+
+// TestPlaybackHandler_StartStream_CrossLibrary_NotFound verifies that
+// StartStream also enforces library access (it calls requireMediaAccess at
+// l.181 of playback_handler.go).
+func TestPlaybackHandler_StartStream_CrossLibrary_NotFound(t *testing.T) {
+	h, mediaQueryRepo, _, libraryAccess := newTestPlaybackHandlerWithAccess()
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+
+	mediaQueryRepo.Seed(&library.MediaItem{
+		ID:        "mi-secret2",
+		LibraryID: "lib-secret",
+		Title:     "Secret Movie 2",
+		Type:      "movie",
+	})
+
+	ctx := userCtx("user-2", "profile-2")
+	_, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
+		MediaItemId: "mi-secret2",
+		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err), "cross-library StartStream must be denied with NotFound")
 }
