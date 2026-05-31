@@ -47,6 +47,27 @@ type HLSProcess interface {
 	Start(ctx context.Context, opts HLSProcessOpts) (HLSProcessHandle, error)
 }
 
+// AudioProcess spawns and manages an ffmpeg audio-only HLS rendition process.
+// It produces audio_T_init.mp4 + audio_T_NNN.m4s segments alongside the video
+// pipeline so the SegmentOrchestrator can serve them as an EXT-X-MEDIA rendition.
+type AudioProcess interface {
+	StartAudioOnly(ctx context.Context, opts AudioProcessOpts) (HLSProcessHandle, error)
+}
+
+// AudioProcessOpts configures a single audio-only HLS rendition encode.
+// T in filenames refers to SourceTrackIdx (zero-indexed audio stream in source).
+type AudioProcessOpts struct {
+	FilePath         string  // source media absolute path
+	OutputDir        string  // destination for audio_T_NNN.m4s + audio_T_init.mp4
+	SourceTrackIdx   int     // 0-indexed audio stream in source
+	AudioCodec       string  // "aac", "ac3", "eac3", "opus" → resolveAudioEncoder
+	AudioBitrate     int     // kbps; 0 = encoder default
+	MaxAudioChannels int     // for resolveAudioChannels; 0 = passthrough (→ "2")
+	StartSec         float64 // for mid-stream rafale; 0 for cold start
+	StartNumber      int     // ffmpeg -start_number; floor(StartSec/3) for rafale
+	AudioNormalize   bool    // insert loudnorm filter
+}
+
 // HLSProcessHandle controls a running HLS transcode.
 type HLSProcessHandle interface {
 	WaitReady(ctx context.Context) error

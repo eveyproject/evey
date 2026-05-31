@@ -2,6 +2,7 @@ package ffmpeg_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -754,6 +755,175 @@ func TestTranscoding_KillMutant_BuildFFmpegArgs_SingleTranscodeNoFilterComplexWh
 	assert.NotContains(t, joined, "filter_complex",
 		"single-transcode without burn-in and without HDR must use simple -vf scale (no filter_complex)")
 	assert.Contains(t, joined, "-vf", "should use simple -vf scale path")
+}
+
+// --- Audio-only pipeline tests ---
+
+// BuildFFmpegAudioOnlyArgs must always include -vn so no video track leaks
+// into the audio-only rendition.
+func TestBuildFFmpegAudioOnlyArgs_ContainsVN(t *testing.T) {
+	opts := transcoding.AudioProcessOpts{
+		FilePath:       "/media/movie.mkv",
+		OutputDir:      "/tmp/audio",
+		SourceTrackIdx: 0,
+		AudioCodec:     "aac",
+		AudioBitrate:   192,
+	}
+	args := ffmpeg.BuildFFmpegAudioOnlyArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-vn", "-vn must suppress the video stream")
+}
+
+// The -map selector must reference the correct 0-indexed audio stream.
+func TestBuildFFmpegAudioOnlyArgs_MapTrackIndex(t *testing.T) {
+	cases := []struct {
+		trackIdx int
+		want     string
+	}{
+		{0, "0:a:0"},
+		{1, "0:a:1"},
+		{3, "0:a:3"},
+	}
+	for _, tc := range cases {
+		opts := transcoding.AudioProcessOpts{
+			FilePath:       "/media/movie.mkv",
+			OutputDir:      "/tmp/audio",
+			SourceTrackIdx: tc.trackIdx,
+		}
+		args := ffmpeg.BuildFFmpegAudioOnlyArgs(opts)
+		joined := strings.Join(args, " ")
+		assert.Contains(t, joined, tc.want,
+			"map flag must reference audio track index %d", tc.trackIdx)
+	}
+}
+
+// The init segment filename must embed the track index (audio_T_init.mp4).
+func TestBuildFFmpegAudioOnlyArgs_InitFilenameEmbedsTackIdx(t *testing.T) {
+	cases := []int{0, 2, 5}
+	for _, idx := range cases {
+		opts := transcoding.AudioProcessOpts{
+			FilePath:       "/media/movie.mkv",
+			OutputDir:      "/tmp/audio",
+			SourceTrackIdx: idx,
+		}
+		args := ffmpeg.BuildFFmpegAudioOnlyArgs(opts)
+		joined := strings.Join(args, " ")
+		want := fmt.Sprintf("audio_%d_init.mp4", idx)
+		assert.Contains(t, joined, want,
+			"init filename must be audio_%d_init.mp4 for track %d", idx, idx)
+	}
+}
+
+// StartSec > 0 must emit -ss BEFORE -i; StartSec == 0 must not emit -ss.
+// StartNumber must appear in the args.
+func TestBuildFFmpegAudioOnlyArgs_StartSecAndStartNumber(t *testing.T) {
+	t.Run("seek applied", func(t *testing.T) {
+		opts := transcoding.AudioProcessOpts{
+			FilePath:       "/media/movie.mkv",
+			OutputDir:      "/tmp/audio",
+			SourceTrackIdx: 0,
+			StartSec:       90.0,
+			StartNumber:    30, // floor(90/3)
+		}
+		args := ffmpeg.BuildFFmpegAudioOnlyArgs(opts)
+		joined := strings.Join(args, " ")
+
+		assert.Contains(t, joined, "-ss 90.000", "seek flag must be present")
+		assert.Contains(t, joined, "-start_number 30", "start_number must match")
+
+		// -ss must come before -i
+		ssIdx, iIdx := -1, -1
+		for i, a := range args {
+			if a == "-ss" && ssIdx < 0 {
+				ssIdx = i
+			}
+			if a == "-i" && iIdx < 0 {
+				iIdx = i
+			}
+		}
+		require.Greater(t, ssIdx, -1, "-ss must be present")
+		require.Greater(t, iIdx, -1, "-i must be present")
+		assert.Less(t, ssIdx, iIdx, "-ss must come before -i")
+	})
+
+	t.Run("no seek when StartSec zero", func(t *testing.T) {
+		opts := transcoding.AudioProcessOpts{
+			FilePath:       "/media/movie.mkv",
+			OutputDir:      "/tmp/audio",
+			SourceTrackIdx: 0,
+			StartSec:       0,
+			StartNumber:    0,
+		}
+		args := ffmpeg.BuildFFmpegAudioOnlyArgs(opts)
+		for _, a := range args {
+			assert.NotEqual(t, "-ss", a, "StartSec=0 must NOT emit -ss")
+		}
+		joined := strings.Join(args, " ")
+		assert.Contains(t, joined, "-start_number 0")
+	})
+}
+
+// AudioNormalize must inject the loudnorm filter; absence must not emit it.
+func TestBuildFFmpegAudioOnlyArgs_AudioNormalize(t *testing.T) {
+	base := transcoding.AudioProcessOpts{
+		FilePath:       "/media/movie.mkv",
+		OutputDir:      "/tmp/audio",
+		SourceTrackIdx: 0,
+	}
+
+	withNorm := base
+	withNorm.AudioNormalize = true
+	joined := strings.Join(ffmpeg.BuildFFmpegAudioOnlyArgs(withNorm), " ")
+	assert.Contains(t, joined, "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
+
+	withoutNorm := base
+	withoutNorm.AudioNormalize = false
+	joined = strings.Join(ffmpeg.BuildFFmpegAudioOnlyArgs(withoutNorm), " ")
+	assert.NotContains(t, joined, "loudnorm")
+}
+
+// BitRate > 0 must emit -b:a; 0 must not.
+func TestBuildFFmpegAudioOnlyArgs_Bitrate(t *testing.T) {
+	opts := transcoding.AudioProcessOpts{
+		FilePath:       "/media/movie.mkv",
+		OutputDir:      "/tmp/audio",
+		SourceTrackIdx: 0,
+		AudioBitrate:   256,
+	}
+	joined := strings.Join(ffmpeg.BuildFFmpegAudioOnlyArgs(opts), " ")
+	assert.Contains(t, joined, "-b:a 256k")
+
+	opts.AudioBitrate = 0
+	joined = strings.Join(ffmpeg.BuildFFmpegAudioOnlyArgs(opts), " ")
+	assert.NotContains(t, joined, "-b:a")
+}
+
+// The output playlist path must be <OutputDir>/audio_T.m3u8.
+func TestBuildFFmpegAudioOnlyArgs_PlaylistPath(t *testing.T) {
+	opts := transcoding.AudioProcessOpts{
+		FilePath:       "/media/movie.mkv",
+		OutputDir:      "/tmp/session42",
+		SourceTrackIdx: 2,
+	}
+	args := ffmpeg.BuildFFmpegAudioOnlyArgs(opts)
+	last := args[len(args)-1]
+	assert.Equal(t, "/tmp/session42/audio_2.m3u8", last,
+		"last arg must be the playlist output path")
+}
+
+// Event-mode HLS flags must be present (consistent with video pipeline).
+func TestBuildFFmpegAudioOnlyArgs_HLSEventModeFlags(t *testing.T) {
+	opts := transcoding.AudioProcessOpts{
+		FilePath:       "/media/movie.mkv",
+		OutputDir:      "/tmp/audio",
+		SourceTrackIdx: 0,
+	}
+	joined := strings.Join(ffmpeg.BuildFFmpegAudioOnlyArgs(opts), " ")
+	assert.Contains(t, joined, "-hls_list_size 0")
+	assert.Contains(t, joined, "-hls_playlist_type event")
+	assert.Contains(t, joined, "-hls_flags temp_file")
+	assert.Contains(t, joined, "-hls_segment_type fmp4")
+	assert.NotContains(t, joined, "delete_segments")
 }
 
 // Integration test — requires ffmpeg binary
