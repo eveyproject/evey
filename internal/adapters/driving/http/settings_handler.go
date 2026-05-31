@@ -131,6 +131,7 @@ func registerServerSettingsRoutes(
 			PeriodicScanInterval    *string `json:"periodicScanInterval"`
 			SkipPreviewEnabled      *bool   `json:"skipPreviewEnabled"`
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "bad request")

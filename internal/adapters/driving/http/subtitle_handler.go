@@ -266,6 +266,7 @@ func (h *subtitleRoutes) download(w http.ResponseWriter, r *http.Request) {
 		Language string `json:"language"`
 		Format   string `json:"format"`
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "bad request")

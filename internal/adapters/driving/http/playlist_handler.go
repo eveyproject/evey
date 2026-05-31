@@ -78,6 +78,7 @@ func (h *playlistHandler) generatePlaylist(w http.ResponseWriter, r *http.Reques
 		Size      int    `json:"size"`
 		Name      string `json:"name"`
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.LibraryID == "" {
 		span.SetStatus(otelcodes.Error, "invalid request body")
 		http.Error(w, `{"message":"libraryId is required"}`, http.StatusBadRequest)

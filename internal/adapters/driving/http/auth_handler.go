@@ -229,6 +229,7 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		CurrentPassword string   `json:"currentPassword"`
 		Enabled         *bool    `json:"enabled"`
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "bad request body")
@@ -393,6 +394,7 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		PIN string `json:"pin"`
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "bad request body")

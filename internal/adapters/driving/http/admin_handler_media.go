@@ -27,6 +27,7 @@ func (h *adminHandler) handleRefreshMetadata(w http.ResponseWriter, r *http.Requ
 		ImdbID    string `json:"imdb_id"`
 		MediaType string `json:"media_type"`
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "bad request")

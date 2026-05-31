@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/evey-project/evey/internal/config"
@@ -182,6 +183,23 @@ func TestRemoteAccessPut_PartialUpdate(t *testing.T) {
 	}
 	if body["maxRemoteBitrateKbps"] != float64(2000) {
 		t.Errorf("expected maxRemoteBitrateKbps=2000, got %v", body["maxRemoteBitrateKbps"])
+	}
+}
+
+// TestRemoteAccessPut_BodyTooLarge_400 proves that MaxBytesReader caps the
+// request body: a body larger than 1 MiB must be rejected with 400.
+func TestRemoteAccessPut_BodyTooLarge_400(t *testing.T) {
+	mux, adminTok, _ := setupRemoteAccessMux(t)
+	// Build a JSON object whose total size exceeds 1 MiB.
+	// The value is a string of 1 MiB+1 bytes embedded in a valid JSON object.
+	giant := `{"enabled":true,"externalUrl":"` + strings.Repeat("a", 1<<20+1) + `"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/remote-access", bytes.NewReader([]byte(giant)))
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for oversized body, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

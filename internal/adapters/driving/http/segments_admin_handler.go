@@ -40,6 +40,7 @@ func setSegmentHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, librar
 			StartMs int64  `json:"startMs"`
 			EndMs   int64  `json:"endMs"`
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 		if decodeErr := json.NewDecoder(r.Body).Decode(&body); decodeErr != nil {
 			http.Error(w, `{"message":"invalid body"}`, http.StatusBadRequest)
 			return
