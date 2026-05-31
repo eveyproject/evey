@@ -145,6 +145,23 @@ func TestSegmentCache_IsReady_TrueWhenFileExists(t *testing.T) {
 	assert.True(t, c.IsReady(k, true))
 }
 
+func TestSegmentCache_IsReady_FalseWhenZeroBytes(t *testing.T) {
+	// The fMP4 init segment is written non-atomically (no temp_file rename), so
+	// it exists at 0 bytes for a window. A 0-byte file must NOT be reported
+	// ready — serving an empty init breaks the player's SourceBuffer init and
+	// causes endless buffering. Wait must keep blocking until ffmpeg writes it.
+	c, _ := newTestCache(t)
+	k := SegmentKey{DecisionHash: "abcd", VariantIdx: 0, IsInit: true}
+	path := c.Path(k, true)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte{}, 0o644)) // 0 bytes
+	assert.False(t, c.IsReady(k, true), "0-byte init must be not-ready")
+
+	// Once ffmpeg writes real bytes, it becomes ready.
+	require.NoError(t, os.WriteFile(path, []byte("ftypiso6...moov"), 0o644))
+	assert.True(t, c.IsReady(k, true))
+}
+
 func TestSegmentCache_IsReady_FalseWhenTmpSiblingExists(t *testing.T) {
 	// Defence in depth: even if the final name exists, a `.tmp` sibling
 	// signals an in-progress write (race window between rename and our stat).

@@ -253,7 +253,20 @@ func (c *SegmentCache) DirFor(decisionHash string) (string, error) {
 // of `.tmp` AND the presence of the final name together prove a complete segment.
 func (c *SegmentCache) IsReady(k SegmentKey, useFMP4 bool) bool {
 	final := c.Path(k, useFMP4)
-	if _, err := os.Stat(final); err != nil {
+	fi, err := os.Stat(final)
+	if err != nil {
+		return false
+	}
+	// A 0-byte file is a segment mid-creation, NOT a ready one. ffmpeg writes
+	// the fMP4 init segment (stream_N_init.mp4) DIRECTLY — it does not get the
+	// `.tmp`→rename atomicity that `-hls_flags temp_file` gives media segments —
+	// so there is a window where the init exists at 0 bytes. Serving it empty
+	// makes the player's SourceBuffer init fail → endless buffering with no
+	// error. Treat any 0-byte segment as not-ready so Wait blocks until ffmpeg
+	// has actually written it (and a truncated init left by a killed rafale
+	// re-spawns instead of being served forever). Latency-amplified by HW
+	// rc-lookahead, which delays the first encoded frames.
+	if fi.Size() == 0 {
 		return false
 	}
 	// Defence in depth: if a `.tmp` exists alongside, treat as not-ready even
