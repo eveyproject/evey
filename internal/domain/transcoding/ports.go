@@ -104,6 +104,19 @@ type HLSProcessOpts struct {
 	MaxAudioChannels int    // 0 = no cap (preserves current -ac 2 default when transcoding audio).
 	ForceSidecarSubs bool   // true → skip burn-in even for bitmap subs (served as sidecar externally).
 
+	// HWAccel selects the hardware encoder backend. None/"" → software
+	// (libx264/libx265/libaom-av1, the unchanged default). When set, the
+	// ffmpeg builder emits a zero-copy hardware pipeline (hwaccel decode →
+	// HW scale → HW encode). The wiring layer only sets this to a non-None
+	// value when (a) the flag transcoding.hw_accel_enabled is on, (b) a
+	// detected device supports the requested codec, and (c) the content is
+	// simple (no HDR tonemap, no bitmap-subtitle burn-in) — otherwise the
+	// builder falls back to the software path for correctness.
+	HWAccel HWAccelType
+	// HWDevice is the DRM render node for VAAPI/QSV (e.g. /dev/dri/renderD128).
+	// Ignored by NVENC (CUDA selects the device). Empty → ffmpeg default.
+	HWDevice string
+
 	// UseFMP4 picks the segment container: true → fMP4 (.m4s + per-variant
 	// init segment), false → MPEG-TS (.ts). Must match the extension baked
 	// into the manifest the player consumes — otherwise segment fetches

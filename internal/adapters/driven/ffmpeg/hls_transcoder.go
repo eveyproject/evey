@@ -286,6 +286,47 @@ func resolveVideoEncoder(codec string) string {
 	return "libx264"
 }
 
+// normalizeVideoCodec collapses the domain codec aliases to the canonical
+// base used to build hardware encoder names ("h264"/"hevc"/"av1"). Empty
+// codec defaults to h264 (matches resolveVideoEncoder's libx264 default).
+// Returns "" for anything unrecognised so callers fall back to software.
+func normalizeVideoCodec(codec string) string {
+	switch strings.ToLower(codec) {
+	case "", "h264", "libx264":
+		return "h264"
+	case "hevc", "h265", "libx265":
+		return "hevc"
+	case "av1", "libaom-av1":
+		return "av1"
+	}
+	return ""
+}
+
+// videoEncoderFor maps a domain codec + hardware backend to the ffmpeg
+// encoder name. accel None/empty/invalid → software (resolveVideoEncoder).
+// When a backend is requested but the codec has no hardware encoder for it
+// (unrecognised codec), it falls back to software so the command stays valid
+// — defensive only: the wiring layer already gates HWAccel on per-codec
+// capability probing (HWDetector.SupportsCodec), so a set HWAccel is trusted.
+func videoEncoderFor(codec string, accel transcoding.HWAccelType) string {
+	if accel == "" || accel == transcoding.None || !accel.IsValid() {
+		return resolveVideoEncoder(codec)
+	}
+	base := normalizeVideoCodec(codec)
+	if base == "" {
+		return resolveVideoEncoder(codec)
+	}
+	switch accel {
+	case transcoding.NVENC:
+		return base + "_nvenc"
+	case transcoding.VAAPI:
+		return base + "_vaapi"
+	case transcoding.QSV:
+		return base + "_qsv"
+	}
+	return resolveVideoEncoder(codec)
+}
+
 // resolveAudioEncoder maps a domain audio codec to the ffmpeg encoder name.
 // Empty → aac (previous hardcoded default).
 func resolveAudioEncoder(codec string) string {
@@ -309,6 +350,57 @@ func resolveAudioChannels(maxChannels int) string {
 		return fmt.Sprintf("%d", maxChannels)
 	}
 	return "2"
+}
+
+// hasAudio reports whether the source has a selectable audio track. The wiring
+// layer signals "no audio" with AudioTrackIndex < 0 (rare: a silent/video-only
+// media). When false the builders emit a video-only ladder — no -map 0:a, no
+// audio encode args, and the var_stream_map drops the audio rendition — so
+// ffmpeg doesn't abort with "Invalid argument" on a missing 0:a:N stream.
+func hasAudio(opts transcoding.HLSProcessOpts) bool {
+	return opts.AudioTrackIndex >= 0
+}
+
+// audioOutputArgsSingle returns the audio map + single-stream encode/copy args
+// for the copy and single-variant transcode builders, or nil when the source
+// has no audio. Honours the copy-vs-transcode decision and optional loudnorm.
+func audioOutputArgsSingle(opts transcoding.HLSProcessOpts, bitrateKbps int64) []string {
+	if !hasAudio(opts) {
+		return nil
+	}
+	a := []string{"-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex)}
+	if opts.AudioDecision == "transcode" {
+		a = append(a,
+			"-c:a", resolveAudioEncoder(opts.AudioCodec),
+			"-ac", resolveAudioChannels(opts.MaxAudioChannels),
+			"-b:a", fmt.Sprintf("%dk", bitrateKbps),
+		)
+		if opts.AudioNormalize {
+			a = append(a, "-filter:a:0", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
+		}
+	} else {
+		a = append(a, "-c:a", "copy")
+	}
+	return a
+}
+
+// audioVariantArgs returns the per-variant audio map + transcode args for the
+// multi-variant builders (software and hardware), or nil when the source has
+// no audio. Multi-variant always re-encodes audio (one AAC rendition per rung).
+func audioVariantArgs(opts transcoding.HLSProcessOpts, i int, bitrateKbps int64) []string {
+	if !hasAudio(opts) {
+		return nil
+	}
+	a := []string{
+		"-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
+		fmt.Sprintf("-c:a:%d", i), resolveAudioEncoder(opts.AudioCodec),
+		"-ac", resolveAudioChannels(opts.MaxAudioChannels),
+		fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", bitrateKbps),
+	}
+	if opts.AudioNormalize {
+		a = append(a, fmt.Sprintf("-filter:a:%d", i), "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
+	}
+	return a
 }
 
 func BuildFFmpegArgs(opts transcoding.HLSProcessOpts) []string {
@@ -470,8 +562,11 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 		args = appendInputModifiers(args)
 		args = append(args, "-i", opts.FilePath)
+		args = append(args, "-map", "0:v:0")
+		if hasAudio(opts) {
+			args = append(args, "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex))
+		}
 		args = append(args,
-			"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
 			"-c:v", "libx264",
 			"-preset", "ultrafast",
 			"-pix_fmt", "yuv420p",
@@ -490,22 +585,25 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	} else {
 		args = appendInputModifiers(args)
 		args = append(args, "-i", opts.FilePath)
-		args = append(args,
-			"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
-			"-c:v", "copy",
-		)
-	}
-	if opts.AudioDecision == "transcode" {
-		args = append(args,
-			"-c:a", resolveAudioEncoder(opts.AudioCodec),
-			"-ac", resolveAudioChannels(opts.MaxAudioChannels),
-			"-b:a", "192k",
-		)
-		if opts.AudioNormalize {
-			args = append(args, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
+		args = append(args, "-map", "0:v:0")
+		if hasAudio(opts) {
+			args = append(args, "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex))
 		}
-	} else {
-		args = append(args, "-c:a", "copy")
+		args = append(args, "-c:v", "copy")
+	}
+	if hasAudio(opts) {
+		if opts.AudioDecision == "transcode" {
+			args = append(args,
+				"-c:a", resolveAudioEncoder(opts.AudioCodec),
+				"-ac", resolveAudioChannels(opts.MaxAudioChannels),
+				"-b:a", "192k",
+			)
+			if opts.AudioNormalize {
+				args = append(args, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
+			}
+		} else {
+			args = append(args, "-c:a", "copy")
+		}
 	}
 
 	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams), startNumberFor(opts))
@@ -533,6 +631,9 @@ func startNumberFor(opts transcoding.HLSProcessOpts) int {
 func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec) && !opts.ForceSidecarSubs
 	toneMap := detectToneMap(opts.HDRSupported, opts.Streams)
+	if hwUsable(opts, burnIn, toneMap) {
+		return buildSingleTranscodeHWArgs(opts)
+	}
 
 	var args []string
 	if opts.StartSec > 0 {
@@ -571,27 +672,14 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 		)
 	}
 
-	args = append(args, "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
-		"-c:v", resolveVideoEncoder(opts.VideoCodec),
+	args = append(args, "-c:v", resolveVideoEncoder(opts.VideoCodec),
 		"-profile:v", "high", "-level:v", "4.1",
 		"-b:v", fmt.Sprintf("%dk", p.VideoBitrate),
 		"-preset", "veryfast",
 		"-pix_fmt", "yuv420p",
 	)
 	args = append(args, hlsForceKeyframesArgs...)
-
-	if opts.AudioDecision == "transcode" {
-		args = append(args,
-			"-c:a", resolveAudioEncoder(opts.AudioCodec),
-			"-ac", resolveAudioChannels(opts.MaxAudioChannels),
-			"-b:a", fmt.Sprintf("%dk", p.AudioBitrate),
-		)
-		if opts.AudioNormalize {
-			args = append(args, "-filter:a:0", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
-		}
-	} else {
-		args = append(args, "-c:a", "copy")
-	}
+	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 
 	return appendHLSOutputArgs(args, opts.OutputDir, false, startNumberFor(opts))
 }
@@ -600,9 +688,10 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	n := len(opts.Profiles)
 	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec) && !opts.ForceSidecarSubs
 	toneMap := detectToneMap(opts.HDRSupported, opts.Streams)
+	if hwUsable(opts, burnIn, toneMap) {
+		return buildMultiVariantHWArgs(opts)
+	}
 	vcodec := resolveVideoEncoder(opts.VideoCodec)
-	acodec := resolveAudioEncoder(opts.AudioCodec)
-	acChannels := resolveAudioChannels(opts.MaxAudioChannels)
 
 	var args []string
 	if opts.StartSec > 0 {
@@ -672,57 +761,18 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 			fmt.Sprintf("-b:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate),
 			"-preset", "veryfast",
 			"-pix_fmt", "yuv420p",
-			"-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
-			fmt.Sprintf("-c:a:%d", i), acodec, "-ac", acChannels,
-			fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", p.AudioBitrate),
 		)
-		if opts.AudioNormalize {
-			args = append(args, fmt.Sprintf("-filter:a:%d", i), "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
-		}
+		args = append(args, audioVariantArgs(opts, i, p.AudioBitrate)...)
 	}
 	// Force aligned keyframes at the segment cadence across every variant — both
 	// to fix slow/irregular first-segment startup and to keep ABR-switchable
 	// segment boundaries identical between renditions.
 	args = append(args, hlsForceKeyframesArgs...)
 
-	var streamMap []string
-	for i := range n {
-		streamMap = append(streamMap, fmt.Sprintf("v:%d,a:%d", i, i))
-	}
-	args = append(args, "-var_stream_map", strings.Join(streamMap, " "))
-
-	// Multi-variant master playlist — same event-mode flags as the single-variant
-	// builders: list_size 0 keeps the full growing playlist, playlist_type event
-	// prevents hls.js from snapping to the live edge. Cleanup is handled by
-	// HLSSession.stop() → os.RemoveAll(OutputDir) at session end.
-	args = append(args,
-		"-master_pl_name", "master.m3u8",
-		"-f", "hls",
-		"-hls_time", hlsSegmentSeconds,
-		"-hls_list_size", "0",
-		"-hls_playlist_type", "event",
-		"-hls_flags", "temp_file",
-		"-start_number", fmt.Sprintf("%d", startNumberFor(opts)),
-	)
-	// Container choice: fMP4 (.m4s + per-variant init) or MPEG-TS (.ts).
-	// The single-variant builders honoured opts.UseFMP4 via
-	// appendHLSOutputArgs but this multi-variant path used to hardcode .ts —
-	// since the project flipped to fMP4 by default (commit cecbf9d10) the
-	// manifest served to hls.js asked for .m4s while ffmpeg wrote .ts.
-	// Cache lookups missed forever and every seg 0 timed out.
-	if opts.UseFMP4 {
-		args = append(args,
-			"-hls_segment_type", "fmp4",
-			"-hls_fmp4_init_filename", "stream_%v_init.mp4",
-			"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.m4s"),
-		)
-	} else {
-		args = append(args,
-			"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.ts"),
-		)
-	}
-	args = append(args, filepath.Join(opts.OutputDir, "stream_%v.m3u8"))
-	return args
+	// -var_stream_map + HLS muxer tail (container choice, master playlist,
+	// segment naming). Shared with the hardware multi-variant builder so both
+	// paths produce byte-identical playlist/segment names for a given opts.
+	return appendHLSMultiVariantTail(args, opts, n)
 }
 
 func detectToneMap(hdrSupported bool, streams []*library.MediaStream) string {
@@ -738,6 +788,197 @@ func detectToneMap(hdrSupported bool, streams []*library.MediaStream) string {
 		return hdr.BuildToneMapFilter(hdrInfo, hdr.DefaultToneMapOptions())
 	}
 	return ""
+}
+
+// --- hardware-accelerated transcode path ---
+//
+// v1 handles the "simple" filtergraph only: a zero-copy decode → GPU scale →
+// GPU encode pipeline. HDR tonemapping and bitmap-subtitle burn-in still take
+// the software path (their GPU filtergraphs are backend-specific and depend on
+// optional ffmpeg filters that minimal/NAS builds may lack). The orchestrated
+// VOD path currently always hits this simple case (Streams=nil, SubtitleCodec
+// unset ⇒ no tonemap/burn-in), so v1 covers 100% of live VOD transcodes.
+//
+// The arg shapes here are validated end-to-end on real hardware (NVENC on an
+// RTX 4070 Ti, VAAPI on a Ryzen iGPU): scale_cuda/scale_vaapi both accept a
+// `-2` auto-height, split fans out GPU surfaces, and the *_nvenc/*_vaapi
+// encoders consume them with no hwdownload round-trip.
+
+// hwUsable reports whether the hardware encode path applies to this job. The
+// wiring layer only sets HWAccel to a non-None value after confirming the flag
+// is on and a detected device supports the codec; this gate additionally keeps
+// the complex-filtergraph cases (tonemap, burn-in) on the proven software path.
+func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool {
+	return opts.HWAccel != "" && opts.HWAccel != transcoding.None && opts.HWAccel.IsValid() &&
+		!burnIn && toneMap == ""
+}
+
+// hwInitArgs returns the pre-`-i` flags that put decode + filtering on the GPU
+// for a zero-copy transcode. NVENC selects the device through CUDA; VAAPI/QSV
+// take an explicit DRM render node when one is provided (empty → ffmpeg
+// default device).
+func hwInitArgs(accel transcoding.HWAccelType, device string) []string {
+	switch accel {
+	case transcoding.NVENC:
+		return []string{"-hwaccel", "cuda", "-hwaccel_output_format", "cuda"}
+	case transcoding.VAAPI:
+		a := []string{"-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi"}
+		if device != "" {
+			a = append(a, "-hwaccel_device", device)
+		}
+		return a
+	case transcoding.QSV:
+		a := []string{"-hwaccel", "qsv", "-hwaccel_output_format", "qsv"}
+		if device != "" {
+			a = append(a, "-qsv_device", device)
+		}
+		return a
+	}
+	return nil
+}
+
+// hwScaleFilter returns the GPU scaler for the backend. Width pins the output
+// width; `-2` keeps the source aspect ratio rounded to an even height (which
+// every HW encoder requires). Validated against scale_cuda and scale_vaapi.
+func hwScaleFilter(accel transcoding.HWAccelType, width int) string {
+	switch accel {
+	case transcoding.NVENC:
+		return fmt.Sprintf("scale_cuda=%d:-2", width)
+	case transcoding.VAAPI:
+		return fmt.Sprintf("scale_vaapi=%d:-2", width)
+	case transcoding.QSV:
+		return fmt.Sprintf("scale_qsv=%d:-2", width)
+	}
+	return fmt.Sprintf("scale=%d:-2", width)
+}
+
+// hwEncoderQualityArgs returns the encoder-specific quality flags applied to
+// the output stream currently being defined (no stream specifier — ffmpeg
+// binds them to the next `-c:v`). Conservative for v1: NVENC preset p4 is the
+// speed/quality sweet spot, QSV veryfast keeps cold starts low on weak iGPUs;
+// VAAPI is bitrate-driven with the encoder's default rate control. The
+// streaming-aware NVENC tuning (b-frames, rc-lookahead, spatial-aq) is a
+// follow-up. No `-pix_fmt yuv420p` here — frames are GPU surfaces.
+func hwEncoderQualityArgs(accel transcoding.HWAccelType) []string {
+	switch accel {
+	case transcoding.NVENC:
+		// -forced-idr 1 is REQUIRED: without it NVENC honours -force_key_frames
+		// with plain (non-IDR) I-frames that the HLS segmenter won't cut on, so
+		// segment lengths drift off the 3 s cadence the precomputed VOD manifest
+		// assumes (validated on an RTX 4070 Ti: 3 ragged segments → 7 clean 3 s
+		// segments once forced-idr is on).
+		return []string{"-preset", "p4", "-forced-idr", "1"}
+	case transcoding.QSV:
+		// VAAPI was validated to segment correctly without an IDR flag and
+		// QSV is expected to behave the same; -forced_idr is intentionally NOT
+		// set here because an unknown option would fail the whole QSV encode,
+		// and QSV can only be validated on a real Intel host (NAS). TODO: if
+		// NAS validation shows segment drift, add "-forced_idr", "1".
+		return []string{"-preset", "veryfast"}
+	}
+	return nil
+}
+
+// appendHLSMultiVariantTail writes the -var_stream_map + HLS muxer args shared
+// by the software and hardware multi-variant builders, so both produce
+// byte-identical playlist/segment naming for a given opts (a cache addressed by
+// decision hash must not care whether SW or HW produced the segment).
+func appendHLSMultiVariantTail(args []string, opts transcoding.HLSProcessOpts, n int) []string {
+	var streamMap []string
+	for i := range n {
+		if hasAudio(opts) {
+			streamMap = append(streamMap, fmt.Sprintf("v:%d,a:%d", i, i))
+		} else {
+			streamMap = append(streamMap, fmt.Sprintf("v:%d", i))
+		}
+	}
+	args = append(args, "-var_stream_map", strings.Join(streamMap, " "))
+	args = append(args,
+		"-master_pl_name", "master.m3u8",
+		"-f", "hls",
+		"-hls_time", hlsSegmentSeconds,
+		"-hls_list_size", "0",
+		"-hls_playlist_type", "event",
+		"-hls_flags", "temp_file",
+		"-start_number", fmt.Sprintf("%d", startNumberFor(opts)),
+	)
+	if opts.UseFMP4 {
+		args = append(args,
+			"-hls_segment_type", "fmp4",
+			"-hls_fmp4_init_filename", "stream_%v_init.mp4",
+			"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.m4s"),
+		)
+	} else {
+		args = append(args,
+			"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_%v_%03d.ts"),
+		)
+	}
+	args = append(args, filepath.Join(opts.OutputDir, "stream_%v.m3u8"))
+	return args
+}
+
+// buildSingleTranscodeHWArgs is the GPU single-rung equivalent of
+// buildSingleTranscodeArgs. Mirrors that builder's container choice (.ts) so a
+// SW↔HW fallback never changes on-disk naming for the same job.
+func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
+	p := opts.Profiles[len(opts.Profiles)-1]
+
+	var args []string
+	if opts.StartSec > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
+	}
+	args = append(args, hwInitArgs(opts.HWAccel, opts.HWDevice)...)
+	args = appendInputModifiers(args)
+	args = append(args, "-i", opts.FilePath)
+
+	args = append(args, "-map", "0:v:0", "-vf", hwScaleFilter(opts.HWAccel, p.Width))
+	args = append(args, "-c:v", videoEncoderFor(opts.VideoCodec, opts.HWAccel))
+	args = append(args, hwEncoderQualityArgs(opts.HWAccel)...)
+	args = append(args, "-b:v", fmt.Sprintf("%dk", p.VideoBitrate))
+	args = append(args, hlsForceKeyframesArgs...)
+	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
+
+	return appendHLSOutputArgs(args, opts.OutputDir, false, startNumberFor(opts))
+}
+
+// buildMultiVariantHWArgs is the GPU equivalent of buildMultiVariantArgs: a
+// single decode fed into a GPU split, one GPU scaler per rung, one HW encoder
+// per rung — zero host-memory round-trip. Audio stays software-encoded.
+func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
+	n := len(opts.Profiles)
+	vcodec := videoEncoderFor(opts.VideoCodec, opts.HWAccel)
+
+	var args []string
+	if opts.StartSec > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
+	}
+	args = append(args, hwInitArgs(opts.HWAccel, opts.HWDevice)...)
+	args = appendInputModifiers(args)
+	args = append(args, "-i", opts.FilePath)
+	// Same source-PTS preservation as the software multi-variant builder: a
+	// rafale spawned at seg N>0 must emit fMP4 fragments whose tfdt matches the
+	// VOD manifest's EXTINF, or the browser rejects them.
+	args = append(args, "-copyts")
+
+	splitOutputs := make([]string, n)
+	for i := range n {
+		splitOutputs[i] = fmt.Sprintf("[v%d]", i)
+	}
+	filterParts := []string{fmt.Sprintf("[0:v]split=%d%s", n, strings.Join(splitOutputs, ""))}
+	for i, p := range opts.Profiles {
+		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s[o%d]", i, hwScaleFilter(opts.HWAccel, p.Width), i))
+	}
+	args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
+
+	for i, p := range opts.Profiles {
+		args = append(args, "-map", fmt.Sprintf("[o%d]", i), fmt.Sprintf("-c:v:%d", i), vcodec)
+		args = append(args, hwEncoderQualityArgs(opts.HWAccel)...)
+		args = append(args, fmt.Sprintf("-b:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate))
+		args = append(args, audioVariantArgs(opts, i, p.AudioBitrate)...)
+	}
+	args = append(args, hlsForceKeyframesArgs...)
+
+	return appendHLSMultiVariantTail(args, opts, n)
 }
 
 // BuildFFmpegAudioOnlyArgs builds the ffmpeg argument list for an audio-only
