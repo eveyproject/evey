@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/Button";
 
 // EncodeCapability is the JSON shape served by the backend at
 // /api/v1/admin/transcode/calibration. Mirrors the Go domain struct.
+type HWFallback = { class: string; codec: string; at: string };
+
 type EncodeCapability = {
   software_max_height: number;
   hw_max_height: number;
@@ -15,6 +17,7 @@ type EncodeCapability = {
   benchmarked_at: string; // RFC3339
   benchmark_duration_ms: number;
   cpu_signature: string;
+  hw_fallbacks?: HWFallback[];
 };
 
 const QK_CALIBRATION = ["admin", "transcode-calibration"] as const;
@@ -64,6 +67,21 @@ export function EncodeCalibrationCard() {
     }
   };
 
+  const fallbackReason = (cls: string): string => {
+    switch (cls) {
+      case "hw_unsupported_option":
+        return t("admin.calibration.fallbackUnsupportedOption", "unsupported encoder option");
+      case "hw_encoder_missing":
+        return t("admin.calibration.fallbackEncoderMissing", "encoder unavailable");
+      case "hw_init":
+        return t("admin.calibration.fallbackInit", "GPU init failed");
+      default:
+        return cls;
+    }
+  };
+
+  const fallbacks = data.hw_fallbacks ?? [];
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 text-sm">
@@ -96,6 +114,34 @@ export function EncodeCalibrationCard() {
           <code className="text-xs text-[var(--text-muted)] truncate">{data.cpu_signature.slice(0, 12)}…</code>
         </Row>
       </div>
+
+      {fallbacks.length > 0 && (
+        <div className="rounded-[var(--radius-md)] border border-amber-500/40 bg-amber-500/5 p-3">
+          <p className="text-sm font-medium text-amber-600">
+            {t("admin.calibration.hwFallbacks", "Hardware fallbacks")}
+          </p>
+          <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+            {t(
+              "admin.calibration.hwFallbacksDesc",
+              "Recent hardware encodes that fell back automatically — the host keeps playing via software while the cause is recorded. Recalibrate once the hardware is fixed.",
+            )}
+          </p>
+          <ul className="mt-2 space-y-1 text-xs">
+            {fallbacks
+              .slice()
+              .reverse()
+              .map((f, i) => (
+                <li key={i} className="text-[var(--text)]">
+                  <code className="text-[var(--text)]">{f.codec || "h264"}</code>
+                  {" → software · "}
+                  {fallbackReason(f.class)}
+                  {" · "}
+                  <span className="text-[var(--text-muted)]">{fmtDate(f.at)}</span>
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
 
       <div className="flex items-center gap-3">
         <Button

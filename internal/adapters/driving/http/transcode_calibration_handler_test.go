@@ -17,12 +17,16 @@ import (
 
 // fakeCalibrationSvc satisfies the calibrationSvc interface for tests.
 type fakeCalibrationSvc struct {
-	current  domaintranscoding.EncodeCapability
-	recalErr error
-	calls    int
+	current   domaintranscoding.EncodeCapability
+	recalErr  error
+	calls     int
+	fallbacks []apptranscoding.HWFallbackEvent
 }
 
 func (f *fakeCalibrationSvc) Current() domaintranscoding.EncodeCapability { return f.current }
+func (f *fakeCalibrationSvc) RecentFallbacks() []apptranscoding.HWFallbackEvent {
+	return f.fallbacks
+}
 func (f *fakeCalibrationSvc) Recalibrate(_ context.Context) error {
 	f.calls++
 	if f.recalErr != nil {

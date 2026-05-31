@@ -21,6 +21,9 @@ import (
 type calibrationSvc interface {
 	Recalibrate(ctx context.Context) error
 	Current() domaintranscoding.EncodeCapability
+	// RecentFallbacks surfaces the level-2 HW-demotion events (newest last) so
+	// the admin can see a degraded host without log diving.
+	RecentFallbacks() []apptranscoding.HWFallbackEvent
 }
 
 // capOverrideLister is the narrow port the overrides GET handler needs.
@@ -50,7 +53,16 @@ func transcodeCalibrationGetHandler(svc calibrationSvc) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-cache") // freshness wins on an admin-only path
-		if err := json.NewEncoder(w).Encode(svc.Current()); err != nil {
+		// Embed the capability so its fields stay top-level (the frontend reads
+		// them flat) and add the recent HW-fallback events alongside.
+		resp := struct {
+			domaintranscoding.EncodeCapability
+			HWFallbacks []apptranscoding.HWFallbackEvent `json:"hw_fallbacks"`
+		}{
+			EncodeCapability: svc.Current(),
+			HWFallbacks:      svc.RecentFallbacks(),
+		}
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "encode capability")
 			slog.Warn("calibration: GET encode failed", slog.Any("err", err))

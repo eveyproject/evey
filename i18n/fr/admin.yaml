@@ -627,6 +627,11 @@ calibration:
   errorToast: "Le calibrage a échoué"
   setupTitle: "Calibrage des capacités d'encodage"
   setupSubtitle: "Mesure de la hauteur maximale que votre machine peut encoder en temps réel. Environ 20 secondes, une seule fois."
+  hwFallbacks: "Replis matériels"
+  hwFallbacksDesc: "Encodages matériels récents retombés automatiquement — la machine continue en software le temps que la cause soit enregistrée. Recalibrez une fois le matériel corrigé."
+  fallbackUnsupportedOption: "option d'encodeur non supportée"
+  fallbackEncoderMissing: "encodeur indisponible"
+  fallbackInit: "échec d'init GPU"
 
 serverSettings:
   title: "Paramètres du serveur"

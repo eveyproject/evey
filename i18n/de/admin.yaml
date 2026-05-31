@@ -623,6 +623,29 @@ serverSettings:
   usingDefault: "Standardwert:"
   reset: Auf Standard zurücksetzen
 
+calibration:
+  cardTitle: "Encode-Kalibrierung"
+  cardSubtitle: "Beim Start gemessen — legt die Obergrenze der HLS-Qualitätsstufen fest, damit der Host nicht mehr ansetzt, als er in Echtzeit kodieren kann."
+  softwareMax: "Obergrenze Software-Kodierung"
+  hwMax: "Obergrenze Hardware-Kodierung"
+  hwNone: "kein GPU-Beschleuniger erkannt"
+  libx264: "libx264 ultrafast"
+  lastRun: "Zuletzt kalibriert"
+  cpuSig: "CPU-Signatur"
+  recalibrate: "Neu kalibrieren"
+  recalibrating: "Wird neu kalibriert…"
+  recalibrateHint: "Führen Sie den Benchmark erneut aus, nachdem Sie die Hardwarebeschleunigung aktiviert, die CPU getauscht oder den Container auf einen anderen Host migriert haben."
+  successToast: "Neukalibrierung abgeschlossen"
+  busyToast: "Neukalibrierung läuft bereits"
+  errorToast: "Neukalibrierung fehlgeschlagen"
+  setupTitle: "Kodierleistung wird kalibriert"
+  setupSubtitle: "Es wird gemessen, wie hoch Ihr Host in Echtzeit kodieren kann. Das dauert in der Regel etwa 20 Sekunden und läuft nur einmal."
+  hwFallbacks: "Hardware-Rückfälle"
+  hwFallbacksDesc: "Kürzliche Hardware-Kodierungen, die automatisch zurückgefallen sind — der Host spielt weiter per Software ab, während die Ursache aufgezeichnet wird. Kalibrieren Sie neu, sobald die Hardware behoben ist."
+  fallbackUnsupportedOption: "nicht unterstützte Encoder-Option"
+  fallbackEncoderMissing: "Encoder nicht verfügbar"
+  fallbackInit: "GPU-Initialisierung fehlgeschlagen"
+
 qoe:
   title: "Streaming-Qualität"
   subtitle: "Was Zuschauer tatsächlich erleben — Pufferung, Aussetzer, Datendurchsatz. Nur lesbar."

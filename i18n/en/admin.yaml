@@ -639,6 +639,11 @@ calibration:
   errorToast: "Recalibration failed"
   setupTitle: "Calibrating encode capability"
   setupSubtitle: "Measuring how high your host can encode in realtime. This usually takes ~20 seconds and only runs once."
+  hwFallbacks: "Hardware fallbacks"
+  hwFallbacksDesc: "Recent hardware encodes that fell back automatically — the host keeps playing via software while the cause is recorded. Recalibrate once the hardware is fixed."
+  fallbackUnsupportedOption: "unsupported encoder option"
+  fallbackEncoderMissing: "encoder unavailable"
+  fallbackInit: "GPU init failed"
 
 serverSettings:
   title: Server Settings
