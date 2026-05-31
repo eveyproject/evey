@@ -95,7 +95,10 @@ describe("ServerConfigPage", () => {
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
-    expect(screen.getByRole("button", { name: /Save SMTP Settings/i })).toBeInTheDocument();
+    // The SMTP settings live in a collapsible card that starts closed; expand
+    // it before asserting on its body.
+    fireEvent.click(screen.getByRole("button", { name: /Email \/ SMTP/i }));
+    expect(await screen.findByRole("button", { name: /Save SMTP Settings/i })).toBeInTheDocument();
   });
 
   it("shows Edit button for each config entry", async () => {
@@ -110,11 +113,12 @@ describe("ServerConfigPage", () => {
     mockUseQuery.mockReturnValue({ data: mockEntries, isLoading: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
-    // The page already renders several Save buttons (SMTP form, locale
-    // form, …) before any row enters edit mode. Count them, then click
-    // Edit on the first config row and assert one extra Save (the row's
-    // inline editor) appeared. Cancel is also unique to the inline row.
-    const saveBefore = screen.getAllByRole("button", { name: /^Save$/i }).length;
+    // Settings forms that hold Save buttons (SMTP, locale, …) now live in
+    // collapsed cards, so none are visible until a row enters edit mode.
+    // Count them (query*, which returns [] rather than throwing on zero),
+    // then click Edit on the first config row and assert one extra Save (the
+    // row's inline editor) appeared. Cancel is also unique to the inline row.
+    const saveBefore = screen.queryAllByRole("button", { name: /^Save$/i }).length;
     const cancelBefore = screen.queryAllByRole("button", { name: /^Cancel$/i }).length;
     fireEvent.click(screen.getAllByRole("button", { name: /^Edit$/i })[0]);
     await waitFor(() => {
@@ -134,7 +138,9 @@ describe("ServerConfigPage", () => {
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
-    const showBtn = screen.getByRole("button", { name: /Show/i });
+    // The password toggle lives inside the (collapsed) SMTP card — expand first.
+    fireEvent.click(screen.getByRole("button", { name: /Email \/ SMTP/i }));
+    const showBtn = await screen.findByRole("button", { name: /Show/i });
     fireEvent.click(showBtn);
     expect(screen.getByRole("button", { name: /Hide/i })).toBeInTheDocument();
   });
