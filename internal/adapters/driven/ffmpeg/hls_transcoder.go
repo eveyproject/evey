@@ -877,27 +877,64 @@ func hwDeinterlaceFilter(accel transcoding.HWAccelType) string {
 
 // hwEncoderQualityArgs returns the encoder-specific quality flags applied to
 // the output stream currently being defined (no stream specifier — ffmpeg
-// binds them to the next `-c:v`). Conservative for v1: NVENC preset p4 is the
-// speed/quality sweet spot, QSV veryfast keeps cold starts low on weak iGPUs;
-// VAAPI is bitrate-driven with the encoder's default rate control. The
-// streaming-aware NVENC tuning (b-frames, rc-lookahead, spatial-aq) is a
-// follow-up. No `-pix_fmt yuv420p` here — frames are GPU surfaces.
-func hwEncoderQualityArgs(accel transcoding.HWAccelType) []string {
+// binds them to the next `-c:v`). The BASELINE (preset, plus NVENC's required
+// -forced-idr) is always emitted and is byte-for-byte the pre-probe behaviour.
+// The optional streaming tuning (b-frames, rc-lookahead, spatial/temporal AQ,
+// b_ref_mode) is gated on `features` — the per-option set the calibration
+// probe confirmed this host's encoder ACCEPTS (capability.HWFeatures forwarded
+// via HLSProcessOpts.HWFeatures). An option absent from `features` is never
+// passed, so an older NVENC/QSV/VAAPI chip that rejects it is never handed it,
+// and the level-2 safety net catches anything the probe missed. Empty features
+// ⇒ the proven conservative baseline. No `-pix_fmt yuv420p` — GPU surfaces.
+func hwEncoderQualityArgs(accel transcoding.HWAccelType, features []string) []string {
+	has := func(f string) bool {
+		for _, x := range features {
+			if x == f {
+				return true
+			}
+		}
+		return false
+	}
 	switch accel {
 	case transcoding.NVENC:
-		// -forced-idr 1 is REQUIRED: without it NVENC honours -force_key_frames
-		// with plain (non-IDR) I-frames that the HLS segmenter won't cut on, so
-		// segment lengths drift off the 3 s cadence the precomputed VOD manifest
-		// assumes (validated on an RTX 4070 Ti: 3 ragged segments → 7 clean 3 s
-		// segments once forced-idr is on).
-		return []string{"-preset", "p4", "-forced-idr", "1"}
+		// -forced-idr 1 is REQUIRED and unconditional: without it NVENC honours
+		// -force_key_frames with plain (non-IDR) I-frames the HLS segmenter
+		// won't cut on, so segment lengths drift off the precomputed VOD
+		// cadence (validated on an RTX 4070 Ti). It is supported on every NVENC
+		// generation, so it is not a probed option.
+		args := []string{"-preset", "p4", "-forced-idr", "1"}
+		if has("rc_lookahead") {
+			args = append(args, "-rc-lookahead", "20")
+		}
+		if has("spatial_aq") {
+			args = append(args, "-spatial-aq", "1")
+		}
+		if has("temporal_aq") {
+			args = append(args, "-temporal-aq", "1")
+		}
+		if has("b_ref_mode") {
+			args = append(args, "-b_ref_mode", "middle")
+		}
+		if has("bframes") {
+			args = append(args, "-bf", "3")
+		}
+		return args
 	case transcoding.QSV:
-		// VAAPI was validated to segment correctly without an IDR flag and
-		// QSV is expected to behave the same; -forced_idr is intentionally NOT
-		// set here because an unknown option would fail the whole QSV encode,
-		// and QSV can only be validated on a real Intel host (NAS). TODO: if
-		// NAS validation shows segment drift, add "-forced_idr", "1".
-		return []string{"-preset", "veryfast"}
+		// QSV baseline: veryfast keeps cold starts low on weak iGPUs. -forced_idr
+		// is gated because an older pre-Skylake/Apollo-Lake QSV rejects unknown
+		// options and would fail the whole encode — only emit it once probed.
+		args := []string{"-preset", "veryfast"}
+		if has("forced_idr") {
+			args = append(args, "-forced_idr", "1")
+		}
+		return args
+	case transcoding.VAAPI:
+		// VAAPI rate control is the driver default; only add probed extras.
+		var args []string
+		if has("bframes") {
+			args = append(args, "-bf", "3")
+		}
+		return args
 	}
 	return nil
 }
@@ -960,7 +997,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 	args = append(args, "-map", "0:v:0", "-vf", vf)
 	args = append(args, "-c:v", videoEncoderFor(opts.VideoCodec, opts.HWAccel))
-	args = append(args, hwEncoderQualityArgs(opts.HWAccel)...)
+	args = append(args, hwEncoderQualityArgs(opts.HWAccel, opts.HWFeatures)...)
 	args = append(args, "-b:v", fmt.Sprintf("%dk", p.VideoBitrate))
 	args = append(args, hlsForceKeyframesArgs...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
@@ -1005,7 +1042,7 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 
 	for i, p := range opts.Profiles {
 		args = append(args, "-map", fmt.Sprintf("[o%d]", i), fmt.Sprintf("-c:v:%d", i), vcodec)
-		args = append(args, hwEncoderQualityArgs(opts.HWAccel)...)
+		args = append(args, hwEncoderQualityArgs(opts.HWAccel, opts.HWFeatures)...)
 		args = append(args, fmt.Sprintf("-b:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate))
 		args = append(args, audioVariantArgs(opts, i, p.AudioBitrate)...)
 	}

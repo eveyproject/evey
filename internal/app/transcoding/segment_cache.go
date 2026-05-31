@@ -92,6 +92,13 @@ type DecisionFingerprint struct {
 	// not fork the cache. Empty = software path.
 	HWAccel  string
 	HWDevice string
+	// HWFeatures is the probed tuning set forwarded to the HW encoder. Like
+	// HWAccel/HWDevice it is EXCLUDED from Hash(): tuning options affect the
+	// encoder's internal RC, not the segment's codec/bitrate/resolution/
+	// container/naming, so a segment encoded with or without them stays
+	// interchangeable in the addressable cache (and a level-2 demotion that
+	// drops tuning must not fork it).
+	HWFeatures []string
 
 	// Profiles must be the EXACT ABR ladder ffmpeg will emit. Different ladders
 	// produce different multi-variant runs (variant indices and bitrates differ),

@@ -519,8 +519,9 @@ func (o *SegmentOrchestrator) spawnSession(
 		// Hardware encode backend resolved by the handler (empty = software).
 		// The ffmpeg builder switches to the zero-copy GPU pipeline only when
 		// HWAccel is a valid non-None backend AND the content is simple.
-		HWAccel:  transcoding.HWAccelType(fp.HWAccel),
-		HWDevice: fp.HWDevice,
+		HWAccel:    transcoding.HWAccelType(fp.HWAccel),
+		HWDevice:   fp.HWDevice,
+		HWFeatures: fp.HWFeatures,
 	}
 
 	sessionCtx, cancel := context.WithCancel(o.shutdownCtx)

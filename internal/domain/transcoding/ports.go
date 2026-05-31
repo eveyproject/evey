@@ -116,6 +116,13 @@ type HLSProcessOpts struct {
 	// HWDevice is the DRM render node for VAAPI/QSV (e.g. /dev/dri/renderD128).
 	// Ignored by NVENC (CUDA selects the device). Empty → ffmpeg default.
 	HWDevice string
+	// HWFeatures is the per-option tuning set the calibration probe confirmed
+	// the HW encoder ACCEPTS on this host (capability.HWFeatures). The builder
+	// emits an optional tuning flag only when its name is present, so an option
+	// an older chip rejects is never passed. Empty → the conservative HW
+	// baseline (preset + NVENC's required -forced-idr). Clearing this is also
+	// the level-2 "HW-minimal" retry tier.
+	HWFeatures []string
 
 	// UseFMP4 picks the segment container: true → fMP4 (.m4s + per-variant
 	// init segment), false → MPEG-TS (.ts). Must match the extension baked

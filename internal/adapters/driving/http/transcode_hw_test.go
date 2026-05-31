@@ -8,9 +8,10 @@ import (
 
 func TestResolveHW(t *testing.T) {
 	nvenc := domaintranscoding.EncodeCapability{
-		HWBackend: "nvenc",
-		HWCodecs:  []string{"h264", "hevc", "av1"},
-		HWDevice:  "",
+		HWBackend:  "nvenc",
+		HWCodecs:   []string{"h264", "hevc", "av1"},
+		HWDevice:   "",
+		HWFeatures: []string{"temporal_aq", "rc_lookahead"},
 	}
 	vaapi := domaintranscoding.EncodeCapability{
 		HWBackend: "vaapi",
@@ -23,9 +24,12 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return nvenc },
 			hwAccelEnabled: func() bool { return true },
 		}
-		accel, device, usable := h.resolveHW("h264")
+		accel, device, features, usable := h.resolveHW("h264")
 		if !usable || accel != "nvenc" || device != "" {
 			t.Errorf("got (%q,%q,%v), want (nvenc,'',true)", accel, device, usable)
+		}
+		if len(features) != 2 || features[0] != "temporal_aq" {
+			t.Errorf("probed features must be forwarded, got %v", features)
 		}
 	})
 
@@ -34,7 +38,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return vaapi },
 			hwAccelEnabled: func() bool { return true },
 		}
-		accel, device, usable := h.resolveHW("hevc")
+		accel, device, _, usable := h.resolveHW("hevc")
 		if !usable || accel != "vaapi" || device != "/dev/dri/renderD128" {
 			t.Errorf("got (%q,%q,%v), want (vaapi,/dev/dri/renderD128,true)", accel, device, usable)
 		}
@@ -45,7 +49,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return vaapi }, // no av1
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, usable := h.resolveHW("av1"); usable {
+		if _, _, _, usable := h.resolveHW("av1"); usable {
 			t.Error("av1 unsupported by vaapi caps → must be software")
 		}
 	})
@@ -55,7 +59,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return nvenc },
 			hwAccelEnabled: func() bool { return false },
 		}
-		if _, _, usable := h.resolveHW("h264"); usable {
+		if _, _, _, usable := h.resolveHW("h264"); usable {
 			t.Error("flag off → must be software")
 		}
 	})
@@ -64,7 +68,7 @@ func TestResolveHW(t *testing.T) {
 		h := &hlsVODServe{
 			capability: func() domaintranscoding.EncodeCapability { return nvenc },
 		}
-		if _, _, usable := h.resolveHW("h264"); usable {
+		if _, _, _, usable := h.resolveHW("h264"); usable {
 			t.Error("nil hwAccelEnabled → must be software")
 		}
 	})
@@ -74,7 +78,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return domaintranscoding.SafeFallback() },
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, usable := h.resolveHW("h264"); usable {
+		if _, _, _, usable := h.resolveHW("h264"); usable {
 			t.Error("no HW backend → must be software")
 		}
 	})

@@ -157,6 +157,40 @@ func TestBuildSingleTranscodeHWArgs(t *testing.T) {
 	}
 }
 
+func TestHWEncoderQualityArgs_FeatureGating(t *testing.T) {
+	joined := func(a []string) string { return strings.Join(a, " ") }
+
+	// Baseline (no probed features) must be byte-for-byte the pre-probe args.
+	if got := joined(hwEncoderQualityArgs(transcoding.NVENC, nil)); got != "-preset p4 -forced-idr 1" {
+		t.Errorf("NVENC baseline = %q, want '-preset p4 -forced-idr 1'", got)
+	}
+	if got := joined(hwEncoderQualityArgs(transcoding.QSV, nil)); got != "-preset veryfast" {
+		t.Errorf("QSV baseline = %q, want '-preset veryfast'", got)
+	}
+	if got := hwEncoderQualityArgs(transcoding.VAAPI, nil); len(got) != 0 {
+		t.Errorf("VAAPI baseline must be empty, got %v", got)
+	}
+
+	// NVENC tuning appears only for probed features, forced-idr stays.
+	nv := joined(hwEncoderQualityArgs(transcoding.NVENC, []string{"temporal_aq", "rc_lookahead"}))
+	for _, want := range []string{"-preset p4", "-forced-idr 1", "-temporal-aq 1", "-rc-lookahead 20"} {
+		if !strings.Contains(nv, want) {
+			t.Errorf("NVENC tuned args %q missing %q", nv, want)
+		}
+	}
+	if strings.Contains(nv, "-b_ref_mode") || strings.Contains(nv, "-spatial-aq") || strings.Contains(nv, "-bf ") {
+		t.Errorf("NVENC emitted an unprobed option: %q", nv)
+	}
+
+	// QSV forced_idr is gated (the option an old old iGPU QSV would reject).
+	if got := joined(hwEncoderQualityArgs(transcoding.QSV, []string{"forced_idr"})); !strings.Contains(got, "-forced_idr 1") {
+		t.Errorf("QSV with forced_idr probed = %q, want it to include -forced_idr 1", got)
+	}
+	if got := joined(hwEncoderQualityArgs(transcoding.QSV, nil)); strings.Contains(got, "forced_idr") {
+		t.Errorf("QSV without the probe must NOT emit forced_idr: %q", got)
+	}
+}
+
 func TestHWDeinterlaceFilter(t *testing.T) {
 	cases := map[transcoding.HWAccelType]string{
 		transcoding.NVENC: "yadif_cuda=deint=interlaced",

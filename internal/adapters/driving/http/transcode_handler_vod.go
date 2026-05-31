@@ -481,7 +481,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		}
 	}
 
-	hwAccel, hwDevice, _ := h.resolveHW(decision.VideoCodec)
+	hwAccel, hwDevice, hwFeatures, _ := h.resolveHW(decision.VideoCodec)
 	return apptranscoding.DecisionFingerprint{
 		MediaID:             mediaID,
 		SourcePath:          item.File.Path,
@@ -496,6 +496,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		UseFMP4:             h.useFMP4,
 		HWAccel:             hwAccel,
 		HWDevice:            hwDevice,
+		HWFeatures:          hwFeatures,
 		Profiles:            fpProfiles,
 	}, nil
 }
@@ -520,15 +521,15 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 // HDR tonemap / bitmap burn-in are not gated here: the orchestrated VOD path
 // does neither today, and the ffmpeg builder independently falls back to
 // software for those, so the two stay consistent.
-func (h *hlsVODServe) resolveHW(outputCodec string) (accel, device string, usable bool) {
+func (h *hlsVODServe) resolveHW(outputCodec string) (accel, device string, features []string, usable bool) {
 	if h.hwAccelEnabled == nil || !h.hwAccelEnabled() || h.capability == nil {
-		return "", "", false
+		return "", "", nil, false
 	}
 	cap := h.capability()
 	if !cap.HWSupports(outputCodec) {
-		return "", "", false
+		return "", "", nil, false
 	}
-	return cap.HWBackend, cap.HWDevice, true
+	return cap.HWBackend, cap.HWDevice, cap.HWFeatures, true
 }
 
 // profilesForDecision picks the ABR ladder for a given (decision, mediaItem,
@@ -580,7 +581,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	maxH := 720 // safe floor if capability isn't wired yet (tests / dev w/o calibration)
 	if h.capability != nil {
 		cap := h.capability()
-		_, _, hwUsable := h.resolveHW(decision.VideoCodec)
+		_, _, _, hwUsable := h.resolveHW(decision.VideoCodec)
 		maxH = cap.MaxHeightFor(hwUsable)
 	}
 	// CMCD-feedback adaptive override (Phase C). The override service
@@ -804,7 +805,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 			VideoBitrate: p.VideoBitrate, AudioBitrate: p.AudioBitrate,
 		}
 	}
-	hwAccel, hwDevice, _ := h.resolveHW(decision.VideoCodec)
+	hwAccel, hwDevice, hwFeatures, _ := h.resolveHW(decision.VideoCodec)
 	fp := apptranscoding.DecisionFingerprint{
 		MediaID:             string(nextItem.ID),
 		SourcePath:          nextItem.File.Path,
@@ -820,6 +821,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 		UseFMP4:             h.useFMP4,
 		HWAccel:             hwAccel,
 		HWDevice:            hwDevice,
+		HWFeatures:          hwFeatures,
 	}
 
 	if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, 0); err != nil {
