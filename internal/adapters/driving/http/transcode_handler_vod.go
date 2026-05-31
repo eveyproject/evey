@@ -81,6 +81,12 @@ type hlsVODServe struct {
 	// audio track and the dedicated audio pipeline serves them.
 	audioRenditionEnabled bool
 
+	// audio handles the audio rendition routes (audio_T.m3u8 / init /
+	// segment). Routed through the same /hls/{file} entry point so the
+	// relative URLs the master playlist emits resolve correctly. Nil-safe
+	// — dispatched paths 404 when unset (tests, no AudioOrch wired).
+	audio *audioServe
+
 	// segmentWaitTimeout caps how long the segment handler will block waiting
 	// for ffmpeg to land a segment. Larger than expected encode time but
 	// smaller than the user's patience for a 504. Default 15s.
@@ -93,6 +99,14 @@ var vodSegmentNameRE = regexp.MustCompile(`^stream_(\d+)(?:_(\d{3})|_init)\.(ts|
 
 // vodVariantNameRE matches the sub-playlist file name.
 var vodVariantNameRE = regexp.MustCompile(`^stream_(\d+)\.m3u8$`)
+
+// audioPlaylistNameRE matches the audio rendition sub-playlist
+// (audio_T.m3u8) the master references.
+var audioPlaylistNameRE = regexp.MustCompile(`^audio_(\d+)\.m3u8$`)
+
+// audioSegmentNameRE matches an audio rendition segment file
+// (audio_T_NNN.m4s) or its init segment (audio_T_init.mp4).
+var audioSegmentNameRE = regexp.MustCompile(`^audio_(\d+)(?:_(\d{3})|_init)\.(m4s|mp4)$`)
 
 // serveHTTP is the single dispatch entry point for `/hls/{file}`. It splits
 // master vs sub-playlist vs segment by file name and delegates.
@@ -121,10 +135,49 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serveVariant(w, r, mediaID, file, item, streams, span)
 	case vodSegmentNameRE.MatchString(file):
 		h.serveSegment(w, r, mediaID, file, item, streams, span)
+	case audioPlaylistNameRE.MatchString(file):
+		h.dispatchAudioPlaylist(w, r, mediaID, file, span)
+	case audioSegmentNameRE.MatchString(file):
+		h.dispatchAudioSegment(w, r, mediaID, file, span)
 	default:
 		span.SetStatus(codes.Error, "unknown hls path")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 	}
+}
+
+// dispatchAudioPlaylist + dispatchAudioSegment are tiny adapters: they parse
+// the file name the master playlist emitted (audio_T.m3u8 / audio_T_NNN.m4s
+// / audio_T_init.mp4) and forward to the audio handler with explicit ints.
+// We can't register `/api/v1/media/{id}/audio_{trackIdx}.m3u8` as a separate
+// route — Go 1.22+ ServeMux refuses wildcards that don't cover a whole
+// path segment — and we don't want to either, because the URLs the manifest
+// emits are *relative* to /hls/master.m3u8 and thus resolve into /hls/{file}.
+func (h *hlsVODServe) dispatchAudioPlaylist(w http.ResponseWriter, r *http.Request, mediaID, file string, span trace.Span) {
+	if h.audio == nil {
+		span.SetStatus(codes.Error, "audio rendition not wired")
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	m := audioPlaylistNameRE.FindStringSubmatch(file)
+	trackIdx, _ := strconv.Atoi(m[1])
+	h.audio.servePlaylistFile(w, r, mediaID, trackIdx)
+}
+
+func (h *hlsVODServe) dispatchAudioSegment(w http.ResponseWriter, r *http.Request, mediaID, file string, span trace.Span) {
+	if h.audio == nil {
+		span.SetStatus(codes.Error, "audio rendition not wired")
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	m := audioSegmentNameRE.FindStringSubmatch(file)
+	trackIdx, _ := strconv.Atoi(m[1])
+	if m[2] == "" {
+		// _init.mp4
+		h.audio.serveInitFile(w, r, mediaID, trackIdx)
+		return
+	}
+	segIdx, _ := strconv.Atoi(m[2])
+	h.audio.serveSegmentFile(w, r, mediaID, trackIdx, segIdx)
 }
 
 // commonAuth runs auth + access + parental and resolves the media item +

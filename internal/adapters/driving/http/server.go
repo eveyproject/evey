@@ -317,8 +317,31 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// after ~9 min of continuous playback (cf features/hls_vod_playlist_refacto).
 	if s.HLSTranscoder != nil && s.HLSVODOrch != nil {
 		if vodHandler := newHLSVODServe(s, s.LibQuerySvc, hlsAccessCache, parentalChk); vodHandler != nil {
+			// Audio rendition handler — same auth/parental/cache/manifest
+			// dependencies as the video pipeline, plus the AudioOrch nil-safe
+			// wrap. Routed via vodHandler.serveHTTP (it dispatches the
+			// audio_T.m3u8 / audio_T_init.mp4 / audio_T_NNN.m4s shapes from
+			// the single /hls/{file} catch-all so the relative URLs the
+			// master playlist emits resolve correctly).
+			aOrch := AudioSegmentEnsurer(nil)
+			if s.AudioOrch != nil {
+				aOrch = s.AudioOrch
+			}
+			vodHandler.audio = &audioServe{
+				cfg:                  s.Cfg,
+				libSvc:               s.LibQuerySvc,
+				libraryAccess:        hlsAccessCache,
+				parental:             parentalChk,
+				manifestGen:          apptranscoding.NewManifestGenerator(),
+				cache:                s.HLSVODCache,
+				audioOrch:            aOrch,
+				audioNormalizeGetter: s.AudioNormalizeGetter,
+				segmentWaitTimeout:   30 * time.Second,
+			}
+
 			// Single catch-all — the handler dispatches on the {file} pattern
-			// (master.m3u8 / stream_N.m3u8 / stream_N_NNN.ext / stream_N_init.mp4).
+			// (master.m3u8 / stream_N.m3u8 / stream_N_NNN.ext / stream_N_init.mp4
+			// AND audio_T.m3u8 / audio_T_init.mp4 / audio_T_NNN.m4s).
 			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(vodHandler.serveHTTP))
 			// Predictive warm-up: the player POSTs at ~85% progress of an
 			// episode so the next ep's transcode is pre-spawned and the
@@ -330,32 +353,6 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// it trivially).
 			mux.HandleFunc("POST /api/v1/media/{id}/prewarm-next", auth(ratelimit.MiddlewareFunc(s.AdminHeavyRL, vodHandler.servePrewarmNext)))
 		}
-	}
-
-	// Audio rendition HLS routes (EXT-X-MEDIA audio-only pipeline).
-	// The audioOrch field is nil until wire.go wires the AudioSegmentOrchestrator;
-	// in the meantime audioRenditionEnabled() returns false and every handler
-	// short-circuits to 404. This nil-safe design lets the feature land
-	// incrementally without a hard runtime dependency on the audio orchestrator.
-	{
-		aOrch := AudioSegmentEnsurer(nil)
-		if s.AudioOrch != nil {
-			aOrch = s.AudioOrch
-		}
-		ah := &audioServe{
-			cfg:                  s.Cfg,
-			libSvc:               s.LibQuerySvc,
-			libraryAccess:        hlsAccessCache,
-			parental:             parentalChk,
-			manifestGen:          apptranscoding.NewManifestGenerator(),
-			cache:                s.HLSVODCache,
-			audioOrch:            aOrch,
-			audioNormalizeGetter: s.AudioNormalizeGetter,
-			segmentWaitTimeout:   30 * time.Second,
-		}
-		mux.HandleFunc("GET /api/v1/media/{id}/audio_{trackIdx}.m3u8", streamAuth(audioPlaylistHandler(ah)))
-		mux.HandleFunc("GET /api/v1/media/{id}/audio_{trackIdx}_init.mp4", streamAuth(audioInitHandler(ah)))
-		mux.HandleFunc("GET /api/v1/media/{id}/audio_{trackIdx}_{segIdx}.m4s", streamAuth(audioSegmentHandler(ah)))
 	}
 	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.TokenGen, s.LibQuerySvc, NewLibraryItemCounter(s.LibQuerySvc, s.MusicSvc, s.PhotoSvc))))
 
