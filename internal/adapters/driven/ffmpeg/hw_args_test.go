@@ -106,6 +106,10 @@ func TestBuildMultiVariantHWArgs_NVENC(t *testing.T) {
 	if !strings.Contains(fc, "split=3") || !strings.Contains(fc, "scale_cuda=640:-2") || !strings.Contains(fc, "scale_cuda=1920:-2") {
 		t.Errorf("filter_complex missing HW split/scale: %q", fc)
 	}
+	// Deinterlace runs once on the source, before the split (not per rung).
+	if !strings.Contains(fc, "[0:v]yadif_cuda=deint=interlaced,split=3") {
+		t.Errorf("expected single pre-split yadif_cuda: %q", fc)
+	}
 	if strings.Contains(fc, "scale=") && !strings.Contains(fc, "scale_cuda") {
 		t.Errorf("filter_complex leaked software scale: %q", fc)
 	}
@@ -134,6 +138,9 @@ func TestBuildMultiVariantHWArgs_VAAPI_Device(t *testing.T) {
 	if !ok || !strings.Contains(fc, "scale_vaapi=640:-2") {
 		t.Errorf("expected scale_vaapi in filter_complex, got %q", fc)
 	}
+	if !strings.Contains(fc, "[0:v]deinterlace_vaapi,split=2") {
+		t.Errorf("expected single pre-split deinterlace_vaapi: %q", fc)
+	}
 }
 
 func TestBuildSingleTranscodeHWArgs(t *testing.T) {
@@ -141,11 +148,43 @@ func TestBuildSingleTranscodeHWArgs(t *testing.T) {
 	if !argsContainSeq(args, "-hwaccel", "cuda") {
 		t.Error("expected -hwaccel cuda on single-rung HW path")
 	}
-	if !argsContainSeq(args, "-vf", "scale_cuda=640:-2") {
-		t.Error("expected -vf scale_cuda on single-rung HW path")
+	// Deinterlace (no-op on progressive) precedes the GPU scale in one -vf chain.
+	if !argsContainSeq(args, "-vf", "yadif_cuda=deint=interlaced,scale_cuda=640:-2") {
+		t.Error("expected -vf yadif_cuda,scale_cuda on single-rung HW path")
 	}
 	if !argsContain(args, "h264_nvenc") {
 		t.Error("expected h264_nvenc")
+	}
+}
+
+func TestHWDeinterlaceFilter(t *testing.T) {
+	cases := map[transcoding.HWAccelType]string{
+		transcoding.NVENC: "yadif_cuda=deint=interlaced",
+		transcoding.VAAPI: "deinterlace_vaapi",
+		transcoding.QSV:   "", // vpp_qsv has no field-flag-respecting mode → none
+		transcoding.None:  "",
+		"":                "",
+	}
+	for accel, want := range cases {
+		if got := hwDeinterlaceFilter(accel); got != want {
+			t.Errorf("hwDeinterlaceFilter(%q) = %q, want %q", accel, got, want)
+		}
+	}
+}
+
+func TestBuildMultiVariantHWArgs_QSV_NoDeinterlace(t *testing.T) {
+	// QSV must not inject a deinterlacer: split follows [0:v] directly so
+	// progressive content is never wrongly deinterlaced by vpp_qsv.
+	args := BuildFFmpegArgs(sampleHWOpts(transcoding.QSV, "", 2))
+	fc, ok := filterComplexOf(args)
+	if !ok {
+		t.Fatal("expected -filter_complex")
+	}
+	if !strings.Contains(fc, "[0:v]split=2") {
+		t.Errorf("QSV filter_complex must split directly off [0:v] with no deinterlace: %q", fc)
+	}
+	if strings.Contains(fc, "deint") || strings.Contains(fc, "yadif") {
+		t.Errorf("QSV filter_complex leaked a deinterlacer: %q", fc)
 	}
 }
 

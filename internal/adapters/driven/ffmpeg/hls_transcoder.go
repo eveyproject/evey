@@ -792,12 +792,13 @@ func detectToneMap(hdrSupported bool, streams []*library.MediaStream) string {
 
 // --- hardware-accelerated transcode path ---
 //
-// v1 handles the "simple" filtergraph only: a zero-copy decode → GPU scale →
-// GPU encode pipeline. HDR tonemapping and bitmap-subtitle burn-in still take
-// the software path (their GPU filtergraphs are backend-specific and depend on
-// optional ffmpeg filters that minimal/NAS builds may lack). The orchestrated
-// VOD path currently always hits this simple case (Streams=nil, SubtitleCodec
-// unset ⇒ no tonemap/burn-in), so v1 covers 100% of live VOD transcodes.
+// v1 handles the "simple" filtergraph: a zero-copy decode → GPU deinterlace
+// (no-op on progressive, NVENC/VAAPI only) → GPU scale → GPU encode pipeline.
+// HDR tonemapping and bitmap-subtitle burn-in still take the software path
+// (their GPU filtergraphs are backend-specific and depend on optional ffmpeg
+// filters that minimal/NAS builds may lack). The orchestrated VOD path
+// currently always hits this simple case (Streams=nil, SubtitleCodec unset ⇒ no
+// tonemap/burn-in), so v1 covers 100% of live VOD transcodes.
 //
 // The arg shapes here are validated end-to-end on real hardware (NVENC on an
 // RTX 4070 Ti, VAAPI on a Ryzen iGPU): scale_cuda/scale_vaapi both accept a
@@ -850,6 +851,28 @@ func hwScaleFilter(accel transcoding.HWAccelType, width int) string {
 		return fmt.Sprintf("scale_qsv=%d:-2", width)
 	}
 	return fmt.Sprintf("scale=%d:-2", width)
+}
+
+// hwDeinterlaceFilter returns a GPU deinterlacer that, like the software
+// deinterlaceFilter ("bwdif=deint=interlaced"), only touches frames the decoder
+// flags as interlaced and passes progressive content through untouched — so it
+// is always safe to prepend, never doubles the frame rate, and keeps the work
+// on the GPU surfaces (no hwdownload round-trip). Returns "" for backends with
+// no field-flag-respecting HW deinterlacer:
+//   - NVENC/CUDA: yadif_cuda with deint=interlaced (mode 0 ⇒ one frame per frame)
+//   - VAAPI: deinterlace_vaapi (auto=1 default ⇒ progressive passes through),
+//     which covers AMD iGPUs and Intel iGPUs driven through VAAPI
+//   - QSV: empty — vpp_qsv's deinterlace has no "only-if-flagged" mode and would
+//     wrongly deinterlace progressive content; left to the software path / a
+//     follow-up that gates on a probed interlace signal.
+func hwDeinterlaceFilter(accel transcoding.HWAccelType) string {
+	switch accel {
+	case transcoding.NVENC:
+		return "yadif_cuda=deint=interlaced"
+	case transcoding.VAAPI:
+		return "deinterlace_vaapi"
+	}
+	return ""
 }
 
 // hwEncoderQualityArgs returns the encoder-specific quality flags applied to
@@ -931,7 +954,11 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 	args = appendInputModifiers(args)
 	args = append(args, "-i", opts.FilePath)
 
-	args = append(args, "-map", "0:v:0", "-vf", hwScaleFilter(opts.HWAccel, p.Width))
+	vf := hwScaleFilter(opts.HWAccel, p.Width)
+	if d := hwDeinterlaceFilter(opts.HWAccel); d != "" {
+		vf = d + "," + vf
+	}
+	args = append(args, "-map", "0:v:0", "-vf", vf)
 	args = append(args, "-c:v", videoEncoderFor(opts.VideoCodec, opts.HWAccel))
 	args = append(args, hwEncoderQualityArgs(opts.HWAccel)...)
 	args = append(args, "-b:v", fmt.Sprintf("%dk", p.VideoBitrate))
@@ -964,7 +991,13 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 	for i := range n {
 		splitOutputs[i] = fmt.Sprintf("[v%d]", i)
 	}
-	filterParts := []string{fmt.Sprintf("[0:v]split=%d%s", n, strings.Join(splitOutputs, ""))}
+	// Deinterlace once on the source surface before the GPU split, so every rung
+	// scales from progressive frames (no-op on progressive sources).
+	src := "[0:v]"
+	if d := hwDeinterlaceFilter(opts.HWAccel); d != "" {
+		src += d + ","
+	}
+	filterParts := []string{fmt.Sprintf("%ssplit=%d%s", src, n, strings.Join(splitOutputs, ""))}
 	for i, p := range opts.Profiles {
 		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s[o%d]", i, hwScaleFilter(opts.HWAccel, p.Width), i))
 	}
