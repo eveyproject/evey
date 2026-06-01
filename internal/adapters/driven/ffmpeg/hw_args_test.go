@@ -149,8 +149,8 @@ func TestBuildSingleTranscodeHWArgs(t *testing.T) {
 		t.Error("expected -hwaccel cuda on single-rung HW path")
 	}
 	// Deinterlace (no-op on progressive) precedes the GPU scale in one -vf chain.
-	if !argsContainSeq(args, "-vf", "yadif_cuda=deint=interlaced,scale_cuda=640:-2") {
-		t.Error("expected -vf yadif_cuda,scale_cuda on single-rung HW path")
+	if !argsContainSeq(args, "-vf", "yadif_cuda=deint=interlaced,scale_cuda=640:-2:format=nv12") {
+		t.Error("expected -vf yadif_cuda,scale_cuda(:format=nv12) on single-rung HW path")
 	}
 	if !argsContain(args, "h264_nvenc") {
 		t.Error("expected h264_nvenc")

@@ -65,11 +65,11 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 }
 
 type hlsHandle struct {
-	opts   transcoding.HLSProcessOpts
-	mu     sync.Mutex
-	cmd    *exec.Cmd
-	cancel context.CancelFunc
-	ready  chan struct{}
+	opts    transcoding.HLSProcessOpts
+	mu      sync.Mutex
+	cmd     *exec.Cmd
+	cancel  context.CancelFunc
+	ready   chan struct{}
 	done    chan struct{}
 	err     error
 	exitErr error // raw ffmpeg exit error, for failure classification (guarded by mu)
@@ -865,15 +865,20 @@ func hwInitArgs(accel transcoding.HWAccelType, device string) []string {
 
 // hwScaleFilter returns the GPU scaler for the backend. Width pins the output
 // width; `-2` keeps the source aspect ratio rounded to an even height (which
-// every HW encoder requires). Validated against scale_cuda and scale_vaapi.
+// every HW encoder requires). format=nv12 forces 8-bit 4:2:0 output: 10-bit
+// sources (HEVC Main10 / yuv420p10le, ubiquitous for 2160p) otherwise reach the
+// 8-bit-only h264 HW encoders as 10-bit and fail with "10 bit encode not
+// supported" → "device doesn't support required NVENC features", producing no
+// segment. This mirrors the software path's `-pix_fmt yuv420p`. (No HDR tonemap
+// here, matching the software path's current behaviour.)
 func hwScaleFilter(accel transcoding.HWAccelType, width int) string {
 	switch accel {
 	case transcoding.NVENC:
-		return fmt.Sprintf("scale_cuda=%d:-2", width)
+		return fmt.Sprintf("scale_cuda=%d:-2:format=nv12", width)
 	case transcoding.VAAPI:
-		return fmt.Sprintf("scale_vaapi=%d:-2", width)
+		return fmt.Sprintf("scale_vaapi=%d:-2:format=nv12", width)
 	case transcoding.QSV:
-		return fmt.Sprintf("scale_qsv=%d:-2", width)
+		return fmt.Sprintf("scale_qsv=%d:-2:format=nv12", width)
 	}
 	return fmt.Sprintf("scale=%d:-2", width)
 }
