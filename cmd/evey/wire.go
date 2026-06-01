@@ -578,8 +578,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// admin transcoding panel or deriving it from encode calibration is a follow-up.
 	maxHLSSessions := runtime.NumCPU()
 	hlsVODOrch := apptranscoding.NewSegmentOrchestrator(hlsVODCache, hlsTranscoder, sourceResolver, apptranscoding.OrchestratorOptions{
-		ThrottleEnabled:   true,
-		MaxActiveSessions: maxHLSSessions,
+		ThrottleEnabled:       true,
+		MaxActiveSessions:     maxHLSSessions,
+		HWFirstSegmentTimeout: cfg.Transcoding.HWFirstSegmentTimeout,
 	}, slog.Default())
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsVODOrch)
 

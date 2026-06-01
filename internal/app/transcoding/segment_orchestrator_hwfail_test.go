@@ -2,6 +2,8 @@ package transcoding
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -98,6 +100,81 @@ func TestOrchestrator_SoftwareSessionNoSegments_DoesNotDemote(t *testing.T) {
 	case <-time.After(300 * time.Millisecond):
 		// expected: no demotion (usedHW=false)
 	}
+}
+
+// A HW session that hangs producing nothing must be fast-failed by the
+// watchdog: no init within the (tight, test) window → demote to software,
+// without waiting for the full segment timeout. The fake handle blocks (never
+// exits), simulating a wedged GPU that produces no output.
+func TestOrchestrator_HWWatchdog_StuckHW_Demotes(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess() // failOnExit unset → handle blocks (ffmpeg "hangs")
+	src := stubSource{path: "/media/test.mkv"}
+	o := NewSegmentOrchestrator(cache, proc, src, OrchestratorOptions{
+		LookAheadSegments:     30,
+		SegmentSeconds:        3.0,
+		HWFirstSegmentTimeout: 50 * time.Millisecond, // tight for the test
+	}, discardLogger())
+	defer o.Close()
+
+	got := make(chan transcoding.FailureClass, 4)
+	o.SetHWDemoteSink(func(_ context.Context, class transcoding.FailureClass, _ string) { got <- class })
+
+	fp := minimalFingerprint(t)
+	fp.HWAccel = "vaapi"
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+
+	select {
+	case class := <-got:
+		assert.Equal(t, transcoding.FailureHWInit, class, "a stuck HW session (no init) must be watchdog-demoted to software")
+	case <-time.After(2 * time.Second):
+		t.Fatal("HW watchdog did not fire for a session that produced no init")
+	}
+}
+
+// The watchdog is HW-only: a SOFTWARE session that produces nothing (a media
+// problem, slow host) must NOT be killed/demoted by it — there's no HW to strip
+// and software is already the floor.
+func TestOrchestrator_HWWatchdog_SoftwareSession_NoDemote(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess() // blocks
+	src := stubSource{path: "/media/test.mkv"}
+	o := NewSegmentOrchestrator(cache, proc, src, OrchestratorOptions{
+		LookAheadSegments:     30,
+		SegmentSeconds:        3.0,
+		HWFirstSegmentTimeout: 50 * time.Millisecond,
+	}, discardLogger())
+	defer o.Close()
+
+	called := make(chan struct{}, 1)
+	o.SetHWDemoteSink(func(_ context.Context, _ transcoding.FailureClass, _ string) { called <- struct{}{} })
+
+	fp := minimalFingerprint(t) // HWAccel empty → software
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+
+	select {
+	case <-called:
+		t.Fatal("HW watchdog fired on a software session")
+	case <-time.After(300 * time.Millisecond): // well past the 50ms window
+		// expected: no demotion
+	}
+}
+
+// hwSessionAlive is the watchdog's safety signal: a written (non-empty) init
+// segment must count as "alive" so a slow-but-working GPU is never killed.
+func TestOrchestrator_hwSessionAlive_InitCountsAsAlive(t *testing.T) {
+	cache, _ := newTestCache(t)
+	o := NewSegmentOrchestrator(cache, newFakeProcess(), stubSource{}, testOpts(), discardLogger())
+	defer o.Close()
+
+	hash := "watchdog-alive-hash"
+	assert.False(t, o.hwSessionAlive(hash, true), "no output yet → not alive")
+
+	dir, err := cache.DirFor(hash)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "stream_0_init.mp4"), []byte("moov-box-bytes"), 0o644))
+
+	assert.True(t, o.hwSessionAlive(hash, true), "a written init segment must count as a live HW session")
 }
 
 // A natural exit with a non-HW class (e.g. cancellation) must NOT demote —

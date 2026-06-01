@@ -86,6 +86,17 @@ type OrchestratorOptions struct {
 	// instead of starting ffmpeg. Zero = unlimited (no cap), preserving legacy
 	// behaviour for tests and callers that don't set it.
 	MaxActiveSessions int
+
+	// HWFirstSegmentTimeout is the fast-fail watchdog for hardware sessions: if
+	// a HW-encode rafale hasn't written its fMP4 init segment (the first sign the
+	// encoder is actually producing output) within this window, it's treated as
+	// a stuck/dead GPU pipeline — demoted to software and killed — instead of
+	// letting the client wait out the full ~25 s segment timeout. The init
+	// (vs a full segment) is the signal because a working-but-slow HW pipeline
+	// writes it within ~1-3 s while a TDR-dead one never does, so a tight 5 s
+	// default won't false-fail a slow weak-NAS GPU. Software sessions are
+	// unaffected; zero disables the watchdog.
+	HWFirstSegmentTimeout time.Duration
 }
 
 func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
@@ -118,6 +129,9 @@ func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
 	}
 	if out.MaxRafalesPerHash <= 0 {
 		out.MaxRafalesPerHash = 3
+	}
+	if out.HWFirstSegmentTimeout <= 0 {
+		out.HWFirstSegmentTimeout = 5 * time.Second
 	}
 	return out
 }
@@ -751,6 +765,39 @@ func (o *SegmentOrchestrator) spawnSession(
 		o.releaseSessionSlot()
 	}()
 
+	// HW fast-fail watchdog: a hardware rafale that hasn't written its init
+	// segment within HWFirstSegmentTimeout is a stuck/dead GPU pipeline (a TDR
+	// reset, a hung encoder). Don't make the client wait out the full ~25 s
+	// segment timeout — demote to software now and kill the session so the
+	// retry re-resolves the (encoder-agnostic) software tier. The init is the
+	// signal, not a full segment: a working-but-slow GPU writes it within
+	// ~1-3 s while a dead one never does, so the tight window doesn't false-
+	// fail a slow weak-NAS encoder. Only HW sessions, only when a demote sink
+	// is wired (otherwise a kill would just re-spawn the same broken HW).
+	if procOpts.HWAccel != "" && o.opts.HWFirstSegmentTimeout > 0 && o.hwDemote != nil {
+		go func() {
+			t := time.NewTimer(o.opts.HWFirstSegmentTimeout)
+			defer t.Stop()
+			select {
+			case <-session.done: // already exited — the reap goroutine handles it
+				return
+			case <-sessionCtx.Done(): // cancelled (seek / GC / shutdown)
+				return
+			case <-t.C:
+			}
+			if o.hwSessionAlive(hash, fp.UseFMP4) {
+				return // the encoder is producing (maybe slowly) — let it run
+			}
+			o.logger.Warn("orchestrator: HW session wrote no init within watchdog window, demoting to software",
+				slog.String("hash", hash),
+				slog.String("hw_backend", string(procOpts.HWAccel)),
+				slog.String("codec", fp.VideoCodec),
+				slog.Duration("window", o.opts.HWFirstSegmentTimeout))
+			o.hwDemote(o.shutdownCtx, transcoding.FailureHWInit, fp.VideoCodec)
+			o.killSession(session, "hw watchdog: no init segment")
+		}()
+	}
+
 	o.logger.Info("orchestrator: rafale spawned",
 		slog.String("hash", hash),
 		slog.Int("start_seg", startSegIdx),
@@ -772,6 +819,18 @@ func (o *SegmentOrchestrator) spawnSession(
 func (o *SegmentOrchestrator) hashProducedSegment(hash string, useFMP4 bool) bool {
 	idxs, err := o.cache.ListReady(hash, 0, useFMP4)
 	return err == nil && len(idxs) > 0
+}
+
+// hwSessionAlive reports whether a session has shown any sign the encoder is
+// producing output: a non-empty fMP4 init segment (written within ~1-3 s by a
+// working pipeline, never by a stuck/dead GPU) or at least one media segment.
+// Used by the HW fast-fail watchdog to tell a slow-but-working GPU from a dead
+// one without waiting for a full first segment.
+func (o *SegmentOrchestrator) hwSessionAlive(hash string, useFMP4 bool) bool {
+	if o.cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: 0, IsInit: true}, useFMP4) {
+		return true
+	}
+	return o.hashProducedSegment(hash, useFMP4)
 }
 
 // killSession stops ffmpeg, releases the cancel context, and cleans up cache

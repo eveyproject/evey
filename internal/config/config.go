@@ -289,7 +289,12 @@ type TranscodingConfig struct {
 	// server_settings (transcoding.hw_mode) which loadOverride layers on top,
 	// and changing it re-benches live via CalibrationService.SetHWMode.
 	HWMode            string
-	TrickplayCacheDir string
+	// HWFirstSegmentTimeout is the HW fast-fail watchdog window: a hardware
+	// transcode session that hasn't written its init segment within this delay
+	// is treated as a dead/stuck GPU and demoted to software immediately, rather
+	// than letting the player wait out the full segment timeout. Default 5s.
+	HWFirstSegmentTimeout time.Duration
+	TrickplayCacheDir     string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch
 	// language without re-fetching the video stream. Off by default
@@ -487,6 +492,7 @@ func Load() (*Config, error) {
 			HWAccelEnabled:        envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
 			HWBackend:             strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_BACKEND", ""))),
 			HWMode:                strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_MODE", ""))),
+			HWFirstSegmentTimeout: envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 5*time.Second),
 			TrickplayCacheDir:     envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
 			AudioRenditionEnabled: envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", false),
 		},
