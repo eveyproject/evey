@@ -5,14 +5,21 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
+
+// hwProbeTimeout bounds the real-encode capability probe. A working HW encoder
+// finishes a 0.2s clip near-instantly; a broken/absent device either errors out
+// fast or hangs, so a tight timeout keeps boot snappy.
+const hwProbeTimeout = 12 * time.Second
 
 type HWDetector struct {
 	ffmpegPath string
@@ -68,7 +75,7 @@ func detectVAAPI(ctx context.Context, ffmpegPath string) *transcoding.HWDevice {
 		return nil
 	}
 
-	codecs := probeHWCodecs(ctx, ffmpegPath, "vaapi")
+	codecs := probeHWCodecs(ctx, ffmpegPath, "vaapi", filepath.Join(driPath, "renderD128"))
 	return &transcoding.HWDevice{
 		Type:            string(transcoding.VAAPI),
 		Name:            filepath.Join(driPath, "renderD128"),
@@ -94,7 +101,7 @@ func detectNVENC(ctx context.Context, ffmpegPath string) *transcoding.HWDevice {
 		return nil
 	}
 
-	codecs := probeHWCodecs(ctx, ffmpegPath, "nvenc")
+	codecs := probeHWCodecs(ctx, ffmpegPath, "nvenc", "")
 	return &transcoding.HWDevice{
 		Type:            string(transcoding.NVENC),
 		Name:            gpuName,
@@ -118,7 +125,7 @@ func detectQSV(ctx context.Context, ffmpegPath string) *transcoding.HWDevice {
 		return nil
 	}
 
-	codecs := probeHWCodecs(ctx, ffmpegPath, "qsv")
+	codecs := probeHWCodecs(ctx, ffmpegPath, "qsv", "/dev/dri/renderD128")
 	return &transcoding.HWDevice{
 		Type:            string(transcoding.QSV),
 		Name:            "Intel Quick Sync",
@@ -126,7 +133,7 @@ func detectQSV(ctx context.Context, ffmpegPath string) *transcoding.HWDevice {
 	}
 }
 
-func probeHWCodecs(ctx context.Context, ffmpegPath, hwType string) []string {
+func probeHWCodecs(ctx context.Context, ffmpegPath, hwType, device string) []string {
 	var encoderSuffixes []string
 	switch hwType {
 	case "vaapi":
@@ -141,11 +148,51 @@ func probeHWCodecs(ctx context.Context, ffmpegPath, hwType string) []string {
 
 	var codecs []string
 	for _, enc := range encoderSuffixes {
-		if checkEncoderAvailable(ctx, ffmpegPath, enc) {
-			codecs = append(codecs, enc)
+		if !checkEncoderAvailable(ctx, ffmpegPath, enc) {
+			continue
 		}
+		// Presence in `ffmpeg -encoders` is necessary but NOT sufficient: the
+		// encoder is compiled in even when the GPU/driver is absent or broken,
+		// and selecting it then fails at playtime (hw_unsupported_option) and
+		// stalls the player ~30s before the level-2 demotion can react. Confirm
+		// the device actually encodes with a tiny real probe; fail closed.
+		if !probeHWEncode(ctx, ffmpegPath, enc, hwType, device) {
+			slog.Warn("hwdetect: encoder present but real-encode probe failed, treating as unavailable",
+				slog.String("encoder", enc), slog.String("hw", hwType))
+			continue
+		}
+		codecs = append(codecs, enc)
 	}
 	return codecs
+}
+
+// probeHWEncode runs a tiny real encode through the hardware encoder to confirm
+// THIS host's GPU/driver can actually use it — not merely that ffmpeg was built
+// with it. Fail-closed: returns false on any error/timeout, so a dead backend is
+// never reported as usable. Worst case we fall back to software (a perf cost),
+// which is far better than the broken-NVENC playtime loop it replaces.
+func probeHWEncode(ctx context.Context, ffmpegPath, encoder, hwType, device string) bool {
+	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
+	defer cancel()
+
+	args := []string{"-hide_banner", "-v", "error", "-nostdin"}
+	var filter []string
+	switch hwType {
+	case "vaapi":
+		if device == "" {
+			return false
+		}
+		args = append(args, "-vaapi_device", device)
+		filter = []string{"-vf", "format=nv12,hwupload"}
+	case "qsv":
+		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
+		filter = []string{"-vf", "hwupload=extra_hw_frames=16,format=qsv"}
+	}
+	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=256x144:rate=10:duration=0.2")
+	args = append(args, filter...)
+	args = append(args, "-c:v", encoder, "-f", "null", "-")
+
+	return exec.CommandContext(ctx, ffmpegPath, args...).Run() == nil
 }
 
 func checkEncoderAvailable(ctx context.Context, ffmpegPath, encoder string) bool {

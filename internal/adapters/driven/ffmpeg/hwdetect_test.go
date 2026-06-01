@@ -66,21 +66,29 @@ func TestSupportsCodec_ValidDevice_InvalidPath(t *testing.T) {
 }
 
 func TestProbeHWCodecs_UnknownType(t *testing.T) {
-	codecs := probeHWCodecs(t.Context(), "/nonexistent/ffmpeg", "unknown")
+	codecs := probeHWCodecs(t.Context(), "/nonexistent/ffmpeg", "unknown", "")
 	assert.Nil(t, codecs)
 }
 
 func TestProbeHWCodecs_VAAPI_InvalidPath(t *testing.T) {
-	codecs := probeHWCodecs(t.Context(), "/nonexistent/ffmpeg", "vaapi")
+	codecs := probeHWCodecs(t.Context(), "/nonexistent/ffmpeg", "vaapi", "/dev/dri/renderD128")
 	assert.Empty(t, codecs)
 }
 
 func TestProbeHWCodecs_NVENC_InvalidPath(t *testing.T) {
-	codecs := probeHWCodecs(t.Context(), "/nonexistent/ffmpeg", "nvenc")
+	codecs := probeHWCodecs(t.Context(), "/nonexistent/ffmpeg", "nvenc", "")
 	assert.Empty(t, codecs)
 }
 
 func TestProbeHWCodecs_QSV_InvalidPath(t *testing.T) {
-	codecs := probeHWCodecs(t.Context(), "/nonexistent/ffmpeg", "qsv")
+	codecs := probeHWCodecs(t.Context(), "/nonexistent/ffmpeg", "qsv", "/dev/dri/renderD128")
 	assert.Empty(t, codecs)
+}
+
+// A present encoder whose real-encode probe fails must NOT be reported usable —
+// this is the broken/absent-GPU guard (encoder compiled in but device dead).
+func TestProbeHWEncode_NonexistentFfmpeg_FailsClosed(t *testing.T) {
+	if probeHWEncode(t.Context(), "/nonexistent/ffmpeg", "h264_nvenc", "nvenc", "") {
+		t.Fatal("probe must fail closed when ffmpeg cannot run")
+	}
 }
