@@ -100,7 +100,10 @@ type hlsVODServe struct {
 
 // vodSegmentNameRE parses the on-the-wire segment file name and returns the
 // (variantIdx, segmentIdx, isInit, ext) tuple. Strict: any other shape 404s.
-var vodSegmentNameRE = regexp.MustCompile(`^stream_(\d+)(?:_(\d{3})|_init)\.(ts|m4s|mp4)$`)
+// The index is \d+ (not \d{3}): ffmpeg's hls_segment_filename only zero-pads to
+// a 3-digit MINIMUM, so segment 1000+ (≥ ~50 min at 3s/seg) is 4 digits — a
+// \d{3} cap 404'd all deep-resume / long-playback segments.
+var vodSegmentNameRE = regexp.MustCompile(`^stream_(\d+)(?:_(\d+)|_init)\.(ts|m4s|mp4)$`)
 
 // vodVariantNameRE matches the sub-playlist file name.
 var vodVariantNameRE = regexp.MustCompile(`^stream_(\d+)\.m3u8$`)
@@ -110,8 +113,9 @@ var vodVariantNameRE = regexp.MustCompile(`^stream_(\d+)\.m3u8$`)
 var audioPlaylistNameRE = regexp.MustCompile(`^audio_(\d+)\.m3u8$`)
 
 // audioSegmentNameRE matches an audio rendition segment file
-// (audio_T_NNN.m4s) or its init segment (audio_T_init.mp4).
-var audioSegmentNameRE = regexp.MustCompile(`^audio_(\d+)(?:_(\d{3})|_init)\.(m4s|mp4)$`)
+// (audio_T_NNN.m4s) or its init segment (audio_T_init.mp4). Index is \d+ for
+// the same reason as vodSegmentNameRE: deep offsets exceed 3 digits.
+var audioSegmentNameRE = regexp.MustCompile(`^audio_(\d+)(?:_(\d+)|_init)\.(m4s|mp4)$`)
 
 // serveHTTP is the single dispatch entry point for `/hls/{file}`. It splits
 // master vs sub-playlist vs segment by file name and delegates.
