@@ -718,12 +718,31 @@ func (o *SegmentOrchestrator) spawnSession(
 		// (the cache is encoder-agnostic, so the fallback segments slot into the
 		// same manifest). Cancellation / transient / unknown are ignored.
 		if naturalExit && o.hwDemote != nil {
-			if class := handle.Failure(); class.IsHWCapability() {
+			class := handle.Failure()
+			usedHW := procOpts.HWAccel != ""
+			switch {
+			case class.IsHWCapability():
 				o.logger.Warn("orchestrator: HW encode failure, demoting capability",
 					slog.String("hash", hash),
 					slog.String("class", string(class)),
 					slog.String("codec", fp.VideoCodec))
 				o.hwDemote(o.shutdownCtx, class, fp.VideoCodec)
+
+			case usedHW && class != transcoding.FailureCancelled && !o.hashProducedSegment(hash, fp.UseFMP4):
+				// A HW session that exited on its own without writing a single
+				// segment is a silent HW death the stderr classifier can't see:
+				// a driver crash (SIGSEGV inside the GPU .so / a TDR GPU reset on
+				// WSL d3d12) or an exit-0 "Nothing was written" (e.g. a 10-bit
+				// source fed to an 8-bit encoder). Either way the encoder isn't
+				// delivering here, so demote to software (hw_init ⇒ disable HW +
+				// persist) and let the client's retry play on CPU instead of
+				// looping the same broken HW path to the patience timeout.
+				o.logger.Warn("orchestrator: HW session produced no segments, demoting to software",
+					slog.String("hash", hash),
+					slog.String("class", string(class)),
+					slog.String("hw_backend", string(procOpts.HWAccel)),
+					slog.String("codec", fp.VideoCodec))
+				o.hwDemote(o.shutdownCtx, transcoding.FailureHWInit, fp.VideoCodec)
 			}
 		}
 
@@ -742,6 +761,17 @@ func (o *SegmentOrchestrator) spawnSession(
 	metrics.HLSVODSessions.Inc()
 
 	return nil
+}
+
+// hashProducedSegment reports whether any media segment for the base variant
+// of hash has landed on disk. Used by the reap goroutine to tell a working HW
+// session apart from a silent HW death (a process that exits without writing a
+// single segment). Variant 0 is always in the var_stream_map and the
+// multi-variant muxer writes all variants in lockstep, so the base rung is a
+// faithful proxy for "did this session produce anything".
+func (o *SegmentOrchestrator) hashProducedSegment(hash string, useFMP4 bool) bool {
+	idxs, err := o.cache.ListReady(hash, 0, useFMP4)
+	return err == nil && len(idxs) > 0
 }
 
 // killSession stops ffmpeg, releases the cancel context, and cleans up cache
