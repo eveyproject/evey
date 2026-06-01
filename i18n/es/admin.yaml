@@ -629,6 +629,7 @@ serverSettings:
   serverName: "Nombre del servidor"
   maxConcurrentTranscodes: "Transcodificaciones simultaneas max."
   hwAccelEnabled: "Aceleracion por hardware"
+  hwMovedHint: "La aceleración por hardware se configura en la tarjeta «Calibración de codificación» más abajo."
   loginRateLimit: "Limite de inicio de sesion (sol./min)"
   globalRateLimit: "Limite global (sol./min)"
   logLevel: Nivel de registro
@@ -663,6 +664,12 @@ calibration:
   fallbackUnsupportedOption: "opción de codificador no compatible"
   fallbackEncoderMissing: "codificador no disponible"
   fallbackInit: "fallo al inicializar la GPU"
+  hwModeLabel: "Aceleración por hardware"
+  hwModeAuto: "Auto (mejor disponible)"
+  hwModeOff: "Desactivada (solo software)"
+  detected: "Detectado: {{list}}"
+  detectedNone: "No se detectó acelerador GPU"
+  modeApplied: "Modo aplicado — recalibrando…"
 
 qoe:
   title: "Calidad de streaming"

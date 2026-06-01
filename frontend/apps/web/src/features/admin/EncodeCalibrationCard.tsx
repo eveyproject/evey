@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
@@ -14,6 +15,8 @@ type EncodeCapability = {
   hw_backend?: string;
   hw_codecs?: string[];
   hw_device?: string;
+  hw_mode?: string; // active policy: auto | off | nvenc | vaapi | qsv
+  detected_backends?: string[]; // accelerators the host advertises
   benchmarked_at: string; // RFC3339
   benchmark_duration_ms: number;
   cpu_signature: string;
@@ -21,6 +24,7 @@ type EncodeCapability = {
 };
 
 const QK_CALIBRATION = ["admin", "transcode-calibration"] as const;
+const SETTINGS_QK = ["/api/v1/admin/server-settings"] as const;
 
 // EncodeCalibrationCard surfaces the host's measured encode ceiling and
 // exposes the "Recalibrate" button that triggers a fresh benchmark.
@@ -33,6 +37,30 @@ export function EncodeCalibrationCard() {
   const { data, isLoading } = useQuery<EncodeCapability>({
     queryKey: QK_CALIBRATION,
     queryFn: () => eveyFetch<EncodeCapability>({ url: "/api/v1/admin/transcode/calibration", method: "GET" }),
+  });
+
+  // Local mirror of the active mode so the <select> stays responsive while the
+  // detached re-bench runs server-side (the query refetches a few seconds later).
+  const [hwMode, setHwMode] = useState<string>("auto");
+  useEffect(() => {
+    if (data?.hw_mode) setHwMode(data.hw_mode);
+  }, [data?.hw_mode]);
+
+  const setMode = useMutation({
+    mutationFn: (mode: string) =>
+      eveyFetch({ url: "/api/v1/admin/server-settings", method: "PUT", data: { hwMode: mode } }),
+    onSuccess: (_resp, mode) => {
+      setHwMode(mode);
+      toast.success(t("admin.calibration.modeApplied", "Mode applied — recalibrating…"));
+      // The mode change re-benches detached on the server (~20 s); refetch a few
+      // times so the active backend + ceilings update once it lands.
+      qc.invalidateQueries({ queryKey: QK_CALIBRATION });
+      qc.invalidateQueries({ queryKey: SETTINGS_QK });
+      [3000, 9000, 20000].forEach((ms) =>
+        setTimeout(() => qc.invalidateQueries({ queryKey: QK_CALIBRATION }), ms),
+      );
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const recalibrate = useMutation({
@@ -81,9 +109,43 @@ export function EncodeCalibrationCard() {
   };
 
   const fallbacks = data.hw_fallbacks ?? [];
+  const detected = data.detected_backends ?? [];
+  // Offer auto + off always; forceable backends = detected ones, plus the
+  // currently-selected backend even if detection now reports it absent (so a
+  // forced mode is never silently dropped from the dropdown).
+  const forceable = Array.from(
+    new Set([...detected, ["nvenc", "vaapi", "qsv"].includes(hwMode) ? hwMode : ""].filter(Boolean)),
+  );
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-col gap-1">
+        <label htmlFor="hw-mode-select" className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
+          {t("admin.calibration.hwModeLabel", "Hardware acceleration")}
+        </label>
+        <select
+          id="hw-mode-select"
+          data-testid="hw-mode-select"
+          value={hwMode}
+          disabled={setMode.isPending}
+          onChange={(e) => setMode.mutate(e.target.value)}
+          className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
+        >
+          <option value="auto">{t("admin.calibration.hwModeAuto", "Auto (best available)")}</option>
+          <option value="off">{t("admin.calibration.hwModeOff", "Off (software only)")}</option>
+          {forceable.map((b) => (
+            <option key={b} value={b}>
+              {b.toUpperCase()}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-[var(--text-muted)]">
+          {detected.length > 0
+            ? t("admin.calibration.detected", "Detected: {{list}}", { list: detected.join(", ") })
+            : t("admin.calibration.detectedNone", "No GPU accelerator detected")}
+        </p>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 text-sm">
         <Row label={t("admin.calibration.softwareMax", "Software encode cap")}>
           <strong className="text-[var(--text)]">{data.software_max_height}p</strong>

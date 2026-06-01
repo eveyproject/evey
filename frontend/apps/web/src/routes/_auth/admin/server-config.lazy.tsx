@@ -787,7 +787,6 @@ function ServerSettingsCard() {
   const queryClient = useQueryClient();
   const [serverName, setServerName] = useState("");
   const [maxTranscodes, setMaxTranscodes] = useState("");
-  const [hwAccel, setHwAccel] = useState(false);
   const [loginRate, setLoginRate] = useState("");
   const [globalRate, setGlobalRate] = useState("");
   const [logLevel, setLogLevel] = useState("");
@@ -800,7 +799,6 @@ function ServerSettingsCard() {
     if (data) {
       setServerName(data.serverName.source === "override" ? String(data.serverName.value) : "");
       setMaxTranscodes(data.maxConcurrentTranscodes.source === "override" ? String(data.maxConcurrentTranscodes.value) : "");
-      setHwAccel(data.hwAccelEnabled.value);
       setLoginRate(data.loginRateLimit.source === "override" ? String(data.loginRateLimit.value) : "");
       setGlobalRate(data.globalRateLimit.source === "override" ? String(data.globalRateLimit.value) : "");
       setLogLevel(data.logLevel.source === "override" ? String(data.logLevel.value) : "");
@@ -828,7 +826,6 @@ function ServerSettingsCard() {
     const body: Record<string, unknown> = {};
     if (serverName) body.serverName = serverName;
     if (maxTranscodes) body.maxConcurrentTranscodes = parseInt(maxTranscodes, 10);
-    body.hwAccelEnabled = hwAccel;
     if (loginRate) body.loginRateLimit = parseInt(loginRate, 10);
     if (globalRate) body.globalRateLimit = parseInt(globalRate, 10);
     if (logLevel) body.logLevel = logLevel;
@@ -856,16 +853,7 @@ function ServerSettingsCard() {
             <Input label={t("admin.serverSettings.maxConcurrentTranscodes")} type="number" min={0} placeholder={String(data.maxConcurrentTranscodes.default ?? 2)} value={maxTranscodes} onChange={(e) => { setMaxTranscodes(e.target.value); setDirty(true); }} />
             <ResetBtn setting={data.maxConcurrentTranscodes} field="maxConcurrentTranscodes" />
           </div>
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium text-[var(--text)]">{t("admin.serverSettings.hwAccelEnabled")}</label>
-              <button type="button" role="switch" aria-checked={hwAccel} aria-label={t("admin.serverSettings.hwAccelEnabled")} onClick={() => { setHwAccel(!hwAccel); setDirty(true); }}
-                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors" style={{ backgroundColor: hwAccel ? "var(--accent)" : "var(--border)" }}>
-                <span className="inline-block h-4 w-4 rounded-full bg-white transition-transform" style={{ transform: hwAccel ? "translateX(1.375rem)" : "translateX(0.25rem)" }} />
-              </button>
-            </div>
-            <ResetBtn setting={data.hwAccelEnabled} field="hwAccelEnabled" />
-          </div>
+          <p className="text-xs text-[var(--text-muted)]">{t("admin.serverSettings.hwMovedHint", "Hardware acceleration is configured in the Encode calibration card below.")}</p>
           <div className="flex flex-col gap-1">
             <Input label={t("admin.serverSettings.loginRateLimit")} type="number" min={0} placeholder={String(data.loginRateLimit.default ?? 10)} value={loginRate} onChange={(e) => { setLoginRate(e.target.value); setDirty(true); }} />
             <ResetBtn setting={data.loginRateLimit} field="loginRateLimit" />

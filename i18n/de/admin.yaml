@@ -629,6 +629,7 @@ serverSettings:
   serverName: Servername
   maxConcurrentTranscodes: Max. gleichzeitige Transkodierungen
   hwAccelEnabled: Hardwarebeschleunigung
+  hwMovedHint: "Die Hardware-Beschleunigung wird in der Karte „Encode-Kalibrierung\" unten konfiguriert."
   loginRateLimit: Anmelde-Ratenlimit (Anf./Min.)
   globalRateLimit: Globales Ratenlimit (Anf./Min.)
   logLevel: Protokollstufe
@@ -663,6 +664,12 @@ calibration:
   fallbackUnsupportedOption: "nicht unterstützte Encoder-Option"
   fallbackEncoderMissing: "Encoder nicht verfügbar"
   fallbackInit: "GPU-Initialisierung fehlgeschlagen"
+  hwModeLabel: "Hardware-Beschleunigung"
+  hwModeAuto: "Auto (bestmöglich)"
+  hwModeOff: "Aus (nur Software)"
+  detected: "Erkannt: {{list}}"
+  detectedNone: "Kein GPU-Beschleuniger erkannt"
+  modeApplied: "Modus angewendet — Neukalibrierung…"
 
 qoe:
   title: "Streaming-Qualität"

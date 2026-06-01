@@ -629,6 +629,7 @@ serverSettings:
   serverName: "सर्वर का नाम"
   maxConcurrentTranscodes: "अधिकतम समवर्ती ट्रांसकोड"
   hwAccelEnabled: "हार्डवेयर त्वरण"
+  hwMovedHint: "हार्डवेयर त्वरण नीचे «एन्कोड कैलिब्रेशन» कार्ड में कॉन्फ़िगर किया जाता है।"
   loginRateLimit: "लॉगिन दर सीमा (अनु./मिनट)"
   globalRateLimit: "वैश्विक दर सीमा (अनु./मिनट)"
   logLevel: लॉग स्तर
@@ -663,6 +664,12 @@ calibration:
   fallbackUnsupportedOption: "असमर्थित एनकोडर विकल्प"
   fallbackEncoderMissing: "एनकोडर उपलब्ध नहीं"
   fallbackInit: "GPU init विफल रहा"
+  hwModeLabel: "हार्डवेयर त्वरण"
+  hwModeAuto: "स्वतः (सर्वोत्तम उपलब्ध)"
+  hwModeOff: "बंद (केवल सॉफ़्टवेयर)"
+  detected: "पता चला: {{list}}"
+  detectedNone: "कोई GPU त्वरक नहीं मिला"
+  modeApplied: "मोड लागू — पुनः कैलिब्रेट किया जा रहा है…"
 
 qoe:
   title: "स्ट्रीमिंग गुणवत्ता"

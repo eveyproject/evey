@@ -120,7 +120,11 @@ export default function AdminServerConfigScreen() {
     try {
       const body: Record<string, unknown> = {};
       if (maxTranscodes) body.maxConcurrentTranscodes = parseInt(maxTranscodes, 10);
-      body.hwAccelEnabled = hwAccel;
+      // Drive the unified HW mode (auto/off) rather than the legacy on/off flag,
+      // so the mobile toggle stays consistent with the web backend picker and
+      // the persisted transcoding.hw_mode override. On = auto (best available),
+      // off = software only. Backend pinning (nvenc/vaapi/qsv) is web-only.
+      body.hwMode = hwAccel ? "auto" : "off";
       if (loginRate) body.loginRateLimit = parseInt(loginRate, 10);
       if (globalRate) body.globalRateLimit = parseInt(globalRate, 10);
       await saveMutation.mutateAsync(body);

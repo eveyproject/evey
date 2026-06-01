@@ -629,6 +629,7 @@ serverSettings:
   serverName: "服务器名称"
   maxConcurrentTranscodes: "最大并发转码数"
   hwAccelEnabled: "硬件加速"
+  hwMovedHint: "硬件加速在下方的「编码校准」卡片中配置。"
   loginRateLimit: "登录速率限制（请求/分钟）"
   globalRateLimit: "全局速率限制（请求/分钟）"
   logLevel: 日志级别
@@ -663,6 +664,12 @@ calibration:
   fallbackUnsupportedOption: "不支持的编码器选项"
   fallbackEncoderMissing: "编码器不可用"
   fallbackInit: "GPU 初始化失败"
+  hwModeLabel: "硬件加速"
+  hwModeAuto: "自动（最佳可用）"
+  hwModeOff: "关闭（仅软件）"
+  detected: "已检测: {{list}}"
+  detectedNone: "未检测到 GPU 加速器"
+  modeApplied: "模式已应用 — 正在重新校准…"
 
 qoe:
   title: "流媒体质量"

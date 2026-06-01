@@ -645,12 +645,19 @@ calibration:
   fallbackUnsupportedOption: "option d'encodeur non supportée"
   fallbackEncoderMissing: "encodeur indisponible"
   fallbackInit: "échec d'init GPU"
+  hwModeLabel: "Accélération matérielle"
+  hwModeAuto: "Auto (meilleur disponible)"
+  hwModeOff: "Désactivée (software uniquement)"
+  detected: "Détecté : {{list}}"
+  detectedNone: "Aucun accélérateur GPU détecté"
+  modeApplied: "Mode appliqué — recalibrage…"
 
 serverSettings:
   title: "Paramètres du serveur"
   serverName: "Nom du serveur"
   maxConcurrentTranscodes: "Transcodages simultanés max."
   hwAccelEnabled: "Accélération matérielle"
+  hwMovedHint: "L'accélération matérielle se configure dans la carte « Calibrage de l'encodage » ci-dessous."
   loginRateLimit: "Limite connexion (req/min)"
   globalRateLimit: "Limite globale (req/min)"
   logLevel: Niveau de journalisation

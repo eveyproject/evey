@@ -646,12 +646,19 @@ calibration:
   fallbackUnsupportedOption: "unsupported encoder option"
   fallbackEncoderMissing: "encoder unavailable"
   fallbackInit: "GPU init failed"
+  hwModeLabel: "Hardware acceleration"
+  hwModeAuto: "Auto (best available)"
+  hwModeOff: "Off (software only)"
+  detected: "Detected: {{list}}"
+  detectedNone: "No GPU accelerator detected"
+  modeApplied: "Mode applied — recalibrating…"
 
 serverSettings:
   title: Server Settings
   serverName: Server Name
   maxConcurrentTranscodes: Max Concurrent Transcodes
   hwAccelEnabled: Hardware Acceleration
+  hwMovedHint: "Hardware acceleration is configured in the Encode calibration card below."
   loginRateLimit: Login Rate Limit (req/min)
   globalRateLimit: Global Rate Limit (req/min)
   logLevel: Log Level
