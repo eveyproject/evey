@@ -20,6 +20,7 @@ type favoriteHandler struct {
 	svc        *appfavorite.Service
 	libQuery   *applibrary.QueryService
 	userAccess *appuser.AccessService
+	userQuery  *appuser.QueryService
 }
 
 func (h *favoriteHandler) requireMediaAccess(ctx context.Context, mediaItemID string) error {
@@ -78,6 +79,9 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 		}
 		allowed = func(libraryID string) bool { _, ok := accessSet[libraryID]; return ok }
 	}
+	// Parental: a kid profile must not see adult favorites' metadata (title /
+	// year / rating) — drop blocked items entirely, mirroring resume/next-up.
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
 	resp := &eveyv1.ListFavoritesResponse{}
 	for _, f := range favs {
 		fp := &eveyv1.FavoriteProto{
@@ -88,6 +92,9 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 		}
 		if it := itemByID[string(f.MediaItemID)]; it != nil {
 			if !allowed(string(it.LibraryID)) {
+				continue
+			}
+			if mediaItemBlockedByParental(pf, it) {
 				continue
 			}
 			fp.Title = it.Title

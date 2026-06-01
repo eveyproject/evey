@@ -7,7 +7,14 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
+	applibrary "github.com/evey-project/evey/internal/app/library"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/favorite"
 	favfakes "github.com/evey-project/evey/internal/domain/favorite/fakes"
+	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/user"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -85,6 +92,46 @@ func TestFavoriteHandler_ListFavorites_WithItems(t *testing.T) {
 	resp, err := h.ListFavorites(ctx, &eveyv1.ListFavoritesRequest{})
 	require.NoError(t, err)
 	assert.Len(t, resp.Items, 2)
+}
+
+// A kids profile must not see adult favorites' metadata, and (the wiring fix)
+// kid-safe favorites must now resolve their title — the handler used to be
+// constructed without libQuery, so titles never appeared at all.
+func TestFavoriteHandler_ListFavorites_ParentalFiltersAdult(t *testing.T) {
+	repo := favfakes.NewFakeRepository()
+	svc := appfavorite.NewService(repo)
+	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
+	libQuerySvc := applibrary.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(), mediaQueryRepo,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+	profileRepo := userfakes.NewFakeProfileRepository()
+	userQuery := appuser.NewQueryService(
+		userfakes.NewFakeUserRepository(), profileRepo,
+		userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository())
+	h := &favoriteHandler{svc: svc, libQuery: libQuerySvc, userQuery: userQuery}
+
+	ctx := context.Background()
+	maxAge := 13
+	require.NoError(t, profileRepo.Create(ctx, &user.Profile{
+		ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}}))
+	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f-r", ProfileID: "profile-2", MediaItemID: "mi-r"}))
+	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f-pg", ProfileID: "profile-2", MediaItemID: "mi-pg"}))
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-r", Title: "Adult", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "R"}}) // age 17 → blocked
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-pg", Title: "Family", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "PG"}}) // age 10 → allowed
+
+	resp, err := h.ListFavorites(ctxWithClaims("user-2", "profile-2", false), &eveyv1.ListFavoritesRequest{})
+	require.NoError(t, err)
+	titleByID := make(map[string]string, len(resp.Items))
+	for _, it := range resp.Items {
+		titleByID[it.MediaItemId] = it.Title
+	}
+	_, hasAdult := titleByID["mi-r"]
+	assert.False(t, hasAdult, "adult favorite must be hidden from a kids profile (metadata leak)")
+	assert.Equal(t, "Family", titleByID["mi-pg"], "kid-safe favorite kept AND its title now resolves (the wiring fix)")
 }
 
 func TestFavoriteHandler_RemoveFavorite_NotFavorited(t *testing.T) {

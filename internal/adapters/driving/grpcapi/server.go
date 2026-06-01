@@ -180,7 +180,7 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: d.Webhook})
 	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{svc: d.Collection, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery})
 	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: d.Playlist, libQuery: d.LibQuery, translator: d.Translator})
-	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: d.Favorite})
+	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: d.Favorite, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery})
 	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: d.Transcoding})
 	eveyv1.RegisterBackupServiceServer(s.server, &backupHandler{svc: d.Backup})
 	if d.BackupScheduler != nil {
