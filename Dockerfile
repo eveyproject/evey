@@ -159,26 +159,25 @@ ENTRYPOINT ["/entrypoint.sh"]
 #   - VAAPI / QSV: a mapped /dev/dri (host Mesa/iHD); vainfo + mesa-va-drivers +
 #     libva are installed below.
 # The CGO-free evey + launcher binaries (stage 4, CGO_ENABLED=0) run UNCHANGED;
-# only ffmpeg + the Landlock shim are glibc, rebuilt below. Ubuntu 22.04 (Mesa
-# 23.x) is kept for the WSL2 dev box's d3d12 VA driver; a native NAS uses its
-# own /dev/dri driver. LIBVA_DRIVER_NAME is NOT baked here — a native host
-# auto-selects radeonsi/iHD/i965 from the GPU PCI id; the WSL2 dev box forces
-# d3d12 from the compose override (baking it would break native VAAPI).
-FROM ubuntu:22.04 AS runtime-hw
+# only ffmpeg + the Landlock shim are glibc, rebuilt below. Ubuntu 24.04 ships
+# ffmpeg 6.x, required for scale_cuda's `format=` option (the 10-bit→nv12 NVENC
+# path) — 22.04's ffmpeg 4.4 lacks it and NVENC fails. VAAPI/QSV use the host
+# /dev/dri driver on a native NAS; WSL2's Mesa d3d12 VA path is greyed in the
+# admin (it can't sustain our multi-variant encode), so 24.04's newer Mesa is
+# fine. LIBVA_DRIVER_NAME is NOT baked — a native host auto-selects
+# radeonsi/iHD/i965 from the GPU PCI id; the WSL2 box forces d3d12 via compose.
+FROM ubuntu:24.04 AS runtime-hw
 
 # Tell the NVIDIA Container Toolkit to inject the full driver stack (incl.
 # libnvidia-encode for NVENC) when a GPU is reserved; harmless when none is.
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=all
 
-# postgresql-client-16 from PGDG (Ubuntu 22.04 only ships pg_dump 14, which
-# refuses to dump the Postgres 16 server — the pre-migration backup would fail).
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
-    && install -d /usr/share/postgresql-common/pgdg \
-    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
-    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt jammy-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
-    && apt-get update && apt-get install -y --no-install-recommends \
-       ffmpeg bubblewrap libcap2-bin libchromaprint-tools \
+# Ubuntu 24.04 ships ffmpeg 6.x AND postgresql-client-16 (matches the PG16
+# server, so the pre-migration pg_dump works) straight from the distro — no
+# PGDG repo dance needed, unlike 22.04.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+       ca-certificates curl ffmpeg bubblewrap libcap2-bin libchromaprint-tools \
        postgresql-client-16 unzip wget python3 gcc libc6-dev \
        vainfo mesa-va-drivers libva2 libva-drm2 \
     && rm -rf /var/lib/apt/lists/*
