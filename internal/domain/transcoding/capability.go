@@ -151,4 +151,10 @@ type CapabilityRepo interface {
 // shouldn't pile up requests.
 type BenchmarkRunner interface {
 	Run(ctx context.Context) (EncodeCapability, error)
+	// HWBackendUsable confirms the named HW backend ("nvenc"/"vaapi"/"qsv") can
+	// actually encode on this host right now. Used to re-validate a persisted
+	// capability before trusting it, since a matching CPU signature does not
+	// guarantee the GPU/encoder is present and working (shared DB across HW and
+	// non-HW containers, a moved disk, or a driver regression).
+	HWBackendUsable(ctx context.Context, backend string) bool
 }

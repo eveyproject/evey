@@ -51,6 +51,10 @@ type fakeBenchmarkRunner struct {
 	result domaintranscoding.EncodeCapability
 	delay  time.Duration
 	err    error
+	// hwUnusable inverts HWBackendUsable: default (false) reports HW usable so
+	// existing persisted-HW tests keep their backend; set true to exercise the
+	// re-validation strip path.
+	hwUnusable bool
 }
 
 func (r *fakeBenchmarkRunner) Run(ctx context.Context) (domaintranscoding.EncodeCapability, error) {
@@ -63,6 +67,10 @@ func (r *fakeBenchmarkRunner) Run(ctx context.Context) (domaintranscoding.Encode
 		}
 	}
 	return r.result, r.err
+}
+
+func (r *fakeBenchmarkRunner) HWBackendUsable(_ context.Context, _ string) bool {
+	return !r.hwUnusable
 }
 
 func TestCalibration_Current_StartsAtSafeFallback(t *testing.T) {
@@ -112,6 +120,50 @@ func TestCalibration_EnsureCalibrated_CachedMatch_SkipsBench(t *testing.T) {
 
 	assert.Zero(t, runner.calls.Load(), "matching CPU sig must skip the benchmark")
 	assert.Equal(t, 1440, svc.Current().SoftwareMaxHeight, "Current() must reflect the persisted cap")
+}
+
+func TestCalibration_EnsureCalibrated_PersistedHWUnusable_StripsToSoftware(t *testing.T) {
+	// Matching CPU sig but the persisted HW backend is no longer usable here
+	// (e.g. shared DB across a HW and a non-HW container). EnsureCalibrated must
+	// keep the software ceiling and strip the dead HW rather than selecting a
+	// backend that fails at playtime and loops the player on a timeout.
+	hostSig := hostCPUSig(t)
+	repo := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080,
+			HWMaxHeight:       2160,
+			HWBackend:         "nvenc",
+			HWDevice:          "/dev/dri/renderD128",
+			HWFeatures:        []string{"rc-lookahead"},
+			CPUSignature:      hostSig,
+		},
+	}
+	runner := &fakeBenchmarkRunner{hwUnusable: true} // HW dead on this host
+	svc := NewCalibrationService(repo, runner, nil)
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+
+	assert.Zero(t, runner.calls.Load(), "matching sig still skips the benchmark")
+	cur := svc.Current()
+	assert.Equal(t, 1080, cur.SoftwareMaxHeight, "software ceiling preserved")
+	assert.Equal(t, 0, cur.HWMaxHeight, "dead HW stripped")
+	assert.Empty(t, cur.HWBackend, "dead HW backend stripped")
+	assert.Empty(t, cur.HWFeatures, "HW features stripped")
+}
+
+func TestCalibration_EnsureCalibrated_PersistedHWUsable_Kept(t *testing.T) {
+	hostSig := hostCPUSig(t)
+	repo := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "nvenc", CPUSignature: hostSig,
+		},
+	}
+	runner := &fakeBenchmarkRunner{} // hwUnusable=false → usable here
+	svc := NewCalibrationService(repo, runner, nil)
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+
+	cur := svc.Current()
+	assert.Equal(t, 2160, cur.HWMaxHeight, "usable HW kept")
+	assert.Equal(t, "nvenc", cur.HWBackend, "usable HW backend kept")
 }
 
 func TestCalibration_EnsureCalibrated_StaleCpuSig_Rebench(t *testing.T) {

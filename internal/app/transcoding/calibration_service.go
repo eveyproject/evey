@@ -100,6 +100,20 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 	if found && persisted.SoftwareMaxHeight > 0 {
 		currentSig := sysinfo.CPUSignature()
 		if currentSig != "" && persisted.CPUSignature == currentSig {
+			// A matching CPU signature does NOT guarantee the persisted HW backend
+			// is usable here (shared DB across a HW + a non-HW container, a moved
+			// disk, a driver regression). Re-validate it with a real encode probe;
+			// if it's dead, strip HW and keep the still-valid software ceiling
+			// rather than selecting a backend that fails at playtime and loops the
+			// player on a ~30s timeout.
+			if persisted.HWBackend != "" && persisted.HWMaxHeight > 0 && !s.runner.HWBackendUsable(ctx, persisted.HWBackend) {
+				s.logger.Warn("calibration: persisted HW backend not usable on this host, falling back to software",
+					slog.String("hw_backend", persisted.HWBackend))
+				persisted.HWBackend = ""
+				persisted.HWDevice = ""
+				persisted.HWMaxHeight = 0
+				persisted.HWFeatures = nil
+			}
 			s.logger.Info("calibration: using persisted capability",
 				slog.Int("software_max_height", persisted.SoftwareMaxHeight),
 				slog.Int("hw_max_height", persisted.HWMaxHeight),

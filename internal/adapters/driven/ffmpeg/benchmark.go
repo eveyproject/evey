@@ -178,6 +178,22 @@ func nvencProbeArgs(optionArgs []string) []string {
 // caller's GPU box can validate directly. VAAPI/QSV option probing needs the
 // real device set up like production and is a hardware-validated follow-up, so
 // it returns nil here (⇒ the safe HW baseline, no tuning).
+// HWBackendUsable confirms the named HW backend can actually encode h264 on this
+// host: the encoder must be compiled into ffmpeg AND a tiny real encode must
+// succeed. Cheap re-validation guard for a persisted capability whose backend
+// may no longer be usable here.
+func (r *BenchmarkRunner) HWBackendUsable(ctx context.Context, backend string) bool {
+	enc := resolveHWEncoder(backend, "h264")
+	if enc == "" {
+		return false
+	}
+	device := ""
+	if backend == string(transcoding.VAAPI) || backend == string(transcoding.QSV) {
+		device = "/dev/dri/renderD128"
+	}
+	return checkEncoderAvailable(ctx, r.ffmpegPath, enc) && probeHWEncode(ctx, r.ffmpegPath, enc, backend, device)
+}
+
 func (r *BenchmarkRunner) probeHWFeatures(ctx context.Context, backend string) []string {
 	if backend != "nvenc" {
 		return nil
