@@ -166,6 +166,44 @@ func TestCalibration_EnsureCalibrated_PersistedHWUsable_Kept(t *testing.T) {
 	assert.Equal(t, "nvenc", cur.HWBackend, "usable HW backend kept")
 }
 
+func TestCalibration_EnsureCalibrated_PinMismatch_Rebench(t *testing.T) {
+	// Matching CPU sig, but this instance is pinned to a DIFFERENT backend than
+	// the persisted one (a sibling container on another GPU path wrote the cache
+	// to the shared DB). The pin must win: re-bench instead of trusting the cache.
+	hostSig := hostCPUSig(t)
+	repo := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "nvenc", CPUSignature: hostSig,
+		},
+	}
+	runner := &fakeBenchmarkRunner{
+		result: domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, HWMaxHeight: 1080, HWBackend: "vaapi", CPUSignature: hostSig,
+		},
+	}
+	svc := NewCalibrationService(repo, runner, nil, WithPinnedBackend("vaapi"))
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+
+	assert.EqualValues(t, 1, runner.calls.Load(), "pin mismatch must force a fresh bench, not trust the sibling's nvenc cache")
+	assert.Equal(t, "vaapi", svc.Current().HWBackend, "Current() must reflect the pinned backend after re-bench")
+}
+
+func TestCalibration_EnsureCalibrated_PinMatch_SkipsBench(t *testing.T) {
+	// Pinned to the SAME backend the cache holds → the cache is trusted as usual.
+	hostSig := hostCPUSig(t)
+	repo := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, HWMaxHeight: 1080, HWBackend: "vaapi", CPUSignature: hostSig,
+		},
+	}
+	runner := &fakeBenchmarkRunner{} // hwUnusable=false → usable here
+	svc := NewCalibrationService(repo, runner, nil, WithPinnedBackend("vaapi"))
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+
+	assert.Zero(t, runner.calls.Load(), "pin matching the cache must still skip the bench")
+	assert.Equal(t, "vaapi", svc.Current().HWBackend, "persisted pinned backend kept")
+}
+
 func TestCalibration_EnsureCalibrated_StaleCpuSig_Rebench(t *testing.T) {
 	// Persisted capability with a DIFFERENT cpu signature → container
 	// migrated, must rebench.

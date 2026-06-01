@@ -610,8 +610,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// Persisted across restarts via server_settings + CPU signature
 	// invalidation, so the 20 s only hits once per host lifetime.
 	capabilityRepo := apptranscoding.NewCapabilityRepoAdapter(r.ServerCfg)
-	calibrationRunner := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{}, slog.Default())
-	calibrationSvc := apptranscoding.NewCalibrationService(capabilityRepo, calibrationRunner, slog.Default())
+	// EVEY_TRANSCODING_HW_BACKEND pins this instance to one GPU path. Empty =
+	// auto-detect. Pinning is what lets several Evey containers share one DB while
+	// each binds to its own backend (nvenc / vaapi / qsv) without the calibration
+	// cache bleeding a sibling's capability onto a host that can't run it.
+	calibrationRunner := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{PinBackend: cfg.Transcoding.HWBackend}, slog.Default())
+	calibrationSvc := apptranscoding.NewCalibrationService(capabilityRepo, calibrationRunner, slog.Default(),
+		apptranscoding.WithPinnedBackend(cfg.Transcoding.HWBackend))
 	if err := calibrationSvc.EnsureCalibrated(ctx); err != nil {
 		slog.Warn("calibration: EnsureCalibrated returned error, falling back to 720p", slog.Any("err", err))
 	}

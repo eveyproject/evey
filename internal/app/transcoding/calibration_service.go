@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,6 +40,12 @@ type CalibrationService struct {
 	runner domaintranscoding.BenchmarkRunner
 	logger *slog.Logger
 
+	// pinBackend, when set, binds this instance to one HW backend: the runner
+	// only benches it, and a persisted capability for a different backend is
+	// re-benched rather than trusted (avoids the shared-cache bleed when one host
+	// runs several Evey containers on different GPU paths).
+	pinBackend string
+
 	current       atomic.Pointer[domaintranscoding.EncodeCapability]
 	benchInFlight sync.Mutex
 
@@ -60,7 +67,18 @@ type HWFallbackEvent struct {
 
 const maxFallbackEvents = 20
 
-func NewCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaintranscoding.BenchmarkRunner, logger *slog.Logger) *CalibrationService {
+// CalibrationOption configures a CalibrationService at construction.
+type CalibrationOption func(*CalibrationService)
+
+// WithPinnedBackend binds calibration to a single HW backend ("nvenc"/"vaapi"/
+// "qsv"); empty is a no-op (auto-detect).
+func WithPinnedBackend(backend string) CalibrationOption {
+	return func(s *CalibrationService) {
+		s.pinBackend = strings.ToLower(strings.TrimSpace(backend))
+	}
+}
+
+func NewCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaintranscoding.BenchmarkRunner, logger *slog.Logger, opts ...CalibrationOption) *CalibrationService {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -68,6 +86,9 @@ func NewCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaint
 		repo:   repo,
 		runner: runner,
 		logger: logger,
+	}
+	for _, opt := range opts {
+		opt(s)
 	}
 	fallback := domaintranscoding.SafeFallback()
 	s.current.Store(&fallback)
@@ -99,7 +120,16 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 
 	if found && persisted.SoftwareMaxHeight > 0 {
 		currentSig := sysinfo.CPUSignature()
-		if currentSig != "" && persisted.CPUSignature == currentSig {
+		// A pinned backend that disagrees with the persisted one means the cache was
+		// written by a sibling container bound to a different GPU path (shared DB).
+		// Don't trust it — fall through to a fresh bench restricted to the pin.
+		pinMismatch := s.pinBackend != "" && persisted.HWBackend != s.pinBackend
+		if pinMismatch {
+			s.logger.Info("calibration: persisted backend differs from pinned backend, re-benching",
+				slog.String("persisted_backend", persisted.HWBackend),
+				slog.String("pinned_backend", s.pinBackend))
+		}
+		if currentSig != "" && persisted.CPUSignature == currentSig && !pinMismatch {
 			// A matching CPU signature does NOT guarantee the persisted HW backend
 			// is usable here (shared DB across a HW + a non-HW container, a moved
 			// disk, a driver regression). Re-validate it with a real encode probe;

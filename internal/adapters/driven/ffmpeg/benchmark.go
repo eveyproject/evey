@@ -38,6 +38,7 @@ type BenchmarkRunner struct {
 	logger      *slog.Logger
 	durationSec int     // per-height bench duration; 5 s by default
 	margin      float64 // FPS / realtime ratio required to pass (1.2 default)
+	pinBackend  string  // when set, only this HW backend is benched (deploy pin)
 }
 
 // BenchmarkOpts tweaks the runner. Zero values fall back to defaults.
@@ -46,6 +47,7 @@ type BenchmarkOpts struct {
 	SamplePath  string  // empty → "/usr/share/evey/bench.mkv" then testsrc fallback
 	DurationSec int     // empty → 5
 	Margin      float64 // empty → 1.2
+	PinBackend  string  // empty → auto-detect; else only "nvenc"/"vaapi"/"qsv"
 }
 
 func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunner {
@@ -74,6 +76,7 @@ func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunne
 		logger:      logger,
 		durationSec: opts.DurationSec,
 		margin:      opts.Margin,
+		pinBackend:  strings.ToLower(strings.TrimSpace(opts.PinBackend)),
 	}
 }
 
@@ -365,6 +368,12 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		return 0, "", nil, ""
 	}
 	for _, dev := range devices {
+		// Honour the deployment pin: when set, only the matching backend is
+		// considered, so a shared host with one Evey-per-GPU doesn't pick the
+		// detector's preferred backend over the one this container is bound to.
+		if r.pinBackend != "" && strings.ToLower(dev.Type) != r.pinBackend {
+			continue
+		}
 		// Pick the first device that advertises an h264 encoder. NVENC
 		// preferred over VAAPI/QSV when both are present (production
 		// box on a workstation), which the detector orders naturally.

@@ -109,6 +109,12 @@ services:
     env_file: .env.dev
     environment:
       EVEY_TRANSCODING_HW_ACCEL_ENABLED: "true"
+      # Pin this instance to NVENC. evey-hw and evey-hw-vaapi share one DB, so
+      # without a pin the calibration cache bleeds: whichever container boots
+      # last persists its backend and the other loads a capability it can't run
+      # (cuda on a box with no nvidia-smi, or vice-versa) → 30 s segment-timeout
+      # loops. The pin re-benches when the cache holds a sibling's backend.
+      EVEY_TRANSCODING_HW_BACKEND: nvenc
       EVEY_DB_HOST: postgres
       EVEY_EMBEDDED_MEILI: "false"
       EVEY_MEILI_URL: http://meilisearch:7700
@@ -167,6 +173,10 @@ services:
     env_file: .env.dev
     environment:
       EVEY_TRANSCODING_HW_ACCEL_ENABLED: "true"
+      # Pin this instance to VAAPI (see the evey-hw nvenc pin comment above). This
+      # is what makes the shared-DB sibling layout work: this container ignores a
+      # persisted nvenc capability and re-benches VAAPI on its /dev/dri path.
+      EVEY_TRANSCODING_HW_BACKEND: vaapi
       EVEY_DB_HOST: postgres
       EVEY_EMBEDDED_MEILI: "false"
       EVEY_MEILI_URL: http://meilisearch:7700

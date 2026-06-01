@@ -276,6 +276,13 @@ type TranscodingConfig struct {
 	CacheMaxGB        int
 	CacheDir          string
 	HWAccelEnabled    bool
+	// HWBackend pins which HW encode backend this instance uses ("nvenc",
+	// "vaapi", "qsv"); empty = auto-detect. A deployment-time knob: it lets one
+	// host run several Evey containers, each bound to a different GPU path,
+	// without the shared capability cache leaking one container's backend into
+	// another. Honoured by calibration (only the pinned backend is benched, and
+	// a persisted capability for a different backend is re-benched).
+	HWBackend         string
 	TrickplayCacheDir string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch
@@ -472,6 +479,7 @@ func Load() (*Config, error) {
 			CacheMaxGB:            envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
 			CacheDir:              envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
 			HWAccelEnabled:        envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
+			HWBackend:             strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_BACKEND", ""))),
 			TrickplayCacheDir:     envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
 			AudioRenditionEnabled: envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", false),
 		},
