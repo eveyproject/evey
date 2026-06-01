@@ -670,6 +670,12 @@ calibration:
   detected: "Detectado: {{list}}"
   detectedNone: "No se detectó acelerador GPU"
   modeApplied: "Modo aplicado — recalibrando…"
+  hwEnableLabel: "Aceleración por hardware"
+  hwEnabledHint: "Codificación en la GPU cuando es posible"
+  hwDisabledHint: "Solo software (CPU)"
+  hwBackendLabel: "Backend"
+  wslUnsupported: "no compatible en WSL"
+  wslVaapiNote: "VAAPI/QSV pasan por el driver d3d12 de Mesa en WSL y no pueden transcodificar aquí — usa NVENC, o valida VAAPI en una máquina Linux nativa."
 
 qoe:
   title: "Calidad de streaming"

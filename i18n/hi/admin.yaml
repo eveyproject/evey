@@ -670,6 +670,12 @@ calibration:
   detected: "पता चला: {{list}}"
   detectedNone: "कोई GPU त्वरक नहीं मिला"
   modeApplied: "मोड लागू — पुनः कैलिब्रेट किया जा रहा है…"
+  hwEnableLabel: "हार्डवेयर त्वरण"
+  hwEnabledHint: "संभव होने पर GPU पर एन्कोडिंग"
+  hwDisabledHint: "केवल सॉफ़्टवेयर (CPU)"
+  hwBackendLabel: "बैकएंड"
+  wslUnsupported: "WSL पर समर्थित नहीं"
+  wslVaapiNote: "WSL पर VAAPI/QSV Mesa के d3d12 ड्राइवर से चलते हैं और यहाँ ट्रांसकोड नहीं कर सकते — NVENC उपयोग करें, या किसी नेटिव Linux होस्ट पर VAAPI सत्यापित करें।"
 
 qoe:
   title: "स्ट्रीमिंग गुणवत्ता"

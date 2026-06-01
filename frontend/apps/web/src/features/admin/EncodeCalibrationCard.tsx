@@ -17,6 +17,7 @@ type EncodeCapability = {
   hw_device?: string;
   hw_mode?: string; // active policy: auto | off | nvenc | vaapi | qsv
   detected_backends?: string[]; // accelerators the host advertises
+  is_wsl?: boolean; // WSL2: VAAPI/QSV (Mesa d3d12) unsupported, greyed out
   benchmarked_at: string; // RFC3339
   benchmark_duration_ms: number;
   cpu_signature: string;
@@ -110,40 +111,84 @@ export function EncodeCalibrationCard() {
 
   const fallbacks = data.hw_fallbacks ?? [];
   const detected = data.detected_backends ?? [];
-  // Offer auto + off always; forceable backends = detected ones, plus the
-  // currently-selected backend even if detection now reports it absent (so a
-  // forced mode is never silently dropped from the dropdown).
+  const isWsl = data.is_wsl ?? false;
+  const hwEnabled = hwMode !== "off";
+  // Forceable backends = detected ones, plus the current pin even if detection
+  // now reports it absent (so a forced mode is never silently dropped). VAAPI/QSV
+  // run through Mesa's d3d12 driver on WSL, which can't sustain our multi-variant
+  // encode, so they're disabled there.
   const forceable = Array.from(
     new Set([...detected, ["nvenc", "vaapi", "qsv"].includes(hwMode) ? hwMode : ""].filter(Boolean)),
   );
+  const wslBlocked = (b: string) => isWsl && (b === "vaapi" || b === "qsv");
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-1">
-        <label htmlFor="hw-mode-select" className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
-          {t("admin.calibration.hwModeLabel", "Hardware acceleration")}
-        </label>
-        <select
-          id="hw-mode-select"
-          data-testid="hw-mode-select"
-          value={hwMode}
-          disabled={setMode.isPending}
-          onChange={(e) => setMode.mutate(e.target.value)}
-          className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
-        >
-          <option value="auto">{t("admin.calibration.hwModeAuto", "Auto (best available)")}</option>
-          <option value="off">{t("admin.calibration.hwModeOff", "Off (software only)")}</option>
-          {forceable.map((b) => (
-            <option key={b} value={b}>
-              {b.toUpperCase()}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-[var(--text-muted)]">
-          {detected.length > 0
-            ? t("admin.calibration.detected", "Detected: {{list}}", { list: detected.join(", ") })
-            : t("admin.calibration.detectedNone", "No GPU accelerator detected")}
-        </p>
+      <div className="flex flex-col gap-2">
+        {/* Master enable: off = software only, on = hardware (then pick a backend). */}
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-[var(--text)]">
+            {t("admin.calibration.hwEnableLabel", "Hardware acceleration")}
+          </label>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={hwEnabled}
+            aria-label={t("admin.calibration.hwEnableLabel", "Hardware acceleration")}
+            data-testid="hw-enable-toggle"
+            disabled={setMode.isPending}
+            onClick={() => setMode.mutate(hwEnabled ? "off" : "auto")}
+            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-60"
+            style={{ backgroundColor: hwEnabled ? "var(--accent)" : "var(--border)" }}
+          >
+            <span
+              className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
+              style={{ transform: hwEnabled ? "translateX(1.375rem)" : "translateX(0.25rem)" }}
+            />
+          </button>
+          <span className="text-xs text-[var(--text-muted)]">
+            {hwEnabled
+              ? t("admin.calibration.hwEnabledHint", "Encoding on the GPU when possible")
+              : t("admin.calibration.hwDisabledHint", "Software only (CPU)")}
+          </span>
+        </div>
+
+        {hwEnabled && (
+          <div className="flex flex-col gap-1">
+            <label htmlFor="hw-mode-select" className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
+              {t("admin.calibration.hwBackendLabel", "Backend")}
+            </label>
+            <select
+              id="hw-mode-select"
+              data-testid="hw-mode-select"
+              value={hwMode}
+              disabled={setMode.isPending}
+              onChange={(e) => setMode.mutate(e.target.value)}
+              className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
+            >
+              <option value="auto">{t("admin.calibration.hwModeAuto", "Auto (best available)")}</option>
+              {forceable.map((b) => (
+                <option key={b} value={b} disabled={wslBlocked(b)}>
+                  {b.toUpperCase()}
+                  {wslBlocked(b) ? ` — ${t("admin.calibration.wslUnsupported", "not supported on WSL")}` : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-[var(--text-muted)]">
+              {detected.length > 0
+                ? t("admin.calibration.detected", "Detected: {{list}}", { list: detected.join(", ") })
+                : t("admin.calibration.detectedNone", "No GPU accelerator detected")}
+            </p>
+            {isWsl && (
+              <p className="text-xs text-amber-600">
+                {t(
+                  "admin.calibration.wslVaapiNote",
+                  "VAAPI/QSV go through Mesa's d3d12 driver on WSL and can't sustain transcoding here — use NVENC, or validate VAAPI on a native Linux host.",
+                )}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 text-sm">

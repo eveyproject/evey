@@ -210,6 +210,21 @@ func CPUSignature() string {
 	return hex.EncodeToString(h[:16]) // 16 bytes = 32 hex chars, enough for collision-free identity
 }
 
+// IsWSL reports whether the process runs under the Windows Subsystem for Linux.
+// Used to flag HW backends whose driver path is broken there: WSL exposes the
+// GPU through Mesa's experimental d3d12 VA driver, which can't sustain Evey's
+// multi-variant VAAPI/QSV encode (it segfaults), so the admin UI greys those
+// backends. NVENC (CUDA passthrough) is unaffected. Detected from the kernel
+// version string, which carries "microsoft"/"WSL" on every WSL kernel.
+func IsWSL() bool {
+	b, err := os.ReadFile("/proc/version")
+	if err != nil {
+		return false
+	}
+	v := strings.ToLower(string(b))
+	return strings.Contains(v, "microsoft") || strings.Contains(v, "wsl")
+}
+
 func readCPUStat() (cpuSample, bool) {
 	f, err := os.Open("/proc/stat")
 	if err != nil {

@@ -670,6 +670,12 @@ calibration:
   detected: "Erkannt: {{list}}"
   detectedNone: "Kein GPU-Beschleuniger erkannt"
   modeApplied: "Modus angewendet — Neukalibrierung…"
+  hwEnableLabel: "Hardware-Beschleunigung"
+  hwEnabledHint: "Kodierung auf der GPU, wenn möglich"
+  hwDisabledHint: "Nur Software (CPU)"
+  hwBackendLabel: "Backend"
+  wslUnsupported: "unter WSL nicht unterstützt"
+  wslVaapiNote: "VAAPI/QSV laufen unter WSL über Mesas d3d12-Treiber und können hier nicht transkodieren — NVENC verwenden oder VAAPI auf einem nativen Linux-Host prüfen."
 
 qoe:
   title: "Streaming-Qualität"

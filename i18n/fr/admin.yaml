@@ -651,6 +651,12 @@ calibration:
   detected: "Détecté : {{list}}"
   detectedNone: "Aucun accélérateur GPU détecté"
   modeApplied: "Mode appliqué — recalibrage…"
+  hwEnableLabel: "Accélération matérielle"
+  hwEnabledHint: "Encodage sur le GPU quand c'est possible"
+  hwDisabledHint: "Software uniquement (CPU)"
+  hwBackendLabel: "Backend"
+  wslUnsupported: "non supporté en WSL"
+  wslVaapiNote: "VAAPI/QSV passent par le driver d3d12 de Mesa en WSL et ne peuvent pas transcoder ici — utilisez NVENC, ou validez VAAPI sur une vraie machine Linux."
 
 serverSettings:
   title: "Paramètres du serveur"

@@ -88,33 +88,41 @@ services:
       meilisearch:
         condition: service_healthy
 
-  # Hardware-accelerated transcode test container (NVENC, glibc runtime).
-  # Opt-in dev variant: builds the runtime-nvidia image target, runs with the
-  # GPU injected (Docker Desktop / nvidia-container-toolkit), and turns the HW
-  # transcode flag ON. The default Air `evey` service (Alpine) stays
-  # software-only and untouched. Reach this instance on :9092.
+  # Hardware-accelerated transcode container — ONE full-HW image (the Jellyfin
+  # model). The runtime-hw image's distro ffmpeg has nvenc + vaapi + qsv all
+  # compiled in; this service maps BOTH the NVIDIA GPU (Container Toolkit, for
+  # NVENC) AND /dev/dri (for VAAPI/QSV), so the SAME container serves any backend
+  # and the admin "Hardware acceleration" mode picks which. Defaults to NVENC
+  # (works on this box). VAAPI is auto-greyed in the admin on WSL2 — its Mesa
+  # d3d12 driver can't sustain Evey's multi-variant encode (see docs/adr). The
+  # Air `evey` service (Alpine) stays software-only for code hot-reload.
+  # NOTE: /dev/dxg + /usr/lib/wsl below are WSL2-specific; on a native Linux box
+  # drop them (NVENC needs only the nvidia reservation, VAAPI/QSV only /dev/dri).
+  # Reach this instance on :9092.
   #   docker compose up -d --build evey-hw
-  # Verify HW kicked in:
-  #   docker compose logs evey-hw | grep -i 'benchmark.*hardware\|hw_backend'
-  #   nvidia-smi   # an ffmpeg process appears while a media transcodes
+  #   docker compose logs evey-hw | grep -i 'hw_backend\|benchmark.*hardware'
   evey-hw:
     build:
       context: .
       dockerfile: Dockerfile
-      target: runtime-nvidia
+      target: runtime-hw
       args:
         VERSION: hw-dev
     image: evey-hw
     container_name: evey-hw
     env_file: .env.dev
     environment:
+      # Master HW gate + default mode. The admin panel overrides both live
+      # (toggle off -> software; backend select -> nvenc/vaapi/qsv).
       EVEY_TRANSCODING_HW_ACCEL_ENABLED: "true"
-      # Pin this instance to NVENC. evey-hw and evey-hw-vaapi share one DB, so
-      # without a pin the calibration cache bleeds: whichever container boots
-      # last persists its backend and the other loads a capability it can't run
-      # (cuda on a box with no nvidia-smi, or vice-versa) → 30 s segment-timeout
-      # loops. The pin re-benches when the cache holds a sibling's backend.
-      EVEY_TRANSCODING_HW_BACKEND: nvenc
+      EVEY_TRANSCODING_HW_MODE: nvenc
+      # NVENC needs the `video` capability so the toolkit injects
+      # libnvidia-encode (the image sets this too; explicit here for visibility).
+      NVIDIA_DRIVER_CAPABILITIES: all
+      # WSL2 VAAPI path (harmless to leave; a native NAS auto-selects its driver):
+      # Mesa d3d12 + the host GPU libs on the lib path.
+      LIBVA_DRIVER_NAME: d3d12
+      LD_LIBRARY_PATH: /usr/lib/wsl/lib
       EVEY_DB_HOST: postgres
       EVEY_EMBEDDED_MEILI: "false"
       EVEY_MEILI_URL: http://meilisearch:7700
@@ -126,12 +134,12 @@ services:
       EVEY_BACKUP_DIR: /data/backups
       EVEY_LOG_LEVEL: debug
       # Dev mode relaxes the production config validation (default DB password,
-      # etc.) exactly like the Air `evey` service above — this is a local HW
-      # test box, not a deployment.
+      # etc.) exactly like the Air `evey` service above — local HW box, not prod.
       EVEY_LOG_DEV_MODE: "true"
       EVEY_PLUGINS_COSIGN_POLICY: "off"
     ports:
       - "9092:9091"
+    # NVENC: reserve the NVIDIA GPU (Container Toolkit injects the driver).
     deploy:
       resources:
         reservations:
@@ -139,72 +147,18 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    volumes:
-      - evey-hw-data:/data
-      - evey-hw-cache:/cache
-      - /path/to/movies:/media
-      - /path/to/series:/media2
-      - /path/to/photos:/media3
-      - /path/to/music:/media4
-    depends_on:
-      postgres:
-        condition: service_healthy
-      meilisearch:
-        condition: service_healthy
-    restart: "no"
-
-  # Hardware-accelerated transcode test container — VAAPI (AMD iGPU / Intel
-  # QuickSync), the sibling of evey-hw. On the WSL2 dev box AMD/Intel VAAPI goes
-  # through Mesa's d3d12 driver, so this image is Ubuntu 22.04 (Mesa 23.x) and
-  # the service maps /dev/dri + /dev/dxg, mounts the host WSL GPU libs, and sets
-  # LIBVA_DRIVER_NAME=d3d12. Needs `sudo modprobe vgem` on the host for /dev/dri
-  # (cf hw_transcode_wsl_setup). Reach it on :9093.
-  #   docker compose up -d --build evey-hw-vaapi
-  #   docker compose logs evey-hw-vaapi | grep -i 'hw_backend\|hardware probe'
-  evey-hw-vaapi:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runtime-vaapi
-      args:
-        VERSION: hw-vaapi-dev
-    image: evey-hw-vaapi
-    container_name: evey-hw-vaapi
-    env_file: .env.dev
-    environment:
-      EVEY_TRANSCODING_HW_ACCEL_ENABLED: "true"
-      # Pin this instance to VAAPI (see the evey-hw nvenc pin comment above). This
-      # is what makes the shared-DB sibling layout work: this container ignores a
-      # persisted nvenc capability and re-benches VAAPI on its /dev/dri path.
-      EVEY_TRANSCODING_HW_BACKEND: vaapi
-      EVEY_DB_HOST: postgres
-      EVEY_EMBEDDED_MEILI: "false"
-      EVEY_MEILI_URL: http://meilisearch:7700
-      EVEY_HTTP_PORT: "9091"
-      EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
-      EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
-      EVEY_TRICKPLAY_CACHE_DIR: /data/trickplay
-      EVEY_LOG_DIR: /data/logs
-      EVEY_BACKUP_DIR: /data/backups
-      EVEY_LOG_LEVEL: debug
-      EVEY_LOG_DEV_MODE: "true"
-      EVEY_PLUGINS_COSIGN_POLICY: "off"
-      # WSL2 VAAPI: the Mesa d3d12 driver + the host GPU libs on the lib path.
-      LIBVA_DRIVER_NAME: d3d12
-      LD_LIBRARY_PATH: /usr/lib/wsl/lib
-    ports:
-      - "9093:9091"
+    # VAAPI/QSV: map the DRM render node (+ /dev/dxg for the WSL2 d3d12 path).
     devices:
       - /dev/dri:/dev/dri
       - /dev/dxg:/dev/dxg
     # The render node is root:render — add the host render GID so the evey user
-    # (uid 1000) can open /dev/dri/renderD128. Find it with `getent group render`
-    # (the vgem node was GID 992 on the dev box); override via EVEY_RENDER_GID.
+    # (uid 1000) can open /dev/dri/renderD128. `getent group render` (vgem node
+    # was GID 992 on the dev box); override via EVEY_RENDER_GID.
     group_add:
       - "${EVEY_RENDER_GID:-992}"
     volumes:
-      - evey-hw-vaapi-data:/data
-      - evey-hw-vaapi-cache:/cache
+      - evey-hw-data:/data
+      - evey-hw-cache:/cache
       - /usr/lib/wsl:/usr/lib/wsl:ro
       - /path/to/movies:/media
       - /path/to/series:/media2
@@ -294,5 +248,3 @@ services:
 volumes:
   evey-hw-cache:
   evey-hw-data:
-  evey-hw-vaapi-cache:
-  evey-hw-vaapi-data:

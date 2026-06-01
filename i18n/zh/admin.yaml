@@ -670,6 +670,12 @@ calibration:
   detected: "已检测: {{list}}"
   detectedNone: "未检测到 GPU 加速器"
   modeApplied: "模式已应用 — 正在重新校准…"
+  hwEnableLabel: "硬件加速"
+  hwEnabledHint: "尽可能在 GPU 上编码"
+  hwDisabledHint: "仅软件（CPU）"
+  hwBackendLabel: "后端"
+  wslUnsupported: "WSL 不支持"
+  wslVaapiNote: "在 WSL 上 VAAPI/QSV 通过 Mesa 的 d3d12 驱动，无法在此转码 — 请使用 NVENC，或在原生 Linux 主机上验证 VAAPI。"
 
 qoe:
   title: "流媒体质量"

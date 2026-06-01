@@ -10,6 +10,7 @@ import (
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"go.opentelemetry.io/otel/codes"
 )
@@ -62,11 +63,15 @@ func transcodeCalibrationGetHandler(svc calibrationSvc) http.HandlerFunc {
 		resp := struct {
 			domaintranscoding.EncodeCapability
 			HWMode      string                           `json:"hw_mode"`
+			IsWSL       bool                             `json:"is_wsl"`
 			HWFallbacks []apptranscoding.HWFallbackEvent `json:"hw_fallbacks"`
 		}{
 			EncodeCapability: svc.Current(),
 			HWMode:           string(svc.HWMode()),
-			HWFallbacks:      svc.RecentFallbacks(),
+			// WSL's d3d12 VA driver can't sustain Evey's multi-variant VAAPI/QSV
+			// encode, so the admin UI greys those backends when this is true.
+			IsWSL:       sysinfo.IsWSL(),
+			HWFallbacks: svc.RecentFallbacks(),
 		}
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			span.RecordError(err)

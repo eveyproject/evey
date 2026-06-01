@@ -146,89 +146,30 @@ USER evey
 
 ENTRYPOINT ["/entrypoint.sh"]
 
-# ── Stage 6: NVIDIA / glibc runtime (opt-in, hardware NVENC transcode) ──
-# The default Alpine runtime cannot do NVENC: musl can't load the glibc NVIDIA
-# driver libraries the nvidia-container-toolkit / Docker Desktop injects at
-# `--gpus` time, and Alpine's ffmpeg isn't built with --enable-nvenc. This
-# glibc base can. The evey + launcher binaries are CGO-free/static (built with
-# CGO_ENABLED=0 in stage 4) so they run here UNCHANGED — only ffmpeg and the
-# Landlock sandbox shim must be glibc, which this stage rebuilds.
-#
-# Built + run via docker-compose.override.yml's `evey-hw` service. The base
-# Alpine image (stage 5) stays the production default and is untouched.
-FROM nvidia/cuda:12.6.2-base-ubuntu24.04 AS runtime-nvidia
+# ── Stage 6 (HW): single full-HW glibc runtime (nvenc + vaapi + qsv) ─────────
+# The Jellyfin model: ONE glibc image whose distro ffmpeg has every HW encoder
+# compiled in (h264/hevc _nvenc, _vaapi, _qsv — verified in the Ubuntu build).
+# No GPU driver is baked; drivers are injected at RUNTIME by whatever the host
+# exposes, so the same image is software-only, NVENC, or VAAPI/QSV depending on
+# what the compose/runtime maps:
+#   - NVENC: NVIDIA Container Toolkit (`--gpus all` / a compose nvidia device
+#     reservation) + NVIDIA_DRIVER_CAPABILITIES including `video` (set to `all`
+#     below) — without `video` the toolkit injects nvidia-smi/CUDA but NOT
+#     libnvidia-encode.so and nvenc fails with "Cannot load libnvidia-encode".
+#   - VAAPI / QSV: a mapped /dev/dri (host Mesa/iHD); vainfo + mesa-va-drivers +
+#     libva are installed below.
+# The CGO-free evey + launcher binaries (stage 4, CGO_ENABLED=0) run UNCHANGED;
+# only ffmpeg + the Landlock shim are glibc, rebuilt below. Ubuntu 22.04 (Mesa
+# 23.x) is kept for the WSL2 dev box's d3d12 VA driver; a native NAS uses its
+# own /dev/dri driver. LIBVA_DRIVER_NAME is NOT baked here — a native host
+# auto-selects radeonsi/iHD/i965 from the GPU PCI id; the WSL2 dev box forces
+# d3d12 from the compose override (baking it would break native VAAPI).
+FROM ubuntu:22.04 AS runtime-hw
 
-# Expose the NVENC/NVDEC engines to the container: the cuda base advertises
-# `compute,utility` by default; `video` is the capability ffmpeg's *_nvenc
-# encoders need.
+# Tell the NVIDIA Container Toolkit to inject the full driver stack (incl.
+# libnvidia-encode for NVENC) when a GPU is reserved; harmless when none is.
 ENV NVIDIA_VISIBLE_DEVICES=all
-ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg bubblewrap libcap2-bin ca-certificates curl libchromaprint-tools \
-    postgresql-client unzip wget python3 gcc libc6-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Rebuild the Landlock pre-exec shim with the glibc toolchain — the musl
-# .so from stage 4 won't load under glibc. Same flags as stage 4.
-# libc6-dev (above) pulls linux-libc-dev for the kernel UAPI headers
-# (linux/seccomp.h, linux/filter.h) the shim includes.
-COPY --from=builder /src/sandbox/sandbox.c /tmp/sandbox.c
-RUN mkdir -p /app && gcc -shared -fPIC -nostartfiles -o /app/libevey-sandbox.so /tmp/sandbox.c && rm /tmp/sandbox.c
-
-COPY --from=getmeili/meilisearch:v1.12 /bin/meilisearch /usr/local/bin/meilisearch
-
-# Ubuntu 24.04 base images ship a default `ubuntu` user at UID 1000 — remove it
-# so our evey/evey-plugin UIDs (1000/1001) match the Alpine runtime exactly.
-RUN (userdel -r ubuntu 2>/dev/null || true) && (groupdel ubuntu 2>/dev/null || true) \
-    && groupadd -g 1000 evey \
-    && useradd -u 1000 -g evey -m -s /usr/sbin/nologin evey \
-    && useradd -u 1001 -g evey -m -s /usr/sbin/nologin evey-plugin \
-    && mkdir -p /data/transcoding /data/logs /data/plugins /data/keys /data/meili /data/backups /srv /cache \
-    && chown -R evey:evey /data /cache \
-    && chown evey-plugin:evey /data/plugins \
-    && chmod 750 /data/plugins \
-    && chmod 700 /data/keys /data/logs /data/backups
-
-COPY --from=builder /evey /evey
-COPY --from=builder /evey-plugin-launcher /evey-plugin-launcher
-RUN setcap cap_setuid+ep /evey-plugin-launcher
-COPY --from=builder /src/i18n /i18n
-COPY --from=builder /src/sdk /app/sdk
-COPY --from=builder /src/gen/evey/v1 /app/gen/evey/v1
-COPY --from=builder /src/docker/seccomp-evey.json /etc/evey/seccomp.json
-COPY --from=frontend /app/apps/web/dist /srv
-COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-LABEL org.evey.runtimes="nvidia"
-ENV EVEY_IMAGE_RUNTIMES=nvidia
-
-EXPOSE 9091
-
-HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=30s \
-    CMD curl -sf http://localhost:9091/healthz || exit 1
-
-USER evey
-
-ENTRYPOINT ["/entrypoint.sh"]
-
-# ── Stage 7: VAAPI / glibc runtime (opt-in, AMD iGPU / Intel QSV transcode) ──
-# Sibling of runtime-nvidia, for VAAPI hardware. On a real Linux host (a NAS)
-# the default Alpine image already does VAAPI via the native amdgpu/i915 + its
-# bundled mesa; this glibc variant exists for the WSL2 dev box, where AMD/Intel
-# VAAPI is only reachable through Mesa's d3d12 driver — which needs Mesa < 24
-# (the host's Mesa 25 hits the #11838 init bug). Ubuntu 22.04 ships Mesa 23.x,
-# so the d3d12 VA driver initialises. At runtime the compose service maps
-# /dev/dri + /dev/dxg and mounts the host's /usr/lib/wsl (the WSL GPU libs) on
-# LD_LIBRARY_PATH, with LIBVA_DRIVER_NAME=d3d12. The CGO-free evey binary and
-# the static launcher are reused unchanged; only ffmpeg + the Landlock shim are
-# rebuilt against glibc.
-FROM ubuntu:22.04 AS runtime-vaapi
-
-# d3d12 is the WSL2 VAAPI backend; native hosts ignore this and auto-select
-# radeonsi/iHD/i965 from the GPU PCI id, so it is harmless on a NAS too.
-ENV LIBVA_DRIVER_NAME=d3d12
+ENV NVIDIA_DRIVER_CAPABILITIES=all
 
 # postgresql-client-16 from PGDG (Ubuntu 22.04 only ships pg_dump 14, which
 # refuses to dump the Postgres 16 server — the pre-migration backup would fail).
@@ -269,8 +210,8 @@ COPY --from=frontend /app/apps/web/dist /srv
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-LABEL org.evey.runtimes="vaapi"
-ENV EVEY_IMAGE_RUNTIMES=vaapi
+LABEL org.evey.runtimes="nvenc,vaapi,qsv"
+ENV EVEY_IMAGE_RUNTIMES=nvenc,vaapi,qsv
 
 EXPOSE 9091
 
