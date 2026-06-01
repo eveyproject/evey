@@ -108,15 +108,26 @@ segfault. WSL HW = NVENC only; validate VAAPI/QSV on a native Linux host.
   `/dev/dri`, defaulting to NVENC; the Alpine Air `evey` container stays
   software-only for code hot-reload + the musl plugin sandbox.
 
-## Known limitation / future work
+## Per-variant HW path (implemented, opt-in)
 
-Evey transcodes the **whole ABR ladder in one ffmpeg process** (`split` → N
-encoders) — efficient (decode once, encode N) and rock-solid on software, but
-HW-fragile: a multi-encode graph stresses even native VAAPI drivers under load
-(intel/media-driver #207, #1342) and hard-crashes the d3d12 shim. Jellyfin/Plex/
-Emby instead run **one ffmpeg per variant** (single output, ABR driven by the
-client). A future change should move the **HW** path to per-variant processes
-(keeping the single-process graph for software), which isolates per-rung
-failures, only encodes the variants actually watched, and avoids shared
-surface-pool exhaustion. It will not rescue WSL2 d3d12 (a dead end), but it
-hardens the HW path on the real weak-NAS target. Tracked as a separate effort.
+By default Evey transcodes the **whole ABR ladder in one ffmpeg process**
+(`split` → N encoders) — efficient (decode once, encode N) and rock-solid on
+software, but HW-fragile: a multi-encode graph stresses even native VAAPI
+drivers under load (intel/media-driver #207, #1342) and hard-crashes the d3d12
+shim. Jellyfin/Plex/Emby instead run **one ffmpeg per variant** (single output).
+
+`EVEY_TRANSCODING_HW_PER_VARIANT=true` switches the **HW** path to that model:
+one single-output ffmpeg per rung behind a composite handle, while software
+keeps the single-process graph. This avoids the multi-encode-in-one-process
+graph that crashes fragile VA drivers and isolates per-rung failures. It is
+encapsulated in the ffmpeg adapter — the orchestrator (sessions, throttle,
+teardown, demotion, watchdog, concurrency slots) is unchanged. **Off by default**
+(the multi-output path works on NVENC and the change is player-vital); flip the
+flag to enable. Validated on NVENC (3 rungs, each its own ffmpeg, no `split`);
+VAAPI/QSV to be validated on real hardware. It does **not** rescue WSL2 d3d12 (a
+dead end). Cost: N× decode (cheap with HW decode) and N concurrent encode
+sessions (mind the NVENC session cap on consumer cards).
+
+Remaining future work: route per-variant on demand at the **orchestrator** level
+(spawn only the rung the client actually requests) for the full "only encode
+what's watched" win — the current composite still spawns all N rungs up front.

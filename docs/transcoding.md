@@ -78,6 +78,11 @@ EVEY_TRANSCODING_HW_ACCEL_ENABLED=true
 EVEY_TRANSCODING_HW_MODE=auto
 # Fast-fail a wedged GPU to software after this delay (default 5s).
 EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT=5s
+# Spawn one ffmpeg per ABR rung on the HW path (Jellyfin/Plex model) instead of
+# one multi-output process — isolates per-rung failures and avoids the
+# multi-encode graph that crashes fragile VA drivers. Off by default; software
+# always uses the single-process graph. See docs/adr/0015.
+EVEY_TRANSCODING_HW_PER_VARIANT=false
 ```
 
 ### WSL2 caveat
