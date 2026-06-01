@@ -176,10 +176,23 @@ ENV NVIDIA_DRIVER_CAPABILITIES=all
 # Ubuntu 24.04 ships ffmpeg 6.x AND postgresql-client-16 (matches the PG16
 # server, so the pre-migration pg_dump works) straight from the distro — no
 # PGDG repo dance needed, unlike 22.04.
+#
+# Full VA + QSV driver set so VAAPI and QuickSync work on whatever GPU the host
+# maps at /dev/dri, with no per-machine rebuild (mirrors the Alpine image's
+# driver set — both universe + multiverse ship in the base image):
+#   - mesa-va-drivers               : AMD (radeonsi) + open Intel
+#   - intel-media-va-driver-non-free: iHD — Intel Gen8+ (Broadwell and newer);
+#                                     non-free = full codec coverage (HEVC/VC1)
+#   - i965-va-driver                : Intel Gen <= 7.5
+#   - libvpl2 + libmfx-gen1.2 + libmfx1: the oneVPL / MediaSDK runtimes ffmpeg's
+#                                     *_qsv encoders dispatch through (Gen + legacy)
+# NVENC needs none of these (CUDA via the toolkit); software needs none either.
 RUN apt-get update && apt-get install -y --no-install-recommends \
        ca-certificates curl ffmpeg bubblewrap libcap2-bin libchromaprint-tools \
        postgresql-client-16 unzip wget python3 gcc libc6-dev \
-       vainfo mesa-va-drivers libva2 libva-drm2 \
+       vainfo libva2 libva-drm2 mesa-va-drivers \
+       intel-media-va-driver-non-free i965-va-driver \
+       libvpl2 libmfx-gen1.2 libmfx1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Rebuild the Landlock shim with glibc (musl .so from stage 4 won't load).
