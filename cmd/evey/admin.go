@@ -44,6 +44,8 @@ func runAdmin(args []string) error {
 		return adminMigrate(args[1:])
 	case "reclassify":
 		return adminReclassify(args[1:])
+	case "reindex-no-cue":
+		return adminReindexNoCue(args[1:])
 	case "-h", "--help", "help":
 		_ = adminUsage()
 		return nil
@@ -70,6 +72,13 @@ Schema subcommands:
 Per-title encoding subcommands:
   reclassify <media-id>             Force-recompute the complexity class for one media item.
   reclassify --all                  Wipe + re-queue every classified item (worker will pick them up).
+
+Media maintenance subcommands:
+  reindex-no-cue --root <dir>       Rebuild the seek index (Cues) of MKV/WebM files that lack one,
+                                    fixing slow resume. Dry-run by default; pass --apply to rewrite.
+                                    Each rewrite is validated + cross-checked and keeps a .mkvgobak
+                                    backup. --limit N for a cautious first run; --keep-backup=false
+                                    to drop backups.
 
 Configuration is read from EVEY_* env vars (same as the server).
 See docs/runbooks/recovery.md and docs/runbooks/cli.md for full procedures.
@@ -458,4 +467,3 @@ func adminReclassifyUsage() error {
 `)
 	return fmt.Errorf("admin reclassify: target required")
 }
-
