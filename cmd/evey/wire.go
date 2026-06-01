@@ -611,12 +611,28 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// invalidation, so the 20 s only hits once per host lifetime.
 	capabilityRepo := apptranscoding.NewCapabilityRepoAdapter(r.ServerCfg)
 	// The HW-acceleration mode is admin-selectable (auto/off/nvenc/vaapi/qsv).
-	// Bootstrap precedence: an explicit transcoding.hw_mode (env or persisted
-	// admin override, already layered into cfg by loadOverride) wins; otherwise
-	// derive it from the legacy HWAccelEnabled + HWBackend env knobs. Calibration
-	// honours the mode (pins/benches the chosen backend, or software-only on
-	// off), and the admin panel flips it live via SetHWMode (re-bench, no restart).
-	hwMode := domaintranscoding.ResolveHWMode(cfg.Transcoding.HWMode, cfg.Transcoding.HWAccelEnabled, cfg.Transcoding.HWBackend)
+	// Bootstrap precedence: an explicit transcoding.hw_mode (persisted admin
+	// override, else env) wins; otherwise derive it from the legacy
+	// HWAccelEnabled + HWBackend knobs. We read the persisted overrides DIRECTLY
+	// here because the calibration service is built before main's loadOverride
+	// pass — without this, an admin's saved mode would be ignored until they
+	// re-set it. Calibration honours the mode (pins/benches the chosen backend,
+	// or software-only on off); the admin panel flips it live via SetHWMode.
+	cfgOverride := func(key string) string {
+		if entry, err := r.ServerCfg.Get(ctx, key); err == nil && entry != nil {
+			return entry.Value
+		}
+		return ""
+	}
+	hwAccelEnabled := cfg.Transcoding.HWAccelEnabled
+	if v := cfgOverride("transcoding.hw_accel_enabled"); v != "" {
+		hwAccelEnabled = v == "true"
+	}
+	hwModeStr := cfg.Transcoding.HWMode
+	if v := cfgOverride("transcoding.hw_mode"); v != "" {
+		hwModeStr = v
+	}
+	hwMode := domaintranscoding.ResolveHWMode(hwModeStr, hwAccelEnabled, cfg.Transcoding.HWBackend)
 	calibrationRunner := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{}, slog.Default())
 	calibrationSvc := apptranscoding.NewCalibrationService(capabilityRepo, calibrationRunner, slog.Default(),
 		apptranscoding.WithHWMode(hwMode))
