@@ -21,6 +21,10 @@ import (
 type calibrationSvc interface {
 	Recalibrate(ctx context.Context) error
 	Current() domaintranscoding.EncodeCapability
+	// HWMode is the active HW-acceleration policy (auto/off/nvenc/vaapi/qsv) so
+	// the admin card can show what the host is configured to do, distinct from
+	// the active backend the bench actually selected.
+	HWMode() domaintranscoding.HWMode
 	// RecentFallbacks surfaces the level-2 HW-demotion events (newest last) so
 	// the admin can see a degraded host without log diving.
 	RecentFallbacks() []apptranscoding.HWFallbackEvent
@@ -57,9 +61,11 @@ func transcodeCalibrationGetHandler(svc calibrationSvc) http.HandlerFunc {
 		// them flat) and add the recent HW-fallback events alongside.
 		resp := struct {
 			domaintranscoding.EncodeCapability
+			HWMode      string                           `json:"hw_mode"`
 			HWFallbacks []apptranscoding.HWFallbackEvent `json:"hw_fallbacks"`
 		}{
 			EncodeCapability: svc.Current(),
+			HWMode:           string(svc.HWMode()),
 			HWFallbacks:      svc.RecentFallbacks(),
 		}
 		if err := json.NewEncoder(w).Encode(resp); err != nil {

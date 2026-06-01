@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
+	transcoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
 
 // TestBenchmarkRunner_TestSrcFallback_ReturnsValidCap exercises the
@@ -26,7 +27,7 @@ func TestBenchmarkRunner_TestSrcFallback_ReturnsValidCap(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	cap, err := r.Run(ctx)
+	cap, err := r.Run(ctx, transcoding.HWPreference{})
 	require.NoError(t, err)
 
 	// Floor guarantee: even on the weakest possible runner the bench
@@ -51,7 +52,7 @@ func TestBenchmarkRunner_RespectMargin(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	cap, err := r.Run(ctx)
+	cap, err := r.Run(ctx, transcoding.HWPreference{})
 	require.NoError(t, err)
 	assert.Equal(t, 720, cap.SoftwareMaxHeight, "impossible margin must still floor at 720p (not 0)")
 }

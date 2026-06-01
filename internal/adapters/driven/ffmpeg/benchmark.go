@@ -38,7 +38,6 @@ type BenchmarkRunner struct {
 	logger      *slog.Logger
 	durationSec int     // per-height bench duration; 5 s by default
 	margin      float64 // FPS / realtime ratio required to pass (1.2 default)
-	pinBackend  string  // when set, only this HW backend is benched (deploy pin)
 }
 
 // BenchmarkOpts tweaks the runner. Zero values fall back to defaults.
@@ -47,7 +46,6 @@ type BenchmarkOpts struct {
 	SamplePath  string  // empty → "/usr/share/evey/bench.mkv" then testsrc fallback
 	DurationSec int     // empty → 5
 	Margin      float64 // empty → 1.2
-	PinBackend  string  // empty → auto-detect; else only "nvenc"/"vaapi"/"qsv"
 }
 
 func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunner {
@@ -76,7 +74,6 @@ func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunne
 		logger:      logger,
 		durationSec: opts.DurationSec,
 		margin:      opts.Margin,
-		pinBackend:  strings.ToLower(strings.TrimSpace(opts.PinBackend)),
 	}
 }
 
@@ -105,18 +102,35 @@ var swBenchLadder = []int{720, 1080, 1440}
 // Run executes the full benchmark and returns a fully-populated
 // EncodeCapability. Best-effort: a partial failure (HW probe crashed,
 // sample unreadable) downgrades the calibration rather than aborting it.
-func (r *BenchmarkRunner) Run(ctx context.Context) (transcoding.EncodeCapability, error) {
+func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference) (transcoding.EncodeCapability, error) {
 	start := time.Now()
 	r.logger.Info("benchmark: starting",
 		slog.String("sample", r.samplePath),
 		slog.Int("duration_per_rung_sec", r.durationSec),
-		slog.Float64("margin", r.margin))
+		slog.Float64("margin", r.margin),
+		slog.String("pin_backend", pref.Backend),
+		slog.Bool("hw_disabled", pref.DisableHW))
 
 	sample, fallback := r.resolveSample()
 
 	swMax := r.benchSoftware(ctx, sample, fallback)
 
-	hwMax, hwBackend, hwCodecs, hwDevice := r.benchHardware(ctx, sample, fallback)
+	// detected lists every accelerator the host advertises, recorded before the
+	// preference's backend pin / disable is applied — so the admin can still see
+	// "nvenc present" even while the active mode forces software or vaapi.
+	detected := r.detectBackends(ctx)
+
+	var (
+		hwMax     int
+		hwBackend string
+		hwCodecs  []string
+		hwDevice  string
+	)
+	// pref.DisableHW (mode=off) calibrates software-only: skip the hardware
+	// probe entirely so the host never selects a GPU the operator disabled.
+	if !pref.DisableHW {
+		hwMax, hwBackend, hwCodecs, hwDevice = r.benchHardware(ctx, sample, fallback, pref.Backend)
+	}
 
 	// Probe which optional encoder tuning options the HW encoder accepts, so
 	// the arg builder only emits validated ones (level-1 safety). Only when a
@@ -133,6 +147,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context) (transcoding.EncodeCapability
 		HWCodecs:            hwCodecs,
 		HWDevice:            hwDevice,
 		HWFeatures:          hwFeatures,
+		DetectedBackends:    detected,
 		CPUSignature:        sysinfo.CPUSignature(),
 		BenchmarkedAt:       time.Now().UTC(),
 		BenchmarkDurationMs: time.Since(start).Milliseconds(),
@@ -141,9 +156,31 @@ func (r *BenchmarkRunner) Run(ctx context.Context) (transcoding.EncodeCapability
 		slog.Int("software_max_height", cap.SoftwareMaxHeight),
 		slog.Int("hw_max_height", cap.HWMaxHeight),
 		slog.String("hw_backend", cap.HWBackend),
+		slog.Any("detected_backends", cap.DetectedBackends),
 		slog.Any("hw_features", cap.HWFeatures),
 		slog.Int64("elapsed_ms", cap.BenchmarkDurationMs))
 	return cap, nil
+}
+
+// detectBackends returns the accelerator types the host advertises
+// ("nvenc"/"vaapi"/"qsv"), independent of the active mode. Best-effort: a
+// detector error yields an empty list (the host is treated as software-only
+// for display purposes).
+func (r *BenchmarkRunner) detectBackends(ctx context.Context) []string {
+	devices, err := r.hwDetector.DetectDevices(ctx)
+	if err != nil || len(devices) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(devices))
+	var out []string
+	for _, d := range devices {
+		t := strings.ToLower(d.Type)
+		if t != "" && !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // nvencFeatureProbes are the optional NVENC tuning flags we want to use, each
@@ -362,16 +399,18 @@ func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fall
 // software path (1 decode + N parallel encodes, matching prod).
 // Returns (0, "") when no HW is usable — software-only operation,
 // fully supported by the handler.
-func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool) (int, string, []string, string) {
+func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool, pinBackend string) (int, string, []string, string) {
 	devices, err := r.hwDetector.DetectDevices(ctx)
 	if err != nil || len(devices) == 0 {
 		return 0, "", nil, ""
 	}
+	pinBackend = strings.ToLower(strings.TrimSpace(pinBackend))
 	for _, dev := range devices {
-		// Honour the deployment pin: when set, only the matching backend is
-		// considered, so a shared host with one Evey-per-GPU doesn't pick the
-		// detector's preferred backend over the one this container is bound to.
-		if r.pinBackend != "" && strings.ToLower(dev.Type) != r.pinBackend {
+		// Honour the active mode's backend pin: when set, only the matching
+		// backend is considered, so a forced nvenc/vaapi/qsv (or a shared host
+		// with one Evey-per-GPU) doesn't pick the detector's preferred backend
+		// over the one the operator selected.
+		if pinBackend != "" && strings.ToLower(dev.Type) != pinBackend {
 			continue
 		}
 		// Pick the first device that advertises an h264 encoder. NVENC

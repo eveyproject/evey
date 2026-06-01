@@ -21,9 +21,16 @@ type fakeCalibrationSvc struct {
 	recalErr  error
 	calls     int
 	fallbacks []apptranscoding.HWFallbackEvent
+	hwMode    domaintranscoding.HWMode
 }
 
 func (f *fakeCalibrationSvc) Current() domaintranscoding.EncodeCapability { return f.current }
+func (f *fakeCalibrationSvc) HWMode() domaintranscoding.HWMode {
+	if f.hwMode == "" {
+		return domaintranscoding.HWModeAuto
+	}
+	return f.hwMode
+}
 func (f *fakeCalibrationSvc) RecentFallbacks() []apptranscoding.HWFallbackEvent {
 	return f.fallbacks
 }

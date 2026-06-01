@@ -52,6 +52,14 @@ type EncodeCapability struct {
 	// on a runtime unsupported-option failure (the level-2 safety net).
 	HWFeatures []string `json:"hw_features,omitempty"`
 
+	// DetectedBackends lists every HW accelerator the host advertises
+	// ("nvenc"/"vaapi"/"qsv"), recorded at bench time BEFORE the active
+	// mode's backend pin is applied. It is purely informational: the admin
+	// panel reads it to offer only accelerators that actually exist, even when
+	// the current mode forces software or a single backend. Empty on a host
+	// with no GPU/iGPU.
+	DetectedBackends []string `json:"detected_backends,omitempty"`
+
 	// CPUSignature is a stable hash of the host CPU identity (model
 	// name + core count from /proc/cpuinfo). If the host migrates to a
 	// different machine — e.g. container restored on another node — the
@@ -150,7 +158,11 @@ type CapabilityRepo interface {
 // can take ~60 s and an admin clicking "recalibrate" twice in a row
 // shouldn't pile up requests.
 type BenchmarkRunner interface {
-	Run(ctx context.Context) (EncodeCapability, error)
+	// Run benches the host under the given preference: pref.Backend pins the
+	// hardware probe to one accelerator (empty = auto-detect) and
+	// pref.DisableHW skips hardware probing entirely (software-only). The
+	// preference is the calibration-facing projection of the admin HW mode.
+	Run(ctx context.Context, pref HWPreference) (EncodeCapability, error)
 	// HWBackendUsable confirms the named HW backend ("nvenc"/"vaapi"/"qsv") can
 	// actually encode on this host right now. Used to re-validate a persisted
 	// capability before trusting it, since a matching CPU signature does not

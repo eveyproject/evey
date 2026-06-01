@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,11 +39,12 @@ type CalibrationService struct {
 	runner domaintranscoding.BenchmarkRunner
 	logger *slog.Logger
 
-	// pinBackend, when set, binds this instance to one HW backend: the runner
-	// only benches it, and a persisted capability for a different backend is
-	// re-benched rather than trusted (avoids the shared-cache bleed when one host
-	// runs several Evey containers on different GPU paths).
-	pinBackend string
+	// mode is the admin-selectable HW-acceleration policy (auto/off/nvenc/
+	// vaapi/qsv). It projects to a HWPreference the runner honours: a backend
+	// pin and/or a software-only flag. Guarded by modeMu because SetHWMode can
+	// run concurrently with a boot EnsureCalibrated. Empty zero-value == auto.
+	modeMu sync.Mutex
+	mode   domaintranscoding.HWMode
 
 	current       atomic.Pointer[domaintranscoding.EncodeCapability]
 	benchInFlight sync.Mutex
@@ -70,11 +70,11 @@ const maxFallbackEvents = 20
 // CalibrationOption configures a CalibrationService at construction.
 type CalibrationOption func(*CalibrationService)
 
-// WithPinnedBackend binds calibration to a single HW backend ("nvenc"/"vaapi"/
-// "qsv"); empty is a no-op (auto-detect).
-func WithPinnedBackend(backend string) CalibrationOption {
+// WithHWMode sets the initial HW-acceleration mode (the bootstrap value derived
+// from env + any persisted admin override). Empty/unknown is treated as auto.
+func WithHWMode(mode domaintranscoding.HWMode) CalibrationOption {
 	return func(s *CalibrationService) {
-		s.pinBackend = strings.ToLower(strings.TrimSpace(backend))
+		s.mode = mode
 	}
 }
 
@@ -86,6 +86,7 @@ func NewCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaint
 		repo:   repo,
 		runner: runner,
 		logger: logger,
+		mode:   domaintranscoding.HWModeAuto,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -93,6 +94,43 @@ func NewCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaint
 	fallback := domaintranscoding.SafeFallback()
 	s.current.Store(&fallback)
 	return s
+}
+
+// HWMode returns the active HW-acceleration mode (for the admin GET).
+func (s *CalibrationService) HWMode() domaintranscoding.HWMode {
+	s.modeMu.Lock()
+	defer s.modeMu.Unlock()
+	if s.mode == "" {
+		return domaintranscoding.HWModeAuto
+	}
+	return s.mode
+}
+
+// preference snapshots the current mode as the runner-facing HWPreference.
+func (s *CalibrationService) preference() domaintranscoding.HWPreference {
+	return s.HWMode().Preference()
+}
+
+// SetHWMode applies a new admin-selected HW mode and re-benches so the change
+// takes effect immediately (no restart). The caller is responsible for
+// persisting the mode string (server_settings); this only drives the in-process
+// calibration. The mode is recorded synchronously (so HWMode() reflects it at
+// once) and the re-bench runs under benchInFlight — a concurrent recalibration
+// yields ErrBenchmarkBusy, but the mode stays set so the persisted intent still
+// wins on the next bench/restart.
+func (s *CalibrationService) SetHWMode(ctx context.Context, mode domaintranscoding.HWMode) error {
+	if mode == "" {
+		mode = domaintranscoding.HWModeAuto
+	}
+	s.modeMu.Lock()
+	prev := s.mode
+	s.mode = mode
+	s.modeMu.Unlock()
+
+	s.logger.Info("calibration: HW mode changed, re-benching",
+		slog.String("from", string(prev)), slog.String("to", string(mode)))
+
+	return s.Recalibrate(ctx)
 }
 
 // Current returns the in-memory capability — never nil, always
@@ -120,16 +158,31 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 
 	if found && persisted.SoftwareMaxHeight > 0 {
 		currentSig := sysinfo.CPUSignature()
-		// A pinned backend that disagrees with the persisted one means the cache was
-		// written by a sibling container bound to a different GPU path (shared DB).
-		// Don't trust it — fall through to a fresh bench restricted to the pin.
-		pinMismatch := s.pinBackend != "" && persisted.HWBackend != s.pinBackend
-		if pinMismatch {
-			s.logger.Info("calibration: persisted backend differs from pinned backend, re-benching",
-				slog.String("persisted_backend", persisted.HWBackend),
-				slog.String("pinned_backend", s.pinBackend))
+		// The persisted capability must be consistent with the ACTIVE HW mode,
+		// otherwise it was written under a different policy (a sibling container
+		// on another GPU path, or this host before the admin changed the mode).
+		// When it disagrees, fall through to a fresh bench under the current mode.
+		pref := s.preference()
+		var modeMismatch bool
+		switch {
+		case pref.DisableHW:
+			// mode=off but the cache still carries a HW backend.
+			modeMismatch = persisted.HWBackend != ""
+		case pref.Backend != "":
+			// forced backend but the cache holds a different one.
+			modeMismatch = persisted.HWBackend != pref.Backend
+		default:
+			// auto: re-bench only if HW exists on the box but the cache picked
+			// none (e.g. it was written while the mode was off).
+			modeMismatch = persisted.HWBackend == "" && len(persisted.DetectedBackends) > 0
 		}
-		if currentSig != "" && persisted.CPUSignature == currentSig && !pinMismatch {
+		if modeMismatch {
+			s.logger.Info("calibration: persisted capability inconsistent with HW mode, re-benching",
+				slog.String("mode", string(s.HWMode())),
+				slog.String("persisted_backend", persisted.HWBackend),
+				slog.Any("detected_backends", persisted.DetectedBackends))
+		}
+		if currentSig != "" && persisted.CPUSignature == currentSig && !modeMismatch {
 			// A matching CPU signature does NOT guarantee the persisted HW backend
 			// is usable here (shared DB across a HW + a non-HW container, a moved
 			// disk, a driver regression). Re-validate it with a real encode probe;
@@ -182,7 +235,7 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 	}
 	defer s.benchInFlight.Unlock()
 
-	cap, err := s.runner.Run(ctx)
+	cap, err := s.runner.Run(ctx, s.preference())
 	if err != nil {
 		return fmt.Errorf("calibration: benchmark failed: %w", err)
 	}

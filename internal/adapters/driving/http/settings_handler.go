@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	"github.com/evey-project/evey/internal/config"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/logger"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -21,6 +23,7 @@ const (
 	cfgKeyServerName       = "server.name"
 	cfgKeyTranscodeMaxConc = "transcoding.max_concurrent"
 	cfgKeyTranscodeHWAccel = "transcoding.hw_accel_enabled"
+	cfgKeyTranscodeHWMode  = "transcoding.hw_mode"
 	cfgKeyRateLimitLogin   = "ratelimit.login_max"
 	cfgKeyRateLimitGlobal  = "ratelimit.global_max"
 	cfgKeyLogLevel         = "log.level"
@@ -28,6 +31,25 @@ const (
 	cfgKeyScanInterval     = "library.periodic_scan_interval"
 	cfgKeySkipPreview      = "intro_providers.skip_preview_enabled"
 )
+
+// hwModeController is the slice of CalibrationService the settings handler needs
+// to surface + apply the admin HW-acceleration mode. A nil controller (tests,
+// or a build without calibration) degrades to "mode reported from config, no
+// live re-bench" so the endpoint still works.
+type hwModeController interface {
+	HWMode() domaintranscoding.HWMode
+	SetHWMode(ctx context.Context, mode domaintranscoding.HWMode) error
+}
+
+// hwModeControllerOf adapts a concrete *CalibrationService to the interface,
+// returning a genuinely nil interface when the pointer is nil (so the handler's
+// `hwMode != nil` guard works — a typed nil would slip past it and panic).
+func hwModeControllerOf(c *apptranscoding.CalibrationService) hwModeController {
+	if c == nil {
+		return nil
+	}
+	return c
+}
 
 var validLogLevels = map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
 
@@ -54,12 +76,25 @@ func registerServerSettingsRoutes(
 	tokenGen TokenVerifier,
 	transcodingSvc *apptranscoding.Service,
 	hlsMgr *apptranscoding.SegmentOrchestrator,
+	hwMode hwModeController,
 	loginRL *ratelimit.Limiter,
 	globalRL *ratelimit.Limiter,
 	writeRL *ratelimit.Limiter,
 ) {
 	var mu sync.RWMutex
 	overridden := make(map[string]bool)
+
+	// effectiveHWMode resolves the mode the same way boot does: an explicit
+	// configured/overridden value wins, else derive from the legacy knobs. Used
+	// by the GET getter so the panel always shows a concrete mode (never "").
+	effectiveHWMode := func() domaintranscoding.HWMode {
+		if hwMode != nil {
+			if m := hwMode.HWMode(); m != "" {
+				return m
+			}
+		}
+		return domaintranscoding.ResolveHWMode(cfg.Transcoding.HWMode, cfg.Transcoding.HWAccelEnabled, cfg.Transcoding.HWBackend)
+	}
 	admin := httpAdminMiddleware(tokenGen)
 
 	source := func(key string) string {
@@ -76,6 +111,8 @@ func registerServerSettingsRoutes(
 			getter: func() any { return cfg.EffectiveMaxConcurrent() }},
 		{jsonKey: "hwAccelEnabled", cfgKey: cfgKeyTranscodeHWAccel, defaultVal: false,
 			getter: func() any { return cfg.EffectiveHWAccelEnabled() }},
+		{jsonKey: "hwMode", cfgKey: cfgKeyTranscodeHWMode, defaultVal: string(domaintranscoding.HWModeAuto),
+			getter: func() any { return string(effectiveHWMode()) }},
 		{jsonKey: "loginRateLimit", cfgKey: cfgKeyRateLimitLogin, defaultVal: 10,
 			getter: func() any { return cfg.Server.LoginRateLimitMax }},
 		{jsonKey: "globalRateLimit", cfgKey: cfgKeyRateLimitGlobal, defaultVal: 300,
@@ -124,6 +161,7 @@ func registerServerSettingsRoutes(
 			ServerName              *string `json:"serverName"`
 			MaxConcurrentTranscodes *int    `json:"maxConcurrentTranscodes"`
 			HWAccelEnabled          *bool   `json:"hwAccelEnabled"`
+			HWMode                  *string `json:"hwMode"`
 			LoginRateLimit          *int    `json:"loginRateLimit"`
 			GlobalRateLimit         *int    `json:"globalRateLimit"`
 			LogLevel                *string `json:"logLevel"`
@@ -176,6 +214,45 @@ func registerServerSettingsRoutes(
 					}
 					cfg.Transcoding.HWAccelEnabled = *body.HWAccelEnabled
 					return strconv.FormatBool(*body.HWAccelEnabled)
+				}},
+			{cfgKey: cfgKeyTranscodeHWMode,
+				apply: func() string {
+					if body.HWMode == nil {
+						return ""
+					}
+					mode, ok := domaintranscoding.ParseHWMode(*body.HWMode)
+					if !ok {
+						return "" // unknown mode → ignore (keep current)
+					}
+					// Keep the configured intent + the legacy master gate
+					// consistent so resolveHW's pre-check agrees: off disables the
+					// gate, anything else enables it (the capability still decides
+					// the actual backend).
+					cfg.Transcoding.HWMode = string(mode)
+					cfg.Transcoding.HWAccelEnabled = mode != domaintranscoding.HWModeOff
+					return string(mode)
+				},
+				sideEffect: func() {
+					if hwMode == nil || body.HWMode == nil {
+						return
+					}
+					mode, ok := domaintranscoding.ParseHWMode(*body.HWMode)
+					if !ok {
+						return
+					}
+					// The re-bench can take ~20 s on a weak host; run it detached
+					// so the PUT returns immediately. HWMode() already reflects the
+					// new mode synchronously inside SetHWMode, and the mode string
+					// is persisted in the main loop, so a browser refresh sees the
+					// change even before the bench lands.
+					go func() {
+						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+						defer cancel()
+						if err := hwMode.SetHWMode(ctx, mode); err != nil {
+							slog.Warn("settings: live HW-mode re-bench failed (persisted intent still applies on next bench)",
+								slog.String("mode", string(mode)), slog.Any("err", err))
+						}
+					}()
 				}},
 			{cfgKey: cfgKeyRateLimitLogin,
 				apply: func() string {

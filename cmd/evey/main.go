@@ -113,6 +113,7 @@ func run() error {
 	loadOverride(ctx, deps.cfgStore, "server.name", parseStr, &cfg.Server.Name)
 	loadOverride(ctx, deps.cfgStore, "transcoding.max_concurrent", parseInt, &cfg.Transcoding.MaxConcurrent)
 	loadOverride(ctx, deps.cfgStore, "transcoding.hw_accel_enabled", parseBool, &cfg.Transcoding.HWAccelEnabled)
+	loadOverride(ctx, deps.cfgStore, "transcoding.hw_mode", parseStr, &cfg.Transcoding.HWMode)
 	loadOverride(ctx, deps.cfgStore, "ratelimit.login_max", parseInt, &cfg.Server.LoginRateLimitMax)
 	loadOverride(ctx, deps.cfgStore, "ratelimit.global_max", parseInt, &cfg.Server.GlobalRateLimitMax)
 	loadOverride(ctx, deps.cfgStore, "log.level", parseStr, &cfg.Log.Level)

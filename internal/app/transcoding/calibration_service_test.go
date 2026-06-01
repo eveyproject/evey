@@ -55,10 +55,14 @@ type fakeBenchmarkRunner struct {
 	// existing persisted-HW tests keep their backend; set true to exercise the
 	// re-validation strip path.
 	hwUnusable bool
+	// lastPref captures the preference the most recent Run was called with, so
+	// tests can assert the mode projected to the expected backend pin / disable.
+	lastPref atomic.Pointer[domaintranscoding.HWPreference]
 }
 
-func (r *fakeBenchmarkRunner) Run(ctx context.Context) (domaintranscoding.EncodeCapability, error) {
+func (r *fakeBenchmarkRunner) Run(ctx context.Context, pref domaintranscoding.HWPreference) (domaintranscoding.EncodeCapability, error) {
 	r.calls.Add(1)
+	r.lastPref.Store(&pref)
 	if r.delay > 0 {
 		select {
 		case <-time.After(r.delay):
@@ -166,10 +170,10 @@ func TestCalibration_EnsureCalibrated_PersistedHWUsable_Kept(t *testing.T) {
 	assert.Equal(t, "nvenc", cur.HWBackend, "usable HW backend kept")
 }
 
-func TestCalibration_EnsureCalibrated_PinMismatch_Rebench(t *testing.T) {
-	// Matching CPU sig, but this instance is pinned to a DIFFERENT backend than
+func TestCalibration_EnsureCalibrated_ModePinMismatch_Rebench(t *testing.T) {
+	// Matching CPU sig, but this instance's mode forces a DIFFERENT backend than
 	// the persisted one (a sibling container on another GPU path wrote the cache
-	// to the shared DB). The pin must win: re-bench instead of trusting the cache.
+	// to the shared DB). The mode must win: re-bench instead of trusting the cache.
 	hostSig := hostCPUSig(t)
 	repo := &fakeCapabilityRepo{
 		stored: &domaintranscoding.EncodeCapability{
@@ -181,15 +185,19 @@ func TestCalibration_EnsureCalibrated_PinMismatch_Rebench(t *testing.T) {
 			SoftwareMaxHeight: 1080, HWMaxHeight: 1080, HWBackend: "vaapi", CPUSignature: hostSig,
 		},
 	}
-	svc := NewCalibrationService(repo, runner, nil, WithPinnedBackend("vaapi"))
+	svc := NewCalibrationService(repo, runner, nil, WithHWMode(domaintranscoding.HWModeVAAPI))
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
-	assert.EqualValues(t, 1, runner.calls.Load(), "pin mismatch must force a fresh bench, not trust the sibling's nvenc cache")
+	assert.EqualValues(t, 1, runner.calls.Load(), "mode pin mismatch must force a fresh bench, not trust the sibling's nvenc cache")
 	assert.Equal(t, "vaapi", svc.Current().HWBackend, "Current() must reflect the pinned backend after re-bench")
+	if p := runner.lastPref.Load(); assert.NotNil(t, p) {
+		assert.Equal(t, "vaapi", p.Backend, "the bench must be pinned to vaapi")
+		assert.False(t, p.DisableHW)
+	}
 }
 
-func TestCalibration_EnsureCalibrated_PinMatch_SkipsBench(t *testing.T) {
-	// Pinned to the SAME backend the cache holds → the cache is trusted as usual.
+func TestCalibration_EnsureCalibrated_ModePinMatch_SkipsBench(t *testing.T) {
+	// Mode forces the SAME backend the cache holds → the cache is trusted as usual.
 	hostSig := hostCPUSig(t)
 	repo := &fakeCapabilityRepo{
 		stored: &domaintranscoding.EncodeCapability{
@@ -197,11 +205,58 @@ func TestCalibration_EnsureCalibrated_PinMatch_SkipsBench(t *testing.T) {
 		},
 	}
 	runner := &fakeBenchmarkRunner{} // hwUnusable=false → usable here
-	svc := NewCalibrationService(repo, runner, nil, WithPinnedBackend("vaapi"))
+	svc := NewCalibrationService(repo, runner, nil, WithHWMode(domaintranscoding.HWModeVAAPI))
 	require.NoError(t, svc.EnsureCalibrated(context.Background()))
 
-	assert.Zero(t, runner.calls.Load(), "pin matching the cache must still skip the bench")
+	assert.Zero(t, runner.calls.Load(), "mode pin matching the cache must still skip the bench")
 	assert.Equal(t, "vaapi", svc.Current().HWBackend, "persisted pinned backend kept")
+}
+
+func TestCalibration_EnsureCalibrated_ModeOff_RebenchesSoftwareOnly(t *testing.T) {
+	// Mode=off but the persisted cache carries a HW backend → re-bench, and the
+	// bench must be told to disable HW so the host calibrates software-only.
+	hostSig := hostCPUSig(t)
+	repo := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "nvenc", CPUSignature: hostSig,
+		},
+	}
+	runner := &fakeBenchmarkRunner{
+		result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: hostSig},
+	}
+	svc := NewCalibrationService(repo, runner, nil, WithHWMode(domaintranscoding.HWModeOff))
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+
+	assert.EqualValues(t, 1, runner.calls.Load(), "mode=off with persisted HW must re-bench software-only")
+	assert.Empty(t, svc.Current().HWBackend, "software-only after off")
+	if p := runner.lastPref.Load(); assert.NotNil(t, p) {
+		assert.True(t, p.DisableHW, "the bench must be told to skip HW")
+	}
+}
+
+func TestCalibration_SetHWMode_OffThenAuto(t *testing.T) {
+	hostSig := hostCPUSig(t)
+	repo := &fakeCapabilityRepo{}
+	runner := &fakeBenchmarkRunner{
+		result: domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, HWMaxHeight: 2160, HWBackend: "nvenc", CPUSignature: hostSig,
+		},
+	}
+	svc := NewCalibrationService(repo, runner, nil) // defaults to auto
+	require.Equal(t, domaintranscoding.HWModeAuto, svc.HWMode())
+
+	require.NoError(t, svc.SetHWMode(context.Background(), domaintranscoding.HWModeOff))
+	assert.Equal(t, domaintranscoding.HWModeOff, svc.HWMode())
+	if p := runner.lastPref.Load(); assert.NotNil(t, p) {
+		assert.True(t, p.DisableHW, "off must disable HW in the bench preference")
+	}
+
+	require.NoError(t, svc.SetHWMode(context.Background(), domaintranscoding.HWModeNVENC))
+	assert.Equal(t, domaintranscoding.HWModeNVENC, svc.HWMode())
+	if p := runner.lastPref.Load(); assert.NotNil(t, p) {
+		assert.Equal(t, "nvenc", p.Backend)
+		assert.False(t, p.DisableHW)
+	}
 }
 
 func TestCalibration_EnsureCalibrated_StaleCpuSig_Rebench(t *testing.T) {

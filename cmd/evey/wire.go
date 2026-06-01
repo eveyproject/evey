@@ -610,13 +610,16 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// Persisted across restarts via server_settings + CPU signature
 	// invalidation, so the 20 s only hits once per host lifetime.
 	capabilityRepo := apptranscoding.NewCapabilityRepoAdapter(r.ServerCfg)
-	// EVEY_TRANSCODING_HW_BACKEND pins this instance to one GPU path. Empty =
-	// auto-detect. Pinning is what lets several Evey containers share one DB while
-	// each binds to its own backend (nvenc / vaapi / qsv) without the calibration
-	// cache bleeding a sibling's capability onto a host that can't run it.
-	calibrationRunner := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{PinBackend: cfg.Transcoding.HWBackend}, slog.Default())
+	// The HW-acceleration mode is admin-selectable (auto/off/nvenc/vaapi/qsv).
+	// Bootstrap precedence: an explicit transcoding.hw_mode (env or persisted
+	// admin override, already layered into cfg by loadOverride) wins; otherwise
+	// derive it from the legacy HWAccelEnabled + HWBackend env knobs. Calibration
+	// honours the mode (pins/benches the chosen backend, or software-only on
+	// off), and the admin panel flips it live via SetHWMode (re-bench, no restart).
+	hwMode := domaintranscoding.ResolveHWMode(cfg.Transcoding.HWMode, cfg.Transcoding.HWAccelEnabled, cfg.Transcoding.HWBackend)
+	calibrationRunner := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{}, slog.Default())
 	calibrationSvc := apptranscoding.NewCalibrationService(capabilityRepo, calibrationRunner, slog.Default(),
-		apptranscoding.WithPinnedBackend(cfg.Transcoding.HWBackend))
+		apptranscoding.WithHWMode(hwMode))
 	if err := calibrationSvc.EnsureCalibrated(ctx); err != nil {
 		slog.Warn("calibration: EnsureCalibrated returned error, falling back to 720p", slog.Any("err", err))
 	}
