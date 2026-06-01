@@ -97,6 +97,11 @@ type OrchestratorOptions struct {
 	// default won't false-fail a slow weak-NAS GPU. Software sessions are
 	// unaffected; zero disables the watchdog.
 	HWFirstSegmentTimeout time.Duration
+
+	// HWPerVariant routes the HW transcode path through one single-output ffmpeg
+	// per ABR rung (forwarded to HLSProcessOpts.PerVariantHW). Off by default;
+	// software is always single-process multi-variant.
+	HWPerVariant bool
 }
 
 func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
@@ -632,9 +637,10 @@ func (o *SegmentOrchestrator) spawnSession(
 		// Hardware encode backend resolved by the handler (empty = software).
 		// The ffmpeg builder switches to the zero-copy GPU pipeline only when
 		// HWAccel is a valid non-None backend AND the content is simple.
-		HWAccel:    transcoding.HWAccelType(fp.HWAccel),
-		HWDevice:   fp.HWDevice,
-		HWFeatures: fp.HWFeatures,
+		HWAccel:      transcoding.HWAccelType(fp.HWAccel),
+		HWDevice:     fp.HWDevice,
+		HWFeatures:   fp.HWFeatures,
+		PerVariantHW: o.opts.HWPerVariant,
 	}
 
 	sessionCtx, cancel := context.WithCancel(o.shutdownCtx)

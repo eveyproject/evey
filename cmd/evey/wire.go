@@ -581,6 +581,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		ThrottleEnabled:       true,
 		MaxActiveSessions:     maxHLSSessions,
 		HWFirstSegmentTimeout: cfg.Transcoding.HWFirstSegmentTimeout,
+		HWPerVariant:          cfg.Transcoding.HWPerVariant,
 	}, slog.Default())
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsVODOrch)
 

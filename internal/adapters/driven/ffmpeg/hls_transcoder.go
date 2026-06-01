@@ -27,6 +27,26 @@ func NewHLSTranscoder() *HLSTranscoder {
 }
 
 func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOpts) (transcoding.HLSProcessHandle, error) {
+	// Per-variant HW: one single-output ffmpeg per ABR rung behind a composite
+	// handle, instead of one multi-output process. Matches how Jellyfin/Plex
+	// drive HW — the multi-encode-in-one-process graph crashes fragile VA
+	// drivers (and the WSL d3d12 shim) and a single rung's failure shouldn't
+	// take the others down. Software keeps the single-process multi-variant
+	// graph (decode once, encode N — efficient and crash-free on libx264).
+	if opts.PerVariantHW && opts.HWAccel != "" && opts.HWAccel != transcoding.None && len(opts.Profiles) > 1 {
+		return startPerVariant(ctx, opts)
+	}
+	h, err := startOne(ctx, opts, false)
+	if err != nil {
+		return nil, err
+	}
+	return h, nil
+}
+
+// startOne spawns a single ffmpeg process for opts and returns its handle.
+// noMaster suppresses the synthesised one-rung master.m3u8 (set for the
+// sub-processes of a per-variant composite).
+func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster bool) (*hlsHandle, error) {
 	args := BuildFFmpegArgs(opts)
 	slog.Info("hls: ffmpeg start",
 		slog.String("media_path", opts.FilePath),
@@ -34,6 +54,7 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 		slog.String("audio_decision", opts.AudioDecision),
 		slog.String("audio_codec", opts.AudioCodec),
 		slog.Int("audio_track", opts.AudioTrackIndex),
+		slog.Int("variant", opts.VariantIndex),
 		slog.String("args", strings.Join(args, " ")))
 
 	processCtx, cancel := context.WithCancel(ctx)
@@ -47,12 +68,13 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 	cmd.Stderr = stderr
 
 	h := &hlsHandle{
-		opts:   opts,
-		cmd:    cmd,
-		cancel: cancel,
-		ready:  make(chan struct{}),
-		done:   make(chan struct{}),
-		stderr: stderr,
+		opts:     opts,
+		cmd:      cmd,
+		cancel:   cancel,
+		ready:    make(chan struct{}),
+		done:     make(chan struct{}),
+		stderr:   stderr,
+		noMaster: noMaster,
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -62,6 +84,117 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 
 	go h.run(processCtx)
 	return h, nil
+}
+
+// startPerVariant spawns one single-output ffmpeg per profile (each writing its
+// own stream_<i>_* rung) and returns a compositeHandle that fans Stop/Pause/
+// Resume to all and aggregates Done/Failure. The composite ctx cancel kills
+// every rung at once.
+func startPerVariant(ctx context.Context, opts transcoding.HLSProcessOpts) (transcoding.HLSProcessHandle, error) {
+	procCtx, cancel := context.WithCancel(ctx)
+	c := &compositeHandle{cancel: cancel, done: make(chan struct{})}
+	for i := range opts.Profiles {
+		sub := opts
+		sub.Profiles = []transcoding.HLSProfile{opts.Profiles[i]}
+		sub.VariantIndex = i
+		sub.PerVariantHW = false // the sub IS a single rung; don't recurse
+		h, err := startOne(procCtx, sub, true)
+		if err != nil {
+			cancel()
+			for _, s := range c.subs {
+				_ = s.Stop()
+			}
+			return nil, fmt.Errorf("per-variant ffmpeg start (rung %d): %w", i, err)
+		}
+		c.subs = append(c.subs, h)
+	}
+	go c.reap()
+	return c, nil
+}
+
+// compositeHandle presents N single-output ffmpeg sub-handles (one per ABR
+// rung) as one HLSProcessHandle. Done closes when ALL rungs exit; Failure
+// surfaces a HW-capability class from any rung (so the orchestrator demotes the
+// host) else the first non-None; Stop/Pause/Resume fan out to every rung.
+type compositeHandle struct {
+	subs    []*hlsHandle
+	cancel  context.CancelFunc
+	done    chan struct{}
+	mu      sync.Mutex
+	stopped bool
+}
+
+func (c *compositeHandle) reap() {
+	for _, s := range c.subs {
+		<-s.Done()
+	}
+	close(c.done)
+}
+
+func (c *compositeHandle) WaitReady(ctx context.Context) error {
+	for _, s := range c.subs {
+		if err := s.WaitReady(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *compositeHandle) Stop() error {
+	c.mu.Lock()
+	if c.stopped {
+		c.mu.Unlock()
+		return nil
+	}
+	c.stopped = true
+	c.mu.Unlock()
+	c.cancel()
+	var wg sync.WaitGroup
+	for _, s := range c.subs {
+		wg.Add(1)
+		go func(h *hlsHandle) { defer wg.Done(); _ = h.Stop() }(s)
+	}
+	wg.Wait()
+	return nil
+}
+
+func (c *compositeHandle) Done() <-chan struct{} { return c.done }
+
+func (c *compositeHandle) Err() error {
+	for _, s := range c.subs {
+		if e := s.Err(); e != nil {
+			return e
+		}
+	}
+	return nil
+}
+
+func (c *compositeHandle) Failure() transcoding.FailureClass {
+	first := transcoding.FailureNone
+	for _, s := range c.subs {
+		f := s.Failure()
+		if f.IsHWCapability() {
+			return f // any rung's HW failure → demote the host
+		}
+		if first == transcoding.FailureNone {
+			first = f
+		}
+	}
+	return first
+}
+
+func (c *compositeHandle) Pause() error {
+	for _, s := range c.subs {
+		_ = s.Pause()
+	}
+	return nil
+}
+
+func (c *compositeHandle) Resume() error {
+	for _, s := range c.subs {
+		_ = s.Resume()
+	}
+	return nil
 }
 
 type hlsHandle struct {
@@ -75,6 +208,11 @@ type hlsHandle struct {
 	exitErr error // raw ffmpeg exit error, for failure classification (guarded by mu)
 	stderr  *ringBuffer
 	paused  bool // ffmpeg currently SIGSTOPped (client idle)
+	// noMaster suppresses the synthesised single-rung master.m3u8. Set on the
+	// sub-processes of a per-variant composite handle (the VOD pipeline serves a
+	// precomputed master, and N siblings must not each clobber master.m3u8 with
+	// a one-rung playlist).
+	noMaster bool
 }
 
 func (h *hlsHandle) setExitErr(err error) {
@@ -92,9 +230,10 @@ func (h *hlsHandle) run(ctx context.Context) {
 	isSingle := h.opts.VideoDecision == "copy" || len(h.opts.Profiles) <= 1
 
 	if isSingle {
-		streamPath := filepath.Join(h.opts.OutputDir, "stream_0.m3u8")
+		streamName := fmt.Sprintf("stream_%d", h.opts.VariantIndex)
+		streamPath := filepath.Join(h.opts.OutputDir, streamName+".m3u8")
 		if err := waitForFile(ctx, streamPath, 30*time.Second, 100*time.Millisecond); err != nil {
-			h.err = fmt.Errorf("waiting for stream_0.m3u8: %w", err)
+			h.err = fmt.Errorf("waiting for %s.m3u8: %w", streamName, err)
 			h.cancel()
 			we := h.cmd.Wait()
 			h.setExitErr(we)
@@ -104,19 +243,24 @@ func (h *hlsHandle) run(ctx context.Context) {
 			close(h.ready)
 			return
 		}
-		master := "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=5000000\nstream_0.m3u8\n"
-		if err := os.WriteFile(filepath.Join(h.opts.OutputDir, "master.m3u8"), []byte(master), 0644); err != nil {
-			h.err = fmt.Errorf("write master.m3u8: %w", err)
-			h.cancel()
-			we := h.cmd.Wait()
-			h.setExitErr(we)
-			if we != nil {
-				slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
+		// Standalone single-variant handles synthesise the one-rung master; a
+		// per-variant composite's siblings set noMaster (the VOD pipeline serves
+		// a precomputed master, and N siblings must not clobber master.m3u8).
+		if !h.noMaster {
+			master := fmt.Sprintf("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=5000000\n%s.m3u8\n", streamName)
+			if err := os.WriteFile(filepath.Join(h.opts.OutputDir, "master.m3u8"), []byte(master), 0644); err != nil {
+				h.err = fmt.Errorf("write master.m3u8: %w", err)
+				h.cancel()
+				we := h.cmd.Wait()
+				h.setExitErr(we)
+				if we != nil {
+					slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
+				}
+				close(h.ready)
+				return
 			}
-			close(h.ready)
-			return
 		}
-		if err := waitForSegment(ctx, h.opts.OutputDir, "stream_0", 10*time.Second, 100*time.Millisecond); err != nil {
+		if err := waitForSegment(ctx, h.opts.OutputDir, streamName, 10*time.Second, 100*time.Millisecond); err != nil {
 			slog.Warn("hls: first segment not yet ready, proceeding anyway", slog.Any("err", err))
 		}
 	} else {
@@ -506,7 +650,7 @@ func appendInputModifiers(args []string) []string {
 // `-ss`, callers must compute startNumber = floor(StartSec/hlsSegmentSeconds)
 // so the produced filenames match the absolute manifest indices the VOD
 // pipeline cache addresses by. Pass 0 for legacy / non-rafale callers.
-func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, startNumber int) []string {
+func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, startNumber, variantIdx int) []string {
 	args = append(args,
 		"-f", "hls",
 		"-hls_time", hlsSegmentSeconds,
@@ -518,15 +662,15 @@ func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, startNum
 	if useFMP4 {
 		args = append(args,
 			"-hls_segment_type", "fmp4",
-			"-hls_fmp4_init_filename", "stream_0_init.mp4",
-			"-hls_segment_filename", filepath.Join(outputDir, "stream_0_%03d.m4s"),
+			"-hls_fmp4_init_filename", fmt.Sprintf("stream_%d_init.mp4", variantIdx),
+			"-hls_segment_filename", filepath.Join(outputDir, fmt.Sprintf("stream_%d_%%03d.m4s", variantIdx)),
 		)
 	} else {
 		args = append(args,
-			"-hls_segment_filename", filepath.Join(outputDir, "stream_0_%03d.ts"),
+			"-hls_segment_filename", filepath.Join(outputDir, fmt.Sprintf("stream_%d_%%03d.ts", variantIdx)),
 		)
 	}
-	args = append(args, filepath.Join(outputDir, "stream_0.m3u8"))
+	args = append(args, filepath.Join(outputDir, fmt.Sprintf("stream_%d.m3u8", variantIdx)))
 	return args
 }
 
@@ -631,7 +775,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		}
 	}
 
-	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams), startNumberFor(opts))
+	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams), startNumberFor(opts), opts.VariantIndex)
 }
 
 // startNumberFor maps StartSec onto the segment counter so produced filenames
@@ -706,7 +850,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, hlsForceKeyframesArgs...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 
-	return appendHLSOutputArgs(args, opts.OutputDir, false, startNumberFor(opts))
+	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, startNumberFor(opts), opts.VariantIndex)
 }
 
 func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
@@ -1032,7 +1176,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, hlsForceKeyframesArgs...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 
-	return appendHLSOutputArgs(args, opts.OutputDir, false, startNumberFor(opts))
+	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, startNumberFor(opts), opts.VariantIndex)
 }
 
 // buildMultiVariantHWArgs is the GPU equivalent of buildMultiVariantArgs: a

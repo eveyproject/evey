@@ -294,7 +294,13 @@ type TranscodingConfig struct {
 	// is treated as a dead/stuck GPU and demoted to software immediately, rather
 	// than letting the player wait out the full segment timeout. Default 5s.
 	HWFirstSegmentTimeout time.Duration
-	TrickplayCacheDir     string
+	// HWPerVariant, when true, makes the HW transcode path spawn one single-
+	// output ffmpeg per ABR rung (the Jellyfin/Plex model) instead of a single
+	// multi-output process. Avoids the multi-encode-in-one-process graph that
+	// crashes fragile VA drivers and isolates per-rung failures. Off by default;
+	// software always uses the single-process multi-variant graph regardless.
+	HWPerVariant      bool
+	TrickplayCacheDir string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch
 	// language without re-fetching the video stream. Off by default
@@ -493,6 +499,7 @@ func Load() (*Config, error) {
 			HWBackend:             strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_BACKEND", ""))),
 			HWMode:                strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_MODE", ""))),
 			HWFirstSegmentTimeout: envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 5*time.Second),
+			HWPerVariant:          envBool("EVEY_TRANSCODING_HW_PER_VARIANT", false),
 			TrickplayCacheDir:     envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
 			AudioRenditionEnabled: envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", false),
 		},

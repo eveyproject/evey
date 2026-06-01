@@ -137,4 +137,19 @@ type HLSProcessOpts struct {
 	// the multi-variant builder used to hardcode .ts and silently ignored
 	// the project's fMP4 default flip.
 	UseFMP4 bool
+
+	// VariantIndex is the ABR rung this process produces (stream_<N>_*). It only
+	// matters for single-output builders: the multi-variant builder names every
+	// rung itself via -var_stream_map. Default 0 keeps the historical single-
+	// variant naming. The per-variant HW path sets it so each of the N
+	// single-output ffmpeg processes writes its own rung.
+	VariantIndex int
+
+	// PerVariantHW, when true AND HWAccel is set AND there is more than one
+	// profile, makes the transcoder spawn ONE single-output ffmpeg per variant
+	// (behind one composite handle) instead of a single multi-output process.
+	// This matches how Jellyfin/Plex drive HW (avoids the multi-encode-in-one-
+	// process graph that crashes fragile VA drivers and isolates per-rung
+	// failures). Software always uses the single-process multi-variant graph.
+	PerVariantHW bool
 }

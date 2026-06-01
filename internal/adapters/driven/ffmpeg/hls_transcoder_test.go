@@ -57,6 +57,42 @@ func TestBuildFFmpegArgs_ModeA_VideoCopy(t *testing.T) {
 	assert.NotContains(t, joined, "libx264")
 }
 
+func TestBuildFFmpegArgs_VariantIndex_SoftwareSingle(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles[:1],
+		VideoDecision: "transcode",
+		AudioDecision: "transcode",
+		UseFMP4:       true,
+		VariantIndex:  1,
+	}
+	joined := strings.Join(ffmpeg.BuildFFmpegArgs(opts), " ")
+	assert.Contains(t, joined, "stream_1_init.mp4")
+	assert.Contains(t, joined, "stream_1_%03d.m4s")
+	assert.Contains(t, joined, "stream_1.m3u8")
+	assert.NotContains(t, joined, "stream_0_init.mp4", "variant 1 must not write variant 0's rung")
+}
+
+func TestBuildFFmpegArgs_VariantIndex_HWSingle(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles[:1],
+		VideoDecision: "transcode",
+		AudioDecision: "transcode",
+		UseFMP4:       true,
+		VariantIndex:  2,
+		HWAccel:       transcoding.NVENC,
+		VideoCodec:    "h264",
+	}
+	joined := strings.Join(ffmpeg.BuildFFmpegArgs(opts), " ")
+	assert.Contains(t, joined, "h264_nvenc", "single HW rung must use the GPU encoder")
+	assert.Contains(t, joined, "stream_2_init.mp4")
+	assert.Contains(t, joined, "stream_2.m3u8")
+	assert.NotContains(t, joined, "stream_0.m3u8")
+}
+
 func TestBuildFFmpegArgs_ModeA_AllCopy(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:     "/tmp/test",
