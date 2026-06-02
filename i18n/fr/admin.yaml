@@ -583,13 +583,12 @@ transcodeCache:
     file: "Fichier"
     size: "Taille"
     modified: "Modifié"
-  hwAccelType: "Type d'accélération matérielle"
-  hwDecodeCodecs: "Codecs de décodage matériel"
-  hwDevices: "Périphériques matériels"
   maxConcurrent: "Maximum simultané"
   settingsSaved: "Paramètres enregistrés"
-  throttle: "Limitation"
+  throttle: "Brider les transcodages quand le buffer client est plein"
   transcodingSettings: "Paramètres de transcodage"
+  hwAccelNote: "L'accélération matérielle se configure dans Configuration serveur → Calibration d'encodage."
+  hwAccelNoteLink: "Aller à Configuration serveur"
 
 dashboardStats:
   movies: "Films"
@@ -657,6 +656,10 @@ calibration:
   hwBackendLabel: "Backend"
   wslUnsupported: "non supporté en WSL"
   wslVaapiNote: "VAAPI/QSV passent par le driver d3d12 de Mesa en WSL et ne peuvent pas transcoder ici — utilisez NVENC, ou validez VAAPI sur une vraie machine Linux."
+  codecSupportTitle: "Support codec"
+  encodeCodecs: "Encodage :"
+  decodeCodecs: "Décodage :"
+  codecSoftwareDecodeNote: "{{codecs}} — décodé en logiciel (encodage GPU uniquement)"
 
 serverSettings:
   title: "Paramètres du serveur"

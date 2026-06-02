@@ -584,13 +584,12 @@ transcodeCache:
     file: Datei
     size: Größe
     modified: Geändert
-  hwAccelType: "HW-Beschleunigungstyp"
-  hwDecodeCodecs: "HW-Decodierungs-Codecs"
-  hwDevices: "HW-Geräte"
   maxConcurrent: "Max. gleichzeitig"
   settingsSaved: "Einstellungen gespeichert"
-  throttle: "Drosselung"
+  throttle: "Transkodierungen drosseln, wenn der Client-Puffer voll ist"
   transcodingSettings: "Transkodierungs-Einstellungen"
+  hwAccelNote: "Die Hardware-Beschleunigung wird in Serverkonfiguration → Encode-Kalibrierung konfiguriert."
+  hwAccelNoteLink: "Zur Serverkonfiguration"
 
 dashboardStats:
   movies: Filme
@@ -676,6 +675,10 @@ calibration:
   hwBackendLabel: "Backend"
   wslUnsupported: "unter WSL nicht unterstützt"
   wslVaapiNote: "VAAPI/QSV laufen unter WSL über Mesas d3d12-Treiber und können hier nicht transkodieren — NVENC verwenden oder VAAPI auf einem nativen Linux-Host prüfen."
+  codecSupportTitle: "Codec-Unterstützung"
+  encodeCodecs: "Enkodierung:"
+  decodeCodecs: "Dekodierung:"
+  codecSoftwareDecodeNote: "{{codecs}} — Software-Dekodierung (nur GPU-Enkodierung)"
 
 qoe:
   title: "Streaming-Qualität"

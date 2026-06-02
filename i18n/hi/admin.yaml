@@ -584,13 +584,12 @@ transcodeCache:
     file: "फ़ाइल"
     size: "आकार"
     modified: "संशोधित"
-  hwAccelType: "HW एक्सीलरेशन प्रकार"
-  hwDecodeCodecs: "HW डिकोड कोडेक"
-  hwDevices: "HW डिवाइस"
   maxConcurrent: "अधिकतम समवर्ती"
   settingsSaved: "सेटिंग्स सहेजी गईं"
-  throttle: "थ्रॉटल"
+  throttle: "क्लाइंट बफ़र भरने पर ट्रांसकोड थ्रॉटल करें"
   transcodingSettings: "ट्रांसकोडिंग सेटिंग्स"
+  hwAccelNote: "हार्डवेयर एक्सेलेरेशन सर्वर कॉन्फ़िगरेशन → एन्कोड कैलिब्रेशन में कॉन्फ़िगर किया जाता है।"
+  hwAccelNoteLink: "सर्वर कॉन्फ़िगरेशन पर जाएं"
 
 dashboardStats:
   movies: "फ़िल्में"
@@ -676,6 +675,10 @@ calibration:
   hwBackendLabel: "बैकएंड"
   wslUnsupported: "WSL पर समर्थित नहीं"
   wslVaapiNote: "WSL पर VAAPI/QSV Mesa के d3d12 ड्राइवर से चलते हैं और यहाँ ट्रांसकोड नहीं कर सकते — NVENC उपयोग करें, या किसी नेटिव Linux होस्ट पर VAAPI सत्यापित करें।"
+  codecSupportTitle: "कोडेक समर्थन"
+  encodeCodecs: "एन्कोड:"
+  decodeCodecs: "डिकोड:"
+  codecSoftwareDecodeNote: "{{codecs}} — सॉफ़्टवेयर डिकोड (केवल GPU एन्कोड)"
 
 qoe:
   title: "स्ट्रीमिंग गुणवत्ता"

@@ -117,7 +117,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                   to={to}
                   onClick={onNavigate}
                   preload="intent"
-                  className={`flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast ${isCollapsed ? "justify-center" : ""} ${
+                  className={`flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast overflow-hidden ${isCollapsed ? "justify-center" : ""} ${
                     active
                       ? "border-l-2 border-[var(--accent)] text-[var(--accent)] bg-[var(--surface-raised)]"
                       : "border-l-2 border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
@@ -125,7 +125,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                   title={isCollapsed ? label : undefined}
                 >
                   <Icon size={18} />
-                  {!isCollapsed && label}
+                  {!isCollapsed && <span className="whitespace-nowrap">{label}</span>}
                 </Link>
               </li>
             );
@@ -136,7 +136,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 to="/admin"
                 onClick={onNavigate}
                 preload="intent"
-                className={`flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast ${isCollapsed ? "justify-center" : ""} ${
+                className={`flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast overflow-hidden ${isCollapsed ? "justify-center" : ""} ${
                   isOnAdmin
                     ? "border-l-2 border-[var(--accent)] text-[var(--accent)] bg-[var(--surface-raised)]"
                     : "border-l-2 border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
@@ -144,7 +144,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 title={isCollapsed ? t("common.nav.admin") : undefined}
               >
                 <Settings size={18} />
-                {!isCollapsed && t("common.nav.admin")}
+                {!isCollapsed && <span className="whitespace-nowrap">{t("common.nav.admin")}</span>}
               </Link>
             </li>
           )}

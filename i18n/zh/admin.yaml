@@ -584,13 +584,12 @@ transcodeCache:
     file: "文件"
     size: "大小"
     modified: "修改时间"
-  hwAccelType: "硬件加速类型"
-  hwDecodeCodecs: "硬件解码编解码器"
-  hwDevices: "硬件设备"
   maxConcurrent: "最大并发"
   settingsSaved: "设置已保存"
-  throttle: "限速"
+  throttle: "当客户端缓冲区满时限制转码"
   transcodingSettings: "转码设置"
+  hwAccelNote: "硬件加速在服务器配置 → 编码校准中设置。"
+  hwAccelNoteLink: "前往服务器配置"
 
 dashboardStats:
   movies: "电影"
@@ -676,6 +675,10 @@ calibration:
   hwBackendLabel: "后端"
   wslUnsupported: "WSL 不支持"
   wslVaapiNote: "在 WSL 上 VAAPI/QSV 通过 Mesa 的 d3d12 驱动，无法在此转码 — 请使用 NVENC，或在原生 Linux 主机上验证 VAAPI。"
+  codecSupportTitle: "编解码器支持"
+  encodeCodecs: "编码："
+  decodeCodecs: "解码："
+  codecSoftwareDecodeNote: "{{codecs}} — 软件解码（仅 GPU 编码）"
 
 qoe:
   title: "流媒体质量"

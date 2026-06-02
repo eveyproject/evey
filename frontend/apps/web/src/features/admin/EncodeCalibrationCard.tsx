@@ -13,7 +13,8 @@ type EncodeCapability = {
   software_max_height: number;
   hw_max_height: number;
   hw_backend?: string;
-  hw_codecs?: string[];
+  hw_codecs?: string[];       // codecs the GPU can ENCODE
+  hw_decode_codecs?: string[]; // codecs the GPU can DECODE (may differ from encode)
   hw_device?: string;
   hw_mode?: string; // active policy: auto | off | nvenc | vaapi | qsv
   detected_backends?: string[]; // accelerators the host advertises
@@ -222,6 +223,13 @@ export function EncodeCalibrationCard() {
         </Row>
       </div>
 
+      {(data.hw_codecs?.length || data.hw_decode_codecs?.length) ? (
+        <CodecSupportBlock
+          encodeCodecs={data.hw_codecs ?? []}
+          decodeCodecs={data.hw_decode_codecs ?? []}
+        />
+      ) : null}
+
       {fallbacks.length > 0 && (
         <div className="rounded-[var(--radius-md)] border border-amber-500/40 bg-amber-500/5 p-3">
           <p className="text-sm font-medium text-amber-600">
@@ -268,6 +276,45 @@ export function EncodeCalibrationCard() {
           )}
         </p>
       </div>
+    </div>
+  );
+}
+
+function CodecSupportBlock({
+  encodeCodecs,
+  decodeCodecs,
+}: {
+  encodeCodecs: string[];
+  decodeCodecs: string[];
+}) {
+  const { t } = useTranslation();
+  // Codecs the GPU can encode but NOT decode (must fall back to software decode).
+  const softwareDecodeOnly = encodeCodecs.filter((c) => !decodeCodecs.includes(c));
+
+  return (
+    <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)] p-3 text-xs flex flex-col gap-1.5">
+      <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+        {t("admin.calibration.codecSupportTitle", "Codec support")}
+      </p>
+      {encodeCodecs.length > 0 && (
+        <p className="text-[var(--text)]">
+          <span className="text-[var(--text-muted)]">{t("admin.calibration.encodeCodecs", "Encode:")}</span>{" "}
+          {encodeCodecs.map((c) => c.toUpperCase()).join(", ")}
+        </p>
+      )}
+      {decodeCodecs.length > 0 && (
+        <p className="text-[var(--text)]">
+          <span className="text-[var(--text-muted)]">{t("admin.calibration.decodeCodecs", "Decode:")}</span>{" "}
+          {decodeCodecs.map((c) => c.toUpperCase()).join(", ")}
+        </p>
+      )}
+      {softwareDecodeOnly.length > 0 && (
+        <p className="text-amber-600">
+          {t("admin.calibration.codecSoftwareDecodeNote", "{{codecs}} — decoded in software (GPU encode only)", {
+            codecs: softwareDecodeOnly.map((c) => c.toUpperCase()).join(", "),
+          })}
+        </p>
+      )}
     </div>
   );
 }
