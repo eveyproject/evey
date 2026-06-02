@@ -36,9 +36,17 @@ officially unsupported by Jellyfin/Plex/Emby alike.
 
 ### 1. One full-HW image; drivers injected at runtime
 
-A single glibc runtime image (`Dockerfile` target `runtime-hw`, Ubuntu) whose
-**distro ffmpeg already has `nvenc + vaapi + qsv` compiled in**. The image bakes
-**no GPU driver**. Drivers come at run time, exactly like Jellyfin:
+A single glibc runtime image (`Dockerfile`'s last stage, `runtime`, on
+**Debian trixie**) whose **distro ffmpeg (7.1) already has `nvenc + vaapi + qsv`
+compiled in**. The image bakes **no GPU driver**. Drivers come at run time,
+exactly like Jellyfin:
+
+(Debian trixie, rebased from Ubuntu 24.04 on 2026-06-02: trixie ships ffmpeg 7.x
+*and* `postgresql-client-17` — which dumps the PG16 server fine — straight from
+the distro, no PGDG repo dance, and lets all three `RUNTIMES` variants
+[lean/nodejs/full] share one full-HW base instead of an Alpine/glibc split. The
+sandbox `.so` is compiled in a throwaway glibc stage so `gcc`+`libc6-dev` never
+reach the final image.)
 
 - **NVENC** — the NVIDIA Container Toolkit injects the driver when a GPU is
   reserved (`--gpus all` / a compose `devices: [{driver: nvidia}]`). The image
@@ -104,9 +112,11 @@ segfault. WSL HW = NVENC only; validate VAAPI/QSV on a native Linux host.
   cache bleed (the backend pin from the interim design is subsumed by the mode).
 - Operators get a Jellyfin-grade "pick your acceleration" control with a real
   software escape hatch, and playback survives a broken GPU by design.
-- The dev compose runs ONE `evey-hw` container that maps both the NVIDIA GPU and
-  `/dev/dri`, defaulting to NVENC; the Alpine Air `evey` container stays
-  software-only for code hot-reload + the musl plugin sandbox.
+- **Dev mirrors prod**: ONE `evey` dev container (Debian + Air hot-reload, the
+  same full-HW image model) maps both the NVIDIA GPU and `/dev/dri`, defaulting
+  to NVENC. This replaces the old Alpine-software `evey` + glibc-HW `evey-hw`
+  split — so dev and prod share one base and one capability surface (no more
+  "works on the HW box, not the hot-reload box").
 
 ## Per-variant HW path (implemented, opt-in)
 

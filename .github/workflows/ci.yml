@@ -200,8 +200,9 @@ jobs:
       # Three image variants are published in parallel. The `lean` variant is
       # the default tag (no suffix) — python3 only. `-nodejs` adds node for
       # JS plugins, `-full` adds php + ruby + lua too. The Dockerfile's
-      # RUNTIMES build-arg drives which apk packages are layered in.
-      # See Dockerfile stage 5 + docker/entrypoint.sh.
+      # RUNTIMES build-arg drives which apt packages are layered in (all three
+      # share the same full-HW Debian `runtime` stage — only plugin runtimes
+      # differ). See the Dockerfile `runtime` stage + docker/entrypoint.sh.
       matrix:
         runtime:
           - { name: lean,   suffix: ''        }
@@ -268,7 +269,7 @@ jobs:
             RUNTIMES=${{ matrix.runtime.name }}
           # Scope the GHA cache per variant so a `full` build never overwrites
           # the `lean` cache and vice versa — buildx layers diverge only in the
-          # apk layer but the cache key needs to reflect that to stay correct.
+          # apt layer but the cache key needs to reflect that to stay correct.
           cache-from: type=gha,scope=docker-${{ matrix.runtime.name }}
           cache-to: type=gha,mode=max,scope=docker-${{ matrix.runtime.name }}
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true

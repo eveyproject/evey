@@ -1,18 +1,41 @@
-FROM golang:1.26.3-alpine
+FROM golang:1.26.3-trixie
 
-RUN apk add --no-cache ffmpeg chromaprint curl postgresql-client gcc musl-dev linux-headers \
-    python3 py3-pip py3-grpcio py3-protobuf \
-    nodejs npm tzdata \
-    bash perl lua5.4 ruby php83 php83-pcntl php83-posix \
-    bubblewrap git && \
-    go install github.com/air-verse/air@latest && \
-    go install github.com/bufbuild/buf/cmd/buf@v1.47.2 && \
-    go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 && \
-    go install golang.org/x/vuln/cmd/govulncheck@latest && \
-    npm install -g esbuild@0.25.12 @grpc/grpc-js@1.12.6 @grpc/proto-loader@0.7.13 && \
-    ln -sf /usr/bin/lua5.4 /usr/bin/lua && \
-    ln -sf /usr/bin/php83 /usr/bin/php
+# Full HW transcode parity with prod (the Jellyfin one-image model): the SAME
+# NVENC/VAAPI/QSV ffmpeg + VA/oneVPL driver set as the runtime image, so the dev
+# container exercises the real GPU path — NVENC on this box, VAAPI/QSV greyed on
+# WSL2 (Mesa d3d12 can't sustain the multi-variant encode). One dev container
+# replaces the old Alpine-software + glibc-HW split. gcc/libc6-dev STAY here
+# (unlike the lean prod image): Air rebuilds the Landlock LD_PRELOAD .so on every
+# reload (see .air.toml) and the pluginrunner red-team tests need `cc` + `node`.
+# intel-media-va-driver-non-free lives in non-free; enable it on the deb822
+# sources before apt. postgresql-client-17 dumps the PG16 dev server fine.
+RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmware/' \
+        /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
+       ffmpeg libchromaprint-tools curl postgresql-client-17 gcc libc6-dev \
+       python3 python3-pip python3-grpcio python3-protobuf \
+       nodejs npm tzdata bash perl lua5.4 ruby php-cli \
+       bubblewrap git \
+       vainfo libva2 libva-drm2 mesa-va-drivers \
+       intel-media-va-driver-non-free i965-va-driver libvpl2 libmfx-gen1.2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && ([ -e /usr/bin/node ] || ln -sf /usr/bin/nodejs /usr/bin/node) \
+    && ([ -e /usr/bin/lua ] || ln -sf /usr/bin/lua5.4 /usr/bin/lua) \
+    && go install github.com/air-verse/air@latest \
+    && go install github.com/bufbuild/buf/cmd/buf@v1.47.2 \
+    && go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 \
+    && go install golang.org/x/vuln/cmd/govulncheck@latest \
+    && npm install -g esbuild@0.25.12 @grpc/grpc-js@1.12.6 @grpc/proto-loader@0.7.13
 
+# cosign — Debian has no apt package; ride the official ko-built image (pinned).
+# Matches the prod runtime so the plugin signature path is testable in dev.
+COPY --from=gcr.io/projectsigstore/cosign:v2.4.1 /ko-app/cosign /usr/local/bin/cosign
+
+# NVENC: the NVIDIA Container Toolkit injects libnvidia-encode when the compose
+# service reserves a GPU (NVIDIA_DRIVER_CAPABILITIES must include `video`).
+# Harmless when no GPU is mapped — the server falls back to software.
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
 ENV TZ=Europe/Paris
 
 # /app is bind-mounted from the host where ownership is the host UID (1000),
@@ -21,7 +44,7 @@ ENV TZ=Europe/Paris
 # --new-from-rev for the golangci-lint ratchet.
 RUN git config --global --add safe.directory /app
 
-RUN adduser -D -u 1001 -G root evey-plugin
+RUN useradd -u 1001 -g root -m -s /usr/sbin/nologin evey-plugin
 
 WORKDIR /app
 

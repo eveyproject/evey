@@ -34,13 +34,21 @@ services:
       - "1025"
     restart: unless-stopped
 
-  # Override evey: local build with Air hot-reload instead of registry image
+  # Override evey: local build with Air hot-reload + full HW transcode (the
+  # Jellyfin one-image model). ONE dev container, like prod — replaces the old
+  # Alpine-software `evey` + glibc-HW `evey-hw` split (no more shared-DB
+  # capability conflict). Maps BOTH the NVIDIA GPU (Container Toolkit, for NVENC)
+  # AND /dev/dri (VAAPI/QSV); the admin "Hardware acceleration" mode picks which.
+  # Defaults to NVENC (works on this box); VAAPI is auto-greyed in the admin on
+  # WSL2 (Mesa d3d12 can't sustain the multi-variant encode — docs/adr/0015).
+  # NOTE: the nvidia reservation, /dev/dxg + /usr/lib/wsl + LIBVA_DRIVER_NAME are
+  # WSL2/NVIDIA-specific; on a native Linux box NVENC needs only the nvidia
+  # reservation and VAAPI/QSV only /dev/dri — drop /dev/dxg + the wsl bits.
   evey:
     build:
       context: .
       dockerfile: docker/Dockerfile.dev
     image: evey-dev
-    deploy: {}
     env_file: .env.dev
     environment:
       EVEY_LOG_DEV_MODE: "true"
@@ -54,28 +62,54 @@ services:
       EVEY_EMBEDDED_MEILI: "false"
       EVEY_MEILI_URL: http://meilisearch:7700
       # MEILI_MASTER_KEY is already inherited from the project .env file.
-    # bwrap needs CAP_SYS_ADMIN to create user/pid/net namespaces. Docker
-    # drops it by default (kernel.unprivileged_userns_clone=0 inside the
-    # container), so plugin sandbox setup fails with "No permissions to
-    # creating new namespace". Granting the cap restores plugin runtime in
-    # dev. Production deploys should use the default unprivileged user
-    # namespace path (host sysctl=1).
+      # HW transcode: master gate + default mode. The admin panel overrides both
+      # live (toggle off -> software; backend select -> nvenc/vaapi/qsv). MODE is
+      # nvenc (not auto) so boot doesn't probe the WSL2 d3d12 VAAPI path the admin
+      # greys anyway.
+      EVEY_TRANSCODING_HW_ACCEL_ENABLED: "true"
+      EVEY_TRANSCODING_HW_MODE: nvenc
+      # NVENC needs the `video` capability so the toolkit injects libnvidia-encode
+      # (the image sets this too; explicit here for visibility).
+      NVIDIA_DRIVER_CAPABILITIES: all
+      # WSL2 VAAPI path (harmless to leave; a native NAS auto-selects its driver):
+      # Mesa d3d12 + the host GPU libs on the lib path.
+      LIBVA_DRIVER_NAME: d3d12
+      LD_LIBRARY_PATH: /usr/lib/wsl/lib
+      # Dev plugins are unsigned; cosign ships in the image but the policy stays
+      # off so local installs don't fail closed.
+      EVEY_PLUGINS_COSIGN_POLICY: "off"
     volumes:
       - .:/app
       - ./evey-data:/data
       - ./plugins:/data/plugins
       - evey-cache:/cache
+      # WSL2 d3d12 VAAPI runtime libs (host GPU userspace); ignored off-WSL.
+      - /usr/lib/wsl:/usr/lib/wsl:ro
       - /path/to/movies:/media
       - /path/to/series:/media2
       - /path/to/photos:/media3
       - /path/to/music:/media4
-    # Map the host DRM render node into the dev box so the cryptominer-gpu
-    # red-team test (TestRedTeamSandboxEscape) probes a REAL GPU device and
-    # proves the Landlock sandbox denies it — not just that the device is
-    # absent. Needs the host /dev/dri to exist (WSL2: `sudo modprobe vgem`,
-    # cf hw_transcode_wsl_setup). Harmless for the software-only dev server.
+    # NVENC: reserve the NVIDIA GPU (Container Toolkit injects the driver).
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Map the host DRM render node (the cryptominer-gpu red-team test probes a
+    # REAL GPU device + the VAAPI/QSV path) and /dev/dxg for the WSL2 d3d12 path.
+    # Needs the host /dev/dri to exist (WSL2: `sudo modprobe vgem`, cf
+    # hw_transcode_wsl_setup).
     devices:
       - /dev/dri:/dev/dri
+      - /dev/dxg:/dev/dxg
+    # The render node is root:render — add the host render GID so a privilege-
+    # dropped plugin can open /dev/dri/renderD128 (then Landlock denies it).
+    # `getent group render` (vgem node was GID 992 on the dev box); override via
+    # EVEY_RENDER_GID.
+    group_add:
+      - "${EVEY_RENDER_GID:-992}"
     healthcheck:
       start_period: 60s
       retries: 10
@@ -87,89 +121,6 @@ services:
         condition: service_healthy
       meilisearch:
         condition: service_healthy
-
-  # Hardware-accelerated transcode container — ONE full-HW image (the Jellyfin
-  # model). The runtime-hw image's distro ffmpeg has nvenc + vaapi + qsv all
-  # compiled in; this service maps BOTH the NVIDIA GPU (Container Toolkit, for
-  # NVENC) AND /dev/dri (for VAAPI/QSV), so the SAME container serves any backend
-  # and the admin "Hardware acceleration" mode picks which. Defaults to NVENC
-  # (works on this box). VAAPI is auto-greyed in the admin on WSL2 — its Mesa
-  # d3d12 driver can't sustain Evey's multi-variant encode (see docs/adr). The
-  # Air `evey` service (Alpine) stays software-only for code hot-reload.
-  # NOTE: /dev/dxg + /usr/lib/wsl below are WSL2-specific; on a native Linux box
-  # drop them (NVENC needs only the nvidia reservation, VAAPI/QSV only /dev/dri).
-  # Reach this instance on :9092.
-  #   docker compose up -d --build evey-hw
-  #   docker compose logs evey-hw | grep -i 'hw_backend\|benchmark.*hardware'
-  evey-hw:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runtime-hw
-      args:
-        VERSION: hw-dev
-    image: evey-hw
-    container_name: evey-hw
-    env_file: .env.dev
-    environment:
-      # Master HW gate + default mode. The admin panel overrides both live
-      # (toggle off -> software; backend select -> nvenc/vaapi/qsv).
-      EVEY_TRANSCODING_HW_ACCEL_ENABLED: "true"
-      EVEY_TRANSCODING_HW_MODE: nvenc
-      # NVENC needs the `video` capability so the toolkit injects
-      # libnvidia-encode (the image sets this too; explicit here for visibility).
-      NVIDIA_DRIVER_CAPABILITIES: all
-      # WSL2 VAAPI path (harmless to leave; a native NAS auto-selects its driver):
-      # Mesa d3d12 + the host GPU libs on the lib path.
-      LIBVA_DRIVER_NAME: d3d12
-      LD_LIBRARY_PATH: /usr/lib/wsl/lib
-      EVEY_DB_HOST: postgres
-      EVEY_EMBEDDED_MEILI: "false"
-      EVEY_MEILI_URL: http://meilisearch:7700
-      EVEY_HTTP_PORT: "9091"
-      EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
-      EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
-      EVEY_TRICKPLAY_CACHE_DIR: /data/trickplay
-      EVEY_LOG_DIR: /data/logs
-      EVEY_BACKUP_DIR: /data/backups
-      EVEY_LOG_LEVEL: debug
-      # Dev mode relaxes the production config validation (default DB password,
-      # etc.) exactly like the Air `evey` service above — local HW box, not prod.
-      EVEY_LOG_DEV_MODE: "true"
-      EVEY_PLUGINS_COSIGN_POLICY: "off"
-    ports:
-      - "9092:9091"
-    # NVENC: reserve the NVIDIA GPU (Container Toolkit injects the driver).
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    # VAAPI/QSV: map the DRM render node (+ /dev/dxg for the WSL2 d3d12 path).
-    devices:
-      - /dev/dri:/dev/dri
-      - /dev/dxg:/dev/dxg
-    # The render node is root:render — add the host render GID so the evey user
-    # (uid 1000) can open /dev/dri/renderD128. `getent group render` (vgem node
-    # was GID 992 on the dev box); override via EVEY_RENDER_GID.
-    group_add:
-      - "${EVEY_RENDER_GID:-992}"
-    volumes:
-      - evey-hw-data:/data
-      - evey-hw-cache:/cache
-      - /usr/lib/wsl:/usr/lib/wsl:ro
-      - /path/to/movies:/media
-      - /path/to/series:/media2
-      - /path/to/photos:/media3
-      - /path/to/music:/media4
-    depends_on:
-      postgres:
-        condition: service_healthy
-      meilisearch:
-        condition: service_healthy
-    restart: "no"
 
   # Vite dev server with HMR
   web:
@@ -240,11 +191,3 @@ services:
       start_period: 20s
     depends_on:
       - web
-
-# Dedicated transcode cache for the HW test container, kept separate from the
-# software `evey` cache so an HW run produces fresh GPU-encoded segments
-# instead of serving the software ones (the two are byte-compatible by design,
-# but a clean cache makes the HW path observable).
-volumes:
-  evey-hw-cache:
-  evey-hw-data:
