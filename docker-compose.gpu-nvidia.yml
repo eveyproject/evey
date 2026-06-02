@@ -1,0 +1,36 @@
+# NVIDIA NVENC passthrough overlay for hardware-accelerated transcoding.
+#
+# Opt-in — the base docker-compose.yml stays runnable on hosts with no GPU.
+# Enable with:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu-nvidia.yml up -d
+#
+# Covers NVIDIA NVENC (h264/hevc). The evey runtime image already bundles an
+# ffmpeg with the *_nvenc encoders compiled in, so no in-image driver is needed
+# — but unlike the VAAPI overlay, NVENC needs the host NVIDIA driver injected by
+# the NVIDIA Container Toolkit (a different mechanism than /dev/dri). Install it
+# on the host first: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+#
+# The image already sets NVIDIA_DRIVER_CAPABILITIES=all — that is REQUIRED, not
+# cosmetic: without `video` in the capability set the toolkit injects nvidia-smi
+# + CUDA but NOT libnvidia-encode.so, and NVENC fails with "Cannot load
+# libnvidia-encode.so.1" even though nvidia-smi works. The reservation below is
+# what actually attaches the GPU.
+#
+# For Intel QuickSync / AMD VAAPI instead, use docker-compose.gpu.yml (that path
+# maps /dev/dri rather than reserving an NVIDIA device).
+#
+# After enabling, turn HW on: Admin -> Server configuration -> Encode calibration
+# -> "Hardware acceleration" -> Auto (or NVENC). Or headless via .env:
+#   EVEY_TRANSCODING_HW_MODE=nvenc
+# Verify inside the container with:
+#   docker compose exec evey ffmpeg -hide_banner -encoders | grep nvenc
+#   docker compose exec evey nvidia-smi
+services:
+  evey:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

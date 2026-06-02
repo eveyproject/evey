@@ -9,7 +9,8 @@
 # is needed — just the device node + group access below.
 #
 # NVIDIA NVENC is NOT covered here: it needs the host NVIDIA driver via
-# nvidia-container-toolkit, which is a different mechanism.
+# nvidia-container-toolkit, which is a different mechanism — use the sibling
+# docker-compose.gpu-nvidia.yml overlay instead (reserves an NVIDIA device).
 #
 # group_add must match the host's `render` group GID. Find it with:
 #   getent group render
