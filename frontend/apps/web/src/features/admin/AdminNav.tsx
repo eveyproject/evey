@@ -148,7 +148,7 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                       key={href}
                       to={href}
                       onClick={onNavigate}
-                      className={`flex items-center gap-2.5 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-colors-fast ${collapsed ? "justify-center" : ""} ${active ? "" : "hover:bg-[var(--surface-raised)]"}`}
+                      className={`flex items-center gap-2.5 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-colors-fast overflow-hidden ${collapsed ? "justify-center" : ""} ${active ? "" : "hover:bg-[var(--surface-raised)]"}`}
                       style={{
                         backgroundColor: active ? "var(--accent)" : undefined,
                         color: active ? "white" : "var(--text)",
@@ -156,7 +156,7 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                       title={collapsed ? label : undefined}
                     >
                       <Icon size={15} />
-                      {!collapsed && <span>{label}</span>}
+                      {!collapsed && <span className="whitespace-nowrap">{label}</span>}
                     </Link>
                   );
                 })}
@@ -179,7 +179,7 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                 to="/admin/extensions/$pluginId"
                 params={{ pluginId: entry.pluginId }}
                 onClick={onNavigate}
-                className={`flex items-center gap-2.5 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-colors-fast ${collapsed ? "justify-center" : ""} ${active ? "" : "hover:bg-[var(--surface-raised)]"}`}
+                className={`flex items-center gap-2.5 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-colors-fast overflow-hidden ${collapsed ? "justify-center" : ""} ${active ? "" : "hover:bg-[var(--surface-raised)]"}`}
                 style={{
                   backgroundColor: active ? "var(--accent)" : undefined,
                   color: active ? "white" : "var(--text)",
@@ -187,7 +187,7 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                 title={collapsed ? entry.name : undefined}
               >
                 <Puzzle size={15} />
-                {!collapsed && <span>{entry.name}</span>}
+                {!collapsed && <span className="whitespace-nowrap">{entry.name}</span>}
               </Link>
             );
           })}

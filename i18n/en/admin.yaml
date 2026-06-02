@@ -584,13 +584,12 @@ transcodeCache:
     file: File
     size: Size
     modified: Modified
-  hwAccelType: "HW Accel Type"
-  hwDecodeCodecs: "HW Decode Codecs"
-  hwDevices: "HW Devices"
   maxConcurrent: "Max Concurrent"
   settingsSaved: "Settings saved"
-  throttle: "Throttle"
+  throttle: "Throttle transcodes when client buffer is full"
   transcodingSettings: "Transcoding Settings"
+  hwAccelNote: "Hardware acceleration is configured in Server Config → Encode calibration."
+  hwAccelNoteLink: "Go to Server Config"
 
 dashboardStats:
   movies: Movies
@@ -658,6 +657,10 @@ calibration:
   hwBackendLabel: "Backend"
   wslUnsupported: "not supported on WSL"
   wslVaapiNote: "VAAPI/QSV go through Mesa's d3d12 driver on WSL and can't sustain transcoding here — use NVENC, or validate VAAPI on a native Linux host."
+  codecSupportTitle: "Codec support"
+  encodeCodecs: "Encode:"
+  decodeCodecs: "Decode:"
+  codecSoftwareDecodeNote: "{{codecs}} — decoded in software (GPU encode only)"
 
 serverSettings:
   title: Server Settings
