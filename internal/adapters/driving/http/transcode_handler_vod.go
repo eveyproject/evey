@@ -501,7 +501,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		}
 	}
 
-	hwAccel, hwDevice, hwFeatures, _ := h.resolveHW(decision.VideoCodec)
+	hwAccel, hwDevice, hwFeatures, _ := h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams))
 	return apptranscoding.DecisionFingerprint{
 		MediaID:             mediaID,
 		SourcePath:          item.File.Path,
@@ -541,7 +541,7 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 // HDR tonemap / bitmap burn-in are not gated here: the orchestrated VOD path
 // does neither today, and the ffmpeg builder independently falls back to
 // software for those, so the two stay consistent.
-func (h *hlsVODServe) resolveHW(outputCodec string) (accel, device string, features []string, usable bool) {
+func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string) (accel, device string, features []string, usable bool) {
 	if h.hwAccelEnabled == nil || !h.hwAccelEnabled() || h.capability == nil {
 		return "", "", nil, false
 	}
@@ -549,7 +549,27 @@ func (h *hlsVODServe) resolveHW(outputCodec string) (accel, device string, featu
 	if !cap.HWSupports(outputCodec) {
 		return "", "", nil, false
 	}
+	// The orchestrated pipeline HW-decodes the source (-hwaccel). If this GPU
+	// can't decode the source codec — a pre-Skylake Intel iGPU decodes H.264 but
+	// not HEVC — that decode fails with ENOSYS and the player stalls on rebuffer.
+	// Fall back to full software for such a source rather than risk the stall.
+	// H.264 sources (the common case) keep the full HW path. (A future decoupled
+	// software-decode + hwupload path could keep HW *encode* even here.)
+	if sourceCodec != "" && !cap.HWCanDecode(sourceCodec) {
+		return "", "", nil, false
+	}
 	return cap.HWBackend, cap.HWDevice, cap.HWFeatures, true
+}
+
+// sourceVideoCodec returns the first video stream's codec (empty if none), the
+// codec the pipeline must DECODE. Used to gate HW on decode capability.
+func sourceVideoCodec(streams []*domainlibrary.MediaStream) string {
+	for _, s := range streams {
+		if s != nil && s.StreamType == domainlibrary.StreamTypeVideo {
+			return s.Codec
+		}
+	}
+	return ""
 }
 
 // profilesForDecision picks the ABR ladder for a given (decision, mediaItem,
@@ -601,7 +621,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	maxH := 720 // safe floor if capability isn't wired yet (tests / dev w/o calibration)
 	if h.capability != nil {
 		cap := h.capability()
-		_, _, _, hwUsable := h.resolveHW(decision.VideoCodec)
+		_, _, _, hwUsable := h.resolveHW(decision.VideoCodec, srcCodec)
 		maxH = cap.MaxHeightFor(hwUsable)
 	}
 	// CMCD-feedback adaptive override (Phase C). The override service
@@ -825,7 +845,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 			VideoBitrate: p.VideoBitrate, AudioBitrate: p.AudioBitrate,
 		}
 	}
-	hwAccel, hwDevice, hwFeatures, _ := h.resolveHW(decision.VideoCodec)
+	hwAccel, hwDevice, hwFeatures, _ := h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams))
 	fp := apptranscoding.DecisionFingerprint{
 		MediaID:             string(nextItem.ID),
 		SourcePath:          nextItem.File.Path,

@@ -24,7 +24,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return nvenc },
 			hwAccelEnabled: func() bool { return true },
 		}
-		accel, device, features, usable := h.resolveHW("h264")
+		accel, device, features, usable := h.resolveHW("h264", "")
 		if !usable || accel != "nvenc" || device != "" {
 			t.Errorf("got (%q,%q,%v), want (nvenc,'',true)", accel, device, usable)
 		}
@@ -38,7 +38,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return vaapi },
 			hwAccelEnabled: func() bool { return true },
 		}
-		accel, device, _, usable := h.resolveHW("hevc")
+		accel, device, _, usable := h.resolveHW("hevc", "")
 		if !usable || accel != "vaapi" || device != "/dev/dri/renderD128" {
 			t.Errorf("got (%q,%q,%v), want (vaapi,/dev/dri/renderD128,true)", accel, device, usable)
 		}
@@ -49,8 +49,28 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return vaapi }, // no av1
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("av1"); usable {
+		if _, _, _, usable := h.resolveHW("av1", ""); usable {
 			t.Error("av1 unsupported by vaapi caps → must be software")
+		}
+	})
+
+	t.Run("source codec not HW-decodable → software (old iGPU, HEVC)", func(t *testing.T) {
+		// Encodes H.264 + HEVC but DECODES only H.264 — a pre-Skylake Intel iGPU.
+		oldIGPU := domaintranscoding.EncodeCapability{
+			HWBackend:      "vaapi",
+			HWCodecs:       []string{"h264", "hevc"},
+			HWDecodeCodecs: []string{"h264"},
+			HWDevice:       "/dev/dri/renderD128",
+		}
+		h := &hlsVODServe{
+			capability:     func() domaintranscoding.EncodeCapability { return oldIGPU },
+			hwAccelEnabled: func() bool { return true },
+		}
+		if _, _, _, usable := h.resolveHW("h264", "h264"); !usable {
+			t.Error("h264 source is HW-decodable → must take the HW path")
+		}
+		if _, _, _, usable := h.resolveHW("h264", "hevc"); usable {
+			t.Error("hevc source not HW-decodable on this GPU → must fall back to software (no stall)")
 		}
 	})
 
@@ -59,7 +79,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return nvenc },
 			hwAccelEnabled: func() bool { return false },
 		}
-		if _, _, _, usable := h.resolveHW("h264"); usable {
+		if _, _, _, usable := h.resolveHW("h264", ""); usable {
 			t.Error("flag off → must be software")
 		}
 	})
@@ -68,7 +88,7 @@ func TestResolveHW(t *testing.T) {
 		h := &hlsVODServe{
 			capability: func() domaintranscoding.EncodeCapability { return nvenc },
 		}
-		if _, _, _, usable := h.resolveHW("h264"); usable {
+		if _, _, _, usable := h.resolveHW("h264", ""); usable {
 			t.Error("nil hwAccelEnabled → must be software")
 		}
 	})
@@ -78,7 +98,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return domaintranscoding.SafeFallback() },
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("h264"); usable {
+		if _, _, _, usable := h.resolveHW("h264", ""); usable {
 			t.Error("no HW backend → must be software")
 		}
 	})

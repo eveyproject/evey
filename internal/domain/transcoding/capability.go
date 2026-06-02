@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 )
@@ -133,6 +134,18 @@ func (c EncodeCapability) HWSupports(codec string) bool {
 		}
 	}
 	return false
+}
+
+// HWCanDecode reports whether the calibrated HW backend can DECODE the given
+// source codec. Encode capability does NOT imply it: a pre-Skylake Intel iGPU
+// encodes H.264 but can't decode HEVC, so feeding such a source to `-hwaccel`
+// fails (ENOSYS) and stalls the player. The VOD path consults this to fall back
+// to software for an undecodable source instead of risking the stall.
+func (c EncodeCapability) HWCanDecode(codec string) bool {
+	if c.HWBackend == "" {
+		return false
+	}
+	return slices.Contains(c.HWDecodeCodecs, normaliseSourceCodec(codec))
 }
 
 // HWHasFeature reports whether the calibration probe confirmed the named
