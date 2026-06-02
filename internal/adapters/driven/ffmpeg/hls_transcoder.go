@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -103,7 +104,7 @@ func startPerVariant(ctx context.Context, opts transcoding.HLSProcessOpts) (tran
 		if err != nil {
 			cancel()
 			for _, s := range c.subs {
-				_ = s.Stop()
+				_ = s.Stop() //nolint:errcheck // best-effort teardown; we return the start error below
 			}
 			return nil, fmt.Errorf("per-variant ffmpeg start (rung %d): %w", i, err)
 		}
@@ -151,12 +152,13 @@ func (c *compositeHandle) Stop() error {
 	c.mu.Unlock()
 	c.cancel()
 	var wg sync.WaitGroup
-	for _, s := range c.subs {
+	errs := make([]error, len(c.subs))
+	for i, s := range c.subs {
 		wg.Add(1)
-		go func(h *hlsHandle) { defer wg.Done(); _ = h.Stop() }(s)
+		go func(idx int, h *hlsHandle) { defer wg.Done(); errs[idx] = h.Stop() }(i, s)
 	}
 	wg.Wait()
-	return nil
+	return errors.Join(errs...)
 }
 
 func (c *compositeHandle) Done() <-chan struct{} { return c.done }
@@ -185,17 +187,19 @@ func (c *compositeHandle) Failure() transcoding.FailureClass {
 }
 
 func (c *compositeHandle) Pause() error {
+	var errs []error
 	for _, s := range c.subs {
-		_ = s.Pause()
+		errs = append(errs, s.Pause())
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (c *compositeHandle) Resume() error {
+	var errs []error
 	for _, s := range c.subs {
-		_ = s.Resume()
+		errs = append(errs, s.Resume())
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 type hlsHandle struct {
