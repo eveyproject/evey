@@ -96,6 +96,12 @@ type hlsVODServe struct {
 	// for ffmpeg to land a segment. Larger than expected encode time but
 	// smaller than the user's patience for a 504. Default 15s.
 	segmentWaitTimeout time.Duration
+
+	// serverLang returns the server-level metadata language (cfg.Metadata.Language,
+	// e.g. "en"). Used as the lowest-priority fallback for default audio track
+	// resolution when neither the profile's audio_languages nor its locale
+	// match any stream. Nil-safe — falls back to "en".
+	serverLang func() string
 }
 
 // vodSegmentNameRE parses the on-the-wire segment file name and returns the
@@ -414,6 +420,25 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	http.ServeFile(w, r, path)
 }
 
+// resolveAudioTrack returns the audio-index to use for the given request and
+// stream list. When the client supplies an explicit ?audioTrack= query param,
+// that value is honoured as-is (the user or player has already chosen). When
+// absent, the server resolves the best match using the profile's language
+// preferences (AudioLanguages → Locale → server language → IsDefault → 0).
+func (h *hlsVODServe) resolveAudioTrack(r *http.Request, streams []*domainlibrary.MediaStream) int {
+	if r.URL.Query().Has("audioTrack") {
+		return parseIntQuery(r, "audioTrack", 0)
+	}
+	claims := HTTPClaimsFromContext(r.Context())
+	prefs := loadProfilePrefs(r.Context(), h.profilePrefs, claims.ProfileID)
+	srvLang := "en"
+	if h.serverLang != nil {
+		srvLang = h.serverLang()
+	}
+	langs := buildPrefLangs(prefs.AudioLanguages, prefs.Locale, srvLang)
+	return resolveDefaultAudioTrack(streams, langs)
+}
+
 // buildManifestInput resolves the media + decision + token into the
 // ManifestInput the generator consumes. Threads the same query string-parsed
 // fields into both the manifest's URLs and the DecisionFingerprint, so segment
@@ -430,7 +455,7 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 	decision := h.makeDecision(r.Context(), streams, item.File.ContainerFormat, r)
 	profiles := h.profilesForDecision(r.Context(), item, streams, decision)
 
-	audioTrack := parseIntQuery(r, "audioTrack", 0)
+	audioTrack := h.resolveAudioTrack(r, streams)
 	subBurnIn := parseIntQuery(r, "subtitleTrack", -1)
 
 	token := RawTokenFromContext(r.Context())
@@ -487,7 +512,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 	decision := h.makeDecision(r.Context(), streams, item.File.ContainerFormat, r)
 	profiles := h.profilesForDecision(r.Context(), item, streams, decision)
 
-	audioTrack := parseIntQuery(r, "audioTrack", 0)
+	audioTrack := h.resolveAudioTrack(r, streams)
 	subBurnIn := parseIntQuery(r, "subtitleTrack", -1)
 
 	fpProfiles := make([]apptranscoding.ProfileFingerprint, len(profiles))
@@ -741,6 +766,12 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		// buildManifestInput to populate AudioRenditions from the source
 		// audio streams and the master starts emitting EXT-X-MEDIA.
 		audioRenditionEnabled: s.Cfg != nil && s.Cfg.Transcoding.AudioRenditionEnabled,
+		serverLang: func() string {
+			if s.Cfg == nil {
+				return "en"
+			}
+			return s.Cfg.Metadata.Language
+		},
 	}
 }
 
@@ -850,7 +881,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 		MediaID:             string(nextItem.ID),
 		SourcePath:          nextItem.File.Path,
 		Profiles:            fpProfiles,
-		AudioTrack:          parseIntQuery(r, "audioTrack", 0),
+		AudioTrack:          h.resolveAudioTrack(r, streams),
 		SubtitleBurnInTrack: parseIntQuery(r, "subtitleTrack", -1),
 		ForceSidecarSubs:    false,
 		VideoCodec:          decision.VideoCodec,
