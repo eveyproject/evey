@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun } from "lucide-react";
 import Hls from "hls.js";
 import type { V1StreamInfo } from "@evey/api";
@@ -107,14 +108,112 @@ export function HLSPlayer({
     streamInfo.playMethod !== "PLAY_METHOD_DIRECT_STREAM"
   );
 
-  const defaultAudio = resolveDefaultAudio(audioStreams, seriesId, getSeriesTrackPrefs, getPreferredAudioLang);
+  // Fetch the active profile to read audio/subtitle language preferences.
+  const { data: currentUser } = useUserServiceGetCurrentUser();
+  const activeProfileId = useAuthStore((s) => s.profileId);
+  const { data: profilesResp } = useUserServiceListProfiles(
+    currentUser?.id ?? "",
+    { query: { enabled: !!currentUser?.id } },
+  );
+  const activeProfile = useMemo(
+    () =>
+      profilesResp?.profiles?.find((p) => p.id === activeProfileId) ??
+      profilesResp?.profiles?.find((p) => p.isDefault) ??
+      profilesResp?.profiles?.[0],
+    [profilesResp, activeProfileId],
+  );
+
+  // Build ordered language lists from profile.preferences, falling back to
+  // locale as a last resort (e.g. profile with locale "fr" but no explicit
+  // audio_languages still prefers French audio).
+  const profileAudioLangs = useMemo((): string[] => {
+    const raw = activeProfile?.preferences?.["audio_languages"] ?? "";
+    const fromPrefs = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    const locale = activeProfile?.locale ?? "";
+    // Append locale as final fallback only if not already in the list.
+    if (locale && !fromPrefs.includes(locale)) return [...fromPrefs, locale];
+    return fromPrefs;
+  }, [activeProfile]);
+
+  const profileSubtitleLangs = useMemo((): string[] => {
+    const raw = activeProfile?.preferences?.["subtitle_languages"] ?? "";
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  }, [activeProfile]);
+
+  // Initialize audio/subtitle from streams + whatever prefs are available at
+  // first render (profile may not be loaded yet — profileAudioLangs is empty).
+  const defaultAudio = resolveDefaultAudio(
+    audioStreams,
+    seriesId,
+    getSeriesTrackPrefs,
+    getPreferredAudioLang,
+    profileAudioLangs.length > 0 ? profileAudioLangs : undefined,
+  );
   const [currentAudioIndex, setCurrentAudioIndex] = useState(defaultAudio?.index ?? 0);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(defaultAudio?.trackIndex ?? 0);
   const [currentQuality, setCurrentQuality] = useState(0);
   const [autoQuality, setAutoQuality] = useState(true);
+
+  // Resolved audio language — used for forced subtitle matching.
+  const defaultAudioLang = defaultAudio?.language ?? defaultAudio?.title;
   const [currentSubtitle, setCurrentSubtitle] = useState<number | null>(() =>
-    resolveDefaultSubtitle(subtitleStreams, seriesId, getSeriesTrackPrefs, getPreferredSubtitleLang),
+    resolveDefaultSubtitle(
+      subtitleStreams,
+      seriesId,
+      getSeriesTrackPrefs,
+      getPreferredSubtitleLang,
+      profileSubtitleLangs.length > 0 ? profileSubtitleLangs : undefined,
+      defaultAudioLang,
+    ),
   );
+
+  // Track whether the user has made a manual track selection in this session.
+  // If so, we must not override with profile prefs when they load asynchronously.
+  const userPickedAudioRef = useRef(false);
+  const userPickedSubtitleRef = useRef(false);
+
+  // When the profile finishes loading, apply its audio/subtitle preferences if
+  // the user hasn't picked a track manually and the initial resolution used no
+  // profile data (i.e. profileAudioLangs was empty at mount time).
+  const profileLoadedRef = useRef(false);
+  useEffect(() => {
+    if (profileLoadedRef.current) return;
+    if (profileAudioLangs.length === 0 && profileSubtitleLangs.length === 0) return;
+    profileLoadedRef.current = true;
+
+    if (!userPickedAudioRef.current) {
+      const best = resolveDefaultAudio(
+        audioStreams,
+        seriesId,
+        getSeriesTrackPrefs,
+        getPreferredAudioLang,
+        profileAudioLangs.length > 0 ? profileAudioLangs : undefined,
+      );
+      if (best && best.index !== currentAudioIndex) {
+        setCurrentAudioIndex(best.index);
+        setCurrentTrackIndex(best.trackIndex);
+      }
+    }
+
+    if (!userPickedSubtitleRef.current) {
+      const currentAudioStream = audioStreams.find((s) => s.index === currentAudioIndex);
+      const audioLang = currentAudioStream?.language ?? currentAudioStream?.title;
+      const bestSub = resolveDefaultSubtitle(
+        subtitleStreams,
+        seriesId,
+        getSeriesTrackPrefs,
+        getPreferredSubtitleLang,
+        profileSubtitleLangs.length > 0 ? profileSubtitleLangs : undefined,
+        audioLang,
+      );
+      if (bestSub !== currentSubtitle) {
+        setCurrentSubtitle(bestSub);
+      }
+    }
+  // Intentionally omitting currentAudioIndex/currentSubtitle to avoid re-running
+  // after the state updates triggered by this same effect.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileAudioLangs, profileSubtitleLangs]);
 
   const selectedBurnInTrack = getSelectedBurnInTrack(currentSubtitle, subtitleStreams);
   const {
@@ -398,6 +497,7 @@ export function HLSPlayer({
   }
 
   function handleAudioChange(index: number) {
+    userPickedAudioRef.current = true;
     const stream = audioStreams.find((s) => s.index === index);
     setCurrentAudioIndex(index);
     if (stream) {
@@ -558,6 +658,7 @@ export function HLSPlayer({
           onQualityChange={handleQualityChange}
           onAutoQualityToggle={handleAutoQualityToggle}
           onSubtitleChange={(trackIndex) => {
+            userPickedSubtitleRef.current = true;
             const prevBurnIn = selectedBurnInTrack;
             const nextSub = trackIndex !== null ? subtitleStreams.find((st) => st.trackIndex === trackIndex) : null;
             const nextBurnIn = nextSub?.burnIn ? trackIndex : null;

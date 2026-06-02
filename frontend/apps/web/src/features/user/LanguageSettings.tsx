@@ -1,35 +1,77 @@
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Select } from "@/components/ui/Select";
 import { supportedLanguages } from "@/i18n";
 import { useLocaleStore, useAuthStore } from "@evey/store";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, userServiceRefreshToken } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, userServiceRefreshToken, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
+
+// Common media languages offered in the audio/subtitle selectors (ISO 639-1).
+// Rendered via Intl.DisplayNames so the label is localized to the UI language.
+const MEDIA_LANG_CODES = [
+  "af", "ar", "bg", "bn", "ca", "cs", "cy", "da", "de", "el",
+  "en", "es", "et", "eu", "fa", "fi", "fil", "fr", "ga", "gl",
+  "gu", "he", "hi", "hr", "hu", "hy", "id", "is", "it", "ja",
+  "ka", "kn", "ko", "lt", "lv", "mk", "ml", "mr", "ms", "mt",
+  "nl", "no", "pa", "pl", "pt", "ro", "ru", "sk", "sl", "sq",
+  "sr", "sv", "sw", "ta", "te", "th", "tr", "uk", "ur", "vi",
+  "zh",
+];
+
+function buildMediaLangOptions(locale: string): { value: string; label: string }[] {
+  let names: Intl.DisplayNames | null = null;
+  try { names = new Intl.DisplayNames([locale], { type: "language" }); } catch { /* ignore */ }
+  return MEDIA_LANG_CODES
+    .map((code) => ({ value: code, label: names?.of(code) ?? code }))
+    .sort((a, b) => a.label.localeCompare(b.label, locale));
+}
 
 export function LanguageSettings() {
   const { t, i18n } = useTranslation();
   const setLocale = useLocaleStore((s) => s.setLocale);
   const qc = useQueryClient();
   const { data: user } = useUserServiceGetCurrentUser();
+  const activeProfileId = useAuthStore((s) => s.profileId);
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
-  const defaultProfile = profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0];
+  // Use the active profile (from JWT) when available, fall back to default.
+  const activeProfile =
+    profilesResp?.profiles?.find((p) => p.id === activeProfileId) ??
+    profilesResp?.profiles?.find((p) => p.isDefault) ??
+    profilesResp?.profiles?.[0];
   const updateProfile = useUserServiceUpdateProfile();
 
-  const options = supportedLanguages.map((l) => ({
+  const uiLangOptions = supportedLanguages.map((l) => ({
     value: l.code,
     label: l.label,
   }));
 
-  const current = supportedLanguages.find((l) => i18n.language.startsWith(l.code))?.code ?? "en";
+  const mediaLangOptions = useMemo(
+    () => buildMediaLangOptions(i18n.language),
+    [i18n.language],
+  );
+  const mediaLangOptionsWithNone = useMemo(
+    () => [{ value: "", label: t("common.noPreference") }, ...mediaLangOptions],
+    [mediaLangOptions, t],
+  );
 
-  const handleChange = async (code: string) => {
+  const currentUiLang = supportedLanguages.find((l) => i18n.language.startsWith(l.code))?.code ?? "en";
+
+  // Read audio/subtitle prefs from the profile preferences map (CSV for ordered list;
+  // v1 stores a single language code — we take only the first entry for the select).
+  const rawAudioLangs = activeProfile?.preferences?.["audio_languages"] ?? "";
+  const rawSubtitleLangs = activeProfile?.preferences?.["subtitle_languages"] ?? "";
+  const currentAudioLang = rawAudioLangs.split(",")[0]?.trim() ?? "";
+  const currentSubtitleLang = rawSubtitleLangs.split(",")[0]?.trim() ?? "";
+
+  const handleUiLangChange = async (code: string) => {
     // 1. Update UI language
     void i18n.changeLanguage(code);
     // 2. Update locale store (sent as Accept-Language header)
     setLocale(code);
     // 3. Update profile locale on server + refresh JWT
-    if (defaultProfile?.id) {
+    if (activeProfile?.id) {
       try {
-        await updateProfile.mutateAsync({ id: defaultProfile.id, data: { locale: code } });
+        await updateProfile.mutateAsync({ id: activeProfile.id, data: { locale: code } });
         // 4. Refresh token to get new JWT with updated locale
         const resp = await userServiceRefreshToken({});
         if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
@@ -43,20 +85,72 @@ export function LanguageSettings() {
     void qc.invalidateQueries();
   };
 
+  const handleAudioLangChange = async (code: string) => {
+    if (!activeProfile?.id) return;
+    // Merge into the existing preferences map without overwriting other keys.
+    const next = { ...(activeProfile.preferences ?? {}), audio_languages: code };
+    try {
+      await updateProfile.mutateAsync({ id: activeProfile.id, data: { preferences: next } });
+      if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
+    } catch (err) { console.warn("audio lang update failed", err); }
+  };
+
+  const handleSubtitleLangChange = async (code: string) => {
+    if (!activeProfile?.id) return;
+    // Merge into the existing preferences map without overwriting other keys.
+    const next = { ...(activeProfile.preferences ?? {}), subtitle_languages: code };
+    try {
+      await updateProfile.mutateAsync({ id: activeProfile.id, data: { preferences: next } });
+      if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
+    } catch (err) { console.warn("subtitle lang update failed", err); }
+  };
+
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h3 className="text-sm font-semibold text-[var(--text)]">{t("common.language")}</h3>
-        <p className="text-xs text-[var(--text-muted)] mt-1">
-          {t("common.languageDesc")}
-        </p>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
+        <div>
+          <h3 className="text-sm font-semibold text-[var(--text)]">{t("common.language")}</h3>
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            {t("common.languageDesc")}
+          </p>
+        </div>
+        <Select
+          label={t("common.language")}
+          options={uiLangOptions}
+          value={currentUiLang}
+          onChange={handleUiLangChange}
+        />
       </div>
-      <Select
-        label={t("common.language")}
-        options={options}
-        value={current}
-        onChange={handleChange}
-      />
+
+      <div className="flex flex-col gap-4">
+        <div>
+          <h3 className="text-sm font-semibold text-[var(--text)]">{t("common.audioLanguage")}</h3>
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            {t("common.audioLanguageDesc")}
+          </p>
+        </div>
+        <Select
+          label={t("common.audioLanguage")}
+          options={mediaLangOptionsWithNone}
+          value={currentAudioLang}
+          onChange={handleAudioLangChange}
+        />
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <div>
+          <h3 className="text-sm font-semibold text-[var(--text)]">{t("common.subtitleLanguage")}</h3>
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            {t("common.subtitleLanguageDesc")}
+          </p>
+        </div>
+        <Select
+          label={t("common.subtitleLanguage")}
+          options={mediaLangOptionsWithNone}
+          value={currentSubtitleLang}
+          onChange={handleSubtitleLangChange}
+        />
+      </div>
     </div>
   );
 }
