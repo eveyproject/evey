@@ -371,7 +371,7 @@ func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fall
 		// Heights for every rung at or below h — exactly what the
 		// production pipeline encodes when the ladder top is h.
 		laddered := swBenchLadder[:i+1]
-		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, "libx264", nil)
+		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, "libx264", nil, "")
 		passing := ok && fps >= float64(r.sourceRate())*r.margin
 		r.logger.Info("benchmark: software probe",
 			slog.Int("height", h),
@@ -426,23 +426,42 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		if encoder == "" {
 			continue
 		}
-		extraInputArgs := hwInputArgs(dev.Type)
-		best := 0
-		for i, h := range hwBenchLadder {
-			laddered := hwBenchLadder[:i+1]
-			fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, encoder, extraInputArgs)
-			passing := ok && fps >= float64(r.sourceRate())*r.margin
-			r.logger.Info("benchmark: hardware probe",
-				slog.String("backend", dev.Type),
-				slog.String("encoder", encoder),
-				slog.Int("height", h),
-				slog.Int("parallel_encodes", len(laddered)),
-				slog.Float64("fps", fps),
-				slog.Bool("passing", passing))
-			if !passing {
-				break
+		// runLadder probes each rung under the multi-variant pipeline and
+		// returns the tallest passing height (0 if none).
+		runLadder := func(extraInputArgs []string, uploadChain string) int {
+			best := 0
+			for i, h := range hwBenchLadder {
+				laddered := hwBenchLadder[:i+1]
+				fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, encoder, extraInputArgs, uploadChain)
+				passing := ok && fps >= float64(r.sourceRate())*r.margin
+				r.logger.Info("benchmark: hardware probe",
+					slog.String("backend", dev.Type),
+					slog.String("encoder", encoder),
+					slog.Int("height", h),
+					slog.Int("parallel_encodes", len(laddered)),
+					slog.Float64("fps", fps),
+					slog.Bool("passing", passing),
+					slog.Bool("decoupled", uploadChain != ""))
+				if !passing {
+					break
+				}
+				best = h
 			}
-			best = h
+			return best
+		}
+
+		// First measure the production zero-copy path: HW decode → scale → encode.
+		best := runLadder(hwInputArgs(dev.Type), "")
+		// If nothing passed, the GPU may simply be unable to HW-DECODE the sample
+		// codec while still being able to ENCODE — pre-Skylake Intel iGPUs decode
+		// H.264 but NOT HEVC, and our sample is HEVC, so `-hwaccel vaapi` fails with
+		// ENOSYS before any encode runs. Retry measuring encode only: software-
+		// decode + hwupload, the exact shape probeHWEncode already validated.
+		// VAAPI/QSV only — NVENC HW-decodes every codec, so it never needs this.
+		if best == 0 {
+			if up := hwUploadChain(encoder); up != "" {
+				best = runLadder(hwDecoupledInputArgs(dev.Type), up)
+			}
 		}
 		if best > 0 {
 			return best, dev.Type, hwDomainCodecs(dev.SupportedCodecs), hwDevicePath(dev.Type)
@@ -495,6 +514,35 @@ func hwInputArgs(backend string) []string {
 	return nil
 }
 
+// hwDecoupledInputArgs returns the device-binding input flags WITHOUT -hwaccel,
+// so ffmpeg software-decodes the sample and the encode path is exercised via an
+// explicit hwupload (see hwUploadChain). Used as a fallback when the GPU can't
+// HW-decode the sample codec (e.g. pre-Skylake Intel + an HEVC sample). Mirrors
+// the device setup probeHWEncode validated. NVENC is absent: it HW-decodes every
+// codec, so the zero-copy path always works for it.
+func hwDecoupledInputArgs(backend string) []string {
+	switch backend {
+	case string(transcoding.VAAPI):
+		return []string{"-vaapi_device", "/dev/dri/renderD128"}
+	case string(transcoding.QSV):
+		return []string{"-init_hw_device", "qsv=hw", "-filter_hw_device", "hw"}
+	}
+	return nil
+}
+
+// hwUploadChain is the filter prefix that uploads software-decoded frames to the
+// GPU for the decoupled bench path, per encoder family. Empty for NVENC (its
+// HW-decode path covers every codec) and for software encoders.
+func hwUploadChain(encoder string) string {
+	switch {
+	case strings.HasSuffix(encoder, "_vaapi"):
+		return "format=nv12,hwupload"
+	case strings.HasSuffix(encoder, "_qsv"):
+		return "hwupload=extra_hw_frames=16,format=qsv"
+	}
+	return ""
+}
+
 // frameRE matches the running ffmpeg progress line. ffmpeg prints
 // `frame=  72 fps=0.0 ...` once at the END of the encode (with
 // -nostats the running updates are suppressed, but the terminal line
@@ -515,7 +563,7 @@ var frameRE = regexp.MustCompile(`frame=\s*([0-9]+)`)
 // Returns (0, false) on any failure so the caller treats it as
 // "rung failed". Output goes to /dev/null per branch — we measure
 // throughput, not segments.
-func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fallback bool, heights []int, encoder string, extraInputArgs []string) (float64, bool) {
+func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fallback bool, heights []int, encoder string, extraInputArgs []string, uploadChain string) (float64, bool) {
 	if len(heights) == 0 {
 		return 0, false
 	}
@@ -558,7 +606,13 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 	}
 
 	var fcBuf strings.Builder
-	fmt.Fprintf(&fcBuf, "[0:v]split=%d%s", len(heights), strings.Join(splitOutputs, ""))
+	// Decoupled path (uploadChain != "") software-decodes then uploads to the GPU
+	// before the split, so scale_*/encode run on GPU surfaces without HW decode.
+	head := "[0:v]"
+	if uploadChain != "" {
+		head = "[0:v]" + uploadChain + ","
+	}
+	fmt.Fprintf(&fcBuf, "%ssplit=%d%s", head, len(heights), strings.Join(splitOutputs, ""))
 	for i, h := range heights {
 		if hwScale != "" {
 			fmt.Fprintf(&fcBuf, ";[v%d]%s=-2:%d[o%d]", i, hwScale, h, i)
