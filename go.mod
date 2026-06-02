@@ -2,6 +2,13 @@ module github.com/evey-project/evey
 
 go 1.26.3
 
+// Pin the build toolchain to 1.26.4 to pull the patched stdlib (GO-2026-5037
+// crypto/x509, GO-2026-5039 net/textproto). CI runners (GOTOOLCHAIN=auto)
+// honor this and scan/build with 1.26.4; the golang:1.26.3 Docker images
+// (GOTOOLCHAIN=local) keep building with their bundled 1.26.3 since the `go`
+// directive stays at 1.26.3. Drop once the base images move to >=1.26.4.
+toolchain go1.26.4
+
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/coreos/go-oidc/v3 v3.17.0
