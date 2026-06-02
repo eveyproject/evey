@@ -47,6 +47,11 @@ appearanceDesc: "Choose your color theme and language."
 theme: Theme
 language: Language
 languageDesc: Choose your preferred language
+audioLanguage: Preferred Audio Language
+audioLanguageDesc: Default audio track when a file has multiple languages
+subtitleLanguage: Preferred Subtitle Language
+subtitleLanguageDesc: Default subtitle track (shown when a matching track is available)
+noPreference: No preference
 region:
   title: Region
   desc: Used for content classifications and regional preferences.

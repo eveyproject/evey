@@ -47,6 +47,11 @@ appearanceDesc: "Wählen Sie Ihr Farbdesign und Ihre Sprache."
 theme: Design
 language: Sprache
 languageDesc: Wählen Sie Ihre bevorzugte Sprache
+audioLanguage: Bevorzugte Audiosprache
+audioLanguageDesc: Standard-Audiospur, wenn eine Datei mehrere Sprachen hat
+subtitleLanguage: Bevorzugte Untertitelsprache
+subtitleLanguageDesc: Standard-Untertitelspur (angezeigt, wenn eine passende Spur verfügbar ist)
+noPreference: Keine Präferenz
 region:
   title: Region
   desc: Für Inhaltsklassifizierungen und regionale Einstellungen.

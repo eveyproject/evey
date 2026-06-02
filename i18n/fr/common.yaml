@@ -47,6 +47,11 @@ appearanceDesc: "Choisissez votre thème et votre langue."
 theme: Thème
 language: Langue
 languageDesc: Choisissez votre langue préférée
+audioLanguage: Langue audio préférée
+audioLanguageDesc: Piste audio par défaut lorsqu'un fichier contient plusieurs langues
+subtitleLanguage: Langue des sous-titres préférée
+subtitleLanguageDesc: Piste de sous-titres par défaut (affichée si une piste correspondante est disponible)
+noPreference: Aucune préférence
 region:
   title: Région
   desc: Utilisée pour les classifications de contenu et les préférences régionales.
