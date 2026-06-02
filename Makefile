@@ -1,6 +1,6 @@
 .PHONY: proto-gen plugin-sdk plugin-zips build test test-image test-shell lint sec-scan clean \
 	ci-fast ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec \
-	ci-local ci-local-lint ci-local-test ci-local-frontend \
+	ci-local ci-local-lint ci-local-test ci-local-frontend pre-push hooks \
 	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go
@@ -98,15 +98,15 @@ ci-fast: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec
 
 ci-fast-vet:
 	@echo "→ go vet (excl. /gen/)"
-	@docker exec -w /app evey-server sh -c 'go vet $$(go list ./... | grep -v /gen/)'
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go vet $$(go list ./... | grep -v /gen/)'
 
 ci-fast-vuln:
 	@echo "→ govulncheck (./cmd/... ./internal/...)"
-	@docker exec -w /app evey-server sh -c 'test -x /go/bin/govulncheck || go install golang.org/x/vuln/cmd/govulncheck@latest; /go/bin/govulncheck ./cmd/... ./internal/...'
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'test -x /go/bin/govulncheck || go install golang.org/x/vuln/cmd/govulncheck@latest; /go/bin/govulncheck ./cmd/... ./internal/...'
 
 ci-fast-build:
 	@echo "→ go build ./..."
-	@docker exec -w /app evey-server sh -c 'go build ./...'
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go build ./...'
 
 ci-fast-sec:
 	@# Mirror du ratchet CI : --new-from-rev=<base> ne flag QUE les findings
@@ -117,12 +117,12 @@ ci-fast-sec:
 	@# sinon HEAD~1.
 	@BASE=$$(git rev-parse "origin/$$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null || git rev-parse "origin/master" 2>/dev/null || git rev-parse HEAD~1); \
 	echo "→ golangci-lint -c .golangci.gosec.yml (new-from $$BASE)"; \
-	docker exec -w /app evey-server sh -c "(command -v golangci-lint >/dev/null || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2) && golangci-lint run -c .golangci.gosec.yml --new-from-rev=$$BASE ./..."
+	docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c "(command -v golangci-lint >/dev/null || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2) && golangci-lint run -c .golangci.gosec.yml --new-from-rev=$$BASE ./..."
 
 ci-local-lint:
 	@BASE=$$(git rev-parse "origin/$$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null || git rev-parse "origin/master" 2>/dev/null || git rev-parse HEAD~1); \
 	echo "→ golangci-lint (general, new-from $$BASE)"; \
-	docker exec -w /app evey-server sh -c "(command -v golangci-lint >/dev/null || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2) && golangci-lint run --new-from-rev=$$BASE ./..."
+	docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c "(command -v golangci-lint >/dev/null || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2) && golangci-lint run --new-from-rev=$$BASE ./..."
 
 ci-local: ci-fast ci-local-lint ci-local-test ci-local-frontend
 	@echo "✅ ci-local OK — mirror CI complet vert (vet + vuln + build + sec + lint + race + frontend typecheck)."
@@ -133,6 +133,19 @@ ci-local-test: test
 ci-local-frontend:
 	@echo "→ frontend typecheck (pnpm --filter web)"
 	@cd frontend && npx pnpm --filter web run typecheck
+
+# pre-push: exact mirror of the CI "Backend — quality & security" job (vet +
+# govulncheck + build + gosec ratchet + general lint), run by the git pre-push
+# hook so a red `quality` pipeline never surprises you again. No -race tests
+# here (that's the separate `correctness` job — use `make ci-local` for those).
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec ci-local-lint
+	@echo "✅ pre-push OK — quality gate green (vet + govulncheck + build + gosec + lint)."
+
+# hooks: activate the committed git hooks (one-time, sets local core.hooksPath).
+hooks:
+	@git config core.hooksPath .githooks
+	@echo "✓ git hooks active (core.hooksPath=.githooks) — push runs 'make pre-push' first."
+	@echo "  Bypass one push intentionally: SKIP_PREFLIGHT=1 git push"
 
 clean:
 	rm -rf bin/ gen/
