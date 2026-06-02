@@ -60,6 +60,19 @@ func (a *ProfilePrefsAdapter) GetProfilePreferences(ctx context.Context, profile
 	return p.Preferences, nil
 }
 
+// GetProfileAudioPrefs returns the profile-level audio language fields that
+// live in dedicated columns (not the JSONB preferences map). This allows
+// loadProfilePrefs to populate TranscodingPreferences.AudioLanguages and
+// .Locale without a second database round-trip (same GetProfileByID call path
+// via the svc cache).
+func (a *ProfilePrefsAdapter) GetProfileAudioPrefs(ctx context.Context, profileID string) (audioLanguages []string, locale string, err error) {
+	p, err := a.svc.GetProfileByID(ctx, profileID)
+	if err != nil {
+		return nil, "", err
+	}
+	return p.AudioLanguages, p.Locale, nil
+}
+
 func NewProfilePrefsAdapter(svc interface {
 	GetProfileByID(ctx context.Context, profileID string) (*domainuser.Profile, error)
 }) *ProfilePrefsAdapter {

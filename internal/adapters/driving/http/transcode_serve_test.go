@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
@@ -66,7 +67,7 @@ func (f *fakeProfilePrefsGetter) GetProfilePreferences(_ context.Context, _ stri
 func TestLoadProfilePrefs_NilGetter_ReturnsDefaults(t *testing.T) {
 	p := loadProfilePrefs(context.Background(), nil, "any")
 	def := apptranscoding.DefaultTranscodingPreferences()
-	if p != def {
+	if !reflect.DeepEqual(p, def) {
 		t.Errorf("expected defaults when getter is nil, got %+v", p)
 	}
 }
@@ -75,7 +76,7 @@ func TestLoadProfilePrefs_EmptyProfileID_ReturnsDefaults(t *testing.T) {
 	getter := &fakeProfilePrefsGetter{prefs: map[string]string{"allow_direct_play": "false"}}
 	p := loadProfilePrefs(context.Background(), getter, "")
 	def := apptranscoding.DefaultTranscodingPreferences()
-	if p != def {
+	if !reflect.DeepEqual(p, def) {
 		t.Errorf("expected defaults when profileID is empty, got %+v", p)
 	}
 }
@@ -84,7 +85,7 @@ func TestLoadProfilePrefs_ErrorFallsBackToDefaults(t *testing.T) {
 	getter := &fakeProfilePrefsGetter{err: errors.New("db down")}
 	p := loadProfilePrefs(context.Background(), getter, "p1")
 	def := apptranscoding.DefaultTranscodingPreferences()
-	if p != def {
+	if !reflect.DeepEqual(p, def) {
 		t.Errorf("expected defaults on getter error, got %+v", p)
 	}
 }

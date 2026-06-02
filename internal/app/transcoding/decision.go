@@ -70,6 +70,14 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 // Empty / zero values mean "auto" (use existing defaults). MaxBitrateKbps is
 // the baseline cap; MaxBitrateCellularKbps overrides it when NetworkType ==
 // "cellular" and is > 0 (lets mobile clients save data on cellular).
+//
+// AudioLanguages and Locale drive server-side default audio track selection:
+// when the client does not specify an explicit audioTrack query param, the
+// handler picks the first audio track whose language matches the preference
+// list (AudioLanguages → Locale → server language → IsDefault flag → 0).
+// These fields come from profile.audio_languages / profile.locale (not the
+// JSONB preferences map) and are injected by the HTTP layer before the
+// fingerprint is computed.
 type TranscodingPreferences struct {
 	PreferredVideoCodec    string // "", "auto", or e.g. "h264", "hevc", "av1"
 	PreferredAudioCodec    string // "", "auto", or e.g. "aac", "ac3", "eac3", "opus"
@@ -81,6 +89,13 @@ type TranscodingPreferences struct {
 	MaxBitrateKbps         int
 	MaxBitrateCellularKbps int
 	NetworkType            string // "wifi" (default) or "cellular"
+	// AudioLanguages is the ordered list of preferred audio track languages
+	// for this profile (e.g. ["fr","en"]). Used only for default-track
+	// resolution; does not affect codec or bitrate decisions.
+	AudioLanguages []string
+	// Locale is the UI locale of the profile (e.g. "fr", "en"). Used as a
+	// lower-priority fallback when AudioLanguages is empty or yields no match.
+	Locale string
 }
 
 // DefaultTranscodingPreferences returns prefs with all flags enabled (client defaults).

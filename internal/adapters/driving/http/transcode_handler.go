@@ -388,6 +388,13 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ProfileAudioPrefsGetter extends ProfilePrefsGetter with the profile-level
+// audio language fields that live outside the JSONB preferences map.
+// Implemented by ProfilePrefsAdapter when wired with a full profile getter.
+type ProfileAudioPrefsGetter interface {
+	GetProfileAudioPrefs(ctx context.Context, profileID string) (audioLanguages []string, locale string, err error)
+}
+
 // loadProfilePrefs fetches transcoding prefs for the profile and falls back to
 // permissive defaults on any error or when no getter is configured.
 func loadProfilePrefs(ctx context.Context, getter ProfilePrefsGetter, profileID string) apptranscoding.TranscodingPreferences {
@@ -399,5 +406,18 @@ func loadProfilePrefs(ctx context.Context, getter ProfilePrefsGetter, profileID 
 		slog.Debug("load profile prefs failed, using defaults", slog.String("profile_id", profileID), slog.Any("err", err))
 		return apptranscoding.DefaultTranscodingPreferences()
 	}
-	return apptranscoding.ParseTranscodingPreferences(raw)
+	tp := apptranscoding.ParseTranscodingPreferences(raw)
+	// If the getter also provides audio language fields (profile.audio_languages
+	// and profile.locale), inject them so the handler can resolve the default
+	// audio track without a second round-trip.
+	if ag, ok := getter.(ProfileAudioPrefsGetter); ok {
+		langs, locale, aerr := ag.GetProfileAudioPrefs(ctx, profileID)
+		if aerr == nil {
+			tp.AudioLanguages = langs
+			tp.Locale = locale
+		} else {
+			slog.Debug("load profile audio prefs failed", slog.String("profile_id", profileID), slog.Any("err", aerr))
+		}
+	}
+	return tp
 }
