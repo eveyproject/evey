@@ -38,6 +38,13 @@ type EncodeCapability struct {
 	// QSV box (H.264 only) still software-encodes HEVC instead of failing.
 	HWCodecs []string `json:"hw_codecs,omitempty"`
 
+	// HWDecodeCodecs lists the domain video codecs the HW backend can actually
+	// DECODE (probed separately from encode — a pre-Skylake Intel iGPU encodes
+	// H.264 but cannot decode HEVC). The pipeline only puts `-hwaccel` decode on
+	// a source whose codec is here, software-decoding the rest so an undecodable
+	// source (e.g. HEVC on old iGPU) never stalls. Empty when no HW.
+	HWDecodeCodecs []string `json:"hw_decode_codecs,omitempty"`
+
 	// HWDevice is the DRM render node for VAAPI/QSV (e.g. /dev/dri/renderD128),
 	// empty for NVENC (CUDA selects the device). Forwarded to the ffmpeg
 	// hardware pipeline as -hwaccel_device / -qsv_device.

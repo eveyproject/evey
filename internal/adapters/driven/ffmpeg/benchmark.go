@@ -136,8 +136,14 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	// the arg builder only emits validated ones (level-1 safety). Only when a
 	// HW backend passed the realtime bench.
 	var hwFeatures []string
+	var hwDecodeCodecs []string
 	if hwMax > 0 {
 		hwFeatures = r.probeHWFeatures(ctx, hwBackend)
+		// Probe DECODE support separately — encode-capable ≠ decode-capable
+		// (old iGPU encodes H.264 but can't decode HEVC). Drives the pipeline's
+		// per-source -hwaccel gating so an undecodable source software-decodes
+		// instead of stalling the player.
+		hwDecodeCodecs = probeHWDecodeCodecs(ctx, r.ffmpegPath, hwBackend, hwDevice)
 	}
 
 	cap := transcoding.EncodeCapability{
@@ -145,6 +151,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		HWMaxHeight:         hwMax,
 		HWBackend:           hwBackend,
 		HWCodecs:            hwCodecs,
+		HWDecodeCodecs:      hwDecodeCodecs,
 		HWDevice:            hwDevice,
 		HWFeatures:          hwFeatures,
 		DetectedBackends:    detected,

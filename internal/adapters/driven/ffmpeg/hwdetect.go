@@ -166,6 +166,74 @@ func probeHWCodecs(ctx context.Context, ffmpegPath, hwType, device string) []str
 	return codecs
 }
 
+// probeHWDecodeCodecs returns the domain video codecs the GPU can HW-DECODE via
+// hwType. Encode capability does NOT imply decode capability: a pre-Skylake Intel
+// iGPU encodes H.264 but cannot decode HEVC, so feeding such a source to
+// `-hwaccel <type>` fails (ENOSYS) and stalls the player. Probing decode
+// separately lets the transcode pipeline software-decode what the GPU can't, and
+// the admin see an honest encode/decode support matrix.
+func probeHWDecodeCodecs(ctx context.Context, ffmpegPath, hwType, device string) []string {
+	var out []string
+	for _, c := range []struct{ name, swEncoder, format string }{
+		{"h264", "libx264", "h264"},
+		{"hevc", "libx265", "hevc"},
+	} {
+		if probeHWDecode(ctx, ffmpegPath, c.swEncoder, c.format, hwType, device) {
+			out = append(out, c.name)
+		}
+	}
+	return out
+}
+
+// probeHWDecode software-encodes a tiny real clip in the target codec, then tries
+// to HW-DECODE it through hwType. Exit 0 → the GPU decodes that codec. Fail-closed
+// on any error/timeout (worst case: software decode, a perf cost, never a stall).
+func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, hwType, device string) bool {
+	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
+	defer cancel()
+
+	tmp, err := os.CreateTemp("", "evey-decprobe-*."+format)
+	if err != nil {
+		return false
+	}
+	tmpPath := tmp.Name()
+	if cerr := tmp.Close(); cerr != nil {
+		return false
+	}
+	defer func() {
+		if rerr := os.Remove(tmpPath); rerr != nil {
+			slog.Debug("hwdetect: decode-probe temp cleanup failed", slog.Any("err", rerr))
+		}
+	}()
+
+	// 1. software-encode a tiny real sample of the codec.
+	gen := exec.CommandContext(ctx, ffmpegPath, "-hide_banner", "-v", "error", "-nostdin", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.4",
+		"-c:v", swEncoder, "-f", format, tmpPath)
+	if gen.Run() != nil {
+		return false
+	}
+
+	// 2. HW-decode it through the backend; -hwaccel_output_format forces the GPU
+	// decode path (no silent software fallback), so success means real HW decode.
+	args := []string{"-hide_banner", "-v", "error", "-nostdin"}
+	switch hwType {
+	case "vaapi":
+		if device == "" {
+			return false
+		}
+		args = append(args, "-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi", "-hwaccel_device", device)
+	case "qsv":
+		args = append(args, "-hwaccel", "qsv", "-hwaccel_output_format", "qsv")
+	case "nvenc":
+		args = append(args, "-hwaccel", "cuda", "-hwaccel_output_format", "cuda")
+	default:
+		return false
+	}
+	args = append(args, "-i", tmpPath, "-f", "null", "-")
+	return exec.CommandContext(ctx, ffmpegPath, args...).Run() == nil
+}
+
 // probeHWEncode runs a tiny real encode through the hardware encoder to confirm
 // THIS host's GPU/driver can actually use it — not merely that ffmpeg was built
 // with it. Fail-closed: returns false on any error/timeout, so a dead backend is
