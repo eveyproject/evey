@@ -280,7 +280,7 @@ func (g *ManifestGenerator) Variant(in ManifestInput, profileIdx int) (string, e
 		ext = "m4s"
 	}
 
-	for i := 0; i < segCount; i++ {
+	for i := range segCount {
 		segDur := ManifestSegmentSeconds
 		if i == segCount-1 {
 			// Last segment runs from i*segDur to end-of-media. Floats: clamp
@@ -351,7 +351,7 @@ func (g *ManifestGenerator) AudioPlaylist(in ManifestInput, trackIdx int) (strin
 
 	fmt.Fprintf(&b, "#EXT-X-MAP:URI=\"audio_%d_init.mp4%s\"\n", trackIdx, suffix)
 
-	for i := 0; i < segCount; i++ {
+	for i := range segCount {
 		segDur := ManifestSegmentSeconds
 		if i == segCount-1 {
 			leftover := in.DurationSec - float64(i)*ManifestSegmentSeconds

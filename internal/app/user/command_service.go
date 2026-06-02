@@ -233,7 +233,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		// cost the same as a wrong password. Without this, the bcrypt verify below
 		// runs ONLY for existing users, so the ~100ms (cost-12) delta leaks which
 		// usernames exist. Burn an equivalent bcrypt verify against a fixed hash.
-		_, _ = s.hasher.Verify(password, dummyLoginHash)
+		_, _ = s.hasher.Verify(password, dummyLoginHash) //nolint:errcheck // constant-time burn; result intentionally discarded
 		if recErr := s.loginAttempts.Record(ctx, username, s.loginMaxFails, s.loginWindow); recErr != nil {
 			slog.Warn("login attempt Record", slog.String("username", username), slog.Any("err", recErr))
 		}

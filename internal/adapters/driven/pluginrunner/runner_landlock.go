@@ -22,8 +22,8 @@ import (
 // card/primary node (/dev/dri/card*) — the launcher re-validates the shape
 // before granting the ioctl-bearing rule.
 func resolveRenderNode() string {
-	matches, _ := filepath.Glob("/dev/dri/renderD[0-9][0-9][0-9]")
-	if len(matches) == 0 {
+	matches, err := filepath.Glob("/dev/dri/renderD[0-9][0-9][0-9]")
+	if err != nil || len(matches) == 0 {
 		return ""
 	}
 	sort.Strings(matches)

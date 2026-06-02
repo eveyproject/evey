@@ -2,6 +2,7 @@ package mkvgo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -47,6 +48,15 @@ func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 //  5. rename the original to "<path>.mkvgobak", then rename the temp into place;
 //     if the second rename fails the backup is renamed back, so the original is
 //     always recoverable.
+// removeQuiet deletes path best-effort. A missing file is fine (the temp may
+// never have been created); any other failure is logged but never fatal — these
+// are cleanup paths where the caller already holds its real result.
+func removeQuiet(path string) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		slog.Warn("mkvgo: temp cleanup failed", slog.String("path", path), slog.Any("err", err))
+	}
+}
+
 func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.ReindexOptions) (mkv.ReindexResult, error) {
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.ReindexInPlace")
 	defer span.End()
@@ -73,15 +83,15 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 	// (2) Reindex to a sibling temp. Same directory → same filesystem, so the
 	// final swap is a true atomic rename.
 	tmp := path + ".reindex.tmp"
-	_ = os.Remove(tmp) // clear any stale temp from a previous aborted run
-	if err := ops.Reindex(ctx, path, tmp); err != nil {
-		_ = os.Remove(tmp)
+	removeQuiet(tmp) // clear any stale temp from a previous aborted run
+	if err = ops.Reindex(ctx, path, tmp); err != nil {
+		removeQuiet(tmp)
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: rebuild: %w", err)
 	}
 	committed := false
 	defer func() {
 		if !committed {
-			_ = os.Remove(tmp)
+			removeQuiet(tmp)
 		}
 	}()
 
@@ -130,7 +140,7 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 		if rerr := os.Rename(bak, path); rerr != nil {
 			// Both failed: the original is safe at bak but not at path. Surface
 			// loudly with the backup location so an operator can restore by hand.
-			return mkv.ReindexResult{}, fmt.Errorf("reindex: swap failed AND restore failed, original preserved at %q: swap=%w restore=%v", bak, err, rerr)
+			return mkv.ReindexResult{}, fmt.Errorf("reindex: swap failed AND restore failed, original preserved at %q: swap=%w restore=%w", bak, err, rerr)
 		}
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: swap failed, original restored: %w", err)
 	}

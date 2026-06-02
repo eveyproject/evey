@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1062,12 +1063,7 @@ func hwDeinterlaceFilter(accel transcoding.HWAccelType) string {
 // ⇒ the proven conservative baseline. No `-pix_fmt yuv420p` — GPU surfaces.
 func hwEncoderQualityArgs(accel transcoding.HWAccelType, features []string) []string {
 	has := func(f string) bool {
-		for _, x := range features {
-			if x == f {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(features, f)
 	}
 	switch accel {
 	case transcoding.NVENC:

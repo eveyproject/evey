@@ -96,7 +96,7 @@ func TestDemoteCapability_TransientAndNonHW_AreNoOps(t *testing.T) {
 func TestDemoteCapability_ConcurrentFailures_Debounce(t *testing.T) {
 	svc, _ := seedHWService(t)
 	var wg sync.WaitGroup
-	for i := 0; i < 24; i++ {
+	for range 24 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
