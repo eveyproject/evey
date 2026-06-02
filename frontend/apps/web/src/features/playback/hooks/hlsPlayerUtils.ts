@@ -128,10 +128,8 @@ export function resolveDefaultAudio(
 // Forced subtitles: when a forced subtitle track exists whose language matches
 // the resolved audio language, that track is preferred. This mirrors standard
 // streaming behaviour (forced tracks shown for foreign-language segments).
-// NOTE: SubtitleStream does not currently carry an isForced flag — it is not
-// propagated from V1MediaStream through $mediaId.lazy.tsx. The forced-subtitle
-// logic is implemented structurally but will only activate once that field is
-// added to SubtitleStream (outside this whitelist). See report for details.
+// SubtitleStream carries isForced, propagated from V1MediaStream in
+// $mediaId.lazy.tsx, so this path is active.
 export function resolveDefaultSubtitle(
   subtitleStreams: SubtitleStream[],
   seriesId: string | undefined,

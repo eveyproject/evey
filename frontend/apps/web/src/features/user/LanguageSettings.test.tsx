@@ -42,17 +42,19 @@ describe("LanguageSettings", () => {
 
   it("renders all language options", () => {
     render(<LanguageSettings />, { wrapper: createWrapper() });
-    expect(screen.getByText("English")).toBeInTheDocument();
-    expect(screen.getByText("Français")).toBeInTheDocument();
-    expect(screen.getByText("Español")).toBeInTheDocument();
-    expect(screen.getByText("中文")).toBeInTheDocument();
-    expect(screen.getByText("हिन्दी")).toBeInTheDocument();
+    // getAllByText: these language names now also appear in the audio/subtitle
+    // preference selects, so each label renders in more than one combobox.
+    expect(screen.getAllByText("English")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Français")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Español")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("中文")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("हिन्दी")[0]).toBeInTheDocument();
   });
 
   it("changes language on selection", async () => {
     const user = userEvent.setup();
     render(<LanguageSettings />, { wrapper: createWrapper() });
-    const select = screen.getByRole("combobox");
+    const select = screen.getAllByRole("combobox")[0]; // [0] = UI language (audio/subtitle prefs added after)
     await user.selectOptions(select, "fr");
     expect(select).toHaveValue("fr");
   });

@@ -4,6 +4,7 @@ export type SubtitleStream = {
   language?: string;
   title?: string;
   isDefault?: boolean;
+  isForced?: boolean; // forced track — auto-shown when audio matches its language
   isExternal?: boolean;
   externalPath?: string;
   codec?: string;

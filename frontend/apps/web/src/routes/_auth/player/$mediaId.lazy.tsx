@@ -197,6 +197,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
           language: s.language,
           title: s.title,
           isDefault: s.isDefault,
+          isForced: s.isForced,
           isExternal: s.isExternal,
           externalPath: s.externalPath,
           codec: s.codec,
