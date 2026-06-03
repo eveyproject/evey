@@ -19,17 +19,19 @@ import (
 // --- fakes local to this test file ---
 
 type fakeProvider struct {
-	name          string
-	searchResults []domain.MetadataResult
-	searchErr     error
-	detailResult  *domain.MetadataResult
-	detailErr     error
-	seasonResult  *domain.MetadataResult
-	seasonErr     error
-	episodeResult *domain.MetadataResult
-	episodeErr    error
-	lookupResult  *domain.MetadataResult
-	lookupErr     error
+	name             string
+	searchResults    []domain.MetadataResult
+	searchErr        error
+	detailResult     *domain.MetadataResult
+	detailErr        error
+	seasonResult     *domain.MetadataResult
+	seasonErr        error
+	episodeResult    *domain.MetadataResult
+	episodeErr       error
+	lookupResult     *domain.MetadataResult
+	lookupErr        error
+	altTitles        map[string][]string // key: providerID
+	altTitlesErr     error
 }
 
 func (f *fakeProvider) Name() string { return f.name }
@@ -47,6 +49,15 @@ func (f *fakeProvider) GetEpisodeDetails(_ context.Context, _ string, _, _ int) 
 }
 func (f *fakeProvider) LookupByExternalID(_ context.Context, _, _ string) (*domain.MetadataResult, error) {
 	return f.lookupResult, f.lookupErr
+}
+func (f *fakeProvider) AlternativeTitles(_ context.Context, providerID string, _ string) ([]string, error) {
+	if f.altTitlesErr != nil {
+		return nil, f.altTitlesErr
+	}
+	if f.altTitles != nil {
+		return f.altTitles[providerID], nil
+	}
+	return nil, nil
 }
 
 type fakeCollectionLinker struct {
@@ -1010,4 +1021,133 @@ func TestAutoEnrichAll_ContextCanceled(t *testing.T) {
 	item := &domainlib.MediaItem{ID: "m1", Title: "X", Type: "movie"}
 	e.AutoEnrichAll(ctx, []*domainlib.MediaItem{item}, nil)
 	assert.Empty(t, item.Overview) // limiter.Wait returns err immediately
+}
+
+// --- Alternative-titles matching (Fix A) ---
+
+// TestPickBestMatch_AltTitleWins is the "Train to Busan"-shaped case:
+// TMDB search (fr) returns three results; the correct film has a
+// localised French title as its primary Title but carries the English
+// title "Train to Busan" in its AlternativeTitles field. pickBestMatch
+// must pick it over a word-sharing wrong candidate that appears first.
+func TestPickBestMatch_AltTitleWins(t *testing.T) {
+	results := []domain.MetadataResult{
+		// Wrong film (first in TMDB popularity order) — shares word "train"
+		{Title: "The Last Train to New York", OriginalTitle: "The Last Train to New York",
+			ProviderIDs: map[string]string{"tmdb": "550446"}},
+		// Correct film — French title is primary; English alt-title populated
+		{Title: "Dernier train pour Busan", OriginalTitle: "부산행",
+			AlternativeTitles: []string{"Train to Busan"},
+			ProviderIDs:       map[string]string{"tmdb": "396535"}},
+		// Unrelated sequel
+		{Title: "Peninsula", OriginalTitle: "반도",
+			ProviderIDs: map[string]string{"tmdb": "581392"}},
+	}
+	best := pickBestMatch(results, "Train to Busan", nil)
+	assert.Equal(t, "Dernier train pour Busan", best.Title,
+		"alt-title exact match must win over word-share candidate")
+	assert.Equal(t, "396535", best.ProviderIDs["tmdb"])
+}
+
+// TestFetchBestCandidate_AltTitleLazyFetch verifies that when no candidate
+// exactly matches on Title/OriginalTitle, fetchBestCandidate lazily calls
+// AlternativeTitles for top candidates and returns the correct one.
+func TestFetchBestCandidate_AltTitleLazyFetch(t *testing.T) {
+	// Provider returns TMDB search results with localised titles.
+	// Alt-titles call for "396535" returns the English title.
+	primary := &fakeProvider{
+		name: "tmdb",
+		altTitles: map[string][]string{
+			"550446": {"The Last Train to New York"},
+			"396535": {"Train to Busan", "부산행"},
+		},
+		detailResult: &domain.MetadataResult{
+			Title:       "Dernier train pour Busan",
+			OriginalTitle: "부산행",
+			Overview:    "A zombie film set on a train to Busan.",
+			ProviderIDs: map[string]string{"tmdb": "396535"},
+		},
+	}
+	e, _, _, _, _, _ := newTestEnricher(primary, nil, nil)
+
+	results := []domain.MetadataResult{
+		{Title: "The Last Train to New York", OriginalTitle: "The Last Train to New York",
+			ProviderIDs: map[string]string{"tmdb": "550446"}},
+		{Title: "Dernier train pour Busan", OriginalTitle: "부산행",
+			ProviderIDs: map[string]string{"tmdb": "396535"}},
+		{Title: "Peninsula", OriginalTitle: "반도",
+			ProviderIDs: map[string]string{"tmdb": "581392"}},
+	}
+
+	result := e.fetchBestCandidate(context.Background(), primary, results, "Train to Busan", nil, "movie")
+	require.NotNil(t, result)
+	assert.Equal(t, "396535", result.ProviderIDs["tmdb"],
+		"lazy alt-title fetch must identify and return the correct candidate")
+	assert.Equal(t, "A zombie film set on a train to Busan.", result.Overview,
+		"full details must be fetched for the alt-title match")
+}
+
+// --- Cascade query retry (Fix B) ---
+
+// TestSearchAndFetchBest_CascadeRetryFindsResult is the "Wanted Choisi Ton
+// Destin"-shaped case: the full query returns 0 results, but successive
+// word-trimming eventually hits a non-empty result set. The enricher must
+// return the best candidate from the trimmed query.
+func TestSearchAndFetchBest_CascadeRetryFindsResult(t *testing.T) {
+	// The fake provider returns nothing for the full query and for
+	// intermediate trims, but returns a result for "Wanted".
+	primary := &fakeProvider{
+		name: "tmdb",
+		// Search is keyed on exact query string; anything not "Wanted" → nil
+		detailResult: &domain.MetadataResult{
+			Title:       "Wanted: Choisis ton destin",
+			Overview:    "Action thriller.",
+			ProviderIDs: map[string]string{"tmdb": "8909"},
+		},
+	}
+	// Manually wire search results only for the trimmed query.
+	primary.searchResults = []domain.MetadataResult{
+		{Title: "Wanted: Choisis ton destin", ProviderIDs: map[string]string{"tmdb": "8909"}},
+	}
+
+	// We need a provider whose Search returns nothing for the long query
+	// but something for the short one. Override with a custom fakeProvider.
+	shortQueryProvider := &cascadeTestProvider{
+		wantQuery: "Wanted",
+		result: []domain.MetadataResult{
+			{Title: "Wanted: Choisis ton destin", ProviderIDs: map[string]string{"tmdb": "8909"}},
+		},
+		detailResult: &domain.MetadataResult{
+			Title:       "Wanted: Choisis ton destin",
+			Overview:    "Action thriller.",
+			ProviderIDs: map[string]string{"tmdb": "8909"},
+		},
+	}
+	e, _, _, _, _, _ := newTestEnricher(&fakeProvider{name: "tmdb"}, nil, nil)
+
+	result := e.searchAndFetchBest(context.Background(), shortQueryProvider,
+		"Wanted Choisi Ton Destin", nil, "movie", 0, slog.Default())
+	require.NotNil(t, result, "cascade retry must return a result")
+	assert.Equal(t, "Wanted: Choisis ton destin", result.Title)
+}
+
+// cascadeTestProvider returns results only when the query equals wantQuery.
+type cascadeTestProvider struct {
+	wantQuery    string
+	result       []domain.MetadataResult
+	detailResult *domain.MetadataResult
+}
+
+func (p *cascadeTestProvider) Name() string { return "tmdb" }
+func (p *cascadeTestProvider) Search(_ context.Context, query string, _ *int, _ string) ([]domain.MetadataResult, error) {
+	if query == p.wantQuery {
+		return p.result, nil
+	}
+	return nil, nil
+}
+func (p *cascadeTestProvider) GetByProviderID(_ context.Context, _ string, _ string) (*domain.MetadataResult, error) {
+	return p.detailResult, nil
+}
+func (p *cascadeTestProvider) AlternativeTitles(_ context.Context, _ string, _ string) ([]string, error) {
+	return nil, nil
 }

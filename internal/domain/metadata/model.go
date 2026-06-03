@@ -45,6 +45,10 @@ type MetadataResult struct {
 	Collection      *CollectionRef
 	// TV series structure info (for match validation)
 	SeasonEpisodeCounts map[int]int // season_number → episode_count
+	// AlternativeTitles holds locale-variant release titles (e.g. the US
+	// English title for a film that TMDB returns under its localised name).
+	// Populated lazily on the ambiguous-match path; empty otherwise.
+	AlternativeTitles []string
 }
 
 type TrailerResult struct {

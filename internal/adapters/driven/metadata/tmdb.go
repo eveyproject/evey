@@ -17,13 +17,14 @@ import (
 )
 
 type TMDBProvider struct {
-	apiKey      string
-	baseURL     string
-	languageFn  func() string
-	httpClient  *http.Client
-	searchCache *cache.TTLCache[[]domain.MetadataResult]
-	detailCache *cache.TTLCache[domain.MetadataResult]
-	stopCleanup func()
+	apiKey        string
+	baseURL       string
+	languageFn    func() string
+	httpClient    *http.Client
+	searchCache   *cache.TTLCache[[]domain.MetadataResult]
+	detailCache   *cache.TTLCache[domain.MetadataResult]
+	altTitleCache *cache.TTLCache[[]string]
+	stopCleanup   func()
 }
 
 func (p *TMDBProvider) language() string { return p.languageFn() }
@@ -34,14 +35,16 @@ func NewTMDBProviderWithGetter(apiKey string, languageFn func() string, httpClie
 	}
 	sc, stopSC := cache.New[[]domain.MetadataResult](10 * time.Minute)
 	dc, stopDC := cache.New[domain.MetadataResult](10 * time.Minute)
+	ac, stopAC := cache.New[[]string](10 * time.Minute)
 	return &TMDBProvider{
-		apiKey:      apiKey,
-		baseURL:     defaultBaseURL,
-		languageFn:  languageFn,
-		httpClient:  httpClient,
-		searchCache: sc,
-		detailCache: dc,
-		stopCleanup: func() { stopSC(); stopDC() },
+		apiKey:        apiKey,
+		baseURL:       defaultBaseURL,
+		languageFn:    languageFn,
+		httpClient:    httpClient,
+		searchCache:   sc,
+		detailCache:   dc,
+		altTitleCache: ac,
+		stopCleanup:   func() { stopSC(); stopDC(); stopAC() },
 	}
 }
 
@@ -55,14 +58,16 @@ func NewTMDBProvider(apiKey string, language string, httpClient *http.Client) *T
 	lang := language
 	sc, stopSC := cache.New[[]domain.MetadataResult](10 * time.Minute)
 	dc, stopDC := cache.New[domain.MetadataResult](10 * time.Minute)
+	ac, stopAC := cache.New[[]string](10 * time.Minute)
 	return &TMDBProvider{
-		apiKey:      apiKey,
-		baseURL:     defaultBaseURL,
-		languageFn:  func() string { return lang },
-		httpClient:  httpClient,
-		searchCache: sc,
-		detailCache: dc,
-		stopCleanup: func() { stopSC(); stopDC() },
+		apiKey:        apiKey,
+		baseURL:       defaultBaseURL,
+		languageFn:    func() string { return lang },
+		httpClient:    httpClient,
+		searchCache:   sc,
+		detailCache:   dc,
+		altTitleCache: ac,
+		stopCleanup:   func() { stopSC(); stopDC(); stopAC() },
 	}
 }
 
@@ -404,6 +409,62 @@ func (p *TMDBProvider) FetchPersonTranslations(ctx context.Context, personID str
 		}
 	}
 	return results, nil
+}
+
+// AlternativeTitles fetches alternative release titles for a movie or TV series
+// from TMDB. Movie titles are under the `titles` key; TV titles use `results`.
+// Results are cached to bound extra calls on the ambiguous-match path.
+func (p *TMDBProvider) AlternativeTitles(ctx context.Context, providerID string, mediaType string) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.AlternativeTitles")
+	defer span.End()
+
+	cacheKey := "tmdb:alttitles:" + mediaType + ":" + providerID
+	if cached, ok := p.altTitleCache.Get(cacheKey); ok {
+		return cached, nil
+	}
+
+	var u string
+	switch mediaType {
+	case "movie":
+		u = fmt.Sprintf("%s/movie/%s/alternative_titles", p.baseURL, providerID)
+	case "tv":
+		u = fmt.Sprintf("%s/tv/%s/alternative_titles", p.baseURL, providerID)
+	default:
+		return nil, fmt.Errorf("unsupported media type for alternative_titles: %s", mediaType)
+	}
+
+	body, err := p.doRequestWithRetry(ctx, u)
+	if err != nil {
+		return nil, fmt.Errorf("tmdb alternative_titles request: %w", err)
+	}
+
+	// Movie response: {"id":…,"titles":[{"iso_3166_1":"US","title":"…"},…]}
+	// TV response:    {"id":…,"results":[{"iso_3166_1":"US","title":"…"},…]}
+	var resp struct {
+		Titles  []struct{ Title string `json:"title"` } `json:"titles"`
+		Results []struct{ Title string `json:"title"` } `json:"results"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("tmdb alternative_titles unmarshal: %w", err)
+	}
+
+	seen := make(map[string]bool)
+	var titles []string
+	for _, t := range resp.Titles {
+		if t.Title != "" && !seen[t.Title] {
+			seen[t.Title] = true
+			titles = append(titles, t.Title)
+		}
+	}
+	for _, t := range resp.Results {
+		if t.Title != "" && !seen[t.Title] {
+			seen[t.Title] = true
+			titles = append(titles, t.Title)
+		}
+	}
+
+	p.altTitleCache.Set(cacheKey, titles, cacheTTL)
+	return titles, nil
 }
 
 // GetPersonDetails searches TMDB for a person by name and returns biographical info.

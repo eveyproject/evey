@@ -86,3 +86,12 @@ type TranslationProvider interface {
 	FetchTranslations(ctx context.Context, providerID string, mediaType string, locales []string) (map[string]MetadataResult, error)
 	FetchPersonTranslations(ctx context.Context, personName string, locales []string) (map[string]string, error)
 }
+
+// AlternativeTitlesProvider fetches locale-variant release titles for a
+// specific provider ID. Used on the ambiguous-match path to resolve
+// filenames that differ from the localised search-language title
+// (e.g. "Train to Busan" when TMDB returns "Dernier train pour Busan").
+// Providers that have no equivalent endpoint return (nil, nil).
+type AlternativeTitlesProvider interface {
+	AlternativeTitles(ctx context.Context, providerID string, mediaType string) ([]string, error)
+}

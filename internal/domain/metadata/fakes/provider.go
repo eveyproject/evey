@@ -12,24 +12,26 @@ import (
 var ErrNotFound = shared.ErrNotFound
 
 type FakeMetadataProvider struct {
-	mu              sync.RWMutex
-	ProviderName    string
-	SearchResults   map[string][]metadata.MetadataResult
-	ByProviderID    map[string]*metadata.MetadataResult
-	EpisodeDetails  map[string]*metadata.MetadataResult // key: "seriesID:season:episode"
-	SeasonDetails   map[string]*metadata.MetadataResult // key: "seriesID:season"
-	ExternalLookups map[string]*metadata.MetadataResult // key: "provider:id"
-	Err             error
+	mu                    sync.RWMutex
+	ProviderName          string
+	SearchResults         map[string][]metadata.MetadataResult
+	ByProviderID          map[string]*metadata.MetadataResult
+	EpisodeDetails        map[string]*metadata.MetadataResult // key: "seriesID:season:episode"
+	SeasonDetails         map[string]*metadata.MetadataResult // key: "seriesID:season"
+	ExternalLookups       map[string]*metadata.MetadataResult // key: "provider:id"
+	AltTitlesResults      map[string][]string                 // key: "mediaType:providerID"
+	Err                   error
 }
 
 func NewFakeMetadataProvider(name string) *FakeMetadataProvider {
 	return &FakeMetadataProvider{
-		ProviderName:    name,
-		SearchResults:   make(map[string][]metadata.MetadataResult),
-		ByProviderID:    make(map[string]*metadata.MetadataResult),
-		EpisodeDetails:  make(map[string]*metadata.MetadataResult),
-		SeasonDetails:   make(map[string]*metadata.MetadataResult),
-		ExternalLookups: make(map[string]*metadata.MetadataResult),
+		ProviderName:     name,
+		SearchResults:    make(map[string][]metadata.MetadataResult),
+		ByProviderID:     make(map[string]*metadata.MetadataResult),
+		EpisodeDetails:   make(map[string]*metadata.MetadataResult),
+		SeasonDetails:    make(map[string]*metadata.MetadataResult),
+		ExternalLookups:  make(map[string]*metadata.MetadataResult),
+		AltTitlesResults: make(map[string][]string),
 	}
 }
 
@@ -97,6 +99,15 @@ func (p *FakeMetadataProvider) LookupByExternalID(_ context.Context, providerNam
 		return nil, ErrNotFound
 	}
 	return r, nil
+}
+
+func (p *FakeMetadataProvider) AlternativeTitles(_ context.Context, providerID string, mediaType string) ([]string, error) {
+	if p.Err != nil {
+		return nil, p.Err
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.AltTitlesResults[mediaType+":"+providerID], nil
 }
 
 func itoa(i int) string {

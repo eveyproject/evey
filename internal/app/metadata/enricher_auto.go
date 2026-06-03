@@ -292,6 +292,36 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 		}
 		return nil
 	}
+
+	// Cascade retry: when the full query returns nothing, progressively trim
+	// trailing words (up to 3 retries) to handle filenames with marketing
+	// subtitles that poison the search (e.g. "Wanted Choisi Ton Destin" →
+	// "Wanted Choisi Ton" → "Wanted Choisi" → "Wanted"). Stop as soon as we
+	// get at least one result. Never trim below a single word.
+	if len(results) == 0 {
+		trimmed := title
+		for retry := 0; retry < 3 && len(results) == 0; retry++ {
+			idx := strings.LastIndexAny(trimmed, " -")
+			if idx <= 0 {
+				break // already at one word
+			}
+			trimmed = strings.TrimRight(trimmed[:idx], " -")
+			if trimmed == "" {
+				break
+			}
+			results, err = provider.Search(ctx, trimmed, year, mediaType)
+			if err != nil {
+				results = nil
+			}
+			if len(results) > 0 && log != nil {
+				log.Debug("cascade query found results",
+					slog.String("original", title),
+					slog.String("trimmed", trimmed),
+					slog.Int("count", len(results)))
+			}
+		}
+	}
+
 	if len(results) == 0 {
 		return nil
 	}
@@ -412,7 +442,60 @@ func seriesFallbackScore(diskEp, tmdbEp int, year *int, popularity float64) floa
 }
 
 // fetchBestCandidate picks the best title match and fetches full details.
+// When no candidate exactly matches the query on Title/OriginalTitle, it
+// lazily fetches alternative titles for the top ~5 candidates (capped,
+// cached by the provider) and retries the exact-match against the full
+// title set. This resolves localised-title mismatches without per-language
+// search fan-out (e.g. "Train to Busan" when TMDB returned "Dernier train
+// pour Busan" as the primary title).
 func (e *Enricher) fetchBestCandidate(ctx context.Context, provider domainmetadata.MetadataProvider, results []domainmetadata.MetadataResult, title string, year *int, mediaType string) *domainmetadata.MetadataResult {
+	// Phase 1: cheap exact-match on Title/OriginalTitle — no extra calls.
+	qNorm := normalizeForMatch(title)
+	if qNorm != "" {
+		for _, r := range results {
+			if normalizeForMatch(r.Title) == qNorm || normalizeForMatch(r.OriginalTitle) == qNorm {
+				goto pickDone // at least one exact match exists; fall through to pickBestMatch
+			}
+		}
+		// Phase 2: no exact match — lazily fetch alt-titles for top-5 candidates.
+		if atp, ok := altTitlesCapability(provider); ok {
+			capped := results
+			if len(capped) > 5 {
+				capped = capped[:5]
+			}
+			enriched := make([]domainmetadata.MetadataResult, len(results))
+			copy(enriched, results)
+			for i, r := range capped {
+				pid := r.ProviderIDs[provider.Name()]
+				if pid == "" {
+					continue
+				}
+				alts, err := atp.AlternativeTitles(ctx, pid, mediaType)
+				if err != nil || len(alts) == 0 {
+					continue
+				}
+				// Check for an exact hit among the alt titles now, and return
+				// early rather than waiting for pickBestMatch — the caller
+				// wants the full details for the matched candidate.
+				for _, alt := range alts {
+					if normalizeForMatch(alt) == qNorm {
+						if year != nil && r.Year != nil && *r.Year != *year {
+							continue // year mismatch, keep scanning
+						}
+						// Fetch full details for this candidate.
+						if full, fetchErr := provider.GetByProviderID(ctx, pid, mediaType); fetchErr == nil && full != nil {
+							return full
+						}
+						return &capped[i]
+					}
+				}
+				enriched[i].AlternativeTitles = alts
+			}
+			results = enriched
+		}
+	}
+
+pickDone:
 	best := pickBestMatch(results, title, year)
 	providerID := best.ProviderIDs[provider.Name()]
 	if providerID == "" {
@@ -428,6 +511,23 @@ func (e *Enricher) fetchBestCandidate(ctx context.Context, provider domainmetada
 		return &best
 	}
 	return full
+}
+
+// altTitlesCapability unwraps decorators (retry, cache) to find the
+// AlternativeTitlesProvider capability, mirroring capabilityFrom in
+// provider_chain.go but without importing the chain from this package.
+func altTitlesCapability(p domainmetadata.MetadataProvider) (domainmetadata.AlternativeTitlesProvider, bool) {
+	for cur := p; cur != nil; {
+		if atp, ok := any(cur).(domainmetadata.AlternativeTitlesProvider); ok {
+			return atp, true
+		}
+		u, ok := cur.(domainmetadata.ProviderUnwrapper)
+		if !ok {
+			break
+		}
+		cur = u.Unwrap()
+	}
+	return nil, false
 }
 
 // episodeCountMatches returns true if counts are within 20% tolerance
@@ -655,7 +755,16 @@ func pickBestMatch(results []domainmetadata.MetadataResult, query string, year *
 		if qNorm == "" {
 			break
 		}
-		if normalizeForMatch(r.Title) == qNorm || normalizeForMatch(r.OriginalTitle) == qNorm {
+		titleMatch := normalizeForMatch(r.Title) == qNorm || normalizeForMatch(r.OriginalTitle) == qNorm
+		if !titleMatch {
+			for _, alt := range r.AlternativeTitles {
+				if normalizeForMatch(alt) == qNorm {
+					titleMatch = true
+					break
+				}
+			}
+		}
+		if titleMatch {
 			if year != nil && r.Year != nil && *r.Year == *year {
 				return r
 			}
