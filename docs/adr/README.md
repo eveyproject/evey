@@ -20,5 +20,6 @@ Structural decisions for Evey. New ADRs are numbered sequentially and never rewr
 | [0014](0014-landlock-plugin-sandbox.md) | Landlock plugin sandbox via a pre-exec launcher shim | 2026-05-24 | Accepted |
 | [0015](0015-hardware-acceleration.md) | HW transcoding: one full-HW image, runtime-injected drivers, admin-selectable mode | 2026-06-01 | Accepted |
 | [0016](0016-mkv-fastpath-prober.md) | In-process mkvgo fast-path for the MKV scan prober (ffprobe stays the authority) | 2026-06-03 | Accepted |
+| [0017](0017-software-hdr-tonemap-delivery-resolution.md) | Software HDR→SDR tone-map at delivery resolution, not source | 2026-06-04 | Accepted |
 
 See also [docs/ARCHITECTURE.md](../ARCHITECTURE.md) for the high-level picture.
