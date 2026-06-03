@@ -137,6 +137,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	// HW backend passed the realtime bench.
 	var hwFeatures []string
 	var hwDecodeCodecs []string
+	var hw10Bit bool
 	if hwMax > 0 {
 		hwFeatures = r.probeHWFeatures(ctx, hwBackend)
 		// Probe DECODE support separately — encode-capable ≠ decode-capable
@@ -144,6 +145,11 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		// per-source -hwaccel gating so an undecodable source software-decodes
 		// instead of stalling the player.
 		hwDecodeCodecs = probeHWDecodeCodecs(ctx, r.ffmpegPath, hwBackend, hwDevice)
+		// Probe the 10-bit VPP path separately too: a backend that encodes h264
+		// fine can still abort on the p010→nv12 scale a 10-bit (HEVC Main10)
+		// source needs (Intel i965 old iGPU VEBOX). Gates 10-bit sources to
+		// software so they never crash the HW pipeline.
+		hw10Bit = probeHW10BitTranscode(ctx, r.ffmpegPath, hwBackend, hwDevice)
 	}
 
 	cap := transcoding.EncodeCapability{
@@ -152,6 +158,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		HWBackend:           hwBackend,
 		HWCodecs:            hwCodecs,
 		HWDecodeCodecs:      hwDecodeCodecs,
+		HW10BitTranscode:    hw10Bit,
 		HWDevice:            hwDevice,
 		HWFeatures:          hwFeatures,
 		DetectedBackends:    detected,
@@ -163,6 +170,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		slog.Int("software_max_height", cap.SoftwareMaxHeight),
 		slog.Int("hw_max_height", cap.HWMaxHeight),
 		slog.String("hw_backend", cap.HWBackend),
+		slog.Bool("hw_10bit_transcode", cap.HW10BitTranscode),
 		slog.Any("detected_backends", cap.DetectedBackends),
 		slog.Any("hw_features", cap.HWFeatures),
 		slog.Int64("elapsed_ms", cap.BenchmarkDurationMs))

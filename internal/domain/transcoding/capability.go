@@ -46,6 +46,16 @@ type EncodeCapability struct {
 	// source (e.g. HEVC on old iGPU) never stalls. Empty when no HW.
 	HWDecodeCodecs []string `json:"hw_decode_codecs,omitempty"`
 
+	// HW10BitTranscode reports whether the calibrated HW backend can run the
+	// transcode VPP (scale + p010→nv12 conversion) on a 10-bit source. Probed
+	// because encode/decode capability does NOT imply it: the Intel i965 driver
+	// on old iGPU (Gen7.5 VEBOX) aborts with a fourcc assertion the moment a
+	// 10-bit (p010) surface reaches scale_vaapi, so HEVC Main10 / yuv420p10le
+	// sources (ubiquitous at 2160p) crash the HW pipeline and demote to software.
+	// False (the conservative default for un-recalibrated hosts) makes the VOD
+	// gate route 10-bit sources straight to software instead of crashing first.
+	HW10BitTranscode bool `json:"hw_10bit_transcode,omitempty"`
+
 	// HWDevice is the DRM render node for VAAPI/QSV (e.g. /dev/dri/renderD128),
 	// empty for NVENC (CUDA selects the device). Forwarded to the ffmpeg
 	// hardware pipeline as -hwaccel_device / -qsv_device.

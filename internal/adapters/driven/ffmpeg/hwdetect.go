@@ -263,6 +263,44 @@ func probeHWEncode(ctx context.Context, ffmpegPath, encoder, hwType, device stri
 	return exec.CommandContext(ctx, ffmpegPath, args...).Run() == nil
 }
 
+// probeHW10BitTranscode reports whether the HW VPP can scale a 10-bit (p010)
+// surface down to 8-bit nv12 — the conversion every transcode of an HEVC Main10
+// / yuv420p10le source needs before the 8-bit HW encoder (hwScaleFilter emits
+// scale_<backend>=W:-2:format=nv12). Encode AND decode capability imply nothing
+// about it: the Intel i965 VEBOX aborts (SIGABRT, fourcc assertion) the
+// instant a 10-bit surface reaches scale_vaapi, so without this probe every
+// 2160p HDR source crashes the HW pipeline and churns through a demotion. It
+// uploads a synthetic p010 frame (no HEVC decode — a pre-Skylake iGPU can't do
+// that anyway) and runs the real per-backend scaler. Fail-closed: any
+// error/abort/timeout ⇒ false ⇒ the source software-transcodes.
+func probeHW10BitTranscode(ctx context.Context, ffmpegPath, hwType, device string) bool {
+	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
+	defer cancel()
+
+	args := []string{"-hide_banner", "-v", "error", "-nostdin"}
+	var vf string
+	switch hwType {
+	case "vaapi":
+		if device == "" {
+			return false
+		}
+		args = append(args, "-vaapi_device", device)
+		vf = "format=p010le,hwupload,scale_vaapi=64:-2:format=nv12"
+	case "qsv":
+		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
+		vf = "format=p010le,hwupload=extra_hw_frames=16,scale_qsv=64:-2:format=nv12"
+	case "nvenc":
+		args = append(args, "-init_hw_device", "cuda=cu", "-filter_hw_device", "cu")
+		vf = "format=p010le,hwupload_cuda,scale_cuda=64:-2:format=nv12"
+	default:
+		return false
+	}
+	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.3")
+	args = append(args, "-vf", vf, "-f", "null", "-")
+
+	return exec.CommandContext(ctx, ffmpegPath, args...).Run() == nil
+}
+
 func checkEncoderAvailable(ctx context.Context, ffmpegPath, encoder string) bool {
 	cmd := exec.CommandContext(ctx, ffmpegPath, "-encoders")
 	out, err := cmd.Output()

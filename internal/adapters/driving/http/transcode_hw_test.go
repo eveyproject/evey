@@ -3,6 +3,7 @@ package httpapi
 import (
 	"testing"
 
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
 
@@ -24,7 +25,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return nvenc },
 			hwAccelEnabled: func() bool { return true },
 		}
-		accel, device, features, usable := h.resolveHW("h264", "")
+		accel, device, features, usable := h.resolveHW("h264", "", false)
 		if !usable || accel != "nvenc" || device != "" {
 			t.Errorf("got (%q,%q,%v), want (nvenc,'',true)", accel, device, usable)
 		}
@@ -38,7 +39,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return vaapi },
 			hwAccelEnabled: func() bool { return true },
 		}
-		accel, device, _, usable := h.resolveHW("hevc", "")
+		accel, device, _, usable := h.resolveHW("hevc", "", false)
 		if !usable || accel != "vaapi" || device != "/dev/dri/renderD128" {
 			t.Errorf("got (%q,%q,%v), want (vaapi,/dev/dri/renderD128,true)", accel, device, usable)
 		}
@@ -49,7 +50,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return vaapi }, // no av1
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("av1", ""); usable {
+		if _, _, _, usable := h.resolveHW("av1", "", false); usable {
 			t.Error("av1 unsupported by vaapi caps → must be software")
 		}
 	})
@@ -66,10 +67,10 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return oldIGPU },
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "h264"); !usable {
+		if _, _, _, usable := h.resolveHW("h264", "h264", false); !usable {
 			t.Error("h264 source is HW-decodable → must take the HW path")
 		}
-		if _, _, _, usable := h.resolveHW("h264", "hevc"); usable {
+		if _, _, _, usable := h.resolveHW("h264", "hevc", false); usable {
 			t.Error("hevc source not HW-decodable on this GPU → must fall back to software (no stall)")
 		}
 	})
@@ -79,7 +80,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return nvenc },
 			hwAccelEnabled: func() bool { return false },
 		}
-		if _, _, _, usable := h.resolveHW("h264", ""); usable {
+		if _, _, _, usable := h.resolveHW("h264", "", false); usable {
 			t.Error("flag off → must be software")
 		}
 	})
@@ -88,7 +89,7 @@ func TestResolveHW(t *testing.T) {
 		h := &hlsVODServe{
 			capability: func() domaintranscoding.EncodeCapability { return nvenc },
 		}
-		if _, _, _, usable := h.resolveHW("h264", ""); usable {
+		if _, _, _, usable := h.resolveHW("h264", "", false); usable {
 			t.Error("nil hwAccelEnabled → must be software")
 		}
 	})
@@ -98,8 +99,80 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return domaintranscoding.SafeFallback() },
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("h264", ""); usable {
+		if _, _, _, usable := h.resolveHW("h264", "", false); usable {
 			t.Error("no HW backend → must be software")
 		}
 	})
+
+	t.Run("10-bit source + VPP can't do 10-bit → software (i965 VEBOX)", func(t *testing.T) {
+		// Decodes hevc AND encodes h264, but the calibration found the VPP aborts
+		// on a 10-bit (p010) surface — the Intel i965 case. A Main10 source
+		// must software-transcode so it never crashes the GPU pipeline.
+		box := domaintranscoding.EncodeCapability{
+			HWBackend:        "vaapi",
+			HWCodecs:         []string{"h264"},
+			HWDecodeCodecs:   []string{"h264", "hevc"},
+			HW10BitTranscode: false,
+			HWDevice:         "/dev/dri/renderD128",
+		}
+		h := &hlsVODServe{
+			capability:     func() domaintranscoding.EncodeCapability { return box },
+			hwAccelEnabled: func() bool { return true },
+		}
+		if _, _, _, usable := h.resolveHW("h264", "hevc", false); !usable {
+			t.Error("8-bit hevc source → HW path (decode ok, no 10-bit VPP needed)")
+		}
+		if _, _, _, usable := h.resolveHW("h264", "hevc", true); usable {
+			t.Error("10-bit source + !HW10BitTranscode → must software-transcode (p010 aborts the VEBOX)")
+		}
+	})
+
+	t.Run("10-bit source + VPP handles 10-bit → HW", func(t *testing.T) {
+		box := domaintranscoding.EncodeCapability{
+			HWBackend:        "nvenc",
+			HWCodecs:         []string{"h264", "hevc"},
+			HWDecodeCodecs:   []string{"h264", "hevc"},
+			HW10BitTranscode: true,
+		}
+		h := &hlsVODServe{
+			capability:     func() domaintranscoding.EncodeCapability { return box },
+			hwAccelEnabled: func() bool { return true },
+		}
+		if _, _, _, usable := h.resolveHW("h264", "hevc", true); !usable {
+			t.Error("10-bit source + HW10BitTranscode → must take the HW path")
+		}
+	})
+}
+
+func TestStreamIsTenBit(t *testing.T) {
+	bd10, bd8 := 10, 8
+	video := domainlibrary.StreamTypeVideo
+	cases := []struct {
+		name string
+		s    *domainlibrary.MediaStream
+		want bool
+	}{
+		{"nil", nil, false},
+		{"Main 10 profile", &domainlibrary.MediaStream{StreamType: video, Profile: "Main 10"}, true},
+		{"Main profile (8-bit)", &domainlibrary.MediaStream{StreamType: video, Profile: "Main"}, false},
+		{"bit_depth 10", &domainlibrary.MediaStream{StreamType: video, BitDepth: &bd10}, true},
+		{"bit_depth 8", &domainlibrary.MediaStream{StreamType: video, BitDepth: &bd8}, false},
+	}
+	for _, c := range cases {
+		if got := streamIsTenBit(c.s); got != c.want {
+			t.Errorf("%s: streamIsTenBit=%v want %v", c.name, got, c.want)
+		}
+	}
+
+	// sourceVideoTenBit must pick the video stream, ignoring audio.
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeAudio, Profile: "LC"},
+		{StreamType: video, Profile: "Main 10"},
+	}
+	if !sourceVideoTenBit(streams) {
+		t.Error("sourceVideoTenBit must detect the Main 10 video stream")
+	}
+	if sourceVideoTenBit([]*domainlibrary.MediaStream{{StreamType: video, Profile: "Main"}}) {
+		t.Error("8-bit Main video stream must not be flagged 10-bit")
+	}
 }

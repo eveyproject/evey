@@ -526,7 +526,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		}
 	}
 
-	hwAccel, hwDevice, hwFeatures, _ := h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams))
+	hwAccel, hwDevice, hwFeatures, _ := h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams), sourceVideoTenBit(streams))
 	return apptranscoding.DecisionFingerprint{
 		MediaID:             mediaID,
 		SourcePath:          item.File.Path,
@@ -566,7 +566,7 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 // HDR tonemap / bitmap burn-in are not gated here: the orchestrated VOD path
 // does neither today, and the ffmpeg builder independently falls back to
 // software for those, so the two stay consistent.
-func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string) (accel, device string, features []string, usable bool) {
+func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string, sourceTenBit bool) (accel, device string, features []string, usable bool) {
 	if h.hwAccelEnabled == nil || !h.hwAccelEnabled() || h.capability == nil {
 		return "", "", nil, false
 	}
@@ -583,6 +583,15 @@ func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string) (accel, device 
 	if sourceCodec != "" && !cap.HWCanDecode(sourceCodec) {
 		return "", "", nil, false
 	}
+	// A 10-bit source (HEVC Main10, ubiquitous at 2160p HDR) needs the HW VPP to
+	// fold p010 down to the 8-bit nv12 the h264 encoder takes (hwScaleFilter's
+	// format=nv12). Some drivers — Intel i965 VEBOX — abort (SIGABRT)
+	// the moment a 10-bit surface reaches scale_vaapi. Unless the calibration
+	// proved the 10-bit VPP works, software-transcode the source instead of
+	// crashing the GPU pipeline and churning through a demotion.
+	if sourceTenBit && !cap.HW10BitTranscode {
+		return "", "", nil, false
+	}
 	return cap.HWBackend, cap.HWDevice, cap.HWFeatures, true
 }
 
@@ -595,6 +604,31 @@ func sourceVideoCodec(streams []*domainlibrary.MediaStream) string {
 		}
 	}
 	return ""
+}
+
+// sourceVideoTenBit reports whether the source's video stream is ≥10-bit
+// (HEVC Main10 / yuv420p10le). Used to gate the HW path off when the calibrated
+// backend's VPP can't fold 10-bit down to 8-bit (see EncodeCapability.HW10BitTranscode).
+func sourceVideoTenBit(streams []*domainlibrary.MediaStream) bool {
+	for _, s := range streams {
+		if s != nil && s.StreamType == domainlibrary.StreamTypeVideo {
+			return streamIsTenBit(s)
+		}
+	}
+	return false
+}
+
+// streamIsTenBit detects ≥10-bit video from the probed bit depth or, since
+// ffprobe leaves bits_per_raw_sample empty for many HEVC rips, the codec
+// profile name ("Main 10", "High 10").
+func streamIsTenBit(s *domainlibrary.MediaStream) bool {
+	if s == nil {
+		return false
+	}
+	if s.BitDepth != nil && *s.BitDepth >= 10 {
+		return true
+	}
+	return strings.Contains(s.Profile, "10")
 }
 
 // profilesForDecision picks the ABR ladder for a given (decision, mediaItem,
@@ -618,6 +652,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	// with "zero pixels".
 	var srcW, srcH int
 	var srcCodec string
+	var srcTenBit bool
 	for _, s := range streams {
 		if s != nil && s.StreamType == "video" {
 			if s.Width != nil {
@@ -627,6 +662,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 				srcH = *s.Height
 			}
 			srcCodec = s.Codec
+			srcTenBit = streamIsTenBit(s)
 			break
 		}
 	}
@@ -646,7 +682,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	maxH := 720 // safe floor if capability isn't wired yet (tests / dev w/o calibration)
 	if h.capability != nil {
 		cap := h.capability()
-		_, _, _, hwUsable := h.resolveHW(decision.VideoCodec, srcCodec)
+		_, _, _, hwUsable := h.resolveHW(decision.VideoCodec, srcCodec, srcTenBit)
 		maxH = cap.MaxHeightFor(hwUsable)
 	}
 	// CMCD-feedback adaptive override (Phase C). The override service
@@ -876,7 +912,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 			VideoBitrate: p.VideoBitrate, AudioBitrate: p.AudioBitrate,
 		}
 	}
-	hwAccel, hwDevice, hwFeatures, _ := h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams))
+	hwAccel, hwDevice, hwFeatures, _ := h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams), sourceVideoTenBit(streams))
 	fp := apptranscoding.DecisionFingerprint{
 		MediaID:             string(nextItem.ID),
 		SourcePath:          nextItem.File.Path,
