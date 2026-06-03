@@ -117,6 +117,42 @@ func TestHDR_NonHDRClient(t *testing.T) {
 	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
 }
 
+func hdrClient() transcoding.ClientProfile {
+	return transcoding.ClientProfile{
+		VideoCodecs:      []string{"h264", "hevc", "vp9"},
+		AudioCodecs:      []string{"aac", "mp3", "opus", "flac"},
+		Containers:       []string{"mp4", "webm"},
+		SupportsHDR:      true,
+		MaxAudioChannels: 8,
+	}
+}
+
+func TestHDR_HDRClient_DirectPlay(t *testing.T) {
+	hdrType := "HDR10"
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(3840), Height: new(2160), HDRType: &hdrType, Bitrate: new(int64(20000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", hdrClient(), 0)
+
+	assert.Equal(t, "direct_play", d.PlayMethod)
+	assert.Equal(t, "copy", d.VideoDecision)
+	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
+}
+
+func TestHDR_DolbyVision_HDRClient_StillTranscode(t *testing.T) {
+	hdrType := "dolby_vision"
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(3840), Height: new(2160), HDRType: &hdrType, Bitrate: new(int64(20000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", hdrClient(), 0)
+
+	assert.Equal(t, "transcode", d.PlayMethod)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed", "DoVi must tonemap even for an HDR client")
+}
+
 func TestSubtitleBurnIn_PGS(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},

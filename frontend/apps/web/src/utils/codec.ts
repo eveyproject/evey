@@ -5,10 +5,26 @@ export const canPlayHevc = (() => {
     || v.canPlayType('video/mp4; codecs="hev1"') === "probably";
 })();
 
+// canDisplayHdr is true only when the display reports an HDR-capable dynamic
+// range. Conservative on purpose: a false negative just transcodes/tonemaps
+// (a perf cost), while a false positive would direct-play raw HDR to an SDR
+// panel and render it washed-out. Dolby Vision is still transcoded server-side
+// regardless (this bool can't tell DoVi-capable from HDR10-only).
+export const canDisplayHdr = (() => {
+  try {
+    return typeof window !== "undefined"
+      && typeof window.matchMedia === "function"
+      && window.matchMedia("(dynamic-range: high)").matches;
+  } catch {
+    return false;
+  }
+})();
+
 export interface BrowserCapabilities {
   videoCodecs: string[];
   audioCodecs: string[];
   containers: string[];
+  hdr: boolean;
 }
 
 export function getBrowserCapabilities(): BrowserCapabilities {
@@ -31,5 +47,5 @@ export function getBrowserCapabilities(): BrowserCapabilities {
   if (canPlay("video/webm")) containers.push("webm");
   if (canPlay("video/ogg")) containers.push("ogg");
 
-  return { videoCodecs, audioCodecs, containers };
+  return { videoCodecs, audioCodecs, containers, hdr: canDisplayHdr };
 }

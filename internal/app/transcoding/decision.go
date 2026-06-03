@@ -289,9 +289,17 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 		d.MaxHeight = client.MaxHeight
 	}
 
-	if s.HDRType != nil && *s.HDRType != "" && !client.SupportsHDR {
-		d.TranscodeReasons = append(d.TranscodeReasons, "hdr_tonemapping_needed")
-		d.VideoDecision = "transcode"
+	if s.HDRType != nil && *s.HDRType != "" {
+		// Direct-play HDR only when the client signalled HDR support, and never
+		// for Dolby Vision: a single SupportsHDR bool can't tell a DoVi-capable
+		// panel from an HDR10-only one, and direct-playing a DoVi stream to an
+		// HDR10-only display renders wrong. DoVi always tonemaps to SDR.
+		hdr := strings.ToLower(*s.HDRType)
+		isDolbyVision := strings.Contains(hdr, "dolby") || strings.Contains(hdr, "dovi")
+		if !client.SupportsHDR || isDolbyVision {
+			d.TranscodeReasons = append(d.TranscodeReasons, "hdr_tonemapping_needed")
+			d.VideoDecision = "transcode"
+		}
 	}
 
 	if d.VideoDecision == "transcode" && d.VideoCodec == "" {

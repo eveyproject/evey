@@ -141,6 +141,13 @@ message GetStreamInfoRequest {
   // Empty defaults to wifi. When "cellular", the profile's
   // max_bitrate_cellular_kbps preference (if set) caps the stream.
   string network_type = 11;
+  // supports_hdr signals the client display can render HDR (HDR10/HLG) natively.
+  // The web player sets it from the (dynamic-range: high) media query. When
+  // false (the default), an HDR source is transcoded/tonemapped to SDR; when
+  // true, an HDR10/HLG source can direct-play / remux. Dolby Vision always
+  // transcodes regardless (a single bool can't distinguish a DoVi-capable
+  // panel from an HDR10-only one).
+  bool supports_hdr = 12;
 }
 
 message StartStreamRequest {

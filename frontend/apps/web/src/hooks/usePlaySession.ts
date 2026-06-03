@@ -44,6 +44,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     supportedContainers: caps.containers,
     maxWidth: window.screen.width,
     maxHeight: window.screen.height,
+    supportsHdr: caps.hdr,
   }), [caps]);
 
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {

@@ -113,6 +113,13 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	if req.MaxHeight > 0 {
 		client.MaxHeight = int(req.MaxHeight)
 	}
+	// Conservative: only an explicit client signal lifts the SDR default, so a
+	// client that doesn't send it (or an SDR panel) keeps transcoding/tonemapping
+	// HDR sources rather than direct-playing raw HDR to a display that would
+	// render it washed-out.
+	if req.SupportsHdr {
+		client.SupportsHDR = true
+	}
 
 	var maxBitrateKbps int
 	if req.MaxBitrate > 0 {
