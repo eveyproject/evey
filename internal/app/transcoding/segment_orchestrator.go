@@ -102,6 +102,18 @@ type OrchestratorOptions struct {
 	// per ABR rung (forwarded to HLSProcessOpts.PerVariantHW). Off by default;
 	// software is always single-process multi-variant.
 	HWPerVariant bool
+
+	// SingleVariant, when true, makes the orchestrator spawn one ffmpeg rafale
+	// per (fingerprint, variantIdx) pair instead of one multi-variant rafale per
+	// fingerprint. Each spawn produces only the requested ABR rung (1 encode),
+	// saving the N-1 encodes of rungs the client never watches. Like
+	// Jellyfin/Plex's on-demand single-variant model.
+	//
+	// FLAG OFF (default): behaviour is byte-identical to the pre-flag multi-variant
+	// path — the existing tests prove this invariant.
+	// FLAG ON: the per-rung sessions are all keyed under the same DecisionHash;
+	// the client ABR-switches freely and each new rung is produced lazily.
+	SingleVariant bool
 }
 
 func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
@@ -263,6 +275,12 @@ type orchestratorSession struct {
 	cancelCtx  context.CancelFunc
 	done       chan struct{} // closed when ffmpeg exits (success or error)
 
+	// variantIdx is meaningful only when opts.SingleVariant is true. In that
+	// mode each session encodes exactly one ABR rung and the session-match
+	// logic in findCoveringSessionLocked uses it to keep per-rung sessions
+	// isolated. When SingleVariant is false this field is 0 and unused.
+	variantIdx int
+
 	// Throttle state. clientHighWater is the largest segment index any client
 	// has asked us to ensure for this session — used as a proxy for "how far
 	// the client has consumed". paused tracks whether the ffmpeg process is
@@ -382,8 +400,19 @@ func (o *SegmentOrchestrator) Close() {
 // range covers segmentIdx (or whose nearAhead window does). Returns nil
 // when no rafale serves this position — caller spawns a new one. Must
 // be called with o.mu held.
-func (o *SegmentOrchestrator) findCoveringSessionLocked(hash string, segmentIdx, nearAheadBudget int) *orchestratorSession {
+//
+// When opts.SingleVariant is true, only sessions whose variantIdx matches the
+// requested variantIdx are eligible — each ABR rung has its own dedicated
+// session. When SingleVariant is false, variantIdx is ignored and the first
+// covering session for the hash is returned (multi-variant behaviour unchanged).
+func (o *SegmentOrchestrator) findCoveringSessionLocked(hash string, variantIdx, segmentIdx, nearAheadBudget int) *orchestratorSession {
 	for _, s := range o.sessions[hash] {
+		// In single-variant mode each rung has its own session; skip sessions
+		// that encode a different rung. In multi-variant mode every session
+		// encodes all rungs, so the variantIdx filter is suppressed.
+		if o.opts.SingleVariant && s.variantIdx != variantIdx {
+			continue
+		}
 		s.mu.Lock()
 		inWindow := segmentIdx >= s.startSeg && segmentIdx <= s.endSeg
 		nearAhead := segmentIdx > s.endSeg && segmentIdx <= s.endSeg+nearAheadBudget
@@ -455,7 +484,10 @@ func (o *SegmentOrchestrator) PreWarm(fp DecisionFingerprint, startSegIdx int) {
 	o.prewarmWG.Go(func() {
 		ctx, cancel := context.WithTimeout(o.shutdownCtx, 30*time.Second)
 		defer cancel()
-		if err := o.EnsureSegmentRange(ctx, fp, startSegIdx); err != nil {
+		// Pre-warm always targets variant 0 (the base rung). In single-variant
+		// mode only that rung is warmed; the player will fetch other rungs on
+		// demand. In multi-variant mode this warms the whole ladder as before.
+		if err := o.EnsureSegmentRange(ctx, fp, 0, startSegIdx); err != nil {
 			o.logger.Debug("orchestrator: prewarm failed (non-fatal)",
 				slog.String("media_id", fp.MediaID),
 				slog.Any("err", err))
@@ -463,10 +495,16 @@ func (o *SegmentOrchestrator) PreWarm(fp DecisionFingerprint, startSegIdx int) {
 	})
 }
 
-// EnsureSegmentRange guarantees that segment `segmentIdx` will be produced (or
-// is already on disk). Returns immediately — callers must use cache.Wait to
-// block on segment readiness. The returned error is non-nil only on terminal
-// setup failure (resolver/source unavailable, ffmpeg spawn refused).
+// EnsureSegmentRange guarantees that segment `segmentIdx` of `variantIdx` will
+// be produced (or is already on disk). Returns immediately — callers must use
+// cache.Wait to block on segment readiness. The returned error is non-nil only
+// on terminal setup failure (resolver/source unavailable, ffmpeg spawn refused).
+//
+// variantIdx identifies the ABR rung the client is requesting. When
+// SingleVariant is OFF (the default) this value is forwarded to the cache
+// fast-path check but otherwise ignored for session-matching — the existing
+// multi-variant behaviour is preserved byte-for-byte. When SingleVariant is ON,
+// each (hash, variantIdx) pair gets its own ffmpeg rafale.
 //
 // The orchestrator may spawn a fresh ffmpeg session, kill+respawn an existing
 // one (cancel-on-seek), or short-circuit when the segment is already covered
@@ -474,6 +512,7 @@ func (o *SegmentOrchestrator) PreWarm(fp DecisionFingerprint, startSegIdx int) {
 func (o *SegmentOrchestrator) EnsureSegmentRange(
 	ctx context.Context,
 	fp DecisionFingerprint,
+	variantIdx int,
 	segmentIdx int,
 ) error {
 	if segmentIdx < 0 {
@@ -482,11 +521,10 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	hash := fp.Hash()
 
 	// Fast path: segment already on disk (cache hit, no ffmpeg needed).
-	// We don't know the variantIdx here — we only ensure the *first* variant
-	// for the rafale; per-variant readiness is checked by the handler before
-	// calling Wait. The cache check below is best-effort early bail.
-	if o.cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: segmentIdx}, fp.UseFMP4) {
-		o.touchSession(hash, segmentIdx)
+	// Use the caller's variantIdx so a per-rung check is accurate in both
+	// single-variant and multi-variant modes.
+	if o.cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: variantIdx, SegmentIdx: segmentIdx}, fp.UseFMP4) {
+		o.touchSession(hash, variantIdx, segmentIdx)
 		metrics.HLSVODCacheHits.Inc()
 		return nil
 	}
@@ -503,8 +541,11 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	// first's rafale). Concurrency is bounded by MaxRafalesPerHash;
 	// past the cap the LRU rafale is evicted by evictLRUIfFullLocked
 	// after the new spawn.
+	//
+	// When SingleVariant is ON, findCoveringSessionLocked additionally
+	// filters by variantIdx so per-rung sessions stay isolated.
 	o.mu.Lock()
-	session := o.findCoveringSessionLocked(hash, segmentIdx, o.opts.LookAheadSegments)
+	session := o.findCoveringSessionLocked(hash, variantIdx, segmentIdx, o.opts.LookAheadSegments)
 	o.mu.Unlock()
 
 	if session != nil {
@@ -529,7 +570,7 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	o.logger.Info("orchestrator: spawning additional rafale for unserved seek",
 		slog.String("hash", hash),
 		slog.Int("requested", segmentIdx))
-	return o.spawnSession(ctx, fp, segmentIdx)
+	return o.spawnSession(ctx, fp, variantIdx, segmentIdx)
 }
 
 // acquireSessionSlot reserves one of the MaxActiveSessions global rafale slots
@@ -564,9 +605,16 @@ func (o *SegmentOrchestrator) releaseSessionSlot() {
 // spawnSession launches an ffmpeg rafale for the given fingerprint at
 // segmentIdx, producing up to startSeg + LookAheadSegments segments. Called
 // under no lock; takes o.mu briefly to register the session.
+//
+// variantIdx identifies which ABR rung to encode. When SingleVariant is OFF,
+// it is only stored on the session for the spawn-race check and the ffmpeg
+// invocation encodes ALL profiles (multi-variant). When SingleVariant is ON,
+// only fp.Profiles[variantIdx] is passed to the ffmpeg builder so a single
+// encode is produced for that rung.
 func (o *SegmentOrchestrator) spawnSession(
 	ctx context.Context,
 	fp DecisionFingerprint,
+	variantIdx int,
 	startSegIdx int,
 ) error {
 	hash := fp.Hash()
@@ -613,10 +661,31 @@ func (o *SegmentOrchestrator) spawnSession(
 
 	teardown := o.cache.RegisterSession(hash)
 
+	// Resolve the profile list for this session.
+	// Single-variant ON: encode only the one rung the client asked for
+	// (1 decode + 1 encode, saves the unused rungs).
+	// Single-variant OFF: encode the full ABR ladder in one multi-output
+	// ffmpeg — byte-identical to the pre-flag behaviour.
+	var sessionProfiles []transcoding.HLSProfile
+	var sessionVariantIdx int
+	if o.opts.SingleVariant {
+		if variantIdx < 0 || variantIdx >= len(fp.Profiles) {
+			teardown()
+			releaseSlot()
+			return fmt.Errorf("spawnSession: variantIdx %d out of range (profiles=%d)", variantIdx, len(fp.Profiles))
+		}
+		sessionProfiles = profilesToDomain(fp.Profiles[variantIdx : variantIdx+1])
+		sessionVariantIdx = variantIdx
+	} else {
+		sessionProfiles = profilesToDomain(fp.Profiles)
+		sessionVariantIdx = 0 // multi-variant: VariantIndex unused by the multi-variant builder
+	}
+
 	procOpts := transcoding.HLSProcessOpts{
 		OutputDir:          outDir,
 		FilePath:           srcPath,
-		Profiles:           profilesToDomain(fp.Profiles),
+		Profiles:           sessionProfiles,
+		VariantIndex:       sessionVariantIdx,
 		VideoDecision:      "transcode",
 		AudioDecision:      "transcode",
 		AudioTrackIndex:    fp.AudioTrack,
@@ -666,6 +735,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		done:            make(chan struct{}),
 		clientHighWater: startSegIdx,
 		useFMP4:         fp.UseFMP4,
+		variantIdx:      variantIdx,
 	}
 
 	o.mu.Lock()
@@ -674,7 +744,10 @@ func (o *SegmentOrchestrator) spawnSession(
 	// (window or nearAhead). Multiple rafales on disjoint ranges of
 	// the same hash are the whole point of this refactor — letting
 	// them coexist is what fixes the multi-client / multi-tab bug.
-	if existing := o.findCoveringSessionLocked(hash, startSegIdx, o.opts.LookAheadSegments); existing != nil {
+	// In single-variant mode the race check also filters by variantIdx
+	// so two goroutines requesting the same rung at the same position
+	// are correctly deduplicated.
+	if existing := o.findCoveringSessionLocked(hash, variantIdx, startSegIdx, o.opts.LookAheadSegments); existing != nil {
 		o.mu.Unlock()
 		o.logger.Info("orchestrator: spawn race lost (covered by sibling rafale), discarding new session",
 			slog.String("hash", hash),
@@ -750,7 +823,7 @@ func (o *SegmentOrchestrator) spawnSession(
 					slog.String("codec", fp.VideoCodec))
 				o.hwDemote(o.shutdownCtx, class, fp.VideoCodec)
 
-			case usedHW && class != transcoding.FailureCancelled && !o.hashProducedSegment(hash, fp.UseFMP4):
+			case usedHW && class != transcoding.FailureCancelled && !o.hashProducedSegment(hash, variantIdx, fp.UseFMP4):
 				// A HW session that exited on its own without writing a single
 				// segment is a silent HW death the stderr classifier can't see:
 				// a driver crash (SIGSEGV inside the GPU .so / a TDR GPU reset on
@@ -793,7 +866,7 @@ func (o *SegmentOrchestrator) spawnSession(
 				return
 			case <-t.C:
 			}
-			if o.hwSessionAlive(hash, fp.UseFMP4) {
+			if o.hwSessionAlive(hash, variantIdx, fp.UseFMP4) {
 				return // the encoder is producing (maybe slowly) — let it run
 			}
 			o.logger.Warn("orchestrator: HW session wrote no init within watchdog window, demoting to software",
@@ -818,14 +891,14 @@ func (o *SegmentOrchestrator) spawnSession(
 	return nil
 }
 
-// hashProducedSegment reports whether any media segment for the base variant
+// hashProducedSegment reports whether any media segment for the given variantIdx
 // of hash has landed on disk. Used by the reap goroutine to tell a working HW
 // session apart from a silent HW death (a process that exits without writing a
-// single segment). Variant 0 is always in the var_stream_map and the
-// multi-variant muxer writes all variants in lockstep, so the base rung is a
-// faithful proxy for "did this session produce anything".
-func (o *SegmentOrchestrator) hashProducedSegment(hash string, useFMP4 bool) bool {
-	idxs, err := o.cache.ListReady(hash, 0, useFMP4)
+// single segment). In multi-variant mode variantIdx=0 (the base rung) is always
+// produced first; in single-variant mode the rung index is the session's own
+// variantIdx.
+func (o *SegmentOrchestrator) hashProducedSegment(hash string, variantIdx int, useFMP4 bool) bool {
+	idxs, err := o.cache.ListReady(hash, variantIdx, useFMP4)
 	return err == nil && len(idxs) > 0
 }
 
@@ -834,11 +907,13 @@ func (o *SegmentOrchestrator) hashProducedSegment(hash string, useFMP4 bool) boo
 // working pipeline, never by a stuck/dead GPU) or at least one media segment.
 // Used by the HW fast-fail watchdog to tell a slow-but-working GPU from a dead
 // one without waiting for a full first segment.
-func (o *SegmentOrchestrator) hwSessionAlive(hash string, useFMP4 bool) bool {
-	if o.cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: 0, IsInit: true}, useFMP4) {
+// variantIdx selects which rung's init/segment to check — in multi-variant mode
+// this is always 0 (base rung); in single-variant mode it is the session's own rung.
+func (o *SegmentOrchestrator) hwSessionAlive(hash string, variantIdx int, useFMP4 bool) bool {
+	if o.cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: variantIdx, IsInit: true}, useFMP4) {
 		return true
 	}
-	return o.hashProducedSegment(hash, useFMP4)
+	return o.hashProducedSegment(hash, variantIdx, useFMP4)
 }
 
 // killSession stops ffmpeg, releases the cancel context, and cleans up cache
@@ -920,9 +995,12 @@ func (o *SegmentOrchestrator) removeSessionFromList(hash string, target *orchest
 // the GC doesn't reap a session whose segments are still being
 // consumed from the cache, and so the throttle loop sees client
 // progress and resumes a paused ffmpeg in time.
-func (o *SegmentOrchestrator) touchSession(hash string, segmentIdx int) {
+//
+// variantIdx is forwarded to findCoveringSessionLocked so that in
+// single-variant mode the right per-rung session is touched.
+func (o *SegmentOrchestrator) touchSession(hash string, variantIdx, segmentIdx int) {
 	o.mu.Lock()
-	target := o.findCoveringSessionLocked(hash, segmentIdx, o.opts.LookAheadSegments)
+	target := o.findCoveringSessionLocked(hash, variantIdx, segmentIdx, o.opts.LookAheadSegments)
 	if target == nil {
 		// No exact cover. Bump the most-recently-touched rafale so the
 		// GC keeps at least one session warm for the hash.

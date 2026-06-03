@@ -29,7 +29,7 @@ func TestOrchestrator_EnsureSegmentRange_SpawnsFFmpegOnMiss(t *testing.T) {
 	defer o.Close()
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
 	assert.Equal(t, 1, o.ActiveCount())
 	assert.Equal(t, 1, proc.startCount())
@@ -51,7 +51,7 @@ func TestOrchestrator_EnsureSegmentRange_NoSpawnOnCacheHit(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(cache.Path(k, fp.UseFMP4)), 0o755))
 	require.NoError(t, os.WriteFile(cache.Path(k, fp.UseFMP4), fmp4Seg(), 0o644))
 
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 5))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 5))
 	assert.Equal(t, 0, proc.startCount())
 }
 
@@ -65,9 +65,9 @@ func TestOrchestrator_EnsureSegmentRange_SecondCallSameWindowNoRespawn(t *testin
 	defer o.Close()
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 10))
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 29))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 10))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 29))
 
 	assert.Equal(t, 1, proc.startCount(), "all three calls fall within [0, 29] of the initial rafale")
 }
@@ -93,11 +93,11 @@ func TestOrchestrator_MaxActiveSessions_RejectsAtGlobalCap(t *testing.T) {
 		return f
 	}
 
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fpFor("media-1"), 0))
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fpFor("media-2"), 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fpFor("media-1"), 0, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fpFor("media-2"), 0, 0))
 	require.Equal(t, 2, o.ActiveCount(), "two distinct media -> two live rafales")
 
-	err := o.EnsureSegmentRange(context.Background(), fpFor("media-3"), 0)
+	err := o.EnsureSegmentRange(context.Background(), fpFor("media-3"), 0, 0)
 	require.ErrorIs(t, err, ErrCapacityExceeded, "third spawn must be refused at the global cap")
 	assert.Equal(t, 2, o.ActiveCount(), "rejected spawn must not leak a session")
 	assert.Equal(t, 2, proc.startCount(), "ffmpeg must not even start for the rejected spawn")
@@ -120,15 +120,15 @@ func TestOrchestrator_MaxActiveSessions_SlotFreesWhenSessionExits(t *testing.T) 
 	second := minimalFingerprint(t)
 	second.MediaID = "media-2"
 
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), first, 0))
-	require.ErrorIs(t, o.EnsureSegmentRange(context.Background(), second, 0), ErrCapacityExceeded)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), first, 0, 0))
+	require.ErrorIs(t, o.EnsureSegmentRange(context.Background(), second, 0, 0), ErrCapacityExceeded)
 
 	// Free the slot: removing media-1 kills its rafale; the reap goroutine then
 	// releases the semaphore slot asynchronously.
 	o.RemoveSession("media-1")
 
 	require.Eventually(t, func() bool {
-		return o.EnsureSegmentRange(context.Background(), second, 0) == nil
+		return o.EnsureSegmentRange(context.Background(), second, 0, 0) == nil
 	}, 2*time.Second, 10*time.Millisecond, "second media must spawn once the freed slot is released")
 }
 
@@ -144,7 +144,7 @@ func TestOrchestrator_MaxActiveSessions_ZeroIsUnlimited(t *testing.T) {
 	for _, id := range []string{"m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"} {
 		f := minimalFingerprint(t)
 		f.MediaID = id
-		require.NoError(t, o.EnsureSegmentRange(context.Background(), f, 0))
+		require.NoError(t, o.EnsureSegmentRange(context.Background(), f, 0, 0))
 	}
 	assert.Equal(t, 8, o.ActiveCount(), "no cap -> all 8 distinct rafales live")
 }
@@ -166,11 +166,11 @@ func TestOrchestrator_EnsureSegmentRange_SeekSpawnsAdditionalRafale(t *testing.T
 	defer o.Close()
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 	require.Equal(t, 1, proc.startCount())
 
 	// Seek to segment 500 → far outside window [0, 29] of rafale 1.
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 500))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 500))
 
 	// Both rafales should now coexist (MaxRafalesPerHash default = 3).
 	require.Eventually(t, func() bool {
@@ -195,13 +195,13 @@ func TestOrchestrator_EnsureSegmentRange_LRUEvictsOldestBeyondCap(t *testing.T) 
 	defer o.Close()
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 	// Tiny pause between spawns so the LRU timestamps order
 	// predictably (clock-based ordering, not insert order).
 	time.Sleep(2 * time.Millisecond)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 500))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 500))
 	time.Sleep(2 * time.Millisecond)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 1000))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 1000))
 
 	require.Eventually(t, func() bool {
 		return o.ActiveCount() == 2 && proc.startCount() == 3
@@ -225,7 +225,7 @@ func TestOrchestrator_InactivityGC_ReapsIdleSessions(t *testing.T) {
 	defer o.Close()
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 	require.Equal(t, 1, o.ActiveCount())
 
 	require.Eventually(t, func() bool {
@@ -246,7 +246,7 @@ func TestOrchestrator_InactivityGC_KeepsLiveSessions(t *testing.T) {
 	defer o.Close()
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
 	// Touch it repeatedly under the timeout — must stay alive.
 	stop := time.After(400 * time.Millisecond)
@@ -258,7 +258,7 @@ func TestOrchestrator_InactivityGC_KeepsLiveSessions(t *testing.T) {
 			assert.Equal(t, 1, o.ActiveCount())
 			return
 		case <-tick.C:
-			require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+			require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 		}
 	}
 }
@@ -284,7 +284,7 @@ func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
 	defer o.Close()
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 	require.Equal(t, 1, o.ActiveCount())
 
 	// Simulate ffmpeg producing 10 segments while the client is still at 0.
@@ -314,7 +314,7 @@ func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
 	}, time.Second, 20*time.Millisecond, "throttle should pause ffmpeg when produced - client >= PauseAhead")
 
 	// Client catches up to within ResumeBelow → throttle must resume.
-	o.touchSession(fp.Hash(), 9)
+	o.touchSession(fp.Hash(), 0, 9)
 
 	require.Eventually(t, func() bool {
 		_, r, paused := handle.counts()
@@ -335,7 +335,7 @@ func TestOrchestrator_NotifyClientHint_ResumesPausedOnStarvation(t *testing.T) {
 	defer o.Close()
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
 	hashDir := filepath.Join(dir, "segments", fp.Hash())
 	require.NoError(t, os.MkdirAll(hashDir, 0o755))
@@ -383,7 +383,7 @@ func TestOrchestrator_NotifyClientHint_ExtendsEndSegOnFatBuffer(t *testing.T) {
 	defer o.Close()
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
 	o.mu.Lock()
 	sessList := o.sessions[fp.Hash()]
@@ -418,7 +418,7 @@ func TestOrchestrator_Throttle_NoFlapWithHysteresis(t *testing.T) {
 	defer o.Close()
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
 	hashDir := filepath.Join(dir, "segments", fp.Hash())
 	require.NoError(t, os.MkdirAll(hashDir, 0o755))
@@ -483,7 +483,7 @@ func TestOrchestrator_Close_KillsAllSessions(t *testing.T) {
 	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger())
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 	require.Equal(t, 1, o.ActiveCount())
 
 	o.Close()
@@ -500,7 +500,7 @@ func TestOrchestrator_Close_CleansDiskSegments(t *testing.T) {
 	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger())
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 	hashDir := filepath.Join(dir, "segments", fp.Hash())
 	require.NoError(t, os.MkdirAll(hashDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(hashDir, "stream_0_000.ts"), []byte("xx"), 0o644))
@@ -509,6 +509,101 @@ func TestOrchestrator_Close_CleansDiskSegments(t *testing.T) {
 
 	_, err := os.Stat(hashDir)
 	assert.True(t, os.IsNotExist(err), "Close must remove the hash directory")
+}
+
+// ============================================================================
+// SingleVariant flag: procOpts invariants
+// ============================================================================
+
+// TestOrchestrator_SingleVariant_FlagOff_MultiVariantProfiles asserts the hard
+// FLAG-OFF invariant: with SingleVariant=false the spawned session's procOpts
+// must carry ALL profiles (multi-variant, byte-identical to today's behaviour).
+func TestOrchestrator_SingleVariant_FlagOff_MultiVariantProfiles(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+
+	opts := testOpts()
+	opts.SingleVariant = false // explicitly off (same as default)
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+	defer o.Close()
+
+	fp := multiProfileFingerprint(t) // 3-rung ladder
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 1, 0))
+
+	require.Equal(t, 1, proc.startCount(), "one ffmpeg spawned for all rungs")
+	got := proc.lastOpts()
+	assert.Equal(t, len(fp.Profiles), len(got.Profiles),
+		"SingleVariant=false: all profiles must reach the ffmpeg adapter")
+	// VariantIndex is irrelevant to the multi-variant builder (it names rungs
+	// itself via -var_stream_map), but we confirm it stays at 0.
+	assert.Equal(t, 0, got.VariantIndex,
+		"SingleVariant=false: VariantIndex must be 0 (multi-variant builder convention)")
+}
+
+// TestOrchestrator_SingleVariant_FlagOn_SingleProfileAndVariantIndex asserts
+// the FLAG-ON invariant: with SingleVariant=true, procOpts carries exactly ONE
+// profile (the requested rung) and VariantIndex equals the requested variantIdx.
+func TestOrchestrator_SingleVariant_FlagOn_SingleProfileAndVariantIndex(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+
+	opts := testOpts()
+	opts.SingleVariant = true
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+	defer o.Close()
+
+	fp := multiProfileFingerprint(t) // 3-rung ladder: indices 0, 1, 2
+	const wantVariant = 2
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, wantVariant, 0))
+
+	require.Equal(t, 1, proc.startCount(), "one ffmpeg spawned for the requested rung")
+	got := proc.lastOpts()
+	require.Equal(t, 1, len(got.Profiles),
+		"SingleVariant=true: exactly one profile must reach the ffmpeg adapter")
+	assert.Equal(t, fp.Profiles[wantVariant].Name, got.Profiles[0].Name,
+		"SingleVariant=true: the one profile must be the requested rung's profile")
+	assert.Equal(t, wantVariant, got.VariantIndex,
+		"SingleVariant=true: VariantIndex must equal the requested variantIdx so the builder names output stream_<variantIdx>_*")
+}
+
+// TestOrchestrator_SingleVariant_FlagOn_PerRungIsolation asserts that two
+// requests for different rungs under SingleVariant=true each spawn their own
+// ffmpeg session (they don't share a session, since that would encode the wrong
+// profile). In multi-variant mode a single session serves all rungs.
+func TestOrchestrator_SingleVariant_FlagOn_PerRungIsolation(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+
+	opts := testOpts()
+	opts.SingleVariant = true
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+	defer o.Close()
+
+	fp := multiProfileFingerprint(t) // 3-rung ladder
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 1, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 2, 0))
+
+	assert.Equal(t, 3, proc.startCount(),
+		"SingleVariant=true: each distinct rung spawns its own ffmpeg")
+	assert.Equal(t, 3, o.ActiveCount(),
+		"SingleVariant=true: three sessions live (one per rung)")
+}
+
+// multiProfileFingerprint returns a fingerprint with a 3-rung ABR ladder for
+// tests that need to exercise multi-profile behaviour.
+func multiProfileFingerprint(t *testing.T) DecisionFingerprint {
+	t.Helper()
+	fp := minimalFingerprint(t)
+	fp.Profiles = []ProfileFingerprint{
+		{Name: "360p", Width: 640, Height: 360, VideoBitrate: 800, AudioBitrate: 96},
+		{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 3000, AudioBitrate: 128},
+		{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 6000, AudioBitrate: 192},
+	}
+	return fp
 }
 
 // ============================================================================
