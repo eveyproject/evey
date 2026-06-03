@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/hdr"
 	"github.com/evey-project/evey/internal/pkg/sysinfo"
 )
 
@@ -114,6 +115,12 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	sample, fallback := r.resolveSample()
 
 	swMax := r.benchSoftware(ctx, sample, fallback)
+	// HDR->SDR is much heavier than the plain 8-bit software bench (10-bit decode
+	// + tonemap), so probe it separately -> the HDR ladder caps to what the host
+	// actually sustains for HDR (honest on a weak NAS; HW tonemap is moot when the
+	// GPU can't do it, which is the common weak-box case).
+	hdrSample, hdrFallback := r.resolveHDRSample()
+	swHDRMax := r.benchSoftwareHDR(ctx, hdrSample, hdrFallback)
 
 	// detected lists every accelerator the host advertises, recorded before the
 	// preference's backend pin / disable is applied — so the admin can still see
@@ -157,23 +164,25 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	}
 
 	cap := transcoding.EncodeCapability{
-		SoftwareMaxHeight:   swMax,
-		HWMaxHeight:         hwMax,
-		HWBackend:           hwBackend,
-		HWCodecs:            hwCodecs,
-		HWDecodeCodecs:      hwDecodeCodecs,
-		HW10BitTranscode:    hw10Bit,
-		HWTonemap:           hwTonemap,
-		HWDevice:            hwDevice,
-		GPUClass:            classifyGPU(hwBackend, hwDevice),
-		HWFeatures:          hwFeatures,
-		DetectedBackends:    detected,
-		CPUSignature:        sysinfo.CPUSignature(),
-		BenchmarkedAt:       time.Now().UTC(),
-		BenchmarkDurationMs: time.Since(start).Milliseconds(),
+		SoftwareMaxHeight:    swMax,
+		SoftwareHDRMaxHeight: swHDRMax,
+		HWMaxHeight:          hwMax,
+		HWBackend:            hwBackend,
+		HWCodecs:             hwCodecs,
+		HWDecodeCodecs:       hwDecodeCodecs,
+		HW10BitTranscode:     hw10Bit,
+		HWTonemap:            hwTonemap,
+		HWDevice:             hwDevice,
+		GPUClass:             classifyGPU(hwBackend, hwDevice),
+		HWFeatures:           hwFeatures,
+		DetectedBackends:     detected,
+		CPUSignature:         sysinfo.CPUSignature(),
+		BenchmarkedAt:        time.Now().UTC(),
+		BenchmarkDurationMs:  time.Since(start).Milliseconds(),
 	}
 	r.logger.Info("benchmark: complete",
 		slog.Int("software_max_height", cap.SoftwareMaxHeight),
+		slog.Int("software_hdr_max_height", cap.SoftwareHDRMaxHeight),
 		slog.Int("hw_max_height", cap.HWMaxHeight),
 		slog.String("hw_backend", cap.HWBackend),
 		slog.Bool("hw_10bit_transcode", cap.HW10BitTranscode),
@@ -367,6 +376,60 @@ func (r *BenchmarkRunner) generateSample() error {
 	return nil
 }
 
+// hdrSamplePath is the on-disk path for the 10-bit HDR10 bench sample, next to
+// the SDR one.
+func (r *BenchmarkRunner) hdrSamplePath() string {
+	return filepath.Join(filepath.Dir(r.samplePath), "sample-hdr10.hevc")
+}
+
+// resolveHDRSample ensures a 10-bit HDR10 bench sample exists, generating it on
+// first run. Returns (path, fallback): fallback=true (synthetic 8-bit testsrc,
+// which understates the 10-bit decode cost) only when generation fails.
+func (r *BenchmarkRunner) resolveHDRSample() (string, bool) {
+	dst := r.hdrSamplePath()
+	if _, err := os.Stat(dst); err == nil {
+		return dst, false
+	}
+	if err := r.generateHDRSample(dst); err != nil {
+		r.logger.Warn("benchmark: HDR sample generation failed, HDR bench uses synthetic testsrc (10-bit decode cost understated)",
+			slog.String("path", dst), slog.Any("err", err))
+		return "", true
+	}
+	r.logger.Info("benchmark: generated HDR10 mire sample", slog.String("path", dst))
+	return dst, false
+}
+
+// generateHDRSample produces a ~5 s 3840x2160 HEVC Main10 HDR10 file (bt2020 /
+// PQ, 10-bit) at dst — the heavy-decode counterpart of generateSample, used to
+// bench the real HDR->SDR transcode cost (10-bit decode + tonemap + encode).
+func (r *BenchmarkRunner) generateHDRSample(dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return fmt.Errorf("mkdir bench dir: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, r.ffmpegBin(),
+		"-hide_banner", "-nostats", "-y",
+		"-f", "lavfi", "-i",
+		"testsrc=duration=5:size=3840x2160:rate=24,format=yuv420p10le,"+
+			"noise=alls=20:allf=t+u",
+		"-c:v", "libx265", "-preset", "medium", "-pix_fmt", "yuv420p10le",
+		// Main10 + HDR10 metadata so the decoder runs the real 10-bit path and
+		// the tonemap filter sees bt2020/PQ — same b-frame chain as the SDR sample.
+		"-x265-params",
+		"bframes=4:ref=3:b-adapt=2:rc-lookahead=20:hdr10=1:"+
+			"colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc",
+		"-color_primaries", "bt2020", "-color_trc", "smpte2084", "-colorspace", "bt2020nc",
+		"-b:v", "25M", "-maxrate", "30M", "-bufsize", "60M",
+		"-tag:v", "hvc1", "-an",
+		dst,
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("ffmpeg generate HDR sample: %w (tail: %s)", err, tailString(string(out), 200))
+	}
+	return nil
+}
+
 // ffmpegBin returns the resolved ffmpeg binary path, falling back to
 // "ffmpeg" on PATH when none configured.
 func (r *BenchmarkRunner) ffmpegBin() string {
@@ -389,14 +452,35 @@ func (r *BenchmarkRunner) ffmpegBin() string {
 // if every probe fails — guarantees the host can at least serve a 720p
 // stream.
 func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fallback bool) int {
+	return r.benchSoftwareLadder(ctx, sample, fallback, "", "software", 720)
+}
+
+// benchSoftwareHDR probes the software ceiling for HDR->SDR content: the SAME
+// multi-variant pipeline PLUS the production zscale tonemap (hable), on a real
+// 10-bit HDR sample. It therefore measures the two costs benchSoftware (an
+// 8-bit, no-tonemap bench) is blind to — 10-bit HEVC decode AND the heavy
+// tonemap — i.e. the honest HDR ceiling. It inherently captures decode-bound
+// hosts: if 4K HEVC10 decode alone blows realtime, even the lowest rung fails.
+// Floor 480p (HDR is heavier than the SDR 720p floor; a box that can't sustain
+// 480p HDR leans on the runtime throttle rather than being offered nothing).
+func (r *BenchmarkRunner) benchSoftwareHDR(ctx context.Context, sample string, fallback bool) int {
+	tonemap := hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, hdr.DefaultToneMapOptions())
+	return r.benchSoftwareLadder(ctx, sample, fallback, tonemap, "software-hdr", 480)
+}
+
+// benchSoftwareLadder walks swBenchLadder under the production multi-variant
+// shape (1 decode + N parallel libx264 encodes), optionally prefixing a filter
+// on the decoded stream before the split (preFilter, e.g. the HDR tonemap).
+// Highest rung sustaining >= sourceRate×margin wins; floor when none pass.
+func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string, fallback bool, preFilter, label string, floor int) int {
 	best := 0
 	for i, h := range swBenchLadder {
 		// Heights for every rung at or below h — exactly what the
 		// production pipeline encodes when the ladder top is h.
 		laddered := swBenchLadder[:i+1]
-		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, "libx264", nil, "")
+		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, "libx264", nil, preFilter)
 		passing := ok && fps >= float64(r.sourceRate())*r.margin
-		r.logger.Info("benchmark: software probe",
+		r.logger.Info("benchmark: "+label+" probe",
 			slog.Int("height", h),
 			slog.Int("parallel_encodes", len(laddered)),
 			slog.Float64("fps", fps),
@@ -407,12 +491,12 @@ func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fall
 		best = h
 	}
 	if best == 0 {
-		// Even 720p failed (very weak host, or ffmpeg crashed on every
-		// probe). Stay at the universal 720p floor so playback still
-		// works — the host may overshoot realtime occasionally but the
-		// runtime throttle will catch it.
-		r.logger.Warn("benchmark: software probe failed on every rung, falling back to 720p floor")
-		return 720
+		// Every rung failed (very weak host, or ffmpeg crashed on every probe).
+		// Stay at the floor so playback still works — the host may overshoot
+		// realtime occasionally but the runtime throttle catches it.
+		r.logger.Warn("benchmark: "+label+" probe failed on every rung, falling back to floor",
+			slog.Int("floor", floor))
+		return floor
 	}
 	return best
 }

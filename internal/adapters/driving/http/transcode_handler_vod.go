@@ -724,6 +724,17 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 		cap := h.capability()
 		_, _, _, hwUsable := h.resolveHW(decision.VideoCodec, srcCodec, srcTenBit, h.hwTonemapWanted(decision))
 		maxH = cap.MaxHeightFor(hwUsable)
+		// HDR->SDR in software is far heavier than the plain software bench
+		// (10-bit decode + zscale tonemap). When this content tone-maps on the
+		// SOFTWARE path (no usable HW tone-mapper — the common weak-box case), cap
+		// to the dedicated HDR ceiling so the box stays real-time: degrade
+		// resolution to keep playback fluid. When HW tone-maps (hwUsable), the GPU
+		// folds it cheaply and the normal ceiling holds.
+		if !hwUsable && cap.SoftwareHDRMaxHeight > 0 &&
+			cap.SoftwareHDRMaxHeight < maxH &&
+			slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
+			maxH = cap.SoftwareHDRMaxHeight
+		}
 	}
 	// CMCD-feedback adaptive override (Phase C). The override service
 	// watches playback_qoe_events and writes a downward cap when a

@@ -22,6 +22,14 @@ type EncodeCapability struct {
 	// sample. Always one of {720, 1080, 1440, 2160}.
 	SoftwareMaxHeight int `json:"software_max_height"`
 
+	// SoftwareHDRMaxHeight is the tallest software encode the host sustains for
+	// HDR->SDR content: the SAME multi-variant pipeline PLUS the zscale tonemap on
+	// a real 10-bit HDR sample. It captures the two costs SoftwareMaxHeight (an
+	// 8-bit, no-tonemap bench) is blind to — 10-bit HEVC decode and the heavy
+	// tonemap — so it is the honest ceiling for HDR on a weak NAS (and inherently
+	// reflects decode-bound hosts). 0 until benched; the HDR ladder caps to it.
+	SoftwareHDRMaxHeight int `json:"software_hdr_max_height"`
+
 	// HWMaxHeight is the same upper bound for the hardware encode path
 	// when an accelerator (NVENC / QSV / VAAPI) is available. Zero when
 	// no HW was probed or none passed the realtime threshold.

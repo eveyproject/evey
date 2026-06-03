@@ -11,6 +11,7 @@ type HWFallback = { class: string; codec: string; at: string };
 
 type EncodeCapability = {
   software_max_height: number;
+  software_hdr_max_height?: number; // software ceiling for HDR->SDR (10-bit decode + tonemap)
   hw_max_height: number;
   hw_backend?: string;
   hw_codecs?: string[];       // codecs the GPU can ENCODE
@@ -198,6 +199,12 @@ export function EncodeCalibrationCard() {
           <strong className="text-[var(--text)]">{data.software_max_height}p</strong>
           <span className="text-[var(--text-muted)]"> ({t("admin.calibration.libx264", "libx264 ultrafast")})</span>
         </Row>
+        {data.software_hdr_max_height ? (
+          <Row label={t("admin.calibration.softwareHdrMax", "Software HDR cap")}>
+            <strong className="text-[var(--text)]">{data.software_hdr_max_height}p</strong>
+            <span className="text-[var(--text-muted)]"> ({t("admin.calibration.hdrTonemap", "HDR→SDR tonemap")})</span>
+          </Row>
+        ) : null}
         <Row label={t("admin.calibration.hwMax", "Hardware encode cap")}>
           {data.hw_max_height > 0 ? (
             <>
