@@ -51,3 +51,29 @@ func TestMaxHeightFor_Uncalibrated_FallsBackTo720(t *testing.T) {
 	assert.Equal(t, 720, c.MaxHeightFor(false))
 	assert.Equal(t, 720, c.MaxHeightFor(true))
 }
+
+// TestHWCanDecode_OldIGPUEncodesH264ButNotHEVC locks the exact production case:
+// a pre-Skylake Intel iGPU HW-encodes H.264 but has NO HEVC hardware
+// decoder. resolveHW relies on HWCanDecode("hevc")==false here to fall back to
+// software instead of feeding an undecodable source to -hwaccel and stalling.
+func TestHWCanDecode_OldIGPUEncodesH264ButNotHEVC(t *testing.T) {
+	// No backend → false regardless of the decode list.
+	assert.False(t, EncodeCapability{HWDecodeCodecs: []string{"hevc"}}.HWCanDecode("hevc"))
+
+	oldIGPU := EncodeCapability{
+		HWBackend:      "vaapi",
+		HWCodecs:       []string{"h264"}, // encodes H.264
+		HWDecodeCodecs: []string{"h264"}, // but cannot decode HEVC
+	}
+	assert.False(t, oldIGPU.HWCanDecode("hevc"), "an old iGPU cannot HW-decode HEVC")
+	assert.False(t, oldIGPU.HWCanDecode("h265"), "h265 alias normalises to hevc → also false")
+	assert.True(t, oldIGPU.HWCanDecode("h264"), "H.264 HW decode is supported")
+	assert.True(t, oldIGPU.HWCanDecode("avc1"), "avc1 alias normalises to h264 → true")
+}
+
+func TestHWHasFeature(t *testing.T) {
+	c := EncodeCapability{HWFeatures: []string{"low_power", "rc_vbr"}}
+	assert.True(t, c.HWHasFeature("low_power"))
+	assert.False(t, c.HWHasFeature("bframes"))
+	assert.False(t, EncodeCapability{}.HWHasFeature("low_power"), "no features → false")
+}
