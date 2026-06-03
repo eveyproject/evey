@@ -45,3 +45,23 @@ func TestSourceClassMatchesLegacy(t *testing.T) {
 		}
 	}
 }
+
+func TestNormaliseSourceCodec(t *testing.T) {
+	// Canonicalises codec aliases into the buckets HWCanDecode / SourceClassFor
+	// / cap overrides all key on. Unknown and empty collapse to "any" so a typo'd
+	// codec can't fork the bucket space.
+	cases := map[string]string{
+		"h264": "h264", "avc": "h264", "avc1": "h264", "AVC1": "h264", " h264 ": "h264",
+		"hevc": "hevc", "h265": "hevc", "hev1": "hevc", "hvc1": "hevc", "HEVC": "hevc",
+		"av1": "av1", "av01": "av1",
+		"vp9":   "vp9",
+		"":      "any",
+		"   ":   "any",
+		"mpeg2": "any", "theora": "any",
+	}
+	for in, want := range cases {
+		if got := normaliseSourceCodec(in); got != want {
+			t.Errorf("normaliseSourceCodec(%q) = %q; want %q", in, got, want)
+		}
+	}
+}
