@@ -533,7 +533,7 @@ func TestOrchestrator_SingleVariant_FlagOff_MultiVariantProfiles(t *testing.T) {
 
 	require.Equal(t, 1, proc.startCount(), "one ffmpeg spawned for all rungs")
 	got := proc.lastOpts()
-	assert.Equal(t, len(fp.Profiles), len(got.Profiles),
+	assert.Len(t, got.Profiles, len(fp.Profiles),
 		"SingleVariant=false: all profiles must reach the ffmpeg adapter")
 	// VariantIndex is irrelevant to the multi-variant builder (it names rungs
 	// itself via -var_stream_map), but we confirm it stays at 0.
@@ -560,7 +560,7 @@ func TestOrchestrator_SingleVariant_FlagOn_SingleProfileAndVariantIndex(t *testi
 
 	require.Equal(t, 1, proc.startCount(), "one ffmpeg spawned for the requested rung")
 	got := proc.lastOpts()
-	require.Equal(t, 1, len(got.Profiles),
+	require.Len(t, got.Profiles, 1,
 		"SingleVariant=true: exactly one profile must reach the ffmpeg adapter")
 	assert.Equal(t, fp.Profiles[wantVariant].Name, got.Profiles[0].Name,
 		"SingleVariant=true: the one profile must be the requested rung's profile")
