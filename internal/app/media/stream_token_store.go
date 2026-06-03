@@ -22,7 +22,11 @@ const (
 )
 
 type StreamTokenStore struct {
-	tokens sync.Map // token string → *shared.StreamToken
+	// tokens maps token string → *shared.StreamToken. CreateWithTTL is the ONLY
+	// insert site (always a string key and a *shared.StreamToken value), so the
+	// unchecked type assertions in Validate / cleanupLoop are invariant-safe by
+	// construction — a bare v.(*shared.StreamToken) / key.(string) cannot panic.
+	tokens sync.Map
 	ttl    time.Duration
 	done   chan struct{}
 }
