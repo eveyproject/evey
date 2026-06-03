@@ -60,6 +60,22 @@ type EncodeCapability struct {
 	// on" from "never benched").
 	HW10BitTranscode bool `json:"hw_10bit_transcode"`
 
+	// HWTonemap reports whether the calibrated HW backend can tone-map HDR->SDR
+	// on the GPU (tonemap_vaapi / vpp_qsv tonemap / libplacebo). Probed because
+	// it's a distinct capability: Gen9+ Intel / capable VAAPI-QSV / a Vulkan
+	// libplacebo build do it, while old-iGPU-class VEBOX and OpenCL/Vulkan-less
+	// hosts (incl. WSL) fail the probe. When true AND the hw-tonemap toggle is on,
+	// an HDR source is tone-mapped on the GPU instead of the heavy software zscale
+	// path. False -> software tonemap (the universally-correct fallback). No
+	// omitempty: a false bool must still surface in the admin calibration view.
+	HWTonemap bool `json:"hw_tonemap"`
+
+	// GPUClass labels the calibrated accelerator for the admin panel:
+	// "integrated" (Intel iGPU / QSV), "discrete" (NVIDIA NVENC), or "" when it
+	// can't be told (AMD VAAPI — iGPU vs dGPU share a PCI vendor — or a host
+	// without the sysfs node, e.g. a WSL/d3d12 virtual render node).
+	GPUClass string `json:"gpu_class,omitempty"`
+
 	// HWDevice is the DRM render node for VAAPI/QSV (e.g. /dev/dri/renderD128),
 	// empty for NVENC (CUDA selects the device). Forwarded to the ffmpeg
 	// hardware pipeline as -hwaccel_device / -qsv_device.

@@ -49,7 +49,7 @@ func TestOrchestrator_EnsureSegmentRange_NoSpawnOnCacheHit(t *testing.T) {
 	fp := minimalFingerprint(t)
 	k := SegmentKey{DecisionHash: fp.Hash(), VariantIdx: 0, SegmentIdx: 5}
 	require.NoError(t, os.MkdirAll(filepath.Dir(cache.Path(k, fp.UseFMP4)), 0o755))
-	require.NoError(t, os.WriteFile(cache.Path(k, fp.UseFMP4), []byte("seg"), 0o644))
+	require.NoError(t, os.WriteFile(cache.Path(k, fp.UseFMP4), fmp4Seg(), 0o644))
 
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 5))
 	assert.Equal(t, 0, proc.startCount())

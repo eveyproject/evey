@@ -303,6 +303,73 @@ func probeHW10BitTranscode(ctx context.Context, ffmpegPath, hwType, device strin
 	return exec.CommandContext(ctx, ffmpegPath, args...).Run() == nil
 }
 
+// probeHWTonemap reports whether the HW backend can run an HDR->SDR tone-map on
+// the GPU. It runs the real per-backend tone-map filter on a synthetic p010
+// surface; success means the filter graph initialises and processes a frame.
+// Gen9+ Intel (tonemap_vaapi / vpp_qsv) and a Vulkan libplacebo build pass;
+// old-iGPU-class VEBOX and hosts without a Vulkan/OpenCL ICD (incl. WSL) fail.
+// Fail-closed: any error/abort/timeout ⇒ false ⇒ HDR tone-maps in software.
+func probeHWTonemap(ctx context.Context, ffmpegPath, hwType, device string) bool {
+	ctx, cancel := context.WithTimeout(ctx, hwProbeTimeout)
+	defer cancel()
+
+	args := []string{"-hide_banner", "-v", "error", "-nostdin"}
+	var vf string
+	switch hwType {
+	case "vaapi":
+		if device == "" {
+			return false
+		}
+		args = append(args, "-vaapi_device", device)
+		vf = "format=p010le,hwupload,tonemap_vaapi=format=nv12:matrix=bt709:primaries=bt709:transfer=bt709,hwdownload,format=nv12"
+	case "qsv":
+		args = append(args, "-init_hw_device", "qsv=hw", "-filter_hw_device", "hw")
+		vf = "format=p010le,hwupload=extra_hw_frames=16,vpp_qsv=tonemap=1:format=nv12,hwdownload,format=nv12"
+	case "nvenc":
+		// NVIDIA has no native tonemap filter; the GPU path is libplacebo (Vulkan).
+		args = append(args, "-init_hw_device", "vulkan=vk", "-filter_hw_device", "vk")
+		vf = "format=p010le,hwupload,libplacebo=tonemapping=bt.2390:colorspace=bt709:color_primaries=bt709:color_trc=bt709:format=nv12,hwdownload,format=nv12"
+	default:
+		return false
+	}
+	args = append(args, "-f", "lavfi", "-i", "testsrc2=size=128x128:rate=5:duration=0.3")
+	args = append(args, "-vf", vf, "-f", "null", "-")
+
+	return exec.CommandContext(ctx, ffmpegPath, args...).Run() == nil
+}
+
+// classifyGPU labels the calibrated accelerator integrated vs discrete for the
+// admin panel. NVENC is always a discrete NVIDIA card; QSV is always an Intel
+// iGPU. For VAAPI the PCI vendor at /sys/class/drm/<node>/device/vendor decides:
+// Intel (0x8086) integrated, NVIDIA (0x10de) discrete. AMD (0x1002) shares one
+// vendor across APUs and Radeon dGPUs, so it's left unclassified ("") rather
+// than guessed; "" is also returned on hosts without the sysfs node (a WSL/d3d12
+// virtual render node exposes no PCI vendor).
+func classifyGPU(backend, device string) string {
+	switch backend {
+	case "nvenc":
+		return "discrete"
+	case "qsv":
+		return "integrated"
+	case "vaapi":
+		node := filepath.Base(device)
+		if node == "" || node == "." || node == "/" {
+			return ""
+		}
+		b, err := os.ReadFile("/sys/class/drm/" + node + "/device/vendor")
+		if err != nil {
+			return ""
+		}
+		switch strings.TrimSpace(string(b)) {
+		case "0x8086":
+			return "integrated"
+		case "0x10de":
+			return "discrete"
+		}
+	}
+	return ""
+}
+
 func checkEncoderAvailable(ctx context.Context, ffmpegPath, encoder string) bool {
 	cmd := exec.CommandContext(ctx, ffmpegPath, "-encoders")
 	out, err := cmd.Output()

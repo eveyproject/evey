@@ -101,6 +101,12 @@ type DecisionFingerprint struct {
 	// drops tuning must not fork it).
 	HWFeatures []string
 
+	// HWTonemap requests GPU HDR->SDR tone-mapping for this transcode. EXCLUDED
+	// from Hash() like HWAccel/HWFeatures: a HW- vs software-tonemapped segment is
+	// the same codec/bitrate/resolution/container/naming, so the addressable cache
+	// stays encoder-agnostic (toggling HW tone-mapping must not fork the cache).
+	HWTonemap bool
+
 	// Profiles must be the EXACT ABR ladder ffmpeg will emit. Different ladders
 	// produce different multi-variant runs (variant indices and bitrates differ),
 	// so they belong in the hash. Encoded as `name@WxH@vKbps@aKbps;…` ordered.

@@ -641,6 +641,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		HWAccel:      transcoding.HWAccelType(fp.HWAccel),
 		HWDevice:     fp.HWDevice,
 		HWFeatures:   fp.HWFeatures,
+		HWTonemap:    fp.HWTonemap, // GPU HDR->SDR fold (resolved by the handler; false -> software tonemap)
 		PerVariantHW: o.opts.HWPerVariant,
 	}
 

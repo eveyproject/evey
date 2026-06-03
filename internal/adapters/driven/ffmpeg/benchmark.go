@@ -137,7 +137,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	// HW backend passed the realtime bench.
 	var hwFeatures []string
 	var hwDecodeCodecs []string
-	var hw10Bit bool
+	var hw10Bit, hwTonemap bool
 	if hwMax > 0 {
 		hwFeatures = r.probeHWFeatures(ctx, hwBackend)
 		// Probe DECODE support separately — encode-capable ≠ decode-capable
@@ -150,6 +150,10 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		// source needs (Intel i965 old iGPU VEBOX). Gates 10-bit sources to
 		// software so they never crash the HW pipeline.
 		hw10Bit = probeHW10BitTranscode(ctx, r.ffmpegPath, hwBackend, hwDevice)
+		// Probe GPU tone-mapping (tonemap_vaapi / vpp_qsv / libplacebo). Distinct
+		// from the 10-bit VPP: a backend may fold 10-bit yet lack a tone-map filter
+		// (or the Vulkan/OpenCL ICD it needs). False -> HDR tone-maps in software.
+		hwTonemap = probeHWTonemap(ctx, r.ffmpegPath, hwBackend, hwDevice)
 	}
 
 	cap := transcoding.EncodeCapability{
@@ -159,7 +163,9 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		HWCodecs:            hwCodecs,
 		HWDecodeCodecs:      hwDecodeCodecs,
 		HW10BitTranscode:    hw10Bit,
+		HWTonemap:           hwTonemap,
 		HWDevice:            hwDevice,
+		GPUClass:            classifyGPU(hwBackend, hwDevice),
 		HWFeatures:          hwFeatures,
 		DetectedBackends:    detected,
 		CPUSignature:        sysinfo.CPUSignature(),
@@ -171,6 +177,8 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		slog.Int("hw_max_height", cap.HWMaxHeight),
 		slog.String("hw_backend", cap.HWBackend),
 		slog.Bool("hw_10bit_transcode", cap.HW10BitTranscode),
+		slog.Bool("hw_tonemap", cap.HWTonemap),
+		slog.String("gpu_class", cap.GPUClass),
 		slog.Any("detected_backends", cap.DetectedBackends),
 		slog.Any("hw_features", cap.HWFeatures),
 		slog.Int64("elapsed_ms", cap.BenchmarkDurationMs))

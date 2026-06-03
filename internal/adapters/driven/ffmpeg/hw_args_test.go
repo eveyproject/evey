@@ -358,6 +358,41 @@ func TestBuildFFmpegArgs_SoftwareUsesCappedCRF(t *testing.T) {
 	}
 }
 
+func TestBuildFFmpegArgs_HWTonemap_VAAPI_StaysOnGPU(t *testing.T) {
+	// HWTonemap + a tonemap need on VAAPI: the GPU folds HDR->SDR (tonemap_vaapi)
+	// once before the split and the pipeline stays hardware (h264_vaapi), NOT the
+	// software zscale/libx264 path.
+	opts := sampleHWOpts(transcoding.VAAPI, "/dev/dri/renderD128", 3)
+	opts.ToneMap = true
+	opts.HWTonemap = true
+	joined := strings.Join(BuildFFmpegArgs(opts), " ")
+	if n := strings.Count(joined, "tonemap_vaapi"); n != 1 {
+		t.Errorf("tonemap_vaapi must run once before the split, got %d: %q", n, joined)
+	}
+	if !strings.Contains(joined, "h264_vaapi") {
+		t.Errorf("HW tonemap must keep the HW encoder: %q", joined)
+	}
+	if strings.Contains(joined, "zscale") || strings.Contains(joined, "libx264") {
+		t.Errorf("HW tonemap must NOT fall to the software path: %q", joined)
+	}
+}
+
+func TestBuildFFmpegArgs_HWTonemap_OffStaysSoftware(t *testing.T) {
+	// The invariant: tonemap needed but HWTonemap=false (the probe failed — every
+	// host on the current fleet) must run the software zscale + libx264 path,
+	// byte-identical to a host with no GPU tone-mapping. No HW filters leak in.
+	opts := sampleHWOpts(transcoding.VAAPI, "/dev/dri/renderD128", 3)
+	opts.ToneMap = true
+	opts.HWTonemap = false
+	joined := strings.Join(BuildFFmpegArgs(opts), " ")
+	if strings.Contains(joined, "tonemap_vaapi") || strings.Contains(joined, "h264_vaapi") {
+		t.Errorf("HWTonemap=false must NOT use the HW path: %q", joined)
+	}
+	if !strings.Contains(joined, "tonemap=") || !strings.Contains(joined, "libx264") {
+		t.Errorf("HWTonemap=false must use software zscale tonemap + libx264: %q", joined)
+	}
+}
+
 func TestBuildFFmpegArgs_NoAudio_MultiVariantSoftware(t *testing.T) {
 	opts := sampleHWOpts(transcoding.None, "", 3)
 	opts.AudioTrackIndex = -1 // source has no audio track

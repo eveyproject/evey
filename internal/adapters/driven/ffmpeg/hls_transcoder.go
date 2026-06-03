@@ -1019,8 +1019,30 @@ func detectToneMap(hdrSupported bool, streams []*library.MediaStream) string {
 // is on and a detected device supports the codec; this gate additionally keeps
 // the complex-filtergraph cases (tonemap, burn-in) on the proven software path.
 func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool {
-	return opts.HWAccel != "" && opts.HWAccel != transcoding.None && opts.HWAccel.IsValid() &&
-		!burnIn && toneMap == ""
+	if opts.HWAccel == "" || opts.HWAccel == transcoding.None || !opts.HWAccel.IsValid() || burnIn {
+		return false
+	}
+	// A tone-map normally keeps the software path. The exception: the host probed
+	// GPU tone-mapping AND it's wired into this request (opts.HWTonemap) AND the
+	// backend has a HW tone-map filter — then the GPU folds HDR->SDR in-pipeline.
+	if toneMap != "" {
+		return opts.HWTonemap && hwTonemapFilter(opts.HWAccel) != ""
+	}
+	return true
+}
+
+// hwTonemapFilter returns the GPU HDR->SDR tone-map filter for the backend, or
+// "" when no HW tone-mapper is wired. Inserted before the scaler so the GPU
+// folds HDR (and 10-bit) in one pass. NVENC's HW tone-map path is libplacebo
+// (Vulkan) which is not modelled here, so NVENC tone-maps in software.
+func hwTonemapFilter(accel transcoding.HWAccelType) string {
+	switch accel {
+	case transcoding.VAAPI:
+		return "tonemap_vaapi=format=nv12:matrix=bt709:primaries=bt709:transfer=bt709"
+	case transcoding.QSV:
+		return "vpp_qsv=tonemap=1:format=nv12"
+	}
+	return ""
 }
 
 // hwInitArgs returns the pre-`-i` flags that put decode + filtering on the GPU
@@ -1201,6 +1223,11 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, "-i", opts.FilePath)
 
 	vf := hwScaleFilter(opts.HWAccel, p.Width)
+	if opts.HWTonemap {
+		if tm := hwTonemapFilter(opts.HWAccel); tm != "" {
+			vf = tm + "," + vf // GPU HDR->SDR fold before the scaler
+		}
+	}
 	if d := hwDeinterlaceFilter(opts.HWAccel); d != "" {
 		vf = d + "," + vf
 	}
@@ -1242,6 +1269,12 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 	src := "[0:v]"
 	if d := hwDeinterlaceFilter(opts.HWAccel); d != "" {
 		src += d + ","
+	}
+	// Tone-map once on the source surface before the GPU split (not per-rung).
+	if opts.HWTonemap {
+		if tm := hwTonemapFilter(opts.HWAccel); tm != "" {
+			src += tm + ","
+		}
 	}
 	filterParts := []string{fmt.Sprintf("%ssplit=%d%s", src, n, strings.Join(splitOutputs, ""))}
 	for i, p := range opts.Profiles {

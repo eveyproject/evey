@@ -75,6 +75,11 @@ type hlsVODServe struct {
 	// toggle takes effect without a restart. Nil-safe (tests → software).
 	hwAccelEnabled func() bool
 
+	// hwTonemapEnabled gates GPU HDR->SDR tone-mapping (still requires the host to
+	// have probed EncodeCapability.HWTonemap). Default on; EVEY_TRANSCODING_HW_TONEMAP=0
+	// forces the software tonemap path. Nil-safe (nil/true → allowed).
+	hwTonemapEnabled func() bool
+
 	// useFMP4 controls the segment container. fMP4 is the project default —
 	// segments are ~30% smaller and the codecs string in the master playlist
 	// matches what hls.js expects on modern Chromium/Firefox.
@@ -527,7 +532,8 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		}
 	}
 
-	hwAccel, hwDevice, hwFeatures, _ := h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams), sourceVideoTenBit(streams))
+	hwTonemap := h.hwTonemapWanted(decision)
+	hwAccel, hwDevice, hwFeatures, hwUsable := h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams), sourceVideoTenBit(streams), hwTonemap)
 	return apptranscoding.DecisionFingerprint{
 		MediaID:             mediaID,
 		SourcePath:          item.File.Path,
@@ -547,7 +553,11 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		HWAccel:             hwAccel,
 		HWDevice:            hwDevice,
 		HWFeatures:          hwFeatures,
-		Profiles:            fpProfiles,
+		// GPU tone-mapping for this request (only when the HW path is actually
+		// taken). Excluded from Hash() like HWAccel — a HW- vs software-tonemapped
+		// segment is interchangeable in the addressable cache.
+		HWTonemap: hwTonemap && hwUsable,
+		Profiles:  fpProfiles,
 	}, nil
 }
 
@@ -571,7 +581,7 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 // HDR tonemap / bitmap burn-in are not gated here: the orchestrated VOD path
 // does neither today, and the ffmpeg builder independently falls back to
 // software for those, so the two stay consistent.
-func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string, sourceTenBit bool) (accel, device string, features []string, usable bool) {
+func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string, sourceTenBit, hwTonemap bool) (accel, device string, features []string, usable bool) {
 	if h.hwAccelEnabled == nil || !h.hwAccelEnabled() || h.capability == nil {
 		return "", "", nil, false
 	}
@@ -594,10 +604,33 @@ func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string, sourceTenBit bo
 	// the moment a 10-bit surface reaches scale_vaapi. Unless the calibration
 	// proved the 10-bit VPP works, software-transcode the source instead of
 	// crashing the GPU pipeline and churning through a demotion.
-	if sourceTenBit && !cap.HW10BitTranscode {
+	// Exception: when this request HW-tone-maps (hwTonemap), the GPU tone-mapper
+	// (tonemap_vaapi / vpp_qsv) folds the 10-bit p010 down to 8-bit nv12 itself,
+	// so the scale_vaapi-on-p010 hazard the gate guards against never arises —
+	// the 10-bit source can take the HW path even without HW10BitTranscode.
+	if sourceTenBit && !cap.HW10BitTranscode && !hwTonemap {
 		return "", "", nil, false
 	}
 	return cap.HWBackend, cap.HWDevice, cap.HWFeatures, true
+}
+
+// hwTonemapWanted reports whether this request should tone-map HDR->SDR on the
+// GPU: the decision needs tone-mapping, the toggle is on, the host probed
+// HWTonemap, and the backend has a wired HW tone-map filter (vaapi/qsv — NVENC's
+// libplacebo path is not modelled, so it tone-maps in software). When false the
+// software tonemap path runs, byte-identical to a host with no GPU tone-mapping.
+func (h *hlsVODServe) hwTonemapWanted(decision domaintranscoding.PlaybackDecision) bool {
+	if h.hwTonemapEnabled != nil && !h.hwTonemapEnabled() {
+		return false
+	}
+	if h.hwAccelEnabled == nil || !h.hwAccelEnabled() || h.capability == nil {
+		return false
+	}
+	cap := h.capability()
+	if !cap.HWTonemap || (cap.HWBackend != "vaapi" && cap.HWBackend != "qsv") {
+		return false
+	}
+	return slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed")
 }
 
 // sourceVideoCodec returns the first video stream's codec (empty if none), the
@@ -689,7 +722,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	maxH := 720 // safe floor if capability isn't wired yet (tests / dev w/o calibration)
 	if h.capability != nil {
 		cap := h.capability()
-		_, _, _, hwUsable := h.resolveHW(decision.VideoCodec, srcCodec, srcTenBit)
+		_, _, _, hwUsable := h.resolveHW(decision.VideoCodec, srcCodec, srcTenBit, h.hwTonemapWanted(decision))
 		maxH = cap.MaxHeightFor(hwUsable)
 	}
 	// CMCD-feedback adaptive override (Phase C). The override service
@@ -792,6 +825,12 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		},
 		hwAccelEnabled: func() bool {
 			return s.Cfg != nil && s.Cfg.EffectiveHWAccelEnabled()
+		},
+		// On by default; an operator who sees HW tone-mapping shift colours on
+		// their GPU (a known VAAPI/driver hazard) sets EVEY_TRANSCODING_HW_TONEMAP=0
+		// to fall back to the software tonemap.
+		hwTonemapEnabled: func() bool {
+			return os.Getenv("EVEY_TRANSCODING_HW_TONEMAP") != "0"
 		},
 		// fMP4 is now the project default — matches the ffmpeg adapter
 		// (needsFMP4Segments returns true unconditionally) and Apple's
@@ -910,32 +949,15 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 	// Build the same fingerprint the player would generate when it starts
 	// playing this next episode: capabilities forwarded via query params,
 	// per-title ladder via profilesForDecision, defaults safe.
-	decision := h.makeDecision(r.Context(), streams, nextItem.File.ContainerFormat, r)
-	profiles := h.profilesForDecision(r.Context(), nextItem, streams, decision)
-	fpProfiles := make([]apptranscoding.ProfileFingerprint, len(profiles))
-	for i, p := range profiles {
-		fpProfiles[i] = apptranscoding.ProfileFingerprint{
-			Name: p.Name, Width: p.Width, Height: p.Height,
-			VideoBitrate: p.VideoBitrate, AudioBitrate: p.AudioBitrate,
-		}
-	}
-	hwAccel, hwDevice, hwFeatures, _ := h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams), sourceVideoTenBit(streams))
-	fp := apptranscoding.DecisionFingerprint{
-		MediaID:             string(nextItem.ID),
-		SourcePath:          nextItem.File.Path,
-		Profiles:            fpProfiles,
-		AudioTrack:          h.resolveAudioTrack(r, streams),
-		SubtitleBurnInTrack: parseIntQuery(r, "subtitleTrack", -1),
-		ForceSidecarSubs:    false,
-		VideoCodec:          decision.VideoCodec,
-		AudioCodec:          decision.AudioCodec,
-		MaxAudioChannels:    decision.MaxAudioChannels,
-		HDRTonemap:          false,
-		AudioNormalize:      h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
-		UseFMP4:             h.useFMP4,
-		HWAccel:             hwAccel,
-		HWDevice:            hwDevice,
-		HWFeatures:          hwFeatures,
+	// Use the SAME builder the player path uses, so the warmed segments hash
+	// identically to what the player will request (it earlier drifted —
+	// HDRTonemap/ForceSidecarSubs hardcoded — so HDR/sidecar prewarms missed the
+	// cache). One source of truth now also carries HWTonemap.
+	fp, err := h.buildFingerprint(r, string(nextItem.ID), nextItem, streams)
+	if err != nil {
+		slog.Warn("prewarm: fingerprint build failed", slog.String("next_id", string(nextItem.ID)), slog.Any("err", err))
+		http.Error(w, `{"message":"prewarm fingerprint failed"}`, http.StatusInternalServerError)
+		return
 	}
 
 	if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, 0); err != nil {

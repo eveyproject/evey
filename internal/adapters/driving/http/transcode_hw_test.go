@@ -25,7 +25,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return nvenc },
 			hwAccelEnabled: func() bool { return true },
 		}
-		accel, device, features, usable := h.resolveHW("h264", "", false)
+		accel, device, features, usable := h.resolveHW("h264", "", false, false)
 		if !usable || accel != "nvenc" || device != "" {
 			t.Errorf("got (%q,%q,%v), want (nvenc,'',true)", accel, device, usable)
 		}
@@ -39,7 +39,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return vaapi },
 			hwAccelEnabled: func() bool { return true },
 		}
-		accel, device, _, usable := h.resolveHW("hevc", "", false)
+		accel, device, _, usable := h.resolveHW("hevc", "", false, false)
 		if !usable || accel != "vaapi" || device != "/dev/dri/renderD128" {
 			t.Errorf("got (%q,%q,%v), want (vaapi,/dev/dri/renderD128,true)", accel, device, usable)
 		}
@@ -50,7 +50,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return vaapi }, // no av1
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("av1", "", false); usable {
+		if _, _, _, usable := h.resolveHW("av1", "", false, false); usable {
 			t.Error("av1 unsupported by vaapi caps → must be software")
 		}
 	})
@@ -67,10 +67,10 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return oldIGPU },
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "h264", false); !usable {
+		if _, _, _, usable := h.resolveHW("h264", "h264", false, false); !usable {
 			t.Error("h264 source is HW-decodable → must take the HW path")
 		}
-		if _, _, _, usable := h.resolveHW("h264", "hevc", false); usable {
+		if _, _, _, usable := h.resolveHW("h264", "hevc", false, false); usable {
 			t.Error("hevc source not HW-decodable on this GPU → must fall back to software (no stall)")
 		}
 	})
@@ -80,7 +80,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return nvenc },
 			hwAccelEnabled: func() bool { return false },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "", false); usable {
+		if _, _, _, usable := h.resolveHW("h264", "", false, false); usable {
 			t.Error("flag off → must be software")
 		}
 	})
@@ -89,7 +89,7 @@ func TestResolveHW(t *testing.T) {
 		h := &hlsVODServe{
 			capability: func() domaintranscoding.EncodeCapability { return nvenc },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "", false); usable {
+		if _, _, _, usable := h.resolveHW("h264", "", false, false); usable {
 			t.Error("nil hwAccelEnabled → must be software")
 		}
 	})
@@ -99,7 +99,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return domaintranscoding.SafeFallback() },
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "", false); usable {
+		if _, _, _, usable := h.resolveHW("h264", "", false, false); usable {
 			t.Error("no HW backend → must be software")
 		}
 	})
@@ -119,11 +119,16 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return box },
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "hevc", false); !usable {
+		if _, _, _, usable := h.resolveHW("h264", "hevc", false, false); !usable {
 			t.Error("8-bit hevc source → HW path (decode ok, no 10-bit VPP needed)")
 		}
-		if _, _, _, usable := h.resolveHW("h264", "hevc", true); usable {
+		if _, _, _, usable := h.resolveHW("h264", "hevc", true, false); usable {
 			t.Error("10-bit source + !HW10BitTranscode → must software-transcode (p010 aborts the VEBOX)")
+		}
+		// ...but when this request HW-tone-maps, tonemap_vaapi folds the 10-bit p010
+		// itself, so the same 10-bit source CAN take the HW path without HW10BitTranscode.
+		if _, _, _, usable := h.resolveHW("h264", "hevc", true, true); !usable {
+			t.Error("10-bit source + HW tonemap → HW path (tonemap_vaapi folds p010)")
 		}
 	})
 
@@ -138,7 +143,7 @@ func TestResolveHW(t *testing.T) {
 			capability:     func() domaintranscoding.EncodeCapability { return box },
 			hwAccelEnabled: func() bool { return true },
 		}
-		if _, _, _, usable := h.resolveHW("h264", "hevc", true); !usable {
+		if _, _, _, usable := h.resolveHW("h264", "hevc", true, false); !usable {
 			t.Error("10-bit source + HW10BitTranscode → must take the HW path")
 		}
 	})

@@ -172,7 +172,7 @@ func TestOrchestrator_hwSessionAlive_InitCountsAsAlive(t *testing.T) {
 
 	dir, err := cache.DirFor(hash)
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "stream_0_init.mp4"), []byte("moov-box-bytes"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "stream_0_init.mp4"), fmp4Init(), 0o644))
 
 	assert.True(t, o.hwSessionAlive(hash, true), "a written init segment must count as a live HW session")
 }

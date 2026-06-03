@@ -115,7 +115,9 @@ func writeAudioSegment(t *testing.T, cache *SegmentCache, fp AudioFingerprint, s
 	}
 	path := cache.Path(key, true)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte("audio-segment-data"), 0o644))
+	// Valid fMP4 (styp+moof+mdat) so SegmentCache.IsReady's content-box check
+	// accepts it as a real audio segment (it rejects styp-only/dummy bytes).
+	require.NoError(t, os.WriteFile(path, fmp4Seg(), 0o644))
 }
 
 // minimalAudioFp returns an AudioFingerprint for tests.
@@ -204,7 +206,7 @@ func TestAudioOrchestrator_EnsureAudioSegment_DifferentFp_TwoSpawns(t *testing.T
 		// already created — avoids recomputing a fingerprint hash in the callback.
 		segFile := filepath.Join(opts.OutputDir,
 			SegmentKey{VariantIdx: opts.SourceTrackIdx, SegmentIdx: 0, Kind: KindAudio}.fileName(true))
-		_ = os.WriteFile(segFile, []byte("data"), 0o644)
+		_ = os.WriteFile(segFile, fmp4Seg(), 0o644)
 		return newAudioFakeHandle()
 	}
 
@@ -294,7 +296,7 @@ func TestAudioOrchestrator_Close_StopsAllSessions(t *testing.T) {
 		// Write segment directly into the orchestrator-allocated output dir.
 		segFile := filepath.Join(opts.OutputDir,
 			SegmentKey{VariantIdx: opts.SourceTrackIdx, SegmentIdx: 0, Kind: KindAudio}.fileName(true))
-		_ = os.WriteFile(segFile, []byte("data"), 0o644)
+		_ = os.WriteFile(segFile, fmp4Seg(), 0o644)
 		return newAudioFakeHandle()
 	}
 

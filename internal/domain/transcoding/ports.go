@@ -102,7 +102,14 @@ type HLSProcessOpts struct {
 	// DecisionFingerprint.HDRTonemap) rather than the source streams, so the
 	// builder honours it independently of stream-based detection. Ignored when
 	// HDRSupported is true (the client renders HDR natively -> never tonemap).
-	ToneMap        bool
+	ToneMap bool
+	// HWTonemap, when true, makes the HARDWARE builder tone-map HDR->SDR on the
+	// GPU (tonemap_vaapi etc.) as part of the zero-copy pipeline, instead of the
+	// software zscale path. Set only when the host probed HWTonemap, the toggle is
+	// on, and the content goes the HW path; mutually exclusive with the software
+	// ToneMap above (the HW builder ignores ToneMap, the software builder ignores
+	// this). When false the software path is byte-identical to a no-HW-tonemap host.
+	HWTonemap      bool
 	AudioNormalize bool
 	StartSec       float64
 	Streams        []*library.MediaStream

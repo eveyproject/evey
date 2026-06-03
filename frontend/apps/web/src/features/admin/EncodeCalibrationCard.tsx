@@ -16,6 +16,7 @@ type EncodeCapability = {
   hw_codecs?: string[];       // codecs the GPU can ENCODE
   hw_decode_codecs?: string[]; // codecs the GPU can DECODE (may differ from encode)
   hw_device?: string;
+  gpu_class?: string; // "integrated" (iGPU/QSV) | "discrete" (NVENC) | "" (AMD/unknown)
   hw_mode?: string; // active policy: auto | off | nvenc | vaapi | qsv
   detected_backends?: string[]; // accelerators the host advertises
   is_wsl?: boolean; // WSL2: VAAPI/QSV (Mesa d3d12) unsupported, greyed out
@@ -201,7 +202,10 @@ export function EncodeCalibrationCard() {
           {data.hw_max_height > 0 ? (
             <>
               <strong className="text-[var(--text)]">{data.hw_max_height}p</strong>
-              <span className="text-[var(--text-muted)]"> ({data.hw_backend})</span>
+              <span className="text-[var(--text-muted)]"> ({data.hw_backend}{
+                data.gpu_class === "integrated" ? `, ${t("admin.calibration.gpuIntegrated", "iGPU")}`
+                  : data.gpu_class === "discrete" ? `, ${t("admin.calibration.gpuDiscrete", "dedicated GPU")}`
+                    : ""})</span>
               {(data.hw_codecs?.length || data.hw_device) && (
                 <span className="mt-0.5 block text-xs text-[var(--text-muted)]">
                   {[data.hw_codecs?.join(", "), data.hw_device]
