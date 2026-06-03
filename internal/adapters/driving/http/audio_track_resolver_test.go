@@ -35,6 +35,17 @@ func TestNormalizeLanguageCode_ISO6392T(t *testing.T) {
 	assert.Equal(t, "nl", normalizeLanguageCode("nld"))
 }
 
+// BCP-47 / ISO 639-3 macrolanguage codes (what modern MKVs carry in
+// LanguageBCP47, surfaced by the in-process mkvgo prober) must fold like the
+// legacy 639-2 "chi" ffprobe reports — else a "zh" audio preference would match
+// an ffprobe-scanned file but not an mkvgo-scanned one.
+func TestNormalizeLanguageCode_ChineseMacrolang(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "zh", normalizeLanguageCode("cmn")) // Mandarin
+	assert.Equal(t, "zh", normalizeLanguageCode("yue")) // Cantonese
+	assert.Equal(t, "zh", normalizeLanguageCode("chi")) // legacy 639-2 (ffprobe)
+}
+
 func TestNormalizeLanguageCode_FullName(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "fr", normalizeLanguageCode("French"))

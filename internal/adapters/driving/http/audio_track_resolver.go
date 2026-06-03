@@ -31,8 +31,11 @@ func normalizeLanguageCode(lang string) string {
 	// Japanese
 	case "jpn", "japanese":
 		return "ja"
-	// Chinese (Mandarin / generic)
-	case "chi", "zho", "chinese":
+	// Chinese (Mandarin / generic). Includes the ISO 639-3 / BCP-47 macrolanguage
+	// codes (cmn = Mandarin, yue = Cantonese, …) that modern MKVs carry in the
+	// LanguageBCP47 element — the in-process mkvgo prober surfaces those, whereas
+	// ffprobe reports the legacy 639-2 "chi"; both must fold to "zh".
+	case "chi", "zho", "chinese", "cmn", "yue", "wuu", "hak", "nan":
 		return "zh"
 	// Portuguese
 	case "por", "portuguese":
