@@ -79,6 +79,49 @@ func TestCapLadderToSource_TinySourceKeepsAtLeastOne(t *testing.T) {
 	assert.Len(t, capped, 1, "tiny source must return exactly the lowest rung")
 }
 
+// capHeightTestLadder is a deterministic 4-rung ladder so CapLadderToHeight
+// assertions don't depend on the exact composition of the production ladders.
+var capHeightTestLadder = []HLSProfile{
+	{Name: "360p", Height: 360},
+	{Name: "480p", Height: 480},
+	{Name: "720p", Height: 720},
+	{Name: "1080p", Height: 1080},
+}
+
+func TestCapLadderToHeight_ZeroMeansNoCap(t *testing.T) {
+	got := CapLadderToHeight(capHeightTestLadder, 0)
+	assert.Equal(t, len(capHeightTestLadder), len(got), "maxHeight<=0 must not cap")
+}
+
+func TestCapLadderToHeight_DropsRungsAboveCap(t *testing.T) {
+	// The HDR software-tonemap safety valve: a weak host caps the ladder to
+	// SoftwareHDRMaxHeight (e.g. 480p) so it stays real-time on 4K HDR.
+	got := CapLadderToHeight(capHeightTestLadder, 480)
+	assert.Len(t, got, 2, "480p cap keeps only the 360p + 480p rungs")
+	for _, p := range got {
+		assert.LessOrEqual(t, p.Height, 480, "rung %s (%dp) must not exceed the cap", p.Name, p.Height)
+	}
+}
+
+func TestCapLadderToHeight_CapOnBoundaryKeepsThatRung(t *testing.T) {
+	got := CapLadderToHeight(capHeightTestLadder, 720)
+	assert.Len(t, got, 3, "a 720p cap keeps 360/480/720 and drops 1080")
+	assert.Equal(t, 720, got[len(got)-1].Height)
+}
+
+func TestCapLadderToHeight_CapAboveTopKeepsAll(t *testing.T) {
+	got := CapLadderToHeight(capHeightTestLadder, 10000)
+	assert.Equal(t, len(capHeightTestLadder), len(got), "a cap above every rung keeps the whole ladder")
+}
+
+func TestCapLadderToHeight_BelowLowestKeepsExactlyOne(t *testing.T) {
+	// A cap below the smallest rung must still return one rung (never empty),
+	// so even a pathologically weak host is offered the lowest quality.
+	got := CapLadderToHeight(capHeightTestLadder, 1)
+	assert.Len(t, got, 1, "cap below the lowest rung returns exactly the lowest rung")
+	assert.Equal(t, 360, got[0].Height)
+}
+
 func TestClassify_AnimationFromLowMetrics(t *testing.T) {
 	m := ComplexityMetrics{
 		MotionMean:         1.0,
