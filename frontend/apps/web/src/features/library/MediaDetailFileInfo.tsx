@@ -10,6 +10,16 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const [fileInfoOpen, setFileInfoOpen] = useState(false);
   const duration = formatDuration(item.durationMs);
+  // Overall bitrate: use the stored value, but fall back to size×8/duration when
+  // it's 0/absent — MKV containers (and the prober) often don't carry an overall
+  // bitrate, which otherwise renders a useless "0 kbps".
+  const bitrateKbps = (() => {
+    const stored = item.bitrate ? Number(item.bitrate) : 0;
+    if (stored > 0) return Math.round(stored / 1000);
+    const size = Number(item.fileSize ?? 0);
+    const durSec = Number(item.durationMs ?? 0) / 1000;
+    return size > 0 && durSec > 0 ? Math.round((size * 8) / durSec / 1000) : 0;
+  })();
 
   if (!item.filePath && !item.fileSize && !item.containerFormat && !(item.streams && item.streams.length > 0)) {
     return null;
@@ -38,7 +48,7 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
           <div className="flex gap-4 flex-wrap">
             {item.fileSize && <Badge variant="default">{formatFileSize(item.fileSize)}</Badge>}
             {item.containerFormat && <Badge variant="default">{item.containerFormat.toUpperCase()}</Badge>}
-            {item.bitrate && <Badge variant="default">{Math.round(parseInt(item.bitrate) / 1000)} kbps</Badge>}
+            {bitrateKbps > 0 && <Badge variant="default">{bitrateKbps} kbps</Badge>}
             {duration && <Badge variant="default">{duration}</Badge>}
           </div>
           {item.streams && item.streams.length > 0 && (

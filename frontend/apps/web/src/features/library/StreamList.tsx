@@ -48,7 +48,7 @@ export function StreamList({ streams }: StreamListProps) {
           <h3 className="text-sm font-semibold mb-2 text-[var(--text-muted)]">
             {t("media.streams.audio")}
           </h3>
-          <div className="space-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1">
             {audio.map((s) => (
               <StreamRow key={s.index} stream={s} />
             ))}
@@ -60,7 +60,7 @@ export function StreamList({ streams }: StreamListProps) {
           <h3 className="text-sm font-semibold mb-2 text-[var(--text-muted)]">
             {t("media.streams.subtitles")}
           </h3>
-          <div className="space-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1">
             {subtitles.map((s) => (
               <StreamRow key={s.index} stream={s} />
             ))}

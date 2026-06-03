@@ -141,6 +141,8 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
         />
       </div>
 
+      <MediaDetailFileInfo item={item} />
+
       <div data-testid="cast-section"><CastCarousel people={actors} title={t("media.detail.cast")} /></div>
       {crew.length > 0 && <CastCarousel people={crew} title={t("media.detail.crew")} />}
 
@@ -149,7 +151,6 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
 
       {item.id && !isSeason && <SimilarSection item={item} />}
 
-      <MediaDetailFileInfo item={item} />
       <PluginSlot name="media.detail.sidebar" context={{ mediaId: item.id }} />
     </div>
   );
