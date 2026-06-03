@@ -1009,11 +1009,11 @@ func (h *hlsVODServe) ingestCMCD(r *http.Request, mediaID string, variantIdx, se
 		userID = claims.UserID
 	}
 
-	// TODO: remove after CMCD stabilization — Info-level so we see ingest
-	// activity in prod logs during Phase 1 rollout. Downgrade to Debug
-	// (or drop entirely) once the SQL table and dashboard are confirmed
-	// working.
-	slog.Info("hls-vod: CMCD ingest",
+	// Debug-level: CMCD ingest fires once per beacon (per segment, per stream),
+	// so Info would flood prod logs. The Phase 1 rollout is over — the QoE SQL
+	// table and the /admin/qoe dashboard are confirmed working — so this drops
+	// from Info to Debug (kept for on-demand troubleshooting, not steady-state).
+	slog.Debug("hls-vod: CMCD ingest",
 		slog.String("media_id", mediaID),
 		slog.String("user_id", userID),
 		slog.Int("variant", variantIdx),
