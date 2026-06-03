@@ -331,7 +331,7 @@ export function HLSPlayer({
     streamTokenRef, onStreamTokenRefreshRef,
   });
 
-  const { transcodeStartTime, setTranscodeStartTime, hlsLevels } = useTranscodePlayback({
+  const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight } = useTranscodePlayback({
     videoRef, hlsRef, positionRef, transcodeOffsetRef,
     wasPausedRef, streamTokenRef, onStreamTokenRefreshRef,
     transcodeMode, mediaId, currentTrackIndex, selectedBurnInTrack,
@@ -474,7 +474,10 @@ export function HLSPlayer({
     }
   }, [autoQuality, currentQuality, transcodeMode]);
 
-  const autoQualityLabel = autoQuality ? "Auto" : undefined;
+  // In Auto, surface the rung ABR actually picked (e.g. "1080p") so the menu
+  // shows "Auto (1080p)" rather than a redundant "Auto". Empty until the first
+  // level switch (panel then shows a bare "Auto").
+  const autoQualityLabel = autoQuality && autoLevelHeight ? `${autoLevelHeight}p` : undefined;
 
   const nextEpisode = (() => {
     if (!episodes || !currentEpisodeId) return null;

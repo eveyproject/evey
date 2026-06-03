@@ -39,6 +39,9 @@ export function useTranscodePlayback({
 }: UseTranscodePlaybackArgs) {
   const [transcodeStartTime, setTranscodeStartTime] = useState(startPositionMs / 1000);
   const [hlsLevels, setHlsLevels] = useState<number[]>([]);
+  // Height (px) of the rung hls.js is actually playing right now. Surfaced so the
+  // settings panel can show "Auto (1080p)" instead of a redundant bare "Auto".
+  const [autoLevelHeight, setAutoLevelHeight] = useState(0);
 
   useEffect(() => {
     if (!transcodeMode) return;
@@ -146,6 +149,12 @@ export function useTranscodePlayback({
 
     hls.loadSource(hlsUrl);
     hls.attachMedia(video);
+
+    // Track the rung ABR actually settled on, so "Auto" can show its resolution.
+    hls.on(Hls.Events.LEVEL_SWITCHED, (_evt, data) => {
+      const h = hls.levels?.[data.level]?.height;
+      if (h) setAutoLevelHeight(h);
+    });
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       setHlsLevels(hls.levels.map((l) => l.height));
@@ -260,5 +269,5 @@ export function useTranscodePlayback({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setIsBuffering/setTranscodeStartTime are stable setState
   }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack]);
 
-  return { transcodeStartTime, setTranscodeStartTime, hlsLevels };
+  return { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight };
 }

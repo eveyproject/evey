@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useToastStore } from "@evey/store";
 
@@ -121,15 +122,18 @@ const DEFAULT_STREAM_INFO = {
 };
 
 function renderPlayer(streamInfo = DEFAULT_STREAM_INFO, opts: { onStreamTokenRefresh?: () => Promise<string>; streamToken?: string } = {}) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <HLSPlayer
-      streamInfo={streamInfo as never}
-      sessionId="session-1"
-      mediaId="media-1"
-      streamToken={opts.streamToken ?? "test-token"}
-      onStreamTokenRefresh={opts.onStreamTokenRefresh ?? (() => Promise.resolve("new-token"))}
-      startPositionMs={0}
-    />,
+    <QueryClientProvider client={qc}>
+      <HLSPlayer
+        streamInfo={streamInfo as never}
+        sessionId="session-1"
+        mediaId="media-1"
+        streamToken={opts.streamToken ?? "test-token"}
+        onStreamTokenRefresh={opts.onStreamTokenRefresh ?? (() => Promise.resolve("new-token"))}
+        startPositionMs={0}
+      />
+    </QueryClientProvider>,
   );
 }
 
