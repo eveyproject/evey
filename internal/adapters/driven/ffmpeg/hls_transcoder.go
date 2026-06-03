@@ -813,7 +813,15 @@ func startNumberFor(opts transcoding.HLSProcessOpts) int {
 
 func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec) && !opts.ForceSidecarSubs
-	toneMap := resolveToneMap(opts)
+	p := opts.Profiles[len(opts.Profiles)-1]
+	// Fold the downscale into the tonemap for the plain HDR path so the heavy
+	// float pipeline runs at the rung width, not the 4K source. The burn-in path
+	// keeps a full-resolution tonemap (overlay at a fixed size, then scale).
+	dstWidth := 0
+	if !burnIn {
+		dstWidth = p.Width
+	}
+	toneMap := resolveToneMap(opts, dstWidth)
 	if hwUsable(opts, burnIn, toneMap) {
 		return buildSingleTranscodeHWArgs(opts)
 	}
@@ -824,8 +832,6 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 	args = appendInputModifiers(args)
 	args = append(args, "-i", opts.FilePath)
-
-	p := opts.Profiles[len(opts.Profiles)-1]
 
 	if burnIn || toneMap != "" {
 		var filterParts []string
@@ -843,8 +849,11 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 				fmt.Sprintf("[vd][0:s:%d]overlay,scale=%d:-2,setsar=1[out]", opts.SubtitleTrackIndex, p.Width),
 			)
 		default:
+			// tonemap already downscaled to p.Width (folded into its linearizing
+			// zscale), so no trailing scale — that 4× cut in tonemapped pixels is
+			// the fix that keeps a weak host real-time on 4K HDR sources.
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s,%s,scale=%d:-2,setsar=1[out]", deinterlaceFilter, toneMap, p.Width),
+				fmt.Sprintf("[0:v]%s,%s,setsar=1[out]", deinterlaceFilter, toneMap),
 			)
 		}
 		args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
@@ -874,7 +883,19 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	n := len(opts.Profiles)
 	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec) && !opts.ForceSidecarSubs
-	toneMap := resolveToneMap(opts)
+	// Tonemap the single shared feed at the LARGEST rung width (folded into its
+	// linearizing zscale) instead of the 4K source; the per-rung scaler below
+	// then only downscales from there (top rung = no-op). Burn-in keeps a
+	// full-resolution tonemap (overlay must happen at a fixed size, then scale).
+	dstWidth := 0
+	if !burnIn {
+		for _, p := range opts.Profiles {
+			if p.Width > dstWidth {
+				dstWidth = p.Width
+			}
+		}
+	}
+	toneMap := resolveToneMap(opts, dstWidth)
 	if hwUsable(opts, burnIn, toneMap) {
 		return buildMultiVariantHWArgs(opts)
 	}
@@ -971,7 +992,12 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 // the orchestrated VOD path (which does not thread real Streams), and the
 // stream-based detection used when real Streams ARE present (legacy/direct path).
 // A client that renders HDR natively (HDRSupported) is never tonemapped.
-func resolveToneMap(opts transcoding.HLSProcessOpts) string {
+// resolveToneMap returns the HDR->SDR tonemap filter, with the downscale to
+// dstWidth folded into the tonemap's linearizing zscale so the heavy float
+// pipeline runs at delivery resolution (see hdr.ToneMapOptions.DstWidth).
+// dstWidth<=0 keeps a full-resolution tonemap (the caller scales separately,
+// e.g. the subtitle burn-in path).
+func resolveToneMap(opts transcoding.HLSProcessOpts, dstWidth int) string {
 	if opts.HDRSupported {
 		return ""
 	}
@@ -979,12 +1005,14 @@ func resolveToneMap(opts transcoding.HLSProcessOpts) string {
 		// Generic HDR10/HLG -> SDR (bt709) tonemap. The filter (zscale linearize
 		// -> tonemap -> bt709) reads the input transfer/primaries from the decoded
 		// frame's colour metadata, so it needs no per-stream params here.
-		return hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, hdr.DefaultToneMapOptions())
+		tmOpts := hdr.DefaultToneMapOptions()
+		tmOpts.DstWidth = dstWidth
+		return hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, tmOpts)
 	}
-	return detectToneMap(opts.HDRSupported, opts.Streams)
+	return detectToneMap(opts.HDRSupported, opts.Streams, dstWidth)
 }
 
-func detectToneMap(hdrSupported bool, streams []*library.MediaStream) string {
+func detectToneMap(hdrSupported bool, streams []*library.MediaStream, dstWidth int) string {
 	if hdrSupported {
 		return ""
 	}
@@ -994,7 +1022,9 @@ func detectToneMap(hdrSupported bool, streams []*library.MediaStream) string {
 	}
 	hdrInfo := hdr.DetectHDR(hdrStreams)
 	if hdrInfo.IsHDR {
-		return hdr.BuildToneMapFilter(hdrInfo, hdr.DefaultToneMapOptions())
+		tmOpts := hdr.DefaultToneMapOptions()
+		tmOpts.DstWidth = dstWidth
+		return hdr.BuildToneMapFilter(hdrInfo, tmOpts)
 	}
 	return ""
 }

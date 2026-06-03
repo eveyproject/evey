@@ -439,7 +439,7 @@ func (r *BenchmarkRunner) ffmpegBin() string {
 	return "ffmpeg"
 }
 
-// benchSoftware probes the libx264 ultrafast ceiling under the same
+// benchSoftware probes the libx264 veryfast ceiling under the same
 // pipeline shape the production HLS transcoder uses: a single ffmpeg
 // instance decodes the HEVC source once, splits the decoded stream N
 // ways via filter_complex, and encodes every active rung in parallel
@@ -452,7 +452,7 @@ func (r *BenchmarkRunner) ffmpegBin() string {
 // if every probe fails — guarantees the host can at least serve a 720p
 // stream.
 func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fallback bool) int {
-	return r.benchSoftwareLadder(ctx, sample, fallback, "", "software", 720)
+	return r.benchSoftwareLadder(ctx, sample, fallback, func(int) string { return "" }, "software", 720)
 }
 
 // benchSoftwareHDR probes the software ceiling for HDR->SDR content: the SAME
@@ -464,21 +464,31 @@ func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fall
 // Floor 480p (HDR is heavier than the SDR 720p floor; a box that can't sustain
 // 480p HDR leans on the runtime throttle rather than being offered nothing).
 func (r *BenchmarkRunner) benchSoftwareHDR(ctx context.Context, sample string, fallback bool) int {
-	tonemap := hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, hdr.DefaultToneMapOptions())
-	return r.benchSoftwareLadder(ctx, sample, fallback, tonemap, "software-hdr", 480)
+	// Tonemap at the ladder-TOP resolution (the downscale folded into the
+	// linearizing zscale), matching the production scale-first runtime
+	// (hls_transcoder buildMultiVariantArgs tonemaps the shared feed at the top
+	// rung, then per-rung scales DOWN). Measuring tonemap@4K — the old geometry —
+	// understated the box: the runtime now does ~2× the throughput, so the cap
+	// must be re-derived against the same scale-first chain or it pins the host
+	// far below what it can sustain. The synthetic HDR sample is 16:9.
+	return r.benchSoftwareLadder(ctx, sample, fallback, func(topH int) string {
+		o := hdr.DefaultToneMapOptions()
+		o.DstWidth = topH * 16 / 9
+		return hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, o)
+	}, "software-hdr", 480)
 }
 
 // benchSoftwareLadder walks swBenchLadder under the production multi-variant
 // shape (1 decode + N parallel libx264 encodes), optionally prefixing a filter
 // on the decoded stream before the split (preFilter, e.g. the HDR tonemap).
 // Highest rung sustaining >= sourceRate×margin wins; floor when none pass.
-func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string, fallback bool, preFilter, label string, floor int) int {
+func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string, fallback bool, preFilter func(topHeight int) string, label string, floor int) int {
 	best := 0
 	for i, h := range swBenchLadder {
 		// Heights for every rung at or below h — exactly what the
 		// production pipeline encodes when the ladder top is h.
 		laddered := swBenchLadder[:i+1]
-		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, "libx264", nil, preFilter)
+		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, "libx264", nil, preFilter(h))
 		passing := ok && fps >= float64(r.sourceRate())*r.margin
 		r.logger.Info("benchmark: "+label+" probe",
 			slog.Int("height", h),
@@ -736,7 +746,11 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 				args = append(args, "-preset", hwPreset)
 			}
 		} else {
-			args = append(args, "-preset", "ultrafast", "-pix_fmt", "yuv420p")
+			// veryfast (NOT ultrafast) to match the production encoders
+			// (hls_transcoder buildSingle/MultiVariantArgs). Benching a faster
+			// preset than the runtime uses overstates the ceiling, so the host
+			// gets offered a rung it then starves on.
+			args = append(args, "-preset", "veryfast", "-pix_fmt", "yuv420p")
 		}
 	}
 	// Single null output for the whole graph — ffmpeg muxes all the

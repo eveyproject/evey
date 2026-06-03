@@ -178,3 +178,20 @@ func TestBuildToneMapFilter_CustomOptions(t *testing.T) {
 		t.Fatalf("expected npl=200, got %s", filter)
 	}
 }
+
+func TestBuildToneMapFilter_DstWidthFoldsScale(t *testing.T) {
+	info := &HDRInfo{IsHDR: true, Type: "hdr10"}
+	opts := DefaultToneMapOptions()
+	opts.DstWidth = 1920
+	filter := BuildToneMapFilter(info, opts)
+	// The downscale is folded into the first (linearizing) zscale so the float
+	// tonemap pipeline runs at delivery resolution, not the 4K source.
+	if !strings.Contains(filter, "zscale=w=1920:h=-2:t=linear:npl=100") {
+		t.Fatalf("expected folded downscale in the linearizing zscale, got %s", filter)
+	}
+	// DstWidth<=0 keeps the legacy full-resolution chain (no resize folded).
+	opts.DstWidth = 0
+	if f := BuildToneMapFilter(info, opts); strings.Contains(f, "w=") {
+		t.Fatalf("DstWidth=0 must not fold a scale, got %s", f)
+	}
+}

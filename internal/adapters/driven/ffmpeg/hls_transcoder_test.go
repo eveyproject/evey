@@ -242,6 +242,28 @@ func TestBuildFFmpegArgs_SingleTranscode_OneProfile(t *testing.T) {
 	assert.Contains(t, joined, "-force_key_frames expr:gte(t,n_forced*3)")
 }
 
+func TestBuildFFmpegArgs_SingleTranscode_ToneMap_FoldsScaleIntoTonemap(t *testing.T) {
+	// HDR->SDR on the single-variant software path: the downscale must be folded
+	// into the tonemap's linearizing zscale so the heavy float pipeline runs at
+	// the delivery resolution (~2× cheaper on a weak host = stays real-time on 4K
+	// HDR), with NO separate scale appended after the tonemap output.
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles[:1], // 360p, width 640
+		VideoDecision: "transcode",
+		AudioDecision: "copy",
+		ToneMap:       true,
+	}
+	joined := strings.Join(ffmpeg.BuildFFmpegArgs(opts), " ")
+	w := opts.Profiles[0].Width
+	assert.Contains(t, joined, fmt.Sprintf("zscale=w=%d:h=-2:t=linear", w),
+		"the tonemap must fold the downscale into its first (linearizing) zscale")
+	assert.Contains(t, joined, "tonemap=")
+	assert.NotContains(t, joined, "format=yuv420p,scale=",
+		"no separate scale after the tonemap — it already downscaled")
+}
+
 func TestBuildFFmpegArgs_SingleTranscode_AudioNormalize(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:      "/tmp/test",
