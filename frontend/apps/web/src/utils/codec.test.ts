@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getBrowserCapabilities } from "./codec";
 
 describe("canPlayHevc", () => {
@@ -97,5 +97,37 @@ describe("getBrowserCapabilities", () => {
     const caps = getBrowserCapabilities();
     expect(caps.videoCodecs).toHaveLength(0);
     expect(caps.containers).toHaveLength(0);
+  });
+});
+
+describe("canDisplayHdr", () => {
+  const originalMatchMedia = window.matchMedia;
+  beforeEach(() => {
+    vi.resetModules();
+  });
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it("is true when the display reports dynamic-range: high", async () => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia;
+    const { canDisplayHdr, getBrowserCapabilities } = await import("./codec");
+    expect(canDisplayHdr).toBe(true);
+    expect(getBrowserCapabilities().hdr).toBe(true);
+  });
+
+  it("is false on an SDR display", async () => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia;
+    const { canDisplayHdr, getBrowserCapabilities } = await import("./codec");
+    expect(canDisplayHdr).toBe(false);
+    expect(getBrowserCapabilities().hdr).toBe(false);
+  });
+
+  it("is false (fail-safe) when matchMedia throws", async () => {
+    window.matchMedia = vi.fn(() => {
+      throw new Error("matchMedia unavailable");
+    }) as unknown as typeof window.matchMedia;
+    const { canDisplayHdr } = await import("./codec");
+    expect(canDisplayHdr).toBe(false);
   });
 });

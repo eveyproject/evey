@@ -2,6 +2,7 @@ package prober
 
 import (
 	"context"
+	"log/slog"
 
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
@@ -41,13 +42,27 @@ func New(fallback library.StreamProber, enabled func() bool) *Dispatcher {
 	return &Dispatcher{fallback: fallback, mkv: realMKVReader{}, enabled: enabled}
 }
 
-func (d *Dispatcher) ProbeStreams(ctx context.Context, filePath string) (*library.ProbeResult, error) {
+func (d *Dispatcher) ProbeStreams(ctx context.Context, filePath string) (res *library.ProbeResult, err error) {
 	ctx, span := tracing.StartSpan(ctx, "prober.dispatch")
 	defer span.End()
 
 	if (d.enabled != nil && !d.enabled()) || d.mkv == nil || !d.mkv.IsEBML(filePath) {
 		return d.fallback.ProbeStreams(ctx, filePath)
 	}
+
+	// Defense-in-depth at the untrusted-input boundary: a malformed/adversarial
+	// container must never crash the scan worker. mkvgo is fuzz-tested and
+	// fail-soft, but if an in-process parse ever panics we absorb it here and let
+	// ffprobe (the authority) handle the file — the fast-path is never required.
+	defer func() {
+		if r := recover(); r != nil {
+			span.AddEvent("mkv-panic: ffprobe fallback")
+			slog.Warn("prober: mkvgo fast-path panicked, falling back to ffprobe",
+				slog.String("file", filePath), slog.Any("panic", r))
+			res, err = d.fallback.ProbeStreams(ctx, filePath)
+		}
+	}()
+
 	c, err := d.mkv.ReadMeta(ctx, filePath)
 	if err != nil {
 		span.AddEvent("mkv-readmeta-error: ffprobe fallback")

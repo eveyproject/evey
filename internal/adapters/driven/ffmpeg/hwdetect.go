@@ -197,14 +197,16 @@ func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, hwType, d
 		return false
 	}
 	tmpPath := tmp.Name()
-	if cerr := tmp.Close(); cerr != nil {
-		return false
-	}
+	// Register cleanup before the Close check so an early return on Close failure
+	// still removes the temp file (no leak).
 	defer func() {
 		if rerr := os.Remove(tmpPath); rerr != nil {
 			slog.Debug("hwdetect: decode-probe temp cleanup failed", slog.Any("err", rerr))
 		}
 	}()
+	if cerr := tmp.Close(); cerr != nil {
+		return false
+	}
 
 	// 1. software-encode a tiny real sample of the codec.
 	gen := exec.CommandContext(ctx, ffmpegPath, "-hide_banner", "-v", "error", "-nostdin", "-y",

@@ -47,7 +47,10 @@ func mapContainer(c *extmkv.Container) (*library.ProbeResult, bool) {
 		}
 
 		ms := &library.MediaStream{
-			ID:          uuid.New().String(),
+			ID: uuid.New().String(),
+			// Surfaced-track ordinal, not the ffprobe global stream index (ffprobe
+			// counts attachments mkvgo never surfaces). Display-only: track
+			// selection re-counts per stream-type, so this divergence is benign.
 			StreamIndex: i,
 			StreamType:  st,
 			Codec:       codec,

@@ -628,7 +628,9 @@ func streamIsTenBit(s *domainlibrary.MediaStream) bool {
 	if s.BitDepth != nil && *s.BitDepth >= 10 {
 		return true
 	}
-	return strings.Contains(s.Profile, "10")
+	// Lower-cased to match hdr.DetectHDR's profile predicate (e.g. "Main 10",
+	// "High 10") — the two ten-bit rules must agree across layers.
+	return strings.Contains(strings.ToLower(s.Profile), "10")
 }
 
 // profilesForDecision picks the ABR ladder for a given (decision, mediaItem,

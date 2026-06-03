@@ -49,7 +49,11 @@ EVEY_RATELIMIT_LOGIN_MAX=10            # per IP per minute
 ```env
 EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL=2m # fallback polling interval when inotify misses events (default 2m); admin-editable via Admin → Server Config
 EVEY_LIBRARY_WATCHER_ENABLED=true      # realtime file watching
+EVEY_MKV_FASTPATH=0                    # 0/off (default) = probe every file with ffprobe; 1 = read .mkv metadata in-process (mkvgo, ~35x faster on re-scan/repair/NAS). ffprobe stays the authority and is used for any file the fast-path can't map field-equivalent. Restart to apply.
 ```
+
+`EVEY_MKV_FASTPATH` only affects the library scan prober; music keeps ffprobe.
+See [adr/0016-mkv-fastpath-prober.md](adr/0016-mkv-fastpath-prober.md).
 
 ### Transcoding
 ```env
