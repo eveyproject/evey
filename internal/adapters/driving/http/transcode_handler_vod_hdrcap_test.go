@@ -51,14 +51,14 @@ func hdrCapHWCapability() domaintranscoding.EncodeCapability {
 // dimension ensures CapLadderToSource doesn't pre-trim the ladder before
 // the HDR cap has a chance to act.
 func build4KHDRStreams() []*domainlibrary.MediaStream {
-	bitDepth := 10
+	w, h, bitDepth := 3840, 2160, 10
 	return []*domainlibrary.MediaStream{
 		{
 			StreamType: domainlibrary.StreamTypeVideo,
 			Codec:      "hevc",
 			Profile:    "Main 10",
-			Width:      ptr(3840),
-			Height:     ptr(2160),
+			Width:      &w,
+			Height:     &h,
 			BitDepth:   &bitDepth,
 		},
 	}
@@ -67,12 +67,13 @@ func build4KHDRStreams() []*domainlibrary.MediaStream {
 // build4KSDRStreams returns a slice with one video stream: 3840×2160,
 // H.264 8-bit — a 4K SDR source that does NOT trigger HDR tone-mapping.
 func build4KSDRStreams() []*domainlibrary.MediaStream {
+	w, h := 3840, 2160
 	return []*domainlibrary.MediaStream{
 		{
 			StreamType: domainlibrary.StreamTypeVideo,
 			Codec:      "h264",
-			Width:      ptr(3840),
-			Height:     ptr(2160),
+			Width:      &w,
+			Height:     &h,
 		},
 	}
 }
@@ -203,7 +204,6 @@ func TestProfilesForDecision_HDRCap(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
