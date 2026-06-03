@@ -305,6 +305,7 @@ func (s *MediaStream) GetStreamType() string  { return string(s.StreamType) }
 func (s *MediaStream) GetBitDepth() *int       { return s.BitDepth }
 func (s *MediaStream) GetColorSpace() *string  { return s.ColorSpace }
 func (s *MediaStream) GetHDRType() *string     { return s.HDRType }
+func (s *MediaStream) GetProfile() string      { return s.Profile }
 
 type Person struct {
 	ID           string

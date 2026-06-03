@@ -10,6 +10,7 @@ type VideoStream interface {
 	GetBitDepth() *int
 	GetColorSpace() *string
 	GetHDRType() *string
+	GetProfile() string
 }
 
 type HDRInfo struct {
@@ -54,8 +55,21 @@ func DetectHDR(streams []VideoStream) *HDRInfo {
 			return info
 		}
 
+		// BT.2020 colour space + 10-bit ⇒ HDR (HDR10/HLG can't be told apart
+		// without the transfer characteristics, which Evey doesn't store yet, so
+		// we report hdr10 as the conservative default). ffprobe leaves
+		// bits_per_raw_sample empty for many HEVC streams, so the codec profile
+		// ("Main 10" / "High 10") is the reliable 10-bit signal when bit depth is
+		// absent — without this fallback, real 2160p HDR (e.g. bt2020nc + Main 10
+		// with no bits_per_raw_sample) is misread as SDR.
 		if cs := s.GetColorSpace(); cs != nil && strings.Contains(strings.ToLower(*cs), "bt2020") {
+			tenBit := false
 			if bd := s.GetBitDepth(); bd != nil && *bd >= 10 {
+				tenBit = true
+			} else if strings.Contains(strings.ToLower(s.GetProfile()), "10") {
+				tenBit = true
+			}
+			if tenBit {
 				info.IsHDR = true
 				info.Type = "hdr10"
 				return info

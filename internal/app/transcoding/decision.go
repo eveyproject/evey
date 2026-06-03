@@ -8,6 +8,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/hdr"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -49,12 +50,25 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 		if s == nil {
 			continue
 		}
+		// MediaStream.HDRType is never populated by the prober (it stores
+		// color_space only), so derive it from the colour metadata via the same
+		// hdr.DetectHDR the tonemap path uses — one source of truth. Without this
+		// the decision's HDR branch never fires and an HDR title is never seen as
+		// HDR (so an HDR-capable client never gets the HDR-aware direct-play/
+		// tonemap path).
+		hdrType := s.HDRType
+		if s.StreamType == library.StreamTypeVideo {
+			if info := hdr.DetectHDR([]hdr.VideoStream{s}); info.IsHDR {
+				t := info.Type
+				hdrType = &t
+			}
+		}
 		out = append(out, StreamSpec{
 			Type:      string(s.StreamType),
 			Codec:     s.Codec,
 			Width:     s.Width,
 			Height:    s.Height,
-			HDRType:   s.HDRType,
+			HDRType:   hdrType,
 			Channels:  s.Channels,
 			Bitrate:   s.Bitrate,
 			IsDefault: s.IsDefault,

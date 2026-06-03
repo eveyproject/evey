@@ -153,6 +153,31 @@ func TestHDR_DolbyVision_HDRClient_StillTranscode(t *testing.T) {
 	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed", "DoVi must tonemap even for an HDR client")
 }
 
+// The real-world case: no explicit HDRType (the prober never sets it), HDR is
+// detected from ColorSpace bt2020 + the Main 10 profile. Without the source-side
+// detection the decision would wrongly treat this as SDR.
+func TestHDR_FromColorSpace_NonHDRClient_Transcode(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(3840), Height: new(2160), ColorSpace: new("bt2020nc"), Profile: "Main 10", Bitrate: new(int64(20000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
+
+	assert.Equal(t, "transcode", d.PlayMethod)
+	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
+}
+
+func TestHDR_FromColorSpace_HDRClient_DirectPlay(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(3840), Height: new(2160), ColorSpace: new("bt2020nc"), Profile: "Main 10", Bitrate: new(int64(20000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", hdrClient(), 0)
+
+	assert.Equal(t, "direct_play", d.PlayMethod)
+	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
+}
+
 func TestSubtitleBurnIn_PGS(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},

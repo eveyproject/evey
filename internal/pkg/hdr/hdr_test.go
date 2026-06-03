@@ -89,6 +89,34 @@ func TestDetectHDR_BT2020_8bit_NotHDR(t *testing.T) {
 	}
 }
 
+func TestDetectHDR_BT2020_ProfileMain10_NoBitDepth(t *testing.T) {
+	// Real-world 2160p HDR: bt2020 + HEVC "Main 10" profile, but ffprobe left
+	// bits_per_raw_sample empty (BitDepth nil). The profile is the reliable
+	// 10-bit signal here — must still be detected as HDR.
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "hevc", ColorSpace: new("bt2020nc"), Profile: "Main 10"},
+	}
+	info := DetectHDR(toVS(streams))
+	if !info.IsHDR {
+		t.Fatal("bt2020 + Main 10 profile (no bit_depth) must be detected as HDR")
+	}
+	if info.Type != "hdr10" {
+		t.Fatalf("expected hdr10, got %s", info.Type)
+	}
+}
+
+func TestDetectHDR_BT2020_NoTenBitSignal_NotHDR(t *testing.T) {
+	// bt2020 but with no 10-bit evidence at all (no bit_depth, 8-bit profile) →
+	// don't guess HDR (avoid false-positives on rare wide-gamut SDR).
+	streams := []*library.MediaStream{
+		{StreamType: "video", ColorSpace: new("bt2020nc"), Profile: "Main"},
+	}
+	info := DetectHDR(toVS(streams))
+	if info.IsHDR {
+		t.Fatal("bt2020 with no 10-bit signal must not be assumed HDR")
+	}
+}
+
 func TestDetectHDR_NoVideoStreams(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "audio", Codec: "aac"},
