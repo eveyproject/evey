@@ -25,6 +25,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/opensubtitles"
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
+	proberpkg "github.com/evey-project/evey/internal/adapters/driven/prober"
 	"github.com/evey-project/evey/internal/adapters/driven/search"
 	"github.com/evey-project/evey/internal/adapters/driven/webhooksender"
 	webpushadapter "github.com/evey-project/evey/internal/adapters/driven/webpush"
@@ -297,10 +298,19 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		}
 	})
 
+	// MKV indexing fast-path: route .mkv stream-probing through the in-process
+	// mkvgo reader (no ffprobe fork, head-only read), falling back to ffprobe for
+	// non-mkv and for any .mkv it can't render field-equivalent. Gated by
+	// EVEY_MKV_FASTPATH (default off = pure ffprobe pass-through) — conservative
+	// rollout for the vital scan path. Music keeps bare infra.prober (needs the
+	// per-track bitrate mkvgo lacks), so it is intentionally not wrapped.
+	mkvFastPath := os.Getenv("EVEY_MKV_FASTPATH") == "1"
+	scanProber := proberpkg.New(infra.prober, func() bool { return mkvFastPath })
+
 	libCmdSvc := applibrary.NewCommandService(
 		r.Library, r.Library, r.MediaItem,
 		r.MediaStream, r.Person, r.MediaPerson,
-		infra.scanner, infra.prober, infra.searchAdapter, bus,
+		infra.scanner, scanProber, infra.searchAdapter, bus,
 		r.Chapter, infra.mkvAdapter,
 		r.Trickplay, infra.trickplayGen, cfg.Transcoding.TrickplayCacheDir, r.ServerCfg,
 		applibrary.WithShutdownCtx(ctx),
