@@ -54,7 +54,11 @@ type EncodeCapability struct {
 	// sources (ubiquitous at 2160p) crash the HW pipeline and demote to software.
 	// False (the conservative default for un-recalibrated hosts) makes the VOD
 	// gate route 10-bit sources straight to software instead of crashing first.
-	HW10BitTranscode bool `json:"hw_10bit_transcode,omitempty"`
+	// NO omitempty: a false bool must still be serialized so the admin calibration
+	// view can show the gate is active (false is the case that matters on a weak
+	// host — omitempty would hide it and the operator couldn't tell "probed, gate
+	// on" from "never benched").
+	HW10BitTranscode bool `json:"hw_10bit_transcode"`
 
 	// HWDevice is the DRM render node for VAAPI/QSV (e.g. /dev/dri/renderD128),
 	// empty for NVENC (CUDA selects the device). Forwarded to the ffmpeg

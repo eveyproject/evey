@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"slices"
 	"strings"
 	"time"
 
@@ -534,7 +535,11 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		AudioCodec:          decision.AudioCodec,
 		AudioTrack:          audioTrack,
 		SubtitleBurnInTrack: subBurnIn,
-		HDRTonemap:          false, // wired in Phase 3
+		// HDR->SDR tonemap is needed whenever the decision flagged it (HDR source +
+		// non-HDR client, or Dolby Vision). Baked into the fingerprint so it (a)
+		// enters the cache hash — tonemapped vs not are different bytes — and (b)
+		// reaches the orchestrator/builder, which has no source streams to detect it.
+		HDRTonemap:          slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed"),
 		AudioNormalize:      h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
 		MaxAudioChannels:    decision.MaxAudioChannels,
 		ForceSidecarSubs:    decision.SubtitleDecision == "external",

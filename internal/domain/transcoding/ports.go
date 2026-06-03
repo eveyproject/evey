@@ -97,9 +97,15 @@ type HLSProcessOpts struct {
 	SubtitleTrackIndex int // -1 = no subtitle
 	SubtitleCodec      string
 	HDRSupported       bool
-	AudioNormalize     bool
-	StartSec           float64
-	Streams            []*library.MediaStream
+	// ToneMap forces an HDR->SDR tonemap filter even when Streams is not threaded
+	// in. The orchestrated VOD path passes the tonemap decision as this bool (from
+	// DecisionFingerprint.HDRTonemap) rather than the source streams, so the
+	// builder honours it independently of stream-based detection. Ignored when
+	// HDRSupported is true (the client renders HDR natively -> never tonemap).
+	ToneMap        bool
+	AudioNormalize bool
+	StartSec       float64
+	Streams        []*library.MediaStream
 
 	// Overrides propagated from the playback decision. Empty / zero values
 	// preserve the previous default behavior (libx264 + aac + 2-channel + burn-in

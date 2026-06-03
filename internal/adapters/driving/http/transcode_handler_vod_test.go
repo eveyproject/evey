@@ -399,7 +399,15 @@ func TestHLSVOD_Segment_CacheHit_200(t *testing.T) {
 	segPath := filepath.Join(cacheDir, "vod", "segments", segKey.DecisionHash)
 	require.NoError(t, os.MkdirAll(segPath, 0o755))
 	segFile := filepath.Join(segPath, "stream_0_000.m4s")
-	require.NoError(t, os.WriteFile(segFile, []byte("fake-m4s-content"), 0o644))
+	// A structurally valid fMP4 media segment (styp + moof + mdat). SegmentCache
+	// IsReady now rejects a non-empty but malformed segment (e.g. an aborted
+	// ffmpeg leaving a styp-only stub), so the pre-seed must carry real boxes.
+	fakeSeg := []byte{
+		0, 0, 0, 0x10, 's', 't', 'y', 'p', 'm', 's', 'd', 'h', 0, 0, 0, 0, // styp (16)
+		0, 0, 0, 0x08, 'm', 'o', 'o', 'f', // moof (8)
+		0, 0, 0, 0x0C, 'm', 'd', 'a', 't', 0, 0, 0, 0, // mdat (12)
+	}
+	require.NoError(t, os.WriteFile(segFile, fakeSeg, 0o644))
 
 	w := httptest.NewRecorder()
 	h.serveHTTP(w, req)

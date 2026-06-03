@@ -3,6 +3,7 @@ package transcoding
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -274,7 +275,67 @@ func (c *SegmentCache) IsReady(k SegmentKey, useFMP4 bool) bool {
 	if _, err := os.Stat(final + ".tmp"); err == nil {
 		return false
 	}
+	// fMP4 segments must carry actual content. A non-empty file holding only a
+	// `styp`/`ftyp` box and no moov/moof/mdat is a malformed segment an aborted
+	// ffmpeg mux left at the FINAL name (observed in prod under load: a 24-byte
+	// styp-only `.m4s` — `size>0` so it passed the check above). Serving it wedges
+	// the player's SourceBuffer with no error, which also breaks the ABR fallback
+	// to a lower rung. Treat it as not-ready so Wait re-spawns the rafale. Cheap:
+	// reads only top-level box headers (≤16 bytes each, a handful of boxes).
+	if useFMP4 && !fmp4HasContentBox(final, fi.Size()) {
+		return false
+	}
 	return true
+}
+
+// fmp4HasContentBox reports whether an ISO-BMFF file holds at least one
+// fully-written content box — `moov` (init segment) or `moof`/`mdat` (media
+// segment). It walks only top-level box headers and requires the content box to
+// be entirely on disk, so it rejects both an aborted styp-only segment and a
+// content box ffmpeg is still mid-writing (no torn read served). total is the
+// stat size already taken by the caller.
+func fmp4HasContentBox(path string, total int64) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = f.Close() }()
+
+	var hdr [16]byte
+	var off int64
+	for range 16 { // a sane segment reaches a content box in its first few boxes
+		if off+8 > total {
+			return false // EOF before any content box (e.g. styp-only)
+		}
+		if _, err := f.ReadAt(hdr[:8], off); err != nil {
+			return false
+		}
+		size := int64(binary.BigEndian.Uint32(hdr[0:4]))
+		typ := string(hdr[4:8])
+		hdrLen := int64(8)
+		switch size {
+		case 1: // 64-bit largesize follows the 8-byte header
+			if off+16 > total {
+				return false
+			}
+			if _, err := f.ReadAt(hdr[8:16], off+8); err != nil {
+				return false
+			}
+			size = int64(binary.BigEndian.Uint64(hdr[8:16]))
+			hdrLen = 16
+		case 0: // box runs to EOF
+			size = total - off
+		}
+		if size < hdrLen {
+			return false // malformed box size — bail rather than loop forever
+		}
+		switch typ {
+		case "moov", "moof", "mdat":
+			return off+size <= total // require the content box fully written
+		}
+		off += size
+	}
+	return false
 }
 
 // Wait blocks until the segment is ready, or ctx is cancelled, or the session

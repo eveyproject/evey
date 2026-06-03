@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"sync"
@@ -140,7 +141,7 @@ func TestSegmentCache_IsReady_TrueWhenFileExists(t *testing.T) {
 	k := SegmentKey{DecisionHash: "abcd", VariantIdx: 0, SegmentIdx: 0}
 	path := c.Path(k, true)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte("seg"), 0o644))
+	require.NoError(t, os.WriteFile(path, fmp4Seg(), 0o644))
 
 	assert.True(t, c.IsReady(k, true))
 }
@@ -158,7 +159,7 @@ func TestSegmentCache_IsReady_FalseWhenZeroBytes(t *testing.T) {
 	assert.False(t, c.IsReady(k, true), "0-byte init must be not-ready")
 
 	// Once ffmpeg writes real bytes, it becomes ready.
-	require.NoError(t, os.WriteFile(path, []byte("ftypiso6...moov"), 0o644))
+	require.NoError(t, os.WriteFile(path, fmp4Init(), 0o644))
 	assert.True(t, c.IsReady(k, true))
 }
 
@@ -169,17 +170,49 @@ func TestSegmentCache_IsReady_FalseWhenTmpSiblingExists(t *testing.T) {
 	k := SegmentKey{DecisionHash: "abcd", VariantIdx: 0, SegmentIdx: 0}
 	path := c.Path(k, true)
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte("seg"), 0o644))
+	require.NoError(t, os.WriteFile(path, fmp4Seg(), 0o644))
 	require.NoError(t, os.WriteFile(path+".tmp", []byte("partial"), 0o644))
 
 	assert.False(t, c.IsReady(k, true))
+}
+
+func TestSegmentCache_IsReady_FalseWhenStypOnly(t *testing.T) {
+	// An aborted ffmpeg mux under load can leave a non-empty but malformed fMP4
+	// segment at the final name — observed in prod as a 24-byte styp-only `.m4s`
+	// (no moof/mdat). It passes the size>0 check but breaks the player's
+	// SourceBuffer if served, and silently wedges the ABR fallback. It must be
+	// reported not-ready so Wait re-spawns the rafale.
+	c, _ := newTestCache(t)
+	k := SegmentKey{DecisionHash: "abcd", VariantIdx: 0, SegmentIdx: 7}
+	path := c.Path(k, true)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, stypOnlySeg(), 0o644))
+	require.NotEmpty(t, stypOnlySeg(), "fixture must be non-empty (passes the size>0 gate)")
+
+	assert.False(t, c.IsReady(k, true), "styp-only segment must be not-ready")
+
+	// A real media segment (styp+moof+mdat) at the same key IS ready.
+	require.NoError(t, os.WriteFile(path, fmp4Seg(), 0o644))
+	assert.True(t, c.IsReady(k, true))
+}
+
+func TestSegmentCache_IsReady_NonFMP4_SkipsContentCheck(t *testing.T) {
+	// The fMP4 box-content check must NOT run for MPEG-TS (.ts) segments — they
+	// have no ISO-BMFF boxes. A non-empty .ts file is ready on size>0 alone.
+	c, _ := newTestCache(t)
+	k := SegmentKey{DecisionHash: "abcd", VariantIdx: 0, SegmentIdx: 0}
+	path := c.Path(k, false)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte("\x47\x40\x00\x10raw ts bytes"), 0o644))
+
+	assert.True(t, c.IsReady(k, false), "non-empty TS segment is ready without a box check")
 }
 
 func TestSegmentCache_Wait_ReturnsImmediatelyWhenReady(t *testing.T) {
 	c, _ := newTestCache(t)
 	k := SegmentKey{DecisionHash: "abcd", VariantIdx: 0, SegmentIdx: 0}
 	require.NoError(t, os.MkdirAll(filepath.Dir(c.Path(k, true)), 0o755))
-	require.NoError(t, os.WriteFile(c.Path(k, true), []byte("seg"), 0o644))
+	require.NoError(t, os.WriteFile(c.Path(k, true), fmp4Seg(), 0o644))
 
 	start := time.Now()
 	err := c.Wait(context.Background(), k, true, time.Second)
@@ -305,7 +338,7 @@ func TestSegmentCache_Wait_DetectsSegmentAfterDelay(t *testing.T) {
 	}()
 
 	time.Sleep(80 * time.Millisecond)
-	require.NoError(t, os.WriteFile(c.Path(k, true), []byte("seg"), 0o644))
+	require.NoError(t, os.WriteFile(c.Path(k, true), fmp4Seg(), 0o644))
 	wg.Wait()
 }
 
@@ -314,7 +347,7 @@ func TestSegmentCache_CleanupHash_RemovesFiles(t *testing.T) {
 	hash := "abcd"
 	k := SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 0}
 	require.NoError(t, os.MkdirAll(filepath.Dir(c.Path(k, true)), 0o755))
-	require.NoError(t, os.WriteFile(c.Path(k, true), []byte("seg"), 0o644))
+	require.NoError(t, os.WriteFile(c.Path(k, true), fmp4Seg(), 0o644))
 
 	require.NoError(t, c.CleanupHash(hash))
 
@@ -369,6 +402,35 @@ func TestSegmentCache_ListReady_OrdersAndFilters(t *testing.T) {
 // ============================================================================
 // helpers
 // ============================================================================
+
+// mp4Box builds one ISO-BMFF box: 4-byte big-endian size, 4-byte type, body.
+func mp4Box(typ string, body ...byte) []byte {
+	b := make([]byte, 8+len(body))
+	binary.BigEndian.PutUint32(b[:4], uint32(8+len(body)))
+	copy(b[4:8], typ)
+	copy(b[8:], body)
+	return b
+}
+
+// fmp4Seg is a minimal but structurally valid fMP4 media segment
+// (styp + moof + mdat) — enough for IsReady's content-box check to accept it.
+func fmp4Seg() []byte {
+	out := mp4Box("styp", 'm', 's', 'd', 'h')
+	out = append(out, mp4Box("moof")...)
+	return append(out, mp4Box("mdat", 0, 0, 0, 0)...)
+}
+
+// fmp4Init is a minimal valid fMP4 init segment (ftyp + moov).
+func fmp4Init() []byte {
+	out := mp4Box("ftyp", 'i', 's', 'o', '6')
+	return append(out, mp4Box("moov")...)
+}
+
+// stypOnlySeg reproduces the malformed 24-byte styp-only segment observed in
+// prod under load (an aborted ffmpeg mux): a lone styp box, no moof/mdat.
+func stypOnlySeg() []byte {
+	return mp4Box("styp", 'm', 's', 'd', 'h', 0, 0, 0, 0, 'm', 's', 'd', 'h', 'm', 's', 'i', 'x')
+}
 
 func newTestCache(t *testing.T) (*SegmentCache, string) {
 	t.Helper()

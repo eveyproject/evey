@@ -622,9 +622,10 @@ func (o *SegmentOrchestrator) spawnSession(
 		AudioTrackIndex:    fp.AudioTrack,
 		SubtitleTrackIndex: fp.SubtitleBurnInTrack,
 		HDRSupported:       false, // tonemap is part of decision; HDRSupported=false on the client forces tonemap
+		ToneMap:            fp.HDRTonemap, // HDR->SDR tonemap decision, carried as a bool (Streams not threaded here)
 		AudioNormalize:     fp.AudioNormalize,
 		StartSec:           float64(startSegIdx) * o.opts.SegmentSeconds,
-		Streams:            nil, // Phase 3 will wire real streams for burn-in/HDR tonemap; Phase 1 falls back on ffmpeg adapter defaults
+		Streams:            nil, // burn-in still wants real streams (Phase 3); HDR tonemap is wired via ToneMap above
 		VideoCodec:         fp.VideoCodec,
 		AudioCodec:         fp.AudioCodec,
 		MaxAudioChannels:   fp.MaxAudioChannels,

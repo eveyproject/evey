@@ -276,6 +276,63 @@ func TestBuildFFmpegArgs_HWGate_BurnInFallsBackToSoftware(t *testing.T) {
 	}
 }
 
+func TestBuildFFmpegArgs_ToneMap_EmitsTonemapOnceBeforeSplit(t *testing.T) {
+	// HDR source + non-HDR client (ToneMap=true) must emit an HDR->SDR tonemap.
+	// Multi-variant: applied ONCE before the split (the tonemap is expensive),
+	// not per-rung — otherwise a weak box pays N× the cost.
+	opts := sampleHWOpts(transcoding.None, "", 3)
+	opts.ToneMap = true
+	joined := strings.Join(BuildFFmpegArgs(opts), " ")
+	if !strings.Contains(joined, "tonemap=") {
+		t.Fatalf("ToneMap=true must emit a tonemap filter: %q", joined)
+	}
+	if !strings.Contains(joined, "zscale") {
+		t.Errorf("expected zscale linearize/convert around the tonemap: %q", joined)
+	}
+	if n := strings.Count(joined, "tonemap="); n != 1 {
+		t.Errorf("tonemap must run exactly once before the split, got %d: %q", n, joined)
+	}
+	ti, si := strings.Index(joined, "tonemap="), strings.Index(joined, "split=")
+	if ti < 0 || si < 0 || ti > si {
+		t.Errorf("tonemap must precede split (shared by all rungs): tonemapIdx=%d splitIdx=%d", ti, si)
+	}
+}
+
+func TestBuildFFmpegArgs_ToneMap_ForcesSoftware(t *testing.T) {
+	// Even with a HW backend set, a tonemap request uses software: the
+	// orchestrated VAAPI/NVENC path does no tonemap, and old iGPU VEBOX can't fold
+	// 10-bit. hwUsable already gates on toneMap=="".
+	opts := sampleHWOpts(transcoding.NVENC, "", 3)
+	opts.ToneMap = true
+	joined := strings.Join(BuildFFmpegArgs(opts), " ")
+	if strings.Contains(joined, "-hwaccel") || strings.Contains(joined, "h264_nvenc") {
+		t.Errorf("tonemap must force the software path (no HW): %q", joined)
+	}
+	if !strings.Contains(joined, "libx264") {
+		t.Error("tonemap path must encode with libx264")
+	}
+}
+
+func TestBuildFFmpegArgs_ToneMap_HDRClientSkips(t *testing.T) {
+	// A client that renders HDR natively (HDRSupported) is never tonemapped.
+	opts := sampleHWOpts(transcoding.None, "", 3)
+	opts.ToneMap = true
+	opts.HDRSupported = true
+	joined := strings.Join(BuildFFmpegArgs(opts), " ")
+	if strings.Contains(joined, "tonemap=") {
+		t.Errorf("HDRSupported client must not tonemap: %q", joined)
+	}
+}
+
+func TestBuildFFmpegArgs_ToneMap_SingleVariant(t *testing.T) {
+	opts := sampleHWOpts(transcoding.None, "", 1)
+	opts.ToneMap = true
+	joined := strings.Join(BuildFFmpegArgs(opts), " ")
+	if !strings.Contains(joined, "tonemap=") {
+		t.Errorf("single-variant ToneMap must emit tonemap: %q", joined)
+	}
+}
+
 func TestBuildFFmpegArgs_NoAudio_MultiVariantSoftware(t *testing.T) {
 	opts := sampleHWOpts(transcoding.None, "", 3)
 	opts.AudioTrackIndex = -1 // source has no audio track

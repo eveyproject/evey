@@ -804,7 +804,7 @@ func startNumberFor(opts transcoding.HLSProcessOpts) int {
 
 func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec) && !opts.ForceSidecarSubs
-	toneMap := detectToneMap(opts.HDRSupported, opts.Streams)
+	toneMap := resolveToneMap(opts)
 	if hwUsable(opts, burnIn, toneMap) {
 		return buildSingleTranscodeHWArgs(opts)
 	}
@@ -861,7 +861,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	n := len(opts.Profiles)
 	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec) && !opts.ForceSidecarSubs
-	toneMap := detectToneMap(opts.HDRSupported, opts.Streams)
+	toneMap := resolveToneMap(opts)
 	if hwUsable(opts, burnIn, toneMap) {
 		return buildMultiVariantHWArgs(opts)
 	}
@@ -947,6 +947,24 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	// segment naming). Shared with the hardware multi-variant builder so both
 	// paths produce byte-identical playlist/segment names for a given opts.
 	return appendHLSMultiVariantTail(args, opts, n)
+}
+
+// resolveToneMap returns the HDR->SDR tonemap filter for this transcode, or "".
+// It honours two signals: the explicit ToneMap decision baked into the opts by
+// the orchestrated VOD path (which does not thread real Streams), and the
+// stream-based detection used when real Streams ARE present (legacy/direct path).
+// A client that renders HDR natively (HDRSupported) is never tonemapped.
+func resolveToneMap(opts transcoding.HLSProcessOpts) string {
+	if opts.HDRSupported {
+		return ""
+	}
+	if opts.ToneMap {
+		// Generic HDR10/HLG -> SDR (bt709) tonemap. The filter (zscale linearize
+		// -> tonemap -> bt709) reads the input transfer/primaries from the decoded
+		// frame's colour metadata, so it needs no per-stream params here.
+		return hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, hdr.DefaultToneMapOptions())
+	}
+	return detectToneMap(opts.HDRSupported, opts.Streams)
 }
 
 func detectToneMap(hdrSupported bool, streams []*library.MediaStream) string {
