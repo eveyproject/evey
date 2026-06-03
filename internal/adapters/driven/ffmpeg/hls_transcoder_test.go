@@ -264,6 +264,35 @@ func TestBuildFFmpegArgs_SingleTranscode_ToneMap_FoldsScaleIntoTonemap(t *testin
 		"no separate scale after the tonemap — it already downscaled")
 }
 
+func TestBuildFFmpegArgs_MultiVariant_ToneMap_FoldsScaleAtTopRung(t *testing.T) {
+	// Multi-variant HDR: the single shared tonemap feed must be downscaled to the
+	// LARGEST rung width (folded into its zscale), so the heavy float pipeline
+	// runs at the top delivery resolution instead of the 4K source; the per-rung
+	// scalers then only downscale from there. Without this the tonemap pays for
+	// the full 4K frame once, shared across rungs — the exact cost that pushed a
+	// weak host under realtime.
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles, // 4 rungs, max width 1920 (1080p)
+		VideoDecision: "transcode",
+		AudioDecision: "copy",
+		ToneMap:       true,
+	}
+	joined := strings.Join(ffmpeg.BuildFFmpegArgs(opts), " ")
+	maxW := 0
+	for _, p := range opts.Profiles {
+		if p.Width > maxW {
+			maxW = p.Width
+		}
+	}
+	assert.Contains(t, joined, fmt.Sprintf("zscale=w=%d:h=-2:t=linear", maxW),
+		"the shared tonemap must fold the downscale to the largest rung width")
+	// Still exactly one tonemap, before the split (shared by all rungs).
+	assert.Equal(t, 1, strings.Count(joined, "tonemap="), "tonemap must run once, before the split")
+	assert.Contains(t, joined, "split=")
+}
+
 func TestBuildFFmpegArgs_SingleTranscode_AudioNormalize(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:      "/tmp/test",
