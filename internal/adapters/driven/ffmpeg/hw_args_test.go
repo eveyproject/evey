@@ -333,6 +333,31 @@ func TestBuildFFmpegArgs_ToneMap_SingleVariant(t *testing.T) {
 	}
 }
 
+func TestBuildFFmpegArgs_SoftwareUsesCappedCRF(t *testing.T) {
+	// The software ladder must use capped CRF (-crf + -maxrate + -bufsize), not a
+	// plain -b:v average: easy scenes spend fewer bits while peaks stay under the
+	// rung bitrate the manifest advertises.
+	single := strings.Join(BuildFFmpegArgs(sampleHWOpts(transcoding.None, "", 1)), " ")
+	for _, want := range []string{"-crf", "-maxrate", "-bufsize"} {
+		if !strings.Contains(single, want) {
+			t.Errorf("single software path must contain %q: %q", want, single)
+		}
+	}
+	if strings.Contains(single, "-b:v") {
+		t.Errorf("single software video must not use a plain -b:v average: %q", single)
+	}
+	multi := strings.Join(BuildFFmpegArgs(sampleHWOpts(transcoding.None, "", 3)), " ")
+	// maxrate ceiling per rung = the rung's bitrate (1080p rung = 5000k, bufsize 2x).
+	for _, want := range []string{"-crf:v:0", "-maxrate:v:2 5000k", "-bufsize:v:2 10000k"} {
+		if !strings.Contains(multi, want) {
+			t.Errorf("multi-variant software path must contain %q: %q", want, multi)
+		}
+	}
+	if strings.Contains(multi, "-b:v:") {
+		t.Errorf("multi-variant software video must not use a plain -b:v average: %q", multi)
+	}
+}
+
 func TestBuildFFmpegArgs_NoAudio_MultiVariantSoftware(t *testing.T) {
 	opts := sampleHWOpts(transcoding.None, "", 3)
 	opts.AudioTrackIndex = -1 // source has no audio track

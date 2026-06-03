@@ -614,6 +614,15 @@ const hlsSegmentSeconds = "3"
 // would otherwise be encoded field-by-field into progressive frames.
 const deinterlaceFilter = "bwdif=deint=interlaced"
 
+// softwareCRF is the x264 quality target for the software ABR ladder. Paired
+// with per-rung -maxrate/-bufsize ("capped CRF"): CRF fixes the perceptual
+// quality so easy scenes spend fewer bits than the rung's bitrate (bandwidth
+// saved, steady quality), while maxrate caps complex scenes at the bitrate the
+// manifest advertises (still ABR-safe — a peak can't blow past what the player
+// budgeted). 23 is the x264 sane default. HW encoders ignore CRF (rate-control
+// differs), so this is the software path only.
+const softwareCRF = "23"
+
 // hlsForceKeyframesArgs forces a keyframe exactly every segment. Without it,
 // x264's sparse default GOP (~10s) made the HLS muxer wait many seconds for a
 // keyframe before it could close the FIRST segment — the dominant cause of the
@@ -848,7 +857,11 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 
 	args = append(args, "-c:v", resolveVideoEncoder(opts.VideoCodec),
 		"-profile:v", "high", "-level:v", "4.1",
-		"-b:v", fmt.Sprintf("%dk", p.VideoBitrate),
+		// Capped CRF (see softwareCRF): quality-targeted with the rung bitrate as a
+		// hard ceiling, instead of a plain -b:v average.
+		"-crf", softwareCRF,
+		"-maxrate", fmt.Sprintf("%dk", p.VideoBitrate),
+		"-bufsize", fmt.Sprintf("%dk", p.VideoBitrate*2),
 		"-preset", "veryfast",
 		"-pix_fmt", "yuv420p",
 	)
@@ -932,7 +945,11 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 			"-map", fmt.Sprintf("[o%d]", i),
 			fmt.Sprintf("-c:v:%d", i), vcodec,
 			fmt.Sprintf("-profile:v:%d", i), "high", fmt.Sprintf("-level:v:%d", i), "4.1",
-			fmt.Sprintf("-b:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate),
+			// Capped CRF per rung (see softwareCRF): quality-targeted, rung bitrate
+			// as the hard ceiling, instead of a plain -b:v average.
+			fmt.Sprintf("-crf:v:%d", i), softwareCRF,
+			fmt.Sprintf("-maxrate:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate),
+			fmt.Sprintf("-bufsize:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate*2),
 			"-preset", "veryfast",
 			"-pix_fmt", "yuv420p",
 		)
