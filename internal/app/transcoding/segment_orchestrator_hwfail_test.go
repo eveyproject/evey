@@ -34,7 +34,7 @@ func TestOrchestrator_HWCapabilityFailure_CallsDemoteSink(t *testing.T) {
 
 	fp := minimalFingerprint(t)
 	fp.VideoCodec = "h264"
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
 	select {
 	case c := <-got:
@@ -65,7 +65,7 @@ func TestOrchestrator_HWSessionNoSegments_DemotesToSoftware(t *testing.T) {
 
 	fp := minimalFingerprint(t)
 	fp.HWAccel = "vaapi" // HW was selected for this session
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
 	select {
 	case class := <-got:
@@ -92,7 +92,7 @@ func TestOrchestrator_SoftwareSessionNoSegments_DoesNotDemote(t *testing.T) {
 	})
 
 	fp := minimalFingerprint(t) // HWAccel empty → software
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
 	select {
 	case <-called:
@@ -122,7 +122,7 @@ func TestOrchestrator_HWWatchdog_StuckHW_Demotes(t *testing.T) {
 
 	fp := minimalFingerprint(t)
 	fp.HWAccel = "vaapi"
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
 	select {
 	case class := <-got:
@@ -150,7 +150,7 @@ func TestOrchestrator_HWWatchdog_SoftwareSession_NoDemote(t *testing.T) {
 	o.SetHWDemoteSink(func(_ context.Context, _ transcoding.FailureClass, _ string) { called <- struct{}{} })
 
 	fp := minimalFingerprint(t) // HWAccel empty → software
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
 	select {
 	case <-called:
@@ -168,13 +168,13 @@ func TestOrchestrator_hwSessionAlive_InitCountsAsAlive(t *testing.T) {
 	defer o.Close()
 
 	hash := "watchdog-alive-hash"
-	assert.False(t, o.hwSessionAlive(hash, true), "no output yet → not alive")
+	assert.False(t, o.hwSessionAlive(hash, 0, true), "no output yet → not alive")
 
 	dir, err := cache.DirFor(hash)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "stream_0_init.mp4"), fmp4Init(), 0o644))
 
-	assert.True(t, o.hwSessionAlive(hash, true), "a written init segment must count as a live HW session")
+	assert.True(t, o.hwSessionAlive(hash, 0, true), "a written init segment must count as a live HW session")
 }
 
 // A natural exit with a non-HW class (e.g. cancellation) must NOT demote —
@@ -193,7 +193,7 @@ func TestOrchestrator_NonHWExit_DoesNotDemote(t *testing.T) {
 	})
 
 	fp := minimalFingerprint(t)
-	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
 	select {
 	case <-called:

@@ -347,7 +347,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// on the first rafale (they are produced alongside segment 0 by fMP4 hls
 	// muxer).
 	if !isInit {
-		if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, segmentIdx); err != nil {
+		if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, variantIdx, segmentIdx); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "ensure segment range")
 			if errors.Is(err, apptranscoding.ErrCapacityExceeded) {
@@ -370,9 +370,11 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 			return
 		}
 	} else {
-		// Init segments are emitted alongside the first rafale; ensure a
-		// rafale exists by asking for segment 0.
-		if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, 0); err != nil {
+		// Init segments are emitted alongside the first rafale for this rung.
+		// Pass variantIdx so in single-variant mode the correct per-rung
+		// session is created (or reused). In multi-variant mode variantIdx
+		// is forwarded but the session covers all rungs anyway.
+		if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, variantIdx, 0); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "ensure init range")
 			if errors.Is(err, apptranscoding.ErrCapacityExceeded) {
@@ -971,7 +973,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, 0); err != nil {
+	if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, 0, 0); err != nil {
 		// Don't fail the response — the player will reach a cold cache
 		// on switch, just no faster than before.
 		slog.Warn("prewarm: orchestrator EnsureSegmentRange failed",
