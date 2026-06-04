@@ -272,7 +272,13 @@ type JWTConfig struct {
 }
 
 type TranscodingConfig struct {
-	MaxConcurrent  int
+	MaxConcurrent int
+	// MaxSessions caps the TOTAL concurrent HLS-VOD ffmpeg sessions the
+	// orchestrator runs (MaxActiveSessions). 0 = runtime.NumCPU(). A weak NAS
+	// that can barely sustain ONE 4K HDR software transcode must set this to 1-2
+	// (EVEY_TRANSCODING_MAX_SESSIONS) or concurrent sessions starve each other.
+	// Distinct from MaxConcurrent, which gates the legacy (non-VOD) service.
+	MaxSessions    int
 	CacheMaxGB     int
 	CacheDir       string
 	HWAccelEnabled bool
@@ -301,15 +307,16 @@ type TranscodingConfig struct {
 	// software always uses the single-process multi-variant graph regardless.
 	HWPerVariant bool
 	// SingleVariant, when true, makes the VOD orchestrator encode only the
-	// one ABR rung the client is actually requesting (1 decode + 1 encode,
-	// on-demand, the Jellyfin/Plex model) instead of transcoding the full
-	// ladder in parallel rafales. ON by default: the parallel-ladder model
-	// multiplies CPU for a small media server and is the main cause of the
-	// real-time-budget collapse (360p fallback) on weak hosts. Set
-	// EVEY_TRANSCODING_SINGLE_VARIANT=0 to restore the legacy multi-variant
-	// ladder on hosts powerful enough to pre-produce every rung for seamless
-	// ABR switching. The segment cache is keyed (hash, variantIdx, segmentIdx)
-	// in both modes, so flipping this is cache-compatible.
+	// one ABR rung the client is requesting (1 decode + 1 encode, on-demand)
+	// instead of one ffmpeg producing the whole ladder. OFF by default: on a
+	// decode-bound weak host single-variant RE-DECODES the 4K source per rung,
+	// so when the player ABR-probes/seeks across rungs it spawns several
+	// concurrent 4K decodes that starve each other (360p-with-buffering thrash);
+	// multi-variant shares ONE decode across all rungs and is the stable default
+	// for the weak-NAS target. Set EVEY_TRANSCODING_SINGLE_VARIANT=1 on hosts
+	// powerful enough to afford per-rung sessions. The segment cache is keyed
+	// (hash, variantIdx, segmentIdx) in both modes, so flipping is
+	// cache-compatible.
 	SingleVariant     bool
 	TrickplayCacheDir string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
@@ -521,6 +528,7 @@ func Load() (*Config, error) {
 		},
 		Transcoding: TranscodingConfig{
 			MaxConcurrent:         envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
+			MaxSessions:           envInt("EVEY_TRANSCODING_MAX_SESSIONS", 0),
 			CacheMaxGB:            envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
 			CacheDir:              envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
 			HWAccelEnabled:        envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
@@ -528,7 +536,7 @@ func Load() (*Config, error) {
 			HWMode:                strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_MODE", ""))),
 			HWFirstSegmentTimeout: envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 5*time.Second),
 			HWPerVariant:          envBool("EVEY_TRANSCODING_HW_PER_VARIANT", false),
-			SingleVariant:         envBool("EVEY_TRANSCODING_SINGLE_VARIANT", true),
+			SingleVariant:         envBool("EVEY_TRANSCODING_SINGLE_VARIANT", false),
 			TrickplayCacheDir:     envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
 			AudioRenditionEnabled: envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", false),
 			BenchSDRSamplePath:    envStr("EVEY_BENCH_SDR_SAMPLE", ""),

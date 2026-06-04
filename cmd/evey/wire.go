@@ -586,7 +586,14 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// stays generous. Past the cap the player receives 503 + Retry-After and
 	// resumes once a slot frees. NumCPU is a coarse default; surfacing it in the
 	// admin transcoding panel or deriving it from encode calibration is a follow-up.
-	maxHLSSessions := runtime.NumCPU()
+	// EVEY_TRANSCODING_MAX_SESSIONS overrides it: a weak NAS that can barely
+	// sustain ONE 4K HDR software transcode must cap this at 1-2, or concurrent
+	// sessions (ABR probes + seeks) starve each other and the orchestrator
+	// kills/evicts them mid-segment (the 360p-with-buffering thrash). 0 = NumCPU.
+	maxHLSSessions := cfg.Transcoding.MaxSessions
+	if maxHLSSessions <= 0 {
+		maxHLSSessions = runtime.NumCPU()
+	}
 	hlsVODOrch := apptranscoding.NewSegmentOrchestrator(hlsVODCache, hlsTranscoder, sourceResolver, apptranscoding.OrchestratorOptions{
 		ThrottleEnabled:       true,
 		MaxActiveSessions:     maxHLSSessions,

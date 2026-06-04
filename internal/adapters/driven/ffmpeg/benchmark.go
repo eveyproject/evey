@@ -180,10 +180,15 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	hdrSample, hdrFallback := r.resolveHDRSample()
 	swHDRMax := r.benchSoftwareHDR(ctx, hdrSample, hdrFallback)
 
-	// detected lists every accelerator the host advertises, recorded before the
-	// preference's backend pin / disable is applied — so the admin can still see
-	// "nvenc present" even while the active mode forces software or vaapi.
-	detected := r.detectBackends(ctx)
+	// detected lists every accelerator the host advertises. Skipped entirely
+	// when HW is disabled (mode=off): probing the GPU — including the real-encode
+	// verification probe — wastes CPU and spams "hwdetect: probe failed" on a
+	// box whose operator explicitly turned HW off (e.g. an old iGPU that
+	// can't HEVC-decode). No detection, no probe, no noise when off.
+	var detected []string
+	if !pref.DisableHW {
+		detected = r.detectBackends(ctx)
+	}
 
 	var (
 		hwMax     int
