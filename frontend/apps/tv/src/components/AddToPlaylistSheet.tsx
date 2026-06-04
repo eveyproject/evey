@@ -52,7 +52,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
             <ActivityIndicator color={theme.colors.accent} style={{ marginTop: 24 }} />
           ) : manualPlaylists.length === 0 ? (
             <Text style={[styles.empty, { color: theme.colors.textMuted }]}>
-              {t("playlist.noManualPlaylists", "No manual playlists available")}
+              {t("common.noManualPlaylists", "No manual playlists available")}
             </Text>
           ) : (
             <FlatList

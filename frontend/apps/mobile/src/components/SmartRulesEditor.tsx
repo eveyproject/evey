@@ -168,7 +168,12 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                   />
                 )}
 
-                <Pressable onPress={() => removeRule(idx)} hitSlop={8}>
+                <Pressable
+                  onPress={() => removeRule(idx)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("common.remove", "Remove")}
+                >
                   <Ionicons name="close-circle" size={20} color={theme.colors.error} />
                 </Pressable>
               </View>
