@@ -53,9 +53,12 @@ path:
   against the chain the runtime actually runs. **Re-running calibration on the
   target box is required** for the cap to rise from the old (slow-geometry)
   value.
-- Encoding a single client-requested rung instead of the parallel ladder for the
-  decode-bound HDR case removes the fan-out multiplier
-  (`EVEY_TRANSCODING_SINGLE_VARIANT=1`).
+- Encoding a single client-requested rung instead of the parallel ladder removes
+  the fan-out multiplier. This is **now the default** (`SingleVariant` defaults to
+  true in `TranscodingConfig`); set `EVEY_TRANSCODING_SINGLE_VARIANT=0` to restore
+  the legacy multi-variant ladder on a host powerful enough to pre-encode every
+  rung. The segment cache is keyed `(hash, variantIdx, segmentIdx)` in both modes,
+  so the switch is cache-compatible.
 
 Resizing in linear light (`t=linear`) is colour-correct and arguably higher
 quality than scaling in the encoded domain.

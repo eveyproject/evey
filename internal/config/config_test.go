@@ -58,6 +58,11 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, 50, cfg.Transcoding.CacheMaxGB)
 	assert.Equal(t, "/data/transcode", cfg.Transcoding.CacheDir)
 	assert.False(t, cfg.Transcoding.HWAccelEnabled)
+	assert.False(t, cfg.Transcoding.HWPerVariant)
+	// Single-variant on-demand encoding is the default (encode only the rung
+	// the client asks for) — the parallel ABR ladder is opt-out for powerful
+	// hosts, not the baseline that crushes weak NAS CPUs.
+	assert.True(t, cfg.Transcoding.SingleVariant)
 	assert.Equal(t, "/cache/trickplay", cfg.Transcoding.TrickplayCacheDir)
 
 	assert.False(t, cfg.OIDC.Enabled)
@@ -123,6 +128,7 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	t.Setenv("EVEY_DB_PORT", "5433")
 	t.Setenv("EVEY_DB_MAX_OPEN_CONNS", "100")
 	t.Setenv("EVEY_TRANSCODING_HW_ACCEL_ENABLED", "true")
+	t.Setenv("EVEY_TRANSCODING_SINGLE_VARIANT", "0") // opt out of the single-variant default
 	t.Setenv("EVEY_OIDC_ENABLED", "true")
 	t.Setenv("EVEY_JWT_ACCESS_TTL", "30m")
 	t.Setenv("EVEY_LIBRARY_WATCHER_ENABLED", "false")
@@ -137,6 +143,7 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	assert.Equal(t, 5433, cfg.DB.Port)
 	assert.Equal(t, 100, cfg.DB.MaxOpenConns)
 	assert.True(t, cfg.Transcoding.HWAccelEnabled)
+	assert.False(t, cfg.Transcoding.SingleVariant, "EVEY_TRANSCODING_SINGLE_VARIANT=0 opts out of single-variant")
 	assert.True(t, cfg.OIDC.Enabled)
 	assert.Equal(t, 30*time.Minute, cfg.JWT.AccessTokenTTL)
 	assert.False(t, cfg.Library.WatcherEnabled)

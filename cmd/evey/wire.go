@@ -592,7 +592,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		MaxActiveSessions:     maxHLSSessions,
 		HWFirstSegmentTimeout: cfg.Transcoding.HWFirstSegmentTimeout,
 		HWPerVariant:          cfg.Transcoding.HWPerVariant,
-		SingleVariant:         os.Getenv("EVEY_TRANSCODING_SINGLE_VARIANT") == "1",
+		SingleVariant:         cfg.Transcoding.SingleVariant,
 	}, slog.Default())
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsVODOrch)
 

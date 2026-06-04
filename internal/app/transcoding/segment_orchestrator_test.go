@@ -524,7 +524,7 @@ func TestOrchestrator_SingleVariant_FlagOff_MultiVariantProfiles(t *testing.T) {
 	src := stubSource{path: "/media/test.mkv"}
 
 	opts := testOpts()
-	opts.SingleVariant = false // explicitly off (same as default)
+	opts.SingleVariant = false // explicitly exercise the multi-variant ladder path
 	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
 	defer o.Close()
 

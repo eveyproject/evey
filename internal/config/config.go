@@ -272,10 +272,10 @@ type JWTConfig struct {
 }
 
 type TranscodingConfig struct {
-	MaxConcurrent     int
-	CacheMaxGB        int
-	CacheDir          string
-	HWAccelEnabled    bool
+	MaxConcurrent  int
+	CacheMaxGB     int
+	CacheDir       string
+	HWAccelEnabled bool
 	// HWBackend pins which HW encode backend this instance uses ("nvenc",
 	// "vaapi", "qsv"); empty = auto-detect. A deployment-time knob: it lets one
 	// host run several Evey containers, each bound to a different GPU path,
@@ -288,7 +288,7 @@ type TranscodingConfig struct {
 	// HWAccelEnabled + HWBackend. The admin panel persists an override into
 	// server_settings (transcoding.hw_mode) which loadOverride layers on top,
 	// and changing it re-benches live via CalibrationService.SetHWMode.
-	HWMode            string
+	HWMode string
 	// HWFirstSegmentTimeout is the HW fast-fail watchdog window: a hardware
 	// transcode session that hasn't written its init segment within this delay
 	// is treated as a dead/stuck GPU and demoted to software immediately, rather
@@ -299,7 +299,18 @@ type TranscodingConfig struct {
 	// multi-output process. Avoids the multi-encode-in-one-process graph that
 	// crashes fragile VA drivers and isolates per-rung failures. Off by default;
 	// software always uses the single-process multi-variant graph regardless.
-	HWPerVariant      bool
+	HWPerVariant bool
+	// SingleVariant, when true, makes the VOD orchestrator encode only the
+	// one ABR rung the client is actually requesting (1 decode + 1 encode,
+	// on-demand, the Jellyfin/Plex model) instead of transcoding the full
+	// ladder in parallel rafales. ON by default: the parallel-ladder model
+	// multiplies CPU for a small media server and is the main cause of the
+	// real-time-budget collapse (360p fallback) on weak hosts. Set
+	// EVEY_TRANSCODING_SINGLE_VARIANT=0 to restore the legacy multi-variant
+	// ladder on hosts powerful enough to pre-produce every rung for seamless
+	// ABR switching. The segment cache is keyed (hash, variantIdx, segmentIdx)
+	// in both modes, so flipping this is cache-compatible.
+	SingleVariant     bool
 	TrickplayCacheDir string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch
@@ -500,6 +511,7 @@ func Load() (*Config, error) {
 			HWMode:                strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_MODE", ""))),
 			HWFirstSegmentTimeout: envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 5*time.Second),
 			HWPerVariant:          envBool("EVEY_TRANSCODING_HW_PER_VARIANT", false),
+			SingleVariant:         envBool("EVEY_TRANSCODING_SINGLE_VARIANT", true),
 			TrickplayCacheDir:     envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
 			AudioRenditionEnabled: envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", false),
 		},
