@@ -651,7 +651,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// actually sustain. Benching the parallel ladder while the runtime serves
 	// single rungs pins the HDR cap far below what the host serves.
 	calibrationRunner := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{
-		SingleVariant: cfg.Transcoding.SingleVariant,
+		SingleVariant:   cfg.Transcoding.SingleVariant,
+		SDRSamplePath:   cfg.Transcoding.BenchSDRSamplePath,
+		SDRSampleURL:    cfg.Transcoding.BenchSDRSampleURL,
+		SDRSampleSHA256: cfg.Transcoding.BenchSDRSampleSHA256,
+		HDRSamplePath:   cfg.Transcoding.BenchHDRSamplePath,
+		HDRSampleURL:    cfg.Transcoding.BenchHDRSampleURL,
+		HDRSampleSHA256: cfg.Transcoding.BenchHDRSampleSHA256,
 	}, slog.Default())
 	calibrationSvc := apptranscoding.NewCalibrationService(capabilityRepo, calibrationRunner, slog.Default(),
 		apptranscoding.WithHWMode(hwMode))

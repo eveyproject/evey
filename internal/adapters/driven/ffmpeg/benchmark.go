@@ -3,8 +3,12 @@ package ffmpeg
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -47,6 +51,25 @@ type BenchmarkRunner struct {
 	// encodes at 1080p HDR can comfortably sustain decode + ONE 1080p encode.
 	// Benching the wrong shape pins the cap far below what the host serves.
 	singleVariant bool
+
+	// sdrSrc / hdrSrc locate the bench inputs (operator override > pinned
+	// download > synthetic generator). Empty zero values keep the legacy
+	// behaviour: generate the synthetic clip on first run.
+	sdrSrc benchSampleSource
+	hdrSrc benchSampleSource
+}
+
+// benchSampleSource locates one calibration input. Resolution order (see
+// resolveBenchSample): an operator-provided file (overridePath), then a
+// previously-cached file, then a SHA256-pinned download (url+sha256), then the
+// on-the-fly synthetic clip. A real-content clip calibrates far more honestly
+// than the synthetic — the synthetic over-states decode+encode cost — so a
+// pinned reference clip is preferred when configured, with the synthetic as the
+// always-available airgapped fallback.
+type benchSampleSource struct {
+	overridePath string // EVEY_BENCH_*_SAMPLE: a real file the operator dropped in
+	url          string // EVEY_BENCH_*_SAMPLE_URL: pinned reference clip (https)
+	sha256       string // EVEY_BENCH_*_SAMPLE_SHA256: required when url is set
 }
 
 // BenchmarkOpts tweaks the runner. Zero values fall back to defaults.
@@ -61,6 +84,16 @@ type BenchmarkOpts struct {
 	// pipeline shape the runtime executes. Defaults to false (legacy parallel
 	// ladder) to stay byte-identical for callers that don't set it.
 	SingleVariant bool
+
+	// Bench sample sources: point the bench at a real reference clip instead of
+	// the synthetic. Zero values fall back to synthetic generation. Wire from
+	// cfg.Transcoding.Bench* so an operator can calibrate against real content
+	// (their own file, or a pinned license-clean reference clip).
+	//   *SamplePath   EVEY_BENCH_*_SAMPLE        — a real file dropped in
+	//   *SampleURL    EVEY_BENCH_*_SAMPLE_URL    — pinned reference clip (https)
+	//   *SampleSHA256 EVEY_BENCH_*_SAMPLE_SHA256 — required when URL is set
+	SDRSamplePath, SDRSampleURL, SDRSampleSHA256 string
+	HDRSamplePath, HDRSampleURL, HDRSampleSHA256 string
 }
 
 func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunner {
@@ -90,6 +123,16 @@ func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunne
 		durationSec:   opts.DurationSec,
 		margin:        opts.Margin,
 		singleVariant: opts.SingleVariant,
+		sdrSrc: benchSampleSource{
+			overridePath: opts.SDRSamplePath,
+			url:          opts.SDRSampleURL,
+			sha256:       opts.SDRSampleSHA256,
+		},
+		hdrSrc: benchSampleSource{
+			overridePath: opts.HDRSamplePath,
+			url:          opts.HDRSampleURL,
+			sha256:       opts.HDRSampleSHA256,
+		},
 	}
 }
 
@@ -332,58 +375,134 @@ func (r *BenchmarkRunner) probeOption(ctx context.Context, args []string) bool {
 // never need the lavfi branch anymore unless generation itself
 // fails.
 func (r *BenchmarkRunner) resolveSample() (string, bool) {
-	if _, err := os.Stat(r.samplePath); err == nil {
-		return r.samplePath, false
-	}
-	if err := r.generateSample(); err != nil {
-		r.logger.Warn("benchmark: HEVC sample generation failed, falling back to synthetic testsrc",
-			slog.String("path", r.samplePath),
-			slog.Any("err", err))
-		return "", true
-	}
-	r.logger.Info("benchmark: generated HEVC mire sample",
-		slog.String("path", r.samplePath))
-	return r.samplePath, false
+	return r.resolveBenchSample("SDR", r.sdrSrc, r.samplePath, r.generateSample)
 }
 
-// generateSample produces a ~5 s 3840x2160 HEVC file at samplePath.
-// Encoded with libx265 `medium` preset + explicit B-frame chain so
-// the decoder side exercises B-frame reordering + multi-reference
-// motion comp — the load profile a real Blu-ray rip would have.
-// (An earlier draft used `ultrafast` here, which produced a file with
-// no B-frames; the decoder ran 3-5× faster than on real content and
-// the bench cap was systematically optimistic.)
+// resolveBenchSample produces the path to a bench input, in priority order:
+//  1. src.overridePath — a real file the operator dropped in (used verbatim);
+//  2. defaultPath — a clip cached on a previous run (download or generate);
+//  3. a SHA256-pinned download from src.url (cached to defaultPath);
+//  4. the synthetic clip produced by generate(defaultPath).
 //
-// Slow on weak hosts (~30-60 s at preset medium 4K) but only runs
-// once per machine — the file is reused across reboots and
-// recalibrations until Recalibrate is forced.
-func (r *BenchmarkRunner) generateSample() error {
-	if err := os.MkdirAll(filepath.Dir(r.samplePath), 0o755); err != nil {
+// A real-content clip calibrates far more honestly than the synthetic (the
+// synthetic over-states decode+encode cost, pinning the cap low), so a pinned
+// reference clip wins when configured; the synthetic is the always-available
+// airgapped fallback. Returns (path, fallback): fallback=true only when every
+// step fails, signalling the caller to drop to the in-memory lavfi testsrc.
+func (r *BenchmarkRunner) resolveBenchSample(label string, src benchSampleSource, defaultPath string, generate func(dst string) error) (string, bool) {
+	if src.overridePath != "" {
+		if _, err := os.Stat(src.overridePath); err == nil {
+			r.logger.Info("benchmark: using operator-provided "+label+" sample",
+				slog.String("path", src.overridePath))
+			return src.overridePath, false
+		}
+		r.logger.Warn("benchmark: "+label+" sample override not found, falling through",
+			slog.String("path", src.overridePath))
+	}
+	if _, err := os.Stat(defaultPath); err == nil {
+		return defaultPath, false
+	}
+	if src.url != "" && src.sha256 != "" {
+		if err := r.downloadSample(src.url, src.sha256, defaultPath); err != nil {
+			r.logger.Warn("benchmark: "+label+" reference clip download failed, falling back to synthetic",
+				slog.String("url", src.url), slog.Any("err", err))
+		} else {
+			r.logger.Info("benchmark: downloaded "+label+" reference clip",
+				slog.String("url", src.url), slog.String("path", defaultPath))
+			return defaultPath, false
+		}
+	}
+	if err := generate(defaultPath); err != nil {
+		r.logger.Warn("benchmark: "+label+" sample generation failed, using synthetic testsrc fallback",
+			slog.String("path", defaultPath), slog.Any("err", err))
+		return "", true
+	}
+	r.logger.Info("benchmark: generated synthetic "+label+" sample", slog.String("path", defaultPath))
+	return defaultPath, false
+}
+
+// downloadSample fetches a SHA256-pinned reference clip to dst. The pin is
+// mandatory (callers pass it only when both url and sha are set), so a swapped
+// or corrupted file at the URL is rejected rather than calibrated against — the
+// URL is operator-configured and the content is verified, so this is not an
+// open SSRF/remote-content sink. Streams to a temp file with a size cap and
+// atomically renames on a verified hash.
+func (r *BenchmarkRunner) downloadSample(url, wantSHA, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return fmt.Errorf("mkdir bench dir: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("new request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req) //nolint:gosec // G107: url is operator-configured + SHA256-pinned below
+	if err != nil {
+		return fmt.Errorf("get %q: %w", url, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("get %q: http %d", url, resp.StatusCode)
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(dst), "sample-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }() //nolint:errcheck // best-effort temp cleanup; rename consumes it on success
+	const maxBytes = 256 << 20                // 256 MiB cap — a calibration clip is tens of MB
+	h := sha256.New()
+	n, err := io.Copy(io.MultiWriter(tmp, h), io.LimitReader(resp.Body, maxBytes+1))
+	_ = tmp.Close()
+	if err != nil {
+		return fmt.Errorf("download body: %w", err)
+	}
+	if n > maxBytes {
+		return fmt.Errorf("reference clip exceeds %d byte cap", maxBytes)
+	}
+	if got := hex.EncodeToString(h.Sum(nil)); !strings.EqualFold(got, wantSHA) {
+		return fmt.Errorf("sha256 mismatch: got %s want %s", got, wantSHA)
+	}
+	return os.Rename(tmpName, dst)
+}
+
+// synthBenchSource builds the lavfi source for the synthetic clip: testsrc2
+// (gradients + moving geometry — real motion vectors and detail, unlike the near
+// static original testsrc) softened by a light gaussian blur (testsrc2's razor
+// edges are unnaturally hard for x264; the blur brings the residual/encode cost
+// toward real film) plus a light film-grain noise (so x265 can't compress it to
+// a trivial size — keeps the decode non-trivial — without the pathological
+// incompressibility of the old noise=alls=20, which made x264 re-encode pure
+// noise and pinned the cap far below what real content sustains). pixFmt is
+// yuv420p (SDR) or yuv420p10le (HDR).
+func synthBenchSource(pixFmt string) string {
+	return "testsrc2=duration=5:size=3840x2160:rate=24," +
+		"gblur=sigma=1.5,noise=alls=4:allf=t+u,format=" + pixFmt
+}
+
+// generateSample produces a ~5 s 3840x2160 HEVC clip at dst, used when no real
+// reference clip is configured. Encoded with libx265 `medium` + a B-frame chain
+// so the decoder exercises reordering + multi-reference motion comp (the load
+// profile of a real rip). Bitrate targets ~5 Mbit/s — typical 4K streaming /
+// "4KLight" content, NOT a 25 Mbit/s remux: the source bitrate dominates decode
+// cost, so an over-fat sample understates the host. Slow on weak hosts (~30-60 s
+// at 4K) but runs once, reused across reboots/recalibrations.
+func (r *BenchmarkRunner) generateSample(dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("mkdir bench dir: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	// We layer noise on top of testsrc so x265 can't compress to a
-	// trivial size — without `geq` the lavfi pattern is too regular
-	// and the resulting .hevc is < 100 KB (x265 finds it fully
-	// predictable), which means the decoder runs in pure cache and
-	// the bench measures nothing meaningful. With noise the file
-	// lands around 10-20 MB at the target bitrate, similar to a
-	// real 4K Blu-ray.
 	cmd := exec.CommandContext(ctx, r.ffmpegBin(),
 		"-hide_banner", "-nostats", "-y",
-		"-f", "lavfi", "-i",
-		"testsrc=duration=5:size=3840x2160:rate=24,format=yuv420p,"+
-			"noise=alls=20:allf=t+u",
+		"-f", "lavfi", "-i", synthBenchSource("yuv420p"),
 		"-c:v", "libx265", "-preset", "medium",
-		// bframes=4 + ref=3 = decoder load profile of a typical 4K
-		// Blu-ray encoder. -b:v with a real cap forces x265 to spend
-		// the bits even on the easy parts of the input.
 		"-x265-params", "bframes=4:ref=3:b-adapt=2:rc-lookahead=20",
-		"-b:v", "20M", "-maxrate", "25M", "-bufsize", "50M",
+		"-b:v", "5M", "-maxrate", "6M", "-bufsize", "10M",
 		"-tag:v", "hvc1",
 		"-an",
-		r.samplePath,
+		dst,
 	)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("ffmpeg generate sample: %w (tail: %s)", err, tailString(string(out), 200))
@@ -397,26 +516,20 @@ func (r *BenchmarkRunner) hdrSamplePath() string {
 	return filepath.Join(filepath.Dir(r.samplePath), "sample-hdr10.hevc")
 }
 
-// resolveHDRSample ensures a 10-bit HDR10 bench sample exists, generating it on
-// first run. Returns (path, fallback): fallback=true (synthetic 8-bit testsrc,
-// which understates the 10-bit decode cost) only when generation fails.
+// resolveHDRSample resolves the 10-bit HDR10 bench input through the same
+// cascade as the SDR one (operator file > cached > pinned download > synthetic).
+// A real HDR clip is strongly preferred: the synthetic understates the 10-bit
+// decode + tonemap cost, which is exactly what pins the HDR cap too low.
 func (r *BenchmarkRunner) resolveHDRSample() (string, bool) {
-	dst := r.hdrSamplePath()
-	if _, err := os.Stat(dst); err == nil {
-		return dst, false
-	}
-	if err := r.generateHDRSample(dst); err != nil {
-		r.logger.Warn("benchmark: HDR sample generation failed, HDR bench uses synthetic testsrc (10-bit decode cost understated)",
-			slog.String("path", dst), slog.Any("err", err))
-		return "", true
-	}
-	r.logger.Info("benchmark: generated HDR10 mire sample", slog.String("path", dst))
-	return dst, false
+	return r.resolveBenchSample("HDR", r.hdrSrc, r.hdrSamplePath(), r.generateHDRSample)
 }
 
-// generateHDRSample produces a ~5 s 3840x2160 HEVC Main10 HDR10 file (bt2020 /
+// generateHDRSample produces a ~5 s 3840x2160 HEVC Main10 HDR10 clip (bt2020 /
 // PQ, 10-bit) at dst — the heavy-decode counterpart of generateSample, used to
-// bench the real HDR->SDR transcode cost (10-bit decode + tonemap + encode).
+// bench the real HDR->SDR transcode cost (10-bit decode + tonemap + encode) when
+// no real HDR reference clip is configured. Same content recipe and ~5 Mbit/s
+// target as the SDR sample; the tonemap compute cost is luminance-independent,
+// so a representative-bitrate 10-bit clip exercises it honestly.
 func (r *BenchmarkRunner) generateHDRSample(dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("mkdir bench dir: %w", err)
@@ -425,9 +538,7 @@ func (r *BenchmarkRunner) generateHDRSample(dst string) error {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, r.ffmpegBin(),
 		"-hide_banner", "-nostats", "-y",
-		"-f", "lavfi", "-i",
-		"testsrc=duration=5:size=3840x2160:rate=24,format=yuv420p10le,"+
-			"noise=alls=20:allf=t+u",
+		"-f", "lavfi", "-i", synthBenchSource("yuv420p10le"),
 		"-c:v", "libx265", "-preset", "medium", "-pix_fmt", "yuv420p10le",
 		// Main10 + HDR10 metadata so the decoder runs the real 10-bit path and
 		// the tonemap filter sees bt2020/PQ — same b-frame chain as the SDR sample.
@@ -435,7 +546,7 @@ func (r *BenchmarkRunner) generateHDRSample(dst string) error {
 		"bframes=4:ref=3:b-adapt=2:rc-lookahead=20:hdr10=1:"+
 			"colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc",
 		"-color_primaries", "bt2020", "-color_trc", "smpte2084", "-colorspace", "bt2020nc",
-		"-b:v", "25M", "-maxrate", "30M", "-bufsize", "60M",
+		"-b:v", "5M", "-maxrate", "6M", "-bufsize", "10M",
 		"-tag:v", "hvc1", "-an",
 		dst,
 	)

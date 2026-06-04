@@ -92,6 +92,37 @@ EVEY_TRANSCODING_HW_PER_VARIANT=false
 EVEY_TRANSCODING_SINGLE_VARIANT=1
 ```
 
+### Encode calibration sample
+
+At boot (and on `POST /admin/transcode/calibration/recalibrate`) the bench
+measures the host's realtime encode ceiling against a 4K clip, separately for
+SDR and HDR (`software_max_height` / `software_hdr_max_height`). The clip's
+decode + tonemap + encode cost is what the cap is derived from, so a
+**real-content clip calibrates far more honestly than a synthetic one** — a
+synthetic over-states cost and pins the cap low (the classic symptom: a 4K HDR
+title that the box can actually play at 1080p gets capped to 480p/360p).
+
+The bench resolves its input in priority order:
+
+1. **Operator file** — a real clip you drop in. Used verbatim.
+2. **Pinned download** — a license-clean reference clip fetched once (SHA256-verified), cached.
+3. **Synthetic** — generated on the fly (`testsrc2` + light grain at ~5 Mbit/s). Always available; the airgapped fallback.
+
+```bash
+# Point the bench at a real file (yours, or a downloaded reference clip):
+EVEY_BENCH_HDR_SAMPLE=/data/bench/my-4k-hdr.hevc
+EVEY_BENCH_SDR_SAMPLE=/data/bench/my-4k-sdr.hevc
+# …or a pinned download (URL must be https; SHA256 is mandatory when URL is set):
+EVEY_BENCH_HDR_SAMPLE_URL=https://example.org/evey-bench-hdr10.hevc
+EVEY_BENCH_HDR_SAMPLE_SHA256=<sha256>
+EVEY_BENCH_SDR_SAMPLE_URL=https://example.org/evey-bench-sdr.hevc
+EVEY_BENCH_SDR_SAMPLE_SHA256=<sha256>
+```
+
+Build the reference clips from a permissively-licensed source (Blender Open
+Movies, CC-BY — **not** CC-BY-NC-ND content like Netflix "Sol Levante") with
+`scripts/make-bench-sample.sh <source-4k>`; it prints the SHA256 to pin.
+
 ### WSL2 caveat
 
 On WSL2 the GPU is reached through Mesa's experimental **d3d12** driver. **NVENC

@@ -318,6 +318,23 @@ type TranscodingConfig struct {
 	// during the rollout — flip to true to opt in. When off, the
 	// pipeline stays muxed audio+video as before (backward compatible).
 	AudioRenditionEnabled bool
+
+	// Encode-calibration bench sample sources. The bench measures the host's
+	// realtime encode ceiling against a 4K clip; a real-content clip calibrates
+	// far more honestly than the synthetic (which over-states decode+encode
+	// cost and pins the cap low). Resolution order: operator file > pinned
+	// download > synthetic. Empty values keep the synthetic fallback.
+	//   *Path   a real file the operator dropped in (used verbatim)
+	//   *URL    a license-clean reference clip, https, SHA256-pinned
+	//   *SHA256 required when the matching *URL is set
+	// EVEY_BENCH_SDR_SAMPLE / _URL / _SHA256
+	BenchSDRSamplePath   string
+	BenchSDRSampleURL    string
+	BenchSDRSampleSHA256 string
+	// EVEY_BENCH_HDR_SAMPLE / _URL / _SHA256
+	BenchHDRSamplePath   string
+	BenchHDRSampleURL    string
+	BenchHDRSampleSHA256 string
 }
 
 type OIDCConfig struct {
@@ -514,6 +531,12 @@ func Load() (*Config, error) {
 			SingleVariant:         envBool("EVEY_TRANSCODING_SINGLE_VARIANT", true),
 			TrickplayCacheDir:     envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
 			AudioRenditionEnabled: envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", false),
+			BenchSDRSamplePath:    envStr("EVEY_BENCH_SDR_SAMPLE", ""),
+			BenchSDRSampleURL:     envStr("EVEY_BENCH_SDR_SAMPLE_URL", ""),
+			BenchSDRSampleSHA256:  envStr("EVEY_BENCH_SDR_SAMPLE_SHA256", ""),
+			BenchHDRSamplePath:    envStr("EVEY_BENCH_HDR_SAMPLE", ""),
+			BenchHDRSampleURL:     envStr("EVEY_BENCH_HDR_SAMPLE_URL", ""),
+			BenchHDRSampleSHA256:  envStr("EVEY_BENCH_HDR_SAMPLE_SHA256", ""),
 		},
 		OIDC: OIDCConfig{
 			Enabled:             envBool("EVEY_OIDC_ENABLED", false),
