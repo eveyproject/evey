@@ -121,7 +121,7 @@ const DEFAULT_STREAM_INFO = {
   mediaStreams: [],
 };
 
-function renderPlayer(streamInfo = DEFAULT_STREAM_INFO, opts: { onStreamTokenRefresh?: () => Promise<string>; streamToken?: string } = {}) {
+function renderPlayer(streamInfo = DEFAULT_STREAM_INFO, opts: { onStreamTokenRefresh?: () => Promise<string>; streamToken?: string; startPositionMs?: number } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
@@ -131,7 +131,7 @@ function renderPlayer(streamInfo = DEFAULT_STREAM_INFO, opts: { onStreamTokenRef
         mediaId="media-1"
         streamToken={opts.streamToken ?? "test-token"}
         onStreamTokenRefresh={opts.onStreamTokenRefresh ?? (() => Promise.resolve("new-token"))}
-        startPositionMs={0}
+        startPositionMs={opts.startPositionMs ?? 0}
       />
     </QueryClientProvider>,
   );
@@ -210,6 +210,35 @@ describe("HLSPlayer", () => {
     const video = document.querySelector("video");
     expect(video).toBeTruthy();
     expect(video!.src).toContain("remux=1");
+  });
+});
+
+// Regression: on the native-HLS path (Safari/iOS, where Hls.isSupported() is
+// false) the transcode branch used to hard-seek to 0, so resume-from-watch-
+// progress and audio/subtitle restarts jumped back to the start. The resume
+// target must be applied once metadata is loaded.
+describe("HLSPlayer: native HLS (Safari) resume", () => {
+  it("seeks to the resume position on loadedmetadata instead of restarting at 0", () => {
+    MockHls.isSupported.mockReturnValue(false);
+    try {
+      renderPlayer(
+        { ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" },
+        { startPositionMs: 600_000 },
+      );
+      const video = document.querySelector("video")!;
+      let ct = 0;
+      Object.defineProperty(video, "currentTime", {
+        configurable: true,
+        get: () => ct,
+        set: (v: number) => { ct = v; },
+      });
+      // Native path attaches a loadedmetadata listener; firing it must apply
+      // the 600s resume target, not leave currentTime at 0.
+      video.dispatchEvent(new Event("loadedmetadata"));
+      expect(video.currentTime).toBe(600);
+    } finally {
+      MockHls.isSupported.mockReturnValue(true);
+    }
   });
 });
 

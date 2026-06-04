@@ -78,24 +78,34 @@ export function useTranscodePlayback({
 
     if (!Hls.isSupported()) {
       video.src = hlsUrl;
-      video.currentTime = 0;
-      if (!wasPausedRef.current) {
-        video.play().catch(() => {
-          video.muted = true;
-          void video.play().catch(() => { /* user gesture required */ });
-        });
-      }
       // Native-HLS path (Safari/iOS, where Hls.isSupported() is false). The
       // stream is transcoded starting at `offset`, so video.currentTime is
       // local to the restarted segment — positionRef must hold the ABSOLUTE
       // position (offset + local) like the Hls.js path does, otherwise every
       // seek after an out-of-buffer restart on Safari lands offset seconds off.
+      //
+      // currentTime only sticks once metadata is loaded on native HLS, so the
+      // resume/restart target is applied in loadedmetadata (mirroring the
+      // hls.js MANIFEST_PARSED path). Without this the branch hard-seeked to 0,
+      // so every resume from watch progress and every audio/subtitle restart on
+      // Safari jumped back to the start of the media.
+      function onLoadedMetadata() {
+        if (initialSeekSec > 0) video!.currentTime = initialSeekSec;
+        if (!wasPausedRef.current) {
+          video!.play().catch(() => {
+            video!.muted = true;
+            void video!.play().catch(() => { /* user gesture required */ });
+          });
+        }
+      }
       function onTimeUpdate() { positionRef.current = transcodeOffsetRef.current + video!.currentTime; }
       function handleEnded() { onEnded?.(); }
+      video.addEventListener("loadedmetadata", onLoadedMetadata);
       video.addEventListener("timeupdate", onTimeUpdate);
       video.addEventListener("ended", handleEnded);
       return () => {
         wasPausedRef.current = video.paused;
+        video.removeEventListener("loadedmetadata", onLoadedMetadata);
         video.removeEventListener("timeupdate", onTimeUpdate);
         video.removeEventListener("ended", handleEnded);
         video.src = "";
@@ -265,6 +275,11 @@ export function useTranscodePlayback({
       video.removeEventListener("playing", handlePlaying);
       hls.destroy();
       hlsRef.current = null;
+      // Clear any in-flight buffering spinner when the instance is torn down
+      // (audio/subtitle/quality switch rebuilds it); the fresh instance's
+      // waiting/playing events re-drive the state. Avoids a stale spinner
+      // surviving the transition.
+      setIsBuffering(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setIsBuffering/setTranscodeStartTime are stable setState
   }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack]);
