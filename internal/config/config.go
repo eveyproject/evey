@@ -317,7 +317,16 @@ type TranscodingConfig struct {
 	// powerful enough to afford per-rung sessions. The segment cache is keyed
 	// (hash, variantIdx, segmentIdx) in both modes, so flipping is
 	// cache-compatible.
-	SingleVariant     bool
+	SingleVariant bool
+	// SingleRendition, when true, makes the SOFTWARE transcode path serve a
+	// single rendition (the tallest sustainable rung) instead of a multi-rung
+	// ABR ladder. ON by default: a weak software box can't run the parallel
+	// ladder the player probes/switches across — that spawns concurrent
+	// transcode sessions that starve each other and thrash (360p + buffering).
+	// One rung = one session = stable (the Jellyfin model). HW paths keep the
+	// full ladder. Set EVEY_TRANSCODING_SINGLE_RENDITION=0 to force the ladder
+	// on a software host powerful enough for parallel rungs.
+	SingleRendition   bool
 	TrickplayCacheDir string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch
@@ -537,6 +546,7 @@ func Load() (*Config, error) {
 			HWFirstSegmentTimeout: envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 5*time.Second),
 			HWPerVariant:          envBool("EVEY_TRANSCODING_HW_PER_VARIANT", false),
 			SingleVariant:         envBool("EVEY_TRANSCODING_SINGLE_VARIANT", false),
+			SingleRendition:       envBool("EVEY_TRANSCODING_SINGLE_RENDITION", true),
 			TrickplayCacheDir:     envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
 			AudioRenditionEnabled: envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", false),
 			BenchSDRSamplePath:    envStr("EVEY_BENCH_SDR_SAMPLE", ""),

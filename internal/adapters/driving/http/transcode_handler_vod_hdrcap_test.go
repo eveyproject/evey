@@ -224,3 +224,42 @@ func TestProfilesForDecision_HDRCap(t *testing.T) {
 		})
 	}
 }
+
+// TestProfilesForDecision_SingleRendition locks the single-rendition collapse:
+// on the SOFTWARE path the ABR ladder is reduced to one rung (the tallest
+// sustainable), so the player has nothing to probe/switch across — one rung, one
+// transcode session, no thrash. The HW path keeps the full ladder.
+func TestProfilesForDecision_SingleRendition(t *testing.T) {
+	t.Parallel()
+	item := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}
+	swCap := func() domaintranscoding.EncodeCapability { return hdrCapTestCapability() } // software, 1080p SDR
+
+	// Software + single-rendition ON → exactly ONE variant (the tallest rung).
+	t.Run("software_collapses_to_one_rung", func(t *testing.T) {
+		t.Parallel()
+		h := &hlsVODServe{singleRendition: true, capability: swCap}
+		profiles := h.profilesForDecision(context.Background(), item, build4KSDRStreams(), buildSDRDecision())
+		require.Len(t, profiles, 1, "single-rendition software path must serve exactly one variant")
+		assert.Equal(t, 1080, profiles[0].Height, "the single rung must be the tallest sustainable (1080p)")
+	})
+
+	// Software + single-rendition OFF → the full ABR ladder (more than one rung).
+	t.Run("software_off_keeps_ladder", func(t *testing.T) {
+		t.Parallel()
+		h := &hlsVODServe{singleRendition: false, capability: swCap}
+		profiles := h.profilesForDecision(context.Background(), item, build4KSDRStreams(), buildSDRDecision())
+		assert.Greater(t, len(profiles), 1, "single-rendition off keeps the software ABR ladder")
+	})
+
+	// HW path + single-rendition ON → ladder kept (a GPU parallelises rungs).
+	t.Run("hw_keeps_ladder_even_when_single_rendition_on", func(t *testing.T) {
+		t.Parallel()
+		h := &hlsVODServe{
+			singleRendition: true,
+			capability:      func() domaintranscoding.EncodeCapability { return hdrCapHWCapability() },
+			hwAccelEnabled:  func() bool { return true },
+		}
+		profiles := h.profilesForDecision(context.Background(), item, build4KHDRStreams(), buildHDRDecision())
+		assert.Greater(t, len(profiles), 1, "HW path keeps the ladder; single-rendition only collapses software")
+	})
+}

@@ -9,8 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -91,6 +91,14 @@ type hlsVODServe struct {
 	// the master advertises EXT-X-MEDIA TYPE=AUDIO renditions per source
 	// audio track and the dedicated audio pipeline serves them.
 	audioRenditionEnabled bool
+
+	// singleRendition, when true, collapses the software-transcode ABR ladder to
+	// its tallest sustainable rung (one variant in the master playlist). A weak
+	// software box can't run the parallel ladder the player would probe/switch
+	// across — that thrashes (concurrent sessions starve, get killed, the client
+	// 503-loops). One rung = one session = stable, the Jellyfin model. HW paths
+	// keep the full ladder. Mirrors Cfg.Transcoding.SingleRendition (default on).
+	singleRendition bool
 
 	// audio handles the audio rendition routes (audio_T.m3u8 / init /
 	// segment). Routed through the same /hls/{file} entry point so the
@@ -547,14 +555,14 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		// non-HDR client, or Dolby Vision). Baked into the fingerprint so it (a)
 		// enters the cache hash — tonemapped vs not are different bytes — and (b)
 		// reaches the orchestrator/builder, which has no source streams to detect it.
-		HDRTonemap:          slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed"),
-		AudioNormalize:      h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
-		MaxAudioChannels:    decision.MaxAudioChannels,
-		ForceSidecarSubs:    decision.SubtitleDecision == "external",
-		UseFMP4:             h.useFMP4,
-		HWAccel:             hwAccel,
-		HWDevice:            hwDevice,
-		HWFeatures:          hwFeatures,
+		HDRTonemap:       slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed"),
+		AudioNormalize:   h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
+		MaxAudioChannels: decision.MaxAudioChannels,
+		ForceSidecarSubs: decision.SubtitleDecision == "external",
+		UseFMP4:          h.useFMP4,
+		HWAccel:          hwAccel,
+		HWDevice:         hwDevice,
+		HWFeatures:       hwFeatures,
 		// GPU tone-mapping for this request (only when the HW path is actually
 		// taken). Excluded from Hash() like HWAccel — a HW- vs software-tonemapped
 		// segment is interchangeable in the addressable cache.
@@ -721,10 +729,14 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	// actually take the hardware path (flag on + calibrated backend that can
 	// encode the chosen codec). Otherwise the software ceiling holds, so a
 	// weak host never advertises a rung it can't sustain.
+	// hwUsable decides the software vs HW path. Hoisted to function scope so the
+	// single-rendition collapse at the end can branch on it (software boxes can't
+	// sustain a parallel ABR ladder).
+	hwUsable := false
 	maxH := 720 // safe floor if capability isn't wired yet (tests / dev w/o calibration)
 	if h.capability != nil {
 		cap := h.capability()
-		_, _, _, hwUsable := h.resolveHW(decision.VideoCodec, srcCodec, srcTenBit, h.hwTonemapWanted(decision))
+		_, _, _, hwUsable = h.resolveHW(decision.VideoCodec, srcCodec, srcTenBit, h.hwTonemapWanted(decision))
 		maxH = cap.MaxHeightFor(hwUsable)
 		// HDR->SDR in software is far heavier than the plain software bench
 		// (10-bit decode + zscale tonemap). When this content tone-maps on the
@@ -749,7 +761,26 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 			maxH = ov.MaxHeight
 		}
 	}
-	return domaintranscoding.CapLadderToHeight(capped, maxH)
+	laddered := domaintranscoding.CapLadderToHeight(capped, maxH)
+	// Single-rendition: a software-transcoding box can't sustain a parallel ABR
+	// ladder. The player probes/switches across rungs, each spawning its own
+	// transcode session; a weak host that can run ONE 4K HDR transcode at a time
+	// starves them all, the orchestrator kills/evicts mid-segment, the client
+	// 503-retries, and it thrashes (the 360p-with-buffering loop). Collapse the
+	// ladder to its tallest sustainable rung — one rung, one session, nothing to
+	// probe — the Jellyfin single-rendition model. HW paths keep the ladder (a
+	// GPU parallelises rungs cheaply). Software keeps the cap that already
+	// degrades 4K HDR to a real-time-safe height above.
+	if !hwUsable && h.singleRendition && len(laddered) > 1 {
+		top := laddered[0]
+		for _, p := range laddered[1:] {
+			if p.Height > top.Height {
+				top = p
+			}
+		}
+		return []domaintranscoding.HLSProfile{top}
+	}
+	return laddered
 }
 
 // durationMissingError is the specific 503 we return when a media file's
@@ -861,6 +892,10 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		// buildManifestInput to populate AudioRenditions from the source
 		// audio streams and the master starts emitting EXT-X-MEDIA.
 		audioRenditionEnabled: s.Cfg != nil && s.Cfg.Transcoding.AudioRenditionEnabled,
+		// Single-rendition is ON by default (the weak-NAS target): software
+		// transcode serves one rung, no ladder for the player to thrash on.
+		// Nil Cfg (tests) → false, preserving the full-ladder test expectations.
+		singleRendition: s.Cfg != nil && s.Cfg.Transcoding.SingleRendition,
 		serverLang: func() string {
 			if s.Cfg == nil {
 				return "en"
