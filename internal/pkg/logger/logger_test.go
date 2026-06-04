@@ -2,12 +2,15 @@ package logger_test
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/evey-project/evey/internal/pkg/logger"
 )
@@ -291,5 +294,176 @@ func TestStartCleanup_RemovesOldLogs(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "evey-"+today+".log")); err != nil {
 		t.Fatal("today log should still exist")
+	}
+}
+
+// --- contextHandler injection tests ---
+
+func TestContextHandler_InjectsRequestID(t *testing.T) {
+	dir := t.TempDir()
+	l := logger.New(logger.Config{Dir: dir, Level: "debug"})
+
+	ctx := logger.WithRequestID(context.Background(), "req-abc")
+	l.InfoContext(ctx, "with-request-id")
+
+	data, err := os.ReadFile(todayLogFile(dir))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+
+	var record map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if strings.Contains(line, "with-request-id") {
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			break
+		}
+	}
+	if record == nil {
+		t.Fatalf("log line not found in: %s", data)
+	}
+	if got, ok := record["request_id"]; !ok || got != "req-abc" {
+		t.Errorf("expected request_id=req-abc, got %v (ok=%v)", got, ok)
+	}
+}
+
+func TestContextHandler_NoRequestIDWhenAbsent(t *testing.T) {
+	dir := t.TempDir()
+	l := logger.New(logger.Config{Dir: dir, Level: "debug"})
+
+	l.InfoContext(context.Background(), "no-request-id")
+
+	data, err := os.ReadFile(todayLogFile(dir))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+
+	var record map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if strings.Contains(line, "no-request-id") {
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			break
+		}
+	}
+	if record == nil {
+		t.Fatalf("log line not found in: %s", data)
+	}
+	if _, ok := record["request_id"]; ok {
+		t.Errorf("expected no request_id field, but found one: %v", record["request_id"])
+	}
+}
+
+func TestContextHandler_InjectsTraceID(t *testing.T) {
+	dir := t.TempDir()
+	l := logger.New(logger.Config{Dir: dir, Level: "debug"})
+
+	// Construct a valid span context with a known trace ID.
+	var traceID trace.TraceID
+	copy(traceID[:], []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+	var spanID trace.SpanID
+	copy(spanID[:], []byte{1, 2, 3, 4, 5, 6, 7, 8})
+
+	sc := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    traceID,
+		SpanID:     spanID,
+		TraceFlags: trace.FlagsSampled,
+	})
+	ctx := trace.ContextWithSpanContext(context.Background(), sc)
+
+	l.InfoContext(ctx, "with-trace-id")
+
+	data, err := os.ReadFile(todayLogFile(dir))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+
+	var record map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if strings.Contains(line, "with-trace-id") {
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			break
+		}
+	}
+	if record == nil {
+		t.Fatalf("log line not found in: %s", data)
+	}
+	gotTraceID, ok := record["trace_id"]
+	if !ok {
+		t.Fatalf("expected trace_id field, not found in %v", record)
+	}
+	wantTraceID := traceID.String()
+	if gotTraceID != wantTraceID {
+		t.Errorf("expected trace_id=%s, got %v", wantTraceID, gotTraceID)
+	}
+}
+
+func TestContextHandler_NoTraceIDWhenAbsent(t *testing.T) {
+	dir := t.TempDir()
+	l := logger.New(logger.Config{Dir: dir, Level: "debug"})
+
+	l.InfoContext(context.Background(), "no-trace-id")
+
+	data, err := os.ReadFile(todayLogFile(dir))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+
+	var record map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if strings.Contains(line, "no-trace-id") {
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			break
+		}
+	}
+	if record == nil {
+		t.Fatalf("log line not found in: %s", data)
+	}
+	if _, ok := record["trace_id"]; ok {
+		t.Errorf("expected no trace_id field, but found one: %v", record["trace_id"])
+	}
+}
+
+func TestContextHandler_WithDerivedLogger_StillInjectsRequestID(t *testing.T) {
+	dir := t.TempDir()
+	parent := logger.New(logger.Config{Dir: dir, Level: "debug"})
+
+	// Derive via logger.With(...) — exercises WithAttrs delegation.
+	child := logger.NewWith(parent, "mycomp")
+	// Derive further via With to exercise chaining.
+	grandchild := child.With(slog.String("extra", "val"))
+
+	ctx := logger.WithRequestID(context.Background(), "req-derived")
+	grandchild.InfoContext(ctx, "derived-logger-msg")
+
+	data, err := os.ReadFile(todayLogFile(dir))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+
+	var record map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if strings.Contains(line, "derived-logger-msg") {
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			break
+		}
+	}
+	if record == nil {
+		t.Fatalf("log line not found in: %s", data)
+	}
+	if got, ok := record["request_id"]; !ok || got != "req-derived" {
+		t.Errorf("expected request_id=req-derived, got %v (ok=%v)", got, ok)
+	}
+	// The component attr should also be present.
+	if got, ok := record["component"]; !ok || got != "mycomp" {
+		t.Errorf("expected component=mycomp, got %v (ok=%v)", got, ok)
 	}
 }

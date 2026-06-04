@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Config struct {
@@ -138,20 +140,49 @@ func newFileHandler(dir string, cfg Config) slog.Handler {
 	})
 }
 
+// contextHandler is a slog.Handler that automatically injects request_id and
+// trace_id from the request context into every log record. It wraps an inner
+// handler so the injection survives logger.With(...) / NewWith chaining.
+type contextHandler struct {
+	inner slog.Handler
+}
+
+func (h *contextHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.inner.Enabled(ctx, level)
+}
+
+func (h *contextHandler) Handle(ctx context.Context, r slog.Record) error {
+	if id := RequestIDFromCtx(ctx); id != "" {
+		r.AddAttrs(slog.String("request_id", id))
+	}
+	if sc := trace.SpanContextFromContext(ctx); sc.TraceID().IsValid() {
+		r.AddAttrs(slog.String("trace_id", sc.TraceID().String()))
+	}
+	return h.inner.Handle(ctx, r)
+}
+
+func (h *contextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &contextHandler{inner: h.inner.WithAttrs(attrs)}
+}
+
+func (h *contextHandler) WithGroup(name string) slog.Handler {
+	return &contextHandler{inner: h.inner.WithGroup(name)}
+}
+
 // New builds the system logger. JSON → file always; colorized text → stderr in dev mode.
 func New(cfg Config) *slog.Logger {
 	globalLevel.Set(parseLevel(cfg.Level))
 	fileH := newFileHandler(cfg.Dir, cfg)
 
 	if !cfg.DevMode {
-		return slog.New(fileH)
+		return slog.New(&contextHandler{inner: fileH})
 	}
 
 	multiH := &multiHandler{handlers: []slog.Handler{
 		fileH,
 		&devHandler{w: os.Stderr},
 	}}
-	return slog.New(multiH)
+	return slog.New(&contextHandler{inner: multiH})
 }
 
 // NewWith returns a child logger with an added component attribute.

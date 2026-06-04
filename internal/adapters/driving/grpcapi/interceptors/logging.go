@@ -37,7 +37,6 @@ func LoggingUnary(log *slog.Logger) grpc.UnaryServerInterceptor {
 			slog.String("method", info.FullMethod),
 			slog.Duration("duration", time.Since(start)),
 			slog.String("status", st.Code().String()),
-			slog.String("request_id", eveylogger.RequestIDFromCtx(ctx)),
 		}
 		// ClaimsFromContext is populated by AuthInterceptor (chained earlier);
 		// ctx may not have claims on unauthenticated endpoints — that's fine.
@@ -61,7 +60,6 @@ func LoggingStream(log *slog.Logger) grpc.StreamServerInterceptor {
 			slog.String("method", info.FullMethod),
 			slog.Duration("duration", time.Since(start)),
 			slog.String("status", st.Code().String()),
-			slog.String("request_id", eveylogger.RequestIDFromCtx(ctx)),
 		}
 		attrs = identityAttrs(ctx, attrs)
 		log.InfoContext(ctx, "grpc stream", attrs...)
