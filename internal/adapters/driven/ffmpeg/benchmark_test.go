@@ -21,7 +21,7 @@ func TestBenchmarkRunner_TestSrcFallback_ReturnsValidCap(t *testing.T) {
 
 	r := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{
 		SamplePath:  "/nonexistent/forces/fallback.mkv",
-		DurationSec: 1, // very short — we don't need accurate FPS here, just a non-zero pass
+		DurationSec: 1,   // very short — we don't need accurate FPS here, just a non-zero pass
 		Margin:      0.1, // very permissive — even a slow CI box must report >= 720p
 	}, nil)
 
@@ -35,6 +35,28 @@ func TestBenchmarkRunner_TestSrcFallback_ReturnsValidCap(t *testing.T) {
 	assert.GreaterOrEqual(t, cap.SoftwareMaxHeight, 720, "software cap must be at least 720p (universal floor)")
 	assert.Positive(t, cap.BenchmarkDurationMs)
 	assert.NotZero(t, cap.BenchmarkedAt)
+}
+
+// TestBenchmarkRunner_SingleVariant_RunsEndToEnd proves the single-rung probe
+// shape (the runtime default) executes a real ffmpeg encode and returns a valid
+// cap — the bench must model decode + 1 encode, not the parallel ladder, or it
+// pins the HDR cap far below what an on-demand session sustains.
+func TestBenchmarkRunner_SingleVariant_RunsEndToEnd(t *testing.T) {
+	requireFFmpeg(t)
+
+	r := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{
+		SamplePath:    "/nonexistent/forces/fallback.mkv",
+		DurationSec:   1,
+		Margin:        0.1, // permissive — even a slow CI box clears the floor
+		SingleVariant: true,
+	}, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	gotCap, err := r.Run(ctx, transcoding.HWPreference{})
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, gotCap.SoftwareMaxHeight, 720, "single-variant bench must still floor at 720p")
+	assert.NotZero(t, gotCap.BenchmarkedAt)
 }
 
 // TestBenchmarkRunner_RespectMargin proves the FPS threshold check

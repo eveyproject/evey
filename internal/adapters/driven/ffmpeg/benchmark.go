@@ -39,6 +39,14 @@ type BenchmarkRunner struct {
 	logger      *slog.Logger
 	durationSec int     // per-height bench duration; 5 s by default
 	margin      float64 // FPS / realtime ratio required to pass (1.2 default)
+	// singleVariant mirrors the runtime orchestrator mode. When true the
+	// software ladder is probed one rung at a time (decode + tonemap + ONE
+	// encode at height h) — the shape a single-variant session actually runs
+	// — instead of the cumulative parallel ladder. The two shapes have very
+	// different CPU pressure: an old box that can't sustain decode + 4 parallel
+	// encodes at 1080p HDR can comfortably sustain decode + ONE 1080p encode.
+	// Benching the wrong shape pins the cap far below what the host serves.
+	singleVariant bool
 }
 
 // BenchmarkOpts tweaks the runner. Zero values fall back to defaults.
@@ -47,6 +55,12 @@ type BenchmarkOpts struct {
 	SamplePath  string  // empty → "/usr/share/evey/bench.mkv" then testsrc fallback
 	DurationSec int     // empty → 5
 	Margin      float64 // empty → 1.2
+	// SingleVariant tells the bench to model single-rung on-demand encoding
+	// (the runtime default, EVEY_TRANSCODING_SINGLE_VARIANT). Pass
+	// cfg.Transcoding.SingleVariant so the cap is derived against the same
+	// pipeline shape the runtime executes. Defaults to false (legacy parallel
+	// ladder) to stay byte-identical for callers that don't set it.
+	SingleVariant bool
 }
 
 func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunner {
@@ -69,12 +83,13 @@ func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunne
 		logger = slog.Default()
 	}
 	return &BenchmarkRunner{
-		ffmpegPath:  opts.FfmpegPath,
-		samplePath:  opts.SamplePath,
-		hwDetector:  NewHWDetector(opts.FfmpegPath),
-		logger:      logger,
-		durationSec: opts.DurationSec,
-		margin:      opts.Margin,
+		ffmpegPath:    opts.FfmpegPath,
+		samplePath:    opts.SamplePath,
+		hwDetector:    NewHWDetector(opts.FfmpegPath),
+		logger:        logger,
+		durationSec:   opts.DurationSec,
+		margin:        opts.Margin,
+		singleVariant: opts.SingleVariant,
 	}
 }
 
@@ -439,14 +454,21 @@ func (r *BenchmarkRunner) ffmpegBin() string {
 	return "ffmpeg"
 }
 
-// benchSoftware probes the libx264 veryfast ceiling under the same
-// pipeline shape the production HLS transcoder uses: a single ffmpeg
-// instance decodes the HEVC source once, splits the decoded stream N
-// ways via filter_complex, and encodes every active rung in parallel
-// (`buildMultiVariantArgs` in hls_transcoder.go uses var_stream_map).
-// Probing only "decode + one encode at rung H" would systematically
-// overshoot — the real CPU pressure is decode + N encodes, where N is
-// the number of rungs at or below H.
+// benchSoftware probes the libx264 veryfast ceiling under the SAME
+// pipeline shape the production HLS transcoder runs. That shape depends
+// on the orchestrator mode:
+//   - single-variant (the runtime default): decode the source once +
+//     encode ONE rung at height h. Each ABR rung is its own on-demand
+//     session, so the per-stream pressure is decode + 1 encode.
+//   - multi-variant (legacy, opt-out): one ffmpeg decodes once, splits
+//     N ways via filter_complex, and encodes every rung at or below h in
+//     parallel (`buildMultiVariantArgs` var_stream_map).
+//
+// Benching the wrong shape skews the cap hard: in multi-variant mode
+// "decode + one encode" would overshoot; in single-variant mode the
+// cumulative parallel ladder undershoots (it charges the host for N
+// encodes it never runs concurrently for one stream). r.singleVariant
+// selects the matching shape.
 //
 // Highest passing rung wins. Returns 720 minimum (universal floor) even
 // if every probe fails — guarantees the host can at least serve a 720p
@@ -478,21 +500,34 @@ func (r *BenchmarkRunner) benchSoftwareHDR(ctx context.Context, sample string, f
 	}, "software-hdr", 480)
 }
 
-// benchSoftwareLadder walks swBenchLadder under the production multi-variant
-// shape (1 decode + N parallel libx264 encodes), optionally prefixing a filter
-// on the decoded stream before the split (preFilter, e.g. the HDR tonemap).
-// Highest rung sustaining >= sourceRate×margin wins; floor when none pass.
+// probeRungs returns the rungs a software probe encodes when the ladder top is
+// at index i. In single-variant mode that is just rung i (decode + 1 encode at
+// h, the shape an on-demand session runs); in multi-variant mode it is every
+// rung at or below i (decode + N parallel encodes, the legacy multi-output
+// pipeline). Pure so the shape selection is unit-tested without ffmpeg.
+func probeRungs(ladder []int, i int, singleVariant bool) []int {
+	if singleVariant {
+		return ladder[i : i+1]
+	}
+	return ladder[: i+1 : i+1]
+}
+
+// benchSoftwareLadder walks swBenchLadder under the production pipeline shape,
+// optionally prefixing a filter on the decoded stream before encoding
+// (preFilter, e.g. the HDR tonemap). In single-variant mode each rung is probed
+// in isolation (1 decode + 1 encode at h); in multi-variant mode rung h is
+// probed alongside every lighter rung (1 decode + N parallel encodes). Highest
+// rung sustaining >= sourceRate×margin wins; floor when none pass.
 func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string, fallback bool, preFilter func(topHeight int) string, label string, floor int) int {
 	best := 0
 	for i, h := range swBenchLadder {
-		// Heights for every rung at or below h — exactly what the
-		// production pipeline encodes when the ladder top is h.
-		laddered := swBenchLadder[:i+1]
+		laddered := probeRungs(swBenchLadder, i, r.singleVariant)
 		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, "libx264", nil, preFilter(h))
 		passing := ok && fps >= float64(r.sourceRate())*r.margin
 		r.logger.Info("benchmark: "+label+" probe",
 			slog.Int("height", h),
 			slog.Int("parallel_encodes", len(laddered)),
+			slog.Bool("single_variant", r.singleVariant),
 			slog.Float64("fps", fps),
 			slog.Bool("passing", passing))
 		if !passing {

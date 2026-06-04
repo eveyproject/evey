@@ -55,3 +55,44 @@ func TestHwInputArgs_ZeroCopyStillHWDecodes(t *testing.T) {
 		t.Errorf("hwInputArgs(vaapi) should keep the HW-decode flags, got %v", args)
 	}
 }
+
+// probeRungs decides the pipeline shape the calibration bench measures. It MUST
+// mirror the runtime orchestrator: single-variant encodes one rung on demand,
+// multi-variant encodes the whole ladder in parallel. Benching the wrong shape
+// pins the HDR cap far below (multi-variant probe) or above (over-optimistic)
+// what the host actually serves — the root cause of the 360p HDR fallback when
+// the runtime ran single-variant but the bench measured the parallel ladder.
+func TestProbeRungs_SingleVariantIsolatesOneRung(t *testing.T) {
+	ladder := []int{720, 1080, 1440}
+
+	// Single-variant: each probe is exactly one rung — the shape an on-demand
+	// session runs (decode + 1 encode at h).
+	for i, h := range ladder {
+		got := probeRungs(ladder, i, true)
+		if !slices.Equal(got, []int{h}) {
+			t.Errorf("probeRungs(single, i=%d) = %v, want [%d]", i, got, h)
+		}
+	}
+
+	// Multi-variant: each probe is the cumulative ladder up to and including i
+	// (decode + N parallel encodes) — unchanged legacy behaviour.
+	wantMulti := [][]int{{720}, {720, 1080}, {720, 1080, 1440}}
+	for i := range ladder {
+		got := probeRungs(ladder, i, false)
+		if !slices.Equal(got, wantMulti[i]) {
+			t.Errorf("probeRungs(multi, i=%d) = %v, want %v", i, got, wantMulti[i])
+		}
+	}
+}
+
+// The multi-variant slice must not alias swBenchLadder's backing array such that
+// a later append could corrupt the shared ladder. The 3-index slice caps cap==len.
+func TestProbeRungs_MultiVariantSliceCannotMutateLadder(t *testing.T) {
+	ladder := []int{720, 1080, 1440}
+	got := probeRungs(ladder, 0, false) // {720}, but must not have spare capacity
+	got = append(got, 9999)             // would clobber ladder[1] if cap allowed it
+	if ladder[1] != 1080 {
+		t.Fatalf("append to probeRungs result mutated the shared ladder: ladder[1]=%d", ladder[1])
+	}
+	_ = got
+}

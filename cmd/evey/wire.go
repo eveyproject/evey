@@ -646,7 +646,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		hwModeStr = v
 	}
 	hwMode := domaintranscoding.ResolveHWMode(hwModeStr, hwAccelEnabled, cfg.Transcoding.HWBackend)
-	calibrationRunner := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{}, slog.Default())
+	// The bench must model the runtime pipeline shape: single-variant probes
+	// one rung (decode + 1 encode), the cap a single on-demand session can
+	// actually sustain. Benching the parallel ladder while the runtime serves
+	// single rungs pins the HDR cap far below what the host serves.
+	calibrationRunner := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{
+		SingleVariant: cfg.Transcoding.SingleVariant,
+	}, slog.Default())
 	calibrationSvc := apptranscoding.NewCalibrationService(capabilityRepo, calibrationRunner, slog.Default(),
 		apptranscoding.WithHWMode(hwMode))
 	if err := calibrationSvc.EnsureCalibrated(ctx); err != nil {
