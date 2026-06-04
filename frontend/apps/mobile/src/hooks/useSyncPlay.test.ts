@@ -1,0 +1,335 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderHook, act, waitFor } from "@testing-library/react";
+
+// ---------------------------------------------------------------------------
+// Mock WebSocket with a controllable fake — seam is globalThis.WebSocket
+// ---------------------------------------------------------------------------
+
+interface FakeWS {
+  url: string;
+  protocols: string[];
+  onopen: ((e: Event) => void) | null;
+  onclose: ((e: CloseEvent) => void) | null;
+  onmessage: ((e: MessageEvent) => void) | null;
+  readyState: number;
+  send: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+}
+
+let lastWS: FakeWS | null = null;
+
+class MockWebSocket {
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSING = 2;
+  static readonly CLOSED = 3;
+
+  readonly CONNECTING = 0;
+  readonly OPEN = 1;
+  readonly CLOSING = 2;
+  readonly CLOSED = 3;
+
+  url: string;
+  protocols: string[];
+  onopen: ((e: Event) => void) | null = null;
+  onclose: ((e: CloseEvent) => void) | null = null;
+  onmessage: ((e: MessageEvent) => void) | null = null;
+  readyState = MockWebSocket.CONNECTING;
+  send = vi.fn();
+  close = vi.fn().mockImplementation(() => {
+    this.readyState = MockWebSocket.CLOSED;
+    this.onclose?.({} as CloseEvent);
+  });
+
+  constructor(url: string, protocols?: string | string[]) {
+    this.url = url;
+    this.protocols = Array.isArray(protocols) ? protocols : protocols ? [protocols] : [];
+    lastWS = this as unknown as FakeWS;
+  }
+
+  /** Helper: simulate server opening the connection */
+  simulateOpen() {
+    this.readyState = MockWebSocket.OPEN;
+    this.onopen?.({} as Event);
+  }
+
+  /** Helper: simulate receiving a JSON message from the server */
+  simulateMessage(data: object) {
+    this.onmessage?.({ data: JSON.stringify(data) } as MessageEvent);
+  }
+
+  /** Helper: simulate server-side close (triggers reconnect) */
+  simulateClose() {
+    this.readyState = MockWebSocket.CLOSED;
+    this.onclose?.({} as CloseEvent);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Module mocks
+// ---------------------------------------------------------------------------
+
+vi.mock("@evey/store", () => ({
+  useAuthStore: {
+    getState: () => ({ accessToken: "test-token" }),
+  },
+}));
+
+vi.mock("@evey/api", () => ({
+  eveyFetch: vi.fn(),
+}));
+
+vi.mock("./useServerUrl", () => ({
+  useServerUrl: () => "http://localhost:8080",
+}));
+
+import { eveyFetch } from "@evey/api";
+import { useSyncPlay } from "./useSyncPlay";
+
+const mockFetch = vi.mocked(eveyFetch);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  lastWS = null;
+  // Replace global WebSocket with our fake
+  (globalThis as unknown as Record<string, unknown>).WebSocket = MockWebSocket;
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function ws(): MockWebSocket {
+  if (!lastWS) throw new Error("No WebSocket instantiated yet");
+  return lastWS as unknown as MockWebSocket;
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe("useSyncPlay — message dispatch", () => {
+  it("calls onPlay callback for 'play' message", async () => {
+    const onPlay = vi.fn();
+    const { result } = renderHook(() => useSyncPlay({ onPlay }));
+
+    act(() => { result.current.createRoom; }); // ensure hook is live
+    // Manually call connect via createRoom mock
+    mockFetch.mockResolvedValueOnce({ id: "room-1", code: "12345" });
+
+    await act(async () => {
+      await result.current.createRoom("mi-abc");
+    });
+
+    act(() => { ws().simulateOpen(); });
+    act(() => { ws().simulateMessage({ type: "play", positionMs: 5000 }); });
+
+    expect(onPlay).toHaveBeenCalledWith(5000);
+  });
+
+  it("calls onPause callback for 'pause' message", async () => {
+    const onPause = vi.fn();
+    const { result } = renderHook(() => useSyncPlay({ onPause }));
+
+    mockFetch.mockResolvedValueOnce({ id: "room-2", code: "22222" });
+    await act(async () => { await result.current.createRoom("mi-xyz"); });
+
+    act(() => { ws().simulateOpen(); });
+    act(() => { ws().simulateMessage({ type: "pause", positionMs: 3000 }); });
+
+    expect(onPause).toHaveBeenCalledWith(3000);
+  });
+
+  it("calls onSeek callback for 'seek' message", async () => {
+    const onSeek = vi.fn();
+    const { result } = renderHook(() => useSyncPlay({ onSeek }));
+
+    mockFetch.mockResolvedValueOnce({ id: "room-3", code: "33333" });
+    await act(async () => { await result.current.createRoom("mi-seek"); });
+
+    act(() => { ws().simulateOpen(); });
+    act(() => { ws().simulateMessage({ type: "seek", positionMs: 9999 }); });
+
+    expect(onSeek).toHaveBeenCalledWith(9999);
+  });
+
+  it("calls onMemberJoined and updates members state on 'member_joined'", async () => {
+    const onMemberJoined = vi.fn();
+    const { result } = renderHook(() => useSyncPlay({ onMemberJoined }));
+
+    mockFetch.mockResolvedValueOnce({ id: "room-4", code: "44444" });
+    await act(async () => { await result.current.createRoom("mi-m"); });
+
+    act(() => { ws().simulateOpen(); });
+    act(() => {
+      ws().simulateMessage({ type: "member_joined", userId: "usr-alice", username: "Alice" });
+    });
+
+    expect(onMemberJoined).toHaveBeenCalledWith("usr-alice", "Alice");
+    expect(result.current.state.members).toEqual([{ userId: "usr-alice", username: "Alice" }]);
+  });
+
+  it("removes member from state on 'member_left'", async () => {
+    const onMemberLeft = vi.fn();
+    const { result } = renderHook(() => useSyncPlay({ onMemberLeft }));
+
+    mockFetch.mockResolvedValueOnce({ id: "room-5", code: "55555" });
+    await act(async () => { await result.current.createRoom("mi-ml"); });
+
+    act(() => { ws().simulateOpen(); });
+
+    // Add member first
+    act(() => {
+      ws().simulateMessage({ type: "member_joined", userId: "usr-bob", username: "Bob" });
+    });
+    expect(result.current.state.members).toHaveLength(1);
+
+    act(() => {
+      ws().simulateMessage({ type: "member_left", userId: "usr-bob" });
+    });
+    expect(result.current.state.members).toHaveLength(0);
+    expect(onMemberLeft).toHaveBeenCalledWith("usr-bob");
+  });
+
+  it("calls onTrackChange and updates trackIndex on 'setIndex' message", async () => {
+    const onTrackChange = vi.fn();
+    const { result } = renderHook(() => useSyncPlay({ onTrackChange }));
+
+    mockFetch.mockResolvedValueOnce({ id: "room-6", code: "66666" });
+    await act(async () => { await result.current.createRoom("mi-ti"); });
+
+    act(() => { ws().simulateOpen(); });
+    act(() => {
+      ws().simulateMessage({ type: "setIndex", trackIndex: 2, mediaId: "mi-ep2" });
+    });
+
+    expect(onTrackChange).toHaveBeenCalledWith(2, "mi-ep2");
+    expect(result.current.state.trackIndex).toBe(2);
+  });
+
+  it("ignores malformed JSON without throwing", async () => {
+    const { result } = renderHook(() => useSyncPlay({}));
+
+    mockFetch.mockResolvedValueOnce({ id: "room-7", code: "77777" });
+    await act(async () => { await result.current.createRoom("mi-bad"); });
+
+    act(() => { ws().simulateOpen(); });
+    expect(() => {
+      act(() => { ws().onmessage?.({ data: "not-json{{" } as MessageEvent); });
+    }).not.toThrow();
+  });
+});
+
+describe("useSyncPlay — state transitions", () => {
+  it("sets connected=true after onopen fires", async () => {
+    const { result } = renderHook(() => useSyncPlay({}));
+
+    mockFetch.mockResolvedValueOnce({ id: "room-8", code: "88888" });
+    await act(async () => { await result.current.createRoom("mi-conn"); });
+
+    act(() => { ws().simulateOpen(); });
+    expect(result.current.state.connected).toBe(true);
+  });
+
+  it("sets connected=false after onclose fires", async () => {
+    const { result } = renderHook(() => useSyncPlay({}));
+
+    mockFetch.mockResolvedValueOnce({ id: "room-9", code: "99999" });
+    await act(async () => { await result.current.createRoom("mi-disc"); });
+
+    act(() => { ws().simulateOpen(); });
+    expect(result.current.state.connected).toBe(true);
+
+    // Simulate server close; suppress reconnect timer
+    vi.useFakeTimers();
+    act(() => { ws().simulateClose(); });
+    expect(result.current.state.connected).toBe(false);
+    vi.clearAllTimers();
+  });
+
+  it("createRoom sets roomId, roomCode, isHost=true", async () => {
+    const { result } = renderHook(() => useSyncPlay({}));
+
+    mockFetch.mockResolvedValueOnce({ id: "room-cr", code: "ABCDE" });
+    await act(async () => { await result.current.createRoom("mi-movie"); });
+
+    expect(result.current.state.roomId).toBe("room-cr");
+    expect(result.current.state.roomCode).toBe("ABCDE");
+    expect(result.current.state.isHost).toBe(true);
+  });
+
+  it("joinByCode sets isHost=false and returns roomId/mediaId", async () => {
+    const { result } = renderHook(() => useSyncPlay({}));
+
+    mockFetch
+      .mockResolvedValueOnce({ roomId: "room-j", mediaId: "mi-joined" })
+      // second call = GET room info
+      .mockResolvedValueOnce({ queue: ["mi-joined"], trackIndex: 0 });
+
+    let joinResult: { roomId: string; mediaId: string } | undefined;
+    await act(async () => {
+      joinResult = await result.current.joinByCode("ABCDE");
+    });
+
+    expect(joinResult).toEqual({ roomId: "room-j", mediaId: "mi-joined" });
+    expect(result.current.state.isHost).toBe(false);
+    expect(result.current.state.roomId).toBe("room-j");
+  });
+
+  it("leaveRoom resets state to null/empty and calls DELETE endpoint", async () => {
+    const { result } = renderHook(() => useSyncPlay({}));
+
+    mockFetch.mockResolvedValueOnce({ id: "room-lr", code: "LEAVE" });
+    await act(async () => { await result.current.createRoom("mi-lv"); });
+
+    act(() => { ws().simulateOpen(); });
+    expect(result.current.state.roomId).toBe("room-lr");
+
+    mockFetch.mockResolvedValueOnce(undefined); // DELETE response
+    await act(async () => { await result.current.leaveRoom(); });
+
+    expect(result.current.state.roomId).toBeNull();
+    expect(result.current.state.connected).toBe(false);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "/api/v1/syncplay/rooms/room-lr/leave", method: "DELETE" }),
+    );
+  });
+});
+
+describe("useSyncPlay — send helpers", () => {
+  async function setupConnectedRoom() {
+    const { result } = renderHook(() => useSyncPlay({}));
+    mockFetch.mockResolvedValueOnce({ id: "room-s", code: "SEND0" });
+    await act(async () => { await result.current.createRoom("mi-s"); });
+    act(() => { ws().simulateOpen(); });
+    return result;
+  }
+
+  it("sendPlay sends correct JSON payload", async () => {
+    const result = await setupConnectedRoom();
+    act(() => { result.current.sendPlay(1234); });
+    expect(ws().send).toHaveBeenCalledWith(JSON.stringify({ type: "play", positionMs: 1234 }));
+  });
+
+  it("sendPause sends correct JSON payload", async () => {
+    const result = await setupConnectedRoom();
+    act(() => { result.current.sendPause(5678); });
+    expect(ws().send).toHaveBeenCalledWith(JSON.stringify({ type: "pause", positionMs: 5678 }));
+  });
+
+  it("sendNext sends correct JSON payload", async () => {
+    const result = await setupConnectedRoom();
+    act(() => { result.current.sendNext(); });
+    expect(ws().send).toHaveBeenCalledWith(JSON.stringify({ type: "next" }));
+  });
+
+  it("sendSetIndex sends correct JSON payload", async () => {
+    const result = await setupConnectedRoom();
+    act(() => { result.current.sendSetIndex(3); });
+    expect(ws().send).toHaveBeenCalledWith(JSON.stringify({ type: "setIndex", trackIndex: 3 }));
+  });
+});
