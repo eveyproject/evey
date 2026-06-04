@@ -123,11 +123,21 @@ func DefaultRBACConfig() RBACConfig {
 			// only admins may create/list/revoke them. ValidateShareLink stays
 			// non-admin (harmless metadata); the public download itself is an
 			// unauthenticated HTTP route guarded by the uuid token.
-			"/evey.v1.ShareService/CreateShareLink":                    RoleAdmin,
-			"/evey.v1.ShareService/ListShareLinks":                     RoleAdmin,
-			"/evey.v1.ShareService/RevokeShareLink":                    RoleAdmin,
-			"/evey.v1.TranscodingService/StopTranscode":                RoleAdmin,
-			"/evey.v1.TranscodingService/ListActiveTranscodes":         RoleAdmin,
+			"/evey.v1.ShareService/CreateShareLink":            RoleAdmin,
+			"/evey.v1.ShareService/ListShareLinks":             RoleAdmin,
+			"/evey.v1.ShareService/RevokeShareLink":            RoleAdmin,
+			"/evey.v1.TranscodingService/StopTranscode":        RoleAdmin,
+			"/evey.v1.TranscodingService/ListActiveTranscodes": RoleAdmin,
+			// DetectHardware probes the host's encoders (CPU spawn + capability
+			// disclosure) and has no client caller — gate it to admin so a regular
+			// authenticated user cannot trigger a hardware probe / enumerate GPUs.
+			"/evey.v1.TranscodingService/DetectHardware": RoleAdmin,
+			// Transcode-profile CRUD configures server-wide encode ladders. The
+			// handler does not implement them yet (UnimplementedServer), but they
+			// are reachable at the RBAC layer — gate to admin so they ship gated.
+			"/evey.v1.TranscodingService/CreateTranscodeProfile":       RoleAdmin,
+			"/evey.v1.TranscodingService/UpdateTranscodeProfile":       RoleAdmin,
+			"/evey.v1.TranscodingService/DeleteTranscodeProfile":       RoleAdmin,
 			"/evey.v1.TranscodeCacheService/GetTranscodeCache":         RoleAdmin,
 			"/evey.v1.TranscodeCacheService/ClearTranscodeCache":       RoleAdmin,
 			"/evey.v1.TranscodeCacheService/DeleteTranscodeCacheFile":  RoleAdmin,

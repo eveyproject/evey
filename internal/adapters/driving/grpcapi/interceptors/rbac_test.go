@@ -139,6 +139,10 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		// TranscodingService
 		"/evey.v1.TranscodingService/StopTranscode",
 		"/evey.v1.TranscodingService/ListActiveTranscodes",
+		"/evey.v1.TranscodingService/DetectHardware",
+		"/evey.v1.TranscodingService/CreateTranscodeProfile",
+		"/evey.v1.TranscodingService/UpdateTranscodeProfile",
+		"/evey.v1.TranscodingService/DeleteTranscodeProfile",
 		// TranscodeCacheService
 		"/evey.v1.TranscodeCacheService/GetTranscodeCache",
 		"/evey.v1.TranscodeCacheService/ClearTranscodeCache",
@@ -214,13 +218,13 @@ func TestAllAdminServiceMethodsAreGated(t *testing.T) {
 	var checked int
 	protoregistry.GlobalFiles.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
 		svcs := fd.Services()
-		for i := 0; i < svcs.Len(); i++ {
+		for i := range svcs.Len() {
 			svc := svcs.Get(i)
 			if !strings.HasPrefix(string(svc.Name()), "Admin") {
 				continue
 			}
 			methods := svc.Methods()
-			for j := 0; j < methods.Len(); j++ {
+			for j := range methods.Len() {
 				full := "/" + string(svc.FullName()) + "/" + string(methods.Get(j).Name())
 				checked++
 				if _, ok := allowedNonAdmin[full]; ok {
@@ -241,6 +245,234 @@ func TestAllAdminServiceMethodsAreGated(t *testing.T) {
 	})
 
 	require.Positive(t, checked, "no Admin* service methods discovered — proto descriptors not registered?")
+}
+
+// notGRPCRegisteredServices lists evey.v1 services that exist in the proto
+// descriptors but are deliberately NOT registered on the gRPC server (served by
+// hand-written HTTP handlers instead). They are skipped by the classification
+// guard below because the gRPC RBAC interceptor never sees their methods.
+// ⚠️ If you register one of these on the gRPC server, REMOVE it here and classify
+// every one of its methods — e.g. ParentalService/UpdateParentalSettings must be
+// gated, not left to default RoleUser.
+var notGRPCRegisteredServices = map[string]bool{
+	"ParentalService": true,
+}
+
+// allowedUserCallable is the explicit allowlist of evey.v1 RPCs that resolve to
+// the default RoleUser at the RBAC layer (any authenticated user). Every entry
+// carries the reason it is safe at that layer — almost always "finer access is
+// enforced inside the handler" (own-only, per-item checkMediaItemAccess /
+// checkLibraryAccess, or an explicit admin/owner check). This is the guard the
+// Admin*-prefix test (TestAllAdminServiceMethodsAreGated) could not provide:
+// a NEW privileged RPC added to a non-Admin service (LibraryService, UserService,
+// WebhookService, …) would otherwise silently default to RoleUser with no red
+// test. With this allowlist, any unclassified method fails TestAllRegisteredMethodsAreClassified,
+// forcing the author to decide RoleAdmin (MethodRoles) vs RoleUser (here, justified).
+var allowedUserCallable = map[string]string{
+	// ActivityService
+	"/evey.v1.ActivityService/GetPlayHistory":  "own / lib-access-filtered read",
+	"/evey.v1.ActivityService/GetUserStats":    "own / lib-access-filtered read",
+	"/evey.v1.ActivityService/GetLoginHistory": "own history; admin-can-view-other enforced in handler",
+	"/evey.v1.ActivityService/GetPopularMedia": "lib-access-filtered read",
+	"/evey.v1.ActivityService/GetAnalytics":    "admin enforced in handler (PermissionDenied for non-admin)",
+	// AdminPluginService
+	"/evey.v1.AdminPluginService/IssuePluginToken": "RoleUser by design; FilterPluginScopes strips admin scopes, tokens floor-denied from admin methods",
+	// CollectionService
+	"/evey.v1.CollectionService/ListCollections":    "read",
+	"/evey.v1.CollectionService/GetCollection":      "read",
+	"/evey.v1.CollectionService/GetCollectionItems": "lib-access-filtered read",
+	// FavoriteService
+	"/evey.v1.FavoriteService/ListFavorites":  "own; parental-filtered",
+	"/evey.v1.FavoriteService/AddFavorite":    "own; media-access checked",
+	"/evey.v1.FavoriteService/RemoveFavorite": "own",
+	"/evey.v1.FavoriteService/IsFavorite":     "own",
+	// FeedService
+	"/evey.v1.FeedService/GetFeedConfig":           "read",
+	"/evey.v1.FeedService/ContinueWatching":        "own; lib-access-filtered",
+	"/evey.v1.FeedService/RecentlyAdded":           "lib-access-filtered",
+	"/evey.v1.FeedService/Recommended":             "lib-access-filtered",
+	"/evey.v1.FeedService/SimilarItems":            "lib-access-filtered",
+	"/evey.v1.FeedService/UpdateProfileFeedConfig": "own profile",
+	"/evey.v1.FeedService/ResetProfileFeedConfig":  "own profile",
+	"/evey.v1.FeedService/ResumePlayback":          "own; parental-filtered",
+	"/evey.v1.FeedService/NextEpisode":             "own; lib-access-filtered",
+	// LibraryService
+	"/evey.v1.LibraryService/GetLibrary":            "read",
+	"/evey.v1.LibraryService/ListLibraries":         "lib-access-filtered",
+	"/evey.v1.LibraryService/GetMediaItem":          "media-access checked",
+	"/evey.v1.LibraryService/ListMediaItems":        "lib-access + parental filtered",
+	"/evey.v1.LibraryService/GetPublicMediaItem":    "public endpoint (parental-filtered)",
+	"/evey.v1.LibraryService/ListPublicMediaItems":  "public endpoint (parental-filtered)",
+	"/evey.v1.LibraryService/SearchMedia":           "lib-access + parental filtered",
+	"/evey.v1.LibraryService/GetPerson":             "read",
+	"/evey.v1.LibraryService/GetLibrarySchedule":    "read",
+	"/evey.v1.LibraryService/SetLibrarySchedule":    "admin enforced in handler (PermissionDenied)",
+	"/evey.v1.LibraryService/DeleteLibrarySchedule": "admin enforced in handler (PermissionDenied)",
+	"/evey.v1.LibraryService/FilterMediaItems":      "lib-access + parental filtered",
+	"/evey.v1.LibraryService/ListGenres":            "read",
+	"/evey.v1.LibraryService/GetSeriesAggregate":    "media-access + parental checked",
+	// MetadataService — not RBAC-gated by design; per-item access via checkMediaItemAccess
+	"/evey.v1.MetadataService/SearchMetadata":         "per-item access in handler",
+	"/evey.v1.MetadataService/RefreshMetadata":        "per-item access in handler",
+	"/evey.v1.MetadataService/GetArtwork":             "per-item access in handler",
+	"/evey.v1.MetadataService/SetMetadataOverride":    "per-item access in handler",
+	"/evey.v1.MetadataService/RemoveMetadataOverride": "per-item access in handler",
+	"/evey.v1.MetadataService/ListMetadataOverrides":  "per-item access in handler",
+	"/evey.v1.MetadataService/GetMetadataProviders":   "read",
+	"/evey.v1.MetadataService/UpdateMetadata":         "per-item access in handler",
+	"/evey.v1.MetadataService/DeleteMetadata":         "per-item access in handler",
+	"/evey.v1.MetadataService/ResearchMetadata":       "per-item access in handler",
+	// MKVService
+	"/evey.v1.MKVService/ListChapters": "player skip-intro fallback; per-path access in handler (checkPathAccess)",
+	// MusicService
+	"/evey.v1.MusicService/ListTracks":  "lib-access checked",
+	"/evey.v1.MusicService/GetAlbums":   "lib-access checked",
+	"/evey.v1.MusicService/GetArtists":  "lib-access checked",
+	"/evey.v1.MusicService/SearchMusic": "lib-access checked",
+	// NotificationService
+	"/evey.v1.NotificationService/ListNotifications":          "own",
+	"/evey.v1.NotificationService/MarkRead":                   "own",
+	"/evey.v1.NotificationService/MarkAllRead":                "own",
+	"/evey.v1.NotificationService/GetUnreadCount":             "own",
+	"/evey.v1.NotificationService/DeleteAllNotifications":     "own",
+	"/evey.v1.NotificationService/GetNotificationSettings":    "own",
+	"/evey.v1.NotificationService/UpdateNotificationSettings": "own",
+	// PhotoService
+	"/evey.v1.PhotoService/ListPhotos":         "lib-access checked",
+	"/evey.v1.PhotoService/GetPhoto":           "lib-access checked",
+	"/evey.v1.PhotoService/ListPhotoAlbums":    "lib-access checked",
+	"/evey.v1.PhotoService/SearchPhotos":       "lib-access checked",
+	"/evey.v1.PhotoService/ScanPhotoDirectory": "admin enforced in handler (PermissionDenied)",
+	// PlaybackService
+	"/evey.v1.PlaybackService/GetStreamInfo":    "media-access checked",
+	"/evey.v1.PlaybackService/StartStream":      "media-access + caps checked",
+	"/evey.v1.PlaybackService/StopStream":       "own session",
+	"/evey.v1.PlaybackService/ReportProgress":   "own",
+	"/evey.v1.PlaybackService/GetWatchProgress": "own",
+	"/evey.v1.PlaybackService/GetWatchHistory":  "own",
+	"/evey.v1.PlaybackService/GetResumeItems":   "own; parental-filtered",
+	"/evey.v1.PlaybackService/GetNextUp":        "own; parental-filtered",
+	"/evey.v1.PlaybackService/MarkAsWatched":    "own",
+	"/evey.v1.PlaybackService/MarkAsUnwatched":  "own",
+	// PlaybackSettingsService
+	"/evey.v1.PlaybackSettingsService/GetPlaybackSettings": "read",
+	// PlaylistService — all own-scoped in handler
+	"/evey.v1.PlaylistService/ListPlaylists":      "own",
+	"/evey.v1.PlaylistService/GetPlaylist":        "own",
+	"/evey.v1.PlaylistService/CreatePlaylist":     "own",
+	"/evey.v1.PlaylistService/UpdatePlaylist":     "own",
+	"/evey.v1.PlaylistService/DeletePlaylist":     "own",
+	"/evey.v1.PlaylistService/GetPlaylistItems":   "own",
+	"/evey.v1.PlaylistService/AddPlaylistItem":    "own",
+	"/evey.v1.PlaylistService/RemovePlaylistItem": "own",
+	// PluginUserDataService — (plugin,user)-scoped by token
+	"/evey.v1.PluginUserDataService/GetPref":    "own (plugin,user)-scoped",
+	"/evey.v1.PluginUserDataService/SetPref":    "own (plugin,user)-scoped",
+	"/evey.v1.PluginUserDataService/DeletePref": "own (plugin,user)-scoped",
+	"/evey.v1.PluginUserDataService/ListPrefs":  "own (plugin,user)-scoped",
+	// PushService — own device/subscription scoped
+	"/evey.v1.PushService/RegisterDevice":            "own",
+	"/evey.v1.PushService/UnregisterDevice":          "own",
+	"/evey.v1.PushService/ListDevices":               "own",
+	"/evey.v1.PushService/GetVAPIDKey":               "public VAPID key read",
+	"/evey.v1.PushService/RegisterWebPush":           "own",
+	"/evey.v1.PushService/UnregisterWebPush":         "own",
+	"/evey.v1.PushService/ListWebPushSubscriptions":  "own",
+	"/evey.v1.PushService/DeleteWebPushSubscription": "own",
+	"/evey.v1.PushService/GetPushConsent":            "own",
+	"/evey.v1.PushService/UpdatePushConsent":         "own",
+	// RatingService
+	"/evey.v1.RatingService/PutThumbRating":     "own",
+	"/evey.v1.RatingService/GetMyThumbRating":   "own",
+	"/evey.v1.RatingService/GetRatingAggregate": "read aggregate",
+	// ShareService
+	"/evey.v1.ShareService/ValidateShareLink": "harmless metadata; public download itself guarded by uuid token",
+	// SyncPlayService — room membership scoped in handler
+	"/evey.v1.SyncPlayService/CreateRoom": "own room",
+	"/evey.v1.SyncPlayService/JoinByCode": "own",
+	"/evey.v1.SyncPlayService/GetRoom":    "member",
+	"/evey.v1.SyncPlayService/JoinRoom":   "own",
+	"/evey.v1.SyncPlayService/LeaveRoom":  "own",
+	// TranscodingService
+	"/evey.v1.TranscodingService/StartTranscode":        "media-access (IDOR) + per-profile bitrate cap in handler",
+	"/evey.v1.TranscodingService/GetTranscodeStatus":    "own job (checkJobAccess)",
+	"/evey.v1.TranscodingService/ListTranscodeProfiles": "read-only profile list",
+	// UserService
+	"/evey.v1.UserService/Logout":                "own session",
+	"/evey.v1.UserService/GetCurrentUser":        "own",
+	"/evey.v1.UserService/UpdateUser":            "self-only + no admin/caps escalation enforced in handler",
+	"/evey.v1.UserService/CreateProfile":         "own account",
+	"/evey.v1.UserService/UpdateProfile":         "own profiles",
+	"/evey.v1.UserService/DeleteProfile":         "own profiles",
+	"/evey.v1.UserService/ListProfiles":          "own",
+	"/evey.v1.UserService/ListInviteLinks":       "own (creator-scoped)",
+	"/evey.v1.UserService/RevokeInviteLink":      "owner-or-admin enforced in handler",
+	"/evey.v1.UserService/AuthorizeQuickConnect": "authenticated user approves their own device",
+}
+
+// TestAllRegisteredMethodsAreClassified walks EVERY evey.v1 service method from
+// the proto descriptors and asserts each one is classified into exactly one of:
+// PublicMethods, MethodRoles (admin), or allowedUserCallable (RoleUser, justified).
+// This generalises TestAllAdminServiceMethodsAreGated to non-Admin services: it
+// fails the build when ANY new RPC (on any service) ships unclassified — closing
+// the gap where a privileged RPC on, say, LibraryService would silently default
+// to RoleUser. Services served only over HTTP (notGRPCRegisteredServices) are
+// skipped because the gRPC interceptor never governs them.
+func TestAllRegisteredMethodsAreClassified(t *testing.T) {
+	cfg := interceptors.DefaultRBACConfig()
+
+	realMethods := make(map[string]bool)
+	var checked int
+	protoregistry.GlobalFiles.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+		svcs := fd.Services()
+		for i := range svcs.Len() {
+			svc := svcs.Get(i)
+			if !strings.HasPrefix(string(svc.FullName()), "evey.v1.") {
+				continue // ignore google.* / grpc.* well-known/infra services
+			}
+			if notGRPCRegisteredServices[string(svc.Name())] {
+				continue
+			}
+			methods := svc.Methods()
+			for j := range methods.Len() {
+				full := "/" + string(svc.FullName()) + "/" + string(methods.Get(j).Name())
+				realMethods[full] = true
+				checked++
+
+				inPublic := cfg.PublicMethods[full]
+				_, inRoles := cfg.MethodRoles[full]
+				_, inUser := allowedUserCallable[full]
+
+				count := 0
+				for _, b := range []bool{inPublic, inRoles, inUser} {
+					if b {
+						count++
+					}
+				}
+				switch count {
+				case 0:
+					t.Errorf("RPC %s is unclassified — add it to MethodRoles (RoleAdmin) "+
+						"or allowedUserCallable (RoleUser, with justification); a new privileged "+
+						"RPC must not silently default to RoleUser", full)
+				case 1:
+					// exactly one classification — correct
+				default:
+					t.Errorf("RPC %s is classified in more than one of "+
+						"{PublicMethods, MethodRoles, allowedUserCallable}", full)
+				}
+			}
+		}
+		return true
+	})
+
+	require.Positive(t, checked, "no evey.v1 service methods discovered — proto descriptors not registered?")
+
+	// Reverse check: no stale allowedUserCallable entry for a method that no
+	// longer exists (catches typos and renamed/removed RPCs).
+	for method := range allowedUserCallable {
+		assert.Truef(t, realMethods[method],
+			"allowedUserCallable lists %s but no such registered evey.v1 method exists", method)
+	}
 }
 
 func TestDefaultRBACConfig_AllMethodRolesAreAdmin(t *testing.T) {
