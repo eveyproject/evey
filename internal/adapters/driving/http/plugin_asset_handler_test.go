@@ -304,3 +304,28 @@ func TestPluginPreview_NoFile(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
+
+func TestExtractEscalationEntries(t *testing.T) {
+	// Parses a plugin-runtime denial message of the form
+	// "... new entries requested: a, b, c" into the requested permission entries
+	// shown to the admin. Strict on the ", " separator; trims + drops empties.
+	t.Run("no marker returns nothing", func(t *testing.T) {
+		assert.Empty(t, extractEscalationEntries("some unrelated error"))
+		assert.Empty(t, extractEscalationEntries(""))
+	})
+	t.Run("marker present but nothing after returns nothing", func(t *testing.T) {
+		assert.Empty(t, extractEscalationEntries("denied; new entries requested: "))
+	})
+	t.Run("single entry", func(t *testing.T) {
+		assert.Equal(t, []string{"net:example.com"},
+			extractEscalationEntries("denied; new entries requested: net:example.com"))
+	})
+	t.Run("multiple entries", func(t *testing.T) {
+		assert.Equal(t, []string{"net:a.com", "fs:/tmp", "exec:ls"},
+			extractEscalationEntries("blocked: new entries requested: net:a.com, fs:/tmp, exec:ls"))
+	})
+	t.Run("skips empty parts between entries", func(t *testing.T) {
+		assert.Equal(t, []string{"net:a.com", "fs:/x"},
+			extractEscalationEntries("new entries requested: net:a.com, , fs:/x"))
+	})
+}
