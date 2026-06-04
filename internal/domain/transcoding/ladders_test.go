@@ -90,7 +90,7 @@ var capHeightTestLadder = []HLSProfile{
 
 func TestCapLadderToHeight_ZeroMeansNoCap(t *testing.T) {
 	got := CapLadderToHeight(capHeightTestLadder, 0)
-	assert.Equal(t, len(capHeightTestLadder), len(got), "maxHeight<=0 must not cap")
+	assert.Len(t, got, len(capHeightTestLadder), "maxHeight<=0 must not cap")
 }
 
 func TestCapLadderToHeight_DropsRungsAboveCap(t *testing.T) {
@@ -111,7 +111,7 @@ func TestCapLadderToHeight_CapOnBoundaryKeepsThatRung(t *testing.T) {
 
 func TestCapLadderToHeight_CapAboveTopKeepsAll(t *testing.T) {
 	got := CapLadderToHeight(capHeightTestLadder, 10000)
-	assert.Equal(t, len(capHeightTestLadder), len(got), "a cap above every rung keeps the whole ladder")
+	assert.Len(t, got, len(capHeightTestLadder), "a cap above every rung keeps the whole ladder")
 }
 
 func TestCapLadderToHeight_BelowLowestKeepsExactlyOne(t *testing.T) {
