@@ -764,21 +764,29 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	laddered := domaintranscoding.CapLadderToHeight(capped, maxH)
 	// Single-rendition: a software-transcoding box can't sustain a parallel ABR
 	// ladder. The player probes/switches across rungs, each spawning its own
-	// transcode session; a weak host that can run ONE 4K HDR transcode at a time
-	// starves them all, the orchestrator kills/evicts mid-segment, the client
-	// 503-retries, and it thrashes (the 360p-with-buffering loop). Collapse the
-	// ladder to its tallest sustainable rung — one rung, one session, nothing to
-	// probe — the Jellyfin single-rendition model. HW paths keep the ladder (a
-	// GPU parallelises rungs cheaply). Software keeps the cap that already
-	// degrades 4K HDR to a real-time-safe height above.
-	if !hwUsable && h.singleRendition && len(laddered) > 1 {
-		top := laddered[0]
-		for _, p := range laddered[1:] {
-			if p.Height > top.Height {
-				top = p
+	// transcode session; a host that runs ONE 4K HDR transcode at a time starves
+	// them all, the orchestrator kills/evicts mid-segment, the client 503-loops,
+	// and it thrashes (the 360p-with-buffering loop). Collapse to ONE rung — one
+	// session, nothing to probe — the Jellyfin single-rendition model.
+	//
+	// Crucially the single rung is sized to softwareSingleRenditionMaxHeight
+	// (1080p, Jellyfin-parity), NOT the conservative SoftwareHDRMaxHeight cap:
+	// that cap was calibrated for the PARALLEL ladder (N concurrent encodes). One
+	// on-demand encode sustains 1080p HDR on a box that can't run the 3-rung
+	// parallel ladder — exactly the trade Jellyfin makes. HW paths keep the full
+	// ladder (a GPU parallelises rungs cheaply).
+	if !hwUsable && h.singleRendition {
+		const softwareSingleRenditionMaxHeight = 1080 // Jellyfin-parity ceiling for one on-demand encode
+		sr := domaintranscoding.CapLadderToHeight(capped, softwareSingleRenditionMaxHeight)
+		if len(sr) > 0 {
+			top := sr[0]
+			for _, p := range sr[1:] {
+				if p.Height > top.Height {
+					top = p
+				}
 			}
+			return []domaintranscoding.HLSProfile{top}
 		}
-		return []domaintranscoding.HLSProfile{top}
 	}
 	return laddered
 }
