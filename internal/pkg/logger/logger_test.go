@@ -312,7 +312,7 @@ func TestContextHandler_InjectsRequestID(t *testing.T) {
 	}
 
 	var record map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
 		if strings.Contains(line, "with-request-id") {
 			if err := json.Unmarshal([]byte(line), &record); err != nil {
 				t.Fatalf("unmarshal: %v", err)
@@ -340,7 +340,7 @@ func TestContextHandler_NoRequestIDWhenAbsent(t *testing.T) {
 	}
 
 	var record map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
 		if strings.Contains(line, "no-request-id") {
 			if err := json.Unmarshal([]byte(line), &record); err != nil {
 				t.Fatalf("unmarshal: %v", err)
@@ -381,7 +381,7 @@ func TestContextHandler_InjectsTraceID(t *testing.T) {
 	}
 
 	var record map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
 		if strings.Contains(line, "with-trace-id") {
 			if err := json.Unmarshal([]byte(line), &record); err != nil {
 				t.Fatalf("unmarshal: %v", err)
@@ -414,7 +414,7 @@ func TestContextHandler_NoTraceIDWhenAbsent(t *testing.T) {
 	}
 
 	var record map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
 		if strings.Contains(line, "no-trace-id") {
 			if err := json.Unmarshal([]byte(line), &record); err != nil {
 				t.Fatalf("unmarshal: %v", err)
@@ -448,7 +448,7 @@ func TestContextHandler_WithDerivedLogger_StillInjectsRequestID(t *testing.T) {
 	}
 
 	var record map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
 		if strings.Contains(line, "derived-logger-msg") {
 			if err := json.Unmarshal([]byte(line), &record); err != nil {
 				t.Fatalf("unmarshal: %v", err)
