@@ -142,6 +142,31 @@ COPY --from=gcr.io/projectsigstore/cosign:v2.4.1 /ko-app/cosign /usr/local/bin/c
 # Pinned to v1.12 so existing /data/meili index volumes upgrade cleanly.
 COPY --from=getmeili/meilisearch:v1.12 /bin/meilisearch /usr/local/bin/meilisearch
 
+# jellyfin-ffmpeg — its `tonemapx` filter tonemaps HDR->SDR in a single AVX2/SIMD
+# pass, ~1.8x faster than Debian ffmpeg's zscale float32 chain on the SAME CPU
+# (measured on an old box, 1080p, same file/encoder: 1.56x vs 0.89x realtime). That
+# gap flips 4K HDR software transcode from sub-realtime (buffering, capped to 480p)
+# to playable 1080p — exactly why Jellyfin does 1080p HDR where our zscale path
+# stalls. Installed from Jellyfin's OFFICIAL Debian repo (the standalone
+# jellyfin-ffmpeg7 package — leaner than vendoring the whole Jellyfin image) and
+# symlinked AHEAD of Debian's /usr/bin/ffmpeg on PATH; Debian's ffmpeg stays
+# installed as a fallback (drop the symlink to revert). The Go side probes for
+# `tonemapx` at runtime (tonemapxAvailable) and falls back to the zscale chain when
+# absent, so a build without this layer still works. The build-time smoke test
+# fails the image early if the binary can't run or lacks the filter, never in prod.
+RUN apt-get update && apt-get install -y --no-install-recommends gnupg \
+    && install -d /etc/apt/keyrings \
+    && curl -fsSL https://repo.jellyfin.org/jellyfin_team.gpg.key \
+         | gpg --dearmor -o /etc/apt/keyrings/jellyfin.gpg \
+    && printf 'Types: deb\nURIs: https://repo.jellyfin.org/debian\nSuites: trixie\nComponents: main\nSigned-By: /etc/apt/keyrings/jellyfin.gpg\n' \
+         > /etc/apt/sources.list.d/jellyfin.sources \
+    && apt-get update && apt-get install -y --no-install-recommends jellyfin-ffmpeg7 \
+    && apt-get purge -y gnupg && apt-get autoremove -y && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/lib/jellyfin-ffmpeg/ffmpeg  /usr/local/bin/ffmpeg \
+    && ln -sf /usr/lib/jellyfin-ffmpeg/ffprobe /usr/local/bin/ffprobe \
+    && /usr/local/bin/ffmpeg -hide_banner -version >/dev/null \
+    && /usr/local/bin/ffmpeg -hide_banner -filters | grep -q tonemapx
+
 RUN groupadd -g 1000 evey \
     && useradd -u 1000 -g evey -m -s /usr/sbin/nologin evey \
     && useradd -u 1001 -g evey -m -s /usr/sbin/nologin evey-plugin \

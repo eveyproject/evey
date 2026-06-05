@@ -1004,6 +1004,7 @@ func resolveToneMap(opts transcoding.HLSProcessOpts, dstWidth int) string {
 		// frame's colour metadata, so it needs no per-stream params here.
 		tmOpts := hdr.DefaultToneMapOptions()
 		tmOpts.DstWidth = dstWidth
+		tmOpts.UseTonemapx = tonemapxAvailable("ffmpeg")
 		return hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, tmOpts)
 	}
 	return detectToneMap(opts.HDRSupported, opts.Streams, dstWidth)
@@ -1021,6 +1022,7 @@ func detectToneMap(hdrSupported bool, streams []*library.MediaStream, dstWidth i
 	if hdrInfo.IsHDR {
 		tmOpts := hdr.DefaultToneMapOptions()
 		tmOpts.DstWidth = dstWidth
+		tmOpts.UseTonemapx = tonemapxAvailable("ffmpeg")
 		return hdr.BuildToneMapFilter(hdrInfo, tmOpts)
 	}
 	return ""

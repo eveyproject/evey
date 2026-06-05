@@ -195,3 +195,51 @@ func TestBuildToneMapFilter_DstWidthFoldsScale(t *testing.T) {
 		t.Fatalf("DstWidth=0 must not fold a scale, got %s", f)
 	}
 }
+
+func TestBuildToneMapFilter_Tonemapx_HDR10(t *testing.T) {
+	info := &HDRInfo{IsHDR: true, Type: "hdr10"}
+	opts := DefaultToneMapOptions()
+	opts.DstWidth = 1920
+	opts.UseTonemapx = true
+	filter := BuildToneMapFilter(info, opts)
+
+	// The fast SIMD path: tonemapx (bt2390 EETF), scale-before-tonemap at delivery
+	// resolution, PQ setparams, yuv420p out — and NONE of the slow zscale chain.
+	for _, want := range []string{
+		"setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc",
+		"scale=1920:-2",
+		"tonemapx=tonemap=bt2390:desat=0:peak=100:t=bt709:m=bt709:p=bt709:format=yuv420p",
+	} {
+		if !strings.Contains(filter, want) {
+			t.Fatalf("tonemapx filter missing %q, got %s", want, filter)
+		}
+	}
+	if strings.Contains(filter, "zscale") || strings.Contains(filter, "gbrpf32le") {
+		t.Fatalf("tonemapx path must NOT use the zscale float32 chain, got %s", filter)
+	}
+}
+
+func TestBuildToneMapFilter_Tonemapx_HLG(t *testing.T) {
+	info := &HDRInfo{IsHDR: true, Type: "hlg"}
+	opts := DefaultToneMapOptions()
+	opts.DstWidth = 1280
+	opts.UseTonemapx = true
+	filter := BuildToneMapFilter(info, opts)
+	if !strings.Contains(filter, "color_trc=arib-std-b67") {
+		t.Fatalf("HLG tonemapx must tag the arib-std-b67 transfer, got %s", filter)
+	}
+}
+
+func TestBuildToneMapFilter_Tonemapx_FallsBackToZscaleWhenOff(t *testing.T) {
+	info := &HDRInfo{IsHDR: true, Type: "hdr10"}
+	opts := DefaultToneMapOptions()
+	opts.DstWidth = 1920
+	opts.UseTonemapx = false // vanilla ffmpeg → portable path
+	filter := BuildToneMapFilter(info, opts)
+	if strings.Contains(filter, "tonemapx") {
+		t.Fatalf("UseTonemapx=false must emit the zscale fallback, got %s", filter)
+	}
+	if !strings.Contains(filter, "zscale=w=1920:h=-2:t=linear") {
+		t.Fatalf("fallback must be the folded zscale chain, got %s", filter)
+	}
+}

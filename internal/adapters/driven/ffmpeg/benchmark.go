@@ -613,9 +613,11 @@ func (r *BenchmarkRunner) benchSoftwareHDR(ctx context.Context, sample string, f
 	// understated the box: the runtime now does ~2× the throughput, so the cap
 	// must be re-derived against the same scale-first chain or it pins the host
 	// far below what it can sustain. The synthetic HDR sample is 16:9.
+	useTonemapx := tonemapxAvailable(r.ffmpegPath)
 	return r.benchSoftwareLadder(ctx, sample, fallback, func(topH int) string {
 		o := hdr.DefaultToneMapOptions()
 		o.DstWidth = topH * 16 / 9
+		o.UseTonemapx = useTonemapx
 		return hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, o)
 	}, "software-hdr", 480)
 }
