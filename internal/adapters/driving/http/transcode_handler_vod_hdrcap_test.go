@@ -234,16 +234,18 @@ func TestProfilesForDecision_SingleRendition(t *testing.T) {
 	item := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}
 	swCap := func() domaintranscoding.EncodeCapability { return hdrCapTestCapability() } // software, 1080p SDR
 
-	// Software + single-rendition ON, 4K HDR → exactly ONE variant, sized to
-	// 1080p (Jellyfin-parity) — NOT the conservative SoftwareHDRMaxHeight (480p)
-	// cap. That cap is for the parallel ladder; one on-demand encode does 1080p.
-	t.Run("software_HDR_collapses_to_one_1080p_rung", func(t *testing.T) {
+	// Software + single-rendition ON, 4K HDR → exactly ONE variant at the
+	// SUSTAINABLE calibrated cap (SoftwareHDRMaxHeight=480 here), so the lone
+	// segment is producible in real-time and the film actually starts. Serving a
+	// higher rung the box can't sustain in single-rendition has NO fallback and
+	// stalls the whole playback.
+	t.Run("software_HDR_collapses_to_one_sustainable_rung", func(t *testing.T) {
 		t.Parallel()
 		h := &hlsVODServe{singleRendition: true, capability: swCap}
 		profiles := h.profilesForDecision(context.Background(), item, build4KHDRStreams(), buildHDRDecision())
 		require.Len(t, profiles, 1, "single-rendition software path must serve exactly one variant")
-		assert.Equal(t, 1080, profiles[0].Height,
-			"single-rendition must serve 1080p (Jellyfin-parity), not the 480p parallel-ladder HDR cap")
+		assert.Equal(t, 480, profiles[0].Height,
+			"single-rendition serves the sustainable cap (SoftwareHDRMaxHeight=480), not a height the box can't keep up with")
 	})
 
 	// Software + single-rendition OFF → the full ABR ladder (more than one rung).

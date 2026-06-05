@@ -800,14 +800,12 @@ func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, s
 	return nil
 }
 
-// legacyProfileShaping reproduces the pre-seam ladder tail for hand-built test
-// handlers that have no wired selector. Production NEVER takes this path — it
-// routes through h.selector to the real software/hardware producer (whose pure
-// Profiles owns the shaping). Kept verbatim with the historical behaviour
-// (software single-rendition collapses to the 1080p Jellyfin-parity rung) so
-// the existing profilesForDecision unit tests retain their contract; the real
-// SoftwareProducer.Profiles implements the corrected ceiling (the sustainable
-// software HDR height) exercised by the producer-switch tests.
+// legacyProfileShaping reproduces the ladder tail for hand-built test handlers
+// that have no wired selector. Production NEVER takes this path — it routes
+// through h.selector to the real software/hardware producer (whose pure
+// Profiles owns the shaping). This mirrors SoftwareProducer.Profiles exactly
+// (single-rendition collapses to ONE rung at the sustainable software ceiling,
+// maxH), so the test-only fallback can't drift from the production shape.
 func (h *hlsVODServe) legacyProfileShaping(base []domaintranscoding.HLSProfile, src apptranscoding.SourceDims, streams []*domainlibrary.MediaStream, decision domaintranscoding.PlaybackDecision, capability domaintranscoding.EncodeCapability) []domaintranscoding.HLSProfile {
 	capped := domaintranscoding.CapLadderToSource(base, src.Width, src.Height)
 
@@ -824,18 +822,18 @@ func (h *hlsVODServe) legacyProfileShaping(base []domaintranscoding.HLSProfile, 
 	}
 	laddered := domaintranscoding.CapLadderToHeight(capped, maxH)
 
-	if !hwUsable && h.singleRendition {
-		const softwareSingleRenditionMaxHeight = 1080
-		sr := domaintranscoding.CapLadderToHeight(capped, softwareSingleRenditionMaxHeight)
-		if len(sr) > 0 {
-			top := sr[0]
-			for _, p := range sr[1:] {
-				if p.Height > top.Height {
-					top = p
-				}
+	if !hwUsable && h.singleRendition && len(laddered) > 0 {
+		// ONE rung at the sustainable ceiling (maxH already folds in
+		// SoftwareHDRMaxHeight for HDR). 1080p was a band-aid: a weak box can't
+		// sustain it in single-rendition, the lone segment times out, and with no
+		// fallback rung the film never starts. Identical to SoftwareProducer.Profiles.
+		top := laddered[0]
+		for _, p := range laddered[1:] {
+			if p.Height > top.Height {
+				top = p
 			}
-			return []domaintranscoding.HLSProfile{top}
 		}
+		return []domaintranscoding.HLSProfile{top}
 	}
 	return laddered
 }
