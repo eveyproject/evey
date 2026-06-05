@@ -13,26 +13,39 @@ import (
 )
 
 // SoftwareProducer is the software-transcode StreamProducer: the Jellyfin
-// model. For a given DecisionHash it runs ONE long-lived ffmpeg, input-paced
-// with `-readrate` so it stays near wall-clock and never races the whole film
-// ahead of the viewer. It serves a single rendition (the ladder is collapsed
-// to one rung by Profiles), so there is nothing for the player to probe or
-// switch across — one decode, one encode, no thrash.
+// model. For a given DecisionHash it runs a small, bounded set of long-lived
+// ffmpeg encoders, each input-paced with `-readrate` so it stays near
+// wall-clock and never races the whole film ahead of the viewer. It serves a
+// single rendition (the ladder is collapsed to one rung by Profiles), so there
+// is nothing for the player to probe or switch across — one decode, one encode
+// per live position, no ABR thrash.
 //
-// This is the antithesis of SegmentOrchestrator (the hardware path): no
-// multi-session burst-ahead, no global capacity cap, no per-segment deadline
-// kill. A weak NAS with hw_accel off serves a stable stream because the client
-// WAITS for the paced encoder instead of abort-and-probing across rungs that
-// each spawn their own starving session.
+// This is the antithesis of SegmentOrchestrator (the hardware path) on the axes
+// that caused the weak-NAS famine: no burst-ahead across ABR rungs, no global
+// capacity cap, no per-segment deadline kill. A weak NAS with hw_accel off
+// serves a stable stream because the client WAITS for the paced encoder instead
+// of abort-and-probing across rungs that each spawn their own starving session.
 //
-// Lifecycle (8 invariants, per the decouple plan):
-//  1. one sequential decode-once ffmpeg per Hash (no spawnSession / slot acquire)
+// It DOES, however, allow a SMALL bounded number of encoders for the SAME hash
+// when (and only when) two viewers sit at genuinely different live positions of
+// the same film — two browser tabs, or a PC + a phone, started at different
+// offsets. Viewers at the same position share one encoder via the addressable
+// cache; only distinct uncached positions get their own. This is the multi-tab
+// coexistence the orchestrator already guarantees (commit 0ac96ebbb), ported to
+// the software path: a second viewer NEVER kills the first's encoder.
+//
+// Lifecycle (invariants, per the decouple plan):
+//  1. one paced decode-once ffmpeg per (Hash, live position); same-position
+//     viewers share via the cache, distinct positions coexist up to
+//     MaxSessionsPerHash (LRU-evicted past the cap)
 //  2. ReadRate = 1.5 (input pacing)
 //  3. never ErrCapacityExceeded, long WaitBudget (the client waits)
-//  4. no NumCPU cap
+//  4. no NumCPU cap (only the per-hash MaxSessionsPerHash bound)
 //  5. no per-segment deadline kill (idle GC only, 30 min)
 //  6. Profiles() = single rung at the sustainable software ceiling
-//  7. a backward seek (request before the live window) kills + restarts the one process
+//  7. an uncovered position (e.g. a second viewer cold-starting below a deep
+//     viewer) spawns a session ALONGSIDE — it never kills a sibling another
+//     viewer is consuming; the LRU is evicted only when the cap is exceeded
 //  8. the common VOD manifest is served alongside (the client reads segment N
 //     when the paced process reaches it)
 type SoftwareProducer struct {
@@ -50,10 +63,15 @@ type SoftwareProducer struct {
 	shutdownCancel context.CancelFunc
 
 	mu sync.Mutex
-	// sessions maps a DecisionHash to its single live software session. Unlike
-	// the orchestrator's []*orchestratorSession (multi-rafale), the software
-	// model is strictly one-process-per-hash — a backward seek replaces it.
-	sessions map[string]*swSession
+	// sessions maps a DecisionHash to its live software encoders. Usually one
+	// (a single viewer, or several viewers sharing the cache at the same
+	// position), but a small bounded slice when two viewers sit at genuinely
+	// different live positions of the same film (two tabs / PC + phone started
+	// at different offsets). A second viewer spawns a session ALONGSIDE rather
+	// than killing the first's — the multi-tab coexistence guarantee. Bounded by
+	// opts.MaxSessionsPerHash (LRU-evicted past the cap), mirroring the
+	// orchestrator's []*orchestratorSession.
+	sessions map[string][]*swSession
 	// spawnedHashes tracks every hash a session was ever spawned for so Close
 	// can purge the disk cache even after the GC swept the live entry.
 	spawnedHashes map[string]struct{}
@@ -95,6 +113,17 @@ type SoftwareProducerOptions struct {
 	// is slower to land segment 0 on a 4K HDR software decode, and the client is
 	// expected to wait (no abort-and-probe).
 	WaitBudgetDur time.Duration
+
+	// MaxSessionsPerHash bounds the number of concurrent ffmpeg encoders for a
+	// SINGLE DecisionHash — i.e. how many genuinely-distinct live positions of
+	// the same film coexist before the least-recently-used one is evicted.
+	// Default 2: enough for the common two-tab / two-device case (the multi-tab
+	// coexistence guarantee) while keeping concurrent software encodes on a weak
+	// NAS bounded (each encode is full CPU; viewers at the same position share
+	// one via the cache, so this only bites on distinct uncached positions). Set
+	// to 1 to restore the legacy single-process-per-hash model (a second
+	// distinct position then evicts the first — the pre-fix behaviour).
+	MaxSessionsPerHash int
 }
 
 func (o SoftwareProducerOptions) withDefaults() SoftwareProducerOptions {
@@ -117,10 +146,15 @@ func (o SoftwareProducerOptions) withDefaults() SoftwareProducerOptions {
 	if out.WaitBudgetDur <= 0 {
 		out.WaitBudgetDur = 60 * time.Second
 	}
+	if out.MaxSessionsPerHash <= 0 {
+		out.MaxSessionsPerHash = 2
+	}
 	return out
 }
 
-// swSession is the single long-lived ffmpeg for one DecisionHash.
+// swSession is one long-lived ffmpeg encoder for a DecisionHash at a given
+// start position. A hash may have several (one per distinct live position) so
+// two viewers at different offsets coexist.
 type swSession struct {
 	mu      sync.Mutex
 	hash    string
@@ -128,8 +162,9 @@ type swSession struct {
 	handle  transcoding.HLSProcessHandle
 	// startSeg is the segment index the encoder was started at (`-ss`). With
 	// `hls_list_size 0` ffmpeg produces forward from here indefinitely, so the
-	// live window is [startSeg, +inf). A request below startSeg is a backward
-	// seek that restarts the process at the new offset.
+	// live window is [startSeg, +inf). A request below this session's startSeg
+	// is not covered by it; the producer reuses a lower-start sibling if one
+	// exists, else spawns a new session at the requested offset.
 	startSeg   int
 	lastAccess time.Time
 	paused     bool
@@ -160,7 +195,7 @@ func NewSoftwareProducer(
 		opts:           opts.withDefaults(),
 		shutdownCtx:    shutdownCtx,
 		shutdownCancel: shutdownCancel,
-		sessions:       make(map[string]*swSession),
+		sessions:       make(map[string][]*swSession),
 		spawnedHashes:  make(map[string]struct{}),
 		stopGC:         make(chan struct{}),
 		gcDone:         make(chan struct{}),
@@ -224,12 +259,14 @@ func (p *SoftwareProducer) WaitBudget() time.Duration { return p.opts.WaitBudget
 // encoder, paced so the host degrades gracefully under the input-rate cap
 // rather than 503-looping.
 //
-// Session matching is strictly one-per-hash:
-//   - cache hit: no ffmpeg, just bump lastAccess
-//   - live session covers the request (segmentIdx >= startSeg): reuse, the
-//     sequential encoder is already producing forward toward it
-//   - backward seek (segmentIdx < startSeg) or no session: kill any existing
-//     session and (re)start one ffmpeg at segmentIdx
+// Multi-position per hash (the multi-tab coexistence guarantee):
+//   - cache hit: no ffmpeg, just bump the covering session's lastAccess
+//   - a live session covers the request (its startSeg <= segmentIdx): reuse the
+//     closest-behind one; its sequential encoder is already producing toward it
+//   - no covering session (e.g. a second viewer cold-starting BELOW a deep
+//     viewer's start): spawn a new encoder ALONGSIDE at segmentIdx — never kill
+//     a sibling another viewer is consuming. Bounded by MaxSessionsPerHash; the
+//     LRU is evicted only when that cap is exceeded.
 func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFingerprint, variantIdx, segmentIdx int) error {
 	if segmentIdx < 0 {
 		return fmt.Errorf("software: EnsureSegmentRange: negative segmentIdx %d", segmentIdx)
@@ -238,42 +275,52 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 
 	// Fast path: already on disk.
 	if p.cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: variantIdx, SegmentIdx: segmentIdx}, fp.UseFMP4) {
-		p.touch(hash)
+		p.touch(hash, segmentIdx)
 		metrics.HLSVODCacheHits.Inc()
 		return nil
 	}
 	metrics.HLSVODCacheMisses.Inc()
 
 	p.mu.Lock()
-	existing := p.sessions[hash]
+	covering := p.findCoveringSessionLocked(hash, segmentIdx)
 	p.mu.Unlock()
 
-	if existing != nil {
-		existing.mu.Lock()
-		covered := segmentIdx >= existing.startSeg
-		if covered {
-			existing.lastAccess = time.Now()
-		}
-		existing.mu.Unlock()
-		if covered {
-			// The single sequential encoder is producing forward from startSeg;
-			// the requested segment is in its window (or imminently will be).
-			// Resume it if the idle-pause loop had suspended it — the client is
-			// pulling again.
-			p.resumeIfPaused(existing)
-			return nil
-		}
-		// Backward seek: the requested segment is before the live window. Kill
-		// the one process and restart it at the new offset (the legacy
-		// RestartFromPosition model — software can't cheaply random-access).
-		p.logger.Info("software: backward seek, restarting single process",
-			slog.String("hash", hash),
-			slog.Int("requested", segmentIdx),
-			slog.Int("live_start", existing.startSeg))
-		p.killSession(existing, "seek")
+	if covering != nil {
+		// A sibling encoder started at or below this position is already
+		// producing forward toward segmentIdx; reuse it (resume if the idle-pause
+		// loop suspended it — the client is pulling again). No new process.
+		covering.mu.Lock()
+		covering.lastAccess = time.Now()
+		covering.mu.Unlock()
+		p.resumeIfPaused(covering)
+		return nil
 	}
 
+	// No live encoder covers this position. Start one ALONGSIDE any existing
+	// sessions for the hash — we do NOT kill them. A second viewer cold-starting
+	// below a deep viewer (segmentIdx < every live startSeg) must not yank the
+	// deep viewer's encoder; both coexist, bounded by MaxSessionsPerHash.
 	return p.startSession(ctx, fp, variantIdx, segmentIdx)
+}
+
+// findCoveringSessionLocked returns the live session best placed to serve
+// segmentIdx: the one with the largest startSeg that is still <= segmentIdx (the
+// closest-behind encoder, already producing forward toward it). Returns nil when
+// no session for the hash started at or below segmentIdx — the caller then
+// spawns a new one at that offset. Must be called with p.mu held.
+func (p *SoftwareProducer) findCoveringSessionLocked(hash string, segmentIdx int) *swSession {
+	var best *swSession
+	bestStart := -1
+	for _, s := range p.sessions[hash] {
+		s.mu.Lock()
+		start := s.startSeg
+		s.mu.Unlock()
+		if start <= segmentIdx && start > bestStart {
+			best = s
+			bestStart = start
+		}
+	}
+	return best
 }
 
 // startSession launches the one long-lived ffmpeg for hash at segmentIdx with
@@ -344,9 +391,12 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	}
 
 	p.mu.Lock()
-	// Race: another goroutine may have started a session for this hash between
-	// our unlock and now. One-process-per-hash — discard the loser.
-	if winner := p.sessions[hash]; winner != nil {
+	// Race: another goroutine may have started a session covering startSeg
+	// between our findCoveringSessionLocked decision and now. Re-check under the
+	// lock; if a sibling now covers this exact position, discard the loser
+	// (avoid a redundant duplicate encoder for the same offset). Distinct
+	// positions are NOT a race — they are the coexistence we want.
+	if winner := p.findCoveringSessionLocked(hash, startSeg); winner != nil {
 		p.mu.Unlock()
 		cancel()
 		if stopErr := handle.Stop(); stopErr != nil {
@@ -355,9 +405,19 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		teardown()
 		return nil
 	}
-	p.sessions[hash] = session
+	p.sessions[hash] = append(p.sessions[hash], session)
 	p.spawnedHashes[hash] = struct{}{}
+	// Enforce the per-hash cap: if we just crossed MaxSessionsPerHash, evict the
+	// least-recently-used sibling (never the one we just appended). Kill it
+	// outside the lock — killSession reacquires p.mu.
+	victim := p.evictLRUIfFullLocked(hash)
 	p.mu.Unlock()
+
+	if victim != nil {
+		p.logger.Info("software: per-hash cap reached, evicting LRU encoder",
+			slog.String("hash", hash), slog.Int("cap", p.opts.MaxSessionsPerHash))
+		p.killSession(victim, "lru_cap")
+	}
 
 	// Reap when ffmpeg exits so the live entry doesn't linger and the cache
 	// pending refcount is released (a natural EOF skips killSession's teardown).
@@ -414,12 +474,14 @@ func (p *SoftwareProducer) NotifyClientHint(mediaItemID string, bufferLengthMs i
 	_ = segmentIdx
 	p.mu.Lock()
 	var matched []*swSession
-	for _, s := range p.sessions {
-		s.mu.Lock()
-		mid := s.mediaID
-		s.mu.Unlock()
-		if mid == mediaItemID {
-			matched = append(matched, s)
+	for _, list := range p.sessions {
+		for _, s := range list {
+			s.mu.Lock()
+			mid := s.mediaID
+			s.mu.Unlock()
+			if mid == mediaItemID {
+				matched = append(matched, s)
+			}
 		}
 	}
 	p.mu.Unlock()
@@ -433,12 +495,14 @@ func (p *SoftwareProducer) NotifyClientHint(mediaItemID string, bufferLengthMs i
 	}
 }
 
-// touch bumps lastAccess on the session for hash (cache-hit path) so the GC
-// doesn't reap a session whose segments are still being consumed from disk, and
-// resumes it if the idle-pause loop had suspended it.
-func (p *SoftwareProducer) touch(hash string) {
+// touch bumps lastAccess on the session covering segmentIdx (cache-hit path) so
+// the GC doesn't reap a session whose segments are still being consumed from
+// disk, and resumes it if the idle-pause loop had suspended it. With several
+// sessions per hash it bumps the closest-behind one (the encoder actually
+// serving that region) rather than an unrelated sibling at a different offset.
+func (p *SoftwareProducer) touch(hash string, segmentIdx int) {
 	p.mu.Lock()
-	s := p.sessions[hash]
+	s := p.findCoveringSessionLocked(hash, segmentIdx)
 	p.mu.Unlock()
 	if s == nil {
 		return
@@ -465,25 +529,36 @@ func (p *SoftwareProducer) resumeIfPaused(s *swSession) {
 	}
 }
 
-// ActiveSessionCount returns how many software ffmpeg sessions are live.
+// ActiveSessionCount returns how many software ffmpeg sessions are live across
+// every hash (a hash may hold several when viewers sit at different positions).
 func (p *SoftwareProducer) ActiveSessionCount() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return len(p.sessions)
+	n := 0
+	for _, list := range p.sessions {
+		n += len(list)
+	}
+	return n
 }
 
-// RemoveSession kills the session producing for the given media ID (a single
-// media can have several hashes — different audio/sub/codec decisions — so we
-// fan out). No-op when none match.
+// RemoveSession kills EVERY session producing for the given media ID — across
+// all hashes (different audio/sub/codec decisions) and all positions. This is
+// the FORCEFUL path (admin kill-session): it tears sessions down regardless of
+// whether another viewer is consuming them. The gentle playback-stop path must
+// NOT call this unconditionally — the StopStream handler gates it on "no other
+// active stream for this media" so closing one of two tabs never kills the
+// other. No-op when none match.
 func (p *SoftwareProducer) RemoveSession(mediaItemID string) {
 	p.mu.Lock()
 	var toKill []*swSession
-	for _, s := range p.sessions {
-		s.mu.Lock()
-		match := s.mediaID == mediaItemID
-		s.mu.Unlock()
-		if match {
-			toKill = append(toKill, s)
+	for _, list := range p.sessions {
+		for _, s := range list {
+			s.mu.Lock()
+			match := s.mediaID == mediaItemID
+			s.mu.Unlock()
+			if match {
+				toKill = append(toKill, s)
+			}
 		}
 	}
 	p.mu.Unlock()
@@ -529,14 +604,54 @@ func (p *SoftwareProducer) killSession(s *swSession, reason string) {
 	metrics.HLSVODSessions.Dec()
 }
 
-// removeFromMap drops the session from the live map iff it is still the current
-// one for hash (a restart may have replaced it).
+// removeFromMap drops a specific session from the hash's slice (a no-op if it
+// was already spliced out by an eviction). Deletes the hash key when its last
+// session is gone.
 func (p *SoftwareProducer) removeFromMap(hash string, target *swSession) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.sessions[hash] == target {
+	list := p.sessions[hash]
+	for i, s := range list {
+		if s == target {
+			p.sessions[hash] = append(list[:i], list[i+1:]...)
+			break
+		}
+	}
+	if len(p.sessions[hash]) == 0 {
 		delete(p.sessions, hash)
 	}
+}
+
+// evictLRUIfFullLocked enforces MaxSessionsPerHash by selecting the
+// least-recently-touched sibling for eviction once the cap is exceeded. Run
+// AFTER the new session has been appended, so the freshly-spawned one (at index
+// len-1) is never the victim. Splices the victim out of the slice and returns
+// it so the caller runs killSession outside the lock (killSession reacquires
+// p.mu). Returns nil when under the cap. Must be called with p.mu held.
+func (p *SoftwareProducer) evictLRUIfFullLocked(hash string) *swSession {
+	list := p.sessions[hash]
+	if len(list) <= p.opts.MaxSessionsPerHash {
+		return nil
+	}
+	var victim *swSession
+	victimIdx := -1
+	var oldest time.Time
+	for i := range list[:len(list)-1] {
+		s := list[i]
+		s.mu.Lock()
+		la := s.lastAccess
+		s.mu.Unlock()
+		if victim == nil || la.Before(oldest) {
+			victim = s
+			victimIdx = i
+			oldest = la
+		}
+	}
+	if victim == nil {
+		return nil
+	}
+	p.sessions[hash] = append(list[:victimIdx], list[victimIdx+1:]...)
+	return victim
 }
 
 // gcLoop sweeps idle sessions and suspends the encoder for clients that went
@@ -565,18 +680,34 @@ func (p *SoftwareProducer) sweepIdle() {
 	cutoff := time.Now().Add(-p.opts.InactivityTimeout)
 	p.mu.Lock()
 	var toKill []*swSession
-	for _, s := range p.sessions {
-		s.mu.Lock()
-		idle := s.lastAccess.Before(cutoff)
-		s.mu.Unlock()
-		if idle {
-			toKill = append(toKill, s)
+	for _, list := range p.sessions {
+		for _, s := range list {
+			s.mu.Lock()
+			idle := s.lastAccess.Before(cutoff)
+			s.mu.Unlock()
+			if idle {
+				toKill = append(toKill, s)
+			}
 		}
 	}
 	p.mu.Unlock()
 	for _, s := range toKill {
-		hash := s.hash
 		p.killSession(s, "inactivity")
+	}
+	// Reclaim disk ONLY for hashes that are now fully idle (no live sibling
+	// remains). A hash with a surviving session must keep its segments — that
+	// sibling (another tab/device) is still serving from them.
+	affected := make(map[string]struct{}, len(toKill))
+	for _, s := range toKill {
+		affected[s.hash] = struct{}{}
+	}
+	for hash := range affected {
+		p.mu.Lock()
+		empty := len(p.sessions[hash]) == 0
+		p.mu.Unlock()
+		if !empty {
+			continue
+		}
 		if err := p.cache.CleanupHash(hash); err != nil {
 			p.logger.Warn("software: idle cleanup failed", slog.String("hash", hash), slog.Any("err", err))
 		}
@@ -591,8 +722,8 @@ func (p *SoftwareProducer) sweepPause() {
 	cutoff := time.Now().Add(-p.opts.PauseIdleThreshold)
 	p.mu.Lock()
 	snapshot := make([]*swSession, 0, len(p.sessions))
-	for _, s := range p.sessions {
-		snapshot = append(snapshot, s)
+	for _, list := range p.sessions {
+		snapshot = append(snapshot, list...)
 	}
 	p.mu.Unlock()
 	for _, s := range snapshot {
@@ -633,12 +764,12 @@ func (p *SoftwareProducer) Close() {
 		hashes = append(hashes, h)
 	}
 	live := p.sessions
-	p.sessions = make(map[string]*swSession)
+	p.sessions = make(map[string][]*swSession)
 	p.spawnedHashes = make(map[string]struct{})
 	p.mu.Unlock()
 
 	for _, hash := range hashes {
-		if s := live[hash]; s != nil {
+		for _, s := range live[hash] {
 			p.killSession(s, "close")
 		}
 		if err := p.cache.CleanupHash(hash); err != nil {

@@ -131,6 +131,34 @@ func TestPlaybackHandler_StopStream(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestPlaybackHandler_StopStream_KeepsTranscodeWhileOtherTabActive locks in the
+// multi-tab fix: closing ONE of two tabs on the same film must not tear down the
+// shared transcode the other tab is still consuming. lastActiveStreamForMedia
+// gates the (forceful) RemoveSession so it only fires when this was the LAST
+// active stream for the media.
+func TestPlaybackHandler_StopStream_KeepsTranscodeWhileOtherTabActive(t *testing.T) {
+	h, _, _, _, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	// Two tabs on the SAME media → two active sessions.
+	s1, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{MediaItemId: "mi-1", DeviceName: "tab1"})
+	require.NoError(t, err)
+	s2, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{MediaItemId: "mi-1", DeviceName: "tab2"})
+	require.NoError(t, err)
+
+	// Closing tab2 while tab1 is still active is NOT the last stream → keep the transcode.
+	assert.False(t, h.lastActiveStreamForMedia(ctx, "mi-1", s2.Id),
+		"another tab is still streaming mi-1 — the shared transcode must NOT be removed")
+
+	// Stop tab2 (marks it ended); only tab1 remains active.
+	_, err = h.StopStream(ctx, &eveyv1.StopStreamRequest{SessionId: s2.Id})
+	require.NoError(t, err)
+
+	// Closing tab1 now IS the last stream → the transcode may be torn down.
+	assert.True(t, h.lastActiveStreamForMedia(ctx, "mi-1", s1.Id),
+		"the last remaining tab closing IS the last stream — the transcode may be removed")
+}
+
 func TestPlaybackHandler_ReportProgress(t *testing.T) {
 	h, _, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()

@@ -75,10 +75,10 @@ func TestSoftwareProducer_NeverSetsHWAccel(t *testing.T) {
 }
 
 // ============================================================================
-// Seek = kill + restart the single process (not a second burst)
+// Uncovered position = spawn ALONGSIDE (never kill a sibling another tab needs)
 // ============================================================================
 
-func TestSoftwareProducer_BackwardSeekRestartsSingleProcess(t *testing.T) {
+func TestSoftwareProducer_UncoveredBackwardSeekSpawnsAlongside(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
 	src := stubSource{path: "/media/test.mkv"}
@@ -89,15 +89,21 @@ func TestSoftwareProducer_BackwardSeekRestartsSingleProcess(t *testing.T) {
 	// Start at segment 100.
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 100))
 	require.Equal(t, 1, proc.startCount())
+	hash := fp.Hash()
+	p.mu.Lock()
+	first := p.sessions[hash][0]
+	p.mu.Unlock()
+	firstHandle := first.handle.(*fakeHandle)
 
-	// Seek BACKWARD to segment 5 — before the live window [100, +inf). The one
-	// process is killed and a fresh one started at 5. NOT a second concurrent
-	// burst (that's the orchestrator's multi-rafale model).
+	// Request segment 5 — before the live window [100, +inf). The producer does
+	// NOT kill the running encoder (that would yank a second tab sitting at 100);
+	// it spawns a fresh one ALONGSIDE at 5. Two encoders now coexist.
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 5))
-	assert.Equal(t, 2, proc.startCount(), "backward seek restarts the encoder")
-	assert.Equal(t, 1, p.ActiveSessionCount(), "still exactly ONE live session after the seek")
+	assert.Equal(t, 2, proc.startCount(), "uncovered backward position spawns a second encoder")
+	assert.Equal(t, 2, p.ActiveSessionCount(), "both encoders coexist — the first is NOT killed")
+	assert.False(t, firstHandle.isStopped(), "the segment-100 encoder must keep running (a sibling tab needs it)")
 
-	// The restarted process is seeked to segment 5 (StartSec = 5 × 3s).
+	// The new process is seeked to segment 5 (StartSec = 5 × 3s).
 	assert.InDelta(t, 15.0, proc.lastOpts().StartSec, 0.001)
 }
 
@@ -139,6 +145,96 @@ func TestSoftwareProducer_NeverRejectsOnCapacity(t *testing.T) {
 			"software producer must never reject on media %d", i)
 	}
 	assert.Equal(t, 8, p.ActiveSessionCount(), "all eight distinct media run concurrently — no shedding")
+}
+
+// ============================================================================
+// Multi-tab coexistence: two viewers, same film, different positions
+// ============================================================================
+
+func TestSoftwareProducer_TwoTabsDifferentPositionsCoexist(t *testing.T) {
+	// The user's scenario: a deep viewer (tab 1, resumed at segment 500) and a
+	// second viewer (tab 2) cold-starting the SAME film from segment 0 — identical
+	// DecisionHash. The cold start must NOT kill the deep viewer's encoder.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	hash := fp.Hash()
+
+	// Tab 1 resumes deep.
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 500))
+	require.Equal(t, 1, p.ActiveSessionCount())
+	p.mu.Lock()
+	deep := p.sessions[hash][0]
+	p.mu.Unlock()
+	deepHandle := deep.handle.(*fakeHandle)
+	require.Equal(t, 500, deep.startSeg)
+
+	// Tab 2 cold-starts from the beginning.
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+
+	assert.Equal(t, 2, proc.startCount(), "tab 2 gets its OWN encoder (a distinct live position)")
+	assert.Equal(t, 2, p.ActiveSessionCount(), "both tabs coexist")
+	assert.False(t, deepHandle.isStopped(),
+		"the deep viewer's encoder must NOT be killed by tab 2 cold-starting — the multi-tab guarantee")
+
+	p.mu.Lock()
+	starts := map[int]bool{}
+	for _, s := range p.sessions[hash] {
+		starts[s.startSeg] = true
+	}
+	p.mu.Unlock()
+	assert.True(t, starts[500] && starts[0], "both the deep (500) and cold-start (0) positions have live encoders")
+}
+
+func TestSoftwareProducer_SamePositionViewersShareOneEncoder(t *testing.T) {
+	// Viewers at the same position (or a second one BEHIND the live start) are
+	// covered by the first's forward-running encoder — they share it, so the weak
+	// NAS pays for exactly one encode, not two. The multi-session cost is only
+	// incurred for genuinely-distinct uncached positions.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))  // second viewer, same start
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 30)) // ahead but still covered by [0,+inf)
+	assert.Equal(t, 1, proc.startCount(), "viewers at/behind the live start share ONE encoder")
+	assert.Equal(t, 1, p.ActiveSessionCount())
+}
+
+func TestSoftwareProducer_MaxSessionsPerHashEvictsLRU(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := swTestOpts()
+	opts.MaxSessionsPerHash = 2
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, opts, discardLogger())
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	hash := fp.Hash()
+	// Three DESCENDING positions: each is below every existing start, so each
+	// spawns its own encoder. The 3rd crosses MaxSessionsPerHash=2 → the LRU
+	// (the oldest-touched, segment 300) is evicted.
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 300))
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 200))
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 100))
+
+	assert.Equal(t, 3, proc.startCount(), "three distinct lower positions each spawn an encoder")
+	assert.Equal(t, 2, p.ActiveSessionCount(), "MaxSessionsPerHash=2 bounds concurrency; the LRU is evicted")
+
+	p.mu.Lock()
+	starts := map[int]bool{}
+	for _, s := range p.sessions[hash] {
+		starts[s.startSeg] = true
+	}
+	p.mu.Unlock()
+	assert.True(t, starts[100], "the freshly-spawned encoder is never the eviction victim")
+	assert.False(t, starts[300], "the least-recently-used encoder (segment 300) was evicted")
 }
 
 // ============================================================================

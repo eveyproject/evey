@@ -704,6 +704,11 @@ func (h *fakeHandle) counts() (pauseN, resumeN int, paused bool) {
 	defer h.mu.Unlock()
 	return h.pauseN, h.resumeN, h.paused
 }
+func (h *fakeHandle) isStopped() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.stopped
+}
 
 type stubSource struct {
 	path    string

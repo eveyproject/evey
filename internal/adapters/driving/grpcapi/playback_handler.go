@@ -276,11 +276,49 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	if sessErr == nil && sess != nil && h.hlsManager != nil {
-		h.hlsManager.RemoveSession(string(sess.MediaItemID))
+		// Tear down the transcode session ONLY when this was the last active
+		// stream for the media. Two tabs / two devices on the same film share one
+		// transcode (identical DecisionHash); closing one must not kill the
+		// encoder the other is still consuming. The command StopStream above has
+		// already marked this session ended, so it's excluded from the active set.
+		// Admin force-kill is a separate, forceful path (admin_audit.go) and is
+		// unaffected by this gentle gate.
+		if h.lastActiveStreamForMedia(ctx, string(sess.MediaItemID), req.SessionId) {
+			h.hlsManager.RemoveSession(string(sess.MediaItemID))
+		}
 	}
 	sid := req.SessionId
 	h.audit(ctx, claims.UserID, "stop_stream", "session", &sid, nil)
 	return &eveyv1.StopStreamResponse{}, nil
+}
+
+// lastActiveStreamForMedia reports whether NO other active playback session
+// remains for mediaItemID (excludeSessionID is the session just stopped, guarded
+// against in case its ended-at hasn't propagated). It exists so closing one of
+// two tabs on the same film doesn't tear down the shared transcode the other tab
+// is still consuming. On a missing/erroring active-session query it returns
+// false — leaning toward NOT killing, since a spurious teardown interrupts a
+// live viewer whereas an orphaned transcode is reclaimed by the producer's idle
+// GC anyway.
+func (h *playbackHandler) lastActiveStreamForMedia(ctx context.Context, mediaItemID, excludeSessionID string) bool {
+	if h.query == nil {
+		return false
+	}
+	active, err := h.query.GetActiveSessions(ctx)
+	if err != nil {
+		slog.Warn("StopStream: GetActiveSessions failed; leaving transcode to idle GC",
+			slog.String("media_id", mediaItemID), slog.Any("err", err))
+		return false
+	}
+	for _, s := range active {
+		if s == nil || s.SessionID == excludeSessionID {
+			continue
+		}
+		if string(s.MediaItemID) == mediaItemID {
+			return false // another tab/device is still streaming this media
+		}
+	}
+	return true
 }
 
 func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.ReportProgressRequest) (*eveyv1.ReportProgressResponse, error) {
