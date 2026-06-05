@@ -9,6 +9,17 @@ import { Button } from "@/components/ui/Button";
 // /api/v1/admin/transcode/calibration. Mirrors the Go domain struct.
 type HWFallback = { class: string; codec: string; at: string };
 
+// BenchRungSample is one resolution rung the benchmark measured: the evidence
+// behind a ceiling (e.g. why HDR floored to 480p).
+type BenchRungSample = {
+  ladder: string; // "software" | "software-hdr" | "hw"
+  height: number;
+  fps: number;
+  required_fps: number;
+  passing: boolean;
+  parallel_encodes: number;
+};
+
 type EncodeCapability = {
   software_max_height: number;
   software_hdr_max_height?: number; // software ceiling for HDR->SDR (10-bit decode + tonemap)
@@ -25,6 +36,7 @@ type EncodeCapability = {
   benchmark_duration_ms: number;
   cpu_signature: string;
   hw_fallbacks?: HWFallback[];
+  bench_samples?: BenchRungSample[]; // per-rung fps evidence behind the caps
 };
 
 const QK_CALIBRATION = ["admin", "transcode-calibration"] as const;
@@ -233,6 +245,40 @@ export function EncodeCalibrationCard() {
           <code className="text-xs text-[var(--text-muted)] truncate">{data.cpu_signature.slice(0, 12)}…</code>
         </Row>
       </div>
+
+      {data.bench_samples && data.bench_samples.length > 0 ? (
+        <details className="mt-3 text-xs">
+          <summary className="cursor-pointer text-[var(--text-muted)]">
+            {t("admin.calibration.samplesTitle", "Benchmark measurements (fps per rung)")}
+          </summary>
+          <table className="mt-2 w-full border-collapse">
+            <thead>
+              <tr className="text-left text-[var(--text-muted)]">
+                <th className="py-1 pr-3 font-medium">{t("admin.calibration.samplesLadder", "Path")}</th>
+                <th className="py-1 pr-3 font-medium">{t("admin.calibration.samplesHeight", "Rung")}</th>
+                <th className="py-1 pr-3 font-medium">{t("admin.calibration.samplesFps", "fps")}</th>
+                <th className="py-1 pr-3 font-medium">{t("admin.calibration.samplesNeeded", "needed")}</th>
+                <th className="py-1 font-medium">{t("admin.calibration.samplesResult", "result")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.bench_samples.map((s, i) => (
+                <tr key={`${s.ladder}-${s.height}-${i}`} className="text-[var(--text)]">
+                  <td className="py-0.5 pr-3 text-[var(--text-muted)]">{s.ladder}</td>
+                  <td className="py-0.5 pr-3">{s.height}p</td>
+                  <td className="py-0.5 pr-3">{s.fps.toFixed(1)}</td>
+                  <td className="py-0.5 pr-3 text-[var(--text-muted)]">{s.required_fps.toFixed(1)}</td>
+                  <td className={`py-0.5 ${s.passing ? "text-[var(--success,#16a34a)]" : "text-[var(--danger,#dc2626)]"}`}>
+                    {s.passing
+                      ? t("admin.calibration.samplesPass", "pass")
+                      : t("admin.calibration.samplesFail", "fail")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      ) : null}
 
       {(data.hw_codecs?.length || data.hw_decode_codecs?.length) ? (
         <CodecSupportBlock
