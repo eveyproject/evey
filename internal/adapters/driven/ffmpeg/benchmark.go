@@ -172,13 +172,13 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 
 	sample, fallback := r.resolveSample()
 
-	swMax := r.benchSoftware(ctx, sample, fallback)
+	swMax, swSamples := r.benchSoftware(ctx, sample, fallback)
 	// HDR->SDR is much heavier than the plain 8-bit software bench (10-bit decode
 	// + tonemap), so probe it separately -> the HDR ladder caps to what the host
 	// actually sustains for HDR (honest on a weak NAS; HW tonemap is moot when the
 	// GPU can't do it, which is the common weak-box case).
 	hdrSample, hdrFallback := r.resolveHDRSample()
-	swHDRMax := r.benchSoftwareHDR(ctx, hdrSample, hdrFallback)
+	swHDRMax, hdrSamples := r.benchSoftwareHDR(ctx, hdrSample, hdrFallback)
 
 	// detected lists every accelerator the host advertises. Skipped entirely
 	// when HW is disabled (mode=off): probing the GPU — including the real-encode
@@ -242,6 +242,10 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		CPUSignature:         sysinfo.CPUSignature(),
 		BenchmarkedAt:        time.Now().UTC(),
 		BenchmarkDurationMs:  time.Since(start).Milliseconds(),
+		// Per-rung evidence (fps vs realtime threshold) behind the ceilings above,
+		// surfaced in the admin calibration API so the operator can see WHY the
+		// HDR cap floored to 480p instead of guessing.
+		BenchSamples: append(swSamples, hdrSamples...),
 	}
 	r.logger.Info("benchmark: complete",
 		slog.Int("software_max_height", cap.SoftwareMaxHeight),
@@ -589,7 +593,7 @@ func (r *BenchmarkRunner) ffmpegBin() string {
 // Highest passing rung wins. Returns 720 minimum (universal floor) even
 // if every probe fails — guarantees the host can at least serve a 720p
 // stream.
-func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fallback bool) int {
+func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fallback bool) (int, []transcoding.BenchRungSample) {
 	return r.benchSoftwareLadder(ctx, sample, fallback, func(int) string { return "" }, "software", 720)
 }
 
@@ -601,7 +605,7 @@ func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fall
 // hosts: if 4K HEVC10 decode alone blows realtime, even the lowest rung fails.
 // Floor 480p (HDR is heavier than the SDR 720p floor; a box that can't sustain
 // 480p HDR leans on the runtime throttle rather than being offered nothing).
-func (r *BenchmarkRunner) benchSoftwareHDR(ctx context.Context, sample string, fallback bool) int {
+func (r *BenchmarkRunner) benchSoftwareHDR(ctx context.Context, sample string, fallback bool) (int, []transcoding.BenchRungSample) {
 	// Tonemap at the ladder-TOP resolution (the downscale folded into the
 	// linearizing zscale), matching the production scale-first runtime
 	// (hls_transcoder buildMultiVariantArgs tonemaps the shared feed at the top
@@ -634,17 +638,28 @@ func probeRungs(ladder []int, i int, singleVariant bool) []int {
 // in isolation (1 decode + 1 encode at h); in multi-variant mode rung h is
 // probed alongside every lighter rung (1 decode + N parallel encodes). Highest
 // rung sustaining >= sourceRate×margin wins; floor when none pass.
-func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string, fallback bool, preFilter func(topHeight int) string, label string, floor int) int {
+func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string, fallback bool, preFilter func(topHeight int) string, label string, floor int) (int, []transcoding.BenchRungSample) {
 	best := 0
+	required := float64(r.sourceRate()) * r.margin
+	var samples []transcoding.BenchRungSample
 	for i, h := range swBenchLadder {
 		laddered := probeRungs(swBenchLadder, i, r.singleVariant)
 		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, "libx264", nil, preFilter(h))
-		passing := ok && fps >= float64(r.sourceRate())*r.margin
+		passing := ok && fps >= required
+		samples = append(samples, transcoding.BenchRungSample{
+			Ladder:          label,
+			Height:          h,
+			FPS:             fps,
+			RequiredFPS:     required,
+			Passing:         passing,
+			ParallelEncodes: len(laddered),
+		})
 		r.logger.Info("benchmark: "+label+" probe",
 			slog.Int("height", h),
 			slog.Int("parallel_encodes", len(laddered)),
 			slog.Bool("single_variant", r.singleVariant),
 			slog.Float64("fps", fps),
+			slog.Float64("required_fps", required),
 			slog.Bool("passing", passing))
 		if !passing {
 			break // ladder is monotone — no point probing 1440p once 1080p fails
@@ -657,9 +672,9 @@ func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string
 		// realtime occasionally but the runtime throttle catches it.
 		r.logger.Warn("benchmark: "+label+" probe failed on every rung, falling back to floor",
 			slog.Int("floor", floor))
-		return floor
+		return floor, samples
 	}
-	return best
+	return best, samples
 }
 
 // benchHardware picks the HW backend with the most encoders available

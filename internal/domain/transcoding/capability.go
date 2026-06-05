@@ -123,6 +123,29 @@ type EncodeCapability struct {
 	// calibration manually sees "took 22 s" instead of a spinner that
 	// just disappears.
 	BenchmarkDurationMs int64 `json:"benchmark_duration_ms"`
+
+	// BenchSamples records every resolution rung the last benchmark probed, per
+	// ladder, with the measured fps vs the realtime threshold it had to clear.
+	// Pure observability: the admin calibration API surfaces it so an operator
+	// (or a remote debugger with only HTTPS access) sees WHY a ceiling landed
+	// where it did — e.g. "720p HDR = 14 fps, needed 28.8 → failed → floored to
+	// 480p" — instead of guessing from a bare cap or grepping WARN-level logs.
+	// Empty when loaded from a calibration persisted before this field existed
+	// (re-bench to populate). omitempty so old rows round-trip unchanged.
+	BenchSamples []BenchRungSample `json:"bench_samples,omitempty"`
+}
+
+// BenchRungSample is one resolution rung the boot benchmark measured: the
+// encode throughput it achieved and whether it cleared the realtime margin that
+// decides the ceiling. The honest evidence behind a SoftwareMaxHeight /
+// SoftwareHDRMaxHeight value.
+type BenchRungSample struct {
+	Ladder          string  `json:"ladder"` // "software" | "software-hdr" | "hw"
+	Height          int     `json:"height"`
+	FPS             float64 `json:"fps"`          // measured encode fps for this rung
+	RequiredFPS     float64 `json:"required_fps"` // sourceRate × realtime margin it had to beat
+	Passing         bool    `json:"passing"`      // FPS >= RequiredFPS
+	ParallelEncodes int     `json:"parallel_encodes"`
 }
 
 // SafeFallback returns the capability used when no calibration has run
