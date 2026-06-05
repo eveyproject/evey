@@ -126,6 +126,39 @@ func TestCalibration_EnsureCalibrated_CachedMatch_SkipsBench(t *testing.T) {
 	assert.Equal(t, 1440, svc.Current().SoftwareMaxHeight, "Current() must reflect the persisted cap")
 }
 
+func TestCalibration_SoftwareCapOverrides_ForceCurrentCeilings(t *testing.T) {
+	// An operator override raises the software / HDR ceilings past what the
+	// benchmark calibrated, so Current() must reflect the override regardless of
+	// the persisted/benchmarked value (the empirical "try 720p HDR" knob).
+	hostSig := hostCPUSig(t)
+	repo := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight:    720,
+			SoftwareHDRMaxHeight: 480, // benchmark floored HDR to 480p
+			CPUSignature:         hostSig,
+		},
+	}
+	runner := &fakeBenchmarkRunner{}
+
+	// No override → calibrated values stand.
+	base := NewCalibrationService(repo, runner, nil)
+	require.NoError(t, base.EnsureCalibrated(context.Background()))
+	assert.Equal(t, 480, base.Current().SoftwareHDRMaxHeight, "without override the calibrated HDR cap stands")
+
+	// Override → forced ceilings.
+	svc := NewCalibrationService(repo, runner, nil, WithSoftwareCapOverrides(1080, 720))
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	cur := svc.Current()
+	assert.Equal(t, 1080, cur.SoftwareMaxHeight, "override forces the software ceiling")
+	assert.Equal(t, 720, cur.SoftwareHDRMaxHeight, "override forces the HDR ceiling (empirical 720p HDR test)")
+
+	// Zero values = no override (each knob independent).
+	hdrOnly := NewCalibrationService(repo, runner, nil, WithSoftwareCapOverrides(0, 720))
+	require.NoError(t, hdrOnly.EnsureCalibrated(context.Background()))
+	assert.Equal(t, 720, hdrOnly.Current().SoftwareMaxHeight, "0 software override leaves the calibrated value")
+	assert.Equal(t, 720, hdrOnly.Current().SoftwareHDRMaxHeight, "HDR override applies independently")
+}
+
 func TestCalibration_EnsureCalibrated_PersistedHWUnusable_StripsToSoftware(t *testing.T) {
 	// Matching CPU sig but the persisted HW backend is no longer usable here
 	// (e.g. shared DB across a HW and a non-HW container). EnsureCalibrated must

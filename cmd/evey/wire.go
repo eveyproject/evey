@@ -667,7 +667,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		HDRSampleSHA256: cfg.Transcoding.BenchHDRSampleSHA256,
 	}, slog.Default())
 	calibrationSvc := apptranscoding.NewCalibrationService(capabilityRepo, calibrationRunner, slog.Default(),
-		apptranscoding.WithHWMode(hwMode))
+		apptranscoding.WithHWMode(hwMode),
+		apptranscoding.WithSoftwareCapOverrides(
+			cfg.Transcoding.SoftwareMaxHeightOverride,
+			cfg.Transcoding.SoftwareHDRMaxHeightOverride))
 	if err := calibrationSvc.EnsureCalibrated(ctx); err != nil {
 		slog.Warn("calibration: EnsureCalibrated returned error, falling back to 720p", slog.Any("err", err))
 	}

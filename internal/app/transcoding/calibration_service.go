@@ -46,6 +46,17 @@ type CalibrationService struct {
 	modeMu sync.Mutex
 	mode   domaintranscoding.HWMode
 
+	// swMaxOverride / swHDRMaxOverride force the software encode ceilings,
+	// bypassing what the benchmark measured. 0 = use the calibrated value.
+	// Wired from EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT / _SOFTWARE_HDR_MAX_HEIGHT
+	// so an operator can empirically push a higher (HDR) rung on the real host
+	// when the calibrated cap — which applies a 1.2x realtime margin and may be
+	// decode-bound rather than output-resolution-bound — is more conservative
+	// than the host actually sustains. Read-only knob; the runtime throttle and
+	// the input pacing still protect a host that overshoots.
+	swMaxOverride    int
+	swHDRMaxOverride int
+
 	current       atomic.Pointer[domaintranscoding.EncodeCapability]
 	benchInFlight sync.Mutex
 
@@ -75,6 +86,17 @@ type CalibrationOption func(*CalibrationService)
 func WithHWMode(mode domaintranscoding.HWMode) CalibrationOption {
 	return func(s *CalibrationService) {
 		s.mode = mode
+	}
+}
+
+// WithSoftwareCapOverrides forces the software encode ceilings (0 = no
+// override). Lets an operator test a higher software / HDR rung than the
+// benchmark calibrated, e.g. when the cap is decode-bound (output resolution
+// barely changes throughput) and the 1.2x margin pinned it too low.
+func WithSoftwareCapOverrides(swMax, swHDRMax int) CalibrationOption {
+	return func(s *CalibrationService) {
+		s.swMaxOverride = swMax
+		s.swHDRMaxOverride = swHDRMax
 	}
 }
 
@@ -137,7 +159,18 @@ func (s *CalibrationService) SetHWMode(ctx context.Context, mode domaintranscodi
 // includes at least the safe fallback. Read on every HLS-VOD request
 // so MUST be fast (atomic pointer load).
 func (s *CalibrationService) Current() domaintranscoding.EncodeCapability {
-	return *s.current.Load()
+	c := *s.current.Load()
+	// Operator overrides (env): force the software ceilings regardless of the
+	// benchmark. 0 = no override. SoftwareHDRMaxHeight only ever LOWERS the HDR
+	// delivery height below SoftwareMaxHeight (see SoftwareProducer.Profiles), so
+	// to push HDR above the SDR cap raise BOTH knobs.
+	if s.swMaxOverride > 0 {
+		c.SoftwareMaxHeight = s.swMaxOverride
+	}
+	if s.swHDRMaxOverride > 0 {
+		c.SoftwareHDRMaxHeight = s.swHDRMaxOverride
+	}
+	return c
 }
 
 // EnsureCalibrated runs at boot. If a valid persisted capability is

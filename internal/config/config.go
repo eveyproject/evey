@@ -326,8 +326,17 @@ type TranscodingConfig struct {
 	// One rung = one session = stable (the Jellyfin model). HW paths keep the
 	// full ladder. Set EVEY_TRANSCODING_SINGLE_RENDITION=0 to force the ladder
 	// on a software host powerful enough for parallel rungs.
-	SingleRendition   bool
-	TrickplayCacheDir string
+	SingleRendition bool
+	// SoftwareMaxHeightOverride / SoftwareHDRMaxHeightOverride force the software
+	// encode ceilings, bypassing the boot benchmark (0 = use the calibrated
+	// value). EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT / _SOFTWARE_HDR_MAX_HEIGHT.
+	// For an operator to empirically push a higher HDR rung on a host where the
+	// calibrated cap (1.2x realtime margin, and decode-bound on 4K HEVC10) pinned
+	// it too low — e.g. set _SOFTWARE_HDR_MAX_HEIGHT=720 to try 720p HDR. The
+	// runtime throttle + input pacing still protect a host that overshoots.
+	SoftwareMaxHeightOverride    int
+	SoftwareHDRMaxHeightOverride int
+	TrickplayCacheDir            string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch
 	// language without re-fetching the video stream. Off by default
@@ -536,25 +545,27 @@ func Load() (*Config, error) {
 			RefreshTokenLongTTL: envDuration("EVEY_JWT_REFRESH_LONG_TTL", 180*24*time.Hour),
 		},
 		Transcoding: TranscodingConfig{
-			MaxConcurrent:         envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
-			MaxSessions:           envInt("EVEY_TRANSCODING_MAX_SESSIONS", 0),
-			CacheMaxGB:            envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
-			CacheDir:              envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
-			HWAccelEnabled:        envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
-			HWBackend:             strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_BACKEND", ""))),
-			HWMode:                strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_MODE", ""))),
-			HWFirstSegmentTimeout: envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 5*time.Second),
-			HWPerVariant:          envBool("EVEY_TRANSCODING_HW_PER_VARIANT", false),
-			SingleVariant:         envBool("EVEY_TRANSCODING_SINGLE_VARIANT", false),
-			SingleRendition:       envBool("EVEY_TRANSCODING_SINGLE_RENDITION", true),
-			TrickplayCacheDir:     envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
-			AudioRenditionEnabled: envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", false),
-			BenchSDRSamplePath:    envStr("EVEY_BENCH_SDR_SAMPLE", ""),
-			BenchSDRSampleURL:     envStr("EVEY_BENCH_SDR_SAMPLE_URL", ""),
-			BenchSDRSampleSHA256:  envStr("EVEY_BENCH_SDR_SAMPLE_SHA256", ""),
-			BenchHDRSamplePath:    envStr("EVEY_BENCH_HDR_SAMPLE", ""),
-			BenchHDRSampleURL:     envStr("EVEY_BENCH_HDR_SAMPLE_URL", ""),
-			BenchHDRSampleSHA256:  envStr("EVEY_BENCH_HDR_SAMPLE_SHA256", ""),
+			MaxConcurrent:                envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
+			MaxSessions:                  envInt("EVEY_TRANSCODING_MAX_SESSIONS", 0),
+			CacheMaxGB:                   envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
+			CacheDir:                     envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
+			HWAccelEnabled:               envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
+			HWBackend:                    strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_BACKEND", ""))),
+			HWMode:                       strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_MODE", ""))),
+			HWFirstSegmentTimeout:        envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 5*time.Second),
+			HWPerVariant:                 envBool("EVEY_TRANSCODING_HW_PER_VARIANT", false),
+			SingleVariant:                envBool("EVEY_TRANSCODING_SINGLE_VARIANT", false),
+			SingleRendition:              envBool("EVEY_TRANSCODING_SINGLE_RENDITION", true),
+			SoftwareMaxHeightOverride:    envInt("EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT", 0),
+			SoftwareHDRMaxHeightOverride: envInt("EVEY_TRANSCODING_SOFTWARE_HDR_MAX_HEIGHT", 0),
+			TrickplayCacheDir:            envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
+			AudioRenditionEnabled:        envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", false),
+			BenchSDRSamplePath:           envStr("EVEY_BENCH_SDR_SAMPLE", ""),
+			BenchSDRSampleURL:            envStr("EVEY_BENCH_SDR_SAMPLE_URL", ""),
+			BenchSDRSampleSHA256:         envStr("EVEY_BENCH_SDR_SAMPLE_SHA256", ""),
+			BenchHDRSamplePath:           envStr("EVEY_BENCH_HDR_SAMPLE", ""),
+			BenchHDRSampleURL:            envStr("EVEY_BENCH_HDR_SAMPLE_URL", ""),
+			BenchHDRSampleSHA256:         envStr("EVEY_BENCH_HDR_SAMPLE_SHA256", ""),
 		},
 		OIDC: OIDCConfig{
 			Enabled:             envBool("EVEY_OIDC_ENABLED", false),
