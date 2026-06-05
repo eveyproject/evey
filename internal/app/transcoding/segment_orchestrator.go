@@ -1292,6 +1292,30 @@ func (o *SegmentOrchestrator) RemoveSession(mediaItemID string) {
 // `defer` it without ambiguity.
 func (o *SegmentOrchestrator) CleanupAll() { o.Close() }
 
+// Compile-time assertion: the orchestrator IS the hardware StreamProducer.
+// It already carried EnsureSegmentRange / PreWarm / NotifyClientHint /
+// ActiveSessionCount / RemoveSession / Close; Profiles + WaitBudget below
+// complete the interface. The behaviour of every pre-existing method is
+// unchanged — this is the HW impl behind the seam.
+var _ StreamProducer = (*SegmentOrchestrator)(nil)
+
+// WaitBudget is how long the segment handler should block on cache.Wait for an
+// orchestrated (hardware) segment. The HW path bursts ahead and lands segment
+// 0 within a few seconds on a working GPU, so 25 s is a generous worst-case
+// cold-start window (it matches the handler's historical segmentWaitTimeout).
+func (o *SegmentOrchestrator) WaitBudget() time.Duration { return 25 * time.Second }
+
+// Profiles shapes the ABR ladder for the HARDWARE path: the full ladder (a GPU
+// parallelises rungs cheaply) capped to the source resolution and the host's
+// calibrated HW ceiling. Pure in its inputs — the same (base, src, capacity)
+// yields the same ladder at manifest-time and segment-time, the cache-hash
+// invariant. decision is unused here (the HW path keeps every rung); it is
+// part of the interface so the software producer can branch on HDR.
+func (o *SegmentOrchestrator) Profiles(base []transcoding.HLSProfile, src SourceDims, _ transcoding.PlaybackDecision, capacity transcoding.EncodeCapability) []transcoding.HLSProfile {
+	sourceCapped := transcoding.CapLadderToSource(base, src.Width, src.Height)
+	return transcoding.CapLadderToHeight(sourceCapped, capacity.MaxHeightFor(true))
+}
+
 // profilesToDomain converts the cache fingerprint profiles into the domain
 // type expected by the ffmpeg adapter. Both shapes carry essentially the same
 // data (the domain type has extra fields we don't need in the fingerprint).

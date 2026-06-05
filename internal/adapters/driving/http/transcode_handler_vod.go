@@ -42,8 +42,23 @@ type hlsVODServe struct {
 	audioNormalizeGetter func(ctx context.Context) bool
 	userMaxStreams       UserMaxStreamsGetter
 
-	manifestGen  *apptranscoding.ManifestGenerator
-	cache        *apptranscoding.SegmentCache
+	manifestGen *apptranscoding.ManifestGenerator
+	cache       *apptranscoding.SegmentCache
+
+	// selector routes each request to the software or hardware StreamProducer.
+	// The software producer is the long-lived, input-paced, single-rendition
+	// Jellyfin model (sane on a weak NAS with hw_accel off); the hardware
+	// producer is the multi-session burst-ahead orchestrator (a GPU
+	// parallelises rungs cheaply). The selector's For(decision, src) decides —
+	// it reuses resolveHW so the manifest, the fingerprint, and the routing
+	// never disagree on which path a request takes. Nil in hand-built test
+	// handlers, which then fall back to the orchestrator field below.
+	selector *apptranscoding.ProducerSelector
+
+	// orchestrator is the hardware StreamProducer (the multi-session rafale
+	// machine). Production wires it INSIDE the selector; this field is the
+	// no-selector fallback so tests that construct the handler by hand keep a
+	// working producer. When the selector is set it takes precedence.
 	orchestrator *apptranscoding.SegmentOrchestrator
 
 	// qoeSink ingests CMCD telemetry from segment requests. Nil when QoE is
@@ -321,7 +336,9 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// PreWarm runs in a goroutine bound to the orchestrator's shutdownCtx
 	// so Close() cancels every in-flight pre-warm (clean test teardown).
 	if fp, fpErr := h.buildFingerprint(r, mediaID, item, streams); fpErr == nil {
-		h.orchestrator.PreWarm(fp, 0)
+		if producer := h.producerForRequest(r.Context(), r, streams, item.File.ContainerFormat); producer != nil {
+			producer.PreWarm(fp, 0)
+		}
 	}
 }
 
@@ -334,15 +351,26 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		segmentIdx, _ = strconv.Atoi(m[2])
 	}
 
+	// Resolve the producer for this request (software vs hardware) ONCE so the
+	// EnsureSegmentRange calls, the client-hint, and the wait budget all target
+	// the same machine — and the same one the ladder was shaped for. Falls back
+	// to the orchestrator when no selector is wired (degenerate setups).
+	producer := h.producerForRequest(r.Context(), r, streams, item.File.ContainerFormat)
+	if producer == nil {
+		span.SetStatus(codes.Error, "no stream producer wired")
+		http.Error(w, `{"message":"transcode unavailable"}`, http.StatusServiceUnavailable)
+		return
+	}
+
 	// CMCD ingest (CTA-5004). Parsed and shipped to the QoE sink before we
 	// do anything that can 5xx — we want telemetry even on failure paths.
 	// Sink is non-blocking; an absent payload is the no-op common case.
 	h.ingestCMCD(r, mediaID, variantIdx, segmentIdx, isInit, false, false)
-	// Phase 3 feedback loop: forward the CMCD signal to the orchestrator so
-	// it can wake up a paused ffmpeg on starvation and stretch the prefetch
-	// window when the client has a fat buffer. NEVER changes which variant
-	// is served — that's the player's call.
-	h.notifyOrchestratorHint(r, mediaID, segmentIdx)
+	// Phase 3 feedback loop: forward the CMCD signal to the producer so it can
+	// wake up a paused ffmpeg on starvation and stretch the prefetch window when
+	// the client has a fat buffer. NEVER changes which variant is served — that's
+	// the player's call.
+	h.notifyProducerHint(producer, r, mediaID, segmentIdx)
 
 	fp, err := h.buildFingerprint(r, mediaID, item, streams)
 	if err != nil {
@@ -353,46 +381,39 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// Ensure ffmpeg is producing the right rafale. Async — we then block on
 	// SegmentCache.Wait below for the specific file. Init segments piggyback
 	// on the first rafale (they are produced alongside segment 0 by fMP4 hls
-	// muxer).
-	if !isInit {
-		if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, variantIdx, segmentIdx); err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "ensure segment range")
-			if errors.Is(err, apptranscoding.ErrCapacityExceeded) {
-				// Host at its global transcode cap — shed load gracefully. hls.js
-				// retries a 503 on a fragment fetch, so playback resumes once a
-				// slot frees instead of melting the CPU.
-				slog.Warn("hls-vod: at capacity, shedding segment",
-					slog.String("media_id", mediaID),
-					slog.Int("seg", segmentIdx))
-				w.Header().Set("Retry-After", "2")
-				http.Error(w, `{"message":"server at transcode capacity, retry"}`, http.StatusServiceUnavailable)
-				return
-			}
-			slog.Warn("hls-vod: ensure failed",
-				slog.String("media_id", mediaID),
-				slog.Int("variant", variantIdx),
-				slog.Int("seg", segmentIdx),
-				slog.Any("err", err))
-			http.Error(w, `{"message":"transcode unavailable"}`, http.StatusServiceUnavailable)
-			return
-		}
-	} else {
+	// muxer). The software producer never returns ErrCapacityExceeded; only the
+	// hardware orchestrator does (its global concurrency cap), so the 503 branch
+	// is hardware-only by construction.
+	ensureSeg := segmentIdx
+	if isInit {
 		// Init segments are emitted alongside the first rafale for this rung.
-		// Pass variantIdx so in single-variant mode the correct per-rung
-		// session is created (or reused). In multi-variant mode variantIdx
-		// is forwarded but the session covers all rungs anyway.
-		if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, variantIdx, 0); err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "ensure init range")
-			if errors.Is(err, apptranscoding.ErrCapacityExceeded) {
-				w.Header().Set("Retry-After", "2")
-				http.Error(w, `{"message":"server at transcode capacity, retry"}`, http.StatusServiceUnavailable)
-				return
-			}
-			http.Error(w, `{"message":"transcode unavailable"}`, http.StatusServiceUnavailable)
+		// Pass variantIdx so in single-variant mode the correct per-rung session
+		// is created (or reused). In multi-variant mode variantIdx is forwarded
+		// but the session covers all rungs anyway.
+		ensureSeg = 0
+	}
+	if err := producer.EnsureSegmentRange(r.Context(), fp, variantIdx, ensureSeg); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "ensure segment range")
+		if errors.Is(err, apptranscoding.ErrCapacityExceeded) {
+			// Host at its global transcode cap (hardware path) — shed load
+			// gracefully. hls.js retries a 503 on a fragment fetch, so playback
+			// resumes once a slot frees instead of melting the CPU.
+			slog.Warn("hls-vod: at capacity, shedding segment",
+				slog.String("media_id", mediaID),
+				slog.Int("seg", segmentIdx))
+			w.Header().Set("Retry-After", "2")
+			http.Error(w, `{"message":"server at transcode capacity, retry"}`, http.StatusServiceUnavailable)
 			return
 		}
+		slog.Warn("hls-vod: ensure failed",
+			slog.String("media_id", mediaID),
+			slog.Int("variant", variantIdx),
+			slog.Int("seg", segmentIdx),
+			slog.Bool("init", isInit),
+			slog.Any("err", err))
+		http.Error(w, `{"message":"transcode unavailable"}`, http.StatusServiceUnavailable)
+		return
 	}
 
 	key := apptranscoding.SegmentKey{
@@ -402,9 +423,13 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		IsInit:       isInit,
 	}
 
-	waitCtx, cancel := context.WithTimeout(r.Context(), h.segmentWaitTimeout)
+	// The wait budget is producer-specific: the hardware orchestrator bursts
+	// ahead and lands segment 0 fast (~25 s worst case), while the single paced
+	// software encoder is slower and the client is expected to wait (~60 s).
+	waitBudget := producer.WaitBudget()
+	waitCtx, cancel := context.WithTimeout(r.Context(), waitBudget)
 	defer cancel()
-	if err := h.cache.Wait(waitCtx, key, fp.UseFMP4, h.segmentWaitTimeout); err != nil {
+	if err := h.cache.Wait(waitCtx, key, fp.UseFMP4, waitBudget); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "segment wait timeout")
 		slog.Warn("hls-vod: segment timeout",
@@ -694,89 +719,113 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 			class = entry.Class
 		}
 	}
-	ladder := domaintranscoding.LadderFor(class)
-	// Source resolution comes from the first video stream's dimensions.
-	// Streams may be missing (degenerate file) — CapLadderToSource handles
-	// zero values as "unknown, don't cap". Width/Height are *int on the
-	// MediaStream domain type so a missing probe doesn't conflate "unknown"
-	// with "zero pixels".
-	var srcW, srcH int
-	var srcCodec string
-	var srcTenBit bool
+	// COMMON HEAD (shared by both producers): pick the per-title ladder. The
+	// PRODUCER's pure Profiles() owns the tail — source cap + height ceiling +
+	// (software) single-rendition collapse — so the manifest-time and
+	// segment-time shaping is identical and routes through the SAME producer
+	// (the cache-hash invariant: drift here = permanent cache miss).
+	base := domaintranscoding.LadderFor(class)
+	src := sourceDimsOf(streams)
+
+	capability := domaintranscoding.SafeFallback()
+	if h.capability != nil {
+		capability = h.capability()
+	}
+
+	var laddered []domaintranscoding.HLSProfile
+	if h.selector != nil {
+		// Production path: the wired selector routes to the software or hardware
+		// producer (reusing resolveHW), and the producer's pure Profiles() owns
+		// the shaping tail. This is the single source of truth for ladder shape;
+		// manifest-time and segment-time both reach it via the same selector.
+		laddered = h.selector.For(decision, src).Profiles(base, src, decision, capability)
+	} else {
+		// No selector wired (hand-constructed test handlers). Reproduce the
+		// legacy shaping so unit tests that probe profilesForDecision directly
+		// keep their contract without standing up a full producer pair.
+		laddered = h.legacyProfileShaping(base, src, streams, decision, capability)
+	}
+
+	// CMCD-feedback adaptive override (Phase C). Variant-neutral: it only lowers
+	// the ceiling on a source-class showing sustained starvation (MIN with the
+	// benchmark cap), never raises it. Kept in the handler (not the pure
+	// Profiles) because the override is mutable runtime state read from
+	// playback_qoe_events. Applied AFTER the producer shaped the ladder so it
+	// trims the result identically at manifest- and segment-time (the override
+	// value is stable across a request pair).
+	if h.capOverride != nil && src.Height > 0 {
+		if ov, ok := h.capOverride(sourceVideoCodec(streams), src.Height); ok && ov.MaxHeight > 0 {
+			laddered = domaintranscoding.CapLadderToHeight(laddered, ov.MaxHeight)
+		}
+	}
+	return laddered
+}
+
+// sourceDimsOf extracts the first video stream's resolution + 10-bit flag.
+// Streams may be missing (degenerate file) — zero Width/Height is handled by
+// CapLadderToSource as "unknown, don't cap". Width/Height are *int on the
+// domain type so a missing probe doesn't conflate "unknown" with "zero pixels".
+func sourceDimsOf(streams []*domainlibrary.MediaStream) apptranscoding.SourceDims {
+	var dims apptranscoding.SourceDims
 	for _, s := range streams {
 		if s != nil && s.StreamType == "video" {
 			if s.Width != nil {
-				srcW = *s.Width
+				dims.Width = *s.Width
 			}
 			if s.Height != nil {
-				srcH = *s.Height
+				dims.Height = *s.Height
 			}
-			srcCodec = s.Codec
-			srcTenBit = streamIsTenBit(s)
+			dims.Codec = s.Codec
+			dims.TenBit = streamIsTenBit(s)
 			break
 		}
 	}
-	capped := domaintranscoding.CapLadderToSource(ladder, srcW, srcH)
-	// Apply the host's calibrated encode ceiling. The CalibrationService
-	// has benchmarked libx264 + any available HW backend at boot and
-	// knows the tallest rung this CPU/GPU can sustain at >= 1.2× realtime.
-	// Without this cap, a single-ffmpeg multi-variant pipeline would be
-	// bottlenecked by the heaviest rung on weak hosts (Raspberry Pi,
-	// Synology NAS) — segment 0 would never land in time and the player
-	// would loop on rebuffer.
-	//
-	// HW ceiling is applied only when resolveHW confirms the request will
-	// actually take the hardware path (flag on + calibrated backend that can
-	// encode the chosen codec). Otherwise the software ceiling holds, so a
-	// weak host never advertises a rung it can't sustain.
-	// hwUsable decides the software vs HW path. Hoisted to function scope so the
-	// single-rendition collapse at the end can branch on it (software boxes can't
-	// sustain a parallel ABR ladder).
-	hwUsable := false
-	maxH := 720 // safe floor if capability isn't wired yet (tests / dev w/o calibration)
-	if h.capability != nil {
-		cap := h.capability()
-		_, _, _, hwUsable = h.resolveHW(decision.VideoCodec, srcCodec, srcTenBit, h.hwTonemapWanted(decision))
-		maxH = cap.MaxHeightFor(hwUsable)
-		// HDR->SDR in software is far heavier than the plain software bench
-		// (10-bit decode + zscale tonemap). When this content tone-maps on the
-		// SOFTWARE path (no usable HW tone-mapper — the common weak-box case), cap
-		// to the dedicated HDR ceiling so the box stays real-time: degrade
-		// resolution to keep playback fluid. When HW tone-maps (hwUsable), the GPU
-		// folds it cheaply and the normal ceiling holds.
-		if !hwUsable && cap.SoftwareHDRMaxHeight > 0 &&
-			cap.SoftwareHDRMaxHeight < maxH &&
-			slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
-			maxH = cap.SoftwareHDRMaxHeight
-		}
+	return dims
+}
+
+// producerForRequest resolves the StreamProducer (software vs hardware) for the
+// current request. It recomputes the decision + source dims the same way the
+// manifest/fingerprint path does, so the producer chosen for a segment matches
+// the one the ladder was shaped for (and thus the cache hash). Falls back to
+// the orchestrator field when no selector is wired (hand-built test handlers);
+// returns nil only when neither is set.
+func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, streams []*domainlibrary.MediaStream, container string) apptranscoding.StreamProducer {
+	if h.selector != nil {
+		decision := h.makeDecision(ctx, streams, container, r)
+		return h.selector.For(decision, sourceDimsOf(streams))
 	}
-	// CMCD-feedback adaptive override (Phase C). The override service
-	// watches playback_qoe_events and writes a downward cap when a
-	// source-class shows sustained starvation — typically "4K transcode
-	// keeps starving viewers, drop the 4K bucket to 1080p". We apply
-	// MIN(benchmark_cap, override_cap) so an override only lowers the
-	// ceiling, never raises it.
-	if h.capOverride != nil && srcH > 0 {
-		if ov, ok := h.capOverride(srcCodec, srcH); ok && ov.MaxHeight > 0 && ov.MaxHeight < maxH {
-			maxH = ov.MaxHeight
+	if h.orchestrator != nil {
+		return h.orchestrator
+	}
+	return nil
+}
+
+// legacyProfileShaping reproduces the pre-seam ladder tail for hand-built test
+// handlers that have no wired selector. Production NEVER takes this path — it
+// routes through h.selector to the real software/hardware producer (whose pure
+// Profiles owns the shaping). Kept verbatim with the historical behaviour
+// (software single-rendition collapses to the 1080p Jellyfin-parity rung) so
+// the existing profilesForDecision unit tests retain their contract; the real
+// SoftwareProducer.Profiles implements the corrected ceiling (the sustainable
+// software HDR height) exercised by the producer-switch tests.
+func (h *hlsVODServe) legacyProfileShaping(base []domaintranscoding.HLSProfile, src apptranscoding.SourceDims, streams []*domainlibrary.MediaStream, decision domaintranscoding.PlaybackDecision, capability domaintranscoding.EncodeCapability) []domaintranscoding.HLSProfile {
+	capped := domaintranscoding.CapLadderToSource(base, src.Width, src.Height)
+
+	hwUsable := false
+	maxH := 720
+	if h.capability != nil {
+		_, _, _, hwUsable = h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams), src.TenBit, h.hwTonemapWanted(decision))
+		maxH = capability.MaxHeightFor(hwUsable)
+		if !hwUsable && capability.SoftwareHDRMaxHeight > 0 &&
+			capability.SoftwareHDRMaxHeight < maxH &&
+			slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
+			maxH = capability.SoftwareHDRMaxHeight
 		}
 	}
 	laddered := domaintranscoding.CapLadderToHeight(capped, maxH)
-	// Single-rendition: a software-transcoding box can't sustain a parallel ABR
-	// ladder. The player probes/switches across rungs, each spawning its own
-	// transcode session; a host that runs ONE 4K HDR transcode at a time starves
-	// them all, the orchestrator kills/evicts mid-segment, the client 503-loops,
-	// and it thrashes (the 360p-with-buffering loop). Collapse to ONE rung — one
-	// session, nothing to probe — the Jellyfin single-rendition model.
-	//
-	// Crucially the single rung is sized to softwareSingleRenditionMaxHeight
-	// (1080p, Jellyfin-parity), NOT the conservative SoftwareHDRMaxHeight cap:
-	// that cap was calibrated for the PARALLEL ladder (N concurrent encodes). One
-	// on-demand encode sustains 1080p HDR on a box that can't run the 3-rung
-	// parallel ladder — exactly the trade Jellyfin makes. HW paths keep the full
-	// ladder (a GPU parallelises rungs cheaply).
+
 	if !hwUsable && h.singleRendition {
-		const softwareSingleRenditionMaxHeight = 1080 // Jellyfin-parity ceiling for one on-demand encode
+		const softwareSingleRenditionMaxHeight = 1080
 		sr := domaintranscoding.CapLadderToHeight(capped, softwareSingleRenditionMaxHeight)
 		if len(sr) > 0 {
 			top := sr[0]
@@ -841,8 +890,9 @@ func (r *MediaSourceResolver) ResolveSource(ctx context.Context, fp apptranscodi
 }
 
 // newHLSVODServe binds the handler to the orchestrator + cache that wire.go
-// has already built. Returns nil if either prerequisite is missing so the
-// caller skips route registration cleanly.
+// has already built, and constructs the software producer + the selector that
+// routes each request between them. Returns nil if a prerequisite is missing so
+// the caller skips route registration cleanly.
 func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryAccessChecker, parental ParentalChecker) *hlsVODServe {
 	_ = libAccess // wired through commonAuth via s.LibraryAccessRepo
 	if s == nil || s.HLSVODOrch == nil || s.HLSVODCache == nil {
@@ -850,7 +900,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	}
 	cache := s.HLSVODCache
 	orch := s.HLSVODOrch
-	return &hlsVODServe{
+	h := &hlsVODServe{
 		tokens:               s.TokenGen,
 		libSvc:               libSvc,
 		libraryAccess:        libAccess,
@@ -911,6 +961,35 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 			return s.Cfg.Metadata.Language
 		},
 	}
+
+	// Build the software producer: ONE long-lived, input-paced (-readrate 1.5),
+	// single-rendition ffmpeg per DecisionHash — the Jellyfin model for a weak
+	// NAS with hw_accel off (no multi-session burst-ahead, no global capacity
+	// cap, no per-segment deadline kill). It shares the addressable SegmentCache
+	// with the orchestrator (segments are encoder-agnostic), and resolves the
+	// source path through the same MediaSourceResolver the orchestrator uses.
+	software := apptranscoding.NewSoftwareProducer(
+		cache,
+		s.HLSTranscoder,
+		&MediaSourceResolver{LibSvc: libSvc},
+		apptranscoding.SoftwareProducerOptions{}, // defaults: ReadRate 1.5, 30 min GC, 60 s wait budget
+		slog.Default(),
+	)
+
+	// The selector routes each request: software unless resolveHW confirms the
+	// hardware path is usable end-to-end for this content. hwUsableForContent
+	// reuses the handler's resolveHW + hwTonemapWanted so the routing matches
+	// exactly what tags the fingerprint (HW vs SW segments share the cache).
+	h.selector = apptranscoding.NewProducerSelector(
+		software,
+		orch,
+		func(decision domaintranscoding.PlaybackDecision, src apptranscoding.SourceDims) bool {
+			_, _, _, usable := h.resolveHW(decision.VideoCodec, src.Codec, src.TenBit, h.hwTonemapWanted(decision))
+			return usable
+		},
+	)
+
+	return h
 }
 
 // ---- small parsing helpers (kept private to this file) ----
@@ -1016,10 +1095,25 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.orchestrator.EnsureSegmentRange(r.Context(), fp, 0, 0); err != nil {
+	// Route the warm-up through the SAME producer the player will use for this
+	// next episode (software vs hardware) so the warmed segments land in the
+	// cache bucket the player reads. Resolve from the next item's container +
+	// streams.
+	container := ""
+	if nextItem.File != nil {
+		container = nextItem.File.ContainerFormat
+	}
+	producer := h.producerForRequest(r.Context(), r, streams, container)
+	if producer == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, `{"next_media_item_id":%q}`+"\n", string(nextItem.ID))
+		return
+	}
+	if err := producer.EnsureSegmentRange(r.Context(), fp, 0, 0); err != nil {
 		// Don't fail the response — the player will reach a cold cache
 		// on switch, just no faster than before.
-		slog.Warn("prewarm: orchestrator EnsureSegmentRange failed",
+		slog.Warn("prewarm: producer EnsureSegmentRange failed",
 			slog.String("next_id", string(nextItem.ID)), slog.Any("err", err))
 	} else {
 		slog.Info("prewarm: rafale spawned for next episode",
@@ -1085,15 +1179,16 @@ func (h *hlsVODServe) ingestCMCD(r *http.Request, mediaID string, variantIdx, se
 	})
 }
 
-// notifyOrchestratorHint forwards CMCD telemetry (buffer length, starvation
-// flag, current segment cursor) to the orchestrator's NotifyClientHint so
-// the throttle / prefetch policy can react in real time. Read-only on the
-// HTTP path — never blocks, never errors. No-op when CMCD is absent.
+// notifyProducerHint forwards CMCD telemetry (buffer length, starvation flag,
+// current segment cursor) to the resolved producer's NotifyClientHint so the
+// throttle / prefetch / pacing policy can react in real time. Read-only on the
+// HTTP path — never blocks, never errors. No-op when CMCD is absent or no
+// producer resolved.
 //
 // NEVER touches which variant is served — the player owns rendition
-// selection. Phase 3 feedback loop only adjusts encoder pacing.
-func (h *hlsVODServe) notifyOrchestratorHint(r *http.Request, mediaID string, segmentIdx int) {
-	if h.orchestrator == nil {
+// selection. The feedback loop only adjusts encoder pacing.
+func (h *hlsVODServe) notifyProducerHint(producer apptranscoding.StreamProducer, r *http.Request, mediaID string, segmentIdx int) {
+	if producer == nil {
 		return
 	}
 	payload, ok := cmcd.FromRequest(r)
@@ -1103,5 +1198,5 @@ func (h *hlsVODServe) notifyOrchestratorHint(r *http.Request, mediaID string, se
 	// Bare-minimum signals: buffer length (ms) and starvation flag drive
 	// the policy. Object type "v"/"av" matters most (video pipeline),
 	// audio-only fetches can still bump clientHighWater forward harmlessly.
-	h.orchestrator.NotifyClientHint(mediaID, payload.BufferLengthMs, payload.BufferStarved, segmentIdx)
+	producer.NotifyClientHint(mediaID, payload.BufferLengthMs, payload.BufferStarved, segmentIdx)
 }
