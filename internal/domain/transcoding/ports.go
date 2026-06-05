@@ -112,7 +112,13 @@ type HLSProcessOpts struct {
 	HWTonemap      bool
 	AudioNormalize bool
 	StartSec       float64
-	Streams        []*library.MediaStream
+	// ReadRate paces ffmpeg's input to N× real-time (`-readrate N`, a pre-`-i`
+	// flag) so a single long-lived encoder stays close to wall-clock and doesn't
+	// burn CPU racing ahead of the viewer. 0 (default) = no pacing — byte-identical
+	// to today. Only the single-ffmpeg SOFTWARE producer sets it (≈1.5); the HW
+	// orchestrator leaves it 0 and relies on its burst-ahead + SIGSTOP throttle.
+	ReadRate float64
+	Streams  []*library.MediaStream
 
 	// Overrides propagated from the playback decision. Empty / zero values
 	// preserve the previous default behavior (libx264 + aac + 2-channel + burn-in

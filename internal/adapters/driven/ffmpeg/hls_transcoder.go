@@ -630,25 +630,22 @@ const softwareCRF = "23"
 // expr form is fps-independent. Negligible bitrate cost at a 3s cadence.
 var hlsForceKeyframesArgs = []string{"-force_key_frames", "expr:gte(t,n_forced*" + hlsSegmentSeconds + ")"}
 
-// appendInputModifiers is the hook for pre-`-i` flags. It used to add
-// `-readrate 1.5` so ffmpeg stayed close to real-time and didn't waste CPU
-// on segments the viewer would never reach.
+// appendInputModifiers is the hook for pre-`-i` flags. It emits `-readrate N`
+// (input pacing: read the source at N× real-time) ONLY when readRate > 0.
 //
-// The cap is now removed: with the SegmentOrchestrator's adaptive throttle
-// (SIGSTOP when the client is too far ahead, SIGCONT on CMCD bs=1 or when
-// the client catches up) the same goal — "don't burn CPU past what the
-// client needs" — is enforced more precisely AND without crippling the
-// cold start. On a 4K HEVC source, software decode runs near 1× real-time;
-// with -readrate 1.5 the first 6 s segment took ~6 s wall-clock to produce
-// — over hls.js's per-fragment timeout, so the player gave up on every
-// variant and the stream never started. Removing the cap lets the encoder
-// burn CPU on segments 0-N until the throttle kicks in once the client has
-// a healthy buffer ahead.
-//
-// Kept as a function (rather than inlined) so a future per-job cap (e.g.
-// "throttle harder when N concurrent ffmpeg" / config knob) has an
-// obvious place to hook.
-func appendInputModifiers(args []string) []string {
+// Pacing is per-producer, not global. The multi-rafale HW orchestrator leaves
+// readRate=0 and burns CPU on segments 0-N until its adaptive throttle (SIGSTOP
+// when the client is far ahead, SIGCONT on CMCD bs=1) kicks in — removing the
+// cap there fixed the cold-start it used to cripple (-readrate 1.5 made the
+// first 4K segment land over hls.js's per-fragment timeout). The single
+// long-lived SOFTWARE producer sets readRate≈1.5: with ONE sequential encoder
+// and a client that waits (not abort-and-probe), pacing keeps ffmpeg near
+// wall-clock so it never races the whole film ahead of the viewer. readRate=0
+// keeps the output byte-identical to today.
+func appendInputModifiers(args []string, readRate float64) []string {
+	if readRate > 0 {
+		args = append(args, "-readrate", fmt.Sprintf("%g", readRate))
+	}
 	return args
 }
 
@@ -743,7 +740,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		// remux), no -muxpreload/muxdelay (conflicts with -copyts), no
 		// -tune zerolatency (was the culprit of the earlier -20s drift).
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
-		args = appendInputModifiers(args)
+		args = appendInputModifiers(args, opts.ReadRate)
 		args = append(args, "-i", opts.FilePath)
 		args = append(args, "-map", "0:v:0")
 		if hasAudio(opts) {
@@ -766,7 +763,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 			"-start_at_zero",
 		)
 	} else {
-		args = appendInputModifiers(args)
+		args = appendInputModifiers(args, opts.ReadRate)
 		args = append(args, "-i", opts.FilePath)
 		args = append(args, "-map", "0:v:0")
 		if hasAudio(opts) {
@@ -830,7 +827,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
-	args = appendInputModifiers(args)
+	args = appendInputModifiers(args, opts.ReadRate)
 	args = append(args, "-i", opts.FilePath)
 
 	if burnIn || toneMap != "" {
@@ -905,7 +902,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
-	args = appendInputModifiers(args)
+	args = appendInputModifiers(args, opts.ReadRate)
 	args = append(args, "-i", opts.FilePath)
 	// Preserve source PTS in the output so an fMP4 fragment carries a
 	// tfdt that matches the EXTINF position the Go-precomputed VOD
@@ -1249,7 +1246,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
 	args = append(args, hwInitArgs(opts.HWAccel, opts.HWDevice)...)
-	args = appendInputModifiers(args)
+	args = appendInputModifiers(args, opts.ReadRate)
 	args = append(args, "-i", opts.FilePath)
 
 	vf := hwScaleFilter(opts.HWAccel, p.Width)
@@ -1283,7 +1280,7 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
 	args = append(args, hwInitArgs(opts.HWAccel, opts.HWDevice)...)
-	args = appendInputModifiers(args)
+	args = appendInputModifiers(args, opts.ReadRate)
 	args = append(args, "-i", opts.FilePath)
 	// Same source-PTS preservation as the software multi-variant builder: a
 	// rafale spawned at seg N>0 must emit fMP4 fragments whose tfdt matches the
@@ -1340,7 +1337,7 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
-	args = appendInputModifiers(args)
+	args = appendInputModifiers(args, 0) // audio rendition is light; no input pacing
 	args = append(args, "-i", opts.FilePath)
 
 	// Suppress all video streams; only the selected audio track is muxed.

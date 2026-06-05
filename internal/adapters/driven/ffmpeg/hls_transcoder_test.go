@@ -112,11 +112,11 @@ func TestBuildFFmpegArgs_ModeA_AllCopy(t *testing.T) {
 // snaps to the live edge (eliminates the drift-jump on long playback).
 // Disk cleanup is guaranteed by HLSSession.stop() → os.RemoveAll(OutputDir).
 //
-// Note: -readrate was removed (commit: 4K cold start fix). The
-// SegmentOrchestrator's adaptive throttle (SIGSTOP when client is too far
-// ahead, SIGCONT on CMCD bs=1) replaces the goal more precisely AND lets
-// ffmpeg burn CPU during cold start. Asserting -readrate's presence would
-// regress that fix.
+// Note: -readrate is now PER-PRODUCER (HLSProcessOpts.ReadRate). The default
+// (0) emits no -readrate — byte-identical to the multi-rafale HW/orchestrator
+// path, which relies on its adaptive SIGSTOP/SIGCONT throttle and must NOT be
+// input-paced (it cripples cold start). The single-ffmpeg software producer
+// opts in (ReadRate>0); see TestBuildFFmpegArgs_ReadRatePacing.
 func TestBuildFFmpegArgs_BoundedCacheArgs(t *testing.T) {
 	cases := []struct {
 		name string
@@ -150,13 +150,37 @@ func TestBuildFFmpegArgs_BoundedCacheArgs(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			joined := strings.Join(ffmpeg.BuildFFmpegArgs(tc.opts), " ")
-			assert.NotContains(t, joined, "-readrate", "readrate has been retired in favour of the orchestrator's adaptive throttle; reintroducing it cripples cold start")
+			assert.NotContains(t, joined, "-readrate", "default ReadRate=0 must emit no -readrate — byte-identical to the HW/orchestrator path")
 			assert.Contains(t, joined, "-hls_list_size 0", "playlist must be unbounded (event-type, growing) to avoid drift-out on long playback")
 			assert.Contains(t, joined, "-hls_playlist_type event", "playlist must be marked event so hls.js doesn't snap to liveSyncPosition")
 			assert.Contains(t, joined, "-hls_flags temp_file", "temp_file flag makes ffmpeg rename segments atomically — eliminates read-while-write races (audit indies: Stash pattern, free with this flag)")
 			assert.NotContains(t, joined, "delete_segments", "delete_segments must not be set — session.stop() cleans up the OutputDir")
 		})
 	}
+}
+
+// TestBuildFFmpegArgs_ReadRatePacing locks the per-producer input pacing:
+// ReadRate=0 (the HW/orchestrator default) emits no -readrate; ReadRate>0 (the
+// single-ffmpeg software producer) emits `-readrate N` as a pre-`-i` flag so
+// the lone encoder stays near wall-clock. This is the Phase-0 plumbing for the
+// software-flow decoupling — inert until a producer sets ReadRate.
+func TestBuildFFmpegArgs_ReadRatePacing(t *testing.T) {
+	base := transcoding.HLSProcessOpts{
+		OutputDir: "/tmp/t", FilePath: "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles[:1],
+		VideoDecision: "transcode", AudioDecision: "copy",
+	}
+
+	off := strings.Join(ffmpeg.BuildFFmpegArgs(base), " ")
+	assert.NotContains(t, off, "-readrate", "ReadRate=0 must not pace the input (HW/orchestrator default)")
+
+	paced := base
+	paced.ReadRate = 1.5
+	on := strings.Join(ffmpeg.BuildFFmpegArgs(paced), " ")
+	assert.Contains(t, on, "-readrate 1.5", "ReadRate=1.5 must emit `-readrate 1.5` (software producer pacing)")
+	// Must be a PRE-input flag: -readrate appears before -i.
+	assert.Less(t, strings.Index(on, "-readrate"), strings.Index(on, "-i "),
+		"-readrate is an input option and must precede -i")
 }
 
 func TestBuildFFmpegArgs_ModeB_MultiVariant(t *testing.T) {
