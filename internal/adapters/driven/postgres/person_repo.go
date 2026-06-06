@@ -36,13 +36,21 @@ func (r *PersonRepository) Create(ctx context.Context, person *library.Person) e
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	_, err = r.db.ExecContext(ctx,
+	// RETURNING id so person.ID reflects the PERSISTED row. A concurrent
+	// enrichment can create the same person (unique name) between the caller's
+	// GetByName miss and this insert; a plain DO NOTHING would silently keep the
+	// existing row but leave person.ID as the caller's fresh uuid, so the
+	// downstream media_people cast link would target a non-existent person id and
+	// the FK would drop the link. DO UPDATE SET name=name is a no-op that
+	// preserves every existing field while letting RETURNING hand back the
+	// surviving row id.
+	if err = r.db.QueryRowContext(ctx,
 		`INSERT INTO people (id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-		 ON CONFLICT (name) DO NOTHING`,
+		 ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+		 RETURNING id`,
 		person.ID, person.Name, providerJSON, person.ThumbPath, person.Biography, person.Birthday, person.Deathday, person.PlaceOfBirth, person.KnownFor,
-	)
-	if err != nil {
+	).Scan(&person.ID); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err

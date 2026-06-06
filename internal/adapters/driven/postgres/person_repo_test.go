@@ -42,7 +42,15 @@ func TestPersonRepo_Create_Conflict(t *testing.T) {
 	p1 := newTestPerson("pc1", "Bob Jones")
 	p2 := newTestPerson("pc2", "Bob Jones") // same name, different id
 	require.NoError(t, repo.Create(ctx, p1))
-	require.NoError(t, repo.Create(ctx, p2)) // ON CONFLICT DO NOTHING — no error
+	require.NoError(t, repo.Create(ctx, p2)) // conflict on unique name
+
+	// RETURNING id: the conflict path must set p2.ID to the SURVIVING row id, not
+	// keep p2's own uuid — else the enricher's media_people cast link targets a
+	// non-existent person and the FK drops it (concurrent-enrichment race).
+	assert.Equal(t, p1.ID, p2.ID, "create conflict must return the existing person id")
+	got, err := repo.GetByName(ctx, "Bob Jones")
+	require.NoError(t, err)
+	assert.Equal(t, p1.ID, got.ID)
 }
 
 func TestPersonRepo_GetByID(t *testing.T) {
