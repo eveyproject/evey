@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/backup"
 	libevent "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/notification"
@@ -17,6 +16,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/user"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/google/uuid"
 )
 
 type batchEntry struct {
@@ -375,7 +375,12 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 
 	favoritesByProfile, err := s.fetchFavoriteGenres(ctx, profiles, allSettings, notifType, genres)
 	if err != nil {
-		return
+		// A genre-analytics failure must NOT suppress notifications for every
+		// profile. LevelAll profiles don't use genre relevance, so continue with
+		// no favorites: shouldNotify still notifies them, and only Relevant/
+		// HighlyRelevant profiles fail-closed to "no genre match" for this one
+		// notification (err already logged inside fetchFavoriteGenres).
+		favoritesByProfile = nil
 	}
 
 	initialEpCount := 0
@@ -778,4 +783,3 @@ func (s *CommandService) DeletePushByUser(ctx context.Context, userID string) er
 	}
 	return s.subs.DeleteByUser(ctx, userID)
 }
-

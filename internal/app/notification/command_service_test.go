@@ -240,6 +240,48 @@ func TestCommandService_MediaItemAdded_SkipsImageTypes(t *testing.T) {
 	assert.Empty(t, items)
 }
 
+func TestCommandService_MediaItemAdded_AnalyticsErrorStillNotifiesLevelAll(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	ctx := context.Background()
+
+	// p_rel uses genre-relevance (forces the favorite-genres analytics batch call);
+	// p_all is LevelAll (genre-independent).
+	require.NoError(t, profileRepo.Create(ctx, &user.Profile{ID: "p_rel", UserID: "u1", Name: "Rel"}))
+	require.NoError(t, profileRepo.Create(ctx, &user.Profile{ID: "p_all", UserID: "u2", Name: "All"}))
+	require.NoError(t, settings.Upsert(ctx, &notifdom.Settings{ProfileID: "p_rel", MovieLevel: notifdom.LevelRelevant, SeriesLevel: notifdom.LevelAll, MusicLevel: notifdom.LevelAll}))
+	require.NoError(t, settings.Upsert(ctx, &notifdom.Settings{ProfileID: "p_all", MovieLevel: notifdom.LevelAll, SeriesLevel: notifdom.LevelAll, MusicLevel: notifdom.LevelAll}))
+
+	// Genre-favorites analytics is down: this must NOT suppress notifications for
+	// every profile — LevelAll profiles don't use genre relevance.
+	analyzer.Err = errors.New("analytics down")
+	svc.Register()
+
+	require.NoError(t, bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "m1", LibraryID: "lib1", Title: "Inception", Type: "movie",
+		Genres: []string{"Action"}, OccurredAt: time.Now(),
+	}))
+
+	var allNotified, relNotified bool
+	for _, e := range bus.PublishedEvents() {
+		if nc, ok := e.(notifdom.NotificationCreated); ok {
+			switch nc.ProfileID {
+			case shared.ProfileID("p_all"):
+				allNotified = true
+			case shared.ProfileID("p_rel"):
+				relNotified = true
+			}
+		}
+	}
+	assert.True(t, allNotified, "LevelAll profile must still be notified when genre analytics fails")
+	assert.False(t, relNotified, "Relevant profile fails-closed to no genre match when analytics is down")
+}
+
 func TestCommandService_FlushBatches_FlushesPending(t *testing.T) {
 	t.Parallel()
 	repo := notiffakes.NewFakeNotificationRepository()
