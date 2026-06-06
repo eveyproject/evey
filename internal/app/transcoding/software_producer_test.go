@@ -243,6 +243,43 @@ func TestSoftwareProducer_ForwardSeekBeyondReachSpawnsSeekEncoder(t *testing.T) 
 	assert.True(t, starts[0], "the original encoder is left running, not killed mid-stream")
 }
 
+func TestSoftwareProducer_DeepSeekSuspendsAbandonedEncoder(t *testing.T) {
+	// On a box that fits ONE heavy software transcode, a deep forward seek must
+	// hand the CPU to the seek position at once: the abandoned from-0 encoder is
+	// SIGSTOPped immediately (not left contending for PauseIdleThreshold seconds —
+	// the "small buffering after seeking" symptom, two 4K HDR encoders splitting
+	// the CPU at ~0.2× + ~0.9× realtime). Pause, not kill: it resumes if pulled.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	hash := fp.Hash()
+
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 169)) // deep forward seek
+
+	p.mu.Lock()
+	var atZero, atSeek *swSession
+	for _, s := range p.sessions[hash] {
+		switch s.startSeg {
+		case 0:
+			atZero = s
+		case 169:
+			atSeek = s
+		}
+	}
+	p.mu.Unlock()
+	require.NotNil(t, atZero, "the from-0 encoder still exists (paused, not killed)")
+	require.NotNil(t, atSeek, "the seek encoder was spawned at 169")
+
+	_, _, zeroPaused := atZero.handle.(*fakeHandle).counts()
+	_, _, seekPaused := atSeek.handle.(*fakeHandle).counts()
+	assert.True(t, zeroPaused, "the abandoned from-0 encoder is suspended so the seek position gets the full CPU")
+	assert.False(t, seekPaused, "the just-started seek encoder keeps running at full speed")
+}
+
 func TestSoftwareProducer_MaxSessionsPerHashEvictsLRU(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()

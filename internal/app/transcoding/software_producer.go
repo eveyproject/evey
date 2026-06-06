@@ -453,6 +453,17 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		p.killSession(victim, "lru_cap")
 	}
 
+	// On a weak NAS only one heavy software transcode fits. This encoder just
+	// started AHEAD of the viewer's previous position (a forward seek), so hand it
+	// the CPU at once: SIGSTOP the hash's encoders strictly BEHIND it instead of
+	// letting the abandoned one contend for up to PauseIdleThreshold seconds — a
+	// deep forward seek otherwise ran the new encoder at ~0.2× realtime against the
+	// old one, which is the "small buffering after seeking" symptom. Only behind
+	// siblings are paused, so a deeper viewer / second tab AHEAD keeps running; a
+	// paused sibling another viewer still consumes resumes on its next request.
+	// Pause (not kill) preserves the multi-tab coexistence guarantee.
+	p.pauseSiblingsBehind(hash, session)
+
 	// Reap when ffmpeg exits so the live entry doesn't linger and the cache
 	// pending refcount is released (a natural EOF skips killSession's teardown).
 	go func() {
@@ -587,6 +598,53 @@ func (p *SoftwareProducer) resumeIfPaused(s *swSession) {
 	s.mu.Unlock()
 	if err := h.Resume(); err != nil {
 		p.logger.Warn("software: resume ffmpeg failed", slog.String("hash", s.hash), slog.Any("err", err))
+	}
+}
+
+// pauseSiblingsBehind SIGSTOPs every live encoder for hash whose start position
+// is strictly BEHIND keep (a forward seek leaves them behind). It deliberately
+// does NOT touch siblings AHEAD of keep — those are a deeper viewer or a second
+// tab still watching further in, which must keep running. A paused sibling that
+// turns out to be live resumes on its next segment request (resumeIfPaused);
+// one a seek abandoned stays suspended for the idle GC. Pause (not kill) keeps
+// the multi-tab coexistence guarantee. The point: on a box that fits one heavy
+// software transcode, the just-seeked-to position takes the CPU immediately
+// rather than fighting the abandoned encoder for PauseIdleThreshold seconds.
+func (p *SoftwareProducer) pauseSiblingsBehind(hash string, keep *swSession) {
+	keep.mu.Lock()
+	keepStart := keep.startSeg
+	keep.mu.Unlock()
+
+	p.mu.Lock()
+	var behind []*swSession
+	for _, s := range p.sessions[hash] {
+		if s == keep {
+			continue
+		}
+		s.mu.Lock()
+		isBehind := s.startSeg < keepStart
+		s.mu.Unlock()
+		if isBehind {
+			behind = append(behind, s)
+		}
+	}
+	p.mu.Unlock()
+
+	for _, s := range behind {
+		s.mu.Lock()
+		if s.paused || s.handle == nil {
+			s.mu.Unlock()
+			continue
+		}
+		s.paused = true
+		h := s.handle
+		s.mu.Unlock()
+		if err := h.Pause(); err != nil {
+			s.mu.Lock()
+			s.paused = false
+			s.mu.Unlock()
+			p.logger.Debug("software: pause behind-sibling failed", slog.String("hash", hash), slog.Any("err", err))
+		}
 	}
 }
 
