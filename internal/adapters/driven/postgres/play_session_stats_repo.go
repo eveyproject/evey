@@ -206,6 +206,7 @@ func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, profileID s
 				FROM media_items se
 				JOIN media_items ep ON ep.parent_id = se.id
 				WHERE se.parent_id = mi.id
+				  AND se.type = 'season'
 				  AND ep.type = 'episode'
 				  AND NOT EXISTS (
 					SELECT 1 FROM watch_progress wp
@@ -242,6 +243,5 @@ func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, profileID s
 	}
 	return result, nil
 }
-
 
 var _ activity.PlaySessionStatsReader = (*PlaySessionStatsReader)(nil)
