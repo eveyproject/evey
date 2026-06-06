@@ -315,10 +315,10 @@ func TestPlaybackHandler_StartStream_ParentalBlocked_ForeignCertOnly(t *testing.
 		ID:     "profile-1",
 		UserID: "user-1",
 		Name:   "Kid",
-		Region: strPtr("FR"),
+		Region: new("FR"),
 		IsKids: true,
 		Parental: &user.ParentalSettings{
-			MaxAge:  intPtr(10),
+			MaxAge:  new(10),
 			Enabled: true,
 		},
 	})
@@ -436,7 +436,6 @@ func TestPlaybackHandler_StartStream_ParentalBlockedTag(t *testing.T) {
 }
 
 func intPtr(v int) *int       { return &v }
-func strPtr(v string) *string { return &v }
 func int64Ptr(v int64) *int64 { return &v }
 
 // newTestPlaybackHandlerWithAccess builds a playbackHandler that has a real
