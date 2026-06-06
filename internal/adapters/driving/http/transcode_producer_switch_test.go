@@ -146,11 +146,11 @@ func TestProducerSwitch_Matrix(t *testing.T) {
 	}
 }
 
-// TestProducerSwitch_SoftwareSingleRendition asserts case (1)'s downstream
-// effect: a real SoftwareProducer collapses the 4K HDR ladder to ONE rung. The
-// switch test above proves the routing; this proves the routed producer shapes
-// the single-rendition ladder the player needs (nothing to thrash on).
-func TestProducerSwitch_SoftwareSingleRendition(t *testing.T) {
+// TestProducerSwitch_SoftwareLadderCappedToHDR asserts case (1)'s downstream
+// effect: the routed SoftwareProducer shapes a ladder capped to the honest HDR
+// ceiling (keeping its floor), NOT a single rung — Auto degrades, the viewer
+// picks. The switch test above proves the routing; this proves the shaping.
+func TestProducerSwitch_SoftwareLadderCappedToHDR(t *testing.T) {
 	t.Parallel()
 	cache, err := apptranscoding.NewSegmentCache(t.TempDir() + "/seg")
 	require.NoError(t, err)
@@ -159,11 +159,14 @@ func TestProducerSwitch_SoftwareSingleRendition(t *testing.T) {
 
 	src := apptranscoding.SourceDims{Width: 3840, Height: 2160, Codec: "hevc", TenBit: true}
 	capability := domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 480}
-	profiles := sw.Profiles(domaintranscoding.LadderFilmHighMotion, src, buildHDRDecision(), capability)
+	profiles := sw.Profiles(domaintranscoding.LadderFilmNormal, src, buildHDRDecision(), capability)
 
-	require.Len(t, profiles, 1, "software must serve exactly one rung on 4K HDR (single-rendition)")
-	assert.LessOrEqual(t, profiles[0].Height, 480,
-		"software HDR single rung obeys the honest SoftwareHDRMaxHeight ceiling")
+	require.NotEmpty(t, profiles)
+	for _, p := range profiles {
+		assert.LessOrEqual(t, p.Height, 480,
+			"every software HDR rung obeys the honest SoftwareHDRMaxHeight ceiling")
+	}
+	assert.Equal(t, 480, profiles[len(profiles)-1].Height, "the HDR top rung is the ceiling")
 }
 
 // TestProfilesForDecision_HashInvariant locks the cache-hash invariant: the

@@ -107,14 +107,6 @@ type hlsVODServe struct {
 	// audio track and the dedicated audio pipeline serves them.
 	audioRenditionEnabled bool
 
-	// singleRendition, when true, collapses the software-transcode ABR ladder to
-	// its tallest sustainable rung (one variant in the master playlist). A weak
-	// software box can't run the parallel ladder the player would probe/switch
-	// across — that thrashes (concurrent sessions starve, get killed, the client
-	// 503-loops). One rung = one session = stable, the Jellyfin model. HW paths
-	// keep the full ladder. Mirrors Cfg.Transcoding.SingleRendition (default on).
-	singleRendition bool
-
 	// audio handles the audio rendition routes (audio_T.m3u8 / init /
 	// segment). Routed through the same /hls/{file} entry point so the
 	// relative URLs the master playlist emits resolve correctly. Nil-safe
@@ -820,22 +812,9 @@ func (h *hlsVODServe) legacyProfileShaping(base []domaintranscoding.HLSProfile, 
 			maxH = capability.SoftwareHDRMaxHeight
 		}
 	}
-	laddered := domaintranscoding.CapLadderToHeight(capped, maxH)
-
-	if !hwUsable && h.singleRendition && len(laddered) > 0 {
-		// ONE rung at the sustainable ceiling (maxH already folds in
-		// SoftwareHDRMaxHeight for HDR). 1080p was a band-aid: a weak box can't
-		// sustain it in single-rendition, the lone segment times out, and with no
-		// fallback rung the film never starts. Identical to SoftwareProducer.Profiles.
-		top := laddered[0]
-		for _, p := range laddered[1:] {
-			if p.Height > top.Height {
-				top = p
-			}
-		}
-		return []domaintranscoding.HLSProfile{top}
-	}
-	return laddered
+	// Mirrors SoftwareProducer.Profiles: the natural ladder capped to the
+	// sustainable ceiling (with its 360p floor), no single-rendition collapse.
+	return domaintranscoding.CapLadderToHeight(capped, maxH)
 }
 
 // durationMissingError is the specific 503 we return when a media file's
@@ -948,10 +927,6 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		// buildManifestInput to populate AudioRenditions from the source
 		// audio streams and the master starts emitting EXT-X-MEDIA.
 		audioRenditionEnabled: s.Cfg != nil && s.Cfg.Transcoding.AudioRenditionEnabled,
-		// Single-rendition is ON by default (the weak-NAS target): software
-		// transcode serves one rung, no ladder for the player to thrash on.
-		// Nil Cfg (tests) → false, preserving the full-ladder test expectations.
-		singleRendition: s.Cfg != nil && s.Cfg.Transcoding.SingleRendition,
 		serverLang: func() string {
 			if s.Cfg == nil {
 				return "en"

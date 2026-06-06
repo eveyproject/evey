@@ -246,17 +246,18 @@ func NewSoftwareProducer(
 	return p
 }
 
-// Profiles shapes the ABR ladder for the SOFTWARE path: ONE rung at the
-// tallest height the host sustains for a single on-demand encode. A weak box
-// cannot run the parallel ladder the player would probe/switch across — that
-// thrashes — so we collapse to one rung (the Jellyfin single-rendition model).
+// Profiles shapes the ABR ladder for the SOFTWARE path: the base ladder's rungs
+// up to the tallest height the host sustains. Auto degrades DOWN this ladder
+// under a stall and the viewer can lock a specific rung. It is safe on a weak box
+// because the surrounding guards prevent the old multi-rung thrash: the producer
+// caps how many distinct rungs decode at once (MaxConcurrentVariantsPerHash) and
+// suspends an abandoned rung at once, while the client starts Auto at the top and
+// only steps down (never probes up into a second concurrent decode). The top is
+// the conservatively-calibrated sustainable ceiling, so it holds; the lowest rung
+// (360p, present in every base ladder) is the guaranteed-playable floor.
 //
-// The rung height is the sustainable software ceiling:
-//   - HDR (tonemap needed): capacity.SoftwareHDRMaxHeight (the honest 10-bit
-//     decode + zscale tonemap ceiling on a weak NAS). It is PROVEN the old iGPU
-//     cannot hold 1080p HDR software — that timed out with no fallback — so we
-//     do NOT inflate it here; 1080p HDR comes later via the tonemap optimisation.
-//   - SDR: capacity.SoftwareMaxHeight.
+//   - HDR (tonemap needed): capped at capacity.SoftwareHDRMaxHeight.
+//   - SDR: capped at capacity.SoftwareMaxHeight.
 //
 // Pure in its inputs (base, src, decision, capacity) so the ladder is identical
 // at manifest-time and segment-time — the cache-hash invariant.
@@ -268,18 +269,10 @@ func (p *SoftwareProducer) Profiles(base []transcoding.HLSProfile, src SourceDim
 		maxH = capacity.SoftwareHDRMaxHeight
 	}
 
-	laddered := transcoding.CapLadderToHeight(sourceCapped, maxH)
-	if len(laddered) == 0 {
-		return laddered
-	}
-	// Collapse to the single tallest sustainable rung.
-	top := laddered[0]
-	for _, prof := range laddered[1:] {
-		if prof.Height > top.Height {
-			top = prof
-		}
-	}
-	return []transcoding.HLSProfile{top}
+	// The natural ladder capped to the sustainable ceiling — already ascending
+	// with a 360p floor. No collapse: Auto needs the lower rungs to fall back to
+	// and the viewer needs them to choose from.
+	return transcoding.CapLadderToHeight(sourceCapped, maxH)
 }
 
 // needsHDRTonemap reports whether the decision flagged HDR->SDR tone-mapping.

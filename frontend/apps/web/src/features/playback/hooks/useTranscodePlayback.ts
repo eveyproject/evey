@@ -168,6 +168,14 @@ export function useTranscodePlayback({
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       setHlsLevels(hls.levels.map((l) => l.height));
+      // Software transcode re-decodes the source per rung, so on a weak box Auto
+      // must NOT probe UP from a low start (each upward probe spawns a second
+      // concurrent decode and thrashes). Start Auto at the TOP rung — the
+      // calibration keeps it sustainable — and let ABR only step DOWN under a real
+      // stall. Single-rung manifests (length 1) are unaffected.
+      if (hls.levels.length > 1) {
+        hls.startLevel = hls.levels.length - 1;
+      }
       // VOD pipeline: the manifest covers the full media duration so we
       // seek the resume target via video.currentTime, which causes
       // hls.js to request the matching segment from the server.

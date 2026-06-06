@@ -507,21 +507,25 @@ func TestSoftwareProducer_WaitBudgetDefault(t *testing.T) {
 }
 
 // ============================================================================
-// Profiles = exactly one rung (single-rendition)
+// Profiles = a ladder capped to the sustainable ceiling (auto-degrade + manual)
 // ============================================================================
 
-func TestSoftwareProducer_ProfilesCollapsesToOneRung(t *testing.T) {
+func TestSoftwareProducer_ProfilesReturnsLadderCappedToSustainable(t *testing.T) {
 	cache, _ := newTestCache(t)
 	p := NewSoftwareProducer(cache, newFakeProcess(), stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
 	defer p.Close()
 
-	base := transcoding.LadderFilmNormal // 4 rungs up to 1080p
+	base := transcoding.LadderFilmNormal // [360, 480, 720, 1080]
 	src := SourceDims{Width: 3840, Height: 2160}
 	capability := transcoding.EncodeCapability{SoftwareMaxHeight: 1080}
 
 	profiles := p.Profiles(base, src, transcoding.PlaybackDecision{}, capability)
-	require.Len(t, profiles, 1, "software is single-rendition: exactly one rung")
-	assert.Equal(t, 1080, profiles[0].Height, "the single rung is the tallest sustainable software rung")
+	require.Greater(t, len(profiles), 1, "a ladder, not one rung: Auto degrades into it and the viewer picks from it")
+	assert.Equal(t, 360, profiles[0].Height, "the lowest rung is the 360p guaranteed-playable floor")
+	assert.Equal(t, 1080, profiles[len(profiles)-1].Height, "the top rung is the sustainable ceiling")
+	for _, pr := range profiles {
+		assert.LessOrEqual(t, pr.Height, 1080, "no rung exceeds the sustainable ceiling")
+	}
 }
 
 func TestSoftwareProducer_ProfilesUsesSoftwareHDRCeilingOnTonemap(t *testing.T) {
@@ -529,17 +533,21 @@ func TestSoftwareProducer_ProfilesUsesSoftwareHDRCeilingOnTonemap(t *testing.T) 
 	p := NewSoftwareProducer(cache, newFakeProcess(), stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
 	defer p.Close()
 
-	base := transcoding.LadderFilmHighMotion // up to 2160p
+	base := transcoding.LadderFilmNormal // [360, 480, 720, 1080]
 	src := SourceDims{Width: 3840, Height: 2160, TenBit: true}
-	// 1080p SDR ceiling but a much lower 480p HDR ceiling: a weak NAS cannot
-	// hold 1080p HDR software (proven), so the single rung must obey the HDR cap.
+	// 1080p SDR ceiling but a much lower 480p HDR ceiling: a weak NAS cannot hold
+	// 1080p HDR software, so the whole HDR ladder is capped at the HDR ceiling.
 	capability := transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 480}
 	decision := transcoding.PlaybackDecision{TranscodeReasons: []string{"hdr_tonemapping_needed"}}
 
 	profiles := p.Profiles(base, src, decision, capability)
-	require.Len(t, profiles, 1)
-	assert.Equal(t, 480, profiles[0].Height,
-		"HDR software single rung must obey SoftwareHDRMaxHeight (NOT 1080p) — the honest weak-NAS ceiling")
+	require.NotEmpty(t, profiles)
+	for _, pr := range profiles {
+		assert.LessOrEqual(t, pr.Height, 480,
+			"every HDR rung obeys SoftwareHDRMaxHeight (NOT the 1080p SDR ceiling) — the honest weak-NAS HDR cap")
+	}
+	assert.Equal(t, 360, profiles[0].Height, "the 360p floor stays for Auto to fall back to")
+	assert.Equal(t, 480, profiles[len(profiles)-1].Height, "the HDR top rung is the HDR ceiling")
 }
 
 // ============================================================================

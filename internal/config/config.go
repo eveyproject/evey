@@ -318,15 +318,6 @@ type TranscodingConfig struct {
 	// (hash, variantIdx, segmentIdx) in both modes, so flipping is
 	// cache-compatible.
 	SingleVariant bool
-	// SingleRendition, when true, makes the SOFTWARE transcode path serve a
-	// single rendition (the tallest sustainable rung) instead of a multi-rung
-	// ABR ladder. ON by default: a weak software box can't run the parallel
-	// ladder the player probes/switches across — that spawns concurrent
-	// transcode sessions that starve each other and thrash (360p + buffering).
-	// One rung = one session = stable (the Jellyfin model). HW paths keep the
-	// full ladder. Set EVEY_TRANSCODING_SINGLE_RENDITION=0 to force the ladder
-	// on a software host powerful enough for parallel rungs.
-	SingleRendition bool
 	// SoftwareMaxHeightOverride / SoftwareHDRMaxHeightOverride force the software
 	// encode ceilings, bypassing the boot benchmark (0 = use the calibrated
 	// value). EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT / _SOFTWARE_HDR_MAX_HEIGHT.
@@ -555,7 +546,6 @@ func Load() (*Config, error) {
 			HWFirstSegmentTimeout:        envDuration("EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT", 5*time.Second),
 			HWPerVariant:                 envBool("EVEY_TRANSCODING_HW_PER_VARIANT", false),
 			SingleVariant:                envBool("EVEY_TRANSCODING_SINGLE_VARIANT", false),
-			SingleRendition:              envBool("EVEY_TRANSCODING_SINGLE_RENDITION", true),
 			SoftwareMaxHeightOverride:    envInt("EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT", 0),
 			SoftwareHDRMaxHeightOverride: envInt("EVEY_TRANSCODING_SOFTWARE_HDR_MAX_HEIGHT", 0),
 			TrickplayCacheDir:            envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),

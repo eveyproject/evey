@@ -225,46 +225,44 @@ func TestProfilesForDecision_HDRCap(t *testing.T) {
 	}
 }
 
-// TestProfilesForDecision_SingleRendition locks the single-rendition collapse:
-// on the SOFTWARE path the ABR ladder is reduced to one rung (the tallest
-// sustainable), so the player has nothing to probe/switch across — one rung, one
-// transcode session, no thrash. The HW path keeps the full ladder.
-func TestProfilesForDecision_SingleRendition(t *testing.T) {
+// TestProfilesForDecision_SoftwareLadder locks the software ladder: the ABR
+// ladder is the base rungs capped to the sustainable ceiling (keeping its 360p
+// floor) so Auto can degrade DOWN and the viewer can pick a rung — never
+// collapsed to one. The HW path keeps its ladder too.
+func TestProfilesForDecision_SoftwareLadder(t *testing.T) {
 	t.Parallel()
 	item := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}
-	swCap := func() domaintranscoding.EncodeCapability { return hdrCapTestCapability() } // software, 1080p SDR
+	swCap := func() domaintranscoding.EncodeCapability { return hdrCapTestCapability() } // software, 1080p SDR / 480p HDR
 
-	// Software + single-rendition ON, 4K HDR → exactly ONE variant at the
-	// SUSTAINABLE calibrated cap (SoftwareHDRMaxHeight=480 here), so the lone
-	// segment is producible in real-time and the film actually starts. Serving a
-	// higher rung the box can't sustain in single-rendition has NO fallback and
-	// stalls the whole playback.
-	t.Run("software_HDR_collapses_to_one_sustainable_rung", func(t *testing.T) {
+	// Software HDR → the ladder capped at the HDR ceiling (SoftwareHDRMaxHeight=480):
+	// every rung obeys the cap, NOT a single rung the box can't keep up with.
+	t.Run("software_HDR_ladder_capped_to_hdr_ceiling", func(t *testing.T) {
 		t.Parallel()
-		h := &hlsVODServe{singleRendition: true, capability: swCap}
+		h := &hlsVODServe{capability: swCap}
 		profiles := h.profilesForDecision(context.Background(), item, build4KHDRStreams(), buildHDRDecision())
-		require.Len(t, profiles, 1, "single-rendition software path must serve exactly one variant")
-		assert.Equal(t, 480, profiles[0].Height,
-			"single-rendition serves the sustainable cap (SoftwareHDRMaxHeight=480), not a height the box can't keep up with")
+		require.NotEmpty(t, profiles)
+		for _, p := range profiles {
+			assert.LessOrEqual(t, p.Height, 480, "every HDR rung obeys SoftwareHDRMaxHeight (the honest weak-NAS cap)")
+		}
+		assert.Equal(t, 480, profiles[len(profiles)-1].Height, "the HDR top rung is the HDR ceiling")
 	})
 
-	// Software + single-rendition OFF → the full ABR ladder (more than one rung).
-	t.Run("software_off_keeps_ladder", func(t *testing.T) {
+	// Software SDR → the full ABR ladder (more than one rung).
+	t.Run("software_SDR_keeps_full_ladder", func(t *testing.T) {
 		t.Parallel()
-		h := &hlsVODServe{singleRendition: false, capability: swCap}
+		h := &hlsVODServe{capability: swCap}
 		profiles := h.profilesForDecision(context.Background(), item, build4KSDRStreams(), buildSDRDecision())
-		assert.Greater(t, len(profiles), 1, "single-rendition off keeps the software ABR ladder")
+		assert.Greater(t, len(profiles), 1, "the software path serves the full ABR ladder")
 	})
 
-	// HW path + single-rendition ON → ladder kept (a GPU parallelises rungs).
-	t.Run("hw_keeps_ladder_even_when_single_rendition_on", func(t *testing.T) {
+	// HW path → ladder kept (a GPU parallelises rungs).
+	t.Run("hw_keeps_ladder", func(t *testing.T) {
 		t.Parallel()
 		h := &hlsVODServe{
-			singleRendition: true,
-			capability:      func() domaintranscoding.EncodeCapability { return hdrCapHWCapability() },
-			hwAccelEnabled:  func() bool { return true },
+			capability:     func() domaintranscoding.EncodeCapability { return hdrCapHWCapability() },
+			hwAccelEnabled: func() bool { return true },
 		}
 		profiles := h.profilesForDecision(context.Background(), item, build4KHDRStreams(), buildHDRDecision())
-		assert.Greater(t, len(profiles), 1, "HW path keeps the ladder; single-rendition only collapses software")
+		assert.Greater(t, len(profiles), 1, "HW path keeps the ladder")
 	})
 }
