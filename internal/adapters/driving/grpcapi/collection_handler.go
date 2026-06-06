@@ -267,7 +267,14 @@ func protoRulesToDomain(in []*eveyv1.CollectionRule) []library.CollectionRule {
 func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.GetCollectionItemsRequest) (*eveyv1.GetCollectionItemsResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.collection.GetCollectionItems")
 	defer span.End()
-	items, total, err := h.svc.GetItems(ctx, req.Id, int(req.Limit), int(req.Offset))
+	// Clamp pagination: a negative offset would reach the repo as OFFSET -1 and
+	// error out (500); limit<=0 is normalised so the page size is well-defined.
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 50
+	}
+	offset := max(int(req.Offset), 0)
+	items, total, err := h.svc.GetItems(ctx, req.Id, limit, offset)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -352,7 +359,6 @@ func (h *collectionHandler) checkCollectionAccess(ctx context.Context, collectio
 	}
 	return status.Errorf(codes.NotFound, "collection not found")
 }
-
 
 func collectionToProto(c *library.Collection) *eveyv1.CollectionProto {
 	pb := &eveyv1.CollectionProto{

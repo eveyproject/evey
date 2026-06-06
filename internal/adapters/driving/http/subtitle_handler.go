@@ -51,7 +51,12 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 				return
 			}
 		}
-		trackIndex, _ := strconv.Atoi(trackStr)
+		trackIndex, err := strconv.Atoi(trackStr)
+		if err != nil || trackIndex < 0 {
+			span.SetStatus(otelcodes.Error, "invalid track index")
+			http.Error(w, `{"message":"invalid track index"}`, http.StatusBadRequest)
+			return
+		}
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 		if err != nil || item.File == nil || item.File.Path == "" {
 			if err != nil {
