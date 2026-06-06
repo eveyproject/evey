@@ -794,25 +794,25 @@ func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, me
 	if err != nil {
 		return false, ""
 	}
+	age := -1
 	if ps.MaxAge != nil {
-		reg := region.Resolve(profile.Region, "", profile.Locale)
-		rating := ""
-		var certByCountry map[string]string
-		if item.Classification != nil {
-			rating = item.Classification.OfficialRating
-			certByCountry = item.Classification.CertificationsByCountry
-		}
-		if reg != "" && certByCountry != nil {
-			if r, ok := certByCountry[reg]; ok && r != "" {
-				rating = r
-			}
-		}
-		if !ratings.IsAllowedByAge(reg, rating, *ps.MaxAge) {
-			return true, "content rating exceeds profile age limit"
-		}
+		age = *ps.MaxAge
 	}
-	if ratings.HasBlockedTag(itemTags(item), ps.BlockedTags) {
-		return true, "content contains blocked tags"
+	// Use the SAME worst-case, fail-closed check as the browse/feed gate
+	// (mediaItemBlockedByParental) rather than the single-country permissive
+	// ratings.IsAllowedByAge. Otherwise a title hidden from browse (e.g. only a
+	// foreign cert that doesn't resolve in the profile's region, or no resolvable
+	// rating at all) could still be played directly by media_item_id, bypassing
+	// the parental control.
+	pf := parentalFilter{
+		allowedRatings: ratings.AllowedRatingsForAge(age),
+		maxAge:         age,
+		region:         region.Resolve(profile.Region, "", profile.Locale),
+		locale:         profile.Locale,
+		blockedTags:    ps.BlockedTags,
+	}
+	if mediaItemBlockedByParental(pf, item) {
+		return true, "content blocked by parental controls"
 	}
 	return false, ""
 }

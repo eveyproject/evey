@@ -308,6 +308,43 @@ func TestPlaybackHandler_StartStream_ParentalBlocked(t *testing.T) {
 	assert.Contains(t, status.Convert(err).Message(), "parental_blocked")
 }
 
+func TestPlaybackHandler_StartStream_ParentalBlocked_ForeignCertOnly(t *testing.T) {
+	h, _, _, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
+
+	profileRepo.Update(context.Background(), &user.Profile{
+		ID:     "profile-1",
+		UserID: "user-1",
+		Name:   "Kid",
+		Region: strPtr("FR"),
+		IsKids: true,
+		Parental: &user.ParentalSettings{
+			MaxAge:  intPtr(10),
+			Enabled: true,
+		},
+	})
+	// Adult rating present only as a foreign cert (US: R), no FR cert and no
+	// OfficialRating. The old single-country permissive check let this through at
+	// StartStream while browse blocked it (worst-case). Must now be blocked too.
+	mediaQuery.Seed(&library.MediaItem{
+		ID:    "mi-foreign",
+		Title: "Foreign-cert Adult Movie",
+		Type:  "movie",
+		Classification: &library.MediaClassification{
+			CertificationsByCountry: map[string]string{"US": "R"},
+		},
+	})
+
+	ctx := pbAdminCtx()
+	_, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
+		MediaItemId: "mi-foreign",
+		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	assert.Contains(t, status.Convert(err).Message(), "parental_blocked")
+}
+
 func TestPlaybackHandler_StartStream_ParentalAllowed(t *testing.T) {
 	h, _, _, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
 
@@ -399,6 +436,7 @@ func TestPlaybackHandler_StartStream_ParentalBlockedTag(t *testing.T) {
 }
 
 func intPtr(v int) *int       { return &v }
+func strPtr(v string) *string { return &v }
 func int64Ptr(v int64) *int64 { return &v }
 
 // newTestPlaybackHandlerWithAccess builds a playbackHandler that has a real
