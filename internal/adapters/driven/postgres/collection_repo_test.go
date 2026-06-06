@@ -65,6 +65,13 @@ func TestCollectionRepo_Upsert(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, list, 1)
 	assert.Equal(t, "Updated Name", list[0].Name)
+
+	// RETURNING id: the conflict path must yield the SURVIVING row id, not col2's
+	// freshly-generated uuid — else enricher LinkMediaItem(col.ID, …) targets a
+	// non-existent collection and the FK silently drops every link after the
+	// first enrichment of a TMDB collection.
+	assert.Equal(t, col.ID, col2.ID, "upsert conflict must return the existing row id, not a new uuid")
+	assert.Equal(t, col.ID, list[0].ID)
 }
 
 func TestCollectionRepo_List(t *testing.T) {

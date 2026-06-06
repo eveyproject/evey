@@ -67,7 +67,13 @@ func (r *CollectionRepository) Upsert(ctx context.Context, col *library.Collecti
 	if sortBy == "" {
 		sortBy = "added_at"
 	}
-	_, err = r.db.ExecContext(ctx,
+	// RETURNING id so col.ID reflects the PERSISTED row id. On the ON CONFLICT
+	// (tmdb_id) update path the surviving row keeps its original id, which differs
+	// from the freshly-generated col.ID the caller passed in. Without scanning it
+	// back, downstream LinkMediaItem(col.ID, …) targets a non-existent collection
+	// id and the FK silently drops every link after the first enrichment of a
+	// given TMDB collection (only the first movie ever links).
+	if err = r.db.QueryRowContext(ctx,
 		`INSERT INTO collections (id, name, overview, tmdb_id, poster_url, backdrop_url, rules, sort_by, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		 ON CONFLICT (tmdb_id) WHERE tmdb_id IS NOT NULL DO UPDATE SET
@@ -77,11 +83,11 @@ func (r *CollectionRepository) Upsert(ctx context.Context, col *library.Collecti
 		   backdrop_url = EXCLUDED.backdrop_url,
 		   rules = EXCLUDED.rules,
 		   sort_by = EXCLUDED.sort_by,
-		   updated_at = EXCLUDED.updated_at`,
+		   updated_at = EXCLUDED.updated_at
+		 RETURNING id`,
 		col.ID, col.Name, col.Overview, col.TmdbID, col.PosterURL, col.BackdropURL,
 		rulesJSON, sortBy, col.CreatedAt, col.UpdatedAt,
-	)
-	if err != nil {
+	).Scan(&col.ID); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
