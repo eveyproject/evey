@@ -124,6 +124,17 @@ type SoftwareProducerOptions struct {
 	// to 1 to restore the legacy single-process-per-hash model (a second
 	// distinct position then evicts the first — the pre-fix behaviour).
 	MaxSessionsPerHash int
+
+	// SeekReachWindowSegs is how many segments AHEAD of a session's production
+	// frontier a request may be and still reuse that (paced) encoder rather than
+	// seek a fresh one. Within the window the player waits a beat for the
+	// sequential encoder to arrive; beyond it (a real forward seek) waiting would
+	// blow the wait budget — a 4K HDR encoder paced at 1.5× takes minutes to cross
+	// hundreds of segments — so a fresh encoder seeks (`-ss`) straight to the
+	// target. Default 16 (~48 s of 3 s segments): far above the 0-1 segment gap of
+	// continuous playback (steady viewing never spuriously spawns a second encoder)
+	// yet a small fraction of any deliberate scrub.
+	SeekReachWindowSegs int
 }
 
 func (o SoftwareProducerOptions) withDefaults() SoftwareProducerOptions {
@@ -149,6 +160,9 @@ func (o SoftwareProducerOptions) withDefaults() SoftwareProducerOptions {
 	if out.MaxSessionsPerHash <= 0 {
 		out.MaxSessionsPerHash = 2
 	}
+	if out.SeekReachWindowSegs <= 0 {
+		out.SeekReachWindowSegs = 16
+	}
 	return out
 }
 
@@ -165,7 +179,15 @@ type swSession struct {
 	// live window is [startSeg, +inf). A request below this session's startSeg
 	// is not covered by it; the producer reuses a lower-start sibling if one
 	// exists, else spawns a new session at the requested offset.
-	startSeg   int
+	startSeg int
+	// frontier is the high-water-mark segment index routed to this encoder (a
+	// cache hit consumed from it, or an in-reach miss committed to it). It tracks
+	// the playhead inside this session's forward run. A request more than
+	// SeekReachWindowSegs ABOVE the frontier is a forward seek the paced sequential
+	// encoder can't reach within the wait budget, so the producer seeks a FRESH
+	// encoder there instead of making the player wait (or buffer forever). Guarded
+	// by mu; initialised to startSeg.
+	frontier   int
 	lastAccess time.Time
 	paused     bool
 	teardown   func()
@@ -282,24 +304,33 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 	metrics.HLSVODCacheMisses.Inc()
 
 	p.mu.Lock()
-	covering := p.findCoveringSessionLocked(hash, segmentIdx)
+	covering := p.coveringWithinReachLocked(hash, segmentIdx)
 	p.mu.Unlock()
 
 	if covering != nil {
-		// A sibling encoder started at or below this position is already
-		// producing forward toward segmentIdx; reuse it (resume if the idle-pause
-		// loop suspended it — the client is pulling again). No new process.
+		// A sibling encoder started at or below this position is already producing
+		// forward toward segmentIdx AND is within reach of it; reuse it (resume if
+		// the idle-pause loop suspended it — the client is pulling again). Commit
+		// its frontier to the request so a run of just-in-time edge misses keeps
+		// reusing this encoder instead of drifting past the reach window into a
+		// spurious seek. No new process.
 		covering.mu.Lock()
 		covering.lastAccess = time.Now()
+		if segmentIdx > covering.frontier {
+			covering.frontier = segmentIdx
+		}
 		covering.mu.Unlock()
 		p.resumeIfPaused(covering)
 		return nil
 	}
 
-	// No live encoder covers this position. Start one ALONGSIDE any existing
+	// Nothing reaches this position in time: either no session covers it, or the
+	// closest-behind one is a forward seek away (its frontier is too far below).
+	// Start a fresh encoder seeking (`-ss`) to segmentIdx, ALONGSIDE any existing
 	// sessions for the hash — we do NOT kill them. A second viewer cold-starting
-	// below a deep viewer (segmentIdx < every live startSeg) must not yank the
-	// deep viewer's encoder; both coexist, bounded by MaxSessionsPerHash.
+	// below a deep viewer, or a viewer jumping forward past the live frontier, must
+	// not yank a sibling another viewer consumes; they coexist, bounded by
+	// MaxSessionsPerHash (LRU-evicted).
 	return p.startSession(ctx, fp, variantIdx, segmentIdx)
 }
 
@@ -384,6 +415,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		mediaID:    fp.MediaID,
 		handle:     handle,
 		startSeg:   startSeg,
+		frontier:   startSeg,
 		lastAccess: time.Now(),
 		teardown:   teardown,
 		cancelCtx:  cancel,
@@ -391,12 +423,14 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	}
 
 	p.mu.Lock()
-	// Race: another goroutine may have started a session covering startSeg
-	// between our findCoveringSessionLocked decision and now. Re-check under the
-	// lock; if a sibling now covers this exact position, discard the loser
-	// (avoid a redundant duplicate encoder for the same offset). Distinct
-	// positions are NOT a race — they are the coexistence we want.
-	if winner := p.findCoveringSessionLocked(hash, startSeg); winner != nil {
+	// Race: another goroutine may have started a session reaching startSeg between
+	// our coveringWithinReach decision and now. Re-check under the lock with the
+	// SAME reach-aware test; if a sibling now reaches this exact position, discard
+	// the loser (avoid a redundant duplicate encoder for the same offset). A
+	// distant sibling that merely started BELOW startSeg does not count — that is
+	// the forward-seek case we are spawning this fresh encoder for; distinct live
+	// positions are the coexistence we want, not a race.
+	if winner := p.coveringWithinReachLocked(hash, startSeg); winner != nil {
 		p.mu.Unlock()
 		cancel()
 		if stopErr := handle.Stop(); stopErr != nil {
@@ -509,8 +543,35 @@ func (p *SoftwareProducer) touch(hash string, segmentIdx int) {
 	}
 	s.mu.Lock()
 	s.lastAccess = time.Now()
+	if segmentIdx > s.frontier {
+		// A cache hit here proves the encoder has produced through segmentIdx, so
+		// advance its frontier — keeps the seek-reach test (coveringWithinReach)
+		// honest about how far this session has actually reached.
+		s.frontier = segmentIdx
+	}
 	s.mu.Unlock()
 	p.resumeIfPaused(s)
+}
+
+// coveringWithinReachLocked returns the live session that can serve segmentIdx
+// within the wait budget: the closest-behind encoder (largest startSeg <=
+// segmentIdx) whose production frontier is at most SeekReachWindowSegs behind the
+// request. Returns nil when the best candidate is further behind — that's a
+// forward seek, and reusing a sequential encoder that would take minutes to
+// arrive is exactly what made deep seeks buffer forever; the caller instead
+// seeks a FRESH encoder (`-ss`) to segmentIdx. Must be called with p.mu held.
+func (p *SoftwareProducer) coveringWithinReachLocked(hash string, segmentIdx int) *swSession {
+	s := p.findCoveringSessionLocked(hash, segmentIdx)
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	point := max(s.startSeg, s.frontier)
+	s.mu.Unlock()
+	if segmentIdx-point > p.opts.SeekReachWindowSegs {
+		return nil
+	}
+	return s
 }
 
 // resumeIfPaused SIGCONTs the encoder if the idle-pause loop had suspended it.

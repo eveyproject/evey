@@ -37,12 +37,14 @@ func TestSoftwareProducer_OneSequentialProcessPerHash(t *testing.T) {
 	defer p.Close()
 
 	fp := minimalFingerprint(t)
-	// Three forward requests within the same sequential stream: ONE ffmpeg.
+	// Forward requests that each stay within the seek-reach window of the running
+	// encoder's advancing frontier share ONE ffmpeg (normal sequential playback,
+	// where the playhead never jumps far past what has been produced).
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 10))
-	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 50))
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 20))
 
-	assert.Equal(t, 1, proc.startCount(), "forward requests share the single long-lived encoder")
+	assert.Equal(t, 1, proc.startCount(), "in-reach forward requests share the single long-lived encoder")
 	assert.Equal(t, 1, p.ActiveSessionCount())
 }
 
@@ -116,10 +118,11 @@ func TestSoftwareProducer_ForwardSeekReusesProcess(t *testing.T) {
 
 	fp := minimalFingerprint(t)
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
-	// A forward jump is still within [0, +inf) — the sequential encoder is
-	// already producing toward it, so no restart.
-	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 500))
-	assert.Equal(t, 1, proc.startCount(), "forward seek reuses the running encoder")
+	// A SMALL forward jump stays within the seek-reach window — the sequential
+	// encoder is already producing toward it — so no restart. (A far jump spawns a
+	// fresh seek encoder instead: see ForwardSeekBeyondReachSpawnsSeekEncoder.)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 8))
+	assert.Equal(t, 1, proc.startCount(), "an in-reach forward seek reuses the running encoder")
 }
 
 // ============================================================================
@@ -202,9 +205,42 @@ func TestSoftwareProducer_SamePositionViewersShareOneEncoder(t *testing.T) {
 	fp := minimalFingerprint(t)
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))  // second viewer, same start
-	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 30)) // ahead but still covered by [0,+inf)
-	assert.Equal(t, 1, proc.startCount(), "viewers at/behind the live start share ONE encoder")
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 10)) // a beat ahead, within the seek-reach window → shared
+	assert.Equal(t, 1, proc.startCount(), "viewers at or just ahead of the live start share ONE encoder")
 	assert.Equal(t, 1, p.ActiveSessionCount())
+}
+
+func TestSoftwareProducer_ForwardSeekBeyondReachSpawnsSeekEncoder(t *testing.T) {
+	// A forward seek that lands far past the live encoder's production frontier
+	// must NOT reuse the sequential encoder — paced at 1.5× it would take minutes
+	// to cross hundreds of segments and the segment Wait would time out (the
+	// "buffering forever on seek" bug). A fresh encoder seeks (-ss) straight to the
+	// requested segment instead, coexisting with the original (bounded by the cap).
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	hash := fp.Hash()
+
+	// Viewer starts at the beginning; its encoder sits at frontier 0.
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	require.Equal(t, 1, proc.startCount())
+
+	// Seek to ~8.5 min in (segment 169) — far beyond SeekReachWindowSegs.
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 169))
+
+	assert.Equal(t, 2, proc.startCount(), "a deep forward seek spawns a fresh encoder, not a wait on the from-0 one")
+	assert.Equal(t, 2, p.ActiveSessionCount())
+	p.mu.Lock()
+	starts := map[int]bool{}
+	for _, s := range p.sessions[hash] {
+		starts[s.startSeg] = true
+	}
+	p.mu.Unlock()
+	assert.True(t, starts[169], "the new encoder seeks straight to the requested segment (169)")
+	assert.True(t, starts[0], "the original encoder is left running, not killed mid-stream")
 }
 
 func TestSoftwareProducer_MaxSessionsPerHashEvictsLRU(t *testing.T) {
