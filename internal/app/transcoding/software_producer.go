@@ -180,6 +180,13 @@ type swSession struct {
 	// is not covered by it; the producer reuses a lower-start sibling if one
 	// exists, else spawns a new session at the requested offset.
 	startSeg int
+	// variantIdx is which ABR rung (index into fp.Profiles) this encoder produces.
+	// A session is only ever reused for a request of the SAME variantIdx — rungs
+	// are isolated, because the cache Wait() polls per-variant disk files with no
+	// per-variant pending channel, so handing a variant-0 encoder a variant-1
+	// request would never write stream_1_* and rebuffer forever. Single-rendition
+	// keeps this 0 and the whole producer byte-identical to before the ladder.
+	variantIdx int
 	// frontier is the high-water-mark segment index routed to this encoder (a
 	// cache hit consumed from it, or an in-reach miss committed to it). It tracks
 	// the playhead inside this session's forward run. A request more than
@@ -297,14 +304,14 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 
 	// Fast path: already on disk.
 	if p.cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: variantIdx, SegmentIdx: segmentIdx}, fp.UseFMP4) {
-		p.touch(hash, segmentIdx)
+		p.touch(hash, variantIdx, segmentIdx)
 		metrics.HLSVODCacheHits.Inc()
 		return nil
 	}
 	metrics.HLSVODCacheMisses.Inc()
 
 	p.mu.Lock()
-	covering := p.coveringWithinReachLocked(hash, segmentIdx)
+	covering := p.coveringWithinReachLocked(hash, variantIdx, segmentIdx)
 	p.mu.Unlock()
 
 	if covering != nil {
@@ -335,18 +342,21 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 }
 
 // findCoveringSessionLocked returns the live session best placed to serve
-// segmentIdx: the one with the largest startSeg that is still <= segmentIdx (the
-// closest-behind encoder, already producing forward toward it). Returns nil when
-// no session for the hash started at or below segmentIdx — the caller then
-// spawns a new one at that offset. Must be called with p.mu held.
-func (p *SoftwareProducer) findCoveringSessionLocked(hash string, segmentIdx int) *swSession {
+// segmentIdx FOR THE GIVEN VARIANT: the same-variant session with the largest
+// startSeg still <= segmentIdx (the closest-behind encoder, already producing
+// forward toward it). Sessions producing a DIFFERENT rung are skipped — reusing
+// one would never write this variant's segment file (the cache Wait polls
+// per-variant), so the caller must spawn a fresh encoder for it. Returns nil when
+// no same-variant session started at or below segmentIdx. Must hold p.mu.
+func (p *SoftwareProducer) findCoveringSessionLocked(hash string, variantIdx, segmentIdx int) *swSession {
 	var best *swSession
 	bestStart := -1
 	for _, s := range p.sessions[hash] {
 		s.mu.Lock()
+		sameVariant := s.variantIdx == variantIdx
 		start := s.startSeg
 		s.mu.Unlock()
-		if start <= segmentIdx && start > bestStart {
+		if sameVariant && start <= segmentIdx && start > bestStart {
 			best = s
 			bestStart = start
 		}
@@ -414,6 +424,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		hash:       hash,
 		mediaID:    fp.MediaID,
 		handle:     handle,
+		variantIdx: variantIdx,
 		startSeg:   startSeg,
 		frontier:   startSeg,
 		lastAccess: time.Now(),
@@ -430,7 +441,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// distant sibling that merely started BELOW startSeg does not count — that is
 	// the forward-seek case we are spawning this fresh encoder for; distinct live
 	// positions are the coexistence we want, not a race.
-	if winner := p.coveringWithinReachLocked(hash, startSeg); winner != nil {
+	if winner := p.coveringWithinReachLocked(hash, variantIdx, startSeg); winner != nil {
 		p.mu.Unlock()
 		cancel()
 		if stopErr := handle.Stop(); stopErr != nil {
@@ -545,9 +556,9 @@ func (p *SoftwareProducer) NotifyClientHint(mediaItemID string, bufferLengthMs i
 // disk, and resumes it if the idle-pause loop had suspended it. With several
 // sessions per hash it bumps the closest-behind one (the encoder actually
 // serving that region) rather than an unrelated sibling at a different offset.
-func (p *SoftwareProducer) touch(hash string, segmentIdx int) {
+func (p *SoftwareProducer) touch(hash string, variantIdx, segmentIdx int) {
 	p.mu.Lock()
-	s := p.findCoveringSessionLocked(hash, segmentIdx)
+	s := p.findCoveringSessionLocked(hash, variantIdx, segmentIdx)
 	p.mu.Unlock()
 	if s == nil {
 		return
@@ -571,8 +582,8 @@ func (p *SoftwareProducer) touch(hash string, segmentIdx int) {
 // forward seek, and reusing a sequential encoder that would take minutes to
 // arrive is exactly what made deep seeks buffer forever; the caller instead
 // seeks a FRESH encoder (`-ss`) to segmentIdx. Must be called with p.mu held.
-func (p *SoftwareProducer) coveringWithinReachLocked(hash string, segmentIdx int) *swSession {
-	s := p.findCoveringSessionLocked(hash, segmentIdx)
+func (p *SoftwareProducer) coveringWithinReachLocked(hash string, variantIdx, segmentIdx int) *swSession {
+	s := p.findCoveringSessionLocked(hash, variantIdx, segmentIdx)
 	if s == nil {
 		return nil
 	}

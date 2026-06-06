@@ -280,6 +280,106 @@ func TestSoftwareProducer_DeepSeekSuspendsAbandonedEncoder(t *testing.T) {
 	assert.False(t, seekPaused, "the just-started seek encoder keeps running at full speed")
 }
 
+// twoRungFingerprint is minimalFingerprint with a real 2-rung ladder so the
+// variant-aware session lookup can be exercised (single-rendition uses one rung).
+func twoRungFingerprint(t *testing.T) DecisionFingerprint {
+	t.Helper()
+	fp := minimalFingerprint(t)
+	fp.Profiles = []ProfileFingerprint{
+		{Name: "360p", Width: 640, Height: 360, VideoBitrate: 800, AudioBitrate: 96},
+		{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 2500, AudioBitrate: 128},
+	}
+	return fp
+}
+
+func TestSoftwareProducer_VariantIsolation_NoCrossRungReuse(t *testing.T) {
+	// A variant-1 request must NEVER reuse a variant-0 encoder: that encoder writes
+	// stream_0_* and would never produce stream_1_*, so the cache Wait (which polls
+	// per-variant files) would rebuffer forever. Each rung gets its own encoder.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	fp := twoRungFingerprint(t)
+	hash := fp.Hash()
+
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0)) // variant 0
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 5)) // variant 1 — must NOT reuse variant 0
+
+	assert.Equal(t, 2, proc.startCount(), "a different rung spawns its own encoder, never reuses another variant's")
+	p.mu.Lock()
+	variantStart := map[int]int{}
+	for _, s := range p.sessions[hash] {
+		variantStart[s.variantIdx] = s.startSeg
+	}
+	p.mu.Unlock()
+	assert.Contains(t, variantStart, 0, "variant-0 encoder present")
+	assert.Contains(t, variantStart, 1, "variant-1 encoder present")
+	assert.Equal(t, 5, variantStart[1], "the variant-1 encoder seeked to the requested segment (5)")
+}
+
+func TestSoftwareProducer_VariantAwareReuse_SameRungShares(t *testing.T) {
+	// Two in-reach requests on the SAME rung still share one encoder — the variant
+	// filter must not break normal same-variant reuse / frontier advance.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	fp := twoRungFingerprint(t)
+	hash := fp.Hash()
+
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 0))  // variant 1
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 10)) // same rung, in-reach
+	assert.Equal(t, 1, proc.startCount(), "same-rung in-reach requests share one encoder")
+
+	p.mu.Lock()
+	var s *swSession
+	for _, sess := range p.sessions[hash] {
+		if sess.variantIdx == 1 {
+			s = sess
+		}
+	}
+	p.mu.Unlock()
+	require.NotNil(t, s)
+	assert.Equal(t, 10, s.frontier, "the reused variant-1 encoder's frontier advanced to the request")
+}
+
+func TestSoftwareProducer_CacheHitTouchesCorrectVariant(t *testing.T) {
+	// A cache hit on variant 1 must advance the variant-1 encoder's frontier, not a
+	// variant-0 sibling sharing the hash.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	fp := twoRungFingerprint(t)
+	hash := fp.Hash()
+
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0)) // variant 0 encoder
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 0)) // variant 1 encoder
+
+	writeReadySegment(t, cache, SegmentKey{DecisionHash: hash, VariantIdx: 1, SegmentIdx: 7}, fp.UseFMP4)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 7)) // cache hit on variant 1
+
+	p.mu.Lock()
+	var v0, v1 *swSession
+	for _, s := range p.sessions[hash] {
+		switch s.variantIdx {
+		case 0:
+			v0 = s
+		case 1:
+			v1 = s
+		}
+	}
+	p.mu.Unlock()
+	require.NotNil(t, v0)
+	require.NotNil(t, v1)
+	assert.Equal(t, 7, v1.frontier, "the variant-1 cache hit advanced the variant-1 frontier")
+	assert.Equal(t, 0, v0.frontier, "the variant-0 frontier is untouched by a variant-1 hit")
+}
+
 func TestSoftwareProducer_MaxSessionsPerHashEvictsLRU(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
