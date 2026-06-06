@@ -55,6 +55,9 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
       setIsAdmin(user.isAdmin ?? false);
       setMaxProfiles(String(user.maxProfiles ?? 0));
       setMaxDevicesPerProfile(String(user.maxDevicesPerProfile ?? 0));
+      // Clear stale library selection from a previously-edited user; the
+      // accessData effect repopulates it once this user's access loads.
+      setSelectedLibs(new Set());
     }
   }, [open, user]);
 

@@ -163,7 +163,11 @@ export function MetadataEditPanel({
     form.title.trim() !== "" ||
     form.originalTitle.trim() !== "" ||
     form.imdbId.trim() !== "" ||
-    form.tmdbId.trim() !== "";
+    form.tmdbId.trim() !== "" ||
+    form.overview.trim() !== "" ||
+    form.genres.trim() !== "" ||
+    form.year.trim() !== "" ||
+    form.communityRating.trim() !== "";
   const setOverride = useMetadataServiceSetMetadataOverride();
   const removeOverride = useMetadataServiceRemoveMetadataOverride();
   const refresh = useMetadataServiceRefreshMetadata();
