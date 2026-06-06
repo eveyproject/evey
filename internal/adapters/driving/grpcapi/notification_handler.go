@@ -7,8 +7,8 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	appnotification "github.com/evey-project/evey/internal/app/notification"
 	applibrary "github.com/evey-project/evey/internal/app/library"
+	appnotification "github.com/evey-project/evey/internal/app/notification"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/notification"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -40,13 +40,39 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 	if err != nil {
 		return nil, internalError("list notifications", err)
 	}
-	// Filter notifications by library access for non-admin users
+	// Filter notifications by library access for non-admin users. Batch-resolve
+	// the referenced media items' library IDs in one query instead of one
+	// GetMediaItem per notification (N+1) — the per-item loop also risked
+	// returning silent partial results if the context timed out mid-loop.
 	allowed := h.allowedLibraryIDs(ctx)
+	libByMedia := map[string]string{}
+	if allowed != nil {
+		seen := map[string]bool{}
+		ids := make([]string, 0, len(items))
+		for _, n := range items {
+			id := string(n.MediaItemID)
+			if id != "" && !seen[id] {
+				seen[id] = true
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) > 0 {
+			mis, miErr := h.libQuery.GetMediaItemsByIDs(ctx, ids)
+			if miErr != nil {
+				return nil, internalError("resolve notification media", miErr)
+			}
+			for _, mi := range mis {
+				libByMedia[string(mi.ID)] = string(mi.LibraryID)
+			}
+		}
+	}
+
 	resp := &eveyv1.ListNotificationsResponse{}
 	for _, n := range items {
 		if n.MediaItemID != "" && allowed != nil {
-			item, itemErr := h.libQuery.GetMediaItem(ctx, string(n.MediaItemID))
-			if itemErr != nil || !containsStr(allowed, string(item.LibraryID)) {
+			// Unknown id (item deleted) or a library the caller can't access → drop.
+			lib, ok := libByMedia[string(n.MediaItemID)]
+			if !ok || !containsStr(allowed, lib) {
 				continue
 			}
 		}
