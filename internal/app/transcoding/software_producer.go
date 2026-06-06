@@ -125,6 +125,16 @@ type SoftwareProducerOptions struct {
 	// distinct position then evicts the first — the pre-fix behaviour).
 	MaxSessionsPerHash int
 
+	// MaxConcurrentVariantsPerHash bounds how many DISTINCT rungs (variantIdx) may
+	// have a live encoder for one film at once — the anti-thrash ceiling on a weak
+	// NAS where each rung is its own full 4K decode (the software path never shares
+	// a decode across rungs). Past the cap the least-recently-used rung's encoder is
+	// evicted (its segments stay on disk for the LRU disk evictor). Default 2; set
+	// to 1 on the weakest boxes so a level switch fully releases the old rung before
+	// the new one runs. Distinct from MaxSessionsPerHash, which bounds TOTAL encoders
+	// (including several positions of ONE rung); this bounds distinct rungs.
+	MaxConcurrentVariantsPerHash int
+
 	// SeekReachWindowSegs is how many segments AHEAD of a session's production
 	// frontier a request may be and still reuse that (paced) encoder rather than
 	// seek a fresh one. Within the window the player waits a beat for the
@@ -159,6 +169,9 @@ func (o SoftwareProducerOptions) withDefaults() SoftwareProducerOptions {
 	}
 	if out.MaxSessionsPerHash <= 0 {
 		out.MaxSessionsPerHash = 2
+	}
+	if out.MaxConcurrentVariantsPerHash <= 0 {
+		out.MaxConcurrentVariantsPerHash = 2
 	}
 	if out.SeekReachWindowSegs <= 0 {
 		out.SeekReachWindowSegs = 16
@@ -456,12 +469,18 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// least-recently-used sibling (never the one we just appended). Kill it
 	// outside the lock — killSession reacquires p.mu.
 	victim := p.evictLRUIfFullLocked(hash)
+	variantVictims := p.evictExcessVariantsLocked(hash, variantIdx)
 	p.mu.Unlock()
 
 	if victim != nil {
 		p.logger.Info("software: per-hash cap reached, evicting LRU encoder",
 			slog.String("hash", hash), slog.Int("cap", p.opts.MaxSessionsPerHash))
 		p.killSession(victim, "lru_cap")
+	}
+	for _, v := range variantVictims {
+		p.logger.Info("software: distinct-variant cap reached, evicting LRU rung's encoder",
+			slog.String("hash", hash), slog.Int("cap", p.opts.MaxConcurrentVariantsPerHash))
+		p.killSession(v, "variant_cap")
 	}
 
 	// On a weak NAS only one heavy software transcode fits. This encoder just
@@ -474,6 +493,10 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// paused sibling another viewer still consumes resumes on its next request.
 	// Pause (not kill) preserves the multi-tab coexistence guarantee.
 	p.pauseSiblingsBehind(hash, session)
+	// And suspend any DIFFERENT-rung encoder for this film: a fresh rung means the
+	// viewer switched levels, so the old rung's full 4K decode must not run
+	// concurrently with the new rung on a weak box (the level-switch famine window).
+	p.pauseOtherVariants(hash, session)
 
 	// Reap when ffmpeg exits so the live entry doesn't linger and the cache
 	// pending refcount is released (a natural EOF skips killSession's teardown).
@@ -612,18 +635,41 @@ func (p *SoftwareProducer) resumeIfPaused(s *swSession) {
 	}
 }
 
-// pauseSiblingsBehind SIGSTOPs every live encoder for hash whose start position
-// is strictly BEHIND keep (a forward seek leaves them behind). It deliberately
-// does NOT touch siblings AHEAD of keep — those are a deeper viewer or a second
-// tab still watching further in, which must keep running. A paused sibling that
-// turns out to be live resumes on its next segment request (resumeIfPaused);
-// one a seek abandoned stays suspended for the idle GC. Pause (not kill) keeps
-// the multi-tab coexistence guarantee. The point: on a box that fits one heavy
-// software transcode, the just-seeked-to position takes the CPU immediately
-// rather than fighting the abandoned encoder for PauseIdleThreshold seconds.
+// pauseEach SIGSTOPs each of the given sessions (skipping already-paused or
+// handle-less ones), reverting the flag on a failed Pause. Shared by the
+// seek/level-switch CPU-handoff paths. Pause, not kill: a session a viewer still
+// consumes resumes on its next segment request (resumeIfPaused).
+func (p *SoftwareProducer) pauseEach(sessions []*swSession) {
+	for _, s := range sessions {
+		s.mu.Lock()
+		if s.paused || s.handle == nil {
+			s.mu.Unlock()
+			continue
+		}
+		s.paused = true
+		h := s.handle
+		hash := s.hash
+		s.mu.Unlock()
+		if err := h.Pause(); err != nil {
+			s.mu.Lock()
+			s.paused = false
+			s.mu.Unlock()
+			p.logger.Debug("software: pause failed", slog.String("hash", hash), slog.Any("err", err))
+		}
+	}
+}
+
+// pauseSiblingsBehind SIGSTOPs the SAME-rung encoders for hash whose start
+// position is strictly BEHIND keep (a forward seek leaves them behind). It does
+// NOT touch siblings AHEAD of keep (a deeper viewer / second tab still watching
+// further in) nor OTHER rungs (that is pauseOtherVariants' job). On a box that
+// fits one heavy software transcode, the just-seeked-to position takes the CPU
+// immediately rather than fighting the abandoned encoder for PauseIdleThreshold
+// seconds — the "small buffering after seeking" symptom.
 func (p *SoftwareProducer) pauseSiblingsBehind(hash string, keep *swSession) {
 	keep.mu.Lock()
 	keepStart := keep.startSeg
+	keepVariant := keep.variantIdx
 	keep.mu.Unlock()
 
 	p.mu.Lock()
@@ -633,30 +679,43 @@ func (p *SoftwareProducer) pauseSiblingsBehind(hash string, keep *swSession) {
 			continue
 		}
 		s.mu.Lock()
-		isBehind := s.startSeg < keepStart
+		isBehind := s.variantIdx == keepVariant && s.startSeg < keepStart
 		s.mu.Unlock()
 		if isBehind {
 			behind = append(behind, s)
 		}
 	}
 	p.mu.Unlock()
+	p.pauseEach(behind)
+}
 
-	for _, s := range behind {
-		s.mu.Lock()
-		if s.paused || s.handle == nil {
-			s.mu.Unlock()
+// pauseOtherVariants SIGSTOPs every live encoder for hash producing a DIFFERENT
+// rung than keep. A fresh rung starting means the viewer switched levels (an AUTO
+// degrade or a MANUAL pick), so the old rung is abandoned: suspend it AT ONCE
+// rather than let it run a second full 4K decode against the new rung for up to
+// PauseIdleThreshold seconds (the level-switch famine window the thrash review
+// flagged). A rung a genuine co-viewer still consumes resumes on its next
+// request. Pause, not kill — the distinct-variant cap reclaims the slot.
+func (p *SoftwareProducer) pauseOtherVariants(hash string, keep *swSession) {
+	keep.mu.Lock()
+	keepVariant := keep.variantIdx
+	keep.mu.Unlock()
+
+	p.mu.Lock()
+	var others []*swSession
+	for _, s := range p.sessions[hash] {
+		if s == keep {
 			continue
 		}
-		s.paused = true
-		h := s.handle
+		s.mu.Lock()
+		diff := s.variantIdx != keepVariant
 		s.mu.Unlock()
-		if err := h.Pause(); err != nil {
-			s.mu.Lock()
-			s.paused = false
-			s.mu.Unlock()
-			p.logger.Debug("software: pause behind-sibling failed", slog.String("hash", hash), slog.Any("err", err))
+		if diff {
+			others = append(others, s)
 		}
 	}
+	p.mu.Unlock()
+	p.pauseEach(others)
 }
 
 // ActiveSessionCount returns how many software ffmpeg sessions are live across
@@ -782,6 +841,65 @@ func (p *SoftwareProducer) evictLRUIfFullLocked(hash string) *swSession {
 	}
 	p.sessions[hash] = append(list[:victimIdx], list[victimIdx+1:]...)
 	return victim
+}
+
+// evictExcessVariantsLocked enforces MaxConcurrentVariantsPerHash: if the hash now
+// has more DISTINCT live rungs than the cap, it drops the least-recently-used rungs
+// (never keepVariant, the one just spawned) and returns every session of those
+// rungs for the caller to kill outside the lock. A weak NAS cannot run a full
+// decode per rung, so the number of distinct concurrently-encoding rungs for one
+// film stays hard-bounded no matter how a client probes. Must hold p.mu.
+func (p *SoftwareProducer) evictExcessVariantsLocked(hash string, keepVariant int) []*swSession {
+	list := p.sessions[hash]
+	newest := map[int]time.Time{} // most-recent access per distinct rung
+	for _, s := range list {
+		s.mu.Lock()
+		la, v := s.lastAccess, s.variantIdx
+		s.mu.Unlock()
+		if la.After(newest[v]) {
+			newest[v] = la
+		}
+	}
+	if len(newest) <= p.opts.MaxConcurrentVariantsPerHash {
+		return nil
+	}
+	evict := map[int]struct{}{}
+	for len(newest)-len(evict) > p.opts.MaxConcurrentVariantsPerHash {
+		lru, have := -1, false
+		var lruTime time.Time
+		for v, t := range newest {
+			if v == keepVariant {
+				continue
+			}
+			if _, gone := evict[v]; gone {
+				continue
+			}
+			if !have || t.Before(lruTime) {
+				lru, lruTime, have = v, t, true
+			}
+		}
+		if !have {
+			break
+		}
+		evict[lru] = struct{}{}
+	}
+	if len(evict) == 0 {
+		return nil
+	}
+	var victims []*swSession
+	remaining := make([]*swSession, 0, len(list))
+	for _, s := range list {
+		s.mu.Lock()
+		v := s.variantIdx
+		s.mu.Unlock()
+		if _, gone := evict[v]; gone {
+			victims = append(victims, s)
+		} else {
+			remaining = append(remaining, s)
+		}
+	}
+	p.sessions[hash] = remaining
+	return victims
 }
 
 // gcLoop sweeps idle sessions and suspends the encoder for clients that went

@@ -380,6 +380,82 @@ func TestSoftwareProducer_CacheHitTouchesCorrectVariant(t *testing.T) {
 	assert.Equal(t, 0, v0.frontier, "the variant-0 frontier is untouched by a variant-1 hit")
 }
 
+func threeRungFingerprint(t *testing.T) DecisionFingerprint {
+	t.Helper()
+	fp := minimalFingerprint(t)
+	fp.Profiles = []ProfileFingerprint{
+		{Name: "360p", Width: 640, Height: 360, VideoBitrate: 800, AudioBitrate: 96},
+		{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 2500, AudioBitrate: 128},
+		{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 5000, AudioBitrate: 128},
+	}
+	return fp
+}
+
+func TestSoftwareProducer_LevelSwitchPausesAbandonedRung(t *testing.T) {
+	// Switching rungs (a fresh variant starting) must SIGSTOP the old rung at once
+	// so two full 4K decodes don't run concurrently on a weak box — pause, not kill,
+	// so a co-viewer could still resume it.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	fp := twoRungFingerprint(t)
+	hash := fp.Hash()
+
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0)) // rung 0 playing
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 0)) // switch to rung 1
+
+	p.mu.Lock()
+	var v0, v1 *swSession
+	for _, s := range p.sessions[hash] {
+		switch s.variantIdx {
+		case 0:
+			v0 = s
+		case 1:
+			v1 = s
+		}
+	}
+	p.mu.Unlock()
+	require.NotNil(t, v0, "the abandoned rung-0 encoder still exists (paused, not killed)")
+	require.NotNil(t, v1)
+	_, _, v0paused := v0.handle.(*fakeHandle).counts()
+	_, _, v1paused := v1.handle.(*fakeHandle).counts()
+	assert.True(t, v0paused, "the abandoned rung-0 encoder is suspended at once on the level switch")
+	assert.False(t, v1paused, "the new rung-1 encoder keeps running")
+	assert.False(t, v0.handle.(*fakeHandle).isStopped(), "abandoned rung is paused, NOT killed (a co-viewer could resume it)")
+}
+
+func TestSoftwareProducer_DistinctVariantCapEvictsLRURung(t *testing.T) {
+	// On a weak NAS the number of distinct concurrently-encoding rungs for one film
+	// is hard-bounded: a 3rd distinct rung evicts the LRU rung's encoder so a probing
+	// client can never stack N concurrent 4K decodes.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := swTestOpts()
+	opts.MaxConcurrentVariantsPerHash = 2
+	opts.MaxSessionsPerHash = 10 // keep the total cap from masking the variant cap
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, opts, discardLogger())
+	defer p.Close()
+
+	fp := threeRungFingerprint(t)
+	hash := fp.Hash()
+
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0)) // rung 0 (oldest)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 0)) // rung 1
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 2, 0)) // rung 2 -> evicts LRU rung 0
+
+	p.mu.Lock()
+	variants := map[int]bool{}
+	for _, s := range p.sessions[hash] {
+		variants[s.variantIdx] = true
+	}
+	p.mu.Unlock()
+	assert.Len(t, variants, 2, "never more than MaxConcurrentVariantsPerHash distinct rungs alive")
+	assert.False(t, variants[0], "the LRU rung (0) was evicted")
+	assert.True(t, variants[1] && variants[2], "the two most-recent rungs survive")
+}
+
 func TestSoftwareProducer_MaxSessionsPerHashEvictsLRU(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
