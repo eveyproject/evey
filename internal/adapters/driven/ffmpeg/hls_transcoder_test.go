@@ -209,7 +209,7 @@ func TestBuildFFmpegArgs_MultiVariant(t *testing.T) {
 	}
 	args := ffmpeg.BuildFFmpegArgs(opts)
 	joined := strings.Join(args, " ")
-	assert.Contains(t, joined, "[0:v]bwdif=deint=interlaced,split=")
+	assert.Contains(t, joined, "[0:v]bwdif=mode=send_frame:deint=interlaced,split=")
 	assert.Contains(t, joined, "-force_key_frames")
 	assert.Contains(t, joined, "var_stream_map")
 	assert.Contains(t, joined, "master.m3u8")
@@ -242,7 +242,7 @@ func TestBuildFFmpegArgs_BurnIn(t *testing.T) {
 	}
 	args := ffmpeg.BuildFFmpegArgs(opts)
 	joined := strings.Join(args, " ")
-	assert.Contains(t, joined, "[0:v]bwdif=deint=interlaced[vd]")
+	assert.Contains(t, joined, "[0:v]bwdif=mode=send_frame:deint=interlaced[vd]")
 	assert.Contains(t, joined, "[vd][0:s:2]overlay[vb]")
 	assert.Contains(t, joined, "[vb]split=")
 }
@@ -262,7 +262,7 @@ func TestBuildFFmpegArgs_SingleTranscode_OneProfile(t *testing.T) {
 	assert.NotContains(t, joined, "var_stream_map")
 	// Single transcode must deinterlace (fixes combing on interlaced sources)
 	// and force segment-aligned keyframes (fixes slow first-segment startup).
-	assert.Contains(t, joined, "bwdif=deint=interlaced,scale=")
+	assert.Contains(t, joined, "bwdif=mode=send_frame:deint=interlaced,scale=")
 	assert.Contains(t, joined, "-force_key_frames expr:gte(t,n_forced*3)")
 }
 
@@ -625,7 +625,7 @@ func TestBuildFFmpegArgs_ForceSidecarSubs_SkipsBurnIn_MultiVariant(t *testing.T)
 	args := ffmpeg.BuildFFmpegArgs(opts)
 	joined := strings.Join(args, " ")
 	assert.NotContains(t, joined, "overlay")
-	assert.Contains(t, joined, "[0:v]bwdif=deint=interlaced,split=")
+	assert.Contains(t, joined, "[0:v]bwdif=mode=send_frame:deint=interlaced,split=")
 	assert.Contains(t, joined, "-force_key_frames")
 }
 

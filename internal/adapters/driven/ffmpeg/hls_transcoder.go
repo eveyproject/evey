@@ -608,11 +608,18 @@ func BuildFFmpegArgs(opts transcoding.HLSProcessOpts) []string {
 const hlsSegmentSeconds = "3"
 
 // deinterlaceFilter deinterlaces only frames the decoder flags as interlaced
-// (deint=interlaced) — a no-op on progressive content (verified: passes through
-// untouched), so it is safe to apply unconditionally on the transcode path.
-// Fixes the horizontal "combing" on interlaced sources (old TV/repacks) that
-// would otherwise be encoded field-by-field into progressive frames.
-const deinterlaceFilter = "bwdif=deint=interlaced"
+// (deint=interlaced), at the SOURCE frame rate (mode=send_frame). bwdif's
+// DEFAULT mode is send_field, which emits one output frame per FIELD — doubling
+// the frame rate (e.g. 24→48 fps) even on progressive content, because the rate
+// doubling is independent of deint=interlaced (that flag only gates the
+// deinterlace *algorithm*, not the field-to-frame expansion). Applied unconditionally
+// at the head of the filter chain, send_field silently ran scale + tonemap + the
+// x264 encode at 2× the frames: a 4K HEVC10 HDR transcode measured speed=0.90×
+// realtime on an old iGPU box (frame=10798 over 224s = 48 fps, dup≈half) — sub-realtime,
+// so playback buffered indefinitely with no lower rung to fall back to.
+// send_frame keeps the combing fix for genuinely interlaced sources (old TV /
+// repacks) at their native rate and is a true 1:1 no-op on progressive content.
+const deinterlaceFilter = "bwdif=mode=send_frame:deint=interlaced"
 
 // softwareCRF is the x264 quality target for the software ABR ladder. Paired
 // with per-rung -maxrate/-bufsize ("capped CRF"): CRF fixes the perceptual
