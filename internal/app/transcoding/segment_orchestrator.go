@@ -98,6 +98,12 @@ type OrchestratorOptions struct {
 	// unaffected; zero disables the watchdog.
 	HWFirstSegmentTimeout time.Duration
 
+	// WaitBudgetDur is how long the segment handler blocks on cache.Wait for an
+	// orchestrated segment (returned by WaitBudget()). Default 25 s — a generous
+	// HW cold-start window. Configurable so unit tests fail fast instead of summing
+	// 25 s waits, mirroring the software producer's WaitBudgetDur.
+	WaitBudgetDur time.Duration
+
 	// HWPerVariant routes the HW transcode path through one single-output ffmpeg
 	// per ABR rung (forwarded to HLSProcessOpts.PerVariantHW). Off by default;
 	// software is always single-process multi-variant.
@@ -149,6 +155,9 @@ func (o *OrchestratorOptions) withDefaults() OrchestratorOptions {
 	}
 	if out.HWFirstSegmentTimeout <= 0 {
 		out.HWFirstSegmentTimeout = 5 * time.Second
+	}
+	if out.WaitBudgetDur <= 0 {
+		out.WaitBudgetDur = 25 * time.Second
 	}
 	return out
 }
@@ -1303,7 +1312,7 @@ var _ StreamProducer = (*SegmentOrchestrator)(nil)
 // orchestrated (hardware) segment. The HW path bursts ahead and lands segment
 // 0 within a few seconds on a working GPU, so 25 s is a generous worst-case
 // cold-start window (it matches the handler's historical segmentWaitTimeout).
-func (o *SegmentOrchestrator) WaitBudget() time.Duration { return 25 * time.Second }
+func (o *SegmentOrchestrator) WaitBudget() time.Duration { return o.opts.WaitBudgetDur }
 
 // Profiles shapes the ABR ladder for the HARDWARE path: the full ladder (a GPU
 // parallelises rungs cheaply) capped to the source resolution and the host's

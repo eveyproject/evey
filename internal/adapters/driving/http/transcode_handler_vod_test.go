@@ -109,7 +109,8 @@ func buildVODHandler(t *testing.T, libSvc MediaStreamsGetter, libAccess LibraryA
 		cache,
 		&transcodingfakes.HLSProcess{},
 		&noopSourceResolver{},
-		apptranscoding.OrchestratorOptions{},
+		// Short wait so cache-miss tests 503 fast instead of summing 25 s waits.
+		apptranscoding.OrchestratorOptions{WaitBudgetDur: 50 * time.Millisecond},
 		slog.Default(),
 	)
 	t.Cleanup(func() { orch.Close() })
