@@ -30,9 +30,10 @@ import (
 // project's bundled sample (or a synthetic testsrc fallback when the
 // sample is missing). For each height we encode ~5 s of video and
 // measure the wall-clock; FPS = frames / wall. A height passes when
-// FPS >= sampleRate × realtimeMargin (1.2 default — 20 % margin over
-// realtime so the host doesn't crash on slightly heavier sources than
-// the bench).
+// FPS >= sampleRate × realtimeMargin (1.5 default — a comfortable 50 %
+// headroom so the host stays fluid on heavier real content than the bench;
+// HDR requires even more, softwareHDRMargin, because its 4K-10-bit decode +
+// tonemap is the heaviest path and the synthetic bench can't fully see it).
 //
 // Sample mire path is configurable to let tests use a tiny generated
 // file instead of bundling 5 MB into the binary for unit tests.
@@ -42,7 +43,7 @@ type BenchmarkRunner struct {
 	hwDetector  *HWDetector
 	logger      *slog.Logger
 	durationSec int     // per-height bench duration; 5 s by default
-	margin      float64 // FPS / realtime ratio required to pass (1.2 default)
+	margin      float64 // FPS / realtime ratio required to pass (1.5 default; HDR uses softwareHDRMargin)
 	// singleVariant mirrors the runtime orchestrator mode. When true the
 	// software ladder is probed one rung at a time (decode + tonemap + ONE
 	// encode at height h) — the shape a single-variant session actually runs
@@ -110,7 +111,7 @@ func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunne
 		opts.DurationSec = 5
 	}
 	if opts.Margin == 0 {
-		opts.Margin = 1.2
+		opts.Margin = 1.5
 	}
 	if logger == nil {
 		logger = slog.Default()
@@ -634,15 +635,31 @@ func probeRungs(ladder []int, i int, singleVariant bool) []int {
 	return ladder[: i+1 : i+1]
 }
 
+// softwareHDRMargin is the realtime headroom the HDR software ladder must clear —
+// higher than the SDR margin because HDR adds a heavy tonemap on top of a 4K
+// 10-bit decode the synthetic bench can't fully reproduce, so the auto top rung
+// keeps extra room to stay fluid on real content (else the ladder degrades down).
+const softwareHDRMargin = 1.6
+
+// marginFor returns the realtime headroom a rung must clear to pass: the
+// configured margin for SDR, raised to softwareHDRMargin for the heavier HDR
+// path (never lowered below the operator's margin).
+func (r *BenchmarkRunner) marginFor(label string) float64 {
+	if label == "software-hdr" && softwareHDRMargin > r.margin {
+		return softwareHDRMargin
+	}
+	return r.margin
+}
+
 // benchSoftwareLadder walks swBenchLadder under the production pipeline shape,
 // optionally prefixing a filter on the decoded stream before encoding
 // (preFilter, e.g. the HDR tonemap). In single-variant mode each rung is probed
 // in isolation (1 decode + 1 encode at h); in multi-variant mode rung h is
 // probed alongside every lighter rung (1 decode + N parallel encodes). Highest
-// rung sustaining >= sourceRate×margin wins; floor when none pass.
+// rung sustaining >= sourceRate×marginFor(label) wins; floor when none pass.
 func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string, fallback bool, preFilter func(topHeight int) string, label string, floor int) (int, []transcoding.BenchRungSample) {
 	best := 0
-	required := float64(r.sourceRate()) * r.margin
+	required := float64(r.sourceRate()) * r.marginFor(label)
 	var samples []transcoding.BenchRungSample
 	for i, h := range swBenchLadder {
 		laddered := probeRungs(swBenchLadder, i, r.singleVariant)
