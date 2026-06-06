@@ -464,13 +464,19 @@ export function HLSPlayer({
   useEffect(() => {
     const hls = hlsRef.current;
     if (!hls || !transcodeMode) return;
+    // hls.js ABR is intentionally OFF on this transcode path: free ABR loads
+    // several rungs at once on a transcode box (each = a concurrent decode), they
+    // contend, time out, and it collapses to the 360p floor. Setting currentLevel
+    // to a fixed index pins one rung (and disables ABR). "Auto" pins the TOP
+    // (calibrated-sustainable) rung — one decode, stable, no switching — and the
+    // viewer drops manually via the picker for a title too heavy to hold it.
     if (autoQuality) {
-      hls.currentLevel = -1;
+      hls.currentLevel = hls.levels.length > 0 ? hls.levels.length - 1 : -1;
     } else if (currentQuality > 0) {
       const idx = hls.levels.findIndex((l: { height: number }) => l.height === currentQuality);
       if (idx >= 0) hls.currentLevel = idx;
     } else {
-      hls.currentLevel = -1;
+      hls.currentLevel = hls.levels.length > 0 ? hls.levels.length - 1 : -1;
     }
   }, [autoQuality, currentQuality, transcodeMode]);
 

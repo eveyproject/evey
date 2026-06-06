@@ -119,14 +119,6 @@ export function useTranscodePlayback({
       startPosition: -1,
       maxBufferLength: 30,
       maxMaxBufferLength: 60,
-      // On a transcode-on-demand server the "bandwidth" hls.js measures is the
-      // ENCODER's pace, not the network's. Its default ~500 kbps estimate makes
-      // Auto cold-start on the 360p floor, then the slow top-rung cold-start gets
-      // read as low bandwidth and it never climbs back. Seed a high estimate so
-      // Auto auto-picks the TOP (calibrated-sustainable) rung from the very first
-      // fragment — a single decode, no second concurrent 4K decode — and let only
-      // a genuine buffer stall pull it down.
-      abrEwmaDefaultEstimate: 10_000_000,
       // Long-distance seeks spawn a fresh rafale on the server side;
       // ffmpeg can take 10-15 s to produce segment 0 of that rafale
       // on a 4K HEVC source. The hls.js default fragLoadingTimeOut
@@ -176,10 +168,10 @@ export function useTranscodePlayback({
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       setHlsLevels(hls.levels.map((l) => l.height));
-      // NB: Auto starts at the top rung via the high abrEwmaDefaultEstimate above,
-      // NOT a startLevel override here — setting hls.startLevel post-MANIFEST_PARSED
-      // raced the auto-pick and loaded BOTH the 360p auto-pick and the 1080p rung
-      // at once (two concurrent 4K decodes → contention → ABR fell to 360p).
+      // NB: hls.js ABR is intentionally NOT used on this transcode path — the
+      // level-sync effect in HLSPlayer PINS a single rung (top for Auto, the chosen
+      // one for manual) because free ABR loads several rungs at once on a transcode
+      // box and thrashes. So no startLevel / abrEwmaDefaultEstimate tuning here.
       // VOD pipeline: the manifest covers the full media duration so we
       // seek the resume target via video.currentTime, which causes
       // hls.js to request the matching segment from the server.
