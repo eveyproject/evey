@@ -38,7 +38,7 @@ import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 import { slugify } from "@/utils/slugify";
 import { toast, useAuthStore } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
-import { favoriteServiceAddFavorite } from "@evey/api";
+import { favoriteServiceAddFavorite, getFavoriteServiceListFavoritesQueryKey } from "@evey/api";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { AddToCollectionModal } from "@/features/collection/AddToCollectionModal";
 import { SortOrderButton, ViewToggleButton } from "./LibraryToolbar";
@@ -150,7 +150,9 @@ function LibraryPage() {
     const ids = Array.from(selectedIds);
     try {
       await Promise.all(ids.map((id) => favoriteServiceAddFavorite(id, {})));
-      queryClient.invalidateQueries({ queryKey: ["favorites"] });
+      // Use the orval-generated key (["/api/v1/favorites", …]); the bare
+      // ["favorites"] prefix never matched, so the Favorites list/feed stayed stale.
+      queryClient.invalidateQueries({ queryKey: getFavoriteServiceListFavoritesQueryKey() });
       toast.success(t("media.library.addedToFavorites", { count: ids.length }));
       setSelectedIds(new Set());
       setBulkMode(false);

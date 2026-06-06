@@ -2,9 +2,10 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { toast } from "@evey/store";
-import { collectionServiceAddCollectionItem } from "@evey/api";
+import { collectionServiceAddCollectionItem, getCollectionServiceGetCollectionItemsQueryKey } from "@evey/api";
 import { useCollections } from "./api";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
 
 export function AddToCollectionModal({ open, onClose, mediaItemIds }: Props) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const { data, isLoading } = useCollections();
   const collections = data?.collections ?? [];
   const [pending, setPending] = useState(false);
@@ -27,6 +29,10 @@ export function AddToCollectionModal({ open, onClose, mediaItemIds }: Props) {
           collectionServiceAddCollectionItem(collectionId, { mediaItemId: id, sortOrder: 0 })
         )
       );
+      // Direct service call bypasses the mutation hook's auto-invalidation, so
+      // refresh the target collection's items — otherwise the collection page
+      // shows stale contents after the add.
+      qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionItemsQueryKey(collectionId) });
       toast.success(
         t("media.collections.itemsAdded", { count: mediaItemIds.length, name: collectionName })
       );

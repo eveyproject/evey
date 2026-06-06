@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   useLibraryAccessServiceGetUserLibraryAccess,
   useLibraryAccessServiceRevokeAllUserLibraryAccess,
   useLibraryAccessServiceSetUserLibraryAccess,
+  getLibraryAccessServiceGetUserLibraryAccessQueryKey,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import type { V1User } from "@evey/api";
@@ -23,6 +25,7 @@ export function LibraryAccessModal({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
@@ -63,6 +66,9 @@ export function LibraryAccessModal({
       } else {
         await setAccess.mutateAsync({ userId: user.id, data: { libraryIds: Array.from(selected) } });
       }
+      // Invalidate this user's cached access so reopening the modal (or any
+      // access-dependent view) reflects the change instead of stale data.
+      qc.invalidateQueries({ queryKey: getLibraryAccessServiceGetUserLibraryAccessQueryKey(user.id) });
       toast.success(t("admin.users.libraryAccessUpdated"));
       onClose();
     } catch {

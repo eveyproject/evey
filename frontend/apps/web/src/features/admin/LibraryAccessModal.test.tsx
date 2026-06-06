@@ -12,6 +12,7 @@ vi.mock("@evey/api", () => ({
   useLibraryAccessServiceGetUserLibraryAccess: (_id: string, _opts: unknown) => getMock(),
   useLibraryAccessServiceSetUserLibraryAccess: () => ({ mutateAsync: setMutateAsync, isPending: false }),
   useLibraryAccessServiceRevokeAllUserLibraryAccess: () => ({ mutateAsync: revokeMutateAsync, isPending: false }),
+  getLibraryAccessServiceGetUserLibraryAccessQueryKey: (id?: string) => ["library-access", id],
 }));
 
 vi.mock("@evey/store", () => ({
