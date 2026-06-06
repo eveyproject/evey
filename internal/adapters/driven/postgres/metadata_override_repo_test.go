@@ -68,14 +68,20 @@ func TestMetadataOverrideRepo_Set_Upsert(t *testing.T) {
 
 	o := newTestOverride("ov2", string(item.ID), "overview", "Original overview")
 	require.NoError(t, overrideRepo.Set(ctx, o))
+	first, err := overrideRepo.Get(ctx, o.ID)
+	require.NoError(t, err)
 
-	// Same id, same (media_item_id, field_name), updated value — upsert updates
+	// Same id, same (media_item_id, field_name), updated value + a LATER created_at
+	// (simulating a re-edit) — upsert updates the value but must PRESERVE the
+	// original created_at, not clobber it with the edit timestamp.
 	o.CustomValue = "Updated overview"
+	o.CreatedAt = first.CreatedAt.Add(time.Hour)
 	require.NoError(t, overrideRepo.Set(ctx, o))
 
 	got, err := overrideRepo.Get(ctx, o.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated overview", got.CustomValue)
+	assert.WithinDuration(t, first.CreatedAt, got.CreatedAt, time.Second, "created_at must be preserved on update, not clobbered by the edit time")
 
 	// Only one row for (media_item_id, field_name)
 	list, err := overrideRepo.GetByMediaItem(ctx, string(item.ID))

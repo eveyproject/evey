@@ -40,8 +40,7 @@ func (r *MetadataOverrideRepository) Set(ctx context.Context, o *metadata.Metada
 		 VALUES ($1,$2,$3,$4,$5,$6)
 		 ON CONFLICT (media_item_id, field_name) DO UPDATE SET
 		   custom_value = EXCLUDED.custom_value,
-		   edited_by = EXCLUDED.edited_by,
-		   created_at = EXCLUDED.created_at`,
+		   edited_by = EXCLUDED.edited_by`,
 		o.ID, o.MediaItemID, o.FieldName, valueJSON, o.EditedBy, o.CreatedAt,
 	)
 	if err != nil {
