@@ -201,6 +201,11 @@ type HLSProfile struct {
 	Height       int
 	VideoBitrate int64 // kbps
 	AudioBitrate int64 // kbps
+	// Copy marks a video-COPY (remux) rung: the source H.264 stream is muxed
+	// without re-encoding. Copy bytes differ from transcoded bytes at the SAME
+	// WxH, so this MUST reach the cache fingerprint (ProfileFingerprint.Copy →
+	// Hash) or copy and transcoded segments alias and corrupt the stream.
+	Copy bool
 }
 
 var DefaultHLSProfiles = []HLSProfile{

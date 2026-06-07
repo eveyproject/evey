@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
 // SegmentKind tags a SegmentKey as belonging to the muxed/video pipeline
@@ -121,6 +123,29 @@ type ProfileFingerprint struct {
 	Height       int
 	VideoBitrate int64
 	AudioBitrate int64
+	// Copy marks a remux (video-copy) rung. Copy bytes != transcode bytes at the
+	// same WxH, so it is folded into Hash(). Whenever a byte-affecting field is
+	// added here, TestProfileFingerprint_EveryFieldAffectsHash fails until it is
+	// also added to Hash() — the structural guard against the next omission.
+	Copy bool
+}
+
+// ProfileFingerprintOf projects a domain HLSProfile onto its cache fingerprint.
+// The ONLY place HLSProfile → ProfileFingerprint is performed, so the projection
+// can be reflection-guarded in one spot: TestProfileFingerprintOf_CopiesEveryField
+// reddens if a ProfileFingerprint field is not copied from its same-named
+// HLSProfile field. Together with the Hash() reflection guard this closes the
+// HLSProfile → ProfileFingerprint → Hash chain — a forgotten byte-affecting field
+// fails a test rather than silently aliasing the cache.
+func ProfileFingerprintOf(p transcoding.HLSProfile) ProfileFingerprint {
+	return ProfileFingerprint{
+		Name:         p.Name,
+		Width:        p.Width,
+		Height:       p.Height,
+		VideoBitrate: p.VideoBitrate,
+		AudioBitrate: p.AudioBitrate,
+		Copy:         p.Copy,
+	}
 }
 
 // AudioFingerprint is the content-address of an audio-only HLS rendition
@@ -189,7 +214,7 @@ func (f DecisionFingerprint) Hash() string {
 	fmt.Fprintf(&b, "sidecar=%t\n", f.ForceSidecarSubs)
 	fmt.Fprintf(&b, "fmp4=%t\n", f.UseFMP4)
 	for _, p := range profiles {
-		fmt.Fprintf(&b, "p=%s|%dx%d|%d|%d\n", p.Name, p.Width, p.Height, p.VideoBitrate, p.AudioBitrate)
+		fmt.Fprintf(&b, "p=%s|%dx%d|%d|%d|copy=%t\n", p.Name, p.Width, p.Height, p.VideoBitrate, p.AudioBitrate, p.Copy)
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	// 16 hex chars = 64 bits, low enough collision risk for our cache scale.

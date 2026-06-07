@@ -57,6 +57,12 @@ type ManifestInput struct {
 	// segments are ~30% smaller and CMAF-style aligns with hls.js modern path.
 	UseFMP4 bool
 
+	// CopyVideoCodec is the SOURCE avc1.PPCCLL advertised for the video-COPY rung
+	// (the rung whose HLSProfile.Copy is true), built from the source profile +
+	// level via avcCodecString. Empty when there is no copy rung; the master then
+	// falls back to the codec-family default for every rung.
+	CopyVideoCodec string
+
 	// ChosenVideoCodec / ChosenAudioCodec are the codecs the ffmpeg decision
 	// picked for this session (e.g. "h264", "hevc", "av1" / "aac", "ac3",
 	// "eac3"). Used to emit a correct `CODECS=...` attribute on each
@@ -215,9 +221,17 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		if audioGroup != "" {
 			audioAttr = fmt.Sprintf(",AUDIO=%q", audioGroup)
 		}
+		// Per-rung CODECS: a video-COPY rung advertises the SOURCE's exact
+		// avc1.PPCCLL (in.CopyVideoCodec, built from the source profile+level) so
+		// Safari/hls.js don't reject a rendition whose real level exceeds the
+		// conservative default; transcoded rungs keep the encoder codec.
+		rungCodecs := codecs
+		if p.Copy && in.CopyVideoCodec != "" {
+			rungCodecs = in.CopyVideoCodec + "," + audioCodecAttr(strings.ToLower(in.ChosenAudioCodec))
+		}
 		fmt.Fprintf(&b,
 			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%s,CODECS=%q%s\n",
-			bps, avg, res, codecs, audioAttr,
+			bps, avg, res, rungCodecs, audioAttr,
 		)
 		fmt.Fprintf(&b, "stream_%d.m3u8%s\n", i, suffix)
 	}
@@ -405,6 +419,31 @@ func videoCodecAttr(c string) string {
 		return "avc1.640028"
 	default:
 		return "avc1.640028"
+	}
+}
+
+// avcCodecString builds the EXACT RFC-6381 "avc1.PPCCLL" for an H.264 stream
+// from its ffprobe profile name + level_idc (e.g. High + 40 → "avc1.640028").
+// Used for the video-COPY rung so the master advertises the SOURCE's real
+// profile/level instead of the conservative hardcoded default — a too-low
+// advertised level makes Safari/hls.js refuse a higher-level copied rendition.
+// PP=profile_idc, CC=constraint flags (00, correct for the High/Main 8-bit SDR
+// copy scope), LL=level_idc (the ffprobe level int, 40 = L4.0 = 0x28).
+func avcCodecString(profile string, level int) string {
+	return fmt.Sprintf("avc1.%02x00%02x", avcProfileIDC(profile), level)
+}
+
+// avcProfileIDC maps an ffprobe H.264 profile name to its profile_idc byte.
+func avcProfileIDC(profile string) int {
+	switch strings.ToLower(strings.TrimSpace(profile)) {
+	case "high":
+		return 0x64
+	case "main":
+		return 0x4d
+	case "baseline", "constrained baseline":
+		return 0x42
+	default:
+		return 0x64 // High — the safe default for the 8-bit SDR copy scope
 	}
 }
 

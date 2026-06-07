@@ -532,7 +532,23 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		ChosenAudioCodec:    decision.AudioCodec,
 		ResumeOffsetSec:     resumeSec,
 		AudioRenditions:     audioRenditions,
+		CopyVideoCodec:      sourceCopyVideoCodec(streams),
 	}, nil
+}
+
+// sourceCopyVideoCodec returns the avc1.PPCCLL to advertise for a copy rung of
+// the source video stream, or "" when the source is not copy-eligible (the
+// "no copy without level" guard lives in CopyVideoCodecString). The manifest
+// only uses it for a rung whose HLSProfile.Copy is true, so it is a harmless
+// no-op until the copy rung is wired (step 4).
+func sourceCopyVideoCodec(streams []*domainlibrary.MediaStream) string {
+	for _, s := range streams {
+		if s == nil || s.StreamType != "video" {
+			continue
+		}
+		return apptranscoding.CopyVideoCodecString(s.Codec, s.Profile, s.Level, streamIsTenBit(s))
+	}
+	return ""
 }
 
 // buildFingerprint reproduces the DecisionFingerprint from a segment-time
@@ -550,13 +566,8 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 
 	fpProfiles := make([]apptranscoding.ProfileFingerprint, len(profiles))
 	for i, p := range profiles {
-		fpProfiles[i] = apptranscoding.ProfileFingerprint{
-			Name:         p.Name,
-			Width:        p.Width,
-			Height:       p.Height,
-			VideoBitrate: p.VideoBitrate,
-			AudioBitrate: p.AudioBitrate,
-		}
+		// Single, reflection-guarded projection (TestProfileFingerprintOf_CopiesEveryField).
+		fpProfiles[i] = apptranscoding.ProfileFingerprintOf(p)
 	}
 
 	hwTonemap := h.hwTonemapWanted(decision)

@@ -633,6 +633,9 @@ type fakeProcess struct {
 	// failOnExit, when set, makes every spawned handle report this failure
 	// class and exit immediately (Done closed) — drives the level-2 safety net.
 	failOnExit transcoding.FailureClass
+	// startErr, when set, makes Start itself fail (records the attempt, returns
+	// the error, no handle) — used by the whole-file retry/invariant tests.
+	startErr error
 }
 
 func newFakeProcess() *fakeProcess { return &fakeProcess{} }
@@ -641,8 +644,12 @@ func (p *fakeProcess) Start(_ context.Context, opts transcoding.HLSProcessOpts) 
 	p.mu.Lock()
 	p.started = append(p.started, opts)
 	fail := p.failOnExit
+	serr := p.startErr
 	p.mu.Unlock()
 	p.count.Add(1)
+	if serr != nil {
+		return nil, serr
+	}
 	h := &fakeHandle{done: make(chan struct{}), failure: fail}
 	if fail != "" {
 		close(h.done) // simulate an immediate process exit with this failure
