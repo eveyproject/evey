@@ -156,6 +156,59 @@ func TestMediaStreamRepo_SetVideoLevels_FillsOnceNeverWipes(t *testing.T) {
 	assert.Equal(t, 40, *got2[0].Level, "level unchanged on the second call")
 }
 
+func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("kflib1")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	// A: h264 video WITH level, keyframes NULL → candidate.
+	itemA := newTestMediaItem("kfA", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemA))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "a-v", MediaItemID: itemA.ID, StreamIndex: 0, StreamType: "video", Codec: "h264", Level: new(40)},
+	}))
+	// B: h264 video WITHOUT level → NOT a candidate (keyframes only matter once copy-eligible).
+	itemB := newTestMediaItem("kfB", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemB))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "b-v", MediaItemID: itemB.ID, StreamIndex: 0, StreamType: "video", Codec: "h264"},
+	}))
+
+	ids, err := streamRepo.ListVideoKeyframesMissing(ctx, 10, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{string(itemA.ID)}, ids, "only the leveled, unindexed h264 item is a candidate")
+
+	// Fill A's keyframes; it must drop out of the candidate query and read back.
+	kf := []int64{0, 3253, 6548, 13138}
+	n, err := streamRepo.SetKeyframes(ctx, itemA.ID, kf)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	got, err := streamRepo.GetByMediaItemID(ctx, itemA.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, kf, got[0].Keyframes, "keyframes round-trip through the bigint[] column")
+
+	after, err := streamRepo.ListVideoKeyframesMissing(ctx, 10, nil)
+	require.NoError(t, err)
+	assert.Empty(t, after, "an indexed item is no longer a candidate")
+
+	// Never overwrite; empty slice is a no-op.
+	n2, err := streamRepo.SetKeyframes(ctx, itemA.ID, []int64{999})
+	require.NoError(t, err)
+	assert.Equal(t, 0, n2, "existing keyframes are not overwritten")
+	n3, err := streamRepo.SetKeyframes(ctx, itemB.ID, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n3, "empty keyframes write nothing")
+}
+
 func TestMediaStreamRepo_DeleteByMediaItemID(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

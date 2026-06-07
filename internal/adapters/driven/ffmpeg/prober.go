@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -144,6 +145,63 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 	}
 
 	return &library.ProbeResult{Streams: streams, Duration: duration}, nil
+}
+
+// ProbeKeyframes returns the presentation timestamps (milliseconds, sorted
+// ascending, deduped) of the first video stream's keyframes. These are the ONLY
+// valid segment-start boundaries for a -c:v copy (remux) rendition: a copied
+// segment cannot begin mid-GOP, so a copy rung's segments must align to the
+// source's existing keyframes. Reads packet headers only (no decode).
+//
+// WARNING — cost: on a Matroska source this scans every packet header (~40 s for
+// a 2 h film, no random access), so it is for a PACED background backfill only,
+// never a request hot path. The fast path is the container's own seek index
+// (MKV Cues / MP4 stss); see the mkvgo OpenCues enhancement note in memory. This
+// ffprobe scan is the correct-but-slow fallback.
+func (p *Prober) ProbeKeyframes(ctx context.Context, filePath string) ([]int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.prober.ProbeKeyframes")
+	defer span.End()
+	cmd := exec.CommandContext(ctx, p.binary,
+		"-v", "error",
+		"-select_streams", "v:0",
+		"-show_entries", "packet=pts_time,flags",
+		"-of", "csv=p=0",
+		filePath,
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("ffprobe keyframes: %w", err)
+	}
+	return parseKeyframeCSV(out), nil
+}
+
+// parseKeyframeCSV extracts keyframe presentation times (ms, sorted, deduped)
+// from `ffprobe -show_entries packet=pts_time,flags -of csv=p=0` output. Each
+// line is "<pts_time_seconds>,<flags>"; a keyframe packet carries 'K' as the
+// first flag char. pts_time is emitted in DECODE order (B-frames make it
+// non-monotonic), so the result is sorted before return.
+func parseKeyframeCSV(out []byte) []int64 {
+	lines := strings.Split(string(out), "\n")
+	seen := make(map[int64]struct{}, len(lines))
+	kf := make([]int64, 0, len(lines)/8)
+	for _, line := range lines {
+		comma := strings.IndexByte(line, ',')
+		if comma < 0 || comma+1 >= len(line) || line[comma+1] != 'K' {
+			continue
+		}
+		sec, err := strconv.ParseFloat(line[:comma], 64)
+		if err != nil || sec < 0 {
+			continue
+		}
+		ms := int64(sec*1000 + 0.5)
+		if _, dup := seen[ms]; dup {
+			continue
+		}
+		seen[ms] = struct{}{}
+		kf = append(kf, ms)
+	}
+	slices.Sort(kf)
+	return kf
 }
 
 func codecTypeToStreamType(t string) library.StreamType {

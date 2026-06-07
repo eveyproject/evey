@@ -154,7 +154,7 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, stream_index, stream_type, codec, codec_long_name, profile, language, title,
 		 is_default, is_forced, width, height, framerate, bit_depth, color_space, hdr_type, channels,
-		 channel_layout, sample_rate, bitrate, is_external, external_path, level
+		 channel_layout, sample_rate, bitrate, is_external, external_path, level, keyframes_ms
 		 FROM media_streams WHERE media_item_id = $1 ORDER BY stream_index`, string(mediaItemID))
 	if err != nil {
 		span.RecordError(err)
@@ -170,7 +170,7 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 			&s.ID, &s.MediaItemID, &s.StreamIndex, &s.StreamType, &s.Codec, &s.CodecLongName,
 			&s.Profile, &s.Language, &s.Title, &s.IsDefault, &s.IsForced, &s.Width, &s.Height,
 			&s.Framerate, &s.BitDepth, &s.ColorSpace, &s.HDRType, &s.Channels, &s.ChannelLayout,
-			&s.SampleRate, &s.Bitrate, &s.IsExternal, &s.ExternalPath, &s.Level,
+			&s.SampleRate, &s.Bitrate, &s.IsExternal, &s.ExternalPath, &s.Level, pq.Array(&s.Keyframes),
 		); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -281,6 +281,84 @@ func (r *MediaStreamRepository) SetVideoLevels(ctx context.Context, mediaItemID 
 		updated += int(n)
 	}
 	return updated, nil
+}
+
+// ListVideoKeyframesMissing returns up to `limit` media item IDs that carry an
+// H.264 video stream WITH a known level but WITHOUT a keyframe index
+// (keyframes_ms IS NULL), skipping the `exclude` IDs. Gated on level IS NOT NULL
+// because keyframes only matter for a copy-eligible source (CopyRungEligible
+// needs the level), so this naturally runs after the level backfill. Like
+// ListVideoLevelMissing, the query is the keyframe backfill worker's
+// resumability mechanism (it shrinks as keyframes get filled).
+func (r *MediaStreamRepository) ListVideoKeyframesMissing(ctx context.Context, limit int, exclude []string) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.ListVideoKeyframesMissing")
+	defer span.End()
+	span.SetAttributes(attribute.Int("limit", limit), attribute.Int("exclude.count", len(exclude)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if exclude == nil {
+		exclude = []string{}
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT DISTINCT media_item_id FROM media_streams
+		 WHERE stream_type = 'video' AND lower(codec) = 'h264'
+		   AND level IS NOT NULL AND keyframes_ms IS NULL
+		   AND NOT (media_item_id = ANY($1))
+		 ORDER BY media_item_id
+		 LIMIT $2`, pq.Array(exclude), limit)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return ids, nil
+}
+
+// SetKeyframes stores the keyframe index (ms) on the video stream(s) of one
+// media item. The probe reads the first video stream (ffmpeg v:0) — the only one
+// the copy rung serves — so it targets stream_type='video'; on the rare
+// multi-video file every video row gets v:0's index, harmless since secondary
+// video streams are never served as copy. Writes only where keyframes_ms IS NULL
+// (idempotent, never overwrites) and NEVER deletes. An empty slice is skipped (a
+// probe that resolved none must NOT write an empty array — it would read back as
+// "indexed, zero keyframes" and wrongly satisfy the not-null candidate query).
+// Returns the number of rows updated.
+func (r *MediaStreamRepository) SetKeyframes(ctx context.Context, mediaItemID shared.MediaItemID, keyframesMS []int64) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.SetKeyframes")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)), attribute.Int("keyframes", len(keyframesMS)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if len(keyframesMS) == 0 {
+		return 0, nil
+	}
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE media_streams SET keyframes_ms = $1
+		 WHERE media_item_id = $2 AND stream_type = 'video' AND keyframes_ms IS NULL`,
+		pq.Array(keyframesMS), string(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
 }
 
 var _ library.MediaStreamRepository = (*MediaStreamRepository)(nil)

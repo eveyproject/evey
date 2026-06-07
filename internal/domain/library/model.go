@@ -303,6 +303,12 @@ type MediaStream struct {
 	Bitrate        *int64
 	IsExternal     bool
 	ExternalPath   *string
+	// Keyframes holds the video stream's keyframe presentation times in
+	// milliseconds (sorted ascending), or nil when not yet indexed. These are the
+	// only valid segment-start boundaries for a -c:v copy (remux) rung — a copied
+	// segment cannot begin mid-GOP. Populated by a background backfill, not the
+	// scan (the keyframe probe is too costly for the hot scan path). Video only.
+	Keyframes      []int64
 }
 
 func (s *MediaStream) GetStreamType() string  { return string(s.StreamType) }

@@ -11,6 +11,34 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 )
 
+func TestParseKeyframeCSV(t *testing.T) {
+	// ffprobe emits packets in DECODE order, so keyframe pts_time is non-monotonic
+	// (B-frames jump around); the parser must sort. Keyframe = 'K' as the FIRST
+	// flag char. N/A / non-K / malformed lines are skipped. Duplicate times deduped.
+	in := []byte("0.000000,K__\n" +
+		"0.083000,___\n" +
+		"6.548000,K__\n" + // out of order vs the next keyframe
+		"3.253000,K__\n" +
+		"3.253000,K_\n" + // duplicate time, shorter flags
+		"9.843000,___\n" + // not a keyframe
+		"N/A,K__\n" + // unparseable pts
+		"12.0,__K\n" + // K not first → not a keyframe packet
+		"\n" + // blank
+		"13.138000,K__\n")
+	got := parseKeyframeCSV(in)
+	assert.Equal(t, []int64{0, 3253, 6548, 13138}, got)
+}
+
+func TestParseKeyframeCSV_Empty(t *testing.T) {
+	assert.Empty(t, parseKeyframeCSV(nil))
+	assert.Empty(t, parseKeyframeCSV([]byte("0.5,___\n1.0,___\n")), "no keyframes ⇒ empty")
+}
+
+func TestParseKeyframeCSV_Rounding(t *testing.T) {
+	// 0.0835 s → 84 ms (round half up), not 83.
+	assert.Equal(t, []int64{84}, parseKeyframeCSV([]byte("0.083500,K__\n")))
+}
+
 func TestParseFrameRate_Valid(t *testing.T) {
 	cases := []struct {
 		input    string

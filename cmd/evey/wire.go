@@ -737,6 +737,43 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		levelBackfillWorker.Start(ctx)
 	}
 
+	// Keyframe backfill: index keyframe times for copy-eligible media so the
+	// byte-range/per-segment copy rung can cut deterministic, keyframe-aligned
+	// segments. OFF by default (EVEY_KEYFRAME_BACKFILL=on): the keyframe probe
+	// scans every packet header — the heaviest sustained NAS load of the
+	// pipeline — so it must only run once the per-segment copy path is wanted,
+	// and its rate validated on the real NAS. Runs after the level backfill by
+	// construction (the candidate query requires a known level).
+	if os.Getenv("EVEY_KEYFRAME_BACKFILL") == "on" {
+		kfOpts := apptranscoding.KeyframeBackfillOpts{}
+		if v := os.Getenv("EVEY_KEYFRAME_BACKFILL_BATCH"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				kfOpts.BatchSize = n
+			}
+		}
+		if v := os.Getenv("EVEY_KEYFRAME_BACKFILL_PAUSE_MS"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+				kfOpts.ItemPause = time.Duration(n) * time.Millisecond
+			}
+		}
+		if v := os.Getenv("EVEY_KEYFRAME_BACKFILL_IDLE_SEC"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				kfOpts.IdleInterval = time.Duration(n) * time.Second
+			}
+		}
+		keyframeBackfillWorker := apptranscoding.NewKeyframeBackfillWorker(
+			r.MediaStream,
+			mediaItemReaderFunc(func(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
+				return libQuerySvc.GetMediaItem(ctx, string(id))
+			}),
+			infra.prober,
+			kfOpts,
+			slog.Default(),
+		)
+		keyframeBackfillWorker.Start(ctx)
+		slog.Default().Info("keyframe backfill worker enabled (EVEY_KEYFRAME_BACKFILL=on)")
+	}
+
 	// CMCD (CTA-5004) ingest sink. The HTTP handler parses the CMCD query
 	// param on every segment / master / variant fetch and ships an event
 	// here; the buffered worker drains into playback_qoe_events. Phase 1 is
