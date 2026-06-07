@@ -283,6 +283,10 @@ type MediaStream struct {
 	Codec          string
 	CodecLongName  string
 	Profile        string
+	// Level is the codec level (e.g. H.264 level 4.0 = 40), nil when unknown.
+	// Needed with Profile to build the exact RFC-6381 CODECS string for a
+	// video-copy rung; a nil Level gates copy off (no accurate codec advertise).
+	Level          *int
 	Language       string
 	Title          string
 	IsDefault      bool
@@ -306,6 +310,7 @@ func (s *MediaStream) GetBitDepth() *int       { return s.BitDepth }
 func (s *MediaStream) GetColorSpace() *string  { return s.ColorSpace }
 func (s *MediaStream) GetHDRType() *string     { return s.HDRType }
 func (s *MediaStream) GetProfile() string      { return s.Profile }
+func (s *MediaStream) GetLevel() *int          { return s.Level }
 
 type Person struct {
 	ID           string

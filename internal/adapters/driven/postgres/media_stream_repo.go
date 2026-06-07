@@ -42,23 +42,23 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 	var b strings.Builder
 	b.WriteString(`INSERT INTO media_streams (id, media_item_id, stream_index, stream_type, codec, codec_long_name,
 		profile, language, title, is_default, is_forced, width, height, framerate, bit_depth, color_space,
-		hdr_type, channels, channel_layout, sample_rate, bitrate, is_external, external_path) VALUES `)
+		hdr_type, channels, channel_layout, sample_rate, bitrate, is_external, external_path, level) VALUES `)
 
-	args := make([]any, 0, len(streams)*23)
+	args := make([]any, 0, len(streams)*24)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i * 23
-		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		base := i * 24
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
-			base+20, base+21, base+22, base+23)
+			base+20, base+21, base+22, base+23, base+24)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,
 			s.Framerate, s.BitDepth, s.ColorSpace, s.HDRType, s.Channels, s.ChannelLayout,
-			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath,
+			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath, s.Level,
 		)
 	}
 
@@ -111,23 +111,23 @@ func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID sh
 	var b strings.Builder
 	b.WriteString(`INSERT INTO media_streams (id, media_item_id, stream_index, stream_type, codec, codec_long_name,
 		profile, language, title, is_default, is_forced, width, height, framerate, bit_depth, color_space,
-		hdr_type, channels, channel_layout, sample_rate, bitrate, is_external, external_path) VALUES `)
+		hdr_type, channels, channel_layout, sample_rate, bitrate, is_external, external_path, level) VALUES `)
 
-	args := make([]any, 0, len(streams)*23)
+	args := make([]any, 0, len(streams)*24)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i * 23
-		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		base := i * 24
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
-			base+20, base+21, base+22, base+23)
+			base+20, base+21, base+22, base+23, base+24)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,
 			s.Framerate, s.BitDepth, s.ColorSpace, s.HDRType, s.Channels, s.ChannelLayout,
-			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath,
+			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath, s.Level,
 		)
 	}
 
@@ -153,7 +153,7 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, stream_index, stream_type, codec, codec_long_name, profile, language, title,
 		 is_default, is_forced, width, height, framerate, bit_depth, color_space, hdr_type, channels,
-		 channel_layout, sample_rate, bitrate, is_external, external_path
+		 channel_layout, sample_rate, bitrate, is_external, external_path, level
 		 FROM media_streams WHERE media_item_id = $1 ORDER BY stream_index`, string(mediaItemID))
 	if err != nil {
 		span.RecordError(err)
@@ -169,7 +169,7 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 			&s.ID, &s.MediaItemID, &s.StreamIndex, &s.StreamType, &s.Codec, &s.CodecLongName,
 			&s.Profile, &s.Language, &s.Title, &s.IsDefault, &s.IsForced, &s.Width, &s.Height,
 			&s.Framerate, &s.BitDepth, &s.ColorSpace, &s.HDRType, &s.Channels, &s.ChannelLayout,
-			&s.SampleRate, &s.Bitrate, &s.IsExternal, &s.ExternalPath,
+			&s.SampleRate, &s.Bitrate, &s.IsExternal, &s.ExternalPath, &s.Level,
 		); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())

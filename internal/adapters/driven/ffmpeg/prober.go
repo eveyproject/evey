@@ -38,6 +38,7 @@ type ffprobeStream struct {
 	CodecLongName string            `json:"codec_long_name"`
 	CodecType     string            `json:"codec_type"`
 	Profile       string            `json:"profile"`
+	Level         int               `json:"level"`
 	Width         int               `json:"width"`
 	Height        int               `json:"height"`
 	RFrameRate    string            `json:"r_frame_rate"`
@@ -95,6 +96,9 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 		}
 		if title, ok := s.Tags["title"]; ok {
 			ms.Title = title
+		}
+		if s.Level > 0 { // ffprobe emits -99 for "unknown"
+			ms.Level = &s.Level
 		}
 		if s.Width > 0 {
 			ms.Width = &s.Width
