@@ -69,6 +69,93 @@ func TestMediaStreamRepo_CreateBatch_Empty(t *testing.T) {
 	require.NoError(t, streamRepo.CreateBatch(context.Background(), nil))
 }
 
+func TestMediaStreamRepo_ListVideoLevelMissing_Scope(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("lvllib1")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	// A: h264 video, NULL level → candidate.
+	itemA := newTestMediaItem("lvlA", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemA))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "a-v", MediaItemID: itemA.ID, StreamIndex: 0, StreamType: "video", Codec: "h264"},
+		{ID: "a-a", MediaItemID: itemA.ID, StreamIndex: 1, StreamType: "audio", Codec: "aac"},
+	}))
+	// B: hevc video, NULL level → NOT a candidate (non-h264).
+	itemB := newTestMediaItem("lvlB", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemB))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "b-v", MediaItemID: itemB.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc"},
+	}))
+	// C: h264 video with a level already set → NOT a candidate.
+	itemC := newTestMediaItem("lvlC", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemC))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "c-v", MediaItemID: itemC.ID, StreamIndex: 0, StreamType: "video", Codec: "h264", Level: intPtr(40)},
+	}))
+
+	ids, err := streamRepo.ListVideoLevelMissing(ctx, 10, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{string(itemA.ID)}, ids, "only the h264 NULL-level item is a candidate")
+
+	excluded, err := streamRepo.ListVideoLevelMissing(ctx, 10, []string{string(itemA.ID)})
+	require.NoError(t, err)
+	assert.Empty(t, excluded, "excluding the only candidate yields none")
+}
+
+func TestMediaStreamRepo_SetVideoLevels_FillsOnceNeverWipes(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("lvllib2")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("lvlfill", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "f-v", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video", Codec: "h264"},
+		{ID: "f-a", MediaItemID: item.ID, StreamIndex: 1, StreamType: "audio", Codec: "aac"},
+	}))
+
+	// Fill from a "probe" (matched by stream_index). Audio carries no level.
+	probe := []*library.MediaStream{
+		{StreamType: "video", StreamIndex: 0, Codec: "h264", Level: intPtr(40)},
+		{StreamType: "audio", StreamIndex: 1, Codec: "aac"},
+	}
+	n, err := streamRepo.SetVideoLevels(ctx, item.ID, probe)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n, "exactly the one NULL-level video row is updated")
+
+	got, err := streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 2, "SetVideoLevels must never delete streams")
+	require.NotNil(t, got[0].Level)
+	assert.Equal(t, 40, *got[0].Level)
+	assert.Nil(t, got[1].Level, "audio level stays NULL")
+
+	// Second call must NOT overwrite the existing level (level IS NULL guard).
+	n2, err := streamRepo.SetVideoLevels(ctx, item.ID,
+		[]*library.MediaStream{{StreamType: "video", StreamIndex: 0, Codec: "h264", Level: intPtr(99)}})
+	require.NoError(t, err)
+	assert.Equal(t, 0, n2, "an already-set level is not overwritten")
+
+	got2, err := streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got2[0].Level)
+	assert.Equal(t, 40, *got2[0].Level, "level unchanged on the second call")
+}
+
 func TestMediaStreamRepo_DeleteByMediaItemID(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

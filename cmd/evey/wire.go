@@ -703,6 +703,40 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	)
 	complexityWorker.Start(ctx)
 
+	// Level backfill: re-probe existing media to fill media_streams.level. The
+	// scanner skips unchanged files, so it never back-populates the column the
+	// H.264 video-copy (remux) rung needs. Paced conservatively; the rate is
+	// env-tunable because it MUST be validated on the real (possibly weak) NAS,
+	// not a dev disk. EVEY_LEVEL_BACKFILL=off disables it entirely.
+	if os.Getenv("EVEY_LEVEL_BACKFILL") != "off" {
+		levelOpts := apptranscoding.LevelBackfillOpts{}
+		if v := os.Getenv("EVEY_LEVEL_BACKFILL_BATCH"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				levelOpts.BatchSize = n
+			}
+		}
+		if v := os.Getenv("EVEY_LEVEL_BACKFILL_PAUSE_MS"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+				levelOpts.ItemPause = time.Duration(n) * time.Millisecond
+			}
+		}
+		if v := os.Getenv("EVEY_LEVEL_BACKFILL_IDLE_SEC"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				levelOpts.IdleInterval = time.Duration(n) * time.Second
+			}
+		}
+		levelBackfillWorker := apptranscoding.NewLevelBackfillWorker(
+			r.MediaStream,
+			mediaItemReaderFunc(func(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
+				return libQuerySvc.GetMediaItem(ctx, string(id))
+			}),
+			infra.prober,
+			levelOpts,
+			slog.Default(),
+		)
+		levelBackfillWorker.Start(ctx)
+	}
+
 	// CMCD (CTA-5004) ingest sink. The HTTP handler parses the CMCD query
 	// param on every segment / master / variant fetch and ships an event
 	// here; the buffered worker drains into playback_qoe_events. Phase 1 is

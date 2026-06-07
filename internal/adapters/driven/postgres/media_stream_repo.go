@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -198,6 +199,88 @@ func (r *MediaStreamRepository) DeleteByMediaItemID(ctx context.Context, mediaIt
 		return err
 	}
 	return nil
+}
+
+// ListVideoLevelMissing returns up to `limit` media item IDs that carry an
+// H.264 video stream whose codec level was never resolved (level IS NULL),
+// skipping the `exclude` IDs. Scope is h264 because the level only feeds the
+// h264 video-copy rung; other codecs are left alone. The query is itself the
+// backfill worker's resumability mechanism: as levels get filled in, items drop
+// out, so a restart re-queries only the remainder — no cursor, no full re-scan.
+// `exclude` is the worker's in-run skip-set (failed / no-level items) so a stuck
+// file isn't re-returned in a tight loop.
+func (r *MediaStreamRepository) ListVideoLevelMissing(ctx context.Context, limit int, exclude []string) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.ListVideoLevelMissing")
+	defer span.End()
+	span.SetAttributes(attribute.Int("limit", limit), attribute.Int("exclude.count", len(exclude)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	// A nil slice would make pq.Array render SQL NULL, and `x = ANY(NULL)` is NULL
+	// (not false), which would filter out EVERY row — so an empty skip-set must be
+	// an empty array, never NULL.
+	if exclude == nil {
+		exclude = []string{}
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT DISTINCT media_item_id FROM media_streams
+		 WHERE stream_type = 'video' AND lower(codec) = 'h264' AND level IS NULL
+		   AND NOT (media_item_id = ANY($1))
+		 ORDER BY media_item_id
+		 LIMIT $2`, pq.Array(exclude), limit)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return ids, nil
+}
+
+// SetVideoLevels fills the level column for the video streams of one media item
+// from a fresh probe, matched by stream_index. It writes only where level IS
+// NULL (idempotent, never overwrites an existing value) and NEVER deletes — so
+// unlike a full ReplaceBatch a degraded/empty probe cannot wipe the existing
+// stream metadata. Returns the number of rows updated (0 ⇒ probe resolved no new
+// level, the caller leaves the item NULL and marks it to avoid a re-probe loop).
+func (r *MediaStreamRepository) SetVideoLevels(ctx context.Context, mediaItemID shared.MediaItemID, streams []*library.MediaStream) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.SetVideoLevels")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	updated := 0
+	for _, s := range streams {
+		if s == nil || s.StreamType != library.Video || s.Level == nil {
+			continue
+		}
+		res, err := r.db.ExecContext(ctx,
+			`UPDATE media_streams SET level = $1
+			 WHERE media_item_id = $2 AND stream_index = $3 AND stream_type = 'video' AND level IS NULL`,
+			*s.Level, string(mediaItemID), s.StreamIndex)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return updated, err
+		}
+		n, _ := res.RowsAffected()
+		updated += int(n)
+	}
+	return updated, nil
 }
 
 var _ library.MediaStreamRepository = (*MediaStreamRepository)(nil)
