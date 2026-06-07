@@ -186,13 +186,30 @@ func TestPref_SubtitleBurnIn_Always(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
-		{StreamType: "subtitle", Codec: "subrip", IsDefault: true}, // text sub normally "external"
+		{StreamType: "subtitle", Codec: "hdmv_pgs_subtitle", IsDefault: true}, // image sub
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.SubtitleBurnIn = "always"
-	prefs.SubtitleBurnInTrack = 0 // "always" burns the SELECTED track
+	prefs.SubtitleBurnInTrack = 0 // "always" burns the SELECTED image track
 	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "burn", d.SubtitleDecision)
+}
+
+// "always" cannot burn a TEXT subtitle — the ffmpeg overlay only handles image
+// subs — so a selected text sub is delivered as a sidecar (external), NOT burnt
+// into a needlessly-transcoded video.
+func TestPref_SubtitleBurnIn_Always_SelectedTextIsExternal(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: new(int64(5000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+		{StreamType: "subtitle", Codec: "subrip", IsDefault: true},
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	prefs.SubtitleBurnIn = "always"
+	prefs.SubtitleBurnInTrack = 0
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "external", d.SubtitleDecision, "text sub under always → sidecar, not burn")
+	assert.Equal(t, "copy", d.VideoDecision, "must NOT transcode video to burn a text sub it cannot overlay")
 }
 
 func TestPref_SubtitleBurnIn_Never(t *testing.T) {

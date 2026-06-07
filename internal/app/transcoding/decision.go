@@ -385,9 +385,12 @@ func evaluateSubtitle(d *transcoding.PlaybackDecision, s StreamSpec, prefs Trans
 		}
 		return
 	case "always":
-		// User forces burn — but there must be a track to burn: only the selected
-		// one. With none selected, a text sub is still offered as a sidecar.
-		if selected {
+		// User forces burn — but the ffmpeg layer only burns IMAGE subs
+		// (hls_transcoder's burnIn predicate requires IsImageSubtitle); a text sub
+		// cannot be overlaid, so forcing burn would needlessly transcode the video
+		// AND silently drop the subtitle. Burn only a selected image sub; a text
+		// sub (selected or not) is delivered as a sidecar instead.
+		if selected && isImage {
 			d.SubtitleDecision = "burn"
 			forceBurnVideoTranscode(d)
 		} else if !isImage && d.SubtitleDecision == "" {
