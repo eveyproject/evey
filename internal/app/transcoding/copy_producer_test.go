@@ -92,8 +92,8 @@ func TestCopyProducer_ProfilesZeroDimsDefaultsGracefully(t *testing.T) {
 
 	rungs := p.Profiles(nil, SourceDims{}, transcoding.PlaybackDecision{}, transcoding.EncodeCapability{})
 	require.Len(t, rungs, 1)
-	assert.Greater(t, rungs[0].Width, 0, "zero-dim source must produce a positive-width rung")
-	assert.Greater(t, rungs[0].Height, 0, "zero-dim source must produce a positive-height rung")
+	assert.Positive(t, rungs[0].Width, "zero-dim source must produce a positive-width rung")
+	assert.Positive(t, rungs[0].Height, "zero-dim source must produce a positive-height rung")
 }
 
 // ============================================================================
@@ -133,13 +133,13 @@ func TestCopyProducer_ActiveSessionCountAlwaysZero(t *testing.T) {
 
 func TestCopyProducer_RemoveSessionNoOp(t *testing.T) {
 	cache, _ := newTestCache(t)
-	strat := newFakeStrategy(nil)
-	p := NewCopyProducer(strat, cache, CopyProducerOptions{}, discardLogger())
+	strategy := newFakeStrategy(nil)
+	p := NewCopyProducer(strategy, cache, CopyProducerOptions{}, discardLogger())
 	defer p.Close()
 
 	// Must not panic and must not delegate to the strategy.
 	p.RemoveSession("media-abc")
-	assert.Equal(t, 0, strat.callCount(),
+	assert.Equal(t, 0, strategy.callCount(),
 		"RemoveSession must not call the strategy")
 }
 
@@ -156,11 +156,11 @@ func (c *closeableStrategy) Close() { c.closed = true }
 
 func TestCopyProducer_ClosePropagatesWhenStrategyIsCloseable(t *testing.T) {
 	cache, _ := newTestCache(t)
-	strat := &closeableStrategy{fakeStrategy: newFakeStrategy(nil)}
-	p := NewCopyProducer(strat, cache, CopyProducerOptions{}, discardLogger())
+	strategy := &closeableStrategy{fakeStrategy: newFakeStrategy(nil)}
+	p := NewCopyProducer(strategy, cache, CopyProducerOptions{}, discardLogger())
 
 	p.Close()
-	assert.True(t, strat.closed, "Close must propagate to closeable strategy")
+	assert.True(t, strategy.closed, "Close must propagate to closeable strategy")
 }
 
 func TestCopyProducer_CloseNoOpWhenStrategyNotCloseable(t *testing.T) {
@@ -176,8 +176,8 @@ func TestCopyProducer_CloseNoOpWhenStrategyNotCloseable(t *testing.T) {
 
 func TestCopyProducer_VariantGuardAllNonZero(t *testing.T) {
 	cache, _ := newTestCache(t)
-	strat := newFakeStrategy(nil)
-	p := NewCopyProducer(strat, cache, CopyProducerOptions{}, discardLogger())
+	strategy := newFakeStrategy(nil)
+	p := NewCopyProducer(strategy, cache, CopyProducerOptions{}, discardLogger())
 	defer p.Close()
 
 	fp := minimalFingerprint(t)
@@ -185,6 +185,6 @@ func TestCopyProducer_VariantGuardAllNonZero(t *testing.T) {
 		err := p.EnsureSegmentRange(nil, fp, idx, 0) //nolint:staticcheck // intentional nil ctx test
 		require.Error(t, err, "variantIdx=%d must be rejected", idx)
 	}
-	assert.Equal(t, 0, strat.callCount(),
+	assert.Equal(t, 0, strategy.callCount(),
 		"strategy must never be reached for non-zero variantIdx")
 }

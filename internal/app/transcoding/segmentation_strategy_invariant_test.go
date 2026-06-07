@@ -44,7 +44,7 @@ func wfFingerprint() DecisionFingerprint {
 // from disk rather than racing the still-registered run.
 func waitRunGone(t *testing.T, ws *WholeFileStrategy, hash string) {
 	t.Helper()
-	for i := 0; i < 400; i++ {
+	for range 400 {
 		ws.mu.Lock()
 		_, ok := ws.runs[hash]
 		ws.mu.Unlock()

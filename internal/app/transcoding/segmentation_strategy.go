@@ -269,7 +269,10 @@ func (s *WholeFileStrategy) runFFmpegBackground(fp DecisionFingerprint, hash str
 	select {
 	case <-handle.Done():
 	case <-s.shutdownCtx.Done():
-		_ = handle.Stop()
+		if stopErr := handle.Stop(); stopErr != nil {
+			s.logger.Debug("whole_file: stop on shutdown failed",
+				slog.String("hash", hash), slog.Any("err", stopErr))
+		}
 		<-handle.Done()
 		return
 	}

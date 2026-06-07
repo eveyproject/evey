@@ -48,8 +48,8 @@ func TestProfileFingerprint_EveryFieldAffectsHash(t *testing.T) {
 		}
 	}
 	baseHash := mk().Hash()
-	pt := reflect.TypeOf(ProfileFingerprint{})
-	for i := 0; i < pt.NumField(); i++ {
+	pt := reflect.TypeFor[ProfileFingerprint]()
+	for i := range pt.NumField() {
 		fp := mk()
 		f := reflect.ValueOf(&fp.Profiles[0]).Elem().Field(i)
 		switch f.Kind() {
@@ -79,7 +79,7 @@ func TestProfileFingerprintOf_CopiesEveryField(t *testing.T) {
 	// then detectable.
 	src := transcoding.HLSProfile{}
 	sv := reflect.ValueOf(&src).Elem()
-	for i := 0; i < sv.NumField(); i++ {
+	for i := range sv.NumField() {
 		f := sv.Field(i)
 		switch f.Kind() {
 		case reflect.String:
@@ -96,7 +96,7 @@ func TestProfileFingerprintOf_CopiesEveryField(t *testing.T) {
 	got := ProfileFingerprintOf(src)
 	gv := reflect.ValueOf(got)
 	gt := gv.Type()
-	for i := 0; i < gt.NumField(); i++ {
+	for i := range gt.NumField() {
 		name := gt.Field(i).Name
 		srcF := sv.FieldByName(name)
 		if !srcF.IsValid() {

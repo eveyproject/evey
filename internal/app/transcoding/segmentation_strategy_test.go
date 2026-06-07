@@ -139,8 +139,8 @@ func TestSegmentationStrategy_ByteRangeStubAlwaysErrors(t *testing.T) {
 // EnsureSegmentRange forwards the exact segIdx to the strategy.
 func TestCopyProducer_EnsureSegmentRangeDelegatesCorrectly(t *testing.T) {
 	cache, _ := newTestCache(t)
-	strat := newFakeStrategy([]byte("manifest"))
-	p := NewCopyProducer(strat, cache, CopyProducerOptions{}, discardLogger())
+	strategy := newFakeStrategy([]byte("manifest"))
+	p := NewCopyProducer(strategy, cache, CopyProducerOptions{}, discardLogger())
 	defer p.Close()
 
 	fp := minimalFingerprint(t)
@@ -151,19 +151,19 @@ func TestCopyProducer_EnsureSegmentRangeDelegatesCorrectly(t *testing.T) {
 			"segIdx=%d", tc.segIdx)
 	}
 
-	assert.Equal(t, len(cases), strat.callCount(),
+	assert.Equal(t, len(cases), strategy.callCount(),
 		"each EnsureSegmentRange must produce exactly one strategy.EnsureSegment call")
 
 	// Spot-check the last call carried the right segIdx.
-	assert.Equal(t, cases[len(cases)-1].segIdx, strat.lastCall().segIdx)
+	assert.Equal(t, cases[len(cases)-1].segIdx, strategy.lastCall().segIdx)
 }
 
 // TestCopyProducer_EnsureSegmentRangeVariantGuard verifies that variantIdx != 0
 // is rejected without touching the strategy.
 func TestCopyProducer_EnsureSegmentRangeVariantGuard(t *testing.T) {
 	cache, _ := newTestCache(t)
-	strat := newFakeStrategy(nil)
-	p := NewCopyProducer(strat, cache, CopyProducerOptions{}, discardLogger())
+	strategy := newFakeStrategy(nil)
+	p := NewCopyProducer(strategy, cache, CopyProducerOptions{}, discardLogger())
 	defer p.Close()
 
 	fp := minimalFingerprint(t)
@@ -171,7 +171,7 @@ func TestCopyProducer_EnsureSegmentRangeVariantGuard(t *testing.T) {
 	require.Error(t, err, "non-zero variantIdx must be rejected")
 	assert.Contains(t, err.Error(), "variantIdx must be 0",
 		"error must mention the constraint")
-	assert.Equal(t, 0, strat.callCount(),
+	assert.Equal(t, 0, strategy.callCount(),
 		"strategy must not be called when variantIdx is invalid")
 }
 
@@ -179,28 +179,28 @@ func TestCopyProducer_EnsureSegmentRangeVariantGuard(t *testing.T) {
 // segment indices are rejected.
 func TestCopyProducer_EnsureSegmentRangeNegativeSegIdx(t *testing.T) {
 	cache, _ := newTestCache(t)
-	strat := newFakeStrategy(nil)
-	p := NewCopyProducer(strat, cache, CopyProducerOptions{}, discardLogger())
+	strategy := newFakeStrategy(nil)
+	p := NewCopyProducer(strategy, cache, CopyProducerOptions{}, discardLogger())
 	defer p.Close()
 
 	fp := minimalFingerprint(t)
 	err := p.EnsureSegmentRange(context.Background(), fp, 0, -1)
 	require.Error(t, err)
-	assert.Equal(t, 0, strat.callCount())
+	assert.Equal(t, 0, strategy.callCount())
 }
 
 // TestCopyProducer_EnsureSegmentRange_PassesFingerprintUnchanged verifies that
 // the fp forwarded to the strategy is byte-identical to what the caller passed.
 func TestCopyProducer_EnsureSegmentRange_PassesFingerprintUnchanged(t *testing.T) {
 	cache, _ := newTestCache(t)
-	strat := newFakeStrategy([]byte("m"))
-	p := NewCopyProducer(strat, cache, CopyProducerOptions{}, discardLogger())
+	strategy := newFakeStrategy([]byte("m"))
+	p := NewCopyProducer(strategy, cache, CopyProducerOptions{}, discardLogger())
 	defer p.Close()
 
 	fp := minimalFingerprint(t)
 	fp.MediaID = "unique-media-id"
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 7))
-	assert.Equal(t, fp.MediaID, strat.lastCall().fp.MediaID,
+	assert.Equal(t, fp.MediaID, strategy.lastCall().fp.MediaID,
 		"fingerprint must be forwarded unmodified to the strategy")
-	assert.Equal(t, 7, strat.lastCall().segIdx)
+	assert.Equal(t, 7, strategy.lastCall().segIdx)
 }
