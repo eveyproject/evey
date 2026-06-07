@@ -162,5 +162,26 @@ func (p *CopyProducer) Close() {
 	}
 }
 
-// Compile-time assertion: CopyProducer satisfies the StreamProducer seam.
-var _ StreamProducer = (*CopyProducer)(nil)
+// Manifest returns the copy rendition's HLS media playlist, built by the
+// strategy (the ffmpeg-written event playlist for the whole-file path), not by
+// the precalculated VOD generator: the copy rung's segment boundaries are
+// decided by ffmpeg's keyframe-aligned mux. The handler type-asserts the
+// selected producer to ManifestProvider and serves this when it matches.
+func (p *CopyProducer) Manifest(ctx context.Context, fp DecisionFingerprint) ([]byte, error) {
+	return p.strategy.Manifest(ctx, fp)
+}
+
+// ManifestProvider is the optional capability a StreamProducer exposes when it
+// owns its HLS media playlist instead of deferring to the precalculated VOD
+// generator. Only CopyProducer implements it (its playlist must be the one
+// ffmpeg wrote). serveVariant type-asserts the selected producer to it.
+type ManifestProvider interface {
+	Manifest(ctx context.Context, fp DecisionFingerprint) ([]byte, error)
+}
+
+// Compile-time assertions: CopyProducer satisfies the StreamProducer seam and
+// the ManifestProvider capability.
+var (
+	_ StreamProducer   = (*CopyProducer)(nil)
+	_ ManifestProvider = (*CopyProducer)(nil)
+)

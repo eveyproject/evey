@@ -61,6 +61,13 @@ type hlsVODServe struct {
 	// working producer. When the selector is set it takes precedence.
 	orchestrator *apptranscoding.SegmentOrchestrator
 
+	// copyProducer serves the H.264 video-COPY (remux) rung when wired (behind
+	// EVEY_REMUX_COPY=on). nil = the copy path is off and every request routes
+	// through the selector (transcode) exactly as before. Gated because the
+	// whole-file strategy duplicates the re-muxed source on disk — unsafe as a
+	// default on a small box without an LRU evictor.
+	copyProducer *apptranscoding.CopyProducer
+
 	// qoeSink ingests CMCD telemetry from segment requests. Nil when QoE is
 	// disabled (tests, dev without postgres). Record is non-blocking.
 	qoeSink appqoe.EventSink
@@ -306,12 +313,38 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 		return
 	}
 
-	out, err := h.manifestGen.Variant(in, profileIdx)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "manifest variant")
-		http.Error(w, `{"message":"manifest error"}`, http.StatusInternalServerError)
-		return
+	// Copy/remux rung: when the selected producer owns its playlist (ffmpeg's
+	// keyframe-aligned mux), serve THAT — its segment boundaries differ from the
+	// precalculated generator's. Otherwise fall through to the precalculated
+	// VOD manifest (the transcode path, unchanged).
+	var out string
+	served := false
+	if producer := h.producerForRequest(r.Context(), r, streams, item.File.ContainerFormat); producer != nil {
+		if mp, ok := producer.(apptranscoding.ManifestProvider); ok {
+			fp, fpErr := h.buildFingerprint(r, mediaID, item, streams)
+			if fpErr != nil {
+				h.writeManifestErr(w, span, fpErr, mediaID)
+				return
+			}
+			data, mErr := mp.Manifest(r.Context(), fp)
+			if mErr != nil {
+				span.RecordError(mErr)
+				span.SetStatus(codes.Error, "copy manifest")
+				http.Error(w, `{"message":"manifest error"}`, http.StatusInternalServerError)
+				return
+			}
+			out, served = string(data), true
+		}
+	}
+	if !served {
+		v, err := h.manifestGen.Variant(in, profileIdx)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "manifest variant")
+			http.Error(w, `{"message":"manifest error"}`, http.StatusInternalServerError)
+			return
+		}
+		out = v
 	}
 
 	setCORSHeaders(w, r, "")
@@ -741,13 +774,19 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	}
 
 	var laddered []domaintranscoding.HLSProfile
-	if h.selector != nil {
+	switch {
+	case h.isCopyRequest(decision, streams):
+		// Copy/remux rung: a single source-resolution rung, no transcode ladder
+		// (the player never ABR-switches a copy stream). Same producer the
+		// segment path resolves, so manifest- and segment-time shaping agree.
+		laddered = h.copyProducer.Profiles(base, src, decision, capability)
+	case h.selector != nil:
 		// Production path: the wired selector routes to the software or hardware
 		// producer (reusing resolveHW), and the producer's pure Profiles() owns
 		// the shaping tail. This is the single source of truth for ladder shape;
 		// manifest-time and segment-time both reach it via the same selector.
 		laddered = h.selector.For(decision, src).Profiles(base, src, decision, capability)
-	} else {
+	default:
 		// No selector wired (hand-constructed test handlers). Reproduce the
 		// legacy shaping so unit tests that probe profilesForDecision directly
 		// keep their contract without standing up a full producer pair.
@@ -800,12 +839,28 @@ func sourceDimsOf(streams []*domainlibrary.MediaStream) apptranscoding.SourceDim
 func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, streams []*domainlibrary.MediaStream, container string) apptranscoding.StreamProducer {
 	if h.selector != nil {
 		decision := h.makeDecision(ctx, streams, container, r)
+		if h.isCopyRequest(decision, streams) {
+			return h.copyProducer
+		}
 		return h.selector.For(decision, sourceDimsOf(streams))
 	}
 	if h.orchestrator != nil {
 		return h.orchestrator
 	}
 	return nil
+}
+
+// isCopyRequest reports whether this request should be served as a video-COPY
+// (remux) rung rather than transcoded. Three conditions, all required: the copy
+// path is wired (EVEY_REMUX_COPY=on → copyProducer non-nil), the decision did
+// NOT require a video transcode (VideoDecision=="copy"), and the source is
+// copy-eligible — sourceCopyVideoCodec returns "" unless it is H.264 8-bit SDR
+// with a known level (so the master can advertise an accurate avc1.PPCCLL).
+// When false, the request routes through the selector exactly as before.
+func (h *hlsVODServe) isCopyRequest(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
+	return h.copyProducer != nil &&
+		decision.VideoDecision == "copy" &&
+		sourceCopyVideoCodec(streams) != ""
 }
 
 // legacyProfileShaping reproduces the ladder tail for hand-built test handlers
@@ -964,6 +1019,21 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		apptranscoding.SoftwareProducerOptions{}, // defaults: ReadRate 1.5, 30 min GC, 60 s wait budget
 		slog.Default(),
 	)
+
+	// Copy/remux rung (gated by EVEY_REMUX_COPY=on). The WholeFileStrategy
+	// re-muxes the whole source to disk on the first request (no -ss → seek is
+	// byte-identical), then every segment is a cache hit. OFF by default: the
+	// whole-file mux duplicates the source on disk, unsafe on a small box without
+	// an LRU evictor. ByteRangeStrategy (zero-dup) is the eventual product default.
+	if os.Getenv("EVEY_REMUX_COPY") == "on" {
+		copyStrategy := apptranscoding.NewWholeFileStrategy(
+			cache, s.HLSTranscoder, &MediaSourceResolver{LibSvc: libSvc}, slog.Default(),
+		)
+		h.copyProducer = apptranscoding.NewCopyProducer(
+			copyStrategy, cache, apptranscoding.CopyProducerOptions{}, slog.Default(),
+		)
+		slog.Default().Info("hls vod: copy/remux rung enabled (EVEY_REMUX_COPY=on)")
+	}
 
 	// The selector routes each request: software unless resolveHW confirms the
 	// hardware path is usable end-to-end for this content. hwUsableForContent
