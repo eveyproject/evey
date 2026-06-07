@@ -222,8 +222,8 @@ func TestSubtitleBurnIn_DVDSub(t *testing.T) {
 // library for remux.
 func TestSubtitleBitmap_NotSelected_StaysCopy(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: new(int64(5000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 		{StreamType: "subtitle", Codec: "hdmv_pgs_subtitle", IsDefault: true},
 	}
 	// No subtitle selected (MakePlaybackDecision → default SubtitleBurnInTrack -1).
