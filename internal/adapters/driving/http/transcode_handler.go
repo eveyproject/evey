@@ -222,6 +222,10 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	prefs := loadProfilePrefs(r.Context(), h.profilePrefs, claims.ProfileID)
+	// Gate burn on the selected subtitle (if the client signalled one) rather than
+	// on existence, so PlaybackInfo doesn't report "transcode" for a title that
+	// merely carries a bitmap track the user isn't playing.
+	prefs.SubtitleBurnInTrack = parseIntQuery(r, "subtitleTrack", -1)
 	containerFormat := ""
 	if item.File != nil {
 		containerFormat = item.File.ContainerFormat
@@ -270,7 +274,6 @@ func (h *playbackServe) parseClientProfile(r *http.Request) domaintranscoding.Cl
 	}
 	return client
 }
-
 
 // --- transcodeHandler ---
 

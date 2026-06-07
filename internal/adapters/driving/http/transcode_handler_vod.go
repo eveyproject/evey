@@ -602,6 +602,11 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary.MediaStream, container string, r *http.Request) domaintranscoding.PlaybackDecision {
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := loadProfilePrefs(ctx, h.profilePrefs, claims.ProfileID)
+	// Inject the selected subtitle track so the decision only burns (and so only
+	// denies the copy rung) when the user actually plays this bitmap subtitle —
+	// not whenever the file merely carries one. Mirrors the subtitleTrack param
+	// the fingerprint (buildFingerprint) and the burn-in filter already consume.
+	prefs.SubtitleBurnInTrack = parseIntQuery(r, "subtitleTrack", -1)
 	hdr := r.URL.Query().Get("hdr") == "1"
 	client := parseClientCapabilities(r, hdr)
 	d := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, container, client, 0, prefs)

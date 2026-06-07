@@ -178,15 +178,29 @@ func TestHDR_FromColorSpace_HDRClient_DirectPlay(t *testing.T) {
 	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
 }
 
+// burnPrefs selects the Nth subtitle track for burn-in (auto mode), mirroring the
+// client's subtitleTrack param. Burn only fires for the SELECTED bitmap track.
+func burnPrefs(track int) apptranscode.TranscodingPreferences {
+	p := apptranscode.DefaultTranscodingPreferences()
+	p.SubtitleBurnInTrack = track
+	return p
+}
+
 func TestSubtitleBurnIn_PGS(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 		{StreamType: "subtitle", Codec: "hdmv_pgs_subtitle", IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
+	// User SELECTED the PGS track (subtitle index 0) → burn.
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, burnPrefs(0))
 
 	assert.Equal(t, "burn", d.SubtitleDecision)
+	// Burn-in ⟹ never copy: burning overlays onto decoded frames, impossible on a
+	// -c:v copy stream. A copyable H.264 source with a burn-in sub MUST transcode
+	// video, else the copy path would silently drop the subtitles.
+	assert.Equal(t, "transcode", d.VideoDecision, "burn-in must force video transcode")
+	assert.Contains(t, d.TranscodeReasons, "subtitle_burn_in")
 }
 
 func TestSubtitleBurnIn_DVDSub(t *testing.T) {
@@ -195,9 +209,29 @@ func TestSubtitleBurnIn_DVDSub(t *testing.T) {
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
 		{StreamType: "subtitle", Codec: "dvd_subtitle", IsDefault: true},
 	}
-	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, burnPrefs(0))
 
 	assert.Equal(t, "burn", d.SubtitleDecision)
+	assert.Equal(t, "transcode", d.VideoDecision, "burn-in must force video transcode")
+	assert.Contains(t, d.TranscodeReasons, "subtitle_burn_in")
+}
+
+// The core of the gate-on-selection fix: a title that merely CARRIES a bitmap
+// subtitle, played with none selected (the -1 default), must keep its copy rung
+// — not be needlessly transcoded. This is what recovers ~20% of a Blu-ray-rip
+// library for remux.
+func TestSubtitleBitmap_NotSelected_StaysCopy(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "subtitle", Codec: "hdmv_pgs_subtitle", IsDefault: true},
+	}
+	// No subtitle selected (MakePlaybackDecision → default SubtitleBurnInTrack -1).
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
+
+	assert.NotEqual(t, "burn", d.SubtitleDecision, "unselected bitmap sub must not burn")
+	assert.Equal(t, "copy", d.VideoDecision, "an unselected bitmap sub must not deny the copy rung")
+	assert.NotContains(t, d.TranscodeReasons, "subtitle_burn_in")
 }
 
 func TestTextSubtitle_External(t *testing.T) {
@@ -209,6 +243,9 @@ func TestTextSubtitle_External(t *testing.T) {
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
 	assert.Equal(t, "external", d.SubtitleDecision)
+	// The guard must NOT over-trigger: a text/external subtitle needs no burn, so
+	// a copyable source stays copy (the copy rung remains available).
+	assert.Equal(t, "copy", d.VideoDecision, "external subtitle must not force transcode")
 }
 
 func TestMultiReason_Codec_Bitrate_Resolution(t *testing.T) {

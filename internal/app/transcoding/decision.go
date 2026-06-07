@@ -13,14 +13,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-var bitmapSubCodecs = map[string]bool{
-	"hdmv_pgs_subtitle": true,
-	"dvd_subtitle":      true,
-	"dvb_subtitle":      true,
-	"pgssub":            true,
-	"xsub":              true,
-}
-
 // StreamSpec is the lean value object the playback-decision pipeline operates
 // on. It carries only the stream metadata the algorithm actually inspects
 // (codec, dimensions, channels, bitrate, HDR, default flag) and decouples
@@ -93,10 +85,21 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 // JSONB preferences map) and are injected by the HTTP layer before the
 // fingerprint is computed.
 type TranscodingPreferences struct {
-	PreferredVideoCodec    string // "", "auto", or e.g. "h264", "hevc", "av1"
-	PreferredAudioCodec    string // "", "auto", or e.g. "aac", "ac3", "eac3", "opus"
-	MaxAudioChannels       int    // 0 = unlimited, 2 = force stereo, 6 = 5.1, etc.
-	SubtitleBurnIn         string // "", "auto", "always", "never"
+	PreferredVideoCodec string // "", "auto", or e.g. "h264", "hevc", "av1"
+	PreferredAudioCodec string // "", "auto", or e.g. "aac", "ac3", "eac3", "opus"
+	MaxAudioChannels    int    // 0 = unlimited, 2 = force stereo, 6 = 5.1, etc.
+	SubtitleBurnIn      string // "", "auto", "always", "never"
+	// SubtitleBurnInTrack is the subtitle-relative index of the track the client
+	// SELECTED for display (the Nth subtitle stream, matching ffmpeg's 0:s:N and
+	// the `subtitleTrack` query param), or -1 when none is selected. The decision
+	// burns — and so forces a video transcode — ONLY for this track when it is a
+	// bitmap sub. Without it the decision would burn whenever ANY bitmap track
+	// merely EXISTS, needlessly transcoding (and denying the copy/remux rung)
+	// every Blu-ray rip even when the user plays with no subtitle. This is a
+	// request-scoped field injected by the transport layer (like AudioLanguages /
+	// Locale), not a profile pref — ParseTranscodingPreferences leaves it at the
+	// -1 default.
+	SubtitleBurnInTrack    int
 	AllowDirectPlay        bool
 	AllowDirectStream      bool
 	AllowTranscoding       bool
@@ -113,11 +116,15 @@ type TranscodingPreferences struct {
 }
 
 // DefaultTranscodingPreferences returns prefs with all flags enabled (client defaults).
+// SubtitleBurnInTrack defaults to -1 ("no subtitle selected"): the zero value 0
+// would otherwise mean "the first subtitle track is selected" and re-introduce
+// burn-on-existence for every call site that doesn't inject an explicit selection.
 func DefaultTranscodingPreferences() TranscodingPreferences {
 	return TranscodingPreferences{
-		AllowDirectPlay:   true,
-		AllowDirectStream: true,
-		AllowTranscoding:  true,
+		SubtitleBurnInTrack: -1,
+		AllowDirectPlay:     true,
+		AllowDirectStream:   true,
+		AllowTranscoding:    true,
 	}
 }
 
@@ -239,6 +246,9 @@ func MakePlaybackDecisionWithPrefs(
 	effectiveMaxBitrate := resolveMaxBitrate(client.MaxBitrate, maxBitrateKbps)
 	totalBitrate := sumBitrates(specs)
 
+	// subIdx is the subtitle-relative index (0,1,2…) so it lines up with the
+	// client's selection (prefs.SubtitleBurnInTrack) and ffmpeg's 0:s:N.
+	subIdx := 0
 	for i := range specs {
 		s := specs[i]
 		switch s.Type {
@@ -247,7 +257,8 @@ func MakePlaybackDecisionWithPrefs(
 		case "audio":
 			evaluateAudio(d, s, client, prefs)
 		case "subtitle":
-			evaluateSubtitle(d, s, prefs)
+			evaluateSubtitle(d, s, prefs, subIdx)
+			subIdx++
 		}
 	}
 
@@ -350,24 +361,64 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	}
 }
 
-func evaluateSubtitle(d *transcoding.PlaybackDecision, s StreamSpec, prefs TranscodingPreferences) {
+// evaluateSubtitle decides how the subtitle stream s (subtitle-relative index
+// subIdx) is delivered. Burn-in is the only destructive path — it overlays onto
+// decoded frames, so it forces a video transcode (forceBurnVideoTranscode) and
+// denies the copy/remux rung. To match Jellyfin (which gates burn on the
+// SELECTED SubtitleStreamIndex, not on existence), burn fires ONLY when this is
+// the selected track (subIdx == prefs.SubtitleBurnInTrack) and it is a bitmap
+// sub. An unselected bitmap track is a no-op — not burnt, and not deliverable as
+// a sidecar — so a Blu-ray rip that merely CARRIES a PGS track still gets its
+// copy rung when played with no subtitle or with a text subtitle. Text subs are
+// always offered as "external" (sidecar) regardless of selection: non-destructive,
+// the player picks.
+func evaluateSubtitle(d *transcoding.PlaybackDecision, s StreamSpec, prefs TranscodingPreferences, subIdx int) {
+	selected := subIdx == prefs.SubtitleBurnInTrack
+	isImage := IsImageSubtitle(s.Codec)
+
 	switch prefs.SubtitleBurnIn {
-	case "always":
-		d.SubtitleDecision = "burn"
-		return
 	case "never":
-		// Force external (sidecar). Bitmap subs that would normally require burn-in
-		// are downgraded to "external" per user pref — adapter decides how to deliver.
+		// User forbids burn entirely. Offer as sidecar; the adapter decides how to
+		// deliver a bitmap sub it can't render as text. Selection-independent.
 		if d.SubtitleDecision == "" {
+			d.SubtitleDecision = "external"
+		}
+		return
+	case "always":
+		// User forces burn — but there must be a track to burn: only the selected
+		// one. With none selected, a text sub is still offered as a sidecar.
+		if selected {
+			d.SubtitleDecision = "burn"
+			forceBurnVideoTranscode(d)
+		} else if !isImage && d.SubtitleDecision == "" {
 			d.SubtitleDecision = "external"
 		}
 		return
 	}
 	// auto / default
-	if bitmapSubCodecs[strings.ToLower(s.Codec)] {
+	if selected && isImage {
 		d.SubtitleDecision = "burn"
-	} else if d.SubtitleDecision == "" {
+		forceBurnVideoTranscode(d)
+	} else if !isImage && d.SubtitleDecision == "" {
+		// Text track → sidecar-deliverable (selected or not). An unselected bitmap
+		// track falls through to a no-op: not burnt, not a sidecar candidate.
 		d.SubtitleDecision = "external"
+	}
+}
+
+// forceBurnVideoTranscode makes a burn-in subtitle decision imply a video
+// transcode: burning overlays subtitles onto the decoded frames, which is
+// impossible on a `-c:v copy` (remux) stream. Without this, a copyable H.264
+// title with a burn-in subtitle would route to the copy path and the subtitles
+// would be SILENTLY DROPPED. Guards "burn-in ⟹ never copy" at the source.
+func forceBurnVideoTranscode(d *transcoding.PlaybackDecision) {
+	if d.VideoDecision == "transcode" {
+		return
+	}
+	d.VideoDecision = "transcode"
+	d.TranscodeReasons = append(d.TranscodeReasons, "subtitle_burn_in")
+	if d.VideoCodec == "" {
+		d.VideoCodec = "h264"
 	}
 }
 

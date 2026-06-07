@@ -77,15 +77,22 @@ func TestDefaultBitrates_Applied(t *testing.T) {
 	assert.Equal(t, int64(192), d.AudioBitrate)
 }
 
-func TestMixedSubtitles_BitmapWins(t *testing.T) {
+// When the SELECTED track is the bitmap one, burn must win over a text track's
+// "external" regardless of stream order (here the text sub at index 0 is
+// evaluated first and sets "external", then the selected PGS at index 1 forces
+// burn).
+func TestMixedSubtitles_SelectedBitmapWins(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
 		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
-		{StreamType: "subtitle", Codec: "subrip", IsDefault: false},
-		{StreamType: "subtitle", Codec: "hdmv_pgs_subtitle", IsDefault: false},
+		{StreamType: "subtitle", Codec: "subrip", IsDefault: false},            // subtitle index 0
+		{StreamType: "subtitle", Codec: "hdmv_pgs_subtitle", IsDefault: false}, // subtitle index 1
 	}
-	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	prefs.SubtitleBurnInTrack = 1 // select the PGS
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "burn", d.SubtitleDecision)
+	assert.Equal(t, "transcode", d.VideoDecision)
 }
 
 func TestOnlyHeightExceeded(t *testing.T) {

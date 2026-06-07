@@ -190,6 +190,7 @@ func TestPref_SubtitleBurnIn_Always(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.SubtitleBurnIn = "always"
+	prefs.SubtitleBurnInTrack = 0 // "always" burns the SELECTED track
 	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "burn", d.SubtitleDecision)
 }
@@ -214,6 +215,7 @@ func TestPref_SubtitleBurnIn_Auto_Default(t *testing.T) {
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.SubtitleBurnIn = "auto"
+	prefs.SubtitleBurnInTrack = 0 // selected bitmap track → burn
 	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "burn", d.SubtitleDecision)
 }

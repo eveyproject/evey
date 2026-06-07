@@ -433,12 +433,21 @@ func TestBuildFFmpegArgs_SingleTranscode_BurnInSubtitle(t *testing.T) {
 }
 
 func TestIsImageSubtitle(t *testing.T) {
-	imageCodecs := []string{"pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub"}
+	// Both ffprobe canonical codec_names and ffmpeg encoder aliases — dvb_subtitle
+	// (canonical) must be matched, not only the dvbsub alias.
+	imageCodecs := []string{
+		"hdmv_pgs_subtitle", "pgssub",
+		"dvd_subtitle", "dvdsub",
+		"dvb_subtitle", "dvbsub",
+		"xsub",
+		"DVD_SUBTITLE", // case-insensitive
+	}
 	for _, c := range imageCodecs {
 		assert.True(t, ffmpeg.IsImageSubtitle(c), "expected %s to be image subtitle", c)
 	}
 	assert.False(t, ffmpeg.IsImageSubtitle("srt"), "srt is not image subtitle")
 	assert.False(t, ffmpeg.IsImageSubtitle("ass"), "ass is not image subtitle")
+	assert.False(t, ffmpeg.IsImageSubtitle("subrip"), "subrip is not image subtitle")
 }
 
 // --- Decision override tests ---

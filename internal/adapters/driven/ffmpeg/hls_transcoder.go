@@ -435,9 +435,16 @@ func (h *hlsHandle) Resume() error {
 
 // --- ffmpeg arg building ---
 
+// IsImageSubtitle mirrors apptranscoding.IsImageSubtitle (kept in sync, duplicated
+// to avoid the adapter importing the application layer). Matches both the ffprobe
+// canonical codec_name and the ffmpeg encoder aliases so a DVB bitmap (codec_name
+// dvb_subtitle) is detected, not silently routed to the sidecar path.
 func IsImageSubtitle(codec string) bool {
-	switch strings.ToLower(codec) {
-	case "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub":
+	switch strings.ToLower(strings.TrimSpace(codec)) {
+	case "hdmv_pgs_subtitle", "pgssub",
+		"dvd_subtitle", "dvdsub",
+		"dvb_subtitle", "dvbsub",
+		"xsub":
 		return true
 	}
 	return false
