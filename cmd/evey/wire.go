@@ -838,24 +838,18 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		}
 	}
 
-	if cfg.Transcoding.CacheMaxGB > 0 {
-		evictor := apptranscoding.NewCacheEvictor(
-			cfg.Transcoding.CacheDir,
-			float64(cfg.Transcoding.CacheMaxGB),
-			10*time.Minute,
-		)
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("panic recovered in transcode cache evictor", "error", r, "stack", string(debug.Stack()))
-				}
-			}()
-			evictor.Run(ctx)
-		}()
-		slog.Info("transcode cache evictor started", "cacheDir", cfg.Transcoding.CacheDir, "maxGB", cfg.Transcoding.CacheMaxGB)
-	} else {
-		slog.Info("transcode cache evictor disabled (CacheMaxGB <= 0)")
-	}
+	// The on-disk segment cache is bounded by hlsVODCache.StartEviction (above):
+	// per-hash LRU scoped to <cacheDir>/segments, sorted by atime, with the 4
+	// most-recent hashes protected so an actively-played (incl. copy/remux)
+	// session is never evicted out from under the player.
+	//
+	// A second standalone CacheEvictor used to run here on cfg.Transcoding.CacheDir
+	// — the PARENT of segments/. It treated segments/, photos/ and
+	// music_album_art/ as three LRU units, so on overflow it would have removed a
+	// whole sibling cache (every photo thumbnail / all album art) or the entire
+	// segments blob at once instead of evicting per-hash. Removed: StartEviction is
+	// the single, correctly-scoped evictor. (NewCacheEvictor remains as an unused
+	// utility; delete in a follow-up if no caller appears.)
 
 	return &appDeps{
 		bus: bus,
