@@ -98,7 +98,7 @@ func TestMediaStreamRepo_ListVideoLevelMissing_Scope(t *testing.T) {
 	itemC := newTestMediaItem("lvlC", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, itemC))
 	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
-		{ID: "c-v", MediaItemID: itemC.ID, StreamIndex: 0, StreamType: "video", Codec: "h264", Level: intPtr(40)},
+		{ID: "c-v", MediaItemID: itemC.ID, StreamIndex: 0, StreamType: "video", Codec: "h264", Level: new(40)},
 	}))
 
 	ids, err := streamRepo.ListVideoLevelMissing(ctx, 10, nil)
@@ -130,7 +130,7 @@ func TestMediaStreamRepo_SetVideoLevels_FillsOnceNeverWipes(t *testing.T) {
 
 	// Fill from a "probe" (matched by stream_index). Audio carries no level.
 	probe := []*library.MediaStream{
-		{StreamType: "video", StreamIndex: 0, Codec: "h264", Level: intPtr(40)},
+		{StreamType: "video", StreamIndex: 0, Codec: "h264", Level: new(40)},
 		{StreamType: "audio", StreamIndex: 1, Codec: "aac"},
 	}
 	n, err := streamRepo.SetVideoLevels(ctx, item.ID, probe)
@@ -146,7 +146,7 @@ func TestMediaStreamRepo_SetVideoLevels_FillsOnceNeverWipes(t *testing.T) {
 
 	// Second call must NOT overwrite the existing level (level IS NULL guard).
 	n2, err := streamRepo.SetVideoLevels(ctx, item.ID,
-		[]*library.MediaStream{{StreamType: "video", StreamIndex: 0, Codec: "h264", Level: intPtr(99)}})
+		[]*library.MediaStream{{StreamType: "video", StreamIndex: 0, Codec: "h264", Level: new(99)}})
 	require.NoError(t, err)
 	assert.Equal(t, 0, n2, "an already-set level is not overwritten")
 

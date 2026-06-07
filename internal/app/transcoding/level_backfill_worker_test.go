@@ -80,11 +80,9 @@ func (p *fakeLevelProber) ProbeStreams(_ context.Context, _ string) (*domainlibr
 	return p.result, p.err
 }
 
-func levelPtr(v int) *int { return &v }
-
 func videoProbe(level int) *domainlibrary.ProbeResult {
 	return &domainlibrary.ProbeResult{Streams: []*domainlibrary.MediaStream{
-		{StreamType: domainlibrary.Video, StreamIndex: 0, Codec: "h264", Level: levelPtr(level)},
+		{StreamType: domainlibrary.Video, StreamIndex: 0, Codec: "h264", Level: new(level)},
 		{StreamType: domainlibrary.Audio, StreamIndex: 1, Codec: "aac"},
 	}}
 }
