@@ -429,6 +429,37 @@ func TestCreateBackup_DumpError(t *testing.T) {
 	}
 }
 
+// trackedRC reports whether Close was called — proves CreateBackup drains/closes
+// the dump pipe so the pg_dump writer goroutine can't wedge on an error path.
+type trackedRC struct {
+	io.Reader
+	closed *bool
+}
+
+func (t *trackedRC) Close() error { *t.closed = true; return nil }
+
+type closeTrackingDumper struct {
+	data   string
+	closed *bool
+}
+
+func (d closeTrackingDumper) DumpTables(_ context.Context, _ []string) (io.ReadCloser, error) {
+	return &trackedRC{Reader: strings.NewReader(d.data), closed: d.closed}, nil
+}
+func (d closeTrackingDumper) RestoreTables(_ context.Context, _ io.Reader) error { return nil }
+
+func TestCreateBackup_ClosesDumpReader(t *testing.T) {
+	closed := false
+	store := fakes.NewFakeBackupStore()
+	svc := NewService(store, closeTrackingDumper{data: "-- dump\n", closed: &closed}, "1.0.0")
+	if _, err := svc.CreateBackup(context.Background()); err != nil {
+		t.Fatalf("CreateBackup: %v", err)
+	}
+	if !closed {
+		t.Error("CreateBackup must Close the dump ReadCloser (else the pg_dump pipe goroutine + child leak on error paths)")
+	}
+}
+
 func TestCreateBackup_StoreError(t *testing.T) {
 	store := fakes.NewFakeBackupStore()
 	dumper := fakes.NewFakeDatabaseDumper()

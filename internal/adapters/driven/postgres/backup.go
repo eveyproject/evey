@@ -90,7 +90,7 @@ func (d *DatabaseDumper) pgEnv() []string {
 	)
 }
 
-func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.Reader, error) {
+func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.ReadCloser, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.backup.DumpTables")
 	defer span.End()
 	args := []string{

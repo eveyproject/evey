@@ -14,7 +14,12 @@ type BackupStore interface {
 }
 
 type DatabaseDumper interface {
-	DumpTables(ctx context.Context, tables []string) (io.Reader, error)
+	// DumpTables streams a data-only dump. The returned ReadCloser MUST be closed
+	// by the caller, even on an error path that abandons it unread: the dump is
+	// backed by an io.Pipe whose writer goroutine blocks on Write until a reader
+	// drains it, so dropping it (e.g. a temp-file error before streaming) would
+	// wedge that goroutine and leave the pg_dump child unreaped. Close unblocks it.
+	DumpTables(ctx context.Context, tables []string) (io.ReadCloser, error)
 	RestoreTables(ctx context.Context, data io.Reader) error
 }
 

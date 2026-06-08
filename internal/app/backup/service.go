@@ -84,6 +84,10 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 	if err != nil {
 		return nil, fmt.Errorf("Service.CreateBackup: %w", err)
 	}
+	// MUST close on every exit path: the dump's writer goroutine blocks on Write
+	// until drained, so an early return below (temp-file or copy error) that
+	// abandons `data` unread would wedge that goroutine + leak the pg_dump child.
+	defer data.Close()
 
 	tmp, err := os.CreateTemp("", "evey-backup-*.sql")
 	if err != nil {

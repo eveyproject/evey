@@ -18,7 +18,7 @@ func NewFakeDatabaseDumper() *FakeDatabaseDumper {
 	return &FakeDatabaseDumper{DumpData: []byte("-- fake dump\n")}
 }
 
-func (d *FakeDatabaseDumper) DumpTables(_ context.Context, _ []string) (io.Reader, error) {
+func (d *FakeDatabaseDumper) DumpTables(_ context.Context, _ []string) (io.ReadCloser, error) {
 	if d.Err != nil {
 		return nil, d.Err
 	}
@@ -27,7 +27,7 @@ func (d *FakeDatabaseDumper) DumpTables(_ context.Context, _ []string) (io.Reade
 	if d.Err != nil {
 		return nil, d.Err
 	}
-	return bytes.NewReader(d.DumpData), nil
+	return io.NopCloser(bytes.NewReader(d.DumpData)), nil
 }
 
 func (d *FakeDatabaseDumper) RestoreTables(_ context.Context, data io.Reader) error {
