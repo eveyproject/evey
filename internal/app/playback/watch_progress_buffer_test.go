@@ -68,6 +68,25 @@ func TestWatchProgressBuffer_EnqueueDoesNotHitRepo(t *testing.T) {
 	assert.Equal(t, 1, buf.Pending(), "same key should fold to a single entry")
 }
 
+func TestWatchProgressBuffer_StopWithoutStartDoesNotDeadlock(t *testing.T) {
+	t.Parallel()
+	repo := newCountingProgressRepo()
+	buf := appplayback.NewWatchProgressBuffer(repo, time.Hour)
+
+	// Stop() before any Start(): doneCh is never closed (no flush goroutine), so
+	// the old `<-doneCh` blocked forever. It must now return promptly.
+	done := make(chan struct{})
+	go func() {
+		buf.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop() deadlocked when called without a prior Start()")
+	}
+}
+
 func TestWatchProgressBuffer_FlushPersistsLatestPerKey(t *testing.T) {
 	t.Parallel()
 	repo := newCountingProgressRepo()

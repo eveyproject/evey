@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/playback"
@@ -32,6 +33,10 @@ type WatchProgressBuffer struct {
 	mu      sync.Mutex
 	pending map[watchProgressKey]*playback.WatchProgress
 
+	// started guards Stop against a deadlock when called without a prior Start:
+	// doneCh is only ever closed by the Start goroutine's defer, so waiting on it
+	// without a running loop would block forever. Set once by Start.
+	started  atomic.Bool
 	stopOnce sync.Once
 	stopCh   chan struct{}
 	doneCh   chan struct{}
@@ -124,6 +129,7 @@ func (b *WatchProgressBuffer) Flush(ctx context.Context) int {
 // Idempotent: calling Start twice spawns a single loop because doneCh is
 // only closed once. Callers should treat this as run-once.
 func (b *WatchProgressBuffer) Start(ctx context.Context) {
+	b.started.Store(true)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -156,6 +162,11 @@ func (b *WatchProgressBuffer) Start(ctx context.Context) {
 // Safe to call multiple times. Idempotent so graceful shutdown can be
 // invoked from several places without coordination.
 func (b *WatchProgressBuffer) Stop() {
+	// Never started → no flush goroutine will ever close doneCh, so don't wait on
+	// it (that was the deadlock). Nothing to drain.
+	if !b.started.Load() {
+		return
+	}
 	b.stopOnce.Do(func() {
 		close(b.stopCh)
 	})
