@@ -27,6 +27,30 @@ RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmwa
     && go install golang.org/x/vuln/cmd/govulncheck@latest \
     && npm install -g esbuild@0.25.12 @grpc/grpc-js@1.12.6 @grpc/proto-loader@0.7.13
 
+# jellyfin-ffmpeg7 — REAL parity with the prod runtime (the comment at the top of
+# this file is only TRUE with this block). The standalone jellyfin-ffmpeg7 package
+# carries the `tonemapx` HDR filter + the muxer/HLS patches absent from Debian's
+# ffmpeg; symlinked AHEAD of /usr/bin/ffmpeg on PATH (Debian's stays as a fallback).
+# Same install as Dockerfile:157-168. Without it, local transcode/HLS validation
+# runs on a DIFFERENT binary than prod (Debian zscale, no tonemapx, different muxer).
+# CAVEAT: this is BINARY parity, NOT silicon parity. The reference box is an old iGPU
+# old iGPU (VAAPI encode only, NO HEVC HW decode); this dev host is not. So
+# SOFTWARE/muxer/remux results validated here transfer to prod, but HW-accel
+# (NVENC/VAAPI/QSV) results do NOT — those need the actual prod GPU. What ships
+# is the weak NAS.
+RUN apt-get update && apt-get install -y --no-install-recommends gnupg \
+    && install -d /etc/apt/keyrings \
+    && curl -fsSL https://repo.jellyfin.org/jellyfin_team.gpg.key \
+         | gpg --dearmor -o /etc/apt/keyrings/jellyfin.gpg \
+    && printf 'Types: deb\nURIs: https://repo.jellyfin.org/debian\nSuites: trixie\nComponents: main\nSigned-By: /etc/apt/keyrings/jellyfin.gpg\n' \
+         > /etc/apt/sources.list.d/jellyfin.sources \
+    && apt-get update && apt-get install -y --no-install-recommends jellyfin-ffmpeg7 \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/lib/jellyfin-ffmpeg/ffmpeg  /usr/local/bin/ffmpeg \
+    && ln -sf /usr/lib/jellyfin-ffmpeg/ffprobe /usr/local/bin/ffprobe \
+    && /usr/local/bin/ffmpeg -hide_banner -version >/dev/null \
+    && /usr/local/bin/ffmpeg -hide_banner -filters | grep -q tonemapx
+
 # cosign — Debian has no apt package; ride the official ko-built image (pinned).
 # Matches the prod runtime so the plugin signature path is testable in dev.
 COPY --from=gcr.io/projectsigstore/cosign:v2.4.1 /ko-app/cosign /usr/local/bin/cosign
