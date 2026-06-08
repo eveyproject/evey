@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -54,6 +55,14 @@ type SoftwareProducer struct {
 	source  SourceResolver
 	logger  *slog.Logger
 	opts    SoftwareProducerOptions
+
+	// copyPlanner gates COPY MODE (the Jellyfin-style paced video-copy rung).
+	// nil = pure transcode, byte-identical to before — every copy-mode divergence
+	// is behind a `copyPlanner != nil` check. When set (a dedicated copy instance
+	// wired for the remux rung), startSession emits `-c:v copy` and maps a segment
+	// index to its keyframe StartSec via the plan, and Manifest serves the
+	// keyframe-aligned playlist. Set ONCE via SetCopyMode before first use.
+	copyPlanner *CopyPlanner
 
 	// shutdownCtx is the long-lived parent for every ffmpeg this producer
 	// spawns — never the HTTP request context (that one dies when the segment
@@ -261,6 +270,31 @@ func NewSoftwareProducer(
 //
 // Pure in its inputs (base, src, decision, capacity) so the ladder is identical
 // at manifest-time and segment-time — the cache-hash invariant.
+// SetCopyMode enables the paced video-COPY rung on this producer instance (the
+// Jellyfin-style remux: one paced -c:v copy session per live position, seek =
+// restart). Call ONCE before first use — the wiring builds a DEDICATED copy
+// instance for the remux path, distinct from the transcode instance the selector
+// returns, so the two never share a manifest. nil planner = pure transcode.
+func (p *SoftwareProducer) SetCopyMode(planner *CopyPlanner) {
+	p.copyPlanner = planner
+}
+
+// Manifest serves the copy rendition's keyframe-aligned VOD media playlist
+// (variable #EXTINF from the keyframe plan). Implements ManifestProvider, which
+// the handler type-asserts ONLY on the copy instance — the transcode instance is
+// reached via the selector and keeps the precalculated manifest. Returns an error
+// when not in copy mode so a misroute fails loud rather than serving a wrong list.
+func (p *SoftwareProducer) Manifest(ctx context.Context, fp DecisionFingerprint) ([]byte, error) {
+	if p.copyPlanner == nil {
+		return nil, errors.New("software: Manifest unavailable (producer not in copy mode)")
+	}
+	segs, err := p.copyPlanner.Plan(ctx, fp.MediaID)
+	if err != nil {
+		return nil, fmt.Errorf("software: copy manifest for %s: %w", fp.MediaID, err)
+	}
+	return buildCopyManifest(segs), nil
+}
+
 func (p *SoftwareProducer) Profiles(base []transcoding.HLSProfile, src SourceDims, decision transcoding.PlaybackDecision, capacity transcoding.EncodeCapability) []transcoding.HLSProfile {
 	sourceCapped := transcoding.CapLadderToSource(base, src.Width, src.Height)
 
@@ -379,6 +413,25 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		return fmt.Errorf("software: startSession: variantIdx %d out of range (profiles=%d)", variantIdx, len(fp.Profiles))
 	}
 
+	// Copy-mode divergences (gated). nil planner → transcode, byte-identical to
+	// before. Resolved up front, before any resource is acquired, so a missing
+	// plan returns cleanly. The frontier/seek/reach math downstream is in segment
+	// COUNT, so only StartSec (the -ss offset) differs for variable-length copy
+	// segments: segment N seeks to its keyframe start, not N×SegmentSeconds.
+	videoDecision := "transcode"
+	startSec := float64(startSeg) * p.opts.SegmentSeconds
+	if p.copyPlanner != nil {
+		segs, planErr := p.copyPlanner.Plan(ctx, fp.MediaID)
+		if planErr != nil {
+			return fmt.Errorf("software: startSession: copy plan for %s: %w", fp.MediaID, planErr)
+		}
+		if startSeg < 0 || startSeg >= len(segs) {
+			return fmt.Errorf("software: startSession: copy startSeg %d out of range (%d segments)", startSeg, len(segs))
+		}
+		videoDecision = "copy"
+		startSec = float64(segs[startSeg].StartMs) / 1000.0
+	}
+
 	srcPath, _, err := p.source.ResolveSource(ctx, fp)
 	if err != nil {
 		return fmt.Errorf("software: startSession: resolve source: %w", err)
@@ -396,14 +449,14 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		FilePath:           srcPath,
 		Profiles:           profilesToDomain(fp.Profiles[variantIdx : variantIdx+1]),
 		VariantIndex:       variantIdx,
-		VideoDecision:      "transcode",
+		VideoDecision:      videoDecision,
 		AudioDecision:      "transcode",
 		AudioTrackIndex:    fp.AudioTrack,
 		SubtitleTrackIndex: fp.SubtitleBurnInTrack,
 		HDRSupported:       false, // tonemap is part of the decision; HDRSupported=false forces it
 		ToneMap:            fp.HDRTonemap,
 		AudioNormalize:     fp.AudioNormalize,
-		StartSec:           float64(startSeg) * p.opts.SegmentSeconds,
+		StartSec:           startSec,
 		// Input pacing: the defining software-flow knob. Keeps the single
 		// sequential encoder near wall-clock so it never races ahead of the
 		// viewer (no abort-and-probe client → no need to burst).
