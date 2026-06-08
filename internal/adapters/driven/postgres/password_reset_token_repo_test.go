@@ -87,13 +87,30 @@ func TestPasswordResetTokenRepo_MarkUsed_ThenGetReturnsNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, shared.ErrNotFound, "used token must be filtered at SQL level")
 }
 
-func TestPasswordResetTokenRepo_MarkUsed_UnknownID_NoError(t *testing.T) {
+func TestPasswordResetTokenRepo_MarkUsed_UnknownID_ReturnsError(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 
 	repo := postgres.NewPasswordResetTokenRepository(db)
-	// UPDATE of 0 rows is not an error — documents current behavior.
-	require.NoError(t, repo.MarkUsed(context.Background(), "ghost-id"))
+	// MarkUsed is now an atomic single-use CLAIM (`WHERE used = FALSE`): nothing
+	// to claim (unknown id) → 0 rows → error, so a caller's tx rolls back.
+	require.Error(t, repo.MarkUsed(context.Background(), "ghost-id"))
+}
+
+func TestPasswordResetTokenRepo_MarkUsed_Twice_SecondFails(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedUser(t, db, "prt-u3")
+	repo := postgres.NewPasswordResetTokenRepository(db)
+	ctx := context.Background()
+
+	tok := newPRT("prt-twice", "prt-u3", "hash_twice", time.Now().Add(1*time.Hour))
+	require.NoError(t, repo.Create(ctx, tok))
+	// First claim wins; the second (the concurrent-reuse race) MUST fail so the
+	// token can reset the password only once.
+	require.NoError(t, repo.MarkUsed(ctx, "prt-twice"))
+	require.Error(t, repo.MarkUsed(ctx, "prt-twice"), "a used token cannot be claimed again")
 }
 
 func TestPasswordResetTokenRepo_DeleteByUserID(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -67,12 +68,26 @@ func (r *PasswordResetTokenRepository) MarkUsed(ctx context.Context, id string) 
 	span.SetAttributes(attribute.String("password_reset_token.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
-		`UPDATE password_reset_tokens SET used = TRUE WHERE id = $1`, id)
+	// `AND used = FALSE` makes the claim atomic + single-use: two concurrent
+	// ResetPassword calls that both validated the (not-yet-used) token race here,
+	// and only one UPDATE matches a row. The loser gets rows==0 → an error, which
+	// rolls back its enclosing tx (password update + MarkUsed commit together), so
+	// the token can never reset the password twice.
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE password_reset_tokens SET used = TRUE WHERE id = $1 AND used = FALSE`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("password reset token %s already used", id)
 	}
 	return nil
 }
