@@ -319,7 +319,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// VOD manifest (the transcode path, unchanged).
 	var out string
 	served := false
-	if producer := h.producerForRequest(r.Context(), r, streams, item.File.ContainerFormat); producer != nil {
+	if producer := h.producerForRequest(r.Context(), r, streams, item); producer != nil {
 		if mp, ok := producer.(apptranscoding.ManifestProvider); ok {
 			fp, fpErr := h.buildFingerprint(r, mediaID, item, streams)
 			if fpErr != nil {
@@ -361,7 +361,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// PreWarm runs in a goroutine bound to the orchestrator's shutdownCtx
 	// so Close() cancels every in-flight pre-warm (clean test teardown).
 	if fp, fpErr := h.buildFingerprint(r, mediaID, item, streams); fpErr == nil {
-		if producer := h.producerForRequest(r.Context(), r, streams, item.File.ContainerFormat); producer != nil {
+		if producer := h.producerForRequest(r.Context(), r, streams, item); producer != nil {
 			producer.PreWarm(fp, 0)
 		}
 	}
@@ -380,7 +380,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// EnsureSegmentRange calls, the client-hint, and the wait budget all target
 	// the same machine — and the same one the ladder was shaped for. Falls back
 	// to the orchestrator when no selector is wired (degenerate setups).
-	producer := h.producerForRequest(r.Context(), r, streams, item.File.ContainerFormat)
+	producer := h.producerForRequest(r.Context(), r, streams, item)
 	if producer == nil {
 		span.SetStatus(codes.Error, "no stream producer wired")
 		http.Error(w, `{"message":"transcode unavailable"}`, http.StatusServiceUnavailable)
@@ -466,6 +466,12 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		http.Error(w, `{"message":"segment not yet ready, retry"}`, http.StatusServiceUnavailable)
 		return
 	}
+
+	// Mark the hash as freshly accessed so the LRU sweeper keeps it warm. Reads
+	// never bump file mtime, and the copy rung's ReadRate=0 mux freezes mtime
+	// once it finishes — without this an actively-watched title would be evicted
+	// out from under the player (re-mux storm). Cheap: one map write per segment.
+	h.cache.Touch(key.DecisionHash)
 
 	path := h.cache.Path(key, fp.UseFMP4)
 	if _, statErr := os.Stat(path); statErr != nil {
@@ -775,7 +781,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 
 	var laddered []domaintranscoding.HLSProfile
 	switch {
-	case h.isCopyRequest(decision, streams):
+	case h.isCopyRequest(decision, streams, sourceBytesOf(item)):
 		// Copy/remux rung: a single source-resolution rung, no transcode ladder
 		// (the player never ABR-switches a copy stream). Same producer the
 		// segment path resolves, so manifest- and segment-time shaping agree.
@@ -836,10 +842,10 @@ func sourceDimsOf(streams []*domainlibrary.MediaStream) apptranscoding.SourceDim
 // the one the ladder was shaped for (and thus the cache hash). Falls back to
 // the orchestrator field when no selector is wired (hand-built test handlers);
 // returns nil only when neither is set.
-func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, streams []*domainlibrary.MediaStream, container string) apptranscoding.StreamProducer {
+func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, streams []*domainlibrary.MediaStream, item *domainlibrary.MediaItem) apptranscoding.StreamProducer {
 	if h.selector != nil {
-		decision := h.makeDecision(ctx, streams, container, r)
-		if h.isCopyRequest(decision, streams) {
+		decision := h.makeDecision(ctx, streams, containerOf(item), r)
+		if h.isCopyRequest(decision, streams, sourceBytesOf(item)) {
 			return h.copyProducer
 		}
 		return h.selector.For(decision, sourceDimsOf(streams))
@@ -850,6 +856,23 @@ func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, s
 	return nil
 }
 
+// sourceBytesOf is the on-disk size of the source file, or 0 when unknown. The
+// copy-rung disk guard treats 0 as "can't size it" → fail-open (allow copy).
+func sourceBytesOf(item *domainlibrary.MediaItem) int64 {
+	if item == nil || item.File == nil {
+		return 0
+	}
+	return item.File.Size
+}
+
+// containerOf is item.File.ContainerFormat, guarded against a nil file.
+func containerOf(item *domainlibrary.MediaItem) string {
+	if item == nil || item.File == nil {
+		return ""
+	}
+	return item.File.ContainerFormat
+}
+
 // isCopyRequest reports whether this request should be served as a video-COPY
 // (remux) rung rather than transcoded. Three conditions, all required: the copy
 // path is wired (EVEY_REMUX_COPY=on → copyProducer non-nil), the decision did
@@ -857,10 +880,26 @@ func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, s
 // copy-eligible — sourceCopyVideoCodec returns "" unless it is H.264 8-bit SDR
 // with a known level (so the master can advertise an accurate avc1.PPCCLL).
 // When false, the request routes through the selector exactly as before.
-func (h *hlsVODServe) isCopyRequest(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
-	return h.copyProducer != nil &&
-		decision.VideoDecision == "copy" &&
-		sourceCopyVideoCodec(streams) != ""
+func (h *hlsVODServe) isCopyRequest(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream, sourceBytes int64) bool {
+	if h.copyProducer == nil ||
+		decision.VideoDecision != "copy" ||
+		sourceCopyVideoCodec(streams) == "" {
+		return false
+	}
+	// Disk guard: the whole-file strategy duplicates ~the source size on disk
+	// (video copied 1:1 + a smaller AAC track). If the cache filesystem can't fit
+	// it with headroom, fall back to the segment-bounded transcode ladder rather
+	// than risk ENOSPC on a small box. Fail-OPEN when the size is unknown or
+	// statfs fails — keeps today's behaviour and the mux still fails gracefully
+	// downstream. (master- and segment-time both reach this with the same
+	// item.File.Size; a free-space flip between them is a rare, bounded 503-retry,
+	// not a cache aliasing — the copy hash never collides with a transcode hash.)
+	if sourceBytes > 0 {
+		if free, err := h.cache.FreeBytes(); err == nil && free < sourceBytes+sourceBytes/10 {
+			return false
+		}
+	}
+	return true
 }
 
 // legacyProfileShaping reproduces the ladder tail for hand-built test handlers
@@ -1156,13 +1195,9 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 
 	// Route the warm-up through the SAME producer the player will use for this
 	// next episode (software vs hardware) so the warmed segments land in the
-	// cache bucket the player reads. Resolve from the next item's container +
-	// streams.
-	container := ""
-	if nextItem.File != nil {
-		container = nextItem.File.ContainerFormat
-	}
-	producer := h.producerForRequest(r.Context(), r, streams, container)
+	// cache bucket the player reads. Resolved from the next item (container +
+	// source size for the copy-rung disk guard).
+	producer := h.producerForRequest(r.Context(), r, streams, nextItem)
 	if producer == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

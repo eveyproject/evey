@@ -122,6 +122,51 @@ func TestStartEviction_RunsAndStops(t *testing.T) {
 	assert.DirExists(t, filepath.Join(c.baseDir, "new"))
 }
 
+func TestSweepOnce_TouchKeepsActivelyReadHashWarm(t *testing.T) {
+	// Two hashes over the cap. "watched" has the OLDER mtime — its ReadRate=0
+	// copy mux finished an hour ago — but a player is still pulling segments, so
+	// Touch records a fresh access. "fresh" was written more recently but nobody
+	// is reading it. With mtime alone the sweeper would evict "watched" (older);
+	// with the access-time merge it stays warm and "fresh" is the victim instead.
+	// This is the copy-rung eviction-under-viewer fix.
+	c, _ := newTestCache(t)
+	writeSegments(t, c, "watched", 3, 100)
+	backdateHash(t, c, "watched", -1*time.Hour)
+	writeSegments(t, c, "fresh", 3, 100)
+	backdateHash(t, c, "fresh", -10*time.Minute)
+
+	c.Touch("watched") // a player just pulled a segment from this hash
+
+	c.sweepOnce(EvictionPolicy{MaxBytes: 400, MarginBytes: 0, ProtectRecent: 0}, quietLogger())
+
+	assert.DirExists(t, filepath.Join(c.baseDir, "watched"), "actively-read hash must stay warm via Touch")
+	assert.NoDirExists(t, filepath.Join(c.baseDir, "fresh"), "un-read hash is the LRU victim")
+}
+
+func TestTouch_ClearedOnCleanup(t *testing.T) {
+	// The access-time registry must track the LIVE cache, not history — an entry
+	// has to be dropped when its hash is cleaned up, or the map leaks one entry
+	// per ever-served hash for the process lifetime.
+	c, _ := newTestCache(t)
+	writeSegments(t, c, "h", 2, 50)
+	c.Touch("h")
+	if _, ok := c.LastAccess("h"); !ok {
+		t.Fatal("expected an access time right after Touch")
+	}
+	require.NoError(t, c.CleanupHash("h"))
+	if _, ok := c.LastAccess("h"); ok {
+		t.Error("access time must be cleared on CleanupHash (no map leak)")
+	}
+}
+
+func TestTouch_EmptyHashNoop(t *testing.T) {
+	c, _ := newTestCache(t)
+	c.Touch("") // must not panic or record a phantom entry
+	if _, ok := c.LastAccess(""); ok {
+		t.Error("empty hash must not be recorded")
+	}
+}
+
 // ============================================================================
 // helpers
 // ============================================================================

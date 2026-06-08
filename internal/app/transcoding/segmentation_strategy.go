@@ -47,6 +47,23 @@ type SegmentationStrategy interface {
 	Manifest(ctx context.Context, fp DecisionFingerprint) ([]byte, error)
 }
 
+// Idle-cancel tuning for the whole-file mux. The mux runs at ReadRate=0 outside
+// the request context, so a client that opens a stream and leaves (zapping, a
+// closed tab) would otherwise re-mux the WHOLE file for nothing. These bound how
+// long an unwatched mux keeps running.
+const (
+	// copyIdleGrace lets the first segment be produced AND requested before idle
+	// detection arms — a client just opening the stream must not be cut.
+	copyIdleGrace = 30 * time.Second
+	// copyIdleWindow is how long with NO segment served before the mux is treated
+	// as abandoned. Deliberately well above any hls.js buffer length (default
+	// ~30-60s) so a viewer who has buffered ahead and paused fetching is NEVER
+	// mistaken for gone — only a truly abandoned mux is stopped.
+	copyIdleWindow = 120 * time.Second
+	// copyIdleCheckEvery is the idle poll cadence.
+	copyIdleCheckEvery = 30 * time.Second
+)
+
 // ============================================================================
 // WholeFileStrategy
 // ============================================================================
@@ -264,17 +281,40 @@ func (s *WholeFileStrategy) runFFmpegBackground(fp DecisionFingerprint, hash str
 	metrics.HLSVODSessions.Inc()
 	defer metrics.HLSVODSessions.Dec()
 
-	// Wait for the mux to complete (or shutdown). Segments land on disk as it
-	// runs; the handler serves them via cache.Wait without waiting for this.
-	select {
-	case <-handle.Done():
-	case <-s.shutdownCtx.Done():
-		if stopErr := handle.Stop(); stopErr != nil {
-			s.logger.Debug("whole_file: stop on shutdown failed",
-				slog.String("hash", hash), slog.Any("err", stopErr))
+	// Wait for the mux to complete, shutdown, or go idle. Segments land on disk
+	// as it runs; the handler serves them via cache.Wait without waiting for this.
+	idleTicker := time.NewTicker(copyIdleCheckEvery)
+	defer idleTicker.Stop()
+	muxStart := time.Now()
+waitLoop:
+	for {
+		select {
+		case <-handle.Done():
+			break waitLoop
+		case <-s.shutdownCtx.Done():
+			if stopErr := handle.Stop(); stopErr != nil {
+				s.logger.Debug("whole_file: stop on shutdown failed",
+					slog.String("hash", hash), slog.Any("err", stopErr))
+			}
+			<-handle.Done()
+			return
+		case <-idleTicker.C:
+			if !s.muxIsIdle(hash, muxStart) {
+				continue
+			}
+			// No player has pulled a segment for copyIdleWindow (well beyond any
+			// client buffer) — nobody is watching, so stop the whole-file mux to
+			// free the box. The partial cache lacks ENDLIST, so manifestComplete
+			// stays false and a returning viewer simply re-spawns it.
+			s.logger.Info("whole_file: stopping idle mux (no segment reads)",
+				slog.String("hash", hash))
+			if stopErr := handle.Stop(); stopErr != nil {
+				s.logger.Debug("whole_file: stop on idle failed",
+					slog.String("hash", hash), slog.Any("err", stopErr))
+			}
+			<-handle.Done()
+			return
 		}
-		<-handle.Done()
-		return
 	}
 
 	if ferr := handle.Err(); ferr != nil {
@@ -285,6 +325,22 @@ func (s *WholeFileStrategy) runFFmpegBackground(fp DecisionFingerprint, hash str
 		return
 	}
 	s.logger.Info("whole_file: remux complete", slog.String("hash", hash))
+}
+
+// muxIsIdle reports whether the whole-file mux for hash should be stopped: past
+// the startup grace period AND no segment has been served for copyIdleWindow.
+// LastAccess is bumped by the handler on every served segment (SegmentCache.
+// Touch), so "no access" means no player is pulling — copyIdleWindow is set well
+// above any client buffer so a viewer who buffered ahead is never cut short.
+func (s *WholeFileStrategy) muxIsIdle(hash string, start time.Time) bool {
+	if time.Since(start) < copyIdleGrace {
+		return false
+	}
+	last, ok := s.cache.LastAccess(hash)
+	if !ok {
+		return true // past grace and not a single segment was ever served
+	}
+	return time.Since(last) > copyIdleWindow
 }
 
 // Manifest returns the HLS media playlist ffmpeg wrote at the end of the whole-

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 )
 
 // SegmentKind tags a SegmentKey as belonging to the muxed/video pipeline
@@ -244,6 +245,16 @@ type SegmentCache struct {
 	// when ONE rafale teardowns would break Wait() for the others.
 	pending     map[string]chan struct{}
 	pendingRefs map[string]int
+
+	// accessTimes records the last time each hash was Touched (a segment was
+	// served to a player). The LRU sweeper merges it with the directory mtime so
+	// an actively-READ hash stays warm even when nothing is being WRITTEN to it.
+	// This matters for the copy rung: its ReadRate=0 mux finishes in minutes,
+	// then the dir mtime freezes, so without this an actively-watched 2 h title
+	// looks cold to the sweeper and gets evicted out from under the player.
+	// Guarded by mu. Entries are dropped in CleanupHash so the map tracks the
+	// live cache, not history.
+	accessTimes map[string]time.Time
 }
 
 // NewSegmentCache returns a cache rooted at baseDir/segments. The directory is
@@ -257,6 +268,7 @@ func NewSegmentCache(baseDir string) (*SegmentCache, error) {
 		baseDir:     root,
 		pending:     make(map[string]chan struct{}),
 		pendingRefs: make(map[string]int),
+		accessTimes: make(map[string]time.Time),
 	}, nil
 }
 
@@ -426,6 +438,7 @@ func (c *SegmentCache) CleanupHash(decisionHash string) error {
 		close(ch)
 		delete(c.pending, decisionHash)
 	}
+	delete(c.accessTimes, decisionHash)
 	c.mu.Unlock()
 
 	dir := filepath.Join(c.baseDir, decisionHash)
@@ -433,6 +446,44 @@ func (c *SegmentCache) CleanupHash(decisionHash string) error {
 		return fmt.Errorf("SegmentCache.CleanupHash %q: %w", dir, err)
 	}
 	return nil
+}
+
+// Touch records that hash was just accessed (a segment was served to a player).
+// The LRU sweeper treats a recently-touched hash as recently-used even though
+// reads never update file mtime. Essential for the copy rung whose ReadRate=0
+// mux freezes the dir mtime once it finishes — without Touch an actively-watched
+// title looks cold and is evicted out from under the player. One cheap map write.
+func (c *SegmentCache) Touch(hash string) {
+	if hash == "" {
+		return
+	}
+	c.mu.Lock()
+	c.accessTimes[hash] = time.Now()
+	c.mu.Unlock()
+}
+
+// FreeBytes reports the free space on the filesystem backing the segment cache.
+// The copy-rung disk guard uses it to refuse a whole-file remux that would not
+// fit, so a small box falls back to the (segment-bounded) transcode ladder
+// instead of filling the disk to ENOSPC. Reuses the same statfs path as the
+// admin storage stats.
+func (c *SegmentCache) FreeBytes() (int64, error) {
+	stats := sysinfo.GetStorageStats([]string{c.baseDir})
+	if len(stats) == 0 {
+		return 0, fmt.Errorf("SegmentCache.FreeBytes: statfs %q failed", c.baseDir)
+	}
+	return stats[0].FreeBytes, nil
+}
+
+// LastAccess returns the last Touch time for hash and whether one was recorded.
+// Used by the whole-file strategy's idle-cancel: a hash that has not been
+// touched for a while has no player pulling segments, so its background mux can
+// be stopped. Falls back to "not found" for hashes never served (cold start).
+func (c *SegmentCache) LastAccess(hash string) (time.Time, bool) {
+	c.mu.RLock()
+	t, ok := c.accessTimes[hash]
+	c.mu.RUnlock()
+	return t, ok
 }
 
 // RegisterSession marks a hash as live so Wait calls bind to its lifetime.

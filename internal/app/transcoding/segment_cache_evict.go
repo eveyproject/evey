@@ -194,6 +194,18 @@ func (c *SegmentCache) listHashUsage() ([]HashUsage, error) {
 		}
 		out = append(out, HashUsage{Hash: e.Name(), Bytes: size, LastAccess: mt})
 	}
+	// Merge in the access-time registry: a hash that is being READ (segments
+	// served) but no longer WRITTEN keeps a fresh LastAccess. max(mtime, access)
+	// is strictly >= the mtime-only value, so eviction is never MORE aggressive
+	// than before — an actively-watched copy title (frozen mtime) stays warm.
+	// Done after the directory I/O so the lock is held only for the map merge.
+	c.mu.RLock()
+	for i := range out {
+		if at, ok := c.accessTimes[out[i].Hash]; ok && at.After(out[i].LastAccess) {
+			out[i].LastAccess = at
+		}
+	}
+	c.mu.RUnlock()
 	return out, nil
 }
 
