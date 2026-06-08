@@ -3,7 +3,6 @@ package fakes
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"sync"
 	"time"
@@ -71,7 +70,7 @@ func (s *FakeBackupStore) Get(_ context.Context, id string) (*backup.BackupManif
 	}
 	m, ok := s.manifests[id]
 	if !ok {
-		return nil, nil, errors.New("backup not found")
+		return nil, nil, backup.ErrNotFound
 	}
 	return m, io.NopCloser(bytes.NewReader(s.data[id])), nil
 }
@@ -86,7 +85,7 @@ func (s *FakeBackupStore) Delete(_ context.Context, id string) error {
 		return s.Err
 	}
 	if _, ok := s.manifests[id]; !ok {
-		return errors.New("backup not found")
+		return backup.ErrNotFound
 	}
 	delete(s.manifests, id)
 	delete(s.data, id)

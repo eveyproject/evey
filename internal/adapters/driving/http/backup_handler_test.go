@@ -41,6 +41,25 @@ func newBackupTestMux(t *testing.T, isAdmin bool) (*http.ServeMux, string) {
 	return mux, token
 }
 
+// newBackupTestMuxWithStore is like newBackupTestMux but also returns the store
+// so callers can inject errors or seed state to exercise specific paths.
+func newBackupTestMuxWithStore(t *testing.T, isAdmin bool) (*http.ServeMux, string, *backupfakes.FakeBackupStore) {
+	t.Helper()
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	gen := auth.NewJWTGenerator(key, time.Minute)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "u1", IsAdmin: isAdmin})
+
+	store := backupfakes.NewFakeBackupStore()
+	dumper := backupfakes.NewFakeDatabaseDumper()
+	svc := appbackup.NewService(store, dumper, "1.0.0")
+	rl := ratelimit.New(100)
+	writeRL := ratelimit.New(100)
+
+	mux := http.NewServeMux()
+	registerBackupRoutes(mux, svc, gen, rl, writeRL)
+	return mux, token, store
+}
+
 // newBackupTestMuxWithDumper is like newBackupTestMux but also returns the dumper
 // so callers can inject errors to exercise the internal-failure path.
 func newBackupTestMuxWithDumper(t *testing.T, isAdmin bool) (*http.ServeMux, string, *backupfakes.FakeDatabaseDumper) {
@@ -200,5 +219,54 @@ func TestRestoreBackup_ValidArchive_200(t *testing.T) {
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200 for valid archive, got %d (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+func TestDeleteBackup_ErrNotFoundSentinel_404(t *testing.T) {
+	// ErrNotFound from the store must map to 404 (not 500).
+	// This tests the sentinel dispatch in the handler.
+	mux, token := newBackupTestMux(t, true)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/backups/nonexistent", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for nonexistent backup, got %d (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+func TestDeleteBackup_StoreError_500(t *testing.T) {
+	// A store failure that is NOT a not-found (e.g. disk full) must produce 500,
+	// not 404 — otherwise the admin can't distinguish a missing backup from a real
+	// failure.
+	mux, token, store := newBackupTestMuxWithStore(t, true)
+	store.Err = errors.New("disk full")
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/backups/any-id", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for store error, got %d (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+func TestDeleteBackup_Success_204(t *testing.T) {
+	// DELETE on an existing backup must return 204 No Content.
+	mux, token, store := newBackupTestMuxWithStore(t, true)
+	// Seed a backup directly into the fake store so we have a known ID.
+	m := &backupmodel.BackupManifest{
+		ID:      "bk-del-test",
+		Version: "1.0.0",
+		Tables:  appbackup.BackupTables,
+	}
+	if err := store.Create(t.Context(), m, bytes.NewReader([]byte("dump"))); err != nil {
+		t.Fatalf("seed backup: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/backups/bk-del-test", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Errorf("expected 204 for successful delete, got %d (body: %s)", w.Code, w.Body.String())
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -187,7 +186,10 @@ func (s *BackupStore) Get(_ context.Context, id string) (*backup.BackupManifest,
 	manifestPath := filepath.Join(s.dir, id+".json")
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
-		return nil, nil, errors.New("backup not found")
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil, backup.ErrNotFound
+		}
+		return nil, nil, fmt.Errorf("read backup manifest: %w", err)
 	}
 	var m backup.BackupManifest
 	if unmarshalErr := json.Unmarshal(data, &m); unmarshalErr != nil {
@@ -195,11 +197,14 @@ func (s *BackupStore) Get(_ context.Context, id string) (*backup.BackupManifest,
 	}
 	archivePath, ok := s.resolveArchivePath(id)
 	if !ok {
-		return nil, nil, errors.New("backup archive not found")
+		return nil, nil, backup.ErrNotFound
 	}
 	f, openErr := os.Open(archivePath)
 	if openErr != nil {
-		return nil, nil, errors.New("backup archive not found")
+		if errors.Is(openErr, os.ErrNotExist) {
+			return nil, nil, backup.ErrNotFound
+		}
+		return nil, nil, fmt.Errorf("open backup archive: %w", openErr)
 	}
 	if fi, statErr := os.Stat(archivePath); statErr == nil {
 		m.Size = fi.Size()
@@ -213,14 +218,14 @@ func (s *BackupStore) Delete(_ context.Context, id string) error {
 	}
 	archivePath, ok := s.resolveArchivePath(id)
 	if !ok {
-		return errors.New("backup not found")
+		return backup.ErrNotFound
 	}
 	manifestPath := filepath.Join(s.dir, id+".json")
-	if err := os.Remove(archivePath); err != nil {
-		slog.Warn("remove backup archive", slog.Any("err", err))
+	if err := os.Remove(archivePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove backup archive: %w", err)
 	}
-	if err := os.Remove(manifestPath); err != nil {
-		slog.Warn("remove backup manifest", slog.Any("err", err))
+	if err := os.Remove(manifestPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove backup manifest: %w", err)
 	}
 	return nil
 }

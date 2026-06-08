@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+// ErrNotFound is returned by the BackupStore when the requested backup does not
+// exist. Callers can distinguish a missing backup from a real store failure with
+// errors.Is.
+var ErrNotFound = errors.New("backup not found")
+
 // BackupSchedule is the singleton row that drives the cron-based backup scheduler.
 type BackupSchedule struct {
 	CronExpression string

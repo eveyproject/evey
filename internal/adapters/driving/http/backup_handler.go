@@ -13,6 +13,7 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	appbackup "github.com/evey-project/evey/internal/app/backup"
+	backupdomain "github.com/evey-project/evey/internal/domain/backup"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -146,8 +147,14 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		span.SetAttributes(attribute.String("backup_id", backupID))
 		if err := svc.DeleteBackup(r.Context(), backupID); err != nil {
 			span.RecordError(err)
-			span.SetStatus(otelcodes.Error, "backup not found")
-			http.Error(w, `{"message":"backup not found"}`, http.StatusNotFound)
+			if errors.Is(err, backupdomain.ErrNotFound) {
+				span.SetStatus(otelcodes.Error, "backup not found")
+				http.Error(w, `{"message":"backup not found"}`, http.StatusNotFound)
+			} else {
+				span.SetStatus(otelcodes.Error, "backup delete failed")
+				slog.Error("backup delete failed", slog.String("backup_id", backupID), slog.Any("err", err))
+				http.Error(w, `{"message":"backup delete failed"}`, http.StatusInternalServerError)
+			}
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)

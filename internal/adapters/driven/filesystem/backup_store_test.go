@@ -144,6 +144,8 @@ func TestBackupStore_Delete_NotFound(t *testing.T) {
 	err := store.Delete(context.Background(), "nonexistent")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
+	// sentinel: callers must be able to distinguish not-found from real I/O errors
+	assert.ErrorIs(t, err, backup.ErrNotFound)
 }
 
 func TestBackupStore_ResolveArchivePath_TarGz(t *testing.T) {
