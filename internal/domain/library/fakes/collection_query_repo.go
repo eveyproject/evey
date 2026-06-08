@@ -13,6 +13,9 @@ type FakeCollectionQueryRepo struct {
 	items       map[string][]collectionItem
 	mediaItems  *FakeMediaItemRepository
 	Err         error
+	// GetItemsByCollectionIDsCallCount is incremented on every call to
+	// GetItemsByCollectionIDs, allowing tests to assert batch behaviour.
+	GetItemsByCollectionIDsCallCount int
 }
 
 func NewFakeCollectionQueryRepo(cmdRepo *FakeCollectionCommandRepo, mediaItems *FakeMediaItemRepository) *FakeCollectionQueryRepo {
@@ -80,4 +83,25 @@ func (r *FakeCollectionQueryRepo) CountItems(_ context.Context, collectionID str
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return len(r.items[collectionID]), nil
+}
+
+func (r *FakeCollectionQueryRepo) GetItemsByCollectionIDs(_ context.Context, collectionIDs []string) (map[string][]*library.MediaItem, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.Lock()
+	r.GetItemsByCollectionIDsCallCount++
+	r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	result := make(map[string][]*library.MediaItem, len(collectionIDs))
+	for _, colID := range collectionIDs {
+		its := r.items[colID]
+		for _, it := range its {
+			if item, ok := r.mediaItems.items[it.mediaItemID]; ok {
+				result[colID] = append(result[colID], item)
+			}
+		}
+	}
+	return result, nil
 }

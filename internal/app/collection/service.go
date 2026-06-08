@@ -73,3 +73,7 @@ func (s *Service) GetItems(ctx context.Context, collectionID string, limit, offs
 func (s *Service) CountItems(ctx context.Context, collectionID string) (int, error) {
 	return s.Query.CountItems(ctx, collectionID)
 }
+
+func (s *Service) GetItemsForCollections(ctx context.Context, collectionIDs []string) (map[string][]*library.MediaItem, error) {
+	return s.Query.GetItemsForCollections(ctx, collectionIDs)
+}

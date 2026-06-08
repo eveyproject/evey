@@ -193,6 +193,10 @@ type CollectionQueryRepo interface {
 	List(ctx context.Context) ([]*Collection, error)
 	GetItems(ctx context.Context, collectionID string, limit, offset int) ([]*MediaItem, error)
 	CountItems(ctx context.Context, collectionID string) (int, error)
+	// GetItemsByCollectionIDs fetches items for multiple collections in a
+	// single query. Returns a map keyed by collection ID. Empty input returns
+	// an empty map without hitting the database.
+	GetItemsByCollectionIDs(ctx context.Context, collectionIDs []string) (map[string][]*MediaItem, error)
 }
 
 type ScannedFile struct {

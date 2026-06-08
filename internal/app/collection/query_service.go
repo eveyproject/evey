@@ -79,3 +79,11 @@ func (s *QueryService) CountItems(ctx context.Context, collectionID string) (int
 	defer span.End()
 	return s.query.CountItems(ctx, collectionID)
 }
+
+// GetItemsForCollections batches item lookups for multiple collections into a
+// single repository call. Used by ListCollections to avoid the N+1 pattern.
+func (s *QueryService) GetItemsForCollections(ctx context.Context, collectionIDs []string) (map[string][]*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.collection.GetItemsForCollections")
+	defer span.End()
+	return s.query.GetItemsByCollectionIDs(ctx, collectionIDs)
+}

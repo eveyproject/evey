@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -289,6 +290,97 @@ func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string
 		return nil, err
 	}
 	return items, nil
+}
+
+// GetItemsByCollectionIDs fetches items for every supplied collection in a
+// single query and groups the results by collection ID, eliminating the
+// per-collection N+1 that ListCollections previously triggered.
+//
+// No per-collection LIMIT is applied: TMDB franchise collections hold
+// O(10–50) items in practice. A ROW_NUMBER() OVER (PARTITION BY …) cap would
+// add query complexity with no measurable benefit on realistic data.
+func (r *CollectionRepository) GetItemsByCollectionIDs(ctx context.Context, collectionIDs []string) (map[string][]*library.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.GetItemsByCollectionIDs")
+	defer span.End()
+	span.SetAttributes(attribute.Int("collection.count", len(collectionIDs)))
+
+	if len(collectionIDs) == 0 {
+		return map[string][]*library.MediaItem{}, nil
+	}
+
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	query := fmt.Sprintf(
+		"SELECT ci.collection_id, %s %s INNER JOIN collection_items ci ON ci.media_item_id = mi.id WHERE ci.collection_id = ANY($1) ORDER BY ci.collection_id, mc.premiere_date ASC NULLS LAST",
+		mediaItemColumns, mediaItemFromJoins)
+
+	rows, err := r.db.QueryContext(ctx, query, pq.Array(collectionIDs))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string][]*library.MediaItem, len(collectionIDs))
+	for rows.Next() {
+		var (
+			collectionID                                    string
+			parentID, scanTitle                             *string
+			filePath, fingerprint, containerFormat          *string
+			fileSize, durationMs, bitrate                   *int64
+			modTimeRaw                                      sql.NullTime
+			premiereDate                                    sql.NullTime
+			year                                            sql.NullInt64
+			providerJSON, genresJSON, studiosJSON, tagsJSON []byte
+			communityRating                                 sql.NullFloat64
+			officialRating                                  sql.NullString
+			certJSON, providerRatingsJSON, trailersJSON     []byte
+		)
+		item := &library.MediaItem{}
+		if err := rows.Scan(
+			&collectionID,
+			&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &scanTitle,
+			&item.SortTitle, &item.OriginalTitle, &item.Overview, &item.Tagline, &item.IndexNumber,
+			&item.AddedAt, &item.UpdatedAt,
+			&filePath, &fileSize, &fingerprint, &modTimeRaw, &durationMs, &bitrate, &containerFormat,
+			&premiereDate, &year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
+			&communityRating, &officialRating, &certJSON, &providerRatingsJSON,
+			&trailersJSON,
+		); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		if parentID != nil {
+			item.ParentID = *parentID
+		}
+		if scanTitle != nil {
+			item.ScanTitle = *scanTitle
+		}
+		item.File = buildMediaFile(filePath, fileSize, fingerprint, modTimeRaw, durationMs, bitrate, containerFormat)
+		cat, catErr := buildMediaCatalog(premiereDate, year, providerJSON, genresJSON, studiosJSON, tagsJSON)
+		if catErr != nil {
+			span.RecordError(catErr)
+			span.SetStatus(codes.Error, catErr.Error())
+			return nil, catErr
+		}
+		item.Catalog = cat
+		item.Classification = buildMediaClassification(communityRating, officialRating, certJSON, providerRatingsJSON)
+		if len(trailersJSON) > 0 {
+			if err := json.Unmarshal(trailersJSON, &item.Trailers); err != nil {
+				slog.Warn("json unmarshal", slog.String("field", "trailers"), slog.Any("err", err))
+			}
+		}
+		result[collectionID] = append(result[collectionID], item)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *CollectionRepository) CountItems(ctx context.Context, collectionID string) (int, error) {

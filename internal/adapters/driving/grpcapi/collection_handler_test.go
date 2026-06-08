@@ -11,6 +11,7 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
 	libraryfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
@@ -465,5 +466,169 @@ func TestCollectionGetCollectionItems_Empty(t *testing.T) {
 	}
 	if resp.Total != 0 {
 		t.Errorf("expected total 0, got %d", resp.Total)
+	}
+}
+
+// newTestCollectionHandlerBatch constructs a handler and returns the underlying
+// FakeCollectionQueryRepo so tests can inspect GetItemsByCollectionIDsCallCount.
+func newTestCollectionHandlerBatch() (*collectionHandler, *libraryfakes.FakeCollectionCommandRepo, *libraryfakes.FakeMediaItemRepository, *libraryfakes.FakeCollectionQueryRepo) {
+	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
+	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
+	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
+	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
+	return &collectionHandler{svc: svc}, cmdRepo, mediaRepo, queryRepo
+}
+
+// TestCollectionListCollections_BatchCalledOnce verifies that ListCollections
+// issues exactly ONE call to GetItemsByCollectionIDs regardless of the number
+// of collections, i.e. the N+1 has been eliminated.
+func TestCollectionListCollections_BatchCalledOnce(t *testing.T) {
+	h, cmdRepo, mediaRepo, queryRepo := newTestCollectionHandlerBatch()
+
+	// Seed three collections, each with an item in the same library so they
+	// are all visible to an admin context.
+	for i, id := range []string{"col-a", "col-b", "col-c"} {
+		seedCollection(cmdRepo, id, "Col "+id)
+		mID := shared.MediaItemID("m-batch-" + id)
+		_ = mediaRepo.Create(context.Background(), &library.MediaItem{
+			ID: mID, LibraryID: "lib-1", Title: "T", Type: "movie",
+		})
+		_ = cmdRepo.LinkItem(context.Background(), id, string(mID), i)
+	}
+
+	resp, err := h.ListCollections(context.Background(), &eveyv1.ListCollectionsRequest{})
+	if err != nil {
+		t.Fatalf("ListCollections: %v", err)
+	}
+	if len(resp.Collections) != 3 {
+		t.Errorf("expected 3 collections, got %d", len(resp.Collections))
+	}
+
+	// The batch repo must have been called exactly once.
+	if got := queryRepo.GetItemsByCollectionIDsCallCount; got != 1 {
+		t.Errorf("GetItemsByCollectionIDs call count = %d, want 1", got)
+	}
+}
+
+// TestCollectionListCollections_LibraryAccess_BatchCalledOnce proves the
+// library-access filter still works correctly under the batched path, AND
+// that the batch is issued only once even for a restricted caller.
+func TestCollectionListCollections_LibraryAccess_BatchCalledOnce(t *testing.T) {
+	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
+	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
+	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
+	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
+	libAccessRepo := userfakes.NewFakeLibraryAccessRepository()
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(),
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(),
+		sharedfakes.NewFakeEventBus(),
+		appuser.WithLibraryAccess(libAccessRepo),
+	)
+	h := &collectionHandler{svc: svc, userAccess: userAccess}
+
+	// col-allowed: item in lib-2 (user has access)
+	// col-denied:  item in lib-1 (user has no access)
+	seedCollection(cmdRepo, "col-allowed", "OK")
+	seedCollection(cmdRepo, "col-denied", "Hidden")
+	_ = mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m-ok", LibraryID: "lib-2", Title: "A", Type: "movie"})
+	_ = mediaRepo.Create(context.Background(), &library.MediaItem{ID: "m-no", LibraryID: "lib-1", Title: "B", Type: "movie"})
+	_ = cmdRepo.LinkItem(context.Background(), "col-allowed", "m-ok", 0)
+	_ = cmdRepo.LinkItem(context.Background(), "col-denied", "m-no", 0)
+	libAccessRepo.Grant(context.Background(), "user-1", "lib-2")
+
+	resp, err := h.ListCollections(nonAdminCtx("user-1"), &eveyv1.ListCollectionsRequest{})
+	if err != nil {
+		t.Fatalf("ListCollections: %v", err)
+	}
+	if len(resp.Collections) != 1 || resp.Collections[0].Id != "col-allowed" {
+		t.Errorf("expected only col-allowed, got %+v", resp.Collections)
+	}
+	if got := queryRepo.GetItemsByCollectionIDsCallCount; got != 1 {
+		t.Errorf("GetItemsByCollectionIDs call count = %d, want 1", got)
+	}
+}
+
+// TestCollectionListCollections_ParentalFilter_Batch verifies that collections
+// whose items are all blocked by the active parental filter are hidden from the
+// listing, while collections with at least one unblocked item remain visible.
+// This proves the parental semantics are preserved under the batched path.
+func TestCollectionListCollections_ParentalFilter_Batch(t *testing.T) {
+	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
+	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
+	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
+	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
+
+	// Kid profile blocking items tagged "violence".
+	maxAge := 7
+	kidProfile := &user.Profile{
+		ID:     shared.ProfileID("prf-kid"),
+		UserID: shared.UserID("usr-kid"),
+		Name:   "Kid",
+		IsKids: true,
+		Parental: &user.ParentalSettings{
+			Enabled:     true,
+			MaxAge:      &maxAge,
+			BlockedTags: []string{"violence"},
+		},
+	}
+	profileRepo := userfakes.NewFakeProfileRepository()
+	if err := profileRepo.Create(context.Background(), kidProfile); err != nil {
+		t.Fatalf("seed kid profile: %v", err)
+	}
+	userQuery := appuser.NewQueryService(
+		userfakes.NewFakeUserRepository(),
+		profileRepo,
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+	)
+	h := &collectionHandler{svc: svc, userQuery: userQuery}
+
+	// col-clean:  item rated "G" (US, age 0) and no blocked tags → should appear
+	// col-blocked: item rated "G" but tagged "violence" (blocked tag) → should be hidden
+	//
+	// Both items carry a "US: G" certification so they pass the age check
+	// (age 0 ≤ maxAge 7). The distinction is the blocked tag on m-violent.
+	// Items with no resolvable rating are fail-closed for kids (worstAge=-1
+	// triggers the guard), so we must supply a rating for the visible item.
+	seedCollection(cmdRepo, "col-clean", "Family Film")
+	seedCollection(cmdRepo, "col-blocked", "Action Only")
+	_ = mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "m-clean", LibraryID: "lib-1", Title: "Safe", Type: "movie",
+		Catalog:        &library.MediaCatalog{Tags: []string{}},
+		Classification: &library.MediaClassification{CertificationsByCountry: map[string]string{"US": "G"}},
+	})
+	_ = mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "m-violent", LibraryID: "lib-1", Title: "Action", Type: "movie",
+		Catalog:        &library.MediaCatalog{Tags: []string{"violence"}},
+		Classification: &library.MediaClassification{CertificationsByCountry: map[string]string{"US": "G"}},
+	})
+	_ = cmdRepo.LinkItem(context.Background(), "col-clean", "m-clean", 0)
+	_ = cmdRepo.LinkItem(context.Background(), "col-blocked", "m-violent", 0)
+
+	kidCtx := interceptors.ContextWithClaims(context.Background(), &user.Claims{
+		UserID:    "usr-kid",
+		Username:  "kid",
+		IsAdmin:   false,
+		ProfileID: string(kidProfile.ID),
+	})
+
+	resp, err := h.ListCollections(kidCtx, &eveyv1.ListCollectionsRequest{})
+	if err != nil {
+		t.Fatalf("ListCollections: %v", err)
+	}
+	if len(resp.Collections) != 1 || resp.Collections[0].Id != "col-clean" {
+		t.Errorf("expected only col-clean, got %+v", resp.Collections)
+	}
+	// Batch issued exactly once even under parental filter path.
+	if got := queryRepo.GetItemsByCollectionIDsCallCount; got != 1 {
+		t.Errorf("GetItemsByCollectionIDs call count = %d, want 1", got)
 	}
 }

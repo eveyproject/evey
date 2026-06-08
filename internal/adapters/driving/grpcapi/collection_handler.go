@@ -57,10 +57,23 @@ func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListC
 		span.SetStatus(otelcodes.Error, filterErr.Error())
 		return nil, internalError("check access", filterErr)
 	}
+
+	// Batch-fetch items for all collections in one query instead of one per collection.
+	colIDs := make([]string, len(cols))
+	for i, c := range cols {
+		colIDs[i] = c.ID
+	}
+	allItems, batchErr := h.svc.GetItemsForCollections(ctx, colIDs)
+	if batchErr != nil {
+		span.RecordError(batchErr)
+		span.SetStatus(otelcodes.Error, batchErr.Error())
+		return nil, internalError("batch collection items", batchErr)
+	}
+
 	resp := &eveyv1.ListCollectionsResponse{}
 	for _, c := range cols {
-		items, itemsErr := h.collectionItemsForFilter(ctx, c.ID, allowed)
-		if itemsErr {
+		items, skip := filterItemsByAccess(allItems[c.ID], allowed)
+		if skip {
 			continue
 		}
 		if !h.collectionVisibleUnderParental(ctx, items) {
@@ -71,19 +84,18 @@ func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListC
 	return resp, nil
 }
 
-// collectionItemsForFilter resolves the items of a collection and returns
-// only those the caller has library access to. The bool is set when the
-// collection should be skipped (item lookup failed, or library access
-// rules eliminate every item).
-func (h *collectionHandler) collectionItemsForFilter(ctx context.Context, collectionID string, allowedLibIDs []string) ([]*library.MediaItem, bool) {
-	items, _, itemsErr := h.svc.GetItems(ctx, collectionID, 1000, 0)
-	if itemsErr != nil {
-		return nil, true
-	}
+// filterItemsByAccess filters a collection's items to only those whose library
+// is in allowedLibIDs. Returns skip=true when no items survive the filter
+// (collection should be omitted from the listing).
+// When allowedLibIDs is nil (admin or no access-service wired), all items are
+// returned without filtering and skip is always false — matching the original
+// per-collection semantics.
+func filterItemsByAccess(items []*library.MediaItem, allowedLibIDs []string) ([]*library.MediaItem, bool) {
 	if allowedLibIDs == nil {
+		// Admin / unauthenticated path: no library-access filter.
 		return items, false
 	}
-	visible := items[:0]
+	var visible []*library.MediaItem
 	for _, it := range items {
 		if slices.Contains(allowedLibIDs, string(it.LibraryID)) {
 			visible = append(visible, it)

@@ -48,3 +48,6 @@ func (r *FakeCollectionRepository) GetItems(ctx context.Context, collectionID st
 func (r *FakeCollectionRepository) CountItems(ctx context.Context, collectionID string) (int, error) {
 	return r.query.CountItems(ctx, collectionID)
 }
+func (r *FakeCollectionRepository) GetItemsByCollectionIDs(ctx context.Context, collectionIDs []string) (map[string][]*library.MediaItem, error) {
+	return r.query.GetItemsByCollectionIDs(ctx, collectionIDs)
+}
