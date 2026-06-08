@@ -110,3 +110,101 @@ func TestLoginAttemptRepo_Reset_Idempotent(t *testing.T) {
 	// Reset on a non-existent row must not error.
 	require.NoError(t, repo.Reset(ctx, "ghost"))
 }
+
+// TestLoginAttemptRepo_LockExactlyAtMaxFails verifies lock is set at exactly
+// maxFails attempts and not a single attempt before that.
+func TestLoginAttemptRepo_LockExactlyAtMaxFails(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewLoginAttemptRepository(db)
+	ctx := context.Background()
+
+	for i := 1; i < testMaxFails; i++ {
+		require.NoError(t, repo.Record(ctx, "eve", testMaxFails, testWindow))
+		locked, err := repo.IsLocked(ctx, "eve")
+		require.NoError(t, err)
+		assert.Falsef(t, locked, "must not be locked after %d/%d attempts", i, testMaxFails)
+	}
+
+	require.NoError(t, repo.Record(ctx, "eve", testMaxFails, testWindow))
+	locked, err := repo.IsLocked(ctx, "eve")
+	require.NoError(t, err)
+	assert.True(t, locked, "must be locked exactly at maxFails")
+}
+
+// TestLoginAttemptRepo_WindowExpiredResetsCount verifies that after the window
+// expires the counter resets to 1 and no lock is applied.
+func TestLoginAttemptRepo_WindowExpiredResetsCount(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewLoginAttemptRepository(db)
+	ctx := context.Background()
+
+	// Build up attempts below the lock threshold.
+	for i := 0; i < testMaxFails-1; i++ {
+		require.NoError(t, repo.Record(ctx, "frank", testMaxFails, testWindow))
+	}
+
+	// Simulate window expiry by backdating updated_at past the window.
+	_, err := db.ExecContext(ctx,
+		`UPDATE login_attempts SET updated_at = NOW() - interval '1 hour' WHERE username = $1`,
+		"frank",
+	)
+	require.NoError(t, err)
+
+	// One more Record: window expired → count resets to 1 (below maxFails=5), no lock.
+	require.NoError(t, repo.Record(ctx, "frank", testMaxFails, testWindow))
+
+	locked, err := repo.IsLocked(ctx, "frank")
+	require.NoError(t, err)
+	assert.False(t, locked, "count must reset to 1 after window expiry; no lock expected")
+}
+
+// TestLoginAttemptRepo_ExistingLockNotOverwritten verifies that a subsequent
+// Record after the lock is already set does not move locked_until.
+func TestLoginAttemptRepo_ExistingLockNotOverwritten(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewLoginAttemptRepository(db)
+	ctx := context.Background()
+
+	for i := 0; i < testMaxFails; i++ {
+		require.NoError(t, repo.Record(ctx, "grace", testMaxFails, testWindow))
+	}
+
+	var lockedUntilBefore time.Time
+	require.NoError(t, db.QueryRowContext(ctx,
+		`SELECT locked_until FROM login_attempts WHERE username = $1`, "grace",
+	).Scan(&lockedUntilBefore))
+
+	// Additional Record must not change the existing locked_until.
+	require.NoError(t, repo.Record(ctx, "grace", testMaxFails, testWindow))
+
+	var lockedUntilAfter time.Time
+	require.NoError(t, db.QueryRowContext(ctx,
+		`SELECT locked_until FROM login_attempts WHERE username = $1`, "grace",
+	).Scan(&lockedUntilAfter))
+
+	assert.True(t, lockedUntilBefore.Equal(lockedUntilAfter),
+		"locked_until must not change on subsequent Record: before=%v after=%v",
+		lockedUntilBefore, lockedUntilAfter)
+}
+
+// TestLoginAttemptRepo_ImmediateLockAtMaxFailsOne verifies that when maxFails=1
+// the very first Record locks the account (INSERT path edge case).
+func TestLoginAttemptRepo_ImmediateLockAtMaxFailsOne(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewLoginAttemptRepository(db)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Record(ctx, "heidi", 1, testWindow))
+
+	locked, err := repo.IsLocked(ctx, "heidi")
+	require.NoError(t, err)
+	assert.True(t, locked, "maxFails=1: first attempt must lock immediately (INSERT path)")
+}

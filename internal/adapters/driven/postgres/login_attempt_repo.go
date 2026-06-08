@@ -53,6 +53,9 @@ func (r *LoginAttemptRepository) IsLocked(ctx context.Context, username string) 
 // Record increments the failed-attempt counter for username. If the new count
 // reaches maxFails within window the account is locked for window from now.
 // The window resets when updated_at is older than window (expired window).
+//
+// The counter increment and the lock decision are performed in a single atomic
+// UPSERT, eliminating the TOCTOU race of the previous two-statement approach.
 func (r *LoginAttemptRepository) Record(ctx context.Context, username string, maxFails int, window time.Duration) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.login_attempt.Record")
 	defer span.End()
@@ -63,40 +66,46 @@ func (r *LoginAttemptRepository) Record(ctx context.Context, username string, ma
 	db := txFromCtx(ctx, r.db)
 	windowSecs := window.Seconds()
 
-	// Upsert: insert new row or increment counter (resetting if window expired).
-	// Returns the resulting attempt_count so we can decide on locking.
-	var newCount int
-	err := db.QueryRowContext(ctx, `
-INSERT INTO login_attempts (username, attempt_count, updated_at)
-VALUES ($1, 1, NOW())
+	// Single atomic upsert: increments attempt_count (resetting when the window
+	// has expired) and sets locked_until in the same statement.
+	//
+	// Parameters: $1=username  $2=windowSecs  $3=maxFails
+	//
+	// INSERT path (first attempt): locked_until set immediately when maxFails<=1.
+	// UPDATE path (conflict): locked_until is set when the new count reaches
+	// maxFails AND locked_until IS NULL; an existing lock is never overwritten.
+	_, err := db.ExecContext(ctx, `
+INSERT INTO login_attempts (username, attempt_count, locked_until, updated_at)
+VALUES (
+    $1,
+    1,
+    CASE WHEN 1 >= $3 THEN NOW() + ($2 * interval '1 second') ELSE NULL END,
+    NOW()
+)
 ON CONFLICT (username) DO UPDATE
     SET attempt_count = CASE
             WHEN NOW() - login_attempts.updated_at > ($2 * interval '1 second')
             THEN 1
             ELSE login_attempts.attempt_count + 1
         END,
-        updated_at = NOW()
-RETURNING attempt_count`,
-		username, windowSecs,
-	).Scan(&newCount)
+        locked_until = CASE
+            WHEN (
+                CASE
+                    WHEN NOW() - login_attempts.updated_at > ($2 * interval '1 second')
+                    THEN 1
+                    ELSE login_attempts.attempt_count + 1
+                END
+            ) >= $3 AND login_attempts.locked_until IS NULL
+            THEN NOW() + ($2 * interval '1 second')
+            ELSE login_attempts.locked_until
+          END,
+        updated_at = NOW()`,
+		username, windowSecs, maxFails,
+	)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
-	}
-
-	if newCount >= maxFails {
-		_, err = db.ExecContext(ctx,
-			`UPDATE login_attempts
-			 SET locked_until = NOW() + ($1 * interval '1 second')
-			 WHERE username = $2 AND locked_until IS NULL`,
-			windowSecs, username,
-		)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-			return err
-		}
 	}
 	return nil
 }
