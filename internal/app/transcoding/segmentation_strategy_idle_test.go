@@ -22,9 +22,17 @@ func TestMuxIsIdle(t *testing.T) {
 
 	pastGrace := time.Now().Add(-(copyIdleGrace + time.Second))
 
-	// Past grace, no segment ever served → idle (master fetched then abandoned).
-	if !s.muxIsIdle("h", pastGrace) {
-		t.Error("past grace with no access must be idle")
+	// Past idle-grace, never served, still within the cold-start window → NOT idle:
+	// a slow cold start (segment 0 not produced yet on a weak NAS) must not be
+	// killed while a viewer is still legitimately waiting for it.
+	if s.muxIsIdle("h", pastGrace) {
+		t.Error("never-served within cold-start grace must not be idle")
+	}
+
+	// Never served AND past the cold-start grace → idle (truly abandoned).
+	pastColdStart := time.Now().Add(-(copyColdStartGrace + time.Second))
+	if !s.muxIsIdle("h", pastColdStart) {
+		t.Error("never-served past cold-start grace must be idle")
 	}
 
 	// Past grace, a segment just served → not idle (active viewer pulling).

@@ -62,6 +62,12 @@ const (
 	copyIdleWindow = 120 * time.Second
 	// copyIdleCheckEvery is the idle poll cadence.
 	copyIdleCheckEvery = 30 * time.Second
+	// copyColdStartGrace bounds how long a mux that has NEVER served a segment may
+	// run before it counts as abandoned. A cold mux on a weak NAS can take far
+	// longer than copyIdleGrace to produce + serve segment 0 (which is exactly why
+	// the copy WaitBudget is minutes), so killing a never-served mux at the first
+	// 30s tick would cut a viewer still legitimately waiting. Set above the budget.
+	copyColdStartGrace = 6 * time.Minute
 )
 
 // ============================================================================
@@ -338,7 +344,11 @@ func (s *WholeFileStrategy) muxIsIdle(hash string, start time.Time) bool {
 	}
 	last, ok := s.cache.LastAccess(hash)
 	if !ok {
-		return true // past grace and not a single segment was ever served
+		// Never served a segment yet. Don't mistake a slow cold start (ffmpeg
+		// startup + first-segment commit can exceed copyIdleGrace on a weak NAS)
+		// for an abandoned mux — only stop a never-served mux past
+		// copyColdStartGrace, when a real viewer would already have given up.
+		return time.Since(start) > copyColdStartGrace
 	}
 	return time.Since(last) > copyIdleWindow
 }
