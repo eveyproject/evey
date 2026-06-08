@@ -319,21 +319,29 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// VOD manifest (the transcode path, unchanged).
 	var out string
 	served := false
-	if producer := h.producerForRequest(r.Context(), r, streams, item); producer != nil {
-		if mp, ok := producer.(apptranscoding.ManifestProvider); ok {
-			fp, fpErr := h.buildFingerprint(r, mediaID, item, streams)
-			if fpErr != nil {
-				h.writeManifestErr(w, span, fpErr, mediaID)
-				return
+	// Serve the producer's OWN playlist ONLY for a copy request. The
+	// ManifestProvider assertion is structural (on the type): the software
+	// TRANSCODE producer now also has a Manifest method, so without this gate
+	// serveVariant would call it on the transcode path where copyPlanner is nil
+	// and 500. Gating on the copy decision makes transcode fall through to the
+	// precalculated manifest, unchanged.
+	if h.isCopyRequest(h.makeDecision(r.Context(), streams, containerOf(item), r), streams, sourceBytesOf(item)) {
+		if producer := h.producerForRequest(r.Context(), r, streams, item); producer != nil {
+			if mp, ok := producer.(apptranscoding.ManifestProvider); ok {
+				fp, fpErr := h.buildFingerprint(r, mediaID, item, streams)
+				if fpErr != nil {
+					h.writeManifestErr(w, span, fpErr, mediaID)
+					return
+				}
+				data, mErr := mp.Manifest(r.Context(), fp)
+				if mErr != nil {
+					span.RecordError(mErr)
+					span.SetStatus(codes.Error, "copy manifest")
+					http.Error(w, `{"message":"manifest error"}`, http.StatusInternalServerError)
+					return
+				}
+				out, served = string(data), true
 			}
-			data, mErr := mp.Manifest(r.Context(), fp)
-			if mErr != nil {
-				span.RecordError(mErr)
-				span.SetStatus(codes.Error, "copy manifest")
-				http.Error(w, `{"message":"manifest error"}`, http.StatusInternalServerError)
-				return
-			}
-			out, served = string(data), true
 		}
 	}
 	if !served {

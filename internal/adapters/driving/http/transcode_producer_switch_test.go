@@ -9,6 +9,8 @@ package httpapi
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"testing"
 	"time"
 
@@ -37,6 +39,39 @@ func (s *sentinelProducer) NotifyClientHint(_ string, _ int, _ bool, _ int)     
 func (s *sentinelProducer) ActiveSessionCount() int                             { return 0 }
 func (s *sentinelProducer) RemoveSession(_ string)                              {}
 func (s *sentinelProducer) Close()                                              {}
+
+// sentinelManifestProducer is a sentinelProducer that ALSO implements
+// ManifestProvider (its Manifest errors) — exactly like the software TRANSCODE
+// producer after it gained a Manifest method for the gated copy mode. Used to
+// prove serveVariant does NOT call Manifest on the transcode path.
+type sentinelManifestProducer struct{ sentinelProducer }
+
+func (s *sentinelManifestProducer) Manifest(_ context.Context, _ apptranscoding.DecisionFingerprint) ([]byte, error) {
+	return nil, errors.New("manifest unavailable (transcode instance, copyPlanner nil)")
+}
+
+// TestHLSVOD_Variant_TranscodeManifestProducer_FallsThrough is the regression
+// guard for the bug where SoftwareProducer gaining a Manifest method made the
+// TRANSCODE producer satisfy ManifestProvider, so serveVariant's structural
+// type-assertion called Manifest on the transcode path and 500'd every variant
+// playlist. With copyProducer nil (the production default), isCopyRequest is
+// false, so the assertion must be skipped and the precalculated manifest served.
+func TestHLSVOD_Variant_TranscodeManifestProducer_FallsThrough(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	// Route the request through a producer that implements ManifestProvider (its
+	// Manifest errors). copyProducer stays nil → isCopyRequest is always false.
+	h.selector = apptranscoding.NewProducerSelector(
+		&sentinelManifestProducer{}, &sentinelProducer{tag: "hw"},
+		func(_ domaintranscoding.PlaybackDecision, _ apptranscoding.SourceDims) bool { return false },
+	)
+	w := doVODRequest(h, "m1", "stream_0.m3u8")
+	require.Equal(t, http.StatusOK, w.Code, "transcode variant must serve the precalculated manifest, not 500")
+	assert.Contains(t, w.Body.String(), "#EXTM3U")
+}
 
 // newSwitchHandler builds an hlsVODServe whose selector routes between two
 // sentinel producers, using the handler's real resolveHW as the predicate (the
