@@ -46,7 +46,9 @@ func TestFavoriteHandler_ListFavorites_Empty(t *testing.T) {
 	assert.Empty(t, resp.Items)
 }
 
-func TestFavoriteHandler_AddFavorite_Toggle(t *testing.T) {
+// AddFavorite is idempotent: calling it twice keeps the item favorited (it must
+// NOT toggle back off — that was a real bug, a double-tap silently un-favorited).
+func TestFavoriteHandler_AddFavorite_Idempotent(t *testing.T) {
 	h, _ := newTestFavoriteHandler()
 	ctx := ctxWithClaims("user-1", "profile-1", false)
 
@@ -54,10 +56,15 @@ func TestFavoriteHandler_AddFavorite_Toggle(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, resp.IsFavorite)
 
-	// Toggle off
+	// Second add must stay favorited, not flip off.
 	resp2, err := h.AddFavorite(ctx, &eveyv1.AddFavoriteRequest{MediaItemId: "m1"})
 	require.NoError(t, err)
-	assert.False(t, resp2.IsFavorite)
+	assert.True(t, resp2.IsFavorite, "AddFavorite must be idempotent, not a toggle")
+
+	// And the item is still in the list exactly once.
+	list, err := h.ListFavorites(ctx, &eveyv1.ListFavoritesRequest{})
+	require.NoError(t, err)
+	assert.Len(t, list.Items, 1)
 }
 
 func TestFavoriteHandler_AddFavorite_Unauthenticated(t *testing.T) {

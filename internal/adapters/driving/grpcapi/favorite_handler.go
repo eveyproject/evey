@@ -124,11 +124,21 @@ func (h *favoriteHandler) AddFavorite(ctx context.Context, req *eveyv1.AddFavori
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
 		return nil, fmt.Errorf("favoriteHandler.AddFavorite: %w", accessErr)
 	}
-	isFav, err := h.svc.Toggle(ctx, profileID, req.MediaItemId)
+	// AddFavorite must be idempotent: the underlying Toggle flips state, so a
+	// double-tap (slow heart button, optimistic-UI re-fire, a retry after a lost
+	// response) used to silently UN-favorite the item. Guard on current state
+	// like RemoveFavorite does — only add when not already favorited — so the
+	// end state is always "favorited" no matter how many times it's called.
+	isFav, err := h.svc.IsFavorite(ctx, profileID, req.MediaItemId)
 	if err != nil {
-		return nil, internalError("toggle favorite", err)
+		return nil, internalError("check favorite", err)
 	}
-	return &eveyv1.AddFavoriteResponse{IsFavorite: isFav}, nil
+	if !isFav {
+		if _, err := h.svc.Toggle(ctx, profileID, req.MediaItemId); err != nil {
+			return nil, internalError("add favorite", err)
+		}
+	}
+	return &eveyv1.AddFavoriteResponse{IsFavorite: true}, nil
 }
 
 func (h *favoriteHandler) RemoveFavorite(ctx context.Context, req *eveyv1.RemoveFavoriteRequest) (*eveyv1.RemoveFavoriteResponse, error) {
