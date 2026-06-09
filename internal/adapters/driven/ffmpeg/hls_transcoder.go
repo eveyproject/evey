@@ -743,7 +743,22 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	//   - hybrid two-stage -ss : second -ss treated as output position
 	//     by ffmpeg, decoded from file-start of the *post-seek* stream
 	//     which gave nonsensical offsets
-	if opts.StartSec > 0 {
+	if opts.StartSec > 0 && opts.CopyOnSeek {
+		// COPY RUNG mid-stream start: input-seek + -c:v copy. StartSec is a plan
+		// keyframe boundary so pre-input -ss lands exactly, and copying preserves
+		// the SOURCE avcC. The re-encode branch below (libx264) emitted a Baseline
+		// init that OVERWROTE the shared High-profile init → every copied segment
+		// then decoded against the wrong SPS/PPS = scrambled colour-band frames.
+		// -copyts keeps absolute source PTS so a seek-spawned segment lands at its
+		// manifest position (the index is carried separately via StartNumber).
+		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
+		args = appendInputModifiers(args, opts.ReadRate)
+		args = append(args, "-i", opts.FilePath, "-map", "0:v:0")
+		if hasAudio(opts) {
+			args = append(args, "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex))
+		}
+		args = append(args, "-c:v", "copy", "-copyts", "-avoid_negative_ts", "disabled")
+	} else if opts.StartSec > 0 {
 		// Jellyfin's exact recipe for HLS video transcode (verified
 		// against EncodingHelper.cs in master, 2025): pre-input -ss
 		// (accurate_seek default) + libx264 + force_key_frames every 5s

@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
@@ -34,5 +35,40 @@ func TestStartNumberFor(t *testing.T) {
 				t.Fatalf("startNumberFor(%+v) = %d, want %d", tc.opts, got, tc.want)
 			}
 		})
+	}
+}
+
+func joined(a []string) string { return " " + strings.Join(a, " ") + " " }
+
+// The copy rung must keep -c:v copy on a mid-stream (seek) start: re-encoding
+// there emits a libx264 (Baseline) init that overwrites the shared source-High
+// init → scrambled frames. CopyOnSeek gates copy vs the legacy libx264 seek.
+func TestBuildCopyVideoArgs_CopyOnSeek(t *testing.T) {
+	base := transcoding.HLSProcessOpts{
+		FilePath: "/m.mkv", VideoDecision: "copy", AudioDecision: "copy", AudioTrackIndex: 0,
+	}
+
+	seekCopy := base
+	seekCopy.StartSec, seekCopy.CopyOnSeek = 520, true
+	a := joined(buildCopyVideoArgs(seekCopy))
+	if !strings.Contains(a, " -c:v copy ") {
+		t.Fatalf("copy-on-seek must -c:v copy, got: %s", a)
+	}
+	if strings.Contains(a, "libx264") {
+		t.Fatalf("copy-on-seek must NOT re-encode, got libx264: %s", a)
+	}
+
+	seekReencode := base
+	seekReencode.StartSec, seekReencode.CopyOnSeek = 520, false
+	b := joined(buildCopyVideoArgs(seekReencode))
+	if !strings.Contains(b, "libx264") {
+		t.Fatalf("legacy seek (CopyOnSeek=false) should keep the libx264 path, got: %s", b)
+	}
+
+	cold := base
+	cold.StartSec, cold.CopyOnSeek = 0, true
+	c := joined(buildCopyVideoArgs(cold))
+	if !strings.Contains(c, " -c:v copy ") {
+		t.Fatalf("cold copy start must -c:v copy, got: %s", c)
 	}
 }

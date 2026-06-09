@@ -119,6 +119,13 @@ type HLSProcessOpts struct {
 	// plan-segment K must emit stream_N_<K>, not stream_N_<floor(StartSec/segLen)>.
 	// Transcode (uniform segments) ignores it and derives start_number from StartSec.
 	StartNumber int
+	// CopyOnSeek keeps -c:v copy on a mid-stream start (StartSec>0) instead of the
+	// libx264 re-encode the legacy remux used for seeks. The copy rung sets it: its
+	// StartSec is always a plan keyframe boundary, so input-seek + copy lands
+	// exactly AND preserves the source avcC. Without it a seek re-encodes to a
+	// libx264 Baseline init that overwrites the shared High-profile init →
+	// every copied segment decodes against the wrong SPS/PPS → scrambled frames.
+	CopyOnSeek bool
 	// ReadRate paces ffmpeg's input to N× real-time (`-readrate N`, a pre-`-i`
 	// flag) so a single long-lived encoder stays close to wall-clock and doesn't
 	// burn CPU racing ahead of the viewer. 0 (default) = no pacing — byte-identical

@@ -499,6 +499,10 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		// time→index map is non-linear; a forward seek to plan-segment K must
 		// emit stream_N_<K>.m4s, not stream_N_<floor(StartSec/segLen)>.m4s.
 		StartNumber:        startSeg,
+		// Copy rung copies on seek too (plan StartSec is a keyframe boundary), so
+		// a mid-stream session keeps the SOURCE avcC instead of emitting a libx264
+		// init that would poison the shared init. No-op when not in copy mode.
+		CopyOnSeek:         p.copyPlanner != nil,
 		// Input pacing: the defining software-flow knob. Keeps the single
 		// sequential encoder near wall-clock so it never races ahead of the
 		// viewer (no abort-and-probe client → no need to burst).
