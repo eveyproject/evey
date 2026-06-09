@@ -280,10 +280,14 @@ func (p *SoftwareProducer) SetCopyMode(planner *CopyPlanner) {
 }
 
 // Manifest serves the copy rendition's keyframe-aligned VOD media playlist
-// (variable #EXTINF from the keyframe plan). Implements ManifestProvider, which
-// the handler type-asserts ONLY on the copy instance — the transcode instance is
-// reached via the selector and keeps the precalculated manifest. Returns an error
-// when not in copy mode so a misroute fails loud rather than serving a wrong list.
+// (variable #EXTINF from the keyframe plan). Implements ManifestProvider.
+//
+// ⚠️ The type-assertion in serveVariant is STRUCTURAL — it matches *any*
+// *SoftwareProducer, including the transcode instance (copyPlanner nil), NOT just
+// a copy instance. So serveVariant MUST gate the ManifestProvider branch on
+// isCopyRequest; without that gate the transcode path calls this and 500s (see
+// the regression in commit history). This method returning an error when not in
+// copy mode is only a backstop — the real guard is the handler's copy gate.
 func (p *SoftwareProducer) Manifest(ctx context.Context, fp DecisionFingerprint) ([]byte, error) {
 	if p.copyPlanner == nil {
 		return nil, errors.New("software: Manifest unavailable (producer not in copy mode)")
