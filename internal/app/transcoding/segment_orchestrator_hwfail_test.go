@@ -34,6 +34,7 @@ func TestOrchestrator_HWCapabilityFailure_CallsDemoteSink(t *testing.T) {
 
 	fp := minimalFingerprint(t)
 	fp.VideoCodec = "h264"
+	fp.HWAccel = "vaapi" // a HW-capability failure only demotes a HW session (usedHW guard)
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
 	select {

@@ -305,6 +305,13 @@ type orchestratorSession struct {
 	// second per session is plenty (the player rebuffers more slowly
 	// than that anyway).
 	lastResumeAt time.Time
+
+	// metricDecOnce guarantees the HLSVODSessions gauge is decremented EXACTLY
+	// once per spawned session, whether it leaves via the reap goroutine (natural
+	// ffmpeg exit — the dominant path when a viewer watches to the end) or via
+	// killSession (GC / seek-cancel / watchdog). Without it the reap path never
+	// decremented and the gauge climbed monotonically.
+	metricDecOnce sync.Once
 }
 
 // NewSegmentOrchestrator wires the cache and the ffmpeg adapter together. The
@@ -816,6 +823,9 @@ func (o *SegmentOrchestrator) spawnSession(
 			teardown()
 		}
 		o.removeSessionFromList(hash, session)
+		// Natural exit: decrement the live-sessions gauge (exactly once — see
+		// killSession). The reap is the dominant exit path (ffmpeg hits EOF).
+		session.metricDecOnce.Do(func() { metrics.HLSVODSessions.Dec() })
 
 		// Level-2 safety net: a HW-capability failure demotes the host
 		// capability so the client's automatic retry re-resolves a lower tier
@@ -825,7 +835,7 @@ func (o *SegmentOrchestrator) spawnSession(
 			class := handle.Failure()
 			usedHW := procOpts.HWAccel != ""
 			switch {
-			case class.IsHWCapability():
+			case usedHW && class.IsHWCapability():
 				o.logger.Warn("orchestrator: HW encode failure, demoting capability",
 					slog.String("hash", hash),
 					slog.String("class", string(class)),
@@ -973,7 +983,9 @@ func (o *SegmentOrchestrator) killSession(s *orchestratorSession, reason string)
 		slog.String("reason", reason))
 
 	metrics.HLSVODSessionsKilled.WithLabelValues(reason).Inc()
-	metrics.HLSVODSessions.Dec()
+	// Exactly-once with the reap goroutine: a watchdog kill cancels sessionCtx,
+	// which also wakes the reap — only the first of the two decrements the gauge.
+	s.metricDecOnce.Do(func() { metrics.HLSVODSessions.Dec() })
 }
 
 // removeSessionFromList drops `target` from o.sessions[hash], leaving

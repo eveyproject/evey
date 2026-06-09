@@ -1247,6 +1247,12 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 	if !checkLibraryAccess(r.Context(), w, claims, curItem.LibraryID, h.libraryAccess) {
 		return
 	}
+	// Parental on the CURRENT episode too (this route is behind `auth` with the
+	// real ProfileID, so it IS evaluable): a kid blocked on the current title
+	// must not use prewarm-next as a pivot to discover/prefetch the next one.
+	if !checkParental(r.Context(), w, claims, curItem, h.parental) {
+		return
+	}
 	if curItem.Type != "episode" {
 		// Only series episodes have a "next ep". For movies, no-op.
 		w.WriteHeader(http.StatusNoContent)
