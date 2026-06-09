@@ -286,8 +286,12 @@ func TestBuildFFmpegArgs_ToneMap_EmitsTonemapOnceBeforeSplit(t *testing.T) {
 	if !strings.Contains(joined, "tonemap=") {
 		t.Fatalf("ToneMap=true must emit a tonemap filter: %q", joined)
 	}
-	if !strings.Contains(joined, "zscale") {
-		t.Errorf("expected zscale linearize/convert around the tonemap: %q", joined)
+	// The software tonemap is either the portable zscale chain or jellyfin-ffmpeg's
+	// fused tonemapx (one SIMD pass, no separate zscale) — which one depends on the
+	// ffmpeg build (tonemapx is present in the container, absent on a plain host).
+	// Either is a valid software HDR->SDR tonemap; assert one is present.
+	if !strings.Contains(joined, "zscale") && !strings.Contains(joined, "tonemapx") {
+		t.Errorf("expected a software tonemap (zscale or tonemapx): %q", joined)
 	}
 	if n := strings.Count(joined, "tonemap="); n != 1 {
 		t.Errorf("tonemap must run exactly once before the split, got %d: %q", n, joined)

@@ -281,8 +281,16 @@ func TestBuildFFmpegArgs_SingleTranscode_ToneMap_FoldsScaleIntoTonemap(t *testin
 	}
 	joined := strings.Join(ffmpeg.BuildFFmpegArgs(opts), " ")
 	w := opts.Profiles[0].Width
-	assert.Contains(t, joined, fmt.Sprintf("zscale=w=%d:h=-2:t=linear", w),
-		"the tonemap must fold the downscale into its first (linearizing) zscale")
+	// The downscale must fold into the heavy tonemap pass (run at delivery res).
+	// The fold looks different per ffmpeg build: zscale=w=W:h=-2:t=linear (portable)
+	// or scale=W:-2,tonemapx (jellyfin-ffmpeg's fused SIMD filter, in the container).
+	if strings.Contains(joined, "tonemapx") {
+		assert.Contains(t, joined, fmt.Sprintf("scale=%d:-2,tonemapx", w),
+			"the downscale must fold into the tonemapx pass")
+	} else {
+		assert.Contains(t, joined, fmt.Sprintf("zscale=w=%d:h=-2:t=linear", w),
+			"the downscale must fold into the linearizing zscale")
+	}
 	assert.Contains(t, joined, "tonemap=")
 	assert.NotContains(t, joined, "format=yuv420p,scale=",
 		"no separate scale after the tonemap — it already downscaled")
@@ -310,8 +318,13 @@ func TestBuildFFmpegArgs_MultiVariant_ToneMap_FoldsScaleAtTopRung(t *testing.T) 
 			maxW = p.Width
 		}
 	}
-	assert.Contains(t, joined, fmt.Sprintf("zscale=w=%d:h=-2:t=linear", maxW),
-		"the shared tonemap must fold the downscale to the largest rung width")
+	if strings.Contains(joined, "tonemapx") {
+		assert.Contains(t, joined, fmt.Sprintf("scale=%d:-2,tonemapx", maxW),
+			"the shared tonemap must fold the downscale to the largest rung width (tonemapx)")
+	} else {
+		assert.Contains(t, joined, fmt.Sprintf("zscale=w=%d:h=-2:t=linear", maxW),
+			"the shared tonemap must fold the downscale to the largest rung width (zscale)")
+	}
 	// Still exactly one tonemap, before the split (shared by all rungs).
 	assert.Equal(t, 1, strings.Count(joined, "tonemap="), "tonemap must run once, before the split")
 	assert.Contains(t, joined, "split=")
