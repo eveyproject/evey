@@ -168,6 +168,30 @@ func TestManifestGenerator_Master_Codecs(t *testing.T) {
 	assert.Contains(t, out, `CODECS="avc1.640028,mp4a.40.2"`)
 }
 
+func TestManifestGenerator_Master_AudioRendition_CodecAndSanitize(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.ChosenAudioCodec = "ac3" // the muxed decision says AC-3...
+	in.AudioRenditions = []AudioRendition{
+		{SourceTrackIdx: 0, LanguageCode: "eng", Name: `Director's "cut"`},
+	}
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	// The variant CODECS must advertise the rendition's real codec (the rendition
+	// is always transcoded to AAC → mp4a.40.2), NOT the decision's ac3 — else
+	// Safari refuses the master on an ec-3/ac-3 claim over an AAC stream.
+	assert.Contains(t, out, "mp4a.40.2")
+	assert.NotContains(t, out, "ac-3", "rendition CODECS must not claim ac-3 over an AAC rendition")
+
+	// A NAME with a literal " must be STRIPPED (RFC 8216 forbids it in a
+	// quoted-string), not backslash-escaped — an escaped quote breaks hls.js's
+	// attribute parser and drops the rendition.
+	assert.Contains(t, out, "#EXT-X-MEDIA:")
+	assert.NotContains(t, out, `\"`, "NAME must not contain a backslash-escaped quote")
+	assert.Contains(t, out, `NAME="Director's cut"`)
+}
+
 func TestManifestGenerator_Master_TokenInQuery(t *testing.T) {
 	g := NewManifestGenerator()
 	in := baseInput(single360p, 10.0)

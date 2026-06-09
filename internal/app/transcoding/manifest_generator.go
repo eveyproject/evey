@@ -171,7 +171,16 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	// switch.
 	b.WriteString("#EXT-X-INDEPENDENT-SEGMENTS\n")
 
-	codecs := codecsAttr(in.ChosenVideoCodec, in.ChosenAudioCodec)
+	// When audio is served as a SEPARATE rendition it is always transcoded to AAC
+	// (transcode_audio_handler hardcodes mp4a), so the variant CODECS must
+	// advertise mp4a — not the decision's possibly-ac3/eac3 muxed codec. Otherwise
+	// Safari validates the master against e.g. an "ec-3" claim on an AAC rendition
+	// and refuses it. Muxed path (no renditions) keeps the decision codec.
+	effectiveAudioCodec := in.ChosenAudioCodec
+	if len(in.AudioRenditions) > 0 {
+		effectiveAudioCodec = "aac"
+	}
+	codecs := codecsAttr(in.ChosenVideoCodec, effectiveAudioCodec)
 	suffix := querySuffix(in)
 
 	// Audio rendition path: emit one #EXT-X-MEDIA per source audio
@@ -194,9 +203,10 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 			if name == "" {
 				name = fmt.Sprintf("Track %d", r.SourceTrackIdx+1)
 			}
+			name = hlsAttrSafe(name)
 			lang := ""
 			if r.LanguageCode != "" {
-				lang = fmt.Sprintf(`,LANGUAGE=%q`, r.LanguageCode)
+				lang = fmt.Sprintf(`,LANGUAGE=%q`, hlsAttrSafe(r.LanguageCode))
 			}
 			fmt.Fprintf(&b,
 				"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=%q,NAME=%q,DEFAULT=%s,AUTOSELECT=%s%s,URI=\"audio_%d.m3u8%s\"\n",
@@ -227,7 +237,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		// conservative default; transcoded rungs keep the encoder codec.
 		rungCodecs := codecs
 		if p.Copy && in.CopyVideoCodec != "" {
-			rungCodecs = in.CopyVideoCodec + "," + audioCodecAttr(strings.ToLower(in.ChosenAudioCodec))
+			rungCodecs = in.CopyVideoCodec + "," + audioCodecAttr(strings.ToLower(effectiveAudioCodec))
 		}
 		fmt.Fprintf(&b,
 			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%s,CODECS=%q%s\n",
@@ -379,6 +389,20 @@ func (g *ManifestGenerator) AudioPlaylist(in ManifestInput, trackIdx int) (strin
 
 	b.WriteString("#EXT-X-ENDLIST\n")
 	return b.String(), nil
+}
+
+// hlsAttrSafe strips characters RFC 8216 §4.2 forbids inside a quoted-string
+// (", CR, LF) plus other control chars from a value (a track NAME/LANGUAGE comes
+// from file metadata). %q would backslash-escape them, which hls.js's "([^"]*)"
+// attribute parser then mis-reads — corrupting the rest of the EXT-X-MEDIA line
+// and dropping the rendition. Removing them keeps the attribute list parseable.
+func hlsAttrSafe(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '"' || r == '\r' || r == '\n' || r < 0x20 {
+			return -1
+		}
+		return r
+	}, s)
 }
 
 // codecsAttr returns the RFC 6381 codecs string for the master playlist
