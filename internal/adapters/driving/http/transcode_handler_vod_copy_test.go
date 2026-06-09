@@ -27,6 +27,7 @@ func copyEligibleStreams() []*domainlibrary.MediaStream {
 		Width:      &w,
 		Height:     &hgt,
 		Level:      &level,
+		Keyframes:  []int64{0, 6000, 12000}, // keyframe-backfilled → copy-eligible
 	}}
 }
 
@@ -66,6 +67,26 @@ func TestIsCopyRequest_NonCopyDecisionUnaffected(t *testing.T) {
 	// A transcode decision is never a copy request, regardless of disk space.
 	got := h.isCopyRequest(domaintranscoding.PlaybackDecision{VideoDecision: "transcode"}, copyEligibleStreams(), 1<<20)
 	assert.False(t, got)
+}
+
+// Safety for the now-on-by-default rung: a copy-eligible codec/level but NO
+// keyframe index (not yet keyframe-backfilled) must NOT route to copy — the plan
+// would be empty and break playback. It falls back to transcode instead.
+func TestIsCopyRequest_NoKeyframes_FallsBackToTranscode(t *testing.T) {
+	h := newCopyTestHandler(t)
+	dec := domaintranscoding.PlaybackDecision{VideoDecision: "copy"}
+	w, hgt, level := 1920, 1080, 40
+	unbackfilled := []*domainlibrary.MediaStream{{
+		StreamType: domainlibrary.StreamTypeVideo,
+		Codec:      "h264",
+		Profile:    "High",
+		Width:      &w,
+		Height:     &hgt,
+		Level:      &level,
+		// Keyframes: nil — level is known but keyframes_ms not yet backfilled.
+	}}
+	assert.False(t, h.isCopyRequest(dec, unbackfilled, 1<<20),
+		"eligible codec but no keyframe index → transcode, not copy (an empty plan would break)")
 }
 
 func TestIsCopyRequest_ProducerOffNeverCopies(t *testing.T) {

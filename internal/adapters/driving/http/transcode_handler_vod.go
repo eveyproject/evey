@@ -594,6 +594,14 @@ func sourceCopyVideoCodec(streams []*domainlibrary.MediaStream) string {
 		if s == nil || s.StreamType != "video" {
 			continue
 		}
+		// No copy rung without the keyframe index: the copy plan (segment cuts +
+		// StartSec) is built from s.Keyframes, so an item that has not been
+		// keyframe-backfilled yet must fall back to transcode rather than route to
+		// copy and break on an empty plan. Critical now that the rung is on by
+		// default — the worker backfills keyframes_ms only after level.
+		if len(s.Keyframes) == 0 {
+			return ""
+		}
 		return apptranscoding.CopyVideoCodecString(s.Codec, s.Profile, s.Level, streamIsTenBit(s))
 	}
 	return ""
@@ -1083,12 +1091,18 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		slog.Default(),
 	)
 
-	// Copy/remux rung (gated by EVEY_REMUX_COPY=on) = a dedicated SoftwareProducer
-	// in copy mode: the Jellyfin remux model — one paced `-c:v copy` + AAC session,
-	// seek = restart at the plan's keyframe. A distinct instance from the transcode
-	// `software` above (copyPlanner is per-instance) sharing the same cache; the
-	// Copy flag in the fingerprint keeps copy and transcode segments from aliasing.
-	if os.Getenv("EVEY_REMUX_COPY") == "on" {
+	// Copy/remux rung = a dedicated SoftwareProducer in copy mode: the Jellyfin
+	// remux model — one paced `-c:v copy` + AAC session, seek = restart at the
+	// plan's keyframe. A distinct instance from the transcode `software` above
+	// (copyPlanner is per-instance) sharing the same cache; the Copy flag in the
+	// fingerprint keeps copy and transcode segments from aliasing.
+	//
+	// ON by default. EVEY_REMUX_COPY=off is the kill-switch — disable the rung in
+	// prod (every request transcodes, as before) without a rebuild if it misbehaves.
+	// A request still only routes here when it is copy-eligible AND keyframe-
+	// backfilled (isCopyRequest → sourceCopyVideoCodec), so un-backfilled content
+	// transcodes regardless.
+	if os.Getenv("EVEY_REMUX_COPY") != "off" {
 		softwareCopy := apptranscoding.NewSoftwareProducer(
 			cache,
 			s.HLSTranscoder,
@@ -1100,7 +1114,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 			copyStreamReaderAdapter{libSvc}, copyItemReaderAdapter{libSvc}, 0, // 0 → default 6s segments
 		))
 		h.copyProducer = softwareCopy
-		slog.Default().Info("hls vod: copy/remux rung = SoftwareProducer copy mode (EVEY_REMUX_COPY=on)")
+		slog.Default().Info("hls vod: copy/remux rung ENABLED (SoftwareProducer copy mode; EVEY_REMUX_COPY=off to disable)")
 	}
 
 	// The selector routes each request: software unless resolveHW confirms the
