@@ -1012,6 +1012,24 @@ func (a copyItemReaderAdapter) GetByID(ctx context.Context, id shared.MediaItemI
 // has already built, and constructs the software producer + the selector that
 // routes each request between them. Returns nil if a prerequisite is missing so
 // the caller skips route registration cleanly.
+// resolveServerFlag returns the effective value of an operational (non-secret)
+// flag: a server_config DB row wins, else the process env var, else "". Mirrors
+// cmd/evey.resolveFlag so transcode toggles are flippable from
+// /admin/server-config (a restart is still required — flags are read at boot).
+// Both the dotted DB key (canonical) and the raw env-var name are accepted as
+// DB keys. cfgRepo may be nil (pure-env fallback).
+func resolveServerFlag(cfgRepo shared.ServerConfigRepository, dbKey, envVar string) string {
+	if cfgRepo != nil {
+		ctx := context.Background()
+		for _, k := range [...]string{dbKey, envVar} {
+			if entry, err := cfgRepo.Get(ctx, k); err == nil && entry != nil && entry.Value != "" {
+				return entry.Value
+			}
+		}
+	}
+	return os.Getenv(envVar)
+}
+
 func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryAccessChecker, parental ParentalChecker) *hlsVODServe {
 	_ = libAccess // wired through commonAuth via s.LibraryAccessRepo
 	if s == nil || s.HLSVODOrch == nil || s.HLSVODCache == nil {
@@ -1097,12 +1115,13 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// (copyPlanner is per-instance) sharing the same cache; the Copy flag in the
 	// fingerprint keeps copy and transcode segments from aliasing.
 	//
-	// ON by default. EVEY_REMUX_COPY=off is the kill-switch — disable the rung in
-	// prod (every request transcodes, as before) without a rebuild if it misbehaves.
-	// A request still only routes here when it is copy-eligible AND keyframe-
-	// backfilled (isCopyRequest → sourceCopyVideoCodec), so un-backfilled content
-	// transcodes regardless.
-	if os.Getenv("EVEY_REMUX_COPY") != "off" {
+	// ON by default. The kill-switch is server_config transcoding.remux_copy=off
+	// (or the raw EVEY_REMUX_COPY=off) — an admin disables the rung from
+	// /admin/server-config (every request transcodes, as before) without a
+	// rebuild if it misbehaves; a restart applies it. A request still only routes
+	// here when it is copy-eligible AND keyframe-backfilled (isCopyRequest →
+	// sourceCopyVideoCodec), so un-backfilled content transcodes regardless.
+	if resolveServerFlag(s.ServerCfgRepo, "transcoding.remux_copy", "EVEY_REMUX_COPY") != "off" {
 		softwareCopy := apptranscoding.NewSoftwareProducer(
 			cache,
 			s.HLSTranscoder,
@@ -1114,7 +1133,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 			copyStreamReaderAdapter{libSvc}, copyItemReaderAdapter{libSvc}, 0, // 0 → default 6s segments
 		))
 		h.copyProducer = softwareCopy
-		slog.Default().Info("hls vod: copy/remux rung ENABLED (SoftwareProducer copy mode; EVEY_REMUX_COPY=off to disable)")
+		slog.Default().Info("hls vod: copy/remux rung ENABLED (SoftwareProducer copy mode; server_config transcoding.remux_copy=off or EVEY_REMUX_COPY=off to disable)")
 	}
 
 	// The selector routes each request: software unless resolveHW confirms the

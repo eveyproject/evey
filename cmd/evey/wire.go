@@ -707,20 +707,23 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// scanner skips unchanged files, so it never back-populates the column the
 	// H.264 video-copy (remux) rung needs. Paced conservatively; the rate is
 	// env-tunable because it MUST be validated on the real (possibly weak) NAS,
-	// not a dev disk. EVEY_LEVEL_BACKFILL=off disables it entirely.
-	if os.Getenv("EVEY_LEVEL_BACKFILL") != "off" {
+	// not a dev disk. Resolution: server_config DB key wins → env fallback, so an
+	// admin can flip it from /admin/server-config (key transcoding.level_backfill,
+	// or the raw EVEY_LEVEL_BACKFILL) without touching the container env; a
+	// restart is required. transcoding.level_backfill=off disables it entirely.
+	if resolveFlag(ctx, r.ServerCfg, "transcoding.level_backfill", "EVEY_LEVEL_BACKFILL") != "off" {
 		levelOpts := apptranscoding.LevelBackfillOpts{}
-		if v := os.Getenv("EVEY_LEVEL_BACKFILL_BATCH"); v != "" {
+		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.level_backfill_batch", "EVEY_LEVEL_BACKFILL_BATCH"); v != "" {
 			if n, err := strconv.Atoi(v); err == nil && n > 0 {
 				levelOpts.BatchSize = n
 			}
 		}
-		if v := os.Getenv("EVEY_LEVEL_BACKFILL_PAUSE_MS"); v != "" {
+		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.level_backfill_pause_ms", "EVEY_LEVEL_BACKFILL_PAUSE_MS"); v != "" {
 			if n, err := strconv.Atoi(v); err == nil && n >= 0 {
 				levelOpts.ItemPause = time.Duration(n) * time.Millisecond
 			}
 		}
-		if v := os.Getenv("EVEY_LEVEL_BACKFILL_IDLE_SEC"); v != "" {
+		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.level_backfill_idle_sec", "EVEY_LEVEL_BACKFILL_IDLE_SEC"); v != "" {
 			if n, err := strconv.Atoi(v); err == nil && n > 0 {
 				levelOpts.IdleInterval = time.Duration(n) * time.Second
 			}
@@ -743,20 +746,24 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// scans every packet header — the heaviest sustained NAS load of the
 	// pipeline — so it must only run once the per-segment copy path is wanted,
 	// and its rate validated on the real NAS. Runs after the level backfill by
-	// construction (the candidate query requires a known level).
-	if os.Getenv("EVEY_KEYFRAME_BACKFILL") == "on" {
+	// construction (the candidate query requires a known level). Resolution:
+	// server_config DB key wins → env fallback, so an admin enables it from
+	// /admin/server-config (key transcoding.keyframe_backfill = on, or the raw
+	// EVEY_KEYFRAME_BACKFILL) without touching the container env; a restart is
+	// required.
+	if resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill", "EVEY_KEYFRAME_BACKFILL") == "on" {
 		kfOpts := apptranscoding.KeyframeBackfillOpts{}
-		if v := os.Getenv("EVEY_KEYFRAME_BACKFILL_BATCH"); v != "" {
+		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill_batch", "EVEY_KEYFRAME_BACKFILL_BATCH"); v != "" {
 			if n, err := strconv.Atoi(v); err == nil && n > 0 {
 				kfOpts.BatchSize = n
 			}
 		}
-		if v := os.Getenv("EVEY_KEYFRAME_BACKFILL_PAUSE_MS"); v != "" {
+		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill_pause_ms", "EVEY_KEYFRAME_BACKFILL_PAUSE_MS"); v != "" {
 			if n, err := strconv.Atoi(v); err == nil && n >= 0 {
 				kfOpts.ItemPause = time.Duration(n) * time.Millisecond
 			}
 		}
-		if v := os.Getenv("EVEY_KEYFRAME_BACKFILL_IDLE_SEC"); v != "" {
+		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill_idle_sec", "EVEY_KEYFRAME_BACKFILL_IDLE_SEC"); v != "" {
 			if n, err := strconv.Atoi(v); err == nil && n > 0 {
 				kfOpts.IdleInterval = time.Duration(n) * time.Second
 			}
@@ -771,7 +778,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			slog.Default(),
 		)
 		keyframeBackfillWorker.Start(ctx)
-		slog.Default().Info("keyframe backfill worker enabled (EVEY_KEYFRAME_BACKFILL=on)")
+		slog.Default().Info("keyframe backfill worker enabled (server_config transcoding.keyframe_backfill=on or EVEY_KEYFRAME_BACKFILL=on)")
 	}
 
 	// CMCD (CTA-5004) ingest sink. The HTTP handler parses the CMCD query
@@ -1155,6 +1162,25 @@ func resolveAPIKey(ctx context.Context, cfgRepo shared.ServerConfigRepository, d
 		return v
 	}
 	return ""
+}
+
+// resolveFlag returns the effective value of an operational (non-secret) flag:
+// a server_config DB row wins, else the process env var, else "". This lets an
+// admin flip the toggle from /admin/server-config instead of editing the
+// container env — a restart is still required, since these flags are read once
+// at boot. Both the dotted DB key (canonical) and the raw env-var name are
+// accepted as DB keys, so a row keyed either way takes effect. Unlike
+// resolveAPIKey it does NOT seed the env value back into the DB (nothing to hide
+// and no surprise rows). cfgRepo may be nil (pure-env fallback).
+func resolveFlag(ctx context.Context, cfgRepo shared.ServerConfigRepository, dbKey, envVar string) string {
+	if cfgRepo != nil {
+		for _, k := range [...]string{dbKey, envVar} {
+			if entry, err := cfgRepo.Get(ctx, k); err == nil && entry != nil && entry.Value != "" {
+				return entry.Value
+			}
+		}
+	}
+	return os.Getenv(envVar)
 }
 
 func resolveVAPIDKeys(ctx context.Context, cfgRepo shared.ServerConfigRepository, cfg *config.Config) (string, string) {
