@@ -405,6 +405,34 @@ func TestOrchestrator_NotifyClientHint_ExtendsEndSegOnFatBuffer(t *testing.T) {
 	assert.Greater(t, endAfter, endBefore, "fat buffer hint should stretch endSeg")
 }
 
+func TestOrchestrator_NotifyClientHint_ForgedBufferClamped(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	opts := testOpts()
+	opts.LookAheadSegments = 10
+	opts.SegmentSeconds = 3.0
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+
+	// A forged CMCD bl of ~277 hours must NOT stretch endSeg to encode the whole
+	// film: bufferAheadSegs is capped at 2×LookAhead, so endSeg stays within
+	// consumableIdx + 3×LookAhead (0 + 30 here), not ~333k.
+	o.NotifyClientHint(fp.MediaID, 999_999_999, false, 0)
+
+	o.mu.Lock()
+	sess := o.sessions[fp.Hash()][0]
+	o.mu.Unlock()
+	sess.mu.Lock()
+	endAfter := sess.endSeg
+	sess.mu.Unlock()
+	assert.LessOrEqual(t, endAfter, 3*opts.LookAheadSegments,
+		"forged bl must not stretch endSeg past the clamped window")
+}
+
 func TestOrchestrator_Throttle_NoFlapWithHysteresis(t *testing.T) {
 	cache, dir := newTestCache(t)
 	proc := newFakeProcess()

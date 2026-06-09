@@ -699,7 +699,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		AudioDecision:      "transcode",
 		AudioTrackIndex:    fp.AudioTrack,
 		SubtitleTrackIndex: fp.SubtitleBurnInTrack,
-		HDRSupported:       false, // tonemap is part of decision; HDRSupported=false on the client forces tonemap
+		HDRSupported:       false,         // tonemap is part of decision; HDRSupported=false on the client forces tonemap
 		ToneMap:            fp.HDRTonemap, // HDR->SDR tonemap decision, carried as a bool (Streams not threaded here)
 		AudioNormalize:     fp.AudioNormalize,
 		StartSec:           float64(startSegIdx) * o.opts.SegmentSeconds,
@@ -1208,6 +1208,15 @@ func (o *SegmentOrchestrator) NotifyClientHint(mediaItemID string, bufferLengthM
 	bufferAheadSegs := 0
 	if bufferLengthMs > 0 && o.opts.SegmentSeconds > 0 {
 		bufferAheadSegs = int(float64(bufferLengthMs) / 1000.0 / o.opts.SegmentSeconds)
+	}
+	// CMCD `bl` is client-reported and forgeable: a single hint with
+	// bl=999999999 would otherwise stretch endSeg to encode the whole film below
+	// (the MaxActiveSessions cap bounds the NUMBER of sessions, not their length).
+	// Cap the prefetch reach at 2× the rafale lookahead — combined with the
+	// duration clamp on consumableIdx, endSeg can never run away from the real
+	// playback position.
+	if maxAhead := 2 * o.opts.LookAheadSegments; bufferAheadSegs > maxAhead {
+		bufferAheadSegs = maxAhead
 	}
 	consumableIdx := max(segmentIdx, 0)
 
