@@ -47,6 +47,7 @@ type OIDCService struct {
 	userRoles           domainuser.UserRoleRepository
 	tokens              domainuser.TokenGenerator
 	events              shared.EventBus
+	uow                 shared.TransactionalUnit
 	stateSecret         []byte
 	issuer              string
 	allowedEmailDomains []string
@@ -62,6 +63,7 @@ func NewOIDCService(
 	userRoles domainuser.UserRoleRepository,
 	tokens domainuser.TokenGenerator,
 	events shared.EventBus,
+	uow shared.TransactionalUnit,
 	refreshTokenTTL time.Duration,
 ) (*OIDCService, error) {
 	if !cfg.Enabled {
@@ -98,6 +100,7 @@ func NewOIDCService(
 		userRoles:           userRoles,
 		tokens:              tokens,
 		events:              events,
+		uow:                 uow,
 		stateSecret:         h[:],
 		issuer:              cfg.Issuer,
 		allowedEmailDomains: cfg.AllowedEmailDomains,
@@ -302,19 +305,36 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 	}
 	newUser.OIDCSubject = &sub
 	newUser.OIDCIssuer = &issuer
-	if err := s.userRepo.Create(ctx, newUser); err != nil {
-		return nil, fmt.Errorf("create oidc user: %w", err)
-	}
-
 	p := &domainuser.Profile{
 		ID:        shared.ProfileID(id.New("prf-")),
-		UserID:    shared.UserID(newUser.ID),
+		UserID:    newUser.ID,
 		Name:      newUser.Username,
 		IsDefault: true,
 		CreatedAt: now,
 	}
-	if err := s.profiles.Create(ctx, p); err != nil {
-		slog.Warn("oidc: create default profile failed", slog.Any("err", err))
+	// The user row and its default profile must commit together: a profile
+	// failure after the user commits would leave the OIDC user with NO default
+	// profile, and the next login takes the GetByOIDCSubject fast-path that
+	// never heals it → access tokens minted with an empty ProfileID forever.
+	// Wrap both in one tx (nil uow → sequential, for tests that build the
+	// struct literal directly). Propagate the failure instead of swallowing it.
+	create := func(ctx context.Context) error {
+		if err := s.userRepo.Create(ctx, newUser); err != nil {
+			return fmt.Errorf("create oidc user: %w", err)
+		}
+		if err := s.profiles.Create(ctx, p); err != nil {
+			return fmt.Errorf("create default profile: %w", err)
+		}
+		return nil
+	}
+	var createErr error
+	if s.uow != nil {
+		createErr = s.uow.Do(ctx, create)
+	} else {
+		createErr = create(ctx)
+	}
+	if createErr != nil {
+		return nil, fmt.Errorf("OIDCService.findOrCreateUser: %w", createErr)
 	}
 
 	evt := domainuser.UserCreated{UserID: newUser.ID, Username: newUser.Username, OccurredAt: now}

@@ -373,7 +373,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 				AllowedEmailDomains: cfg.OIDC.AllowedEmailDomains,
 			},
 			r.User, r.Profile, r.RefreshToken, r.UserRole,
-			infra.tokenGen, bus, 7*24*time.Hour,
+			infra.tokenGen, bus, postgres.NewTxUnit(db), 7*24*time.Hour,
 		)
 		if oidcErr != nil {
 			return nil, fmt.Errorf("oidc init: %w", oidcErr)

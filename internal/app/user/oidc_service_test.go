@@ -1195,8 +1195,12 @@ func TestHandleCallback_EmailAtPositionZero_UsesHexFallback(t *testing.T) {
 	}
 }
 
-// L300: profiles.Create error on new user -> slog.Warn, callback succeeds
-func TestHandleCallback_NewUserProfileCreateError_Continues(t *testing.T) {
+// profiles.Create error on first OIDC login now PROPAGATES (was swallowed with
+// a warn-and-continue). The user + default profile create is wrapped in one tx,
+// so a profile failure aborts the whole callback — and in production (real uow)
+// rolls back the orphan user — instead of minting a token for a user that has
+// no default profile (the GetByOIDCSubject fast-path would never heal it).
+func TestHandleCallback_NewUserProfileCreateError_Propagates(t *testing.T) {
 	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
 		"sub":                "sub-pcreaterr",
 		"email":              "new@example.com",
@@ -1209,26 +1213,15 @@ func TestHandleCallback_NewUserProfileCreateError_Continues(t *testing.T) {
 		createErr:         errors.New("profile create boom"),
 	}
 
-	var (
-		accessTk string
-		err      error
-	)
-	logs := captureSlogDuring(t, func() {
-		accessTk, _, _, err = svc.HandleCallback(context.Background(), "auth-code", "")
-	})
-	if err != nil {
-		t.Fatalf("expected success, got %v", err)
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
+	if err == nil {
+		t.Fatal("expected the profile-create failure to propagate, got success")
 	}
-	if accessTk == "" {
-		t.Error("expected access token")
+	if !strings.Contains(err.Error(), "default profile") {
+		t.Errorf("error %q should surface the default profile failure", err)
 	}
-	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
-	users, _ := userRepo.List(context.Background())
-	if len(users) != 1 {
-		t.Fatalf("expected 1 user to be created, got %d", len(users))
-	}
-	if !strings.Contains(logs, "oidc: create default profile failed") {
-		t.Errorf("expected profile-create warning, got: %s", logs)
+	if accessTk != "" {
+		t.Error("no access token should be minted when the callback fails")
 	}
 }
 

@@ -176,13 +176,6 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 		return nil, fmt.Errorf("CommandService.Setup: %w", err)
 	}
 	u.IsAdmin = true
-	if err := s.users.Create(ctx, u); err != nil {
-		return nil, fmt.Errorf("CommandService.Setup: %w", err)
-	}
-	evtSetupCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: true, OccurredAt: time.Now()}
-	if err := s.events.Publish(ctx, evtSetupCreated); err != nil {
-		slog.Warn("publish event", slog.String("event", evtSetupCreated.EventName()), slog.Any("err", err))
-	}
 
 	p := &user.Profile{
 		ID:        shared.ProfileID(id.New("prf-")),
@@ -195,8 +188,36 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 		r := cfg.region
 		p.Region = &r
 	}
-	if err := s.profiles.Create(ctx, p); err != nil {
-		return nil, fmt.Errorf("create default profile: %w", err)
+
+	// The admin user and its default profile must be created atomically: a
+	// profile-insert failure after the user row commits would leave the sole
+	// admin with NO default profile AND lock Setup forever (the retry sees
+	// CountAdmins>0 → ErrSetupDone), with no code path that heals a missing
+	// default profile. Wrap both in one tx, mirroring UserService.CreateUser.
+	apply := func(ctx context.Context) error {
+		if err := s.users.Create(ctx, u); err != nil {
+			return fmt.Errorf("create admin user: %w", err)
+		}
+		if err := s.profiles.Create(ctx, p); err != nil {
+			return fmt.Errorf("create default profile: %w", err)
+		}
+		return nil
+	}
+	var txErr error
+	if s.uow != nil {
+		txErr = s.uow.Do(ctx, apply)
+	} else {
+		txErr = apply(ctx)
+	}
+	if txErr != nil {
+		return nil, fmt.Errorf("CommandService.Setup: %w", txErr)
+	}
+
+	// Events are published after the commit so a rolled-back Setup never emits
+	// a phantom UserCreated/ProfileCreated.
+	evtSetupCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: true, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtSetupCreated); err != nil {
+		slog.Warn("publish event", slog.String("event", evtSetupCreated.EventName()), slog.Any("err", err))
 	}
 	evtProfileCreated := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtProfileCreated); err != nil {
