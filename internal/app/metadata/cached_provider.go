@@ -36,6 +36,31 @@ type getByIDEntry struct {
 	result  *domainmetadata.MetadataResult
 }
 
+// maxCacheEntries caps each store. The TTL is only checked on READ (it hides
+// expired entries, it never frees them), so without a cap a long scan or a
+// flood of distinct free-text searches — both feed these maps, via the
+// enricher and the interactive MetadataService — would grow them until restart
+// and eventually OOM a small box. On overflow we reclaim expired entries first,
+// then evict down to 3/4 of the cap (headroom so we don't re-prune every put),
+// keeping the back-to-back scan/refresh dedup the cache is for.
+const maxCacheEntries = 2048
+
+// pruneAndCap reclaims expired entries from m, then, if still at/over the cap,
+// evicts arbitrary entries until len(m) < target. Caller holds the write lock.
+func pruneAndCap[V any](m map[string]V, expiresOf func(V) time.Time, now time.Time, target int) {
+	for k, v := range m {
+		if now.After(expiresOf(v)) {
+			delete(m, k)
+		}
+	}
+	for k := range m {
+		if len(m) < target {
+			break
+		}
+		delete(m, k)
+	}
+}
+
 // NewCachedProvider wraps inner with a TTL cache. A non-positive ttl
 // disables caching (useful in tests).
 func NewCachedProvider(inner domainmetadata.MetadataProvider, ttl time.Duration) *CachedProvider {
@@ -93,8 +118,12 @@ func (c *CachedProvider) getSearch(key string) ([]domainmetadata.MetadataResult,
 }
 
 func (c *CachedProvider) putSearch(key string, results []domainmetadata.MetadataResult) {
+	now := time.Now()
 	c.mu.Lock()
-	c.searchStore[key] = searchEntry{expires: time.Now().Add(c.ttl), results: results}
+	if len(c.searchStore) >= maxCacheEntries {
+		pruneAndCap(c.searchStore, func(e searchEntry) time.Time { return e.expires }, now, maxCacheEntries*3/4)
+	}
+	c.searchStore[key] = searchEntry{expires: now.Add(c.ttl), results: results}
 	c.mu.Unlock()
 }
 
@@ -109,8 +138,12 @@ func (c *CachedProvider) getByID(key string) (*domainmetadata.MetadataResult, bo
 }
 
 func (c *CachedProvider) putByID(key string, result *domainmetadata.MetadataResult) {
+	now := time.Now()
 	c.mu.Lock()
-	c.getByIDStore[key] = getByIDEntry{expires: time.Now().Add(c.ttl), result: result}
+	if len(c.getByIDStore) >= maxCacheEntries {
+		pruneAndCap(c.getByIDStore, func(e getByIDEntry) time.Time { return e.expires }, now, maxCacheEntries*3/4)
+	}
+	c.getByIDStore[key] = getByIDEntry{expires: now.Add(c.ttl), result: result}
 	c.mu.Unlock()
 }
 

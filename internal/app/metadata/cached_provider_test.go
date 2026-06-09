@@ -3,6 +3,7 @@ package metadata
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -104,6 +105,30 @@ func TestCachedProvider_GetByProviderIDMemoizes(t *testing.T) {
 	}
 	if inner.getByIDCalls != 1 {
 		t.Fatalf("calls = %d, want 1", inner.getByIDCalls)
+	}
+}
+
+func TestCachedProvider_StoresAreBounded(t *testing.T) {
+	inner := &decoratorFakeProvider{
+		name:         "tmdb",
+		searchResult: []domainmetadata.MetadataResult{{Title: "x"}},
+		idResult:     &domainmetadata.MetadataResult{Title: "y"},
+	}
+	// Long TTL → nothing expires, so only the hard cap can keep the maps from
+	// growing one entry per distinct query/id forever (the OOM the audit found).
+	c := NewCachedProvider(inner, time.Hour)
+	for i := range maxCacheEntries + 1024 {
+		_, _ = c.Search(context.Background(), "q"+strconv.Itoa(i), nil, "movie")
+		_, _ = c.GetByProviderID(context.Background(), strconv.Itoa(i), "movie")
+	}
+	c.mu.RLock()
+	ns, ng := len(c.searchStore), len(c.getByIDStore)
+	c.mu.RUnlock()
+	if ns > maxCacheEntries {
+		t.Fatalf("searchStore grew to %d entries, exceeds cap %d (unbounded growth)", ns, maxCacheEntries)
+	}
+	if ng > maxCacheEntries {
+		t.Fatalf("getByIDStore grew to %d entries, exceeds cap %d (unbounded growth)", ng, maxCacheEntries)
 	}
 }
 
