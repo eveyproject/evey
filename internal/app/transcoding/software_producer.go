@@ -300,6 +300,25 @@ func (p *SoftwareProducer) Manifest(ctx context.Context, fp DecisionFingerprint)
 }
 
 func (p *SoftwareProducer) Profiles(base []transcoding.HLSProfile, src SourceDims, decision transcoding.PlaybackDecision, capacity transcoding.EncodeCapability) []transcoding.HLSProfile {
+	// Copy mode = the Jellyfin remux: ONE rung at the source resolution with the
+	// video copied (the handler advertises the source avc1.PPCCLL) and audio→AAC.
+	// No transcode ladder — direct-play quality is the single rendition.
+	if p.copyPlanner != nil {
+		w, h := src.Width, src.Height
+		if w <= 0 || h <= 0 {
+			w, h = 1920, 1080 // safe default so the fingerprint stays deterministic
+		}
+		const copyDefaultBitrateKbps int64 = 5_000
+		return []transcoding.HLSProfile{{
+			Name:         fmt.Sprintf("%dp-copy", h),
+			Width:        w,
+			Height:       h,
+			VideoBitrate: copyDefaultBitrateKbps,
+			AudioBitrate: 192,
+			Copy:         true, // folds into the cache fingerprint (copy vs transcode never alias)
+		}}
+	}
+
 	sourceCapped := transcoding.CapLadderToSource(base, src.Width, src.Height)
 
 	maxH := capacity.MaxHeightFor(false) // software ceiling (SoftwareMaxHeight or 720 floor)

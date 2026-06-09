@@ -37,10 +37,14 @@ func newCopyTestHandler(t *testing.T) *hlsVODServe {
 	t.Helper()
 	cache, err := apptranscoding.NewSegmentCache(t.TempDir())
 	require.NoError(t, err)
-	strategy := apptranscoding.NewWholeFileStrategy(cache, nil, nil, nil)
+	// copyProducer only needs to be non-nil for isCopyRequest's "copy path wired"
+	// gate; the disk guard reads cache.FreeBytes(), never the producer. A copy-mode
+	// SoftwareProducer mirrors production (process/source nil — not exercised here).
+	copyProd := apptranscoding.NewSoftwareProducer(cache, nil, nil, apptranscoding.SoftwareProducerOptions{}, nil)
+	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil, 0))
 	return &hlsVODServe{
 		cache:        cache,
-		copyProducer: apptranscoding.NewCopyProducer(strategy, cache, apptranscoding.CopyProducerOptions{}, nil),
+		copyProducer: copyProd,
 	}
 }
 

@@ -528,6 +528,29 @@ func TestSoftwareProducer_ProfilesReturnsLadderCappedToSustainable(t *testing.T)
 	}
 }
 
+func TestSoftwareProducer_ProfilesCopyModeIsSingleSourceRung(t *testing.T) {
+	cache, _ := newTestCache(t)
+	p := NewSoftwareProducer(cache, newFakeProcess(), stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	base := transcoding.LadderFilmNormal // [360, 480, 720, 1080]
+	src := SourceDims{Width: 1920, Height: 1080}
+	capability := transcoding.EncodeCapability{SoftwareMaxHeight: 1080}
+
+	// Transcode mode → a multi-rung ladder.
+	require.Greater(t, len(p.Profiles(base, src, transcoding.PlaybackDecision{}, capability)), 1)
+
+	// Copy mode → exactly ONE rung at the source resolution with Copy=true (the
+	// Jellyfin remux: direct-play quality, no transcode ladder). The planner is
+	// never called by Profiles — only its presence flips the branch.
+	p.SetCopyMode(NewCopyPlanner(nil, nil, 0))
+	copyProfiles := p.Profiles(base, src, transcoding.PlaybackDecision{}, capability)
+	require.Len(t, copyProfiles, 1, "copy mode = one direct-play rung, not a ladder")
+	assert.True(t, copyProfiles[0].Copy, "the copy rung carries Copy=true (folds into the cache fingerprint)")
+	assert.Equal(t, 1080, copyProfiles[0].Height, "rung is at the source resolution")
+	assert.Equal(t, 1920, copyProfiles[0].Width)
+}
+
 func TestSoftwareProducer_ProfilesUsesSoftwareHDRCeilingOnTonemap(t *testing.T) {
 	cache, _ := newTestCache(t)
 	p := NewSoftwareProducer(cache, newFakeProcess(), stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())

@@ -62,11 +62,12 @@ type hlsVODServe struct {
 	orchestrator *apptranscoding.SegmentOrchestrator
 
 	// copyProducer serves the H.264 video-COPY (remux) rung when wired (behind
-	// EVEY_REMUX_COPY=on). nil = the copy path is off and every request routes
-	// through the selector (transcode) exactly as before. Gated because the
-	// whole-file strategy duplicates the re-muxed source on disk — unsafe as a
-	// default on a small box without an LRU evictor.
-	copyProducer *apptranscoding.CopyProducer
+	// EVEY_REMUX_COPY=on): a dedicated SoftwareProducer in copy mode — the
+	// Jellyfin remux, one paced `-c:v copy` + AAC session, seek = restart. nil =
+	// the copy path is off and every request routes through the selector
+	// (transcode) exactly as before. Interface-typed because both producers
+	// satisfy it; only copy requests (isCopyRequest) are routed here.
+	copyProducer apptranscoding.StreamProducer
 
 	// qoeSink ingests CMCD telemetry from segment requests. Nil when QoE is
 	// disabled (tests, dev without postgres). Record is non-blocking.
@@ -984,6 +985,21 @@ func (r *MediaSourceResolver) ResolveSource(ctx context.Context, fp apptranscodi
 	return item.File.Path, nil, nil
 }
 
+// copyStreamReaderAdapter / copyItemReaderAdapter bridge the handler's
+// MediaStreamsGetter to the CopyPlanner's reader ports (the planner wants a
+// typed MediaItemID and different method names). Cheap pass-throughs.
+type copyStreamReaderAdapter struct{ g MediaStreamsGetter }
+
+func (a copyStreamReaderAdapter) GetByMediaItemID(ctx context.Context, id shared.MediaItemID) ([]*domainlibrary.MediaStream, error) {
+	return a.g.GetMediaStreams(ctx, string(id))
+}
+
+type copyItemReaderAdapter struct{ g MediaStreamsGetter }
+
+func (a copyItemReaderAdapter) GetByID(ctx context.Context, id shared.MediaItemID) (*domainlibrary.MediaItem, error) {
+	return a.g.GetMediaItem(ctx, string(id))
+}
+
 // newHLSVODServe binds the handler to the orchestrator + cache that wire.go
 // has already built, and constructs the software producer + the selector that
 // routes each request between them. Returns nil if a prerequisite is missing so
@@ -1067,19 +1083,24 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		slog.Default(),
 	)
 
-	// Copy/remux rung (gated by EVEY_REMUX_COPY=on). The WholeFileStrategy
-	// re-muxes the whole source to disk on the first request (no -ss → seek is
-	// byte-identical), then every segment is a cache hit. OFF by default: the
-	// whole-file mux duplicates the source on disk, unsafe on a small box without
-	// an LRU evictor. ByteRangeStrategy (zero-dup) is the eventual product default.
+	// Copy/remux rung (gated by EVEY_REMUX_COPY=on) = a dedicated SoftwareProducer
+	// in copy mode: the Jellyfin remux model — one paced `-c:v copy` + AAC session,
+	// seek = restart at the plan's keyframe. A distinct instance from the transcode
+	// `software` above (copyPlanner is per-instance) sharing the same cache; the
+	// Copy flag in the fingerprint keeps copy and transcode segments from aliasing.
 	if os.Getenv("EVEY_REMUX_COPY") == "on" {
-		copyStrategy := apptranscoding.NewWholeFileStrategy(
-			cache, s.HLSTranscoder, &MediaSourceResolver{LibSvc: libSvc}, slog.Default(),
+		softwareCopy := apptranscoding.NewSoftwareProducer(
+			cache,
+			s.HLSTranscoder,
+			&MediaSourceResolver{LibSvc: libSvc},
+			apptranscoding.SoftwareProducerOptions{},
+			slog.Default(),
 		)
-		h.copyProducer = apptranscoding.NewCopyProducer(
-			copyStrategy, cache, apptranscoding.CopyProducerOptions{}, slog.Default(),
-		)
-		slog.Default().Info("hls vod: copy/remux rung enabled (EVEY_REMUX_COPY=on)")
+		softwareCopy.SetCopyMode(apptranscoding.NewCopyPlanner(
+			copyStreamReaderAdapter{libSvc}, copyItemReaderAdapter{libSvc}, 0, // 0 → default 6s segments
+		))
+		h.copyProducer = softwareCopy
+		slog.Default().Info("hls vod: copy/remux rung = SoftwareProducer copy mode (EVEY_REMUX_COPY=on)")
 	}
 
 	// The selector routes each request: software unless resolveHW confirms the

@@ -82,6 +82,18 @@ type StreamProducer interface {
 	Close()
 }
 
+// ManifestProvider is the optional capability a StreamProducer exposes when it
+// owns its HLS media playlist instead of deferring to the precalculated VOD
+// generator — the copy/remux rung, whose playlist is the keyframe-aligned plan.
+// serveVariant type-asserts the selected producer to it, GATED on isCopyRequest:
+// the assertion matches any *SoftwareProducer (incl. the transcode instance,
+// copyPlanner nil), so the handler's copy gate is what actually scopes it.
+type ManifestProvider interface {
+	Manifest(ctx context.Context, fp DecisionFingerprint) ([]byte, error)
+}
+
+var _ ManifestProvider = (*SoftwareProducer)(nil)
+
 // ProducerSelector routes each request to the software or hardware producer.
 // The decision is two-step, in this exact order:
 //

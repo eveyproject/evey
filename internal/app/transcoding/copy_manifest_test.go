@@ -60,7 +60,3 @@ func TestSoftwareProducer_Manifest_GatedByCopyMode(t *testing.T) {
 	assert.Contains(t, m, "stream_0_000.m4s")
 	assert.Contains(t, m, "#EXT-X-ENDLIST")
 }
-
-// ManifestProvider is implemented by the copy-mode producer (the handler type-
-// asserts it on the copy instance only).
-var _ ManifestProvider = (*SoftwareProducer)(nil)
