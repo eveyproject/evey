@@ -97,6 +97,42 @@ func TestSanitizeLogValue(t *testing.T) {
 	}
 }
 
+func TestClampLimitOffset(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name         string
+		limit        int32
+		offset       int32
+		defaultLimit int
+		wantLimit    int
+		wantOffset   int
+	}{
+		{"valid values unchanged", 20, 5, 50, 20, 5},
+		{"zero limit → default", 0, 0, 50, 50, 0},
+		{"negative limit → default", -10, 0, 50, 50, 0},
+		{"limit at boundary", maxPageSize, 0, 50, maxPageSize, 0},
+		{"limit above maxPageSize → default", maxPageSize + 1, 0, 50, 50, 0},
+		{"huge limit → default", 1_000_000, 0, 50, 50, 0},
+		{"negative offset → 0", 10, -1, 50, 10, 0},
+		{"very negative offset → 0", 10, -9999, 50, 10, 0},
+		{"zero offset unchanged", 10, 0, 50, 10, 0},
+		{"positive offset unchanged", 10, 42, 50, 10, 42},
+	}
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			gotLimit, gotOffset := clampLimitOffset(c.limit, c.offset, c.defaultLimit)
+			if gotLimit != c.wantLimit {
+				t.Errorf("limit: got %d, want %d", gotLimit, c.wantLimit)
+			}
+			if gotOffset != c.wantOffset {
+				t.Errorf("offset: got %d, want %d", gotOffset, c.wantOffset)
+			}
+		})
+	}
+}
+
 func TestSanitizeLogValue_TruncatesLongInputs(t *testing.T) {
 	t.Parallel()
 	long := make([]byte, 300)

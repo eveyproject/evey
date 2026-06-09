@@ -193,6 +193,26 @@ func TestNotificationHandler_UpdateGlobalNotificationSettings_Success(t *testing
 	assert.Equal(t, eveyv1.NotificationLevel_NOTIFICATION_LEVEL_DISABLED, resp.SeriesLevel)
 }
 
+// TestNotificationHandler_ListNotifications_NegativeOffsetClamped proves that
+// req.Offset=-1 is clamped to 0 before reaching the repository. The fake repo
+// does out[-1:] for negative offset on non-empty results, which panics — a
+// passing test therefore demonstrates the clamp is in place.
+func TestNotificationHandler_ListNotifications_NegativeOffsetClamped(t *testing.T) {
+	h, repo, _ := newNotificationHandler()
+
+	// Seed at least one notification so the repo slice is non-empty.
+	_ = repo.Create(context.Background(), &notification.Notification{
+		ID: "n1", ProfileID: "profile-1", Type: notification.TypeNewMovie,
+		Title: "Movie", Message: "msg", CreatedAt: time.Now(),
+	})
+
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	// Must not panic; the handler must clamp -1 to 0.
+	resp, err := h.ListNotifications(ctx, &eveyv1.ListNotificationsRequest{Offset: -1})
+	require.NoError(t, err)
+	assert.NotNil(t, resp)
+}
+
 // IDOR regression guard — non-admin must not list or mutate another profile's notifications.
 func TestNotificationHandler_ListNotifications_IDORAnotherProfile(t *testing.T) {
 	h, _, _ := newNotificationHandler()

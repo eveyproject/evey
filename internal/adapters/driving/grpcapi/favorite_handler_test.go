@@ -232,3 +232,47 @@ func TestFavoriteHandler_IsFavorite_IDORAnotherProfile(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
+
+// capturingFavRepo wraps the real fake and records the pagination params last
+// passed to List. Used to verify that the handler clamps hostile input before
+// it reaches the repository layer.
+type capturingFavRepo struct {
+	*favfakes.FakeRepository
+	lastLimit  int
+	lastOffset int
+}
+
+func (c *capturingFavRepo) List(ctx context.Context, profileID string, limit, offset int) ([]*favorite.Favorite, error) {
+	c.lastLimit = limit
+	c.lastOffset = offset
+	return c.FakeRepository.List(ctx, profileID, limit, offset)
+}
+
+// TestFavoriteHandler_ListFavorites_NegativeOffsetClamped proves that
+// req.Offset=-1 never reaches the repo as -1: the repo fake would panic on
+// out[-1:], so a passing test means the handler clamped it to 0.
+func TestFavoriteHandler_ListFavorites_NegativeOffsetClamped(t *testing.T) {
+	inner := favfakes.NewFakeRepository()
+	cap := &capturingFavRepo{FakeRepository: inner}
+	svc := appfavorite.NewService(cap)
+	h := &favoriteHandler{svc: svc}
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	_, err := h.ListFavorites(ctx, &eveyv1.ListFavoritesRequest{Offset: -1, Limit: 10})
+	require.NoError(t, err)
+	assert.Equal(t, 0, cap.lastOffset, "negative offset must be clamped to 0 before reaching the repo")
+}
+
+// TestFavoriteHandler_ListFavorites_HugeLimitClamped proves that a limit far
+// above maxPageSize is replaced with a sane default, not forwarded verbatim.
+func TestFavoriteHandler_ListFavorites_HugeLimitClamped(t *testing.T) {
+	inner := favfakes.NewFakeRepository()
+	cap := &capturingFavRepo{FakeRepository: inner}
+	svc := appfavorite.NewService(cap)
+	h := &favoriteHandler{svc: svc}
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	_, err := h.ListFavorites(ctx, &eveyv1.ListFavoritesRequest{Limit: 1_000_000})
+	require.NoError(t, err)
+	assert.LessOrEqual(t, cap.lastLimit, maxPageSize, "huge limit must be clamped to at most maxPageSize")
+}

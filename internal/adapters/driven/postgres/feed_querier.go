@@ -234,6 +234,7 @@ func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit i
 func (q *FeedQuerier) RecentlyAdded(ctx context.Context, profileID string, daysWindow, limit int) ([]*feed.FeedItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.feed.RecentlyAdded")
 	defer span.End()
+	limit = clampFeedLimit(limit)
 	if daysWindow <= 0 {
 		daysWindow = 30
 	}
@@ -306,6 +307,7 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, profileID string, daysW
 func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres []string, limit int) ([]*feed.FeedItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.feed.Recommended")
 	defer span.End()
+	limit = clampFeedLimit(limit)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	if len(genres) == 0 {
@@ -379,6 +381,7 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID string, limit int) ([]*feed.FeedItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.feed.SimilarItems")
 	defer span.End()
+	limit = clampFeedLimit(limit)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := q.db.QueryContext(ctx, `

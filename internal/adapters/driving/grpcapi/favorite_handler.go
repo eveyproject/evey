@@ -53,8 +53,7 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.ListFavorites: %w", err)
 	}
-	limit := int(req.Limit)
-	offset := int(req.Offset)
+	limit, offset := clampLimitOffset(req.Limit, req.Offset, 50)
 	favs, err := h.svc.List(ctx, profileID, limit, offset)
 	if err != nil {
 		return nil, internalError("list favorites", err)

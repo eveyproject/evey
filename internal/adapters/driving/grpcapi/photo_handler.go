@@ -64,11 +64,7 @@ func (h *photoHandler) ListPhotos(ctx context.Context, req *eveyv1.ListPhotosReq
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
-	limit := int(req.Limit)
-	if limit <= 0 {
-		limit = 50
-	}
-	offset := int(req.Offset)
+	limit, offset := clampLimitOffset(req.Limit, req.Offset, 100)
 	var photos []photodomain.Photo
 	var total int
 	var err error

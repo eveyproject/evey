@@ -59,6 +59,23 @@ func requireClaims(ctx context.Context) (*user.Claims, error) {
 
 const maxPageSize = 500
 
+// clampLimitOffset returns bounded (limit, offset) from raw limit/offset params.
+// A negative offset is normalised to 0 so Postgres never receives OFFSET < 0
+// (which panics as a slice index error in fakes and returns 500 from the DB).
+// A limit that is zero, negative, or above maxPageSize is replaced with
+// defaultLimit to prevent unbounded fetches.
+func clampLimitOffset(limit, offset int32, defaultLimit int) (int, int) {
+	l := int(limit)
+	if l <= 0 || l > maxPageSize {
+		l = defaultLimit
+	}
+	o := int(offset)
+	if o < 0 {
+		o = 0
+	}
+	return l, o
+}
+
 // clampPagination returns bounded (limit, offset) from pagination params.
 func clampPagination(pageSize, page int32, defaultLimit int) (int, int) {
 	limit := defaultLimit

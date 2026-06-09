@@ -58,11 +58,7 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
-	limit := int(req.Limit)
-	if limit <= 0 {
-		limit = 50
-	}
-	offset := int(req.Offset)
+	limit, offset := clampLimitOffset(req.Limit, req.Offset, 50)
 	tracks, total, err := h.svc.ListTracks(ctx, shared.LibraryID(req.LibraryId), limit, offset, req.Search)
 	if err != nil {
 		span.RecordError(err)

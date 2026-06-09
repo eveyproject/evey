@@ -36,7 +36,8 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.ListNotifications: %w", err)
 	}
-	items, err := h.query.List(ctx, profileID, req.UnreadOnly, int(req.Limit), int(req.Offset))
+	limit, offset := clampLimitOffset(req.Limit, req.Offset, 200)
+	items, err := h.query.List(ctx, profileID, req.UnreadOnly, limit, offset)
 	if err != nil {
 		return nil, internalError("list notifications", err)
 	}
@@ -202,7 +203,8 @@ func (h *notificationHandler) ListAdminNotifications(ctx context.Context, req *e
 	if !claims.IsAdmin {
 		return nil, status.Errorf(codes.PermissionDenied, "admin role required")
 	}
-	items, err := h.query.ListAdminOnly(ctx, claims.ProfileID, req.UnreadOnly, int(req.Limit), int(req.Offset))
+	adminLimit, adminOffset := clampLimitOffset(req.Limit, req.Offset, 200)
+	items, err := h.query.ListAdminOnly(ctx, claims.ProfileID, req.UnreadOnly, adminLimit, adminOffset)
 	if err != nil {
 		return nil, internalError("list admin notifications", err)
 	}
