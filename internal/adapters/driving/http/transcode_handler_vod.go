@@ -1115,13 +1115,18 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// (copyPlanner is per-instance) sharing the same cache; the Copy flag in the
 	// fingerprint keeps copy and transcode segments from aliasing.
 	//
-	// ON by default. The kill-switch is server_config transcoding.remux_copy=off
-	// (or the raw EVEY_REMUX_COPY=off) — an admin disables the rung from
-	// /admin/server-config (every request transcodes, as before) without a
-	// rebuild if it misbehaves; a restart applies it. A request still only routes
-	// here when it is copy-eligible AND keyframe-backfilled (isCopyRequest →
-	// sourceCopyVideoCodec), so un-backfilled content transcodes regardless.
-	if resolveServerFlag(s.ServerCfgRepo, "transcoding.remux_copy", "EVEY_REMUX_COPY") != "off" {
+	// OPT-IN (default OFF). Was briefly default-on for a prod test; the first live
+	// browser test surfaced a blocking bug not covered by unit tests: a forward
+	// SEEK spawns an `-ss` session whose -copyts fMP4 init carries a mid-stream
+	// edit list (empty edit == the seek offset), and it overwrites the SHARED
+	// stream_N_init.mp4. Start-of-stream segments then decode against that init →
+	// scrambled timeline / garbage frames, and it persists in the cache. The copy
+	// rung needs a position-independent init (one canonical init for all sessions,
+	// the fMP4 init/elst/tfdt work) before it can ship on by default. Until then it
+	// is opt-in: server_config transcoding.remux_copy=on (or EVEY_REMUX_COPY=on),
+	// applied on restart. A request still only routes here when it is copy-eligible
+	// AND keyframe-backfilled (isCopyRequest → sourceCopyVideoCodec).
+	if resolveServerFlag(s.ServerCfgRepo, "transcoding.remux_copy", "EVEY_REMUX_COPY") == "on" {
 		softwareCopy := apptranscoding.NewSoftwareProducer(
 			cache,
 			s.HLSTranscoder,
@@ -1133,7 +1138,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 			copyStreamReaderAdapter{libSvc}, copyItemReaderAdapter{libSvc}, 0, // 0 → default 6s segments
 		))
 		h.copyProducer = softwareCopy
-		slog.Default().Info("hls vod: copy/remux rung ENABLED (SoftwareProducer copy mode; server_config transcoding.remux_copy=off or EVEY_REMUX_COPY=off to disable)")
+		slog.Default().Warn("hls vod: copy/remux rung ENABLED (EXPERIMENTAL, opt-in: server_config transcoding.remux_copy=on or EVEY_REMUX_COPY=on) — known seek init-poisoning bug, not browser-validated")
 	}
 
 	// The selector routes each request: software unless resolveHW confirms the
