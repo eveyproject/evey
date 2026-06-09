@@ -96,3 +96,33 @@ func TestHLSTimeFor_CopyMatchesPlanTarget(t *testing.T) {
 		t.Fatalf("copy rung must NOT use the default -hls_time 3, got: %s", copyArgs)
 	}
 }
+
+// The "-profile:v high -level:v 4.1" pair is h264-only. libx265 aborts on it
+// ("x265 [error]: unknown profile <high>" → the whole session dies), so a
+// software-HEVC transcode (client PreferredVideoCodec=hevc, no HW HEVC) must
+// emit NO profile/level and let x265 derive it from the pixel format.
+func TestSoftwareProfileLevelArgs_H264Only(t *testing.T) {
+	if got := joined(softwareProfileLevelArgs("libx264", -1)); !strings.Contains(got, "-profile:v high") {
+		t.Fatalf("libx264 single must get -profile:v high, got %s", got)
+	}
+	if got := joined(softwareProfileLevelArgs("libx264", 2)); !strings.Contains(got, "-profile:v:2 high") {
+		t.Fatalf("libx264 multi must get -profile:v:2 high, got %s", got)
+	}
+	if got := softwareProfileLevelArgs("libx265", -1); got != nil {
+		t.Fatalf("libx265 must get NO profile/level (x265 rejects \"high\"), got %v", got)
+	}
+	if got := softwareProfileLevelArgs("libaom-av1", 1); got != nil {
+		t.Fatalf("av1 must get NO profile/level, got %v", got)
+	}
+
+	hevc := joined(BuildFFmpegArgs(transcoding.HLSProcessOpts{
+		FilePath: "/m.mkv", VideoDecision: "transcode", AudioDecision: "copy",
+		VideoCodec: "hevc", Profiles: transcoding.DefaultHLSProfiles[:1],
+	}))
+	if !strings.Contains(hevc, "libx265") {
+		t.Fatalf("hevc must select libx265: %s", hevc)
+	}
+	if strings.Contains(hevc, "-profile:v high") || strings.Contains(hevc, "-profile:v:0 high") {
+		t.Fatalf("hevc/libx265 must NOT carry the h264 'high' profile (x265 aborts): %s", hevc)
+	}
+}

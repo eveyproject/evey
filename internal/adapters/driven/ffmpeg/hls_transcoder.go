@@ -467,6 +467,27 @@ func resolveVideoEncoder(codec string) string {
 	return "libx264"
 }
 
+// softwareProfileLevelArgs returns the -profile:v / -level:v args for a software
+// encoder. "high"/"4.1" are H.264 (libx264) values: libx265 rejects them outright
+// ("x265 [error]: unknown profile <high>" → the encoder fails to open and the
+// whole session dies) and libaom-av1 uses different profile/level strings, so
+// non-libx264 encoders get nothing and derive the profile from the pixel format.
+// variantIdx < 0 emits the single-output form (-profile:v); else the per-rung
+// -profile:v:N form used by the multi-variant builder. Reachable via a client
+// PreferredVideoCodec=hevc on a software path (no HW HEVC) — found by audit.
+func softwareProfileLevelArgs(encoder string, variantIdx int) []string {
+	if encoder != "libx264" {
+		return nil
+	}
+	if variantIdx < 0 {
+		return []string{"-profile:v", "high", "-level:v", "4.1"}
+	}
+	return []string{
+		fmt.Sprintf("-profile:v:%d", variantIdx), "high",
+		fmt.Sprintf("-level:v:%d", variantIdx), "4.1",
+	}
+}
+
 // normalizeVideoCodec collapses the domain codec aliases to the canonical
 // base used to build hardware encoder names ("h264"/"hevc"/"av1"). Empty
 // codec defaults to h264 (matches resolveVideoEncoder's libx264 default).
@@ -911,8 +932,10 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 		)
 	}
 
-	args = append(args, "-c:v", resolveVideoEncoder(opts.VideoCodec),
-		"-profile:v", "high", "-level:v", "4.1",
+	enc := resolveVideoEncoder(opts.VideoCodec)
+	args = append(args, "-c:v", enc)
+	args = append(args, softwareProfileLevelArgs(enc, -1)...) // h264-only; x265/av1 pick their own
+	args = append(args,
 		// Capped CRF (see softwareCRF): quality-targeted with the rung bitrate as a
 		// hard ceiling, instead of a plain -b:v average.
 		"-crf", softwareCRF,
@@ -1012,7 +1035,9 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args,
 			"-map", fmt.Sprintf("[o%d]", i),
 			fmt.Sprintf("-c:v:%d", i), vcodec,
-			fmt.Sprintf("-profile:v:%d", i), "high", fmt.Sprintf("-level:v:%d", i), "4.1",
+		)
+		args = append(args, softwareProfileLevelArgs(vcodec, i)...) // h264-only; x265/av1 pick their own
+		args = append(args,
 			// Capped CRF per rung (see softwareCRF): quality-targeted, rung bitrate
 			// as the hard ceiling, instead of a plain -b:v average.
 			fmt.Sprintf("-crf:v:%d", i), softwareCRF,
