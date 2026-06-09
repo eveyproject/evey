@@ -270,13 +270,26 @@ func NewSoftwareProducer(
 //
 // Pure in its inputs (base, src, decision, capacity) so the ladder is identical
 // at manifest-time and segment-time — the cache-hash invariant.
-// SetCopyMode enables the paced video-COPY rung on this producer instance (the
-// Jellyfin-style remux: one paced -c:v copy session per live position, seek =
+// SetCopyMode enables the video-COPY rung on this producer instance (the
+// Jellyfin-style remux: one -c:v copy session per live position, seek =
 // restart). Call ONCE before first use — the wiring builds a DEDICATED copy
 // instance for the remux path, distinct from the transcode instance the selector
 // returns, so the two never share a manifest. nil planner = pure transcode.
 func (p *SoftwareProducer) SetCopyMode(planner *CopyPlanner) {
 	p.copyPlanner = planner
+}
+
+// copyReadRate returns the input-pacing rate for the session being started. The
+// transcode flow paces at opts.ReadRate (default 1.5x) to keep a CPU-bound
+// encoder near wall-clock; the copy flow runs UNPACED (0 → no -readrate) because
+// -c:v copy costs ~0% CPU and pacing it only starves the client buffer / slows
+// seeks (see the ReadRate note in startSession). Disk stays bounded by the LRU
+// cache + idle-cancel + idle-pause, independent of readrate.
+func (p *SoftwareProducer) copyReadRate() float64 {
+	if p.copyPlanner != nil {
+		return 0
+	}
+	return p.opts.ReadRate
 }
 
 // Manifest serves the copy rendition's keyframe-aligned VOD media playlist
@@ -480,10 +493,24 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		ToneMap:            fp.HDRTonemap,
 		AudioNormalize:     fp.AudioNormalize,
 		StartSec:           startSec,
+		// Absolute segment index this session starts at. For copy mode the
+		// builder uses THIS (not StartSec/segLen) as ffmpeg's -start_number,
+		// because keyframe-aligned copy segments are variable-length so the
+		// time→index map is non-linear; a forward seek to plan-segment K must
+		// emit stream_N_<K>.m4s, not stream_N_<floor(StartSec/segLen)>.m4s.
+		StartNumber:        startSeg,
 		// Input pacing: the defining software-flow knob. Keeps the single
 		// sequential encoder near wall-clock so it never races ahead of the
 		// viewer (no abort-and-probe client → no need to burst).
-		ReadRate:         p.opts.ReadRate,
+		//
+		// COPY MODE EXCEPTION: -c:v copy is ~0% CPU, so the pacing rationale (don't
+		// burn CPU ahead of the viewer) does not apply. Worse, pacing a copy at
+		// ~1.5x means the mux serves each segment at only ~1/1.5x real-time, so the
+		// client is pinned to the production frontier → endless rebuffering, and a
+		// forward seek crawls to its target keyframe. Run copy UNPACED (ReadRate 0
+		// → no -readrate); disk stays bounded by the LRU cache + idle-cancel +
+		// idle-pause (SIGSTOP once the client buffer is satisfied), not by readrate.
+		ReadRate:         p.copyReadRate(),
 		VideoCodec:       fp.VideoCodec,
 		AudioCodec:       fp.AudioCodec,
 		MaxAudioChannels: fp.MaxAudioChannels,

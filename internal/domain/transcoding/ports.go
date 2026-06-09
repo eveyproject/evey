@@ -112,6 +112,13 @@ type HLSProcessOpts struct {
 	HWTonemap      bool
 	AudioNormalize bool
 	StartSec       float64
+	// StartNumber is the absolute segment index this process starts producing at
+	// (ffmpeg -start_number). Only the COPY builder reads it: keyframe-aligned copy
+	// segments are variable-length, so the time→index map is non-linear and
+	// start_number cannot be derived from StartSec/segLen — a forward seek to
+	// plan-segment K must emit stream_N_<K>, not stream_N_<floor(StartSec/segLen)>.
+	// Transcode (uniform segments) ignores it and derives start_number from StartSec.
+	StartNumber int
 	// ReadRate paces ffmpeg's input to N× real-time (`-readrate N`, a pre-`-i`
 	// flag) so a single long-lived encoder stays close to wall-clock and doesn't
 	// burn CPU racing ahead of the viewer. 0 (default) = no pacing — byte-identical

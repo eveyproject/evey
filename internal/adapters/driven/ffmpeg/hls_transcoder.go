@@ -808,10 +808,20 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 // because segment N covers media seconds [N*L, (N+1)*L), so a StartSec of
 // 153 s with 3 s segments lands inside seg 51 — start_number must be 51.
 //
+// COPY MODE: segments are keyframe-aligned and VARIABLE length, so StartSec/L is
+// NOT the segment index (a seek to plan-segment K has StartSec = the keyframe
+// time of K, which floor()s to some other number). The caller passes the
+// authoritative absolute index in opts.StartNumber; honour it directly, or the
+// seek-spawned encoder writes stream_N_<wrong>.m4s and the player waits forever
+// on stream_N_<K>.m4s (the deep-seek "stuck on loading" bug).
+//
 // hlsSegmentSeconds is a const string ("3") rather than a float to stay in
 // sync with ffmpeg's -hls_time argument shape. Parsing once is cheap and
 // keeps the source of truth in one place.
 func startNumberFor(opts transcoding.HLSProcessOpts) int {
+	if opts.VideoDecision == "copy" {
+		return opts.StartNumber
+	}
 	if opts.StartSec <= 0 {
 		return 0
 	}
