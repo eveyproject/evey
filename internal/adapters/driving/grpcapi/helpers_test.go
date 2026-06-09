@@ -87,7 +87,6 @@ func TestSanitizeLogValue(t *testing.T) {
 		{"unicode_preserved", "élève_中文", "élève_中文"},
 	}
 	for _, c := range cases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			if got := sanitizeLogValue(c.in); got != c.want {
@@ -119,7 +118,6 @@ func TestClampLimitOffset(t *testing.T) {
 		{"positive offset unchanged", 10, 42, 50, 10, 42},
 	}
 	for _, c := range cases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			gotLimit, gotOffset := clampLimitOffset(c.limit, c.offset, c.defaultLimit)

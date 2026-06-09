@@ -143,7 +143,7 @@ func TestLoginAttemptRepo_WindowExpiredResetsCount(t *testing.T) {
 	ctx := context.Background()
 
 	// Build up attempts below the lock threshold.
-	for i := 0; i < testMaxFails-1; i++ {
+	for range testMaxFails - 1 {
 		require.NoError(t, repo.Record(ctx, "frank", testMaxFails, testWindow))
 	}
 
@@ -171,7 +171,7 @@ func TestLoginAttemptRepo_ExistingLockNotOverwritten(t *testing.T) {
 	repo := postgres.NewLoginAttemptRepository(db)
 	ctx := context.Background()
 
-	for i := 0; i < testMaxFails; i++ {
+	for range testMaxFails {
 		require.NoError(t, repo.Record(ctx, "grace", testMaxFails, testWindow))
 	}
 

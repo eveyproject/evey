@@ -69,10 +69,7 @@ func clampLimitOffset(limit, offset int32, defaultLimit int) (int, int) {
 	if l <= 0 || l > maxPageSize {
 		l = defaultLimit
 	}
-	o := int(offset)
-	if o < 0 {
-		o = 0
-	}
+	o := max(int(offset), 0)
 	return l, o
 }
 

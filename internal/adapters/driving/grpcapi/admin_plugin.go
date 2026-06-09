@@ -479,10 +479,7 @@ func (d *adminPluginHandler) GetPluginLogs(ctx context.Context, req *eveyv1.GetP
 	}
 
 	total := int32(len(all))
-	offset := int(req.Offset)
-	if offset < 0 {
-		offset = 0
-	}
+	offset := max(int(req.Offset), 0)
 	limit := int(req.Limit)
 	if offset >= len(all) {
 		return &eveyv1.GetPluginLogsResponse{Total: total}, nil
