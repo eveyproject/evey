@@ -246,6 +246,16 @@ func registerServerSettingsRoutes(
 					// is persisted in the main loop, so a browser refresh sees the
 					// change even before the bench lands.
 					go func() {
+						// Detached from the request goroutine → NOT under the HTTP
+						// panic middleware. Recover so a panic in the calibration /
+						// ffmpeg-probe parsing can't take down the whole server
+						// (matches the recover discipline of every other worker).
+						defer func() {
+							if r := recover(); r != nil {
+								slog.Error("settings: HW-mode re-bench goroutine panic recovered",
+									slog.Any("panic", r))
+							}
+						}()
 						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 						defer cancel()
 						if err := hwMode.SetHWMode(ctx, mode); err != nil {
