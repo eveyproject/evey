@@ -107,3 +107,11 @@ func (c *CopyPlanner) SegmentCount(ctx context.Context, mediaID string) int {
 	}
 	return len(segs)
 }
+
+// SegmentSeconds is the keyframe-segment target in seconds. The copy ffmpeg
+// session MUST run -hls_time at this value so its split points land on the same
+// keyframes the precalculated manifest (KeyframeSegments at the same target)
+// addresses — otherwise the produced segments drift from the #EXTINF indices.
+func (c *CopyPlanner) SegmentSeconds() float64 {
+	return float64(c.targetMs) / 1000.0
+}

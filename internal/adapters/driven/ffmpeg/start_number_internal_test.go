@@ -72,3 +72,27 @@ func TestBuildCopyVideoArgs_CopyOnSeek(t *testing.T) {
 		t.Fatalf("cold copy start must -c:v copy, got: %s", c)
 	}
 }
+
+// The copy rung MUST run -hls_time at the plan's keyframe target (SegmentSeconds),
+// not the default "3": with -c:v copy ffmpeg splits at the first keyframe >=
+// hls_time, so hls_time must match the manifest's KeyframeSegments target or the
+// produced segments drift from the #EXTINF indices the player addresses.
+func TestHLSTimeFor_CopyMatchesPlanTarget(t *testing.T) {
+	transcode := transcoding.HLSProcessOpts{} // SegmentSeconds 0
+	if got := hlsTimeFor(transcode); got != hlsSegmentSeconds {
+		t.Fatalf("transcode -hls_time = %q, want default %q", got, hlsSegmentSeconds)
+	}
+	if got := hlsTimeFor(transcoding.HLSProcessOpts{SegmentSeconds: 6}); got != "6" {
+		t.Fatalf("copy -hls_time = %q, want \"6\"", got)
+	}
+
+	copyArgs := joined(buildCopyVideoArgs(transcoding.HLSProcessOpts{
+		FilePath: "/m.mkv", VideoDecision: "copy", SegmentSeconds: 6,
+	}))
+	if !strings.Contains(copyArgs, " -hls_time 6 ") {
+		t.Fatalf("copy rung must emit -hls_time 6, got: %s", copyArgs)
+	}
+	if strings.Contains(copyArgs, " -hls_time 3 ") {
+		t.Fatalf("copy rung must NOT use the default -hls_time 3, got: %s", copyArgs)
+	}
+}

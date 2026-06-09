@@ -456,6 +456,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// segments: segment N seeks to its keyframe start, not N×SegmentSeconds.
 	videoDecision := "transcode"
 	startSec := float64(startSeg) * p.opts.SegmentSeconds
+	copySegmentSeconds := 0.0 // 0 → ffmpeg uses the default -hls_time; transcode path
 	if p.copyPlanner != nil {
 		segs, planErr := p.copyPlanner.Plan(ctx, fp.MediaID)
 		if planErr != nil {
@@ -466,6 +467,9 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		}
 		videoDecision = "copy"
 		startSec = float64(segs[startSeg].StartMs) / 1000.0
+		// ffmpeg's -hls_time MUST equal the plan's keyframe target, or -c:v copy
+		// splits at different keyframes than the manifest the player addresses.
+		copySegmentSeconds = p.copyPlanner.SegmentSeconds()
 	}
 
 	srcPath, _, err := p.source.ResolveSource(ctx, fp)
@@ -498,11 +502,12 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		// because keyframe-aligned copy segments are variable-length so the
 		// time→index map is non-linear; a forward seek to plan-segment K must
 		// emit stream_N_<K>.m4s, not stream_N_<floor(StartSec/segLen)>.m4s.
-		StartNumber:        startSeg,
+		StartNumber: startSeg,
 		// Copy rung copies on seek too (plan StartSec is a keyframe boundary), so
 		// a mid-stream session keeps the SOURCE avcC instead of emitting a libx264
 		// init that would poison the shared init. No-op when not in copy mode.
-		CopyOnSeek:         p.copyPlanner != nil,
+		CopyOnSeek:     p.copyPlanner != nil,
+		SegmentSeconds: copySegmentSeconds,
 		// Input pacing: the defining software-flow knob. Keeps the single
 		// sequential encoder near wall-clock so it never races ahead of the
 		// viewer (no abort-and-probe client → no need to burst).

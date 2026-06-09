@@ -675,10 +675,20 @@ func appendInputModifiers(args []string, readRate float64) []string {
 // `-ss`, callers must compute startNumber = floor(StartSec/hlsSegmentSeconds)
 // so the produced filenames match the absolute manifest indices the VOD
 // pipeline cache addresses by. Pass 0 for legacy / non-rafale callers.
-func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, startNumber, variantIdx int) []string {
+// hlsTimeFor returns the -hls_time value: opts.SegmentSeconds when set (the copy
+// rung passes its keyframe target so ffmpeg's split lands on the SAME keyframes
+// the precalculated manifest addresses), else the default hlsSegmentSeconds.
+func hlsTimeFor(opts transcoding.HLSProcessOpts) string {
+	if opts.SegmentSeconds > 0 {
+		return strconv.FormatFloat(opts.SegmentSeconds, 'f', -1, 64)
+	}
+	return hlsSegmentSeconds
+}
+
+func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, hlsTime string, startNumber, variantIdx int) []string {
 	args = append(args,
 		"-f", "hls",
-		"-hls_time", hlsSegmentSeconds,
+		"-hls_time", hlsTime,
 		"-hls_list_size", "0",
 		"-hls_playlist_type", "event",
 		"-hls_flags", "temp_file",
@@ -816,7 +826,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		}
 	}
 
-	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams), startNumberFor(opts), opts.VariantIndex)
+	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams), hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
 }
 
 // startNumberFor maps StartSec onto the segment counter so produced filenames
@@ -914,7 +924,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, hlsForceKeyframesArgs...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 
-	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, startNumberFor(opts), opts.VariantIndex)
+	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
 }
 
 func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
@@ -1307,7 +1317,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, hlsForceKeyframesArgs...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 
-	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, startNumberFor(opts), opts.VariantIndex)
+	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
 }
 
 // buildMultiVariantHWArgs is the GPU equivalent of buildMultiVariantArgs: a
