@@ -286,7 +286,12 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 		sortIdx++
 	}
 	if err := e.mediaPersons.CreateBatch(ctx, batch); err != nil {
-		slog.Warn("batch create media persons failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
+		// Abort like the artwork/item-update siblings instead of warn-and-continue:
+		// findOrCreatePerson already committed the person rows above, so dropping
+		// this batch silently leaves orphan persons with no cast/crew links AND
+		// reports the per-item "Refresh metadata" command as a success. Surface it
+		// so the caller can retry (the writes are idempotent on re-run).
+		return fmt.Errorf("upsertPeople: create media_person batch: %w", err)
 	}
 	return nil
 }

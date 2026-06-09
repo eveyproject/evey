@@ -382,6 +382,41 @@ func TestEnrichItem_UpdateError(t *testing.T) {
 	assert.ErrorContains(t, err, "update media item")
 }
 
+// createBatchFailMP fails ONLY the cast/crew link CreateBatch (Delete + preload
+// still succeed), to isolate the previously-swallowed media_person batch error.
+type createBatchFailMP struct {
+	*libfakes.FakeMediaPersonRepository
+}
+
+func (r *createBatchFailMP) CreateBatch(_ context.Context, _ []*domainlib.MediaPerson) error {
+	return errors.New("db down on batch")
+}
+
+func TestEnrichItem_PersonLinkBatchError_Propagates(t *testing.T) {
+	// Regression: a failed cast/crew link write was warn-and-continue, so a
+	// per-item "Refresh metadata" reported success while persisting no links.
+	// It must now surface as an error (mirroring the artwork/item-update siblings).
+	primary := &fakeProvider{name: "tmdb"}
+	mp := &createBatchFailMP{FakeMediaPersonRepository: libfakes.NewFakeMediaPersonRepository()}
+	miRepo := libfakes.NewFakeMediaItemRepository()
+	e := NewEnricher(
+		metafakes.NewFakeArtworkRepository(),
+		libfakes.NewFakePersonRepository(),
+		mp,
+		miRepo,
+		libfakes.NewFakeSearchIndex(),
+		primary, nil, nil,
+	)
+	item := &domainlib.MediaItem{ID: "item-1"}
+	miRepo.Create(context.Background(), item)
+	result := &domain.MetadataResult{
+		Title:  "X",
+		People: []domain.PersonResult{{Name: "Actor A", Role: "Actor"}},
+	}
+	err := e.EnrichItem(context.Background(), item, result)
+	assert.ErrorContains(t, err, "media_person batch")
+}
+
 func TestEnrichItem_EmptyArtwork(t *testing.T) {
 	primary := &fakeProvider{name: "tmdb"}
 	e, artRepo, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
