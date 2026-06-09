@@ -146,7 +146,17 @@ func (s *CommandService) classifyProgress(ctx context.Context, mediaItemID strin
 	if durMs <= 0 {
 		return progressDecision{}
 	}
+	// positionMs is client-controlled and reaches here unvalidated (only > 0 is
+	// guaranteed above). A position at or beyond the real, server-side duration
+	// is trivially complete — short-circuit it. This also prevents the
+	// positionMs*Denominator multiply below from overflowing int64 on a forged
+	// out-of-range positionMs: only an absurd value (≫ any real durMs) could
+	// overflow, and such a value is necessarily >= durMs, so it's caught here.
+	if positionMs >= durMs {
+		return progressDecision{completed: true}
+	}
 	// Integer threshold check: positionMs / durMs >= 9/10  ⇔  positionMs*10 >= durMs*9
+	// Safe from overflow now: positionMs < durMs (a real, bounded duration).
 	completed := positionMs*int64(CompletedThresholdDenominator) >= durMs*int64(CompletedThresholdNumerator)
 	return progressDecision{
 		completed:   completed,

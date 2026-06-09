@@ -3,6 +3,7 @@ package playback_test
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -429,6 +430,23 @@ func TestReportProgressBySession_GetterError_DegradesGracefully(t *testing.T) {
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.False(t, wp.Completed)
+}
+
+func TestReportProgressBySession_OverflowPosition_CompletesNotGarbage(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, ur, pfr := setupCmdWithDurations(map[string]int64{"m1": longTestDurationMs})
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+
+	// A forged position that overflows positionMs*Denominator (int64). It is far
+	// beyond the duration, so the completion check must short-circuit to true
+	// instead of computing a garbage result from the wrapped multiply.
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", math.MaxInt64/5, false))
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, wp.Completed, "a position past the end must complete, not overflow to garbage")
 }
 
 func TestReportProgress_AutoCompletesAt90Percent(t *testing.T) {
