@@ -124,6 +124,40 @@ func TestUserRepo_CountAdmins(t *testing.T) {
 	assert.GreaterOrEqual(t, count, 1)
 }
 
+func TestUserRepo_CountEnabledAdmins(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewUserRepository(db)
+	ctx := context.Background()
+
+	// 1 enabled admin
+	enabledAdmin := newTestUser("cea-u1")
+	enabledAdmin.IsAdmin = true
+	enabledAdmin.Enabled = true
+	require.NoError(t, repo.Create(ctx, enabledAdmin))
+
+	// 1 disabled admin
+	disabledAdmin := newTestUser("cea-u2")
+	disabledAdmin.IsAdmin = true
+	disabledAdmin.Enabled = false
+	require.NoError(t, repo.Create(ctx, disabledAdmin))
+
+	// 1 non-admin
+	nonAdmin := newTestUser("cea-u3")
+	nonAdmin.IsAdmin = false
+	nonAdmin.Enabled = true
+	require.NoError(t, repo.Create(ctx, nonAdmin))
+
+	enabledCount, err := repo.CountEnabledAdmins(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, enabledCount, "CountEnabledAdmins must count only is_admin=TRUE AND enabled=TRUE")
+
+	totalCount, err := repo.CountAdmins(ctx)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, totalCount, 2, "CountAdmins must include disabled admins")
+}
+
 func TestUserRepo_GetByOIDCSubject(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

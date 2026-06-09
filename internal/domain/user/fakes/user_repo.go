@@ -159,3 +159,21 @@ func (r *FakeUserRepository) CountAdmins(_ context.Context) (int, error) {
 	}
 	return count, nil
 }
+
+func (r *FakeUserRepository) CountEnabledAdmins(_ context.Context) (int, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	count := 0
+	for _, u := range r.items {
+		if u.IsAdmin && u.Enabled {
+			count++
+		}
+	}
+	return count, nil
+}

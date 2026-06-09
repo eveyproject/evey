@@ -194,7 +194,7 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 		return fmt.Errorf("UserService.DeleteUser: %w", err)
 	}
 	if u.IsAdmin {
-		count, err := s.users.CountAdmins(ctx)
+		count, err := s.users.CountEnabledAdmins(ctx)
 		if err != nil {
 			return fmt.Errorf("count admins: %w", err)
 		}
@@ -223,7 +223,7 @@ func (s *UserService) DisableUser(ctx context.Context, userID string) error {
 		return fmt.Errorf("UserService.DisableUser: %w", err)
 	}
 	if u.IsAdmin {
-		count, err := s.users.CountAdmins(ctx)
+		count, err := s.users.CountEnabledAdmins(ctx)
 		if err != nil {
 			return fmt.Errorf("count admins: %w", err)
 		}

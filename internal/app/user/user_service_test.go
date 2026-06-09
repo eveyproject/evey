@@ -1072,3 +1072,60 @@ func TestCreateProfile_NonAdminCanBeKids(t *testing.T) {
 		t.Fatalf("unexpected: %v", err)
 	}
 }
+
+// --- Last ENABLED admin guard (regression: disabled admin must not count) ---
+
+// DeleteUser: 1 enabled admin + 1 disabled admin → delete the enabled one → ErrLastAdmin.
+// Before the fix, CountAdmins returned 2 so the guard did not fire.
+func TestDeleteUser_LastEnabledAdmin_WithDisabledAdmin(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u-active", "active-admin", "pw", true, true)
+	seedUserSvcUser(t, d, "u-disabled", "disabled-admin", "pw", true, false)
+
+	err := d.svc.DeleteUser(ctx, "u-active")
+	if !errors.Is(err, ErrLastAdmin) {
+		t.Fatalf("expected ErrLastAdmin: disabled admin must not satisfy the guard, got %v", err)
+	}
+}
+
+// DisableUser: 1 enabled admin + 1 disabled admin → disable the enabled one → ErrLastAdmin.
+func TestDisableUser_LastEnabledAdmin_WithDisabledAdmin(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u-active", "active-admin", "pw", true, true)
+	seedUserSvcUser(t, d, "u-disabled", "disabled-admin", "pw", true, false)
+
+	err := d.svc.DisableUser(ctx, "u-active")
+	if !errors.Is(err, ErrLastAdmin) {
+		t.Fatalf("expected ErrLastAdmin: disabled admin must not satisfy the guard, got %v", err)
+	}
+}
+
+// DeleteUser: 2 enabled admins + 1 disabled admin → delete one enabled → allowed.
+func TestDeleteUser_TwoEnabledAdmins_WithDisabledAdmin(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u-a1", "admin1", "pw", true, true)
+	seedUserSvcUser(t, d, "u-a2", "admin2", "pw", true, true)
+	seedUserSvcUser(t, d, "u-disabled", "disabled-admin", "pw", true, false)
+
+	err := d.svc.DeleteUser(ctx, "u-a1")
+	if err != nil {
+		t.Fatalf("2 enabled admins: delete must be allowed, got %v", err)
+	}
+}
+
+// DisableUser: 2 enabled admins + 1 disabled admin → disable one enabled → allowed.
+func TestDisableUser_TwoEnabledAdmins_WithDisabledAdmin(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u-a1", "admin1", "pw", true, true)
+	seedUserSvcUser(t, d, "u-a2", "admin2", "pw", true, true)
+	seedUserSvcUser(t, d, "u-disabled", "disabled-admin", "pw", true, false)
+
+	err := d.svc.DisableUser(ctx, "u-a1")
+	if err != nil {
+		t.Fatalf("2 enabled admins: disable must be allowed, got %v", err)
+	}
+}

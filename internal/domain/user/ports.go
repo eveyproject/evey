@@ -23,6 +23,7 @@ type UserRepository interface {
 	Update(ctx context.Context, u *User) error
 	Delete(ctx context.Context, id shared.UserID) error
 	CountAdmins(ctx context.Context) (int, error)
+	CountEnabledAdmins(ctx context.Context) (int, error)
 }
 
 type ProfileRepository interface {

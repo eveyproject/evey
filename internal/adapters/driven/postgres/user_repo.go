@@ -204,6 +204,21 @@ func (r *UserRepository) CountAdmins(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+func (r *UserRepository) CountEnabledAdmins(ctx context.Context) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.CountEnabledAdmins")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var count int
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE is_admin = TRUE AND enabled = TRUE`).Scan(&count)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, fmt.Errorf("count enabled admins: %w", err)
+	}
+	return count, nil
+}
+
 func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 	u := &user.User{}
 	err := row.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.Enabled,
