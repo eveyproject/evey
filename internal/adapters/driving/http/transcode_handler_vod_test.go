@@ -220,6 +220,26 @@ func TestHLSVOD_Segment_OutOfRange_404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code, "out-of-range segment must 404, not spawn+503")
 }
 
+// A forged variant index (past the rung count) is rejected with 404 before
+// EnsureSegmentRange, so the HW orchestrator never spawns a rafale that would
+// write stream_99_* (a wasted session + full WaitBudget for the client).
+func TestHLSVOD_Segment_VariantOutOfRange_404(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	h.segmentWaitTimeout = 50 * time.Millisecond
+	w := doVODRequest(h, "m1", "stream_99_000.ts") // variant 99 >> rung count
+	assert.Equal(t, http.StatusNotFound, w.Code, "out-of-range variant must 404, not spawn+503")
+}
+
 func TestHLSVOD_Routing_InitSegment(t *testing.T) {
 	dur, _ := shared.NewDurationMs(60_000)
 	item := &domainlibrary.MediaItem{

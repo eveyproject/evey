@@ -1111,13 +1111,18 @@ func (o *SegmentOrchestrator) evaluateThrottle() {
 		paused := s.paused
 		handle := s.handle
 		useFMP4 := s.useFMP4
+		variantIdx := s.variantIdx
 		s.mu.Unlock()
 
 		if handle == nil {
 			continue
 		}
 
-		idxs, err := o.cache.ListReady(hash, 0, useFMP4)
+		// Track this session's own rung: in SingleVariant mode a rung>0 session
+		// writes stream_<variantIdx>_*, so listing variant 0 would always find
+		// nothing and never throttle it (CPU/disk waste). In the default
+		// multi-variant mode stream_0 tracks the shared session, so variantIdx==0.
+		idxs, err := o.cache.ListReady(hash, variantIdx, useFMP4)
 		if err != nil || len(idxs) == 0 {
 			continue
 		}

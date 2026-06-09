@@ -430,6 +430,16 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		return
 	}
 
+	// Bound variantIdx against the actual rung count: a forged stream_99_000.m4s
+	// would otherwise reach EnsureSegmentRange. The software producer range-checks
+	// it, but the HW orchestrator spawns a rafale that never writes stream_99_* →
+	// the client eats a full WaitBudget (~25s) + one wasted session before 503.
+	if variantIdx < 0 || variantIdx >= len(fp.Profiles) {
+		span.SetStatus(codes.Error, "variant idx out of range")
+		http.Error(w, `{"message":"variant index out of range"}`, http.StatusNotFound)
+		return
+	}
+
 	// Ensure ffmpeg is producing the right rafale. Async — we then block on
 	// SegmentCache.Wait below for the specific file. Init segments piggyback
 	// on the first rafale (they are produced alongside segment 0 by fMP4 hls
@@ -526,7 +536,20 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 // preferences (AudioLanguages → Locale → server language → IsDefault → 0).
 func (h *hlsVODServe) resolveAudioTrack(r *http.Request, streams []*domainlibrary.MediaStream) int {
 	if r.URL.Query().Has("audioTrack") {
-		return parseIntQuery(r, "audioTrack", 0)
+		t := parseIntQuery(r, "audioTrack", 0)
+		// Honour the explicit choice, but bound it against the real audio-stream
+		// count: an out-of-range ?audioTrack=99 would otherwise become `-map 0:a:99`
+		// and fail the whole ffmpeg session per request. Out-of-range falls through
+		// to the language-based default (a valid index).
+		nAudio := 0
+		for _, s := range streams {
+			if s.StreamType == domainlibrary.Audio {
+				nAudio++
+			}
+		}
+		if t >= 0 && t < nAudio {
+			return t
+		}
 	}
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := loadProfilePrefs(r.Context(), h.profilePrefs, claims.ProfileID)
