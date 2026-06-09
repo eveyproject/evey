@@ -385,6 +385,24 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		segmentIdx, _ = strconv.Atoi(m[2])
 	}
 
+	// Bound segmentIdx against the media duration so a forged stream_N_99999.m4s
+	// can't spawn an `ffmpeg -ss <past-the-end>` (fast exit, but 25-60s of
+	// cache.Wait + session-slot churn per request). Copy mode already rejects via
+	// the plan's len(segs); this guards the transcode path. The transcode grid
+	// (ManifestSegmentSeconds) is the SMALLEST segment, so ceil(dur/grid)+1 is a
+	// safe upper bound for copy too (its segments are >= 6s → fewer of them).
+	if !isInit && item.File != nil {
+		if durMs := item.File.Duration.Milliseconds(); durMs > 0 {
+			const segMs = int64(apptranscoding.ManifestSegmentSeconds * 1000)
+			maxSeg := int((durMs+segMs-1)/segMs) + 1
+			if segmentIdx > maxSeg {
+				span.SetStatus(codes.Error, "segment index past media end")
+				http.Error(w, `{"message":"segment index out of range"}`, http.StatusNotFound)
+				return
+			}
+		}
+	}
+
 	// Resolve the producer for this request (software vs hardware) ONCE so the
 	// EnsureSegmentRange calls, the client-hint, and the wait budget all target
 	// the same machine — and the same one the ladder was shaped for. Falls back

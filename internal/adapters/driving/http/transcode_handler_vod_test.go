@@ -122,7 +122,7 @@ func buildVODHandler(t *testing.T, libSvc MediaStreamsGetter, libAccess LibraryA
 		parental:             parental,
 		profilePrefs:         nil,
 		audioNormalizeGetter: nil,
-		userMaxStreams:        nil,
+		userMaxStreams:       nil,
 		manifestGen:          apptranscoding.NewManifestGenerator(),
 		cache:                cache,
 		orchestrator:         orch,
@@ -193,9 +193,31 @@ func TestHLSVOD_Routing_SegmentTS_CacheMissSpawnsOrchestrator(t *testing.T) {
 		testFakeParentalChecker{},
 	)
 	h.segmentWaitTimeout = 50 * time.Millisecond // keep test fast
-	w := doVODRequest(h, "m1", "stream_0_042.ts")
-	// seg=42, isInit=false — reaches serveSegment, EnsureSegmentRange, then Wait
+	// seg=5 is in range for a 60s/20-segment media (a deep out-of-range index is
+	// 404'd by the duration clamp before any spawn — see the OutOfRange test).
+	w := doVODRequest(h, "m1", "stream_0_005.ts")
+	// seg=5, isInit=false — reaches serveSegment, EnsureSegmentRange, then Wait
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code, "cache miss should 503 after timeout")
+}
+
+// A forged deep segment index (past the media duration) is rejected with 404
+// BEFORE EnsureSegmentRange spawns an ffmpeg -ss far past the end — the duration
+// clamp that guards the transcode path (copy already bounds via the plan).
+func TestHLSVOD_Segment_OutOfRange_404(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000) // 60s → ~20 segments
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	h.segmentWaitTimeout = 50 * time.Millisecond
+	w := doVODRequest(h, "m1", "stream_0_999.ts") // 999*3 = 2997s >> 60s
+	assert.Equal(t, http.StatusNotFound, w.Code, "out-of-range segment must 404, not spawn+503")
 }
 
 func TestHLSVOD_Routing_InitSegment(t *testing.T) {
@@ -471,6 +493,7 @@ func TestHLSVOD_Segment_WaitTimeout_503(t *testing.T) {
 //  2. CapLadderToSource is a no-op since the fixture has no video stream
 //  3. CapLadderToHeight to 720p (the safe fallback when no
 //     CalibrationService is wired — matches the handler's default)
+//
 // If a test wires CapabilityService with a different cap, that test
 // should build its own profile slice — this helper is the
 // uncalibrated/default-path mirror.
