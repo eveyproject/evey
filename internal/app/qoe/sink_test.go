@@ -127,3 +127,31 @@ func TestBufferedSink_StorageErrorDoesNotKillWorker(t *testing.T) {
 	// calls still don't block.
 	sink.Record(Event{MediaItemID: "y"})
 }
+
+func TestBufferedSink_RecordDuringClose_NoSendOnClosedPanic(t *testing.T) {
+	// Regression: Record's lock-free closed.Load() check and Close's close(ch)
+	// raced — a Record that passed the check, then resumed its send after
+	// close(ch) ran, panicked "send on closed channel" (in the HTTP goroutine,
+	// where the worker's recover() does NOT catch it). sendMu now serializes
+	// the send against the close. A panic in a Record goroutine crashes the
+	// test binary, so completing all iterations == the window is closed.
+	// Repeat with many concurrent senders to make the interleaving likely.
+	for range 50 {
+		sink := NewBufferedSink(&captureStorage{}, SinkOptions{BufferSize: 4}, nil)
+
+		const senders = 16
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		for range senders {
+			wg.Go(func() {
+				<-start
+				for i := range 200 {
+					sink.Record(Event{MediaItemID: "m", SegmentIdx: i})
+				}
+			})
+		}
+		close(start) // unleash senders, then close while sends are in flight
+		require.NoError(t, sink.Close(context.Background()))
+		wg.Wait()
+	}
+}

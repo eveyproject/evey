@@ -68,10 +68,18 @@ func (nopCounter) Inc() {}
 // BufferedSink is the production sink: one worker goroutine drains a channel
 // into Storage. Channel-full causes drops, never backpressure.
 type BufferedSink struct {
-	storage  Storage
-	ch       chan Event
-	dropMtr  DropCounter
-	logger   *slog.Logger
+	storage Storage
+	ch      chan Event
+	dropMtr DropCounter
+	logger  *slog.Logger
+	// sendMu serializes the send on ch against Close's close(ch): Record holds
+	// it RLocked across the (re-checked) send, Close takes it Locked before
+	// close(ch). While any Record holds the RLock the channel cannot be closed,
+	// so a send can never race the close — no "send on closed channel" panic on
+	// shutdown while telemetry is still arriving. closed stays an atomic for the
+	// lock-free fast-path return; the RLock is uncontended between concurrent
+	// Records (readers) so the hot path stays non-blocking.
+	sendMu   sync.RWMutex
 	closed   atomic.Bool
 	workerWG sync.WaitGroup
 }
@@ -113,6 +121,13 @@ func (s *BufferedSink) Record(evt Event) {
 	if s.closed.Load() {
 		return
 	}
+	s.sendMu.RLock()
+	defer s.sendMu.RUnlock()
+	if s.closed.Load() {
+		// Close ran between the lock-free fast-path check and acquiring the
+		// RLock — the channel is closed (or about to be); drop, don't send.
+		return
+	}
 	select {
 	case s.ch <- evt:
 	default:
@@ -130,7 +145,12 @@ func (s *BufferedSink) Close(ctx context.Context) error {
 	if !s.closed.CompareAndSwap(false, true) {
 		return nil
 	}
+	// Take the write lock so any in-flight Record send completes before we
+	// close — closed is already true, so no new send will start past the
+	// re-check. This is what makes close(ch) safe against concurrent Record.
+	s.sendMu.Lock()
 	close(s.ch)
+	s.sendMu.Unlock()
 	done := make(chan struct{})
 	go func() {
 		s.workerWG.Wait()
