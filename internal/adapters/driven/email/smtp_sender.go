@@ -7,7 +7,15 @@ import (
 	"net"
 	"net/smtp"
 	"strings"
+	"time"
 )
+
+// smtpDefaultTimeout bounds the ENTIRE SMTP conversation (connect through DATA).
+// Email bodies here are tiny (notification/reset text), so a single absolute
+// deadline is ample — and it stops a hung or slow SMTP server from blocking an
+// event-bus worker (NotificationEmailer runs on the shared pool) or the
+// password-reset HTTP handler forever.
+const smtpDefaultTimeout = 30 * time.Second
 
 // Sender is the port for sending emails.
 type Sender interface {
@@ -22,6 +30,7 @@ type SMTPSender struct {
 	password string
 	from     string
 	tlsMode  string // "none", "starttls", "ssl"
+	timeout  time.Duration
 }
 
 func NewSMTPSender(host string, port int, username, password, from, tlsMode string) *SMTPSender {
@@ -32,6 +41,7 @@ func NewSMTPSender(host string, port int, username, password, from, tlsMode stri
 		password: password,
 		from:     from,
 		tlsMode:  tlsMode,
+		timeout:  smtpDefaultTimeout,
 	}
 }
 
@@ -52,7 +62,7 @@ func (s *SMTPSender) Send(to []string, subject, body string) error {
 	case "ssl":
 		return s.sendSSL(addr, auth, to, msg)
 	case "starttls":
-		return smtp.SendMail(addr, auth, s.from, to, msg)
+		return s.sendStartTLS(addr, auth, to, msg)
 	default: // "none"
 		return s.sendPlain(addr, auth, to, msg)
 	}
@@ -60,9 +70,12 @@ func (s *SMTPSender) Send(to []string, subject, body string) error {
 
 func (s *SMTPSender) sendSSL(addr string, auth smtp.Auth, to []string, msg []byte) error {
 	tlsCfg := &tls.Config{ServerName: s.host}
-	conn, err := tls.Dial("tcp", addr, tlsCfg)
+	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: s.timeout}, "tcp", addr, tlsCfg)
 	if err != nil {
 		return fmt.Errorf("smtp ssl dial: %w", err)
+	}
+	if err = armDeadline(conn, s.timeout); err != nil {
+		return fmt.Errorf("smtp ssl deadline: %w", err)
 	}
 	c, err := smtp.NewClient(conn, s.host)
 	if err != nil {
@@ -82,9 +95,12 @@ func (s *SMTPSender) sendSSL(addr string, auth smtp.Auth, to []string, msg []byt
 }
 
 func (s *SMTPSender) sendPlain(addr string, auth smtp.Auth, to []string, msg []byte) error {
-	conn, err := net.Dial("tcp", addr)
+	conn, err := net.DialTimeout("tcp", addr, s.timeout)
 	if err != nil {
 		return fmt.Errorf("smtp plain dial: %w", err)
+	}
+	if err = armDeadline(conn, s.timeout); err != nil {
+		return fmt.Errorf("smtp plain deadline: %w", err)
 	}
 	c, err := smtp.NewClient(conn, s.host)
 	if err != nil {
@@ -98,6 +114,40 @@ func (s *SMTPSender) sendPlain(addr string, auth smtp.Auth, to []string, msg []b
 	if auth != nil {
 		if err := c.Auth(auth); err != nil {
 			return fmt.Errorf("smtp plain auth: %w", err)
+		}
+	}
+	return sendViaClient(c, s.from, to, msg)
+}
+
+// sendStartTLS replaces smtp.SendMail (which gives no control over dial/deadline)
+// with a manual dial+deadline path: connect with a timeout, bound the whole
+// conversation with an absolute deadline, then STARTTLS (if advertised), auth,
+// and send. Mirrors smtp.SendMail's STARTTLS-when-supported behaviour.
+func (s *SMTPSender) sendStartTLS(addr string, auth smtp.Auth, to []string, msg []byte) error {
+	conn, err := net.DialTimeout("tcp", addr, s.timeout)
+	if err != nil {
+		return fmt.Errorf("smtp starttls dial: %w", err)
+	}
+	if err = armDeadline(conn, s.timeout); err != nil {
+		return fmt.Errorf("smtp starttls deadline: %w", err)
+	}
+	c, err := smtp.NewClient(conn, s.host)
+	if err != nil {
+		return fmt.Errorf("smtp starttls client: %w", err)
+	}
+	defer func() {
+		if err := c.Close(); err != nil {
+			slog.Warn("smtp starttls close", slog.Any("err", err))
+		}
+	}()
+	if ok, _ := c.Extension("STARTTLS"); ok {
+		if err := c.StartTLS(&tls.Config{ServerName: s.host}); err != nil {
+			return fmt.Errorf("smtp starttls: %w", err)
+		}
+	}
+	if auth != nil {
+		if err := c.Auth(auth); err != nil {
+			return fmt.Errorf("smtp starttls auth: %w", err)
 		}
 	}
 	return sendViaClient(c, s.from, to, msg)
@@ -120,6 +170,20 @@ func sendViaClient(c *smtp.Client, from string, to []string, msg []byte) error {
 		return fmt.Errorf("smtp write: %w", err)
 	}
 	return w.Close()
+}
+
+// armDeadline sets an absolute deadline covering the whole SMTP conversation on
+// a freshly dialed conn. If that fails (a dead conn) it closes the conn so we
+// don't leak it. Set BEFORE smtp.NewClient, whose greeting read is the first
+// thing that would otherwise block forever on a silent server.
+func armDeadline(conn net.Conn, timeout time.Duration) error {
+	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
+		if cerr := conn.Close(); cerr != nil {
+			slog.Warn("smtp close after deadline error", slog.Any("err", cerr))
+		}
+		return err
+	}
+	return nil
 }
 
 func buildMessage(from string, to []string, subject, body string) []byte {

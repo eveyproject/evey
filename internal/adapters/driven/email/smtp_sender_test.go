@@ -3,6 +3,8 @@ package email
 import (
 	"context"
 	"errors"
+	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -311,5 +313,46 @@ func TestNotificationEmailer_ProfileNotFound_NoSend(t *testing.T) {
 
 	if len(sender.sent) != 0 {
 		t.Fatalf("expected 0 emails, got %d", len(sender.sent))
+	}
+}
+
+func TestSMTPSend_HungServer_TimesOut(t *testing.T) {
+	// A server that accepts the TCP connection but never sends the SMTP
+	// greeting. Without a deadline, smtp.NewClient's greeting read blocks
+	// forever — and on the real path that stalls an event-bus worker (or the
+	// password-reset HTTP handler) indefinitely. The per-conversation deadline
+	// must turn that into a prompt error instead.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer func() { _ = ln.Close() }()
+
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		conn, aerr := ln.Accept()
+		if aerr != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		<-stop // hold the connection open, stay silent
+	}()
+
+	host, portStr, _ := net.SplitHostPort(ln.Addr().String())
+	port, _ := strconv.Atoi(portStr)
+	s := NewSMTPSender(host, port, "", "", "from@test.com", "none")
+	s.timeout = 300 * time.Millisecond
+
+	done := make(chan error, 1)
+	go func() { done <- s.Send([]string{"to@test.com"}, "subj", "body") }()
+
+	select {
+	case sendErr := <-done:
+		if sendErr == nil {
+			t.Fatal("expected a timeout error against a silent server, got nil")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Send did not return within 5s — the SMTP conversation deadline is not enforced")
 	}
 }
