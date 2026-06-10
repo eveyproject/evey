@@ -39,6 +39,13 @@ import { useDLNA } from "@/hooks/useDLNA";
 
 export type { AudioStream, SubtitleStream, EpisodeNavItem, SeasonNavItem };
 
+// How long playback must be CONTINUOUSLY stalled before the buffering overlay
+// appears. Micro-stalls (segment boundaries, fast seeks, rendition switches)
+// resolve well under this and must not flash a spinner over a playing video;
+// genuine stalls (cold transcode start on a weak host, network loss) exceed it
+// and still get user feedback.
+const BUFFERING_SPINNER_DELAY_MS = 1500;
+
 interface HLSPlayerProps {
   streamInfo: V1StreamInfo;
   sessionId: string;
@@ -291,6 +298,32 @@ export function HLSPlayer({
   }
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
+  // Debounced gate in front of setIsBuffering: the raw `waiting` event fires on
+  // every micro-stall (segment boundary, fast seek, ABR switch) and flashing
+  // the spinner over a video that resumes within a second reads as "the app is
+  // struggling" when nothing is wrong. Only surface the overlay when buffering
+  // PERSISTS past the threshold; hide immediately on `playing`. Stable identity
+  // (useCallback []) is required: both playback hooks exclude the setter from
+  // their effect deps on that assumption.
+  const bufferingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setIsBufferingDebounced = useCallback((v: boolean) => {
+    if (v) {
+      if (bufferingTimerRef.current !== null) return; // already counting down
+      bufferingTimerRef.current = setTimeout(() => {
+        bufferingTimerRef.current = null;
+        setIsBuffering(true);
+      }, BUFFERING_SPINNER_DELAY_MS);
+      return;
+    }
+    if (bufferingTimerRef.current !== null) {
+      clearTimeout(bufferingTimerRef.current);
+      bufferingTimerRef.current = null;
+    }
+    setIsBuffering(false);
+  }, []);
+  useEffect(() => () => {
+    if (bufferingTimerRef.current !== null) clearTimeout(bufferingTimerRef.current);
+  }, []);
   const [fatalError, setFatalError] = useState(false);
   const wasPausedRef = useRef(false);
   const playbackSpeedRef = useRef(playbackSpeed);
@@ -327,7 +360,7 @@ export function HLSPlayer({
   useDirectPlayback({
     videoRef, hlsRef, positionRef, streamInfo, startPositionMs,
     transcodeMode, isDirectPlay, isDirectStream, onEnded,
-    setTranscodeMode, setIsBuffering,
+    setTranscodeMode, setIsBuffering: setIsBufferingDebounced,
     streamTokenRef, onStreamTokenRefreshRef,
   });
 
@@ -335,7 +368,7 @@ export function HLSPlayer({
     videoRef, hlsRef, positionRef, transcodeOffsetRef,
     wasPausedRef, streamTokenRef, onStreamTokenRefreshRef,
     transcodeMode, mediaId, currentTrackIndex, selectedBurnInTrack,
-    startPositionMs, onEnded, setIsBuffering, setFatalError,
+    startPositionMs, onEnded, setIsBuffering: setIsBufferingDebounced, setFatalError,
   });
 
   useSubtitleManager({
