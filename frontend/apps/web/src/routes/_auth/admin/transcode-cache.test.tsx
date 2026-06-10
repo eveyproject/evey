@@ -36,6 +36,10 @@ vi.mock("@evey/store", () => ({
 
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (opts: { component: React.ComponentType }) => opts,
+  // The page renders a <Link> back to the admin dashboard; render it as a
+  // plain anchor (the router is fully mocked in this suite).
+  Link: ({ children, ...props }: { children?: React.ReactNode } & Record<string, unknown>) =>
+    React.createElement("a", props as Record<string, unknown>, children),
 }));
 
 function createWrapper() {
