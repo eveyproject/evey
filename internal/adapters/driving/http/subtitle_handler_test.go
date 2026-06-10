@@ -411,6 +411,58 @@ func TestSubtitleDelete_ServiceError_404(t *testing.T) {
 	}
 }
 
+// --- subtitleHandler embedded-track validation ---
+
+// A ?track= past the real subtitle-stream count must 404, not become
+// `-map 0:s:99` and fail the ffmpeg spawn (forged deep index).
+func TestSubtitleHandler_TrackOutOfRange_404(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File: &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"},
+	}
+	h := subtitleHandler(
+		&fakeTokenVerifier{claims: testClaims(true)},
+		&fakeMediaStreamsGetter{item: item, streams: []*domainlibrary.MediaStream{
+			{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip"},
+		}},
+		"http://localhost", allowAll(), allowAllParental{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/5", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("track", "5")
+	req = withHTTPClaims(req, testClaims(true))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("out-of-range subtitle track must 404, got %d", w.Code)
+	}
+}
+
+// A bitmap subtitle (PGS/DVDSub/...) can't be muxed to text WebVTT — reject
+// with 422 instead of spawning an ffmpeg that emits an empty/failed stream.
+func TestSubtitleHandler_ImageSubtitle_422(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File: &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"},
+	}
+	h := subtitleHandler(
+		&fakeTokenVerifier{claims: testClaims(true)},
+		&fakeMediaStreamsGetter{item: item, streams: []*domainlibrary.MediaStream{
+			{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "hdmv_pgs_subtitle"},
+		}},
+		"http://localhost", allowAll(), allowAllParental{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("track", "0")
+	req = withHTTPClaims(req, testClaims(true))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Errorf("image subtitle must 422, got %d", w.Code)
+	}
+}
+
 // --- subtitleHandler parental gate ---
 
 func TestSubtitleHandler_ParentalBlocked_403(t *testing.T) {

@@ -110,6 +110,14 @@ func (alwaysBlockChecker) BlockedByParental(context.Context, string, *domainlibr
 	return true
 }
 
+// allowAllParental never blocks — used when a test exercises handler logic past
+// the parental gate without an admin claim doing the bypassing.
+type allowAllParental struct{}
+
+func (allowAllParental) BlockedByParental(context.Context, string, *domainlibrary.MediaItem) bool {
+	return false
+}
+
 func TestDownloadHandler_ParentalBlocked_403(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},

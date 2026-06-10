@@ -17,6 +17,7 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainsubtitle "github.com/evey-project/evey/internal/domain/subtitle"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
@@ -78,15 +79,38 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 
 		if streams, serr := libSvc.GetMediaStreams(r.Context(), mediaID); serr == nil {
 			subIdx := 0
+			matched := false
+			imageSub := false
 			for _, s := range streams {
 				if s.StreamType != "subtitle" {
 					continue
 				}
-				if subIdx == trackIndex && s.IsExternal && s.ExternalPath != nil {
-					serveExternalSubtitle(w, r, *s.ExternalPath, filepath.Dir(filePath), baseURL)
-					return
+				if subIdx == trackIndex {
+					if s.IsExternal && s.ExternalPath != nil {
+						serveExternalSubtitle(w, r, *s.ExternalPath, filepath.Dir(filePath), baseURL)
+						return
+					}
+					matched = true
+					imageSub = apptranscoding.IsImageSubtitle(s.Codec)
+					break
 				}
 				subIdx++
+			}
+			// We successfully enumerated streams, so the requested track must be a
+			// real embedded subtitle. An out-of-range ?track= would otherwise become
+			// `-map 0:s:99` and fail the ffmpeg spawn per request (forged deep index).
+			if !matched {
+				span.SetStatus(otelcodes.Error, "subtitle track out of range")
+				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+				return
+			}
+			// A bitmap subtitle (PGS/DVDSub/DVB/XSUB) can't be muxed to text WebVTT:
+			// `-f webvtt` produces an empty/failed stream. Bitmap subs are delivered
+			// by burn-in, not this text endpoint, so reject rather than spawn ffmpeg.
+			if imageSub {
+				span.SetStatus(otelcodes.Error, "image subtitle not text-convertible")
+				http.Error(w, `{"message":"subtitle not available as text"}`, http.StatusUnprocessableEntity)
+				return
 			}
 		}
 
