@@ -511,7 +511,17 @@ export function HLSPlayer({
     } else {
       hls.currentLevel = hls.levels.length > 0 ? hls.levels.length - 1 : -1;
     }
-  }, [autoQuality, currentQuality, transcodeMode]);
+    // hlsLevels MUST be a dep: this effect's mount run happens BEFORE hls.js
+    // has parsed the manifest (hls.levels is empty → currentLevel=-1, which
+    // ENABLES free ABR instead of pinning). Nothing else re-runs the effect
+    // afterwards, so on a multi-rung ladder (the hardware path) playback was
+    // left on free ABR — just-in-time segment production wrecks its bandwidth
+    // estimate (multi-second TTFB on cache misses) and it collapses to the
+    // 360p floor: the "Auto downgrades hard on HW transcode" bug. The single-
+    // rendition software path masked it (one level = nowhere to fall).
+    // hlsLevels is set in MANIFEST_PARSED, so depending on it re-runs the pin
+    // exactly when the levels exist.
+  }, [autoQuality, currentQuality, transcodeMode, hlsLevels]);
 
   // In Auto, surface the rung ABR actually picked (e.g. "1080p") so the menu
   // shows "Auto (1080p)" rather than a redundant "Auto". Empty until the first
