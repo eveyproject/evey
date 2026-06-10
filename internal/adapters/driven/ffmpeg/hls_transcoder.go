@@ -578,6 +578,24 @@ func resolveAudioEncoder(codec string) string {
 	return "aac"
 }
 
+// scaledAudioBitrateKbps scales the ladder's per-rung audio bitrate (sized
+// for stereo) to the transcode's channel target: ~64 kbps per channel beyond
+// stereo (5.1 → 384k), capped at 512k. Deterministic in (base, maxChannels) —
+// both hashed — so a given fingerprint always yields the same audio bytes.
+func scaledAudioBitrateKbps(base int64, maxChannels int) int64 {
+	if maxChannels <= 2 {
+		return base
+	}
+	scaled := int64(maxChannels) * 64
+	if scaled < base {
+		return base
+	}
+	if scaled > 512 {
+		return 512
+	}
+	return scaled
+}
+
 // resolveAudioChannels returns the -ac value. Zero MaxAudioChannels preserves
 // the previous default of 2.
 func resolveAudioChannels(maxChannels int) string {
@@ -608,7 +626,7 @@ func audioOutputArgsSingle(opts transcoding.HLSProcessOpts, bitrateKbps int64) [
 		a = append(a,
 			"-c:a", resolveAudioEncoder(opts.AudioCodec),
 			"-ac", resolveAudioChannels(opts.MaxAudioChannels),
-			"-b:a", fmt.Sprintf("%dk", bitrateKbps),
+			"-b:a", fmt.Sprintf("%dk", scaledAudioBitrateKbps(bitrateKbps, opts.MaxAudioChannels)),
 		)
 		if opts.AudioNormalize {
 			a = append(a, "-filter:a:0", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
@@ -630,7 +648,7 @@ func audioVariantArgs(opts transcoding.HLSProcessOpts, i int, bitrateKbps int64)
 		"-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
 		fmt.Sprintf("-c:a:%d", i), resolveAudioEncoder(opts.AudioCodec),
 		"-ac", resolveAudioChannels(opts.MaxAudioChannels),
-		fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", bitrateKbps),
+		fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", scaledAudioBitrateKbps(bitrateKbps, opts.MaxAudioChannels)),
 	}
 	if opts.AudioNormalize {
 		a = append(a, fmt.Sprintf("-filter:a:%d", i), "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")

@@ -465,3 +465,136 @@ func audioPacketHashes(t *testing.T, ctx context.Context, path string) []string 
 	}
 	return hashes
 }
+
+// TestMultichannelAudioIntegration: a 5.1 source that must transcode (the
+// decision's channel target = 6) is served as AAC 5.1 — not the historical
+// stereo downmix. Channel COUNT is asserted on the served segment, and channel
+// CONTENT via per-channel sines: FL carries 300 Hz and FR 500 Hz in the
+// source; a downmix-upmix would bleed them together. Guards phase A1.
+func TestMultichannelAudioIntegration(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
+	}
+	for _, bin := range []string{"ffmpeg", "ffprobe"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			t.Skipf("%s not in PATH", bin)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	dir := t.TempDir()
+
+	// 5.1 AC-3 source: one pure tone per channel (FL FR FC LFE BL BR).
+	src := filepath.Join(dir, "itest-51.mkv")
+	expr := "sin(2*PI*300*t)|sin(2*PI*500*t)|sin(2*PI*700*t)|sin(2*PI*60*t)|sin(2*PI*900*t)|sin(2*PI*1100*t)"
+	gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
+		"-f", "lavfi", "-i", "aevalsrc="+expr+":channel_layout=5.1:sample_rate=48000",
+		"-t", "45",
+		"-c:v", "libx264", "-preset", "ultrafast", "-g", "48", "-pix_fmt", "yuv420p",
+		"-c:a", "ac3", "-b:a", "448k",
+		src)
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("source generation: %v\n%s", err, out)
+	}
+
+	cache, err := apptranscoding.NewSegmentCache(filepath.Join(dir, "cache"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	producer := apptranscoding.NewSoftwareProducer(
+		cache,
+		NewHLSTranscoder(),
+		apptranscoding.SourceResolverFunc(func(context.Context, apptranscoding.DecisionFingerprint) (string, []apptranscoding.SourceStream, error) {
+			return src, nil, nil
+		}),
+		apptranscoding.SoftwareProducerOptions{},
+		nil,
+	)
+	defer producer.Close()
+
+	// What the decision produces for a 5.1 DTS/AC-3 source on a web client:
+	// transcode to AAC with a 6-channel target (applyAudioChannelTarget).
+	fp := apptranscoding.DecisionFingerprint{
+		MediaID:             "itest-51-media",
+		SourcePath:          src,
+		VideoCodec:          "h264",
+		AudioCodec:          "aac",
+		MaxAudioChannels:    6,
+		SubtitleBurnInTrack: -1,
+		UseFMP4:             true,
+		Profiles:            []apptranscoding.ProfileFingerprint{{Name: "180p-51", Width: 320, Height: 180, VideoBitrate: 800, AudioBitrate: 192}},
+	}
+	hash := fp.Hash()
+	if err := producer.EnsureSegmentRange(ctx, fp, 0, 1); err != nil {
+		t.Fatal(err)
+	}
+	key := apptranscoding.SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 1}
+	if err := cache.Wait(ctx, key, true, 90*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	cacheDir, err := cache.DirFor(hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clip := filepath.Join(dir, "served51.mp4")
+	initB, _ := os.ReadFile(filepath.Join(cacheDir, "stream_0_init.mp4"))
+	segB, _ := os.ReadFile(filepath.Join(cacheDir, "stream_0_001.m4s"))
+	if err := os.WriteFile(clip, append(initB, segB...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Channel count: must be 6.
+	chOut, err := exec.CommandContext(ctx, "ffprobe", "-v", "error",
+		"-select_streams", "a:0", "-show_entries", "stream=channels",
+		"-of", "csv=p=0", clip).Output()
+	if err != nil {
+		t.Fatalf("ffprobe channels: %v", err)
+	}
+	if got := strings.TrimSpace(string(chOut)); got != "6" {
+		t.Fatalf("served audio has %s channels, want 6 (stereo downmix regression)", got)
+	}
+
+	// 2. Channel content: FL must be the 300 Hz tone, distinct from FR (500 Hz).
+	chanPCM := func(spec string) []float32 {
+		out, err := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
+			"-i", clip, "-map", "0:a:0",
+			"-af", "pan=mono|c0="+spec,
+			"-ar", "8000", "-f", "f32le", "-").Output()
+		if err != nil {
+			t.Fatalf("decode channel %s: %v", spec, err)
+		}
+		n := len(out) / 4
+		pcm := make([]float32, n)
+		for i := range n {
+			pcm[i] = math.Float32frombits(binary.LittleEndian.Uint32(out[i*4 : i*4+4]))
+		}
+		return pcm
+	}
+	dominant := func(pcm []float32, freq float64) float64 {
+		// Goertzel-style projection at freq, normalized by signal energy.
+		var re, im, energy float64
+		for i, v := range pcm {
+			ph := 2 * math.Pi * freq * float64(i) / 8000
+			re += float64(v) * math.Cos(ph)
+			im += float64(v) * math.Sin(ph)
+			energy += float64(v) * float64(v)
+		}
+		if energy == 0 {
+			return 0
+		}
+		return (re*re + im*im) / (energy * float64(len(pcm)))
+	}
+	fl := chanPCM("FL")
+	if len(fl) < 8000 {
+		t.Fatalf("FL decode too short: %d samples", len(fl))
+	}
+	at300 := dominant(fl, 300)
+	at500 := dominant(fl, 500)
+	// A PURE tone projects to exactly 0.5 under this normalization
+	// (|Σ e^{-jωn}·sin(ωn)|² = (N/2)², energy = N/2 → 0.5), so ≥0.4 means
+	// "FL is essentially the 300 Hz tone" and ≤0.1 at 500 Hz means no FR bleed.
+	if at300 < 0.4 || at500 > 0.1 {
+		t.Fatalf("FL channel content wrong (proj 300Hz=%.2f, 500Hz=%.2f) — channels were mixed (downmix/upmix regression)", at300, at500)
+	}
+}

@@ -142,6 +142,16 @@ func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscodi
 	if v := r.URL.Query().Get("containers"); v != "" {
 		client.Containers = strings.Split(v, ",")
 	}
+	// Channel ceiling of the playback DEVICE (a 2.0 TV, a stereo-only cast
+	// target...). Web players normally omit it: browsers decode multichannel
+	// AAC and downmix to the output device themselves, so the profile default
+	// applies. Clamped to a sane layout range; the decision additionally caps
+	// AAC targets at 5.1 (aacMaxTargetChannels).
+	if v := r.URL.Query().Get("maxAudioChannels"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 1 && n <= 8 {
+			client.MaxAudioChannels = n
+		}
+	}
 	if hdrSupported {
 		client.SupportsHDR = true
 	}

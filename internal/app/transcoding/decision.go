@@ -277,6 +277,7 @@ func MakePlaybackDecisionWithPrefs(
 	checkBitrate(d, totalBitrate, effectiveMaxBitrate)
 	checkContainer(d, containerFormat, client)
 	applyCodecPreferences(d, specs, prefs)
+	applyAudioChannelTarget(d, specs, client, prefs)
 	applyDirectPlayPrefs(d, prefs)
 	resolvePlayMethod(d, client, prefs)
 	applyDefaultBitrates(d)
@@ -380,6 +381,11 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 		if d.AudioCodec == "" {
 			d.AudioCodec = transcoding.DefaultAudioCodec
 		}
+		// Carry the cap to the builder's -ac like the client-cap branch does;
+		// without it the pref only worked by accident of the stereo default.
+		if d.MaxAudioChannels == 0 || prefs.MaxAudioChannels < d.MaxAudioChannels {
+			d.MaxAudioChannels = prefs.MaxAudioChannels
+		}
 	}
 }
 
@@ -394,6 +400,80 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 // copy rung when played with no subtitle or with a text subtitle. Text subs are
 // always offered as "external" (sidecar) regardless of selection: non-destructive,
 // the player picks.
+// aacMaxTargetChannels caps the transcoded AAC layout at 5.1. Multichannel
+// AAC decode is universal across MSE browsers up to 6 channels (the browser
+// downmixes to the output device); 7.1 AAC support is patchier, so 7.1
+// sources fold to 5.1 rather than risk an undecodable rendition.
+const aacMaxTargetChannels = 6
+
+// applyAudioChannelTarget sets the transcode's channel target from the
+// SELECTED source track instead of letting the builder fall back to its
+// historical stereo default. Runs as a finishing pass because AudioDecision
+// can flip to "transcode" in several places (codec unsupported, container,
+// codec preferences). Rules:
+//   - copy / mono / stereo sources: untouched (d.MaxAudioChannels stays as-is;
+//     0 keeps the pre-feature hash AND the pre-feature -ac 2 bytes);
+//   - multichannel source: target = min(source, client cap, profile pref cap,
+//     aacMaxTargetChannels), never raising a cap already set by the
+//     channels-exceeded path.
+//
+// A DTS/TrueHD 5.1 film therefore re-encodes to AAC 5.1 instead of being
+// silently downmixed to stereo — the single biggest audible quality loss the
+// transcode path had.
+func applyAudioChannelTarget(d *transcoding.PlaybackDecision, specs []StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
+	if d.AudioDecision != "transcode" {
+		return
+	}
+	src := selectedAudioSpec(specs, prefs)
+	if src == nil || src.Channels == nil || *src.Channels <= 2 {
+		return
+	}
+	target := min(*src.Channels, aacMaxTargetChannels)
+	if client.MaxAudioChannels > 0 {
+		target = min(target, client.MaxAudioChannels)
+	}
+	if prefs.MaxAudioChannels > 0 {
+		target = min(target, prefs.MaxAudioChannels)
+	}
+	if d.MaxAudioChannels > 0 {
+		target = min(target, d.MaxAudioChannels)
+	}
+	if target > 2 {
+		d.MaxAudioChannels = target
+	}
+}
+
+// selectedAudioSpec returns the audio stream the client will actually hear:
+// the prefs.AudioTrack audio-relative index when selected, else the
+// default-flag track, else the first audio stream.
+func selectedAudioSpec(specs []StreamSpec, prefs TranscodingPreferences) *StreamSpec {
+	audIdx := 0
+	var def, first *StreamSpec
+	for i := range specs {
+		s := &specs[i]
+		if s.Type != "audio" {
+			continue
+		}
+		if prefs.AudioTrack >= 0 && audIdx == prefs.AudioTrack {
+			return s
+		}
+		if s.IsDefault && def == nil {
+			def = s
+		}
+		if first == nil {
+			first = s
+		}
+		audIdx++
+	}
+	if prefs.AudioTrack >= 0 {
+		return nil // explicit selection out of range: judge nothing extra
+	}
+	if def != nil {
+		return def
+	}
+	return first
+}
+
 func evaluateSubtitle(d *transcoding.PlaybackDecision, s StreamSpec, prefs TranscodingPreferences, subIdx int) {
 	selected := subIdx == prefs.SubtitleBurnInTrack
 	isImage := IsImageSubtitle(s.Codec)

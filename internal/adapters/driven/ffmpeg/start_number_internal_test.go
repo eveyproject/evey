@@ -181,3 +181,21 @@ func TestSoftwareProfileLevelArgs_H264Only(t *testing.T) {
 		t.Fatalf("hevc/libx265 must NOT carry the h264 'high' profile (x265 aborts): %s", hevc)
 	}
 }
+
+// Audio bitrate scales with the channel target (ladder bitrates are sized for
+// stereo): 5.1 at 192k would starve; ~64k/channel, floor=base, cap 512k.
+func TestScaledAudioBitrateKbps(t *testing.T) {
+	cases := []struct {
+		base int64
+		ch   int
+		want int64
+	}{
+		{192, 0, 192}, {192, 2, 192}, {192, 6, 384}, {128, 6, 384},
+		{192, 8, 512}, {448, 6, 448}, {600, 6, 600},
+	}
+	for _, c := range cases {
+		if got := scaledAudioBitrateKbps(c.base, c.ch); got != c.want {
+			t.Fatalf("scaledAudioBitrateKbps(%d,%d)=%d want %d", c.base, c.ch, got, c.want)
+		}
+	}
+}

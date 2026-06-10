@@ -444,3 +444,37 @@ func TestAudioDecision_SelectedTrackWins(t *testing.T) {
 	d = apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
 	assert.Equal(t, "transcode", d.AudioDecision, "default-flag track (DTS) judged when nothing is selected")
 }
+
+// A multichannel source that must transcode (DTS) targets its real layout —
+// capped at 5.1 and by client/profile prefs — instead of the historical
+// silent stereo downmix. Stereo sources keep MaxAudioChannels untouched so
+// their cache hash (and bytes) are unchanged.
+func TestAudioChannelTarget(t *testing.T) {
+	mk := func(codec string, ch int) []*library.MediaStream {
+		return []*library.MediaStream{
+			{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+			{StreamType: "audio", Codec: codec, Channels: intPtr(ch), IsDefault: true},
+		}
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), mk("dts", 6), "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "transcode", d.AudioDecision)
+	assert.Equal(t, 6, d.MaxAudioChannels, "DTS 5.1 → AAC 5.1, not stereo")
+
+	d = apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), mk("truehd", 8), "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, 6, d.MaxAudioChannels, "7.1 folds to 5.1 (aacMaxTargetChannels)")
+
+	d = apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), mk("dts", 2), "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, 0, d.MaxAudioChannels, "stereo source untouched (hash + bytes stability)")
+
+	capped := prefs
+	capped.MaxAudioChannels = 2
+	d = apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), mk("dts", 6), "mp4", transcoding.DefaultWebProfile, 0, capped)
+	assert.Equal(t, 2, d.MaxAudioChannels, "profile pref caps the target")
+
+	stereoClient := transcoding.DefaultWebProfile
+	stereoClient.MaxAudioChannels = 2
+	d = apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), mk("dts", 6), "mp4", stereoClient, 0, prefs)
+	assert.Equal(t, 2, d.MaxAudioChannels, "client cap honored")
+}
