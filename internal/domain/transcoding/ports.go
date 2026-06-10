@@ -146,6 +146,14 @@ type HLSProcessOpts struct {
 	// aiming AT a cue point always lands BEFORE it). 0 → fall back to
 	// StartSec + CopySeekNudgeSec (no probe ran).
 	SeekTargetSec float64
+	// ExpectedSegmentStartMs reports the keyframe plan's start time for an
+	// absolute copy-segment index — the runtime tripwire's oracle. The copy
+	// publish pump compares every produced segment's (rebased) timeline
+	// against it and raises an ERROR log + metric on divergence, so a future
+	// regression of the plan↔ffmpeg contract (split grid, seek landing, audio
+	// trim labeling — each bit us once) trips an alert instead of an audible
+	// desync. nil = no verification. Second return false = index unknown.
+	ExpectedSegmentStartMs func(segIdx int) (int64, bool)
 	// ReadRate paces ffmpeg's input to N× real-time (`-readrate N`, a pre-`-i`
 	// flag) so a single long-lived encoder stays close to wall-clock and doesn't
 	// burn CPU racing ahead of the viewer. 0 (default) = no pacing — byte-identical

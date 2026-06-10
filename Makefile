@@ -54,6 +54,15 @@ test: test-image
 	  evey-test \
 	  sh -c 'go test $$(go list ./... | grep -v /gen/) -race -count=1 -timeout=300s'
 
+# Copy-rung end-to-end contract test against the BUNDLED ffmpeg (runs inside
+# the evey-server dev container — never in CI, where a distro ffmpeg would
+# diverge from prod behavior). Run before shipping any copy-pipeline or
+# ffmpeg-image change: real producer + real ffmpeg/ffprobe on a synthetic
+# B-frame MKV, asserting served segments match the keyframe plan (timeline
+# AND audio content correlation).
+transcode-itest:
+	docker exec evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ -run TestCopyPipelineIntegration -count=1 -v -timeout=300s'
+
 test-image:
 	docker build -t evey-test -f docker/Dockerfile.test .
 

@@ -29,8 +29,11 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 // scaleDelta converts deltaMs into timescale units, rounding to nearest.
@@ -88,16 +91,21 @@ func childBoxes(buf []byte, start, end int, fn func(typ string, off, size int) b
 // (hlsenc writes one per track); initTimescales is the fallback map
 // (track_ID → timescale, parsed from the session's init segment) for the
 // hypothetical sidx-less layout. Patches are computed first, written last:
-// any parse error leaves the file untouched.
-func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uint32) error {
+// any parse error leaves the file untouched. deltaMs == 0 is parse-only
+// (verification pass — nothing written).
+//
+// Returns the FIRST traf's post-rebase tfdt in milliseconds (hlsenc writes
+// the video traf first), or -1 when the segment has none — the publish
+// pump's drift tripwire compares it against the keyframe plan.
+func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uint32) (int64, error) {
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
-		return err
+		return -1, err
 	}
 	defer f.Close()
 	fi, err := f.Stat()
 	if err != nil {
-		return err
+		return -1, err
 	}
 	fileSize := fi.Size()
 
@@ -107,6 +115,7 @@ func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uin
 		val   uint64
 	}
 	var patches []patch
+	firstTfdtMs := int64(-1)
 	tsByTrack := make(map[uint32]uint32, 2)
 	maps.Copy(tsByTrack, initTimescales)
 
@@ -114,22 +123,22 @@ func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uin
 	for off < fileSize {
 		typ, size, err := boxHeader(f, off, fileSize)
 		if err != nil {
-			return err
+			return -1, err
 		}
 		switch typ {
 		case "sidx":
 			buf := make([]byte, size)
 			if _, err := f.ReadAt(buf, off); err != nil {
-				return err
+				return -1, err
 			}
 			if size < 28 {
-				return fmt.Errorf("fmp4: sidx too short (%d) at %d", size, off)
+				return -1, fmt.Errorf("fmp4: sidx too short (%d) at %d", size, off)
 			}
 			ver := buf[8]
 			refID := binary.BigEndian.Uint32(buf[12:16])
 			ts := binary.BigEndian.Uint32(buf[16:20])
 			if ts == 0 {
-				return fmt.Errorf("fmp4: sidx track %d has zero timescale", refID)
+				return -1, fmt.Errorf("fmp4: sidx track %d has zero timescale", refID)
 			}
 			tsByTrack[refID] = ts
 			delta := scaleDelta(deltaMs, ts)
@@ -137,7 +146,7 @@ func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uin
 				ept := uint64(binary.BigEndian.Uint32(buf[20:24]))
 				nv := ept + uint64(delta)
 				if nv > 0xFFFFFFFF {
-					return fmt.Errorf("fmp4: sidx v0 EPT overflow (track %d, %d + %d)", refID, ept, delta)
+					return -1, fmt.Errorf("fmp4: sidx v0 EPT overflow (track %d, %d + %d)", refID, ept, delta)
 				}
 				patches = append(patches, patch{off + 20, 4, nv})
 			} else {
@@ -147,7 +156,7 @@ func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uin
 		case "moof":
 			buf := make([]byte, size)
 			if _, err := f.ReadAt(buf, off); err != nil {
-				return err
+				return -1, err
 			}
 			var walkErr error
 			childBoxes(buf, 8, int(size), func(t string, to, tsz int) bool {
@@ -193,15 +202,23 @@ func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uin
 					width = 4
 				}
 				patches = append(patches, patch{off + int64(tfdtOff), width, nv})
+				if firstTfdtMs < 0 {
+					firstTfdtMs = int64(nv * 1000 / uint64(ts)) //nolint:gosec // bounded: media timestamps
+				}
 				return true
 			})
 			if walkErr != nil {
-				return walkErr
+				return -1, walkErr
 			}
 		}
 		off += size
 	}
 
+	if deltaMs == 0 {
+		// Verification pass (cold copy sessions): timestamps are already
+		// absolute; nothing to write, only firstTfdtMs is consumed.
+		return firstTfdtMs, nil
+	}
 	var scratch [8]byte
 	for _, p := range patches {
 		if p.width == 4 {
@@ -210,10 +227,10 @@ func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uin
 			binary.BigEndian.PutUint64(scratch[:8], p.val)
 		}
 		if _, err := f.WriteAt(scratch[:p.width], p.off); err != nil {
-			return err
+			return -1, err
 		}
 	}
-	return nil
+	return firstTfdtMs, nil
 }
 
 // parseInitTimescales extracts track_ID → mdhd timescale from an fMP4 init
@@ -303,6 +320,51 @@ func fmp4CompleteMoov(path string) bool {
 	return false
 }
 
+// copyDriftToleranceMs bounds the acceptable gap between a copy segment's
+// produced timeline (first traf tfdt) and the keyframe plan's start for that
+// index. Generous on purpose: legitimate skews are tiny (ms-rounded keyframe
+// times, the +50 ms seek nudge, AAC priming ~21 ms, audio-first layouts
+// ~60 ms), while every historical regression of this contract was >= several
+// hundred ms (a GOP or more). 500 ms separates the two cleanly.
+const copyDriftToleranceMs = 500
+
+// verifyCopySegmentTimeline is the runtime tripwire for the copy rung's
+// plan<->ffmpeg contract: the published segment stream_<v>_<idx>.m4s must carry
+// a timeline starting at the plan's start for <idx>. Every desync bug of
+// 2026-06-10 (session-relative split grid, off-keyframe seek landings,
+// trimmed-but-mislabeled audio) would have tripped this. Divergence -> ERROR
+// log + metric; the segment is still published (a labeled, observable
+// degradation beats a stalled player).
+func verifyCopySegmentTimeline(name, segPrefix string, tfdtMs int64, expectedStartMs func(int) (int64, bool)) {
+	if expectedStartMs == nil || tfdtMs < 0 {
+		return
+	}
+	idxStr, ok := strings.CutPrefix(name, segPrefix)
+	if !ok {
+		return
+	}
+	idxStr, ok = strings.CutSuffix(idxStr, ".m4s")
+	if !ok {
+		return
+	}
+	idx, err := strconv.Atoi(idxStr)
+	if err != nil {
+		return
+	}
+	want, known := expectedStartMs(idx)
+	if !known {
+		return
+	}
+	if diff := tfdtMs - want; diff > copyDriftToleranceMs || diff < -copyDriftToleranceMs {
+		metrics.HLSVODCopyTimelineDrift.Inc()
+		slog.Error("hls: copy segment timeline DIVERGES from the keyframe plan (plan<->ffmpeg contract regression)",
+			slog.String("segment", name),
+			slog.Int64("produced_start_ms", tfdtMs),
+			slog.Int64("plan_start_ms", want),
+			slog.Int64("drift_ms", diff))
+	}
+}
+
 // runRebasePump watches privDir for segments ffmpeg completed (temp_file
 // rename done → final name present without a `.tmp` sibling), rebases their
 // fMP4 timestamps to the session's absolute start, and atomically renames
@@ -311,8 +373,9 @@ func fmp4CompleteMoov(path string) bool {
 // session wins; per-session inits differ only in edit lists hls.js ignores).
 // Exits on ctx cancel or ffmpeg termination, after a final sweep, and removes
 // privDir.
-func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir string, deltaMs int64, variantIdx int) {
+func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir string, deltaMs int64, variantIdx int, expectedStartMs func(int) (int64, bool)) {
 	initName := fmt.Sprintf("stream_%d_init.mp4", variantIdx)
+	segPrefix := fmt.Sprintf("stream_%d_", variantIdx)
 	published := make(map[string]bool, 64)
 	failures := make(map[string]int, 4)
 	var initTS map[uint32]uint32
@@ -355,7 +418,8 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir s
 			if _, err := os.Stat(src + ".tmp"); err == nil {
 				continue // defence in depth; rename normally beats the scan
 			}
-			if err := rebaseFMP4Segment(src, deltaMs, initTS); err != nil {
+			tfdtMs, err := rebaseFMP4Segment(src, deltaMs, initTS)
+			if err != nil {
 				failures[name]++
 				if failures[name] == 3 {
 					slog.Error("hls: copy rebase failed, segment withheld",
@@ -364,6 +428,7 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir s
 				}
 				continue
 			}
+			verifyCopySegmentTimeline(name, segPrefix, tfdtMs, expectedStartMs)
 			if err := os.Rename(src, filepath.Join(pubDir, name)); err != nil {
 				slog.Warn("hls: copy rebase publish failed",
 					slog.String("segment", name), slog.Any("err", err))

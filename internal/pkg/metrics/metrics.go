@@ -108,6 +108,18 @@ var (
 		Help: "Total VOD-pipeline ffmpeg rafale spawns, by reason.",
 	}, []string{"reason"})
 
+	// HLSVODCopyTimelineDrift counts copy-rung segments whose rebased fMP4
+	// timeline does NOT match the keyframe plan's position for that segment
+	// index (beyond tolerance). This is the runtime tripwire for the bug class
+	// that produced the 2026-06-10 A/V desyncs (session-relative muxer cuts,
+	// seek landings off the requested keyframe, trimmed-but-mislabeled audio):
+	// any future regression of the plan↔ffmpeg contract trips this counter and
+	// an ERROR log instead of surfacing as audible desync. Must stay at zero.
+	HLSVODCopyTimelineDrift = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_hlsvod_copy_timeline_drift_total",
+		Help: "Copy-rung segments whose produced timeline diverged from the keyframe plan (must be 0).",
+	})
+
 	// HLSVODSessionsKilled counts session terminations, tagged by reason
 	// (seek_out_of_window, inactivity, close, error). Useful to spot
 	// pathologies — e.g. inactivity kills > 0 means the inactivity timeout
@@ -207,6 +219,7 @@ func init() {
 		AuthLatency, ScanQueueDepth, TranscodeQueueDepth,
 		TranscodeDuration,
 		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled, HLSVODSessionsRejected,
+		HLSVODCopyTimelineDrift,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,
 		QoEIngestEvents, QoEIngestDrops,

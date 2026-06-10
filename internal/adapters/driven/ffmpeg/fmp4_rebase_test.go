@@ -6,6 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 func be32(v uint32) []byte { b := make([]byte, 4); binary.BigEndian.PutUint32(b, v); return b }
@@ -79,7 +83,8 @@ func readTfdt(t *testing.T, p string) uint64 {
 func TestRebaseShiftsTfdtAndSidx(t *testing.T) {
 	p := writeTmp(t, synthSegment(1, 5000))
 	// 2500 ms at timescale 1000 → +2500 units
-	if err := rebaseFMP4Segment(p, 2500, nil); err != nil {
+	tfdtMs, err := rebaseFMP4Segment(p, 2500, nil)
+	if err != nil {
 		t.Fatal(err)
 	}
 	if got := readSidxEPT(t, p); got != 7500 {
@@ -88,12 +93,16 @@ func TestRebaseShiftsTfdtAndSidx(t *testing.T) {
 	if got := readTfdt(t, p); got != 7500 {
 		t.Fatalf("tfdt = %d, want 7500", got)
 	}
+	// timescale 1000 → 7500 units = 7500 ms; the pump's tripwire consumes this
+	if tfdtMs != 7500 {
+		t.Fatalf("returned first tfdt = %dms, want 7500", tfdtMs)
+	}
 }
 
 func TestRebaseV0OverflowLeavesFileUntouched(t *testing.T) {
 	orig := synthSegment(0, 0xFFFFFF00)
 	p := writeTmp(t, orig)
-	err := rebaseFMP4Segment(p, 2500, nil)
+	_, err := rebaseFMP4Segment(p, 2500, nil)
 	if err == nil {
 		t.Fatal("want overflow error")
 	}
@@ -110,10 +119,10 @@ func TestRebaseInitFallbackWhenNoSidx(t *testing.T) {
 	seg := bytes.Join([][]byte{box("styp", []byte("msdh")), box("moof", box("traf", tfhd, tfdt)), box("mdat")}, nil)
 	p := writeTmp(t, seg)
 
-	if err := rebaseFMP4Segment(p, 1000, nil); err == nil {
+	if _, err := rebaseFMP4Segment(p, 1000, nil); err == nil {
 		t.Fatal("want error without any timescale source")
 	}
-	if err := rebaseFMP4Segment(p, 1000, map[uint32]uint32{7: 90000}); err != nil {
+	if _, err := rebaseFMP4Segment(p, 1000, map[uint32]uint32{7: 90000}); err != nil {
 		t.Fatal(err)
 	}
 	if got := readTfdt(t, p); got != 1000+90000 {
@@ -148,5 +157,37 @@ func TestFmp4CompleteMoov(t *testing.T) {
 	}
 	if fmp4CompleteMoov(p) {
 		t.Fatal("truncated init reported complete")
+	}
+}
+
+// The pump tripwire: a published copy segment whose timeline diverges from
+// the plan beyond tolerance must trip the metric/ERROR; aligned segments,
+// unknown indexes and non-matching names must not.
+func TestVerifyCopySegmentTimeline(t *testing.T) {
+	plan := func(idx int) (int64, bool) {
+		if idx == 600 {
+			return 1351308, true
+		}
+		return 0, false
+	}
+	read := func() float64 { return testutil.ToFloat64(metrics.HLSVODCopyTimelineDrift) }
+
+	base := read()
+	// Aligned (within tolerance: nudge + priming scale skews).
+	verifyCopySegmentTimeline("stream_0_600.m4s", "stream_0_", 1351284, plan)
+	if read() != base {
+		t.Fatal("aligned segment must not trip the drift tripwire")
+	}
+	// Unknown index / foreign name / missing tfdt: no-ops.
+	verifyCopySegmentTimeline("stream_0_601.m4s", "stream_0_", 999999, plan)
+	verifyCopySegmentTimeline("other_600.m4s", "stream_0_", 0, plan)
+	verifyCopySegmentTimeline("stream_0_600.m4s", "stream_0_", -1, plan)
+	if read() != base {
+		t.Fatal("unknown/foreign/empty segments must not trip the tripwire")
+	}
+	// A GOP-sized divergence (the historical bug class) must trip it.
+	verifyCopySegmentTimeline("stream_0_600.m4s", "stream_0_", 1351308+6340, plan)
+	if read() != base+1 {
+		t.Fatal("a 6.3s divergence must increment the drift counter")
 	}
 }

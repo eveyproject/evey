@@ -45,15 +45,17 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 	return h, nil
 }
 
-// needsCopyRebase: copy-mode seek sessions (StartNumber > 0) emit fMP4
-// fragments whose tfdt/sidx are session-relative (movenc always writes
-// dts − first_dts; no CLI flag yields absolute time — see fmp4_rebase.go),
-// while the shared cache addresses segments by absolute timeline position.
-// Cold copy sessions (start 0) are absolute by construction. Transcode rungs
-// share the latent base mismatch but are paced (no rewrite race) — tracked
-// separately.
+// needsCopyRebase: EVERY copy fMP4 session publishes through the rebase pump.
+// Seek sessions (StartNumber > 0) need their session-relative tfdt/sidx
+// shifted to the absolute timeline (movenc always writes dts − first_dts; no
+// CLI flag yields absolute time — see fmp4_rebase.go). Cold sessions are
+// absolute by construction (deltaMs 0, parse-only) but still route through
+// the pump so the timeline TRIPWIRE (verifyCopySegmentTimeline) covers them:
+// the historical numbering-drift bug lived precisely on the cold path.
+// Transcode rungs share the latent base mismatch but are paced (no rewrite
+// race) — tracked separately.
 func needsCopyRebase(o transcoding.HLSProcessOpts) bool {
-	return o.VideoDecision == "copy" && o.UseFMP4 && o.StartNumber > 0
+	return o.VideoDecision == "copy" && o.UseFMP4
 }
 
 // startOne spawns a single ffmpeg process for opts and returns its handle.
@@ -114,7 +116,7 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 	go h.run(processCtx)
 	if rebase {
 		deltaMs := int64(opts.StartSec*1000 + 0.5)
-		go runRebasePump(h.done, processCtx.Done(), opts.OutputDir, pubDir, deltaMs, opts.VariantIndex)
+		go runRebasePump(h.done, processCtx.Done(), opts.OutputDir, pubDir, deltaMs, opts.VariantIndex, opts.ExpectedSegmentStartMs)
 	}
 	return h, nil
 }

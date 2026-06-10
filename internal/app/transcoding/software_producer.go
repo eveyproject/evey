@@ -518,6 +518,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	videoDecision := "transcode"
 	startSec := float64(startSeg) * p.opts.SegmentSeconds
 	seekTargetSec := 0.0
+	var copyPlanOracle func(int) (int64, bool)
 	if p.copyPlanner != nil {
 		segs, planErr := p.copyPlanner.Plan(ctx, fp.MediaID)
 		if planErr != nil {
@@ -527,6 +528,18 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 			return fmt.Errorf("software: startSession: copy startSeg %d out of range (%d segments)", startSeg, len(segs))
 		}
 		videoDecision = "copy"
+		// Plan oracle for the publish pump's runtime tripwire: every produced
+		// segment's timeline is checked against its plan position, so any
+		// future regression of the plan↔ffmpeg contract raises an ERROR log +
+		// metric instead of an audible desync. segs is the planner's cached,
+		// immutable plan — safe to capture.
+		planSegs := segs
+		copyPlanOracle = func(idx int) (int64, bool) {
+			if idx < 0 || idx >= len(planSegs) {
+				return 0, false
+			}
+			return planSegs[idx].StartMs, true
+		}
 		// The copy session runs `-hls_time 0` (split at EVERY keyframe — see
 		// hlsTimeFor), the only split rule that matches the every-keyframe plan
 		// for cold and seek sessions alike.
@@ -602,6 +615,9 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		// The exact -ss the probe validated; bookkeeping (StartSec/StartNumber)
 		// reflects its real landing. 0 on cold starts.
 		SeekTargetSec: seekTargetSec,
+		// Plan oracle for the publish pump's timeline tripwire (nil when not
+		// in copy mode).
+		ExpectedSegmentStartMs: copyPlanOracle,
 		// Input pacing: the defining software-flow knob. Keeps the single
 		// sequential encoder near wall-clock so it never races ahead of the
 		// viewer (no abort-and-probe client → no need to burst).
