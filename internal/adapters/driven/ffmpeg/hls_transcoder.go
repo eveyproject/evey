@@ -855,6 +855,21 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		// position comes from the VOD playlist (StartNumber + #EXTINF), exactly like
 		// the transcode rung whose segments are also tfdt=0.
 		//
+		// -noaccurate_seek: the WHOLE session must start at the seek LANDING,
+		// audio included. The copied video necessarily starts at the landed
+		// keyframe, and the session's bookkeeping (StartSec/StartNumber/tfdt
+		// rebase) is set to that landing — but ffmpeg's default accurate-seek
+		// DECODES AND DISCARDS the audio between the landing and the -ss target
+		// while the muxer still timestamps the first kept audio frame at the
+		// landing. Content and labels then disagree by (target − landing): the
+		// audio plays EARLY by up to a full GOP (measured: session audio content
+		// started at the 1351.33s target but carried the 1350.52s landing label
+		// → the deep-seek "son décalé" desync, while start-of-file playback was
+		// clean). With -noaccurate_seek the decoded audio from the landing is
+		// kept and encoded, so both tracks start at the landing, labels match
+		// content, and the first segment carries audio immediately (the
+		// "audio one segment-file late" artefact was the discarded-trim gap).
+		args = append(args, "-noaccurate_seek")
 		// -ss MUST be the exact timestamp the seek-landing probe ran against
 		// (SeekTargetSec): probe(T) == landing(T) by construction, and the
 		// session's bookkeeping (StartSec/StartNumber = the landing) only holds

@@ -75,6 +75,13 @@ func TestBuildCopyVideoArgs_CopyOnSeek(t *testing.T) {
 	if !strings.Contains(a, "-avoid_negative_ts make_zero") {
 		t.Fatalf("copy-on-seek must reset timestamps with make_zero so the shared init stays canonical: %s", a)
 	}
+	// The session must keep the decoded audio from the seek LANDING: the default
+	// accurate-seek discards audio between the landing and the -ss target while
+	// the muxer labels the first kept frame at the landing → audio content plays
+	// EARLY by (target − landing), the deep-seek A/V desync.
+	if !strings.Contains(a, "-noaccurate_seek") {
+		t.Fatalf("copy-on-seek must use -noaccurate_seek (audio must start at the landing, not the target): %s", a)
+	}
 	// Keyframe-seek nudge: -ss must sit just PAST StartSec (520 + 0.05 = 520.050),
 	// not AT it. -ss exactly at/below the keyframe snaps to the PREVIOUS keyframe →
 	// a two-GOP segment with the audio a full GOP behind the video (the "son décalé"
