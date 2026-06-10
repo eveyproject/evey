@@ -82,7 +82,7 @@ func TestSoftwareProducer_CopySessionPacedAtKeyframePlan(t *testing.T) {
 	// Long-GOP plan with a scene-cut: [0,10s) [10,13s) [13,23s) [23,30s).
 	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes([]int64{0, 10000, 13000, 23000})}
 	items := &fakeCopyItems{item: itemWithDurationMs(30000)}
-	p.SetCopyMode(NewCopyPlanner(streams, items))
+	p.SetCopyMode(NewCopyPlanner(streams, items), nil)
 
 	fp := minimalFingerprint(t)
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 2))
@@ -94,6 +94,96 @@ func TestSoftwareProducer_CopySessionPacedAtKeyframePlan(t *testing.T) {
 		"copy sessions pace at 8x — unpaced lets video outrun the audio re-encode (A/V desync), 1.5x starves the client")
 	assert.InDelta(t, 13.0, opts.StartSec, 0.001, "StartSec = the plan keyframe of segment 2, not 2×SegmentSeconds")
 	assert.Equal(t, 2, opts.StartNumber, "StartNumber = the absolute plan index")
+}
+
+// fakeSeekProber simulates the container seek index: a seek to targetSec lands
+// on the configured landing (the preceding cue point).
+type fakeSeekProber struct {
+	landing float64
+	err     error
+	calls   int
+	target  float64
+}
+
+func (f *fakeSeekProber) ProbeSeekLanding(_ context.Context, _ string, targetSec float64) (float64, error) {
+	f.calls++
+	f.target = targetSec
+	return f.landing, f.err
+}
+
+// A mid-stream copy session must follow the demuxer's REAL seek landing, not
+// the requested keyframe: sparse cue indexes (mkvmerge: one cue per ~5s
+// cluster) land a pre-input -ss on the preceding cue point, possibly whole
+// GOPs early. If the session keeps the requested StartSec/StartNumber, the
+// rebase pump shifts every video timestamp by the gap while the audio (trimmed
+// at the exact -ss time) stays true — the measured post-deep-seek A/V desync.
+func TestSoftwareProducer_CopySeekFollowsRealLanding(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	p := NewSoftwareProducer(cache, proc, src, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	// Plan boundaries: [0,10s) [10,13s) [13,23s) [23,30s).
+	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes([]int64{0, 10000, 13000, 23000})}
+	items := &fakeCopyItems{item: itemWithDurationMs(30000)}
+	// Seek targets segment 2 (13.0s) but the cue index lands at 10.0s (= plan
+	// boundary 1, a GOP earlier).
+	prober := &fakeSeekProber{landing: 10.0}
+	p.SetCopyMode(NewCopyPlanner(streams, items), prober)
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 2))
+
+	require.Equal(t, 1, prober.calls, "mid-stream copy start must probe the real landing")
+	assert.InDelta(t, 13.0+transcoding.CopySeekNudgeSec, prober.target, 0.001,
+		"the probe must use the SAME nudged target the builder will pass to -ss")
+	opts := proc.lastOpts()
+	assert.InDelta(t, 10.0, opts.StartSec, 0.001, "StartSec follows the LANDED keyframe, not the requested one")
+	assert.Equal(t, 1, opts.StartNumber, "StartNumber follows the landed plan index")
+	assert.InDelta(t, 13.0+transcoding.CopySeekNudgeSec, opts.SeekTargetSec, 0.001,
+		"-ss must stay the PROBED target — re-deriving it from the landing re-triggers the seek rules one keyframe earlier")
+}
+
+// Landing probe failure (or an exact landing) keeps the requested start — the
+// pre-fix behavior, correct for dense-cue sources.
+func TestSoftwareProducer_CopySeekProbeFallbacks(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	p := NewSoftwareProducer(cache, proc, src, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes([]int64{0, 10000, 13000, 23000})}
+	items := &fakeCopyItems{item: itemWithDurationMs(30000)}
+	prober := &fakeSeekProber{err: context.DeadlineExceeded}
+	p.SetCopyMode(NewCopyPlanner(streams, items), prober)
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 2))
+	opts := proc.lastOpts()
+	assert.InDelta(t, 13.0, opts.StartSec, 0.001, "probe failure falls back to the requested keyframe")
+	assert.Equal(t, 2, opts.StartNumber)
+}
+
+func TestPlanIndexForLanding(t *testing.T) {
+	segs := []CopySegment{{0, 10000}, {10000, 13000}, {13000, 23000}, {23000, 30000}}
+	cases := []struct {
+		landing float64
+		want    int
+	}{
+		{0.0, 0},
+		{10.0, 1},  // exact boundary
+		{9.95, 1},  // boundary within rounding tolerance
+		{16.4, 2},  // mid-segment landing → containing segment
+		{22.99, 3}, // within 100ms of the next boundary → snaps forward
+		{29.0, 3},  // inside the tail
+	}
+	for _, tc := range cases {
+		if got := planIndexForLanding(segs, tc.landing); got != tc.want {
+			t.Fatalf("planIndexForLanding(%v) = %d, want %d", tc.landing, got, tc.want)
+		}
+	}
 }
 
 func TestSoftwareProducer_NeverSetsHWAccel(t *testing.T) {
@@ -579,7 +669,7 @@ func TestSoftwareProducer_ProfilesCopyModeIsSingleSourceRung(t *testing.T) {
 	// Copy mode → exactly ONE rung at the source resolution with Copy=true (the
 	// Jellyfin remux: direct-play quality, no transcode ladder). The planner is
 	// never called by Profiles — only its presence flips the branch.
-	p.SetCopyMode(NewCopyPlanner(nil, nil))
+	p.SetCopyMode(NewCopyPlanner(nil, nil), nil)
 	copyProfiles := p.Profiles(base, src, transcoding.PlaybackDecision{}, capability)
 	require.Len(t, copyProfiles, 1, "copy mode = one direct-play rung, not a ladder")
 	assert.True(t, copyProfiles[0].Copy, "the copy rung carries Copy=true (folds into the cache fingerprint)")

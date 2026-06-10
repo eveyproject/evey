@@ -64,6 +64,11 @@ type SoftwareProducer struct {
 	// keyframe-aligned playlist. Set ONCE via SetCopyMode before first use.
 	copyPlanner *CopyPlanner
 
+	// seekProber corrects a mid-stream copy session's start for the container's
+	// REAL seek landing (sparse cue index → -ss lands on the preceding cue
+	// point, possibly GOPs early). nil = no correction. Set via SetCopyMode.
+	seekProber SeekLandingProber
+
 	// shutdownCtx is the long-lived parent for every ffmpeg this producer
 	// spawns — never the HTTP request context (that one dies when the segment
 	// is served, which would tear down the long-lived encoder). Cancelled only
@@ -282,8 +287,36 @@ func NewSoftwareProducer(
 // restart). Call ONCE before first use — the wiring builds a DEDICATED copy
 // instance for the remux path, distinct from the transcode instance the selector
 // returns, so the two never share a manifest. nil planner = pure transcode.
-func (p *SoftwareProducer) SetCopyMode(planner *CopyPlanner) {
+//
+// seekProber resolves where a pre-input -ss really lands (sparse container seek
+// indexes land on the preceding cue point, possibly GOPs before the requested
+// keyframe). nil = no landing correction: mid-stream copy sessions then assume
+// they start at the requested keyframe, which is only safe for sources with a
+// dense seek index (one cue per keyframe).
+func (p *SoftwareProducer) SetCopyMode(planner *CopyPlanner, seekProber SeekLandingProber) {
 	p.copyPlanner = planner
+	p.seekProber = seekProber
+}
+
+// planIndexForLanding maps the demuxer's REAL seek landing (seconds) onto the
+// copy plan: the index of the plan segment whose start keyframe the demuxer
+// landed on. The landing is a keyframe and the plan has one boundary per
+// keyframe, so it normally matches a boundary exactly (±100 ms tolerance for
+// timestamp rounding); a non-matching landing falls back to the segment that
+// CONTAINS it, which still bounds the timestamp error to under one GOP and is
+// strictly better than assuming the requested target.
+func planIndexForLanding(segs []CopySegment, landingSec float64) int {
+	landingMs := int64(landingSec*1000 + 0.5)
+	const tolMs = 100
+	idx := 0
+	for i, s := range segs {
+		if s.StartMs <= landingMs+tolMs {
+			idx = i
+			continue
+		}
+		break
+	}
+	return idx
 }
 
 // copyReadRate returns the input-pacing rate for the session being started. The
@@ -336,13 +369,17 @@ func (p *SoftwareProducer) Profiles(base []transcoding.HLSProfile, src SourceDim
 			w, h = 1920, 1080 // safe default so the fingerprint stays deterministic
 		}
 		const copyDefaultBitrateKbps int64 = 5_000
-		// "-kf" suffix = the every-keyframe plan generation. The Name is part of
-		// the cache fingerprint, so bumping it orphans any cached copy segments
-		// produced under the OLD ≥6s-coalesced plan, whose numbering→content
-		// mapping is incompatible (they would otherwise be served as-is and
-		// reintroduce the drifted-segment bug on already-watched titles).
+		// "-kf2" suffix = the cache GENERATION of the copy plan/session contract
+		// (every-keyframe plan + seek-landing-corrected sessions). The Name is
+		// part of the cache fingerprint, so bumping it orphans cached copy
+		// segments produced under an older, incompatible contract: "-kf"
+		// segments could carry a mislabeled timeline (seek sessions started on
+		// the cue/DTS-heuristic landing but were rebased to the requested
+		// keyframe), and the unsuffixed generation had ≥6s-coalesced numbering.
+		// Bump this whenever produced segment content/labeling changes for the
+		// same fingerprint inputs.
 		return []transcoding.HLSProfile{{
-			Name:         fmt.Sprintf("%dp-copy-kf", h),
+			Name:         fmt.Sprintf("%dp-copy-kf2", h),
 			Width:        w,
 			Height:       h,
 			VideoBitrate: copyDefaultBitrateKbps,
@@ -468,6 +505,11 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		return fmt.Errorf("software: startSession: variantIdx %d out of range (profiles=%d)", variantIdx, len(fp.Profiles))
 	}
 
+	srcPath, _, err := p.source.ResolveSource(ctx, fp)
+	if err != nil {
+		return fmt.Errorf("software: startSession: resolve source: %w", err)
+	}
+
 	// Copy-mode divergences (gated). nil planner → transcode, byte-identical to
 	// before. Resolved up front, before any resource is acquired, so a missing
 	// plan returns cleanly. The frontier/seek/reach math downstream is in segment
@@ -475,6 +517,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// segments: segment N seeks to its keyframe start, not N×SegmentSeconds.
 	videoDecision := "transcode"
 	startSec := float64(startSeg) * p.opts.SegmentSeconds
+	seekTargetSec := 0.0
 	if p.copyPlanner != nil {
 		segs, planErr := p.copyPlanner.Plan(ctx, fp.MediaID)
 		if planErr != nil {
@@ -484,15 +527,46 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 			return fmt.Errorf("software: startSession: copy startSeg %d out of range (%d segments)", startSeg, len(segs))
 		}
 		videoDecision = "copy"
-		startSec = float64(segs[startSeg].StartMs) / 1000.0
 		// The copy session runs `-hls_time 0` (split at EVERY keyframe — see
 		// hlsTimeFor), the only split rule that matches the every-keyframe plan
 		// for cold and seek sessions alike.
-	}
-
-	srcPath, _, err := p.source.ResolveSource(ctx, fp)
-	if err != nil {
-		return fmt.Errorf("software: startSession: resolve source: %w", err)
+		//
+		// Mid-stream start: a pre-input -ss seeks via the container's seek
+		// index, which is SPARSE in real-world files (mkvmerge: one MKV cue per
+		// ~5 s cluster) — ffmpeg lands on the cue point AT-OR-BEFORE the target,
+		// possibly whole GOPs before the requested keyframe. The session's plan
+		// bookkeeping (StartSec, -start_number, the tfdt rebase) must follow the
+		// LANDED keyframe, not the requested one, or every video timestamp it
+		// emits is shifted by the gap while the re-encoded audio (trimmed at the
+		// exact -ss time) stays true — the measured post-deep-seek A/V desync.
+		// Producing a few extra segments before the requested one is the cheap,
+		// correct outcome: they are exact plan segments (cache-consistent).
+		if startSeg > 0 {
+			// seekTargetSec is the ONE -ss the session will emit AND the exact
+			// timestamp the landing probe runs against: probe(T) == landing(T)
+			// by construction, so the bookkeeping below stays true. (Re-deriving
+			// -ss from the landed keyframe would land one keyframe earlier again
+			// — the ffmpeg CLI's ~130 ms DTS-heuristic seek offset.)
+			seekTargetSec = float64(segs[startSeg].StartMs)/1000.0 + transcoding.CopySeekNudgeSec
+			if p.seekProber != nil {
+				requested := startSeg
+				landing, probeErr := p.seekProber.ProbeSeekLanding(ctx, srcPath, seekTargetSec)
+				switch {
+				case probeErr != nil:
+					p.logger.Warn("software: copy seek-landing probe failed, assuming exact landing",
+						slog.Float64("target", seekTargetSec), slog.Any("err", probeErr))
+				default:
+					if j := planIndexForLanding(segs, landing); j < startSeg {
+						p.logger.Info("software: copy seek landed before the requested keyframe (sparse seek index / dts heuristic)",
+							slog.Int("requested_seg", requested),
+							slog.Int("landed_seg", j),
+							slog.Float64("landing_sec", landing))
+						startSeg = j
+					}
+				}
+			}
+		}
+		startSec = float64(segs[startSeg].StartMs) / 1000.0
 	}
 
 	outDir, err := p.cache.DirFor(hash)
@@ -525,6 +599,9 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		// a mid-stream session keeps the SOURCE avcC instead of emitting a libx264
 		// init that would poison the shared init. No-op when not in copy mode.
 		CopyOnSeek: p.copyPlanner != nil,
+		// The exact -ss the probe validated; bookkeeping (StartSec/StartNumber)
+		// reflects its real landing. 0 on cold starts.
+		SeekTargetSec: seekTargetSec,
 		// Input pacing: the defining software-flow knob. Keeps the single
 		// sequential encoder near wall-clock so it never races ahead of the
 		// viewer (no abort-and-probe client → no need to burst).

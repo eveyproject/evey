@@ -34,31 +34,31 @@ type ffprobeOutput struct {
 }
 
 type ffprobeStream struct {
-	Index         int               `json:"index"`
-	CodecName     string            `json:"codec_name"`
-	CodecLongName string            `json:"codec_long_name"`
-	CodecType     string            `json:"codec_type"`
-	Profile       string            `json:"profile"`
-	Level         int               `json:"level"`
-	Width         int               `json:"width"`
-	Height        int               `json:"height"`
-	RFrameRate    string            `json:"r_frame_rate"`
-	PixFmt        string            `json:"pix_fmt"`
-	ColorSpace    string            `json:"color_space"`
-	ColorTransfer string            `json:"color_transfer"`
-	ColorPrimaries string           `json:"color_primaries"`
-	Channels      int               `json:"channels"`
-	ChannelLayout string            `json:"channel_layout"`
-	SampleRate    string            `json:"sample_rate"`
-	BitsPerRawSample string         `json:"bits_per_raw_sample"`
-	BitRate       string            `json:"bit_rate"`
-	Disposition   ffprobeDisposition `json:"disposition"`
-	Tags          map[string]string `json:"tags"`
+	Index            int                `json:"index"`
+	CodecName        string             `json:"codec_name"`
+	CodecLongName    string             `json:"codec_long_name"`
+	CodecType        string             `json:"codec_type"`
+	Profile          string             `json:"profile"`
+	Level            int                `json:"level"`
+	Width            int                `json:"width"`
+	Height           int                `json:"height"`
+	RFrameRate       string             `json:"r_frame_rate"`
+	PixFmt           string             `json:"pix_fmt"`
+	ColorSpace       string             `json:"color_space"`
+	ColorTransfer    string             `json:"color_transfer"`
+	ColorPrimaries   string             `json:"color_primaries"`
+	Channels         int                `json:"channels"`
+	ChannelLayout    string             `json:"channel_layout"`
+	SampleRate       string             `json:"sample_rate"`
+	BitsPerRawSample string             `json:"bits_per_raw_sample"`
+	BitRate          string             `json:"bit_rate"`
+	Disposition      ffprobeDisposition `json:"disposition"`
+	Tags             map[string]string  `json:"tags"`
 }
 
 type ffprobeDisposition struct {
-	Default  int `json:"default"`
-	Forced   int `json:"forced"`
+	Default int `json:"default"`
+	Forced  int `json:"forced"`
 }
 
 func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.ProbeResult, error) {
@@ -173,6 +173,93 @@ func (p *Prober) ProbeKeyframes(ctx context.Context, filePath string) ([]int64, 
 		return nil, fmt.Errorf("ffprobe keyframes: %w", err)
 	}
 	return parseKeyframeCSV(out), nil
+}
+
+// seekLandingBinary is the ffmpeg CLI used by ProbeSeekLanding. It MUST be the
+// same binary family the copy sessions run, because the probe's whole point is
+// to reproduce the ffmpeg CLI's seek decision bit-for-bit (see below).
+const seekLandingBinary = "ffmpeg"
+
+// ProbeSeekLanding returns the presentation time (seconds) of the packet
+// `ffmpeg -ss targetSec -i file -c:v copy` ACTUALLY starts on.
+//
+// Two effects make the landing diverge from the requested keyframe:
+//   - SPARSE seek indexes: mkvmerge-style MKVs cue per cluster, not per
+//     keyframe, so a backward seek can land a GOP (or several) earlier.
+//   - The ffmpeg CLI's DTS heuristic: when any video stream has B-frames
+//     (video_delay > 0) and the format doesn't seek by PTS, ffmpeg_demux
+//     subtracts 3/23 s (~130 ms) from the seek timestamp before calling
+//     avformat_seek_file — so a target sitting ON a cue point selects the
+//     PREVIOUS cue. Measured: ffprobe -read_intervals (no heuristic) reported
+//     1351.308 while the real session started at 1350.516 on the same target.
+//
+// Replicating those rules is fragile, so the probe IS ffmpeg: same binary,
+// same -ss code path, `-c:v copy -frames:v 1 -f framecrc` to print the first
+// copied packet (its pts kept absolute by -copyts) and exit. A copy session
+// that assumes it started at the requested keyframe mis-labels every video
+// timestamp by the landing gap (measured in prod: -ss 1201.250 landed at
+// 1194.861 → +6.34 s of A/V desync after a deep seek). Cheap: header + seek
+// index + one packet, no decode.
+func (p *Prober) ProbeSeekLanding(ctx context.Context, filePath string, targetSec float64) (float64, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.prober.ProbeSeekLanding")
+	defer span.End()
+	cmd := exec.CommandContext(ctx, seekLandingBinary,
+		"-v", "error",
+		"-ss", fmt.Sprintf("%.3f", targetSec),
+		"-copyts",
+		"-i", filePath,
+		"-map", "0:v:0",
+		"-c:v", "copy",
+		"-frames:v", "1",
+		"-f", "framecrc", "-",
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, fmt.Errorf("ffmpeg seek-landing probe: %w", err)
+	}
+	return parseFramecrcFirstPTS(out)
+}
+
+// parseFramecrcFirstPTS extracts the first packet's pts (seconds) from
+// `-f framecrc` output:
+//
+//	#tb 0: 1/1000
+//	0,       1350433,      1350516,       42,   123456, 0xabcd1234
+//
+// (fields: stream, dts, pts, duration, size, crc; pts is in the #tb timebase).
+func parseFramecrcFirstPTS(out []byte) (float64, error) {
+	tbNum, tbDen := int64(1), int64(1000) // matroska default; overridden by #tb
+	for line := range strings.SplitSeq(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if frac, ok := strings.CutPrefix(line, "#tb 0:"); ok {
+			frac = strings.TrimSpace(frac)
+			if n, d, ok := strings.Cut(frac, "/"); ok {
+				num, e1 := strconv.ParseInt(strings.TrimSpace(n), 10, 64)
+				den, e2 := strconv.ParseInt(strings.TrimSpace(d), 10, 64)
+				if e1 == nil && e2 == nil && den > 0 {
+					tbNum, tbDen = num, den
+				}
+			}
+			continue
+		}
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Split(line, ",")
+		if len(fields) < 3 {
+			continue
+		}
+		pts, perr := strconv.ParseInt(strings.TrimSpace(fields[2]), 10, 64)
+		if perr != nil {
+			return 0, fmt.Errorf("ffmpeg seek-landing probe: unparseable pts in %q", line)
+		}
+		sec := float64(pts) * float64(tbNum) / float64(tbDen)
+		if sec < 0 {
+			return 0, fmt.Errorf("ffmpeg seek-landing probe: negative pts %d", pts)
+		}
+		return sec, nil
+	}
+	return 0, fmt.Errorf("ffmpeg seek-landing probe: no packet line in framecrc output")
 }
 
 // parseKeyframeCSV extracts keyframe presentation times (ms, sorted, deduped)

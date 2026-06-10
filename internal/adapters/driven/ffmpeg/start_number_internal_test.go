@@ -51,6 +51,14 @@ func TestBuildCopyVideoArgs_CopyOnSeek(t *testing.T) {
 	seekCopy := base
 	seekCopy.StartSec, seekCopy.CopyOnSeek = 520, true
 	a := joined(buildCopyVideoArgs(seekCopy))
+	// With an explicit probed target, -ss must be exactly that value (not
+	// derived from the landed StartSec, which would re-trigger the ffmpeg CLI
+	// seek rules one keyframe earlier).
+	probed := base
+	probed.StartSec, probed.CopyOnSeek, probed.SeekTargetSec = 514.661, true, 520.050
+	if pa := joined(buildCopyVideoArgs(probed)); !strings.Contains(pa, " -ss 520.050 ") {
+		t.Fatalf("probed copy seek must emit -ss SeekTargetSec verbatim, got: %s", pa)
+	}
 	if !strings.Contains(a, " -c:v copy ") {
 		t.Fatalf("copy-on-seek must -c:v copy, got: %s", a)
 	}

@@ -16,6 +16,19 @@ type CopyStreamReader interface {
 	GetByMediaItemID(ctx context.Context, id shared.MediaItemID) ([]*domainlibrary.MediaStream, error)
 }
 
+// SeekLandingProber reports where the demuxer ACTUALLY lands when seeking the
+// video stream to targetSec (the first packet's presentation time, seconds).
+// Real-world container seek indexes are sparse (mkvmerge: one MKV cue per
+// ~5 s cluster, not per keyframe), so a pre-input -ss aimed at a known
+// keyframe can land a GOP or more EARLIER on the preceding cue point. A copy
+// session must start its plan bookkeeping (StartSec / -start_number / tfdt
+// rebase) at the LANDED keyframe, not the requested one, or every video
+// timestamp it emits is shifted by the gap (the post-deep-seek A/V desync
+// measured in prod). Implemented by the ffmpeg Prober (ProbeSeekLanding).
+type SeekLandingProber interface {
+	ProbeSeekLanding(ctx context.Context, filePath string, targetSec float64) (float64, error)
+}
+
 // CopyPlanner resolves the deterministic, keyframe-aligned segment plan for a
 // copy-rung media item: the video stream's keyframes_ms + the file duration →
 // KeyframeSegments (one segment per keyframe gap, mirroring the session's

@@ -986,6 +986,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		searchHealth:      infra.searchHealth,
 		imageConverter:    infra.imageConverter,
 		frameExtractor:    infra.trickplayGen,
+		copySeekProber:    infra.prober,
 	}, nil
 }
 

@@ -1185,7 +1185,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		)
 		softwareCopy.SetCopyMode(apptranscoding.NewCopyPlanner(
 			copyStreamReaderAdapter{libSvc}, copyItemReaderAdapter{libSvc},
-		))
+		), s.CopySeekProber)
 		h.copyProducer = softwareCopy
 		slog.Default().Warn("hls vod: copy/remux rung ENABLED (EXPERIMENTAL, opt-in: server_config transcoding.remux_copy=on or EVEY_REMUX_COPY=on) — every-keyframe plan + -hls_time 0 + paced copy; numbering/desync drift fixed, pending live prod listen test")
 	}

@@ -8,10 +8,10 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
 	appcast "github.com/evey-project/evey/internal/app/chromecast"
 	appdlna "github.com/evey-project/evey/internal/app/dlna"
-	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
@@ -122,13 +122,13 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		PluginSvc:                  deps.engagement.pluginInstallerSvc,
 		CSSSanitizer:               pluginrunner.SanitizeCSS,
 		PluginSecurityDashboardSvc: deps.engagement.pluginSecurityDashboardSvc,
-		DataDir:     "/data",
-		PluginDir:   "/data/plugins",
-		WebDir:      cfg.Server.WebDir,
-		DLNASvc: appdlna.New(cfg.EffectiveBaseURL()),
-		CastSvc: appcast.New(cfg.EffectiveBaseURL()),
+		DataDir:                    "/data",
+		PluginDir:                  "/data/plugins",
+		WebDir:                     cfg.Server.WebDir,
+		DLNASvc:                    appdlna.New(cfg.EffectiveBaseURL()),
+		CastSvc:                    appcast.New(cfg.EffectiveBaseURL()),
 
-		CfgStore: deps.cfgStore,
+		CfgStore:  deps.cfgStore,
 		ServerCtx: ctx,
 
 		LoginRL:         loginRL,
@@ -140,10 +140,11 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		Translator:           deps.translator,
 		AudioNormalizeGetter: audioNormalizeGetter,
-		UserMaxStreams:        httpapi.NewUserMaxStreamsAdapter(deps.repos.userRepo),
+		UserMaxStreams:       httpapi.NewUserMaxStreamsAdapter(deps.repos.userRepo),
 		UserBitrate:          httpapi.NewUserBitrateAdapter(deps.user.querySvc),
 		ProfilePrefs:         httpapi.NewProfilePrefsAdapter(deps.user.querySvc),
 		FrameExtractor:       deps.frameExtractor,
+		CopySeekProber:       deps.copySeekProber,
 		IntroDetector:        deps.library.introDetectionSvc,
 	}
 

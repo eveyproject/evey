@@ -24,10 +24,10 @@ import (
 	appmusic "github.com/evey-project/evey/internal/app/music"
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
+	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	apprating "github.com/evey-project/evey/internal/app/rating"
 	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
-	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/config"
@@ -112,6 +112,12 @@ type HTTPServer struct {
 	// QoESink ingests CMCD telemetry from every segment / master / variant
 	// request. Nil-safe: the VOD handler short-circuits when this is unset.
 	QoESink appqoe.EventSink
+
+	// CopySeekProber resolves where a pre-input -ss really lands for the copy
+	// rung's mid-stream sessions (sparse container seek indexes land on the
+	// preceding cue point). Nil-safe: without it, copy seeks assume an exact
+	// landing (only safe for dense-cue sources).
+	CopySeekProber apptranscoding.SeekLandingProber
 
 	// transcodeCloser tears down the VOD software producers built during route
 	// registration (the selector's SoftwareProducer + the optional copy

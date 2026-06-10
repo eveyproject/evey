@@ -47,6 +47,17 @@ type HLSProcess interface {
 	Start(ctx context.Context, opts HLSProcessOpts) (HLSProcessHandle, error)
 }
 
+// CopySeekNudgeSec is the offset added to a copy session's pre-input -ss so it
+// lands ON the intended keyframe rather than snapping to the previous one.
+// StartSec derives from the ms-rounded keyframe index, so it can sit a hair
+// BELOW the true keyframe time; -ss seeks to the point at-or-before the
+// timestamp, so an exact-or-low target lands one keyframe early (proven in a
+// jellyfin-ffmpeg7 harness: 1 ms below → previous keyframe; +50 ms → correct,
+// robust to ~1-frame index error; Jellyfin uses +0.5 s for the same quirk).
+// Shared between the ffmpeg arg builder (-ss emission) and the copy producer's
+// seek-landing probe so both reason about the SAME effective seek target.
+const CopySeekNudgeSec = 0.05
+
 // AudioProcess spawns and manages an ffmpeg audio-only HLS rendition process.
 // It produces audio_T_init.mp4 + audio_T_NNN.m4s segments alongside the video
 // pipeline so the SegmentOrchestrator can serve them as an EXT-X-MEDIA rendition.
@@ -126,6 +137,15 @@ type HLSProcessOpts struct {
 	// libx264 Baseline init that overwrites the shared High-profile init →
 	// every copied segment decodes against the wrong SPS/PPS → scrambled frames.
 	CopyOnSeek bool
+	// SeekTargetSec is the EXACT `-ss` value a copy-on-seek session must emit.
+	// It is the timestamp the producer's seek-landing probe ran against, so by
+	// construction ffmpeg lands where the probe said (StartSec/StartNumber are
+	// set to that landing). Deriving -ss from the landed StartSec instead would
+	// re-trigger the landing rules one keyframe earlier every time (the ffmpeg
+	// CLI subtracts ~130 ms before seeking when the video has B-frames, so
+	// aiming AT a cue point always lands BEFORE it). 0 → fall back to
+	// StartSec + CopySeekNudgeSec (no probe ran).
+	SeekTargetSec float64
 	// ReadRate paces ffmpeg's input to N× real-time (`-readrate N`, a pre-`-i`
 	// flag) so a single long-lived encoder stays close to wall-clock and doesn't
 	// burn CPU racing ahead of the viewer. 0 (default) = no pacing — byte-identical
