@@ -147,8 +147,36 @@ ci-local-frontend:
 # govulncheck + build + gosec ratchet + general lint), run by the git pre-push
 # hook so a red `quality` pipeline never surprises you again. No -race tests
 # here (that's the separate `correctness` job — use `make ci-local` for those).
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec ci-local-lint
-	@echo "✅ pre-push OK — quality gate green (vet + govulncheck + build + gosec + lint)."
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec ci-local-lint transcode-itest-gate
+	@echo "✅ pre-push OK — quality gate green (vet + govulncheck + build + gosec + lint + transcode contract)."
+
+# transcode-itest-gate: run the copy-pipeline contract test (make transcode-itest)
+# whenever the outgoing changes touch the transcoding stack — the bug class it
+# catches (plan↔ffmpeg contract drift) is invisible to every host-side check in
+# this gate, and it shipped audible desyncs three times in one day. Non-transcode
+# pushes skip it (no 20s tax); transcode pushes REQUIRE the dev container (an
+# explicit failure, never a silent skip — a gate that silently no-ops is worse
+# than no gate). Force it on any push with TRANSCODE_ITEST=1.
+TRANSCODE_PATHS := internal/app/transcoding internal/domain/transcoding \
+  internal/adapters/driven/ffmpeg \
+  internal/adapters/driving/http/transcode_handler_vod.go \
+  internal/adapters/driving/http/transcode_audio_handler.go \
+  docker/Dockerfile docker/Dockerfile.dev
+
+transcode-itest-gate:
+	@base=$$(git merge-base @{u} HEAD 2>/dev/null || git rev-parse 'HEAD~10' 2>/dev/null || git rev-parse HEAD); \
+	if [ "$(TRANSCODE_ITEST)" = "1" ] || ! git diff --quiet $$base -- $(TRANSCODE_PATHS) 2>/dev/null; then \
+	  echo "→ transcode stack touched — running the copy-pipeline contract test (make transcode-itest)"; \
+	  if ! docker inspect -f '{{.State.Running}}' evey-server 2>/dev/null | grep -q true; then \
+	    echo "✗ evey-server container is not running — the transcode contract test CANNOT run."; \
+	    echo "  Start the dev stack (docker compose up -d) and re-push. (No silent skip: this"; \
+	    echo "  test is the only gate that sees plan↔ffmpeg contract regressions.)"; \
+	    exit 1; \
+	  fi; \
+	  $(MAKE) --no-print-directory transcode-itest; \
+	else \
+	  echo "→ no transcode-stack changes since $$base — skipping transcode-itest"; \
+	fi
 
 # hooks: activate the committed git hooks (one-time, sets local core.hooksPath).
 hooks:
