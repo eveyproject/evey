@@ -120,10 +120,15 @@ func parse(s string) Payload {
 }
 
 func splitTopLevelCommas(s string) []string {
+	// Bound the slice a forged comma-heavy CMCD (up to the HTTP header/query
+	// limit) can materialize on the segment hot path. A real payload has well
+	// under ~30 keys; past maxParts the rest is junk we'd drop at the maxRawKeys
+	// cap anyway, so stop building the slice instead of allocating all of it.
+	const maxParts = 128
 	var out []string
 	var cur strings.Builder
 	inQuotes := false
-	for i := 0; i < len(s); i++ {
+	for i := 0; i < len(s) && len(out) < maxParts; i++ {
 		c := s[i]
 		switch {
 		case c == '"':
@@ -136,7 +141,7 @@ func splitTopLevelCommas(s string) []string {
 			cur.WriteByte(c)
 		}
 	}
-	if cur.Len() > 0 {
+	if cur.Len() > 0 && len(out) < maxParts {
 		out = append(out, cur.String())
 	}
 	return out

@@ -3,6 +3,8 @@ package cmcd
 import (
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -105,6 +107,28 @@ func TestFromRequest_UnknownKeys_LandInRaw(t *testing.T) {
 	assert.Equal(t, 2400, p.EncodedKbps)
 	assert.Equal(t, "foo", p.Raw["custom-key"])
 	assert.Equal(t, "1", p.Raw["x-evey-flag"])
+}
+
+func TestFromRequest_ForgedCommaFlood_Bounded(t *testing.T) {
+	// A malicious player can blast a comma-heavy CMCD up to the query/header
+	// limit. The splitter caps the slice it materializes (maxParts) so the
+	// segment hot path can't be made to allocate one entry per comma. Standard
+	// keys that appear within the cap still parse; the junk tail is dropped at
+	// both the split cap and the maxRawKeys cap, so Raw never explodes.
+	var b strings.Builder
+	b.WriteString("br=2400,bl=12000") // real keys up front, must survive
+	for i := 0; i < 5000; i++ {
+		b.WriteString(",k")
+		b.WriteString(strconv.Itoa(i))
+		b.WriteString("=1")
+	}
+	r := httpReq("/hls/x/y?CMCD=" + url.QueryEscape(b.String()))
+
+	p, ok := FromRequest(r)
+	require.True(t, ok)
+	assert.Equal(t, 2400, p.EncodedKbps, "leading standard key must still parse")
+	assert.Equal(t, 12000, p.BufferLengthMs)
+	assert.LessOrEqual(t, len(p.Raw), maxRawKeys, "Raw stays bounded under a flood")
 }
 
 func httpReq(target string) *http.Request {
