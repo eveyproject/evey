@@ -90,27 +90,50 @@ func TestBuildCopyVideoArgs_CopyOnSeek(t *testing.T) {
 	}
 }
 
-// The copy rung MUST run -hls_time at the plan's keyframe target (SegmentSeconds),
-// not the default "3": with -c:v copy ffmpeg splits at the first keyframe >=
-// hls_time, so hls_time must match the manifest's KeyframeSegments target or the
-// produced segments drift from the #EXTINF indices the player addresses.
-func TestHLSTimeFor_CopyMatchesPlanTarget(t *testing.T) {
-	transcode := transcoding.HLSProcessOpts{} // SegmentSeconds 0
+// The copy rung MUST run `-hls_time 0` — split at EVERY keyframe — because that
+// is the only ffmpeg split rule that is independent of where the session
+// started. Any hls_time > 0 splits on an absolute n×hls_time grid relative to
+// the SESSION start: on long-GOP sources the grid lags until ffmpeg cuts at
+// every keyframe anyway while the plan coalesces, so the produced
+// stream_N_NNN.m4s drift from the #EXTINF indices the player addresses
+// (measured in prod: minutes of drift + the A/V desync). The every-keyframe
+// plan (KeyframeSegments) is the exact mirror of -hls_time 0.
+func TestHLSTimeFor_CopySplitsAtEveryKeyframe(t *testing.T) {
+	transcode := transcoding.HLSProcessOpts{}
 	if got := hlsTimeFor(transcode); got != hlsSegmentSeconds {
 		t.Fatalf("transcode -hls_time = %q, want default %q", got, hlsSegmentSeconds)
 	}
-	if got := hlsTimeFor(transcoding.HLSProcessOpts{SegmentSeconds: 6}); got != "6" {
-		t.Fatalf("copy -hls_time = %q, want \"6\"", got)
+	if got := hlsTimeFor(transcoding.HLSProcessOpts{VideoDecision: "copy"}); got != "0" {
+		t.Fatalf("copy -hls_time = %q, want \"0\" (split at every keyframe)", got)
 	}
 
 	copyArgs := joined(buildCopyVideoArgs(transcoding.HLSProcessOpts{
-		FilePath: "/m.mkv", VideoDecision: "copy", SegmentSeconds: 6,
+		FilePath: "/m.mkv", VideoDecision: "copy",
 	}))
-	if !strings.Contains(copyArgs, " -hls_time 6 ") {
-		t.Fatalf("copy rung must emit -hls_time 6, got: %s", copyArgs)
+	if !strings.Contains(copyArgs, " -hls_time 0 ") {
+		t.Fatalf("copy rung must emit -hls_time 0, got: %s", copyArgs)
 	}
-	if strings.Contains(copyArgs, " -hls_time 3 ") {
-		t.Fatalf("copy rung must NOT use the default -hls_time 3, got: %s", copyArgs)
+}
+
+// Copy sessions are paced (-readrate) with a full-speed initial burst so video
+// copy cannot race minutes ahead of the CPU-bound audio re-encode (the prod
+// A/V interleave desync), while startup/seek stay instant. ReadRate=0 must
+// emit no pacing flags at all.
+func TestBuildCopyVideoArgs_PacingBurst(t *testing.T) {
+	paced := joined(buildCopyVideoArgs(transcoding.HLSProcessOpts{
+		FilePath: "/m.mkv", VideoDecision: "copy", ReadRate: 8,
+	}))
+	if !strings.Contains(paced, " -readrate 8") {
+		t.Fatalf("paced copy must emit -readrate, got: %s", paced)
+	}
+	if !strings.Contains(paced, " -readrate_initial_burst 30 ") {
+		t.Fatalf("paced copy must emit -readrate_initial_burst, got: %s", paced)
+	}
+	unpaced := joined(buildCopyVideoArgs(transcoding.HLSProcessOpts{
+		FilePath: "/m.mkv", VideoDecision: "copy",
+	}))
+	if strings.Contains(unpaced, "readrate") {
+		t.Fatalf("ReadRate=0 must emit no readrate flags, got: %s", unpaced)
 	}
 }
 

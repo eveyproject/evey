@@ -727,12 +727,23 @@ func appendInputModifiers(args []string, readRate float64) []string {
 // `-ss`, callers must compute startNumber = floor(StartSec/hlsSegmentSeconds)
 // so the produced filenames match the absolute manifest indices the VOD
 // pipeline cache addresses by. Pass 0 for legacy / non-rafale callers.
-// hlsTimeFor returns the -hls_time value: opts.SegmentSeconds when set (the copy
-// rung passes its keyframe target so ffmpeg's split lands on the SAME keyframes
-// the precalculated manifest addresses), else the default hlsSegmentSeconds.
+// hlsTimeFor returns the -hls_time value. The COPY rung always runs "0" — split
+// at EVERY keyframe — because that is the only muxer split rule that is
+// deterministic AND independent of where the session started. With any
+// hls_time > 0 the muxer splits on an absolute n×hls_time grid relative to the
+// SESSION's first packet (not "duration since the previous cut"): on long-GOP
+// sources the grid lags until every keyframe qualifies anyway, and a `-ss`
+// session's grid is offset from the cold session's, so two sessions covering
+// the same region cut DIFFERENT segments under the same cache filenames
+// (measured in prod: segment numbering drifted minutes from the playlist).
+// `-hls_time 0` + the every-keyframe CopyPlanner plan keep ffmpeg and the
+// precalculated manifest byte-aligned for every session (verified against
+// jellyfin-ffmpeg7, cold + seek, dense and long-GOP sources). The transcode
+// path keeps the default: its encoder only EMITS keyframes on the forced
+// n×3s grid, so grid-splitting and the fixed manifest coincide exactly.
 func hlsTimeFor(opts transcoding.HLSProcessOpts) string {
-	if opts.SegmentSeconds > 0 {
-		return strconv.FormatFloat(opts.SegmentSeconds, 'f', -1, 64)
+	if opts.VideoDecision == "copy" {
+		return "0"
 	}
 	return hlsSegmentSeconds
 }
@@ -777,6 +788,23 @@ func appendHLSOutputArgs(args []string, outputDir string, useFMP4 bool, hlsTime 
 func needsFMP4Segments(streams []*library.MediaStream) bool {
 	_ = streams
 	return true
+}
+
+// appendCopyPacingBurst emits `-readrate_initial_burst` (ffmpeg ≥ 6.1, present
+// in the bundled jellyfin-ffmpeg7) right after a copy session's `-readrate`.
+// The copy rung paces its input (see SoftwareProducer.copyReadRate) to bound
+// the muxer-side A/V skew a free-running copy develops: video `-c:v copy`
+// packets cost ~0 while the DTS/AC-3→AAC chain is CPU-bound, so on a weak host
+// an UNPACED session lets video race ahead until the muxer's 10 s
+// max_interleave_delta force-flushes — measured in prod as audio landing up to
+// ~8.3 s behind video across segment files (the audible "son décalé" desync).
+// Pacing bounds that skew; the initial burst keeps startup/seek instant by
+// reading the first N seconds at full speed before the rate cap kicks in.
+func appendCopyPacingBurst(args []string, readRate float64) []string {
+	if readRate <= 0 {
+		return args
+	}
+	return append(args, "-readrate_initial_burst", "30")
 }
 
 func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
@@ -843,6 +871,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		const keyframeSeekNudgeSec = 0.05
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec+keyframeSeekNudgeSec))
 		args = appendInputModifiers(args, opts.ReadRate)
+		args = appendCopyPacingBurst(args, opts.ReadRate)
 		args = append(args, "-i", opts.FilePath, "-map", "0:v:0")
 		if hasAudio(opts) {
 			args = append(args, "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex))
@@ -883,6 +912,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		)
 	default:
 		args = appendInputModifiers(args, opts.ReadRate)
+		args = appendCopyPacingBurst(args, opts.ReadRate)
 		args = append(args, "-i", opts.FilePath)
 		args = append(args, "-map", "0:v:0")
 		if hasAudio(opts) {

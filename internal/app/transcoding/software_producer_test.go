@@ -66,6 +66,36 @@ func TestSoftwareProducer_ReadRatePaced(t *testing.T) {
 		"the software producer MUST input-pace ffmpeg (-readrate 1.5) — the defining software-flow knob")
 }
 
+// Copy-mode session: paced LOOSELY at 8x (NOT the transcode 1.5x, NOT unpaced),
+// every-keyframe plan drives StartSec/StartNumber, and the ffmpeg invocation is
+// flagged copy + copy-on-seek. 8x bounds the muxer-side A/V skew an unpaced
+// copy develops on a weak host (audio re-encode outrun by the ~free video copy
+// → interleave force-flush → the prod "son décalé" desync), while keeping
+// startup/seek instant via the initial burst.
+func TestSoftwareProducer_CopySessionPacedAtKeyframePlan(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	p := NewSoftwareProducer(cache, proc, src, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	// Long-GOP plan with a scene-cut: [0,10s) [10,13s) [13,23s) [23,30s).
+	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes([]int64{0, 10000, 13000, 23000})}
+	items := &fakeCopyItems{item: itemWithDurationMs(30000)}
+	p.SetCopyMode(NewCopyPlanner(streams, items))
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 2))
+
+	opts := proc.lastOpts()
+	assert.Equal(t, "copy", opts.VideoDecision)
+	assert.True(t, opts.CopyOnSeek, "copy session must stay -c:v copy on a mid-stream start")
+	assert.InDelta(t, 8.0, opts.ReadRate, 0.001,
+		"copy sessions pace at 8x — unpaced lets video outrun the audio re-encode (A/V desync), 1.5x starves the client")
+	assert.InDelta(t, 13.0, opts.StartSec, 0.001, "StartSec = the plan keyframe of segment 2, not 2×SegmentSeconds")
+	assert.Equal(t, 2, opts.StartNumber, "StartNumber = the absolute plan index")
+}
+
 func TestSoftwareProducer_NeverSetsHWAccel(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
@@ -549,7 +579,7 @@ func TestSoftwareProducer_ProfilesCopyModeIsSingleSourceRung(t *testing.T) {
 	// Copy mode → exactly ONE rung at the source resolution with Copy=true (the
 	// Jellyfin remux: direct-play quality, no transcode ladder). The planner is
 	// never called by Profiles — only its presence flips the branch.
-	p.SetCopyMode(NewCopyPlanner(nil, nil, 0))
+	p.SetCopyMode(NewCopyPlanner(nil, nil))
 	copyProfiles := p.Profiles(base, src, transcoding.PlaybackDecision{}, capability)
 	require.Len(t, copyProfiles, 1, "copy mode = one direct-play rung, not a ladder")
 	assert.True(t, copyProfiles[0].Copy, "the copy rung carries Copy=true (folds into the cache fingerprint)")

@@ -18,7 +18,8 @@ type CopyStreamReader interface {
 
 // CopyPlanner resolves the deterministic, keyframe-aligned segment plan for a
 // copy-rung media item: the video stream's keyframes_ms + the file duration →
-// KeyframeSegments. The plan is the SINGLE source of truth for both the copy
+// KeyframeSegments (one segment per keyframe gap, mirroring the session's
+// `-hls_time 0`). The plan is the SINGLE source of truth for both the copy
 // manifest (#EXTINF list) and the session StartSec mapping (segment N → its
 // keyframe start), so the two can never drift. Plans are cached per media id —
 // keyframes are immutable for a fixed file.
@@ -27,26 +28,30 @@ type CopyStreamReader interface {
 // is no way to cut a -c:v copy stream, so Plan returns an error and the caller
 // falls back to the transcode ladder.
 type CopyPlanner struct {
-	streams  CopyStreamReader
-	items    MediaItemReader
-	targetMs int64
+	streams CopyStreamReader
+	items   MediaItemReader
 
 	mu    sync.Mutex
 	cache map[string][]CopySegment
 }
 
-// NewCopyPlanner wires the planner to the stream + item readers. targetMs is the
-// minimum segment length fed to KeyframeSegments (a long-GOP source yields longer
-// segments rather than splitting mid-GOP); 0 falls back to 6000.
-func NewCopyPlanner(streams CopyStreamReader, items MediaItemReader, targetMs int64) *CopyPlanner {
-	if targetMs <= 0 {
-		targetMs = 6000
-	}
+// Density guard bounds for a usable copy plan. The every-keyframe contract
+// means a pathological source (all-intra, or sub-second GOPs over hours)
+// would explode into tens of thousands of tiny segments — worse for the
+// client than transcoding. Mean gap < 1 s (e.g. all-intra ≈ one frame per
+// segment) or an absurd segment count → Plan errors and the handler falls
+// back to the transcode ladder. Normal film encodes (1–10 s GOPs) pass.
+const (
+	minCopyMeanGapMs    = 1000
+	maxCopyPlanSegments = 20000
+)
+
+// NewCopyPlanner wires the planner to the stream + item readers.
+func NewCopyPlanner(streams CopyStreamReader, items MediaItemReader) *CopyPlanner {
 	return &CopyPlanner{
-		streams:  streams,
-		items:    items,
-		targetMs: targetMs,
-		cache:    make(map[string][]CopySegment),
+		streams: streams,
+		items:   items,
+		cache:   make(map[string][]CopySegment),
 	}
 }
 
@@ -87,9 +92,16 @@ func (c *CopyPlanner) Plan(ctx context.Context, mediaID string) ([]CopySegment, 
 		return nil, fmt.Errorf("copy planner: no duration for media %s", mediaID)
 	}
 
-	segs := KeyframeSegments(keyframes, c.targetMs, durationMs)
+	segs := KeyframeSegments(keyframes, durationMs)
 	if len(segs) == 0 {
 		return nil, fmt.Errorf("copy planner: empty plan for media %s", mediaID)
+	}
+	if len(segs) > maxCopyPlanSegments {
+		return nil, fmt.Errorf("copy planner: %d segments exceeds the plan cap for media %s", len(segs), mediaID)
+	}
+	if durationMs/int64(len(segs)) < minCopyMeanGapMs {
+		return nil, fmt.Errorf("copy planner: keyframes too dense for a copy rung (mean gap %dms) for media %s",
+			durationMs/int64(len(segs)), mediaID)
 	}
 
 	c.mu.Lock()
@@ -106,12 +118,4 @@ func (c *CopyPlanner) SegmentCount(ctx context.Context, mediaID string) int {
 		return 0
 	}
 	return len(segs)
-}
-
-// SegmentSeconds is the keyframe-segment target in seconds. The copy ffmpeg
-// session MUST run -hls_time at this value so its split points land on the same
-// keyframes the precalculated manifest (KeyframeSegments at the same target)
-// addresses — otherwise the produced segments drift from the #EXTINF indices.
-func (c *CopyPlanner) SegmentSeconds() float64 {
-	return float64(c.targetMs) / 1000.0
 }

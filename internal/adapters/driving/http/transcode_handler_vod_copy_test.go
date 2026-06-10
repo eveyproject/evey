@@ -42,7 +42,7 @@ func newCopyTestHandler(t *testing.T) *hlsVODServe {
 	// gate; the disk guard reads cache.FreeBytes(), never the producer. A copy-mode
 	// SoftwareProducer mirrors production (process/source nil — not exercised here).
 	copyProd := apptranscoding.NewSoftwareProducer(cache, nil, nil, apptranscoding.SoftwareProducerOptions{}, nil)
-	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil, 0))
+	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil))
 	return &hlsVODServe{
 		cache:        cache,
 		copyProducer: copyProd,

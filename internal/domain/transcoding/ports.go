@@ -126,13 +126,6 @@ type HLSProcessOpts struct {
 	// libx264 Baseline init that overwrites the shared High-profile init →
 	// every copied segment decodes against the wrong SPS/PPS → scrambled frames.
 	CopyOnSeek bool
-	// SegmentSeconds overrides ffmpeg's -hls_time. 0 → the default ("3") constant.
-	// The copy rung MUST set it to the CopyPlanner's keyframe target (6s): with
-	// -c:v copy ffmpeg splits at the first keyframe >= hls_time, so a mismatch
-	// between this and the precalculated keyframe manifest makes the produced
-	// stream_N_NNN.m4s drift from the #EXTINF indices the player addresses
-	// (broken seek / "missing" segments / stall from the 2nd segment on).
-	SegmentSeconds float64
 	// ReadRate paces ffmpeg's input to N× real-time (`-readrate N`, a pre-`-i`
 	// flag) so a single long-lived encoder stays close to wall-clock and doesn't
 	// burn CPU racing ahead of the viewer. 0 (default) = no pacing — byte-identical

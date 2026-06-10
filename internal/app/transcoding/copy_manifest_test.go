@@ -51,7 +51,7 @@ func TestSoftwareProducer_Manifest_GatedByCopyMode(t *testing.T) {
 	// Enable copy mode with a planner backed by fakes (keyframes every 6s, 18s).
 	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes([]int64{0, 6000, 12000})}
 	items := &fakeCopyItems{item: itemWithDurationMs(18000)}
-	p.SetCopyMode(NewCopyPlanner(streams, items, 6000))
+	p.SetCopyMode(NewCopyPlanner(streams, items))
 
 	data, err := p.Manifest(context.Background(), DecisionFingerprint{MediaID: "mi-1"})
 	require.NoError(t, err)

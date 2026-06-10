@@ -288,13 +288,20 @@ func (p *SoftwareProducer) SetCopyMode(planner *CopyPlanner) {
 
 // copyReadRate returns the input-pacing rate for the session being started. The
 // transcode flow paces at opts.ReadRate (default 1.5x) to keep a CPU-bound
-// encoder near wall-clock; the copy flow runs UNPACED (0 → no -readrate) because
-// -c:v copy costs ~0% CPU and pacing it only starves the client buffer / slows
-// seeks (see the ReadRate note in startSession). Disk stays bounded by the LRU
-// cache + idle-cancel + idle-pause, independent of readrate.
+// encoder near wall-clock. The copy flow paces LOOSELY at 8x: fast enough that
+// the client buffer never starves and seeks land instantly (each ~10 s segment
+// muxes in ~1.2 s, plus a 30 s full-speed initial burst — see
+// appendCopyPacingBurst), but bounded so the ~free video copy cannot race
+// minutes ahead of the CPU-bound audio re-encode inside ffmpeg. A fully UNPACED
+// copy did exactly that on the prod NAS: video outran audio until the muxer's
+// 10 s max_interleave_delta force-flushed, and segments carried audio up to
+// ~8.3 s behind their video (the audible A/V desync). 8x also softens the
+// burst-write pressure on the segment cache disk. Do NOT lower this to ~1.5x:
+// that pinned the client to the production frontier (the old buffering-spinner
+// regression).
 func (p *SoftwareProducer) copyReadRate() float64 {
 	if p.copyPlanner != nil {
-		return 0
+		return 8
 	}
 	return p.opts.ReadRate
 }
@@ -329,8 +336,13 @@ func (p *SoftwareProducer) Profiles(base []transcoding.HLSProfile, src SourceDim
 			w, h = 1920, 1080 // safe default so the fingerprint stays deterministic
 		}
 		const copyDefaultBitrateKbps int64 = 5_000
+		// "-kf" suffix = the every-keyframe plan generation. The Name is part of
+		// the cache fingerprint, so bumping it orphans any cached copy segments
+		// produced under the OLD ≥6s-coalesced plan, whose numbering→content
+		// mapping is incompatible (they would otherwise be served as-is and
+		// reintroduce the drifted-segment bug on already-watched titles).
 		return []transcoding.HLSProfile{{
-			Name:         fmt.Sprintf("%dp-copy", h),
+			Name:         fmt.Sprintf("%dp-copy-kf", h),
 			Width:        w,
 			Height:       h,
 			VideoBitrate: copyDefaultBitrateKbps,
@@ -463,7 +475,6 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// segments: segment N seeks to its keyframe start, not N×SegmentSeconds.
 	videoDecision := "transcode"
 	startSec := float64(startSeg) * p.opts.SegmentSeconds
-	copySegmentSeconds := 0.0 // 0 → ffmpeg uses the default -hls_time; transcode path
 	if p.copyPlanner != nil {
 		segs, planErr := p.copyPlanner.Plan(ctx, fp.MediaID)
 		if planErr != nil {
@@ -474,9 +485,9 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		}
 		videoDecision = "copy"
 		startSec = float64(segs[startSeg].StartMs) / 1000.0
-		// ffmpeg's -hls_time MUST equal the plan's keyframe target, or -c:v copy
-		// splits at different keyframes than the manifest the player addresses.
-		copySegmentSeconds = p.copyPlanner.SegmentSeconds()
+		// The copy session runs `-hls_time 0` (split at EVERY keyframe — see
+		// hlsTimeFor), the only split rule that matches the every-keyframe plan
+		// for cold and seek sessions alike.
 	}
 
 	srcPath, _, err := p.source.ResolveSource(ctx, fp)
@@ -513,19 +524,15 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		// Copy rung copies on seek too (plan StartSec is a keyframe boundary), so
 		// a mid-stream session keeps the SOURCE avcC instead of emitting a libx264
 		// init that would poison the shared init. No-op when not in copy mode.
-		CopyOnSeek:     p.copyPlanner != nil,
-		SegmentSeconds: copySegmentSeconds,
+		CopyOnSeek: p.copyPlanner != nil,
 		// Input pacing: the defining software-flow knob. Keeps the single
 		// sequential encoder near wall-clock so it never races ahead of the
 		// viewer (no abort-and-probe client → no need to burst).
 		//
-		// COPY MODE EXCEPTION: -c:v copy is ~0% CPU, so the pacing rationale (don't
-		// burn CPU ahead of the viewer) does not apply. Worse, pacing a copy at
-		// ~1.5x means the mux serves each segment at only ~1/1.5x real-time, so the
-		// client is pinned to the production frontier → endless rebuffering, and a
-		// forward seek crawls to its target keyframe. Run copy UNPACED (ReadRate 0
-		// → no -readrate); disk stays bounded by the LRU cache + idle-cancel +
-		// idle-pause (SIGSTOP once the client buffer is satisfied), not by readrate.
+		// COPY MODE: paced LOOSELY at 8x + a 30 s initial burst instead of the
+		// transcode 1.5x — fast enough that the client never starves and seeks are
+		// instant, bounded so video copy can't outrun the audio re-encode into the
+		// muxer's interleave force-flush (the prod A/V desync). See copyReadRate.
 		ReadRate:         p.copyReadRate(),
 		VideoCodec:       fp.VideoCodec,
 		AudioCodec:       fp.AudioCodec,
@@ -634,7 +641,10 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	p.logger.Info("software: session started",
 		slog.String("hash", hash),
 		slog.Int("start_seg", startSeg),
-		slog.Float64("read_rate", p.opts.ReadRate),
+		// The EFFECTIVE pacing of this session (copy mode overrides the
+		// configured transcode rate) — logging p.opts.ReadRate here once hid
+		// that copy sessions ran unpaced.
+		slog.Float64("read_rate", procOpts.ReadRate),
 		slog.String("source", srcPath))
 	metrics.HLSVODRafaleSpawned.WithLabelValues("software").Inc()
 	metrics.HLSVODSessions.Inc()

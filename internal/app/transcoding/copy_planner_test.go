@@ -43,22 +43,38 @@ func itemWithDurationMs(ms int64) *domainlibrary.MediaItem {
 func TestCopyPlanner_Plan_KeyframeAligned(t *testing.T) {
 	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes([]int64{0, 2000, 4000, 6000, 8000, 10000})}
 	items := &fakeCopyItems{item: itemWithDurationMs(12000)}
-	p := NewCopyPlanner(streams, items, 6000)
+	p := NewCopyPlanner(streams, items)
 
 	segs, err := p.Plan(context.Background(), "mi-1")
 	require.NoError(t, err)
-	// targetMs=6000 over 2s GOPs → [0,6000),[6000,12000): boundaries are keyframes,
-	// the plan covers [0, duration).
-	require.Len(t, segs, 2)
+	// Every keyframe is a boundary (the `-hls_time 0` contract): 2s GOPs over
+	// 12s → 6 segments covering [0, duration).
+	require.Len(t, segs, 6)
 	assert.EqualValues(t, 0, segs[0].StartMs)
-	assert.EqualValues(t, 6000, segs[0].EndMs)
-	assert.EqualValues(t, 12000, segs[1].EndMs)
+	assert.EqualValues(t, 2000, segs[0].EndMs)
+	assert.EqualValues(t, 12000, segs[5].EndMs)
+}
+
+func TestCopyPlanner_Plan_RejectsTooDenseKeyframes(t *testing.T) {
+	// All-intra-like index (a keyframe every 200ms): an every-keyframe plan
+	// would explode into tiny segments, so the planner must error and the
+	// handler falls back to the transcode ladder.
+	kf := make([]int64, 0, 60)
+	for ms := int64(0); ms < 12000; ms += 200 {
+		kf = append(kf, ms)
+	}
+	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes(kf)}
+	items := &fakeCopyItems{item: itemWithDurationMs(12000)}
+	p := NewCopyPlanner(streams, items)
+	_, err := p.Plan(context.Background(), "mi-1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "too dense")
 }
 
 func TestCopyPlanner_Plan_CachesPerMedia(t *testing.T) {
 	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes([]int64{0, 3000, 6000})}
 	items := &fakeCopyItems{item: itemWithDurationMs(9000)}
-	p := NewCopyPlanner(streams, items, 3000)
+	p := NewCopyPlanner(streams, items)
 
 	_, err := p.Plan(context.Background(), "mi-1")
 	require.NoError(t, err)
@@ -72,7 +88,7 @@ func TestCopyPlanner_Plan_NoKeyframesErrors(t *testing.T) {
 	// falls back to transcode.
 	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes(nil)}
 	items := &fakeCopyItems{item: itemWithDurationMs(12000)}
-	p := NewCopyPlanner(streams, items, 6000)
+	p := NewCopyPlanner(streams, items)
 	_, err := p.Plan(context.Background(), "mi-1")
 	require.Error(t, err)
 }
@@ -80,7 +96,7 @@ func TestCopyPlanner_Plan_NoKeyframesErrors(t *testing.T) {
 func TestCopyPlanner_Plan_NoDurationErrors(t *testing.T) {
 	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes([]int64{0, 6000})}
 	items := &fakeCopyItems{item: itemWithDurationMs(0)}
-	p := NewCopyPlanner(streams, items, 6000)
+	p := NewCopyPlanner(streams, items)
 	_, err := p.Plan(context.Background(), "mi-1")
 	require.Error(t, err)
 }
