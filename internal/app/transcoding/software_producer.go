@@ -595,7 +595,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		Profiles:           profilesToDomain(fp.Profiles[variantIdx : variantIdx+1]),
 		VariantIndex:       variantIdx,
 		VideoDecision:      videoDecision,
-		AudioDecision:      "transcode",
+		AudioDecision:      fp.AudioDecision(),
 		AudioTrackIndex:    fp.AudioTrack,
 		SubtitleTrackIndex: fp.SubtitleBurnInTrack,
 		HDRSupported:       false, // tonemap is part of the decision; HDRSupported=false forces it

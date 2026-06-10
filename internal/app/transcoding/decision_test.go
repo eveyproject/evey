@@ -417,3 +417,30 @@ func TestHEVC_EAC3_PartialSupport_TranscodeAudioOnly(t *testing.T) {
 	assert.Contains(t, d.TranscodeReasons, "audio_codec_unsupported")
 	assert.Equal(t, "aac", d.AudioCodec)
 }
+
+// The audio decision must be made on the track the client actually PLAYS
+// (prefs.AudioTrack, audio-relative), not blindly on the container default:
+// default DTS + selected AAC must yield copy, and the reverse must transcode.
+func TestAudioDecision_SelectedTrackWins(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true}, // default
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2)},                  // selected
+	}
+
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	prefs.AudioTrack = 1 // the AAC track
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "copy", d.AudioDecision, "selected AAC track is client-decodable → copy")
+	assert.NotContains(t, d.TranscodeReasons, "audio_codec_unsupported")
+
+	prefs.AudioTrack = 0 // the DTS track
+	d = apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "transcode", d.AudioDecision, "selected DTS track is not browser-decodable → transcode")
+	assert.Contains(t, d.TranscodeReasons, "audio_codec_unsupported")
+
+	// No explicit selection (-1): historical default-flag behavior.
+	prefs.AudioTrack = -1
+	d = apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "transcode", d.AudioDecision, "default-flag track (DTS) judged when nothing is selected")
+}

@@ -459,3 +459,28 @@ func minimalFingerprint(t *testing.T) DecisionFingerprint {
 		},
 	}
 }
+
+func TestDecisionFingerprint_Hash_DistinguishesAudioCopy(t *testing.T) {
+	// Copied audio and AAC-re-encoded audio are different bytes for the same
+	// media, so the AudioCopy dimension MUST fork the cache. Explicit test
+	// because DecisionFingerprint has no reflexive every-field-affects-hash
+	// guard (unlike ProfileFingerprint): a silently-ignored field here would
+	// alias passthrough and transcoded segments under one hash.
+	fpA := minimalFingerprint(t)
+	fpA.AudioCopy = false
+	fpB := minimalFingerprint(t)
+	fpB.AudioCopy = true
+	assert.NotEqual(t, fpA.Hash(), fpB.Hash())
+
+	// Conditional emission: AudioCopy=false must keep the PRE-FEATURE hash so
+	// turning the feature on does not orphan every existing cache entry whose
+	// produced bytes are unchanged.
+	assert.Equal(t, fpA.Hash(), minimalFingerprint(t).Hash())
+}
+
+func TestDecisionFingerprint_AudioDecision(t *testing.T) {
+	fp := minimalFingerprint(t)
+	assert.Equal(t, "transcode", fp.AudioDecision(), "default = historical re-encode")
+	fp.AudioCopy = true
+	assert.Equal(t, "copy", fp.AudioDecision())
+}

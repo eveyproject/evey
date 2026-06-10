@@ -741,3 +741,23 @@ func writeReadySegment(t *testing.T, cache *SegmentCache, k SegmentKey, useFMP4 
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, fmp4Seg(), 0o644))
 }
+
+// Producers must derive the ffmpeg audio args from the fingerprint's audio
+// decision instead of hardcoding "transcode" — the regression that silently
+// re-encoded every copyable (client-decodable) audio track to stereo AAC.
+func TestSoftwareProducer_HonorsAudioCopy(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	p := NewSoftwareProducer(cache, proc, src, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	fp.AudioCopy = true
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	assert.Equal(t, "copy", proc.lastOpts().AudioDecision)
+
+	fp2 := minimalFingerprint(t)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp2, 0, 0))
+	assert.Equal(t, "transcode", proc.lastOpts().AudioDecision, "default stays the historical re-encode")
+}

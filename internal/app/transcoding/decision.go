@@ -100,6 +100,15 @@ type TranscodingPreferences struct {
 	// Locale), not a profile pref — ParseTranscodingPreferences leaves it at the
 	// -1 default.
 	SubtitleBurnInTrack    int
+	// AudioTrack is the audio-relative index of the track the client actually
+	// PLAYS (the Nth audio stream, matching ffmpeg's 0:a:N and the `audioTrack`
+	// query param), or -1 to fall back to the container's default-flag track.
+	// The audio decision (copy vs transcode) must be made on THIS track: the
+	// default may be DTS while the user selects an AAC track (or vice-versa),
+	// and judging the wrong track either re-encodes copyable audio or serves a
+	// codec the client cannot decode. Request-scoped, injected by the transport
+	// layer like SubtitleBurnInTrack; ParseTranscodingPreferences leaves it -1.
+	AudioTrack             int
 	AllowDirectPlay        bool
 	AllowDirectStream      bool
 	AllowTranscoding       bool
@@ -122,6 +131,7 @@ type TranscodingPreferences struct {
 func DefaultTranscodingPreferences() TranscodingPreferences {
 	return TranscodingPreferences{
 		SubtitleBurnInTrack: -1,
+		AudioTrack:          -1,
 		AllowDirectPlay:     true,
 		AllowDirectStream:   true,
 		AllowTranscoding:    true,
@@ -249,13 +259,15 @@ func MakePlaybackDecisionWithPrefs(
 	// subIdx is the subtitle-relative index (0,1,2…) so it lines up with the
 	// client's selection (prefs.SubtitleBurnInTrack) and ffmpeg's 0:s:N.
 	subIdx := 0
+	audIdx := 0
 	for i := range specs {
 		s := specs[i]
 		switch s.Type {
 		case "video":
 			evaluateVideo(d, s, client)
 		case "audio":
-			evaluateAudio(d, s, client, prefs)
+			evaluateAudio(d, s, client, prefs, audIdx)
+			audIdx++
 		case "subtitle":
 			evaluateSubtitle(d, s, prefs, subIdx)
 			subIdx++
@@ -332,8 +344,18 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	}
 }
 
-func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
-	if !s.IsDefault {
+// evaluateAudio decides copy-vs-transcode for the audio track the client will
+// actually hear. With an explicit selection (prefs.AudioTrack >= 0, the
+// audio-relative index) only that track is judged; otherwise the container's
+// default-flag track (the historical behavior). Judging any other track is
+// wrong in both directions: a copyable selected track would be re-encoded, an
+// unsupported one would be served raw.
+func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences, audIdx int) {
+	if prefs.AudioTrack >= 0 {
+		if audIdx != prefs.AudioTrack {
+			return
+		}
+	} else if !s.IsDefault {
 		return
 	}
 	if !contains(client.AudioCodecs, strings.ToLower(s.Codec)) {

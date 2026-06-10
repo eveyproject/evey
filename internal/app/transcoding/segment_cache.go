@@ -87,6 +87,14 @@ type DecisionFingerprint struct {
 	MaxAudioChannels    int
 	ForceSidecarSubs    bool
 	UseFMP4             bool
+	// AudioCopy passes the source audio through (`-c:a copy`) instead of
+	// re-encoding to AAC. Copied and transcoded audio are DIFFERENT bytes for
+	// the same media, so this is a Hash() dimension — but emitted CONDITIONALLY
+	// (only when true) so enabling the feature does not orphan every existing
+	// cache entry whose behavior is unchanged. DecisionFingerprint has no
+	// reflexive every-field-affects-hash guard (unlike ProfileFingerprint), so
+	// the dimension is covered by an explicit test: Hash_DistinguishesAudioCopy.
+	AudioCopy bool
 
 	// HWAccel / HWDevice select the hardware encode backend ("nvenc"/"vaapi"/
 	// "qsv" + DRM render node) when the handler resolves one. Deliberately
@@ -188,6 +196,19 @@ func (a AudioFingerprint) Hash() string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
+// AudioDecision returns the HLSProcessOpts.AudioDecision value for this
+// fingerprint: "copy" only when the handler established AudioCopy eligibility
+// (selected source track decodable by the client, no loudnorm, single-rung
+// ladder), else "transcode" — the historical behavior. Both producers derive
+// the ffmpeg audio args from THIS so a given hash always yields the same
+// bytes regardless of which producer lands the segment.
+func (f DecisionFingerprint) AudioDecision() string {
+	if f.AudioCopy {
+		return "copy"
+	}
+	return "transcode"
+}
+
 // Hash returns the canonical, stable SHA-256 fingerprint as a hex string. The
 // canonical form sorts/normalises fields so logically-equivalent decisions
 // (e.g. same profiles in a different append order) collide on the same hash.
@@ -214,6 +235,10 @@ func (f DecisionFingerprint) Hash() string {
 	fmt.Fprintf(&b, "ach=%d\n", f.MaxAudioChannels)
 	fmt.Fprintf(&b, "sidecar=%t\n", f.ForceSidecarSubs)
 	fmt.Fprintf(&b, "fmp4=%t\n", f.UseFMP4)
+	if f.AudioCopy {
+		// Conditional on purpose: see the AudioCopy field comment.
+		b.WriteString("acopy=true\n")
+	}
 	for _, p := range profiles {
 		fmt.Fprintf(&b, "p=%s|%dx%d|%d|%d|copy=%t\n", p.Name, p.Width, p.Height, p.VideoBitrate, p.AudioBitrate, p.Copy)
 	}

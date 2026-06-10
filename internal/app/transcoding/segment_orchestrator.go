@@ -703,7 +703,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		Profiles:           sessionProfiles,
 		VariantIndex:       sessionVariantIdx,
 		VideoDecision:      "transcode",
-		AudioDecision:      "transcode",
+		AudioDecision:      fp.AudioDecision(),
 		AudioTrackIndex:    fp.AudioTrack,
 		SubtitleTrackIndex: fp.SubtitleBurnInTrack,
 		HDRSupported:       false,         // tonemap is part of decision; HDRSupported=false on the client forces tonemap

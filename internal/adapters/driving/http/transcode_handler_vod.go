@@ -648,6 +648,22 @@ func sourceCopyVideoCodec(streams []*domainlibrary.MediaStream) string {
 	return ""
 }
 
+// sourceAudioCodec returns the codec of the audio-relative track audioIdx
+// (the Nth audio stream, ffmpeg's 0:a:N), lowercased, or "" when absent.
+func sourceAudioCodec(streams []*domainlibrary.MediaStream, audioIdx int) string {
+	n := 0
+	for _, s := range streams {
+		if s == nil || s.StreamType != "audio" {
+			continue
+		}
+		if n == audioIdx {
+			return strings.ToLower(s.Codec)
+		}
+		n++
+	}
+	return ""
+}
+
 // buildFingerprint reproduces the DecisionFingerprint from a segment-time
 // request. Must match exactly what was produced at manifest time, or the
 // cache lookup misses on every segment. Hence shared helpers.
@@ -683,6 +699,20 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		HDRTonemap:       slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed"),
 		AudioNormalize:   h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
 		MaxAudioChannels: decision.MaxAudioChannels,
+		// Audio passthrough eligibility. Three gates on top of the decision's
+		// copy verdict (which already checked the client decodes the SELECTED
+		// track's codec and the channel caps):
+		//   - loudnorm requires a re-encode;
+		//   - single-rung ladders only: the multi-variant builder always
+		//     re-encodes, so a multi-rung hash must stay transcode-everywhere
+		//     or the same hash would yield different bytes per builder;
+		//   - source codec must be AAC for now: the master/variant CODECS
+		//     attribute is still hardcoded mp4a.40.2, so copying ac3/eac3
+		//     would advertise the wrong codec string (lifted by phase A2).
+		AudioCopy: decision.AudioDecision == "copy" &&
+			!(h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context())) &&
+			len(fpProfiles) == 1 &&
+			sourceAudioCodec(streams, audioTrack) == "aac",
 		ForceSidecarSubs: decision.SubtitleDecision == "external",
 		UseFMP4:          h.useFMP4,
 		HWAccel:          hwAccel,
@@ -704,6 +734,11 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 	// not whenever the file merely carries one. Mirrors the subtitleTrack param
 	// the fingerprint (buildFingerprint) and the burn-in filter already consume.
 	prefs.SubtitleBurnInTrack = parseIntQuery(r, "subtitleTrack", -1)
+	// Inject the audio track the request will actually serve, so the audio
+	// copy-vs-transcode decision is made on THAT track (the default may be DTS
+	// while the user plays an AAC track, or vice-versa). Mirrors the audioTrack
+	// resolution the fingerprint and the ffmpeg -map already use.
+	prefs.AudioTrack = h.resolveAudioTrack(r, streams)
 	hdr := r.URL.Query().Get("hdr") == "1"
 	client := parseClientCapabilities(r, hdr)
 	d := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, container, client, 0, prefs)

@@ -61,7 +61,7 @@ test: test-image
 # B-frame MKV, asserting served segments match the keyframe plan (timeline
 # AND audio content correlation).
 transcode-itest:
-	docker exec evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ -run TestCopyPipelineIntegration -count=1 -v -timeout=300s'
+	docker exec evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ -run Integration -count=1 -v -timeout=300s'
 
 test-image:
 	docker build -t evey-test -f docker/Dockerfile.test .

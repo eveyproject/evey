@@ -330,3 +330,138 @@ func decodeAudio(t *testing.T, ctx context.Context, path string, startSec, durSe
 	}
 	return pcm
 }
+
+// TestAudioCopyIntegration: with an AAC source and AudioCopy set (the decision
+// the handler makes for a client that decodes AAC), the served audio packets
+// must be BIT-IDENTICAL to the source — `ffprobe -show_packets` data hashes
+// prove a true passthrough, where "codec==aac" alone would also pass for a
+// re-encode. Guards phase A0 of the audio chantier.
+func TestAudioCopyIntegration(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
+	}
+	for _, bin := range []string{"ffmpeg", "ffprobe"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			t.Skipf("%s not in PATH", bin)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	dir := t.TempDir()
+
+	// AAC source (pink noise), B-frames + irregular keyframes like the main test.
+	src := filepath.Join(dir, "itest-aac.mkv")
+	gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
+		"-f", "lavfi", "-i", "anoisesrc=color=pink:seed=7:sample_rate=48000",
+		"-t", "60",
+		"-c:v", "libx264", "-preset", "ultrafast", "-bf", "3",
+		"-force_key_frames", "0,10,13,23,26,36,39,49,52",
+		"-sc_threshold", "0", "-g", "9999", "-pix_fmt", "yuv420p",
+		"-c:a", "aac", "-b:a", "128k", "-ac", "2",
+		src)
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("source generation: %v\n%s", err, out)
+	}
+
+	prober := NewProber("ffprobe")
+	kf, err := prober.ProbeKeyframes(ctx, src)
+	if err != nil || len(kf) < 5 {
+		t.Fatalf("probe keyframes: %v (%d)", err, len(kf))
+	}
+	plan := apptranscoding.KeyframeSegments(kf, 60_000)
+
+	cache, err := apptranscoding.NewSegmentCache(filepath.Join(dir, "cache"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	producer := apptranscoding.NewSoftwareProducer(
+		cache,
+		NewHLSTranscoder(),
+		apptranscoding.SourceResolverFunc(func(context.Context, apptranscoding.DecisionFingerprint) (string, []apptranscoding.SourceStream, error) {
+			return src, nil, nil
+		}),
+		apptranscoding.SoftwareProducerOptions{},
+		nil,
+	)
+	defer producer.Close()
+	producer.SetCopyMode(apptranscoding.NewCopyPlanner(itestStreams{kf: kf}, itestItems{durMs: 60_000}), prober)
+
+	fp := apptranscoding.DecisionFingerprint{
+		MediaID:             "itest-aac-media",
+		SourcePath:          src,
+		VideoCodec:          "h264",
+		AudioCodec:          "aac",
+		SubtitleBurnInTrack: -1,
+		UseFMP4:             true,
+		// What the handler sets for a client whose audioCodecs include the
+		// source codec: true audio passthrough.
+		AudioCopy: true,
+		Profiles:  []apptranscoding.ProfileFingerprint{{Name: "180p-copy-acopy", Width: 320, Height: 180, VideoBitrate: 1000, AudioBitrate: 192, Copy: true}},
+	}
+	hash := fp.Hash()
+	if err := producer.EnsureSegmentRange(ctx, fp, 0, 1); err != nil {
+		t.Fatal(err)
+	}
+	key := apptranscoding.SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 1}
+	if err := cache.Wait(ctx, key, true, 60*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	cacheDir, err := cache.DirFor(hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Served audio packet hashes (init+segment concatenated for a valid fMP4).
+	clip := filepath.Join(dir, "served.mp4")
+	initB, _ := os.ReadFile(filepath.Join(cacheDir, "stream_0_init.mp4"))
+	segB, _ := os.ReadFile(filepath.Join(cacheDir, "stream_0_001.m4s"))
+	if err := os.WriteFile(clip, append(initB, segB...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	served := audioPacketHashes(t, ctx, clip)
+	source := audioPacketHashes(t, ctx, src)
+	if len(served) < 50 {
+		t.Fatalf("too few served audio packets (%d)", len(served))
+	}
+	sourceSet := make(map[string]bool, len(source))
+	for _, h := range source {
+		sourceSet[h] = true
+	}
+	miss := 0
+	for _, h := range served {
+		if !sourceSet[h] {
+			miss++
+		}
+	}
+	// Passthrough ⇒ every served packet exists verbatim in the source. A
+	// re-encode produces entirely different packet bytes (≈100% misses).
+	if miss > 0 {
+		t.Fatalf("%d/%d served audio packets are NOT source bytes — audio was re-encoded despite AudioCopy", miss, len(served))
+	}
+	_ = plan
+}
+
+// audioPacketHashes returns the md5 of every audio packet's data payload.
+func audioPacketHashes(t *testing.T, ctx context.Context, path string) []string {
+	t.Helper()
+	out, err := exec.CommandContext(ctx, "ffprobe",
+		"-v", "error",
+		"-select_streams", "a:0",
+		"-show_entries", "packet=data_hash",
+		"-show_data_hash", "md5",
+		"-of", "csv=p=0",
+		path,
+	).Output()
+	if err != nil {
+		t.Fatalf("ffprobe packet hashes %s: %v", path, err)
+	}
+	var hashes []string
+	for line := range strings.SplitSeq(string(out), "\n") {
+		line = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line), ","))
+		if line != "" {
+			hashes = append(hashes, line)
+		}
+	}
+	return hashes
+}
