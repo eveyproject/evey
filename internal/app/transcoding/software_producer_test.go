@@ -48,6 +48,12 @@ func TestSoftwareProducer_OneSequentialProcessPerHash(t *testing.T) {
 	assert.Equal(t, 1, p.ActiveSessionCount())
 }
 
+// Natural-EOF gauge Dec (the reap goroutine's metricDecOnce) is verified by
+// construction against the proven orchestrator pattern, not a bespoke test: a
+// gauge-value assertion needs prometheus/testutil, which would promote an indirect
+// dep to direct (go.mod churn) for no functional coverage. ActiveSessionCount
+// already proves the session is reaped on EOF (TwoTabs / ForwardSeek tests).
+
 func TestSoftwareProducer_ReadRatePaced(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()

@@ -222,6 +222,13 @@ type swSession struct {
 	teardown   func()
 	cancelCtx  context.CancelFunc
 	done       chan struct{}
+	// metricDecOnce guarantees the HLSVODSessions gauge is decremented EXACTLY
+	// once per session, whether it ends by natural ffmpeg EOF (the reap goroutine
+	// runs, killSession does not) or by eviction/kill (killSession runs). Without
+	// it a fully-watched software session — the nominal weak-NAS single-variant
+	// case — would Inc but never Dec, leaking the gauge upward. Mirrors the
+	// orchestrator's same-named guard.
+	metricDecOnce sync.Once
 }
 
 // NewSoftwareProducer wires the cache + ffmpeg adapter + source resolver into a
@@ -619,6 +626,9 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 			td()
 		}
 		p.removeFromMap(hash, session)
+		// Natural EOF path: killSession never runs, so the gauge must be
+		// decremented here. Once-guarded so a concurrent kill doesn't double-Dec.
+		session.metricDecOnce.Do(func() { metrics.HLSVODSessions.Dec() })
 	}()
 
 	p.logger.Info("software: session started",
@@ -895,7 +905,10 @@ func (p *SoftwareProducer) killSession(s *swSession, reason string) {
 
 	p.logger.Info("software: session killed", slog.String("hash", hash), slog.String("reason", reason))
 	metrics.HLSVODSessionsKilled.WithLabelValues(reason).Inc()
-	metrics.HLSVODSessions.Dec()
+	// Once-guarded: the reap goroutine also decrements on ffmpeg exit, so this
+	// kill-path Dec must not double-count. Whichever runs first wins; the other
+	// is a no-op.
+	s.metricDecOnce.Do(func() { metrics.HLSVODSessions.Dec() })
 }
 
 // removeFromMap drops a specific session from the hash's slice (a no-op if it
