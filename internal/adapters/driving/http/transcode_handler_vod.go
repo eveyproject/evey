@@ -618,10 +618,18 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		Containers:          splitCSVQuery(r, "containers"),
 		UseFMP4:             h.useFMP4,
 		ChosenVideoCodec:    decision.VideoCodec,
-		ChosenAudioCodec:    decision.AudioCodec,
-		ResumeOffsetSec:     resumeSec,
-		AudioRenditions:     audioRenditions,
-		CopyVideoCodec:      sourceCopyVideoCodec(streams),
+		// The codec the segments will ACTUALLY carry: the source codec on
+		// audio passthrough (ac-3/ec-3 CODECS for Safari-class clients), the
+		// decision's encoder otherwise. Must mirror buildFingerprint or the
+		// master would advertise codecs the segments don't carry.
+		ChosenAudioCodec: servedAudioCodec(
+			audioCopyEligible(decision,
+				h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
+				len(profiles), sourceAudioCodec(streams, audioTrack)),
+			sourceAudioCodec(streams, audioTrack), decision),
+		ResumeOffsetSec: resumeSec,
+		AudioRenditions: audioRenditions,
+		CopyVideoCodec:  sourceCopyVideoCodec(streams),
 	}, nil
 }
 
@@ -646,6 +654,41 @@ func sourceCopyVideoCodec(streams []*domainlibrary.MediaStream) string {
 		return apptranscoding.CopyVideoCodecString(s.Codec, s.Profile, s.Level, streamIsTenBit(s))
 	}
 	return ""
+}
+
+// audioCopyCodecs are the source codecs the muxed pipeline may pass through
+// (`-c:a copy`). The DECISION already guarantees the client decodes the
+// selected track (evaluateAudio checks client.AudioCodecs, which the web
+// player fills from canPlayType — ac-3/ec-3 only appear on Safari/TV-class
+// clients); this set additionally bounds passthrough to codecs whose fMP4
+// muxing and RFC 6381 CODECS attribute (mp4a.40.2 / ac-3 / ec-3) are wired.
+var audioCopyCodecs = map[string]bool{"aac": true, "ac3": true, "eac3": true}
+
+// audioCopyEligible reports whether this request's audio is served as a
+// passthrough. Gates on top of the decision's copy verdict:
+//   - loudnorm requires a re-encode;
+//   - single-rung ladders only (the multi-variant builder always re-encodes,
+//     and one hash must yield one byte stream);
+//   - the source codec must be in audioCopyCodecs.
+//
+// MUST stay the single source of truth for both the fingerprint (bytes) and
+// the manifest (CODECS attribute): if they disagree, the master advertises a
+// codec the segments don't carry and Safari refuses to play.
+func audioCopyEligible(decision domaintranscoding.PlaybackDecision, normalize bool, profileCount int, srcCodec string) bool {
+	return decision.AudioDecision == "copy" &&
+		!normalize &&
+		profileCount == 1 &&
+		audioCopyCodecs[srcCodec]
+}
+
+// servedAudioCodec is the audio codec the segments will actually carry:
+// the SOURCE codec on passthrough, the decision's encoder otherwise
+// ("" → AAC, the historical default).
+func servedAudioCodec(copyEligible bool, srcCodec string, decision domaintranscoding.PlaybackDecision) string {
+	if copyEligible {
+		return srcCodec
+	}
+	return decision.AudioCodec
 }
 
 // sourceAudioCodec returns the codec of the audio-relative track audioIdx
@@ -685,11 +728,18 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 
 	hwTonemap := h.hwTonemapWanted(decision)
 	hwAccel, hwDevice, hwFeatures, hwUsable := h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams), sourceVideoTenBit(streams), hwTonemap)
+	srcAudio := sourceAudioCodec(streams, audioTrack)
+	audioCopy := audioCopyEligible(decision,
+		h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
+		len(fpProfiles), srcAudio)
 	return apptranscoding.DecisionFingerprint{
-		MediaID:             mediaID,
-		SourcePath:          item.File.Path,
-		VideoCodec:          decision.VideoCodec,
-		AudioCodec:          decision.AudioCodec,
+		MediaID:    mediaID,
+		SourcePath: item.File.Path,
+		VideoCodec: decision.VideoCodec,
+		// The codec the segments actually carry (source codec on passthrough).
+		// The builder only reads it on the transcode branch; here it keeps the
+		// hash truthful per served bytes.
+		AudioCodec:          servedAudioCodec(audioCopy, srcAudio, decision),
 		AudioTrack:          audioTrack,
 		SubtitleBurnInTrack: subBurnIn,
 		// HDR->SDR tonemap is needed whenever the decision flagged it (HDR source +
@@ -699,20 +749,9 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		HDRTonemap:       slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed"),
 		AudioNormalize:   h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
 		MaxAudioChannels: decision.MaxAudioChannels,
-		// Audio passthrough eligibility. Three gates on top of the decision's
-		// copy verdict (which already checked the client decodes the SELECTED
-		// track's codec and the channel caps):
-		//   - loudnorm requires a re-encode;
-		//   - single-rung ladders only: the multi-variant builder always
-		//     re-encodes, so a multi-rung hash must stay transcode-everywhere
-		//     or the same hash would yield different bytes per builder;
-		//   - source codec must be AAC for now: the master/variant CODECS
-		//     attribute is still hardcoded mp4a.40.2, so copying ac3/eac3
-		//     would advertise the wrong codec string (lifted by phase A2).
-		AudioCopy: decision.AudioDecision == "copy" &&
-			!(h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context())) &&
-			len(fpProfiles) == 1 &&
-			sourceAudioCodec(streams, audioTrack) == "aac",
+		// Audio passthrough eligibility — see audioCopyEligible (shared with
+		// buildManifestInput so the master CODECS always matches the bytes).
+		AudioCopy:        audioCopy,
 		ForceSidecarSubs: decision.SubtitleDecision == "external",
 		UseFMP4:          h.useFMP4,
 		HWAccel:          hwAccel,

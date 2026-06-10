@@ -96,3 +96,40 @@ func TestIsCopyRequest_ProducerOffNeverCopies(t *testing.T) {
 	got := h.isCopyRequest(domaintranscoding.PlaybackDecision{VideoDecision: "copy"}, copyEligibleStreams(), 1<<20)
 	assert.False(t, got)
 }
+
+// Phase A2: passthrough eligibility + the codec the master must advertise.
+// The two MUST stay coherent — a master claiming mp4a over ac-3 segments (or
+// the reverse) is refused by Safari.
+func TestAudioCopyEligibilityAndServedCodec(t *testing.T) {
+	copyDec := domaintranscoding.PlaybackDecision{AudioDecision: "copy"}
+	transDec := domaintranscoding.PlaybackDecision{AudioDecision: "transcode", AudioCodec: "aac"}
+
+	cases := []struct {
+		name      string
+		dec       domaintranscoding.PlaybackDecision
+		normalize bool
+		profiles  int
+		src       string
+		eligible  bool
+		served    string
+	}{
+		{"aac copy", copyDec, false, 1, "aac", true, "aac"},
+		{"ac3 passthrough (Safari-class client)", copyDec, false, 1, "ac3", true, "ac3"},
+		{"eac3 passthrough", copyDec, false, 1, "eac3", true, "eac3"},
+		{"dts never passes through", copyDec, false, 1, "dts", false, ""},
+		{"loudnorm forces re-encode", copyDec, true, 1, "ac3", false, ""},
+		{"multi-rung ladder forces re-encode", copyDec, false, 3, "aac", false, ""},
+		{"transcode verdict stays aac", transDec, false, 1, "ac3", false, "aac"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := audioCopyEligible(c.dec, c.normalize, c.profiles, c.src)
+			if got != c.eligible {
+				t.Fatalf("eligible = %v, want %v", got, c.eligible)
+			}
+			if served := servedAudioCodec(got, c.src, c.dec); served != c.served {
+				t.Fatalf("servedAudioCodec = %q, want %q", served, c.served)
+			}
+		})
+	}
+}

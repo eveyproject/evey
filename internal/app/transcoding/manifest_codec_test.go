@@ -50,3 +50,25 @@ func TestMaster_PerRungCopyCodec(t *testing.T) {
 	assert.Contains(t, out, `CODECS="avc1.640028,mp4a.40.2"`, "transcode rung keeps the codec default")
 }
 
+
+// Phase A2: with audio passthrough the segments carry the SOURCE audio codec,
+// so the master must advertise ac-3/ec-3 — a mp4a claim over ac-3 bytes (or
+// the reverse) is refused by Safari's strict CODECS validation.
+func TestMaster_AudioPassthroughCodec(t *testing.T) {
+	g := NewManifestGenerator()
+	in := ManifestInput{
+		MediaID:          "m1",
+		DurationSec:      100,
+		StreamToken:      "tok",
+		ChosenVideoCodec: "h264",
+		ChosenAudioCodec: "eac3", // servedAudioCodec on an E-AC-3 passthrough
+		CopyVideoCodec:   "avc1.640029",
+		Profiles: []transcoding.HLSProfile{
+			{Name: "1080p-copy", Width: 1920, Height: 1080, VideoBitrate: 8000, AudioBitrate: 192, Copy: true},
+		},
+	}
+	out, err := g.Master(in)
+	require.NoError(t, err)
+	assert.Contains(t, out, `CODECS="avc1.640029,ec-3"`, "passthrough rung advertises the real audio codec")
+	assert.NotContains(t, out, "mp4a.40.2", "no stale AAC claim anywhere in a passthrough master")
+}

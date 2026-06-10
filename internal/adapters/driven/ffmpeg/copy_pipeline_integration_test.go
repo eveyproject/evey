@@ -331,12 +331,26 @@ func decodeAudio(t *testing.T, ctx context.Context, path string, startSec, durSe
 	return pcm
 }
 
-// TestAudioCopyIntegration: with an AAC source and AudioCopy set (the decision
-// the handler makes for a client that decodes AAC), the served audio packets
-// must be BIT-IDENTICAL to the source — `ffprobe -show_packets` data hashes
-// prove a true passthrough, where "codec==aac" alone would also pass for a
-// re-encode. Guards phase A0 of the audio chantier.
+// TestAudioCopyIntegration: with AudioCopy set (the decision the handler makes
+// for a client that decodes the source codec), the served audio packets must
+// be BIT-IDENTICAL to the source — `ffprobe -show_packets` data hashes prove a
+// true passthrough, where a codec-name assert alone would also pass for a
+// re-encode. Covers AAC (phase A0) and E-AC-3 (phase A2: Safari/TV-class
+// passthrough + eac3-in-fMP4 muxing through the real hlsenc).
 func TestAudioCopyIntegration(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		encoder string // source audio encoder
+		probed  string // ffprobe codec_name expected on the served clip
+	}{
+		{"aac", "aac", "aac"},
+		{"eac3", "eac3", "eac3"},
+	} {
+		t.Run(tc.name, func(t *testing.T) { runAudioCopyIntegration(t, tc.encoder, tc.probed) })
+	}
+}
+
+func runAudioCopyIntegration(t *testing.T, encoder, probed string) {
 	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
 		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
 	}
@@ -349,8 +363,8 @@ func TestAudioCopyIntegration(t *testing.T) {
 	defer cancel()
 	dir := t.TempDir()
 
-	// AAC source (pink noise), B-frames + irregular keyframes like the main test.
-	src := filepath.Join(dir, "itest-aac.mkv")
+	// Pink-noise source, B-frames + irregular keyframes like the main test.
+	src := filepath.Join(dir, "itest-"+encoder+".mkv")
 	gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
 		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
 		"-f", "lavfi", "-i", "anoisesrc=color=pink:seed=7:sample_rate=48000",
@@ -358,7 +372,7 @@ func TestAudioCopyIntegration(t *testing.T) {
 		"-c:v", "libx264", "-preset", "ultrafast", "-bf", "3",
 		"-force_key_frames", "0,10,13,23,26,36,39,49,52",
 		"-sc_threshold", "0", "-g", "9999", "-pix_fmt", "yuv420p",
-		"-c:a", "aac", "-b:a", "128k", "-ac", "2",
+		"-c:a", encoder, "-b:a", "128k", "-ac", "2",
 		src)
 	if out, err := gen.CombinedOutput(); err != nil {
 		t.Fatalf("source generation: %v\n%s", err, out)
@@ -388,10 +402,10 @@ func TestAudioCopyIntegration(t *testing.T) {
 	producer.SetCopyMode(apptranscoding.NewCopyPlanner(itestStreams{kf: kf}, itestItems{durMs: 60_000}), prober)
 
 	fp := apptranscoding.DecisionFingerprint{
-		MediaID:             "itest-aac-media",
+		MediaID:             "itest-" + encoder + "-media",
 		SourcePath:          src,
 		VideoCodec:          "h264",
-		AudioCodec:          "aac",
+		AudioCodec:          encoder,
 		SubtitleBurnInTrack: -1,
 		UseFMP4:             true,
 		// What the handler sets for a client whose audioCodecs include the
@@ -419,6 +433,18 @@ func TestAudioCopyIntegration(t *testing.T) {
 	if err := os.WriteFile(clip, append(initB, segB...), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// The served clip must carry the SOURCE codec (also proves the fMP4 muxer
+	// accepts it — the eac3 case exercises hlsenc's E-AC-3-in-fMP4 path).
+	codecOut, err := exec.CommandContext(ctx, "ffprobe", "-v", "error",
+		"-select_streams", "a:0", "-show_entries", "stream=codec_name",
+		"-of", "csv=p=0", clip).Output()
+	if err != nil {
+		t.Fatalf("ffprobe served codec: %v", err)
+	}
+	if got := strings.TrimSuffix(strings.TrimSpace(string(codecOut)), ","); got != probed {
+		t.Fatalf("served audio codec = %q, want %q", got, probed)
+	}
+
 	served := audioPacketHashes(t, ctx, clip)
 	source := audioPacketHashes(t, ctx, src)
 	if len(served) < 50 {
