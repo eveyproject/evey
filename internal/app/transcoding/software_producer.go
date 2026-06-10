@@ -665,7 +665,6 @@ func (p *SoftwareProducer) PreWarm(fp DecisionFingerprint, startSegIdx int) {
 // keeping the session alive.
 func (p *SoftwareProducer) NotifyClientHint(mediaItemID string, bufferLengthMs int, starved bool, segmentIdx int) {
 	_ = bufferLengthMs
-	_ = segmentIdx
 	p.mu.Lock()
 	var matched []*swSession
 	for _, list := range p.sessions {
@@ -679,13 +678,27 @@ func (p *SoftwareProducer) NotifyClientHint(mediaItemID string, bufferLengthMs i
 		}
 	}
 	p.mu.Unlock()
+	// Resume ONLY the closest-behind session — the one whose window
+	// [startSeg, ∞) actually serves segmentIdx (same selection rule as
+	// findCoveringSessionLocked, applied across the mediaID's hashes).
+	// Resuming every paused sibling let an abandoned unpaced copy session
+	// race back toward EOF and REWRITE the active session's cache files —
+	// the post-seek starvation hint (empty buffer → CMCD bs=1) was the
+	// trigger of exactly that rewrite storm. lastAccess is still bumped on
+	// all matches so the GC keeps consumed-from-disk sessions warm.
+	var covering *swSession
+	bestStart := -1
 	for _, s := range matched {
 		s.mu.Lock()
 		s.lastAccess = time.Now()
+		start := s.startSeg
 		s.mu.Unlock()
-		if starved {
-			p.resumeIfPaused(s)
+		if start <= segmentIdx && start > bestStart {
+			bestStart, covering = start, s
 		}
+	}
+	if starved && covering != nil {
+		p.resumeIfPaused(covering)
 	}
 }
 
