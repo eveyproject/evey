@@ -57,6 +57,16 @@ func TestBuildCopyVideoArgs_CopyOnSeek(t *testing.T) {
 	if strings.Contains(a, "libx264") {
 		t.Fatalf("copy-on-seek must NOT re-encode, got libx264: %s", a)
 	}
+	// The shared fMP4 init (stream_N_init.mp4) must stay canonical across sessions:
+	// -copyts pushes the seek offset into the init's edit list (elst media_time),
+	// presentation-shifting EVERY segment served against that shared init. The seek
+	// session must reset to tfdt=0 (make_zero) and leave the init byte-identical.
+	if strings.Contains(a, "-copyts") {
+		t.Fatalf("copy-on-seek must NOT use -copyts (poisons the shared init's edit list): %s", a)
+	}
+	if !strings.Contains(a, "-avoid_negative_ts make_zero") {
+		t.Fatalf("copy-on-seek must reset timestamps with make_zero so the shared init stays canonical: %s", a)
+	}
 
 	seekReencode := base
 	seekReencode.StartSec, seekReencode.CopyOnSeek = 520, false

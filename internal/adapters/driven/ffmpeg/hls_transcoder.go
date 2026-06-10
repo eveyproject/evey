@@ -781,15 +781,27 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		// the SOURCE avcC. The re-encode branch below (libx264) emitted a Baseline
 		// init that OVERWROTE the shared High-profile init → every copied segment
 		// then decoded against the wrong SPS/PPS = scrambled colour-band frames.
-		// -copyts keeps absolute source PTS so a seek-spawned segment lands at its
-		// manifest position (the index is carried separately via StartNumber).
+		//
+		// -avoid_negative_ts make_zero (NOT -copyts): the fMP4 init segment is
+		// SHARED per variant (stream_N_init.mp4) — every session, seek or not,
+		// overwrites it and the player decodes ALL segments against whichever init
+		// it loaded. -copyts preserved the absolute source PTS, which fMP4 records
+		// as an EDIT LIST in the init (elst media_time = StartSec). A seek session
+		// thus wrote a NON-canonical init that presentation-shifted EVERY segment —
+		// including the t=0 ones from the cold session — by +StartSec. Proven in a
+		// jellyfin-ffmpeg7 harness: cross-decoding a t=0 segment against a 12s-seek
+		// init reports start_time=12.0 (a 12 s desync / wrong seek landing).
+		// make_zero resets each segment to tfdt=0 and keeps the init BYTE-IDENTICAL
+		// regardless of seek offset, so the shared init stays canonical. Segment
+		// position comes from the VOD playlist (StartNumber + #EXTINF), exactly like
+		// the transcode rung whose segments are also tfdt=0.
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 		args = appendInputModifiers(args, opts.ReadRate)
 		args = append(args, "-i", opts.FilePath, "-map", "0:v:0")
 		if hasAudio(opts) {
 			args = append(args, "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex))
 		}
-		args = append(args, "-c:v", "copy", "-copyts", "-avoid_negative_ts", "disabled")
+		args = append(args, "-c:v", "copy", "-avoid_negative_ts", "make_zero")
 	case opts.StartSec > 0:
 		// Jellyfin's exact recipe for HLS video transcode (verified
 		// against EncodingHelper.cs in master, 2025): pre-input -ss
