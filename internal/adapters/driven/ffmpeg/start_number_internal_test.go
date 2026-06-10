@@ -67,6 +67,13 @@ func TestBuildCopyVideoArgs_CopyOnSeek(t *testing.T) {
 	if !strings.Contains(a, "-avoid_negative_ts make_zero") {
 		t.Fatalf("copy-on-seek must reset timestamps with make_zero so the shared init stays canonical: %s", a)
 	}
+	// Keyframe-seek nudge: -ss must sit just PAST StartSec (520 + 0.05 = 520.050),
+	// not AT it. -ss exactly at/below the keyframe snaps to the PREVIOUS keyframe →
+	// a two-GOP segment with the audio a full GOP behind the video (the "son décalé"
+	// bug). The nudge lands the copy on the intended keyframe.
+	if !strings.Contains(a, "-ss 520.050") {
+		t.Fatalf("copy-on-seek must nudge -ss past the keyframe (expected -ss 520.050), got: %s", a)
+	}
 
 	seekReencode := base
 	seekReencode.StartSec, seekReencode.CopyOnSeek = 520, false

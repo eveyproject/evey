@@ -826,7 +826,22 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		// regardless of seek offset, so the shared init stays canonical. Segment
 		// position comes from the VOD playlist (StartNumber + #EXTINF), exactly like
 		// the transcode rung whose segments are also tfdt=0.
-		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
+		//
+		// Keyframe-seek nudge: ffmpeg's pre-input -ss snaps to the keyframe
+		// at-or-BEFORE the timestamp. StartSec derives from the ms-rounded keyframe
+		// index, so it can sit a hair BELOW the true keyframe — then -ss snaps to the
+		// PREVIOUS keyframe, the segment spans two GOPs, and the audio lands a full
+		// GOP after the video (proven in a jellyfin-ffmpeg7 harness: 1 ms below a
+		// keyframe → ~6 s A/V desync, the exact "son décalé d'un m4s" symptom). Nudge
+		// the seek +50 ms past the boundary so it lands ON the intended keyframe.
+		// Jellyfin uses +0.5 s for the same ffmpeg quirk (PR #11689); +50 ms is enough
+		// here (robust to ~1-frame index error) and keeps the residual audio lag at
+		// ~28 ms (imperceptible) instead of Jellyfin's ~0.5 s. Validated: ≤1 ms below
+		// snaps to the prev keyframe; +20 ms lands correct with ~0 lag; +50 ms is the
+		// safe margin. The rebase pump anchors the segment to its absolute plan
+		// position regardless, so this only corrects intra-segment A/V alignment.
+		const keyframeSeekNudgeSec = 0.05
+		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec+keyframeSeekNudgeSec))
 		args = appendInputModifiers(args, opts.ReadRate)
 		args = append(args, "-i", opts.FilePath, "-map", "0:v:0")
 		if hasAudio(opts) {
