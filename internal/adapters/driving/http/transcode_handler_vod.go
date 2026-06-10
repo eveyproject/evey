@@ -1157,25 +1157,23 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// (copyPlanner is per-instance) sharing the same cache; the Copy flag in the
 	// fingerprint keeps copy and transcode segments from aliasing.
 	//
-	// OPT-IN (default OFF). The live prod tests surfaced, in order: (1) a seek
-	// session's -copyts elst poisoning the shared init (fixed: make_zero, one
-	// canonical init); (2) the libx264-on-seek init downgrade (fixed: CopyOnSeek);
-	// (3) THE structural one — ffmpeg's hls muxer splits on a session-relative
-	// n×hls_time grid, so on long-GOP sources its cuts diverged from the
-	// coalescing plan and the segment NUMBERING drifted minutes from the playlist
-	// (measured: seg 226 carried t=2021s where the playlist said t=2216s), with
-	// the audio re-encode landing whole segments behind the video copy on top.
-	// Fixed by making the split rule session-independent end-to-end: the plan is
-	// one segment per keyframe (KeyframeSegments), ffmpeg runs -hls_time 0, copy
-	// sessions pace at 8x + initial burst (see copyReadRate), and the rebase pump
-	// keeps seek-session tfdt absolute. Validated in dev against jellyfin-ffmpeg7:
-	// cold + deep-seek segments land byte-aligned with the playlist, and the
-	// seek-session audio content cross-correlates with the source at +19 ms.
-	// The rung stays opt-in until a live prod listen test passes:
-	// server_config transcoding.remux_copy=on (or EVEY_REMUX_COPY=on), applied on
-	// restart. A request still only routes here when it is copy-eligible AND
-	// keyframe-backfilled (isCopyRequest → sourceCopyVideoCodec).
-	if resolveServerFlag(s.ServerCfgRepo, "transcoding.remux_copy", "EVEY_REMUX_COPY") == "on" {
+	// DEFAULT ON (opt-out: server_config transcoding.remux_copy=off or
+	// EVEY_REMUX_COPY=off, applied on restart). The road here, for the record:
+	// (1) a seek session's -copyts elst poisoned the shared init (fixed:
+	// make_zero, one canonical init); (2) the libx264-on-seek init downgrade
+	// (fixed: CopyOnSeek); (3) ffmpeg's hls muxer splits on a session-relative
+	// n×hls_time grid → numbering drifted minutes from the playlist (fixed:
+	// every-keyframe plan + -hls_time 0 + 8x pacing); (4) -ss lands on the
+	// preceding cue/DTS-heuristic point, not the requested keyframe (fixed:
+	// seek-landing probe + SeekTargetSec); (5) accurate-seek discarded the
+	// audio between landing and target while labeling it at the landing →
+	// audio early by a GOP (fixed: -noaccurate_seek). Validated end-to-end
+	// 2026-06-10: prod segments byte-aligned with the playlist in every seek
+	// region (video at the playlist position to the ms, audio in the same
+	// segment within ~60 ms) + a clean user listen test (start, deep seeks,
+	// seek-back). A request still only routes here when it is copy-eligible
+	// AND keyframe-backfilled (isCopyRequest → sourceCopyVideoCodec).
+	if resolveServerFlag(s.ServerCfgRepo, "transcoding.remux_copy", "EVEY_REMUX_COPY") != "off" {
 		softwareCopy := apptranscoding.NewSoftwareProducer(
 			cache,
 			s.HLSTranscoder,
@@ -1187,7 +1185,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 			copyStreamReaderAdapter{libSvc}, copyItemReaderAdapter{libSvc},
 		), s.CopySeekProber)
 		h.copyProducer = softwareCopy
-		slog.Default().Warn("hls vod: copy/remux rung ENABLED (EXPERIMENTAL, opt-in: server_config transcoding.remux_copy=on or EVEY_REMUX_COPY=on) — every-keyframe plan + -hls_time 0 + paced copy; numbering/desync drift fixed, pending live prod listen test")
+		slog.Default().Info("hls vod: copy/remux rung enabled (default; disable with server_config transcoding.remux_copy=off or EVEY_REMUX_COPY=off)")
 	}
 
 	// The selector routes each request: software unless resolveHW confirms the
