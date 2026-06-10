@@ -117,7 +117,7 @@ func TestFromRequest_ForgedCommaFlood_Bounded(t *testing.T) {
 	// both the split cap and the maxRawKeys cap, so Raw never explodes.
 	var b strings.Builder
 	b.WriteString("br=2400,bl=12000") // real keys up front, must survive
-	for i := 0; i < 5000; i++ {
+	for i := range 5000 {
 		b.WriteString(",k")
 		b.WriteString(strconv.Itoa(i))
 		b.WriteString("=1")
