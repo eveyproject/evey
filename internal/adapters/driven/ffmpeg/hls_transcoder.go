@@ -45,10 +45,34 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 	return h, nil
 }
 
+// needsCopyRebase: copy-mode seek sessions (StartNumber > 0) emit fMP4
+// fragments whose tfdt/sidx are session-relative (movenc always writes
+// dts − first_dts; no CLI flag yields absolute time — see fmp4_rebase.go),
+// while the shared cache addresses segments by absolute timeline position.
+// Cold copy sessions (start 0) are absolute by construction. Transcode rungs
+// share the latent base mismatch but are paced (no rewrite race) — tracked
+// separately.
+func needsCopyRebase(o transcoding.HLSProcessOpts) bool {
+	return o.VideoDecision == "copy" && o.UseFMP4 && o.StartNumber > 0
+}
+
 // startOne spawns a single ffmpeg process for opts and returns its handle.
 // noMaster suppresses the synthesised one-rung master.m3u8 (set for the
 // sub-processes of a per-variant composite).
 func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster bool) (*hlsHandle, error) {
+	// Copy-seek sessions write into a private subdir; runRebasePump shifts
+	// their fMP4 timestamps to the plan's absolute StartSec and atomically
+	// renames into the cache dir — the rename is the publish point
+	// SegmentCache.IsReady observes, so readers never see a pre-rebase file.
+	pubDir := opts.OutputDir
+	rebase := needsCopyRebase(opts)
+	if rebase {
+		priv := filepath.Join(pubDir, fmt.Sprintf(".rebase_%d_%d", opts.StartNumber, time.Now().UnixNano()))
+		if err := os.MkdirAll(priv, 0o755); err != nil {
+			return nil, fmt.Errorf("copy rebase dir: %w", err)
+		}
+		opts.OutputDir = priv
+	}
 	args := BuildFFmpegArgs(opts)
 	slog.Info("hls: ffmpeg start",
 		slog.String("media_path", opts.FilePath),
@@ -81,10 +105,17 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 
 	if err := cmd.Start(); err != nil {
 		cancel()
+		if rebase {
+			_ = os.RemoveAll(opts.OutputDir)
+		}
 		return nil, fmt.Errorf("ffmpeg start: %w", err)
 	}
 
 	go h.run(processCtx)
+	if rebase {
+		deltaMs := int64(opts.StartSec*1000 + 0.5)
+		go runRebasePump(h.done, processCtx.Done(), opts.OutputDir, pubDir, deltaMs, opts.VariantIndex)
+	}
 	return h, nil
 }
 

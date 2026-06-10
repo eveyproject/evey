@@ -1,0 +1,392 @@
+package ffmpeg
+
+// Copy-seek fMP4 sessions and the shared segment cache disagree on time bases.
+//
+// movenc writes every fragment's tfdt (baseMediaDecodeTime) as
+// `dts − start_dts(session)` — session-relative, always. No CLI flag changes
+// that: `-copyts`, `-output_ts_offset` and `-avoid_negative_ts disabled` all
+// still produce tfdt=0 on the first fragment (verified empirically on stock
+// ffmpeg 6.1; jellyfin-ffmpeg carries no hlsenc/movenc timestamp patch, so
+// prod behaves identically). A cold session (start 0) therefore emits
+// absolute-looking tfdt while a `-ss`+`-start_number K` session emits 0-based
+// tfdt under the SAME cache filenames — violating the SegmentCache invariant
+// that one key maps to one byte-content, and feeding hls.js fragments whose
+// internal timestamps contradict the playlist position (single initPTS per
+// discontinuity → silent misplacement, A/V holes, stall loop after seeks).
+//
+// Fix: such sessions write into a private subdir; runRebasePump shifts every
+// tfdt and sidx earliest_presentation_time by the session's absolute start
+// (the copy plan's StartMs), then atomically renames into the cache dir. The
+// rename is the publish point SegmentCache.IsReady already keys on, so no
+// reader can observe a pre-rebase file.
+
+import (
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"maps"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+// scaleDelta converts deltaMs into timescale units, rounding to nearest.
+func scaleDelta(deltaMs int64, timescale uint32) int64 {
+	return (deltaMs*int64(timescale) + 500) / 1000
+}
+
+// boxHeader reads the box header at off. Returns the box type, total box size
+// and an error. size==0 ("to end of file") and 64-bit largesize are handled.
+func boxHeader(r io.ReaderAt, off, fileSize int64) (typ string, size int64, err error) {
+	var hdr [16]byte
+	if _, err = r.ReadAt(hdr[:8], off); err != nil {
+		return "", 0, err
+	}
+	size = int64(binary.BigEndian.Uint32(hdr[0:4]))
+	typ = string(hdr[4:8])
+	switch size {
+	case 0:
+		size = fileSize - off
+	case 1:
+		if _, err = r.ReadAt(hdr[8:16], off+8); err != nil {
+			return "", 0, err
+		}
+		size = int64(binary.BigEndian.Uint64(hdr[8:16]))
+	}
+	if size < 8 || off+size > fileSize {
+		return "", 0, fmt.Errorf("fmp4: malformed box %q at %d (size %d, file %d)", typ, off, size, fileSize)
+	}
+	return typ, size, nil
+}
+
+// childBoxes iterates the children of the box payload buf[start:end] (offsets
+// relative to buf), invoking fn(typ, off, size). Stops on malformed sizes.
+func childBoxes(buf []byte, start, end int, fn func(typ string, off, size int) bool) {
+	off := start
+	for off+8 <= end {
+		size := int(binary.BigEndian.Uint32(buf[off : off+4]))
+		typ := string(buf[off+4 : off+8])
+		if size == 1 && off+16 <= end {
+			size = int(binary.BigEndian.Uint64(buf[off+8 : off+16]))
+		}
+		if size < 8 || off+size > end {
+			return
+		}
+		if !fn(typ, off, size) {
+			return
+		}
+		off += size
+	}
+}
+
+// rebaseFMP4Segment shifts every tfdt baseMediaDecodeTime and every sidx
+// earliest_presentation_time in the segment at path forward by deltaMs,
+// in place. Per-track timescales come from the segment's own sidx boxes
+// (hlsenc writes one per track); initTimescales is the fallback map
+// (track_ID → timescale, parsed from the session's init segment) for the
+// hypothetical sidx-less layout. Patches are computed first, written last:
+// any parse error leaves the file untouched.
+func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uint32) error {
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	fileSize := fi.Size()
+
+	type patch struct {
+		off   int64
+		width int // 4 or 8 bytes
+		val   uint64
+	}
+	var patches []patch
+	tsByTrack := make(map[uint32]uint32, 2)
+	maps.Copy(tsByTrack, initTimescales)
+
+	var off int64
+	for off < fileSize {
+		typ, size, err := boxHeader(f, off, fileSize)
+		if err != nil {
+			return err
+		}
+		switch typ {
+		case "sidx":
+			buf := make([]byte, size)
+			if _, err := f.ReadAt(buf, off); err != nil {
+				return err
+			}
+			if size < 28 {
+				return fmt.Errorf("fmp4: sidx too short (%d) at %d", size, off)
+			}
+			ver := buf[8]
+			refID := binary.BigEndian.Uint32(buf[12:16])
+			ts := binary.BigEndian.Uint32(buf[16:20])
+			if ts == 0 {
+				return fmt.Errorf("fmp4: sidx track %d has zero timescale", refID)
+			}
+			tsByTrack[refID] = ts
+			delta := scaleDelta(deltaMs, ts)
+			if ver == 0 {
+				ept := uint64(binary.BigEndian.Uint32(buf[20:24]))
+				nv := ept + uint64(delta)
+				if nv > 0xFFFFFFFF {
+					return fmt.Errorf("fmp4: sidx v0 EPT overflow (track %d, %d + %d)", refID, ept, delta)
+				}
+				patches = append(patches, patch{off + 20, 4, nv})
+			} else {
+				ept := binary.BigEndian.Uint64(buf[20:28])
+				patches = append(patches, patch{off + 20, 8, ept + uint64(delta)})
+			}
+		case "moof":
+			buf := make([]byte, size)
+			if _, err := f.ReadAt(buf, off); err != nil {
+				return err
+			}
+			var walkErr error
+			childBoxes(buf, 8, int(size), func(t string, to, tsz int) bool {
+				if t != "traf" {
+					return true
+				}
+				var trackID uint32
+				tfdtOff, tfdtVer, tfdtVal := -1, byte(0), uint64(0)
+				childBoxes(buf, to+8, to+tsz, func(t2 string, co, csz int) bool {
+					switch t2 {
+					case "tfhd":
+						if csz >= 16 {
+							trackID = binary.BigEndian.Uint32(buf[co+12 : co+16])
+						}
+					case "tfdt":
+						tfdtVer = buf[co+8]
+						if tfdtVer == 1 && csz >= 20 {
+							tfdtVal = binary.BigEndian.Uint64(buf[co+12 : co+20])
+							tfdtOff = co + 12
+						} else if tfdtVer == 0 && csz >= 16 {
+							tfdtVal = uint64(binary.BigEndian.Uint32(buf[co+12 : co+16]))
+							tfdtOff = co + 12
+						}
+					}
+					return true
+				})
+				if tfdtOff < 0 {
+					return true // traf without tfdt (spec-legal) — nothing to shift
+				}
+				ts, ok := tsByTrack[trackID]
+				if !ok {
+					walkErr = fmt.Errorf("fmp4: no timescale for track %d (no sidx, no init fallback)", trackID)
+					return false
+				}
+				delta := scaleDelta(deltaMs, ts)
+				nv := tfdtVal + uint64(delta)
+				if tfdtVer == 0 && nv > 0xFFFFFFFF {
+					walkErr = fmt.Errorf("fmp4: tfdt v0 overflow (track %d, %d + %d)", trackID, tfdtVal, delta)
+					return false
+				}
+				width := 8
+				if tfdtVer == 0 {
+					width = 4
+				}
+				patches = append(patches, patch{off + int64(tfdtOff), width, nv})
+				return true
+			})
+			if walkErr != nil {
+				return walkErr
+			}
+		}
+		off += size
+	}
+
+	var scratch [8]byte
+	for _, p := range patches {
+		if p.width == 4 {
+			binary.BigEndian.PutUint32(scratch[:4], uint32(p.val))
+		} else {
+			binary.BigEndian.PutUint64(scratch[:8], p.val)
+		}
+		if _, err := f.WriteAt(scratch[:p.width], p.off); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// parseInitTimescales extracts track_ID → mdhd timescale from an fMP4 init
+// segment (moov/trak/{tkhd,mdia/mdhd}). Fallback source when a media segment
+// carries no sidx.
+func parseInitTimescales(path string) (map[uint32]uint32, error) {
+	buf, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[uint32]uint32, 2)
+	childBoxes(buf, 0, len(buf), func(t string, o, s int) bool {
+		if t != "moov" {
+			return true
+		}
+		childBoxes(buf, o+8, o+s, func(t2 string, o2, s2 int) bool {
+			if t2 != "trak" {
+				return true
+			}
+			var trackID uint32
+			var timescale uint32
+			childBoxes(buf, o2+8, o2+s2, func(t3 string, o3, s3 int) bool {
+				switch t3 {
+				case "tkhd":
+					idOff := o3 + 20 // v0: 12 hdr + creation(4)+modification(4)
+					if buf[o3+8] == 1 {
+						idOff = o3 + 28 // v1: 12 hdr + creation(8)+modification(8)
+					}
+					if idOff+4 <= o3+s3 {
+						trackID = binary.BigEndian.Uint32(buf[idOff : idOff+4])
+					}
+				case "mdia":
+					childBoxes(buf, o3+8, o3+s3, func(t4 string, o4, s4 int) bool {
+						if t4 != "mdhd" {
+							return true
+						}
+						tsOff := o4 + 20
+						if buf[o4+8] == 1 {
+							tsOff = o4 + 28
+						}
+						if tsOff+4 <= o4+s4 {
+							timescale = binary.BigEndian.Uint32(buf[tsOff : tsOff+4])
+						}
+						return false
+					})
+				}
+				return true
+			})
+			if trackID != 0 && timescale != 0 {
+				out[trackID] = timescale
+			}
+			return true
+		})
+		return false
+	})
+	if len(out) == 0 {
+		return nil, errors.New("fmp4: no track timescales found in init")
+	}
+	return out, nil
+}
+
+// fmp4CompleteMoov reports whether path holds a fully-written moov box —
+// hlsenc writes the init segment directly (no temp_file rename), so a scan
+// can observe it mid-write. A moov whose declared size fits the file proves
+// the write completed (hlsenc writes ftyp+moov sequentially then closes).
+func fmp4CompleteMoov(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil || fi.Size() < 16 {
+		return false
+	}
+	var off int64
+	for off < fi.Size() {
+		typ, size, err := boxHeader(f, off, fi.Size())
+		if err != nil {
+			return false
+		}
+		if typ == "moov" {
+			return true // boxHeader already proved off+size <= fileSize
+		}
+		off += size
+	}
+	return false
+}
+
+// runRebasePump watches privDir for segments ffmpeg completed (temp_file
+// rename done → final name present without a `.tmp` sibling), rebases their
+// fMP4 timestamps to the session's absolute start, and atomically renames
+// them into pubDir, which is the SegmentCache directory readers poll. The
+// init segment is published only if no canonical init exists yet (first
+// session wins; per-session inits differ only in edit lists hls.js ignores).
+// Exits on ctx cancel or ffmpeg termination, after a final sweep, and removes
+// privDir.
+func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir string, deltaMs int64, variantIdx int) {
+	initName := fmt.Sprintf("stream_%d_init.mp4", variantIdx)
+	published := make(map[string]bool, 64)
+	failures := make(map[string]int, 4)
+	var initTS map[uint32]uint32
+
+	sweep := func() {
+		entries, err := os.ReadDir(privDir)
+		if err != nil {
+			return
+		}
+		for _, e := range entries {
+			name := e.Name()
+			if published[name] || e.IsDir() ||
+				strings.HasSuffix(name, ".tmp") ||
+				strings.HasSuffix(name, ".m3u8") ||
+				strings.HasPrefix(name, ".") {
+				continue
+			}
+			src := filepath.Join(privDir, name)
+			if name == initName {
+				if !fmp4CompleteMoov(src) {
+					continue // still being written
+				}
+				if initTS == nil {
+					if ts, err := parseInitTimescales(src); err == nil {
+						initTS = ts // best-effort fallback map
+					}
+				}
+				dst := filepath.Join(pubDir, name)
+				if _, err := os.Stat(dst); err == nil {
+					_ = os.Remove(src) //nolint:errcheck // canonical init already pinned; best-effort cleanup
+				} else if err := os.Rename(src, dst); err != nil {
+					continue
+				}
+				published[name] = true
+				continue
+			}
+			if !strings.HasSuffix(name, ".m4s") {
+				continue
+			}
+			if _, err := os.Stat(src + ".tmp"); err == nil {
+				continue // defence in depth; rename normally beats the scan
+			}
+			if err := rebaseFMP4Segment(src, deltaMs, initTS); err != nil {
+				failures[name]++
+				if failures[name] == 3 {
+					slog.Error("hls: copy rebase failed, segment withheld",
+						slog.String("segment", src), slog.Any("err", err))
+					published[name] = true // stop retrying; Wait times out → re-spawn
+				}
+				continue
+			}
+			if err := os.Rename(src, filepath.Join(pubDir, name)); err != nil {
+				slog.Warn("hls: copy rebase publish failed",
+					slog.String("segment", name), slog.Any("err", err))
+				continue
+			}
+			published[name] = true
+		}
+	}
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			sweep()
+			_ = os.RemoveAll(privDir)
+			return
+		case <-done:
+			sweep() // ffmpeg just renamed its last segment — catch it
+			_ = os.RemoveAll(privDir)
+			return
+		case <-ticker.C:
+			sweep()
+		}
+	}
+}
