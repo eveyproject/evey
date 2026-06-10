@@ -414,12 +414,12 @@ func runAudioCopyIntegration(t *testing.T, encoder, probed string) {
 		Profiles:  []apptranscoding.ProfileFingerprint{{Name: "180p-copy-acopy", Width: 320, Height: 180, VideoBitrate: 1000, AudioBitrate: 192, Copy: true}},
 	}
 	hash := fp.Hash()
-	if err := producer.EnsureSegmentRange(ctx, fp, 0, 1); err != nil {
-		t.Fatal(err)
+	if ensureErr := producer.EnsureSegmentRange(ctx, fp, 0, 1); ensureErr != nil {
+		t.Fatal(ensureErr)
 	}
 	key := apptranscoding.SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 1}
-	if err := cache.Wait(ctx, key, true, 60*time.Second); err != nil {
-		t.Fatal(err)
+	if waitErr := cache.Wait(ctx, key, true, 60*time.Second); waitErr != nil {
+		t.Fatal(waitErr)
 	}
 	cacheDir, err := cache.DirFor(hash)
 	if err != nil {
@@ -435,11 +435,11 @@ func runAudioCopyIntegration(t *testing.T, encoder, probed string) {
 	}
 	// The served clip must carry the SOURCE codec (also proves the fMP4 muxer
 	// accepts it — the eac3 case exercises hlsenc's E-AC-3-in-fMP4 path).
-	codecOut, err := exec.CommandContext(ctx, "ffprobe", "-v", "error",
+	codecOut, probeErr := exec.CommandContext(ctx, "ffprobe", "-v", "error",
 		"-select_streams", "a:0", "-show_entries", "stream=codec_name",
 		"-of", "csv=p=0", clip).Output()
-	if err != nil {
-		t.Fatalf("ffprobe served codec: %v", err)
+	if probeErr != nil {
+		t.Fatalf("ffprobe served codec: %v", probeErr)
 	}
 	if got := strings.TrimSuffix(strings.TrimSpace(string(codecOut)), ","); got != probed {
 		t.Fatalf("served audio codec = %q, want %q", got, probed)
@@ -552,12 +552,12 @@ func TestMultichannelAudioIntegration(t *testing.T) {
 		Profiles:            []apptranscoding.ProfileFingerprint{{Name: "180p-51", Width: 320, Height: 180, VideoBitrate: 800, AudioBitrate: 192}},
 	}
 	hash := fp.Hash()
-	if err := producer.EnsureSegmentRange(ctx, fp, 0, 1); err != nil {
-		t.Fatal(err)
+	if ensureErr := producer.EnsureSegmentRange(ctx, fp, 0, 1); ensureErr != nil {
+		t.Fatal(ensureErr)
 	}
 	key := apptranscoding.SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 1}
-	if err := cache.Wait(ctx, key, true, 90*time.Second); err != nil {
-		t.Fatal(err)
+	if waitErr := cache.Wait(ctx, key, true, 90*time.Second); waitErr != nil {
+		t.Fatal(waitErr)
 	}
 	cacheDir, err := cache.DirFor(hash)
 	if err != nil {
@@ -566,8 +566,8 @@ func TestMultichannelAudioIntegration(t *testing.T) {
 	clip := filepath.Join(dir, "served51.mp4")
 	initB, _ := os.ReadFile(filepath.Join(cacheDir, "stream_0_init.mp4"))
 	segB, _ := os.ReadFile(filepath.Join(cacheDir, "stream_0_001.m4s"))
-	if err := os.WriteFile(clip, append(initB, segB...), 0o644); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile(clip, append(initB, segB...), 0o644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 
 	// 1. Channel count: must be 6.

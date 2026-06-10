@@ -423,9 +423,9 @@ func TestHEVC_EAC3_PartialSupport_TranscodeAudioOnly(t *testing.T) {
 // default DTS + selected AAC must yield copy, and the reverse must transcode.
 func TestAudioDecision_SelectedTrackWins(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true}, // default
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2)},                  // selected
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: new(int64(5000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: true}, // default
+		{StreamType: "audio", Codec: "aac", Channels: new(2)},                  // selected
 	}
 
 	prefs := apptranscode.DefaultTranscodingPreferences()
@@ -452,8 +452,8 @@ func TestAudioDecision_SelectedTrackWins(t *testing.T) {
 func TestAudioChannelTarget(t *testing.T) {
 	mk := func(codec string, ch int) []*library.MediaStream {
 		return []*library.MediaStream{
-			{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-			{StreamType: "audio", Codec: codec, Channels: intPtr(ch), IsDefault: true},
+			{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: new(int64(5000000)), IsDefault: true},
+			{StreamType: "audio", Codec: codec, Channels: new(ch), IsDefault: true},
 		}
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
