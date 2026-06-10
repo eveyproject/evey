@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	appactivity "github.com/evey-project/evey/internal/app/activity"
@@ -111,6 +112,16 @@ type HTTPServer struct {
 	// QoESink ingests CMCD telemetry from every segment / master / variant
 	// request. Nil-safe: the VOD handler short-circuits when this is unset.
 	QoESink appqoe.EventSink
+
+	// transcodeCloser tears down the VOD software producers built during route
+	// registration (the selector's SoftwareProducer + the optional copy
+	// producer). They own long-lived ffmpeg sessions that would otherwise
+	// outlive the process as orphans — nothing else closes them. The hardware
+	// orchestrator is deliberately NOT in here: main already defers its
+	// CleanupAll (an alias of Close), and Close is not idempotent. Set by
+	// newHLSVODServe; invoked exactly once via CloseTranscodeProducers.
+	transcodeCloser     func()
+	transcodeCloserOnce sync.Once
 
 	// QoEQuerySvc serves the admin dashboard for QoE telemetry. Nil-safe:
 	// the route registration short-circuits and admins get a 404 instead of
@@ -221,6 +232,17 @@ type HTTPServer struct {
 
 // RegisterRoutes wires all HTTP routes onto mux.
 // gwMux is the grpc-gateway handler (may be nil if gateway failed).
+// CloseTranscodeProducers kills the long-lived ffmpeg sessions owned by the
+// VOD software/copy producers. Call once at shutdown (idempotent); no-op when
+// the VOD pipeline was never wired (tests).
+func (s *HTTPServer) CloseTranscodeProducers() {
+	s.transcodeCloserOnce.Do(func() {
+		if s.transcodeCloser != nil {
+			s.transcodeCloser()
+		}
+	})
+}
+
 func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	auth := httpAuthMiddleware(s.TokenGen)
 	// streamAuth additionally accepts opaque stream tokens (?token=) — apply ONLY

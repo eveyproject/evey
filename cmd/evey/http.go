@@ -149,6 +149,16 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 	srv.RegisterRoutes(mux, gwMux)
 
+	// Kill the VOD software/copy producers' long-lived ffmpeg sessions when the
+	// app context is cancelled (shutdown signal). Their session contexts are
+	// detached from ctx by design (a request must never inherit a dying ctx),
+	// so without this they outlive the process as orphaned ffmpeg children.
+	// Idempotent; the HW orchestrator has its own deferred CleanupAll in main.
+	go func() {
+		<-ctx.Done()
+		srv.CloseTranscodeProducers()
+	}()
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
