@@ -62,9 +62,14 @@ export function useTranscodePlayback({
     // produced UI/playhead drift on resume (UI showed 9:45 but
     // playback started at segment 0).
     //
-    // This pairs with the multi-variant ffmpeg builder which now ships
-    // `-copyts` so the fMP4 tfdt in each segment matches the absolute
-    // EXTINF position from the manifest.
+    // Positioning comes from the PLAYLIST, not the fragment's internal
+    // timestamp: hls.js places each segment at its absolute EXTINF offset in
+    // the precalculated VOD manifest and applies a per-segment timestampOffset.
+    // Each ffmpeg session resets the fragment's fMP4 tfdt to 0 (a fresh session
+    // always does, with or without -copyts — verified against jellyfin-ffmpeg7),
+    // and hls.js tolerates that because the EXTINF drives the timeline. So a
+    // seek-spawned rafale at segment N lands at N's manifest position regardless
+    // of its tfdt.
     transcodeOffsetRef.current = 0;
     const initialSeekSec = transcodeStartTime > 0 ? transcodeStartTime : 0;
 
@@ -175,9 +180,10 @@ export function useTranscodePlayback({
       // VOD pipeline: the manifest covers the full media duration so we
       // seek the resume target via video.currentTime, which causes
       // hls.js to request the matching segment from the server.
-      // SegmentOrchestrator spawns a rafale at that segment with the
-      // matching -ss; with -copyts the fragment's tfdt matches the
-      // EXTINF position and hls.js accepts it.
+      // SegmentOrchestrator (or the copy rung) spawns a rafale at that segment
+      // with the matching -ss; hls.js accepts it because the playlist's EXTINF
+      // places the segment — the fragment's tfdt resets to 0 per session and is
+      // tolerated (positioning is by the manifest, not the fragment timestamp).
       if (initialSeekSec > 0) {
         video.currentTime = initialSeekSec;
       } else if (video.currentTime !== 0) {
