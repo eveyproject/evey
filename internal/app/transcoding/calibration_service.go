@@ -60,6 +60,15 @@ type CalibrationService struct {
 	current       atomic.Pointer[domaintranscoding.EncodeCapability]
 	benchInFlight sync.Mutex
 
+	// currentMu serialises the read-modify-write of `current` between a runtime
+	// demotion (load→PlanDemotion→store) and a (re)bench store. They take
+	// different outer locks (demoteMu vs benchInFlight), so without this a demote
+	// computed from a pre-bench snapshot could store back over a fresh bench
+	// result (lost update). Always acquired LAST (inside demoteMu / benchInFlight,
+	// which are disjoint) so no lock cycle. The hot-path Current() read stays
+	// lock-free on the atomic pointer — this only guards the two rare writers.
+	currentMu sync.Mutex
+
 	// demoteMu serialises runtime capability demotions (level-2 safety net) so
 	// concurrent encode failures don't race the read-modify-write of `current`.
 	demoteMu sync.Mutex
@@ -290,7 +299,9 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 		// We still publish to in-memory — request handling benefits
 		// even if the DB write failed. Next boot will re-bench.
 	}
+	s.currentMu.Lock()
 	s.current.Store(&cap)
+	s.currentMu.Unlock()
 	return nil
 }
 
@@ -313,6 +324,12 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 	}
 	s.demoteMu.Lock()
 	defer s.demoteMu.Unlock()
+
+	// Hold currentMu across the whole load→store so a concurrent benchAndPersist
+	// store can't land between the snapshot we demote from and the store back
+	// (which would either clobber the fresh bench or be clobbered by it).
+	s.currentMu.Lock()
+	defer s.currentMu.Unlock()
 
 	cur := *s.current.Load()
 	d := domaintranscoding.PlanDemotion(cur, class, codec)
