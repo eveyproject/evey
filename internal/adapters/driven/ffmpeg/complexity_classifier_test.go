@@ -14,9 +14,9 @@ import (
 // bitrate-only buckets. This test exercises a real metadata=print block
 // so any future filter/regex drift trips here, not in production.
 func TestParseSignalStats_ExtractsMotionAndScenecuts(t *testing.T) {
-	// Trimmed from a live `ffmpeg -vf signalstats,scdet,metadata=print` on
-	// /media/Outcome - 1080P.mkv. Includes 3 frames: one scene-change
-	// (score 0.51 > 0.3) and two ordinary frames.
+	// Trimmed from a live `ffmpeg -vf signalstats,scdet,metadata=print` on a
+	// 1080p sample. Includes 3 frames: one scene-change (score 0.51 > 0.3) and
+	// two ordinary frames.
 	sample := `
 frame:0    pts:0       pts_time:0
 lavfi.signalstats.YMIN=0

@@ -49,6 +49,7 @@ type CapOverrideService struct {
 	tickerDone chan struct{}
 
 	startOnce sync.Once
+	closeOnce sync.Once
 }
 
 type CapOverrideServiceOpts struct {
@@ -122,12 +123,9 @@ func (s *CapOverrideService) Start(ctx context.Context) {
 
 // Close stops the worker and waits for the loop to exit.
 func (s *CapOverrideService) Close() {
-	select {
-	case <-s.tickerStop:
-		// already closed
-	default:
-		close(s.tickerStop)
-	}
+	// sync.Once, not a check-then-close select: two concurrent Close() calls could
+	// both take the default branch and double-close → panic.
+	s.closeOnce.Do(func() { close(s.tickerStop) })
 	select {
 	case <-s.tickerDone:
 	case <-time.After(2 * time.Second):

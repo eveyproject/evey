@@ -64,6 +64,15 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 			return
 		}
 		tilesPerImage := manifest.TileWidth * manifest.TileHeight
+		if tilesPerImage <= 0 || manifest.TileWidth <= 0 {
+			// A zero/negative tile geometry (corrupted or partial-migration row)
+			// would divide-by-zero in the cue loop below — emit an empty VTT
+			// instead of panicking every request for this item.
+			w.Header().Set("Content-Type", "text/vtt")
+			w.Header().Set("Cache-Control", "no-cache")
+			fmt.Fprint(w, "WEBVTT\n")
+			return
+		}
 
 		// Read the per-frame timestamp sidecar — required, no fallback.
 		// (interval-based timing was wrong when keyframes are sparse.)

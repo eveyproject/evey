@@ -35,16 +35,16 @@ type EventSink interface {
 // payload plus the context we resolved on the HTTP side (who, what media,
 // which segment). The repo translates this into a storage row.
 type Event struct {
-	UserID       string // empty for anon/shared-link plays
-	MediaItemID  string
-	VariantIdx   int
-	SegmentIdx   int
-	IsInit       bool
-	IsManifest   bool
-	IsVariantPL  bool
-	DeviceClass  string
-	RemoteIP     string
-	Payload      cmcd.Payload
+	UserID      string // empty for anon/shared-link plays
+	MediaItemID string
+	VariantIdx  int
+	SegmentIdx  int
+	IsInit      bool
+	IsManifest  bool
+	IsVariantPL bool
+	DeviceClass string
+	RemoteIP    string
+	Payload     cmcd.Payload
 }
 
 // Storage is the narrow contract the sink needs from the persistence layer.
@@ -166,40 +166,49 @@ func (s *BufferedSink) Close(ctx context.Context) error {
 
 func (s *BufferedSink) worker() {
 	defer s.workerWG.Done()
+	for evt := range s.ch {
+		s.processEvent(evt)
+	}
+}
+
+// processEvent persists one event with a PER-ITERATION recover: a panic on a
+// single event (e.g. a future storage impl) is logged and the loop keeps
+// draining. A recover on the outer worker loop instead would let one bad event
+// kill the goroutine permanently — the channel would never be read again and
+// ALL subsequent telemetry would be silently dropped while Record keeps filling.
+func (s *BufferedSink) processEvent(evt Event) {
 	defer func() {
 		if r := recover(); r != nil {
-			s.logger.Error("qoe sink worker panic recovered",
+			s.logger.Error("qoe sink: event panic recovered (loop continues)",
 				slog.Any("err", r),
 				slog.String("stack", string(debug.Stack())))
 		}
 	}()
-	for evt := range s.ch {
-		// TODO: remove after CMCD stabilization — verbose per-event log to
-		// confirm payloads actually arrive during Phase 1.
-		s.logger.Debug("qoe ingest",
-			slog.String("media_id", evt.MediaItemID),
-			slog.String("user_id", evt.UserID),
-			slog.String("session_id", evt.Payload.SessionID),
-			slog.Int("variant", evt.VariantIdx),
-			slog.Int("seg", evt.SegmentIdx),
-			slog.Int("buffer_ms", evt.Payload.BufferLengthMs),
-			slog.Int("encoded_kbps", evt.Payload.EncodedKbps),
-			slog.Int("measured_kbps", evt.Payload.MeasuredKbps),
-			slog.Bool("starved", evt.Payload.BufferStarved),
-			slog.Bool("startup", evt.Payload.Startup))
+	// TODO: remove after CMCD stabilization — verbose per-event log to
+	// confirm payloads actually arrive during Phase 1.
+	s.logger.Debug("qoe ingest",
+		slog.String("media_id", evt.MediaItemID),
+		slog.String("user_id", evt.UserID),
+		slog.String("session_id", evt.Payload.SessionID),
+		slog.Int("variant", evt.VariantIdx),
+		slog.Int("seg", evt.SegmentIdx),
+		slog.Int("buffer_ms", evt.Payload.BufferLengthMs),
+		slog.Int("encoded_kbps", evt.Payload.EncodedKbps),
+		slog.Int("measured_kbps", evt.Payload.MeasuredKbps),
+		slog.Bool("starved", evt.Payload.BufferStarved),
+		slog.Bool("startup", evt.Payload.Startup))
 
-		// Use Background — the HTTP request context is long gone by the
-		// time we drain this event. The query has its own withTimeout.
-		if err := s.storage.InsertEvent(context.Background(), evt); err != nil {
-			s.logger.Warn("qoe sink: insert failed",
-				slog.String("media_id", evt.MediaItemID),
-				slog.Any("err", err))
-		}
+	// Use Background — the HTTP request context is long gone by the
+	// time we drain this event. The query has its own withTimeout.
+	if err := s.storage.InsertEvent(context.Background(), evt); err != nil {
+		s.logger.Warn("qoe sink: insert failed",
+			slog.String("media_id", evt.MediaItemID),
+			slog.Any("err", err))
 	}
 }
 
 // NoopSink is the test/dev double — Record is a no-op, Close returns nil.
 type NoopSink struct{}
 
-func (NoopSink) Record(Event)                       {}
-func (NoopSink) Close(context.Context) error        { return nil }
+func (NoopSink) Record(Event)                {}
+func (NoopSink) Close(context.Context) error { return nil }

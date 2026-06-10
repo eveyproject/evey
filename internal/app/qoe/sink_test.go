@@ -17,10 +17,10 @@ import (
 // captureStorage records every event it receives. block can be set to make
 // inserts hang, which lets us prove buffer-full → drop without flakiness.
 type captureStorage struct {
-	mu    sync.Mutex
+	mu     sync.Mutex
 	events []Event
-	block chan struct{}
-	err   error
+	block  chan struct{}
+	err    error
 }
 
 func (c *captureStorage) InsertEvent(_ context.Context, evt Event) error {
@@ -46,8 +46,8 @@ func (c *captureStorage) snapshot() []Event {
 
 type countingDrops struct{ n atomic.Int64 }
 
-func (c *countingDrops) Inc()       { c.n.Add(1) }
-func (c *countingDrops) load() int  { return int(c.n.Load()) }
+func (c *countingDrops) Inc()      { c.n.Add(1) }
+func (c *countingDrops) load() int { return int(c.n.Load()) }
 
 func TestBufferedSink_RecordIsNonBlocking_DrainsToStorage(t *testing.T) {
 	cap := &captureStorage{}
@@ -126,6 +126,49 @@ func TestBufferedSink_StorageErrorDoesNotKillWorker(t *testing.T) {
 	// Worker survives errors → channel keeps draining → subsequent Record
 	// calls still don't block.
 	sink.Record(Event{MediaItemID: "y"})
+}
+
+// A storage that PANICS (not just errors) on one event must not kill the worker:
+// the per-iteration recover logs it and the loop keeps draining, so a later event
+// still lands. A recover on the outer loop instead would exit the goroutine and
+// silently drop all subsequent telemetry.
+func TestBufferedSink_StoragePanicDoesNotKillWorker(t *testing.T) {
+	st := &panicOnceStorage{}
+	sink := NewBufferedSink(st, SinkOptions{BufferSize: 8}, nil)
+	sink.Record(Event{MediaItemID: "boom"}) // first insert panics (recovered)
+	sink.Record(Event{MediaItemID: "ok"})   // must still be processed
+	require.NoError(t, sink.Close(context.Background()))
+
+	got := st.snapshot()
+	require.Len(t, got, 1, "worker must survive the panic and process the 2nd event")
+	assert.Equal(t, "ok", got[0].MediaItemID)
+}
+
+// panicOnceStorage panics on its first InsertEvent, then records normally.
+type panicOnceStorage struct {
+	mu     sync.Mutex
+	events []Event
+	fired  bool
+}
+
+func (p *panicOnceStorage) InsertEvent(_ context.Context, evt Event) error {
+	p.mu.Lock()
+	if !p.fired {
+		p.fired = true
+		p.mu.Unlock()
+		panic("simulated storage panic")
+	}
+	p.events = append(p.events, evt)
+	p.mu.Unlock()
+	return nil
+}
+
+func (p *panicOnceStorage) snapshot() []Event {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make([]Event, len(p.events))
+	copy(out, p.events)
+	return out
 }
 
 func TestBufferedSink_RecordDuringClose_NoSendOnClosedPanic(t *testing.T) {

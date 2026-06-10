@@ -145,8 +145,13 @@ func (c *ComplexityClassifier) Classify(ctx context.Context, filePath string, du
 func (c *ComplexityClassifier) sampleAt(parent context.Context, filePath string, atSec float64) (float64, int, int) {
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, c.ffmpegBin,
+	// Background sampler: throttle like the other off-path ffmpeg probes
+	// (trickplay, intro detection) so a classification burst can't preempt a
+	// live software transcode on a weak NAS — the very starvation the QoE
+	// pipeline measures. nice -n 19 + a bounded decode thread count.
+	cmd := exec.CommandContext(ctx, "nice", "-n", "19", c.ffmpegBin,
 		"-hide_banner", "-nostats",
+		"-threads", strconv.Itoa(introFFmpegThreads()),
 		"-ss", fmt.Sprintf("%.3f", atSec),
 		"-i", filePath,
 		"-t", "1",
