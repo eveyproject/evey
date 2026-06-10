@@ -944,10 +944,11 @@ func (h *hlsVODServe) isCopyRequest(decision domaintranscoding.PlaybackDecision,
 		sourceCopyVideoCodec(streams) == "" {
 		return false
 	}
-	// Disk guard: the whole-file strategy duplicates ~the source size on disk
-	// (video copied 1:1 + a smaller AAC track). If the cache filesystem can't fit
-	// it with headroom, fall back to the segment-bounded transcode ladder rather
-	// than risk ENOSPC on a small box. Fail-OPEN when the size is unknown or
+	// Disk guard: the copy rung's segments duplicate ~the source size on disk over
+	// the session (video copied 1:1 + a smaller AAC track), and the unpaced copy
+	// produces them well ahead of the viewer. If the cache filesystem can't fit it
+	// with headroom, fall back to the segment-bounded transcode ladder rather than
+	// risk ENOSPC on a small box. Fail-OPEN when the size is unknown or
 	// statfs fails — keeps today's behaviour and the mux still fails gracefully
 	// downstream. (master- and segment-time both reach this with the same
 	// item.File.Size; a free-space flip between them is a rare, bounded 503-retry,
@@ -1157,16 +1158,19 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// fingerprint keeps copy and transcode segments from aliasing.
 	//
 	// OPT-IN (default OFF). Was briefly default-on for a prod test; the first live
-	// browser test surfaced a blocking bug not covered by unit tests: a forward
-	// SEEK spawns an `-ss` session whose -copyts fMP4 init carries a mid-stream
-	// edit list (empty edit == the seek offset), and it overwrites the SHARED
-	// stream_N_init.mp4. Start-of-stream segments then decode against that init →
-	// scrambled timeline / garbage frames, and it persists in the cache. The copy
-	// rung needs a position-independent init (one canonical init for all sessions,
-	// the fMP4 init/elst/tfdt work) before it can ship on by default. Until then it
-	// is opt-in: server_config transcoding.remux_copy=on (or EVEY_REMUX_COPY=on),
-	// applied on restart. A request still only routes here when it is copy-eligible
-	// AND keyframe-backfilled (isCopyRequest → sourceCopyVideoCodec).
+	// browser test surfaced a blocking bug: a forward SEEK spawned an `-ss` session
+	// whose -copyts fMP4 init carried a mid-stream edit list (elst media_time = the
+	// seek offset) and overwrote the SHARED stream_N_init.mp4, so start-of-stream
+	// segments decoded against it presentation-shifted by the seek offset (scrambled
+	// timeline). That, plus the keyframe/hls_time drift and the libx264-on-seek init
+	// downgrade, are now FIXED server-side (buildCopyVideoArgs uses -c:v copy +
+	// -avoid_negative_ts make_zero on seek → ONE canonical init for all sessions,
+	// segment position via the VOD playlist; validated against jellyfin-ffmpeg7).
+	// The rung stays opt-in only until a live BROWSER pass (start + forward seek +
+	// seek-back) confirms the end-to-end fix: server_config transcoding.remux_copy=on
+	// (or EVEY_REMUX_COPY=on), applied on restart. A request still only routes here
+	// when it is copy-eligible AND keyframe-backfilled (isCopyRequest →
+	// sourceCopyVideoCodec).
 	if resolveServerFlag(s.ServerCfgRepo, "transcoding.remux_copy", "EVEY_REMUX_COPY") == "on" {
 		softwareCopy := apptranscoding.NewSoftwareProducer(
 			cache,
@@ -1179,7 +1183,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 			copyStreamReaderAdapter{libSvc}, copyItemReaderAdapter{libSvc}, 0, // 0 → default 6s segments
 		))
 		h.copyProducer = softwareCopy
-		slog.Default().Warn("hls vod: copy/remux rung ENABLED (EXPERIMENTAL, opt-in: server_config transcoding.remux_copy=on or EVEY_REMUX_COPY=on) — known seek init-poisoning bug, not browser-validated")
+		slog.Default().Warn("hls vod: copy/remux rung ENABLED (EXPERIMENTAL, opt-in: server_config transcoding.remux_copy=on or EVEY_REMUX_COPY=on) — seek init-poisoning + hls_time drift fixed server-side, pending live browser validation (start + seek + seek-back)")
 	}
 
 	// The selector routes each request: software unless resolveHW confirms the
