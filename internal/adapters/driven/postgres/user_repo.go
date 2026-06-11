@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -40,6 +41,17 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 		u.MaxBitrateKbps, u.PushConsent, u.CreatedAt, u.UpdatedAt,
 	)
 	if err != nil {
+		// A unique-constraint violation (duplicate username, or the partial
+		// idx_users_oidc_identity on a concurrent OIDC first-login) surfaces as
+		// shared.ErrConflict so callers can recover instead of treating it as an
+		// opaque failure (mirrors RefreshTokenRepo.Create).
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			conflictErr := fmt.Errorf("%w: %s", shared.ErrConflict, pqErr.Message)
+			span.RecordError(conflictErr)
+			span.SetStatus(codes.Error, conflictErr.Error())
+			return conflictErr
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("create user: %w", err)

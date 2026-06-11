@@ -363,6 +363,18 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 		createErr = create(ctx)
 	}
 	if createErr != nil {
+		// A concurrent first-login for the same (issuer, subject) can win the
+		// race: the partial unique index idx_users_oidc_identity (migration
+		// 000113) rejects our INSERT as a conflict. Recover by returning the row
+		// the winner created rather than failing an otherwise-valid login.
+		if errors.Is(createErr, shared.ErrConflict) {
+			if existing, getErr := s.userRepo.GetByOIDCSubject(ctx, s.issuer, sub); getErr == nil {
+				if !existing.Enabled {
+					return nil, ErrUserDisabled
+				}
+				return existing, nil
+			}
+		}
 		return nil, fmt.Errorf("OIDCService.findOrCreateUser: %w", createErr)
 	}
 

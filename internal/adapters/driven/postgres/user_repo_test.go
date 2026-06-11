@@ -189,3 +189,44 @@ func TestUserRepo_GetByOIDCSubject_NotFound(t *testing.T) {
 	_, err := repo.GetByOIDCSubject(ctx, "https://nope.com", "no-sub")
 	assert.Error(t, err)
 }
+
+// The partial unique index idx_users_oidc_identity (migration 000113) blocks a
+// second user with the SAME (oidc_issuer, oidc_subject) — even with a different
+// username — so a concurrent OIDC first-login can't create a duplicate identity.
+// Create must surface it as shared.ErrConflict so OIDCService can recover.
+func TestUserRepo_Create_DuplicateOIDCIdentity_Conflicts(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewUserRepository(db)
+	ctx := context.Background()
+
+	issuer := "https://auth.example.com"
+	subject := "shared-sub-xyz"
+
+	first := newTestUser("u-oidc-a") // username user_u-oidc-a
+	first.OIDCIssuer = &issuer
+	first.OIDCSubject = &subject
+	require.NoError(t, repo.Create(ctx, first))
+
+	second := newTestUser("u-oidc-b") // DIFFERENT username, SAME identity
+	second.OIDCIssuer = &issuer
+	second.OIDCSubject = &subject
+	err := repo.Create(ctx, second)
+	require.Error(t, err, "duplicate (issuer, subject) must be rejected")
+	assert.ErrorIs(t, err, shared.ErrConflict, "must surface as ErrConflict for graceful recovery")
+}
+
+// The index is PARTIAL (WHERE oidc_subject IS NOT NULL): the many local users
+// with a NULL oidc_subject must coexist freely.
+func TestUserRepo_Create_NullOIDCSubject_NoConflict(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewUserRepository(db)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Create(ctx, newTestUser("u-local-1")))
+	require.NoError(t, repo.Create(ctx, newTestUser("u-local-2")),
+		"two local users (NULL oidc_subject) must not collide on the partial index")
+}
