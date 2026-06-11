@@ -109,25 +109,46 @@ func (r *SyncPlayRoomRepo) AddMember(ctx context.Context, roomID string, member 
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	room, err := r.Get(ctx, roomID)
+
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	for _, m := range room.Members {
+	defer tx.Rollback()
+
+	var membersJSON []byte
+	err = tx.QueryRowContext(ctx,
+		`SELECT members FROM syncplay_rooms WHERE id = $1 FOR UPDATE`,
+		roomID,
+	).Scan(&membersJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return shared.ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+
+	var members []syncplay.Member
+	if err = json.Unmarshal(membersJSON, &members); err != nil {
+		return err
+	}
+	for _, m := range members {
 		if m.UserID == member.UserID {
-			return nil
+			return nil // idempotent: already present, no-op
 		}
 	}
-	room.Members = append(room.Members, member)
-	membersJSON, err := json.Marshal(room.Members)
+	members = append(members, member)
+	updated, err := json.Marshal(members)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx,
+	if _, err = tx.ExecContext(ctx,
 		`UPDATE syncplay_rooms SET members = $1 WHERE id = $2`,
-		membersJSON, roomID,
-	)
-	return err
+		updated, roomID,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (r *SyncPlayRoomRepo) RemoveMember(ctx context.Context, roomID string, userID string) error {
@@ -135,25 +156,46 @@ func (r *SyncPlayRoomRepo) RemoveMember(ctx context.Context, roomID string, user
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	room, err := r.Get(ctx, roomID)
+
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	filtered := room.Members[:0]
-	for _, m := range room.Members {
+	defer tx.Rollback()
+
+	var membersJSON []byte
+	err = tx.QueryRowContext(ctx,
+		`SELECT members FROM syncplay_rooms WHERE id = $1 FOR UPDATE`,
+		roomID,
+	).Scan(&membersJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return shared.ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+
+	var members []syncplay.Member
+	if err = json.Unmarshal(membersJSON, &members); err != nil {
+		return err
+	}
+	filtered := make([]syncplay.Member, 0, len(members))
+	for _, m := range members {
 		if string(m.UserID) != userID {
 			filtered = append(filtered, m)
 		}
 	}
-	membersJSON, err := json.Marshal(filtered)
+	updated, err := json.Marshal(filtered)
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx,
+	if _, err = tx.ExecContext(ctx,
 		`UPDATE syncplay_rooms SET members = $1 WHERE id = $2`,
-		membersJSON, roomID,
-	)
-	return err
+		updated, roomID,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (r *SyncPlayRoomRepo) UpdateState(ctx context.Context, roomID string, state syncplay.PlaybackState) error {
