@@ -87,12 +87,25 @@ func mapContainer(c *extmkv.Container) (*library.ProbeResult, bool) {
 			if cs := t.ColorSpaceName(); cs != "" {
 				ms.ColorSpace = &cs
 			}
+			if ct := t.ColorTransferName(); ct != "" {
+				ms.ColorTransfer = &ct
+			}
 			// Belt-and-suspenders for the HDR decision: an HDR-capable codec with
 			// no colour metadata at all (mkvgo couldn't read it from the container
 			// Colour element nor the SPS VUI) might actually be HDR signalled in a
 			// way mkvgo missed. ffprobe would catch it from the bitstream, so fall
 			// back rather than risk reporting real HDR as SDR.
 			if ms.ColorSpace == nil && isHDRCapableCodec(codec) {
+				return nil, false
+			}
+			// HDR candidates must go through ffprobe: mkvgo cannot read the Dolby
+			// Vision configuration (MKV BlockAdditionMapping dvcC/dvvC), and a DoVi
+			// profile-5 title recorded as plain HDR10 would be raw-served with
+			// green/purple colours by the HDR-aware copy/direct-play paths. Any
+			// bt2020 colour or PQ/HLG transfer ⇒ bail so ffprobe establishes the
+			// dovi_profile ground truth. SDR tracks (the vast majority) keep the
+			// fast path.
+			if isHDRCapableCodec(codec) && isHDRSuspect(ms.ColorSpace, ms.ColorTransfer) {
 				return nil, false
 			}
 		case library.StreamTypeAudio:
@@ -143,6 +156,23 @@ func isHDRCapableCodec(codec string) bool {
 	switch codec {
 	case "hevc", "av1", "vp9":
 		return true
+	}
+	return false
+}
+
+// isHDRSuspect reports colour metadata that marks a potential HDR (and thus
+// potential Dolby Vision) stream: bt2020 colour space or a PQ/HLG transfer.
+// Such tracks must be probed by ffprobe, the only prober that can read the
+// DOVI configuration record.
+func isHDRSuspect(colorSpace, colorTransfer *string) bool {
+	if colorSpace != nil && strings.Contains(strings.ToLower(*colorSpace), "bt2020") {
+		return true
+	}
+	if colorTransfer != nil {
+		switch strings.ToLower(strings.TrimSpace(*colorTransfer)) {
+		case "smpte2084", "arib-std-b67":
+			return true
+		}
 	}
 	return false
 }

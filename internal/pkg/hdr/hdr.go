@@ -9,8 +9,16 @@ type VideoStream interface {
 	GetStreamType() string
 	GetBitDepth() *int
 	GetColorSpace() *string
+	// GetColorTransfer is the ffprobe color_transfer (smpte2084 = PQ,
+	// arib-std-b67 = HLG), nil when unprobed — the only signal that tells PQ
+	// from HLG.
+	GetColorTransfer() *string
 	GetHDRType() *string
 	GetProfile() string
+	// GetDoViProfile / GetDoViBLCompat mirror the Dolby Vision configuration
+	// record (dv_profile + dv_bl_signal_compatibility_id), nil = no DoVi RPU.
+	GetDoViProfile() *int
+	GetDoViBLCompat() *int
 }
 
 type HDRInfo struct {
@@ -18,6 +26,10 @@ type HDRInfo struct {
 	Type       string // "hdr10", "hdr10+", "dolby_vision", "hlg", ""
 	ColorSpace string
 	BitDepth   int
+	// DoViProfile is the Dolby Vision profile when the stream carries a DoVi
+	// RPU, 0 otherwise. Set even when Type reports the compatible base layer
+	// ("hdr10"/"hlg" for profile 8), so callers can still tell DoVi is present.
+	DoViProfile int
 }
 
 type ToneMapOptions struct {
@@ -72,13 +84,54 @@ func DetectHDR(streams []VideoStream) *HDRInfo {
 			return info
 		}
 
+		// Dolby Vision FIRST: a DoVi stream also carries a PQ transfer, so the
+		// transfer rule below would misread it as plain HDR10 — and a profile-5
+		// stream served as HDR10 renders green/purple (IPTC2 base layer). Only a
+		// profile-8 stream with a compatible base layer (1=HDR10, 2=SDR, 4=HLG)
+		// may be treated as that base; everything else is "dolby_vision", which
+		// the playback decision always transcodes (tonemap reads the base layer,
+		// PQ for every profile but 8.4 — see setParamsFor).
+		if dv := s.GetDoViProfile(); dv != nil && *dv > 0 {
+			info.IsHDR = true
+			info.DoViProfile = *dv
+			info.Type = "dolby_vision"
+			if *dv == 8 {
+				if bc := s.GetDoViBLCompat(); bc != nil {
+					switch *bc {
+					case 1, 2:
+						info.Type = "hdr10" // HDR10 (or SDR) base layer, servable raw
+					case 4:
+						info.Type = "hlg"
+					}
+				}
+			}
+			return info
+		}
+
+		// Transfer characteristics are the authoritative HDR signal when probed:
+		// PQ (smpte2084) ⇒ HDR10, HLG (arib-std-b67) ⇒ HLG — the only field that
+		// tells the two apart.
+		if ct := s.GetColorTransfer(); ct != nil {
+			switch strings.ToLower(strings.TrimSpace(*ct)) {
+			case "smpte2084":
+				info.IsHDR = true
+				info.Type = "hdr10"
+				return info
+			case "arib-std-b67":
+				info.IsHDR = true
+				info.Type = "hlg"
+				return info
+			}
+		}
+
 		// BT.2020 colour space + 10-bit ⇒ HDR (HDR10/HLG can't be told apart
-		// without the transfer characteristics, which Evey doesn't store yet, so
-		// we report hdr10 as the conservative default). ffprobe leaves
-		// bits_per_raw_sample empty for many HEVC streams, so the codec profile
-		// ("Main 10" / "High 10") is the reliable 10-bit signal when bit depth is
-		// absent — without this fallback, real 2160p HDR (e.g. bt2020nc + Main 10
-		// with no bits_per_raw_sample) is misread as SDR.
+		// without the transfer characteristics, absent on legacy rows probed
+		// before color_transfer was stored, so we report hdr10 as the
+		// conservative default). ffprobe leaves bits_per_raw_sample empty for
+		// many HEVC streams, so the codec profile ("Main 10" / "High 10") is the
+		// reliable 10-bit signal when bit depth is absent — without this
+		// fallback, real 2160p HDR (e.g. bt2020nc + Main 10 with no
+		// bits_per_raw_sample) is misread as SDR.
 		if cs := s.GetColorSpace(); cs != nil && strings.Contains(strings.ToLower(*cs), "bt2020") {
 			tenBit := false
 			if bd := s.GetBitDepth(); bd != nil && *bd >= 10 {

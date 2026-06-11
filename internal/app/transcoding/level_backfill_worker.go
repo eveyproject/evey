@@ -11,23 +11,27 @@ import (
 )
 
 // LevelBackfillStore is the narrow persistence slice the worker needs: find
-// candidates whose H.264 video level is missing, and fill it from a fresh probe.
-// Implemented by the media-stream repository.
+// candidates whose copy-rung video metadata is missing, and fill it from a
+// fresh probe. Implemented by the media-stream repository.
 type LevelBackfillStore interface {
-	// ListVideoLevelMissing returns up to `limit` media item IDs with an h264
-	// video stream whose level IS NULL, excluding the given IDs.
+	// ListVideoLevelMissing returns up to `limit` media item IDs with an
+	// h264/hevc video stream missing copy-rung metadata (h264: level IS NULL;
+	// hevc: level OR color_transfer IS NULL), excluding the given IDs.
 	ListVideoLevelMissing(ctx context.Context, limit int, exclude []string) ([]string, error)
-	// SetVideoLevels fills the level of the item's video streams from a probe,
-	// matched by stream_index, writing only missing levels and never deleting.
+	// SetVideoLevels fills the copy-rung metadata (level, color_transfer,
+	// dovi_profile, dovi_bl_compat) of the item's video streams from a probe,
+	// matched by stream_index, writing only missing values and never deleting.
 	// Returns how many rows were updated.
 	SetVideoLevels(ctx context.Context, mediaItemID shared.MediaItemID, streams []*library.MediaStream) (int, error)
 }
 
 // LevelBackfillWorker re-probes existing media in the background to fill the
-// media_streams.level column the scanner never back-populates (it skips files
-// whose mtime/fingerprint are unchanged). Level is what gates the H.264
-// video-copy (remux) rung: without it the master manifest can't advertise an
-// accurate avc1.PPCCLL, so a copyable title is transcoded instead.
+// copy-rung metadata columns the scanner never back-populates (it skips files
+// whose mtime/fingerprint are unchanged): media_streams.level — what gates the
+// video-copy (remux) rung, since without it the master manifest can't
+// advertise an accurate RFC-6381 CODECS string — and, for HEVC, the HDR
+// ground truth (color_transfer + Dolby Vision profile) without which a DoVi
+// profile-5 title could be raw-served with broken colours.
 //
 // It is the only component that hits the (possibly weak, networked) media store
 // in a sustained background loop, so it is paced conservatively and every knob is
@@ -213,8 +217,9 @@ func (w *LevelBackfillWorker) backfillOne(ctx context.Context, mediaItemID strin
 		return false
 	}
 	if updated == 0 {
-		// Probe succeeded but no h264 level resolved — leave NULL; mark to avoid a
-		// re-probe loop on a file whose level ffprobe never reports.
+		// Probe succeeded but resolved nothing new (no level, and for hevc no
+		// colour/DoVi metadata) — leave NULL; mark to avoid a re-probe loop on a
+		// file whose metadata ffprobe never reports.
 		return false
 	}
 	w.logger.Info("level backfill: filled",

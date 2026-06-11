@@ -88,7 +88,8 @@ func TestMediaStreamRepo_ListVideoLevelMissing_Scope(t *testing.T) {
 		{ID: "a-v", MediaItemID: itemA.ID, StreamIndex: 0, StreamType: "video", Codec: "h264"},
 		{ID: "a-a", MediaItemID: itemA.ID, StreamIndex: 1, StreamType: "audio", Codec: "aac"},
 	}))
-	// B: hevc video, NULL level → NOT a candidate (non-h264).
+	// B: hevc video, NULL level + NULL color_transfer → candidate (HEVC needs
+	// both for the copy rung's HDR ground truth).
 	itemB := newTestMediaItem("lvlB", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, itemB))
 	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
@@ -100,14 +101,34 @@ func TestMediaStreamRepo_ListVideoLevelMissing_Scope(t *testing.T) {
 	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
 		{ID: "c-v", MediaItemID: itemC.ID, StreamIndex: 0, StreamType: "video", Codec: "h264", Level: new(40)},
 	}))
+	// D: hevc with level but NULL color_transfer → still a candidate (probed
+	// before the HDR-truth columns existed → must re-probe for DoVi).
+	itemD := newTestMediaItem("lvlD", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemD))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "d-v", MediaItemID: itemD.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153)},
+	}))
+	// E: hevc with level AND color_transfer → fully probed, NOT a candidate.
+	itemE := newTestMediaItem("lvlE", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemE))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "e-v", MediaItemID: itemE.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: stringPtr("smpte2084")},
+	}))
+	// F: vp9, NULL everything → NOT a candidate (out of copy-rung scope).
+	itemF := newTestMediaItem("lvlF", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemF))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "f-v", MediaItemID: itemF.ID, StreamIndex: 0, StreamType: "video", Codec: "vp9"},
+	}))
 
 	ids, err := streamRepo.ListVideoLevelMissing(ctx, 10, nil)
 	require.NoError(t, err)
-	assert.Equal(t, []string{string(itemA.ID)}, ids, "only the h264 NULL-level item is a candidate")
+	assert.Equal(t, []string{string(itemA.ID), string(itemB.ID), string(itemD.ID)}, ids,
+		"candidates = h264 NULL-level + hevc missing level or color_transfer")
 
-	excluded, err := streamRepo.ListVideoLevelMissing(ctx, 10, []string{string(itemA.ID)})
+	excluded, err := streamRepo.ListVideoLevelMissing(ctx, 10, []string{string(itemA.ID), string(itemB.ID), string(itemD.ID)})
 	require.NoError(t, err)
-	assert.Empty(t, excluded, "excluding the only candidate yields none")
+	assert.Empty(t, excluded, "excluding every candidate yields none")
 }
 
 func TestMediaStreamRepo_SetVideoLevels_FillsOnceNeverWipes(t *testing.T) {
@@ -156,6 +177,64 @@ func TestMediaStreamRepo_SetVideoLevels_FillsOnceNeverWipes(t *testing.T) {
 	assert.Equal(t, 40, *got2[0].Level, "level unchanged on the second call")
 }
 
+// The HEVC variant of the backfill: a fresh probe fills the HDR ground truth
+// (color_transfer + DoVi record) alongside the level, each column only where
+// NULL, and the filled item drops out of the candidate query.
+func TestMediaStreamRepo_SetVideoLevels_FillsHDRTruth(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("lvllib3")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("hdrfill", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "h-v", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc"},
+	}))
+
+	probe := []*library.MediaStream{
+		{StreamType: "video", StreamIndex: 0, Codec: "hevc", Level: new(153),
+			ColorTransfer: stringPtr("smpte2084"), DoViProfile: new(8), DoViBLCompat: new(1)},
+	}
+	n, err := streamRepo.SetVideoLevels(ctx, item.ID, probe)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	got, err := streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0].Level)
+	assert.Equal(t, 153, *got[0].Level)
+	require.NotNil(t, got[0].ColorTransfer)
+	assert.Equal(t, "smpte2084", *got[0].ColorTransfer)
+	require.NotNil(t, got[0].DoViProfile)
+	assert.Equal(t, 8, *got[0].DoViProfile)
+	require.NotNil(t, got[0].DoViBLCompat)
+	assert.Equal(t, 1, *got[0].DoViBLCompat)
+
+	ids, err := streamRepo.ListVideoLevelMissing(ctx, 10, nil)
+	require.NoError(t, err)
+	assert.Empty(t, ids, "a fully probed hevc item is no longer a candidate")
+
+	// A second probe must not overwrite anything (per-column NULL guards).
+	n2, err := streamRepo.SetVideoLevels(ctx, item.ID,
+		[]*library.MediaStream{{StreamType: "video", StreamIndex: 0, Codec: "hevc", Level: new(99),
+			ColorTransfer: stringPtr("bt709"), DoViProfile: new(5)}})
+	require.NoError(t, err)
+	assert.Equal(t, 0, n2, "already-filled metadata is not overwritten")
+
+	got2, err := streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 153, *got2[0].Level)
+	assert.Equal(t, "smpte2084", *got2[0].ColorTransfer)
+	assert.Equal(t, 8, *got2[0].DoViProfile)
+}
+
 func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
@@ -180,10 +259,35 @@ func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
 	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
 		{ID: "b-v", MediaItemID: itemB.ID, StreamIndex: 0, StreamType: "video", Codec: "h264"},
 	}))
+	// C: hevc fully probed (level + transfer), no DoVi → candidate.
+	itemC := newTestMediaItem("kfC", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemC))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "c-v", MediaItemID: itemC.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: stringPtr("smpte2084")},
+	}))
+	// D: hevc DoVi profile 5 → NEVER copied, so indexing its keyframes is waste.
+	itemD := newTestMediaItem("kfD", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemD))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "d-v", MediaItemID: itemD.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: stringPtr("smpte2084"), DoViProfile: new(5)},
+	}))
+	// E: hevc DoVi profile 8.1 (HDR10-compatible base) → copy-able, candidate.
+	itemE := newTestMediaItem("kfE", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemE))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "e-v", MediaItemID: itemE.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: stringPtr("smpte2084"), DoViProfile: new(8), DoViBLCompat: new(1)},
+	}))
+	// F: hevc with level but color_transfer NULL → HDR truth unknown, NOT a candidate.
+	itemF := newTestMediaItem("kfF", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemF))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "kf-f-v", MediaItemID: itemF.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153)},
+	}))
 
 	ids, err := streamRepo.ListVideoKeyframesMissing(ctx, 10, nil)
 	require.NoError(t, err)
-	assert.Equal(t, []string{string(itemA.ID)}, ids, "only the leveled, unindexed h264 item is a candidate")
+	assert.Equal(t, []string{string(itemA.ID), string(itemC.ID), string(itemE.ID)}, ids,
+		"candidates = copy-eligible streams only (h264 leveled; hevc probed, not DoVi-incompatible)")
 
 	// Fill A's keyframes; it must drop out of the candidate query and read back.
 	kf := []int64{0, 3253, 6548, 13138}
@@ -198,7 +302,8 @@ func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
 
 	after, err := streamRepo.ListVideoKeyframesMissing(ctx, 10, nil)
 	require.NoError(t, err)
-	assert.Empty(t, after, "an indexed item is no longer a candidate")
+	assert.Equal(t, []string{string(itemC.ID), string(itemE.ID)}, after,
+		"an indexed item is no longer a candidate; the hevc candidates remain")
 
 	// Never overwrite; empty slice is a no-op.
 	n2, err := streamRepo.SetKeyframes(ctx, itemA.ID, []int64{999})

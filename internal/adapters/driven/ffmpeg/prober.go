@@ -54,6 +54,19 @@ type ffprobeStream struct {
 	BitRate          string             `json:"bit_rate"`
 	Disposition      ffprobeDisposition `json:"disposition"`
 	Tags             map[string]string  `json:"tags"`
+	SideDataList     []ffprobeSideData  `json:"side_data_list"`
+}
+
+// ffprobeSideData carries the per-stream side data entries. The only one the
+// probe consumes is the "DOVI configuration record" (Dolby Vision): dv_profile
+// + dv_bl_signal_compatibility_id are the ground truth the playback decision
+// needs to keep profile-5 DoVi off the raw-serve paths (its IPTC2 base layer
+// renders green/purple on any non-DoVi pipeline) while letting profile 8 be
+// served as its compatible base layer.
+type ffprobeSideData struct {
+	SideDataType        string `json:"side_data_type"`
+	DVProfile           *int   `json:"dv_profile"`
+	DVBLSignalCompatID  *int   `json:"dv_bl_signal_compatibility_id"`
 }
 
 type ffprobeDisposition struct {
@@ -113,6 +126,18 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 		if s.ColorSpace != "" {
 			cs := s.ColorSpace
 			ms.ColorSpace = &cs
+		}
+		if s.ColorTransfer != "" {
+			ct := s.ColorTransfer
+			ms.ColorTransfer = &ct
+		}
+		for _, sd := range s.SideDataList {
+			if sd.SideDataType != "DOVI configuration record" || sd.DVProfile == nil {
+				continue
+			}
+			ms.DoViProfile = sd.DVProfile
+			ms.DoViBLCompat = sd.DVBLSignalCompatID
+			break
 		}
 		if s.Channels > 0 {
 			ms.Channels = &s.Channels

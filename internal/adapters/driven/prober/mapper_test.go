@@ -15,14 +15,16 @@ const (
 	cicpBT709    = uint16(1)
 )
 
-func TestMapContainer_FullHDR(t *testing.T) {
+func TestMapContainer_FullSDRHEVC(t *testing.T) {
+	cicpBT709transfer := uint16(1)
 	c := &extmkv.Container{
 		DurationMs: 7_200_000,
 		Tracks: []extmkv.Track{
 			{
-				Type: extmkv.VideoTrack, Codec: "hevc", Profile: "Main 10",
+				Type: extmkv.VideoTrack, Codec: "hevc", Profile: "Main",
 				Width: new(uint32(3840)), Height: new(uint32(1600)),
-				VideoBitDepth: new(uint16(10)), ColorSpace: new(cicpBT2020nc),
+				VideoBitDepth: new(uint16(8)), ColorSpace: new(cicpBT709),
+				ColorTransfer:   &cicpBT709transfer,
 				FrameRate:       new(23.976),
 				IsDefault:       true,
 				LanguagePresent: true, Language: "und",
@@ -47,12 +49,14 @@ func TestMapContainer_FullHDR(t *testing.T) {
 	assert.Equal(t, 0, v.StreamIndex)
 	assert.Equal(t, library.StreamTypeVideo, v.StreamType)
 	assert.Equal(t, "hevc", v.Codec)
-	assert.Equal(t, "Main 10", v.Profile)
+	assert.Equal(t, "Main", v.Profile)
 	assert.Equal(t, 3840, *v.Width)
 	assert.Equal(t, 1600, *v.Height)
-	assert.Equal(t, 10, *v.BitDepth)
+	assert.Equal(t, 8, *v.BitDepth)
 	require.NotNil(t, v.ColorSpace)
-	assert.Equal(t, "bt2020nc", *v.ColorSpace) // feeds hdr.DetectHDR downstream
+	assert.Equal(t, "bt709", *v.ColorSpace) // feeds hdr.DetectHDR downstream
+	require.NotNil(t, v.ColorTransfer)
+	assert.Equal(t, "bt709", *v.ColorTransfer)
 	require.NotNil(t, v.Framerate)
 	assert.InDelta(t, 23.976, *v.Framerate, 0.001)
 	assert.True(t, v.IsDefault)
@@ -71,6 +75,32 @@ func TestMapContainer_FullHDR(t *testing.T) {
 	assert.Equal(t, "Forced", s.Title)
 	assert.True(t, s.IsForced)
 	assert.Equal(t, "fre", s.Language)
+}
+
+// HDR candidates (bt2020 colour or PQ/HLG transfer on an HDR-capable codec)
+// must bail to ffprobe: mkvgo cannot read the Dolby Vision configuration, and
+// a DoVi profile-5 title recorded as plain HDR10 would be raw-served with
+// broken colours by the HDR-aware copy/direct-play paths.
+func TestMapContainer_HDRCandidateBailsToFFprobe(t *testing.T) {
+	cicpPQ := uint16(16) // smpte2084
+	track := func(mutate func(*extmkv.Track)) *extmkv.Container {
+		tr := extmkv.Track{
+			Type: extmkv.VideoTrack, Codec: "hevc", Profile: "Main 10",
+			Width: new(uint32(3840)), Height: new(uint32(2160)),
+			VideoBitDepth: new(uint16(10)), ColorSpace: new(cicpBT709),
+		}
+		mutate(&tr)
+		return &extmkv.Container{DurationMs: 1000, Tracks: []extmkv.Track{tr}}
+	}
+
+	_, ok := mapContainer(track(func(tr *extmkv.Track) { tr.ColorSpace = new(cicpBT2020nc) }))
+	assert.False(t, ok, "bt2020 colour space must fall back to ffprobe (DoVi ground truth)")
+
+	_, ok = mapContainer(track(func(tr *extmkv.Track) { tr.ColorTransfer = &cicpPQ }))
+	assert.False(t, ok, "PQ transfer must fall back to ffprobe (DoVi ground truth)")
+
+	_, ok = mapContainer(track(func(*extmkv.Track) {}))
+	assert.True(t, ok, "SDR hevc (bt709, no HDR transfer) keeps the fast path")
 }
 
 func TestMapContainer_H264_SDR_NoColourOK(t *testing.T) {

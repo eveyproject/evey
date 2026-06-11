@@ -178,6 +178,37 @@ func TestHDR_FromColorSpace_HDRClient_DirectPlay(t *testing.T) {
 	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
 }
 
+// Dolby Vision profile 5 carries a PQ transfer like plain HDR10, but its
+// IPTC2 base layer renders green/purple outside a DoVi pipeline — the DoVi
+// configuration record (probed side data) must force the transcode even for
+// an HDR-capable client.
+func TestHDR_DoViProfile5_HDRClient_StillTranscode(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "hevc", Width: new(3840), Height: new(2160), ColorSpace: new("bt2020nc"), ColorTransfer: new("smpte2084"), DoViProfile: new(5), Profile: "Main 10", Bitrate: new(int64(20000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", hdrClient(), 0)
+
+	assert.Equal(t, "transcode", d.PlayMethod)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed", "DoVi P5 must tonemap even for an HDR client")
+}
+
+// Dolby Vision profile 8.1 has an HDR10-compatible base layer: an HDR-capable
+// client may be served the raw stream (the base renders correctly, the RPU is
+// simply ignored).
+func TestHDR_DoViProfile8Compat_HDRClient_DirectPlay(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "hevc", Width: new(3840), Height: new(2160), ColorSpace: new("bt2020nc"), ColorTransfer: new("smpte2084"), DoViProfile: new(8), DoViBLCompat: new(1), Profile: "Main 10", Bitrate: new(int64(20000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", hdrClient(), 0)
+
+	assert.Equal(t, "direct_play", d.PlayMethod)
+	assert.Equal(t, "copy", d.VideoDecision)
+	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
+}
+
 // burnPrefs selects the Nth subtitle track for burn-in (auto mode), mirroring the
 // client's subtitleTrack param. Burn only fires for the SELECTED bitmap track.
 func burnPrefs(track int) apptranscode.TranscodingPreferences {

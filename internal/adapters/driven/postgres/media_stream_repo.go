@@ -43,22 +43,24 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 	var b strings.Builder
 	b.WriteString(`INSERT INTO media_streams (id, media_item_id, stream_index, stream_type, codec, codec_long_name,
 		profile, language, title, is_default, is_forced, width, height, framerate, bit_depth, color_space,
-		hdr_type, channels, channel_layout, sample_rate, bitrate, is_external, external_path, level) VALUES `)
+		color_transfer, hdr_type, dovi_profile, dovi_bl_compat, channels, channel_layout, sample_rate,
+		bitrate, is_external, external_path, level) VALUES `)
 
-	args := make([]any, 0, len(streams)*24)
+	args := make([]any, 0, len(streams)*27)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i * 24
-		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		base := i * 27
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
-			base+20, base+21, base+22, base+23, base+24)
+			base+20, base+21, base+22, base+23, base+24, base+25, base+26, base+27)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,
-			s.Framerate, s.BitDepth, s.ColorSpace, s.HDRType, s.Channels, s.ChannelLayout,
+			s.Framerate, s.BitDepth, s.ColorSpace, s.ColorTransfer, s.HDRType,
+			s.DoViProfile, s.DoViBLCompat, s.Channels, s.ChannelLayout,
 			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath, s.Level,
 		)
 	}
@@ -112,22 +114,24 @@ func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID sh
 	var b strings.Builder
 	b.WriteString(`INSERT INTO media_streams (id, media_item_id, stream_index, stream_type, codec, codec_long_name,
 		profile, language, title, is_default, is_forced, width, height, framerate, bit_depth, color_space,
-		hdr_type, channels, channel_layout, sample_rate, bitrate, is_external, external_path, level) VALUES `)
+		color_transfer, hdr_type, dovi_profile, dovi_bl_compat, channels, channel_layout, sample_rate,
+		bitrate, is_external, external_path, level) VALUES `)
 
-	args := make([]any, 0, len(streams)*24)
+	args := make([]any, 0, len(streams)*27)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i * 24
-		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		base := i * 27
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
-			base+20, base+21, base+22, base+23, base+24)
+			base+20, base+21, base+22, base+23, base+24, base+25, base+26, base+27)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,
-			s.Framerate, s.BitDepth, s.ColorSpace, s.HDRType, s.Channels, s.ChannelLayout,
+			s.Framerate, s.BitDepth, s.ColorSpace, s.ColorTransfer, s.HDRType,
+			s.DoViProfile, s.DoViBLCompat, s.Channels, s.ChannelLayout,
 			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath, s.Level,
 		)
 	}
@@ -153,7 +157,8 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, stream_index, stream_type, codec, codec_long_name, profile, language, title,
-		 is_default, is_forced, width, height, framerate, bit_depth, color_space, hdr_type, channels,
+		 is_default, is_forced, width, height, framerate, bit_depth, color_space, color_transfer, hdr_type,
+		 dovi_profile, dovi_bl_compat, channels,
 		 channel_layout, sample_rate, bitrate, is_external, external_path, level, keyframes_ms
 		 FROM media_streams WHERE media_item_id = $1 ORDER BY stream_index`, string(mediaItemID))
 	if err != nil {
@@ -169,7 +174,8 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 		if err := rows.Scan(
 			&s.ID, &s.MediaItemID, &s.StreamIndex, &s.StreamType, &s.Codec, &s.CodecLongName,
 			&s.Profile, &s.Language, &s.Title, &s.IsDefault, &s.IsForced, &s.Width, &s.Height,
-			&s.Framerate, &s.BitDepth, &s.ColorSpace, &s.HDRType, &s.Channels, &s.ChannelLayout,
+			&s.Framerate, &s.BitDepth, &s.ColorSpace, &s.ColorTransfer, &s.HDRType,
+			&s.DoViProfile, &s.DoViBLCompat, &s.Channels, &s.ChannelLayout,
 			&s.SampleRate, &s.Bitrate, &s.IsExternal, &s.ExternalPath, &s.Level, pq.Array(&s.Keyframes),
 		); err != nil {
 			span.RecordError(err)
@@ -201,14 +207,21 @@ func (r *MediaStreamRepository) DeleteByMediaItemID(ctx context.Context, mediaIt
 	return nil
 }
 
-// ListVideoLevelMissing returns up to `limit` media item IDs that carry an
-// H.264 video stream whose codec level was never resolved (level IS NULL),
-// skipping the `exclude` IDs. Scope is h264 because the level only feeds the
-// h264 video-copy rung; other codecs are left alone. The query is itself the
-// backfill worker's resumability mechanism: as levels get filled in, items drop
-// out, so a restart re-queries only the remainder — no cursor, no full re-scan.
-// `exclude` is the worker's in-run skip-set (failed / no-level items) so a stuck
-// file isn't re-returned in a tight loop.
+// ListVideoLevelMissing returns up to `limit` media item IDs whose video
+// stream is missing copy-rung metadata, skipping the `exclude` IDs:
+//   - h264: codec level never resolved (level IS NULL);
+//   - hevc: level IS NULL, OR color_transfer IS NULL — the HDR ground-truth
+//     sentinel. color_transfer only fills post-migration-000110, so a NULL
+//     means "never probed for DoVi": such a stream is gated off the HEVC copy
+//     rung (a Dolby Vision profile-5 title recorded as plain HDR10 would
+//     raw-serve with broken colours) until this backfill re-probes it.
+//
+// Scope stays h264+hevc because the metadata only feeds the video-copy rung;
+// other codecs are left alone. The query is itself the backfill worker's
+// resumability mechanism: as the columns fill in, items drop out, so a restart
+// re-queries only the remainder — no cursor, no full re-scan. `exclude` is the
+// worker's in-run skip-set (failed / nothing-resolved items) so a stuck file
+// isn't re-returned in a tight loop.
 func (r *MediaStreamRepository) ListVideoLevelMissing(ctx context.Context, limit int, exclude []string) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.ListVideoLevelMissing")
 	defer span.End()
@@ -223,7 +236,9 @@ func (r *MediaStreamRepository) ListVideoLevelMissing(ctx context.Context, limit
 	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT DISTINCT media_item_id FROM media_streams
-		 WHERE stream_type = 'video' AND lower(codec) = 'h264' AND level IS NULL
+		 WHERE stream_type = 'video'
+		   AND ((lower(codec) = 'h264' AND level IS NULL)
+		     OR (lower(codec) = 'hevc' AND (level IS NULL OR color_transfer IS NULL)))
 		   AND NOT (media_item_id = ANY($1))
 		 ORDER BY media_item_id
 		 LIMIT $2`, pq.Array(exclude), limit)
@@ -251,12 +266,14 @@ func (r *MediaStreamRepository) ListVideoLevelMissing(ctx context.Context, limit
 	return ids, nil
 }
 
-// SetVideoLevels fills the level column for the video streams of one media item
-// from a fresh probe, matched by stream_index. It writes only where level IS
-// NULL (idempotent, never overwrites an existing value) and NEVER deletes — so
-// unlike a full ReplaceBatch a degraded/empty probe cannot wipe the existing
-// stream metadata. Returns the number of rows updated (0 ⇒ probe resolved no new
-// level, the caller leaves the item NULL and marks it to avoid a re-probe loop).
+// SetVideoLevels fills the copy-rung metadata columns (level, color_transfer,
+// dovi_profile, dovi_bl_compat) for the video streams of one media item from a
+// fresh probe, matched by stream_index. Each column is written only where it
+// IS NULL (COALESCE keeps existing values; idempotent) and the row is touched
+// only when the probe actually resolves something new — so unlike a full
+// ReplaceBatch a degraded/empty probe cannot wipe the existing stream
+// metadata. Returns the number of rows updated (0 ⇒ probe resolved nothing
+// new, the caller marks the item to avoid a re-probe loop).
 func (r *MediaStreamRepository) SetVideoLevels(ctx context.Context, mediaItemID shared.MediaItemID, streams []*library.MediaStream) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.SetVideoLevels")
 	defer span.End()
@@ -265,13 +282,24 @@ func (r *MediaStreamRepository) SetVideoLevels(ctx context.Context, mediaItemID 
 	defer cancel()
 	updated := 0
 	for _, s := range streams {
-		if s == nil || s.StreamType != library.Video || s.Level == nil {
+		if s == nil || s.StreamType != library.Video {
 			continue
 		}
+		if s.Level == nil && s.ColorTransfer == nil && s.DoViProfile == nil {
+			continue // probe resolved nothing this backfill can fill
+		}
 		res, err := r.db.ExecContext(ctx,
-			`UPDATE media_streams SET level = $1
-			 WHERE media_item_id = $2 AND stream_index = $3 AND stream_type = 'video' AND level IS NULL`,
-			*s.Level, string(mediaItemID), s.StreamIndex)
+			`UPDATE media_streams SET
+			   level = COALESCE(level, $1),
+			   color_transfer = COALESCE(color_transfer, $2),
+			   dovi_profile = COALESCE(dovi_profile, $3),
+			   dovi_bl_compat = COALESCE(dovi_bl_compat, $4)
+			 WHERE media_item_id = $5 AND stream_index = $6 AND stream_type = 'video'
+			   AND ((level IS NULL AND $1::int IS NOT NULL)
+			     OR (color_transfer IS NULL AND $2::text IS NOT NULL)
+			     OR (dovi_profile IS NULL AND $3::smallint IS NOT NULL))`,
+			s.Level, s.ColorTransfer, s.DoViProfile, s.DoViBLCompat,
+			string(mediaItemID), s.StreamIndex)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -283,12 +311,18 @@ func (r *MediaStreamRepository) SetVideoLevels(ctx context.Context, mediaItemID 
 	return updated, nil
 }
 
-// ListVideoKeyframesMissing returns up to `limit` media item IDs that carry an
-// H.264 video stream WITH a known level but WITHOUT a keyframe index
-// (keyframes_ms IS NULL), skipping the `exclude` IDs. Gated on level IS NOT NULL
-// because keyframes only matter for a copy-eligible source (CopyRungEligible
-// needs the level), so this naturally runs after the level backfill. Like
-// ListVideoLevelMissing, the query is the keyframe backfill worker's
+// ListVideoKeyframesMissing returns up to `limit` media item IDs that carry a
+// copy-eligible video stream WITHOUT a keyframe index (keyframes_ms IS NULL),
+// skipping the `exclude` IDs. The keyframe scan is the expensive probe
+// (~tens of seconds per MKV), so the candidate set mirrors the copy
+// eligibility gates and naturally runs after the level/HDR backfill:
+//   - h264: level IS NOT NULL (CopyRungEligible needs the level);
+//   - hevc: level + color_transfer known (HDR ground truth probed), and not
+//     Dolby Vision unless profile 8 with a compatible base layer (1=HDR10,
+//     2=SDR, 4=HLG) — a profile-5 title is never served as copy, so indexing
+//     its keyframes would be pure waste.
+//
+// Like ListVideoLevelMissing, the query is the keyframe backfill worker's
 // resumability mechanism (it shrinks as keyframes get filled).
 func (r *MediaStreamRepository) ListVideoKeyframesMissing(ctx context.Context, limit int, exclude []string) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.ListVideoKeyframesMissing")
@@ -301,8 +335,12 @@ func (r *MediaStreamRepository) ListVideoKeyframesMissing(ctx context.Context, l
 	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT DISTINCT media_item_id FROM media_streams
-		 WHERE stream_type = 'video' AND lower(codec) = 'h264'
+		 WHERE stream_type = 'video'
 		   AND level IS NOT NULL AND keyframes_ms IS NULL
+		   AND (lower(codec) = 'h264'
+		     OR (lower(codec) = 'hevc' AND color_transfer IS NOT NULL
+		         AND (dovi_profile IS NULL
+		           OR (dovi_profile = 8 AND dovi_bl_compat IN (1, 2, 4)))))
 		   AND NOT (media_item_id = ANY($1))
 		 ORDER BY media_item_id
 		 LIMIT $2`, pq.Array(exclude), limit)

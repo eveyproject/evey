@@ -296,7 +296,20 @@ type MediaStream struct {
 	Framerate      *float64
 	BitDepth       *int
 	ColorSpace     *string
+	// ColorTransfer is the ffprobe color_transfer (smpte2084 = PQ, arib-std-b67
+	// = HLG, bt709 = SDR…), nil when the probe didn't report it. The only field
+	// that tells PQ from HLG, and — with DoViProfile — the HDR ground truth the
+	// copy/direct-play decision needs. A nil value on an HEVC stream gates the
+	// HEVC copy rung off until a re-probe backfills it (same pattern as Level).
+	ColorTransfer  *string
 	HDRType        *string
+	// DoViProfile / DoViBLCompat mirror the Dolby Vision configuration record
+	// (ffprobe side_data dv_profile + dv_bl_signal_compatibility_id), nil when
+	// the stream carries no DoVi RPU. Profile 5 must always transcode (IPTC2
+	// base layer renders wrong on non-DoVi pipelines); profile 8 with a
+	// compatible base layer (1=HDR10, 2=SDR, 4=HLG) may be served as its base.
+	DoViProfile    *int
+	DoViBLCompat   *int
 	Channels       *int
 	ChannelLayout  *string
 	SampleRate     *int
@@ -311,12 +324,15 @@ type MediaStream struct {
 	Keyframes      []int64
 }
 
-func (s *MediaStream) GetStreamType() string  { return string(s.StreamType) }
-func (s *MediaStream) GetBitDepth() *int       { return s.BitDepth }
-func (s *MediaStream) GetColorSpace() *string  { return s.ColorSpace }
-func (s *MediaStream) GetHDRType() *string     { return s.HDRType }
-func (s *MediaStream) GetProfile() string      { return s.Profile }
-func (s *MediaStream) GetLevel() *int          { return s.Level }
+func (s *MediaStream) GetStreamType() string      { return string(s.StreamType) }
+func (s *MediaStream) GetBitDepth() *int          { return s.BitDepth }
+func (s *MediaStream) GetColorSpace() *string     { return s.ColorSpace }
+func (s *MediaStream) GetColorTransfer() *string  { return s.ColorTransfer }
+func (s *MediaStream) GetHDRType() *string        { return s.HDRType }
+func (s *MediaStream) GetProfile() string         { return s.Profile }
+func (s *MediaStream) GetLevel() *int             { return s.Level }
+func (s *MediaStream) GetDoViProfile() *int       { return s.DoViProfile }
+func (s *MediaStream) GetDoViBLCompat() *int      { return s.DoViBLCompat }
 
 type Person struct {
 	ID           string

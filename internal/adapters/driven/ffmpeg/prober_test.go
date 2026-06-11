@@ -186,6 +186,64 @@ func TestProbeStreams_WithColorSpace(t *testing.T) {
 	assert.Equal(t, int64(20000000), *s.Bitrate)
 }
 
+// color_transfer + the DOVI configuration record are the HDR ground truth the
+// playback decision needs (PQ-vs-HLG, and the DoVi profile that decides
+// transcode-vs-copy). The fake JSON mirrors real `ffprobe -show_streams`
+// output for a Dolby Vision profile 8.1 (HDR10-compatible base layer) stream.
+func TestProbeStreams_ColorTransferAndDoVi(t *testing.T) {
+	fakeJSON := `{"streams":[{"index":0,"codec_name":"hevc","codec_type":"video","profile":"Main 10","level":153,"width":3840,"height":2160,"r_frame_rate":"24000/1001","color_space":"bt2020nc","color_transfer":"smpte2084","disposition":{"default":1,"forced":0},"tags":{},"side_data_list":[{"side_data_type":"DOVI configuration record","dv_version_major":1,"dv_version_minor":0,"dv_profile":8,"dv_level":6,"rpu_present_flag":1,"el_present_flag":0,"bl_present_flag":1,"dv_bl_signal_compatibility_id":1}]}],"format":{"duration":"5400.0"}}`
+
+	script, err := os.CreateTemp("", "fake_ffprobe_dovi_*.sh")
+	require.NoError(t, err)
+	defer os.Remove(script.Name())
+
+	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
+	require.NoError(t, err)
+	script.Close()
+	require.NoError(t, os.Chmod(script.Name(), 0755))
+
+	p := NewProber(script.Name())
+	result, err := p.ProbeStreams(context.Background(), "/fake/movie.mkv")
+	require.NoError(t, err)
+	require.Len(t, result.Streams, 1)
+
+	s := result.Streams[0]
+	require.NotNil(t, s.ColorTransfer)
+	assert.Equal(t, "smpte2084", *s.ColorTransfer)
+	require.NotNil(t, s.Level)
+	assert.Equal(t, 153, *s.Level)
+	require.NotNil(t, s.DoViProfile)
+	assert.Equal(t, 8, *s.DoViProfile)
+	require.NotNil(t, s.DoViBLCompat)
+	assert.Equal(t, 1, *s.DoViBLCompat)
+}
+
+// A stream without DoVi side data must leave the DoVi fields nil (nil = "no
+// DoVi RPU", which the decision treats as plain HDR/SDR per color_transfer).
+func TestProbeStreams_NoDoViSideData(t *testing.T) {
+	fakeJSON := `{"streams":[{"index":0,"codec_name":"hevc","codec_type":"video","color_transfer":"arib-std-b67","disposition":{"default":1,"forced":0},"tags":{},"side_data_list":[{"side_data_type":"Content light level metadata"}]}],"format":{"duration":"60.0"}}`
+
+	script, err := os.CreateTemp("", "fake_ffprobe_nodovi_*.sh")
+	require.NoError(t, err)
+	defer os.Remove(script.Name())
+
+	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
+	require.NoError(t, err)
+	script.Close()
+	require.NoError(t, os.Chmod(script.Name(), 0755))
+
+	p := NewProber(script.Name())
+	result, err := p.ProbeStreams(context.Background(), "/fake/movie.mkv")
+	require.NoError(t, err)
+	require.Len(t, result.Streams, 1)
+
+	s := result.Streams[0]
+	require.NotNil(t, s.ColorTransfer)
+	assert.Equal(t, "arib-std-b67", *s.ColorTransfer)
+	assert.Nil(t, s.DoViProfile)
+	assert.Nil(t, s.DoViBLCompat)
+}
+
 func TestProbeStreams_EmptyStreams(t *testing.T) {
 	fakeJSON := `{"streams":[],"format":{"duration":"0"}}`
 

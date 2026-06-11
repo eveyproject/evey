@@ -243,3 +243,106 @@ func TestBuildToneMapFilter_Tonemapx_FallsBackToZscaleWhenOff(t *testing.T) {
 		t.Fatalf("fallback must be the folded zscale chain, got %s", filter)
 	}
 }
+
+// --- HDR ground truth (color_transfer + DoVi configuration record) ---
+
+func TestDetectHDR_TransferPQ(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", ColorTransfer: ptr("smpte2084")},
+	}
+	info := DetectHDR(toVS(streams))
+	if !info.IsHDR || info.Type != "hdr10" {
+		t.Fatalf("PQ transfer must detect hdr10, got IsHDR=%v Type=%q", info.IsHDR, info.Type)
+	}
+}
+
+func TestDetectHDR_TransferHLG(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", ColorTransfer: ptr("arib-std-b67"), ColorSpace: ptr("bt2020nc"), BitDepth: ptr(10)},
+	}
+	info := DetectHDR(toVS(streams))
+	if !info.IsHDR || info.Type != "hlg" {
+		t.Fatalf("HLG transfer must win over the bt2020 hdr10 fallback, got IsHDR=%v Type=%q", info.IsHDR, info.Type)
+	}
+}
+
+func TestDetectHDR_TransferSDR(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", ColorTransfer: ptr("bt709"), ColorSpace: ptr("bt709")},
+	}
+	info := DetectHDR(toVS(streams))
+	if info.IsHDR {
+		t.Fatalf("bt709 transfer is SDR, got Type=%q", info.Type)
+	}
+}
+
+// DoVi profile 5 (IPTC2 base layer) must always be reported dolby_vision —
+// even though it also carries a PQ transfer — so the playback decision
+// transcodes it (raw-serving renders green/purple on non-DoVi pipelines).
+func TestDetectHDR_DoViProfile5_AlwaysDolbyVision(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", ColorTransfer: ptr("smpte2084"), DoViProfile: ptr(5)},
+	}
+	info := DetectHDR(toVS(streams))
+	if !info.IsHDR || info.Type != "dolby_vision" {
+		t.Fatalf("DoVi P5 must be dolby_vision, got IsHDR=%v Type=%q", info.IsHDR, info.Type)
+	}
+	if info.DoViProfile != 5 {
+		t.Fatalf("DoViProfile must be surfaced, got %d", info.DoViProfile)
+	}
+}
+
+// DoVi profile 7 (Blu-ray dual layer, possibly FEL) has no single-layer
+// compatible rendering contract → conservative dolby_vision (transcode).
+func TestDetectHDR_DoViProfile7_DolbyVision(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", ColorTransfer: ptr("smpte2084"), DoViProfile: ptr(7), DoViBLCompat: ptr(1)},
+	}
+	info := DetectHDR(toVS(streams))
+	if info.Type != "dolby_vision" {
+		t.Fatalf("DoVi P7 must stay dolby_vision, got %q", info.Type)
+	}
+}
+
+// DoVi profile 8 with a compatible base layer is served as that base:
+// bl_compat 1/2 ⇒ hdr10 (PQ base), 4 ⇒ hlg. The DoVi presence stays surfaced
+// via DoViProfile.
+func TestDetectHDR_DoViProfile8_CompatibleBase(t *testing.T) {
+	cases := []struct {
+		compat int
+		want   string
+	}{
+		{1, "hdr10"},
+		{2, "hdr10"},
+		{4, "hlg"},
+	}
+	for _, c := range cases {
+		streams := []*library.MediaStream{
+			{StreamType: "video", ColorTransfer: ptr("smpte2084"), DoViProfile: ptr(8), DoViBLCompat: ptr(c.compat)},
+		}
+		info := DetectHDR(toVS(streams))
+		if !info.IsHDR || info.Type != c.want {
+			t.Fatalf("DoVi P8 compat=%d: want %q, got IsHDR=%v Type=%q", c.compat, c.want, info.IsHDR, info.Type)
+		}
+		if info.DoViProfile != 8 {
+			t.Fatalf("DoVi P8 compat=%d: DoViProfile must be surfaced, got %d", c.compat, info.DoViProfile)
+		}
+	}
+}
+
+// Profile 8 with an unknown/absent compatibility id has no proven base layer
+// → conservative dolby_vision.
+func TestDetectHDR_DoViProfile8_UnknownCompat(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", ColorTransfer: ptr("smpte2084"), DoViProfile: ptr(8)},
+	}
+	info := DetectHDR(toVS(streams))
+	if info.Type != "dolby_vision" {
+		t.Fatalf("DoVi P8 without bl_compat must stay dolby_vision, got %q", info.Type)
+	}
+	streams[0].DoViBLCompat = ptr(0)
+	info = DetectHDR(toVS(streams))
+	if info.Type != "dolby_vision" {
+		t.Fatalf("DoVi P8 bl_compat=0 must stay dolby_vision, got %q", info.Type)
+	}
+}
