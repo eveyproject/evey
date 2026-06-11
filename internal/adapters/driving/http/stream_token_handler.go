@@ -45,9 +45,9 @@ func streamTokenHandler(tokenGen *auth.JWTGenerator, store *appmedia.StreamToken
 		// default expires during its buffer-quiet stretches.
 		var token string
 		if r.URL.Query().Get("purpose") == "cast" {
-			token = store.CreateWithTTL(claims.UserID, mediaID, appmedia.CastStreamTokenTTL)
+			token = store.CreateWithTTL(claims.UserID, claims.ProfileID, mediaID, appmedia.CastStreamTokenTTL)
 		} else {
-			token = store.Create(claims.UserID, mediaID)
+			token = store.Create(claims.UserID, claims.ProfileID, mediaID)
 		}
 
 		w.Header().Set("Content-Type", "application/json")

@@ -207,8 +207,11 @@ type HTTPServer struct {
 	ServerCtx context.Context
 
 	// Rate limiters passed in from main
-	LoginRL         *ratelimit.Limiter
-	GlobalRL        *ratelimit.Limiter
+	LoginRL  *ratelimit.Limiter
+	GlobalRL *ratelimit.Limiter
+	// StreamingRL is the per-profile request-rate limiter for the high-frequency
+	// streaming routes (HLS segments/playlists). nil = disabled (pass-through).
+	StreamingRL     *ratelimit.Limiter
 	AdminHeavyRL    *ratelimit.Limiter
 	AdminWriteRL    *ratelimit.Limiter
 	PasswordResetRL *ratelimit.Limiter
@@ -369,8 +372,14 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 			// Single catch-all — the handler dispatches on the {file} pattern
 			// (master.m3u8 / stream_N.m3u8 / stream_N_NNN.ext / stream_N_init.mp4
-			// AND audio_T.m3u8 / audio_T_init.mp4 / audio_T_NNN.m4s).
-			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(vodHandler.serveHTTP))
+			// AND audio_T.m3u8 / audio_T_init.mp4 / audio_T_NNN.m4s). The
+			// per-profile streaming limiter sits INSIDE streamAuth so it keys on
+			// the resolved profile/user; it returns 503+Retry-After (hls.js-safe)
+			// on a flood. This is the highest-frequency route (a segment every
+			// few seconds per stream) — the DoS vector the GlobalRL was wrong for
+			// (its per-IP 429 would 1) false-positive a multi-profile household
+			// and 2) stall hls.js).
+			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(streamingRateLimit(s.StreamingRL, vodHandler.serveHTTP)))
 			// Predictive warm-up: the player POSTs at ~85% progress of an
 			// episode so the next ep's transcode is pre-spawned and the
 			// autoplay handoff feels instant. Auth-required (logged-in user

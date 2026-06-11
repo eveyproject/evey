@@ -14,7 +14,7 @@ func TestStreamTokenStore_CreateAndValidate(t *testing.T) {
 	store := media.NewStreamTokenStore(5 * time.Minute)
 	defer store.Stop()
 
-	token := store.Create("user-1", "media-1")
+	token := store.Create("user-1", "profile-1", "media-1")
 	require.NotEmpty(t, token)
 
 	st, ok := store.Validate(token, "media-1")
@@ -28,7 +28,7 @@ func TestStreamTokenStore_ValidateWrongMedia(t *testing.T) {
 	store := media.NewStreamTokenStore(5 * time.Minute)
 	defer store.Stop()
 
-	token := store.Create("user-1", "media-1")
+	token := store.Create("user-1", "profile-1", "media-1")
 
 	_, ok := store.Validate(token, "media-2")
 	assert.False(t, ok, "wrong mediaItemID should fail")
@@ -38,7 +38,7 @@ func TestStreamTokenStore_ValidateAny(t *testing.T) {
 	store := media.NewStreamTokenStore(5 * time.Minute)
 	defer store.Stop()
 
-	token := store.Create("user-1", "media-1")
+	token := store.Create("user-1", "profile-1", "media-1")
 
 	st, ok := store.ValidateAny(token)
 	require.True(t, ok)
@@ -49,7 +49,7 @@ func TestStreamTokenStore_Expired(t *testing.T) {
 	store := media.NewStreamTokenStore(10 * time.Millisecond)
 	defer store.Stop()
 
-	token := store.Create("user-1", "media-1")
+	token := store.Create("user-1", "profile-1", "media-1")
 	time.Sleep(20 * time.Millisecond)
 
 	_, ok := store.Validate(token, "media-1")
@@ -60,7 +60,7 @@ func TestStreamTokenStore_RenewsTTL(t *testing.T) {
 	store := media.NewStreamTokenStore(50 * time.Millisecond)
 	defer store.Stop()
 
-	token := store.Create("user-1", "media-1")
+	token := store.Create("user-1", "profile-1", "media-1")
 
 	// Access at 30ms — should renew to 80ms
 	time.Sleep(30 * time.Millisecond)
@@ -77,7 +77,7 @@ func TestStreamTokenStore_Revoke(t *testing.T) {
 	store := media.NewStreamTokenStore(5 * time.Minute)
 	defer store.Stop()
 
-	token := store.Create("user-1", "media-1")
+	token := store.Create("user-1", "profile-1", "media-1")
 
 	store.Revoke(token)
 
@@ -97,8 +97,8 @@ func TestStreamTokenStore_UniqueTokens(t *testing.T) {
 	store := media.NewStreamTokenStore(5 * time.Minute)
 	defer store.Stop()
 
-	t1 := store.Create("user-1", "media-1")
-	t2 := store.Create("user-1", "media-1")
+	t1 := store.Create("user-1", "profile-1", "media-1")
+	t2 := store.Create("user-1", "profile-1", "media-1")
 	assert.NotEqual(t, t1, t2, "each call should generate a unique token")
 }
 
@@ -109,7 +109,7 @@ func TestStreamTokenStore_ValidateEmptyMediaAccepts(t *testing.T) {
 	store := media.NewStreamTokenStore(5 * time.Minute)
 	defer store.Stop()
 
-	token := store.Create("user-1", "media-1")
+	token := store.Create("user-1", "profile-1", "media-1")
 
 	st, ok := store.Validate(token, "")
 	require.True(t, ok, "empty mediaItemID should be accepted")
@@ -120,8 +120,8 @@ func TestStreamTokenStore_MultipleMedias(t *testing.T) {
 	store := media.NewStreamTokenStore(5 * time.Minute)
 	defer store.Stop()
 
-	t1 := store.Create("user-1", "media-1")
-	t2 := store.Create("user-1", "media-2")
+	t1 := store.Create("user-1", "profile-1", "media-1")
+	t2 := store.Create("user-1", "profile-1", "media-2")
 
 	st1, ok := store.Validate(t1, "media-1")
 	require.True(t, ok)

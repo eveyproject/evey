@@ -27,6 +27,12 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 	loginRL := ratelimit.New(cfg.Server.LoginRateLimitMax)
 	globalRL := ratelimit.New(cfg.Server.GlobalRateLimitMax)
+	// Per-profile streaming limiter: deliberately generous. A profile streaming
+	// even on several devices with heavy seeking stays far below this; the
+	// ceiling only cuts a cheap-request FLOOD (404s, cache hits). burst 600 +
+	// 1200/min refill (20/s) leaves wide headroom over legitimate use (~20-60
+	// req/min steady per profile) while a flood of hundreds/s is throttled.
+	streamingRL := ratelimit.NewWithBurst(600, 1200.0)
 	adminHeavyRL := ratelimit.NewWithBurst(10, 10.0)
 	adminWriteRL := ratelimit.New(30)
 	passwordResetRL := ratelimit.New(5)
@@ -35,6 +41,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		<-ctx.Done()
 		loginRL.Stop()
 		globalRL.Stop()
+		streamingRL.Stop()
 		adminHeavyRL.Stop()
 		adminWriteRL.Stop()
 		passwordResetRL.Stop()
@@ -133,6 +140,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		LoginRL:         loginRL,
 		GlobalRL:        globalRL,
+		StreamingRL:     streamingRL,
 		AdminHeavyRL:    adminHeavyRL,
 		AdminWriteRL:    adminWriteRL,
 		PasswordResetRL: passwordResetRL,

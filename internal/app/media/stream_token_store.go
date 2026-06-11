@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/google/uuid"
 )
 
 const (
@@ -43,14 +43,15 @@ func NewStreamTokenStore(ttl time.Duration) *StreamTokenStore {
 	return s
 }
 
-func (s *StreamTokenStore) Create(userID, mediaItemID string) string {
-	return s.CreateWithTTL(userID, mediaItemID, s.ttl)
+func (s *StreamTokenStore) Create(userID, profileID, mediaItemID string) string {
+	return s.CreateWithTTL(userID, profileID, mediaItemID, s.ttl)
 }
 
 // CreateWithTTL mints a token with an explicit sliding TTL. Used for cast
 // playback, where the short default would expire during the Chromecast's
-// buffer-quiet stretches.
-func (s *StreamTokenStore) CreateWithTTL(userID, mediaItemID string, ttl time.Duration) string {
+// buffer-quiet stretches. profileID may be empty (the streaming rate limiter
+// then falls back to userID).
+func (s *StreamTokenStore) CreateWithTTL(userID, profileID, mediaItemID string, ttl time.Duration) string {
 	if ttl <= 0 {
 		ttl = s.ttl
 	}
@@ -58,6 +59,7 @@ func (s *StreamTokenStore) CreateWithTTL(userID, mediaItemID string, ttl time.Du
 	s.tokens.Store(token, &shared.StreamToken{
 		Token:       token,
 		UserID:      shared.UserID(userID),
+		ProfileID:   shared.ProfileID(profileID),
 		MediaItemID: shared.MediaItemID(mediaItemID),
 		Scope:       "stream",
 		ExpiresAt:   time.Now().Add(ttl),
