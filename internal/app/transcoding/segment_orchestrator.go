@@ -226,6 +226,15 @@ type SegmentOrchestrator struct {
 	// map — the disk segments stay on the host until an explicit
 	// shutdown cleanup, and we don't want a goroutine ordering race
 	// between sweepIdle and Close to leak them.
+	//
+	// KNOWN BOUNDED GROWTH: unlike the software producer (whose sweepIdle
+	// reclaims the hash dir and can therefore also drop the set entry), the
+	// orchestrator's disk is reclaimed by the cache's LRU eviction, which this
+	// struct never observes — so entries here outlive their dir and accumulate
+	// (~60 B per distinct hash) until Close. The Close-time CleanupHash on an
+	// already-evicted hash is a harmless no-op, and the OOM horizon is years;
+	// pruning would need an eviction callback from SegmentCache, not worth the
+	// plumbing at this magnitude.
 	spawnedHashes map[string]struct{}
 
 	// sessionSem is a counting semaphore bounding the total number of live

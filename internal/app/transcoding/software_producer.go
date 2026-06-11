@@ -1193,7 +1193,19 @@ func (p *SoftwareProducer) sweepIdle() {
 		}
 		if err := p.cache.CleanupHash(hash); err != nil {
 			p.logger.Warn("software: idle cleanup failed", slog.String("hash", hash), slog.Any("err", err))
+			continue // keep it in spawnedHashes so Close retries the purge
 		}
+		// Sessions AND disk are both reclaimed — drop the hash from the
+		// Close-time purge set. Without this delete the set only ever grew
+		// (one entry per distinct hash, for the process lifetime): a slow
+		// unbounded leak over weeks of uptime. Re-checked under the lock — a
+		// fresh session may have spawned for this hash since the emptiness
+		// check, and that one still wants its Close-time purge.
+		p.mu.Lock()
+		if len(p.sessions[hash]) == 0 {
+			delete(p.spawnedHashes, hash)
+		}
+		p.mu.Unlock()
 	}
 }
 

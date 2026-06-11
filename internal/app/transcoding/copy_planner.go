@@ -3,10 +3,11 @@ package transcoding
 import (
 	"context"
 	"fmt"
-	"sync"
+	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/cache"
 )
 
 // CopyStreamReader loads a media item's streams, which carry the keyframe index
@@ -44,9 +45,20 @@ type CopyPlanner struct {
 	streams CopyStreamReader
 	items   MediaItemReader
 
-	mu    sync.Mutex
-	cache map[string][]CopySegment
+	// cache holds plans keyed by media id, LRU-bounded + TTL'd: the old plain
+	// map grew one entry per distinct copy-served title for the process
+	// lifetime (plafond = library size). Plans are immutable for a fixed file
+	// and cheap to rebuild (two repository reads), so eviction is harmless.
+	// No cleanup goroutine (interval 0): the LRU cap alone bounds memory and
+	// expiry is checked lazily on Get — the planner has no Close lifecycle to
+	// stop a sweeper from.
+	cache *cache.TTLCache[[]CopySegment]
 }
+
+const (
+	copyPlanCacheMax = 512
+	copyPlanCacheTTL = 6 * time.Hour
+)
 
 // Density guard bounds for a usable copy plan. The every-keyframe contract
 // means a pathological source (all-intra, or sub-second GOPs over hours)
@@ -61,22 +73,20 @@ const (
 
 // NewCopyPlanner wires the planner to the stream + item readers.
 func NewCopyPlanner(streams CopyStreamReader, items MediaItemReader) *CopyPlanner {
+	c, _ := cache.NewWithMaxSize[[]CopySegment](0, copyPlanCacheMax) // interval 0 → no sweeper goroutine, stop func is a no-op
 	return &CopyPlanner{
 		streams: streams,
 		items:   items,
-		cache:   make(map[string][]CopySegment),
+		cache:   c,
 	}
 }
 
 // Plan returns the copy segment boundaries for mediaID. Errors when the keyframe
 // index or duration is missing — the caller must then NOT serve a copy rung.
 func (c *CopyPlanner) Plan(ctx context.Context, mediaID string) ([]CopySegment, error) {
-	c.mu.Lock()
-	if segs, ok := c.cache[mediaID]; ok {
-		c.mu.Unlock()
+	if segs, ok := c.cache.Get(mediaID); ok {
 		return segs, nil
 	}
-	c.mu.Unlock()
 
 	streams, err := c.streams.GetByMediaItemID(ctx, shared.MediaItemID(mediaID))
 	if err != nil {
@@ -117,9 +127,7 @@ func (c *CopyPlanner) Plan(ctx context.Context, mediaID string) ([]CopySegment, 
 			durationMs/int64(len(segs)), mediaID)
 	}
 
-	c.mu.Lock()
-	c.cache[mediaID] = segs
-	c.mu.Unlock()
+	c.cache.Set(mediaID, segs, copyPlanCacheTTL)
 	return segs, nil
 }
 
