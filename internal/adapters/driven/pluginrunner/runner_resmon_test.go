@@ -177,7 +177,12 @@ func TestResourceMonitorLoop_StopsHog(t *testing.T) {
 	select {
 	case <-e.done:
 		// process exited — the sweeper stopped it
-	case <-time.After(resMonInterval + 4*time.Second):
+	case <-time.After(3*resMonInterval + 15*time.Second):
+		// Generous deadline ON PURPOSE: under a full `make test` (testcontainers
+		// + every suite in parallel) the monitor goroutine is CPU-starved and
+		// the kill can slip past one sweep interval — measured flaking ~1/9
+		// full-suite runs at interval+4s. The happy path returns on e.done
+		// immediately, so the slack only stretches the FAILURE case.
 		t.Fatal("resource monitor loop did not stop the over-cap process in time")
 	}
 	assert.False(t, processAlive(pid))
