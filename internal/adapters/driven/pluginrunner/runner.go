@@ -326,18 +326,36 @@ func isInterpreter(cmd string) bool {
 }
 
 func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, error) {
-	if strings.Contains(entrypoint, "..") {
-		return "", errors.New("entrypoint must not contain '..'")
+	resolved, info, err := r.containPluginFile(entrypoint, installDir)
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&0o111 == 0 {
+		return "", errors.New("entrypoint is not executable")
+	}
+	return resolved, nil
+}
+
+// containPluginFile resolves a plugin-supplied file path (relative paths are
+// anchored at installDir) and enforces that the resolved target lives under
+// one of the allowed plugin directories. Shared by the binary entrypoint
+// (which additionally requires the exec bit) and the interpreter SCRIPT
+// argument — the script used to be joined unchecked, so "python ../../x.py"
+// or an absolute path escaped the install dir (bounded by bwrap/Landlock at
+// runtime, but the path must not point outside to begin with).
+func (r *Runner) containPluginFile(path, installDir string) (string, os.FileInfo, error) {
+	if strings.Contains(path, "..") {
+		return "", nil, errors.New("plugin file path must not contain '..'")
 	}
 
-	candidate := entrypoint
+	candidate := path
 	if !filepath.IsAbs(candidate) && installDir != "" {
 		candidate = filepath.Join(installDir, candidate)
 	}
 
 	resolved, err := filepath.EvalSymlinks(candidate)
 	if err != nil {
-		return "", fmt.Errorf("resolve entrypoint path: %w", err)
+		return "", nil, fmt.Errorf("resolve plugin file path: %w", err)
 	}
 	resolved = filepath.Clean(resolved)
 
@@ -350,21 +368,17 @@ func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, erro
 		}
 	}
 	if !allowed {
-		return "", fmt.Errorf("entrypoint %q outside allowed plugin directories", entrypoint)
+		return "", nil, fmt.Errorf("plugin file %q outside allowed plugin directories", path)
 	}
 
 	info, err := os.Stat(resolved)
 	if err != nil {
-		return "", fmt.Errorf("stat entrypoint: %w", err)
+		return "", nil, fmt.Errorf("stat plugin file: %w", err)
 	}
 	if info.IsDir() {
-		return "", errors.New("entrypoint is a directory")
+		return "", nil, errors.New("plugin file is a directory")
 	}
-	if info.Mode()&0o111 == 0 {
-		return "", errors.New("entrypoint is not executable")
-	}
-
-	return resolved, nil
+	return resolved, info, nil
 }
 
 func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
@@ -559,12 +573,12 @@ func (r *Runner) resolveCommand(p *plugin.Plugin) (string, []string, error) {
 		}
 		var cmdArgs []string
 		if len(parts) > 1 {
-			scriptPath := parts[1]
-			if !filepath.IsAbs(scriptPath) && p.InstallDir != "" {
-				scriptPath = filepath.Join(p.InstallDir, scriptPath)
-			}
-			if _, err := os.Stat(scriptPath); err != nil {
-				return "", nil, fmt.Errorf("plugin %s: script not found: %w", p.ID, err)
+			// The script rides the same containment as a binary entrypoint
+			// (minus the exec bit — the interpreter reads it): no "..", no
+			// absolute path outside the allowed plugin directories.
+			scriptPath, _, err := r.containPluginFile(parts[1], p.InstallDir)
+			if err != nil {
+				return "", nil, fmt.Errorf("plugin %s: script: %w", p.ID, err)
 			}
 			cmdArgs = append([]string{scriptPath}, parts[2:]...)
 		}

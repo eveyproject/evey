@@ -133,9 +133,20 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 	}
 
 	// (2) Path restriction — only files under <install_dir>/<web_root>/.
-	pluginRoot := filepath.Join(h.pluginDir, pluginID)
+	// web_root is RE-validated here, not only at install time: the value read
+	// back from the DB is untrusted input for this handler (a hand-edited or
+	// migrated row must not gain traversal). Rejecting ".." / absolute before
+	// the join, then anchoring the containment check on a trailing separator —
+	// a bare HasPrefix would accept a SIBLING directory whose name merely
+	// starts with the plugin's ("/plugins/foo-evil" vs "/plugins/foo").
+	if strings.Contains(p.WebRoot, "..") || filepath.IsAbs(p.WebRoot) {
+		span.SetStatus(otelcodes.Error, "web_root rejected")
+		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
+		return
+	}
+	pluginRoot := filepath.Clean(filepath.Join(h.pluginDir, pluginID))
 	webRoot := filepath.Clean(filepath.Join(pluginRoot, p.WebRoot))
-	if !strings.HasPrefix(webRoot, filepath.Clean(pluginRoot)) {
+	if webRoot != pluginRoot && !strings.HasPrefix(webRoot, pluginRoot+string(filepath.Separator)) {
 		span.SetStatus(otelcodes.Error, "web_root escapes plugin dir")
 		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 		return
