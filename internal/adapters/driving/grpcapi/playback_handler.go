@@ -820,8 +820,10 @@ func cellularCapFromPreferences(prefs map[string]string) int {
 
 func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, mediaItemID string) (bool, string) {
 	profile, err := h.userQuery.GetProfileByID(ctx, profileID)
-	if err != nil {
-		return false, ""
+	if err != nil || profile == nil {
+		// Fail closed: the restriction lives on the profile we failed to load;
+		// a transient lookup error must not let a kids profile start playback.
+		return true, "parental status unavailable"
 	}
 	ps := profile.EffectiveParental()
 	if ps == nil {
@@ -829,7 +831,9 @@ func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, me
 	}
 	item, err := h.librarySvc.GetMediaItem(ctx, mediaItemID)
 	if err != nil {
-		return false, ""
+		// Parental enforcement is active for this profile and we cannot rate
+		// the item — fail closed rather than play unrated content.
+		return true, "parental status unavailable"
 	}
 	age := -1
 	if ps.MaxAge != nil {

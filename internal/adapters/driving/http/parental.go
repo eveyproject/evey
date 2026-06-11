@@ -46,9 +46,11 @@ func (c *profileParentalChecker) BlockedByParental(ctx context.Context, profileI
 	}
 	profile, err := c.profiles.GetProfileByID(ctx, profileID)
 	if err != nil || profile == nil {
-		// Can't resolve the profile → this is not a kids restriction we can
-		// assert; leave the existing library-access check as the guard.
-		return false
+		// Fail closed: the restriction lives on the profile we just failed to
+		// load, so a transient lookup error must not grant more than the most
+		// restrictive setting — otherwise a DB blip lets a kids profile stream
+		// adult content. Admins are exempted upstream (checkParental).
+		return true
 	}
 	ps := profile.EffectiveParental()
 	if ps == nil {

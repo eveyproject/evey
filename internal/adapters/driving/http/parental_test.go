@@ -48,7 +48,8 @@ func TestParentalChecker_BlockedByParental(t *testing.T) {
 		{"kid fails closed on unresolvable rating", kidProfile(10), nil, ratedItem(""), true},
 		{"kid fails closed on unknown rating", kidProfile(10), nil, ratedItem("ZZ-bogus"), true},
 		{"non-kid profile never blocked", &domainuser.Profile{ID: "p1", IsKids: false}, nil, ratedItem("R"), false},
-		{"unresolvable profile does not assert a block", nil, errors.New("not found"), ratedItem("R"), false},
+		{"profile lookup error fails closed", nil, errors.New("db blip"), ratedItem("R"), true},
+		{"nil profile without error fails closed", nil, nil, ratedItem("R"), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

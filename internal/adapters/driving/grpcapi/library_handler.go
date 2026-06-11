@@ -650,8 +650,9 @@ func (h *libraryHandler) resolveParentalFilter(ctx context.Context) parentalFilt
 // resolveParentalFilterFromUserQuery is the package-level entry point used
 // by every handler that needs to filter results by the active profile's
 // parental settings. Returns a "no-op" filter (maxAge=-1, no blocked tags)
-// when the caller is unauthenticated, the profile lookup fails, or the
-// profile has no effective enforcement (i.e. is not a kids profile).
+// when the caller is unauthenticated or the profile has no effective
+// enforcement (i.e. is not a kids profile); a failed profile lookup fails
+// closed with the most restrictive filter.
 func resolveParentalFilterFromUserQuery(ctx context.Context, userQuery *appuser.QueryService) parentalFilter {
 	if userQuery == nil {
 		return parentalFilter{maxAge: -1}
@@ -670,8 +671,12 @@ func resolveParentalFilterFromUserQuery(ctx context.Context, userQuery *appuser.
 		return parentalFilter{maxAge: -1}
 	}
 	profile, err := userQuery.GetProfileByID(ctx, claims.ProfileID)
-	if err != nil {
-		return parentalFilter{maxAge: -1}
+	if err != nil || profile == nil {
+		// Fail closed: the parental restriction lives on the profile we just
+		// failed to load. A no-op filter here would let a kids profile browse
+		// the full catalogue on a transient DB error, so return the most
+		// restrictive filter instead (admins were already exempted above).
+		return parentalFilter{allowedRatings: ratings.AllowedRatingsForAge(0), maxAge: 0}
 	}
 	ps := profile.EffectiveParental()
 	if ps == nil {

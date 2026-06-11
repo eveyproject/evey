@@ -64,6 +64,12 @@ func newPublicHandler() (
 		userQuery:  userQuery,
 		translator: eveyi18n.NewEmpty(),
 	}
+	// The parental gate now fails closed on an unresolvable profile, so the
+	// non-parental tests need their claimed profiles to actually exist.
+	// Kids-profile tests overwrite these with their own settings.
+	_ = profiles.Create(context.Background(), &user.Profile{ID: "profile-1", UserID: "user-1", Name: "Adult"})
+	_ = profiles.Create(context.Background(), &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Adult"})
+	_ = profiles.Create(context.Background(), &user.Profile{ID: "profile-3", UserID: "user-3", Name: "Adult"})
 	return h, mediaQueryRepo, accessRepo, profiles
 }
 

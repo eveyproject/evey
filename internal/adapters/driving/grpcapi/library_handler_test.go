@@ -66,6 +66,10 @@ func newTestLibraryHandler() (*libraryHandler, *libfakes.FakeLibraryQueryRepo, *
 		userAccess: userAccess,
 		userQuery:  userQuery,
 	}
+	// The parental gate fails closed on an unresolvable profile, so the
+	// non-parental tests need the default claimed profile to exist. Kids
+	// tests overwrite it with their own settings.
+	_ = profiles.Create(context.Background(), &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Adult"})
 	return h, libQueryRepo, mediaQueryRepo, searchIdx, libraryAccess, profiles, streamRepo
 }
 
@@ -417,6 +421,21 @@ func TestLibraryHandler_GetMediaItem_IDOR_Allowed(t *testing.T) {
 	resp, err := h.GetMediaItem(ctx, &eveyv1.GetMediaItemRequest{Id: "mi-1"})
 	require.NoError(t, err)
 	assert.Equal(t, "Allowed Movie", resp.Title)
+}
+
+func TestLibraryHandler_GetMediaItem_ParentalFailsClosedOnProfileLookupError(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _, _ := newTestLibraryHandler()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Movie", Type: "movie"})
+
+	// library access granted, but the claimed profile cannot be resolved —
+	// the parental gate must fail closed, not fall back to "no restriction".
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	ctx := userCtx("user-2", "profile-missing")
+
+	_, err := h.GetMediaItem(ctx, &eveyv1.GetMediaItemRequest{Id: "mi-1"})
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
 func TestLibraryHandler_GetMediaItem_AdminBypassesAccess(t *testing.T) {
