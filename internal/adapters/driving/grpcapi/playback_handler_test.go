@@ -560,8 +560,8 @@ func TestGetStreamInfo_SelectedBitmapSubtitleForcesBurnIn(t *testing.T) {
 		File:  &library.MediaFile{ContainerFormat: "mp4"},
 	})
 	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
-		{MediaItemID: "mi-pgs", StreamIndex: 0, StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{MediaItemID: "mi-pgs", StreamIndex: 1, StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{MediaItemID: "mi-pgs", StreamIndex: 0, StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-pgs", StreamIndex: 1, StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 		{MediaItemID: "mi-pgs", StreamIndex: 2, StreamType: "subtitle", Codec: "subrip"},
 		{MediaItemID: "mi-pgs", StreamIndex: 3, StreamType: "subtitle", Codec: "hdmv_pgs_subtitle"},
 	})
@@ -604,9 +604,9 @@ func TestGetStreamInfo_SelectedAudioTrackJudged(t *testing.T) {
 		File:  &library.MediaFile{ContainerFormat: "mp4"},
 	})
 	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
-		{MediaItemID: "mi-sel-audio", StreamIndex: 0, StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{MediaItemID: "mi-sel-audio", StreamIndex: 1, StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true},
-		{MediaItemID: "mi-sel-audio", StreamIndex: 2, StreamType: "audio", Codec: "aac", Channels: intPtr(2)},
+		{MediaItemID: "mi-sel-audio", StreamIndex: 0, StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-sel-audio", StreamIndex: 1, StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: true},
+		{MediaItemID: "mi-sel-audio", StreamIndex: 2, StreamType: "audio", Codec: "aac", Channels: new(2)},
 	})
 
 	// Default (DTS) judged without a selection → audio transcode.

@@ -487,8 +487,8 @@ func runRawCopyIntegration(t *testing.T, codec string, encArgs []string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(clip, append(initB, segB...), 0o644); err != nil {
-		t.Fatal(err)
+	if wErr := os.WriteFile(clip, append(initB, segB...), 0o644); wErr != nil {
+		t.Fatal(wErr)
 	}
 	codecOut, probeErr := exec.CommandContext(ctx, "ffprobe", "-v", "error",
 		"-select_streams", "v:0", "-show_entries", "stream=codec_name",

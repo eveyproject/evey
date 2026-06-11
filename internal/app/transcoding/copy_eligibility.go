@@ -57,7 +57,7 @@ func CopyRungEligible(src CopySource) bool {
 		return !src.TenBit
 	}
 
-	profileWired := false
+	var profileWired bool
 	switch codec {
 	case "hevc":
 		profileWired = hevcProfileIdx(src.Profile) != 0
