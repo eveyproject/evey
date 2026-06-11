@@ -397,8 +397,12 @@ func (p *SoftwareProducer) Profiles(base []transcoding.HLSProfile, src SourceDim
 
 	// The natural ladder capped to the sustainable ceiling — already ascending
 	// with a 360p floor. No collapse: Auto needs the lower rungs to fall back to
-	// and the viewer needs them to choose from.
-	return transcoding.CapLadderToHeight(sourceCapped, maxH)
+	// and the viewer needs them to choose from. When the ceiling dropped rungs
+	// the source could feed, the top surviving rung inherits the first dropped
+	// rung's bitrate budget (see BoostCappedTopRung) — quality the box can
+	// afford at the height it can sustain.
+	capped := transcoding.CapLadderToHeight(sourceCapped, maxH)
+	return transcoding.BoostCappedTopRung(sourceCapped, capped)
 }
 
 // needsHDRTonemap reports whether the decision flagged HDR->SDR tone-mapping.

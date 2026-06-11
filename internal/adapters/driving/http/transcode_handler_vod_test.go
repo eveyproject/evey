@@ -513,13 +513,16 @@ func TestHLSVOD_Segment_WaitTimeout_503(t *testing.T) {
 //  2. CapLadderToSource is a no-op since the fixture has no video stream
 //  3. CapLadderToHeight to 720p (the safe fallback when no
 //     CalibrationService is wired — matches the handler's default)
+//  4. BoostCappedTopRung — the 720p rung inherits the dropped 1080p
+//     rung's bitrate budget (part of the cache fingerprint)
 //
 // If a test wires CapabilityService with a different cap, that test
 // should build its own profile slice — this helper is the
 // uncalibrated/default-path mirror.
 func profilesForTest() []apptranscoding.ProfileFingerprint {
 	src := domaintranscoding.LadderFor(domaintranscoding.ClassFilmNormal)
-	src = domaintranscoding.CapLadderToHeight(src, 720)
+	capped := domaintranscoding.CapLadderToHeight(src, 720)
+	src = domaintranscoding.BoostCappedTopRung(src, capped)
 	out := make([]apptranscoding.ProfileFingerprint, len(src))
 	for i, p := range src {
 		out[i] = apptranscoding.ProfileFingerprint{

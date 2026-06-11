@@ -17,11 +17,11 @@ import "strings"
 type ContentClass string
 
 const (
-	ClassAnimation     ContentClass = "animation"
-	ClassFilmLowMotion ContentClass = "film_low_motion"
-	ClassFilmNormal    ContentClass = "film_normal"
+	ClassAnimation      ContentClass = "animation"
+	ClassFilmLowMotion  ContentClass = "film_low_motion"
+	ClassFilmNormal     ContentClass = "film_normal"
 	ClassFilmHighMotion ContentClass = "film_high_motion"
-	ClassSport         ContentClass = "sport"
+	ClassSport          ContentClass = "sport"
 )
 
 // IsValid reports whether s is a known class. Unknown / empty values fall
@@ -136,6 +136,38 @@ func CapLadderToHeight(ladder []HLSProfile, maxHeight int) []HLSProfile {
 	if len(out) == 0 {
 		return ladder[:1]
 	}
+	return out
+}
+
+// BoostCappedTopRung spends the bitrate budget of a capability-dropped rung at
+// the height the encoder CAN sustain. When the height ceiling (software /
+// software-HDR sustainable cap) removed rungs the source could have fed, the
+// client was ready to budget the dropped rung's bandwidth anyway — so the top
+// surviving rung adopts the FIRST dropped rung's video bitrate (e.g. a 4K HDR
+// source capped to 720p serves 720p at the 1080p rung's 5000k instead of
+// 2800k: the grain survives the downscale). First dropped, not highest: the
+// next rung up is the budget the viewer actually lost. Raising maxrate at a
+// fixed capped-CRF costs the encoder almost nothing — the cap is a bit budget,
+// not a work order — so this stays inside the calibrated margin.
+//
+// heightCapped must be the CapLadderToHeight result of sourceCapped (an
+// ascending prefix, or the single-lowest-rung fallback). Source-resolution
+// trimming must happen BEFORE (in sourceCapped): a rung dropped because the
+// source is small is not a quality loss and earns no boost.
+//
+// Never mutates its inputs (heightCapped may alias a package-level ladder).
+func BoostCappedTopRung(sourceCapped, heightCapped []HLSProfile) []HLSProfile {
+	if len(heightCapped) == 0 || len(heightCapped) >= len(sourceCapped) {
+		return heightCapped
+	}
+	dropped := sourceCapped[len(heightCapped)]
+	top := heightCapped[len(heightCapped)-1]
+	if dropped.VideoBitrate <= top.VideoBitrate {
+		return heightCapped
+	}
+	out := make([]HLSProfile, len(heightCapped))
+	copy(out, heightCapped)
+	out[len(out)-1].VideoBitrate = dropped.VideoBitrate
 	return out
 }
 

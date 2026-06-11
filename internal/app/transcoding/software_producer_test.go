@@ -699,6 +699,36 @@ func TestSoftwareProducer_ProfilesUsesSoftwareHDRCeilingOnTonemap(t *testing.T) 
 	assert.Equal(t, 480, profiles[len(profiles)-1].Height, "the HDR top rung is the HDR ceiling")
 }
 
+// The prod old-iGPU case: a 4K HDR source software-tonemapped on a box whose
+// HDR ceiling is 720p. The 720p rung must inherit the dropped 1080p rung's
+// bitrate budget (2800k → 5000k on LadderFilmNormal) so the downscaled grain
+// survives — quality the box can afford at the height it can sustain.
+func TestSoftwareProducer_ProfilesBoostsTopRungWhenHDRCapped(t *testing.T) {
+	cache, _ := newTestCache(t)
+	p := NewSoftwareProducer(cache, newFakeProcess(), stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	base := transcoding.LadderFilmNormal // [360@800k, 480@1400k, 720@2800k, 1080@5000k]
+	src := SourceDims{Width: 3840, Height: 2160, TenBit: true}
+	capability := transcoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareHDRMaxHeight: 720}
+	decision := transcoding.PlaybackDecision{TranscodeReasons: []string{"hdr_tonemapping_needed"}}
+
+	profiles := p.Profiles(base, src, decision, capability)
+	require.Len(t, profiles, 3, "360/480/720 — the 1080p rung is above the HDR ceiling")
+	top := profiles[len(profiles)-1]
+	assert.Equal(t, 720, top.Height)
+	assert.Equal(t, int64(5000), top.VideoBitrate, "720p inherits the dropped 1080p rung's video budget")
+	assert.Equal(t, int64(800), profiles[0].VideoBitrate, "lower rungs keep their own budgets")
+	assert.Equal(t, int64(1400), profiles[1].VideoBitrate)
+
+	// SDR on the same box reaches its true 1080p ceiling — nothing dropped by
+	// capability (only the 4K rung-less ladder's source cap is a no-op here),
+	// so no boost fires and the ladder is byte-identical to before.
+	sdr := p.Profiles(base, src, transcoding.PlaybackDecision{}, capability)
+	assert.Equal(t, int64(5000), sdr[len(sdr)-1].VideoBitrate, "1080p keeps its own 5000k — no boost when nothing was dropped")
+	assert.Equal(t, 1080, sdr[len(sdr)-1].Height)
+}
+
 // ============================================================================
 // Cache hit short-circuit; idle GC reaps
 // ============================================================================

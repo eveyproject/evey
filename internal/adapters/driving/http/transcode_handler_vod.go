@@ -1223,8 +1223,11 @@ func (h *hlsVODServe) legacyProfileShaping(base []domaintranscoding.HLSProfile, 
 		}
 	}
 	// Mirrors SoftwareProducer.Profiles: the natural ladder capped to the
-	// sustainable ceiling (with its 360p floor), no single-rendition collapse.
-	return domaintranscoding.CapLadderToHeight(capped, maxH)
+	// sustainable ceiling (with its 360p floor), no single-rendition collapse,
+	// and the top surviving rung inheriting the first dropped rung's bitrate
+	// budget when the ceiling (not the source) trimmed the ladder.
+	heightCapped := domaintranscoding.CapLadderToHeight(capped, maxH)
+	return domaintranscoding.BoostCappedTopRung(capped, heightCapped)
 }
 
 // durationMissingError is the specific 503 we return when a media file's

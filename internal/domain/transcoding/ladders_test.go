@@ -228,3 +228,72 @@ func TestClassify_NoSamples_NormalIsFallback(t *testing.T) {
 	}
 	assert.Equal(t, ClassFilmNormal, Classify(m))
 }
+
+// boostTestLadder carries distinct bitrates so the boost assertions are
+// unambiguous about WHICH rung's budget was adopted.
+var boostTestLadder = []HLSProfile{
+	{Name: "360p", Height: 360, VideoBitrate: 800, AudioBitrate: 96},
+	{Name: "480p", Height: 480, VideoBitrate: 1400, AudioBitrate: 128},
+	{Name: "720p", Height: 720, VideoBitrate: 2800, AudioBitrate: 128},
+	{Name: "1080p", Height: 1080, VideoBitrate: 5000, AudioBitrate: 192},
+}
+
+// The user-visible contract: a 4K HDR source on a box whose HDR ceiling is
+// 720p serves 720p at the 1080p rung's bitrate — the budget the viewer lost
+// to the cap is spent at the height the box sustains.
+func TestBoostCappedTopRung_TopAdoptsFirstDroppedBudget(t *testing.T) {
+	capped := CapLadderToHeight(boostTestLadder, 720)
+	got := BoostCappedTopRung(boostTestLadder, capped)
+
+	assert.Len(t, got, 3)
+	assert.Equal(t, int64(5000), got[2].VideoBitrate, "720p rung adopts the dropped 1080p rung's video budget")
+	assert.Equal(t, "720p", got[2].Name, "name/height unchanged — only the bit budget moves")
+	assert.Equal(t, 720, got[2].Height)
+	assert.Equal(t, int64(128), got[2].AudioBitrate, "audio budget untouched (video grain is the loss, not audio)")
+	assert.Equal(t, int64(800), got[0].VideoBitrate, "lower rungs untouched")
+	assert.Equal(t, int64(1400), got[1].VideoBitrate)
+}
+
+// First dropped, not highest dropped: a 480p cap adopts the 720p budget,
+// not the 1080p one — the next rung up is what the viewer actually lost.
+func TestBoostCappedTopRung_FirstDroppedNotHighest(t *testing.T) {
+	capped := CapLadderToHeight(boostTestLadder, 480)
+	got := BoostCappedTopRung(boostTestLadder, capped)
+
+	assert.Len(t, got, 2)
+	assert.Equal(t, int64(2800), got[1].VideoBitrate, "480p adopts the 720p budget, not 1080p's")
+}
+
+func TestBoostCappedTopRung_NoDropNoBoost(t *testing.T) {
+	capped := CapLadderToHeight(boostTestLadder, 1080)
+	got := BoostCappedTopRung(boostTestLadder, capped)
+	assert.Equal(t, capped, got, "nothing dropped ⇒ ladder unchanged")
+}
+
+// The single-lowest-rung fallback (cap below the lowest rung) still boosts:
+// the bit budget is nearly free for the encoder, only the height is costly.
+func TestBoostCappedTopRung_SingleRungFallbackBoosts(t *testing.T) {
+	capped := CapLadderToHeight(boostTestLadder, 1)
+	got := BoostCappedTopRung(boostTestLadder, capped)
+
+	assert.Len(t, got, 1)
+	assert.Equal(t, 360, got[0].Height)
+	assert.Equal(t, int64(1400), got[0].VideoBitrate, "lowest rung adopts the 480p budget")
+}
+
+// CapLadderToHeight can return a sub-slice of a PACKAGE-LEVEL ladder (the
+// no-cap and lowest-rung fallback paths) — the boost must copy, never mutate.
+func TestBoostCappedTopRung_NeverMutatesInputs(t *testing.T) {
+	before := make([]HLSProfile, len(boostTestLadder))
+	copy(before, boostTestLadder)
+
+	capped := CapLadderToHeight(boostTestLadder, 1) // aliasing fallback: ladder[:1]
+	_ = BoostCappedTopRung(boostTestLadder, capped)
+
+	assert.Equal(t, before, boostTestLadder, "package-level ladder must not be mutated through the aliased slice")
+}
+
+func TestBoostCappedTopRung_EmptyAndDegenerate(t *testing.T) {
+	assert.Empty(t, BoostCappedTopRung(boostTestLadder, nil))
+	assert.Equal(t, boostTestLadder, BoostCappedTopRung(boostTestLadder, boostTestLadder), "identical slices ⇒ unchanged")
+}
