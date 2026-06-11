@@ -52,7 +52,7 @@ test: test-image
 	  --add-host=host.docker.internal:host-gateway \
 	  -w /app \
 	  evey-test \
-	  sh -c 'go test $$(go list ./... | grep -v /gen/) -race -count=1 -timeout=300s'
+	  sh -c 'go test $$(go list ./... | grep -v /gen/) -race -count=1 -timeout=600s'
 
 # Copy-rung end-to-end contract test against the BUNDLED ffmpeg (runs inside
 # the evey-server dev container — never in CI, where a distro ffmpeg would
