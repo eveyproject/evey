@@ -69,6 +69,35 @@ func TestCopyRungEligible_DolbyVision(t *testing.T) {
 	assert.False(t, CopyRungEligible(weird), "DoVi 8 with bl compat 0 (none) stays transcoded")
 }
 
+func TestCopyRungEligible_AV1VP9(t *testing.T) {
+	pq := "smpte2084"
+	bt709 := "bt709"
+
+	av1 := CopySource{Codec: "av1", Profile: "Main", Level: new(8), ColorTransfer: &bt709}
+	assert.True(t, CopyRungEligible(av1), "AV1 Main with probed ground truth is copyable")
+
+	av1HDR := CopySource{Codec: "av1", Profile: "Main", Level: new(13), TenBit: true, ColorTransfer: &pq}
+	assert.True(t, CopyRungEligible(av1HDR), "AV1 10-bit HDR with probed truth is copyable")
+
+	assert.False(t, CopyRungEligible(CopySource{Codec: "av1", Profile: "Main", Level: new(8)}),
+		"unprobed color_transfer gates AV1 copy off (AV1 is HDR-capable, DoVi P10 exists)")
+	assert.False(t, CopyRungEligible(CopySource{Codec: "av1", Profile: "Professional", Level: new(8), ColorTransfer: &bt709}),
+		"AV1 Professional has no browser decode — not wired")
+
+	av1DoVi := av1HDR
+	av1DoVi.DoViProfile = new(10)
+	assert.False(t, CopyRungEligible(av1DoVi), "DoVi profile 10 (AV1) never raw-serves")
+
+	vp9 := CopySource{Codec: "vp9", Profile: "Profile 0", Level: new(41), ColorTransfer: &bt709}
+	assert.True(t, CopyRungEligible(vp9), "VP9 Profile 0 with probed truth is copyable")
+	vp9p2 := CopySource{Codec: "vp9", Profile: "Profile 2", Level: new(41), TenBit: true, ColorTransfer: &pq}
+	assert.True(t, CopyRungEligible(vp9p2), "VP9 Profile 2 (10-bit) is copyable")
+	assert.False(t, CopyRungEligible(CopySource{Codec: "vp9", Profile: "Profile 1", Level: new(41), ColorTransfer: &bt709}),
+		"VP9 Profile 1 (4:2:2) has no browser decode — not wired")
+	assert.False(t, CopyRungEligible(CopySource{Codec: "vp9", Profile: "Profile 0", ColorTransfer: &bt709}),
+		"unknown level gates VP9 copy off")
+}
+
 func TestCopyVideoCodecString(t *testing.T) {
 	l40 := 40
 	l153 := 153
@@ -86,4 +115,18 @@ func TestCopyVideoCodecString(t *testing.T) {
 	assert.Equal(t, "",
 		CopyVideoCodecString(CopySource{Codec: "hevc", Profile: "Main 10", Level: &l153}),
 		"ineligible source yields no codec string")
+
+	bt709 := "bt709"
+	assert.Equal(t, "av01.0.08M.08",
+		CopyVideoCodecString(CopySource{Codec: "av1", Profile: "Main", Level: new(8), ColorTransfer: &bt709}),
+		"AV1 Main L4.0 8-bit")
+	assert.Equal(t, "av01.0.13M.10",
+		CopyVideoCodecString(CopySource{Codec: "av1", Profile: "Main", Level: new(13), TenBit: true, ColorTransfer: &pq}),
+		"AV1 Main L5.1 10-bit")
+	assert.Equal(t, "vp09.00.41.08",
+		CopyVideoCodecString(CopySource{Codec: "vp9", Profile: "Profile 0", Level: new(41), ColorTransfer: &bt709}),
+		"VP9 Profile 0 L4.1")
+	assert.Equal(t, "vp09.02.41.10",
+		CopyVideoCodecString(CopySource{Codec: "vp9", Profile: "Profile 2", Level: new(41), ColorTransfer: &pq}),
+		"VP9 Profile 2 is the 10-bit variant even when bit depth wasn't probed")
 }

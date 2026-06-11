@@ -519,6 +519,59 @@ func hevcProfileIdx(profile string) int {
 	return 0
 }
 
+// av1CodecString builds the RFC-6381 AV1 codec string from the ffprobe
+// profile + seq_level_idx, e.g. Main + 8 + 10-bit → "av01.0.08M.10".
+// Layout: av01.<profile>.<level><tier>.<bitDepth>. Main tier assumed (the
+// consumer-content norm; ffprobe doesn't surface the tier).
+func av1CodecString(profile string, level int, tenBit bool) string {
+	idx := av1ProfileIdx(profile)
+	if idx < 0 {
+		return ""
+	}
+	depth := "08"
+	if tenBit {
+		depth = "10"
+	}
+	return fmt.Sprintf("av01.%d.%02dM.%s", idx, level, depth)
+}
+
+// av1ProfileIdx maps an ffprobe AV1 profile name to its profile index, or -1
+// when unknown. Only Main (0) is wired — High (4:4:4) and Professional
+// (12-bit/4:2:2) have no meaningful browser decode.
+func av1ProfileIdx(profile string) int {
+	if strings.EqualFold(strings.TrimSpace(profile), "main") {
+		return 0
+	}
+	return -1
+}
+
+// vp9CodecString builds the RFC-6381 VP9 codec string from the ffprobe
+// profile + level, e.g. Profile 0 + 41 → "vp09.00.41.08". Profile 2 is the
+// 10-bit variant browsers decode; 1/3 (4:2:2/4:4:4) are not wired.
+func vp9CodecString(profile string, level int, tenBit bool) string {
+	idx := vp9ProfileIdx(profile)
+	if idx < 0 {
+		return ""
+	}
+	depth := "08"
+	if tenBit || idx == 2 {
+		depth = "10"
+	}
+	return fmt.Sprintf("vp09.%02d.%02d.%s", idx, level, depth)
+}
+
+// vp9ProfileIdx maps an ffprobe VP9 profile name ("Profile 0"…) to its index,
+// or -1 when unknown/unwired (profiles 1 and 3 have no browser decode).
+func vp9ProfileIdx(profile string) int {
+	switch strings.ToLower(strings.TrimSpace(profile)) {
+	case "profile 0":
+		return 0
+	case "profile 2":
+		return 2
+	}
+	return -1
+}
+
 func audioCodecAttr(c string) string {
 	switch c {
 	case "ac3", "ac-3":

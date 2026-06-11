@@ -37,11 +37,12 @@ type CopySource struct {
 //     an accurate avc1.PPCCLL, and a wrong CODECS makes Safari/hls.js reject
 //     the rendition. So an unknown level gates copy OFF; the title falls back
 //     to transcode until a re-probe backfills the level.
-//   - HEVC: known level AND probed HDR ground truth (ColorTransfer non-nil,
-//     see CopySource) AND a Main/Main 10 profile (the two with a wired CODECS
-//     string) AND not Dolby Vision unless profile 8 with a compatible base
-//     layer. 10-bit is allowed — HEVC Main 10 HDR served raw to HDR-capable
-//     clients (Safari/TV) is the entire point: no tonemap, no encode.
+//   - HEVC / AV1 / VP9 (the HDR-capable codecs): known level AND probed HDR
+//     ground truth (ColorTransfer non-nil, see CopySource) AND a profile with
+//     a wired CODECS string AND not Dolby Vision unless profile 8 with a
+//     compatible base layer (DoVi rides HEVC profiles 4-8 and AV1 profile 10;
+//     the nil check is a no-op for VP9). 10-bit is allowed — 4K HDR served
+//     raw to capable clients with no tonemap and no encode is the point.
 //
 // The decision layer has already verified the CLIENT side (client.VideoCodecs
 // contains the codec, SupportsHDR for HDR sources) before VideoDecision lands
@@ -50,43 +51,58 @@ func CopyRungEligible(src CopySource) bool {
 	if src.Level == nil {
 		return false // unknown level → no accurate CODECS → no copy
 	}
-	switch strings.ToLower(strings.TrimSpace(src.Codec)) {
-	case "h264":
+	codec := strings.ToLower(strings.TrimSpace(src.Codec))
+	if codec == "h264" {
 		// 10-bit H.264 is out of the copy scope (no meaningful client decode).
 		return !src.TenBit
-	case "hevc":
-		if src.ColorTransfer == nil {
-			return false // HDR/DoVi ground truth never probed → not colour-safe
-		}
-		if hevcProfileIdx(src.Profile) == 0 {
-			return false // only Main / Main 10 have a wired CODECS string
-		}
-		if src.DoViProfile != nil {
-			if *src.DoViProfile != 8 || src.DoViBLCompat == nil {
-				return false // P5/P7/unknown: base layer not raw-renderable
-			}
-			switch *src.DoViBLCompat {
-			case 1, 2, 4: // HDR10 / SDR / HLG-compatible base layer
-			default:
-				return false
-			}
-		}
-		return true
 	}
-	return false
+
+	profileWired := false
+	switch codec {
+	case "hevc":
+		profileWired = hevcProfileIdx(src.Profile) != 0
+	case "av1":
+		profileWired = av1ProfileIdx(src.Profile) >= 0
+	case "vp9":
+		profileWired = vp9ProfileIdx(src.Profile) >= 0
+	default:
+		return false
+	}
+	if !profileWired {
+		return false // no wired CODECS string for this profile
+	}
+	if src.ColorTransfer == nil {
+		return false // HDR/DoVi ground truth never probed → not colour-safe
+	}
+	if src.DoViProfile != nil {
+		if *src.DoViProfile != 8 || src.DoViBLCompat == nil {
+			return false // P5/P7/P10/unknown: base layer not raw-renderable
+		}
+		switch *src.DoViBLCompat {
+		case 1, 2, 4: // HDR10 / SDR / HLG-compatible base layer
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // CopyVideoCodecString returns the RFC-6381 codec string to advertise for a
-// video-COPY rung of this source stream ("avc1.PPCCLL" / "hvc1.P.C.Lxxx.B0"),
-// or "" when the stream is not copy-eligible. One call combining the guard
-// with the codec string, so the manifest builder cannot advertise a copy rung
-// without the eligibility gates having passed.
+// video-COPY rung of this source stream (avc1.PPCCLL / hvc1.P.C.Lxxx.B0 /
+// av01.P.LLT.DD / vp09.PP.LL.DD), or "" when the stream is not copy-eligible.
+// One call combining the guard with the codec string, so the manifest builder
+// cannot advertise a copy rung without the eligibility gates having passed.
 func CopyVideoCodecString(src CopySource) string {
 	if !CopyRungEligible(src) {
 		return ""
 	}
-	if strings.ToLower(strings.TrimSpace(src.Codec)) == "hevc" {
+	switch strings.ToLower(strings.TrimSpace(src.Codec)) {
+	case "hevc":
 		return hevcCodecString(src.Profile, *src.Level)
+	case "av1":
+		return av1CodecString(src.Profile, *src.Level, src.TenBit)
+	case "vp9":
+		return vp9CodecString(src.Profile, *src.Level, src.TenBit)
 	}
 	return avcCodecString(src.Profile, *src.Level)
 }

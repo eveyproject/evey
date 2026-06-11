@@ -210,11 +210,12 @@ func (r *MediaStreamRepository) DeleteByMediaItemID(ctx context.Context, mediaIt
 // ListVideoLevelMissing returns up to `limit` media item IDs whose video
 // stream is missing copy-rung metadata, skipping the `exclude` IDs:
 //   - h264: codec level never resolved (level IS NULL);
-//   - hevc: level IS NULL, OR color_transfer IS NULL — the HDR ground-truth
-//     sentinel. color_transfer only fills post-migration-000110, so a NULL
-//     means "never probed for DoVi": such a stream is gated off the HEVC copy
-//     rung (a Dolby Vision profile-5 title recorded as plain HDR10 would
-//     raw-serve with broken colours) until this backfill re-probes it.
+//   - hevc/av1/vp9 (the HDR-capable codecs): level IS NULL, OR color_transfer
+//     IS NULL — the HDR ground-truth sentinel. color_transfer only fills
+//     post-migration-000110, so a NULL means "never probed for DoVi": such a
+//     stream is gated off the copy rung (a Dolby Vision profile-5 title
+//     recorded as plain HDR10 would raw-serve with broken colours) until this
+//     backfill re-probes it.
 //
 // Scope stays h264+hevc because the metadata only feeds the video-copy rung;
 // other codecs are left alone. The query is itself the backfill worker's
@@ -238,7 +239,7 @@ func (r *MediaStreamRepository) ListVideoLevelMissing(ctx context.Context, limit
 		`SELECT DISTINCT media_item_id FROM media_streams
 		 WHERE stream_type = 'video'
 		   AND ((lower(codec) = 'h264' AND level IS NULL)
-		     OR (lower(codec) = 'hevc' AND (level IS NULL OR color_transfer IS NULL)))
+		     OR (lower(codec) IN ('hevc', 'av1', 'vp9') AND (level IS NULL OR color_transfer IS NULL)))
 		   AND NOT (media_item_id = ANY($1))
 		 ORDER BY media_item_id
 		 LIMIT $2`, pq.Array(exclude), limit)
@@ -317,10 +318,10 @@ func (r *MediaStreamRepository) SetVideoLevels(ctx context.Context, mediaItemID 
 // (~tens of seconds per MKV), so the candidate set mirrors the copy
 // eligibility gates and naturally runs after the level/HDR backfill:
 //   - h264: level IS NOT NULL (CopyRungEligible needs the level);
-//   - hevc: level + color_transfer known (HDR ground truth probed), and not
-//     Dolby Vision unless profile 8 with a compatible base layer (1=HDR10,
-//     2=SDR, 4=HLG) — a profile-5 title is never served as copy, so indexing
-//     its keyframes would be pure waste.
+//   - hevc/av1/vp9: level + color_transfer known (HDR ground truth probed),
+//     and not Dolby Vision unless profile 8 with a compatible base layer
+//     (1=HDR10, 2=SDR, 4=HLG) — a profile-5 title is never served as copy,
+//     so indexing its keyframes would be pure waste.
 //
 // Like ListVideoLevelMissing, the query is the keyframe backfill worker's
 // resumability mechanism (it shrinks as keyframes get filled).
@@ -338,7 +339,7 @@ func (r *MediaStreamRepository) ListVideoKeyframesMissing(ctx context.Context, l
 		 WHERE stream_type = 'video'
 		   AND level IS NOT NULL AND keyframes_ms IS NULL
 		   AND (lower(codec) = 'h264'
-		     OR (lower(codec) = 'hevc' AND color_transfer IS NOT NULL
+		     OR (lower(codec) IN ('hevc', 'av1', 'vp9') AND color_transfer IS NOT NULL
 		         AND (dovi_profile IS NULL
 		           OR (dovi_profile = 8 AND dovi_bl_compat IN (1, 2, 4)))))
 		   AND NOT (media_item_id = ANY($1))

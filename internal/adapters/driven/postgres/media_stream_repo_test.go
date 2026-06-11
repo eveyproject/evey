@@ -114,19 +114,26 @@ func TestMediaStreamRepo_ListVideoLevelMissing_Scope(t *testing.T) {
 	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
 		{ID: "e-v", MediaItemID: itemE.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: stringPtr("smpte2084")},
 	}))
-	// F: vp9, NULL everything → NOT a candidate (out of copy-rung scope).
+	// F: vp9, NULL everything → candidate too since B4 (av1/vp9 join the
+	// HDR-capable copy scope, same ground-truth needs as hevc).
 	itemF := newTestMediaItem("lvlF", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, itemF))
 	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
 		{ID: "f-v", MediaItemID: itemF.ID, StreamIndex: 0, StreamType: "video", Codec: "vp9"},
 	}))
+	// G: mpeg2, NULL everything → NOT a candidate (out of copy-rung scope).
+	itemG := newTestMediaItem("lvlG", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemG))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "g-v", MediaItemID: itemG.ID, StreamIndex: 0, StreamType: "video", Codec: "mpeg2video"},
+	}))
 
 	ids, err := streamRepo.ListVideoLevelMissing(ctx, 10, nil)
 	require.NoError(t, err)
-	assert.Equal(t, []string{string(itemA.ID), string(itemB.ID), string(itemD.ID)}, ids,
-		"candidates = h264 NULL-level + hevc missing level or color_transfer")
+	assert.Equal(t, []string{string(itemA.ID), string(itemB.ID), string(itemD.ID), string(itemF.ID)}, ids,
+		"candidates = h264 NULL-level + hevc/av1/vp9 missing level or color_transfer")
 
-	excluded, err := streamRepo.ListVideoLevelMissing(ctx, 10, []string{string(itemA.ID), string(itemB.ID), string(itemD.ID)})
+	excluded, err := streamRepo.ListVideoLevelMissing(ctx, 10, []string{string(itemA.ID), string(itemB.ID), string(itemD.ID), string(itemF.ID)})
 	require.NoError(t, err)
 	assert.Empty(t, excluded, "excluding every candidate yields none")
 }

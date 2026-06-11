@@ -387,6 +387,151 @@ func TestHEVCCopyIntegration(t *testing.T) {
 	checkSegment(segDeep, plan[deep].StartMs, 300)
 }
 
+// TestAV1VP9CopyIntegration: phase B4's AV1/VP9 copy rungs through the real
+// hlsenc. Narrower than the hevc test (no sample-entry tag override needed —
+// movenc's av01/vp09 defaults are the right ones), it proves the NEW risk
+// surface: the codec muxes into fMP4 at all, the served packets are
+// bit-identical to the source, and the cold timeline matches the plan on the
+// av1/vp9 demux path.
+func TestAV1VP9CopyIntegration(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string // encoder args for the synthetic source
+	}{
+		{"av1", []string{"-c:v", "libsvtav1", "-preset", "12", "-g", "9999"}},
+		{"vp9", []string{"-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-g", "9999"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) { runRawCopyIntegration(t, tc.name, tc.args) })
+	}
+}
+
+func runRawCopyIntegration(t *testing.T, codec string, encArgs []string) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
+	}
+	for _, bin := range []string{"ffmpeg", "ffprobe"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			t.Skipf("%s not in PATH", bin)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	dir := t.TempDir()
+
+	src := filepath.Join(dir, "itest-"+codec+".mkv")
+	gen := exec.CommandContext(ctx, "ffmpeg", append(append(
+		[]string{"-hide_banner", "-v", "error", "-y",
+			"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
+			"-f", "lavfi", "-i", "anoisesrc=color=pink:seed=11:sample_rate=48000",
+			"-t", "60"},
+		encArgs...),
+		"-force_key_frames", "0,10,13,23,26,36,39,49,52",
+		"-pix_fmt", "yuv420p",
+		"-c:a", "ac3", "-ac", "2",
+		src)...)
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("source generation: %v\n%s", err, out)
+	}
+
+	prober := NewProber("ffprobe")
+	kf, err := prober.ProbeKeyframes(ctx, src)
+	if err != nil || len(kf) < 5 {
+		t.Fatalf("probe keyframes: %v (%d)", err, len(kf))
+	}
+	plan := apptranscoding.KeyframeSegments(kf, 60_000)
+
+	cache, err := apptranscoding.NewSegmentCache(filepath.Join(dir, "cache"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	producer := apptranscoding.NewSoftwareProducer(
+		cache,
+		NewHLSTranscoder(),
+		apptranscoding.SourceResolverFunc(func(context.Context, apptranscoding.DecisionFingerprint) (string, []apptranscoding.SourceStream, error) {
+			return src, nil, nil
+		}),
+		apptranscoding.SoftwareProducerOptions{},
+		nil,
+	)
+	defer producer.Close()
+	producer.SetCopyMode(apptranscoding.NewCopyPlanner(itestStreams{kf: kf, codec: codec}, itestItems{durMs: 60_000}), prober)
+
+	fp := apptranscoding.DecisionFingerprint{
+		MediaID:             "itest-" + codec + "-media",
+		SourcePath:          src,
+		SourceVideoCodec:    codec,
+		AudioCodec:          "aac",
+		SubtitleBurnInTrack: -1,
+		UseFMP4:             true,
+		Profiles:            []apptranscoding.ProfileFingerprint{{Name: "180p-copy-" + codec, Width: 320, Height: 180, VideoBitrate: 1000, AudioBitrate: 192, Copy: true}},
+	}
+	hash := fp.Hash()
+	if ensureErr := producer.EnsureSegmentRange(ctx, fp, 0, 1); ensureErr != nil {
+		t.Fatal(ensureErr)
+	}
+	key := apptranscoding.SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 1}
+	if waitErr := cache.Wait(ctx, key, true, 60*time.Second); waitErr != nil {
+		t.Fatal(waitErr)
+	}
+	cacheDir, err := cache.DirFor(hash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clip := filepath.Join(dir, "served-"+codec+".mp4")
+	initB, err := os.ReadFile(filepath.Join(cacheDir, "stream_0_init.mp4"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	segB, err := os.ReadFile(filepath.Join(cacheDir, "stream_0_001.m4s"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(clip, append(initB, segB...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	codecOut, probeErr := exec.CommandContext(ctx, "ffprobe", "-v", "error",
+		"-select_streams", "v:0", "-show_entries", "stream=codec_name",
+		"-of", "csv=p=0", clip).Output()
+	if probeErr != nil {
+		t.Fatalf("ffprobe served codec: %v", probeErr)
+	}
+	if got := strings.TrimSuffix(strings.TrimSpace(string(codecOut)), ","); got != codec {
+		t.Fatalf("served video codec = %q, want %q (fMP4 mux of a %s copy)", got, codec, codec)
+	}
+
+	served := videoPacketHashes(t, ctx, clip)
+	source := videoPacketHashes(t, ctx, src)
+	if len(served) < 24 {
+		t.Fatalf("too few served video packets (%d)", len(served))
+	}
+	sourceSet := make(map[string]bool, len(source))
+	for _, h := range source {
+		sourceSet[h] = true
+	}
+	for _, h := range served {
+		if !sourceSet[h] {
+			t.Fatalf("served %s packets are NOT source bytes — re-encoded or repacked", codec)
+		}
+	}
+
+	// Cold timeline: segment 1 must start at the plan's keyframe boundary.
+	initPath := filepath.Join(cacheDir, "stream_0_init.mp4")
+	scales, err := parseInitTimescales(initPath)
+	if err != nil {
+		t.Fatalf("init timescales: %v", err)
+	}
+	starts := segmentTrackStartsMs(t, filepath.Join(cacheDir, "stream_0_001.m4s"), scales)
+	if len(starts) < 2 {
+		t.Fatalf("want video+audio trafs, got %d tracks", len(starts))
+	}
+	for trackID, gotMs := range starts {
+		if diff := gotMs - plan[1].StartMs; diff > 150 || diff < -150 {
+			t.Errorf("track %d starts at %dms, plan says %dms (drift %+dms)", trackID, gotMs, plan[1].StartMs, diff)
+		}
+	}
+}
+
 // videoPacketHashes returns the md5 of every video packet's data payload.
 func videoPacketHashes(t *testing.T, ctx context.Context, path string) []string {
 	t.Helper()
