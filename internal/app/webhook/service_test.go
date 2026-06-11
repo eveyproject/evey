@@ -772,3 +772,52 @@ func TestHandleAny_RealSenderIntegration(t *testing.T) {
 		t.Fatal("real sender did not deliver to test server")
 	}
 }
+
+// Delivery is at-least-once: consumers need a stable occurrence id to
+// deduplicate retries. X-Evey-Delivery must be present, identical across every
+// retry attempt of the same occurrence, and match the stored Delivery row.
+func TestHandleAny_DeliveryIDHeaderStableAcrossRetries(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := sharedfakes.NewFakeEventBus()
+	sender := &programmableSender{responder: func(attempt int) (int, error) {
+		if attempt == 0 {
+			return 0, errors.New("transient network blip")
+		}
+		return 200, nil
+	}}
+	svc := newTestServiceWithSender(repo, deliveries, bus, sender)
+	svc.SetRetryDelays([]time.Duration{time.Millisecond})
+
+	ctx := context.Background()
+	cfg := &webhookdomain.Config{
+		Name:    "dedup-hook",
+		URL:     "http://hook.example",
+		Events:  []string{"media.item.added"},
+		Enabled: true,
+	}
+	if err := svc.Create(ctx, cfg); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	_ = bus.Publish(ctx, fakeEvent{"media.item.added"})
+
+	waitForCalls(t, sender, 2, 2*time.Second)
+	waitForDeliveries(t, deliveries, 1, 2*time.Second)
+
+	calls := sender.Calls()
+	first := calls[0].Headers["X-Evey-Delivery"]
+	if first == "" {
+		t.Fatal("X-Evey-Delivery header missing")
+	}
+	if retry := calls[1].Headers["X-Evey-Delivery"]; retry != first {
+		t.Fatalf("delivery id changed across retries: %q vs %q — consumers can't dedup", first, retry)
+	}
+	deliveries.mu.Lock()
+	storedID := deliveries.data[0].ID
+	deliveries.mu.Unlock()
+	if storedID != first {
+		t.Fatalf("stored delivery id %q != sent header %q", storedID, first)
+	}
+}

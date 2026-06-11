@@ -7,15 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"log/slog"
+	"maps"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/webhook"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"github.com/evey-project/evey/internal/pkg/urlvalidator"
+	"github.com/google/uuid"
 )
 
 const (
@@ -112,10 +112,17 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 		return
 	}
 
-	lastErr, statusCode := s.attemptDeliver(ctx, cfg, body)
+	// The delivery id is minted BEFORE sending and rides every attempt as the
+	// X-Evey-Delivery header: delivery is at-least-once (network timeouts make
+	// retries indistinguishable from duplicates on the receiving end), so a
+	// consumer needs a stable occurrence id to deduplicate on. Previously the
+	// id was stored server-side only — never sent — leaving consumers no way
+	// to tell a retry from a genuinely new event.
+	deliveryID := uuid.New().String()
+	lastErr, statusCode := s.attemptDeliver(ctx, cfg, deliveryID, body)
 
 	if err := s.deliveries.Create(ctx, &webhook.Delivery{
-		ID:         uuid.New().String(),
+		ID:         deliveryID,
 		WebhookID:  cfg.ID,
 		Event:      eventName,
 		StatusCode: statusCode,
@@ -126,12 +133,13 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 	}
 }
 
-func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, body []byte) (string, int) {
+func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, deliveryID string, body []byte) (string, int) {
 	var lastErr string
 	var statusCode int
 
-	headers := make(map[string]string, len(cfg.Headers)+1)
+	headers := make(map[string]string, len(cfg.Headers)+2)
 	headers["X-Evey-Signature"] = sign(cfg.Secret, body)
+	headers["X-Evey-Delivery"] = deliveryID
 	maps.Copy(headers, cfg.Headers)
 
 	for attempt := 0; attempt <= len(s.retryDelays); attempt++ {
