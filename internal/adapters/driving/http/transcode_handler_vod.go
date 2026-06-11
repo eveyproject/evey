@@ -821,6 +821,11 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		// The SOURCE codec (excluded from Hash — derivable from MediaID): the
 		// copy builder tags the fMP4 sample entry from it (-tag:v hvc1).
 		SourceVideoCodec: sourceVideoCodec(streams),
+		// Legacy-codec corrections (B3): idet content verdict + anamorphic SAR,
+		// both hashed conditionally so progressive/square titles keep their
+		// cache. No-ops on modern progressive sources.
+		DeinterlaceAll: sourceDeinterlaceAll(streams),
+		SourceSAR:      sourceSAR(streams),
 		// The codec the segments actually carry (source codec on passthrough).
 		// The builder only reads it on the transcode branch; here it keeps the
 		// hash truthful per served bytes.
@@ -891,6 +896,37 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 		}
 	}
 	return *d
+}
+
+// sourceDeinterlaceAll reports whether the first video stream's idet content
+// verdict says interlaced (the backfill's idet_interlaced = true). Drives the
+// builder's deint=all fallback for sources whose container flags lie. nil
+// verdict (not yet analyzed, or modern codec) ⇒ false ⇒ the unchanged
+// flag-gated deinterlace.
+func sourceDeinterlaceAll(streams []*domainlibrary.MediaStream) bool {
+	for _, s := range streams {
+		if s == nil || s.StreamType != "video" {
+			continue
+		}
+		return s.IdetInterlaced != nil && *s.IdetInterlaced
+	}
+	return false
+}
+
+// sourceSAR returns the first video stream's sample aspect ratio ("64:45" for
+// anamorphic DVD), or "" for square pixels / unprobed. Drives the builder's
+// anamorphic scale correction.
+func sourceSAR(streams []*domainlibrary.MediaStream) string {
+	for _, s := range streams {
+		if s == nil || s.StreamType != "video" {
+			continue
+		}
+		if s.SampleAspectRatio != nil {
+			return *s.SampleAspectRatio
+		}
+		return ""
+	}
+	return ""
 }
 
 // sourceIsHDR reports whether the first video stream is HDR, via the same

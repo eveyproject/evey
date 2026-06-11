@@ -121,21 +121,120 @@ func TestMediaStreamRepo_ListVideoLevelMissing_Scope(t *testing.T) {
 	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
 		{ID: "f-v", MediaItemID: itemF.ID, StreamIndex: 0, StreamType: "video", Codec: "vp9"},
 	}))
-	// G: mpeg2, NULL everything → NOT a candidate (out of copy-rung scope).
+	// G: mpeg2, idet_interlaced NULL → candidate via the idet branch (B3.1).
 	itemG := newTestMediaItem("lvlG", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, itemG))
 	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
 		{ID: "g-v", MediaItemID: itemG.ID, StreamIndex: 0, StreamType: "video", Codec: "mpeg2video"},
 	}))
+	// H: mpeg2 with the idet verdict already set → NOT a candidate.
+	itemH := newTestMediaItem("lvlH", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemH))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "h-v", MediaItemID: itemH.ID, StreamIndex: 0, StreamType: "video", Codec: "mpeg2video", IdetInterlaced: new(false)},
+	}))
+	// I: AV1 codec but out of legacy scope → not an idet candidate (only the
+	// HDR-truth branch applies, already covered by F-style logic; here it's
+	// fully probed so NOT a candidate).
+	itemI := newTestMediaItem("lvlI", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemI))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "i-v", MediaItemID: itemI.ID, StreamIndex: 0, StreamType: "video", Codec: "av1", Level: new(8), ColorTransfer: new("bt709")},
+	}))
 
 	ids, err := streamRepo.ListVideoLevelMissing(ctx, 10, nil)
 	require.NoError(t, err)
-	assert.Equal(t, []string{string(itemA.ID), string(itemB.ID), string(itemD.ID), string(itemF.ID)}, ids,
-		"candidates = h264 NULL-level + hevc/av1/vp9 missing level or color_transfer")
+	assert.Equal(t, []string{string(itemA.ID), string(itemB.ID), string(itemD.ID), string(itemF.ID), string(itemG.ID)}, ids,
+		"candidates = h264 NULL-level + hevc/av1/vp9 missing HDR truth + legacy codec missing idet verdict")
 
-	excluded, err := streamRepo.ListVideoLevelMissing(ctx, 10, []string{string(itemA.ID), string(itemB.ID), string(itemD.ID), string(itemF.ID)})
+	excluded, err := streamRepo.ListVideoLevelMissing(ctx, 10,
+		[]string{string(itemA.ID), string(itemB.ID), string(itemD.ID), string(itemF.ID), string(itemG.ID)})
 	require.NoError(t, err)
 	assert.Empty(t, excluded, "excluding every candidate yields none")
+}
+
+// SetIdetInterlaced persists a DEFINITIVE verdict (true OR false), never
+// overwrites, and round-trips through the column.
+func TestMediaStreamRepo_SetIdetInterlaced(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("idetlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("idet1", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "id-v", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video", Codec: "mpeg2video"},
+	}))
+
+	n, err := streamRepo.SetIdetInterlaced(ctx, item.ID, true)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	got, err := streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0].IdetInterlaced)
+	assert.True(t, *got[0].IdetInterlaced)
+
+	// Second call must NOT overwrite (idet_interlaced IS NULL guard).
+	n2, err := streamRepo.SetIdetInterlaced(ctx, item.ID, false)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n2, "an existing verdict is not overwritten")
+	got2, err := streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	assert.True(t, *got2[0].IdetInterlaced, "verdict unchanged on the second call")
+}
+
+// field_order + sample_aspect_ratio round-trip through CreateBatch/Get and the
+// SetVideoLevels backfill fills them like the other COALESCE columns.
+func TestMediaStreamRepo_LegacyCodecColumnsRoundtrip(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("legacylib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("legacy1", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "lg-v", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video", Codec: "mpeg2video",
+			FieldOrder: new("tt"), SampleAspectRatio: new("64:45")},
+	}))
+
+	got, err := streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0].FieldOrder)
+	assert.Equal(t, "tt", *got[0].FieldOrder)
+	require.NotNil(t, got[0].SampleAspectRatio)
+	assert.Equal(t, "64:45", *got[0].SampleAspectRatio)
+
+	// A backfill probe fills both on a stream that had them NULL.
+	item2 := newTestMediaItem("legacy2", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item2))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "lg2-v", MediaItemID: item2.ID, StreamIndex: 0, StreamType: "video", Codec: "mpeg4"},
+	}))
+	probe := []*library.MediaStream{
+		{StreamType: "video", StreamIndex: 0, Codec: "mpeg4", FieldOrder: new("progressive"), SampleAspectRatio: new("16:11")},
+	}
+	upd, err := streamRepo.SetVideoLevels(ctx, item2.ID, probe)
+	require.NoError(t, err)
+	assert.Equal(t, 1, upd)
+	got2, err := streamRepo.GetByMediaItemID(ctx, item2.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "progressive", *got2[0].FieldOrder)
+	assert.Equal(t, "16:11", *got2[0].SampleAspectRatio)
 }
 
 func TestMediaStreamRepo_SetVideoLevels_FillsOnceNeverWipes(t *testing.T) {

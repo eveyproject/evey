@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -103,6 +104,19 @@ type DecisionFingerprint struct {
 	// determined by (MediaID, SourcePath) which are already hashed, so it can
 	// never alias two different byte streams.
 	SourceVideoCodec string
+
+	// DeinterlaceAll switches the software builder to bwdif deint=all (vs the
+	// default flag-gated deint=interlaced) for legacy sources the idet content
+	// detection flagged interlaced despite their container flags. Different
+	// deinterlace mode ⇒ different output frames, so it is a Hash() dimension —
+	// emitted CONDITIONALLY (only when true) so enabling it never orphans the
+	// caches of progressive titles whose bytes are unchanged.
+	DeinterlaceAll bool
+	// SourceSAR is the source sample aspect ratio ("64:45" anamorphic, ""/"1:1"
+	// square). Anamorphic correction changes the scaled height, so the served
+	// bytes differ ⇒ Hash() dimension, emitted CONDITIONALLY (only when it
+	// denotes a non-square ratio) to preserve every square-pixel cache entry.
+	SourceSAR string
 
 	// HWAccel / HWDevice select the hardware encode backend ("nvenc"/"vaapi"/
 	// "qsv" + DRM render node) when the handler resolves one. Deliberately
@@ -247,12 +261,49 @@ func (f DecisionFingerprint) Hash() string {
 		// Conditional on purpose: see the AudioCopy field comment.
 		b.WriteString("acopy=true\n")
 	}
+	if f.DeinterlaceAll {
+		// Conditional: only an idet-flagged interlaced title forks its cache.
+		b.WriteString("deintall=true\n")
+	}
+	if num, den, ok := parseSARRatio(f.SourceSAR); ok && num != den {
+		// Conditional: only an anamorphic source forks its cache (square pixels
+		// keep the pre-feature hash). Normalised to the reduced ratio so "64:45"
+		// and "128:90" hash identically.
+		fmt.Fprintf(&b, "sar=%d:%d\n", num, den)
+	}
 	for _, p := range profiles {
 		fmt.Fprintf(&b, "p=%s|%dx%d|%d|%d|copy=%t\n", p.Name, p.Width, p.Height, p.VideoBitrate, p.AudioBitrate, p.Copy)
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	// 16 hex chars = 64 bits, low enough collision risk for our cache scale.
 	return hex.EncodeToString(sum[:])[:16]
+}
+
+// parseSARRatio parses "N:D" into reduced integer parts (gcd-normalised so
+// equivalent ratios hash identically). ok=false for empty/malformed/zero
+// values — treated as square pixels by the caller.
+func parseSARRatio(s string) (num, den int, ok bool) {
+	n, d, found := strings.Cut(strings.TrimSpace(s), ":")
+	if !found {
+		return 0, 0, false
+	}
+	num, err1 := strconv.Atoi(n)
+	den, err2 := strconv.Atoi(d)
+	if err1 != nil || err2 != nil || num <= 0 || den <= 0 {
+		return 0, 0, false
+	}
+	g := gcdInt(num, den)
+	return num / g, den / g, true
+}
+
+func gcdInt(a, b int) int {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	if a == 0 {
+		return 1
+	}
+	return a
 }
 
 // SegmentCache is the on-disk store for transcoded HLS segments, addressed by

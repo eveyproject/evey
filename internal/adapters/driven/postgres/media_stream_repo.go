@@ -43,24 +43,26 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 	var b strings.Builder
 	b.WriteString(`INSERT INTO media_streams (id, media_item_id, stream_index, stream_type, codec, codec_long_name,
 		profile, language, title, is_default, is_forced, width, height, framerate, bit_depth, color_space,
-		color_transfer, hdr_type, dovi_profile, dovi_bl_compat, channels, channel_layout, sample_rate,
+		color_transfer, hdr_type, dovi_profile, dovi_bl_compat, field_order, idet_interlaced,
+		sample_aspect_ratio, channels, channel_layout, sample_rate,
 		bitrate, is_external, external_path, level) VALUES `)
 
-	args := make([]any, 0, len(streams)*27)
+	args := make([]any, 0, len(streams)*30)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i * 27
-		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		base := i * 30
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
-			base+20, base+21, base+22, base+23, base+24, base+25, base+26, base+27)
+			base+20, base+21, base+22, base+23, base+24, base+25, base+26, base+27, base+28, base+29, base+30)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,
 			s.Framerate, s.BitDepth, s.ColorSpace, s.ColorTransfer, s.HDRType,
-			s.DoViProfile, s.DoViBLCompat, s.Channels, s.ChannelLayout,
+			s.DoViProfile, s.DoViBLCompat, s.FieldOrder, s.IdetInterlaced,
+			s.SampleAspectRatio, s.Channels, s.ChannelLayout,
 			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath, s.Level,
 		)
 	}
@@ -114,24 +116,26 @@ func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID sh
 	var b strings.Builder
 	b.WriteString(`INSERT INTO media_streams (id, media_item_id, stream_index, stream_type, codec, codec_long_name,
 		profile, language, title, is_default, is_forced, width, height, framerate, bit_depth, color_space,
-		color_transfer, hdr_type, dovi_profile, dovi_bl_compat, channels, channel_layout, sample_rate,
+		color_transfer, hdr_type, dovi_profile, dovi_bl_compat, field_order, idet_interlaced,
+		sample_aspect_ratio, channels, channel_layout, sample_rate,
 		bitrate, is_external, external_path, level) VALUES `)
 
-	args := make([]any, 0, len(streams)*27)
+	args := make([]any, 0, len(streams)*30)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i * 27
-		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		base := i * 30
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
-			base+20, base+21, base+22, base+23, base+24, base+25, base+26, base+27)
+			base+20, base+21, base+22, base+23, base+24, base+25, base+26, base+27, base+28, base+29, base+30)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,
 			s.Framerate, s.BitDepth, s.ColorSpace, s.ColorTransfer, s.HDRType,
-			s.DoViProfile, s.DoViBLCompat, s.Channels, s.ChannelLayout,
+			s.DoViProfile, s.DoViBLCompat, s.FieldOrder, s.IdetInterlaced,
+			s.SampleAspectRatio, s.Channels, s.ChannelLayout,
 			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath, s.Level,
 		)
 	}
@@ -158,7 +162,7 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, stream_index, stream_type, codec, codec_long_name, profile, language, title,
 		 is_default, is_forced, width, height, framerate, bit_depth, color_space, color_transfer, hdr_type,
-		 dovi_profile, dovi_bl_compat, channels,
+		 dovi_profile, dovi_bl_compat, field_order, idet_interlaced, sample_aspect_ratio, channels,
 		 channel_layout, sample_rate, bitrate, is_external, external_path, level, keyframes_ms
 		 FROM media_streams WHERE media_item_id = $1 ORDER BY stream_index`, string(mediaItemID))
 	if err != nil {
@@ -175,7 +179,8 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 			&s.ID, &s.MediaItemID, &s.StreamIndex, &s.StreamType, &s.Codec, &s.CodecLongName,
 			&s.Profile, &s.Language, &s.Title, &s.IsDefault, &s.IsForced, &s.Width, &s.Height,
 			&s.Framerate, &s.BitDepth, &s.ColorSpace, &s.ColorTransfer, &s.HDRType,
-			&s.DoViProfile, &s.DoViBLCompat, &s.Channels, &s.ChannelLayout,
+			&s.DoViProfile, &s.DoViBLCompat, &s.FieldOrder, &s.IdetInterlaced,
+			&s.SampleAspectRatio, &s.Channels, &s.ChannelLayout,
 			&s.SampleRate, &s.Bitrate, &s.IsExternal, &s.ExternalPath, &s.Level, pq.Array(&s.Keyframes),
 		); err != nil {
 			span.RecordError(err)
@@ -239,7 +244,8 @@ func (r *MediaStreamRepository) ListVideoLevelMissing(ctx context.Context, limit
 		`SELECT DISTINCT media_item_id FROM media_streams
 		 WHERE stream_type = 'video'
 		   AND ((lower(codec) = 'h264' AND level IS NULL)
-		     OR (lower(codec) IN ('hevc', 'av1', 'vp9') AND (level IS NULL OR color_transfer IS NULL)))
+		     OR (lower(codec) IN ('hevc', 'av1', 'vp9') AND (level IS NULL OR color_transfer IS NULL))
+		     OR (lower(codec) IN ('mpeg2video', 'mpeg4', 'msmpeg4v3') AND idet_interlaced IS NULL))
 		   AND NOT (media_item_id = ANY($1))
 		 ORDER BY media_item_id
 		 LIMIT $2`, pq.Array(exclude), limit)
@@ -286,7 +292,8 @@ func (r *MediaStreamRepository) SetVideoLevels(ctx context.Context, mediaItemID 
 		if s == nil || s.StreamType != library.Video {
 			continue
 		}
-		if s.Level == nil && s.ColorTransfer == nil && s.DoViProfile == nil {
+		if s.Level == nil && s.ColorTransfer == nil && s.DoViProfile == nil &&
+			s.FieldOrder == nil && s.SampleAspectRatio == nil {
 			continue // probe resolved nothing this backfill can fill
 		}
 		res, err := r.db.ExecContext(ctx,
@@ -294,12 +301,17 @@ func (r *MediaStreamRepository) SetVideoLevels(ctx context.Context, mediaItemID 
 			   level = COALESCE(level, $1),
 			   color_transfer = COALESCE(color_transfer, $2),
 			   dovi_profile = COALESCE(dovi_profile, $3),
-			   dovi_bl_compat = COALESCE(dovi_bl_compat, $4)
-			 WHERE media_item_id = $5 AND stream_index = $6 AND stream_type = 'video'
+			   dovi_bl_compat = COALESCE(dovi_bl_compat, $4),
+			   field_order = COALESCE(field_order, $5),
+			   sample_aspect_ratio = COALESCE(sample_aspect_ratio, $6)
+			 WHERE media_item_id = $7 AND stream_index = $8 AND stream_type = 'video'
 			   AND ((level IS NULL AND $1::int IS NOT NULL)
 			     OR (color_transfer IS NULL AND $2::text IS NOT NULL)
-			     OR (dovi_profile IS NULL AND $3::smallint IS NOT NULL))`,
+			     OR (dovi_profile IS NULL AND $3::smallint IS NOT NULL)
+			     OR (field_order IS NULL AND $5::text IS NOT NULL)
+			     OR (sample_aspect_ratio IS NULL AND $6::text IS NOT NULL))`,
 			s.Level, s.ColorTransfer, s.DoViProfile, s.DoViBLCompat,
+			s.FieldOrder, s.SampleAspectRatio,
 			string(mediaItemID), s.StreamIndex)
 		if err != nil {
 			span.RecordError(err)
@@ -310,6 +322,31 @@ func (r *MediaStreamRepository) SetVideoLevels(ctx context.Context, mediaItemID 
 		updated += int(n)
 	}
 	return updated, nil
+}
+
+// SetIdetInterlaced stores the idet content-detection verdict on the item's
+// video stream(s). Unlike the other backfill columns it writes a DEFINITIVE
+// verdict (true OR false): the candidate query keys on idet_interlaced IS
+// NULL, so a "not interlaced" result must persist as FALSE or the worker
+// would re-run the (decode-heavy) probe on every pass. Never overwrites an
+// existing verdict.
+func (r *MediaStreamRepository) SetIdetInterlaced(ctx context.Context, mediaItemID shared.MediaItemID, interlaced bool) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.SetIdetInterlaced")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE media_streams SET idet_interlaced = $1
+		 WHERE media_item_id = $2 AND stream_type = 'video' AND idet_interlaced IS NULL`,
+		interlaced, string(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
 }
 
 // ListVideoKeyframesMissing returns up to `limit` media item IDs that carry a

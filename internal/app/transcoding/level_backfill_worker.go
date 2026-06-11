@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -19,11 +20,29 @@ type LevelBackfillStore interface {
 	// hevc: level OR color_transfer IS NULL), excluding the given IDs.
 	ListVideoLevelMissing(ctx context.Context, limit int, exclude []string) ([]string, error)
 	// SetVideoLevels fills the copy-rung metadata (level, color_transfer,
-	// dovi_profile, dovi_bl_compat) of the item's video streams from a probe,
-	// matched by stream_index, writing only missing values and never deleting.
-	// Returns how many rows were updated.
+	// dovi_profile, dovi_bl_compat, field_order, sample_aspect_ratio) of the
+	// item's video streams from a probe, matched by stream_index, writing only
+	// missing values and never deleting. Returns how many rows were updated.
 	SetVideoLevels(ctx context.Context, mediaItemID shared.MediaItemID, streams []*library.MediaStream) (int, error)
+	// SetIdetInterlaced stores the idet content-detection verdict (a
+	// DEFINITIVE true/false — the candidate query keys on NULL, so a negative
+	// must persist or the decode-heavy probe re-runs forever). Never
+	// overwrites an existing verdict. Returns rows updated.
+	SetIdetInterlaced(ctx context.Context, mediaItemID shared.MediaItemID, interlaced bool) (int, error)
 }
+
+// InterlaceDetector is the OPTIONAL prober capability the idet fallback needs.
+// The worker type-asserts it from its StreamProber (the ffmpeg prober
+// implements it); absent, legacy-codec candidates simply skip the idet phase.
+type InterlaceDetector interface {
+	ProbeInterlaceDetect(ctx context.Context, filePath string) (bool, error)
+}
+
+// idetSuspectCodecs are the DVD/DivX-era codecs whose rips routinely carry
+// interlaced CONTENT without decoder flags (repacks re-encode the fields as
+// "progressive" frames). Only these pay the idet decode — modern codecs trust
+// their flags.
+var idetSuspectCodecs = map[string]bool{"mpeg2video": true, "mpeg4": true, "msmpeg4v3": true}
 
 // LevelBackfillWorker re-probes existing media in the background to fill the
 // copy-rung metadata columns the scanner never back-populates (it skips files
@@ -216,6 +235,14 @@ func (w *LevelBackfillWorker) backfillOne(ctx context.Context, mediaItemID strin
 			slog.String("media_id", mediaItemID), slog.Any("err", err))
 		return false
 	}
+
+	// idet phase: legacy-codec sources whose flags don't already say
+	// interlaced get a CONTENT detection (the flags routinely lie on repacked
+	// DVD rips). The verdict — true or false — is persisted so the candidate
+	// query (idet_interlaced IS NULL) converges; a probe failure leaves NULL
+	// and the in-run skip-set prevents a tight loop.
+	updated += w.idetPhase(ctx, mediaItemID, item.File.Path, res.Streams)
+
 	if updated == 0 {
 		// Probe succeeded but resolved nothing new (no level, and for hevc no
 		// colour/DoVi metadata) — leave NULL; mark to avoid a re-probe loop on a
@@ -227,6 +254,59 @@ func (w *LevelBackfillWorker) backfillOne(ctx context.Context, mediaItemID strin
 		slog.String("title", item.Title),
 		slog.Int("streams_updated", updated))
 	return true
+}
+
+// idetPhase runs the interlace content detection for a legacy-codec video
+// stream and persists the verdict. Returns the rows updated (0 when the
+// stream isn't a suspect, the prober lacks the capability, the flags already
+// say interlaced — bwdif's flag gate handles those — or the probe failed).
+func (w *LevelBackfillWorker) idetPhase(ctx context.Context, mediaItemID, path string, streams []*library.MediaStream) int {
+	detector, ok := w.prober.(InterlaceDetector)
+	if !ok {
+		return 0
+	}
+	var video *library.MediaStream
+	for _, s := range streams {
+		if s != nil && s.StreamType == library.Video {
+			video = s
+			break
+		}
+	}
+	if video == nil || !idetSuspectCodecs[strings.ToLower(video.Codec)] {
+		return 0
+	}
+	if fo := video.FieldOrder; fo != nil {
+		switch strings.ToLower(*fo) {
+		case "tt", "bb", "tb", "bt":
+			// Decoder-flagged interlaced: deint=interlaced already covers it, and
+			// running deint=all on top would be redundant. Persist FALSE so the
+			// candidate query converges without paying the decode.
+			n, err := w.store.SetIdetInterlaced(ctx, shared.MediaItemID(mediaItemID), false)
+			if err != nil {
+				w.logger.Warn("idet backfill: persist flagged verdict failed",
+					slog.String("media_id", mediaItemID), slog.Any("err", err))
+				return 0
+			}
+			return n
+		}
+	}
+	interlaced, err := detector.ProbeInterlaceDetect(ctx, path)
+	if err != nil {
+		w.logger.Warn("idet backfill: probe failed",
+			slog.String("media_id", mediaItemID), slog.Any("err", err))
+		return 0
+	}
+	n, err := w.store.SetIdetInterlaced(ctx, shared.MediaItemID(mediaItemID), interlaced)
+	if err != nil {
+		w.logger.Warn("idet backfill: persist failed",
+			slog.String("media_id", mediaItemID), slog.Any("err", err))
+		return 0
+	}
+	if interlaced {
+		w.logger.Info("idet backfill: unflagged interlaced content detected",
+			slog.String("media_id", mediaItemID))
+	}
+	return n
 }
 
 // excluded snapshots the in-run skip-set for the candidate query.

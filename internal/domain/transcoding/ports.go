@@ -120,7 +120,20 @@ type HLSProcessOpts struct {
 	// on, and the content goes the HW path; mutually exclusive with the software
 	// ToneMap above (the HW builder ignores ToneMap, the software builder ignores
 	// this). When false the software path is byte-identical to a no-HW-tonemap host.
-	HWTonemap      bool
+	HWTonemap bool
+	// DeinterlaceAll switches the software deinterlacer from bwdif
+	// deint=interlaced (flag-gated) to deint=all, for legacy sources whose
+	// container flags lie (repacked DVD rips store interlaced fields as
+	// "progressive" frames → combing the flag gate never touches). Set from
+	// the idet content-detection verdict (DecisionFingerprint.DeinterlaceAll).
+	// false = the unchanged flag-gated behaviour, a no-op on real progressive.
+	DeinterlaceAll bool
+	// SourceSAR is the source sample aspect ratio ("64:45" on anamorphic DVD),
+	// empty/"1:1" for square pixels. When anamorphic, the builder derives the
+	// scale height from the DISPLAY aspect so the output isn't stretched —
+	// the historical scale=W:-2,setsar=1 preserved storage pixels and squashed
+	// the picture.
+	SourceSAR      string
 	AudioNormalize bool
 	StartSec       float64
 	// StartNumber is the absolute segment index this process starts producing at

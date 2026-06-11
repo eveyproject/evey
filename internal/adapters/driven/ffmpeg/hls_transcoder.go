@@ -692,6 +692,49 @@ const hlsSegmentSeconds = "3"
 // repacks) at their native rate and is a true 1:1 no-op on progressive content.
 const deinterlaceFilter = "bwdif=mode=send_frame:deint=interlaced"
 
+// deinterlaceFilterFor returns the software deinterlacer for these opts. The
+// default flag-gated bwdif (deint=interlaced) is a no-op on progressive
+// content; when the idet content detection flagged the source interlaced
+// despite its container saying otherwise (DeinterlaceAll), it switches to
+// deint=all so every frame is deinterlaced — the only way to clear the
+// combing a lying flag hides. send_frame still keeps the source frame rate.
+func deinterlaceFilterFor(opts transcoding.HLSProcessOpts) string {
+	if opts.DeinterlaceAll {
+		return "bwdif=mode=send_frame:deint=all"
+	}
+	return deinterlaceFilter
+}
+
+// scaleFilterFor builds the software scale filter for these opts, anamorphic-
+// aware. Square-pixel sources keep the historical "scale=W:-2,setsar=1" (even
+// height, square output). For an anamorphic source (SourceSAR num != den) the
+// output height is computed from the DISPLAY aspect so the picture isn't
+// squashed: oh = W·ih·den/(iw·num), rounded to an even value. A 720x576
+// DAR-16:9 PAL DVD (SAR 64:45) targeting 640 wide becomes 640x360, not the
+// 640x512 the storage-ratio scale would produce. setsar=1 bakes square pixels
+// for the encoder either way.
+func scaleFilterFor(opts transcoding.HLSProcessOpts, width int) string {
+	if num, den, ok := parseAspect(opts.SourceSAR); ok && num != den {
+		return fmt.Sprintf("scale=%d:'trunc(%d*ih*%d/(iw*%d)/2)*2',setsar=1", width, width, den, num)
+	}
+	return fmt.Sprintf("scale=%d:-2,setsar=1", width)
+}
+
+// parseAspect parses an "N:D" aspect string into its integer parts. Returns
+// ok=false for empty, malformed, or zero-denominator values.
+func parseAspect(s string) (num, den int, ok bool) {
+	n, d, found := strings.Cut(strings.TrimSpace(s), ":")
+	if !found {
+		return 0, 0, false
+	}
+	num, err1 := strconv.Atoi(n)
+	den, err2 := strconv.Atoi(d)
+	if err1 != nil || err2 != nil || num <= 0 || den <= 0 {
+		return 0, 0, false
+	}
+	return num, den, true
+}
+
 // softwareCRF is the x264 quality target for the software ABR ladder. Paired
 // with per-rung -maxrate/-bufsize ("capped CRF"): CRF fixes the perceptual
 // quality so easy scenes spend fewer bits than the rung's bitrate (bandwidth
@@ -1028,34 +1071,36 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	args = appendInputModifiers(args, opts.ReadRate)
 	args = append(args, "-i", opts.FilePath)
 
+	deint := deinterlaceFilterFor(opts)
 	if burnIn || toneMap != "" {
 		var filterParts []string
 		switch {
 		case burnIn && toneMap != "":
 			// deinterlace → tonemap → overlay → scale
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s,%s[vt]", deinterlaceFilter, toneMap),
-				fmt.Sprintf("[vt][0:s:%d]overlay,scale=%d:-2,setsar=1[out]", opts.SubtitleTrackIndex, p.Width),
+				fmt.Sprintf("[0:v]%s,%s[vt]", deint, toneMap),
+				fmt.Sprintf("[vt][0:s:%d]overlay,%s[out]", opts.SubtitleTrackIndex, scaleFilterFor(opts, p.Width)),
 			)
 		case burnIn:
 			// deinterlace the video before burning the subtitle overlay on it
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s[vd]", deinterlaceFilter),
-				fmt.Sprintf("[vd][0:s:%d]overlay,scale=%d:-2,setsar=1[out]", opts.SubtitleTrackIndex, p.Width),
+				fmt.Sprintf("[0:v]%s[vd]", deint),
+				fmt.Sprintf("[vd][0:s:%d]overlay,%s[out]", opts.SubtitleTrackIndex, scaleFilterFor(opts, p.Width)),
 			)
 		default:
 			// tonemap already downscaled to p.Width (folded into its linearizing
 			// zscale), so no trailing scale — that 4× cut in tonemapped pixels is
-			// the fix that keeps a weak host real-time on 4K HDR sources.
+			// the fix that keeps a weak host real-time on 4K HDR sources. (HDR and
+			// anamorphic SD are disjoint in practice, so no SAR correction here.)
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s,%s,setsar=1[out]", deinterlaceFilter, toneMap),
+				fmt.Sprintf("[0:v]%s,%s,setsar=1[out]", deint, toneMap),
 			)
 		}
 		args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
 		args = append(args, "-map", "[out]")
 	} else {
 		args = append(args, "-map", "0:v:0",
-			"-vf", fmt.Sprintf("%s,scale=%d:-2,setsar=1", deinterlaceFilter, p.Width),
+			"-vf", fmt.Sprintf("%s,%s", deint, scaleFilterFor(opts, p.Width)),
 		)
 	}
 
@@ -1129,13 +1174,13 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	if burnIn {
 		if toneMap != "" {
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s,%s[vt]", deinterlaceFilter, toneMap),
+				fmt.Sprintf("[0:v]%s,%s[vt]", deinterlaceFilterFor(opts), toneMap),
 				fmt.Sprintf("[vt][0:s:%d]overlay[vb]", opts.SubtitleTrackIndex),
 				fmt.Sprintf("[vb]split=%d%s", n, strings.Join(splitOutputs, "")),
 			)
 		} else {
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s[vd]", deinterlaceFilter),
+				fmt.Sprintf("[0:v]%s[vd]", deinterlaceFilterFor(opts)),
 				fmt.Sprintf("[vd][0:s:%d]overlay[vb]", opts.SubtitleTrackIndex),
 				fmt.Sprintf("[vb]split=%d%s", n, strings.Join(splitOutputs, "")),
 			)
@@ -1143,18 +1188,18 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	} else {
 		if toneMap != "" {
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s,%s[vt]", deinterlaceFilter, toneMap),
+				fmt.Sprintf("[0:v]%s,%s[vt]", deinterlaceFilterFor(opts), toneMap),
 				fmt.Sprintf("[vt]split=%d%s", n, strings.Join(splitOutputs, "")),
 			)
 		} else {
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s,split=%d%s", deinterlaceFilter, n, strings.Join(splitOutputs, "")),
+				fmt.Sprintf("[0:v]%s,split=%d%s", deinterlaceFilterFor(opts), n, strings.Join(splitOutputs, "")),
 			)
 		}
 	}
 
 	for i, p := range opts.Profiles {
-		filterParts = append(filterParts, fmt.Sprintf("[v%d]scale=%d:-2,setsar=1[o%d]", i, p.Width, i))
+		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s[o%d]", i, scaleFilterFor(opts, p.Width), i))
 	}
 	args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
 

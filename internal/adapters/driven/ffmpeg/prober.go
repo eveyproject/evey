@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -34,27 +35,29 @@ type ffprobeOutput struct {
 }
 
 type ffprobeStream struct {
-	Index            int                `json:"index"`
-	CodecName        string             `json:"codec_name"`
-	CodecLongName    string             `json:"codec_long_name"`
-	CodecType        string             `json:"codec_type"`
-	Profile          string             `json:"profile"`
-	Level            int                `json:"level"`
-	Width            int                `json:"width"`
-	Height           int                `json:"height"`
-	RFrameRate       string             `json:"r_frame_rate"`
-	PixFmt           string             `json:"pix_fmt"`
-	ColorSpace       string             `json:"color_space"`
-	ColorTransfer    string             `json:"color_transfer"`
-	ColorPrimaries   string             `json:"color_primaries"`
-	Channels         int                `json:"channels"`
-	ChannelLayout    string             `json:"channel_layout"`
-	SampleRate       string             `json:"sample_rate"`
-	BitsPerRawSample string             `json:"bits_per_raw_sample"`
-	BitRate          string             `json:"bit_rate"`
-	Disposition      ffprobeDisposition `json:"disposition"`
-	Tags             map[string]string  `json:"tags"`
-	SideDataList     []ffprobeSideData  `json:"side_data_list"`
+	Index             int                `json:"index"`
+	CodecName         string             `json:"codec_name"`
+	CodecLongName     string             `json:"codec_long_name"`
+	CodecType         string             `json:"codec_type"`
+	Profile           string             `json:"profile"`
+	Level             int                `json:"level"`
+	Width             int                `json:"width"`
+	Height            int                `json:"height"`
+	RFrameRate        string             `json:"r_frame_rate"`
+	PixFmt            string             `json:"pix_fmt"`
+	FieldOrder        string             `json:"field_order"`
+	SampleAspectRatio string             `json:"sample_aspect_ratio"`
+	ColorSpace        string             `json:"color_space"`
+	ColorTransfer     string             `json:"color_transfer"`
+	ColorPrimaries    string             `json:"color_primaries"`
+	Channels          int                `json:"channels"`
+	ChannelLayout     string             `json:"channel_layout"`
+	SampleRate        string             `json:"sample_rate"`
+	BitsPerRawSample  string             `json:"bits_per_raw_sample"`
+	BitRate           string             `json:"bit_rate"`
+	Disposition       ffprobeDisposition `json:"disposition"`
+	Tags              map[string]string  `json:"tags"`
+	SideDataList      []ffprobeSideData  `json:"side_data_list"`
 }
 
 // ffprobeSideData carries the per-stream side data entries. The only one the
@@ -64,9 +67,9 @@ type ffprobeStream struct {
 // renders green/purple on any non-DoVi pipeline) while letting profile 8 be
 // served as its compatible base layer.
 type ffprobeSideData struct {
-	SideDataType        string `json:"side_data_type"`
-	DVProfile           *int   `json:"dv_profile"`
-	DVBLSignalCompatID  *int   `json:"dv_bl_signal_compatibility_id"`
+	SideDataType       string `json:"side_data_type"`
+	DVProfile          *int   `json:"dv_profile"`
+	DVBLSignalCompatID *int   `json:"dv_bl_signal_compatibility_id"`
 }
 
 type ffprobeDisposition struct {
@@ -130,6 +133,15 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 		if s.ColorTransfer != "" {
 			ct := s.ColorTransfer
 			ms.ColorTransfer = &ct
+		}
+		if s.FieldOrder != "" {
+			fo := s.FieldOrder
+			ms.FieldOrder = &fo
+		}
+		// "0:1" is ffprobe's "unset" sentinel, not a real sample aspect ratio.
+		if s.SampleAspectRatio != "" && s.SampleAspectRatio != "0:1" {
+			sar := s.SampleAspectRatio
+			ms.SampleAspectRatio = &sar
 		}
 		for _, sd := range s.SideDataList {
 			if sd.SideDataType != "DOVI configuration record" || sd.DVProfile == nil {
@@ -198,6 +210,84 @@ func (p *Prober) ProbeKeyframes(ctx context.Context, filePath string) ([]int64, 
 		return nil, fmt.Errorf("ffprobe keyframes: %w", err)
 	}
 	return parseKeyframeCSV(out), nil
+}
+
+// ProbeInterlaceDetect runs ffmpeg's idet filter over a ~300-frame window a
+// minute into the file (past studio logos / black intros) and reports whether
+// the CONTENT is interlaced. This is the fallback for sources whose container
+// flags are absent or lie — repacked DVD rips store interlaced fields inside
+// "progressive" frames, so the decoder never tags them and the flag-gated
+// bwdif (deint=interlaced) leaves the combing untouched. Cost: a ~12s decode
+// of SD content (~1-2 s wall) — background backfill only, never a hot path.
+//
+// Verdict: interlaced when the (TFF+BFF) multi-frame counts MAJORITY the
+// determined frames (more interlaced than progressive). A simple majority vote
+// is conservative on purpose — synthetic and lightly-noisy progressive content
+// scatters a minority of frames into TFF/BFF, so a low percentage threshold
+// would false-positive and softly deinterlace progressive titles; when in
+// doubt, don't. Telecined / genuinely interlaced sources clear the majority
+// easily.
+func (p *Prober) ProbeInterlaceDetect(ctx context.Context, filePath string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.prober.ProbeInterlaceDetect")
+	defer span.End()
+	// First attempt skips a minute in (past studio logos / black intros). If it
+	// errors OR determines no frames — a short file where -ss 60 seeks past the
+	// end — retry from the start.
+	interlaced, ok, err := p.idetRun(ctx, filePath, true)
+	if err == nil && ok {
+		return interlaced, nil
+	}
+	interlaced, ok, err = p.idetRun(ctx, filePath, false)
+	if err != nil {
+		return false, fmt.Errorf("ffmpeg idet probe: %w", err)
+	}
+	if !ok {
+		return false, fmt.Errorf("ffmpeg idet probe: zero determined frames")
+	}
+	return interlaced, nil
+}
+
+// idetRun executes one idet pass and parses the verdict. ok=false means the
+// run determined no frames (the caller retries without the seek). seek inserts
+// the -ss 60 skip.
+func (p *Prober) idetRun(ctx context.Context, filePath string, seek bool) (interlaced, ok bool, err error) {
+	args := []string{"-v", "info"}
+	if seek {
+		args = append(args, "-ss", "60")
+	}
+	args = append(args, "-i", filePath, "-map", "0:v:0",
+		"-vf", "idet", "-frames:v", "300", "-an", "-sn", "-f", "null", "-")
+	// idet prints its summary on stderr at stream close.
+	out, runErr := exec.CommandContext(ctx, seekLandingBinary, args...).CombinedOutput()
+	if runErr != nil {
+		return false, false, runErr
+	}
+	return parseIdetSummary(out)
+}
+
+// parseIdetSummary extracts the multi-frame detection counters from idet's
+// stderr summary:
+//
+//	[Parsed_idet_0 @ ...] Multi frame detection: TFF:   120 BFF:     0 Progressive:   170 Undetermined:    10
+//
+// Returns ok=false when no frames were determined (e.g. a seek past EOF).
+func parseIdetSummary(out []byte) (interlaced, ok bool, err error) {
+	re := regexp.MustCompile(`Multi frame detection: TFF:\s*(\d+)\s*BFF:\s*(\d+)\s*Progressive:\s*(\d+)`)
+	// ffmpeg can print more than one idet summary (an initial all-zero one
+	// before frames flow, plus the real one at stream close). The LAST is the
+	// cumulative result.
+	all := re.FindAllSubmatch(out, -1)
+	if len(all) == 0 {
+		return false, false, fmt.Errorf("no multi-frame summary in output")
+	}
+	m := all[len(all)-1]
+	tff, _ := strconv.Atoi(string(m[1]))
+	bff, _ := strconv.Atoi(string(m[2]))
+	prog, _ := strconv.Atoi(string(m[3]))
+	if tff+bff+prog == 0 {
+		return false, false, nil
+	}
+	return tff+bff > prog, true, nil
 }
 
 // seekLandingBinary is the ffmpeg CLI used by ProbeSeekLanding. It MUST be the

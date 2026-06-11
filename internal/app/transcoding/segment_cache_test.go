@@ -95,10 +95,10 @@ func TestAudioFingerprint_Hash_NamespaceDisjointFromVideo(t *testing.T) {
 
 func TestSegmentKey_FileName(t *testing.T) {
 	cases := []struct {
-		name    string
-		k       SegmentKey
-		fmp4    bool
-		expect  string
+		name   string
+		k      SegmentKey
+		fmp4   bool
+		expect string
 	}{
 		{"ts variant 0 seg 0", SegmentKey{VariantIdx: 0, SegmentIdx: 0}, false, "stream_0_000.ts"},
 		{"ts variant 1 seg 42", SegmentKey{VariantIdx: 1, SegmentIdx: 42}, false, "stream_1_042.ts"},
@@ -476,6 +476,32 @@ func TestDecisionFingerprint_Hash_DistinguishesAudioCopy(t *testing.T) {
 	// turning the feature on does not orphan every existing cache entry whose
 	// produced bytes are unchanged.
 	assert.Equal(t, fpA.Hash(), minimalFingerprint(t).Hash())
+}
+
+func TestDecisionFingerprint_Hash_DistinguishesDeinterlaceAndSAR(t *testing.T) {
+	// B3: deint=all vs flag-gated, and anamorphic vs square, produce different
+	// bytes ⇒ must fork the cache, but emit conditionally so progressive/square
+	// titles keep their pre-feature hash.
+	base := minimalFingerprint(t)
+
+	deint := minimalFingerprint(t)
+	deint.DeinterlaceAll = true
+	assert.NotEqual(t, base.Hash(), deint.Hash(), "deint=all must fork the cache")
+
+	sar := minimalFingerprint(t)
+	sar.SourceSAR = "64:45"
+	assert.NotEqual(t, base.Hash(), sar.Hash(), "anamorphic SAR must fork the cache")
+
+	// Conditional: defaults (false / "" / "1:1") keep the pre-feature hash.
+	assert.Equal(t, base.Hash(), minimalFingerprint(t).Hash())
+	square := minimalFingerprint(t)
+	square.SourceSAR = "1:1"
+	assert.Equal(t, base.Hash(), square.Hash(), "square pixels must NOT fork the cache")
+
+	// Equivalent SAR ratios normalise to the same hash (gcd-reduced).
+	sar2 := minimalFingerprint(t)
+	sar2.SourceSAR = "128:90" // == 64:45
+	assert.Equal(t, sar.Hash(), sar2.Hash(), "equivalent SAR ratios must hash identically")
 }
 
 func TestDecisionFingerprint_AudioDecision(t *testing.T) {

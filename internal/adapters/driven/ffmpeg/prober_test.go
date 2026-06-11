@@ -279,3 +279,30 @@ func TestProbeStreams_InvalidJSON(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ffprobe parse")
 }
+
+func TestParseIdetSummary(t *testing.T) {
+	// Real ffmpeg output: an initial all-zero summary then the cumulative one.
+	out := []byte(`[Parsed_idet_0 @ 0x1] Multi frame detection: TFF:     0 BFF:     0 Progressive:     0 Undetermined:     0
+[Parsed_idet_0 @ 0x2] Multi frame detection: TFF:   200 BFF:     0 Progressive:     0 Undetermined:     0`)
+	interlaced, ok, err := parseIdetSummary(out)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.True(t, interlaced, "TFF-dominant must read interlaced (last summary wins over the zero one)")
+
+	// Progressive majority → not interlaced.
+	prog := []byte(`x Multi frame detection: TFF:   104 BFF:   14 Progressive:   182 Undetermined:     0`)
+	interlaced, ok, err = parseIdetSummary(prog)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.False(t, interlaced, "progressive majority must not flip to deint=all")
+
+	// All undetermined (static / no motion) → ok=false, caller retries/leaves NULL.
+	none := []byte(`x Multi frame detection: TFF:     0 BFF:     0 Progressive:     0 Undetermined:   300`)
+	_, ok, err = parseIdetSummary(none)
+	require.NoError(t, err)
+	assert.False(t, ok, "zero determined frames ⇒ ok=false")
+
+	// No summary line at all → error.
+	_, _, err = parseIdetSummary([]byte("garbage"))
+	require.Error(t, err)
+}

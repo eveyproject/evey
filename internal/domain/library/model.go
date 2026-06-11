@@ -276,63 +276,76 @@ func (m *MediaItem) IsPlayable() bool {
 }
 
 type MediaStream struct {
-	ID             string
-	MediaItemID    shared.MediaItemID
-	StreamIndex    int
-	StreamType     StreamType
-	Codec          string
-	CodecLongName  string
-	Profile        string
+	ID            string
+	MediaItemID   shared.MediaItemID
+	StreamIndex   int
+	StreamType    StreamType
+	Codec         string
+	CodecLongName string
+	Profile       string
 	// Level is the codec level (e.g. H.264 level 4.0 = 40), nil when unknown.
 	// Needed with Profile to build the exact RFC-6381 CODECS string for a
 	// video-copy rung; a nil Level gates copy off (no accurate codec advertise).
-	Level          *int
-	Language       string
-	Title          string
-	IsDefault      bool
-	IsForced       bool
-	Width          *int
-	Height         *int
-	Framerate      *float64
-	BitDepth       *int
-	ColorSpace     *string
+	Level      *int
+	Language   string
+	Title      string
+	IsDefault  bool
+	IsForced   bool
+	Width      *int
+	Height     *int
+	Framerate  *float64
+	BitDepth   *int
+	ColorSpace *string
 	// ColorTransfer is the ffprobe color_transfer (smpte2084 = PQ, arib-std-b67
 	// = HLG, bt709 = SDR…), nil when the probe didn't report it. The only field
 	// that tells PQ from HLG, and — with DoViProfile — the HDR ground truth the
 	// copy/direct-play decision needs. A nil value on an HEVC stream gates the
 	// HEVC copy rung off until a re-probe backfills it (same pattern as Level).
-	ColorTransfer  *string
-	HDRType        *string
+	ColorTransfer *string
+	HDRType       *string
 	// DoViProfile / DoViBLCompat mirror the Dolby Vision configuration record
 	// (ffprobe side_data dv_profile + dv_bl_signal_compatibility_id), nil when
 	// the stream carries no DoVi RPU. Profile 5 must always transcode (IPTC2
 	// base layer renders wrong on non-DoVi pipelines); profile 8 with a
 	// compatible base layer (1=HDR10, 2=SDR, 4=HLG) may be served as its base.
-	DoViProfile    *int
-	DoViBLCompat   *int
-	Channels       *int
-	ChannelLayout  *string
-	SampleRate     *int
-	Bitrate        *int64
-	IsExternal     bool
-	ExternalPath   *string
+	DoViProfile  *int
+	DoViBLCompat *int
+	// FieldOrder is ffprobe's field_order (progressive/tt/bb/tb/bt), nil when
+	// unreported. A tt/bb/tb/bt value means frames are decoder-flagged
+	// interlaced and the flag-gated bwdif already deinterlaces them.
+	FieldOrder *string
+	// IdetInterlaced is the idet CONTENT-detection verdict for sources whose
+	// flags are absent or lie (repacked DVD rips), nil = never analyzed.
+	// true switches the transcode to bwdif deint=all for this title.
+	IdetInterlaced *bool
+	// SampleAspectRatio is ffprobe's sample_aspect_ratio (e.g. "64:45" on an
+	// anamorphic DVD source), nil when unreported. Anything other than 1:1
+	// makes the builder compute the scale height from the DISPLAY aspect —
+	// the historical storage-ratio scale+setsar=1 distorted such sources.
+	SampleAspectRatio *string
+	Channels          *int
+	ChannelLayout     *string
+	SampleRate        *int
+	Bitrate           *int64
+	IsExternal        bool
+	ExternalPath      *string
 	// Keyframes holds the video stream's keyframe presentation times in
 	// milliseconds (sorted ascending), or nil when not yet indexed. These are the
 	// only valid segment-start boundaries for a -c:v copy (remux) rung — a copied
 	// segment cannot begin mid-GOP. Populated by a background backfill, not the
 	// scan (the keyframe probe is too costly for the hot scan path). Video only.
-	Keyframes      []int64
+	Keyframes []int64
 }
 
-func (s *MediaStream) GetStreamType() string      { return string(s.StreamType) }
-func (s *MediaStream) GetBitDepth() *int          { return s.BitDepth }
-func (s *MediaStream) GetColorSpace() *string     { return s.ColorSpace }
-func (s *MediaStream) GetColorTransfer() *string  { return s.ColorTransfer }
-func (s *MediaStream) GetHDRType() *string        { return s.HDRType }
-func (s *MediaStream) GetProfile() string         { return s.Profile }
-func (s *MediaStream) GetLevel() *int             { return s.Level }
-func (s *MediaStream) GetDoViProfile() *int       { return s.DoViProfile }
-func (s *MediaStream) GetDoViBLCompat() *int      { return s.DoViBLCompat }
+func (s *MediaStream) GetStreamType() string     { return string(s.StreamType) }
+func (s *MediaStream) GetBitDepth() *int         { return s.BitDepth }
+func (s *MediaStream) GetColorSpace() *string    { return s.ColorSpace }
+func (s *MediaStream) GetColorTransfer() *string { return s.ColorTransfer }
+func (s *MediaStream) GetHDRType() *string       { return s.HDRType }
+func (s *MediaStream) GetProfile() string        { return s.Profile }
+func (s *MediaStream) GetLevel() *int            { return s.Level }
+func (s *MediaStream) GetDoViProfile() *int      { return s.DoViProfile }
+func (s *MediaStream) GetDoViBLCompat() *int     { return s.DoViBLCompat }
 
 type Person struct {
 	ID           string

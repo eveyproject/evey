@@ -629,6 +629,8 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		ReadRate:         p.copyReadRate(),
 		VideoCodec:       fp.VideoCodec,
 		SourceVideoCodec: fp.SourceVideoCodec,
+		DeinterlaceAll:   fp.DeinterlaceAll,
+		SourceSAR:        fp.SourceSAR,
 		AudioCodec:       fp.AudioCodec,
 		MaxAudioChannels: fp.MaxAudioChannels,
 		ForceSidecarSubs: fp.ForceSidecarSubs,

@@ -1173,3 +1173,46 @@ func TestHLSTranscoder_Stop(t *testing.T) {
 		t.Fatal("handle.Done() not closed after Stop")
 	}
 }
+
+// --- B3: deinterlace mode + anamorphic scale (unit, pure filter strings) ---
+
+func TestDeinterlaceFilterFor(t *testing.T) {
+	// Default (flag-gated) — a no-op on progressive content.
+	assert.Equal(t, "bwdif=mode=send_frame:deint=interlaced",
+		ffmpeg.DeinterlaceFilterForTest(transcoding.HLSProcessOpts{}))
+	// idet flagged the content interlaced despite lying container flags.
+	assert.Equal(t, "bwdif=mode=send_frame:deint=all",
+		ffmpeg.DeinterlaceFilterForTest(transcoding.HLSProcessOpts{DeinterlaceAll: true}))
+}
+
+func TestScaleFilterFor(t *testing.T) {
+	// Square pixels (or unset) keep the historical filter exactly.
+	assert.Equal(t, "scale=640:-2,setsar=1",
+		ffmpeg.ScaleFilterForTest(transcoding.HLSProcessOpts{}, 640))
+	assert.Equal(t, "scale=640:-2,setsar=1",
+		ffmpeg.ScaleFilterForTest(transcoding.HLSProcessOpts{SourceSAR: "1:1"}, 640))
+	// Anamorphic PAL DVD (SAR 64:45): height computed from the DISPLAY aspect.
+	// 720x576 DAR 16:9 → 640 wide must yield 360 high, via the embedded
+	// trunc(W*ih*den/(iw*num)/2)*2 expression.
+	assert.Equal(t, "scale=640:'trunc(640*ih*45/(iw*64)/2)*2',setsar=1",
+		ffmpeg.ScaleFilterForTest(transcoding.HLSProcessOpts{SourceSAR: "64:45"}, 640))
+	// A malformed SAR falls back to the square-pixel filter (never errors).
+	assert.Equal(t, "scale=640:-2,setsar=1",
+		ffmpeg.ScaleFilterForTest(transcoding.HLSProcessOpts{SourceSAR: "garbage"}, 640))
+}
+
+// End-to-end through the single-transcode builder: an anamorphic interlaced
+// mpeg2 source emits BOTH the deint=all fallback and the SAR-corrected scale.
+func TestBuildFFmpegArgs_LegacyInterlacedAnamorphic(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir: "/tmp/t", FilePath: "/f.mpg",
+		Profiles:      transcoding.DefaultHLSProfiles[:1],
+		VideoDecision: "transcode", AudioDecision: "copy",
+		DeinterlaceAll: true,
+		SourceSAR:      "64:45",
+	}
+	joined := strings.Join(ffmpeg.BuildFFmpegArgs(opts), " ")
+	assert.Contains(t, joined, "bwdif=mode=send_frame:deint=all")
+	assert.Contains(t, joined, "trunc(", "anamorphic height expression present")
+	assert.NotContains(t, joined, "deint=interlaced", "deint=all replaces the flag-gated mode")
+}
