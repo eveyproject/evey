@@ -3,6 +3,8 @@ package postgres_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -214,8 +216,57 @@ func TestSyncPlayRoomRepo_Delete(t *testing.T) {
 	require.NoError(t, repo.Delete(ctx, "sp5"))
 
 	got, err := repo.Get(ctx, "sp5")
-	assert.ErrorIs(t, err, shared.ErrNotFound)
+	require.ErrorIs(t, err, shared.ErrNotFound)
 	assert.Nil(t, got)
+}
+
+func TestSyncPlayRoomRepo_ConcurrentAddMember_NoLostUpdate(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedSyncplayDeps(t, db, "host-uc", "sp-user-c", "sp-libc", "media-c")
+
+	repo := postgres.NewSyncPlayRoomRepo(db)
+	ctx := context.Background()
+
+	room := &syncplay.Room{
+		ID:        "sp-conc",
+		Code:      "CONC01",
+		Name:      "ConcRoom",
+		HostID:    "host-uc",
+		MediaID:   "media-c",
+		Members:   []syncplay.Member{},
+		State:     syncplay.PlaybackState{},
+		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+	}
+	require.NoError(t, repo.Create(ctx, room))
+
+	const n = 8
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := range n {
+		go func() {
+			defer wg.Done()
+			m := syncplay.Member{
+				UserID:   shared.UserID(fmt.Sprintf("guest-%d", i)),
+				Username: fmt.Sprintf("guest%d", i),
+				JoinedAt: time.Now().UTC().Truncate(time.Millisecond),
+			}
+			errs[i] = repo.AddMember(ctx, "sp-conc", m)
+		}()
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		require.NoError(t, err, "goroutine %d failed", i)
+	}
+
+	got, err := repo.Get(ctx, "sp-conc")
+	require.NoError(t, err)
+	// Without the FOR UPDATE fix, concurrent RMW would lose updates;
+	// with it, all 8 distinct members must be present.
+	assert.Len(t, got.Members, n)
 }
 
 // Regression: an audio room's media_id references a music track, which is not
