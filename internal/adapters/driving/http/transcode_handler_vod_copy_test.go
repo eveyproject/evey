@@ -6,6 +6,9 @@ package httpapi
 // ladder instead of risking ENOSPC on a small box.
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +17,7 @@ import (
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
 // copyEligibleStreams is one H.264 High@L4.0 8-bit video stream — the source a
@@ -125,6 +129,67 @@ func TestIsCopyRequest_HEVC(t *testing.T) {
 		"DoVi 8.1 (HDR10-compatible base) routes to copy")
 	assert.False(t, h.isCopyRequest(dec, hevc(func(s *domainlibrary.MediaStream) { s.Keyframes = nil }), 1<<20),
 		"no keyframe index → transcode (empty plan would break)")
+}
+
+// Regression lock (caught on prod bytes, SATAVG 3.1): an HDR-capable client
+// (hdr=1) suppresses the decision-level tonemap, but a transcoded rung is SDR
+// by contract — when the request will NOT be served as a raw copy (keyframes
+// not yet backfilled, copy off, non-wired profile), the re-encode MUST
+// tonemap or the PQ source renders washed-out.
+func TestMakeDecision_HDRClientStillTonemapsWhenCopyUnavailable(t *testing.T) {
+	w, hgt, level := 3840, 2160, 153
+	pq := "smpte2084"
+	hevcHDR := func(keyframes []int64) []*domainlibrary.MediaStream {
+		return []*domainlibrary.MediaStream{
+			{
+				StreamType:    domainlibrary.StreamTypeVideo,
+				Codec:         "hevc",
+				Profile:       "Main 10",
+				Width:         &w,
+				Height:        &hgt,
+				Level:         &level,
+				ColorTransfer: &pq,
+				ColorSpace:    func() *string { s := "bt2020nc"; return &s }(),
+				Keyframes:     keyframes,
+			},
+			{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Channels: func() *int { c := 2; return &c }(), IsDefault: true},
+		}
+	}
+	newReq := func() *http.Request {
+		req := httptest.NewRequest(http.MethodGet,
+			"/api/v1/media/m1/hls/master.m3u8?videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4&hdr=1", nil)
+		// makeDecision reads the auth middleware's claims; inject like prod does.
+		return req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
+			&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+	}
+
+	// Copy rung AVAILABLE: the raw HDR serve needs no tonemap.
+	h := newCopyTestHandler(t)
+	d := h.makeDecision(context.Background(), hevcHDR([]int64{0, 6000, 12000}), "mp4", newReq())
+	assert.Equal(t, "copy", d.VideoDecision)
+	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed",
+		"raw HDR copy to an HDR client must not tonemap")
+
+	// Copy rung UNAVAILABLE (no keyframe index yet): the re-encode must tonemap.
+	d = h.makeDecision(context.Background(), hevcHDR(nil), "mp4", newReq())
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed",
+		"an HDR source that will be transcoded must tonemap even for an hdr=1 client")
+
+	// Copy producer OFF entirely: same forced tonemap.
+	hOff := &hlsVODServe{cache: h.cache}
+	d = hOff.makeDecision(context.Background(), hevcHDR([]int64{0, 6000}), "mp4", newReq())
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
+
+	// SDR source: never gains a tonemap reason.
+	bt709 := "bt709"
+	sdr := []*domainlibrary.MediaStream{{
+		StreamType: domainlibrary.StreamTypeVideo, Codec: "hevc", Profile: "Main",
+		Width: &w, Height: &hgt, Level: &level, ColorTransfer: &bt709,
+	}}
+	d = hOff.makeDecision(context.Background(), sdr, "mp4", newReq())
+	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
 }
 
 func TestIsCopyRequest_ProducerOffNeverCopies(t *testing.T) {

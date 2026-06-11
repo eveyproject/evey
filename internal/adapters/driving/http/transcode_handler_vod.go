@@ -863,13 +863,45 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 	// while the user plays an AAC track, or vice-versa). Mirrors the audioTrack
 	// resolution the fingerprint and the ffmpeg -map already use.
 	prefs.AudioTrack = h.resolveAudioTrack(r, streams)
-	hdr := r.URL.Query().Get("hdr") == "1"
-	client := parseClientCapabilities(r, hdr)
+	hdrCapable := r.URL.Query().Get("hdr") == "1"
+	client := parseClientCapabilities(r, hdrCapable)
 	d := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, container, client, 0, prefs)
 	if d == nil {
 		return domaintranscoding.PlaybackDecision{}
 	}
+	// A transcoded rung is SDR BY CONTRACT — the master only advertises
+	// VIDEO-RANGE on the COPY rung. An HDR-capable client (hdr=1) legitimately
+	// suppresses the decision-level tonemap for the raw-serve paths, but when
+	// the copy rung is UNAVAILABLE (keyframes/HDR truth not yet backfilled,
+	// non-wired codec/profile, copy producer off) this request still
+	// re-encodes — and a PQ source x264-encoded without tonemapping renders
+	// washed-out (proven on prod bytes: SATAVG 3.1 untonemapped vs the same
+	// segment tonemapped). Re-add the tonemap for any HDR source that will
+	// NOT be served as a raw copy. The disk guard can still flip copy→ladder
+	// at serve time without re-adding it — accepted bounded edge (hashing
+	// FreeBytes would be worse).
+	if !slices.Contains(d.TranscodeReasons, "hdr_tonemapping_needed") &&
+		!(d.VideoDecision == "copy" && h.copyProducer != nil && sourceCopyVideoCodec(streams) != "") &&
+		sourceIsHDR(streams) {
+		d.TranscodeReasons = append(d.TranscodeReasons, "hdr_tonemapping_needed")
+		d.VideoDecision = "transcode"
+		if d.VideoCodec == "" {
+			d.VideoCodec = "h264"
+		}
+	}
 	return *d
+}
+
+// sourceIsHDR reports whether the first video stream is HDR, via the same
+// hdr.DetectHDR the decision and the tonemap filter use.
+func sourceIsHDR(streams []*domainlibrary.MediaStream) bool {
+	for _, s := range streams {
+		if s == nil || s.StreamType != "video" {
+			continue
+		}
+		return hdr.DetectHDR([]hdr.VideoStream{s}).IsHDR
+	}
+	return false
 }
 
 // resolveHW decides the hardware encode backend for a chosen output codec.
