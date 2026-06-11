@@ -187,6 +187,8 @@ func transcodeRecalibrateHandler(svc calibrationSvc) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(svc.Current())
+		if err := json.NewEncoder(w).Encode(svc.Current()); err != nil {
+			slog.Warn("calibration: recalibrate response encode failed", slog.Any("err", err))
+		}
 	}
 }
