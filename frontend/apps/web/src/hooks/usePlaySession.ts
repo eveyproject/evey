@@ -38,12 +38,16 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const streamTokenRef = useRef<string | null>(null);
 
   const caps = useMemo(() => getBrowserCapabilities(), []);
+  // No maxWidth/maxHeight: the screen size is NOT a decode capability. Sending
+  // window.screen dims made the server flag resolution_exceeded and transcode
+  // a 4K title for a 1366px laptop that decodes it natively (Jellyfin
+  // direct-plays there). The browser downscales for display at zero cost;
+  // bandwidth stays governed by the profile's bitrate prefs, and the transcode
+  // fallback remains codec/HDR-driven.
   const streamInfoParams = useMemo(() => ({
     supportedCodecs: caps.videoCodecs,
     supportedAudioCodecs: caps.audioCodecs,
     supportedContainers: caps.containers,
-    maxWidth: window.screen.width,
-    maxHeight: window.screen.height,
     supportsHdr: caps.hdr,
   }), [caps]);
 
