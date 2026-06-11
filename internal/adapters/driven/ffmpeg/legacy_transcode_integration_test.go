@@ -69,8 +69,8 @@ func TestInterlaceDetectIntegration(t *testing.T) {
 		"-t", "90",
 		"-c:v", "mpeg2video", "-b:v", "4000k",
 		progressive)
-	if out, err := gen.CombinedOutput(); err != nil {
-		t.Fatalf("progressive source generation: %v\n%s", err, out)
+	if out, genErr := gen.CombinedOutput(); genErr != nil {
+		t.Fatalf("progressive source generation: %v\n%s", genErr, out)
 	}
 	got, err = prober.ProbeInterlaceDetect(ctx, progressive)
 	if err != nil {
@@ -132,8 +132,8 @@ func TestLegacyTranscodeIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read segment: %v", err)
 	}
-	if err := os.WriteFile(clip, append(initB, segB...), 0o644); err != nil {
-		t.Fatal(err)
+	if wErr := os.WriteFile(clip, append(initB, segB...), 0o644); wErr != nil {
+		t.Fatal(wErr)
 	}
 
 	// Display geometry: 704x576 SAR 16:11 → DAR 1024:576 = 16:9. Target width
