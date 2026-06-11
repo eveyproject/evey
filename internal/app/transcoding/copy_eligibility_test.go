@@ -112,7 +112,7 @@ func TestCopyVideoCodecString(t *testing.T) {
 	assert.Equal(t, "hvc1.1.6.L120.B0",
 		CopyVideoCodecString(CopySource{Codec: "hevc", Profile: "Main", Level: new(120), ColorTransfer: &pq}),
 		"HEVC Main L4.0")
-	assert.Equal(t, "",
+	assert.Empty(t,
 		CopyVideoCodecString(CopySource{Codec: "hevc", Profile: "Main 10", Level: &l153}),
 		"ineligible source yields no codec string")
 

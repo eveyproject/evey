@@ -248,7 +248,7 @@ func TestBuildToneMapFilter_Tonemapx_FallsBackToZscaleWhenOff(t *testing.T) {
 
 func TestDetectHDR_TransferPQ(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", ColorTransfer: ptr("smpte2084")},
+		{StreamType: "video", ColorTransfer: new("smpte2084")},
 	}
 	info := DetectHDR(toVS(streams))
 	if !info.IsHDR || info.Type != "hdr10" {
@@ -258,7 +258,7 @@ func TestDetectHDR_TransferPQ(t *testing.T) {
 
 func TestDetectHDR_TransferHLG(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", ColorTransfer: ptr("arib-std-b67"), ColorSpace: ptr("bt2020nc"), BitDepth: ptr(10)},
+		{StreamType: "video", ColorTransfer: new("arib-std-b67"), ColorSpace: new("bt2020nc"), BitDepth: new(10)},
 	}
 	info := DetectHDR(toVS(streams))
 	if !info.IsHDR || info.Type != "hlg" {
@@ -268,7 +268,7 @@ func TestDetectHDR_TransferHLG(t *testing.T) {
 
 func TestDetectHDR_TransferSDR(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", ColorTransfer: ptr("bt709"), ColorSpace: ptr("bt709")},
+		{StreamType: "video", ColorTransfer: new("bt709"), ColorSpace: new("bt709")},
 	}
 	info := DetectHDR(toVS(streams))
 	if info.IsHDR {
@@ -281,7 +281,7 @@ func TestDetectHDR_TransferSDR(t *testing.T) {
 // transcodes it (raw-serving renders green/purple on non-DoVi pipelines).
 func TestDetectHDR_DoViProfile5_AlwaysDolbyVision(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", ColorTransfer: ptr("smpte2084"), DoViProfile: ptr(5)},
+		{StreamType: "video", ColorTransfer: new("smpte2084"), DoViProfile: new(5)},
 	}
 	info := DetectHDR(toVS(streams))
 	if !info.IsHDR || info.Type != "dolby_vision" {
@@ -296,7 +296,7 @@ func TestDetectHDR_DoViProfile5_AlwaysDolbyVision(t *testing.T) {
 // compatible rendering contract → conservative dolby_vision (transcode).
 func TestDetectHDR_DoViProfile7_DolbyVision(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", ColorTransfer: ptr("smpte2084"), DoViProfile: ptr(7), DoViBLCompat: ptr(1)},
+		{StreamType: "video", ColorTransfer: new("smpte2084"), DoViProfile: new(7), DoViBLCompat: new(1)},
 	}
 	info := DetectHDR(toVS(streams))
 	if info.Type != "dolby_vision" {
@@ -318,7 +318,7 @@ func TestDetectHDR_DoViProfile8_CompatibleBase(t *testing.T) {
 	}
 	for _, c := range cases {
 		streams := []*library.MediaStream{
-			{StreamType: "video", ColorTransfer: ptr("smpte2084"), DoViProfile: ptr(8), DoViBLCompat: ptr(c.compat)},
+			{StreamType: "video", ColorTransfer: new("smpte2084"), DoViProfile: new(8), DoViBLCompat: new(c.compat)},
 		}
 		info := DetectHDR(toVS(streams))
 		if !info.IsHDR || info.Type != c.want {
@@ -334,13 +334,13 @@ func TestDetectHDR_DoViProfile8_CompatibleBase(t *testing.T) {
 // → conservative dolby_vision.
 func TestDetectHDR_DoViProfile8_UnknownCompat(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", ColorTransfer: ptr("smpte2084"), DoViProfile: ptr(8)},
+		{StreamType: "video", ColorTransfer: new("smpte2084"), DoViProfile: new(8)},
 	}
 	info := DetectHDR(toVS(streams))
 	if info.Type != "dolby_vision" {
 		t.Fatalf("DoVi P8 without bl_compat must stay dolby_vision, got %q", info.Type)
 	}
-	streams[0].DoViBLCompat = ptr(0)
+	streams[0].DoViBLCompat = new(0)
 	info = DetectHDR(toVS(streams))
 	if info.Type != "dolby_vision" {
 		t.Fatalf("DoVi P8 bl_compat=0 must stay dolby_vision, got %q", info.Type)

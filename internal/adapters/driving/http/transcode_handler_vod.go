@@ -880,8 +880,9 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 	// NOT be served as a raw copy. The disk guard can still flip copy→ladder
 	// at serve time without re-adding it — accepted bounded edge (hashing
 	// FreeBytes would be worse).
-	if !slices.Contains(d.TranscodeReasons, "hdr_tonemapping_needed") &&
-		!(d.VideoDecision == "copy" && h.copyProducer != nil && sourceCopyVideoCodec(streams) != "") &&
+	servedAsRawCopy := d.VideoDecision == "copy" && h.copyProducer != nil && sourceCopyVideoCodec(streams) != ""
+	if !servedAsRawCopy &&
+		!slices.Contains(d.TranscodeReasons, "hdr_tonemapping_needed") &&
 		sourceIsHDR(streams) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "hdr_tonemapping_needed")
 		d.VideoDecision = "transcode"

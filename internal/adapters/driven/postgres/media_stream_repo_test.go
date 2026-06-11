@@ -112,7 +112,7 @@ func TestMediaStreamRepo_ListVideoLevelMissing_Scope(t *testing.T) {
 	itemE := newTestMediaItem("lvlE", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, itemE))
 	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
-		{ID: "e-v", MediaItemID: itemE.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: stringPtr("smpte2084")},
+		{ID: "e-v", MediaItemID: itemE.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: new("smpte2084")},
 	}))
 	// F: vp9, NULL everything → candidate too since B4 (av1/vp9 join the
 	// HDR-capable copy scope, same ground-truth needs as hevc).
@@ -206,7 +206,7 @@ func TestMediaStreamRepo_SetVideoLevels_FillsHDRTruth(t *testing.T) {
 
 	probe := []*library.MediaStream{
 		{StreamType: "video", StreamIndex: 0, Codec: "hevc", Level: new(153),
-			ColorTransfer: stringPtr("smpte2084"), DoViProfile: new(8), DoViBLCompat: new(1)},
+			ColorTransfer: new("smpte2084"), DoViProfile: new(8), DoViBLCompat: new(1)},
 	}
 	n, err := streamRepo.SetVideoLevels(ctx, item.ID, probe)
 	require.NoError(t, err)
@@ -231,7 +231,7 @@ func TestMediaStreamRepo_SetVideoLevels_FillsHDRTruth(t *testing.T) {
 	// A second probe must not overwrite anything (per-column NULL guards).
 	n2, err := streamRepo.SetVideoLevels(ctx, item.ID,
 		[]*library.MediaStream{{StreamType: "video", StreamIndex: 0, Codec: "hevc", Level: new(99),
-			ColorTransfer: stringPtr("bt709"), DoViProfile: new(5)}})
+			ColorTransfer: new("bt709"), DoViProfile: new(5)}})
 	require.NoError(t, err)
 	assert.Equal(t, 0, n2, "already-filled metadata is not overwritten")
 
@@ -270,19 +270,19 @@ func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
 	itemC := newTestMediaItem("kfC", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, itemC))
 	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
-		{ID: "c-v", MediaItemID: itemC.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: stringPtr("smpte2084")},
+		{ID: "c-v", MediaItemID: itemC.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: new("smpte2084")},
 	}))
 	// D: hevc DoVi profile 5 → NEVER copied, so indexing its keyframes is waste.
 	itemD := newTestMediaItem("kfD", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, itemD))
 	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
-		{ID: "d-v", MediaItemID: itemD.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: stringPtr("smpte2084"), DoViProfile: new(5)},
+		{ID: "d-v", MediaItemID: itemD.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: new("smpte2084"), DoViProfile: new(5)},
 	}))
 	// E: hevc DoVi profile 8.1 (HDR10-compatible base) → copy-able, candidate.
 	itemE := newTestMediaItem("kfE", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, itemE))
 	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
-		{ID: "e-v", MediaItemID: itemE.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: stringPtr("smpte2084"), DoViProfile: new(8), DoViBLCompat: new(1)},
+		{ID: "e-v", MediaItemID: itemE.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", Level: new(153), ColorTransfer: new("smpte2084"), DoViProfile: new(8), DoViBLCompat: new(1)},
 	}))
 	// F: hevc with level but color_transfer NULL → HDR truth unknown, NOT a candidate.
 	itemF := newTestMediaItem("kfF", lib.ID)
