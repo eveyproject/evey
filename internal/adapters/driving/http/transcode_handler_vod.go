@@ -23,6 +23,7 @@ import (
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
 	"github.com/evey-project/evey/internal/pkg/cmcd"
 	"github.com/evey-project/evey/internal/pkg/hdr"
 	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
@@ -132,7 +133,32 @@ type hlsVODServe struct {
 	// resolution when neither the profile's audio_languages nor its locale
 	// match any stream. Nil-safe — falls back to "en".
 	serverLang func() string
+
+	// mediaLookup / classLookup are SHORT-TTL caches for the per-segment hot
+	// path: every segment request used to pay three DB round-trips
+	// (GetMediaItem + GetMediaStreams + complexity Get) for values that are
+	// stable across a playback burst. 10 s of staleness is harmless — the
+	// access/parental checks still run live per request, and a mid-playback
+	// metadata change converging one burst later is the same tolerance the
+	// manifest/segment pair already has. Cached values are SHARED between
+	// requests: treat them as immutable. Nil-safe (hand-built test handlers
+	// keep the direct fetch path).
+	mediaLookup *pkgcache.TTLCache[cachedMediaLookup]
+	classLookup *pkgcache.TTLCache[domaintranscoding.ContentClass]
 }
+
+// cachedMediaLookup is one mediaLookup entry: the item and its streams as
+// resolved together (never cache one without the other — the fingerprint
+// derives from both).
+type cachedMediaLookup struct {
+	item    *domainlibrary.MediaItem
+	streams []*domainlibrary.MediaStream
+}
+
+const (
+	mediaLookupTTL = 10 * time.Second
+	mediaLookupMax = 256
+)
 
 // vodSegmentNameRE parses the on-the-wire segment file name and returns the
 // (variantIdx, segmentIdx, isInit, ext) tuple. Strict: any other shape 404s.
@@ -238,14 +264,29 @@ func (h *hlsVODServe) commonAuth(w http.ResponseWriter, r *http.Request, mediaID
 		}
 	}
 	claims := HTTPClaimsFromContext(r.Context())
-	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
-	if err != nil || item.File == nil || item.File.Path == "" {
-		if err != nil {
-			span.RecordError(err)
+
+	// Hot-path cache: segment requests arrive every few seconds during
+	// playback and each used to re-fetch the item + streams from the DB. The
+	// ACCESS checks below always run live — only the media lookup is cached.
+	var item *domainlibrary.MediaItem
+	var streams []*domainlibrary.MediaStream
+	cached := false
+	if h.mediaLookup != nil {
+		if c, ok := h.mediaLookup.Get(mediaID); ok {
+			item, streams, cached = c.item, c.streams, true
 		}
-		span.SetStatus(codes.Error, "media item not found")
-		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-		return nil, nil, false
+	}
+	if !cached {
+		var err error
+		item, err = h.libSvc.GetMediaItem(r.Context(), mediaID)
+		if err != nil || item.File == nil || item.File.Path == "" {
+			if err != nil {
+				span.RecordError(err)
+			}
+			span.SetStatus(codes.Error, "media item not found")
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return nil, nil, false
+		}
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
 		span.SetStatus(codes.Error, "library access denied")
@@ -255,12 +296,18 @@ func (h *hlsVODServe) commonAuth(w http.ResponseWriter, r *http.Request, mediaID
 		span.SetStatus(codes.Error, "parental restricted")
 		return nil, nil, false
 	}
-	streams, err := h.libSvc.GetMediaStreams(r.Context(), mediaID)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "streams resolve failed")
-		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
-		return nil, nil, false
+	if !cached {
+		var err error
+		streams, err = h.libSvc.GetMediaStreams(r.Context(), mediaID)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "streams resolve failed")
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return nil, nil, false
+		}
+		if h.mediaLookup != nil {
+			h.mediaLookup.Set(mediaID, cachedMediaLookup{item: item, streams: streams}, mediaLookupTTL)
+		}
 	}
 	return item, streams, true
 }
@@ -932,8 +979,21 @@ func streamIsTenBit(s *domainlibrary.MediaStream) bool {
 func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, decision domaintranscoding.PlaybackDecision) []domaintranscoding.HLSProfile {
 	class := domaintranscoding.ClassFilmNormal
 	if h.complexityRepo != nil && item != nil {
-		if entry, found, err := h.complexityRepo.Get(ctx, string(item.ID)); err == nil && found && entry.Class.IsValid() {
-			class = entry.Class
+		resolved := false
+		if h.classLookup != nil {
+			if c, ok := h.classLookup.Get(string(item.ID)); ok {
+				class, resolved = c, true
+			}
+		}
+		if !resolved {
+			if entry, found, err := h.complexityRepo.Get(ctx, string(item.ID)); err == nil && found && entry.Class.IsValid() {
+				class = entry.Class
+			}
+			if h.classLookup != nil {
+				// Cache the RESOLVED class (default included) so an unclassified
+				// title doesn't re-query on every segment either.
+				h.classLookup.Set(string(item.ID), class, mediaLookupTTL)
+			}
 		}
 	}
 	// COMMON HEAD (shared by both producers): pick the per-title ladder. The
@@ -1191,7 +1251,13 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	}
 	cache := s.HLSVODCache
 	orch := s.HLSVODOrch
+	// Lazy-expiry hot-path caches (interval 0 → no sweeper goroutine; the LRU
+	// cap bounds memory, expiry is checked on Get).
+	mediaLookup, _ := pkgcache.NewWithMaxSize[cachedMediaLookup](0, mediaLookupMax)
+	classLookup, _ := pkgcache.NewWithMaxSize[domaintranscoding.ContentClass](0, mediaLookupMax)
 	h := &hlsVODServe{
+		mediaLookup:          mediaLookup,
+		classLookup:          classLookup,
 		tokens:               s.TokenGen,
 		libSvc:               libSvc,
 		libraryAccess:        libAccess,
