@@ -10,22 +10,22 @@ import (
 	applib "github.com/evey-project/evey/internal/app/library"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/mkv"
 	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
+	"github.com/evey-project/evey/internal/domain/ratings"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	"github.com/evey-project/evey/internal/pkg/ratings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type cmdSvcDeps struct {
-	chapterRepo    library.ChapterRepository
-	ebmlReader     mkv.ContainerReader
-	trickplayRepo  library.TrickplayRepository
-	trickplayGen   library.TrickplayGenerator
-	cacheDir       string
-	configRepo     shared.ServerConfigRepository
+	chapterRepo   library.ChapterRepository
+	ebmlReader    mkv.ContainerReader
+	trickplayRepo library.TrickplayRepository
+	trickplayGen  library.TrickplayGenerator
+	cacheDir      string
+	configRepo    shared.ServerConfigRepository
 }
 
 func newCmdSvcWith(d *cmdSvcDeps) (*applib.CommandService, *libfakes.FakeLibraryCommandRepo, *libfakes.FakeLibraryQueryRepo, *libfakes.FakeMediaItemCommandRepo, *libfakes.FakeFileScanner, *sharedfakes.FakeEventBus) {
@@ -311,7 +311,6 @@ func TestScanLibrary_ExtractsChapters(t *testing.T) {
 	assert.Equal(t, "Act 1", allChapters[1].Title)
 }
 
-
 func TestGenerateTrickplay_Success(t *testing.T) {
 	t.Parallel()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
@@ -379,16 +378,15 @@ func TestGenerateTrickplay_NoFilePath(t *testing.T) {
 	svc, _, _, mediaRepo, _, _ := newCmdSvcWith(&cmdSvcDeps{trickplayRepo: trickplayRepo, trickplayGen: trickplayGen, cacheDir: "/cache/trickplay"})
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
-		ID:       "media-1",
-		File: &library.MediaFile{Path: ""},
-		Title:    "No File",
+		ID:    "media-1",
+		File:  &library.MediaFile{Path: ""},
+		Title: "No File",
 	})
 
 	err := svc.GenerateTrickplay(context.Background(), "media-1")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no file path")
 }
-
 
 // --- Trickplay: waitForIdleStreams ---
 
@@ -403,7 +401,6 @@ func (f *fakeStreamChecker) ActiveSessionCount() int {
 	return f.count
 }
 
-
 func TestGenerateTrickplay_BlocksWhileStreamsActive(t *testing.T) {
 	t.Parallel()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
@@ -414,9 +411,9 @@ func TestGenerateTrickplay_BlocksWhileStreamsActive(t *testing.T) {
 	svc.SetTrickplayActiveStreamChecker(checker)
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
-		ID:       "media-wait",
-		File: &library.MediaFile{Path: "/movies/test.mkv"},
-		Title:    "Test",
+		ID:    "media-wait",
+		File:  &library.MediaFile{Path: "/movies/test.mkv"},
+		Title: "Test",
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -452,9 +449,9 @@ func TestGenerateTrickplay_ProceedsWhenNoActiveStreams(t *testing.T) {
 	svc.SetTrickplayActiveStreamChecker(checker)
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
-		ID:       "media-idle",
-		File: &library.MediaFile{Path: "/movies/test.mkv"},
-		Title:    "Test",
+		ID:    "media-idle",
+		File:  &library.MediaFile{Path: "/movies/test.mkv"},
+		Title: "Test",
 	})
 
 	err := svc.GenerateTrickplay(context.Background(), "media-idle")
@@ -469,9 +466,9 @@ func TestGenerateTrickplay_NilCheckerProceeds(t *testing.T) {
 	// no SetActiveStreamChecker call → nil checker
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
-		ID:       "media-nil-check",
-		File: &library.MediaFile{Path: "/movies/test.mkv"},
-		Title:    "Test",
+		ID:    "media-nil-check",
+		File:  &library.MediaFile{Path: "/movies/test.mkv"},
+		Title: "Test",
 	})
 
 	err := svc.GenerateTrickplay(context.Background(), "media-nil-check")
@@ -560,13 +557,13 @@ func TestScanLibrary_RemovesOrphanedItems(t *testing.T) {
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:        "item-deleted",
 		LibraryID: "lib-1",
-		File: &library.MediaFile{Path: "/movies/deleted.mkv", Size: 1000},
+		File:      &library.MediaFile{Path: "/movies/deleted.mkv", Size: 1000},
 	})
 	// Pre-existing item whose file still exists
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:        "item-keep",
 		LibraryID: "lib-1",
-		File: &library.MediaFile{Path: "/movies/keep.mkv", Size: 2000},
+		File:      &library.MediaFile{Path: "/movies/keep.mkv", Size: 2000},
 	})
 
 	// Scanner only returns the surviving file
@@ -611,12 +608,12 @@ func TestScanLibrary_OrphanCleanup_TVShow_RemovesDeletedEpisode(t *testing.T) {
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:        "ep-keep",
 		LibraryID: "lib-tv",
-		File: &library.MediaFile{Path: "/tv/show/s01e01.mkv", Size: 100},
+		File:      &library.MediaFile{Path: "/tv/show/s01e01.mkv", Size: 100},
 	})
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:        "ep-gone",
 		LibraryID: "lib-tv",
-		File: &library.MediaFile{Path: "/tv/show/s01e02.mkv", Size: 100},
+		File:      &library.MediaFile{Path: "/tv/show/s01e02.mkv", Size: 100},
 	})
 
 	s1, e1 := 1, 1
