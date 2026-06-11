@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	domainlib "github.com/evey-project/evey/internal/domain/library"
 	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"golang.org/x/time/rate"
@@ -30,20 +30,24 @@ type CollectionLinker interface {
 type ArtworkPostSaveHook func(ctx context.Context, rec *domainmetadata.ArtworkRecord)
 
 type Enricher struct {
-	artwork              domainmetadata.ArtworkRepository
-	persons              domainlib.PersonRepository
-	mediaPersons         domainlib.MediaPersonRepository
-	mediaItems           domainlib.MediaItemRepository
-	search               domainlib.SearchIndex
-	chain                *ProviderChain
-	collections          CollectionLinker
-	apiLimiter           *rate.Limiter
-	mediaTranslations    domainlib.MediaItemTranslationRepository
-	personTranslations   domainlib.PersonTranslationRepository
-	translationLocales   []string
-	personFetcher        personDetailFetcher
-	overrides            domainmetadata.MetadataOverrideRepository
-	artworkPostSaveHook  ArtworkPostSaveHook
+	artwork             domainmetadata.ArtworkRepository
+	persons             domainlib.PersonRepository
+	mediaPersons        domainlib.MediaPersonRepository
+	mediaItems          domainlib.MediaItemRepository
+	search              domainlib.SearchIndex
+	chain               *ProviderChain
+	collections         CollectionLinker
+	apiLimiter          *rate.Limiter
+	mediaTranslations   domainlib.MediaItemTranslationRepository
+	personTranslations  domainlib.PersonTranslationRepository
+	translationLocales  []string
+	personFetcher       personDetailFetcher
+	overrides           domainmetadata.MetadataOverrideRepository
+	artworkPostSaveHook ArtworkPostSaveHook
+	// uow makes EnrichItem's three writes (item update, artwork replace,
+	// people upsert) one transaction. nil (tests / no wiring) keeps the
+	// historical per-write auto-commit behaviour.
+	uow shared.TransactionalUnit
 }
 
 type EnricherOption func(*Enricher)
@@ -62,6 +66,16 @@ func EnricherWithOverrides(r domainmetadata.MetadataOverrideRepository) Enricher
 // record batch is persisted. CommandService uses this to trigger auto-download.
 func EnricherWithArtworkPostSaveHook(hook ArtworkPostSaveHook) EnricherOption {
 	return func(e *Enricher) { e.artworkPostSaveHook = hook }
+}
+
+// EnricherWithUnitOfWork makes EnrichItem's persistence steps atomic: the item
+// update, the artwork delete+insert and the cast/crew delete+insert commit or
+// roll back together. Without it a failure between the steps left the item
+// with a fresh title but NO artwork and NO cast — and since updateMediaFile
+// only republishes MediaItemAdded when Overview is empty (now non-empty), a
+// re-scan never re-enriched it; only a manual "Refresh metadata" repaired it.
+func EnricherWithUnitOfWork(uow shared.TransactionalUnit) EnricherOption {
+	return func(e *Enricher) { e.uow = uow }
 }
 
 func EnricherWithTranslations(
@@ -104,28 +118,61 @@ func NewEnricher(
 }
 
 // EnrichItem applies a MetadataResult to a media item: updates the item,
-// replaces artwork records, and upserts people/cast.
+// replaces artwork records, and upserts people/cast — atomically when a unit
+// of work is wired (EnricherWithUnitOfWork). Side effects that must not run
+// inside the transaction are HOISTED after the commit:
+//   - artworkPostSaveHook (auto-download trigger): firing it mid-tx would
+//     start a download for artwork rows a later failure rolls back — a
+//     phantom download for records that never existed;
+//   - person bio fetches: each one is a rate-limited TMDB round-trip (250 ms
+//     apart, casts run to 50 people) — holding a row-locking transaction
+//     open across them would stall every concurrent writer of those rows.
 func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, result *domainmetadata.MetadataResult) error {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.EnrichItem")
 	defer span.End()
 	span.SetAttributes(attribute.String("media_item.id", string(item.ID)))
 	applyBasicFields(item, result)
 
-	if err := e.mediaItems.Update(ctx, item); err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		return fmt.Errorf("update media item: %w", err)
+	var artworkRecords []*domainmetadata.ArtworkRecord
+	var bioPending []*domainlib.Person
+	apply := func(ctx context.Context) error {
+		if err := e.mediaItems.Update(ctx, item); err != nil {
+			return fmt.Errorf("update media item: %w", err)
+		}
+		records, err := e.replaceArtwork(ctx, string(item.ID), result.Artwork)
+		if err != nil {
+			return err
+		}
+		artworkRecords = records
+		pending, err := e.upsertPeople(ctx, string(item.ID), result.People)
+		if err != nil {
+			return err
+		}
+		bioPending = pending
+		return nil
 	}
-	if err := e.replaceArtwork(ctx, string(item.ID), result.Artwork); err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		return fmt.Errorf("Enricher.EnrichItem: %w", err)
+	var txErr error
+	if e.uow != nil {
+		txErr = e.uow.Do(ctx, apply)
+	} else {
+		txErr = apply(ctx)
 	}
-	if err := e.upsertPeople(ctx, string(item.ID), result.People); err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		return fmt.Errorf("Enricher.EnrichItem: %w", err)
+	if txErr != nil {
+		span.RecordError(txErr)
+		span.SetStatus(otelcodes.Error, txErr.Error())
+		return fmt.Errorf("Enricher.EnrichItem: %w", txErr)
 	}
+
+	// Post-commit side effects — the rows they reference are now durable.
+	if e.artworkPostSaveHook != nil {
+		for _, rec := range artworkRecords {
+			e.artworkPostSaveHook(ctx, rec)
+		}
+	}
+	for _, person := range bioPending {
+		e.fetchPersonBio(ctx, person)
+	}
+
 	e.indexSearch(ctx, item, result.People)
 	e.linkCollection(ctx, string(item.ID), result.Collection)
 	// Fetch translations for all supported locales
@@ -187,12 +234,16 @@ func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.Metadata
 	item.UpdatedAt = time.Now()
 }
 
-func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwork []domainmetadata.ArtworkResult) error {
+// replaceArtwork swaps the item's artwork rows and returns the freshly
+// persisted records. It does NOT fire artworkPostSaveHook — that is the
+// caller's post-commit duty (firing inside the transaction would trigger an
+// auto-download for rows a later failure rolls back).
+func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwork []domainmetadata.ArtworkResult) ([]*domainmetadata.ArtworkRecord, error) {
 	if err := e.artwork.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
-		return fmt.Errorf("delete old artwork: %w", err)
+		return nil, fmt.Errorf("delete old artwork: %w", err)
 	}
 	if len(artwork) == 0 {
-		return nil
+		return nil, nil
 	}
 	records := make([]*domainmetadata.ArtworkRecord, 0, len(artwork))
 	for i, art := range artwork {
@@ -201,17 +252,12 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 		}
 	}
 	if len(records) == 0 {
-		return nil
+		return nil, nil
 	}
 	if err := e.artwork.CreateBatch(ctx, records); err != nil {
-		return fmt.Errorf("create artwork batch: %w", err)
+		return nil, fmt.Errorf("create artwork batch: %w", err)
 	}
-	if e.artworkPostSaveHook != nil {
-		for _, rec := range records {
-			e.artworkPostSaveHook(ctx, rec)
-		}
-	}
-	return nil
+	return records, nil
 }
 
 func buildArtworkRecord(mediaItemID string, sortOrder int, art domainmetadata.ArtworkResult) *domainmetadata.ArtworkRecord {
@@ -236,9 +282,13 @@ func buildArtworkRecord(mediaItemID string, sortOrder int, art domainmetadata.Ar
 	return rec
 }
 
-func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people []domainmetadata.PersonResult) error {
+// upsertPeople replaces the item's cast/crew links. It returns the persons
+// whose biography fetch is PENDING: each fetch is a rate-limited TMDB
+// round-trip, so the caller runs them after the transaction commits instead
+// of holding row locks across external HTTP calls.
+func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people []domainmetadata.PersonResult) ([]*domainlib.Person, error) {
 	if err := e.mediaPersons.DeleteByMediaItemID(ctx, shared.MediaItemID(mediaItemID)); err != nil {
-		return fmt.Errorf("delete old media_people: %w", err)
+		return nil, fmt.Errorf("delete old media_people: %w", err)
 	}
 	// Preload every candidate person in one query so the findOrCreate
 	// loop doesn't turn a 50-person cast into 50 GetByName round-trips.
@@ -259,6 +309,7 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 
 	batch := make([]*domainlib.MediaPerson, 0, len(people))
 	seen := make(map[string]bool, len(people))
+	var bioPending []*domainlib.Person
 	sortIdx := 0
 	for _, p := range people {
 		if seen[p.Name] {
@@ -266,9 +317,12 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 		}
 		seen[p.Name] = true
 
-		person, err := e.findOrCreatePerson(ctx, p, known[p.Name])
+		person, needsBio, err := e.findOrCreatePerson(ctx, p, known[p.Name])
 		if err != nil {
-			return fmt.Errorf("Enricher.upsertPeople: %w", err)
+			return nil, fmt.Errorf("Enricher.upsertPeople: %w", err)
+		}
+		if needsBio {
+			bioPending = append(bioPending, person)
 		}
 
 		var charName *string
@@ -291,20 +345,22 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 		// this batch silently leaves orphan persons with no cast/crew links AND
 		// reports the per-item "Refresh metadata" command as a success. Surface it
 		// so the caller can retry (the writes are idempotent on re-run).
-		return fmt.Errorf("upsertPeople: create media_person batch: %w", err)
+		return nil, fmt.Errorf("upsertPeople: create media_person batch: %w", err)
 	}
-	return nil
+	return bioPending, nil
 }
 
 // findOrCreatePerson takes the preloaded person (may be nil when absent
 // from DB) and either enriches the existing row with new provider IDs/
-// thumbnails, or creates a fresh row. Bio fetch is kicked off when the
-// row has a TMDB ID but no biography yet.
-func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.PersonResult, preloaded *domainlib.Person) (*domainlib.Person, error) {
+// thumbnails, or creates a fresh row. needsBio reports that the row has a
+// TMDB ID but no biography yet — the CALLER fetches it after the enrichment
+// transaction commits (a TMDB round-trip must not run under row locks).
+func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.PersonResult, preloaded *domainlib.Person) (person *domainlib.Person, needsBio bool, err error) {
 	if preloaded != nil {
-		return e.refreshKnownPerson(ctx, p, preloaded), nil
+		person = e.refreshKnownPerson(ctx, p, preloaded)
+		return person, person.Biography == "" && person.ProviderIDs["tmdb"] != "", nil
 	}
-	person, err := e.persons.GetByName(ctx, p.Name)
+	person, err = e.persons.GetByName(ctx, p.Name)
 	if err == nil {
 		// Update provider ID + thumb if missing
 		updated := false
@@ -324,14 +380,10 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 				slog.Warn("update person failed", slog.String("personID", person.ID), slog.Any("err", err))
 			}
 		}
-		// Fetch bio if missing and we have a TMDB ID
-		if person.Biography == "" && person.ProviderIDs["tmdb"] != "" {
-			e.fetchPersonBio(ctx, person)
-		}
-		return person, nil
+		return person, person.Biography == "" && person.ProviderIDs["tmdb"] != "", nil
 	}
 	if !errors.Is(err, shared.ErrNotFound) {
-		return nil, fmt.Errorf("get person by name: %w", err)
+		return nil, false, fmt.Errorf("get person by name: %w", err)
 	}
 	thumbPath := p.ThumbURL
 	var thumbPtr *string
@@ -349,19 +401,15 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 		ThumbPath:   thumbPtr,
 	}
 	if err := e.persons.Create(ctx, person); err != nil {
-		return nil, fmt.Errorf("create person: %w", err)
+		return nil, false, fmt.Errorf("create person: %w", err)
 	}
-	// Fetch bio for newly created person
-	if person.ProviderIDs["tmdb"] != "" {
-		e.fetchPersonBio(ctx, person)
-	}
-	return person, nil
+	return person, person.ProviderIDs["tmdb"] != "", nil
 }
 
 // refreshKnownPerson mirrors the "already exists" branch of findOrCreatePerson
 // for a person already loaded via GetByNamesBatch: fill missing provider IDs
-// and thumbnail if the TMDB payload has them, persist when anything changed,
-// and kick a bio fetch when the TMDB ID is known but biography is empty.
+// and thumbnail if the TMDB payload has them, and persist when anything
+// changed. Bio fetching is the caller's post-commit duty.
 func (e *Enricher) refreshKnownPerson(ctx context.Context, p domainmetadata.PersonResult, person *domainlib.Person) *domainlib.Person {
 	updated := false
 	if p.ProviderID != "" && person.ProviderIDs["tmdb"] == "" {
@@ -379,9 +427,6 @@ func (e *Enricher) refreshKnownPerson(ctx context.Context, p domainmetadata.Pers
 		if err := e.persons.Update(ctx, person); err != nil {
 			slog.Warn("update person failed", slog.String("personID", person.ID), slog.Any("err", err))
 		}
-	}
-	if person.Biography == "" && person.ProviderIDs["tmdb"] != "" {
-		e.fetchPersonBio(ctx, person)
 	}
 	return person
 }

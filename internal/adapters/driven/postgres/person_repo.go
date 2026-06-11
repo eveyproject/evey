@@ -44,7 +44,7 @@ func (r *PersonRepository) Create(ctx context.Context, person *library.Person) e
 	// the FK would drop the link. DO UPDATE SET name=name is a no-op that
 	// preserves every existing field while letting RETURNING hand back the
 	// surviving row id.
-	if err = r.db.QueryRowContext(ctx,
+	if err = txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`INSERT INTO people (id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		 ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
@@ -64,7 +64,7 @@ func (r *PersonRepository) GetByID(ctx context.Context, id string) (*library.Per
 	span.SetAttributes(attribute.String("person.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	person, err := r.scanPerson(r.db.QueryRowContext(ctx,
+	person, err := r.scanPerson(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people WHERE id = $1`, id))
 	if err != nil {
@@ -80,7 +80,7 @@ func (r *PersonRepository) GetByName(ctx context.Context, name string) (*library
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	person, err := r.scanPerson(r.db.QueryRowContext(ctx,
+	person, err := r.scanPerson(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people WHERE name = $1`, name))
 	if err != nil {
@@ -104,7 +104,7 @@ func (r *PersonRepository) GetByNamesBatch(ctx context.Context, names []string) 
 	}
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people WHERE name = ANY($1)`, pq.Array(names))
 	if err != nil {
@@ -139,7 +139,7 @@ func (r *PersonRepository) List(ctx context.Context) ([]*library.Person, error) 
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people ORDER BY name LIMIT 10000`)
 	if err != nil {
@@ -183,7 +183,7 @@ func (r *PersonRepository) Update(ctx context.Context, person *library.Person) e
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE people SET thumb_path=$2, biography=$3, birthday=$4, deathday=$5, place_of_birth=$6, known_for=$7, provider_ids=$8
 		 WHERE id=$1`,
 		person.ID, person.ThumbPath, person.Biography, person.Birthday, person.Deathday, person.PlaceOfBirth, person.KnownFor, providerJSON,

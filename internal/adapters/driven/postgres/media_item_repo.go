@@ -57,8 +57,18 @@ func NewMediaItemRepository(db *sql.DB) *MediaItemRepository {
 }
 
 // withMediaItemTx runs f inside a single transaction so that a partial
-// sub-aggregate write never leaves an item half-persisted.
+// sub-aggregate write never leaves an item half-persisted. When the caller
+// already carries an ambient transaction (TxUnit.Do — e.g. EnrichItem's
+// item+artwork+cast unit of work), f JOINS it instead of opening a private
+// one: a private BEGIN here would commit the item independently of its
+// siblings and break the outer rollback. The ambient tx's commit/rollback
+// stays with its owner.
 func (r *MediaItemRepository) withMediaItemTx(ctx context.Context, f func(*sql.Tx) error) error {
+	if v := ctx.Value(txCtxKey{}); v != nil {
+		if tx, ok := v.(*sql.Tx); ok && tx != nil {
+			return f(tx)
+		}
+	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -351,7 +361,7 @@ func (r *MediaItemRepository) recomputeSeriesLatestChildAddedAtFromSeason(ctx co
 // it is currently empty, computing the value from the existing title via
 // library.NormalizeSortTitle. Returns the number of rows touched.
 //
-// Existed because pre-fix scans inserted media_items with sort_title='' —
+// Existed because pre-fix scans inserted media_items with sort_title=” —
 // the alphabetical sort and the keyset cursor both rely on this column,
 // so an empty value silently broke pagination on production libraries.
 // Idempotent: once a row has a non-empty sort_title, this is a no-op.

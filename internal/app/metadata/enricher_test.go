@@ -19,19 +19,19 @@ import (
 // --- fakes local to this test file ---
 
 type fakeProvider struct {
-	name             string
-	searchResults    []domain.MetadataResult
-	searchErr        error
-	detailResult     *domain.MetadataResult
-	detailErr        error
-	seasonResult     *domain.MetadataResult
-	seasonErr        error
-	episodeResult    *domain.MetadataResult
-	episodeErr       error
-	lookupResult     *domain.MetadataResult
-	lookupErr        error
-	altTitles        map[string][]string // key: providerID
-	altTitlesErr     error
+	name          string
+	searchResults []domain.MetadataResult
+	searchErr     error
+	detailResult  *domain.MetadataResult
+	detailErr     error
+	seasonResult  *domain.MetadataResult
+	seasonErr     error
+	episodeResult *domain.MetadataResult
+	episodeErr    error
+	lookupResult  *domain.MetadataResult
+	lookupErr     error
+	altTitles     map[string][]string // key: providerID
+	altTitlesErr  error
 }
 
 func (f *fakeProvider) Name() string { return f.name }
@@ -191,7 +191,6 @@ func TestPickBestMatch_SingleResult(t *testing.T) {
 	best := pickBestMatch(results, "anything", nil)
 	assert.Equal(t, "Only One", best.Title)
 }
-
 
 // --- roleType ---
 
@@ -747,7 +746,7 @@ func TestAutoEnrichAll_OrphanWithOverride_NotSkipped(t *testing.T) {
 
 func TestAutoEnrichAll_MatchedItemWithOverride_StillSkipped(t *testing.T) {
 	primary := &fakeProvider{
-		name: "tmdb",
+		name:         "tmdb",
 		detailResult: &domain.MetadataResult{Overview: "REPLACED"},
 	}
 	e, _, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
@@ -1097,10 +1096,10 @@ func TestFetchBestCandidate_AltTitleLazyFetch(t *testing.T) {
 			"396535": {"Train to Busan", "부산행"},
 		},
 		detailResult: &domain.MetadataResult{
-			Title:       "Dernier train pour Busan",
+			Title:         "Dernier train pour Busan",
 			OriginalTitle: "부산행",
-			Overview:    "A zombie film set on a train to Busan.",
-			ProviderIDs: map[string]string{"tmdb": "396535"},
+			Overview:      "A zombie film set on a train to Busan.",
+			ProviderIDs:   map[string]string{"tmdb": "396535"},
 		},
 	}
 	e, _, _, _, _, _ := newTestEnricher(primary, nil, nil)
@@ -1185,4 +1184,90 @@ func (p *cascadeTestProvider) GetByProviderID(_ context.Context, _ string, _ str
 }
 func (p *cascadeTestProvider) AlternativeTitles(_ context.Context, _ string, _ string) ([]string, error) {
 	return nil, nil
+}
+
+// --- EnrichItem atomicity (unit of work + post-commit side effects) ---
+
+// orderingUOW records whether the artwork hook fired while the "transaction"
+// function was still running (i.e. before commit).
+type orderingUOW struct {
+	inFn  bool
+	calls int
+}
+
+func (u *orderingUOW) Do(ctx context.Context, fn func(ctx context.Context) error) error {
+	u.calls++
+	u.inFn = true
+	err := fn(ctx)
+	u.inFn = false
+	return err
+}
+
+// The artwork post-save hook triggers an auto-DOWNLOAD: it must fire after
+// the enrichment transaction commits, never inside it — a mid-tx hook starts
+// a download for rows a later failure rolls back (phantom artwork).
+func TestEnrichItem_ArtworkHookFiresAfterCommit(t *testing.T) {
+	primary := &fakeProvider{name: "tmdb"}
+	artRepo := metafakes.NewFakeArtworkRepository()
+	miRepo := libfakes.NewFakeMediaItemRepository()
+	uow := &orderingUOW{}
+	hookCalls := 0
+	hookDuringTx := false
+	e := NewEnricher(
+		artRepo,
+		libfakes.NewFakePersonRepository(),
+		libfakes.NewFakeMediaPersonRepository(),
+		miRepo,
+		libfakes.NewFakeSearchIndex(),
+		primary, nil, nil,
+		EnricherWithUnitOfWork(uow),
+		EnricherWithArtworkPostSaveHook(func(_ context.Context, rec *domain.ArtworkRecord) {
+			hookCalls++
+			if uow.inFn {
+				hookDuringTx = true
+			}
+		}),
+	)
+	item := &domainlib.MediaItem{ID: "item-1"}
+	miRepo.Create(context.Background(), item)
+	result := &domain.MetadataResult{
+		Title:   "X",
+		Artwork: []domain.ArtworkResult{{Type: "poster", URL: "http://img/p.jpg", Provider: "tmdb"}},
+		People:  []domain.PersonResult{{Name: "Actor A", Role: "Actor"}},
+	}
+
+	require.NoError(t, e.EnrichItem(context.Background(), item, result))
+	assert.Equal(t, 1, uow.calls, "the three writes run under one unit of work")
+	assert.Equal(t, 1, hookCalls, "hook fires once per persisted artwork record")
+	assert.False(t, hookDuringTx, "hook must fire AFTER the transaction, not inside it")
+}
+
+// When a later step fails, the hook must NOT have fired at all: previously
+// replaceArtwork fired it inline, so a subsequent upsertPeople failure left a
+// download running for artwork rows that (with a uow) get rolled back.
+func TestEnrichItem_ArtworkHookNotFiredOnFailure(t *testing.T) {
+	primary := &fakeProvider{name: "tmdb"}
+	miRepo := libfakes.NewFakeMediaItemRepository()
+	hookCalls := 0
+	e := NewEnricher(
+		metafakes.NewFakeArtworkRepository(),
+		libfakes.NewFakePersonRepository(),
+		&createBatchFailMP{FakeMediaPersonRepository: libfakes.NewFakeMediaPersonRepository()},
+		miRepo,
+		libfakes.NewFakeSearchIndex(),
+		primary, nil, nil,
+		EnricherWithUnitOfWork(&orderingUOW{}),
+		EnricherWithArtworkPostSaveHook(func(_ context.Context, _ *domain.ArtworkRecord) { hookCalls++ }),
+	)
+	item := &domainlib.MediaItem{ID: "item-1"}
+	miRepo.Create(context.Background(), item)
+	result := &domain.MetadataResult{
+		Title:   "X",
+		Artwork: []domain.ArtworkResult{{Type: "poster", URL: "http://img/p.jpg", Provider: "tmdb"}},
+		People:  []domain.PersonResult{{Name: "Actor A", Role: "Actor"}},
+	}
+
+	err := e.EnrichItem(context.Background(), item, result)
+	require.Error(t, err)
+	assert.Zero(t, hookCalls, "no auto-download for artwork rows the failed enrichment rolls back")
 }

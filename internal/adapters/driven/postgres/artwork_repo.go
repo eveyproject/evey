@@ -29,7 +29,7 @@ func (r *ArtworkRepository) Create(ctx context.Context, a *metadata.ArtworkRecor
 	span.SetAttributes(attribute.String("artwork.id", a.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
 		a.ID, a.MediaItemID, a.PersonID, a.Type, a.Provider, a.SourceURL, a.LocalPath, a.WebPPath, a.Width, a.Height, a.Language, a.SortOrder, a.Blurhash,
@@ -60,7 +60,7 @@ func (r *ArtworkRepository) CreateBatch(ctx context.Context, records []*metadata
 		args = append(args, a.ID, a.MediaItemID, a.PersonID, a.Type, a.Provider, a.SourceURL, a.LocalPath, a.WebPPath, a.Width, a.Height, a.Language, a.SortOrder, a.Blurhash)
 	}
 	q := `INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash) VALUES ` + strings.Join(vals, ",")
-	_, err := r.db.ExecContext(ctx, q, args...)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, q, args...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -75,7 +75,7 @@ func (r *ArtworkRepository) GetByMediaItem(ctx context.Context, mediaItemID stri
 	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash
 		 FROM artwork WHERE media_item_id = $1 ORDER BY sort_order`, mediaItemID)
 	if err != nil {
@@ -102,7 +102,7 @@ func (r *ArtworkRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []
 	if len(mediaItemIDs) == 0 {
 		return map[string][]*metadata.ArtworkRecord{}, nil
 	}
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash
 		 FROM artwork WHERE media_item_id = ANY($1) ORDER BY media_item_id, sort_order`, pq.Array(mediaItemIDs))
 	if err != nil {
@@ -130,7 +130,7 @@ func (r *ArtworkRepository) GetByPerson(ctx context.Context, personID string) ([
 	span.SetAttributes(attribute.String("person.id", personID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash
 		 FROM artwork WHERE person_id = $1 ORDER BY sort_order`, personID)
 	if err != nil {
@@ -154,7 +154,7 @@ func (r *ArtworkRepository) UpdateSortOrder(ctx context.Context, id string, sort
 	span.SetAttributes(attribute.String("artwork.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `UPDATE artwork SET sort_order = $1 WHERE id = $2`, sortOrder, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE artwork SET sort_order = $1 WHERE id = $2`, sortOrder, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -173,7 +173,7 @@ func (r *ArtworkRepository) ListMissingBlurhash(ctx context.Context) ([]*metadat
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, 2*defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash
 		 FROM artwork WHERE local_path IS NOT NULL AND local_path <> '' AND blurhash IS NULL ORDER BY id`)
 	if err != nil {
@@ -196,7 +196,7 @@ func (r *ArtworkRepository) ListMissingLocalPath(ctx context.Context) ([]*metada
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, 2*defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order, blurhash
 		 FROM artwork WHERE source_url IS NOT NULL AND (local_path IS NULL OR local_path = '') ORDER BY id`)
 	if err != nil {
@@ -220,7 +220,7 @@ func (r *ArtworkRepository) LocalPathStats(ctx context.Context) (metadata.Artwor
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var stats metadata.ArtworkStats
-	row := r.db.QueryRowContext(ctx,
+	row := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT
 			COUNT(*) AS total,
 			COUNT(CASE WHEN local_path IS NOT NULL AND local_path <> '' THEN 1 END) AS with_local,
@@ -242,7 +242,7 @@ func (r *ArtworkRepository) UpdateLocalPath(ctx context.Context, id string, loca
 	span.SetAttributes(attribute.String("artwork.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `UPDATE artwork SET local_path = $1 WHERE id = $2`, localPath, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE artwork SET local_path = $1 WHERE id = $2`, localPath, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -262,7 +262,7 @@ func (r *ArtworkRepository) UpdateWebPPath(ctx context.Context, id string, webpP
 	span.SetAttributes(attribute.String("artwork.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `UPDATE artwork SET webp_path = $1 WHERE id = $2`, webpPath, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE artwork SET webp_path = $1 WHERE id = $2`, webpPath, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -282,7 +282,7 @@ func (r *ArtworkRepository) UpdateBlurhash(ctx context.Context, id string, blurh
 	span.SetAttributes(attribute.String("artwork.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `UPDATE artwork SET blurhash = $1 WHERE id = $2`, blurhash, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE artwork SET blurhash = $1 WHERE id = $2`, blurhash, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -302,7 +302,7 @@ func (r *ArtworkRepository) Delete(ctx context.Context, id string) error {
 	span.SetAttributes(attribute.String("artwork.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM artwork WHERE id = $1`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM artwork WHERE id = $1`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -322,7 +322,7 @@ func (r *ArtworkRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID
 	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM artwork WHERE media_item_id = $1`, mediaItemID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM artwork WHERE media_item_id = $1`, mediaItemID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

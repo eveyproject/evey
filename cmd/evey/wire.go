@@ -431,6 +431,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appmetadata.EnricherWithTranslations(r.MediaItemTranslation, r.PersonTranslation, eveyi18n.SupportedLocales()),
 		appmetadata.EnricherWithPersonFetcher(infra.personFetcher),
 		appmetadata.EnricherWithOverrides(r.MetadataOverride),
+		// Item update + artwork replace + cast upsert commit or roll back
+		// together — a mid-enrichment failure no longer strands the item with a
+		// fresh title but no artwork/cast (unrepairable except by a manual
+		// "Refresh metadata", since the re-scan trigger keys on empty Overview).
+		appmetadata.EnricherWithUnitOfWork(postgres.NewTxUnit(db)),
 	)
 	metadataCmdSvc := appmetadata.NewCommandService(r.MetadataOverride, r.Artwork, infra.artworkDL, bus, metaProviders,
 		appmetadata.WithEnricher(enricher, r.MediaItem),
