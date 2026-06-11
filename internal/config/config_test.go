@@ -455,6 +455,41 @@ func TestWarnValidate_CosignKey_MissingFile(t *testing.T) {
 	assert.Contains(t, err.Error(), "cannot read")
 }
 
+// enforce without a key must refuse to start: the verifier would otherwise
+// degrade to a silent no-op and pass every plugin unverified while the admin
+// believes signatures are mandatory (worse than policy=off).
+func TestWarnValidate_CosignEnforce_EmptyKey_Rejected(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{
+		DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+		Plugins: PluginsConfig{
+			SandboxMode:     "basic",
+			CosignPolicy:    "enforce",
+			CosignPublicKey: "",
+		},
+	}
+	err := cfg.WarnValidate()
+	require.Error(t, err, "enforce + empty key must be a fatal config error (fail closed)")
+	assert.Contains(t, err.Error(), "cfg.Plugins.CosignPublicKey")
+	assert.Contains(t, err.Error(), "enforce")
+}
+
+// warn without a key is tolerated (best-effort): it must NOT block startup.
+func TestWarnValidate_CosignWarn_EmptyKey_Allowed(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{
+		DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
+		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},
+		Plugins: PluginsConfig{
+			SandboxMode:     "basic",
+			CosignPolicy:    "warn",
+			CosignPublicKey: "",
+		},
+	}
+	require.NoError(t, cfg.WarnValidate(), "warn + empty key is best-effort, must not block startup")
+}
+
 func TestWarnValidate_CosignKey_InvalidPEM(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

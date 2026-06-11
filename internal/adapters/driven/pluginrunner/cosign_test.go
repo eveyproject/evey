@@ -39,10 +39,23 @@ func TestCosignVerifier_PolicyOff_IsNoop(t *testing.T) {
 	assert.Nil(t, st, "policy=off must skip verification entirely")
 }
 
-func TestCosignVerifier_EmptyKey_IsNoop(t *testing.T) {
-	st, err := NewCosignVerifier("enforce", "").VerifySignature(context.Background(), "/x.zip", "")
+// warn without a key is best-effort: nothing to verify against, so it degrades
+// to a silent no-op rather than blocking installs.
+func TestCosignVerifier_Warn_EmptyKey_IsNoop(t *testing.T) {
+	st, err := NewCosignVerifier("warn", "").VerifySignature(context.Background(), "/x.zip", "")
 	require.NoError(t, err)
-	assert.Nil(t, st, "an empty key path must skip verification even under enforce")
+	assert.Nil(t, st, "warn + empty key path skips verification (best-effort)")
+}
+
+// enforce without a key must FAIL CLOSED, not silently pass: an admin who asks
+// for mandatory signatures but forgets the key must never have every plugin
+// install quietly accepted (config validation also refuses to start in this
+// state; this is the defense-in-depth backstop at the verifier).
+func TestCosignVerifier_Enforce_EmptyKey_FailsClosed(t *testing.T) {
+	st, err := NewCosignVerifier("enforce", "").VerifySignature(context.Background(), "/x.zip", "")
+	require.Error(t, err, "enforce + empty key must block (fail-closed), never silently pass")
+	require.NotNil(t, st)
+	assert.False(t, st.Verified)
 }
 
 // Fail-closed when the cosign binary is missing under enforce — no binary needed

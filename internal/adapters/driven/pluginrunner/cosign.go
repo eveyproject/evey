@@ -27,11 +27,28 @@ func NewCosignVerifier(policy, keyPath string) *CosignVerifier {
 // sigPath is the detached .sig file (empty → zipPath+".sig" is tried).
 //
 // Behaviour by policy:
-//   - "off" or empty keyPath: returns (nil, nil) — no-op
+//   - "off": returns (nil, nil) — no-op
+//   - empty keyPath under "warn": returns (nil, nil) — best-effort, can't verify
+//   - empty keyPath under "enforce": fails closed (config validation already
+//     refuses to start in this state; this is defense-in-depth so a hand-built
+//     enforce verifier without a key can never silently pass a plugin)
 //   - "warn": returns (status, nil) even on failure — caller logs
 //   - "enforce": returns (status, error) when verification fails — caller blocks
 func (v *CosignVerifier) VerifySignature(ctx context.Context, zipPath, sigPath string) (*domainplugin.SignatureStatus, error) {
-	if v.policy == "off" || v.keyPath == "" {
+	if v.policy == "off" {
+		return nil, nil
+	}
+	if v.keyPath == "" {
+		// enforce without a key = the admin asked for mandatory signatures but
+		// configured nothing to verify against. Never return a silent pass here:
+		// that would defeat enforcement entirely. warn stays a no-op (best-effort).
+		if v.policy == "enforce" {
+			return &domainplugin.SignatureStatus{
+					Verified: false,
+					Error:    "cosign enforce policy is set but no public key is configured",
+				},
+				fmt.Errorf("plugin signature verification failed: enforce policy requires a public key but none is configured")
+		}
 		return nil, nil
 	}
 	if sigPath == "" {
