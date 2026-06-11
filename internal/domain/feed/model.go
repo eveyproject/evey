@@ -141,6 +141,11 @@ func (c *ProfileConfig) Validate() error {
 	if !c.FeedType.IsValid() {
 		return ErrInvalidFeedType
 	}
+	// Mirror AdminConfig.Validate: a negative per-profile override is as
+	// invalid as a negative server-wide preset.
+	if c.MaxItems != nil && *c.MaxItems < 0 {
+		return ErrNegativeMaxItems
+	}
 	return nil
 }
 

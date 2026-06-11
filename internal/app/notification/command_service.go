@@ -582,6 +582,17 @@ func (s *CommandService) sendPush(ctx context.Context, profileID, title, message
 }
 
 func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared.Event) {
+	// Recover locally (mirror of handlePluginError): the event bus RETRIES a
+	// panicking handler, and this one loops persist+push+email over every
+	// profile — a panic mid-loop (e.g. a malformed push subscription) would
+	// re-run the whole loop and duplicate notifications for the profiles
+	// already served.
+	defer func() {
+		if rv := recover(); rv != nil {
+			slog.Error("handleBackupFailed panic recovered", slog.Any("panic", rv))
+		}
+	}()
+
 	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
 	defer cancel()
 	e, ok := ev.(backup.BackupFailed)

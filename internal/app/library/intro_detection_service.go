@@ -1940,7 +1940,19 @@ func (s *IntroDetectionService) concurrentFallback(ctx context.Context, item *do
 
 	ch := make(chan result, 2)
 
+	// Each child carries its own recover: a parent-level recover does NOT
+	// cover goroutines it spawned, and a panicking child that never sends
+	// would stall the receive loop below until the caller's ctx expires. The
+	// recovered child reports an error result instead, so the other detector
+	// still gets its chance.
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("intro: audio fallback panic recovered",
+					slog.Any("err", r), slog.String("stack", string(debug.Stack())))
+				ch <- result{err: fmt.Errorf("audio fallback panic: %v", r)}
+			}
+		}()
 		s, e, found, ferr := s.detector.AudioFallback(cancelCtx, item.File.Path, 600)
 		if ferr != nil || !found {
 			ch <- result{err: ferr}
@@ -1950,6 +1962,13 @@ func (s *IntroDetectionService) concurrentFallback(ctx context.Context, item *do
 	}()
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("intro: subtitle-gap fallback panic recovered",
+					slog.Any("err", r), slog.String("stack", string(debug.Stack())))
+				ch <- result{err: fmt.Errorf("subtitle-gap fallback panic: %v", r)}
+			}
+		}()
 		s, e, found := subtitleGapFallback(item)
 		if !found {
 			ch <- result{}

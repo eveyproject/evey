@@ -126,6 +126,18 @@ func TestProfileConfig_Validate(t *testing.T) {
 			cfg:     feed.ProfileConfig{ProfileID: "p1"},
 			wantErr: feed.ErrInvalidFeedType,
 		},
+		{
+			name: "negative max items override",
+			cfg: feed.ProfileConfig{ProfileID: "p1", FeedType: feed.TypeRecentlyAdded,
+				MaxItems: func() *int { v := -1; return &v }()},
+			wantErr: feed.ErrNegativeMaxItems,
+		},
+		{
+			name: "zero max items override is valid",
+			cfg: feed.ProfileConfig{ProfileID: "p1", FeedType: feed.TypeRecentlyAdded,
+				MaxItems: func() *int { v := 0; return &v }()},
+			wantErr: nil,
+		},
 	}
 
 	for _, tt := range tests {
