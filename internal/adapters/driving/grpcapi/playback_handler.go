@@ -144,6 +144,25 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		}
 	}
 
+	// Honor the tracks the client PRE-SELECTED (absolute probed stream indices,
+	// the same numbering MediaStreams exposes; 0 = "not set" — absolute 0 is
+	// the video stream in practice). The decision then judges the streams that
+	// will actually play: a selected bitmap subtitle forces the burn-in
+	// transcode instead of advertising a direct_play that would silently drop
+	// it, and a selected audio track is judged instead of the container
+	// default (the gRPC mirror of the HLS-side audio fix). Unknown indices are
+	// ignored — the historical default-track behaviour.
+	if idx := int(req.AudioStreamIndex); idx > 0 {
+		if rel, ok := typeRelativeIndex(streams, library.StreamTypeAudio, idx); ok {
+			prefs.AudioTrack = rel
+		}
+	}
+	if idx := int(req.SubtitleStreamIndex); idx > 0 {
+		if rel, ok := typeRelativeIndex(streams, library.StreamTypeSubtitle, idx); ok {
+			prefs.SubtitleBurnInTrack = rel
+		}
+	}
+
 	decision := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, containerFormat, client, maxBitrateKbps, prefs)
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
 		err := status.Errorf(codes.FailedPrecondition, "transcoding disabled by user preferences")
@@ -168,6 +187,24 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	}
 
 	return resp, nil
+}
+
+// typeRelativeIndex converts an ABSOLUTE probed stream index (what the proto
+// carries — MediaStream.StreamIndex as exposed to clients) into the
+// type-relative ordinal the decision prefs consume (ffmpeg's 0:a:N / 0:s:N).
+// Returns ok=false when no stream of that type has this absolute index.
+func typeRelativeIndex(streams []*library.MediaStream, streamType library.StreamType, absIdx int) (int, bool) {
+	rel := 0
+	for _, s := range streams {
+		if s == nil || s.StreamType != streamType {
+			continue
+		}
+		if s.StreamIndex == absIdx {
+			return rel, true
+		}
+		rel++
+	}
+	return 0, false
 }
 
 func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStreamRequest) (*eveyv1.PlaySession, error) {

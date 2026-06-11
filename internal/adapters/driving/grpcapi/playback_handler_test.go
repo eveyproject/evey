@@ -545,6 +545,97 @@ func TestGetStreamInfo_AudioCodecsDirectPlay(t *testing.T) {
 	assert.Equal(t, "copy", resp.VideoDecision)
 }
 
+// B6(b): GetStreamInfo must honor the client's pre-selected tracks (absolute
+// probed indices). A selected PGS subtitle forces the burn-in transcode —
+// advertising direct_play would silently drop the subtitle (bitmap subs can't
+// be sidecar'd as text).
+func TestGetStreamInfo_SelectedBitmapSubtitleForcesBurnIn(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{
+		ID:    "mi-pgs",
+		Title: "PGS Movie",
+		Type:  "movie",
+		File:  &library.MediaFile{ContainerFormat: "mp4"},
+	})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-pgs", StreamIndex: 0, StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-pgs", StreamIndex: 1, StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{MediaItemID: "mi-pgs", StreamIndex: 2, StreamType: "subtitle", Codec: "subrip"},
+		{MediaItemID: "mi-pgs", StreamIndex: 3, StreamType: "subtitle", Codec: "hdmv_pgs_subtitle"},
+	})
+
+	// Without a selection: direct play (the sub doesn't block anything).
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-pgs"})
+	require.NoError(t, err)
+	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY, resp.PlayMethod)
+
+	// PGS selected (absolute index 3 → subtitle-relative 1): burn-in transcode.
+	resp, err = h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+		MediaItemId:         "mi-pgs",
+		SubtitleStreamIndex: 3,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE, resp.PlayMethod)
+	assert.Contains(t, resp.TranscodeReasons, "subtitle_burn_in")
+	assert.Equal(t, "transcode", resp.VideoDecision)
+
+	// Text sub selected (absolute 2): sidecar-deliverable, still direct play.
+	resp, err = h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+		MediaItemId:         "mi-pgs",
+		SubtitleStreamIndex: 2,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY, resp.PlayMethod)
+}
+
+// B6(b) audio side: the decision judges the SELECTED audio track, not the
+// container default — the gRPC mirror of the HLS-side fix (default DTS +
+// selected AAC = copy; default AAC + selected DTS = transcode).
+func TestGetStreamInfo_SelectedAudioTrackJudged(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{
+		ID:    "mi-sel-audio",
+		Title: "Dual Audio Movie",
+		Type:  "movie",
+		File:  &library.MediaFile{ContainerFormat: "mp4"},
+	})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-sel-audio", StreamIndex: 0, StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-sel-audio", StreamIndex: 1, StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true},
+		{MediaItemID: "mi-sel-audio", StreamIndex: 2, StreamType: "audio", Codec: "aac", Channels: intPtr(2)},
+	})
+
+	// Default (DTS) judged without a selection → audio transcode.
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+		MediaItemId:          "mi-sel-audio",
+		SupportedAudioCodecs: []string{"aac", "mp3"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "transcode", resp.AudioDecision)
+
+	// AAC track selected (absolute 2 → audio-relative 1) → audio copy.
+	resp, err = h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+		MediaItemId:          "mi-sel-audio",
+		SupportedAudioCodecs: []string{"aac", "mp3"},
+		AudioStreamIndex:     2,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "copy", resp.AudioDecision)
+
+	// Unknown index → ignored, default-track behaviour.
+	resp, err = h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+		MediaItemId:          "mi-sel-audio",
+		SupportedAudioCodecs: []string{"aac", "mp3"},
+		AudioStreamIndex:     99,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "transcode", resp.AudioDecision)
+}
+
 func TestPlaybackHandler_GetWatchHistory(t *testing.T) {
 	h, _, progressRepo, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
