@@ -21,23 +21,28 @@ func NewSubtitleRepository(db *sql.DB) *SubtitleRepository {
 	return &SubtitleRepository{db: db}
 }
 
+// Save upserts on the NATURAL key (media_item_id, file_path) — every call
+// generates a fresh id, so a double-click on "download subtitle" used to
+// insert two identical rows. On conflict the existing row is refreshed and
+// keeps its original id; sub.ID is updated from RETURNING so the caller
+// always holds the id that is actually in the table.
 func (r *SubtitleRepository) Save(ctx context.Context, sub *subtitle.SubtitleDownload) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.subtitle.Save")
 	defer span.End()
 	span.SetAttributes(attribute.String("subtitle.id", sub.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	err := r.db.QueryRowContext(ctx,
 		`INSERT INTO downloaded_subtitles (id, media_item_id, language, format, file_path, source, downloaded_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7)
-		 ON CONFLICT (id) DO UPDATE SET
+		 ON CONFLICT (media_item_id, file_path) DO UPDATE SET
 		   language = EXCLUDED.language,
 		   format = EXCLUDED.format,
-		   file_path = EXCLUDED.file_path,
 		   source = EXCLUDED.source,
-		   downloaded_at = EXCLUDED.downloaded_at`,
+		   downloaded_at = EXCLUDED.downloaded_at
+		 RETURNING id`,
 		sub.ID, sub.MediaItemID, sub.Language, sub.Format, sub.FilePath, sub.Source, sub.DownloadedAt,
-	)
+	).Scan(&sub.ID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

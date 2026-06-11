@@ -50,7 +50,11 @@ func TestSubtitleRepo_Save_ListByMediaItem(t *testing.T) {
 	assert.Equal(t, "en", got[1].Language)
 }
 
-func TestSubtitleRepo_Save_Upsert(t *testing.T) {
+// Save upserts on the NATURAL key (media_item_id, file_path): the production
+// flow generates a fresh id per call, so a repeat download of the same file
+// (double-click) must refresh the existing row — not insert a duplicate. The
+// caller's struct gets the SURVIVING row's id back via RETURNING.
+func TestSubtitleRepo_Save_UpsertOnMediaAndPath(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 
@@ -64,21 +68,35 @@ func TestSubtitleRepo_Save_Upsert(t *testing.T) {
 	item := newTestMediaItem("submi2", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, item))
 
-	sub := &subtitle.SubtitleDownload{
+	first := &subtitle.SubtitleDownload{
 		ID: "subu1", MediaItemID: item.ID, Language: "en", Format: "srt",
-		FilePath: "/subs/old.srt", Source: "opensubtitles", DownloadedAt: time.Now().UTC().Truncate(time.Millisecond),
+		FilePath: "/subs/movie.srt", Source: "opensubtitles", DownloadedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
-	require.NoError(t, subRepo.Save(ctx, sub))
+	require.NoError(t, subRepo.Save(ctx, first))
 
-	sub.FilePath = "/subs/new.srt"
-	sub.Language = "de"
-	require.NoError(t, subRepo.Save(ctx, sub))
+	// Same media + same on-disk file, FRESH id (the double-click case).
+	repeat := &subtitle.SubtitleDownload{
+		ID: "subu2-fresh", MediaItemID: item.ID, Language: "de", Format: "srt",
+		FilePath: "/subs/movie.srt", Source: "opensubtitles", DownloadedAt: time.Now().UTC().Truncate(time.Millisecond).Add(time.Second),
+	}
+	require.NoError(t, subRepo.Save(ctx, repeat))
+	assert.Equal(t, "subu1", repeat.ID, "RETURNING hands back the surviving row's id")
 
 	got, err := subRepo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
-	require.Len(t, got, 1)
-	assert.Equal(t, "/subs/new.srt", got[0].FilePath)
-	assert.Equal(t, "de", got[0].Language)
+	require.Len(t, got, 1, "repeat download must not duplicate the row")
+	assert.Equal(t, "subu1", got[0].ID)
+	assert.Equal(t, "de", got[0].Language, "metadata refreshed on the upsert")
+
+	// A different file for the same media stays a separate row.
+	other := &subtitle.SubtitleDownload{
+		ID: "subu3", MediaItemID: item.ID, Language: "fr", Format: "srt",
+		FilePath: "/subs/movie.fr.srt", Source: "opensubtitles", DownloadedAt: time.Now().UTC().Truncate(time.Millisecond),
+	}
+	require.NoError(t, subRepo.Save(ctx, other))
+	got, err = subRepo.GetByMediaItem(ctx, string(item.ID))
+	require.NoError(t, err)
+	assert.Len(t, got, 2)
 }
 
 func TestSubtitleRepo_Delete(t *testing.T) {
