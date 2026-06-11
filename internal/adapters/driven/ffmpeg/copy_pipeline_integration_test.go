@@ -34,10 +34,17 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
-type itestStreams struct{ kf []int64 }
+type itestStreams struct {
+	kf    []int64
+	codec string // "" → h264
+}
 
 func (s itestStreams) GetByMediaItemID(context.Context, shared.MediaItemID) ([]*domainlibrary.MediaStream, error) {
-	return []*domainlibrary.MediaStream{{StreamType: domainlibrary.StreamTypeVideo, Codec: "h264", Keyframes: s.kf}}, nil
+	codec := s.codec
+	if codec == "" {
+		codec = "h264"
+	}
+	return []*domainlibrary.MediaStream{{StreamType: domainlibrary.StreamTypeVideo, Codec: codec, Keyframes: s.kf}}, nil
 }
 
 type itestItems struct{ durMs int64 }
@@ -188,6 +195,220 @@ func TestCopyPipelineIntegration(t *testing.T) {
 	if math.Abs(offset) > 0.25 {
 		t.Errorf("deep-seek audio CONTENT is offset by %+.3fs from the plan position (trim/labeling regression)", offset)
 	}
+}
+
+// TestHEVCCopyIntegration: phase H1's HEVC hvc1 copy rung, end-to-end against
+// the real ffmpeg. A synthetic HEVC Main 10 BT.2020/PQ MKV (the 4K HDR10
+// shape, scaled down) is served through the copy producer; the test proves
+// what no unit test can:
+//
+//   - the fMP4 sample entry is 'hvc1' (-tag:v hvc1 through the REAL hlsenc —
+//     ffmpeg's default is hev1, which Safari refuses), on the COLD init and
+//     after a deep SEEK session rewrites the shared init;
+//   - the served video packets are BIT-IDENTICAL to the source (true copy:
+//     10-bit + PQ signalling preserved by construction);
+//   - both tracks' timelines match the keyframe plan, cold and post-seek
+//     (the same contract the h264 test guards, now on the hevc demux path).
+func TestHEVCCopyIntegration(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
+	}
+	for _, bin := range []string{"ffmpeg", "ffprobe"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			t.Skipf("%s not in PATH", bin)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	defer cancel()
+	dir := t.TempDir()
+
+	// HEVC Main 10 source with B-frames and the same irregular 10s/3s keyframe
+	// grid as the h264 test. BT.2020 + PQ colour tags mirror a real HDR10 rip;
+	// closed GOP so the forced keyframes are clean IDR plan boundaries.
+	src := filepath.Join(dir, "itest-hevc.mkv")
+	const srcDurSec = 300
+	var kfTimes []string
+	for base := 0.0; base < srcDurSec; base += 13 {
+		kfTimes = append(kfTimes, fmt.Sprintf("%.3f", base), fmt.Sprintf("%.3f", base+10))
+	}
+	gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
+		"-f", "lavfi", "-i", "anoisesrc=color=pink:seed=42:sample_rate=48000",
+		"-t", fmt.Sprint(srcDurSec),
+		"-c:v", "libx265", "-preset", "ultrafast",
+		// Colour goes into the x265 VUI (colorprim/transfer/colormatrix), like
+		// every real HDR10 rip — bitstream-level signalling is what survives a
+		// -c:v copy into fMP4 (container-level -color_trc alone does NOT: the
+		// mux drops it and the served stream reads "unknown").
+		"-x265-params", "bframes=3:scenecut=0:keyint=9999:no-open-gop=1:log-level=error:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc",
+		"-force_key_frames", strings.Join(kfTimes, ","),
+		"-pix_fmt", "yuv420p10le",
+		"-c:a", "ac3", "-ac", "2",
+		src)
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("source generation: %v\n%s", err, out)
+	}
+
+	prober := NewProber("ffprobe")
+	kf, err := prober.ProbeKeyframes(ctx, src)
+	if err != nil || len(kf) < 10 {
+		t.Fatalf("probe keyframes: %v (%d found)", err, len(kf))
+	}
+	const durMs = srcDurSec * 1000
+	plan := apptranscoding.KeyframeSegments(kf, durMs)
+	if len(plan) < 10 {
+		t.Fatalf("plan too small: %d segments", len(plan))
+	}
+
+	cache, err := apptranscoding.NewSegmentCache(filepath.Join(dir, "cache"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	producer := apptranscoding.NewSoftwareProducer(
+		cache,
+		NewHLSTranscoder(),
+		apptranscoding.SourceResolverFunc(func(context.Context, apptranscoding.DecisionFingerprint) (string, []apptranscoding.SourceStream, error) {
+			return src, nil, nil
+		}),
+		apptranscoding.SoftwareProducerOptions{},
+		nil,
+	)
+	defer producer.Close()
+	producer.SetCopyMode(
+		apptranscoding.NewCopyPlanner(itestStreams{kf: kf, codec: "hevc"}, itestItems{durMs: durMs}),
+		prober,
+	)
+
+	// What the handler builds for an HEVC copy: VideoCodec stays "" (no
+	// transcode decision), SourceVideoCodec carries the codec the builder must
+	// tag the sample entry from.
+	fp := apptranscoding.DecisionFingerprint{
+		MediaID:             "itest-hevc-media",
+		SourcePath:          src,
+		SourceVideoCodec:    "hevc",
+		AudioCodec:          "aac",
+		SubtitleBurnInTrack: -1,
+		UseFMP4:             true,
+		Profiles:            []apptranscoding.ProfileFingerprint{{Name: "180p-copy-hevc", Width: 320, Height: 180, VideoBitrate: 1000, AudioBitrate: 192, Copy: true}},
+	}
+	hash := fp.Hash()
+
+	fetch := func(segIdx int) string {
+		t.Helper()
+		if ensureErr := producer.EnsureSegmentRange(ctx, fp, 0, segIdx); ensureErr != nil {
+			t.Fatalf("EnsureSegmentRange(%d): %v", segIdx, ensureErr)
+		}
+		key := apptranscoding.SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: segIdx}
+		if waitErr := cache.Wait(ctx, key, true, 90*time.Second); waitErr != nil {
+			t.Fatalf("wait segment %d: %v", segIdx, waitErr)
+		}
+		d, dirErr := cache.DirFor(hash)
+		if dirErr != nil {
+			t.Fatal(dirErr)
+		}
+		return filepath.Join(d, fmt.Sprintf("stream_0_%03d.m4s", segIdx))
+	}
+
+	seg0 := fetch(0)
+	deep := (len(plan) * 3) / 4
+	segDeep := fetch(deep)
+	if n := producer.ActiveSessionCount(); n < 2 {
+		t.Fatalf("deep seek did not spawn a seek session (%d active) — the hvc1 tag on the SEEK branch was not exercised", n)
+	}
+
+	// The shared init was last written by the SEEK session (CopyOnSeek branch):
+	// probing through it covers the tag on both builder branches.
+	initPath := filepath.Join(filepath.Dir(segDeep), "stream_0_init.mp4")
+	clip := filepath.Join(dir, "served-hevc.mp4")
+	initB, err := os.ReadFile(initPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	segB, err := os.ReadFile(segDeep)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(clip, append(initB, segB...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	probeOut, probeErr := exec.CommandContext(ctx, "ffprobe", "-v", "error",
+		"-select_streams", "v:0",
+		"-show_entries", "stream=codec_name,codec_tag_string,pix_fmt,color_transfer",
+		"-of", "csv=p=0", clip).Output()
+	if probeErr != nil {
+		t.Fatalf("ffprobe served clip: %v", probeErr)
+	}
+	got := strings.TrimSpace(string(probeOut))
+	for _, want := range []string{"hevc", "hvc1", "yuv420p10le", "smpte2084"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("served stream missing %q (got %q) — codec/tag/10-bit/PQ must survive the copy mux", want, got)
+		}
+	}
+
+	// True copy: every served video packet exists verbatim in the source. A
+	// re-encode (or a mangled NAL repack) produces foreign packet bytes.
+	served := videoPacketHashes(t, ctx, clip)
+	source := videoPacketHashes(t, ctx, src)
+	if len(served) < 24 {
+		t.Fatalf("too few served video packets (%d)", len(served))
+	}
+	sourceSet := make(map[string]bool, len(source))
+	for _, h := range source {
+		sourceSet[h] = true
+	}
+	miss := 0
+	for _, h := range served {
+		if !sourceSet[h] {
+			miss++
+		}
+	}
+	if miss > 0 {
+		t.Fatalf("%d/%d served video packets are NOT source bytes — the HEVC rung re-encoded or repacked", miss, len(served))
+	}
+
+	// Same plan-timeline contract as the h264 test, on the hevc demux path.
+	scales, err := parseInitTimescales(initPath)
+	if err != nil {
+		t.Fatalf("init timescales: %v", err)
+	}
+	checkSegment := func(path string, wantMs int64, tolMs int64) {
+		t.Helper()
+		starts := segmentTrackStartsMs(t, path, scales)
+		if len(starts) < 2 {
+			t.Fatalf("%s: want video+audio trafs in the SAME segment, got %d tracks", filepath.Base(path), len(starts))
+		}
+		for trackID, gotMs := range starts {
+			if diff := gotMs - wantMs; diff > tolMs || diff < -tolMs {
+				t.Errorf("%s track %d starts at %dms, plan says %dms (drift %+dms)", filepath.Base(path), trackID, gotMs, wantMs, diff)
+			}
+		}
+	}
+	checkSegment(seg0, plan[0].StartMs, 150)
+	checkSegment(segDeep, plan[deep].StartMs, 300)
+}
+
+// videoPacketHashes returns the md5 of every video packet's data payload.
+func videoPacketHashes(t *testing.T, ctx context.Context, path string) []string {
+	t.Helper()
+	out, err := exec.CommandContext(ctx, "ffprobe",
+		"-v", "error",
+		"-select_streams", "v:0",
+		"-show_entries", "packet=data_hash",
+		"-show_data_hash", "md5",
+		"-of", "csv=p=0",
+		path,
+	).Output()
+	if err != nil {
+		t.Fatalf("ffprobe video packet hashes %s: %v", path, err)
+	}
+	var hashes []string
+	for line := range strings.SplitSeq(string(out), "\n") {
+		line = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line), ","))
+		if line != "" {
+			hashes = append(hashes, line)
+		}
+	}
+	return hashes
 }
 
 // segmentTrackStartsMs returns trackID → first tfdt (ms) for each traf in the
