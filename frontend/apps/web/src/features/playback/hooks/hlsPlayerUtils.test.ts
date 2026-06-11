@@ -1,13 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
 import type { SubtitleStream } from "../SubtitleSelector";
 
+const mockCaps = vi.hoisted(() => ({
+  videoCodecs: ["h264"],
+  audioCodecs: ["aac", "mp3", "opus"],
+  containers: ["mp4"],
+  hdr: false,
+}));
+
 vi.mock("@/utils/codec", () => ({
   canPlayHevc: false,
-  getBrowserCapabilities: () => ({
-    videoCodecs: ["h264"],
-    audioCodecs: ["aac", "mp3", "opus"],
-    containers: ["mp4"],
-  }),
+  getBrowserCapabilities: () => mockCaps,
 }));
 
 import {
@@ -108,6 +111,19 @@ describe("buildTranscodeHlsUrl", () => {
   it("includes subtitleTrack when burn-in selected", () => {
     const url = buildTranscodeHlsUrl("m1", "tok", 0, 2, 0);
     expect(url).toContain("subtitleTrack=2");
+  });
+
+  it("omits hdr on an SDR display, sends hdr=1 on an HDR one", () => {
+    // SDR (default mock): the server must keep its conservative SDR default.
+    expect(buildTranscodeHlsUrl("m1", "tok", 0, null, 0)).not.toContain("hdr=");
+    // HDR-capable display: the decision needs it to allow the HEVC copy rung
+    // (and HDR direct-play) instead of forcing a tonemap transcode.
+    mockCaps.hdr = true;
+    try {
+      expect(buildTranscodeHlsUrl("m1", "tok", 0, null, 0)).toContain("hdr=1");
+    } finally {
+      mockCaps.hdr = false;
+    }
   });
 
   it("includes startSec when > 0", () => {

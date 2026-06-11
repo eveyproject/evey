@@ -51,6 +51,76 @@ func TestMaster_PerRungCopyCodec(t *testing.T) {
 }
 
 
+func TestHevcCodecString(t *testing.T) {
+	cases := []struct {
+		profile string
+		level   int
+		want    string
+	}{
+		{"Main 10", 153, "hvc1.2.4.L153.B0"}, // Main 10 @ L5.1 (the 4K HDR shape)
+		{"Main 10", 120, "hvc1.2.4.L120.B0"}, // Main 10 @ L4.0
+		{"Main", 123, "hvc1.1.6.L123.B0"},    // Main @ L4.1
+		{"main 10", 150, "hvc1.2.4.L150.B0"}, // case-insensitive
+		{"Rext", 153, ""},                    // unknown profile → no string (gated)
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.want, hevcCodecString(c.profile, c.level),
+			"profile=%q level=%d", c.profile, c.level)
+	}
+}
+
+// Phase H1: an HEVC HDR copy rung must advertise the source hvc1 string AND
+// the VIDEO-RANGE attribute — Apple's authoring spec requires it on HDR
+// variants, and a PQ stream without it renders washed-out on some Safari/tvOS.
+func TestMaster_HevcCopyRung_CodecAndVideoRange(t *testing.T) {
+	g := NewManifestGenerator()
+	in := ManifestInput{
+		MediaID:          "m1",
+		DurationSec:      100,
+		StreamToken:      "tok",
+		ChosenVideoCodec: "hevc",
+		ChosenAudioCodec: "eac3",
+		CopyVideoCodec:   "hvc1.2.4.L153.B0",
+		CopyVideoRange:   "PQ",
+		Profiles: []transcoding.HLSProfile{
+			{Name: "2160p-copy", Width: 3840, Height: 2160, VideoBitrate: 25000, AudioBitrate: 640, Copy: true},
+		},
+	}
+	out, err := g.Master(in)
+	require.NoError(t, err)
+	assert.Contains(t, out, `CODECS="hvc1.2.4.L153.B0,ec-3"`, "copy rung advertises the source hvc1 string")
+	assert.Contains(t, out, `,VIDEO-RANGE=PQ`, "HDR copy rung carries VIDEO-RANGE")
+}
+
+// SDR copy (CopyVideoRange empty) and transcoded rungs must NOT carry
+// VIDEO-RANGE: transcoded HDR is tonemapped to SDR.
+func TestMaster_NoVideoRangeOnSDROrTranscode(t *testing.T) {
+	g := NewManifestGenerator()
+	in := ManifestInput{
+		MediaID:          "m1",
+		DurationSec:      100,
+		ChosenVideoCodec: "h264",
+		ChosenAudioCodec: "aac",
+		CopyVideoCodec:   "avc1.640028",
+		Profiles: []transcoding.HLSProfile{
+			{Name: "1080p-copy", Width: 1920, Height: 1080, VideoBitrate: 8000, AudioBitrate: 192, Copy: true},
+			{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 2800, AudioBitrate: 128},
+		},
+	}
+	out, err := g.Master(in)
+	require.NoError(t, err)
+	assert.NotContains(t, out, "VIDEO-RANGE", "no VIDEO-RANGE on SDR copy or transcoded rungs")
+
+	// Even with a range set, a TRANSCODED rung never carries it (tonemapped SDR).
+	in.CopyVideoRange = "PQ"
+	in.Profiles = []transcoding.HLSProfile{
+		{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 2800, AudioBitrate: 128},
+	}
+	out, err = g.Master(in)
+	require.NoError(t, err)
+	assert.NotContains(t, out, "VIDEO-RANGE", "transcoded rungs are SDR — never VIDEO-RANGE")
+}
+
 // Phase A2: with audio passthrough the segments carry the SOURCE audio codec,
 // so the master must advertise ac-3/ec-3 — a mp4a claim over ac-3 bytes (or
 // the reverse) is refused by Safari's strict CODECS validation.

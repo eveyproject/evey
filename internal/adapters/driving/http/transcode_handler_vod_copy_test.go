@@ -89,6 +89,44 @@ func TestIsCopyRequest_NoKeyframes_FallsBackToTranscode(t *testing.T) {
 		"eligible codec but no keyframe index → transcode, not copy (an empty plan would break)")
 }
 
+// Phase H1: the HEVC copy rung. Eligibility mirrors CopyRungEligible — the
+// handler-level wiring (sourceCopyVideoCodec → CopySource projection) must
+// thread the HDR ground-truth fields, or every HEVC title silently falls back
+// to transcode (or worse, a DoVi P5 slips through).
+func TestIsCopyRequest_HEVC(t *testing.T) {
+	h := newCopyTestHandler(t)
+	dec := domaintranscoding.PlaybackDecision{VideoDecision: "copy"}
+	w, hgt, level := 3840, 2160, 153
+	pq := "smpte2084"
+	hevc := func(mutate func(*domainlibrary.MediaStream)) []*domainlibrary.MediaStream {
+		s := &domainlibrary.MediaStream{
+			StreamType:    domainlibrary.StreamTypeVideo,
+			Codec:         "hevc",
+			Profile:       "Main 10",
+			Width:         &w,
+			Height:        &hgt,
+			Level:         &level,
+			ColorTransfer: &pq,
+			Keyframes:     []int64{0, 6000, 12000},
+		}
+		if mutate != nil {
+			mutate(s)
+		}
+		return []*domainlibrary.MediaStream{s}
+	}
+
+	assert.True(t, h.isCopyRequest(dec, hevc(nil), 1<<20),
+		"HEVC Main 10 with probed ground truth routes to copy")
+	assert.False(t, h.isCopyRequest(dec, hevc(func(s *domainlibrary.MediaStream) { s.ColorTransfer = nil }), 1<<20),
+		"unprobed color_transfer gates the HEVC copy off")
+	assert.False(t, h.isCopyRequest(dec, hevc(func(s *domainlibrary.MediaStream) { s.DoViProfile = new(5) }), 1<<20),
+		"DoVi profile 5 never routes to copy")
+	assert.True(t, h.isCopyRequest(dec, hevc(func(s *domainlibrary.MediaStream) { s.DoViProfile = new(8); s.DoViBLCompat = new(1) }), 1<<20),
+		"DoVi 8.1 (HDR10-compatible base) routes to copy")
+	assert.False(t, h.isCopyRequest(dec, hevc(func(s *domainlibrary.MediaStream) { s.Keyframes = nil }), 1<<20),
+		"no keyframe index → transcode (empty plan would break)")
+}
+
 func TestIsCopyRequest_ProducerOffNeverCopies(t *testing.T) {
 	// copyProducer nil (EVEY_REMUX_COPY off) → never a copy request, even with an
 	// eligible source and ample disk.

@@ -162,6 +162,13 @@ type HLSProcessOpts struct {
 	ReadRate float64
 	Streams  []*library.MediaStream
 
+	// SourceVideoCodec is the codec of the SOURCE video stream ("h264",
+	// "hevc"…). The COPY builder reads it to tag the fMP4 sample entry
+	// (`-tag:v hvc1` for HEVC — Safari refuses ffmpeg's hev1 default);
+	// transcode builders ignore it (they know their encoder). Empty → no tag
+	// override (h264 copy needs none).
+	SourceVideoCodec string
+
 	// Overrides propagated from the playback decision. Empty / zero values
 	// preserve the previous default behavior (libx264 + aac + 2-channel + burn-in
 	// for bitmap subs).

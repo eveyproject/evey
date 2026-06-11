@@ -96,6 +96,14 @@ type DecisionFingerprint struct {
 	// the dimension is covered by an explicit test: Hash_DistinguishesAudioCopy.
 	AudioCopy bool
 
+	// SourceVideoCodec is the codec of the SOURCE video stream ("h264",
+	// "hevc"…), set by the handler from the probed streams. The copy builder
+	// needs it to tag the fMP4 sample entry (`-tag:v hvc1` — Safari refuses
+	// ffmpeg's hev1 default). Deliberately EXCLUDED from Hash(): it is fully
+	// determined by (MediaID, SourcePath) which are already hashed, so it can
+	// never alias two different byte streams.
+	SourceVideoCodec string
+
 	// HWAccel / HWDevice select the hardware encode backend ("nvenc"/"vaapi"/
 	// "qsv" + DRM render node) when the handler resolves one. Deliberately
 	// EXCLUDED from Hash(): a hardware-encoded segment is byte-compatible with

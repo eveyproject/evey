@@ -628,6 +628,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		// muxer's interleave force-flush (the prod A/V desync). See copyReadRate.
 		ReadRate:         p.copyReadRate(),
 		VideoCodec:       fp.VideoCodec,
+		SourceVideoCodec: fp.SourceVideoCodec,
 		AudioCodec:       fp.AudioCodec,
 		MaxAudioChannels: fp.MaxAudioChannels,
 		ForceSidecarSubs: fp.ForceSidecarSubs,

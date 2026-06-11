@@ -107,6 +107,39 @@ func TestBuildFFmpegArgs_ModeA_AllCopy(t *testing.T) {
 	assert.Contains(t, joined, "-c:a copy")
 }
 
+// An HEVC video-copy must tag the fMP4 sample entry hvc1: ffmpeg's default is
+// hev1, which Safari/AVPlayer refuse even when the master CODECS says hvc1.
+// H.264 copy keeps no tag override (avc1 is the mux default). The tag rides
+// BOTH copy branches — cold start and copy-on-seek — since each writes the
+// shared init segment.
+func TestBuildFFmpegArgs_HevcCopyTagsHvc1(t *testing.T) {
+	base := transcoding.HLSProcessOpts{
+		OutputDir:        "/tmp/test",
+		FilePath:         "/f.mkv",
+		Profiles:         transcoding.DefaultHLSProfiles[:1],
+		VideoDecision:    "copy",
+		AudioDecision:    "copy",
+		SourceVideoCodec: "hevc",
+		UseFMP4:          true,
+	}
+
+	cold := strings.Join(ffmpeg.BuildFFmpegArgs(base), " ")
+	assert.Contains(t, cold, "-c:v copy")
+	assert.Contains(t, cold, "-tag:v hvc1", "cold copy session must tag hvc1")
+
+	seek := base
+	seek.StartSec = 120
+	seek.CopyOnSeek = true
+	seekJoined := strings.Join(ffmpeg.BuildFFmpegArgs(seek), " ")
+	assert.Contains(t, seekJoined, "-c:v copy")
+	assert.Contains(t, seekJoined, "-tag:v hvc1", "copy-on-seek session must tag hvc1 (it rewrites the shared init)")
+
+	h264 := base
+	h264.SourceVideoCodec = "h264"
+	h264Joined := strings.Join(ffmpeg.BuildFFmpegArgs(h264), " ")
+	assert.NotContains(t, h264Joined, "-tag:v", "h264 copy keeps the avc1 mux default")
+}
+
 // All builders MUST emit the event-mode HLS playlist flags. -hls_list_size 0
 // + -hls_playlist_type event keep the full growing playlist so hls.js never
 // snaps to the live edge (eliminates the drift-jump on long playback).

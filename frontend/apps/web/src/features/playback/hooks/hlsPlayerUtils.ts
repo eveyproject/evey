@@ -15,6 +15,11 @@ export function appendCodecParams(params: URLSearchParams): void {
   if (caps.videoCodecs.length > 0) params.set("videoCodecs", caps.videoCodecs.join(","));
   if (caps.audioCodecs.length > 0) params.set("audioCodecs", caps.audioCodecs.join(","));
   if (caps.containers.length > 0) params.set("containers", caps.containers.join(","));
+  // HDR display capability: without it the server decision is HDR-blind and
+  // forces a tonemap transcode on every HDR title — even for clients that
+  // decode HEVC+HDR10 natively (the copy rung). Only sent when true: the
+  // server default is SDR (conservative, mirrors the gRPC supportsHdr param).
+  if (caps.hdr) params.set("hdr", "1");
 }
 
 export function buildTranscodeHlsUrl(

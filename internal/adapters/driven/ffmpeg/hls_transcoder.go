@@ -909,6 +909,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 			args = append(args, "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex))
 		}
 		args = append(args, "-c:v", "copy", "-avoid_negative_ts", "make_zero")
+		args = append(args, copyVideoTagArgs(opts)...)
 	case opts.StartSec > 0:
 		// Jellyfin's exact recipe for HLS video transcode (verified
 		// against EncodingHelper.cs in master, 2025): pre-input -ss
@@ -951,6 +952,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 			args = append(args, "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex))
 		}
 		args = append(args, "-c:v", "copy")
+		args = append(args, copyVideoTagArgs(opts)...)
 	}
 	if hasAudio(opts) {
 		if opts.AudioDecision == "transcode" {
@@ -968,6 +970,19 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 
 	return appendHLSOutputArgs(args, opts.OutputDir, needsFMP4Segments(opts.Streams), hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
+}
+
+// copyVideoTagArgs returns the sample-entry tag override for a video-copy of
+// this source. HEVC must be muxed as 'hvc1' (parameter sets in the sample
+// entry): ffmpeg's fMP4 default is 'hev1', which Safari/AVPlayer refuse even
+// when the master's CODECS attribute says hvc1 — the attribute and the actual
+// sample entry must agree. H.264 needs no override (avc1 is the default), and
+// the seek-re-encode branch (libx264) never calls this.
+func copyVideoTagArgs(opts transcoding.HLSProcessOpts) []string {
+	if strings.EqualFold(strings.TrimSpace(opts.SourceVideoCodec), "hevc") {
+		return []string{"-tag:v", "hvc1"}
+	}
+	return nil
 }
 
 // startNumberFor maps StartSec onto the segment counter so produced filenames

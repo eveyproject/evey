@@ -6,14 +6,84 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCopyRungEligible(t *testing.T) {
+func TestCopyRungEligible_H264(t *testing.T) {
 	l40 := 40
-	assert.True(t, CopyRungEligible("h264", &l40, false), "H.264 8-bit with a known level is copyable")
-	assert.True(t, CopyRungEligible("H264", &l40, false), "codec match is case-insensitive")
+	assert.True(t, CopyRungEligible(CopySource{Codec: "h264", Level: &l40}), "H.264 8-bit with a known level is copyable")
+	assert.True(t, CopyRungEligible(CopySource{Codec: "H264", Level: &l40}), "codec match is case-insensitive")
 
 	// The guard: no level ⟹ no copy (can't advertise an accurate avc1.PPCCLL).
-	assert.False(t, CopyRungEligible("h264", nil, false), "unknown level must gate copy off")
+	assert.False(t, CopyRungEligible(CopySource{Codec: "h264"}), "unknown level must gate copy off")
 	// Scope guards.
-	assert.False(t, CopyRungEligible("hevc", &l40, false), "non-H.264 is out of copy scope")
-	assert.False(t, CopyRungEligible("h264", &l40, true), "10-bit is out of copy scope")
+	assert.False(t, CopyRungEligible(CopySource{Codec: "h264", Level: &l40, TenBit: true}), "10-bit H.264 is out of copy scope")
+	assert.False(t, CopyRungEligible(CopySource{Codec: "mpeg2video", Level: &l40}), "legacy codecs are out of copy scope")
+}
+
+func TestCopyRungEligible_HEVC(t *testing.T) {
+	l153 := 153
+	pq := "smpte2084"
+	bt709 := "bt709"
+
+	// The happy paths: probed HDR ground truth + Main/Main 10 profile.
+	assert.True(t, CopyRungEligible(CopySource{Codec: "hevc", Profile: "Main 10", Level: &l153, TenBit: true, ColorTransfer: &pq}),
+		"HEVC Main 10 HDR with probed ground truth is copyable — the whole point of the rung")
+	assert.True(t, CopyRungEligible(CopySource{Codec: "hevc", Profile: "Main", Level: &l153, ColorTransfer: &bt709}),
+		"HEVC Main 8-bit SDR with probed transfer is copyable")
+
+	// Gates.
+	assert.False(t, CopyRungEligible(CopySource{Codec: "hevc", Profile: "Main 10", ColorTransfer: &pq}),
+		"unknown level must gate copy off")
+	assert.False(t, CopyRungEligible(CopySource{Codec: "hevc", Profile: "Main 10", Level: &l153}),
+		"unprobed color_transfer (DoVi status unknown) must gate copy off")
+	assert.False(t, CopyRungEligible(CopySource{Codec: "hevc", Profile: "Main Still Picture", Level: &l153, ColorTransfer: &pq}),
+		"profiles without a wired CODECS string must gate copy off")
+}
+
+func TestCopyRungEligible_DolbyVision(t *testing.T) {
+	l153 := 153
+	pq := "smpte2084"
+	base := CopySource{Codec: "hevc", Profile: "Main 10", Level: &l153, TenBit: true, ColorTransfer: &pq}
+
+	p5 := base
+	p5.DoViProfile = new(5)
+	assert.False(t, CopyRungEligible(p5), "DoVi profile 5 (IPTC2) must never be raw-served")
+
+	p7 := base
+	p7.DoViProfile = new(7)
+	p7.DoViBLCompat = new(1)
+	assert.False(t, CopyRungEligible(p7), "DoVi profile 7 (dual layer) stays transcoded")
+
+	p8 := base
+	p8.DoViProfile = new(8)
+	assert.False(t, CopyRungEligible(p8), "DoVi profile 8 without a known bl compat stays transcoded")
+
+	for _, compat := range []int{1, 2, 4} {
+		ok := base
+		ok.DoViProfile = new(8)
+		ok.DoViBLCompat = new(compat)
+		assert.True(t, CopyRungEligible(ok), "DoVi 8 with compatible base layer %d is copyable as its base", compat)
+	}
+
+	weird := base
+	weird.DoViProfile = new(8)
+	weird.DoViBLCompat = new(0)
+	assert.False(t, CopyRungEligible(weird), "DoVi 8 with bl compat 0 (none) stays transcoded")
+}
+
+func TestCopyVideoCodecString(t *testing.T) {
+	l40 := 40
+	l153 := 153
+	pq := "smpte2084"
+
+	assert.Equal(t, "avc1.640028",
+		CopyVideoCodecString(CopySource{Codec: "h264", Profile: "High", Level: &l40}),
+		"H.264 High L4.0")
+	assert.Equal(t, "hvc1.2.4.L153.B0",
+		CopyVideoCodecString(CopySource{Codec: "hevc", Profile: "Main 10", Level: &l153, TenBit: true, ColorTransfer: &pq}),
+		"HEVC Main 10 L5.1")
+	assert.Equal(t, "hvc1.1.6.L120.B0",
+		CopyVideoCodecString(CopySource{Codec: "hevc", Profile: "Main", Level: new(120), ColorTransfer: &pq}),
+		"HEVC Main L4.0")
+	assert.Equal(t, "",
+		CopyVideoCodecString(CopySource{Codec: "hevc", Profile: "Main 10", Level: &l153}),
+		"ineligible source yields no codec string")
 }

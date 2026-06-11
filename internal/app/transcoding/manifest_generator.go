@@ -57,11 +57,21 @@ type ManifestInput struct {
 	// segments are ~30% smaller and CMAF-style aligns with hls.js modern path.
 	UseFMP4 bool
 
-	// CopyVideoCodec is the SOURCE avc1.PPCCLL advertised for the video-COPY rung
-	// (the rung whose HLSProfile.Copy is true), built from the source profile +
-	// level via avcCodecString. Empty when there is no copy rung; the master then
+	// CopyVideoCodec is the SOURCE RFC-6381 codec string (avc1.PPCCLL /
+	// hvc1.P.C.Lxxx.B0) advertised for the video-COPY rung (the rung whose
+	// HLSProfile.Copy is true), built from the source profile + level via
+	// CopyVideoCodecString. Empty when there is no copy rung; the master then
 	// falls back to the codec-family default for every rung.
 	CopyVideoCodec string
+
+	// CopyVideoRange is the HLS VIDEO-RANGE attribute value ("PQ" or "HLG")
+	// for the copy rung when the SOURCE is HDR and served raw, "" otherwise.
+	// Only the copy rung carries it: transcoded rungs are tonemapped to SDR.
+	// Apple's HLS authoring spec requires VIDEO-RANGE on HDR variants —
+	// without it some Safari/tvOS versions render PQ as washed-out SDR or
+	// refuse the rendition; hls.js ignores unknown attributes, so emitting it
+	// is free for web.
+	CopyVideoRange string
 
 	// ChosenVideoCodec / ChosenAudioCodec are the codecs the ffmpeg decision
 	// picked for this session (e.g. "h264", "hevc", "av1" / "aac", "ac3",
@@ -236,12 +246,16 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		// Safari/hls.js don't reject a rendition whose real level exceeds the
 		// conservative default; transcoded rungs keep the encoder codec.
 		rungCodecs := codecs
+		videoRangeAttr := ""
 		if p.Copy && in.CopyVideoCodec != "" {
 			rungCodecs = in.CopyVideoCodec + "," + audioCodecAttr(strings.ToLower(effectiveAudioCodec))
+			if in.CopyVideoRange != "" {
+				videoRangeAttr = ",VIDEO-RANGE=" + in.CopyVideoRange
+			}
 		}
 		fmt.Fprintf(&b,
-			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%s,CODECS=%q%s\n",
-			bps, avg, res, rungCodecs, audioAttr,
+			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%s,CODECS=%q%s%s\n",
+			bps, avg, res, rungCodecs, videoRangeAttr, audioAttr,
 		)
 		fmt.Fprintf(&b, "stream_%d.m3u8%s\n", i, suffix)
 	}
@@ -469,6 +483,40 @@ func avcProfileIDC(profile string) int {
 	default:
 		return 0x64 // High — the safe default for the 8-bit SDR copy scope
 	}
+}
+
+// hevcCodecString builds the EXACT RFC-6381 HEVC codec string for the
+// video-COPY rung from the ffprobe profile name + level_idc, e.g.
+// Main 10 + 153 → "hvc1.2.4.L153.B0" (Main 10, Main tier, level 5.1).
+// Layout: hvc1.<profile_idc>.<compatibility flags>.L<level_idc>.<constraints>.
+// The compatibility flags are the profile_idc bit reversed-and-hexed: profile
+// 1 (Main) ⇒ 6 (Main 10 decoders also decode Main), profile 2 (Main 10) ⇒ 4.
+// Main tier ("L") is assumed — High-tier consumer files are effectively
+// nonexistent, and ffprobe doesn't surface the tier. "hvc1" (not "hev1") is
+// the sample-entry Safari requires; the mux side tags the track accordingly
+// (-tag:v hvc1).
+func hevcCodecString(profile string, level int) string {
+	idx := hevcProfileIdx(profile)
+	if idx == 0 {
+		return "" // unknown profile — the eligibility guard already rejected it
+	}
+	compat := 6 // Main
+	if idx == 2 {
+		compat = 4 // Main 10
+	}
+	return fmt.Sprintf("hvc1.%d.%d.L%d.B0", idx, compat, level)
+}
+
+// hevcProfileIdx maps an ffprobe HEVC profile name to its profile_idc, or 0
+// when unknown (only Main / Main 10 are wired — the consumer-content pair).
+func hevcProfileIdx(profile string) int {
+	switch strings.ToLower(strings.TrimSpace(profile)) {
+	case "main":
+		return 1
+	case "main 10":
+		return 2
+	}
+	return 0
 }
 
 func audioCodecAttr(c string) string {

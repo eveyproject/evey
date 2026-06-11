@@ -24,6 +24,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/cmcd"
+	"github.com/evey-project/evey/internal/pkg/hdr"
 	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -630,14 +631,40 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		ResumeOffsetSec: resumeSec,
 		AudioRenditions: audioRenditions,
 		CopyVideoCodec:  sourceCopyVideoCodec(streams),
+		CopyVideoRange:  sourceCopyVideoRange(streams),
 	}, nil
 }
 
-// sourceCopyVideoCodec returns the avc1.PPCCLL to advertise for a copy rung of
-// the source video stream, or "" when the source is not copy-eligible (the
-// "no copy without level" guard lives in CopyVideoCodecString). The manifest
-// only uses it for a rung whose HLSProfile.Copy is true, so it is a harmless
-// no-op until the copy rung is wired (step 4).
+// sourceCopyVideoRange maps the source's HDR type to the HLS VIDEO-RANGE
+// attribute the copy rung must advertise ("PQ"/"HLG"), or "" for SDR. Uses
+// the same hdr.DetectHDR as the decision, so the attribute can't contradict
+// the copy-vs-tonemap routing. Dolby Vision never reaches here as raw PQ
+// unless its base layer is compatible (DetectHDR reports the base type).
+func sourceCopyVideoRange(streams []*domainlibrary.MediaStream) string {
+	for _, s := range streams {
+		if s == nil || s.StreamType != "video" {
+			continue
+		}
+		info := hdr.DetectHDR([]hdr.VideoStream{s})
+		if !info.IsHDR {
+			return ""
+		}
+		switch info.Type {
+		case "hlg":
+			return "HLG"
+		case "hdr10", "hdr10+":
+			return "PQ"
+		}
+		return "" // dolby_vision etc. — never served as copy, no attribute
+	}
+	return ""
+}
+
+// sourceCopyVideoCodec returns the RFC-6381 codec string (avc1.PPCCLL /
+// hvc1.P.C.Lxxx.B0) to advertise for a copy rung of the source video stream,
+// or "" when the source is not copy-eligible (the eligibility gates — level,
+// HDR ground truth, DoVi policy — live in CopyVideoCodecString). The manifest
+// only uses it for a rung whose HLSProfile.Copy is true.
 func sourceCopyVideoCodec(streams []*domainlibrary.MediaStream) string {
 	for _, s := range streams {
 		if s == nil || s.StreamType != "video" {
@@ -651,7 +678,15 @@ func sourceCopyVideoCodec(streams []*domainlibrary.MediaStream) string {
 		if len(s.Keyframes) == 0 {
 			return ""
 		}
-		return apptranscoding.CopyVideoCodecString(s.Codec, s.Profile, s.Level, streamIsTenBit(s))
+		return apptranscoding.CopyVideoCodecString(apptranscoding.CopySource{
+			Codec:         s.Codec,
+			Profile:       s.Profile,
+			Level:         s.Level,
+			TenBit:        streamIsTenBit(s),
+			ColorTransfer: s.ColorTransfer,
+			DoViProfile:   s.DoViProfile,
+			DoViBLCompat:  s.DoViBLCompat,
+		})
 	}
 	return ""
 }
@@ -736,6 +771,9 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		MediaID:    mediaID,
 		SourcePath: item.File.Path,
 		VideoCodec: decision.VideoCodec,
+		// The SOURCE codec (excluded from Hash — derivable from MediaID): the
+		// copy builder tags the fMP4 sample entry from it (-tag:v hvc1).
+		SourceVideoCodec: sourceVideoCodec(streams),
 		// The codec the segments actually carry (source codec on passthrough).
 		// The builder only reads it on the transcode branch; here it keeps the
 		// hash truthful per served bytes.
